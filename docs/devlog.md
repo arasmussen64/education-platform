@@ -2,6 +2,24 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Live on Cloudflare; NordPass fix
+
+**Done**
+
+- The owner connected the repo in Cloudflare and switched on the workers.dev address. The app is live at https://education-platform.arasmussen64.workers.dev, and deep links like `/topic/py.variables` work.
+  - `web/wrangler.jsonc` now sets `workers_dev` and `preview_urls`, so a deploy can't switch them off.
+  - The setup guide now matches Cloudflare's real screen: "Path" under Advanced settings, and no production-branch field.
+- Merging to `main` triggered a production build, which succeeded, so automatic deploys work.
+- The program-input field is now an editable `<span role="textbox">`. NordPass still popped up on the earlier `<input>`: it has no opt-out attribute for pages, and it read the prompt "What's your name?" as a contact form. Password managers only look at real form fields. A test now checks it stays a span.
+
+**Open**
+
+- Cloudflare's preview builds for pull requests fail within a second, so they never actually start. Production builds work. This needs a look at the build page in the dashboard; it doesn't block anything.
+
+**Lesson**
+
+- `cmd | tail` hides `cmd`'s exit code, which made a lint failure look like success locally. CI caught nothing wrong because I fixed it before pushing. Check exit codes directly.
+
 ## 2026-11-05: Local Supabase and the first tables
 
 **Owner's setup:** Docker Desktop is installed (engine 29.8, 8 CPUs and 16 GB for Docker), a Supabase project exists, and a Cloudflare account exists.
