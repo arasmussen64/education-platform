@@ -1,0 +1,75 @@
+"""Tools that exercise tests use to run the learner's code.
+
+This file runs in two places and must behave the same in both:
+
+- in the browser, inside Pyodide, when a learner presses Run or Check;
+- on GitHub, under CPython, when exercises are validated.
+
+The learner's code is always in a file named solution.py in the current
+working directory. Tests either import functions from it
+(``from solution import rotate``) or run it as a whole program with run().
+"""
+
+from __future__ import annotations
+
+import builtins
+import io
+import sys
+from contextlib import redirect_stdout
+from pathlib import Path
+
+SOLUTION_FILE = "solution.py"
+
+NOT_ENOUGH_INPUT = "The program asked for more input than it was given."
+
+
+def run(stdin: str = "") -> str:
+    """Run the learner's program as a script and return everything it printed.
+
+    ``stdin`` is what the program receives from input(), one line per call.
+    Prompts passed to input() are left out of the result, so a test doesn't
+    break because a prompt is worded differently.
+
+    If the program asks for more input than ``stdin`` holds, it gets an
+    EOFError, just as a real program reading from an empty input would.
+    """
+    output = io.StringIO()
+    execute(stdin, output, echo_input=False)
+    return output.getvalue()
+
+
+def execute(stdin: str, output: io.StringIO, *, echo_input: bool) -> None:
+    """Run solution.py with ``stdin`` as its input, printing into ``output``.
+
+    With ``echo_input``, prompts and the input typed after them are written to
+    ``output`` too, so it reads like a terminal session (the Run button).
+    Exceptions raised by the learner's code are passed on to the caller.
+    sys.exit() simply ends the program early.
+    """
+    source = Path(SOLUTION_FILE).read_text(encoding="utf-8")
+    code = compile(source, SOLUTION_FILE, "exec")
+    stdin_stream = io.StringIO(stdin)
+
+    def fake_input(prompt: object = "") -> str:
+        if echo_input:
+            output.write(str(prompt))
+        line = stdin_stream.readline()
+        if not line:
+            raise EOFError(NOT_ENOUGH_INPUT)
+        text = line.removesuffix("\n")
+        if echo_input:
+            output.write(text + "\n")
+        return text
+
+    namespace = {"__name__": "__main__", "__file__": SOLUTION_FILE}
+    saved_input, saved_stdin = builtins.input, sys.stdin
+    builtins.input = fake_input
+    sys.stdin = stdin_stream
+    try:
+        with redirect_stdout(output):
+            exec(code, namespace)
+    except SystemExit:
+        pass
+    finally:
+        builtins.input = saved_input
+        sys.stdin = saved_stdin

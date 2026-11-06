@@ -10,7 +10,7 @@ What's needed on the owner's computer and in the cloud. Tick things off as they'
 | Node 24 and npm 11 | The web app | ✅ Installed |
 | Python 3.12 | Content tools and, later, ML | ✅ Installed |
 | Docker Desktop | Runs a private copy of Supabase for development ([ADR-0010](decisions/0010-environments.md)) | ☐ To do |
-| uv | Python package manager for `tools/` | Added when `tools/` starts |
+| uv | Python package manager; also installs Python 3.14 | ✅ Installed (`python -m pip install --user uv`; run it as `python -m uv`) |
 
 ### Install Docker Desktop
 
