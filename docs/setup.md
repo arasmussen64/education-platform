@@ -26,7 +26,7 @@ Docker Desktop uses a few GB of memory while it's running, so quit it when you'r
 | Service | Why | Status |
 |---|---|---|
 | GitHub | Code, pull requests, CI | ✅ Done |
-| Supabase | The real database and sign-in (one project) | ✅ Project created; ☐ link it (`npx supabase login`) |
+| Supabase | The real database and sign-in (one project, `education-platform`) | ✅ Linked; migrations applied |
 | Cloudflare | Hosts the app | ✅ Connected; deploys on every merge to `main` |
 | Anthropic Console | The Claude API for the tutor and grading (week 2) | ☐ Later |
 
@@ -43,7 +43,7 @@ This project is for real learning only. Development uses the local copy in Docke
 1. Run `npx supabase login`. It opens your browser to approve the CLI.
 2. Run `npx supabase link --project-ref <ref>`. The ref is the code in your project's dashboard address: `supabase.com/dashboard/project/<ref>`. It asks for the database password.
 
-After that, merged migrations are applied to the real database with `npx supabase db push`.
+After that, merged migrations are applied to the real database with `npx supabase db push --remote` (preview first with `--dry-run`). Without `--remote`, the CLI targets the local database.
 
 ### Cloudflare
 

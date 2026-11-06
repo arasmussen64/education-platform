@@ -24,6 +24,8 @@ Run these from the repository root. Docker Desktop must be running.
 | `npm run db:lint` | Checks the SQL in migrations for mistakes. |
 | `npm run db:stop` | Stops the local Supabase. Your local data is kept for next time. |
 | `npx supabase migration new <name>` | Creates a new, empty migration file. |
+| `npx supabase db push --remote --dry-run` | Shows which merged migrations the real project is missing. Without `--dry-run` (and with `--yes`), it applies them. Without `--remote`, it targets the local database. |
+| `npx supabase migration list --remote` | Compares migration history on your PC with the real project. |
 
 Local Studio, a web UI for browsing the database, runs at http://127.0.0.1:54323 while the local Supabase is up.
 
