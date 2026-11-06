@@ -15,10 +15,13 @@ A dated log of each working session: what changed, what was decided, what's next
   - **`events`:** append-only. Learners can insert and read only their own rows. `received_at` is always set by the server. A trigger blocks update, delete and truncate even for admins, except for a deliberate whole-account deletion.
 - Wrote 18 pgTAP tests for those rules, and a **Database** CI job (throwaway database, `db lint`, `db test`).
 
+- First local start: Postgres 17 came up, the migration applied, lint was clean, and 18/18 tests passed. They also passed in CI (PR #7).
+- Added the Cloudflare config (`web/wrangler.jsonc`) for static assets with single-page-app fallback. Wrangler 4.158 is pinned and its telemetry is off. A dry-run deploy succeeded.
+
 **Next**
 
-- One-time logins by the owner: `npx supabase login` (to link the cloud project) and connecting the repo in Cloudflare.
-- Deploy to Cloudflare.
+- One-time steps by the owner ([setup](setup.md)): connect the repo in Cloudflare, which gives the first deploy, then `npx supabase login` and `link`.
+- Push the first migration to the cloud project once it's linked.
 - Sign-in (needs a GitHub OAuth app) and sending events from the app.
 
 ## 2026-11-05: Playground fixes after the owner's first try

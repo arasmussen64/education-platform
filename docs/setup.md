@@ -38,12 +38,35 @@ Docker Desktop uses a few GB of memory while it's running, so quit it when you'r
 
 This project is for real learning only. Development uses the local copy in Docker.
 
+**Link it to the repo (one time).** In a terminal in the repository folder:
+
+1. Run `npx supabase login`. It opens your browser to approve the CLI.
+2. Run `npx supabase link --project-ref <ref>`. The ref is the code in your project's dashboard address: `supabase.com/dashboard/project/<ref>`. It asks for the database password.
+
+After that, merged migrations are applied to the real database with `npx supabase db push`.
+
 ### Cloudflare
 
 1. Sign up at dash.cloudflare.com/sign-up and verify your email.
 2. Skip any prompt to add a domain. We'll use Cloudflare's free address.
 
-Later, Cloudflare gets connected to the GitHub repo so every merge to `main` deploys automatically.
+**Connect the repo (one time),** so every merge to `main` deploys automatically. Cloudflare's wording may differ slightly from this:
+
+1. In the Cloudflare dashboard, open **Workers & Pages** and choose **Create**, then **Import a repository** (or "Connect to Git").
+2. Connect GitHub. When GitHub asks which repositories Cloudflare may access, choose **only** `education-platform`.
+3. Use these settings:
+
+   | Setting | Value |
+   |---|---|
+   | Project name | `education-platform` (must match `web/wrangler.jsonc`) |
+   | Production branch | `main` |
+   | Root directory (path) | `web` |
+   | Build command | `npm run build` |
+   | Deploy command | `npx wrangler deploy` |
+
+4. Save and deploy. When the first build finishes, the app is live at `https://education-platform.<your-account>.workers.dev`.
+
+Pull requests also get their own preview builds.
 
 ### Anthropic Console (week 2)
 

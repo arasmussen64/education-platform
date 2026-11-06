@@ -1,0 +1,18 @@
+// How Cloudflare serves the app: the built files in dist/ as static assets,
+// on the free plan (ADR-0005, ADR-0007). Cloudflare builds and deploys this
+// automatically on every merge to main (see docs/setup.md).
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Must match the project name in the Cloudflare dashboard. It's also the
+  // first part of the free address: <name>.<account>.workers.dev
+  "name": "education-platform",
+  "compatibility_date": "2026-11-01",
+  // Don't send Wrangler usage statistics to Cloudflare.
+  "send_metrics": false,
+  "assets": {
+    "directory": "./dist",
+    // Addresses that aren't files (like /topic/py.variables) get index.html,
+    // so the app's own router can show the right page.
+    "not_found_handling": "single-page-application",
+  },
+}
