@@ -20,6 +20,14 @@ export type EventLog = {
   /** For React's useSyncExternalStore: status changes. */
   subscribe(listener: () => void): () => void
   getStatus(): EventLogStatus
+  /**
+   * The signed-in learner's events that this device knows about: what's
+   * still in the outbox, plus everything recorded since the page opened.
+   * Kept even after it's sent, so a page reading history from the server
+   * never misses an answer that's on its way there. A new array whenever it
+   * changes, for React's useSyncExternalStore.
+   */
+  getLocalRows(): EventRow[]
   /** Cancels any scheduled retry. */
   stop(): void
 }
@@ -60,13 +68,18 @@ export function createEventLog({
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let retryDelay = FIRST_RETRY_MS
   let status: EventLogStatus = { pending: 0, syncing: false }
+  let localRows: EventRow[] = []
   const listeners = new Set<() => void>()
+
+  function notify() {
+    for (const listener of listeners) listener()
+  }
 
   function updateStatus() {
     const pending = userId ? outbox.count(userId) : 0
     if (pending === status.pending && syncing === status.syncing) return
     status = { pending, syncing }
-    for (const listener of listeners) listener()
+    notify()
   }
 
   function sessionId(time: number): string {
@@ -115,7 +128,10 @@ export function createEventLog({
         if (waiting.length < MAX_WAITING) waiting.push(row)
         return
       }
-      outbox.add({ ...row, user_id: userId })
+      const stored = { ...row, user_id: userId }
+      outbox.add(stored)
+      localRows = [...localRows, stored]
+      notify()
       void log.sync()
       updateStatus()
     },
@@ -129,6 +145,8 @@ export function createEventLog({
         for (const row of waiting) outbox.add({ ...row, user_id: id })
       }
       if (id !== undefined) waiting = []
+      localRows = id ? outbox.pending(id) : []
+      notify()
       updateStatus()
       void log.sync()
     },
@@ -174,6 +192,8 @@ export function createEventLog({
     },
 
     getStatus: () => status,
+
+    getLocalRows: () => localRows,
 
     stop() {
       clearTimeout(retryTimer)

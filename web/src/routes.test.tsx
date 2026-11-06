@@ -19,18 +19,29 @@ function renderAt(path: string) {
 }
 
 describe('app routes', () => {
-  it('shows the app name and the main navigation', () => {
+  // Today and topic pages load their code first, so tests wait for them.
+  it('shows the app name and the main navigation', async () => {
     renderAt('/')
-    expect(screen.getByRole('link', { name: APP_NAME })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('link', { name: APP_NAME }, { timeout: 10_000 }),
+    ).toBeInTheDocument()
     const nav = screen.getByRole('navigation', { name: 'Main' })
     expect(nav).toHaveTextContent('Today')
     expect(nav).toHaveTextContent('Map')
     expect(nav).toHaveTextContent('Playground')
   })
 
-  it('shows the Today page at /', () => {
+  it('shows the Today page at /', async () => {
     renderAt('/')
-    expect(screen.getByRole('heading', { name: 'Today' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole(
+        'heading',
+        { name: 'Today' },
+        { timeout: 10_000 },
+      ),
+    ).toBeInTheDocument()
+    // Signed out, so there's no history to show.
+    expect(screen.getByText(/to see what to revisit today/)).toBeInTheDocument()
   })
 
   it('shows the topic map at /map, with every module', () => {

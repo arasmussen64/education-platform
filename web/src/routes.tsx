@@ -4,7 +4,6 @@ import { ErrorPage } from './pages/ErrorPage.tsx'
 import { MapPage } from './pages/MapPage.tsx'
 import { NotFoundPage } from './pages/NotFoundPage.tsx'
 import { SignInPage } from './pages/SignInPage.tsx'
-import { TodayPage } from './pages/TodayPage.tsx'
 import { topicLoader } from './pages/topicLoader.ts'
 
 // Every page in the app and its address. All pages render inside <Layout>,
@@ -26,7 +25,15 @@ export const routes: RouteObject[] = [
         // header and navigation still work.
         errorElement: <ErrorPage />,
         children: [
-          { index: true, element: <TodayPage /> },
+          {
+            index: true,
+            // Today can show practice questions with a code editor, so it
+            // loads only when visited, like the topic pages.
+            lazy: async () => {
+              const { TodayPage } = await import('./pages/TodayPage.tsx')
+              return { Component: TodayPage }
+            },
+          },
           { path: 'map', element: <MapPage /> },
           {
             path: 'topic/:topicId',

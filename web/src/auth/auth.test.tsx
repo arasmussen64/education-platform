@@ -9,14 +9,16 @@ afterEach(() => {
 })
 
 describe('signing in and out', () => {
+  // These check the header, so they use the map, a page that needs no
+  // history (Today loads the signed-in learner's history from the server).
   it('offers to sign in when nobody is signed in', () => {
-    renderApp('/')
+    renderApp('/map')
     expect(screen.getByRole('link', { name: 'Sign in' })).toBeInTheDocument()
   })
 
   it("shows who's signed in, and signs them out", async () => {
     const auth = fakeAuth(fakeUser({ user_metadata: { name: 'Ada Lovelace' } }))
-    renderApp('/', auth)
+    renderApp('/map', auth)
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))

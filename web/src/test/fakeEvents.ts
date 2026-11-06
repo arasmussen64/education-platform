@@ -4,6 +4,8 @@ import type { EventLog } from '../events/eventLog.ts'
 import type { EventsClient, SendResult } from '../events/sync.ts'
 import type { EventRow, NewEvent } from '../events/types.ts'
 
+const NO_ROWS: EventRow[] = []
+
 /**
  * An event log that only collects what's recorded. Put it around a component
  * with <EventLogContext value={log}> and look at `events`.
@@ -18,6 +20,7 @@ export function recordingEventLog() {
     async sync() {},
     subscribe: () => () => {},
     getStatus: () => ({ pending: 0, syncing: false }),
+    getLocalRows: () => NO_ROWS,
     stop() {},
   }
   return { log, events }

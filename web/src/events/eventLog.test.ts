@@ -177,6 +177,25 @@ describe('the event log', () => {
     expect(outbox.count(ADA)).toBe(0)
   })
 
+  it("keeps this device's events available, even after they're sent", async () => {
+    const { log, client } = setup()
+    const before = log.getLocalRows()
+    log.setUser(ADA)
+    log.record(ANSWER)
+    await vi.waitFor(() => expect(client.send).toHaveBeenCalled())
+    await vi.waitFor(() => expect(log.getStatus().pending).toBe(0))
+
+    const rows = log.getLocalRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ user_id: ADA, item_id: 'mcq-1' })
+    // A new array when something changes, as useSyncExternalStore needs.
+    expect(rows).not.toBe(before)
+    expect(log.getLocalRows()).toBe(rows)
+
+    log.setUser(null)
+    expect(log.getLocalRows()).toEqual([])
+  })
+
   it('tells subscribers when the number of unsaved events changes', async () => {
     const { log } = setup(fakeEventsClient(OFFLINE))
     const seen: number[] = []

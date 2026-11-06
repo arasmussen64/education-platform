@@ -20,7 +20,7 @@ type Props = {
   itemId: string
   content: TopicContent
   /** Whether this is practice or a proof check; saved with each answer. */
-  context: Extract<EventContext, 'practice' | 'prove'>
+  context: Extract<EventContext, 'practice' | 'prove' | 'review'>
   /** Shown above the heading, e.g. "Practice 2 of 5". */
   position?: string
 }
@@ -28,13 +28,14 @@ type Props = {
 type Handlers = {
   onAnswer: (correct: boolean, data: EventData) => void
   onActivity: (activity: ExerciseActivity) => void
+  allowHints: boolean
 }
 
 /** The heading and body for an item, whichever kind it is. */
 function describe(
   itemId: string,
   content: TopicContent,
-  { onAnswer, onActivity }: Handlers,
+  { onAnswer, onActivity, allowHints }: Handlers,
 ): { heading: string; body: ReactNode } | null {
   const recall = content.recall[itemId]
   if (recall?.type === 'mcq') {
@@ -72,7 +73,13 @@ function describe(
   if (exercise) {
     return {
       heading: `${STAGES[exercise.stage].label}: ${exercise.title}`,
-      body: <ExerciseView exercise={exercise} onActivity={onActivity} />,
+      body: (
+        <ExerciseView
+          exercise={exercise}
+          onActivity={onActivity}
+          allowHints={allowHints}
+        />
+      ),
     }
   }
   return null
@@ -115,6 +122,8 @@ export function PracticeItem({ itemId, content, context, position }: Props) {
   }
 
   const item = describe(itemId, content, {
+    // No hints in reviews: they stand in for the tutor, which is off there.
+    allowHints: context !== 'review',
     onAnswer(correct, data) {
       record({
         ...about,
