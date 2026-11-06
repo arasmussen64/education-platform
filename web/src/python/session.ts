@@ -22,16 +22,23 @@ import program, testrunner
 `)
 }
 
-/** The Run button: run the learner's program with the given input. */
+/**
+ * The Run button: run the learner's program with the input typed so far.
+ * `seed` (null for none) makes Python's random module repeatable.
+ */
 export function runProgram(
   pyodide: PyodideAPI,
   code: string,
   stdin: string,
+  seed: number | null,
 ): ProgramResult {
   pyodide.FS.writeFile(`${WORKDIR}/solution.py`, code)
   pyodide.globals.set('_learner_stdin', stdin)
+  // JavaScript's undefined becomes Python's None. (null would arrive as a
+  // special "JS null" object instead.)
+  pyodide.globals.set('_learner_seed', seed ?? undefined)
   const json = pyodide.runPython(
-    'import json, program; json.dumps(program.run_program(_learner_stdin))',
+    'import json, program; json.dumps(program.run_program(_learner_stdin, _learner_seed))',
   ) as string
   return JSON.parse(json) as ProgramResult
 }

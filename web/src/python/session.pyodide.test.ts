@@ -40,6 +40,7 @@ describe('the Python harness under Pyodide', () => {
             pyodide,
             read('solution.py'),
             has('stdin.txt') ? read('stdin.txt') : '',
+            has('seed.txt') ? Number(read('seed.txt')) : null,
           )
       expect(actual).toEqual(expected)
     })

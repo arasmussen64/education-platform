@@ -38,7 +38,8 @@ export function PlaygroundPage() {
           Run anything
         </h2>
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Type a name in the input box, then press Run.
+          Press Run. When the program asks for your name, type it and press
+          Enter.
         </p>
         <CodeRunner initialCode={GREETING} />
       </section>

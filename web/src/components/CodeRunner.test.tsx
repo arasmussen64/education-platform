@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { CheckReport } from '../python/protocol.ts'
-import type { CheckOutcome, RunOutcome } from '../python/runner.ts'
+import type { CheckOutcome, RunOptions, RunOutcome } from '../python/runner.ts'
 import { CodeRunner } from './CodeRunner.tsx'
 
 // CodeMirror needs a real browser to lay itself out, so these tests swap the
@@ -21,9 +21,12 @@ vi.mock('./CodeEditor.tsx', () => ({
   ),
 }))
 
-const NOTHING_PRINTED: RunOutcome = {
-  kind: 'done',
-  result: { output: '', error: null },
+/** A finished run (or one waiting for input) that printed `output`. */
+function printed(output: string, waiting = false): RunOutcome {
+  return {
+    kind: 'done',
+    result: { output, error: null, waiting_for_input: waiting },
+  }
 }
 
 function report(overrides: Partial<CheckReport>): CheckOutcome {
@@ -43,8 +46,8 @@ function report(overrides: Partial<CheckReport>): CheckOutcome {
 function fakeRunner(outcomes: { run?: RunOutcome; check?: CheckOutcome } = {}) {
   return {
     start: vi.fn((): Promise<void> => Promise.resolve()),
-    run: vi.fn((): Promise<RunOutcome> =>
-      Promise.resolve(outcomes.run ?? NOTHING_PRINTED),
+    run: vi.fn((_code: string, _options?: RunOptions): Promise<RunOutcome> =>
+      Promise.resolve(outcomes.run ?? printed('')),
     ),
     check: vi.fn((): Promise<CheckOutcome> =>
       Promise.resolve(outcomes.check ?? report({})),
@@ -54,29 +57,70 @@ function fakeRunner(outcomes: { run?: RunOutcome; check?: CheckOutcome } = {}) {
 
 describe('CodeRunner', () => {
   it('runs the code and shows what it printed', async () => {
-    const runner = fakeRunner({
-      run: { kind: 'done', result: { output: 'Hello, Ada!\n', error: null } },
-    })
+    const runner = fakeRunner({ run: printed('Hello, world!\n') })
     render(<CodeRunner initialCode="print('hi')" runner={runner} />)
     await userEvent.click(screen.getByRole('button', { name: 'Run' }))
-    expect(await screen.findByText('Hello, Ada!')).toBeInTheDocument()
+    expect(await screen.findByText('Hello, world!')).toBeInTheDocument()
   })
 
-  it('sends the edited code and the input to Python', async () => {
+  it('runs the code that is in the editor', async () => {
     const user = userEvent.setup()
     const runner = fakeRunner()
     render(<CodeRunner initialCode="" runner={runner} />)
-    await user.type(screen.getByLabelText('Python code'), 'print(input())')
-    await user.type(screen.getByLabelText(/Input for Run/), 'Ada')
+    await user.type(screen.getByLabelText('Python code'), 'print(1)')
     await user.click(screen.getByRole('button', { name: 'Run' }))
-    expect(runner.run).toHaveBeenCalledWith('print(input())', 'Ada')
+    expect(runner.run).toHaveBeenCalledWith('print(1)', {
+      stdin: '',
+      seed: expect.any(Number),
+    })
+  })
+
+  it('asks for input like a terminal, then runs again with the answer', async () => {
+    const user = userEvent.setup()
+    const runner = fakeRunner()
+    runner.run
+      .mockResolvedValueOnce(printed("What's your name? ", true))
+      .mockResolvedValueOnce(printed("What's your name? Ada\nHello, Ada!\n"))
+    render(<CodeRunner initialCode="code" runner={runner} />)
+
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    const field = await screen.findByLabelText('Program input')
+    expect(field).toHaveFocus()
+    expect(screen.getByText(/waiting for input/)).toBeInTheDocument()
+
+    await user.type(field, 'Ada{Enter}')
+    expect(await screen.findByText(/Hello, Ada!/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Program input')).not.toBeInTheDocument()
+
+    const [first, second] = runner.run.mock.calls
+    expect(first).toEqual(['code', { stdin: '', seed: expect.any(Number) }])
+    // The re-run uses the same seed, so random choices repeat.
+    expect(second).toEqual(['code', { stdin: 'Ada\n', seed: first[1]?.seed }])
+  })
+
+  it('keeps the code it started with while the program waits for input', async () => {
+    const user = userEvent.setup()
+    const runner = fakeRunner()
+    runner.run.mockResolvedValueOnce(printed('Name? ', true))
+    render(<CodeRunner initialCode="original" runner={runner} />)
+
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    const field = await screen.findByLabelText('Program input')
+    await user.type(screen.getByLabelText('Python code'), ' edited')
+    await user.type(field, 'Ada{Enter}')
+
+    expect(runner.run.mock.calls[1]?.[0]).toBe('original')
   })
 
   it('shows the traceback when the program crashes', async () => {
     const runner = fakeRunner({
       run: {
         kind: 'done',
-        result: { output: '', error: 'ZeroDivisionError: division by zero' },
+        result: {
+          output: '',
+          error: 'ZeroDivisionError: division by zero',
+          waiting_for_input: false,
+        },
       },
     })
     render(<CodeRunner initialCode="1/0" runner={runner} />)

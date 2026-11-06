@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { DEFAULT_TIME_LIMIT_MS } from '../python/constants.ts'
 import type {
   CheckReport,
@@ -27,10 +27,31 @@ type Props = {
 
 type Status = 'starting' | 'ready' | 'running' | 'unavailable'
 
+/**
+ * One press of Run. When the program stops at input(), the learner types a
+ * line and the program runs again from the start with every line so far,
+ * using the code and random seed it started with, so it behaves the same up
+ * to the new input.
+ */
+type RunSession = {
+  code: string
+  seed: number
+  inputs: string[]
+  outcome: RunOutcome
+}
+
 type Shown =
   | { kind: 'nothing' }
-  | { kind: 'run'; outcome: RunOutcome }
+  | { kind: 'run'; session: RunSession }
   | { kind: 'check'; outcome: CheckOutcome }
+
+function newSeed(): number {
+  return Math.floor(Math.random() * 2 ** 31)
+}
+
+function toStdin(lines: string[]): string {
+  return lines.map((line) => `${line}\n`).join('')
+}
 
 const STATUS_TEXT: Record<Status, string> = {
   starting: 'Starting Python…',
@@ -53,7 +74,6 @@ export function CodeRunner({
 }: Props) {
   const python = runner ?? getPythonRunner()
   const [code, setCode] = useState(initialCode)
-  const [stdin, setStdin] = useState('')
   const [status, setStatus] = useState<Status>('starting')
   const [shown, setShown] = useState<Shown>({ kind: 'nothing' })
 
@@ -72,11 +92,24 @@ export function CodeRunner({
     }
   }, [python])
 
-  async function handleRun() {
+  async function runSession(session: Omit<RunSession, 'outcome'>) {
     setStatus('running')
-    const outcome = await python.run(code, stdin)
-    setShown({ kind: 'run', outcome })
+    const outcome = await python.run(session.code, {
+      stdin: toStdin(session.inputs),
+      seed: session.seed,
+    })
+    setShown({ kind: 'run', session: { ...session, outcome } })
     setStatus('ready')
+  }
+
+  function handleRun() {
+    return runSession({ code, seed: newSeed(), inputs: [] })
+  }
+
+  function handleInput(line: string) {
+    if (shown.kind !== 'run') return
+    const { session } = shown
+    return runSession({ ...session, inputs: [...session.inputs, line] })
   }
 
   async function handleCheck(exerciseTests: string) {
@@ -98,18 +131,6 @@ export function CodeRunner({
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Tip: press Esc, then Tab, to move out of the editor.
       </p>
-      <label className="block text-sm">
-        <span className="font-medium">Input for Run</span>{' '}
-        <span className="text-slate-500 dark:text-slate-400">
-          (one line for each input() call)
-        </span>
-        <textarea
-          value={stdin}
-          onChange={(event) => setStdin(event.target.value)}
-          rows={2}
-          className="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 dark:border-slate-700"
-        />
-      </label>
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -135,7 +156,9 @@ export function CodeRunner({
         </output>
       </div>
       <div aria-live="polite">
-        {shown.kind === 'run' && <RunResult outcome={shown.outcome} />}
+        {shown.kind === 'run' && (
+          <Terminal session={shown.session} busy={busy} onInput={handleInput} />
+        )}
         {shown.kind === 'check' && (
           <CheckResult outcome={shown.outcome} hidden={hiddenTests} />
         )}
@@ -144,7 +167,17 @@ export function CodeRunner({
   )
 }
 
-function RunResult({ outcome }: { outcome: RunOutcome }) {
+/** The program's output, shown like a terminal, including typing input. */
+function Terminal({
+  session,
+  busy,
+  onInput,
+}: {
+  session: RunSession
+  busy: boolean
+  onInput: (line: string) => void
+}) {
+  const { outcome } = session
   if (outcome.kind === 'timeout') {
     return <Notice tone="warning">{TIMEOUT_MESSAGE}</Notice>
   }
@@ -155,13 +188,33 @@ function RunResult({ outcome }: { outcome: RunOutcome }) {
       </Notice>
     )
   }
-  const { output, error } = outcome.result
+  const { output, error, waiting_for_input: waiting } = outcome.result
+  const printedNothing = !output && !error && !waiting
   return (
     <section aria-label="Output" className="space-y-2">
-      {(output || !error) && (
-        <pre className="overflow-x-auto rounded-md bg-slate-900 p-3 text-sm whitespace-pre-wrap text-slate-100">
-          {output || 'Your program printed nothing.'}
-        </pre>
+      {(output || waiting || printedNothing) && (
+        <div className="overflow-x-auto rounded-md bg-slate-900 p-3 font-mono text-sm whitespace-pre-wrap text-slate-100">
+          {output}
+          {waiting && (
+            // A new line of input gets a fresh field (key), so it starts
+            // empty and takes the focus again.
+            <InputLine
+              key={session.inputs.length}
+              disabled={busy}
+              onSubmit={onInput}
+            />
+          )}
+          {printedNothing && (
+            <span className="text-slate-400">
+              Your program printed nothing.
+            </span>
+          )}
+        </div>
+      )}
+      {waiting && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Your program is waiting for input. Type your answer and press Enter.
+        </p>
       )}
       {error && (
         <pre className="overflow-x-auto rounded-md border border-red-300 bg-red-50 p-3 text-sm whitespace-pre-wrap text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100">
@@ -169,6 +222,56 @@ function RunResult({ outcome }: { outcome: RunOutcome }) {
         </pre>
       )}
     </section>
+  )
+}
+
+/** A text field right after the program's prompt, like typing in a terminal. */
+function InputLine({
+  disabled,
+  onSubmit,
+}: {
+  disabled: boolean
+  onSubmit: (line: string) => void
+}) {
+  const [value, setValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Put the cursor here as soon as the program asks, as a terminal would.
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  // Deliberately not a <form>: submitting a form makes password managers and
+  // autofill extensions offer to "save" what was typed (a prompt like
+  // "What's your name?" looks like a contact form to them). The data-*
+  // attributes ask the common ones (1Password, LastPass, Bitwarden, Dashlane)
+  // to leave this field alone.
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      onKeyDown={(event) => {
+        // Ignore the Enter that finishes an input-method composition (e.g.
+        // typing Japanese); only a plain Enter sends the line.
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+          event.preventDefault()
+          onSubmit(value)
+        }
+      }}
+      disabled={disabled}
+      aria-label="Program input"
+      enterKeyHint="enter"
+      autoComplete="off"
+      autoCapitalize="off"
+      spellCheck={false}
+      data-1p-ignore=""
+      data-lpignore="true"
+      data-bwignore="true"
+      data-form-type="other"
+      className="w-48 rounded border border-slate-500 bg-slate-800 px-1 text-slate-100 outline-none focus:border-lime-400"
+    />
   )
 }
 

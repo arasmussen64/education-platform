@@ -28,6 +28,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Teach as you go. When a task would make a good exercise, offer to let the owner write it (with hints) instead of writing it yourself.
 - Keep the owner able to explain the code. Every pull request includes a short plain-language summary, and you offer an occasional explain-it-back question. These never block merging.
 - Ask before anything hard to undo or that costs money: paid services, deleting data, force-pushing, making things public.
+- The owner may have a dev server running. After changing `vite.config.ts` or installing packages, tell them to restart it (Ctrl+C, then `npm run dev`), because a running server can get stuck half-updated. Never stop a process you didn't start.
 
 ## Development process
 

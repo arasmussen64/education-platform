@@ -10,7 +10,7 @@ The small layer of Python that runs a learner's code and an exercise's tests. Th
 | File | What it does |
 |---|---|
 | `checks.py` | What exercise tests use. `run(stdin)` runs the learner's program and returns what it printed. |
-| `program.py` | The Run button. Runs the program the way a terminal would, showing prompts and typed input, and returns the output plus a trimmed traceback. |
+| `program.py` | The Run button. Runs the program the way a terminal would, showing prompts and typed input, and returns the output plus a trimmed traceback. When the program wants more input than it was given, it stops and reports `waiting_for_input`, so the app can ask the learner and run it again. `seed` keeps random choices the same across those re-runs. |
 | `testrunner.py` | The Check button. Finds the `test_…` functions in `test_exercise.py`, runs them, and reports each one as pass, fail or error. |
 | `errors.py` | Turns errors into messages that only mention the learner's own file. |
 
@@ -18,14 +18,14 @@ The learner's code is always `solution.py` in the working folder, and the tests 
 
 ## Scenarios
 
-Each folder in `scenarios/` is a small case: a solution, then either tests (`test_exercise.py`) or input (`stdin.txt`), and an `expected.json`. Both runtimes must produce exactly the expected report:
+Each folder in `scenarios/` is a small case: a `solution.py`, then either tests (`test_exercise.py`) or, for a Run, optional input (`stdin.txt`) and random seed (`seed.txt`), plus an `expected.json`. Both runtimes must produce exactly the expected report:
 
 - **CPython:** `python -m uv run pytest`, run from the repository root.
 - **Pyodide:** `npm test`, run in `web/` (`src/python/session.pyodide.test.ts`).
 
 To add a scenario:
 
-1. Create the folder with its `solution.py`, plus `test_exercise.py` or `stdin.txt`.
+1. Create the folder with its `solution.py`, plus `test_exercise.py` or (optionally) `stdin.txt` and `seed.txt`.
 2. Run `python -m uv run python harness/tests/update_expected.py`.
 3. Read the new `expected.json` before committing.
 

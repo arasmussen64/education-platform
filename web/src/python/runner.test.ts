@@ -71,12 +71,23 @@ describe('PythonRunner', () => {
     workers[0].reply({ type: 'ready' })
     await flush()
     expect(workers[0].received).toEqual([
-      { id: 1, type: 'run', code: 'print(1)', stdin: '' },
+      { id: 1, type: 'run', code: 'print(1)', stdin: '', seed: null },
     ])
 
-    const result = { output: '1\n', error: null }
+    const result = { output: '1\n', error: null, waiting_for_input: false }
     workers[0].reply({ id: 1, type: 'run-result', result })
     await expect(outcome).resolves.toEqual({ kind: 'done', result })
+  })
+
+  it('passes the typed input and the random seed to Python', async () => {
+    const { runner, workers } = setup()
+    void runner.run('code', { stdin: 'Ada\n', seed: 7 })
+    await flush()
+    workers[0].reply({ type: 'ready' })
+    await flush()
+    expect(workers[0].received).toEqual([
+      { id: 1, type: 'run', code: 'code', stdin: 'Ada\n', seed: 7 },
+    ])
   })
 
   it('returns check reports', async () => {
@@ -102,7 +113,7 @@ describe('PythonRunner', () => {
 
   it('stops code that runs too long and starts a fresh worker', async () => {
     const { runner, workers } = setup()
-    const outcome = runner.run('while True: pass', '', 5000)
+    const outcome = runner.run('while True: pass', { timeLimitMs: 5000 })
     const state = watch(outcome)
     await flush()
     workers[0].reply({ type: 'ready' })
@@ -119,8 +130,8 @@ describe('PythonRunner', () => {
 
   it('runs requests one at a time, each with its own time limit', async () => {
     const { runner, workers } = setup()
-    const first = runner.run('first', '', 5000)
-    const second = runner.run('second', '', 5000)
+    const first = runner.run('first', { timeLimitMs: 5000 })
+    const second = runner.run('second', { timeLimitMs: 5000 })
     const secondState = watch(second)
     await flush()
     workers[0].reply({ type: 'ready' })
@@ -133,7 +144,7 @@ describe('PythonRunner', () => {
     workers[0].reply({
       id: workers[0].lastId,
       type: 'run-result',
-      result: { output: '', error: null },
+      result: { output: '', error: null, waiting_for_input: false },
     })
     await expect(first).resolves.toMatchObject({ kind: 'done' })
     await flush()
@@ -148,11 +159,11 @@ describe('PythonRunner', () => {
     workers[0].reply({
       id: workers[0].lastId,
       type: 'run-result',
-      result: { output: 'ok\n', error: null },
+      result: { output: 'ok\n', error: null, waiting_for_input: false },
     })
     await expect(second).resolves.toEqual({
       kind: 'done',
-      result: { output: 'ok\n', error: null },
+      result: { output: 'ok\n', error: null, waiting_for_input: false },
     })
   })
 

@@ -1,8 +1,9 @@
 """Run one scenario folder through the harness and return its report.
 
 A scenario folder holds solution.py and either test_exercise.py (a Check)
-or, optionally, stdin.txt (a Run). expected.json holds the report both
-CPython and Pyodide must produce.
+or, for a Run, optionally stdin.txt (the input typed so far) and seed.txt
+(the random seed). expected.json holds the report both CPython and Pyodide
+must produce.
 
 Each scenario runs in a fresh, isolated Python process, like the browser
 and the content validator do. That matters: inside pytest, files named
@@ -31,9 +32,10 @@ import program, testrunner
 if Path(testrunner.TEST_FILE).exists():
     report = testrunner.run_tests()
 else:
-    stdin_file = Path("stdin.txt")
+    stdin_file, seed_file = Path("stdin.txt"), Path("seed.txt")
     stdin = stdin_file.read_text(encoding="utf-8") if stdin_file.exists() else ""
-    report = program.run_program(stdin)
+    seed = int(seed_file.read_text()) if seed_file.exists() else None
+    report = program.run_program(stdin, seed)
 print(json.dumps(report))
 """
 

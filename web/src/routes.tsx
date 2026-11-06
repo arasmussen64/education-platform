@@ -14,6 +14,10 @@ import { TopicPage } from './pages/TopicPage.tsx'
 export const routes: RouteObject[] = [
   {
     element: <Layout />,
+    // Shown while a lazy page's code loads when the app first opens on it.
+    hydrateFallbackElement: (
+      <p className="p-8 text-slate-500 dark:text-slate-400">Loading…</p>
+    ),
     children: [
       { index: true, element: <TodayPage /> },
       { path: 'map', element: <MapPage /> },
