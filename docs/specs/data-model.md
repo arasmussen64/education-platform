@@ -153,17 +153,19 @@ Tests are plain Python functions named `test_…` that use `assert`. The first l
 # test_exercise.py
 from checks import run
 
+
 def test_swaps():
     """Prints the swapped values."""
     assert run() == "5\n3\n"
 ```
 
-The `checks` module exists in both the browser and CI, so tests behave the same everywhere:
+The `checks` module lives in [`harness/`](../../harness/), which the browser and CI share, so tests behave the same everywhere:
 
-- `run(stdin="")` runs the learner's program as a script, feeding it `stdin`, and returns what it printed. Prompts passed to `input()` are kept separate, so tests don't break over prompt wording.
+- `run(stdin="")` runs the learner's program as a script, feeding it `stdin`, and returns what it printed. Prompts passed to `input()` are left out, so tests don't break over prompt wording. If the program wants more input than it was given, it gets an `EOFError`.
 - Function exercises import from the learner's code: `from solution import rotate`. They must not read input or print at the top level.
+- Give `assert` a message when the default would be unclear: `assert got == 4, f"double(2) should be 4, but it returned {got}"`. Without one, the learner sees the failing `assert` line.
 
-In CI, the validator copies the reference solution (and then each wrong solution) to `solution.py` and runs pytest. It uses the same Python minor version as the pinned Pyodide release.
+In CI, the validator copies the reference solution (and then each wrong solution) to `solution.py` and runs the same test runner the browser uses (`harness/testrunner.py`), in a fresh Python process. It uses the same Python minor version as the pinned Pyodide release. It does not use pytest, because pytest rewrites `assert` statements and would change the messages.
 
 ### Lessons
 

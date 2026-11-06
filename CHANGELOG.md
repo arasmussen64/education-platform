@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- The Python test harness (`harness/`), shared by the browser and CI. It has 14 scenarios that both runtimes must match, and a Python CI job (uv, ruff, pytest) on Python 3.14.
 - ADR-0010: a local Supabase in Docker for development, and one cloud project for real use.
 - A setup guide for the owner's computer and accounts (`docs/setup.md`).
 - Web app scaffold in `web/`: Vite, React, TypeScript, Tailwind CSS and React Router, with placeholder Today, Map and Topic pages. The product name is kept in a single setting.
@@ -21,5 +22,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
+- Data model: the content validator uses the harness's own test runner instead of pytest.
 - Process: Claude merges its own pull requests once CI passes, under standing permission from the owner.
 - Roadmap: the "prove it" checks, topic states and gating move from Phase 2 into Phase 1.

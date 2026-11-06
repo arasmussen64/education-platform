@@ -51,6 +51,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - The AI tutor gives hints, never full solutions, and is switched off during "prove it" checks ([ADR-0003](docs/decisions/0003-ai-roles-and-guardrails.md)).
 - Every exercise must be machine-verifiable: its reference solution passes the tests and known-wrong solutions fail ([ADR-0004](docs/decisions/0004-content-model.md)).
 - Record every external resource's license. Never copy text from sources that don't allow it ([ADR-0004](docs/decisions/0004-content-model.md)).
+- The Python harness (`harness/`) runs learner code in both the browser and CI. Its scenario results are a contract both runtimes must match; read [harness/README.md](harness/README.md) before changing it.
 - Learner answer and review logs are future ML training data. Append only: never delete or rewrite them.
 - For Claude API work, look up current model IDs and pricing in the official docs instead of relying on memory.
 
@@ -61,6 +62,12 @@ Web app: run these inside `web/`. Details are in [web/README.md](web/README.md).
 - `npm install` installs dependencies.
 - `npm run dev` starts the app at http://localhost:5173.
 - `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` are the checks CI runs on every pull request. Run all of them before pushing.
+
+Python: run these from the repository root. uv manages Python 3.14 and the tools.
+
+- `python -m uv sync` installs the Python tools.
+- `python -m uv run pytest` runs the harness tests.
+- `python -m uv run ruff format` and `python -m uv run ruff check` format and lint Python code.
 
 Add the content-validation and Supabase commands here when those parts exist.
 

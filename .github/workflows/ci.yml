@@ -41,3 +41,18 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
+
+  harness:
+    name: Python harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - name: Install Python and dependencies
+        run: uv sync --locked
+      - name: Check formatting
+        run: uv run ruff format --check
+      - name: Lint
+        run: uv run ruff check
+      - name: Test
+        run: uv run pytest

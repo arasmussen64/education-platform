@@ -2,6 +2,23 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-05: Python test harness
+
+**Done**
+
+- Wrote the shared Python harness (`harness/`): `checks.run()` for tests, the Run and Check logic, and beginner-friendly error messages that only show the learner's own file.
+- Added 14 scenarios with expected results I reviewed by hand, plus unit tests. A new CI job runs them with uv, pytest and ruff.
+- Installed uv for this user, and Python 3.14 through it.
+
+**Decided**
+
+- Pyodide has a new version scheme (314.0.7 bundles Python 3.14), so the Python tooling targets 3.14.
+- The content validator will use the harness's own test runner, not pytest. pytest rewrites `assert` statements in files named `test_*.py`, which changed the messages. Two scenarios that failed only under pytest exposed this.
+
+**Next**
+
+- The browser side: Pyodide in a Web Worker, the editor, Run and Check, and the same scenarios under Pyodide.
+
 ## 2026-11-05: Process and environment decisions
 
 **Decided**
