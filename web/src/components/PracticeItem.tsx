@@ -23,6 +23,8 @@ type Props = {
   context: Extract<EventContext, 'practice' | 'prove' | 'review'>
   /** Shown above the heading, e.g. "Practice 2 of 5". */
   position?: string
+  /** Called after each Check of an exercise, with whether every test passed. */
+  onCheck?: (passed: boolean) => void
 }
 
 type Handlers = {
@@ -110,7 +112,13 @@ function useAttemptTimer() {
  * One item of a topic's practice ladder or proof: a recall question or an
  * exercise, in a card with a heading. Saves what the learner does with it.
  */
-export function PracticeItem({ itemId, content, context, position }: Props) {
+export function PracticeItem({
+  itemId,
+  content,
+  context,
+  position,
+  onCheck,
+}: Props) {
   const record = useRecordEvent()
   const timer = useAttemptTimer()
   const rev = (content.recall[itemId] ?? content.exercises[itemId])?.rev
@@ -148,14 +156,16 @@ export function PracticeItem({ itemId, content, context, position }: Props) {
           data: runEventData(activity.code, activity.outcome),
         })
       } else {
+        const passed = allChecksPassed(activity.outcome)
         record({
           ...about,
           type: 'code_check',
-          correct: allChecksPassed(activity.outcome),
+          correct: passed,
           duration_ms: timer.lap(),
           hints_used: activity.hintsUsed,
           data: checkEventData(activity.code, activity.outcome),
         })
+        onCheck?.(passed)
       }
     },
   })

@@ -37,6 +37,16 @@ export type Explain = {
 /** Something a topic teaches. Items name the skills they test (ADR-0011). */
 export type Skill = { id: string; description: string }
 
+/** A checkpoint's way through for a learner who's stuck (ADR-0012). */
+export type Unstuck = {
+  /** A solved project like the build, in a different story. */
+  example?: string
+  /** The build itself, in 3 or 4 partly written steps, with hints. */
+  steps: string[]
+  /** Fresh versions of the build: the same skills in different stories. */
+  versions: string[]
+}
+
 export type Topic = {
   id: string
   kind: 'topic' | 'checkpoint'
@@ -52,6 +62,8 @@ export type Topic = {
   prove: { build?: string; debug?: string; explain?: Explain }
   review_pool: string[]
   skills: Skill[]
+  /** Checkpoints only. */
+  unstuck?: Unstuck
 }
 
 export type McqItem = {
@@ -93,6 +105,11 @@ export type Exercise = {
   hints: string[]
   steps: Step[]
   skills: string[]
+  /**
+   * Checkpoint builds and debugs: the skills each test checks, as
+   * "topic/skill", by test name (ADR-0012). Empty for other exercises.
+   */
+  test_skills: Record<string, string[]>
   /** Empty for exercises that start from a blank file. */
   starter: string
   solution: string

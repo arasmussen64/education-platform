@@ -37,6 +37,18 @@ content/
 6. List the topic's **skills** in `topic.yaml`, and give every item `skills: [...]` with the skills it mainly tests. A missed question comes back later as a different question on the same skill ([ADR-0011](../docs/decisions/0011-mistakes-come-back.md)). So each skill needs at least 2 questions that can come back: recall items, or fill-in, write and `review_code` exercises. Aim for 3. Extra questions can go in the review pool.
 7. Run the checker until it's clean, then go through the topic once as a learner. The dev server (`npm run dev` in `web/`) shows drafts, so you can try it at `http://localhost:5173/topic/<topic-id>`. Then set `status: ready`. While the owner is the only learner, a topic can go straight to `ready`: their first pass, on the live site, is the review ([v1 spec](../docs/specs/v1.md#content-definition-of-done)).
 
+## Writing a checkpoint
+
+A checkpoint ends a module: a bigger build, a debug with several bugs, and an explain that covers the whole module. It has no lesson, practice or review pool. Instead it has a way through for a learner who's stuck ([ADR-0012](../docs/decisions/0012-checkpoint-support.md)):
+
+1. Write the proof: the build (a small program, from a blank editor), the debug, and the explain prompt.
+2. In each build and debug, name the skills every test checks, as `topic/skill`, in `test_skills` (see the [data model](../docs/specs/data-model.md#topic)). A failed test brings those skills back on the learner's Today page. Write tests that each check one part of the program, so a failure points at the right skill.
+3. Add `unstuck` to `topic.yaml`:
+   - `example`: a **solved sibling**, a worked example of a similar program in a different story. Its labeled steps show how to break the problem into parts.
+   - `steps`: the build itself, as **3 or 4 fill-in exercises with hints**. Each step gives the whole program except one part (read the inputs, work out the numbers, print the result); the last gives only an outline, as comments.
+   - `versions`: **at least 2 fresh versions** of the build: the same skills in different stories, about as hard. Their tests name skills too.
+4. A checkpoint can be `ready` only once every topic in its module is.
+
 Tips for tests: give each test a one-line docstring, which is what the learner sees, and give `assert` a message when the default wouldn't be clear. See [harness/README.md](../harness/README.md).
 
 When an exercise could be passed by typing the expected output in by hand, add a test with `run_with`, which reruns the program with other starting values. A swap must then swap *any* two values (see the Variables topic). Add the hand-typed version as a known-wrong solution, so the checker proves the test catches it.

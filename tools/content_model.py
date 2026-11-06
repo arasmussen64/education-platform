@@ -85,6 +85,33 @@ class Skill(Strict):
     description: Text
 
 
+# A topic's skill, named from a checkpoint as "topic/skill", like
+# "py.arithmetic/precedence".
+SkillRef = Annotated[
+    str, Field(pattern=r"^[a-z0-9]+(?:[.-][a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$")
+]
+# A test function in test_exercise.py, like "test_tip".
+TestName = Annotated[str, Field(pattern=r"^test_\w+$")]
+
+
+class Unstuck(Strict):
+    """A checkpoint's way through for a learner who's stuck (ADR-0012)."""
+
+    # A solved project like the build, in a different story: a worked example.
+    example: ItemId | None = None
+    # The build itself, in 3 or 4 partly written steps, with hints.
+    steps: list[ItemId] = []
+    # Fresh versions of the build: the same skills in different stories.
+    versions: list[ItemId] = []
+
+    @model_validator(mode="after")
+    def no_repeats(self) -> Unstuck:
+        ids = [*self.steps, *self.versions]
+        if len(set(ids)) != len(ids):
+            raise ValueError("steps and versions must all be different")
+        return self
+
+
 class Topic(Strict):
     id: TopicId
     kind: Literal["topic", "checkpoint"]
@@ -103,12 +130,25 @@ class Topic(Strict):
     # A missed question comes back as a different one testing the same
     # skill, so items name the skills they test (ADR-0011).
     skills: list[Skill] = []
+    # Checkpoints only: the way through for a learner who's stuck (ADR-0012).
+    unstuck: Unstuck | None = None
 
     @model_validator(mode="after")
     def skill_ids_are_unique(self) -> Topic:
         ids = [skill.id for skill in self.skills]
         if len(set(ids)) != len(ids):
             raise ValueError("skill ids must all be different")
+        return self
+
+    @model_validator(mode="after")
+    def fits_its_kind(self) -> Topic:
+        if self.kind == "topic" and self.unstuck is not None:
+            raise ValueError("only checkpoints have unstuck")
+        if self.kind == "checkpoint" and self.skills:
+            raise ValueError(
+                "checkpoints don't declare skills: their tests name skills of "
+                "the module's topics, in test_skills"
+            )
         return self
 
 
@@ -173,6 +213,9 @@ class Exercise(Strict):
     hints: list[Text] = []
     steps: list[Step] = []
     skills: list[ItemId] = []
+    # Checkpoint builds and debugs only: the skills each test checks, as
+    # "topic/skill", so a failed test brings them back (ADR-0012).
+    test_skills: dict[TestName, Annotated[list[SkillRef], Field(min_length=1)]] = {}
 
     @model_validator(mode="after")
     def steps_only_for_worked_examples(self) -> Exercise:

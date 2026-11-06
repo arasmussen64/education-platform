@@ -104,6 +104,23 @@ skills:                         # what the topic teaches (ADR-0011)
 
 **Skills.** Every recall item and exercise lists the skills it mainly tests (`skills: [assignment]`); worked examples may leave it out. A missed question comes back later as a *different* question on the same skill ([ADR-0011](../decisions/0011-mistakes-come-back.md)). So in a ready topic, every skill needs at least 2 **follow-up candidates**: recall items, or fill-in, write and `review_code` exercises. Build and debug exercises name their skills too, but they're proof checks and never come back as follow-ups.
 
+**Checkpoints** have no lesson, practice ladder, review pool or skills of their own. Instead, their tests name skills from the module's topics, and they have a way through for a learner who's stuck ([ADR-0012](../decisions/0012-checkpoint-support.md)):
+
+```yaml
+# content/topics/py.m1.checkpoint/topic.yaml (after the proof checks)
+unstuck:
+  example: example-shop-receipt           # a solved sibling: a worked example in a different story
+  steps: [step-read, step-work, step-print, step-outline]  # the build in 3 or 4 fill-in steps, with hints
+  versions: [build-split-bill, build-fuel]                 # at least 2 fresh versions of the build
+
+# content/topics/py.m1.checkpoint/exercises/build-receipt/exercise.yaml (and every version, and the debug)
+test_skills:                              # every test, by name: the skills it checks, as topic/skill
+  test_subtotal: [py.strings-and-input/convert, py.arithmetic/operators]
+  test_two_decimals: [py.strings-and-input/fstrings]
+```
+
+A checkpoint's tests may name skills of its own module's topics and of earlier modules'.
+
 ### Recall items
 
 ```yaml
@@ -302,13 +319,14 @@ state =
 
 ### Checkpoints
 
-Locked → Available → In progress → Passed, once all three proof checks pass. Checkpoints have no reviews.
+Locked → Available → In progress → Passed, once all three proof checks pass. A pass on any fresh version of the build counts as passing the build ([ADR-0012](../decisions/0012-checkpoint-support.md)). Checkpoints have no reviews.
 
 ### Mistakes to revisit
 
 Details are in [ADR-0011](../decisions/0011-mistakes-come-back.md). They're worked out by `web/src/followups/followUps.ts`, from the learner's `answer` and `code_check` events and the `skills` of each item, so nothing is stored for them:
 
 - Each item's outcome is judged per day. A question is missed if any answer to it that day was wrong. A code exercise is correct if any Check that day passed.
+- A checkpoint's tests count for the skills they name ([ADR-0012](../decisions/0012-checkpoint-support.md)), in those skills' own topics. Each test is judged per day like code: missed if it failed in a Check and no Check that day passed it. The names of each Check's failing tests are in its event's `data.failing`. A Check whose tests couldn't run (`data.status` isn't `ok`) counts for none of them.
 - For each skill, day by day:
   - a missed day opens the follow-up (due the next day) and clears earlier progress;
   - each correct day after it counts (due again 3 days later, then 7);

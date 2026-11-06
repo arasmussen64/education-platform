@@ -9,7 +9,8 @@ It checks:
 - every file's format (content_model.py), and that IDs match their folders;
 - the topic map: tracks, modules, prerequisites, and no cycles;
 - that "ready" topics have everything a topic needs (the content definition of
-  done in docs/specs/v1.md);
+  done in docs/specs/v1.md), and ready checkpoints a way through for a learner
+  who's stuck, with every test naming the skills it checks (ADR-0012);
 - by running them through the shared harness, like the browser does: every
   reference solution passes its tests, every starter and known-wrong solution
   fails them, and every predict-the-output item prints what it claims.
@@ -20,6 +21,7 @@ It prints every problem it finds and exits with status 1 if there are any.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import subprocess
@@ -68,6 +70,14 @@ class TopicFolder:
 
     def has_item(self, item_id: str) -> bool:
         return item_id in self.recall or item_id in self.exercises
+
+    def stage_of(self, item_id: str | None) -> str | None:
+        """An exercise's stage or a recall item's type; None if there's no such item."""
+        if item_id in self.exercises:
+            return self.exercises[item_id][1].stage
+        if item_id in self.recall:
+            return self.recall[item_id].type
+        return None
 
     def items(self) -> list[tuple[Path, McqItem | PredictOutputItem | Exercise]]:
         """Every question and exercise, with the file it came from."""
@@ -196,13 +206,7 @@ def check_prerequisites(topics: dict[str, TopicFolder], report: Report) -> None:
 def check_ready_topic(folder: TopicFolder, report: Report) -> None:
     topic = folder.topic
     topic_file = folder.path / "topic.yaml"
-
-    def stage_of(item_id: str) -> str | None:
-        if item_id in folder.exercises:
-            return folder.exercises[item_id][1].stage
-        if item_id in folder.recall:
-            return folder.recall[item_id].type
-        return None
+    stage_of = folder.stage_of
 
     if topic.kind == "topic":
         lesson = folder.path / "lesson.mdx"
@@ -277,6 +281,162 @@ def check_skills(folder: TopicFolder, report: Report) -> None:
             )
 
 
+# --- Checkpoints: a way through for a learner who's stuck (ADR-0012) ---------------
+
+# The build, in this many partly written steps (the ADR says 3 or 4).
+FEWEST_STEPS = 3
+# Fresh versions of the build, so a second try can be fresh too.
+FEWEST_VERSIONS = 2
+
+
+@dataclass(frozen=True)
+class CheckpointPlace:
+    """Where a checkpoint sits in its track."""
+
+    # The topics of its own module.
+    module_topics: list[str]
+    # Those and the topics of every module before it: the ones whose skills
+    # its tests may name.
+    topics_so_far: list[str]
+
+
+def checkpoint_places(tracks: dict[Path, Track]) -> dict[str, CheckpointPlace]:
+    places: dict[str, CheckpointPlace] = {}
+    for track in tracks.values():
+        so_far: list[str] = []
+        for module in track.modules:
+            so_far = [*so_far, *module.topics]
+            places[module.checkpoint] = CheckpointPlace(list(module.topics), so_far)
+    return places
+
+
+def find_test_names(test_file: Path) -> list[str] | None:
+    """The tests in a test file, found the way the harness finds them: every
+    top-level function whose name starts with test_. None if it can't be read."""
+    try:
+        tree = ast.parse(test_file.read_text(encoding="utf-8"))
+    except OSError, SyntaxError:
+        return None
+    return [
+        node.name
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+    ]
+
+
+def check_test_skills(
+    folder: TopicFolder,
+    topics: dict[str, TopicFolder],
+    place: CheckpointPlace | None,
+    report: Report,
+) -> None:
+    """The tests and skills that test_skills names must exist, whatever the
+    checkpoint's status."""
+    for exercise_folder, exercise in folder.exercises.values():
+        if not exercise.test_skills:
+            continue
+        path = exercise_folder / "exercise.yaml"
+        if folder.topic.kind != "checkpoint":
+            report.add(
+                path,
+                "only checkpoint exercises have test_skills; "
+                "a topic's items name their skills with skills:",
+            )
+            continue
+        tests = find_test_names(exercise_folder / "test_exercise.py")
+        for test, refs in exercise.test_skills.items():
+            if tests is not None and test not in tests:
+                report.add(
+                    path,
+                    f"test_skills names {test!r}, "
+                    "which isn't a test in test_exercise.py",
+                )
+            for ref in refs:
+                topic_id, skill_id = ref.split("/")
+                target = topics.get(topic_id)
+                if target is None:
+                    report.add(path, f"{test}: topic {topic_id!r} doesn't exist")
+                elif skill_id not in {skill.id for skill in target.topic.skills}:
+                    report.add(
+                        path, f"{test}: {topic_id} doesn't declare skill {skill_id!r}"
+                    )
+                elif place is not None and topic_id not in place.topics_so_far:
+                    report.add(
+                        path,
+                        f"{test}: {topic_id!r} comes after this checkpoint, "
+                        "so the checkpoint can't test its skills",
+                    )
+
+
+def check_ready_checkpoint(
+    folder: TopicFolder,
+    topics: dict[str, TopicFolder],
+    place: CheckpointPlace | None,
+    report: Report,
+) -> None:
+    """A ready checkpoint has a way through for a learner who's stuck, and
+    every test of its builds and debug names the skills it checks."""
+    topic = folder.topic
+    topic_file = folder.path / "topic.yaml"
+
+    for topic_id in place.module_topics if place else []:
+        status = topics[topic_id].topic.status if topic_id in topics else "missing"
+        if status != "ready":
+            report.add(
+                topic_file,
+                "a ready checkpoint needs every topic of its module ready, "
+                f"but {topic_id!r} is {status}",
+            )
+
+    unstuck = topic.unstuck
+    if unstuck is None:
+        report.add(
+            topic_file,
+            "a ready checkpoint needs unstuck: an example, steps and versions "
+            "(ADR-0012)",
+        )
+        return
+    if folder.stage_of(unstuck.example) != "worked_example":
+        report.add(topic_file, "unstuck.example must name a worked example")
+
+    if len(unstuck.steps) < FEWEST_STEPS:
+        report.add(topic_file, f"unstuck.steps needs at least {FEWEST_STEPS} steps")
+    for step in unstuck.steps:
+        if folder.stage_of(step) != "fill_in":
+            report.add(topic_file, f"unstuck step {step!r} must be a fill-in exercise")
+        elif not folder.exercises[step][1].hints:
+            report.add(topic_file, f"unstuck step {step!r} needs hints")
+
+    if len(unstuck.versions) < FEWEST_VERSIONS:
+        report.add(
+            topic_file,
+            f"unstuck.versions needs at least {FEWEST_VERSIONS} fresh versions "
+            "of the build",
+        )
+    for version in unstuck.versions:
+        if folder.stage_of(version) != "build":
+            report.add(topic_file, f"unstuck version {version!r} must be a build")
+        elif version == topic.prove.build:
+            report.add(
+                topic_file,
+                f"unstuck version {version!r} is the build itself; "
+                "versions must be fresh ones",
+            )
+
+    for item_id in [topic.prove.build, topic.prove.debug, *unstuck.versions]:
+        if item_id not in folder.exercises:
+            continue
+        exercise_folder, exercise = folder.exercises[item_id]
+        tests = find_test_names(exercise_folder / "test_exercise.py") or []
+        missing = [test for test in tests if test not in exercise.test_skills]
+        if missing:
+            report.add(
+                exercise_folder / "exercise.yaml",
+                "every test needs the skills it checks in test_skills "
+                f"(ADR-0012), but these have none: {', '.join(missing)}",
+            )
+
+
 def resource_indexes(lesson_text: str) -> list[int]:
     """The N of every <Resource index={N} /> tag in a lesson."""
     return [int(n) for n in re.findall(r"<Resource\s+index=\{(\d+)\}", lesson_text)]
@@ -294,6 +454,10 @@ def check_references(folder: TopicFolder, report: Report) -> None:
 
     named = [*folder.topic.practice, *folder.topic.review_pool]
     named += [i for i in (folder.topic.prove.build, folder.topic.prove.debug) if i]
+    unstuck = folder.topic.unstuck
+    if unstuck is not None:
+        named += [i for i in (unstuck.example,) if i]
+        named += [*unstuck.steps, *unstuck.versions]
     for item_id in named:
         if not folder.has_item(item_id):
             report.add(
@@ -455,12 +619,17 @@ def validate(root: Path = ROOT, run: bool = True) -> Report:
 
     check_tracks(tracks, topics, report)
     check_prerequisites(topics, report)
+    places = checkpoint_places(tracks)
 
     for folder in topics.values():
+        place = places.get(folder.topic.id)
         report.counts[folder.topic.status] += 1
         check_references(folder, report)
+        check_test_skills(folder, topics, place, report)
         if folder.topic.status == "ready":
             check_ready_topic(folder, report)
+            if folder.topic.kind == "checkpoint":
+                check_ready_checkpoint(folder, topics, place, report)
         for item_path_id, item in folder.recall.items():
             report.counts["recall items"] += 1
             if isinstance(item, PredictOutputItem) and run:

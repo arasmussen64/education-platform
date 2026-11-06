@@ -3,7 +3,16 @@
 from pathlib import Path
 
 import pytest
-from content_fixture import CHECKPOINT, MCQ, TOPIC, make_valid_tree, write
+from content_fixture import (
+    CHECKPOINT,
+    CHECKPOINT_DIR,
+    MCQ,
+    READY_CHECKPOINT,
+    TOPIC,
+    make_ready_checkpoint,
+    make_valid_tree,
+    write,
+)
 from validate_content import validate
 
 TOPIC_DIR = "content/topics/t.hello"
@@ -194,3 +203,172 @@ def test_code_that_never_stops_is_reported(
 def test_no_run_skips_running_code(tree: Path) -> None:
     write(tree, f"{TOPIC_DIR}/exercises/write-hello/solution.py", 'print("Bye")\n')
     assert problems(tree, run=False) == []
+
+
+# --- Checkpoints: a way through for a learner who's stuck (ADR-0012) ---------
+
+
+@pytest.fixture
+def checkpoint(tree: Path) -> Path:
+    return make_ready_checkpoint(tree)
+
+
+def replace_in(root: Path, relative: str, old: str, new: str) -> None:
+    text = (root / relative).read_text(encoding="utf-8")
+    assert old in text, f"{old!r} isn't in {relative}"
+    write(root, relative, text.replace(old, new))
+
+
+def test_a_complete_checkpoint_has_no_problems(checkpoint: Path) -> None:
+    report = validate(checkpoint)
+    assert report.problems == []
+    assert report.counts["ready"] == 2
+
+
+def test_ready_checkpoints_need_a_way_through(checkpoint: Path) -> None:
+    topic = READY_CHECKPOINT.split("unstuck:")[0]
+    write(checkpoint, f"{CHECKPOINT_DIR}/topic.yaml", topic)
+    assert_reported(checkpoint, "a ready checkpoint needs unstuck", run=False)
+
+
+def test_each_part_of_the_way_through_is_the_right_kind(checkpoint: Path) -> None:
+    topic = (
+        READY_CHECKPOINT.replace("example: example-other", "example: step-read")
+        .replace("step-outline]", "build-card-b]")
+        .replace("[build-card-b, build-card-c]", "[build-card, build-card-c]")
+    )
+    write(checkpoint, f"{CHECKPOINT_DIR}/topic.yaml", topic)
+    assert_reported(
+        checkpoint,
+        "unstuck.example must name a worked example",
+        "unstuck step 'build-card-b' must be a fill-in exercise",
+        "unstuck version 'build-card' is the build itself",
+        run=False,
+    )
+
+
+def test_there_are_enough_steps_and_versions(checkpoint: Path) -> None:
+    topic = READY_CHECKPOINT.replace(", step-outline]", "]").replace(
+        ", build-card-c]", "]"
+    )
+    write(checkpoint, f"{CHECKPOINT_DIR}/topic.yaml", topic)
+    replace_in(
+        checkpoint,
+        f"{CHECKPOINT_DIR}/exercises/step-read/exercise.yaml",
+        "hints:\n  - Use print.\n",
+        "",
+    )
+    assert_reported(
+        checkpoint,
+        "unstuck.steps needs at least 3 steps",
+        "unstuck.versions needs at least 2 fresh versions",
+        "unstuck step 'step-read' needs hints",
+        run=False,
+    )
+
+
+def test_every_checkpoint_test_names_its_skills(checkpoint: Path) -> None:
+    replace_in(
+        checkpoint,
+        f"{CHECKPOINT_DIR}/exercises/debug-card/exercise.yaml",
+        "test_skills:\n  test_says_hello: [t.hello/print-text]\n",
+        "",
+    )
+    assert_reported(
+        checkpoint,
+        "debug-card/exercise.yaml: every test needs the skills it checks",
+        "these have none: test_says_hello",
+        run=False,
+    )
+
+
+def test_checkpoint_tests_name_real_tests_and_skills(checkpoint: Path) -> None:
+    replace_in(
+        checkpoint,
+        f"{CHECKPOINT_DIR}/exercises/build-card/exercise.yaml",
+        "  test_says_hello: [t.hello/print-text]\n",
+        "  test_says_hello: [t.hello/print-txet, t.gone/print-text]\n"
+        "  test_says_bye: [t.hello/print-text]\n",
+    )
+    assert_reported(
+        checkpoint,
+        "test_says_hello: t.hello doesn't declare skill 'print-txet'",
+        "test_says_hello: topic 't.gone' doesn't exist",
+        "test_skills names 'test_says_bye', which isn't a test",
+        run=False,
+    )
+
+
+def test_checkpoint_tests_name_skills_taught_before_them(checkpoint: Path) -> None:
+    replace_in(
+        checkpoint,
+        "content/tracks/test.yaml",
+        "checkpoint: t.m1.checkpoint\n",
+        "checkpoint: t.m1.checkpoint\n"
+        "  - id: t.m2\n    title: Module two\n"
+        "    topics: [t.later]\n    checkpoint: t.m2.checkpoint\n",
+    )
+    later = (
+        CHECKPOINT.replace("t.m1.checkpoint", "t.later")
+        .replace("kind: checkpoint", "kind: topic")
+        .replace("prerequisites: [t.hello]", "prerequisites: [t.m1.checkpoint]")
+    )
+    write(
+        checkpoint,
+        "content/topics/t.later/topic.yaml",
+        later + "skills:\n  - id: loops\n    description: Repeat things.\n",
+    )
+    write(
+        checkpoint,
+        "content/topics/t.m2.checkpoint/topic.yaml",
+        CHECKPOINT.replace("t.m1", "t.m2").replace("[t.hello]", "[t.later]"),
+    )
+    replace_in(
+        checkpoint,
+        f"{CHECKPOINT_DIR}/exercises/build-card/exercise.yaml",
+        "[t.hello/print-text]",
+        "[t.later/loops]",
+    )
+    assert_reported(checkpoint, "'t.later' comes after this checkpoint", run=False)
+
+
+def test_only_checkpoints_name_skills_per_test(tree: Path) -> None:
+    replace_in(
+        tree,
+        f"{TOPIC_DIR}/exercises/build-hello/exercise.yaml",
+        "skills: [print-text]\n",
+        "skills: [print-text]\ntest_skills:\n  test_says_hello: [t.hello/print-text]\n",
+    )
+    assert_reported(tree, "only checkpoint exercises have test_skills", run=False)
+
+
+def test_ready_checkpoints_need_their_module_ready(checkpoint: Path) -> None:
+    write(
+        checkpoint,
+        f"{TOPIC_DIR}/topic.yaml",
+        TOPIC.replace("status: ready", "status: draft"),
+    )
+    assert_reported(
+        checkpoint,
+        "needs every topic of its module ready, but 't.hello' is draft",
+        run=False,
+    )
+
+
+def test_topics_and_checkpoints_keep_to_their_own_fields(checkpoint: Path) -> None:
+    write(
+        checkpoint,
+        f"{CHECKPOINT_DIR}/topic.yaml",
+        READY_CHECKPOINT + "skills:\n  - id: cards\n    description: Make cards.\n",
+    )
+    write(
+        checkpoint,
+        f"{TOPIC_DIR}/topic.yaml",
+        TOPIC + "unstuck:\n  example: example-hello\n",
+    )
+    assert_reported(
+        checkpoint,
+        "checkpoints don't declare skills",
+        "only checkpoints have unstuck",
+        run=False,
+    )

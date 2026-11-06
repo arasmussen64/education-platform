@@ -10,8 +10,8 @@ The methods Switchback is built on, and the features they drive. Rule of thumb: 
 | **Spacing** | Practice spread out over time beats cramming for long-term retention | The review scheduler (FSRS) |
 | **Successive relearning** | Retrieve until correct, then repeat across spaced sessions; this produces durable knowledge | "Mastered" only after a delayed review. A missed question comes back as a fresh one on the same skill, after 1, 3 and 7 days, until it's right on 3 different days ([ADR-0011](decisions/0011-mistakes-come-back.md)) |
 | **Interleaving** | Mixing problem types teaches you to *choose* the right method, not just apply the one you just saw | Practice and reviews mix current and older topics |
-| **Mastery learning** | Move on only when the prerequisites are solid | Gating with test-out |
-| **Worked examples, then fading** | Novices learn more from studying solutions than from solving problems; help should fade as skill grows | The practice ladder: worked example → half-finished code → blank file |
+| **Mastery learning** | Move on only when the prerequisites are solid; after a check, corrective practice on what was missed, then a fresh, parallel check | Gating with test-out. A missed checkpoint test brings its skill back, and a stuck learner proves the checkpoint on a fresh version ([ADR-0012](decisions/0012-checkpoint-support.md)) |
+| **Worked examples, then fading** | Novices learn more from studying solutions than from solving problems; help should fade as skill grows | The practice ladder: worked example → half-finished code → blank file. A checkpoint's way through: a solved sibling → the build in steps → a fresh version from a blank editor |
 | **Whole-task learning (4C/ID)** | Complex skills transfer best when you practice whole, realistic tasks, simple to complex, with fading support | Projects and "prove it" builds, not just isolated drills |
 | **Self-explanation** | Explaining *why* in your own words deepens understanding and exposes gaps | Explain-it-back checks |
 | **Desirable difficulties** | Some struggle (recall, spacing, variation) slows practice but improves long-term learning | Blank-editor challenges; no answer-giving AI |
@@ -57,6 +57,7 @@ Unrestricted, answer-giving AI can make practice look better while hurting real 
 - Corbett, A. T., & Anderson, J. R. (1994). Knowledge tracing: Modeling the acquisition of procedural knowledge. *User Modeling and User-Adapted Interaction*.
 - Doignon, J.-P., & Falmagne, J.-C. (1999). *Knowledge Spaces*. Springer.
 - du Boulay, B. (1986). Some difficulties of learning to program. *Journal of Educational Computing Research*.
+- Guskey, T. R. (2007). Closing achievement gaps: Revisiting Benjamin S. Bloom's "Learning for Mastery". *Journal of Advanced Academics*.
 - Lister, R., et al. (2004). A multi-national study of reading and tracing skills in novice programmers. *ITiCSE Working Group Reports*.
 - Margulieux, L. E., Guzdial, M., & Catrambone, R. (2012). Subgoal-labeled instructional material improves performance and transfer in learning to develop mobile applications. *ICER*.
 - Mayer, R. E. *Multimedia Learning*. Cambridge University Press.
@@ -70,5 +71,6 @@ Unrestricted, answer-giving AI can make practice look better while hurting real 
 - Sentance, S., Waite, J., & Kallia, M. (2019). Teaching computer programming with PRIMM: A sociocultural perspective. *Computer Science Education*.
 - Skycak, J. Individualized spaced repetition in hierarchical knowledge structures. justinmath.com.
 - Sweller, J. (1988). Cognitive load during problem solving: Effects on learning. *Cognitive Science*.
+- van Gog, T., Kester, L., & Paas, F. (2011). Effects of worked examples, example-problem, and problem-example pairs on novices' learning. *Contemporary Educational Psychology*.
 - van Merriënboer, J. J. G., & Kirschner, P. A. *Ten Steps to Complex Learning*. Routledge.
 - Ye, J., Su, J., & Cao, Y. (2022). A stochastic shortest path algorithm for optimizing spaced repetition scheduling. *KDD*.

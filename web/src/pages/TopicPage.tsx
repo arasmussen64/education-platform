@@ -1,6 +1,12 @@
-import { useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Link, useLoaderData } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
+import {
+  type LoadAttempts,
+  SuggestSteps,
+  Unstuck,
+} from '../checkpoints/Unstuck.tsx'
+import { SUGGEST_STEPS_AFTER } from '../checkpoints/versions.ts'
 import { getTopic, moduleFor } from '../content/content.ts'
 import type { Explain, Topic, TopicContent } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
@@ -22,29 +28,140 @@ export function TopicPage() {
 export function TopicView({
   topic,
   content,
+  loadAttempts,
 }: {
   topic: Topic
   /** Null when the topic isn't open yet. */
   content: TopicContent | null
+  /** For checkpoints: reads the learner's history. Tests pass a fake. */
+  loadAttempts?: LoadAttempts
 }) {
   useLessonView(content)
   return (
     <article className="space-y-10">
       <TopicHeader topic={topic} />
-      {content ? (
+      {content && content.topic.kind === 'checkpoint' && (
+        <>
+          <SignInToSave />
+          <CheckpointView content={content} loadAttempts={loadAttempts} />
+        </>
+      )}
+      {content && content.topic.kind === 'topic' && (
         <>
           <SignInToSave />
           <Learn content={content} />
           <Practice content={content} />
           <ProveIt content={content} />
         </>
-      ) : (
+      )}
+      {!content && (
         <p className={CARD}>
           This topic is still being written. It's on the map so you can see
           where it fits.
         </p>
       )}
     </article>
+  )
+}
+
+/**
+ * A module's checkpoint (F10): what it brings together, the three proof
+ * checks, and a way through the build for a learner who's stuck (ADR-0012).
+ */
+function CheckpointView({
+  content,
+  loadAttempts,
+}: {
+  content: TopicContent
+  loadAttempts?: LoadAttempts
+}) {
+  const { unstuck } = content.topic
+  const [failedChecks, setFailedChecks] = useState(0)
+  const [buildPassed, setBuildPassed] = useState(false)
+  const [stepsOpen, setStepsOpen] = useState(false)
+  const stepsHeading = useRef<HTMLHeadingElement>(null)
+  const suggest =
+    unstuck !== undefined &&
+    failedChecks >= SUGGEST_STEPS_AFTER &&
+    !buildPassed &&
+    !stepsOpen
+
+  return (
+    <>
+      <CheckpointIntro content={content} />
+      <ProveIt
+        content={content}
+        intro="Three checks show you can use everything in this module on your own: build a program from a blank editor, fix code with several bugs, and explain how it works. No hints here. If you get stuck on the build, there's a way through it below."
+        onBuildCheck={(passed) => {
+          if (passed) setBuildPassed(true)
+          else setFailedChecks((count) => count + 1)
+        }}
+        afterBuild={
+          <>
+            {/* <output> is announced by screen readers when its text changes. */}
+            <output className="sr-only">
+              {suggest ? 'Stuck on the build? You can try it in steps.' : ''}
+            </output>
+            {suggest && (
+              <SuggestSteps
+                onOpen={() => {
+                  setStepsOpen(true)
+                  stepsHeading.current?.focus()
+                }}
+              />
+            )}
+          </>
+        }
+      />
+      {unstuck && (
+        <Unstuck
+          content={content}
+          unstuck={unstuck}
+          open={stepsOpen}
+          onToggle={() => setStepsOpen((open) => !open)}
+          headingRef={stepsHeading}
+          loadAttempts={loadAttempts}
+        />
+      )}
+    </>
+  )
+}
+
+/** In place of a lesson: what the checkpoint brings together. */
+function CheckpointIntro({ content }: { content: TopicContent }) {
+  const topics = (moduleFor(content.topic.id)?.module.topics ?? [])
+    .map((id) => getTopic(id))
+    .filter((topic) => topic !== undefined)
+
+  return (
+    <section aria-labelledby="about" className="space-y-4">
+      <SectionHeading id="about">About this checkpoint</SectionHeading>
+      <div className={PROSE}>
+        <p>
+          It brings together everything in this module. Passing it shows you
+          can:
+        </p>
+        <ul>
+          {content.topic.objectives.map((objective) => (
+            <li key={objective}>
+              <Markdown inline>{objective}</Markdown>
+            </li>
+          ))}
+        </ul>
+        {topics.length > 0 && (
+          <p>
+            To refresh something first, go back to{' '}
+            {topics.map((topic, index) => (
+              <span key={topic.id}>
+                {index > 0 && (index === topics.length - 1 ? ' or ' : ', ')}
+                <Link to={`/topic/${topic.id}`}>{topic.title}</Link>
+              </span>
+            ))}
+            .
+          </p>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -102,7 +219,8 @@ function TopicHeader({ topic }: { topic: Topic }) {
         {topic.summary}
       </p>
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        About {topic.estimated_minutes} minutes for the whole topic
+        About {topic.estimated_minutes} minutes for the whole{' '}
+        {topic.kind === 'checkpoint' ? 'checkpoint' : 'topic'}
         {prerequisites.length > 0 && (
           <>
             {' · Builds on '}
@@ -203,22 +321,38 @@ function Practice({ content }: { content: TopicContent }) {
   )
 }
 
+const TOPIC_PROOF_INTRO =
+  "Three checks show you can use this on your own: build something from a blank editor, fix broken code, and explain the idea in your own words. No hints here. Once progress tracking arrives (Milestone B), passing all three marks the topic as learned; for now, they're extra practice."
+
 /** The three proof checks: build, debug and explain (F7). */
-function ProveIt({ content }: { content: TopicContent }) {
+function ProveIt({
+  content,
+  intro = TOPIC_PROOF_INTRO,
+  onBuildCheck,
+  afterBuild,
+}: {
+  content: TopicContent
+  intro?: string
+  /** Called after each Check of the build, with whether it passed. */
+  onBuildCheck?: (passed: boolean) => void
+  /** Shown right after the build. */
+  afterBuild?: ReactNode
+}) {
   const { build, debug, explain } = content.topic.prove
   if (!build && !debug && !explain) return null
   return (
     <section aria-labelledby="prove-it" className="space-y-4">
       <SectionHeading id="prove-it">Prove it</SectionHeading>
-      <p className="text-slate-600 dark:text-slate-400">
-        Three checks show you can use this on your own: build something from a
-        blank editor, fix broken code, and explain the idea in your own words.
-        No hints here. Once progress tracking arrives (Milestone B), passing all
-        three marks the topic as learned; for now, they're extra practice.
-      </p>
+      <p className="text-slate-600 dark:text-slate-400">{intro}</p>
       {build && (
-        <PracticeItem itemId={build} content={content} context="prove" />
+        <PracticeItem
+          itemId={build}
+          content={content}
+          context="prove"
+          onCheck={onBuildCheck}
+        />
       )}
+      {afterBuild}
       {debug && (
         <PracticeItem itemId={debug} content={content} context="prove" />
       )}
