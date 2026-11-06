@@ -19,6 +19,8 @@ Run these inside `web/`.
 
 CI runs `format:check`, `lint`, `typecheck`, `test` and `build` on every pull request.
 
+**Deploying** happens automatically: Cloudflare builds and deploys every merge to `main` using `wrangler.jsonc`. `npx wrangler deploy --dry-run`, run after `npm run build`, checks the config without uploading anything. `.nvmrc` tells Cloudflare's build which Node version to use; keep it the same as the one at the repository root.
+
 **Restart the dev server** (Ctrl+C, then `npm run dev`) after pulling changes to `vite.config.ts` or `package.json`. A running server tries to reload itself, but it can end up half-updated: for example, serving pages with no styles at all.
 
 ## Layout
