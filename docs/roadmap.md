@@ -27,7 +27,7 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] Web app scaffold and CI
 - [ ] Python runner in the browser
 - [ ] Content pipeline and validator
-- [ ] Supabase: sign-in and the event log
+- [ ] Local Supabase in Docker ([setup](setup.md)), then sign-in and the event log
 - [ ] Deploy to Cloudflare
 - [ ] Module 1 content
 

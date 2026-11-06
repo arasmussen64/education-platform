@@ -2,6 +2,23 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-05: Process and environment decisions
+
+**Decided**
+
+- The owner gave standing permission for Claude to merge its own pull requests once CI passes. Explain-it-back questions continue, but they never block merging.
+- Supabase's second free project slot is already in use, so the platform gets one cloud project, for real learning only. Development runs a local Supabase in Docker Desktop ([ADR-0010](decisions/0010-environments.md)). The owner chose this over sharing the cloud project with a test account.
+
+**Done**
+
+- Merged the web app scaffold (PR #2).
+- Wrote ADR-0010 and a [setup guide](setup.md) for the owner's computer and accounts.
+
+**Next**
+
+- The owner installs Docker Desktop, creates the Supabase project, and creates a Cloudflare account ([setup](setup.md)).
+- The Python runner in the browser.
+
 ## 2026-11-05: Milestone A starts with the web app scaffold and CI
 
 **Done**

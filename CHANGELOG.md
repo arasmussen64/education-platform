@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- ADR-0010: a local Supabase in Docker for development, and one cloud project for real use.
+- A setup guide for the owner's computer and accounts (`docs/setup.md`).
 - Web app scaffold in `web/`: Vite, React, TypeScript, Tailwind CSS and React Router, with placeholder Today, Map and Topic pages. The product name is kept in a single setting.
 - CI on GitHub Actions: formatting, lint, type-check, tests and build on every pull request and every push to `main`.
 - v1 spec, data model and Python Foundations track plan, in `docs/specs/`.
@@ -19,4 +21,5 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed
 
+- Process: Claude merges its own pull requests once CI passes, under standing permission from the owner.
 - Roadmap: the "prove it" checks, topic states and gating move from Phase 2 into Phase 1.
