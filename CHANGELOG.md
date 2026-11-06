@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the fifth lesson)
+
+- **Strings and input** (`py.strings-and-input`), ready to learn. That completes Module 1's topics.
+  - **Learn:** CS50P Lecture 0 from 43:23 to 45:02, on f-strings. `input()` and `int()` were already in earlier clips, so this clip covers only what's new. The `:.2f` part of the lecture (1:24:34) and the Python tutorial's section on f-strings are linked as more resources.
+  - **Practice:** a worked example that asks two questions and does maths with the answers, three questions (one mixes in topic 2's "45" surprise), filling in a rectangle's area, and a price tag with `:.2f`.
+  - **Prove it:** kilometres to miles from a blank editor; a shopping line with a conversion crash and a missing `f`; explaining why `age + 1` fails on typed input.
+  - **Review pool:** four items. Three skills: `input-text`, `convert` and `fstrings`.
+- [ADR-0012](docs/decisions/0012-checkpoint-support.md) (proposed): what happens when someone is stuck on a checkpoint.
+  - Failed tests point to the skill behind them, which then comes back for practice.
+  - A solved sibling project to study, and a "try it in steps" version with hints.
+  - Proof on a fresh version of the checkpoint.
+
 ### Added (the fourth lesson)
 
 - **Arithmetic** (`py.arithmetic`), ready to learn:
