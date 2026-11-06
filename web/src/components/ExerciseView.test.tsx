@@ -2,7 +2,12 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { fakeExercise } from '../test/fakeContent.tsx'
-import { allPassed, fakeRunner, oneFailed } from '../test/fakePython.ts'
+import {
+  allPassed,
+  fakeRunner,
+  oneFailed,
+  printed,
+} from '../test/fakePython.ts'
 import { setFakeRunner } from '../test/mockPython.ts'
 import { ExerciseView } from './ExerciseView.tsx'
 
@@ -125,5 +130,40 @@ describe('ExerciseView', () => {
       await screen.findByText('Compare with a reference solution'),
     ).toBeInTheDocument()
     expect(screen.getByText('print("the answer")')).toBeInTheDocument()
+  })
+
+  it('reports runs, hints and checks, so they can be saved', async () => {
+    const runner = setFakeRunner(
+      fakeRunner({ run: printed('hi\n'), check: oneFailed('Says hi') }),
+    )
+    const onActivity = vi.fn()
+    render(
+      <ExerciseView
+        exercise={fakeExercise({
+          id: 'write',
+          stage: 'write',
+          starter: 'print("hi")',
+          hints: ['A hint'],
+        })}
+        onActivity={onActivity}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Show a hint' }))
+    await check()
+
+    await vi.waitFor(() => expect(onActivity).toHaveBeenCalledTimes(3))
+    expect(onActivity.mock.calls.map(([activity]) => activity)).toEqual([
+      { kind: 'run', code: 'print("hi")', outcome: printed('hi\n') },
+      { kind: 'hint', hintsUsed: 1 },
+      {
+        kind: 'check',
+        code: 'print("hi")',
+        outcome: oneFailed('Says hi'),
+        hintsUsed: 1,
+      },
+    ])
+    expect(runner.run).toHaveBeenCalledTimes(1)
   })
 })

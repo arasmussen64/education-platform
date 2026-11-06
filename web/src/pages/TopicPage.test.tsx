@@ -1,8 +1,14 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AuthProvider } from '../auth/AuthProvider.tsx'
 import type { Topic, TopicContent } from '../content/types.ts'
+import { EventLogContext } from '../events/eventLogContext.ts'
+import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { fakeContent, fakeTopic } from '../test/fakeContent.tsx'
+import { recordingEventLog } from '../test/fakeEvents.ts'
+import { allPassed, fakeRunner } from '../test/fakePython.ts'
 import { setFakeRunner } from '../test/mockPython.ts'
 import { TopicView } from './TopicPage.tsx'
 
@@ -14,16 +20,23 @@ vi.mock(
   () => import('../test/FakeCodeEditor.tsx'),
 )
 
+/** Renders a topic for a signed-in learner (unless `signedIn` is false). */
 function renderTopic(
   topic: Topic = fakeTopic(),
   content: TopicContent | null = fakeContent(topic),
+  { signedIn = true } = {},
 ) {
-  setFakeRunner()
+  const { log, events } = recordingEventLog()
   render(
-    <MemoryRouter>
-      <TopicView topic={topic} content={content} />
-    </MemoryRouter>,
+    <AuthProvider auth={fakeAuth(signedIn ? fakeUser() : null)}>
+      <EventLogContext value={log}>
+        <MemoryRouter>
+          <TopicView topic={topic} content={content} />
+        </MemoryRouter>
+      </EventLogContext>
+    </AuthProvider>,
   )
+  return { events }
 }
 
 /** The text of each item heading in a section, in order. */
@@ -34,6 +47,10 @@ function itemHeadings(section: HTMLElement) {
 }
 
 describe('the topic page', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
   it('shows where the topic fits and what it builds on', () => {
     renderTopic()
     expect(
@@ -104,5 +121,79 @@ describe('the topic page', () => {
   it('marks drafts', () => {
     renderTopic(fakeTopic({ status: 'draft' }))
     expect(screen.getByText(/Draft: only shown/)).toBeInTheDocument()
+  })
+
+  it('asks signed-out learners to sign in to save their answers', () => {
+    renderTopic(fakeTopic(), fakeContent(), { signedIn: false })
+    expect(screen.getByText(/won't be saved/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      '/sign-in',
+    )
+  })
+})
+
+describe('what the topic page saves', () => {
+  it('saves one lesson view when the page opens', () => {
+    const { events } = renderTopic()
+    expect(events).toEqual([
+      {
+        type: 'lesson_view',
+        topic_id: 'py.values-and-types',
+        context: 'learn',
+        data: { resource: 'https://www.youtube.com/watch?v=abc123' },
+      },
+    ])
+  })
+
+  it('saves nothing for a topic that is still being written', () => {
+    const { events } = renderTopic(fakeTopic({ status: 'planned' }), null)
+    expect(events).toEqual([])
+  })
+
+  it('saves each answer with the item, its revision and the time it took', async () => {
+    const { events } = renderTopic()
+    await userEvent.click(screen.getByRole('radio', { name: 'Hi' }))
+    await userEvent.click(
+      within(screen.getByRole('region', { name: 'Quick check' })).getByRole(
+        'button',
+        { name: 'Check' },
+      ),
+    )
+    expect(events.at(-1)).toEqual({
+      type: 'answer',
+      topic_id: 'py.values-and-types',
+      item_id: 'mcq-print',
+      item_rev: 1,
+      context: 'practice',
+      correct: true,
+      duration_ms: expect.any(Number),
+      data: { choice: 0, choice_text: 'Hi' },
+    })
+  })
+
+  it('saves proof checks as proof, with the code that was checked', async () => {
+    setFakeRunner(fakeRunner({ check: allPassed('Greets') }))
+    const { events } = renderTopic()
+    const build = screen.getByRole('region', { name: 'Build: Greet' })
+    await userEvent.type(within(build).getByLabelText('Python code'), 'print()')
+    await userEvent.click(within(build).getByRole('button', { name: 'Check' }))
+
+    await vi.waitFor(() =>
+      expect(events.at(-1)).toMatchObject({
+        type: 'code_check',
+        item_id: 'build-hello',
+        context: 'prove',
+        correct: true,
+        hints_used: 0,
+        data: {
+          code: 'print()',
+          outcome: 'done',
+          passed: 1,
+          total: 1,
+          failing: [],
+        },
+      }),
+    )
   })
 })

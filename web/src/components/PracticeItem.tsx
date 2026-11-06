@@ -1,7 +1,16 @@
-import type { ReactNode } from 'react'
-import type { TopicContent } from '../content/types.ts'
+import { type ReactNode, useRef } from 'react'
 import { STAGES } from '../content/stages.ts'
-import { ExerciseView } from './ExerciseView.tsx'
+import type { TopicContent } from '../content/types.ts'
+import {
+  checkEventData,
+  clip,
+  MAX_TEXT_CHARS,
+  runEventData,
+} from '../events/payloads.ts'
+import type { EventContext, EventData } from '../events/types.ts'
+import { useRecordEvent } from '../events/useEvents.ts'
+import { allChecksPassed } from '../python/runner.ts'
+import { type ExerciseActivity, ExerciseView } from './ExerciseView.tsx'
 import { McqQuestion } from './McqQuestion.tsx'
 import { PredictOutput } from './PredictOutput.tsx'
 import { CARD } from './styles.ts'
@@ -10,41 +19,138 @@ type Props = {
   /** The item's ID, as listed in topic.yaml. */
   itemId: string
   content: TopicContent
+  /** Whether this is practice or a proof check; saved with each answer. */
+  context: Extract<EventContext, 'practice' | 'prove'>
   /** Shown above the heading, e.g. "Practice 2 of 5". */
   position?: string
+}
+
+type Handlers = {
+  onAnswer: (correct: boolean, data: EventData) => void
+  onActivity: (activity: ExerciseActivity) => void
 }
 
 /** The heading and body for an item, whichever kind it is. */
 function describe(
   itemId: string,
   content: TopicContent,
+  { onAnswer, onActivity }: Handlers,
 ): { heading: string; body: ReactNode } | null {
   const recall = content.recall[itemId]
   if (recall?.type === 'mcq') {
-    return { heading: 'Quick check', body: <McqQuestion item={recall} /> }
+    return {
+      heading: 'Quick check',
+      body: (
+        <McqQuestion
+          item={recall}
+          onAnswer={(correct, choice) =>
+            onAnswer(correct, {
+              choice,
+              choice_text: recall.choices[choice] ?? null,
+            })
+          }
+        />
+      ),
+    }
   }
   if (recall?.type === 'predict_output') {
     return {
       heading: 'Predict the output',
-      body: <PredictOutput item={recall} />,
+      body: (
+        <PredictOutput
+          item={recall}
+          onAnswer={(correct, prediction) =>
+            onAnswer(correct, {
+              prediction: clip(prediction, MAX_TEXT_CHARS),
+            })
+          }
+        />
+      ),
     }
   }
   const exercise = content.exercises[itemId]
   if (exercise) {
     return {
       heading: `${STAGES[exercise.stage].label}: ${exercise.title}`,
-      body: <ExerciseView exercise={exercise} />,
+      body: <ExerciseView exercise={exercise} onActivity={onActivity} />,
     }
   }
   return null
 }
 
 /**
- * One item of a topic's practice ladder or proof: a recall question or an
- * exercise, in a card with a heading.
+ * Time spent on an attempt: from the learner's first touch of the item, or
+ * from their previous attempt, until now. Time spent reading the lesson above
+ * doesn't count.
  */
-export function PracticeItem({ itemId, content, position }: Props) {
-  const item = describe(itemId, content)
+function useAttemptTimer() {
+  const startedAt = useRef<number | null>(null)
+  return {
+    start() {
+      startedAt.current ??= Date.now()
+    },
+    /** The time since the start, then starts timing the next attempt. */
+    lap(): number | null {
+      const now = Date.now()
+      const started = startedAt.current
+      startedAt.current = now
+      return started === null ? null : now - started
+    },
+  }
+}
+
+/**
+ * One item of a topic's practice ladder or proof: a recall question or an
+ * exercise, in a card with a heading. Saves what the learner does with it.
+ */
+export function PracticeItem({ itemId, content, context, position }: Props) {
+  const record = useRecordEvent()
+  const timer = useAttemptTimer()
+  const rev = (content.recall[itemId] ?? content.exercises[itemId])?.rev
+  const about = {
+    topic_id: content.topic.id,
+    item_id: itemId,
+    item_rev: rev,
+    context,
+  }
+
+  const item = describe(itemId, content, {
+    onAnswer(correct, data) {
+      record({
+        ...about,
+        type: 'answer',
+        correct,
+        duration_ms: timer.lap(),
+        data,
+      })
+    },
+    onActivity(activity) {
+      if (activity.kind === 'hint') {
+        record({
+          ...about,
+          type: 'hint',
+          hints_used: activity.hintsUsed,
+          data: { level: activity.hintsUsed, source: 'author' },
+        })
+      } else if (activity.kind === 'run') {
+        record({
+          ...about,
+          type: 'code_run',
+          data: runEventData(activity.code, activity.outcome),
+        })
+      } else {
+        record({
+          ...about,
+          type: 'code_check',
+          correct: allChecksPassed(activity.outcome),
+          duration_ms: timer.lap(),
+          hints_used: activity.hintsUsed,
+          data: checkEventData(activity.code, activity.outcome),
+        })
+      }
+    },
+  })
+
   if (!item) {
     // The validator makes sure every listed item exists, so this only
     // happens while a draft is being written.
@@ -57,7 +163,17 @@ export function PracticeItem({ itemId, content, position }: Props) {
 
   const headingId = `item-${itemId}`
   return (
-    <section aria-labelledby={headingId} className={CARD}>
+    // The attempt timer starts at the first focus or click inside the item.
+    // These handlers only time; they aren't controls. Keyboard users start
+    // the timer by focusing something inside, mouse users by clicking (which
+    // doesn't always move focus, e.g. in Safari).
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <section
+      aria-labelledby={headingId}
+      className={CARD}
+      onFocus={timer.start}
+      onPointerDown={timer.start}
+    >
       {position && (
         <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
           {position}

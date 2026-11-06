@@ -1,0 +1,183 @@
+import type { Outbox } from './outbox.ts'
+import { type EventsClient, syncOutbox } from './sync.ts'
+import type { EventRow, NewEvent } from './types.ts'
+
+export type EventLogStatus = {
+  /** Events on this device that the server doesn't have yet. */
+  pending: number
+  /** True while sending. */
+  syncing: boolean
+}
+
+/** Records learner events and gets them to the server (v1 spec, F6). */
+export type EventLog = {
+  /** Adds an event (nothing happens while signed out). */
+  record(event: NewEvent): void
+  /** Who's signed in: an ID, null when signed out, undefined while loading. */
+  setUser(userId: string | null | undefined): void
+  /** Sends whatever is waiting, now. */
+  sync(): Promise<void>
+  /** For React's useSyncExternalStore: status changes. */
+  subscribe(listener: () => void): () => void
+  getStatus(): EventLogStatus
+  /** Cancels any scheduled retry. */
+  stop(): void
+}
+
+/** A study session ends after this long without any activity. */
+export const SESSION_IDLE_MS = 30 * 60 * 1000
+/** After a failed send, wait this long, then twice as long, and so on... */
+export const FIRST_RETRY_MS = 5_000
+/** ...but never longer than this. */
+const LONGEST_RETRY_MS = 5 * 60 * 1000
+/** Events recorded before sign-in has loaded wait in memory: at most this many. */
+const MAX_WAITING = 100
+
+type Options = {
+  outbox: Outbox
+  /** Where events are sent. Only called when there's something to send. */
+  client: () => EventsClient
+  /** The git commit the app and content were built from. */
+  contentBuild: string
+  /** Tests pass fakes for the clock and the ID generator. */
+  now?: () => number
+  newId?: () => string
+}
+
+export function createEventLog({
+  outbox,
+  client,
+  contentBuild,
+  now = Date.now,
+  newId = () => crypto.randomUUID(),
+}: Options): EventLog {
+  let userId: string | null | undefined = undefined
+  let session = { id: newId(), lastActivity: now() }
+  // Recorded while sign-in was still loading; they get the user ID later.
+  let waiting: Omit<EventRow, 'user_id'>[] = []
+  let syncing = false
+  let syncAgain = false
+  let retryTimer: ReturnType<typeof setTimeout> | undefined
+  let retryDelay = FIRST_RETRY_MS
+  let status: EventLogStatus = { pending: 0, syncing: false }
+  const listeners = new Set<() => void>()
+
+  function updateStatus() {
+    const pending = userId ? outbox.count(userId) : 0
+    if (pending === status.pending && syncing === status.syncing) return
+    status = { pending, syncing }
+    for (const listener of listeners) listener()
+  }
+
+  function sessionId(time: number): string {
+    if (time - session.lastActivity > SESSION_IDLE_MS) {
+      session = { id: newId(), lastActivity: time }
+    }
+    session.lastActivity = time
+    return session.id
+  }
+
+  /** Every column, filled in, so each row in a batch has the same shape. */
+  function toRow(event: NewEvent): Omit<EventRow, 'user_id'> {
+    const time = now()
+    return {
+      id: newId(),
+      type: event.type,
+      topic_id: event.topic_id,
+      item_id: event.item_id ?? null,
+      context: event.context,
+      correct: event.correct ?? null,
+      duration_ms:
+        event.duration_ms == null
+          ? null
+          : Math.max(0, Math.round(event.duration_ms)),
+      hints_used: event.hints_used ?? 0,
+      item_rev: event.item_rev ?? null,
+      content_build: contentBuild,
+      session_id: sessionId(time),
+      occurred_at: new Date(time).toISOString(),
+      data: event.data ?? {},
+    }
+  }
+
+  function scheduleRetry() {
+    clearTimeout(retryTimer)
+    retryTimer = setTimeout(() => void log.sync(), retryDelay)
+    retryDelay = Math.min(retryDelay * 2, LONGEST_RETRY_MS)
+  }
+
+  const log: EventLog = {
+    record(event) {
+      // Signed-out visitors' answers aren't saved anywhere.
+      if (userId === null) return
+      const row = toRow(event)
+      if (userId === undefined) {
+        if (waiting.length < MAX_WAITING) waiting.push(row)
+        return
+      }
+      outbox.add({ ...row, user_id: userId })
+      void log.sync()
+      updateStatus()
+    },
+
+    setUser(id) {
+      if (id === userId) return
+      userId = id
+      clearTimeout(retryTimer)
+      retryDelay = FIRST_RETRY_MS
+      if (id) {
+        for (const row of waiting) outbox.add({ ...row, user_id: id })
+      }
+      if (id !== undefined) waiting = []
+      updateStatus()
+      void log.sync()
+    },
+
+    async sync() {
+      if (!userId) return
+      if (syncing) {
+        // Already sending: go round once more afterwards for anything new.
+        syncAgain = true
+        return
+      }
+      const user = userId
+      clearTimeout(retryTimer)
+      syncing = true
+      updateStatus()
+
+      let result: 'done' | 'retry-later'
+      try {
+        result = await syncOutbox(outbox, client(), user)
+      } catch (error) {
+        console.error('Saving progress failed', error)
+        result = 'retry-later'
+      }
+
+      syncing = false
+      if (result === 'done') {
+        retryDelay = FIRST_RETRY_MS
+      } else if (userId === user) {
+        scheduleRetry()
+      }
+      updateStatus()
+      if (syncAgain) {
+        syncAgain = false
+        void log.sync()
+      }
+    },
+
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+
+    getStatus: () => status,
+
+    stop() {
+      clearTimeout(retryTimer)
+    },
+  }
+  return log
+}

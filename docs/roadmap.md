@@ -30,7 +30,7 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] The app loads content, with topic pages for lessons and exercises
 - [x] Local Supabase in Docker, with the profiles and event-log tables
 - [x] Sign-in: GitHub on the live site, email links locally
-- [ ] Saving answers to the event log (comes with the topic pages)
+- [x] Saving answers to the event log, with an offline outbox
 - [x] Deploy to Cloudflare (every merge to `main` deploys automatically)
 - [ ] Module 1 content
 

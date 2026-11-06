@@ -1,4 +1,5 @@
 /// <reference types="vitest/config" />
+import { execSync } from 'node:child_process'
 import mdx from '@mdx-js/rollup'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -32,8 +33,27 @@ function contentYaml(): Plugin {
   }
 }
 
+// The git commit being built. It's saved with every learner event, so each
+// answer can be matched to the exact content it was given (ADR-0008).
+function gitCommit(): string {
+  try {
+    return execSync('git rev-parse HEAD', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim()
+  } catch {
+    // No git: Cloudflare's builds also name the commit in a variable.
+    return process.env.WORKERS_CI_COMMIT_SHA ?? 'unknown'
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    // Replaced with the commit wherever the app's code says __CONTENT_BUILD__.
+    __CONTENT_BUILD__: JSON.stringify(gitCommit()),
+  },
   plugins: [
     // Lessons are MDX: Markdown with components like <Intro> and <Resource>.
     { enforce: 'pre', ...mdx() },

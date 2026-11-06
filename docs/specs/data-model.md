@@ -222,13 +222,23 @@ Policies allow **insert** and **select** only. There is no update or delete poli
 
 | Event type | When | `data` holds |
 |---|---|---|
-| `lesson_view` | a topic's lesson is opened | which resource was shown |
-| `answer` | a multiple-choice or predict-the-output item is answered | the response |
-| `code_run` | the learner presses Run | the code; output, truncated |
-| `code_check` | tests are run | the code; tests passed and total; failing test names |
+| `lesson_view` | a topic's lesson is opened | `resource`: the main resource's URL |
+| `answer` | a multiple-choice or predict-the-output item is answered | `choice` and `choice_text`, or `prediction` |
+| `code_run` | the learner presses Run | `code`; `outcome` (`done`, `timeout` or `failed`); `output`, `error` and `waiting_for_input` (or `message`) |
+| `code_check` | tests are run | `code`; `outcome`; `status`; `passed` and `total`; `failing` (test names); `message` if the tests couldn't run |
 | `explain_submit` | an explanation is graded | the text; the verdict; rubric results; `ai_call_id` |
-| `hint` | the tutor gives a hint | the hint level; `ai_call_id` |
+| `hint` | a hint is shown | `level`; `source` (`author` for the written hints, until the tutor exists); later `ai_call_id` |
 | `review` | a topic's review session ends | item IDs; results; the rating |
+
+How the browser fills in the other columns:
+
+- **`duration_ms`** (graded events): from the learner's first click or focus inside the item, or from their previous attempt at it, to this attempt. Time spent reading the lesson above doesn't count.
+- **`hints_used`**: how many hints were showing at the time.
+- **`session_id`**: a new study session starts when the app opens, and after 30 minutes without any events.
+- **`content_build`**: the git commit the app was built from.
+- **`occurred_at`**: the browser's clock when it happened. An event saved after time offline keeps its original time; `received_at` shows when it arrived.
+
+Code and output are cut to 6,000 and 2,000 characters, so every event fits the 16 KB limit. Signed-out visitors' events aren't recorded at all.
 
 ### `topic_progress` (derived cache)
 

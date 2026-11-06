@@ -59,6 +59,23 @@ describe('CodeRunner', () => {
     ])
   })
 
+  it('reports each press of Run once, with its code, but not typed input', async () => {
+    const user = userEvent.setup()
+    const runner = fakeRunner()
+    runner.run
+      .mockResolvedValueOnce(printed('Name? ', true))
+      .mockResolvedValueOnce(printed('Name? Ada\nHi, Ada\n'))
+    const onRun = vi.fn()
+    render(<CodeRunner initialCode="code" runner={runner} onRun={onRun} />)
+
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    await user.type(await screen.findByLabelText('Program input'), 'Ada{Enter}')
+    await screen.findByText(/Hi, Ada/)
+
+    expect(onRun).toHaveBeenCalledTimes(1)
+    expect(onRun).toHaveBeenCalledWith(printed('Name? ', true), 'code')
+  })
+
   it('keeps the code it started with while the program waits for input', async () => {
     const user = userEvent.setup()
     const runner = fakeRunner()
@@ -144,7 +161,15 @@ describe('CodeRunner', () => {
         ],
       }),
     })
-    render(<CodeRunner initialCode="" tests="tests" runner={runner} />)
+    const onCheck = vi.fn()
+    render(
+      <CodeRunner
+        initialCode=""
+        tests="tests"
+        runner={runner}
+        onCheck={onCheck}
+      />,
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Check' }))
     expect(await screen.findByText('1 of 2 checks passed')).toBeInTheDocument()
     expect(screen.getByText('Greets the person')).toBeInTheDocument()
@@ -153,6 +178,11 @@ describe('CodeRunner', () => {
     expect(runner.check).toHaveBeenCalledWith('', 'tests', {
       timeLimitMs: 5000,
     })
+    // The result is reported along with the code that was checked.
+    expect(onCheck).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'done' }),
+      '',
+    )
   })
 
   it('hides failure details for hidden tests, but still shows errors in your code', async () => {
