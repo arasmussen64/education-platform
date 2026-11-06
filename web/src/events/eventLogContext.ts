@@ -1,7 +1,9 @@
 import { createContext } from 'react'
 import type { EventLog, EventLogStatus } from './eventLog.ts'
+import type { EventRow } from './types.ts'
 
 const NOTHING_WAITING: EventLogStatus = { pending: 0, syncing: false }
+const NO_ROWS: EventRow[] = []
 
 /**
  * Used when there's no <EventsProvider> around a component, as in most
@@ -14,6 +16,7 @@ const RECORDS_NOTHING: EventLog = {
   async sync() {},
   subscribe: () => () => {},
   getStatus: () => NOTHING_WAITING,
+  getLocalRows: () => NO_ROWS,
   stop() {},
 }
 

@@ -21,14 +21,26 @@ type ActivityHandler = (activity: ExerciseActivity) => void
 type Props = {
   exercise: Exercise
   onActivity?: ActivityHandler
+  /** False in reviews: hints stand in for the tutor, which is off there. */
+  allowHints?: boolean
 }
 
 /** One exercise: its instructions, the code runner, hints and, once passed, the answer. */
-export function ExerciseView({ exercise, onActivity }: Props) {
+export function ExerciseView({
+  exercise,
+  onActivity,
+  allowHints = true,
+}: Props) {
   if (exercise.stage === 'worked_example') {
     return <WorkedExample exercise={exercise} onActivity={onActivity} />
   }
-  return <CodingExercise exercise={exercise} onActivity={onActivity} />
+  return (
+    <CodingExercise
+      exercise={exercise}
+      onActivity={onActivity}
+      allowHints={allowHints}
+    />
+  )
 }
 
 /** A full solution to study and run, explained step by step. */
@@ -79,9 +91,11 @@ function linesLabel(step: Step): string {
 function CodingExercise({
   exercise,
   onActivity,
+  allowHints,
 }: {
   exercise: Exercise
   onActivity?: ActivityHandler
+  allowHints: boolean
 }) {
   const stage = STAGES[exercise.stage]
   const [passed, setPassed] = useState(false)
@@ -109,7 +123,7 @@ function CodingExercise({
         onRun={(outcome, code) => onActivity?.({ kind: 'run', code, outcome })}
         onCheck={handleCheck}
       />
-      {stage.hints && exercise.hints.length > 0 && !passed && (
+      {stage.hints && allowHints && exercise.hints.length > 0 && !passed && (
         <Hints
           hints={exercise.hints}
           shown={hintsShown}

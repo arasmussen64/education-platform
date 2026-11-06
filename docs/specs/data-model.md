@@ -303,6 +303,16 @@ state =
 
 Locked → Available → In progress → Passed, once all three proof checks pass. Checkpoints have no reviews.
 
+### Mistakes to revisit
+
+Details are in [ADR-0011](../decisions/0011-mistakes-come-back.md). They're worked out by `web/src/followups/followUps.ts`, from the learner's `answer` and `code_check` events and the `skills` of each item, so nothing is stored for them:
+
+- Each item's outcome is judged per day. A question is missed if any answer to it that day was wrong. A code exercise is correct if any Check that day passed.
+- For each skill, day by day:
+  - a missed day opens the follow-up (due the next day) and clears earlier progress;
+  - a correct day after it counts (due again 3 days later);
+  - 2 correct days close it.
+
 ### Reviews
 
 Details are in [ADR-0009](../decisions/0009-reviews.md).

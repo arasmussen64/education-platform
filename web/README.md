@@ -33,6 +33,8 @@ src/
 ├── auth/            who's signed in (see "Sign-in" below)
 ├── components/      shared pieces, such as the page layout, the code runner and exercises
 ├── content/         loading the lessons and exercises from ../content (see below)
+├── events/          saving what the learner does (see "Saving progress")
+├── followups/       mistakes coming back as fresh questions (ADR-0011)
 ├── pages/           one file per page
 ├── python/          running learner Python in the browser (see below)
 ├── supabase/        the Supabase client, its settings, and generated database types
@@ -89,6 +91,19 @@ Everything a learner does on a topic page becomes an event in the append-only `e
 | `components/SaveStatus.tsx` | The "Not saved yet" badge in the header, shown while work is waiting on this device.                                                                  |
 
 Components record events with `useRecordEvent()`. Only a signed-in learner's events are kept. Events recorded while sign-in is still loading wait in memory, then go to whoever turns out to be signed in.
+
+## Mistakes to revisit
+
+The Today page brings missed skills back as fresh questions until they're relearned ([ADR-0011](../docs/decisions/0011-mistakes-come-back.md)).
+
+| File                        | What it does                                                                                                         |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `followups/followUps.ts`    | The rules, as pure functions: which skills are open and when they're due, and which question to ask for each.        |
+| `followups/history.ts`      | Reads the learner's graded attempts from Supabase, 1,000 rows per request.                                           |
+| `followups/useFollowUps.ts` | Joins that history with the events on this device, loads the topics with misses, and recalculates after each answer. |
+| `pages/TodayPage.tsx`       | "Mistakes to revisit" and "Coming back later".                                                                       |
+
+Nothing is stored for follow-ups: they're recalculated from the event log on every visit, so older misses count too.
 
 ## Sign-in
 

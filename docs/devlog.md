@@ -2,6 +2,46 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Mistakes come back (ADR-0011, built)
+
+**Decided**
+
+- ADR-0011 is now Accepted. The owner kept the defaults: right on 2 different days relearns a skill.
+- Two refinements, recorded in the ADR and told to the owner:
+  - **Timing:** the earlier message said "next day, about 3 days, then a week", but with 2 correct days the week is never reached. It's now: due the next day, then 3 days after a correct day. Correct answers on the day of the miss don't count.
+  - **Code:** failing Checks while working something out are part of solving, so a code exercise counts as missed only if no Check passed that day. Questions count on any wrong answer that day.
+
+**Done**
+
+- `web/src/followups/`:
+  - **`followUps.ts`:** pure functions for the day-by-day state of each skill and the choice of question (never answered first, then the one answered longest ago; the missed one only if nothing else is left). 20 tests.
+  - **`history.ts`:** reads graded attempts from Supabase, 1,000 rows per request. Times are normalized: the server writes `+00:00`, the browser `Z`.
+  - **`useFollowUps.ts`:** combines the server history with the events on this device.
+- The event log now exposes `getLocalRows()`: what's still in the outbox, plus everything recorded since the page opened. It keeps them after they're sent, so an answer can never vanish between the outbox and the server.
+- **Today:**
+  - "Mistakes to revisit" with one card per due skill. The question is chosen once per visit, so the card doesn't change while it's being answered, and it shows the result: relearned, back in 3 days, or back tomorrow.
+  - "Coming back later" lists what's due on other days.
+  - Signed-out, loading and failed states, with "Try again".
+  - Today now loads only when visited (it can include code editors).
+- Practice items know the `review` context, with no hints.
+- Tests: 157 web tests in all (32 new). They cover the rules, paging, the Today page's states and a full answer.
+
+**Tried end to end** on the dev server against the local Supabase, with the local test account:
+- a "missed yesterday" answer was put straight into the local database;
+- Today showed the comma skill with a *different* question (the new review question);
+- a correct answer said "Right! It comes back on Mon, Nov 9";
+- the review event landed in `public.events`;
+- after a reload, Today showed "Nothing to revisit today" and the skill under "Coming back later".
+
+**Found while building it:** the Today page checked "are the questions chosen?" before "did loading fail?", so a failed load would have shown "Loading…" forever. A test caught it.
+
+**Note:** a dev server records the commit it was *started* on as `content_build` (Vite's `define` runs once at startup). Live builds always record their own commit.
+
+**Next**
+
+- The owner's comma mistake comes back on the live Today page tomorrow, Nov 7.
+- Topic 3: Variables.
+
 ## 2026-11-06: The second lesson, Values and types
 
 **Done**

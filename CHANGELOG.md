@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (mistakes come back)
+
+- **Mistakes to revisit** on the Today page ([ADR-0011](docs/decisions/0011-mistakes-come-back.md), now accepted). The owner asked for this after missing a question in their first lesson:
+  - a skill you missed comes back the next day, as a *different* question on the same skill;
+  - after a right answer it returns 3 days later, and right answers on 2 different days relearn it;
+  - "Coming back later" lists what's due on other days.
+- It's worked out from the event log, so misses from before this feature count too.
+- Answers on Today are saved as reviews, with hints off.
+- Code exercises count as missed only if they never passed that day. Failing Checks while working something out aren't mistakes.
+- The Today page now loads only when visited, like the topic pages.
+
 ### Added (the second lesson)
 
 - **Values and types** (`py.values-and-types`), ready to learn:

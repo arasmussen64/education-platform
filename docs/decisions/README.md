@@ -27,4 +27,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0008](0008-event-log.md) | Learner data is an append-only event log | Accepted |
 | [0009](0009-reviews.md) | Reviews are per topic and graded automatically | Accepted |
 | [0010](0010-environments.md) | Local Supabase in Docker for development; one cloud project for real use | Accepted |
-| [0011](0011-mistakes-come-back.md) | Mistakes come back as fresh questions until relearned | Proposed |
+| [0011](0011-mistakes-come-back.md) | Mistakes come back as fresh questions until relearned | Accepted |
