@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-05: Milestone A starts with the web app scaffold and CI
+
+**Done**
+
+- Merged the v1 spec (PR #1).
+- Scaffolded the web app in `web/` with create-vite 9: Vite 8, React 19, TypeScript 7, React Router 8, Tailwind CSS 4, Vitest 5, Oxlint (with accessibility rules) and Prettier.
+- Added placeholder pages (Today, the topic map, a topic, and "not found") inside a shared layout.
+- The product name lives only in `web/src/config.ts`. A small Vite plugin puts it in the page title (ADR-0006).
+- Wrote 5 route tests. Added CI on GitHub Actions: formatting, lint, type-check, tests and build.
+
+**Notes**
+
+- Several tools are newer than expected (React Router 8, Vitest 5, TypeScript 7), so I checked what they export before writing code against them.
+- create-vite now defaults to Oxlint instead of ESLint. I kept the default.
+
+**Next**
+
+- The Python runner in the browser: Pyodide in a Web Worker, plus the `checks` test helper.
+- The owner creates free Supabase and Cloudflare accounts.
+
 ## 2026-11-05: v1 spec
 
 **Done**

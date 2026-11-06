@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- Web app scaffold in `web/`: Vite, React, TypeScript, Tailwind CSS and React Router, with placeholder Today, Map and Topic pages. The product name is kept in a single setting.
+- CI on GitHub Actions: formatting, lint, type-check, tests and build on every pull request and every push to `main`.
 - v1 spec, data model and Python Foundations track plan, in `docs/specs/`.
 - ADR-0008 (append-only event log) and ADR-0009 (per-topic reviews, graded automatically), both accepted.
 - Project documentation: vision, learning-science principles, roadmap, competitor research, devlog.
