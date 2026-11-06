@@ -26,6 +26,7 @@ Docker Desktop uses a few GB of memory while it's running, so quit it when you'r
 | Service | Why | Status |
 |---|---|---|
 | GitHub | Code, pull requests, CI | ✅ Done |
+| GitHub OAuth app | "Sign in with GitHub" on the live site | ✅ Created and connected to Supabase |
 | Supabase | The real database and sign-in (one project, `education-platform`) | ✅ Linked; migrations applied |
 | Cloudflare | Hosts the app | ✅ Connected; deploys on every merge to `main` |
 | Anthropic Console | The Claude API for the tutor and grading (week 2) | ☐ Later |
@@ -71,6 +72,19 @@ After that, merged migrations are applied to the real database with `npx supabas
 The app is live at **https://education-platform.arasmussen64.workers.dev**.
 
 Pull requests also get their own preview builds.
+
+### GitHub OAuth app (sign-in)
+
+The live site's "Sign in with GitHub" uses an OAuth app named `education-platform`, under github.com/settings/developers → OAuth Apps.
+
+| Field | Value |
+|---|---|
+| Homepage URL | `https://education-platform.arasmussen64.workers.dev` |
+| Callback (redirect) URL | `https://fretenazxzmfakjxvtwd.supabase.co/auth/v1/callback` |
+
+Its client ID and secret are stored only in Supabase (**Authentication → Sign In / Providers → GitHub**). In Supabase **Authentication → URL Configuration**, the Site URL is the live address, and `https://education-platform.arasmussen64.workers.dev/**` is an allowed redirect.
+
+Local development doesn't use this app. The local Supabase signs in with email links, which land in its test inbox at http://127.0.0.1:54324.
 
 ### Anthropic Console (week 2)
 

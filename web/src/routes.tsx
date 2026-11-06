@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router'
 import { Layout } from './components/Layout.tsx'
 import { MapPage } from './pages/MapPage.tsx'
 import { NotFoundPage } from './pages/NotFoundPage.tsx'
+import { SignInPage } from './pages/SignInPage.tsx'
 import { TodayPage } from './pages/TodayPage.tsx'
 import { TopicPage } from './pages/TopicPage.tsx'
 
@@ -22,6 +23,7 @@ export const routes: RouteObject[] = [
       { index: true, element: <TodayPage /> },
       { path: 'map', element: <MapPage /> },
       { path: 'topic/:topicId', element: <TopicPage /> },
+      { path: 'sign-in', element: <SignInPage /> },
       {
         path: 'playground',
         lazy: async () => {

@@ -30,10 +30,12 @@ src/
 ├── config.ts        app-wide settings, including the product name (ADR-0006)
 ├── main.tsx         starts the app
 ├── routes.tsx       every page and its address
+├── auth/            who's signed in (see "Sign-in" below)
 ├── components/      shared pieces, such as the page layout and the code runner
 ├── pages/           one file per page
 ├── python/          running learner Python in the browser (see below)
-└── test/setup.ts    runs before the tests
+├── supabase/        the Supabase client, its settings, and generated database types
+└── test/            test setup and helpers (fake sign-in, rendering the app)
 ```
 
 Tests live next to the code they test, named `*.test.ts` or `*.test.tsx`. They may use Node APIs (`tsconfig.test.json`); app code may not (`tsconfig.app.json`).
@@ -54,4 +56,17 @@ The Pyodide version is pinned in two places: `python/constants.ts`, which is wha
 
 The app starts loading Pyodide (about 10 MB, cached after the first visit) in the background as soon as it opens.
 
-**Typing input, like a terminal.** When a program calls `input()`, the Run output shows the prompt with a text field after it. Behind the scenes, the program stops at that `input()`. When the learner presses Enter, it runs again from the start with every line typed so far. Every re-run uses the same random seed, so a guessing game's secret number doesn't change. The field is an editable `<span role="textbox">`, not an `<input>`. Password managers only look at real form fields, and a field after "What's your name?" looks like a contact form to them. NordPass, for one, gives pages no way to opt out.
+**Typing input, like a terminal.** When a program calls `input()`, the Run output shows the prompt with a text field after it. Behind the scenes, the program stops at that `input()`. When the learner presses Enter, it runs again from the start with every line typed so far. Every re-run uses the same random seed, so a guessing game's secret number doesn't change.
+
+The field is an editable `<span role="textbox">`, not an `<input>`. Password managers only look at real form fields, and a field after "What's your name?" looks like a contact form to them. NordPass, for one, gives pages no way to opt out.
+
+## Sign-in
+
+`src/auth/` keeps track of who's signed in (`AuthProvider` and `useAuth`), using Supabase Auth with the PKCE flow. `src/supabase/` holds the client, its settings, and the generated database types.
+
+- **The live site:** "Sign in with GitHub". Supabase sends the learner to GitHub and back.
+- **The dev server:** email links. The local Supabase has no GitHub app, so the sign-in page shows an email form, and the email lands in the local test inbox at http://127.0.0.1:54324. Start the local Supabase first (`npm run db:start` at the repository root).
+
+The Supabase address and publishable key are in `src/supabase/config.ts`: the local ones for `npm run dev`, the real project's for builds. They're public by design; row-level security protects the data.
+
+`src/supabase/database.types.ts` is generated: after a migration, run `npm run db:types` at the repository root.
