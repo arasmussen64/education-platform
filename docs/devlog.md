@@ -2,6 +2,35 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-05: Python runs in the browser
+
+**Done**
+
+- Built the browser side of the Python runner:
+  - Pyodide 314.0.7 runs in a Web Worker, loaded from the jsDelivr CDN.
+  - `PythonRunner` queues requests and replaces the worker when code runs past 5 seconds.
+  - A CodeMirror editor with Run and Check, on a temporary Playground page.
+- The 14 harness scenarios now also run under real Pyodide (in Node) in the web tests. They match CPython exactly, tracebacks included.
+- Checked the production build in a real browser:
+  - Pyodide loaded in the background.
+  - Run echoed input like a terminal.
+  - Check failed, then passed after fixing the code.
+  - An infinite loop was stopped after 5.1 seconds while the page stayed responsive.
+  - The next run worked 0.1 seconds later.
+  - No console errors.
+- Made the Playground load on demand: the main bundle dropped from 786 KB to 320 KB.
+
+**Fixed along the way**
+
+- The status message now uses an `<output>` element, as the accessibility lint rule suggested.
+- The summary now reads naturally for a single check ("The check passed!" instead of "All 1 checks passed!").
+- Tests get their own TypeScript settings with Node types, so app code can't use Node APIs by accident.
+
+**Next**
+
+- The content pipeline and validator, then Module 1 content.
+- Local Supabase once Docker Desktop is installed ([setup](setup.md)).
+
 ## 2026-11-05: Python test harness
 
 **Done**

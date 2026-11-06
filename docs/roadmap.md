@@ -25,7 +25,7 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 ### Milestone A progress
 
 - [x] Web app scaffold and CI
-- [ ] Python runner in the browser
+- [x] Python runner in the browser (shared harness, Pyodide worker, editor with Run and Check)
 - [ ] Content pipeline and validator
 - [ ] Local Supabase in Docker ([setup](setup.md)), then sign-in and the event log
 - [ ] Deploy to Cloudflare

@@ -8,6 +8,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added
 
+- Python in the browser: Pyodide runs learner code in a background Web Worker, with a CodeMirror editor, Run and Check buttons, and a 5-second time limit. A temporary Playground page lets you try it.
+- The 14 harness scenarios also run under real Pyodide in the web tests, so the browser and CI are checked to give identical results.
 - The Python test harness (`harness/`), shared by the browser and CI. It has 14 scenarios that both runtimes must match, and a Python CI job (uv, ruff, pytest) on Python 3.14.
 - ADR-0010: a local Supabase in Docker for development, and one cloud project for real use.
 - A setup guide for the owner's computer and accounts (`docs/setup.md`).
