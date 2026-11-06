@@ -84,8 +84,11 @@ describe('CodeRunner', () => {
     render(<CodeRunner initialCode="code" runner={runner} />)
 
     await user.click(screen.getByRole('button', { name: 'Run' }))
-    const field = await screen.findByLabelText('Program input')
+    const field = await screen.findByRole('textbox', { name: 'Program input' })
     expect(field).toHaveFocus()
+    // Never a real form field: password managers (NordPass, for one) treat a
+    // field after "What's your name?" as a contact form and pop up.
+    expect(field.tagName).toBe('SPAN')
     expect(screen.getByText(/waiting for input/)).toBeInTheDocument()
 
     await user.type(field, 'Ada{Enter}')

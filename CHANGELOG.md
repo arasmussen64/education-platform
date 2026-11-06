@@ -24,7 +24,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed
 
 - No more console warning when the app first opens on a page that loads on demand (it now shows "Loading…").
-- The program-input field no longer looks like a contact form to password managers and autofill extensions.
+- Password managers no longer pop up on the program-input field. It's now an editable piece of text (`role="textbox"`) instead of an `<input>`, because NordPass ignored the opt-out markers the first fix relied on.
 
 ### Added
 

@@ -233,44 +233,50 @@ function InputLine({
   disabled: boolean
   onSubmit: (line: string) => void
 }) {
-  const [value, setValue] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const lineRef = useRef<HTMLSpanElement>(null)
 
   // Put the cursor here as soon as the program asks, as a terminal would.
   useEffect(() => {
-    inputRef.current?.focus()
+    lineRef.current?.focus()
   }, [])
 
-  // Deliberately not a <form>: submitting a form makes password managers and
-  // autofill extensions offer to "save" what was typed (a prompt like
-  // "What's your name?" looks like a contact form to them). The data-*
-  // attributes ask the common ones (1Password, LastPass, Bitwarden, Dashlane)
-  // to leave this field alone.
+  // This is an editable <span>, not an <input>, on purpose. Password managers
+  // and autofill extensions only look at real form fields, and a prompt like
+  // "What's your name?" makes an <input> look like a contact form to them
+  // (NordPass, for one, has no way for a page to opt out). Screen readers
+  // still announce it as a text box, through role="textbox".
   return (
-    <input
-      ref={inputRef}
-      type="text"
-      value={value}
-      onChange={(event) => setValue(event.target.value)}
+    <span
+      ref={lineRef}
+      // An <input> is exactly what we're avoiding here (see above).
+      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
+      role="textbox"
+      aria-label="Program input"
+      aria-multiline="false"
+      aria-disabled={disabled || undefined}
+      contentEditable={!disabled}
+      tabIndex={disabled ? -1 : 0}
+      spellCheck={false}
+      autoCapitalize="off"
+      autoCorrect="off"
+      enterKeyHint="enter"
       onKeyDown={(event) => {
         // Ignore the Enter that finishes an input-method composition (e.g.
         // typing Japanese); only a plain Enter sends the line.
         if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
           event.preventDefault()
-          onSubmit(value)
+          onSubmit(event.currentTarget.textContent ?? '')
         }
       }}
-      disabled={disabled}
-      aria-label="Program input"
-      enterKeyHint="enter"
-      autoComplete="off"
-      autoCapitalize="off"
-      spellCheck={false}
-      data-1p-ignore=""
-      data-lpignore="true"
-      data-bwignore="true"
-      data-form-type="other"
-      className="w-48 rounded border border-slate-500 bg-slate-800 px-1 text-slate-100 outline-none focus:border-lime-400"
+      onPaste={(event) => {
+        // Paste as plain text on one line, never formatting or images.
+        event.preventDefault()
+        const text = event.clipboardData
+          .getData('text/plain')
+          .replace(/\r?\n/g, ' ')
+        document.execCommand('insertText', false, text)
+      }}
+      className="inline-block min-w-48 rounded border border-slate-500 bg-slate-800 px-1 text-slate-100 outline-none focus:border-lime-400"
     />
   )
 }
