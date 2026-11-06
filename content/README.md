@@ -49,7 +49,16 @@ A checkpoint ends a module: a bigger build, a debug with several bugs, and an ex
    - `versions`: **at least 2 fresh versions** of the build: the same skills in different stories, about as hard. Their tests name skills too.
 4. A checkpoint can be `ready` only once every topic in its module is.
 
+Tests that point at the right skill (see Checkpoint 1's builds):
+
+- **Value tests** read the numbers whatever their format, and check them against the program's own earlier lines. Then one wrong number fails one test, not every test after it.
+- **Inputs with decimals** go only in the test that reads them. Then `int()` where `float()` is needed fails only that test, not the arithmetic tests.
+- **One test checks the format** (two decimal places), and **one the layout**: the words and spaces, with every number replaced.
+- **Add a known-wrong answer for each likely mistake**, and check that it fails only the test for that mistake. Copy each wrong answer and the tests into an empty folder, then run `harness/cli.py check` (see below).
+
 Tips for tests: give each test a one-line docstring, which is what the learner sees, and give `assert` a message when the default wouldn't be clear. See [harness/README.md](../harness/README.md).
+
+Hidden tests (in build and `review_code` exercises) must fail with an `assert`, never crash. The page hides why a hidden test failed, but it shows a crash, because a crash is usually in the learner's own code. A crash inside the tests, like a `KeyError` from a missing line, would show how they work. The checker runs each hidden-test exercise on an empty program to catch this.
 
 When an exercise could be passed by typing the expected output in by hand, add a test with `run_with`, which reruns the program with other starting values. A swap must then swap *any* two values (see the Variables topic). Add the hand-typed version as a known-wrong solution, so the checker proves the test catches it.
 

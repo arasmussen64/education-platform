@@ -111,11 +111,12 @@ skills:                         # what the topic teaches (ADR-0011)
 unstuck:
   example: example-shop-receipt           # a solved sibling: a worked example in a different story
   steps: [step-read, step-work, step-print, step-outline]  # the build in 3 or 4 fill-in steps, with hints
-  versions: [build-split-bill, build-fuel]                 # at least 2 fresh versions of the build
+  versions: [build-split-bill, build-electricity]          # at least 2 fresh versions of the build
 
 # content/topics/py.m1.checkpoint/exercises/build-receipt/exercise.yaml (and every version, and the debug)
 test_skills:                              # every test, by name: the skills it checks, as topic/skill
-  test_subtotal: [py.strings-and-input/convert, py.arithmetic/operators]
+  test_subtotal: [py.strings-and-input/input-text, py.strings-and-input/convert]
+  test_tip: [py.arithmetic/precedence, py.arithmetic/operators]
   test_two_decimals: [py.strings-and-input/fstrings]
 ```
 

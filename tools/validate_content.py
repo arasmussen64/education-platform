@@ -36,6 +36,7 @@ import yaml
 from content_model import (
     FOLLOW_UP_STAGES,
     STAGES_WITH_FAILING_STARTER,
+    STAGES_WITH_HIDDEN_TESTS,
     Exercise,
     McqItem,
     PredictOutputItem,
@@ -542,35 +543,48 @@ def check_exercise(folder: Path, exercise: Exercise, report: Report, run: bool) 
 
     test_text = tests.read_text(encoding="utf-8")
 
-    def check(code: Path) -> dict[str, Any] | None:
+    def check(code: str, where: Path) -> dict[str, Any] | None:
         report.counts["runs"] += 1
         try:
             return run_harness(
-                "check",
-                {
-                    "solution.py": code.read_text(encoding="utf-8"),
-                    "test_exercise.py": test_text,
-                },
+                "check", {"solution.py": code, "test_exercise.py": test_text}
             )
         except RunFailed as exc:
-            report.add(code, str(exc))
+            report.add(where, str(exc))
             return None
 
-    result = check(solution)
+    def check_file(code: Path) -> dict[str, Any] | None:
+        return check(code.read_text(encoding="utf-8"), code)
+
+    result = check_file(solution)
     if result is not None and not all_pass(result):
         report.add(
             solution, f"the reference solution must pass every test: {describe(result)}"
         )
 
     if exercise.stage in STAGES_WITH_FAILING_STARTER and starter.exists():
-        result = check(starter)
+        result = check_file(starter)
         if result is not None and all_pass(result):
             report.add(starter, "the starter must fail the tests, but it passes")
 
     for wrong in sorted(folder.glob("wrong/*.py")):
-        result = check(wrong)
+        result = check_file(wrong)
         if result is not None and all_pass(result):
             report.add(wrong, "a known-wrong solution must fail a test, but it passes")
+
+    if exercise.stage in STAGES_WITH_HIDDEN_TESTS:
+        # The page hides why a hidden test failed, but shows a crash, which
+        # should be in the learner's own code. An empty program can't crash,
+        # so a crash here is in the tests, and would show how they work.
+        result = check("", tests)
+        for crashed in result["results"] if result else []:
+            if crashed["outcome"] == "error":
+                report.add(
+                    tests,
+                    f"{crashed['name']} crashes on an empty program "
+                    f"({crashed['message']}); make it fail with an assert instead, "
+                    "because the page shows crashes even in hidden tests",
+                )
 
 
 def check_predict_output(path: Path, item: PredictOutputItem, report: Report) -> None:

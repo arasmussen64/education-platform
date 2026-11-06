@@ -32,7 +32,7 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] Sign-in: GitHub on the live site, email links locally
 - [x] Saving answers to the event log, with an offline outbox
 - [x] Deploy to Cloudflare (every merge to `main` deploys automatically)
-- [ ] Module 1 content (5 of 6 written: all five topics; the checkpoint, a receipt calculator, is next)
+- [x] Module 1 content: five topics, and Checkpoint 1 (a receipt calculator) with its way through for a stuck learner
 - [x] Mistakes come back as fresh questions until relearned ([ADR-0011](decisions/0011-mistakes-come-back.md)): "Mistakes to revisit" on the Today page
 - [x] Getting unstuck on a checkpoint ([ADR-0012](decisions/0012-checkpoint-support.md)): missed checkpoint tests bring their skills back; a solved sibling, the build in steps, and fresh versions
 

@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link, useLoaderData } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import {
@@ -105,8 +106,12 @@ function CheckpointView({
             {suggest && (
               <SuggestSteps
                 onOpen={() => {
-                  setStepsOpen(true)
-                  stepsHeading.current?.focus()
+                  // Show the steps straight away, so the page is long enough
+                  // to scroll them to the top of the screen. Keyboard focus
+                  // goes with them.
+                  flushSync(() => setStepsOpen(true))
+                  stepsHeading.current?.scrollIntoView({ block: 'start' })
+                  stepsHeading.current?.focus({ preventScroll: true })
                 }}
               />
             )}

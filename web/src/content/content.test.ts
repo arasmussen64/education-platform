@@ -58,10 +58,15 @@ describe('the content the app loads', () => {
     expect(moduleFor('py.nothing')).toBeUndefined()
   })
 
-  // Every ready topic, so each new lesson is checked as soon as it's added.
+  // Every ready topic and checkpoint, so each new one is checked as soon as
+  // it's added.
+  const isReady = (id: string) => getTopic(id)?.status === 'ready'
   const readyTopics = mainTrack()
-    .modules.flatMap((module) => [...module.topics, module.checkpoint])
-    .filter((id) => getTopic(id)?.status === 'ready')
+    .modules.flatMap((module) => module.topics)
+    .filter(isReady)
+  const readyCheckpoints = mainTrack()
+    .modules.map((module) => module.checkpoint)
+    .filter(isReady)
 
   it('has at least one ready topic', () => {
     expect(readyTopics.length).toBeGreaterThan(0)
@@ -87,6 +92,29 @@ describe('the content the app loads', () => {
       }
       // Skills, so a missed question can come back as another (ADR-0011).
       expect(content.topic.skills.length).toBeGreaterThan(0)
+    },
+  )
+
+  it.each(readyCheckpoints)(
+    'loads everything %s lists, including its way through',
+    async (checkpointId) => {
+      const content = await loadTopicContent(checkpointId)
+      if (!content) throw new Error(`${checkpointId} should load`)
+      // No lesson: a checkpoint brings a module's topics together.
+      expect(content.Lesson).toBeNull()
+
+      const { prove, unstuck } = content.topic
+      expect(unstuck?.versions.length).toBeGreaterThanOrEqual(2)
+      const proofs = [prove.build, prove.debug, ...(unstuck?.versions ?? [])]
+      const listed = [unstuck?.example, ...(unstuck?.steps ?? []), ...proofs]
+      for (const id of listed) {
+        expect(content.exercises[id ?? '']?.solution, id).toBeTruthy()
+      }
+      // Every proof test names the skills it checks (ADR-0012).
+      for (const id of proofs) {
+        const tests = content.exercises[id ?? '']?.test_skills ?? {}
+        expect(Object.keys(tests).length, id).toBeGreaterThan(0)
+      }
     },
   )
 

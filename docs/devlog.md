@@ -2,6 +2,38 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Checkpoint 1, the receipt calculator
+
+**Done**
+
+- `content/topics/py.m1.checkpoint`, status `ready`. That completes Module 1's content.
+  - **Build:** a restaurant receipt from a blank editor: meal and drinks (decimals allowed), a whole-number tip percentage, then the subtotal, tip and total to two decimal places.
+  - **Debug:** cinema tickets with three bugs, one per test:
+    - an unconverted `input()` (a `TypeError` crash);
+    - `adults + children / 2 * price`, missing its parentheses (a wrong total);
+    - `print("Total: $", total)`, which adds a space and has no two decimals.
+  - **Explain:** walk through a three-line tip calculator, naming the type of every value, and say what goes wrong without `float()`.
+  - **The way through:**
+    - a solved sibling, a shop receipt with a discount, with labeled steps (it introduces `#` comments as a plan);
+    - the receipt in 4 fill-in steps with hints, each giving the whole program but one part, the last only the three comments;
+    - 2 fresh versions: splitting a bill, and an electricity bill.
+- **Tests that point at the right skill.** The first draft compared exact amounts, so a single precedence slip also failed the decimals test. Now:
+  - value tests read the numbers whatever their format, and check them against the program's own earlier lines;
+  - inputs with decimals appear only in the test that reads them;
+  - one test checks two decimal places, and one the layout with every number replaced.
+  - Each of 14 single-mistake wrong answers now fails exactly the one test for its mistake (checked with `harness/cli.py check`).
+- **Found by viewing the page:**
+  - On an empty program, three hidden tests crashed with `KeyError: 'Subtotal'` from the test's own helper, and the page showed it. The page shows crashes even in hidden tests, because they're usually in the learner's code. The tests now fail with an `assert` instead, and the content checker runs every hidden-test exercise on an empty program to catch this. All earlier topics pass.
+  - The suggestion scrolled the steps' heading only to the bottom of the screen, because the steps weren't drawn yet. It now draws them first (`flushSync`), then scrolls.
+- **Checked:**
+  - the content checker (147 programs);
+  - the guarantee test, now over a real checkpoint: every one of its tests brings back a question on each skill it names;
+  - on the dev server, signed out: two failing Checks on the build bring up the suggestion, which opens the steps with the first fresh version.
+
+**Next**
+
+- Milestone A's checklist is complete. Next is the owner's call: Milestone B (progress tracking, gating, explain grading), or the owner's own pass through Module 1 first.
+
 ## 2026-11-06: Getting unstuck on a checkpoint (ADR-0012)
 
 **Decided**

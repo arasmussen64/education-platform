@@ -1,0 +1,6 @@
+meal = input("Meal? ")
+drinks = input("Drinks? ")
+tip_percent = input("Tip (%)? ")
+print("Subtotal: $22.00")
+print("Tip (20%): $4.40")
+print("Total: $26.40")

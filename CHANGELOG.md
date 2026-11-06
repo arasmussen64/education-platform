@@ -6,6 +6,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Checkpoint 1)
+
+- **Checkpoint 1: receipt calculator** (`py.m1.checkpoint`), ready. That completes Module 1.
+  - **Prove it:**
+    - build: a restaurant receipt from a blank editor (meal, drinks and a tip percentage);
+    - debug: cinema tickets, with three bugs: an unconverted input, a missing pair of parentheses, and a `print` with a comma;
+    - explain: what each line of a tip calculator does, with the type of every value.
+  - **The way through** ([ADR-0012](docs/decisions/0012-checkpoint-support.md)):
+    - a solved sibling: a shop receipt with a discount, planned with comments;
+    - the receipt in 4 fill-in steps with hints: read, work out, print, then only the plan;
+    - 2 fresh versions: splitting a bill, and an electricity bill.
+  - Every build and debug test names its skills, and each known-wrong answer fails only the test for its mistake.
+- The content checker runs every exercise with hidden tests on an empty program. A crash there is in the tests themselves, and the page would show it.
+
+### Changed
+
+- The "Try it in steps" suggestion now brings the steps to the top of the screen.
+
 ### Added (getting unstuck on a checkpoint)
 
 - [ADR-0012](docs/decisions/0012-checkpoint-support.md), accepted: every checkpoint gets four additions, and the content checker won't mark one ready without them.
