@@ -23,6 +23,14 @@ SOLUTION_FILE = "solution.py"
 NOT_ENOUGH_INPUT = "The program asked for more input than it was given."
 
 
+class InputNeeded(BaseException):
+    """The program (in Run mode) wants input it hasn't been given yet.
+
+    It's a BaseException, like SystemExit, so a learner's ``except Exception``
+    around input() can't accidentally swallow it.
+    """
+
+
 def run(stdin: str = "") -> str:
     """Run the learner's program as a script and return everything it printed.
 
@@ -38,11 +46,22 @@ def run(stdin: str = "") -> str:
     return output.getvalue()
 
 
-def execute(stdin: str, output: io.StringIO, *, echo_input: bool) -> None:
+def execute(
+    stdin: str,
+    output: io.StringIO,
+    *,
+    echo_input: bool,
+    wait_for_input: bool = False,
+) -> None:
     """Run solution.py with ``stdin`` as its input, printing into ``output``.
 
     With ``echo_input``, prompts and the input typed after them are written to
     ``output`` too, so it reads like a terminal session (the Run button).
+
+    When the program asks for more input than ``stdin`` holds, it gets an
+    EOFError, or, with ``wait_for_input``, the run stops with InputNeeded so
+    the app can ask the learner.
+
     Exceptions raised by the learner's code are passed on to the caller.
     sys.exit() simply ends the program early.
     """
@@ -55,6 +74,8 @@ def execute(stdin: str, output: io.StringIO, *, echo_input: bool) -> None:
             output.write(str(prompt))
         line = stdin_stream.readline()
         if not line:
+            if wait_for_input:
+                raise InputNeeded
             raise EOFError(NOT_ENOUGH_INPUT)
         text = line.removesuffix("\n")
         if echo_input:

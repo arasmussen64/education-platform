@@ -19,6 +19,8 @@ Run these inside `web/`.
 
 CI runs `format:check`, `lint`, `typecheck`, `test` and `build` on every pull request.
 
+**Restart the dev server** (Ctrl+C, then `npm run dev`) after pulling changes to `vite.config.ts` or `package.json`. A running server tries to reload itself, but it can end up half-updated: for example, serving pages with no styles at all.
+
 ## Layout
 
 ```text
@@ -49,3 +51,5 @@ Learner code runs in [Pyodide](https://pyodide.org) (Python compiled to WebAssem
 The Pyodide version is pinned in two places: `python/constants.ts`, which is what the browser loads, and `package.json`, which the tests use. `session.pyodide.test.ts` fails if they differ. It also runs every harness scenario in real Pyodide and checks that the results exactly match CPython's.
 
 The app starts loading Pyodide (about 10 MB, cached after the first visit) in the background as soon as it opens.
+
+**Typing input, like a terminal.** When a program calls `input()`, the Run output shows the prompt with a text field after it. Behind the scenes, the program stops at that `input()`. When the learner presses Enter, it runs again from the start with every line typed so far. Every re-run uses the same random seed, so a guessing game's secret number doesn't change. The field is deliberately not inside a `<form>`, so password managers don't offer to "save" what's typed.

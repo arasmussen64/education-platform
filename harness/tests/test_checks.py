@@ -1,6 +1,7 @@
 """Unit tests for checks.run(), the helper exercise tests use."""
 
 import builtins
+import io
 import sys
 from pathlib import Path
 
@@ -33,6 +34,19 @@ def test_raises_eof_when_input_runs_out(solution) -> None:
     solution("input()\ninput()\n")
     with pytest.raises(EOFError, match="more input than it was given"):
         checks.run("only one line\n")
+
+
+def test_can_stop_and_wait_instead_of_failing(solution) -> None:
+    solution('input("Name? ")\n')
+    output = io.StringIO()
+    with pytest.raises(checks.InputNeeded):
+        checks.execute("", output, echo_input=True, wait_for_input=True)
+    assert output.getvalue() == "Name? "
+
+
+def test_waiting_is_not_an_ordinary_exception() -> None:
+    # Otherwise a learner's `except Exception:` around input() would hide it.
+    assert not issubclass(checks.InputNeeded, Exception)
 
 
 def test_restores_input_and_stdin_after_a_crash(solution) -> None:

@@ -16,6 +16,14 @@ export type CheckOutcome =
   | { kind: 'timeout' }
   | { kind: 'failed'; message: string }
 
+export type RunOptions = {
+  /** Every line typed so far, each ending with "\n". */
+  stdin?: string
+  /** Seeds Python's random module, so re-runs make the same choices. */
+  seed?: number | null
+  timeLimitMs?: number
+}
+
 /** The parts of a Web Worker the runner uses, so tests can pass a fake. */
 export type WorkerLike = {
   postMessage(message: WorkerRequest): void
@@ -32,7 +40,7 @@ const createBrowserWorker: CreateWorker = () =>
   }) as unknown as WorkerLike
 
 type RequestBody =
-  | { type: 'run'; code: string; stdin: string }
+  | { type: 'run'; code: string; stdin: string; seed: number | null }
   | { type: 'check'; code: string; tests: string }
 
 type Reply =
@@ -76,10 +84,16 @@ export class PythonRunner {
 
   async run(
     code: string,
-    stdin = '',
-    timeLimitMs = DEFAULT_TIME_LIMIT_MS,
+    {
+      stdin = '',
+      seed = null,
+      timeLimitMs = DEFAULT_TIME_LIMIT_MS,
+    }: RunOptions = {},
   ): Promise<RunOutcome> {
-    const reply = await this.send({ type: 'run', code, stdin }, timeLimitMs)
+    const reply = await this.send(
+      { type: 'run', code, stdin, seed },
+      timeLimitMs,
+    )
     if (reply.kind !== 'done') return reply
     if (reply.message.type === 'run-result') {
       return { kind: 'done', result: reply.message.result }
@@ -90,7 +104,7 @@ export class PythonRunner {
   async check(
     code: string,
     tests: string,
-    timeLimitMs = DEFAULT_TIME_LIMIT_MS,
+    { timeLimitMs = DEFAULT_TIME_LIMIT_MS }: { timeLimitMs?: number } = {},
   ): Promise<CheckOutcome> {
     const reply = await this.send({ type: 'check', code, tests }, timeLimitMs)
     if (reply.kind !== 'done') return reply

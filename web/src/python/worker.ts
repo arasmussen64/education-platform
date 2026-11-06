@@ -40,7 +40,12 @@ scope.onmessage = async (event) => {
   try {
     const pyodide = await ready
     if (request.type === 'run') {
-      const result = runProgram(pyodide, request.code, request.stdin)
+      const result = runProgram(
+        pyodide,
+        request.code,
+        request.stdin,
+        request.seed,
+      )
       scope.postMessage({ id: request.id, type: 'run-result', result })
     } else {
       const report = runChecks(pyodide, request.code, request.tests)
