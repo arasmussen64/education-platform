@@ -10,31 +10,29 @@ The owner works full time, split between learning (mornings, on the platform onc
 - [x] Product concept and key decisions ([vision](vision.md), ADR-0002 to ADR-0006)
 - [x] Repository, documentation and development process (backed up to a private GitHub repo)
 - [x] Accept a tech stack ([ADR-0007](decisions/0007-tech-stack.md))
-- [ ] v1 spec: feature list, data model for the topic map and learner progress, the first 30 Python topics
+- [x] v1 spec ([specs/v1.md](specs/v1.md)): features and milestones, the [data model](specs/data-model.md), and the [first 30 Python topics](specs/python-foundations.md)
 - [ ] Scaffold the app, CI and first deploy
 
 ## Phase 1: v1 for an audience of one (weeks 1–4)
 
-Built mostly with AI help while the owner starts learning Python from curated free resources.
+Spec: [specs/v1.md](specs/v1.md). Built mostly with AI help, in thin end-to-end slices, so the owner can start learning on it after the first one. Until then, the owner learns from the curated resources directly.
 
-- Topic map (graph view) with prerequisites
-- Lesson view: embedded resource plus AI intro and recap
-- Python exercises that run in the browser and check themselves with tests
-- Review scheduler (FSRS)
-- Hint-only AI tutor
-- Progress saved to a database, with append-only answer and review logs
-- Content: about 30 Python fundamentals topics
+- **A. Walking skeleton:** deployed app, sign-in, content pipeline, lessons, self-checking Python exercises, progress saved. Module 1 content.
+- **B. Prove it:** build, debug and explain checks; topic states and gating with "prove it now"; the topic map; module checkpoints.
+- **C. Keep it:** FSRS reviews, the Today page, recall items, interleaved practice.
+- **D. Tutor and polish:** the hint-only tutor with a budget cap, problem reports, data export. Content for modules 2–6.
 
-## Phase 2: Make "prove it" real (months 2–4)
+Content: the [Python Foundations track](specs/python-foundations.md), 30 topics and 6 checkpoints.
+
+## Phase 2: Adaptivity and better practice (months 2–4)
 
 Mornings learning on the platform, afternoons building it.
 
-- Placement test, including math
-- Blank-editor challenges with hidden tests
-- Explain-it-back with AI grading
-- Debug-unfamiliar-code challenges
-- Topic states, gating with test-out, and the living map
-- Content: finish Python fundamentals; math diagnostic and refresher
+- A placement test that walks the topic map, including a math diagnostic
+- More exercise types: Parsons problems, a step-through code visualizer
+- The living map: topics fade as their predicted memory strength drops
+- Automated data backups
+- Content: intermediate Python; a math refresher for the ML track
 
 ## Phase 3: CS and ML tracks (months 5–9)
 

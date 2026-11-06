@@ -24,3 +24,5 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0005](0005-free-hosting-first.md) | Free hosting first | Accepted |
 | [0006](0006-working-name.md) | "Switchback" is a working name | Accepted |
 | [0007](0007-tech-stack.md) | Tech stack | Accepted |
+| [0008](0008-event-log.md) | Learner data is an append-only event log | Proposed |
+| [0009](0009-reviews.md) | Reviews are per topic and graded automatically | Proposed |

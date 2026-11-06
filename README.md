@@ -22,6 +22,7 @@ Most courses get you through the test, and then you forget. Here:
 | [Vision](docs/vision.md) | The concept: who it's for, how it works, what makes it different |
 | [Learning science](docs/learning-science.md) | The research-backed methods and the features they drive |
 | [Roadmap](docs/roadmap.md) | Phases, milestones, open questions |
+| [v1 spec](docs/specs/v1.md) | What v1 does, plus the [data model](docs/specs/data-model.md) and the [first track](docs/specs/python-foundations.md) |
 | [Decisions](docs/decisions/) | Architecture and product decision records (ADRs) |
 | [Competitors](docs/research/competitors.md) | Brilliant, roadmap.sh, Math Academy and others |
 | [Devlog](docs/devlog.md) | Dated log of each working session |
