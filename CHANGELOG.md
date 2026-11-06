@@ -23,6 +23,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed
 
+- Cloudflare's pull-request preview builds now deploy: `wrangler preview` needed a `previews` block in `web/wrangler.jsonc`.
+- Cloudflare builds no longer spend about 6 minutes installing Python. The Python version is pinned in `pyproject.toml` instead of a `.python-version` file, which Cloudflare's build reacted to.
 - No more console warning when the app first opens on a page that loads on demand (it now shows "Loading…").
 - Password managers no longer pop up on the program-input field. It's now an editable piece of text (`role="textbox"`) instead of an `<input>`, because NordPass ignored the opt-out markers the first fix relied on.
 

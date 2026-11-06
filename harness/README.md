@@ -35,5 +35,5 @@ The expected files are a contract. Never regenerate them just to make a failing 
 
 - Standard library only, so it runs in Pyodide.
 - Harness file names and paths must never appear in messages the learner sees.
-- Use the Python minor version that Pyodide bundles, set in `.python-version` at the repository root.
+- Use the Python minor version that Pyodide bundles, pinned by `requires-python` in the root `pyproject.toml`. There's deliberately no `.python-version` file: Cloudflare's build would spot it and install Python for nothing.
 - Scenarios run in a fresh Python process, not inside pytest. pytest rewrites `assert` statements in any `test_*.py` file it imports, which would change the messages.

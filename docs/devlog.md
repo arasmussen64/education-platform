@@ -12,9 +12,11 @@ A dated log of each working session: what changed, what was decided, what's next
 - Merging to `main` triggered a production build, which succeeded, so automatic deploys work.
 - The program-input field is now an editable `<span role="textbox">`. NordPass still popped up on the earlier `<input>`: it has no opt-out attribute for pages, and it read the prompt "What's your name?" as a contact form. Password managers only look at real form fields. A test now checks it stays a span.
 
-**Open**
+**Preview builds: found and fixed** (by reading the build log in the dashboard, at the owner's request)
 
-- Cloudflare's preview builds for pull requests fail within a second, so they never actually start. Production builds work. This needs a look at the build page in the dashboard; it doesn't block anything.
+- The builds didn't fail instantly. GitHub only receives the result at the end, so the start and finish times matched. The builds ran for about 6 minutes, and only the last step failed.
+- Cloudflare's default deploy command for pull requests is now `npx wrangler preview` (open beta). It refuses to run without a `previews` block in the Wrangler config. Added `"previews": {}`.
+- 6 of those minutes went to installing Python 3.14 that the web build never uses. Cloudflare's build spots a `.python-version` file and installs that Python, on production builds too. The Python version is now pinned with `requires-python = "==3.14.*"` in `pyproject.toml`, and the file is gone. uv still uses 3.14.
 
 **Lesson**
 
