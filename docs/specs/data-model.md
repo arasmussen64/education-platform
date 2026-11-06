@@ -171,6 +171,7 @@ def test_swaps():
 The `checks` module lives in [`harness/`](../../harness/), which the browser and CI share, so tests behave the same everywhere:
 
 - `run(stdin="")` runs the learner's program as a script, feeding it `stdin`, and returns what it printed. Prompts passed to `input()` are left out, so tests don't break over prompt wording. If the program wants more input than it was given, it gets an `EOFError`.
+- `run_with({"x": "left", "y": "right"})` runs the program as if those names started with other values. It replaces each name's first assignment, like `x = 3`. Use it to check that code really works with its names, so retyping the expected values can't pass: for example, that a swap swaps *any* two values. If a starting line is missing, the check fails with "Keep the line that gives x its starting value."
 - Function exercises import from the learner's code: `from solution import rotate`. They must not read input or print at the top level.
 - Give `assert` a message when the default would be unclear: `assert got == 4, f"double(2) should be 4, but it returned {got}"`. Without one, the learner sees the failing `assert` line.
 

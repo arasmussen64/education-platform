@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the third lesson)
+
+- **Variables** (`py.variables`), ready to learn:
+  - **Learn:** CS50P Lecture 0 from 15:16 to 19:54: what a variable is, `=` as assignment, and the "quotes around the name" mistake. The intro swaps the video's "container" picture for name tags, the picture that still works when lists arrive. A Python Tutor link shows `b = a`, then `a = 5`, step by step, with names drawn as arrows.
+  - **Practice:** a worked example following one name, three questions (one mixes in topics 1 and 2), filling in a swap, and rotating three values.
+  - **Prove it:** swap and print from a blank editor, a swap that loses a value plus a typo, and explaining why `b` stays `3`.
+  - **Review pool:** four items. Three skills: `assignment`, `trace-values` and `swap`.
+- `run_with` in the shared test toolkit (`harness/checks.py`). It reruns the learner's program with other starting values, so retyping the expected values can't pass. 4 unit tests, plus a scenario that both runtimes must agree on.
+
+### Fixed
+
+- The dev server now notices new files in `content/` and `harness/`. Before, a lesson's new questions and exercises showed as "Missing practice item" until a restart. The live site was never affected.
+
 ### Changed
 
 - Relearning follows the research the owner asked for: a missed skill must be right on **3 different days**, coming back after 1, 3 and 7 days (successive relearning; Rawson & Dunlosky, 2011).

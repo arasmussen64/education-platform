@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import builtins
 import io
+import re
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -46,12 +47,39 @@ def run(stdin: str = "") -> str:
     return output.getvalue()
 
 
+def run_with(starting_values: dict[str, object], stdin: str = "") -> str:
+    """Run the learner's program as if some names started with other values.
+
+    Each name's first assignment, like ``x = 3``, is replaced with the value
+    given here, and the program runs as run() would. Tests use it to check that
+    code really works with its names: that a swap swaps any two values, say,
+    not just the two it was written with.
+
+    If a name's starting line is missing, the check fails and says so.
+    """
+    source = Path(SOLUTION_FILE).read_text(encoding="utf-8")
+    for name, value in starting_values.items():
+        source, found = re.subn(
+            rf"^{re.escape(name)}[ \t]*=(?!=).*$",
+            f"{name} = {value!r}",
+            source,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        if not found:
+            raise AssertionError(f"Keep the line that gives {name} its starting value.")
+    output = io.StringIO()
+    execute(stdin, output, echo_input=False, source=source)
+    return output.getvalue()
+
+
 def execute(
     stdin: str,
     output: io.StringIO,
     *,
     echo_input: bool,
     wait_for_input: bool = False,
+    source: str | None = None,
 ) -> None:
     """Run solution.py with ``stdin`` as its input, printing into ``output``.
 
@@ -65,7 +93,8 @@ def execute(
     Exceptions raised by the learner's code are passed on to the caller.
     sys.exit() simply ends the program early.
     """
-    source = Path(SOLUTION_FILE).read_text(encoding="utf-8")
+    if source is None:
+        source = Path(SOLUTION_FILE).read_text(encoding="utf-8")
     code = compile(source, SOLUTION_FILE, "exec")
     stdin_stream = io.StringIO(stdin)
 

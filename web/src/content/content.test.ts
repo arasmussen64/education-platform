@@ -26,13 +26,26 @@ describe('the content the app loads', () => {
     }
   })
 
-  it('reads topic files, filling in what outlines leave out', () => {
-    const topic = getTopic('py.variables')
-    expect(topic).toMatchObject({
+  it('reads topic files', () => {
+    expect(getTopic('py.variables')).toMatchObject({
       title: 'Variables',
       prerequisites: ['py.values-and-types'],
+    })
+  })
+
+  // Whichever topic is still only an outline, so these keep working as
+  // topics get written.
+  const outline = mainTrack()
+    .modules.flatMap((module) => [...module.topics, module.checkpoint])
+    .map((id) => getTopic(id))
+    .find((topic) => topic?.status === 'planned')
+
+  it('fills in what outlines leave out', () => {
+    expect(outline).toMatchObject({
       practice: [],
       prove: {},
+      review_pool: [],
+      skills: [],
     })
   })
 
@@ -86,7 +99,8 @@ describe('the content the app loads', () => {
   })
 
   it('loads a topic with nothing written yet', async () => {
-    const content = await loadTopicContent('py.variables')
+    if (!outline) throw new Error('every topic is written: drop this test')
+    const content = await loadTopicContent(outline.id)
     expect(content).toMatchObject({ Lesson: null, recall: {}, exercises: {} })
     expect(await loadTopicContent('py.nothing')).toBeNull()
   })

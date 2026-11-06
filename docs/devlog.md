@@ -2,6 +2,31 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: The third lesson, Variables
+
+**Done**
+
+- `content/topics/py.variables`, status `ready`, following the data model's sketch for this topic:
+  - **Learn:** CS50P Lecture 0 from 15:16 to 19:54. It covers why a program keeps values, `=` as assignment from right to left, choosing names, and `print(name)` versus `print("name")`. The intro replaces David's "container" picture with name tags: for numbers and text they agree, but only name tags survive lists (Module 5).
+  - **More resources:** a Python Tutor link with `a = 3; b = a; a = 5` preloaded and "show numbers as objects" on, so names are drawn as arrows. I checked in a browser that it opens on Python 3.11 with the arrows drawn. Python Tutor is free to use under its terms (© Philip Guo); we only link to it.
+  - **Practice:**
+    - a worked example following `city` through reassignment and `home = city`;
+    - three questions: what `b` refers to after `a = 5`, a trace, and `print("name")` (mixing in topics 1 and 2);
+    - filling in a swap with `temp`;
+    - rotating three values.
+  - **Prove it:**
+    - build: swap and print from a blank editor;
+    - debug: a lost value from `left = right; right = left`, hidden behind a `rigth` typo;
+    - explain: why `b` stays `3`.
+  - **Review pool:** four items. Skills: `assignment` (2 follow-up candidates), `trace-values` (4) and `swap` (4).
+- **`run_with` in `harness/checks.py`:** reruns the program with other starting values for named variables. Five exercises use it, so retyping `5 3` can't pass. Each also has a "typed-in" known-wrong solution that the checker proves fails. It has 4 unit tests and a new scenario (`check-run-with`). CPython and Pyodide agree, and no existing scenario result changed.
+- **The dev server now watches `content/` and `harness/`.** Viewing topic 3 on the owner's dev server showed "Missing practice item" for everything: Vite only watches `web/` for new files, so the glob list of exercises was stale. A small plugin adds the two folders to the watcher. I tested it on a temporary server that shut itself down: a file added under `content/` appeared within 3 seconds, and disappeared when removed.
+- The content tests no longer assume a particular topic is unwritten; they pick whichever is still an outline.
+
+**Next**
+
+- Topic 4: Arithmetic.
+
 ## 2026-11-06: Mistakes come back, for everything (and the research's timing)
 
 **The owner asked** whether mistakes coming back works for everything, not just the comma question. Yes: any question or code exercise, in practice, proof checks or reviews, in every ready topic. Explain-it-back will join once it's graded (Milestone B).

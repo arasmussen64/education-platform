@@ -67,3 +67,24 @@ def test_each_run_starts_fresh(solution) -> None:
     solution("try:\n    count += 1\nexcept NameError:\n    count = 1\nprint(count)\n")
     assert checks.run() == "1\n"
     assert checks.run() == "1\n"
+
+
+def test_run_with_changes_starting_values(solution) -> None:
+    solution("x = 3\ny = 5\nx, y = y, x\nprint(x, y)\n")
+    assert checks.run_with({"x": "left", "y": "right"}) == "right left\n"
+
+
+def test_run_with_changes_only_the_first_assignment(solution) -> None:
+    solution("x = 1\nx = x + 1\nprint(x)\n")
+    assert checks.run_with({"x": 10}) == "11\n"
+
+
+def test_run_with_leaves_longer_names_alone(solution) -> None:
+    solution("xs = 1\nx = 2\nprint(xs, x)\n")
+    assert checks.run_with({"x": 7}) == "1 7\n"
+
+
+def test_run_with_says_when_a_starting_line_is_missing(solution) -> None:
+    solution("print(1)\n")
+    with pytest.raises(AssertionError, match="Keep the line that gives x"):
+        checks.run_with({"x": 3})
