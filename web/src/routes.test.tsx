@@ -17,6 +17,7 @@ describe('app routes', () => {
     const nav = screen.getByRole('navigation', { name: 'Main' })
     expect(nav).toHaveTextContent('Today')
     expect(nav).toHaveTextContent('Map')
+    expect(nav).toHaveTextContent('Playground')
   })
 
   it('shows the Today page at /', () => {

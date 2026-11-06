@@ -8,6 +8,9 @@ import { TopicPage } from './pages/TopicPage.tsx'
 // Every page in the app and its address. All pages render inside <Layout>,
 // which adds the header and navigation. Tests reuse this list with an
 // in-memory router, so they exercise the same routes as the real app.
+//
+// Pages with a code editor are loaded only when visited ("lazy"), so the
+// editor's code isn't downloaded until a page needs it.
 export const routes: RouteObject[] = [
   {
     element: <Layout />,
@@ -15,6 +18,13 @@ export const routes: RouteObject[] = [
       { index: true, element: <TodayPage /> },
       { path: 'map', element: <MapPage /> },
       { path: 'topic/:topicId', element: <TopicPage /> },
+      {
+        path: 'playground',
+        lazy: async () => {
+          const { PlaygroundPage } = await import('./pages/PlaygroundPage.tsx')
+          return { Component: PlaygroundPage }
+        },
+      },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
