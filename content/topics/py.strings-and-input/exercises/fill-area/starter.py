@@ -1,0 +1,3 @@
+width = int(input("Width? "))
+height = ...
+print(f"Area: {...}")

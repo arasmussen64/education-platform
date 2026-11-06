@@ -2,6 +2,38 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: The fifth lesson, Strings and input (and a checkpoint question)
+
+**Done**
+
+- `content/topics/py.strings-and-input`, status `ready`, which completes Module 1's topics:
+  - **Learn:** CS50P Lecture 0 from 43:23 to 45:02, the f-string part. `input()` (topic 3's clip) and `int()` (topic 2's clip) were already covered. The `:.2f` part (1:24:34 to 1:25:56) and the Python tutorial's "Formatted string literals" are linked as more resources.
+  - **Practice:**
+    - a worked example that asks a name and an age and does maths with the age;
+    - three questions: `input()` always gives a `str`, an f-string prediction, and `"4" + "5"` (the "45" from Values and types);
+    - filling in a rectangle's area (one line done as a pattern);
+    - a price tag with `:.2f`.
+  - **Prove it:**
+    - build: kilometres to miles;
+    - debug: a shopping line. `quantity` isn't converted, so "can't multiply sequence by non-int" crashes it; then a missing `f` silently prints the braces;
+    - explain: why `age + 1` fails on typed input.
+  - **Review pool:** four items. Skills: `input-text` (3 follow-up candidates), `convert` (4) and `fstrings` (6).
+- **Design fix:** the first draft of the fill-in used `...(input())`. Python prints a `SyntaxWarning` into the output before running that code, which would confuse a beginner. Blanks now stand only where a value goes.
+- **Checked:**
+  - every output and error message, with typed input, on Python 3.14;
+  - the feedback for starters and mistakes. Forgetting to convert in the area exercise prints `Area: 444` (`3 * "4"`), which the recap explains;
+  - the page on the owner's restarted dev server. All the new files showed up without a restart, so the watcher fix works there too.
+
+**The owner asked:** what if someone really struggles with the checkpoint? Today, nothing special happens. [ADR-0012](decisions/0012-checkpoint-support.md) (proposed) answers with mastery-learning and worked-example research:
+- failed checkpoint tests point to the skill behind them, which opens a follow-up;
+- a solved sibling project to study;
+- a "try it in steps" version with hints, offered after 2 failing Checks;
+- proof on a fresh parallel version.
+
+**Next**
+
+- The Module 1 checkpoint (receipt calculator), built to ADR-0012 once the owner accepts it.
+
 ## 2026-11-06: The fourth lesson, Arithmetic
 
 **Decided:** the main resource is a reading, not CS50P.
