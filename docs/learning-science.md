@@ -8,7 +8,7 @@ The methods Switchback is built on, and the features they drive. Rule of thumb: 
 |---|---|---|
 | **Retrieval practice** | Pulling knowledge out of memory strengthens it far more than re-reading it | Quizzes, recall prompts, reviews; very little passive re-reading |
 | **Spacing** | Practice spread out over time beats cramming for long-term retention | The review scheduler (FSRS) |
-| **Successive relearning** | Retrieve until correct, then repeat across spaced sessions; this produces durable knowledge | "Mastered" only after a delayed review. A missed question comes back as a fresh one on the same skill until it's right on 2 different days ([ADR-0011](decisions/0011-mistakes-come-back.md)) |
+| **Successive relearning** | Retrieve until correct, then repeat across spaced sessions; this produces durable knowledge | "Mastered" only after a delayed review. A missed question comes back as a fresh one on the same skill, after 1, 3 and 7 days, until it's right on 3 different days ([ADR-0011](decisions/0011-mistakes-come-back.md)) |
 | **Interleaving** | Mixing problem types teaches you to *choose* the right method, not just apply the one you just saw | Practice and reviews mix current and older topics |
 | **Mastery learning** | Move on only when the prerequisites are solid | Gating with test-out |
 | **Worked examples, then fading** | Novices learn more from studying solutions than from solving problems; help should fade as skill grows | The practice ladder: worked example → half-finished code → blank file |
@@ -52,6 +52,7 @@ Unrestricted, answer-giving AI can make practice look better while hurting real 
 - Bloom, B. S. (1968). Learning for mastery. *Evaluation Comment*. And (1984). The 2 sigma problem. *Educational Researcher*.
 - Butterfield, B., & Metcalfe, J. (2001). Errors committed with high confidence are hypercorrected. *Journal of Experimental Psychology: Learning, Memory, and Cognition*.
 - Cepeda, N. J., et al. (2006). Distributed practice in verbal recall tasks: A review and quantitative synthesis. *Psychological Bulletin*.
+- Cepeda, N. J., Vul, E., Rohrer, D., Wixted, J. T., & Pashler, H. (2008). Spacing effects in learning: A temporal ridgeline of optimal retention. *Psychological Science*.
 - Chi, M. T. H., et al. (1989). Self-explanations: How students study and use examples in learning to solve problems. *Cognitive Science*.
 - Corbett, A. T., & Anderson, J. R. (1994). Knowledge tracing: Modeling the acquisition of procedural knowledge. *User Modeling and User-Adapted Interaction*.
 - Doignon, J.-P., & Falmagne, J.-C. (1999). *Knowledge Spaces*. Springer.
@@ -62,6 +63,7 @@ Unrestricted, answer-giving AI can make practice look better while hurting real 
 - Parsons, D., & Haden, P. (2006). Parson's programming puzzles: A fun and effective learning tool for first programming courses. *ACE*.
 - Pashler, H., et al. (2008). Learning styles: Concepts and evidence. *Psychological Science in the Public Interest*.
 - Rawson, K. A., & Dunlosky, J. (2011). Optimizing schedules of retrieval practice for durable and efficient learning: How much is enough? *Journal of Experimental Psychology: General*.
+- Rawson, K. A., Dunlosky, J., & Sciartelli, S. M. (2013). The power of successive relearning: Improving performance on course exams and long-term retention. *Educational Psychology Review*.
 - Renkl, A., & Atkinson, R. K. (2003). Structuring the transition from example study to problem solving in cognitive skill acquisition. *Educational Psychologist*.
 - Roediger, H. L., & Karpicke, J. D. (2006). Test-enhanced learning: Taking memory tests improves long-term retention. *Psychological Science*.
 - Rohrer, D., & Taylor, K. (2007). The shuffling of mathematics problems improves learning. *Instructional Science*.

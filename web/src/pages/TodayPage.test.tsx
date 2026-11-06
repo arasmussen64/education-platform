@@ -48,6 +48,11 @@ function answer(item: string, correct: boolean, when: string): Attempt {
   }
 }
 
+/** A Check of a code exercise. */
+function check(item: string, passed: boolean, when: string): Attempt {
+  return { ...answer(item, passed, when), type: 'code_check' }
+}
+
 function renderToday(history: Attempt[] | Error, { signedIn = true } = {}) {
   if (history instanceof Error) {
     vi.mocked(fetchAttempts).mockRejectedValueOnce(history)
@@ -117,18 +122,46 @@ describe('the Today page', () => {
     ).toBeInTheDocument()
   })
 
-  it('says a skill is relearned after the second right day', async () => {
+  it('says a skill is relearned after the third right day', async () => {
+    // Missed 11 days ago; right 10 days ago (back 3 days later) and 7 days
+    // ago (back 7 days later, today).
     renderToday([
-      answer('predict-four-lines', false, daysAgo(4)),
-      answer('review-predict-commas', true, daysAgo(3)),
+      answer('predict-four-lines', false, daysAgo(11)),
+      answer('review-mcq-commas', true, daysAgo(10)),
+      answer('review-predict-commas', true, daysAgo(7)),
     ])
     const revisit = await revisitSection()
     await choose(revisit, 'Hi, Ada!')
     expect(
       await within(revisit).findByText(
-        "Relearned: you've got this right on 2 different days.",
+        "Relearned: you've got this right on 3 different days.",
       ),
     ).toBeInTheDocument()
+  })
+
+  it('gives each skill its own question when one miss opens several', async () => {
+    // The recipe card tests two skills, and it never passed that day.
+    renderToday([check('write-recipe-card', false, daysAgo(1))])
+    const revisit = await revisitSection()
+    const headings = within(revisit)
+      .getAllByRole('heading', { level: 3 })
+      .map((heading) => heading.textContent)
+    expect(headings).toEqual([
+      'Fill in the gaps: A shopping list',
+      'Quick check',
+    ])
+    expect(revisit).toHaveTextContent('Print an empty line with print()')
+    expect(revisit).toHaveTextContent('Show text with print, in quotes')
+  })
+
+  it("doesn't count failing Checks on code that passed the same day", async () => {
+    renderToday([
+      check('write-recipe-card', false, daysAgo(1)),
+      check('write-recipe-card', true, daysAgo(1)),
+    ])
+    expect(await revisitSection()).toHaveTextContent(
+      'Nothing to revisit today.',
+    )
   })
 
   it('lists what comes back later when nothing is due today', async () => {

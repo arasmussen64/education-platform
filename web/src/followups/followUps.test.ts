@@ -7,6 +7,7 @@ import {
   dayOf,
   type FollowUp,
   openFollowUps,
+  planCards,
   skillsIn,
   topicsWithMisses,
 } from './followUps.ts'
@@ -78,18 +79,23 @@ describe('openFollowUps', () => {
     expect(open[0]).toMatchObject({ correctOn: [], due: '2026-11-07' })
   })
 
-  it('comes back 3 days after a correct day, and closes after 2 correct days', () => {
-    const missed = attempt('mcq-commas', false, '2026-11-06')
-    const firstRight = attempt('predict-commas', true, '2026-11-07')
-    expect(openFollowUps([missed, firstRight], skillsOf)[0]).toMatchObject({
+  it('comes back after 3 days, then 7, and closes after 3 correct days', () => {
+    const history = [attempt('mcq-commas', false, '2026-11-06')]
+
+    history.push(attempt('predict-commas', true, '2026-11-07'))
+    expect(openFollowUps(history, skillsOf)[0]).toMatchObject({
       correctOn: ['2026-11-07'],
       due: '2026-11-10',
     })
 
-    const secondRight = attempt('mcq-commas', true, '2026-11-10')
-    expect(openFollowUps([missed, firstRight, secondRight], skillsOf)).toEqual(
-      [],
-    )
+    history.push(attempt('mcq-commas', true, '2026-11-10'))
+    expect(openFollowUps(history, skillsOf)[0]).toMatchObject({
+      correctOn: ['2026-11-07', '2026-11-10'],
+      due: '2026-11-17',
+    })
+
+    history.push(attempt('predict-commas', true, '2026-11-17'))
+    expect(openFollowUps(history, skillsOf)).toEqual([])
   })
 
   it('starts over after another miss', () => {
@@ -114,6 +120,7 @@ describe('openFollowUps', () => {
         attempt('mcq-commas', false, '2026-11-06'),
         attempt('predict-commas', true, '2026-11-07'),
         attempt('predict-commas', true, '2026-11-10'),
+        attempt('mcq-commas', true, '2026-11-17'),
         attempt('mcq-commas', false, '2026-12-01'),
       ],
       skillsOf,
@@ -258,6 +265,59 @@ describe('chooseQuestion', () => {
       if (item.id !== 'mcq-print') item.skills = []
     }
     expect(chooseQuestion(followUp, onlyOne, [])).toBe('mcq-print')
+  })
+})
+
+describe('planCards', () => {
+  /** The sample topic, with each item testing the skills given. */
+  function topicWith(skillsByItem: Record<string, string[]>) {
+    const content = fakeContent()
+    for (const item of [
+      ...Object.values(content.recall),
+      ...Object.values(content.exercises),
+    ]) {
+      item.skills = skillsByItem[item.id] ?? []
+    }
+    return content
+  }
+
+  function due(content: ReturnType<typeof fakeContent>, skillIds: string[]) {
+    const missed = attempt('write-hello', false, '2026-11-06')
+    const attempts = [{ ...missed, topic_id: content.topic.id }]
+    const contents = new Map([[content.topic.id, content]])
+    const open = openFollowUps(attempts, skillsIn(contents)).filter(
+      (followUp) => skillIds.includes(followUp.skillId),
+    )
+    return planCards(open, contents, attempts)
+  }
+
+  it('gives each skill a different question when one miss opens several', () => {
+    const content = topicWith({
+      'write-hello': ['a', 'b'],
+      'mcq-print': ['a'],
+      'predict-print': ['a', 'b'],
+      'fill-hello': ['b'],
+    })
+    const cards = due(content, ['a', 'b'])
+    expect(cards.map((card) => card.itemId)).toEqual([
+      'mcq-print',
+      'fill-hello',
+    ])
+  })
+
+  it('asks a shared question once when a skill has no other left', () => {
+    const content = topicWith({
+      'write-hello': ['a', 'b'],
+      'mcq-print': ['a', 'b'],
+      'predict-print': ['a'],
+    })
+    const cards = due(content, ['a', 'b'])
+    expect(cards).toHaveLength(1)
+    expect(cards[0]?.itemId).toBe('mcq-print')
+    expect(cards[0]?.followUps.map((followUp) => followUp.skillId)).toEqual([
+      'a',
+      'b',
+    ])
   })
 })
 

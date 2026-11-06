@@ -34,10 +34,15 @@ export type FollowUp = {
   due: Day
 }
 
+/**
+ * After the 1st and 2nd correct days, the skill comes back this many days
+ * later. Successive relearning works best with at least 3 relearning
+ * sessions on growing gaps (Rawson & Dunlosky, 2011): together with the
+ * first follow-up the next day, that's 1, 3 and 7 days.
+ */
+export const RELEARNING_GAPS = [3, 7]
 /** A skill is relearned once it's answered correctly on this many days. */
-export const CORRECT_DAYS_NEEDED = 2
-/** After a correct day, the skill comes back this many days later. */
-export const DAYS_AFTER_CORRECT = 3
+export const CORRECT_DAYS_NEEDED = RELEARNING_GAPS.length + 1
 
 /** The skills an item tests (empty for items that don't exist any more). */
 export type SkillsOf = (topicId: string, itemId: string) => string[]
@@ -102,8 +107,8 @@ export function topicsWithMisses(attempts: Attempt[]): string[] {
 /**
  * Every skill that's currently being relearned. Day by day, for each skill:
  * a miss opens it (due the next day, and any earlier progress starts over);
- * a correct day after the miss counts towards closing it (due again 3 days
- * later); 2 correct days close it.
+ * each correct day after the miss counts towards closing it (due again 3
+ * days later, then 7); 3 correct days close it.
  */
 export function openFollowUps(
   attempts: Attempt[],
@@ -141,8 +146,9 @@ export function openFollowUps(
         }
       } else if (correct && state && day > state.missedOn) {
         state.correctOn.push(day)
-        state.due = addDays(day, DAYS_AFTER_CORRECT)
-        if (state.correctOn.length >= CORRECT_DAYS_NEEDED) state = null
+        const gap = RELEARNING_GAPS[state.correctOn.length - 1]
+        if (gap === undefined) state = null
+        else state.due = addDays(day, gap)
       }
     }
     if (state) open.push(state)
@@ -171,11 +177,13 @@ export function skillsIn(contents: Map<string, TopicContent>): SkillsOf {
  * The question to ask for a follow-up: a different one on the same skill
  * (the owner's choice), preferring one never answered, then the one answered
  * longest ago. Only if there's no other question does a missed one return.
+ * Questions in `avoid` (already on the page) are used only as a last resort.
  */
 export function chooseQuestion(
   followUp: FollowUp,
   content: TopicContent,
   attempts: Attempt[],
+  avoid: ReadonlySet<string> = new Set(),
 ): string | null {
   const candidates = [
     ...Object.values(content.recall),
@@ -196,11 +204,58 @@ export function chooseQuestion(
       lastAnswered.set(attempt.item_id, attempt.occurred_at)
     }
   }
-  // Never answered sorts first (''), then the oldest answer.
+  // Questions not already on the page first; then never answered (''),
+  // then the oldest answer.
   const sorted = [...pool].sort((a, b) => {
     const whenA = lastAnswered.get(a) ?? ''
     const whenB = lastAnswered.get(b) ?? ''
-    return whenA.localeCompare(whenB) || a.localeCompare(b)
+    return (
+      Number(avoid.has(a)) - Number(avoid.has(b)) ||
+      whenA.localeCompare(whenB) ||
+      a.localeCompare(b)
+    )
   })
   return sorted[0] ?? null
+}
+
+/** A question to ask today, and the follow-ups it answers. */
+export type PlannedCard = {
+  topicId: string
+  itemId: string
+  content: TopicContent
+  followUps: FollowUp[]
+}
+
+/**
+ * Today's questions for the follow-ups that are due. One miss often opens
+ * several follow-ups (an item can test several skills), so each gets a
+ * different question where possible. When a skill's only remaining question
+ * is already on the page, that question is asked once, for both.
+ */
+export function planCards(
+  due: FollowUp[],
+  contents: Map<string, TopicContent>,
+  attempts: Attempt[],
+): PlannedCard[] {
+  const cards: PlannedCard[] = []
+  for (const followUp of due) {
+    const content = contents.get(followUp.topicId)
+    if (!content) continue
+    const sameTopic = cards.filter((card) => card.topicId === followUp.topicId)
+    const used = new Set(sameTopic.map((card) => card.itemId))
+    const itemId = chooseQuestion(followUp, content, attempts, used)
+    if (!itemId) continue
+    const shared = sameTopic.find((card) => card.itemId === itemId)
+    if (shared) {
+      shared.followUps.push(followUp)
+    } else {
+      cards.push({
+        topicId: followUp.topicId,
+        itemId,
+        content,
+        followUps: [followUp],
+      })
+    }
+  }
+  return cards
 }
