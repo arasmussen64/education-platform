@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: The second lesson, Values and types
+
+**Done**
+
+- `content/topics/py.values-and-types`, status `ready`:
+  - **Learn:** CS50P Lecture 0 from 59:32 (integers) to 1:07:58 (the fixed calculator). The lecture has no stretch dedicated to types and never uses `type()`. But this one shows *why* types matter: typed input is text, so `1` and `2` make `12`. The intro says that `x = 1` and `input()` come in later topics, and that the Run button replaces the `>>>` prompt. Floats (1:14:31) and the Python tutorial's "Numbers" section (PSF License Version 2) are linked as more resources.
+  - **Practice:**
+    - a worked example, `type()` on four values, explaining the `<class 'str'>` format;
+    - three questions: which type is `7.0`, why `print(5)` and `print("5")` look the same (mixing in topic 1), and what `+` does with numbers and with text;
+    - a fill-in exercise (one value of each type);
+    - a write exercise (add, join, check a type).
+  - **Prove it:**
+    - build: a type report. Its hidden tests also check that the source uses `type()` three times, so typing the answers out by hand fails.
+    - debug: a receipt with a `TypeError` crash on line 4 and a silent `"3" + "2"` on line 3. Fixing the crash reveals the wrong total.
+    - explain: the calculator that prints `12`.
+  - **Review pool:** three items. Skills: `identify-types` (7 follow-up candidates) and `plus-by-type` (3).
+- Checked: every quoted output and error message (Python 3.14, through the harness); the tutorial's anchor and license; the feedback for each starter and wrong answer; the page on the dev server.
+- The content loading test now runs for every ready topic.
+
+**Next**
+
+- The owner finishes Programs and print, then Values and types.
+- Build ADR-0011: mistakes come back as fresh questions.
+
 ## 2026-11-06: Skills, so mistakes can come back (ADR-0011)
 
 **Why:** the owner missed a predict-the-output question about `print` with commas and asked for wrong answers to be remembered and re-tested until they get them right. The miss is already saved in the event log, but nothing brought it back.

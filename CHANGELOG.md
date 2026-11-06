@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the second lesson)
+
+- **Values and types** (`py.values-and-types`), ready to learn:
+  - **Learn:** CS50P Lecture 0 from 59:32 to 1:07:58: what an integer is, and why a calculator prints "12" for 1 + 2. A float clip and the Python tutorial are linked as more resources.
+  - **Practice:** a worked example with `type()`, three questions (one mixes in topic 1: `print` hides quotes), a fill-in and a write exercise.
+  - **Prove it:** a type report (its hidden tests also check that `type()` is used), a receipt with one crashing and one silent type bug, and explaining the calculator bug.
+  - **Review pool:** three items. Two skills: `identify-types` and `plus-by-type`.
+- The loading test now checks every ready topic automatically.
+
 ### Added (skills)
 
 - [ADR-0011](docs/decisions/0011-mistakes-come-back.md) (proposed): a missed question will come back as a different question on the same skill, until it's right on 2 different days. The owner asked for it, and chose fresh questions over repeats.
