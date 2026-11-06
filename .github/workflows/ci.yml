@@ -57,3 +57,22 @@ jobs:
         run: uv run ruff check
       - name: Test
         run: uv run pytest
+
+  database:
+    name: Database
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install the Supabase CLI
+        run: npm ci
+      - name: Start a throwaway database with every migration applied
+        run: npx supabase db start
+      - name: Check the SQL
+        run: npm run db:lint
+      - name: Test
+        run: npm run db:test

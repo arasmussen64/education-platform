@@ -9,7 +9,7 @@ What's needed on the owner's computer and in the cloud. Tick things off as they'
 | Git and GitHub CLI | Version control and pull requests | ✅ Installed |
 | Node 24 and npm 11 | The web app | ✅ Installed |
 | Python 3.12 | Content tools and, later, ML | ✅ Installed |
-| Docker Desktop | Runs a private copy of Supabase for development ([ADR-0010](decisions/0010-environments.md)) | ☐ To do |
+| Docker Desktop | Runs a private copy of Supabase for development ([ADR-0010](decisions/0010-environments.md)) | ✅ Installed |
 | uv | Python package manager; also installs Python 3.14 | ✅ Installed (`python -m pip install --user uv`; run it as `python -m uv`) |
 
 ### Install Docker Desktop
@@ -26,8 +26,8 @@ Docker Desktop uses a few GB of memory while it's running, so quit it when you'r
 | Service | Why | Status |
 |---|---|---|
 | GitHub | Code, pull requests, CI | ✅ Done |
-| Supabase | The real database and sign-in (one project) | ☐ Create the project |
-| Cloudflare | Hosts the app | ☐ Create an account |
+| Supabase | The real database and sign-in (one project) | ✅ Project created; ☐ link it (`npx supabase login`) |
+| Cloudflare | Hosts the app | ✅ Account created; ☐ connect the repo |
 | Anthropic Console | The Claude API for the tutor and grading (week 2) | ☐ Later |
 
 ### Supabase
