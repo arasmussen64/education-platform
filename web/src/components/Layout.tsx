@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useNavigation } from 'react-router'
 import { displayName } from '../auth/authContext.ts'
 import { useAuth } from '../auth/useAuth.ts'
 import { APP_NAME } from '../config.ts'
+import { SaveStatus } from './SaveStatus.tsx'
 
 // NavLink tells us whether its link matches the current page, so the
 // current page's tab can be highlighted.
@@ -37,6 +38,7 @@ export function Layout() {
                 Playground
               </NavLink>
             </nav>
+            <SaveStatus />
             <Account />
           </div>
         </div>

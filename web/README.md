@@ -75,6 +75,21 @@ The app starts loading Pyodide (about 10 MB, cached after the first visit) in th
 
 The field is an editable `<span role="textbox">`, not an `<input>`. Password managers only look at real form fields, and a field after "What's your name?" looks like a contact form to them. NordPass, for one, gives pages no way to opt out.
 
+## Saving progress
+
+Everything a learner does on a topic page becomes an event in the append-only `events` table ([ADR-0008](../docs/decisions/0008-event-log.md)): viewing a lesson, answering, running and checking code, showing a hint. The `data` each event saves is listed in the [data model](../docs/specs/data-model.md#events-append-only).
+
+| File                        | What it does                                                                                                                                          |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `events/eventLog.ts`        | Turns what happened into a complete row (ID, learner, session, time, commit) and decides when to send. Retries wait 5 s, 10 s, 20 s… up to 5 minutes. |
+| `events/outbox.ts`          | Keeps unsent events in `localStorage`, so a reload or a lost connection loses nothing.                                                                |
+| `events/sync.ts`            | Sends the outbox in batches. An event the server refuses is set aside (kept in `localStorage`) so it can't block the rest.                            |
+| `events/supabaseEvents.ts`  | Sends to Supabase as an upsert that ignores duplicates, so retrying is always safe.                                                                   |
+| `events/EventsProvider.tsx` | Connects the log to sign-in, and tries again when the browser comes back online or the tab is shown again.                                            |
+| `components/SaveStatus.tsx` | The "Not saved yet" badge in the header, shown while work is waiting on this device.                                                                  |
+
+Components record events with `useRecordEvent()`. Only a signed-in learner's events are kept. Events recorded while sign-in is still loading wait in memory, then go to whoever turns out to be signed in.
+
 ## Sign-in
 
 `src/auth/` keeps track of who's signed in (`AuthProvider` and `useAuth`), using Supabase Auth with the PKCE flow. `src/supabase/` holds the client, its settings, and the generated database types.

@@ -1,33 +1,51 @@
 import { useState } from 'react'
 import { STAGES } from '../content/stages.ts'
 import type { Exercise, Step } from '../content/types.ts'
-import { allChecksPassed, type CheckOutcome } from '../python/runner.ts'
+import {
+  allChecksPassed,
+  type CheckOutcome,
+  type RunOutcome,
+} from '../python/runner.ts'
 import { CodeRunner } from './CodeRunner.tsx'
 import { Markdown } from './Markdown.tsx'
 import { SECONDARY_BUTTON } from './styles.ts'
 
+/** Something the learner did in an exercise, reported so it can be saved. */
+export type ExerciseActivity =
+  | { kind: 'run'; code: string; outcome: RunOutcome }
+  | { kind: 'check'; code: string; outcome: CheckOutcome; hintsUsed: number }
+  | { kind: 'hint'; hintsUsed: number }
+
+type ActivityHandler = (activity: ExerciseActivity) => void
+
 type Props = {
   exercise: Exercise
-  /** Called with every Check result (for logging attempts, later). */
-  onCheck?: (outcome: CheckOutcome) => void
+  onActivity?: ActivityHandler
 }
 
 /** One exercise: its instructions, the code runner, hints and, once passed, the answer. */
-export function ExerciseView({ exercise, onCheck }: Props) {
+export function ExerciseView({ exercise, onActivity }: Props) {
   if (exercise.stage === 'worked_example') {
-    return <WorkedExample exercise={exercise} />
+    return <WorkedExample exercise={exercise} onActivity={onActivity} />
   }
-  return <CodingExercise exercise={exercise} onCheck={onCheck} />
+  return <CodingExercise exercise={exercise} onActivity={onActivity} />
 }
 
 /** A full solution to study and run, explained step by step. */
-function WorkedExample({ exercise }: { exercise: Exercise }) {
+function WorkedExample({
+  exercise,
+  onActivity,
+}: {
+  exercise: Exercise
+  onActivity?: ActivityHandler
+}) {
   return (
     <div className="space-y-3">
       <Markdown>{exercise.prompt}</Markdown>
       <CodeRunner
         initialCode={exercise.solution}
         timeLimitMs={exercise.time_limit_ms}
+        onRun={(outcome, code) => onActivity?.({ kind: 'run', code, outcome })}
       />
       <h4 className="font-semibold">How it works</h4>
       <ol className="space-y-3">
@@ -60,17 +78,24 @@ function linesLabel(step: Step): string {
 /** Every other stage: write or fix code until the checks pass. */
 function CodingExercise({
   exercise,
-  onCheck,
+  onActivity,
 }: {
   exercise: Exercise
-  onCheck?: (outcome: CheckOutcome) => void
+  onActivity?: ActivityHandler
 }) {
   const stage = STAGES[exercise.stage]
   const [passed, setPassed] = useState(false)
+  // Kept here, not in <Hints>, because checks report how many were used.
+  const [hintsShown, setHintsShown] = useState(0)
 
-  function handleCheck(outcome: CheckOutcome) {
+  function handleCheck(outcome: CheckOutcome, code: string) {
     if (allChecksPassed(outcome)) setPassed(true)
-    onCheck?.(outcome)
+    onActivity?.({ kind: 'check', code, outcome, hintsUsed: hintsShown })
+  }
+
+  function showHint() {
+    setHintsShown(hintsShown + 1)
+    onActivity?.({ kind: 'hint', hintsUsed: hintsShown + 1 })
   }
 
   return (
@@ -81,10 +106,15 @@ function CodingExercise({
         tests={exercise.tests}
         hiddenTests={stage.hiddenTests}
         timeLimitMs={exercise.time_limit_ms}
+        onRun={(outcome, code) => onActivity?.({ kind: 'run', code, outcome })}
         onCheck={handleCheck}
       />
       {stage.hints && exercise.hints.length > 0 && !passed && (
-        <Hints hints={exercise.hints} />
+        <Hints
+          hints={exercise.hints}
+          shown={hintsShown}
+          onShowMore={showHint}
+        />
       )}
       {passed && <ReferenceSolution code={exercise.solution} />}
     </div>
@@ -92,8 +122,15 @@ function CodingExercise({
 }
 
 /** Hints, one at a time, so the learner takes only as much help as they need. */
-function Hints({ hints }: { hints: string[] }) {
-  const [shown, setShown] = useState(0)
+function Hints({
+  hints,
+  shown,
+  onShowMore,
+}: {
+  hints: string[]
+  shown: number
+  onShowMore: () => void
+}) {
   return (
     <div className="space-y-2">
       {hints.slice(0, shown).map((hint, index) => (
@@ -108,11 +145,7 @@ function Hints({ hints }: { hints: string[] }) {
         </div>
       ))}
       {shown < hints.length && (
-        <button
-          type="button"
-          onClick={() => setShown(shown + 1)}
-          className={SECONDARY_BUTTON}
-        >
+        <button type="button" onClick={onShowMore} className={SECONDARY_BUTTON}>
           {shown === 0 ? 'Show a hint' : 'Show another hint'}
         </button>
       )}

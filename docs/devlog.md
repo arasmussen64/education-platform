@@ -2,6 +2,42 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Saving progress (the event log, F6)
+
+**Done**
+
+- `web/src/events/`:
+  - the **event log** turns what a page reports into a complete row: a browser-made ID, the learner, the study session, the time, and the commit;
+  - the **outbox** in `localStorage` keeps events until the server confirms them;
+  - **sync** sends batches as an upsert that ignores duplicates, so retries are safe.
+- When saving fails:
+  - retries wait 5 s, 10 s, 20 s… up to 5 minutes;
+  - the app tries again at once when the browser comes back online or the tab is shown again;
+  - an event the server refuses is set aside so it can't block the rest.
+- Recorded on topic pages:
+  - `lesson_view`;
+  - `answer` (multiple choice, predict the output);
+  - `code_run`, `code_check` and `hint` (exercises);
+  - the context is `practice` or `prove`.
+  Attempt time runs from the first click or focus inside an item. The exact `data` per event type is now in the data model.
+- `vite.config.ts` writes the git commit into the build as `content_build`.
+- A "Not saved yet" badge in the header. Topic pages tell signed-out visitors their answers won't be saved.
+- Tests: 41 new web tests (120 in total). They cover the outbox (including two tabs), batching, retries with fake timers, setting aside a refused event, signed-out and still-loading sign-in, sessions, and what each page records.
+
+**Tried end to end** against the local Supabase in Docker, signed in by email link through Mailpit, with the sample topic copied in temporarily:
+- a lesson view, a correct answer (2.4 s) and a failed check (with its code) appeared in `public.events` within 70 ms, with the right user, revision and commit;
+- with the API container stopped, an answer showed "Not saved yet";
+- after restarting it, the answer arrived 7 s later on its own, keeping its original time. It was received 15 s after it happened.
+
+**Lessons**
+
+- On this Windows machine, stopping a background shell task doesn't stop the Vite server it started. Two test servers (ports 5174 and 5175) were left running, and ending processes needs the owner's permission. Next time, start at most one test server per session and plan how it will be closed.
+- The shared test setup now clears `localStorage` after each test, but only where it exists: the Pyodide tests run in plain Node.
+
+**Next**
+
+- Write the first real topic, `py.programs-and-print`, then the rest of Module 1.
+
 ## 2026-11-06: Content pipeline, part 2 (topic pages)
 
 **Done**

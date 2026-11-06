@@ -1,10 +1,13 @@
+import { useEffect, useRef } from 'react'
 import { Link, useLoaderData } from 'react-router'
+import { useAuth } from '../auth/useAuth.ts'
 import { getTopic, moduleFor } from '../content/content.ts'
 import type { Explain, Topic, TopicContent } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
 import { CARD, PROSE } from '../components/styles.ts'
+import { useRecordEvent } from '../events/useEvents.ts'
 import type { topicLoader } from './topicLoader.ts'
 
 // One topic: Learn, Practice and Prove it (v1 spec, F3, F5, F7).
@@ -24,11 +27,13 @@ export function TopicView({
   /** Null when the topic isn't open yet. */
   content: TopicContent | null
 }) {
+  useLessonView(content)
   return (
     <article className="space-y-10">
       <TopicHeader topic={topic} />
       {content ? (
         <>
+          <SignInToSave />
           <Learn content={content} />
           <Practice content={content} />
           <ProveIt content={content} />
@@ -40,6 +45,37 @@ export function TopicView({
         </p>
       )}
     </article>
+  )
+}
+
+/** Saves a lesson_view event when an open topic's page opens (F3). */
+function useLessonView(content: TopicContent | null) {
+  const record = useRecordEvent()
+  const recorded = useRef(false)
+  useEffect(() => {
+    // Once per visit, even though React runs effects twice in development.
+    if (!content || recorded.current) return
+    recorded.current = true
+    record({
+      type: 'lesson_view',
+      topic_id: content.topic.id,
+      context: 'learn',
+      data: { resource: content.topic.resources[0]?.url ?? null },
+    })
+  }, [content, record])
+}
+
+/** Answers are saved only for a signed-in learner, so say so. */
+function SignInToSave() {
+  const auth = useAuth()
+  if (auth.status !== 'signed-out') return null
+  return (
+    <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+      You're not signed in, so your answers on this page won't be saved.{' '}
+      <Link to="/sign-in" className="underline">
+        Sign in
+      </Link>
+    </p>
   )
 }
 
@@ -159,6 +195,7 @@ function Practice({ content }: { content: TopicContent }) {
           key={itemId}
           itemId={itemId}
           content={content}
+          context="practice"
           position={`Practice ${index + 1} of ${items.length}`}
         />
       ))}
@@ -179,8 +216,12 @@ function ProveIt({ content }: { content: TopicContent }) {
         No hints here. Once progress tracking arrives (Milestone B), passing all
         three marks the topic as learned; for now, they're extra practice.
       </p>
-      {build && <PracticeItem itemId={build} content={content} />}
-      {debug && <PracticeItem itemId={debug} content={content} />}
+      {build && (
+        <PracticeItem itemId={build} content={content} context="prove" />
+      )}
+      {debug && (
+        <PracticeItem itemId={debug} content={content} context="prove" />
+      )}
       {explain && <ExplainPrompt explain={explain} />}
     </section>
   )

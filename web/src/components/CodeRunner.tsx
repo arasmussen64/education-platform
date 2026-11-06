@@ -24,8 +24,10 @@ type Props = {
   hiddenTests?: boolean
   /** Tests pass a fake here; the app uses the shared runner. */
   runner?: Runner
-  /** Called with every Check result, e.g. to reveal the answer after a pass. */
-  onCheck?: (outcome: CheckOutcome) => void
+  /** Called after each press of Run, with the code and its result. */
+  onRun?: (outcome: RunOutcome, code: string) => void
+  /** Called with every Check result and the code that was checked. */
+  onCheck?: (outcome: CheckOutcome, code: string) => void
   /** How long the code may run before it's stopped. */
   timeLimitMs?: number
 }
@@ -76,6 +78,7 @@ export function CodeRunner({
   tests,
   hiddenTests = false,
   runner,
+  onRun,
   onCheck,
   timeLimitMs = DEFAULT_TIME_LIMIT_MS,
 }: Props) {
@@ -108,10 +111,14 @@ export function CodeRunner({
     })
     setShown({ kind: 'run', session: { ...session, outcome } })
     setStatus('ready')
+    return outcome
   }
 
-  function handleRun() {
-    return runSession({ code, seed: newSeed(), inputs: [] })
+  async function handleRun() {
+    const outcome = await runSession({ code, seed: newSeed(), inputs: [] })
+    // Lines typed into a waiting program re-run it, but only the press of
+    // Run itself is reported.
+    onRun?.(outcome, code)
   }
 
   function handleInput(line: string) {
@@ -125,7 +132,7 @@ export function CodeRunner({
     const outcome = await python.check(code, exerciseTests, { timeLimitMs })
     setShown({ kind: 'check', outcome })
     setStatus('ready')
-    onCheck?.(outcome)
+    onCheck?.(outcome, code)
   }
 
   const busy = status === 'running'

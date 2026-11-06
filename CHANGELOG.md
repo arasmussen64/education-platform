@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (saving progress)
+
+- Everything a signed-in learner does on a topic page is saved to the append-only event log (F6): lesson views, answers, runs, checks and hints. Each event records the item's revision, how long the attempt took, the hints used, the study session, and the commit the app was built from.
+- Events go into an outbox on the device first, then to the server in batches. Retries are always safe, because the server ignores an event it already has. Offline, nothing is lost: the app retries with growing waits and again as soon as the browser is back online.
+- An event the server refuses is set aside on the device, so it can't block the others.
+- A "Not saved yet" badge in the header while work is waiting on this device.
+- Topic pages tell signed-out visitors that their answers won't be saved.
+
 ### Added (topic pages)
 
 - The app reads `content/` while it's built: YAML becomes data, lessons are MDX, and exercise code is loaded as text. A topic's lesson and exercises download only when its page opens.
