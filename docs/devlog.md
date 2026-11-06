@@ -2,6 +2,13 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: The real database has its tables
+
+- The owner logged in to the Supabase CLI and linked the `education-platform` project. The CLI didn't need the database password; it uses the login.
+- Applied the first migration to production with `npx supabase db push --remote --yes`, after a `--dry-run` that listed exactly that one migration. `migration list --remote` shows the local and production histories match.
+- Note: Supabase CLI 3 targets the local database unless `--remote` is given. The docs now say so.
+- Next: sign-in with GitHub (the owner sets up a GitHub OAuth app and the Supabase provider) and sending events from the app.
+
 ## 2026-11-06: Live on Cloudflare; NordPass fix
 
 **Done**
