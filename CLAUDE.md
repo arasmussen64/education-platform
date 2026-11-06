@@ -8,6 +8,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 
 - Concept: [docs/vision.md](docs/vision.md)
 - Plan and current phase: [docs/roadmap.md](docs/roadmap.md)
+- v1 spec: [docs/specs/v1.md](docs/specs/v1.md), with the [data model](docs/specs/data-model.md) and the [first track](docs/specs/python-foundations.md)
 - Decisions (ADRs): [docs/decisions/](docs/decisions/)
 - Methods behind the features: [docs/learning-science.md](docs/learning-science.md)
 - Session history: [docs/devlog.md](docs/devlog.md)
@@ -38,7 +39,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
   - docs updated if behavior, setup or a decision changed
   - a `docs/devlog.md` entry for the session: what changed, what was decided, what's next
 - **Secrets never get committed.** Keys go in `.env` (gitignored); keep `.env.example` with placeholder names.
-- **Free tiers only** ([ADR-0005](docs/decisions/0005-free-hosting-first.md)). Never add a service that bills without asking. The one paid exception is the Claude API, which must have a spending cap.
+- **Free tiers only** ([ADR-0005](docs/decisions/0005-free-hosting-first.md)). Never add a service that bills without asking. The one paid exception is the Claude API, capped at $10 a month to start (v1 spec).
 
 ## Product rules that constrain code
 

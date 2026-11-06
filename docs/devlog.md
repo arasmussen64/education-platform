@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-05: v1 spec
+
+**Done**
+
+- Wrote the [v1 spec](specs/v1.md): 16 features with acceptance criteria, four milestones (A–D), non-functional requirements, and a content definition of done.
+- Wrote the [data model](specs/data-model.md): content file formats, the `checks` test helper, the Postgres tables, and the exact rules for topic states.
+- Planned the [Python Foundations track](specs/python-foundations.md): 30 topics in 6 modules, each ending with a checkpoint, mostly built around CS50P lectures.
+- Proposed ADR-0008 (append-only event log) and ADR-0009 (per-topic reviews, graded automatically).
+
+**Decided** (the owner approved the spec pull request)
+
+- The "prove it" checks, topic states and gating move from Phase 2 into Phase 1. They reuse the exercise engine, and v1 shouldn't call anything Learned without proof.
+- ADR-0008 and ADR-0009 accepted.
+- The topic list is approved as written.
+- AI budget cap: $10 a month to start.
+
+**Next**
+
+- Milestone A: scaffold the app and CI, then the Python runner, the content pipeline, Supabase, the deploy, and Module 1 content.
+
 ## 2026-11-05: From idea to project setup
 
 **Done**
