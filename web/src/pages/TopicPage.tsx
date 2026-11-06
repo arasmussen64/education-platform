@@ -102,7 +102,7 @@ function TopicHeader({ topic }: { topic: Topic }) {
         {topic.summary}
       </p>
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        About {topic.estimated_minutes} minutes
+        About {topic.estimated_minutes} minutes for the whole topic
         {prerequisites.length > 0 && (
           <>
             {' · Builds on '}

@@ -2,6 +2,19 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Fix: video clips looked as long as the whole lecture
+
+**Found by the owner** on their first lesson. The page said "about 40 minutes", but the embedded video showed 1 hour 45 minutes. YouTube's player always displays the full video's length, even when `start` and `end` limit what plays, and nothing on the page said so.
+
+**Done**
+
+- Above an embedded clip, the page now says: "This clip: 0:24 to 9:51 (about 9 minutes). The player shows the length of the whole video, but it stops by itself at 9:51." The video is linked to that note for screen readers.
+- The topic header now reads "About 40 minutes for the whole topic".
+- The lesson's intro no longer gives its own length, so the clip note is the one place that states it.
+- Tests cover the note, for the sample topic and the real one.
+
+**Lesson:** check the page the way a learner sees it, including what third-party widgets (like YouTube's player) show on their own.
+
 ## 2026-11-06: The first lesson, Programs and print
 
 **Done**

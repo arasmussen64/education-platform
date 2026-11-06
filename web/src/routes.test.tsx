@@ -74,6 +74,9 @@ describe('app routes', () => {
       'src',
       'https://www.youtube-nocookie.com/embed/JP7ITIXGpHk?start=24&end=591&rel=0',
     )
+    expect(learn).toHaveTextContent(
+      'This clip: 0:24 to 9:51 (about 9 minutes).',
+    )
     expect(screen.getByRole('region', { name: 'Practice' })).toHaveTextContent(
       'Practice 6 of 6',
     )

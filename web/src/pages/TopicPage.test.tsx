@@ -60,7 +60,9 @@ describe('the topic page', () => {
     expect(
       screen.getByRole('link', { name: 'Programs and print' }),
     ).toHaveAttribute('href', '/topic/py.programs-and-print')
-    expect(screen.getByText(/About 30 minutes/)).toBeInTheDocument()
+    expect(
+      screen.getByText(/About 30 minutes for the whole topic/),
+    ).toBeInTheDocument()
   })
 
   it('teaches with an intro, the main resource, a recap and more resources', () => {
@@ -76,6 +78,12 @@ describe('the topic page', () => {
       'https://www.youtube-nocookie.com/embed/abc123?start=65&end=190&rel=0',
     )
     expect(learn).toHaveTextContent('(1:05–3:10)')
+    // The player shows the whole video's length, so the page says how long
+    // the clip is, and that it stops by itself.
+    expect(learn).toHaveTextContent(
+      'This clip: 1:05 to 3:10 (about 2 minutes).',
+    )
+    expect(learn).toHaveTextContent('it stops by itself at 3:10')
     expect(learn).toHaveTextContent('License: CC BY 4.0')
     expect(
       within(learn).getByRole('link', { name: 'The Python tutorial: numbers' }),
