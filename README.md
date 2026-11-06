@@ -15,6 +15,8 @@ Most courses get you through the test, and then you forget. Here:
 
 **Status:** Phase 1, building v1 (Milestone A, the walking skeleton). See the [roadmap](docs/roadmap.md).
 
+**Live:** https://education-platform.arasmussen64.workers.dev (it updates automatically on every merge to `main`).
+
 ## Documentation
 
 | Doc | What's in it |
