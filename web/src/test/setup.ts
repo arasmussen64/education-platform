@@ -5,6 +5,12 @@ import { afterEach } from 'vitest'
 // Adds DOM checks like toBeInTheDocument() to Vitest's expect().
 import '@testing-library/jest-dom/vitest'
 
+// jsdom lays nothing out, so it has no scrollIntoView. This stand-in lets
+// pages call it in tests, and tests spy on it.
+if (typeof window !== 'undefined') {
+  Element.prototype.scrollIntoView = function scrollIntoView() {}
+}
+
 // Remove whatever a test rendered or saved (the event outbox lives in
 // localStorage), so tests can't affect each other.
 afterEach(() => {

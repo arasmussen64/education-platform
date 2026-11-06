@@ -40,8 +40,21 @@ def test_good_content_has_no_problems(tree: Path) -> None:
     assert report.problems == []
     assert report.counts["ready"] == 1
     assert report.counts["exercises"] == 6
-    # 6 reference solutions + 2 starters + 1 wrong solution + 1 predict item
-    assert report.counts["runs"] == 10
+    # 6 reference solutions + 2 starters + 1 wrong solution + 1 predict item,
+    # and an empty program for each of the 2 exercises with hidden tests
+    assert report.counts["runs"] == 12
+
+
+def test_hidden_tests_fail_instead_of_crashing(tree: Path) -> None:
+    # On an empty program, splitlines() is empty, so [0] crashes the test.
+    write(
+        tree,
+        f"{TOPIC_DIR}/exercises/build-hello/test_exercise.py",
+        "from checks import run\n\n\ndef test_says_hello():\n"
+        '    """Prints Hello!"""\n'
+        '    assert run().splitlines()[0] == "Hello!"\n',
+    )
+    assert_reported(tree, "test_says_hello crashes on an empty program (IndexError")
 
 
 def test_unknown_fields_are_caught(tree: Path) -> None:

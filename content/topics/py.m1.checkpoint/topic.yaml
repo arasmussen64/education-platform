@@ -1,10 +1,52 @@
 id: py.m1.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 1: receipt calculator"
 summary: "Read prices and a tip percentage, then print a formatted receipt."
 prerequisites: [py.arithmetic, py.strings-and-input]
 estimated_minutes: 60
 rev: 1
 objectives:
-  - "Read prices and a tip percentage, then print a formatted receipt."
+  - "Plan a program in three parts: read the inputs, work out the numbers, print the result."
+  - "Read typed numbers, converting each with `int()` or `float()`."
+  - "Work out amounts with arithmetic, in the right order."
+  - "Print neat output with f-strings and two decimal places."
+  - "Find and fix several bugs in one program."
+prove:
+  build: build-receipt
+  debug: debug-cinema
+  explain:
+    prompt: |
+      Here's a short program that works:
+
+      ```python
+      meal = float(input("Meal? "))
+      tip = meal * 15 / 100
+      print(f"Tip: ${tip:.2f}")
+      ```
+
+      Explain to a friend what happens when it runs and they type `20`: what each line does, and what kind of value (`str`, `int` or `float`) each name refers to. Then: what would go wrong without `float()`?
+    rubric:
+      - id: text
+        required: true
+        description: "input() gives back what was typed as text: the str \"20\"."
+      - id: convert
+        required: true
+        description: "float() turns that text into the number 20.0, so meal refers to a float."
+      - id: arithmetic
+        required: true
+        description: "meal * 15 / 100 works out the tip, 3.0, also a float (/ always gives one)."
+      - id: format
+        required: true
+        description: "The f-string puts the tip into the text, and :.2f shows two decimal places: Tip: $3.00."
+      - id: without-float
+        required: false
+        description: "Without float(), \"20\" * 15 repeats the text 15 times, and dividing text by 100 stops with a TypeError."
+    model_answer: |
+      Line 1: input() shows "Meal? " and gives back what was typed as text, the str "20". float() turns that text into the number 20.0, so meal refers to a float. Line 2: meal * 15 / 100 is 300.0 / 100, which is 3.0, so tip refers to a float too (/ always gives a float). Line 3: the f-string puts the value of tip into the text, and :.2f shows it with two decimal places, so it prints Tip: $3.00. Without float(), meal would be the text "20": "20" * 15 repeats the text 15 times, and dividing text by 100 stops with a TypeError.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-shop-receipt
+  steps: [step-read, step-work, step-print, step-outline]
+  versions: [build-split-bill, build-electricity]

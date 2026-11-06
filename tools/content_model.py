@@ -190,6 +190,10 @@ Stage = Literal["worked_example", "fill_in", "write", "build", "debug", "review_
 # Stages whose starter code must exist and must fail the tests.
 STAGES_WITH_FAILING_STARTER = {"fill_in", "debug"}
 
+# Stages whose tests are hidden: the learner sees what each test checks and
+# whether it passed, but not why it failed (web/src/content/stages.ts).
+STAGES_WITH_HIDDEN_TESTS = {"build", "review_code"}
+
 # Exercises that can come back as a follow-up to a missed question (ADR-0011).
 # Recall items always can; proof checks and worked examples never do.
 FOLLOW_UP_STAGES = {"fill_in", "write", "review_code"}

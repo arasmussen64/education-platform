@@ -339,10 +339,13 @@ describe('a checkpoint page', () => {
     ).toBeInTheDocument()
 
     // It opens the steps and moves there, and then it's done its job.
+    const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
     await userEvent.click(suggestion()!)
-    expect(
-      screen.getByRole('heading', { name: 'Stuck? Try it in steps' }),
-    ).toHaveFocus()
+    const heading = screen.getByRole('heading', {
+      name: 'Stuck? Try it in steps',
+    })
+    expect(heading).toHaveFocus()
+    expect(scroll.mock.contexts).toContain(heading)
     expect(
       within(wayThrough()).getByRole('button', { name: 'Hide the steps' }),
     ).toHaveAttribute('aria-expanded', 'true')
