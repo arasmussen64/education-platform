@@ -12,6 +12,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Decisions (ADRs): [docs/decisions/](docs/decisions/)
 - Methods behind the features: [docs/learning-science.md](docs/learning-science.md)
 - Session history: [docs/devlog.md](docs/devlog.md)
+- Owner's machine and accounts: [docs/setup.md](docs/setup.md)
 
 **Current phase:** 1, Milestone A (walking skeleton). The web app lives in `web/`.
 
@@ -25,13 +26,15 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Explain what you're doing and why, in plain language. Define jargon the first time you use it.
 - Prefer simple, readable code over clever code: small files, clear names, comments that explain *why*.
 - Teach as you go. When a task would make a good exercise, offer to let the owner write it (with hints) instead of writing it yourself.
-- Apply the platform's own rule to ourselves: don't merge code the owner couldn't explain back. End every change with a short plain-language summary of what it does.
+- Keep the owner able to explain the code. Every pull request includes a short plain-language summary, and you offer an occasional explain-it-back question. These never block merging.
 - Ask before anything hard to undo or that costs money: paid services, deleting data, force-pushing, making things public.
 
 ## Development process
 
 - **Plan first.** Check the roadmap and relevant ADRs before non-trivial work. Significant or hard-to-reverse choices get an ADR in `docs/decisions/` (status *Proposed* until the owner accepts it).
 - **Branches.** `main` must always work. Make each change on a short-lived branch (`feat/…`, `fix/…`, `docs/…`, `chore/…`) and merge it into `main` through a pull request.
+- **Merging.** The owner gave standing permission (2026-11-05) for Claude to merge its own pull requests once CI passes. Use squash merges and delete the branch. Everything in "Ask before" above still needs the owner.
+- **Environments** ([ADR-0010](docs/decisions/0010-environments.md)). Development and tests use a local Supabase running in Docker. The single cloud Supabase project is for real learning only: never point a dev server, test or script at it. Database changes reach it only as migrations, after they've passed locally and in CI.
 - **Commits.** [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`. Small and focused.
 - **Definition of done** for every change:
   - tests added or updated, and passing (once code exists)

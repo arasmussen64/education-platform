@@ -27,6 +27,7 @@ Most courses get you through the test, and then you forget. Here:
 | [Competitors](docs/research/competitors.md) | Brilliant, roadmap.sh, Math Academy and others |
 | [Devlog](docs/devlog.md) | Dated log of each working session |
 | [Changelog](CHANGELOG.md) | Notable changes |
+| [Setup](docs/setup.md) | What to install and which accounts to create |
 | [Web app](web/README.md) | How to run, test and build the app |
 | [CLAUDE.md](CLAUDE.md) | Instructions for Claude Code, the AI pair programmer on this project |
 
