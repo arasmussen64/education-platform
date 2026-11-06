@@ -59,10 +59,11 @@ After that, merged migrations are applied to the real database with `npx supabas
    | Setting | Value |
    |---|---|
    | Project name | `education-platform` (must match `web/wrangler.jsonc`) |
-   | Production branch | `main` |
-   | Root directory (path) | `web` |
    | Build command | `npm run build` |
    | Deploy command | `npx wrangler deploy` |
+   | **Path**, under Advanced settings | `/web` (it starts as `/`) |
+
+   Leave everything else at its default. There's no production-branch field: Cloudflare uses the repository's default branch, `main`. You can check it later under **Settings → Build → Branch control**.
 
 4. Save and deploy. When the first build finishes, the app is live at `https://education-platform.<your-account>.workers.dev`.
 
