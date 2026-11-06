@@ -1,13 +1,11 @@
-import { render, screen } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router'
+import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { APP_NAME } from './config.ts'
-import { routes } from './routes.tsx'
+import { renderApp } from './test/renderApp.tsx'
 
 // Renders the real app routes as if the browser were at `path`.
 function renderAt(path: string) {
-  const router = createMemoryRouter(routes, { initialEntries: [path] })
-  render(<RouterProvider router={router} />)
+  renderApp(path)
 }
 
 describe('app routes', () => {

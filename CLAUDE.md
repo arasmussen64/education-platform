@@ -75,7 +75,8 @@ Database: run these from the repository root, with Docker Desktop running. Detai
 - `npm install` installs the Supabase CLI. `npm run db:start` and `npm run db:stop` start and stop the local Supabase.
 - `npm run db:reset` rebuilds the local database from the migrations.
 - `npm run db:test` and `npm run db:lint` run the database tests and check the SQL.
-- `npx supabase migration new <name>` starts a schema change. Never edit a migration that has reached production.
+- `npx supabase migration new <name>` starts a schema change. Never edit a migration that has reached production. After a migration, run `npm run db:types`.
+- Signing in locally: the dev server uses email links. They land in the local test inbox (Mailpit) at http://127.0.0.1:54324. The live site uses GitHub.
 
 Add the content-validation commands here when that part exists.
 

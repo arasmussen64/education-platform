@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Sign-in
+
+**Owner's setup:** a GitHub OAuth app (`education-platform`), the GitHub provider turned on in Supabase, and the Site URL and redirect URLs set to the live address. The OAuth app's GitHub form calls the callback field "redirect URI".
+
+**Done**
+
+- Added supabase-js 2.119, with the PKCE flow. That isn't its default, and it also makes supabase-js remove the one-time `?code=` from the address bar. Settings for local and production live in `src/supabase/config.ts`; the keys are publishable, so public by design.
+- `AuthProvider` and `useAuth` track who's signed in; the header shows the name and Sign out; there's a `/sign-in` page.
+  - **Live site:** "Sign in with GitHub".
+  - **Dev server:** an email-link form instead, since the local Supabase has no GitHub app; the email lands in Mailpit.
+- Database types are generated from the schema (`npm run db:types`).
+- 6 new tests with a fake sign-in service; 50 web tests in total.
+- **End to end against the local Supabase, in a real browser:** I requested a link, fetched the email from Mailpit's API, and opened the link. That signed me in, removed the code from the address, and showed the email in the header. The trigger created the profile (no name, `allowed = false`), and Sign out worked.
+
+**Notes**
+
+- Supabase accepts a sign-in redirect to any port on the Site URL's host name. So a second dev server on `localhost:5174` works without config changes.
+- The owner's dev server from yesterday was still running on port 5173 (IPv6 only, so Windows' port check missed it). I left it alone; it needs a restart.
+
+**Next**
+
+- The owner tries GitHub sign-in on the live site; then we close sign-ups.
+- The content pipeline, topic pages and saving answers.
+
 ## 2026-11-06: The real database has its tables
 
 - The owner logged in to the Supabase CLI and linked the `education-platform` project. The CLI didn't need the database password; it uses the login.
