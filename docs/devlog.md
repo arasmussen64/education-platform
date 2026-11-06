@@ -2,6 +2,25 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-05: Local Supabase and the first tables
+
+**Owner's setup:** Docker Desktop is installed (engine 29.8, 8 CPUs and 16 GB for Docker), a Supabase project exists, and a Cloudflare account exists.
+
+**Done**
+
+- Added the Supabase CLI (3.0) as a pinned dev dependency in a new root `package.json`, with `db:*` scripts.
+- Set up `supabase/`. The local copy skips realtime, file storage and log analytics, which aren't used, to save memory.
+- Wrote the first migration:
+  - **`profiles`:** created automatically at sign-up. A learner can read their own row and change only `display_name` and `settings`, never `allowed`.
+  - **`events`:** append-only. Learners can insert and read only their own rows. `received_at` is always set by the server. A trigger blocks update, delete and truncate even for admins, except for a deliberate whole-account deletion.
+- Wrote 18 pgTAP tests for those rules, and a **Database** CI job (throwaway database, `db lint`, `db test`).
+
+**Next**
+
+- One-time logins by the owner: `npx supabase login` (to link the cloud project) and connecting the repo in Cloudflare.
+- Deploy to Cloudflare.
+- Sign-in (needs a GitHub OAuth app) and sending events from the app.
+
 ## 2026-11-05: Playground fixes after the owner's first try
 
 **What the owner saw**

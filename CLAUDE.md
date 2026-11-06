@@ -70,7 +70,14 @@ Python: run these from the repository root. uv manages Python 3.14 and the tools
 - `python -m uv run pytest` runs the harness tests.
 - `python -m uv run ruff format` and `python -m uv run ruff check` format and lint Python code.
 
-Add the content-validation and Supabase commands here when those parts exist.
+Database: run these from the repository root, with Docker Desktop running. Details are in [supabase/README.md](supabase/README.md).
+
+- `npm install` installs the Supabase CLI. `npm run db:start` and `npm run db:stop` start and stop the local Supabase.
+- `npm run db:reset` rebuilds the local database from the migrations.
+- `npm run db:test` and `npm run db:lint` run the database tests and check the SQL.
+- `npx supabase migration new <name>` starts a schema change. Never edit a migration that has reached production.
+
+Add the content-validation commands here when that part exists.
 
 ## Environment
 

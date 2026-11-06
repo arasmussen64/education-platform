@@ -1,0 +1,2 @@
+-- Data loaded into the LOCAL database after migrations (supabase db reset).
+-- Never runs against production. Empty for now.
