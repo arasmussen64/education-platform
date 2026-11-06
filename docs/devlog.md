@@ -2,6 +2,27 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Content pipeline, part 1 (format and validator)
+
+**Checked first:** the owner's restarted dev server is healthy (fresh process; styles compile; the harness and Supabase modules load).
+
+**Done**
+
+- `content/`: the Python Foundations track and all 36 topics from the approved list, as `planned` outlines with the exact prerequisite graph from the spec. A new `status` field (`planned`, `draft`, `ready`) lets the map be complete before the lessons are written.
+- `tools/content_model.py`: pydantic models for every content file. They reject unknown fields, so typos are caught.
+- `tools/validate_content.py` checks:
+  - file formats, and that IDs match their folders;
+  - tracks and modules, prerequisites, and no cycles;
+  - the definition of done for `ready` topics;
+  - by running them through the harness in a fresh process: reference solutions pass, starters and known-wrong solutions fail, predict-the-output items print what they claim, and code that never stops is reported.
+- `harness/cli.py`: a command-line entry the validator and the scenario tests share.
+- 14 validator tests, built on a tiny complete topic, each breaking one thing. 39 Python tests in total. A new **Content** CI job runs the validator.
+
+**Next**
+
+- Part 2: the app loads content (YAML and MDX through Vite), with topic pages for lessons and exercises.
+- Then saving answers to the event log, and writing Module 1.
+
 ## 2026-11-06: First real sign-in; sign-ups closed
 
 - The owner signed in with GitHub on the live site. Supabase shows one user, created through GitHub at 10:25.

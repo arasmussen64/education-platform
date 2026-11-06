@@ -13,6 +13,7 @@ The small layer of Python that runs a learner's code and an exercise's tests. Th
 | `program.py` | The Run button. Runs the program the way a terminal would, showing prompts and typed input, and returns the output plus a trimmed traceback. When the program wants more input than it was given, it stops and reports `waiting_for_input`, so the app can ask the learner and run it again. `seed` keeps random choices the same across those re-runs. |
 | `testrunner.py` | The Check button. Finds the `test_…` functions in `test_exercise.py`, runs them, and reports each one as pass, fail or error. |
 | `errors.py` | Turns errors into messages that only mention the learner's own file. |
+| `cli.py` | Runs one folder through the harness and prints the report as JSON. The content validator and the scenario tests use it, in a fresh Python process. It isn't bundled into the web app. |
 
 The learner's code is always `solution.py` in the working folder, and the tests are always `test_exercise.py`.
 

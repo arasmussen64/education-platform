@@ -1,13 +1,16 @@
 [project]
 name = "education-platform-tools"
 version = "0.0.0"
-description = "Python tooling for the learning platform: the shared test harness and, later, the content validator."
+description = "Python tooling for the learning platform: the shared test harness and the content validator."
 # Must be the Python minor version Pyodide bundles (Pyodide 314 = Python 3.14),
 # so the harness behaves the same on GitHub as in the browser. Pinned here,
 # not in a .python-version file: Cloudflare's build spots that file and spends
 # minutes installing a Python the web build never uses.
 requires-python = "==3.14.*"
-dependencies = []
+dependencies = [
+    "pydantic>=2.14.3",
+    "pyyaml>=6.0.3",
+]
 
 [dependency-groups]
 dev = [
@@ -20,12 +23,14 @@ dev = [
 package = false
 
 [tool.pytest.ini_options]
-testpaths = ["harness/tests"]
+testpaths = ["harness/tests", "tools/tests"]
 
 [tool.ruff]
 target-version = "py314"
 # Scenario files are learner code and include deliberate mistakes.
-extend-exclude = ["harness/scenarios", "web"]
+# Scenario files and content/ hold learner code, including deliberate
+# mistakes (buggy starters, known-wrong solutions).
+extend-exclude = ["harness/scenarios", "content", "web"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]

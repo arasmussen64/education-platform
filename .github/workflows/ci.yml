@@ -58,6 +58,18 @@ jobs:
       - name: Test
         run: uv run pytest
 
+  content:
+    name: Content
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv only publishes exact version tags (no floating "v10").
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Install Python and dependencies
+        run: uv sync --locked
+      - name: Check every topic, exercise and recall item
+        run: uv run python tools/validate_content.py
+
   database:
     name: Database
     runs-on: ubuntu-latest
