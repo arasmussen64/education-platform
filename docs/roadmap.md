@@ -59,6 +59,5 @@ Principal-engineer level stays the long-term ceiling of the map. It takes years 
 
 - License: open source or proprietary? This matters if it becomes a company.
 - Final product name ([ADR-0006](decisions/0006-working-name.md))
-- Monthly spending cap for the Claude API
 - Hidden tests run in the browser, so a determined learner could peek. Fine for personal use; revisit before a public launch.
 - When and how to open it to other learners

@@ -1,6 +1,6 @@
 # ADR-0009: Reviews are per topic and graded automatically
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-05
 
 ## Context

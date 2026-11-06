@@ -9,7 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Added
 
 - v1 spec, data model and Python Foundations track plan, in `docs/specs/`.
-- ADR-0008 (append-only event log) and ADR-0009 (per-topic reviews, graded automatically), both proposed.
+- ADR-0008 (append-only event log) and ADR-0009 (per-topic reviews, graded automatically), both accepted.
 - Project documentation: vision, learning-science principles, roadmap, competitor research, devlog.
 - Decision records ADR-0001 to ADR-0007: decision process, mastery and gating, AI roles, content model, free hosting, working name, tech stack.
 - `CLAUDE.md` with the development process and the product rules that constrain code.

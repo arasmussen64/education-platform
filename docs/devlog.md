@@ -11,14 +11,16 @@ A dated log of each working session: what changed, what was decided, what's next
 - Planned the [Python Foundations track](specs/python-foundations.md): 30 topics in 6 modules, each ending with a checkpoint, mostly built around CS50P lectures.
 - Proposed ADR-0008 (append-only event log) and ADR-0009 (per-topic reviews, graded automatically).
 
-**Proposed (in review)**
+**Decided** (the owner approved the spec pull request)
 
-- Move the "prove it" checks, topic states and gating from Phase 2 into Phase 1. They reuse the exercise engine, and v1 shouldn't call anything Learned without proof.
+- The "prove it" checks, topic states and gating move from Phase 2 into Phase 1. They reuse the exercise engine, and v1 shouldn't call anything Learned without proof.
+- ADR-0008 and ADR-0009 accepted.
+- The topic list is approved as written.
+- AI budget cap: $10 a month to start.
 
 **Next**
 
-- The owner reviews the spec pull request, especially the topic list and the AI budget cap.
-- After merging: scaffold the app, CI and first deploy (Milestone A).
+- Milestone A: scaffold the app and CI, then the Python runner, the content pipeline, Supabase, the deploy, and Module 1 content.
 
 ## 2026-11-05: From idea to project setup
 

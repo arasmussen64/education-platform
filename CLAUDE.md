@@ -39,7 +39,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
   - docs updated if behavior, setup or a decision changed
   - a `docs/devlog.md` entry for the session: what changed, what was decided, what's next
 - **Secrets never get committed.** Keys go in `.env` (gitignored); keep `.env.example` with placeholder names.
-- **Free tiers only** ([ADR-0005](docs/decisions/0005-free-hosting-first.md)). Never add a service that bills without asking. The one paid exception is the Claude API, which must have a spending cap.
+- **Free tiers only** ([ADR-0005](docs/decisions/0005-free-hosting-first.md)). Never add a service that bills without asking. The one paid exception is the Claude API, capped at $10 a month to start (v1 spec).
 
 ## Product rules that constrain code
 

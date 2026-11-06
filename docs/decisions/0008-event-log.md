@@ -1,6 +1,6 @@
 # ADR-0008: Learner data is an append-only event log
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-11-05
 
 ## Context
