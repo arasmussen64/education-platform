@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Fixed
+
+- A video clip looked as long as the whole lecture, because YouTube's player always shows the full video's length (a 9-minute clip read as 1 hour 45 minutes). The page now says above the video which part to watch, how long it is, and that it stops by itself. The topic's time estimate now says it covers the whole topic. Reported by the owner.
+
 ### Added (the first lesson)
 
 - **Programs and print** (`py.programs-and-print`), the first real topic, ready to learn:
