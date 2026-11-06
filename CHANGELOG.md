@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed
+
+- Relearning follows the research the owner asked for: a missed skill must be right on **3 different days**, coming back after 1, 3 and 7 days (successive relearning; Rawson & Dunlosky, 2011).
+
+### Fixed
+
+- One miss can open follow-ups for several skills, and they could all pick the same question, showing it twice on Today. Each skill now gets its own question where possible; a shared one is asked once.
+
+### Added (a guarantee)
+
+- A test over the real content: missing any question or exercise in any ready topic must bring back a different question on each skill it tests. New topics are covered as soon as they're ready.
+
 ### Added (mistakes come back)
 
 - **Mistakes to revisit** on the Today page ([ADR-0011](docs/decisions/0011-mistakes-come-back.md), now accepted). The owner asked for this after missing a question in their first lesson:

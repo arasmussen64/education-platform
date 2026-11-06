@@ -310,8 +310,8 @@ Details are in [ADR-0011](../decisions/0011-mistakes-come-back.md). They're work
 - Each item's outcome is judged per day. A question is missed if any answer to it that day was wrong. A code exercise is correct if any Check that day passed.
 - For each skill, day by day:
   - a missed day opens the follow-up (due the next day) and clears earlier progress;
-  - a correct day after it counts (due again 3 days later);
-  - 2 correct days close it.
+  - each correct day after it counts (due again 3 days later, then 7);
+  - 3 correct days close it.
 
 ### Reviews
 

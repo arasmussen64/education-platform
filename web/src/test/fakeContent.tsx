@@ -144,7 +144,11 @@ export function fakeContent(topic = fakeTopic()): TopicContent {
   return {
     topic,
     Lesson: FakeLesson,
-    recall: { [MCQ.id]: MCQ, [PREDICT.id]: PREDICT },
+    // Copies, so a test that changes them can't affect another test.
+    recall: {
+      [MCQ.id]: { ...MCQ, skills: [...MCQ.skills] },
+      [PREDICT.id]: { ...PREDICT, skills: [...PREDICT.skills] },
+    },
     exercises: Object.fromEntries(exercises.map((item) => [item.id, item])),
   }
 }

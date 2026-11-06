@@ -8,10 +8,12 @@ import { getTopic } from '../content/content.ts'
 import type { TopicContent } from '../content/types.ts'
 import {
   addDays,
-  chooseQuestion,
+  CORRECT_DAYS_NEEDED,
   type Day,
   dayOf,
   type FollowUp,
+  type PlannedCard,
+  planCards,
 } from '../followups/followUps.ts'
 import { type FollowUpsState, useFollowUps } from '../followups/useFollowUps.ts'
 
@@ -26,7 +28,7 @@ export function TodayPage() {
         <h1 className="text-2xl font-bold">Today</h1>
         <p className="text-slate-600 dark:text-slate-400">
           Skills you've missed come back here as different questions, until
-          you've got them right on 2 different days.
+          you've got them right on {CORRECT_DAYS_NEEDED} different days.
         </p>
       </header>
       {auth.status === 'signed-in' && <Revisit />}
@@ -49,27 +51,28 @@ export function TodayPage() {
 
 type Ready = Extract<FollowUpsState, { status: 'ready' }>
 
-/** A follow-up that's due, with the question chosen to ask. */
-type Card = {
-  key: string
-  followUp: FollowUp
-  itemId: string
-  content: TopicContent
-}
+/** A question to ask today, with the follow-ups it answers. */
+type Card = PlannedCard & { key: string }
 
 const keyOf = (followUp: FollowUp) => `${followUp.topicId}/${followUp.skillId}`
 
 function dueCards(state: Ready, today: Day): Card[] {
-  const cards: Card[] = []
-  for (const followUp of state.open) {
-    if (followUp.due > today) continue
-    const content = state.contents.get(followUp.topicId)
-    const itemId = content && chooseQuestion(followUp, content, state.attempts)
-    if (content && itemId) {
-      cards.push({ key: keyOf(followUp), followUp, itemId, content })
-    }
+  const due = state.open.filter((followUp) => followUp.due <= today)
+  return planCards(due, state.contents, state.attempts).map((card) => ({
+    ...card,
+    key: `${card.topicId}/${card.itemId}`,
+  }))
+}
+
+/** What happened to a follow-up after today's answer, if anything yet. */
+function progressOf(live: FollowUp | undefined, today: Day): string {
+  if (!live) {
+    return `Relearned: you've got this right on ${CORRECT_DAYS_NEEDED} different days.`
   }
-  return cards
+  if (live.due <= today) return ''
+  return live.missedOn === today
+    ? `Not quite. It comes back ${whenDue(live.due, today)}.`
+    : `Right! It comes back ${whenDue(live.due, today)}, to make sure it sticks.`
 }
 
 /** "today", "tomorrow", or "on Mon, Nov 9". */
@@ -123,7 +126,9 @@ function Revisit() {
   const live = new Map(
     state.open.map((followUp) => [keyOf(followUp), followUp]),
   )
-  const shown = new Set(cards.map((card) => card.key))
+  const shown = new Set(
+    cards.flatMap((card) => card.followUps.map((followUp) => keyOf(followUp))),
+  )
   const later = state.open.filter(
     (followUp) => followUp.due > today && !shown.has(keyOf(followUp)),
   )
@@ -143,7 +148,7 @@ function Revisit() {
             <FollowUpCard
               key={card.key}
               card={card}
-              live={live.get(card.key)}
+              live={live}
               today={today}
             />
           ))
@@ -179,28 +184,39 @@ function FollowUpCard({
   today,
 }: {
   card: Card
-  /** The follow-up as it stands now, or undefined once it's relearned. */
-  live: FollowUp | undefined
+  /** Every open follow-up as it stands now; a relearned one is missing. */
+  live: Map<string, FollowUp>
   today: Day
 }) {
-  const { content, followUp } = card
-  let progress = ''
-  if (!live) {
-    progress = "Relearned: you've got this right on 2 different days."
-  } else if (live.due > today) {
-    progress =
-      live.missedOn === today
-        ? `Not quite. It comes back ${whenDue(live.due, today)}.`
-        : `Right! It comes back ${whenDue(live.due, today)}, to make sure it sticks.`
-  }
+  const { content, followUps } = card
+  const names = followUps.map((followUp) => skillName(followUp, content))
+  const results = followUps.map((followUp) =>
+    progressOf(live.get(keyOf(followUp)), today),
+  )
+  // One line, unless the skills on this card ended up in different places
+  // (say, one relearned and the other due again in 3 days).
+  const progress =
+    new Set(results).size <= 1
+      ? (results[0] ?? '')
+      : results
+          .map((result, index) => (result ? `${names[index]}: ${result}` : ''))
+          .filter(Boolean)
+          .join(' ')
 
   return (
     <div className="space-y-2">
       <p
         className={`text-sm text-slate-600 dark:text-slate-400 ${INLINE_CODE}`}
       >
-        <span className="font-medium">Skill:</span>{' '}
-        <Markdown inline>{skillName(followUp, content)}</Markdown>
+        <span className="font-medium">
+          {names.length === 1 ? 'Skill:' : 'Skills:'}
+        </span>{' '}
+        {names.map((name, index) => (
+          <span key={name}>
+            {index > 0 && '; '}
+            <Markdown inline>{name}</Markdown>
+          </span>
+        ))}
         {' · from '}
         <Link to={`/topic/${content.topic.id}`} className="underline">
           {content.topic.title}
