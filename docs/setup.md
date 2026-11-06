@@ -27,7 +27,7 @@ Docker Desktop uses a few GB of memory while it's running, so quit it when you'r
 |---|---|---|
 | GitHub | Code, pull requests, CI | ✅ Done |
 | Supabase | The real database and sign-in (one project) | ✅ Project created; ☐ link it (`npx supabase login`) |
-| Cloudflare | Hosts the app | ✅ Account created; ☐ connect the repo |
+| Cloudflare | Hosts the app | ✅ Connected; deploys on every merge to `main` |
 | Anthropic Console | The Claude API for the tutor and grading (week 2) | ☐ Later |
 
 ### Supabase
@@ -65,7 +65,10 @@ After that, merged migrations are applied to the real database with `npx supabas
 
    Leave everything else at its default. There's no production-branch field: Cloudflare uses the repository's default branch, `main`. You can check it later under **Settings → Build → Branch control**.
 
-4. Save and deploy. When the first build finishes, the app is live at `https://education-platform.<your-account>.workers.dev`.
+4. Save and deploy.
+5. In the Worker's **Domains** tab, switch on the **workers.dev** address. A new Cloudflare account may start with it off. From then on, `web/wrangler.jsonc` keeps it on.
+
+The app is live at **https://education-platform.arasmussen64.workers.dev**.
 
 Pull requests also get their own preview builds.
 
