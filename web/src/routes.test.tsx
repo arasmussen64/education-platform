@@ -1,7 +1,17 @@
-import { screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 import { APP_NAME } from './config.ts'
 import { renderApp } from './test/renderApp.tsx'
+
+// Topic pages contain code runners: use the fake Python and plain-textbox
+// editor instead of Pyodide and CodeMirror.
+vi.mock('./python/runner.ts', () =>
+  import('./test/mockPython.ts').then((module) => module.mockRunnerModule()),
+)
+vi.mock(
+  './components/CodeEditor.tsx',
+  () => import('./test/FakeCodeEditor.tsx'),
+)
 
 // Renders the real app routes as if the browser were at `path`.
 function renderAt(path: string) {
@@ -47,6 +57,26 @@ describe('app routes', () => {
         { timeout: 10_000 },
       ),
     ).toBeInTheDocument()
+  })
+
+  it('shows a finished topic from content/, with its compiled lesson', async () => {
+    renderAt('/topic/py.programs-and-print')
+    expect(
+      await screen.findByRole(
+        'heading',
+        { level: 1, name: 'Programs and print' },
+        { timeout: 10_000 },
+      ),
+    ).toBeInTheDocument()
+    const learn = screen.getByRole('region', { name: 'Learn' })
+    expect(within(learn).getByText('What to watch for')).toBeInTheDocument()
+    expect(within(learn).getByTitle(/CS50P Lecture 0/)).toHaveAttribute(
+      'src',
+      'https://www.youtube-nocookie.com/embed/JP7ITIXGpHk?start=24&end=591&rel=0',
+    )
+    expect(screen.getByRole('region', { name: 'Practice' })).toHaveTextContent(
+      'Practice 6 of 6',
+    )
   })
 
   it("says when a topic doesn't exist", async () => {

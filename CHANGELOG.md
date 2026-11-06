@@ -6,6 +6,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the first lesson)
+
+- **Programs and print** (`py.programs-and-print`), the first real topic, ready to learn:
+  - **Learn:** a 9.5-minute segment of CS50P Lecture 0 (CC BY-NC-SA 4.0), with an intro on what to watch for and a recap.
+  - **Practice:** a worked example, three questions (one on reading an error), a fill-in exercise and a write exercise.
+  - **Prove it:** build a banner from scratch, fix a program with two bugs, and explain why an error happened.
+  - **Review pool:** three items for later reviews.
+  The checker runs 22 programs for it, including 12 known-wrong answers that must fail.
+- A practice-hours tracker idea is on the roadmap (Phase 2).
+
+### Changed
+
+- Multiple-choice answers are Markdown, so they can show code.
+- Code and output boxes stand out from their cards in dark mode.
+- The content definition of done: while the owner is the only learner, their first pass happens on the live site.
+
 ### Added (saving progress)
 
 - Everything a signed-in learner does on a topic page is saved to the append-only event log (F6): lesson views, answers, runs, checks and hints. Each event records the item's revision, how long the attempt took, the hints used, the study session, and the commit the app was built from.

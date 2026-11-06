@@ -1,0 +1,5 @@
+print("Shopping list")
+print()
+print("apples")
+print("bread")
+print("milk")
