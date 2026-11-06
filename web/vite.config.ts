@@ -1,7 +1,9 @@
 /// <reference types="vitest/config" />
+import mdx from '@mdx-js/rollup'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
+import { parse as parseYaml } from 'yaml'
 import { APP_NAME } from './src/config.ts'
 
 // Adds the product name as the page <title>, so the name only ever has to be
@@ -15,12 +17,40 @@ function appTitle(): Plugin {
   }
 }
 
+// Turns the YAML content files (../content) into plain data while building, so
+// the browser never needs a YAML parser.
+function contentYaml(): Plugin {
+  return {
+    name: 'content-yaml',
+    transform(source, id) {
+      if (!id.split('?')[0].endsWith('.yaml')) return null
+      return {
+        code: `export default ${JSON.stringify(parseYaml(source))}`,
+        map: null,
+      }
+    },
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), appTitle()],
+  plugins: [
+    // Lessons are MDX: Markdown with components like <Intro> and <Resource>.
+    { enforce: 'pre', ...mdx() },
+    react({ include: /\.(mdx|js|jsx|ts|tsx)$/ }),
+    tailwindcss(),
+    contentYaml(),
+    appTitle(),
+  ],
+  resolve: {
+    // Compiled lessons import React, but they live in ../content, where a
+    // normal lookup would never reach web/node_modules. This makes every
+    // import of React come from the app's own copy.
+    dedupe: ['react', 'react-dom'],
+  },
   server: {
-    // The app bundles the shared Python harness from ../harness
-    // (src/python/harnessFiles.ts), so the dev server may read the repo root.
+    // The app bundles the shared Python harness (../harness) and the
+    // content (../content), so the dev server may read the repo root.
     fs: { allow: ['..'] },
   },
   worker: {

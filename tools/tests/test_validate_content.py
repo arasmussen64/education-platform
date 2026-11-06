@@ -81,6 +81,20 @@ def test_ready_topics_need_every_part(tree: Path) -> None:
     assert_reported(tree, "prove.debug must name a debug exercise", run=False)
 
 
+def test_ready_lessons_show_the_main_resource(tree: Path) -> None:
+    write(tree, f"{TOPIC_DIR}/lesson.mdx", "<Intro>Hi.</Intro>\n")
+    assert_reported(tree, "the lesson must show the main resource", run=False)
+
+
+def test_lessons_place_only_the_main_resource(tree: Path) -> None:
+    lesson = tree / TOPIC_DIR / "lesson.mdx"
+    text = lesson.read_text(encoding="utf-8")
+    write(tree, f"{TOPIC_DIR}/lesson.mdx", text + "\n<Resource index={1} />\n")
+    assert_reported(
+        tree, "only the main resource (index 0) goes in the lesson", run=False
+    )
+
+
 def test_named_items_must_exist(tree: Path) -> None:
     write(
         tree, f"{TOPIC_DIR}/topic.yaml", TOPIC.replace("review-hello]", "review-gone]")

@@ -1,0 +1,146 @@
+// A small, complete topic for page and component tests. The real content has
+// no finished topics yet, and tests shouldn't change when it does.
+import type { MDXComponents } from 'mdx/types'
+import type { ComponentType, ReactNode } from 'react'
+import type {
+  Exercise,
+  McqItem,
+  PredictOutputItem,
+  Topic,
+  TopicContent,
+} from '../content/types.ts'
+
+type Tag = ComponentType<{ children?: ReactNode; index?: number }>
+
+/** Stands in for a compiled lesson.mdx that uses <Intro>, <Resource> and <Recap>. */
+function FakeLesson({ components = {} }: { components?: MDXComponents }) {
+  const Intro = components.Intro as Tag
+  const Resource = components.Resource as Tag
+  const Recap = components.Recap as Tag
+  return (
+    <>
+      <Intro>
+        <p>Watch how a program prints, one line at a time.</p>
+      </Intro>
+      <Resource index={0} />
+      <Recap>
+        <p>print() shows text in the output.</p>
+      </Recap>
+    </>
+  )
+}
+
+export function fakeTopic(overrides: Partial<Topic> = {}): Topic {
+  return {
+    // A real topic ID, so it has a real place in the track (Module 1).
+    id: 'py.values-and-types',
+    kind: 'topic',
+    status: 'ready',
+    title: 'Values and types',
+    summary: 'Tell ints, floats and strings apart.',
+    prerequisites: ['py.programs-and-print'],
+    estimated_minutes: 30,
+    rev: 1,
+    objectives: ['Use `type()` to check a value.'],
+    resources: [
+      {
+        title: 'Python values, explained',
+        url: 'https://www.youtube.com/watch?v=abc123',
+        type: 'video',
+        use: 'embed',
+        start: 65,
+        end: 190,
+        license: 'CC BY 4.0',
+      },
+      {
+        title: 'The Python tutorial: numbers',
+        url: 'https://docs.python.org/3/tutorial/introduction.html',
+        type: 'reading',
+        use: 'link',
+        license: 'PSF License',
+      },
+    ],
+    practice: [
+      'example-hello',
+      'mcq-print',
+      'predict-print',
+      'fill-hello',
+      'write-hello',
+    ],
+    prove: {
+      build: 'build-hello',
+      debug: 'debug-hello',
+      explain: {
+        prompt: 'Why is `"5"` different from `5`?',
+        rubric: [
+          { id: 'types', required: true, description: 'Different types.' },
+        ],
+        model_answer: 'SECRET MODEL ANSWER',
+      },
+    },
+    review_pool: ['mcq-print'],
+    ...overrides,
+  }
+}
+
+export function fakeExercise(
+  overrides: Partial<Exercise> & Pick<Exercise, 'id' | 'stage'>,
+): Exercise {
+  return {
+    rev: 1,
+    title: 'Say hello',
+    prompt: 'Print `Hello!`',
+    time_limit_ms: 5000,
+    hints: [],
+    steps: [],
+    starter: '',
+    solution: 'print("Hello!")\n',
+    tests: 'the tests',
+    ...overrides,
+  }
+}
+
+export const MCQ: McqItem = {
+  id: 'mcq-print',
+  type: 'mcq',
+  rev: 1,
+  prompt: 'What does `print("Hi")` show?',
+  choices: ['Hi', '"Hi"', 'print'],
+  answer: 0,
+  explanation: 'print shows the text without quotes.',
+}
+
+export const PREDICT: PredictOutputItem = {
+  id: 'predict-print',
+  type: 'predict_output',
+  rev: 1,
+  prompt: 'Read the code carefully.',
+  code: 'print("a")\nprint("b")\n',
+  expected_output: 'a\nb\n',
+  explanation: 'Each print starts a new line.',
+}
+
+export function fakeContent(topic = fakeTopic()): TopicContent {
+  const exercises = [
+    fakeExercise({
+      id: 'example-hello',
+      stage: 'worked_example',
+      steps: [{ label: 'Print it', lines: '1', note: 'print shows text.' }],
+    }),
+    fakeExercise({ id: 'fill-hello', stage: 'fill_in', starter: 'print(...)' }),
+    fakeExercise({ id: 'write-hello', stage: 'write' }),
+    fakeExercise({ id: 'build-hello', stage: 'build', title: 'Greet' }),
+    fakeExercise({
+      id: 'debug-hello',
+      stage: 'debug',
+      title: 'Fix the greeting',
+      starter: 'print("Helo!")',
+    }),
+  ]
+  return {
+    topic,
+    Lesson: FakeLesson,
+    recall: { [MCQ.id]: MCQ, [PREDICT.id]: PREDICT },
+    exercises: Object.fromEntries(exercises.map((item) => [item.id, item])),
+  }
+}

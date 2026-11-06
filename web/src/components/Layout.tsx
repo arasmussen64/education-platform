@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from 'react-router'
+import { Link, NavLink, Outlet, useNavigation } from 'react-router'
 import { displayName } from '../auth/authContext.ts'
 import { useAuth } from '../auth/useAuth.ts'
 import { APP_NAME } from '../config.ts'
@@ -15,6 +15,9 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
 // The frame around every page: the app name, the main navigation, who's
 // signed in, and the current page (rendered where <Outlet /> is).
 export function Layout() {
+  // "loading" while the next page's content downloads (e.g. a topic's
+  // lesson); the current page fades a little so the click visibly worked.
+  const loading = useNavigation().state === 'loading'
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <header className="border-b border-slate-200 dark:border-slate-800">
@@ -38,7 +41,10 @@ export function Layout() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main
+        aria-busy={loading}
+        className={`mx-auto max-w-5xl px-4 py-8 transition-opacity ${loading ? 'opacity-60' : ''}`}
+      >
         <Outlet />
       </main>
     </div>

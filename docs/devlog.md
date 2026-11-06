@@ -2,6 +2,49 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Content pipeline, part 2 (topic pages)
+
+**Done**
+
+- The app reads `content/` at build time:
+  - a small Vite plugin turns YAML into data;
+  - `@mdx-js/rollup` compiles lessons;
+  - Python files are loaded with `?raw`;
+  - `content/content.ts` finds everything with `import.meta.glob`.
+  Outlines are bundled into the app, and each topic's lesson and exercises download when its page opens.
+- Topic pages:
+  - **Learn:** objectives, intro, a privacy-enhanced YouTube embed with start and end times, recap, and more resources.
+  - **Practice:** worked example, multiple choice, predict the output, fill in, and write. Hints come one at a time, and the reference solution appears after a pass.
+  - **Prove it:** build and debug, plus the explain prompt. Its rubric and model answer are never sent to the screen.
+- The map now lists all 36 topics by module.
+- Small additions:
+  - per-exercise time limits;
+  - an error page with Reload (stale chunks after a deploy);
+  - the current page fades while the next one loads.
+- The checker now enforces the convention the page relies on: a lesson places only its main resource, `<Resource index={0} />`.
+- Tests:
+  - 29 new web tests (79 in total);
+  - shared test helpers: a fake Python runner, a plain-textbox editor, a sample topic;
+  - 2 new checker tests (41 Python tests).
+
+**Found by trying it end to end.** I copied the checker's sample topic into `content/` temporarily, then built the app and clicked through it in the browser on a separate dev server (port 5174). The production build failed: a compiled lesson imports React, but lessons live outside `web/`, so module lookup never reached `web/node_modules`. The fix is `resolve.dedupe: ['react', 'react-dom']` in `vite.config.ts`. After that:
+- the lesson, the embed, and every practice item rendered;
+- the fill-in starter failed in real Pyodide;
+- a correct answer passed and revealed the reference solution;
+- the prediction check worked;
+- there were no console errors.
+The sample topic was removed afterwards. The unit tests couldn't have caught this, because the repo has no lesson files yet.
+
+**Decided**
+
+- The main bundle was already over Vite's 500 kB warning before this change (542 kB, mostly React, React Router and supabase-js). This change adds about 22 kB, mostly the 36 topic outlines. Splitting the bundle is a later job.
+- Each content file becomes its own small download (about 20 per topic, fetched in parallel). Grouping them per topic needs Rolldown's chunk groups, which by default pull a grouped file's dependencies (React) in with it. That's risky, so it's left alone until it matters.
+
+**Next**
+
+- Save answers and lesson views to the event log (F6), with a local outbox and sync.
+- Write the first real topic, `py.programs-and-print`, then the rest of Module 1.
+
 ## 2026-11-06: Content pipeline, part 1 (format and validator)
 
 **Checked first:** the owner's restarted dev server is healthy (fresh process; styles compile; the harness and Supabase modules load).

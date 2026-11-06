@@ -31,14 +31,29 @@ src/
 ├── main.tsx         starts the app
 ├── routes.tsx       every page and its address
 ├── auth/            who's signed in (see "Sign-in" below)
-├── components/      shared pieces, such as the page layout and the code runner
+├── components/      shared pieces, such as the page layout, the code runner and exercises
+├── content/         loading the lessons and exercises from ../content (see below)
 ├── pages/           one file per page
 ├── python/          running learner Python in the browser (see below)
 ├── supabase/        the Supabase client, its settings, and generated database types
-└── test/            test setup and helpers (fake sign-in, rendering the app)
+└── test/            test setup and helpers (fake sign-in, fake Python, a sample topic)
 ```
 
 Tests live next to the code they test, named `*.test.ts` or `*.test.tsx`. They may use Node APIs (`tsconfig.test.json`); app code may not (`tsconfig.app.json`).
+
+## Content
+
+The lessons and exercises live in [`../content`](../content/README.md), as files. The app reads them while it's being built, so there's no content server or database:
+
+- **YAML** files (topics, questions, exercises) become plain data, through a small plugin in `vite.config.ts`.
+- **Lessons** (`lesson.mdx`) are [MDX](https://mdxjs.com): Markdown that can use components. `<Intro>`, `<Resource index={0} />` and `<Recap>` are drawn by `components/LessonView.tsx`.
+- **Python files** (starter code, solutions, tests) are loaded as text, with Vite's `?raw`.
+
+`content/content.ts` finds the files with `import.meta.glob`. Topic outlines are bundled into the app, because the map needs them all. A topic's lesson, questions and exercises download only when its page opens.
+
+The dev server also shows `draft` topics, marked as drafts, so they can be tried while being written. The live site only shows `ready` ones.
+
+`content/types.ts` mirrors the Python models in `tools/content_model.py`, which check the files in CI. Change both together.
 
 ## Python in the browser
 

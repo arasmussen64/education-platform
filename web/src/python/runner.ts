@@ -16,6 +16,16 @@ export type CheckOutcome =
   | { kind: 'timeout' }
   | { kind: 'failed'; message: string }
 
+/** True when every test ran and passed. */
+export function allChecksPassed(outcome: CheckOutcome): boolean {
+  return (
+    outcome.kind === 'done' &&
+    outcome.report.status === 'ok' &&
+    outcome.report.total > 0 &&
+    outcome.report.passed === outcome.report.total
+  )
+}
+
 export type RunOptions = {
   /** Every line typed so far, each ending with "\n". */
   stdin?: string

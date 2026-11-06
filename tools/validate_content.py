@@ -193,8 +193,13 @@ def check_ready_topic(folder: TopicFolder, report: Report) -> None:
 
     if topic.kind == "topic":
         lesson = folder.path / "lesson.mdx"
-        if not lesson.exists() or not lesson.read_text(encoding="utf-8").strip():
+        lesson_text = lesson.read_text(encoding="utf-8") if lesson.exists() else ""
+        if not lesson_text.strip():
             report.add(topic_file, "a ready topic needs a lesson.mdx")
+        elif 0 not in resource_indexes(lesson_text):
+            report.add(
+                lesson, "the lesson must show the main resource: <Resource index={0} />"
+            )
         if not topic.resources:
             report.add(topic_file, "a ready topic needs at least one resource")
 
@@ -231,6 +236,11 @@ def check_ready_topic(folder: TopicFolder, report: Report) -> None:
         report.add(topic_file, "prove.explain is missing")
 
 
+def resource_indexes(lesson_text: str) -> list[int]:
+    """The N of every <Resource index={N} /> tag in a lesson."""
+    return [int(n) for n in re.findall(r"<Resource\s+index=\{(\d+)\}", lesson_text)]
+
+
 def check_references(folder: TopicFolder, report: Report) -> None:
     """Every item a topic names must exist, whatever the topic's status."""
     named = [*folder.topic.practice, *folder.topic.review_pool]
@@ -243,13 +253,17 @@ def check_references(folder: TopicFolder, report: Report) -> None:
 
     lesson = folder.path / "lesson.mdx"
     if lesson.exists():
-        for match in re.finditer(
-            r"<Resource\s+index=\{(\d+)\}", lesson.read_text("utf-8")
-        ):
-            if int(match.group(1)) >= len(folder.topic.resources):
+        for index in resource_indexes(lesson.read_text("utf-8")):
+            if index != 0:
+                # The app shows resource 0 in the lesson and lists the rest
+                # after it, so placing another one would show it twice.
                 report.add(
-                    lesson, f"<Resource index={{{match.group(1)}}}> doesn't exist"
+                    lesson,
+                    f"<Resource index={{{index}}}>: only the main resource "
+                    "(index 0) goes in the lesson; the others are listed after it",
                 )
+            elif not folder.topic.resources:
+                report.add(lesson, "<Resource index={0}> doesn't exist")
 
 
 # --- Running code -------------------------------------------------------------------

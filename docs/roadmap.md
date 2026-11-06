@@ -27,11 +27,11 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] Web app scaffold and CI
 - [x] Python runner in the browser (shared harness, Pyodide worker, editor with Run and Check)
 - [x] Content format and validator, with the whole Python Foundations map as outlines
-- [ ] The app loads content, with topic pages for lessons and exercises
+- [x] The app loads content, with topic pages for lessons and exercises
 - [x] Local Supabase in Docker, with the profiles and event-log tables
 - [x] Sign-in: GitHub on the live site, email links locally
 - [ ] Saving answers to the event log (comes with the topic pages)
-- [ ] Deploy to Cloudflare
+- [x] Deploy to Cloudflare (every merge to `main` deploys automatically)
 - [ ] Module 1 content
 
 ## Phase 2: Adaptivity and better practice (months 2–4)
