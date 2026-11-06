@@ -18,6 +18,12 @@ export type Attempt = {
   correct: boolean
   /** In ISO format, UTC, so comparing the text compares the times. */
   occurred_at: string
+  /**
+   * For a Check whose tests ran: the names of those that didn't pass.
+   * Checkpoint tests name the skills they check (ADR-0012), so this says
+   * which skills a Check missed.
+   */
+  failing?: string[]
 }
 
 /** A skill the learner missed and is relearning. */
@@ -46,6 +52,17 @@ export const CORRECT_DAYS_NEEDED = RELEARNING_GAPS.length + 1
 
 /** The skills an item tests (empty for items that don't exist any more). */
 export type SkillsOf = (topicId: string, itemId: string) => string[]
+
+/**
+ * For a checkpoint's builds and debug: the skills each test checks, by test
+ * name, as "topic/skill" (ADR-0012). Undefined for other items.
+ */
+export type TestSkillsOf = (
+  topicId: string,
+  itemId: string,
+) => Record<string, string[]> | undefined
+
+const NO_TEST_SKILLS: TestSkillsOf = () => undefined
 
 export function dayOf(time: string | number | Date): Day {
   const date = new Date(time)
@@ -96,6 +113,86 @@ function itemDays(attempts: Attempt[]): ItemDay[] {
   return [...byKey.values()]
 }
 
+type TestDay = {
+  topicId: string
+  itemId: string
+  test: string
+  day: Day
+  outcome: 'miss' | 'correct'
+}
+
+/**
+ * How each test of a checkpoint's builds and debug went on each day
+ * (ADR-0012). Like code in itemDays: a test that failed counts as a miss
+ * only if no Check passed it that day. A Check whose tests couldn't run
+ * says nothing about them.
+ */
+function testDays(attempts: Attempt[], testSkillsOf: TestSkillsOf): TestDay[] {
+  const byKey = new Map<string, TestDay>()
+  for (const attempt of attempts) {
+    const { failing } = attempt
+    if (attempt.type !== 'code_check' || failing === undefined) continue
+    const tests = testSkillsOf(attempt.topic_id, attempt.item_id)
+    const day = dayOf(attempt.occurred_at)
+    for (const test of Object.keys(tests ?? {})) {
+      const key = [attempt.topic_id, attempt.item_id, test, day].join('\n')
+      const passed =
+        !failing.includes(test) || byKey.get(key)?.outcome === 'correct'
+      byKey.set(key, {
+        topicId: attempt.topic_id,
+        itemId: attempt.item_id,
+        test,
+        day,
+        outcome: passed ? 'correct' : 'miss',
+      })
+    }
+  }
+  return [...byKey.values()]
+}
+
+/** How a skill went on a day, on one item. */
+type SkillEvidence = {
+  topicId: string
+  skillId: string
+  day: Day
+  /** The item, named in full ("topic/item") when it's in another topic. */
+  item: string
+  outcome: 'miss' | 'correct'
+}
+
+/**
+ * Everything the history says about each skill: from the items that name it,
+ * and from the checkpoint tests that name it (ADR-0012).
+ */
+function skillEvidence(
+  attempts: Attempt[],
+  skillsOf: SkillsOf,
+  testSkillsOf: TestSkillsOf,
+): SkillEvidence[] {
+  const found: SkillEvidence[] = []
+  for (const { topicId, itemId, day, outcome } of itemDays(attempts)) {
+    for (const skillId of skillsOf(topicId, itemId)) {
+      found.push({ topicId, skillId, day, item: itemId, outcome })
+    }
+  }
+  for (const { topicId, itemId, test, day, outcome } of testDays(
+    attempts,
+    testSkillsOf,
+  )) {
+    for (const ref of testSkillsOf(topicId, itemId)?.[test] ?? []) {
+      const [skillTopic = '', skillId = ''] = ref.split('/')
+      found.push({
+        topicId: skillTopic,
+        skillId,
+        day,
+        item: `${topicId}/${itemId}`,
+        outcome,
+      })
+    }
+  }
+  return found
+}
+
 /** Topics with at least one miss: only these can have follow-ups. */
 export function topicsWithMisses(attempts: Attempt[]): string[] {
   const topics = itemDays(attempts)
@@ -108,24 +205,28 @@ export function topicsWithMisses(attempts: Attempt[]): string[] {
  * Every skill that's currently being relearned. Day by day, for each skill:
  * a miss opens it (due the next day, and any earlier progress starts over);
  * each correct day after the miss counts towards closing it (due again 3
- * days later, then 7); 3 correct days close it.
+ * days later, then 7); 3 correct days close it. Checkpoint tests count for
+ * the skills they name (ADR-0012).
  */
 export function openFollowUps(
   attempts: Attempt[],
   skillsOf: SkillsOf,
+  testSkillsOf: TestSkillsOf = NO_TEST_SKILLS,
 ): FollowUp[] {
   type SkillDay = { missed: Set<string>; correct: boolean }
   const bySkill = new Map<string, Map<Day, SkillDay>>()
-  for (const { topicId, itemId, day, outcome } of itemDays(attempts)) {
-    for (const skillId of skillsOf(topicId, itemId)) {
-      const key = `${topicId}\n${skillId}`
-      const days = bySkill.get(key) ?? new Map<Day, SkillDay>()
-      bySkill.set(key, days)
-      const skillDay = days.get(day) ?? { missed: new Set(), correct: false }
-      days.set(day, skillDay)
-      if (outcome === 'miss') skillDay.missed.add(itemId)
-      else skillDay.correct = true
-    }
+  for (const { topicId, skillId, day, item, outcome } of skillEvidence(
+    attempts,
+    skillsOf,
+    testSkillsOf,
+  )) {
+    const key = `${topicId}\n${skillId}`
+    const days = bySkill.get(key) ?? new Map<Day, SkillDay>()
+    bySkill.set(key, days)
+    const skillDay = days.get(day) ?? { missed: new Set(), correct: false }
+    days.set(day, skillDay)
+    if (outcome === 'miss') skillDay.missed.add(item)
+    else skillDay.correct = true
   }
 
   const open: FollowUp[] = []
@@ -173,6 +274,48 @@ export function skillsIn(contents: Map<string, TopicContent>): SkillsOf {
   }
 }
 
+/** The skills each checkpoint test checks, looked up in loaded content. */
+export function testSkillsIn(
+  contents: Map<string, TopicContent>,
+): TestSkillsOf {
+  return (topicId, itemId) =>
+    contents.get(topicId)?.exercises[itemId]?.test_skills
+}
+
+/**
+ * The topics whose skills the tests of loaded checkpoints name, so their
+ * questions can come back (ADR-0012).
+ */
+export function topicsNamedByTests(
+  contents: Map<string, TopicContent>,
+): string[] {
+  const named = new Set<string>()
+  for (const content of contents.values()) {
+    for (const exercise of Object.values(content.exercises)) {
+      for (const ref of Object.values(exercise.test_skills).flat()) {
+        named.add(ref.split('/')[0] ?? '')
+      }
+    }
+  }
+  named.delete('')
+  return [...named].sort()
+}
+
+/** When each item of a topic was last answered or Checked. */
+export function lastAttempted(
+  attempts: Attempt[],
+  topicId: string,
+): Map<string, string> {
+  const last = new Map<string, string>()
+  for (const attempt of attempts) {
+    if (attempt.topic_id !== topicId) continue
+    if (attempt.occurred_at > (last.get(attempt.item_id) ?? '')) {
+      last.set(attempt.item_id, attempt.occurred_at)
+    }
+  }
+  return last
+}
+
 /**
  * The question to ask for a follow-up: a different one on the same skill
  * (the owner's choice), preferring one never answered, then the one answered
@@ -196,14 +339,7 @@ export function chooseQuestion(
   const fresh = candidates.filter((id) => !followUp.missedItems.includes(id))
   const pool = fresh.length > 0 ? fresh : candidates
 
-  const lastAnswered = new Map<string, string>()
-  for (const attempt of attempts) {
-    if (attempt.topic_id !== followUp.topicId) continue
-    const before = lastAnswered.get(attempt.item_id) ?? ''
-    if (attempt.occurred_at > before) {
-      lastAnswered.set(attempt.item_id, attempt.occurred_at)
-    }
-  }
+  const lastAnswered = lastAttempted(attempts, followUp.topicId)
   // Questions not already on the page first; then never answered (''),
   // then the oldest answer.
   const sorted = [...pool].sort((a, b) => {

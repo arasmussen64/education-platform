@@ -95,6 +95,7 @@ export function fakeExercise(
     hints: [],
     steps: [],
     skills: ['print-text'],
+    test_skills: {},
     starter: '',
     solution: 'print("Hello!")\n',
     tests: 'the tests',
@@ -149,6 +150,92 @@ export function fakeContent(topic = fakeTopic()): TopicContent {
       [MCQ.id]: { ...MCQ, skills: [...MCQ.skills] },
       [PREDICT.id]: { ...PREDICT, skills: [...PREDICT.skills] },
     },
+    exercises: Object.fromEntries(exercises.map((item) => [item.id, item])),
+  }
+}
+
+/** What each test of the fake checkpoint's builds and debug checks. */
+const RECEIPT_TESTS = {
+  test_total: ['py.arithmetic/operators'],
+  test_format: ['py.strings-and-input/fstrings'],
+}
+
+/**
+ * A small, complete checkpoint, with its way through for a learner who's
+ * stuck (ADR-0012). Its ID is real, so it has a real place in the track.
+ */
+export function fakeCheckpointContent(): TopicContent {
+  const topic = fakeTopic({
+    id: 'py.m1.checkpoint',
+    kind: 'checkpoint',
+    title: 'Checkpoint 1: receipt calculator',
+    summary: 'Read prices, then print a receipt.',
+    prerequisites: ['py.arithmetic', 'py.strings-and-input'],
+    estimated_minutes: 60,
+    objectives: ['Print a formatted receipt.'],
+    resources: [],
+    practice: [],
+    prove: {
+      build: 'build-receipt',
+      debug: 'debug-tickets',
+      explain: {
+        prompt: 'How does your receipt program work?',
+        rubric: [{ id: 'parts', required: true, description: 'Each part.' }],
+        model_answer: 'SECRET MODEL ANSWER',
+      },
+    },
+    review_pool: [],
+    skills: [],
+    unstuck: {
+      example: 'example-shop',
+      steps: ['step-read', 'step-work', 'step-print'],
+      versions: ['build-split', 'build-fuel'],
+    },
+  })
+  const step = (id: string, title: string) =>
+    fakeExercise({
+      id,
+      stage: 'fill_in',
+      title,
+      skills: [],
+      starter: 'total = ...',
+      hints: ['Look at the step before.'],
+    })
+  const build = (id: string, title: string) =>
+    fakeExercise({
+      id,
+      stage: 'build',
+      title,
+      skills: [],
+      test_skills: RECEIPT_TESTS,
+    })
+  const exercises = [
+    build('build-receipt', 'Receipt'),
+    fakeExercise({
+      id: 'debug-tickets',
+      stage: 'debug',
+      title: 'Cinema tickets',
+      skills: [],
+      starter: 'print("Total: $", 7)',
+      test_skills: RECEIPT_TESTS,
+    }),
+    fakeExercise({
+      id: 'example-shop',
+      stage: 'worked_example',
+      title: 'A shop receipt',
+      skills: [],
+      steps: [{ label: 'Read the inputs', lines: '1', note: 'Ask first.' }],
+    }),
+    step('step-read', 'Read the inputs'),
+    step('step-work', 'Work out the totals'),
+    step('step-print', 'Print the receipt'),
+    build('build-split', 'Split the bill'),
+    build('build-fuel', 'Fuel for a trip'),
+  ]
+  return {
+    topic,
+    Lesson: null,
+    recall: {},
     exercises: Object.fromEntries(exercises.map((item) => [item.id, item])),
   }
 }

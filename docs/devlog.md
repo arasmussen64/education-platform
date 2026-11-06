@@ -2,6 +2,38 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Getting unstuck on a checkpoint (ADR-0012)
+
+**Decided**
+
+The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked for all four additions on every checkpoint. Settled while building it:
+
+- A checkpoint test counts as missed only if no Check passed it that day, as with code. A program that crashes fails every test, so it points at all their skills until it runs.
+- Each step gives the whole program except one part, and the last step only an outline. These are completion problems with fading support. Steps that each build one part on its own transfer worse (4C/ID).
+- The page suggests the steps after 2 failing Checks, but never opens them by itself.
+- Each checkpoint has at least 2 fresh versions besides the main build. The page offers one not yet tried, or else the one tried longest ago.
+- A second debug program waits until learners actually get stuck on debugs.
+
+**Done**
+
+- **Content format:**
+  - `unstuck` (`example`, `steps`, `versions`) in a checkpoint's `topic.yaml`;
+  - `test_skills` in its builds' and debug's `exercise.yaml`: every test, with the skills it checks, as `topic/skill`.
+- **Content checker:** a ready checkpoint needs every topic in its module ready, a solved sibling, 3 or more steps with hints, 2 or more fresh versions, and every build and debug test naming real skills of this or an earlier module. 10 new tests.
+- **The checkpoint page:**
+  - "About this checkpoint" (what it brings together, with links back to the module's topics) in place of a lesson;
+  - the three proof checks, with a suggestion next to the build after 2 failing Checks;
+  - "Stuck? Try it in steps": the solved sibling, the steps, then a fresh version, rendered only when opened.
+- **Follow-ups from checkpoint tests:**
+  - the history query now also reads each Check's status and failing tests (`data->>status`, `data->failing`);
+  - the Today page loads the checkpoints a learner worked on, then the topics their tests name.
+- **Tests:** 20 new web tests. One is a guarantee over the real content, like the one for topics: once a checkpoint is ready, every test of its builds and debug must bring back a question on each skill it names.
+- **Checked** the new history query against the local database, read-only. Checks come back with their status and failing tests; answers with neither. I started the local Supabase for this and stopped it afterwards; it keeps its data.
+
+**Next**
+
+- The Module 1 checkpoint (receipt calculator), with its solved sibling, steps and fresh versions.
+
 ## 2026-11-06: The fifth lesson, Strings and input (and a checkpoint question)
 
 **Done**

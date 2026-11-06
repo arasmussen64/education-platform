@@ -6,6 +6,7 @@ import type {
   Topic,
   TopicContent,
   Track,
+  Unstuck,
 } from './types.ts'
 
 // Vite finds the content files (../content) while building the app. Topic
@@ -29,7 +30,7 @@ const recallFiles = import.meta.glob<RecallItem>(
   { import: 'default' },
 )
 /** exercise.yaml: the code comes from its own files, and some fields have defaults. */
-type Defaulted = 'time_limit_ms' | 'hints' | 'steps' | 'skills'
+type Defaulted = 'time_limit_ms' | 'hints' | 'steps' | 'skills' | 'test_skills'
 type ExerciseFile = Omit<
   Exercise,
   'starter' | 'solution' | 'tests' | Defaulted
@@ -46,7 +47,7 @@ const codeFiles = import.meta.glob<string>(
 
 /** Fills in the fields an outline may leave out. */
 function withDefaults(raw: Partial<Topic>): Topic {
-  return {
+  const topic = {
     prerequisites: [],
     resources: [],
     practice: [],
@@ -55,6 +56,10 @@ function withDefaults(raw: Partial<Topic>): Topic {
     skills: [],
     ...raw,
   } as Topic
+  // A checkpoint being written may leave out parts of its way through.
+  const unstuck: Partial<Unstuck> | undefined = raw.unstuck
+  if (unstuck) topic.unstuck = { steps: [], versions: [], ...unstuck }
+  return topic
 }
 
 const TOPICS = Object.values(topicFiles).map(withDefaults)
@@ -137,6 +142,7 @@ export async function loadTopicContent(
         hints: [],
         steps: [],
         skills: [],
+        test_skills: {},
         ...file,
         starter,
         solution,

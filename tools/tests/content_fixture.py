@@ -1,7 +1,8 @@
 """A tiny but complete content tree: one ready topic and one planned checkpoint.
 
 make_valid_tree() writes it into a folder; each test then breaks one thing and
-checks that the validator notices.
+checks that the validator notices. make_ready_checkpoint() completes the
+checkpoint, for the tests of checkpoints.
 """
 
 from __future__ import annotations
@@ -152,4 +153,71 @@ def make_valid_tree(root: Path) -> Path:
     write(root, f"{topic}/exercises/debug-hello/starter.py", 'print("Helo!")\n')
     write(root, f"{topic}/exercises/build-hello/wrong/no-bang.py", 'print("Hello")\n')
     write(root, "content/topics/t.m1.checkpoint/topic.yaml", CHECKPOINT)
+    return root
+
+
+# --- A ready checkpoint, with its way through for a stuck learner (ADR-0012) ---
+
+CHECKPOINT_DIR = "content/topics/t.m1.checkpoint"
+
+READY_CHECKPOINT = """id: t.m1.checkpoint
+kind: checkpoint
+status: ready
+title: Checkpoint
+summary: A small program.
+prerequisites: [t.hello]
+estimated_minutes: 60
+rev: 1
+objectives:
+  - Build a small program.
+prove:
+  build: build-card
+  debug: debug-card
+  explain:
+    prompt: How does your program work?
+    rubric:
+      - id: parts
+        required: true
+        description: Names each part.
+    model_answer: It prints a greeting.
+unstuck:
+  example: example-other
+  steps: [step-read, step-work, step-outline]
+  versions: [build-card-b, build-card-c]
+"""
+
+CHECKPOINT_EXERCISES = {
+    "build-card": "build",
+    "debug-card": "debug",
+    "example-other": "worked_example",
+    "step-read": "fill_in",
+    "step-work": "fill_in",
+    "step-outline": "fill_in",
+    "build-card-b": "build",
+    "build-card-c": "build",
+}
+
+
+def checkpoint_exercise_yaml(item_id: str, stage: str) -> str:
+    text = f"id: {item_id}\nstage: {stage}\nrev: 1\ntitle: A card\nprompt: Print it.\n"
+    if stage == "worked_example":
+        text += (
+            "steps:\n  - label: Print it\n    lines: '1'\n    note: print shows text.\n"
+        )
+    elif stage == "fill_in":
+        text += "hints:\n  - Use print.\n"
+    else:
+        text += "test_skills:\n  test_says_hello: [t.hello/print-text]\n"
+    return text
+
+
+def make_ready_checkpoint(root: Path) -> Path:
+    for item_id, stage in CHECKPOINT_EXERCISES.items():
+        folder = f"{CHECKPOINT_DIR}/exercises/{item_id}"
+        write(root, f"{folder}/exercise.yaml", checkpoint_exercise_yaml(item_id, stage))
+        write(root, f"{folder}/solution.py", CORRECT)
+        write(root, f"{folder}/test_exercise.py", PASSING_TESTS)
+        if stage in ("fill_in", "debug"):
+            write(root, f"{folder}/starter.py", 'print("Helo!")\n')
+    write(root, f"{CHECKPOINT_DIR}/topic.yaml", READY_CHECKPOINT)
     return root

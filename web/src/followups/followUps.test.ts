@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fakeContent } from '../test/fakeContent.tsx'
+import { fakeCheckpointContent, fakeContent } from '../test/fakeContent.tsx'
 import {
   addDays,
   type Attempt,
@@ -9,6 +9,8 @@ import {
   openFollowUps,
   planCards,
   skillsIn,
+  testSkillsIn,
+  topicsNamedByTests,
   topicsWithMisses,
 } from './followUps.ts'
 
@@ -340,5 +342,87 @@ describe('days', () => {
 
   it('names the local calendar day of a moment', () => {
     expect(dayOf(new Date(2026, 10, 6, 23, 59))).toBe('2026-11-06')
+  })
+})
+
+describe('checkpoint tests (ADR-0012)', () => {
+  const CHECKPOINT = 'py.m1.checkpoint'
+  // Test -> the skills it checks, as a checkpoint's exercise.yaml names them.
+  const RECEIPT: Record<string, string[]> = {
+    test_subtotal: ['py.strings-and-input/convert'],
+    test_tip: ['py.arithmetic/precedence', 'py.strings-and-input/convert'],
+    test_format: ['py.strings-and-input/fstrings'],
+  }
+  const testSkillsOf = (topic: string, item: string) =>
+    topic === CHECKPOINT && item === 'build-receipt' ? RECEIPT : undefined
+  const noItemSkills = () => []
+
+  /** A Check of the receipt that failed `failing`; undefined if the tests couldn't run. */
+  function check(failing: string[] | undefined, day: string, hour = 10) {
+    return {
+      ...attempt('build-receipt', failing?.length === 0, day, hour),
+      topic_id: CHECKPOINT,
+      failing,
+    }
+  }
+  const open = (history: Attempt[]) =>
+    openFollowUps(history, noItemSkills, testSkillsOf)
+  const names = (followUps: FollowUp[]) =>
+    followUps.map((followUp) => `${followUp.topicId}/${followUp.skillId}`)
+
+  it('brings back the skills a failed test names, from their own topics', () => {
+    const followUps = open([check(['test_tip'], '2026-11-06')])
+    expect(names(followUps)).toEqual([
+      'py.arithmetic/precedence',
+      'py.strings-and-input/convert',
+    ])
+    expect(followUps[0]).toMatchObject({
+      missedOn: '2026-11-06',
+      due: '2026-11-07',
+      // In full, so it can't be mistaken for a question in py.arithmetic.
+      missedItems: ['py.m1.checkpoint/build-receipt'],
+    })
+  })
+
+  it("doesn't count a test that a later Check passed that day", () => {
+    const history = [
+      check(['test_tip', 'test_format'], '2026-11-06', 10),
+      check(['test_format'], '2026-11-06', 11),
+    ]
+    expect(names(open(history))).toEqual(['py.strings-and-input/fstrings'])
+  })
+
+  it("learns nothing from a Check whose tests couldn't run", () => {
+    expect(open([check(undefined, '2026-11-06')])).toEqual([])
+  })
+
+  it('counts a passed test as a correct day for its skills', () => {
+    const history = [
+      check(['test_format'], '2026-11-06'),
+      check([], '2026-11-07'),
+    ]
+    expect(open(history)).toEqual([
+      expect.objectContaining({
+        skillId: 'fstrings',
+        correctOn: ['2026-11-07'],
+        due: '2026-11-10',
+      }),
+    ])
+  })
+
+  it('looks up test skills, and the topics they name, in loaded content', () => {
+    const checkpoint = fakeCheckpointContent()
+    const contents = new Map([[checkpoint.topic.id, checkpoint]])
+    expect(testSkillsIn(contents)(CHECKPOINT, 'build-receipt')).toEqual({
+      test_total: ['py.arithmetic/operators'],
+      test_format: ['py.strings-and-input/fstrings'],
+    })
+    expect(
+      testSkillsIn(contents)('py.nothing', 'build-receipt'),
+    ).toBeUndefined()
+    expect(topicsNamedByTests(contents)).toEqual([
+      'py.arithmetic',
+      'py.strings-and-input',
+    ])
   })
 })

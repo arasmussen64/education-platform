@@ -6,6 +6,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (getting unstuck on a checkpoint)
+
+- [ADR-0012](docs/decisions/0012-checkpoint-support.md), accepted: every checkpoint gets four additions, and the content checker won't mark one ready without them.
+  - **Find the weak skill:** every test of a checkpoint's builds and debug names the skills it checks (`test_skills`). A failed test brings them back on Today, as questions from their own topics. Like code, a test counts as missed only if no Check passed it that day.
+  - **A solved sibling** to study, **the build in 3 or 4 steps** with hints, and **at least 2 fresh versions** of the build.
+- The checkpoint page: an "About this checkpoint" section in place of a lesson, the three proof checks, and a "Stuck? Try it in steps" section.
+  - The steps open only when asked. After 2 failing Checks on the build, the page suggests them next to it.
+  - The fresh version offered is one not yet tried, or else the one tried longest ago.
+- The Today page reads which tests each Check failed (`data.failing`), and loads checkpoints and the topics their tests name.
+- The content checker's rules for ready checkpoints: every topic in the module ready; a solved sibling, 3 or more steps with hints, and 2 or more fresh versions; every build and debug test naming real skills of this or earlier modules.
+
 ### Added (the fifth lesson)
 
 - **Strings and input** (`py.strings-and-input`), ready to learn. That completes Module 1's topics.
@@ -13,10 +24,6 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   - **Practice:** a worked example that asks two questions and does maths with the answers, three questions (one mixes in topic 2's "45" surprise), filling in a rectangle's area, and a price tag with `:.2f`.
   - **Prove it:** kilometres to miles from a blank editor; a shopping line with a conversion crash and a missing `f`; explaining why `age + 1` fails on typed input.
   - **Review pool:** four items. Three skills: `input-text`, `convert` and `fstrings`.
-- [ADR-0012](docs/decisions/0012-checkpoint-support.md) (proposed): what happens when someone is stuck on a checkpoint.
-  - Failed tests point to the skill behind them, which then comes back for practice.
-  - A solved sibling project to study, and a "try it in steps" version with hints.
-  - Proof on a fresh version of the checkpoint.
 
 ### Added (the fourth lesson)
 

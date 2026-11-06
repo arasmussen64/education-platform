@@ -14,9 +14,11 @@ import {
   type FollowUp,
   openFollowUps,
   skillsIn,
+  testSkillsIn,
+  topicsNamedByTests,
   topicsWithMisses,
 } from './followUps.ts'
-import { fetchAttempts, mergeAttempts, toAttempt } from './history.ts'
+import { fetchAttempts, localAttempt, mergeAttempts } from './history.ts'
 
 export type FollowUpsState =
   | { status: 'loading' }
@@ -32,29 +34,38 @@ export type FollowUpsState =
 
 type Loaded = { fetched: Attempt[]; contents: Map<string, TopicContent> }
 
-function localAttempts(log: EventLog): Attempt[] {
-  return log
-    .getLocalRows()
-    .map(toAttempt)
-    .filter((attempt) => attempt !== null)
+function localAttempts(rows: ReturnType<EventLog['getLocalRows']>): Attempt[] {
+  return rows.map(localAttempt).filter((attempt) => attempt !== null)
 }
 
-/** Reads the history, then loads the topics where something was missed. */
+/**
+ * Reads the history, then loads the topics where something was missed, and
+ * the checkpoints worked on. Checkpoint tests name skills of other topics
+ * (ADR-0012), so those topics load next.
+ */
 async function loadHistory(
   load: () => Promise<Attempt[]>,
   log: EventLog,
 ): Promise<Loaded> {
   const fetched = await load()
-  const topicIds = topicsWithMisses(
-    mergeAttempts(fetched, localAttempts(log)),
-  ).filter((id) => {
-    const topic = getTopic(id)
-    return topic !== undefined && isOpen(topic)
-  })
+  const attempts = mergeAttempts(fetched, localAttempts(log.getLocalRows()))
   const contents = new Map<string, TopicContent>()
-  for (const content of await Promise.all(topicIds.map(loadTopicContent))) {
-    if (content) contents.set(content.topic.id, content)
+
+  async function loadTopics(ids: string[]) {
+    const wanted = [...new Set(ids)].filter((id) => {
+      const topic = getTopic(id)
+      return !contents.has(id) && topic !== undefined && isOpen(topic)
+    })
+    for (const content of await Promise.all(wanted.map(loadTopicContent))) {
+      if (content) contents.set(content.topic.id, content)
+    }
   }
+
+  const checkpoints = attempts
+    .map((attempt) => attempt.topic_id)
+    .filter((id) => getTopic(id)?.kind === 'checkpoint')
+  await loadTopics([...topicsWithMisses(attempts), ...checkpoints])
+  await loadTopics(topicsNamedByTests(contents))
   return { fetched, contents }
 }
 
@@ -97,13 +108,16 @@ export function useFollowUps(
         },
       }
     }
-    const local = localRows.map(toAttempt).filter((attempt) => attempt !== null)
-    const attempts = mergeAttempts(loaded.fetched, local)
+    const attempts = mergeAttempts(loaded.fetched, localAttempts(localRows))
     return {
       status: 'ready',
       attempts,
       contents: loaded.contents,
-      open: openFollowUps(attempts, skillsIn(loaded.contents)),
+      open: openFollowUps(
+        attempts,
+        skillsIn(loaded.contents),
+        testSkillsIn(loaded.contents),
+      ),
     }
   }, [loaded, localRows])
 }
