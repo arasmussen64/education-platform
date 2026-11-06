@@ -78,6 +78,13 @@ class Prove(Strict):
     explain: Explain | None = None
 
 
+class Skill(Strict):
+    """Something a topic teaches. Its items name the skills they test."""
+
+    id: ItemId
+    description: Text
+
+
 class Topic(Strict):
     id: TopicId
     kind: Literal["topic", "checkpoint"]
@@ -93,6 +100,16 @@ class Topic(Strict):
     practice: list[ItemId] = []
     prove: Prove = Prove()
     review_pool: list[ItemId] = []
+    # A missed question comes back as a different one testing the same
+    # skill, so items name the skills they test (ADR-0011).
+    skills: list[Skill] = []
+
+    @model_validator(mode="after")
+    def skill_ids_are_unique(self) -> Topic:
+        ids = [skill.id for skill in self.skills]
+        if len(set(ids)) != len(ids):
+            raise ValueError("skill ids must all be different")
+        return self
 
 
 class McqItem(Strict):
@@ -103,6 +120,7 @@ class McqItem(Strict):
     choices: list[Text] = Field(min_length=2)
     answer: Annotated[int, Field(ge=0)]
     explanation: Text
+    skills: list[ItemId] = []
 
     @model_validator(mode="after")
     def answer_is_a_choice(self) -> McqItem:
@@ -121,6 +139,7 @@ class PredictOutputItem(Strict):
     code: Text
     expected_output: str
     explanation: Text
+    skills: list[ItemId] = []
 
 
 RecallItem = Annotated[McqItem | PredictOutputItem, Field(discriminator="type")]
@@ -130,6 +149,10 @@ Stage = Literal["worked_example", "fill_in", "write", "build", "debug", "review_
 
 # Stages whose starter code must exist and must fail the tests.
 STAGES_WITH_FAILING_STARTER = {"fill_in", "debug"}
+
+# Exercises that can come back as a follow-up to a missed question (ADR-0011).
+# Recall items always can; proof checks and worked examples never do.
+FOLLOW_UP_STAGES = {"fill_in", "write", "review_code"}
 
 
 class Step(Strict):
@@ -149,6 +172,7 @@ class Exercise(Strict):
     time_limit_ms: Annotated[int, Field(ge=100, le=30_000)] = 5000
     hints: list[Text] = []
     steps: list[Step] = []
+    skills: list[ItemId] = []
 
     @model_validator(mode="after")
     def steps_only_for_worked_examples(self) -> Exercise:

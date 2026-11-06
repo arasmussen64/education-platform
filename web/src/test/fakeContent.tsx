@@ -79,6 +79,7 @@ export function fakeTopic(overrides: Partial<Topic> = {}): Topic {
       },
     },
     review_pool: ['mcq-print'],
+    skills: [{ id: 'print-text', description: 'Show text with print' }],
     ...overrides,
   }
 }
@@ -93,6 +94,7 @@ export function fakeExercise(
     time_limit_ms: 5000,
     hints: [],
     steps: [],
+    skills: ['print-text'],
     starter: '',
     solution: 'print("Hello!")\n',
     tests: 'the tests',
@@ -108,6 +110,7 @@ export const MCQ: McqItem = {
   choices: ['Hi', '"Hi"', 'print'],
   answer: 0,
   explanation: 'print shows the text without quotes.',
+  skills: ['print-text'],
 }
 
 export const PREDICT: PredictOutputItem = {
@@ -118,6 +121,7 @@ export const PREDICT: PredictOutputItem = {
   code: 'print("a")\nprint("b")\n',
   expected_output: 'a\nb\n',
   explanation: 'Each print starts a new line.',
+  skills: ['print-text'],
 }
 
 export function fakeContent(topic = fakeTopic()): TopicContent {

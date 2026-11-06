@@ -95,7 +95,14 @@ prove:
     model_answer: >
       (used only by the grader; never shown to the learner)
 review_pool: [reassign-mcq-2, trace-swap, review-swap-variant]
+skills:                         # what the topic teaches (ADR-0011)
+  - id: assignment
+    description: "Explain assignment as names referring to values"
+  - id: swap
+    description: "Swap two values using a third name"
 ```
+
+**Skills.** Every recall item and exercise lists the skills it mainly tests (`skills: [assignment]`); worked examples may leave it out. A missed question comes back later as a *different* question on the same skill ([ADR-0011](../decisions/0011-mistakes-come-back.md)). So in a ready topic, every skill needs at least 2 **follow-up candidates**: recall items, or fill-in, write and `review_code` exercises. Build and debug exercises name their skills too, but they're proof checks and never come back as follow-ups.
 
 ### Recall items
 
@@ -114,6 +121,7 @@ prompt: |
 choices: ["3", "5", "It's an error"]
 answer: 0
 explanation: "`b = a` makes `b` refer to 3. Pointing `a` at 5 afterwards doesn't affect `b`."
+skills: [assignment]            # declared in topic.yaml
 ```
 
 A `predict_output` item has `code` and `expected_output` instead of `choices` and `answer`. The validator runs the code and checks that the output matches exactly.

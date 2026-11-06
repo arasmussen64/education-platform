@@ -29,7 +29,7 @@ const recallFiles = import.meta.glob<RecallItem>(
   { import: 'default' },
 )
 /** exercise.yaml: the code comes from its own files, and some fields have defaults. */
-type Defaulted = 'time_limit_ms' | 'hints' | 'steps'
+type Defaulted = 'time_limit_ms' | 'hints' | 'steps' | 'skills'
 type ExerciseFile = Omit<
   Exercise,
   'starter' | 'solution' | 'tests' | Defaulted
@@ -52,6 +52,7 @@ function withDefaults(raw: Partial<Topic>): Topic {
     practice: [],
     prove: {},
     review_pool: [],
+    skills: [],
     ...raw,
   } as Topic
 }
@@ -115,7 +116,7 @@ export async function loadTopicContent(
     .filter(([path]) => inTopic(path, topicId))
     .map(async ([, load]) => {
       const item = await load()
-      recall[item.id] = item
+      recall[item.id] = { ...item, skills: item.skills ?? [] }
     })
 
   const exercises: Record<string, Exercise> = {}
@@ -135,6 +136,7 @@ export async function loadTopicContent(
         time_limit_ms: 5000,
         hints: [],
         steps: [],
+        skills: [],
         ...file,
         starter,
         solution,

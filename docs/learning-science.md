@@ -8,7 +8,7 @@ The methods Switchback is built on, and the features they drive. Rule of thumb: 
 |---|---|---|
 | **Retrieval practice** | Pulling knowledge out of memory strengthens it far more than re-reading it | Quizzes, recall prompts, reviews; very little passive re-reading |
 | **Spacing** | Practice spread out over time beats cramming for long-term retention | The review scheduler (FSRS) |
-| **Successive relearning** | Retrieve until correct, then repeat across spaced sessions; this produces durable knowledge | "Mastered" only after a delayed review |
+| **Successive relearning** | Retrieve until correct, then repeat across spaced sessions; this produces durable knowledge | "Mastered" only after a delayed review. A missed question comes back as a fresh one on the same skill until it's right on 2 different days ([ADR-0011](decisions/0011-mistakes-come-back.md)) |
 | **Interleaving** | Mixing problem types teaches you to *choose* the right method, not just apply the one you just saw | Practice and reviews mix current and older topics |
 | **Mastery learning** | Move on only when the prerequisites are solid | Gating with test-out |
 | **Worked examples, then fading** | Novices learn more from studying solutions than from solving problems; help should fade as skill grows | The practice ladder: worked example → half-finished code → blank file |

@@ -33,6 +33,7 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] Saving answers to the event log, with an offline outbox
 - [x] Deploy to Cloudflare (every merge to `main` deploys automatically)
 - [ ] Module 1 content (1 of 6 written: Programs and print)
+- [ ] Mistakes come back as fresh questions until relearned ([ADR-0011](decisions/0011-mistakes-come-back.md)), after topic 2. Skills are already part of the content format.
 
 ## Phase 2: Adaptivity and better practice (months 2–4)
 
