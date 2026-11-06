@@ -1,0 +1,59 @@
+# CLAUDE.md
+
+Guidance for Claude Code in this repository. Keep this file short; details live in `docs/`.
+
+## What this is
+
+**Switchback** (working name, may change) is an adaptive computer-science learning platform covering CS from total beginner to principal engineer. Learners can't tick topics off themselves: every topic is taught, must be *proven* by building with it, and is kept fresh with spaced review. First learning track: CS foundations → ML engineering.
+
+- Concept: [docs/vision.md](docs/vision.md)
+- Plan and current phase: [docs/roadmap.md](docs/roadmap.md)
+- Decisions (ADRs): [docs/decisions/](docs/decisions/)
+- Methods behind the features: [docs/learning-science.md](docs/learning-science.md)
+- Session history: [docs/devlog.md](docs/devlog.md)
+
+**Current phase:** 0, setup and v1 planning. No application code yet.
+
+**Stack** ([ADR-0007](docs/decisions/0007-tech-stack.md)): TypeScript + React + Vite web app served as static files from Cloudflare; Supabase (Postgres, Auth, Edge Functions as the Claude API proxy); learners' Python runs in the browser via Pyodide in a Web Worker; Python (uv, pytest, ruff) for content tooling and ML; GitHub Actions for CI.
+
+**At the start of a session,** read the latest devlog entry and the roadmap's current phase.
+
+## Working with the owner
+
+- The owner is early in their coding journey and is the platform's first learner. Building the platform is part of how they learn.
+- Explain what you're doing and why, in plain language. Define jargon the first time you use it.
+- Prefer simple, readable code over clever code: small files, clear names, comments that explain *why*.
+- Teach as you go. When a task would make a good exercise, offer to let the owner write it (with hints) instead of writing it yourself.
+- Apply the platform's own rule to ourselves: don't merge code the owner couldn't explain back. End every change with a short plain-language summary of what it does.
+- Ask before anything hard to undo or that costs money: paid services, deleting data, force-pushing, making things public.
+
+## Development process
+
+- **Plan first.** Check the roadmap and relevant ADRs before non-trivial work. Significant or hard-to-reverse choices get an ADR in `docs/decisions/` (status *Proposed* until the owner accepts it).
+- **Branches.** `main` must always work. Make each change on a short-lived branch (`feat/…`, `fix/…`, `docs/…`, `chore/…`) and merge it into `main` through a pull request.
+- **Commits.** [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`. Small and focused.
+- **Definition of done** for every change:
+  - tests added or updated, and passing (once code exists)
+  - `CHANGELOG.md` updated under *Unreleased*
+  - docs updated if behavior, setup or a decision changed
+  - a `docs/devlog.md` entry for the session: what changed, what was decided, what's next
+- **Secrets never get committed.** Keys go in `.env` (gitignored); keep `.env.example` with placeholder names.
+- **Free tiers only** ([ADR-0005](docs/decisions/0005-free-hosting-first.md)). Never add a service that bills without asking. The one paid exception is the Claude API, which must have a spending cap.
+
+## Product rules that constrain code
+
+- The product name lives in **one** config constant. Never hard-code "Switchback" in components, URLs, package names or database names ([ADR-0006](docs/decisions/0006-working-name.md)).
+- Mastery = blank-editor challenge + explain it back + debug unfamiliar code + survives a delayed review ([ADR-0002](docs/decisions/0002-mastery-and-gating.md)). Don't weaken this without a new ADR.
+- The AI tutor gives hints, never full solutions, and is switched off during "prove it" checks ([ADR-0003](docs/decisions/0003-ai-roles-and-guardrails.md)).
+- Every exercise must be machine-verifiable: its reference solution passes the tests and known-wrong solutions fail ([ADR-0004](docs/decisions/0004-content-model.md)).
+- Record every external resource's license. Never copy text from sources that don't allow it ([ADR-0004](docs/decisions/0004-content-model.md)).
+- Learner answer and review logs are future ML training data. Append only: never delete or rewrite them.
+- For Claude API work, look up current model IDs and pricing in the official docs instead of relying on memory.
+
+## Commands
+
+None yet. Add install, dev server, test, lint and content-validation commands here when the app is scaffolded.
+
+## Environment
+
+Windows 11 (Git Bash or PowerShell), Node 24, npm 11, Python 3.12, git, GitHub CLI. `.gitattributes` normalizes line endings to LF.
