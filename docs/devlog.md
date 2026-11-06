@@ -2,6 +2,13 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: First real sign-in; sign-ups closed
+
+- The owner signed in with GitHub on the live site. Supabase shows one user, created through GitHub at 10:25.
+- At the owner's request, I used the browser to switch off **"Allow new users to sign up"** in the Supabase dashboard. First I checked the owner's account existed, so they couldn't be locked out.
+- Verified independently through the public auth settings endpoint: `disable_signup: true`, with GitHub and email providers enabled. Email sign-in only works for existing accounts now.
+- Milestone A remaining: the content pipeline, topic pages and saving answers, and Module 1 content.
+
 ## 2026-11-06: Sign-in
 
 **Owner's setup:** a GitHub OAuth app (`education-platform`), the GitHub provider turned on in Supabase, and the Site URL and redirect URLs set to the live address. The OAuth app's GitHub form calls the callback field "redirect URI".

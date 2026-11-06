@@ -84,6 +84,8 @@ The live site's "Sign in with GitHub" uses an OAuth app named `education-platfor
 
 Its client ID and secret are stored only in Supabase (**Authentication → Sign In / Providers → GitHub**). In Supabase **Authentication → URL Configuration**, the Site URL is the live address, and `https://education-platform.arasmussen64.workers.dev/**` is an allowed redirect.
 
+**Sign-ups are closed** (v1 spec, F1). The owner's account was created by signing in with GitHub on 2026-11-06. Then **Authentication → Sign In / Providers → "Allow new users to sign up"** was switched off. Existing accounts can still sign in. To check from anywhere, run `curl -s https://fretenazxzmfakjxvtwd.supabase.co/auth/v1/settings -H "apikey: <publishable key>"`; it should show `"disable_signup": true`. To let another learner in later, switch it back on briefly, or invite them from **Authentication → Users**.
+
 Local development doesn't use this app. The local Supabase signs in with email links, which land in its test inbox at http://127.0.0.1:54324.
 
 ### Anthropic Console (week 2)
