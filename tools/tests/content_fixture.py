@@ -48,6 +48,9 @@ prove:
         description: It shows text in the output.
     model_answer: It writes its arguments to the output.
 review_pool: [mcq-print, predict-print, review-hello]
+skills:
+  - id: print-text
+    description: Show text with print.
 """
 
 CHECKPOINT = """id: t.m1.checkpoint
@@ -79,6 +82,7 @@ prompt: What does print("Hi") show?
 choices: ["Hi", "print", "Nothing"]
 answer: 0
 explanation: print shows its argument.
+skills: [print-text]
 """
 
 PREDICT = """id: predict-print
@@ -92,6 +96,7 @@ expected_output: |
   a
   b
 explanation: Each print starts a new line.
+skills: [print-text]
 """
 
 LESSON = """<Intro>Watch for print.</Intro>
@@ -111,6 +116,8 @@ def exercise_yaml(item_id: str, stage: str) -> str:
         text += (
             "steps:\n  - label: Print it\n    lines: '1'\n    note: print shows text.\n"
         )
+    else:
+        text += "skills: [print-text]\n"
     return text
 
 

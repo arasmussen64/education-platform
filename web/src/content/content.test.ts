@@ -62,6 +62,13 @@ describe('the content the app loads', () => {
       expect(exercise.tests, exercise.id).toContain('def test_')
     }
     expect(content.exercises['debug-boarding']?.starter).toContain('Print(')
+    // Skills, so a missed question can come back as another (ADR-0011).
+    expect(content.topic.skills.map((skill) => skill.id)).toContain(
+      'print-commas',
+    )
+    expect(content.recall['review-mcq-commas']?.skills).toEqual([
+      'print-commas',
+    ])
   })
 
   it('loads a topic with nothing written yet', async () => {

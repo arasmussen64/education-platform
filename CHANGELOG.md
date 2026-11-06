@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (skills)
+
+- [ADR-0011](docs/decisions/0011-mistakes-come-back.md) (proposed): a missed question will come back as a different question on the same skill, until it's right on 2 different days. The owner asked for it, and chose fresh questions over repeats.
+- Topics declare their **skills**, and every question and exercise names the skills it tests. The content checker requires every graded item to name a skill, and every skill to have at least 2 questions that can come back after a miss. Unknown skill names are caught as typos.
+- Programs and print is labeled with 4 skills, and has a new review question on printing with commas.
+
 ### Fixed
 
 - A video clip looked as long as the whole lecture, because YouTube's player always shows the full video's length (a 9-minute clip read as 1 hour 45 minutes). The page now says above the video which part to watch, how long it is, and that it stops by itself. The topic's time estimate now says it covers the whole topic. Reported by the owner.

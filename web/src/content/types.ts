@@ -34,6 +34,9 @@ export type Explain = {
   model_answer: string
 }
 
+/** Something a topic teaches. Items name the skills they test (ADR-0011). */
+export type Skill = { id: string; description: string }
+
 export type Topic = {
   id: string
   kind: 'topic' | 'checkpoint'
@@ -48,6 +51,7 @@ export type Topic = {
   practice: string[]
   prove: { build?: string; debug?: string; explain?: Explain }
   review_pool: string[]
+  skills: Skill[]
 }
 
 export type McqItem = {
@@ -58,6 +62,7 @@ export type McqItem = {
   choices: string[]
   answer: number
   explanation: string
+  skills: string[]
 }
 
 export type PredictOutputItem = {
@@ -68,6 +73,7 @@ export type PredictOutputItem = {
   code: string
   expected_output: string
   explanation: string
+  skills: string[]
 }
 
 export type RecallItem = McqItem | PredictOutputItem
@@ -86,6 +92,7 @@ export type Exercise = {
   time_limit_ms: number
   hints: string[]
   steps: Step[]
+  skills: string[]
   /** Empty for exercises that start from a blank file. */
   starter: string
   solution: string

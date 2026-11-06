@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Skills, so mistakes can come back (ADR-0011)
+
+**Why:** the owner missed a predict-the-output question about `print` with commas and asked for wrong answers to be remembered and re-tested until they get them right. The miss is already saved in the event log, but nothing brought it back.
+
+**Decided** (the owner chose the order and the approach):
+
+- Write [ADR-0011](decisions/0011-mistakes-come-back.md), proposed. A miss opens a follow-up for each skill the item tests. It comes back as a *different* question on that skill: the next day, then after about 3 days, then a week. It's closed once the skill is answered correctly on 2 different days. A topic can't be Mastered with open follow-ups. It's derived from the event log, so today's miss will be included.
+- Build order: topic 2 (Values and types) first, then the feature. Skills go into the content format now, so topic 2 is written ready for it.
+
+**Done**
+
+- Content format:
+  - topics declare `skills` (an ID and a description);
+  - recall items and exercises list `skills`;
+  - the checker requires skills on every graded item of a ready topic, at least 2 follow-up candidates per skill (recall items, fill-in, write, `review_code`), and declared names only. 4 new checker tests.
+- The app's content types and loader carry skills, though nothing shows them yet.
+- Programs and print:
+  - its 4 skills are `print-text`, `print-commas`, `blank-lines` and `read-errors`;
+  - a new review question on commas gives the owner's miss two fresh questions to come back as.
+  Labeling items doesn't change what they ask, so no `rev` bumps.
+
+**Next**
+
+- Topic 2: Values and types.
+- Then the follow-up function and the Today list (ADR-0011).
+
 ## 2026-11-06: Fix: video clips looked as long as the whole lecture
 
 **Found by the owner** on their first lesson. The page said "about 40 minutes", but the embedded video showed 1 hour 45 minutes. YouTube's player always displays the full video's length, even when `start` and `end` limit what plays, and nothing on the page said so.

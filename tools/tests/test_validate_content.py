@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from content_fixture import CHECKPOINT, TOPIC, make_valid_tree, write
+from content_fixture import CHECKPOINT, MCQ, TOPIC, make_valid_tree, write
 from validate_content import validate
 
 TOPIC_DIR = "content/topics/t.hello"
@@ -100,6 +100,55 @@ def test_named_items_must_exist(tree: Path) -> None:
         tree, f"{TOPIC_DIR}/topic.yaml", TOPIC.replace("review-hello]", "review-gone]")
     )
     assert_reported(tree, "names 'review-gone', which doesn't exist", run=False)
+
+
+# --- Skills: a missed question comes back as another on the same skill -------
+
+
+def test_items_can_only_name_declared_skills(tree: Path) -> None:
+    write(
+        tree,
+        f"{TOPIC_DIR}/recall/mcq-print.yaml",
+        MCQ.replace("[print-text]", "[print-txet]"),
+    )
+    assert_reported(
+        tree, "names skill 'print-txet', which topic.yaml doesn't declare", run=False
+    )
+
+
+def test_ready_topics_declare_skills(tree: Path) -> None:
+    topic = TOPIC.split("skills:")[0]
+    write(tree, f"{TOPIC_DIR}/topic.yaml", topic)
+    assert_reported(tree, "a ready topic needs skills", run=False)
+
+
+def test_every_graded_item_names_a_skill(tree: Path) -> None:
+    write(
+        tree,
+        f"{TOPIC_DIR}/recall/mcq-print.yaml",
+        MCQ.replace("skills: [print-text]\n", ""),
+    )
+    assert_reported(tree, "mcq-print.yaml: needs at least one skill", run=False)
+
+
+def test_each_skill_has_two_questions_that_can_come_back(tree: Path) -> None:
+    # A second skill, tested only by the build exercise, which is a proof
+    # check and so can never come back as a follow-up.
+    write(
+        tree,
+        f"{TOPIC_DIR}/topic.yaml",
+        TOPIC + "  - id: banners\n    description: Print a banner.\n",
+    )
+    exercise = tree / TOPIC_DIR / "exercises/build-hello/exercise.yaml"
+    text = exercise.read_text(encoding="utf-8")
+    write(
+        tree,
+        f"{TOPIC_DIR}/exercises/build-hello/exercise.yaml",
+        text.replace("[print-text]", "[print-text, banners]"),
+    )
+    assert_reported(
+        tree, "skill 'banners' needs at least 2 questions that can come back", run=False
+    )
 
 
 def test_reference_solutions_must_pass(tree: Path) -> None:

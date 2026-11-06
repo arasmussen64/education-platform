@@ -32,6 +32,7 @@ from typing import Any
 
 import yaml
 from content_model import (
+    FOLLOW_UP_STAGES,
     STAGES_WITH_FAILING_STARTER,
     Exercise,
     McqItem,
@@ -67,6 +68,18 @@ class TopicFolder:
 
     def has_item(self, item_id: str) -> bool:
         return item_id in self.recall or item_id in self.exercises
+
+    def items(self) -> list[tuple[Path, McqItem | PredictOutputItem | Exercise]]:
+        """Every question and exercise, with the file it came from."""
+        found: list[tuple[Path, McqItem | PredictOutputItem | Exercise]] = [
+            (self.path / "recall" / f"{item.id}.yaml", item)
+            for item in self.recall.values()
+        ]
+        found += [
+            (folder / "exercise.yaml", exercise)
+            for folder, exercise in self.exercises.values()
+        ]
+        return found
 
 
 # --- Loading -------------------------------------------------------------------
@@ -235,6 +248,34 @@ def check_ready_topic(folder: TopicFolder, report: Report) -> None:
     if topic.prove.explain is None:
         report.add(topic_file, "prove.explain is missing")
 
+    if topic.kind == "topic":
+        check_skills(folder, report)
+
+
+def check_skills(folder: TopicFolder, report: Report) -> None:
+    """A missed question must be able to come back as a different one on the
+    same skill (ADR-0011)."""
+    topic_file = folder.path / "topic.yaml"
+    if not folder.topic.skills:
+        report.add(topic_file, "a ready topic needs skills (ADR-0011)")
+
+    follow_ups: Counter[str] = Counter()
+    for path, item in folder.items():
+        is_example = isinstance(item, Exercise) and item.stage == "worked_example"
+        if not item.skills and not is_example:
+            report.add(path, "needs at least one skill")
+        if not isinstance(item, Exercise) or item.stage in FOLLOW_UP_STAGES:
+            follow_ups.update(set(item.skills))
+
+    for skill in folder.topic.skills:
+        if follow_ups[skill.id] < 2:
+            report.add(
+                topic_file,
+                f"skill {skill.id!r} needs at least 2 questions that can come "
+                "back after a miss (recall items, or fill-in, write or "
+                f"review_code exercises), but has {follow_ups[skill.id]}",
+            )
+
 
 def resource_indexes(lesson_text: str) -> list[int]:
     """The N of every <Resource index={N} /> tag in a lesson."""
@@ -242,7 +283,15 @@ def resource_indexes(lesson_text: str) -> list[int]:
 
 
 def check_references(folder: TopicFolder, report: Report) -> None:
-    """Every item a topic names must exist, whatever the topic's status."""
+    """Every item and skill a topic names must exist, whatever its status."""
+    declared = {skill.id for skill in folder.topic.skills}
+    for path, item in folder.items():
+        for skill in item.skills:
+            if skill not in declared:
+                report.add(
+                    path, f"names skill {skill!r}, which topic.yaml doesn't declare"
+                )
+
     named = [*folder.topic.practice, *folder.topic.review_pool]
     named += [i for i in (folder.topic.prove.build, folder.topic.prove.debug) if i]
     for item_id in named:
