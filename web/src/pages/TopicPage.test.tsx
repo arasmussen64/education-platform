@@ -93,6 +93,28 @@ describe('the topic page', () => {
     )
   })
 
+  it('shows a reading as a link, credited with its license once', () => {
+    renderTopic(
+      fakeTopic({
+        resources: [
+          {
+            title: 'A good chapter',
+            url: 'https://example.com/chapter',
+            type: 'reading',
+            use: 'link',
+            license: 'CC BY 4.0',
+          },
+        ],
+      }),
+    )
+    const learn = screen.getByRole('region', { name: 'Learn' })
+    expect(
+      within(learn).getByRole('link', { name: /A good chapter/ }),
+    ).toHaveAttribute('href', 'https://example.com/chapter')
+    expect(learn).toHaveTextContent('License: CC BY 4.0.')
+    expect(within(learn).getAllByText(/A good chapter/)).toHaveLength(1)
+  })
+
   it('lists the practice ladder in order', () => {
     renderTopic()
     const practice = screen.getByRole('region', { name: 'Practice' })

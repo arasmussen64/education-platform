@@ -29,6 +29,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Keep the owner able to explain the code. Every pull request includes a short plain-language summary, and you offer an occasional explain-it-back question. These never block merging.
 - Ask before anything hard to undo or that costs money: paid services, deleting data, force-pushing, making things public.
 - The owner may have a dev server running. After changing `vite.config.ts` or installing packages, tell them to restart it (Ctrl+C, then `npm run dev`), because a running server can get stuck half-updated. Never stop a process you didn't start.
+- To check the app yourself, use your own dev server on another port, and make it stop itself: start Vite with `createServer()` and close it with a timer (see the devlog, 2026-11-06). On Windows, stopping a background shell task leaves the server inside it running.
 
 ## Development process
 

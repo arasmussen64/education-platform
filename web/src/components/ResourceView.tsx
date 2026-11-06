@@ -64,17 +64,24 @@ export function ResourceView({ resource }: { resource: Resource }) {
         </a>
       )}
       <figcaption className="text-xs text-slate-500 dark:text-slate-400">
-        {resource.title}
-        {clip && ` (${clip.from}–${clip.to})`}.{' '}
-        <a
-          href={resource.url}
-          target="_blank"
-          rel="noreferrer"
-          className="underline"
-        >
-          Open the original
-        </a>
-        . License: {resource.license}.
+        {embed ? (
+          <>
+            {resource.title}
+            {clip && ` (${clip.from}–${clip.to})`}.{' '}
+            <a
+              href={resource.url}
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              Open the original
+            </a>
+            . License: {resource.license}.
+          </>
+        ) : (
+          // The link above already shows the title and opens the original.
+          <>License: {resource.license}.</>
+        )}
       </figcaption>
     </figure>
   )

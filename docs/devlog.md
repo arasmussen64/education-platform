@@ -2,6 +2,36 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: The fourth lesson, Arithmetic
+
+**Decided:** the main resource is a reading, not CS50P.
+- The lecture gives arithmetic about 40 seconds: a list of `+ - * / %` at 1:00:05, plus a division-and-rounding demo at 1:22:52. It never covers `//`, `**` or the order of operations.
+- *Python for Everybody* (Charles R. Severance, CC BY 4.0 per py4e.com) covers exactly that, in four short sections of chapter 2: operators and operands, expressions, order of operations, and the modulus operator.
+- Its lecture video for the chapter is linked as an extra but not embedded. YouTube refused its captions (a 404 on the timed-text API), so I couldn't check timestamps, and I won't embed a stretch I can't check.
+- The intro tells the learner to skip the Python 2 asides, and corrects one gloss: `6 + 4 / 2` prints `8.0`, not `8`.
+
+**Done**
+
+- `content/topics/py.arithmetic`, status `ready`:
+  - **Practice:**
+    - a worked example (135 seconds with `/`, `//` and `%`);
+    - three questions: which line prints `3`, a precedence prediction, and `6 / 3` giving `2.0` (mixing in topic 2's types);
+    - filling in operators for egg boxes (it's a syntax error until every gap is filled, and the prompt says so);
+    - Celsius to Fahrenheit.
+  - **Prove it:**
+    - build: a pizza party with `//`, `%` and `/`;
+    - debug: splitting a bill, with a `TypeError` from `"Total: " + total` and a silent `food + drinks / people`;
+    - explain: `/`, `//` and `%` with 17 cookies.
+  - **Review pool:** three items. Skills: `operators`, `precedence` and `div-mod` (3 follow-up candidates each).
+  - Every exercise that could be passed by typing in the output has a `run_with` check and a "typed-in" known-wrong solution.
+- Checked: every output and error message on Python 3.14; the feedback for starters and mistakes; the page on a self-stopping dev server.
+- Fixed while looking: a reading as the main resource showed its title twice (on the link card and in the credit line). The credit line now shows just the license.
+- CLAUDE.md now says how to run a dev server for checking that stops itself.
+
+**Next**
+
+- Topic 5: Strings and input. Then the Module 1 checkpoint, the receipt calculator.
+
 ## 2026-11-06: The third lesson, Variables
 
 **Done**
