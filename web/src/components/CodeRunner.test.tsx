@@ -1,59 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { CheckReport } from '../python/protocol.ts'
-import type { CheckOutcome, RunOptions, RunOutcome } from '../python/runner.ts'
+import { fakeRunner, printed, report } from '../test/fakePython.ts'
 import { CodeRunner } from './CodeRunner.tsx'
 
-// CodeMirror needs a real browser to lay itself out, so these tests swap the
-// editor for a plain text box with the same name.
-vi.mock('./CodeEditor.tsx', () => ({
-  CodeEditor: (props: {
-    initialCode: string
-    onChange: (code: string) => void
-    label: string
-  }) => (
-    <textarea
-      aria-label={props.label}
-      defaultValue={props.initialCode}
-      onChange={(event) => props.onChange(event.target.value)}
-    />
-  ),
-}))
-
-/** A finished run (or one waiting for input) that printed `output`. */
-function printed(output: string, waiting = false): RunOutcome {
-  return {
-    kind: 'done',
-    result: { output, error: null, waiting_for_input: waiting },
-  }
-}
-
-function report(overrides: Partial<CheckReport>): CheckOutcome {
-  return {
-    kind: 'done',
-    report: {
-      status: 'ok',
-      message: '',
-      passed: 0,
-      total: 0,
-      results: [],
-      ...overrides,
-    },
-  }
-}
-
-function fakeRunner(outcomes: { run?: RunOutcome; check?: CheckOutcome } = {}) {
-  return {
-    start: vi.fn((): Promise<void> => Promise.resolve()),
-    run: vi.fn((_code: string, _options?: RunOptions): Promise<RunOutcome> =>
-      Promise.resolve(outcomes.run ?? printed('')),
-    ),
-    check: vi.fn((): Promise<CheckOutcome> =>
-      Promise.resolve(outcomes.check ?? report({})),
-    ),
-  }
-}
+vi.mock('./CodeEditor.tsx', () => import('../test/FakeCodeEditor.tsx'))
 
 describe('CodeRunner', () => {
   it('runs the code and shows what it printed', async () => {
@@ -72,6 +23,7 @@ describe('CodeRunner', () => {
     expect(runner.run).toHaveBeenCalledWith('print(1)', {
       stdin: '',
       seed: expect.any(Number),
+      timeLimitMs: 5000,
     })
   })
 
@@ -96,9 +48,15 @@ describe('CodeRunner', () => {
     expect(screen.queryByLabelText('Program input')).not.toBeInTheDocument()
 
     const [first, second] = runner.run.mock.calls
-    expect(first).toEqual(['code', { stdin: '', seed: expect.any(Number) }])
+    expect(first).toEqual([
+      'code',
+      { stdin: '', seed: expect.any(Number), timeLimitMs: 5000 },
+    ])
     // The re-run uses the same seed, so random choices repeat.
-    expect(second).toEqual(['code', { stdin: 'Ada\n', seed: first[1]?.seed }])
+    expect(second).toEqual([
+      'code',
+      { stdin: 'Ada\n', seed: first[1]?.seed, timeLimitMs: 5000 },
+    ])
   })
 
   it('keeps the code it started with while the program waits for input', async () => {
@@ -142,6 +100,22 @@ describe('CodeRunner', () => {
     ).toBeInTheDocument()
   })
 
+  it("uses the exercise's own time limit", async () => {
+    const runner = fakeRunner({ run: { kind: 'timeout' } })
+    render(
+      <CodeRunner
+        initialCode="while True: pass"
+        runner={runner}
+        timeLimitMs={1000}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }))
+    expect(
+      await screen.findByText(/ran for more than 1 second,/),
+    ).toBeInTheDocument()
+    expect(runner.run.mock.calls[0]?.[1]?.timeLimitMs).toBe(1000)
+  })
+
   it('only offers Check when there are tests', () => {
     render(<CodeRunner initialCode="" runner={fakeRunner()} />)
     expect(
@@ -176,7 +150,9 @@ describe('CodeRunner', () => {
     expect(screen.getByText('Greets the person')).toBeInTheDocument()
     expect(screen.getByText('Handles an empty name')).toBeInTheDocument()
     expect(screen.getByText(/Check failed/)).toBeInTheDocument()
-    expect(runner.check).toHaveBeenCalledWith('', 'tests')
+    expect(runner.check).toHaveBeenCalledWith('', 'tests', {
+      timeLimitMs: 5000,
+    })
   })
 
   it('hides failure details for hidden tests, but still shows errors in your code', async () => {

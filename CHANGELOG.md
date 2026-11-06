@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (topic pages)
+
+- The app reads `content/` while it's built: YAML becomes data, lessons are MDX, and exercise code is loaded as text. A topic's lesson and exercises download only when its page opens.
+- **Topic pages**, in three parts:
+  - **Learn:** objectives, then the lesson's intro, the main resource (a privacy-enhanced YouTube embed, cut to its start and end times, or a link) and the recap, with the source and license. Other resources are listed after it.
+  - **Practice**, in order: a worked example with labeled steps to run; multiple-choice and predict-the-output questions with instant feedback; fill-in and write exercises with hints one at a time. The reference solution appears only after a pass.
+  - **Prove it:** the build and debug exercises (hidden test details, no hints) and the explain prompt. Grading the explanation, and counting the proof toward mastery, arrive in Milestone B.
+- Topics that aren't written yet show their outline and say so. `draft` topics show only on the dev server.
+- **The map** lists every module and topic, each marked Ready, Draft or Coming soon, with an icon and a word.
+- Exercises can set their own time limit (`time_limit_ms`).
+- If a page fails to load, an error page with a Reload button appears inside the layout. The usual cause is the app being updated while it's open.
+- The content checker requires a ready lesson to place its main resource (`<Resource index={0} />`), and no other.
+
 ### Added (content)
 
 - `content/`: the Python Foundations track and all 36 topics from the approved list as `planned` outlines, with their prerequisites. A `status` field (`planned`, `draft`, `ready`) tracks each topic's progress.

@@ -66,7 +66,7 @@ objectives:
   - Explain assignment using the "names refer to values" model.
   - Trace a sequence of assignments and predict each variable's value.
   - Swap the values of two variables.
-resources:
+resources:                      # the first is the main one, shown in the lesson
   - title: "CS50P Lecture 0: Functions, Variables"
     url: https://www.youtube.com/watch?v=VIDEO_ID
     type: video                 # video | reading | interactive

@@ -23,17 +23,40 @@ describe('app routes', () => {
     expect(screen.getByRole('heading', { name: 'Today' })).toBeInTheDocument()
   })
 
-  it('shows the topic map at /map', () => {
+  it('shows the topic map at /map, with every module', () => {
     renderAt('/map')
     expect(
       screen.getByRole('heading', { name: 'Topic map' }),
     ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Module 1: First programs' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Variables' })).toHaveAttribute(
+      'href',
+      '/topic/py.variables',
+    )
   })
 
-  it('shows the requested topic at /topic/:topicId', () => {
+  // Topic pages load their code and content first, so these wait for them.
+  it('shows the requested topic at /topic/:topicId', async () => {
     renderAt('/topic/py.variables')
     expect(
-      screen.getByRole('heading', { name: 'py.variables' }),
+      await screen.findByRole(
+        'heading',
+        { level: 1, name: 'Variables' },
+        { timeout: 10_000 },
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it("says when a topic doesn't exist", async () => {
+    renderAt('/topic/py.nothing')
+    expect(
+      await screen.findByRole(
+        'heading',
+        { name: 'Topic not found' },
+        { timeout: 10_000 },
+      ),
     ).toBeInTheDocument()
   })
 

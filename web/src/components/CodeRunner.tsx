@@ -24,6 +24,10 @@ type Props = {
   hiddenTests?: boolean
   /** Tests pass a fake here; the app uses the shared runner. */
   runner?: Runner
+  /** Called with every Check result, e.g. to reveal the answer after a pass. */
+  onCheck?: (outcome: CheckOutcome) => void
+  /** How long the code may run before it's stopped. */
+  timeLimitMs?: number
 }
 
 type Status = 'starting' | 'ready' | 'running' | 'unavailable'
@@ -61,7 +65,10 @@ const STATUS_TEXT: Record<Status, string> = {
   unavailable: "Python couldn't start. Check your connection, then try again.",
 }
 
-const TIMEOUT_MESSAGE = `Your code ran for more than ${DEFAULT_TIME_LIMIT_MS / 1000} seconds, so it was stopped. Is there a loop that never ends?`
+function timeoutMessage(timeLimitMs: number): string {
+  const seconds = timeLimitMs / 1000
+  return `Your code ran for more than ${seconds} ${seconds === 1 ? 'second' : 'seconds'}, so it was stopped. Is there a loop that never ends?`
+}
 
 /** A code editor with Run (and, for exercises, Check) buttons and results. */
 export function CodeRunner({
@@ -69,6 +76,8 @@ export function CodeRunner({
   tests,
   hiddenTests = false,
   runner,
+  onCheck,
+  timeLimitMs = DEFAULT_TIME_LIMIT_MS,
 }: Props) {
   const python = runner ?? getPythonRunner()
   const [code, setCode] = useState(initialCode)
@@ -95,6 +104,7 @@ export function CodeRunner({
     const outcome = await python.run(session.code, {
       stdin: toStdin(session.inputs),
       seed: session.seed,
+      timeLimitMs,
     })
     setShown({ kind: 'run', session: { ...session, outcome } })
     setStatus('ready')
@@ -112,9 +122,10 @@ export function CodeRunner({
 
   async function handleCheck(exerciseTests: string) {
     setStatus('running')
-    const outcome = await python.check(code, exerciseTests)
+    const outcome = await python.check(code, exerciseTests, { timeLimitMs })
     setShown({ kind: 'check', outcome })
     setStatus('ready')
+    onCheck?.(outcome)
   }
 
   const busy = status === 'running'
@@ -155,10 +166,19 @@ export function CodeRunner({
       </div>
       <div aria-live="polite">
         {shown.kind === 'run' && (
-          <Terminal session={shown.session} busy={busy} onInput={handleInput} />
+          <Terminal
+            session={shown.session}
+            busy={busy}
+            onInput={handleInput}
+            timeLimitMs={timeLimitMs}
+          />
         )}
         {shown.kind === 'check' && (
-          <CheckResult outcome={shown.outcome} hidden={hiddenTests} />
+          <CheckResult
+            outcome={shown.outcome}
+            hidden={hiddenTests}
+            timeLimitMs={timeLimitMs}
+          />
         )}
       </div>
     </div>
@@ -170,14 +190,16 @@ function Terminal({
   session,
   busy,
   onInput,
+  timeLimitMs,
 }: {
   session: RunSession
   busy: boolean
   onInput: (line: string) => void
+  timeLimitMs: number
 }) {
   const { outcome } = session
   if (outcome.kind === 'timeout') {
-    return <Notice tone="warning">{TIMEOUT_MESSAGE}</Notice>
+    return <Notice tone="warning">{timeoutMessage(timeLimitMs)}</Notice>
   }
   if (outcome.kind === 'failed') {
     return (
@@ -282,12 +304,14 @@ function InputLine({
 function CheckResult({
   outcome,
   hidden,
+  timeLimitMs,
 }: {
   outcome: CheckOutcome
   hidden: boolean
+  timeLimitMs: number
 }) {
   if (outcome.kind === 'timeout') {
-    return <Notice tone="warning">{TIMEOUT_MESSAGE}</Notice>
+    return <Notice tone="warning">{timeoutMessage(timeLimitMs)}</Notice>
   }
   if (outcome.kind === 'failed') {
     return (
