@@ -2,6 +2,45 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: The first lesson, Programs and print
+
+**Done**
+
+- `content/topics/py.programs-and-print`, status `ready`:
+  - **Learn:** a 9.5-minute segment of CS50P Lecture 0, from 0:24 (after the opening music) to 9:51 (the fixed program running again). It covers the first program, the interpreter reading top to bottom, functions, arguments and side effects, then a deliberate missing `)` and its syntax error. Before it, an intro on what to watch for, which notes that the Run button replaces VS Code and the terminal. After it, a recap in our own words.
+  - **Practice:**
+    - a worked example (a text line, a blank line, and two pieces joined by a comma);
+    - a question on what quotes do;
+    - a predict-the-output question;
+    - a question on reading a `NameError`;
+    - a fill-in exercise (shopping list);
+    - a write exercise (recipe card).
+  - **Prove it:**
+    - build: a banner, with hidden tests;
+    - debug: a syntax error that hides a `NameError`, so the learner fixes one error, runs again, and reads the next;
+    - explain: why earlier lines still print, what the error says, and how to fix it.
+  - **Review pool:** a syntax-error question, a predict-the-output question, and a postcard exercise.
+- Checked:
+  - the video ID and its embeddability through YouTube's oEmbed;
+  - the timestamps, from CS50's published subtitles (used only to find times, never copied);
+  - every quoted error message, by running it through the harness on Python 3.14;
+  - the feedback for each starter and wrong answer, by running them through `harness/cli.py check`.
+- App fixes found by looking at the real topic:
+  - quiz answer choices now render Markdown (they showed raw backticks);
+  - code boxes had the same color as cards in dark mode.
+- Tests: the real topic loads through the actual build pipeline (lesson, questions, exercise code) and its page renders.
+
+**Decided**
+
+- While the owner is the only learner, a topic goes straight to `ready`. Their first pass on the live site is the review, and follow-up fixes bump the `rev` of any item whose meaning changes. Recorded in the v1 spec and the content README.
+- Vary where the right answer sits in multiple-choice questions. Shuffling the choices on screen would help reviews; it's planned for when reviews arrive (Milestone C).
+- The owner's idea of a practice-hours tracker, counting deliberate practice toward 10,000 hours, is on the roadmap for Phase 2.
+
+**Next**
+
+- The owner learns Programs and print on the live site and reports anything confusing.
+- Write the next topic: Values and types.
+
 ## 2026-11-06: Saving progress (the event log, F6)
 
 **Done**

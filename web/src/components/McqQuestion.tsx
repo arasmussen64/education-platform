@@ -1,7 +1,7 @@
 import { useId, useState } from 'react'
 import type { McqItem } from '../content/types.ts'
 import { Markdown } from './Markdown.tsx'
-import { BUTTON } from './styles.ts'
+import { BUTTON, INLINE_CODE } from './styles.ts'
 
 type Props = {
   item: McqItem
@@ -43,7 +43,10 @@ export function McqQuestion({ item, onAnswer }: Props) {
               disabled={checked}
               onChange={() => setChoice(index)}
             />
-            <span className="font-mono text-sm">{text}</span>
+            {/* Choices may use Markdown, e.g. `print("Hi")` for code. */}
+            <span className={INLINE_CODE}>
+              <Markdown inline>{text}</Markdown>
+            </span>
           </label>
         ))}
       </div>
@@ -56,8 +59,10 @@ export function McqQuestion({ item, onAnswer }: Props) {
               </>
             ) : (
               <>
-                <span aria-hidden="true">✗ </span>Not quite. The answer is{' '}
-                <code className="font-mono">{item.choices[item.answer]}</code>
+                <span aria-hidden="true">✗ </span>Not quite. The answer is:{' '}
+                <span className={INLINE_CODE}>
+                  <Markdown inline>{item.choices[item.answer] ?? ''}</Markdown>
+                </span>
               </>
             )}
           </p>

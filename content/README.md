@@ -34,9 +34,18 @@ content/
 3. Add the practice ladder: a worked example with labeled steps, then 2–3 recall items, a fill-in exercise, and a write exercise.
 4. Add the proof: a build exercise (hidden tests, no starter), a debug exercise (a buggy starter), and the explain prompt.
 5. Add a review pool: at least 3 items, at least one of them predict-the-output or a `review_code` exercise.
-6. Run the checker until it's clean, then go through the topic once as a learner. The dev server (`npm run dev` in `web/`) shows drafts, so you can try it at `http://localhost:5173/topic/<topic-id>`. Then set `status: ready`.
+6. Run the checker until it's clean, then go through the topic once as a learner. The dev server (`npm run dev` in `web/`) shows drafts, so you can try it at `http://localhost:5173/topic/<topic-id>`. Then set `status: ready`. While the owner is the only learner, a topic can go straight to `ready`: their first pass, on the live site, is the review ([v1 spec](../docs/specs/v1.md#content-definition-of-done)).
 
 Tips for tests: give each test a one-line docstring, which is what the learner sees, and give `assert` a message when the default wouldn't be clear. See [harness/README.md](../harness/README.md).
+
+To see the feedback a learner would get, copy an exercise's `test_exercise.py` and a starter or wrong answer (saved as `solution.py`) into an empty folder, then run `python -m uv run python harness/cli.py check <folder>`.
+
+Tips for questions:
+
+- Vary which choice is the right one, so its position is never a clue.
+- Choices, prompts and explanations are Markdown, so code goes in backticks: `` `print("Hi")` ``.
+- Write explanations that say why the answer is right, and why the tempting wrong one is wrong.
+- Quote error messages exactly as Python 3.14 prints them. Run the code through the harness to see them.
 
 ## Checking
 

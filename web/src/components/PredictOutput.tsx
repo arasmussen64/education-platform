@@ -2,7 +2,7 @@ import { useId, useState } from 'react'
 import { normalizeOutput } from '../content/answers.ts'
 import type { PredictOutputItem } from '../content/types.ts'
 import { Markdown } from './Markdown.tsx'
-import { BUTTON, TEXT_INPUT } from './styles.ts'
+import { BUTTON, CODE_BOX, TEXT_INPUT } from './styles.ts'
 
 type Props = {
   item: PredictOutputItem
@@ -30,9 +30,7 @@ export function PredictOutput({ item, onAnswer }: Props) {
   return (
     <div className="space-y-3">
       <Markdown>{item.prompt}</Markdown>
-      <pre className="overflow-x-auto rounded-md bg-slate-900 p-3 font-mono text-sm text-slate-100">
-        {item.code}
-      </pre>
+      <pre className={CODE_BOX}>{item.code}</pre>
       <label htmlFor={fieldId} className="block text-sm font-medium">
         What will it print?
       </label>
@@ -59,11 +57,7 @@ export function PredictOutput({ item, onAnswer }: Props) {
               </>
             )}
           </p>
-          {!correct && (
-            <pre className="overflow-x-auto rounded-md bg-slate-900 p-3 font-mono text-sm text-slate-100">
-              {item.expected_output}
-            </pre>
-          )}
+          {!correct && <pre className={CODE_BOX}>{item.expected_output}</pre>}
           <Markdown>{item.explanation}</Markdown>
         </output>
       ) : (

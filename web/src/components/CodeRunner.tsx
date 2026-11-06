@@ -12,7 +12,7 @@ import {
   type RunOutcome,
 } from '../python/runner.ts'
 import { CodeEditor } from './CodeEditor.tsx'
-import { BUTTON } from './styles.ts'
+import { BUTTON, CODE_BOX } from './styles.ts'
 
 type Runner = Pick<PythonRunner, 'start' | 'run' | 'check'>
 
@@ -220,7 +220,7 @@ function Terminal({
   return (
     <section aria-label="Output" className="space-y-2">
       {(output || waiting || printedNothing) && (
-        <div className="overflow-x-auto rounded-md bg-slate-900 p-3 font-mono text-sm whitespace-pre-wrap text-slate-100">
+        <div className={`${CODE_BOX} whitespace-pre-wrap`}>
           {output}
           {waiting && (
             // A new line of input gets a fresh field (key), so it starts

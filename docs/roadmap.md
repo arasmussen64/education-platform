@@ -32,7 +32,7 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] Sign-in: GitHub on the live site, email links locally
 - [x] Saving answers to the event log, with an offline outbox
 - [x] Deploy to Cloudflare (every merge to `main` deploys automatically)
-- [ ] Module 1 content
+- [ ] Module 1 content (1 of 6 written: Programs and print)
 
 ## Phase 2: Adaptivity and better practice (months 2–4)
 
@@ -41,6 +41,7 @@ Mornings learning on the platform, afternoons building it.
 - A placement test that walks the topic map, including a math diagnostic
 - More exercise types: Parsons problems, a step-through code visualizer
 - The living map: topics fade as their predicted memory strength drops
+- A practice-hours tracker (the owner's idea, 2026-11-06): total time spent in active practice, from the attempt durations in the event log, with milestones from 10 hours on the way to 10,000. It counts deliberate practice (attempts, proof checks, reviews), not time with the site open, because that's what the research behind "10,000 hours" measured.
 - Automated data backups
 - Content: intermediate Python; a math refresher for the ML track
 
