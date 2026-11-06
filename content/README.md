@@ -39,6 +39,10 @@ content/
 
 Tips for tests: give each test a one-line docstring, which is what the learner sees, and give `assert` a message when the default wouldn't be clear. See [harness/README.md](../harness/README.md).
 
+When an exercise could be passed by typing the expected output in by hand, add a test with `run_with`, which reruns the program with other starting values. A swap must then swap *any* two values (see the Variables topic). Add the hand-typed version as a known-wrong solution, so the checker proves the test catches it.
+
+The dev server watches `content/`, so new and changed files show up straight away.
+
 To see the feedback a learner would get, copy an exercise's `test_exercise.py` and a starter or wrong answer (saved as `solution.py`) into an empty folder, then run `python -m uv run python harness/cli.py check <folder>`.
 
 Tips for questions:

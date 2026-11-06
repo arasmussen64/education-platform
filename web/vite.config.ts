@@ -1,5 +1,6 @@
 /// <reference types="vitest/config" />
 import { execSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import mdx from '@mdx-js/rollup'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -33,6 +34,21 @@ function contentYaml(): Plugin {
   }
 }
 
+// The lessons (../content) and the Python harness (../harness) live outside
+// web/, where the dev server doesn't look for new files by itself. Watching
+// them means a newly added lesson, question or exercise shows up on the dev
+// server straight away, without a restart.
+function watchOutsideFolders(): Plugin {
+  return {
+    name: 'watch-outside-folders',
+    configureServer(server) {
+      for (const folder of ['../content', '../harness']) {
+        server.watcher.add(fileURLToPath(new URL(folder, import.meta.url)))
+      }
+    },
+  }
+}
+
 // The git commit being built. It's saved with every learner event, so each
 // answer can be matched to the exact content it was given (ADR-0008).
 function gitCommit(): string {
@@ -60,6 +76,7 @@ export default defineConfig({
     react({ include: /\.(mdx|js|jsx|ts|tsx)$/ }),
     tailwindcss(),
     contentYaml(),
+    watchOutsideFolders(),
     appTitle(),
   ],
   resolve: {
