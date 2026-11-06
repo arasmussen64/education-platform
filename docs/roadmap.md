@@ -1,19 +1,17 @@
 # Roadmap
 
-**Current phase: 0 (setup and v1 planning).**
+**Current phase: 1, Milestone A (walking skeleton).**
 
 The owner works full time, split between learning (mornings, on the platform once it exists) and building (afternoons). The roadmap serves both: the platform's content stays one module ahead of the owner's own learning.
 
-## Phase 0: Setup and planning (now)
+## Phase 0: Setup and planning (done)
 
 - [x] Research: Brilliant, roadmap.sh, Math Academy ([competitors](research/competitors.md))
 - [x] Product concept and key decisions ([vision](vision.md), ADR-0002 to ADR-0006)
 - [x] Repository, documentation and development process (backed up to a private GitHub repo)
 - [x] Accept a tech stack ([ADR-0007](decisions/0007-tech-stack.md))
 - [x] v1 spec ([specs/v1.md](specs/v1.md)): features and milestones, the [data model](specs/data-model.md), and the [first 30 Python topics](specs/python-foundations.md)
-- [ ] Scaffold the app, CI and first deploy
-
-## Phase 1: v1 for an audience of one (weeks 1–4)
+## Phase 1: v1 for an audience of one (weeks 1–4, now)
 
 Spec: [specs/v1.md](specs/v1.md). Built mostly with AI help, in thin end-to-end slices, so the owner can start learning on it after the first one. Until then, the owner learns from the curated resources directly.
 
@@ -23,6 +21,15 @@ Spec: [specs/v1.md](specs/v1.md). Built mostly with AI help, in thin end-to-end 
 - **D. Tutor and polish:** the hint-only tutor with a budget cap, problem reports, data export. Content for modules 2–6.
 
 Content: the [Python Foundations track](specs/python-foundations.md), 30 topics and 6 checkpoints.
+
+### Milestone A progress
+
+- [x] Web app scaffold and CI
+- [ ] Python runner in the browser
+- [ ] Content pipeline and validator
+- [ ] Supabase: sign-in and the event log
+- [ ] Deploy to Cloudflare
+- [ ] Module 1 content
 
 ## Phase 2: Adaptivity and better practice (months 2–4)
 

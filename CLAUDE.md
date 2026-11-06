@@ -13,7 +13,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Methods behind the features: [docs/learning-science.md](docs/learning-science.md)
 - Session history: [docs/devlog.md](docs/devlog.md)
 
-**Current phase:** 0, setup and v1 planning. No application code yet.
+**Current phase:** 1, Milestone A (walking skeleton). The web app lives in `web/`.
 
 **Stack** ([ADR-0007](docs/decisions/0007-tech-stack.md)): TypeScript + React + Vite web app served as static files from Cloudflare; Supabase (Postgres, Auth, Edge Functions as the Claude API proxy); learners' Python runs in the browser via Pyodide in a Web Worker; Python (uv, pytest, ruff) for content tooling and ML; GitHub Actions for CI.
 
@@ -53,7 +53,13 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 
 ## Commands
 
-None yet. Add install, dev server, test, lint and content-validation commands here when the app is scaffolded.
+Web app: run these inside `web/`. Details are in [web/README.md](web/README.md).
+
+- `npm install` installs dependencies.
+- `npm run dev` starts the app at http://localhost:5173.
+- `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test` and `npm run build` are the checks CI runs on every pull request. Run all of them before pushing.
+
+Add the content-validation and Supabase commands here when those parts exist.
 
 ## Environment
 

@@ -13,7 +13,7 @@ Most courses get you through the test, and then you forget. Here:
 - **A topic counts once you can build it from a blank file**, explain it, debug code that uses it, and still do it weeks later.
 - **Reviews are scheduled** around how fast *you* forget.
 
-**Status:** Phase 0 (planning and setup). There's no app yet. See the [roadmap](docs/roadmap.md).
+**Status:** Phase 1, building v1 (Milestone A, the walking skeleton). See the [roadmap](docs/roadmap.md).
 
 ## Documentation
 
@@ -27,6 +27,7 @@ Most courses get you through the test, and then you forget. Here:
 | [Competitors](docs/research/competitors.md) | Brilliant, roadmap.sh, Math Academy and others |
 | [Devlog](docs/devlog.md) | Dated log of each working session |
 | [Changelog](CHANGELOG.md) | Notable changes |
+| [Web app](web/README.md) | How to run, test and build the app |
 | [CLAUDE.md](CLAUDE.md) | Instructions for Claude Code, the AI pair programmer on this project |
 
 ## License
