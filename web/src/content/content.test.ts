@@ -45,28 +45,42 @@ describe('the content the app loads', () => {
     expect(moduleFor('py.nothing')).toBeUndefined()
   })
 
-  it('loads everything a finished topic lists: lesson, questions and exercise code', async () => {
-    const content = await loadTopicContent('py.programs-and-print')
-    if (!content) throw new Error('py.programs-and-print should load')
-    // The lesson is MDX compiled into a component.
-    expect(content.Lesson).toBeTypeOf('function')
+  // Every ready topic, so each new lesson is checked as soon as it's added.
+  const readyTopics = mainTrack()
+    .modules.flatMap((module) => [...module.topics, module.checkpoint])
+    .filter((id) => getTopic(id)?.status === 'ready')
 
-    const { practice, prove, review_pool } = content.topic
-    const listed = [...practice, ...review_pool, prove.build, prove.debug]
-    for (const id of listed) {
-      if (!id) continue
-      expect(content.recall[id] ?? content.exercises[id], id).toBeDefined()
-    }
-    for (const exercise of Object.values(content.exercises)) {
-      expect(exercise.solution, exercise.id).not.toBe('')
-      expect(exercise.tests, exercise.id).toContain('def test_')
-    }
-    expect(content.exercises['debug-boarding']?.starter).toContain('Print(')
-    // Skills, so a missed question can come back as another (ADR-0011).
-    expect(content.topic.skills.map((skill) => skill.id)).toContain(
-      'print-commas',
-    )
-    expect(content.recall['review-mcq-commas']?.skills).toEqual([
+  it('has at least one ready topic', () => {
+    expect(readyTopics.length).toBeGreaterThan(0)
+  })
+
+  it.each(readyTopics)(
+    'loads everything %s lists: lesson, questions and exercise code',
+    async (topicId) => {
+      const content = await loadTopicContent(topicId)
+      if (!content) throw new Error(`${topicId} should load`)
+      // The lesson is MDX compiled into a component.
+      expect(content.Lesson).toBeTypeOf('function')
+
+      const { practice, prove, review_pool } = content.topic
+      const listed = [...practice, ...review_pool, prove.build, prove.debug]
+      for (const id of listed) {
+        if (!id) continue
+        expect(content.recall[id] ?? content.exercises[id], id).toBeDefined()
+      }
+      for (const exercise of Object.values(content.exercises)) {
+        expect(exercise.solution, exercise.id).not.toBe('')
+        expect(exercise.tests, exercise.id).toContain('def test_')
+      }
+      // Skills, so a missed question can come back as another (ADR-0011).
+      expect(content.topic.skills.length).toBeGreaterThan(0)
+    },
+  )
+
+  it('loads starter code and skills for exercises and questions', async () => {
+    const content = await loadTopicContent('py.programs-and-print')
+    expect(content?.exercises['debug-boarding']?.starter).toContain('Print(')
+    expect(content?.recall['review-mcq-commas']?.skills).toEqual([
       'print-commas',
     ])
   })
