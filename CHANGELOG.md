@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the fourth lesson)
+
+- **Arithmetic** (`py.arithmetic`), ready to learn:
+  - **Learn:** the main resource is a reading, four short sections of the free textbook *Python for Everybody* (CC BY 4.0). CS50P's lecture only lists the operators for about 40 seconds and never covers `//` or `**`. The lecture video on the same chapter and the Python tutorial's "Numbers" section are linked as more resources.
+  - **Practice:** a worked example with `/`, `//` and `%`, three questions (one mixes in topic 2's types), filling in operators for egg boxes, and Celsius to Fahrenheit.
+  - **Prove it:** a pizza party from a blank editor; a bill-splitting program with a crash and a silent order-of-operations bug; explaining `/`, `//` and `%` with cookies.
+  - **Review pool:** three items. Three skills: `operators`, `precedence` and `div-mod`.
+- A reading used as a lesson's main resource is credited with its license once, not with its title repeated.
+
 ### Added (the third lesson)
 
 - **Variables** (`py.variables`), ready to learn:
