@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (content)
+
+- `content/`: the Python Foundations track and all 36 topics from the approved list as `planned` outlines, with their prerequisites. A `status` field (`planned`, `draft`, `ready`) tracks each topic's progress.
+- The content validator (`tools/validate_content.py`). It checks file formats, the topic map (tracks, prerequisites, no cycles), and the definition of done for `ready` topics. It runs every exercise through the shared harness: reference solutions must pass, starters and known-wrong solutions must fail, and predict-the-output items must print what they claim. 14 tests prove it catches each kind of mistake.
+- `harness/cli.py`: runs one folder through the harness in a fresh process. Used by the validator and the scenario tests.
+- A **Content** CI job.
+
 ### Added (sign-in)
 
 - Sign-in with GitHub on the live site, and email links in local development (they land in the local test inbox). The header shows who's signed in, with Sign out.

@@ -56,6 +56,7 @@ modules:
 # content/topics/py.variables/topic.yaml
 id: py.variables
 kind: topic                     # topic | checkpoint
+status: ready                   # planned (an outline on the map) | draft | ready (learners see it)
 title: Variables
 summary: Names that refer to values, and what assignment really does.
 prerequisites: [py.values-and-types]
@@ -131,14 +132,14 @@ time_limit_ms: 5000
 hints:                # written by the author; the tutor uses them as a guide
   - What happens to the original value of x when you assign to x?
   - You need somewhere to keep one value safe.
-# steps:              # worked_example only: [{label, lines, note}], labeled by purpose
+# steps:              # worked_example only: [{label, lines: "1-2", note}], labeled by purpose
 ```
 
 How each stage behaves:
 
 | Stage | Starter code | Tests shown | Tutor |
 |---|---|---|---|
-| `worked_example` | the full solution, with labeled steps | yes | on |
+| `worked_example` | none: `solution.py` is shown, with its labeled steps | yes | on |
 | `fill_in` | the solution with gaps (`...`); must fail | yes | on |
 | `write` | empty, or a function signature | yes | on |
 | `build` | empty | descriptions only | off |

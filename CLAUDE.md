@@ -78,7 +78,9 @@ Database: run these from the repository root, with Docker Desktop running. Detai
 - `npx supabase migration new <name>` starts a schema change. Never edit a migration that has reached production. After a migration, run `npm run db:types`.
 - Signing in locally: the dev server uses email links. They land in the local test inbox (Mailpit) at http://127.0.0.1:54324. The live site uses GitHub.
 
-Add the content-validation commands here when that part exists.
+Content: run this from the repository root. Details are in [content/README.md](content/README.md).
+
+- `python -m uv run python tools/validate_content.py` checks every topic and runs every exercise (`--no-run` skips running code). CI runs it on every pull request, and content must pass it before being marked `ready`.
 
 ## Environment
 

@@ -5,9 +5,10 @@ or, for a Run, optionally stdin.txt (the input typed so far) and seed.txt
 (the random seed). expected.json holds the report both CPython and Pyodide
 must produce.
 
-Each scenario runs in a fresh, isolated Python process, like the browser
-and the content validator do. That matters: inside pytest, files named
-test_*.py get their asserts rewritten, which would change the messages.
+Each scenario runs in a fresh, isolated Python process (harness/cli.py),
+like the browser and the content validator do. That matters: inside pytest,
+files named test_*.py get their asserts rewritten, which would change the
+messages.
 """
 
 from __future__ import annotations
@@ -22,22 +23,7 @@ from typing import Any
 
 HARNESS = Path(__file__).resolve().parents[1]
 SCENARIOS = HARNESS / "scenarios"
-
-# Runs inside the child process. argv[1] is the harness folder.
-_CHILD = """
-import json, sys
-from pathlib import Path
-sys.path[:0] = [sys.argv[1], "."]
-import program, testrunner
-if Path(testrunner.TEST_FILE).exists():
-    report = testrunner.run_tests()
-else:
-    stdin_file, seed_file = Path("stdin.txt"), Path("seed.txt")
-    stdin = stdin_file.read_text(encoding="utf-8") if stdin_file.exists() else ""
-    seed = int(seed_file.read_text()) if seed_file.exists() else None
-    report = program.run_program(stdin, seed)
-print(json.dumps(report))
-"""
+CLI = HARNESS / "cli.py"
 
 
 def scenario_names() -> list[str]:
@@ -50,9 +36,17 @@ def run_scenario(folder: Path) -> dict[str, Any]:
         for file in folder.iterdir():
             if file.name != "expected.json":
                 shutil.copy(file, workdir)
+        work = Path(workdir)
+        if (work / "test_exercise.py").exists():
+            command = ["check", workdir]
+        else:
+            command = ["run", workdir]
+            if (work / "stdin.txt").exists():
+                command += ["--stdin", (work / "stdin.txt").read_text("utf-8")]
+            if (work / "seed.txt").exists():
+                command += ["--seed", (work / "seed.txt").read_text().strip()]
         completed = subprocess.run(
-            [sys.executable, "-I", "-c", _CHILD, str(HARNESS)],
-            cwd=workdir,
+            [sys.executable, "-I", str(CLI), *command],
             capture_output=True,
             text=True,
             encoding="utf-8",
