@@ -337,7 +337,11 @@ Only the AI proxy writes to it. It's used to enforce the budget cap and to revie
 
 ## Derived progress
 
-One pure function, `computeProgress(content, events, now)`, computes progress. The app runs it incrementally, and it can also rebuild everything from scratch. Tests check that both give the same result.
+Pure functions in `web/src/progress/progress.ts` compute progress from the topic outlines and the learner's graded events. `progressOf` finds when each proof check first passed, and `stateOf` gives a topic's state.
+
+- A proof check passes with a passing Check of the topic's build or debug, or with an `explain_submit` event whose `correct` is true. A pass on any of a checkpoint's fresh versions counts as its build.
+- The result doesn't depend on the order of the events, so an event that arrives late, say from another device's outbox, changes only what it adds. Tests check this; it's what lets the app update progress as events arrive instead of rebuilding it.
+- The app recalculates progress from the history each visit, like the follow-ups. The `topic_progress` cache comes when that gets slow.
 
 ### Regular topics
 

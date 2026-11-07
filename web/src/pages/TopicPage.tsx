@@ -1,4 +1,12 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useLoaderData } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
@@ -13,8 +21,11 @@ import type { Explain, Topic, TopicContent } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
-import { CARD, PROSE } from '../components/styles.ts'
+import { CARD, PROSE, SECONDARY_BUTTON } from '../components/styles.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
+import { fetchAttempts } from '../followups/history.ts'
+import { type Proof, PROOFS } from '../progress/progress.ts'
+import { useProgress } from '../progress/useProgress.ts'
 import type { topicLoader } from './topicLoader.ts'
 
 // One topic: Learn, Practice and Prove it (v1 spec, F3, F5, F7).
@@ -52,7 +63,7 @@ export function TopicView({
           <SignInToSave />
           <Learn content={content} />
           <Practice content={content} />
-          <ProveIt content={content} />
+          <ProveIt content={content} loadAttempts={loadAttempts} />
         </>
       )}
       {!content && (
@@ -92,6 +103,7 @@ function CheckpointView({
       <CheckpointIntro content={content} />
       <ProveIt
         content={content}
+        loadAttempts={loadAttempts}
         intro="Three checks show you can use everything in this module on your own: build a program from a blank editor, fix code with several bugs, and explain how it works. No hints here. If you get stuck on the build, there's a way through it below."
         onBuildCheck={(passed) => {
           if (passed) setBuildPassed(true)
@@ -327,7 +339,7 @@ function Practice({ content }: { content: TopicContent }) {
 }
 
 const TOPIC_PROOF_INTRO =
-  "Three checks show you can use this on your own: build something from a blank editor, fix broken code, and explain the idea in your own words. No hints here. Once progress tracking arrives (Milestone B), passing all three marks the topic as learned; for now, they're extra practice."
+  'Three checks show you can use this on your own: build something from a blank editor, fix broken code, and explain the idea in your own words. No hints here. Passing all three marks the topic as learned. Your build and debug passes already count; explanations will be graded soon.'
 
 /** The three proof checks: build, debug and explain (F7). */
 function ProveIt({
@@ -335,6 +347,7 @@ function ProveIt({
   intro = TOPIC_PROOF_INTRO,
   onBuildCheck,
   afterBuild,
+  loadAttempts,
 }: {
   content: TopicContent
   intro?: string
@@ -342,6 +355,8 @@ function ProveIt({
   onBuildCheck?: (passed: boolean) => void
   /** Shown right after the build. */
   afterBuild?: ReactNode
+  /** Reads the learner's history in this topic. Tests pass a fake. */
+  loadAttempts?: LoadAttempts
 }) {
   const { build, debug, explain } = content.topic.prove
   if (!build && !debug && !explain) return null
@@ -349,6 +364,7 @@ function ProveIt({
     <section aria-labelledby="prove-it" className="space-y-4">
       <SectionHeading id="prove-it">Prove it</SectionHeading>
       <p className="text-slate-600 dark:text-slate-400">{intro}</p>
+      <ProofProgress topic={content.topic} loadAttempts={loadAttempts} />
       {build && (
         <PracticeItem
           itemId={build}
@@ -363,6 +379,75 @@ function ProveIt({
       )}
       {explain && <ExplainPrompt explain={explain} />}
     </section>
+  )
+}
+
+const PROOF_NAMES: Record<Proof, string> = {
+  build: 'Build',
+  debug: 'Debug',
+  explain: 'Explain',
+}
+
+/**
+ * Which of the three proof checks the signed-in learner has passed, and
+ * when. A check passed on this page shows straight away.
+ */
+function ProofProgress({
+  topic,
+  loadAttempts,
+}: {
+  topic: Topic
+  loadAttempts?: LoadAttempts
+}) {
+  // Stable between renders, as useProgress needs.
+  const load = useCallback(
+    () => (loadAttempts ?? fetchAttempts)(topic.id),
+    [loadAttempts, topic.id],
+  )
+  const topics = useMemo(() => [topic], [topic])
+  const state = useProgress(topics, load)
+  const labelId = useId()
+
+  if (state.status === 'failed') {
+    return (
+      <p className="flex flex-wrap items-center gap-2 text-sm">
+        Your progress here couldn't load.
+        <button
+          type="button"
+          onClick={state.retry}
+          className={SECONDARY_BUTTON}
+        >
+          Try again
+        </button>
+      </p>
+    )
+  }
+  if (state.status !== 'ready') return null
+  const passed = state.progress.get(topic.id)?.passed ?? {}
+
+  return (
+    <div className="text-sm">
+      <p id={labelId} className="font-medium">
+        Your proof so far:
+      </p>
+      <ul aria-labelledby={labelId} className="space-y-0.5">
+        {PROOFS.map((proof) => {
+          const when = passed[proof]
+          return (
+            <li key={proof}>
+              {/* An icon and words, never color alone. */}
+              <span aria-hidden="true">{when ? '✓ ' : '○ '}</span>
+              {PROOF_NAMES[proof]}:{' '}
+              {when
+                ? `passed on ${new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                : proof === 'explain'
+                  ? 'not graded yet'
+                  : 'not passed yet'}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
   )
 }
 

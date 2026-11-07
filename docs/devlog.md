@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Progress tracking, part 1
+
+**Decided: gating waits for explanation grading.** The plan had gating before grading. But a topic is Learned only once its build, debug and explain all pass, and explanations can't be graded yet. Gating now would lock the owner out of topics 2–5 partway through Module 1. So this part shows progress without locking anything. States, gating and "Prove it now" switch on with grading. Told to the owner; the roadmap's Milestone B list now says so.
+
+**Done**
+
+- `web/src/progress/progress.ts`, pure functions for the data model's rules:
+  - `progressOf`: when each proof check first passed. A passing Check of the build (or of any fresh version, for a checkpoint) or the debug counts, as will an `explain_submit` event with `correct` true.
+  - `stateOf`: Locked, Available, In progress, Learned, or a checkpoint's Passed.
+  - 12 tests: one per state change, and that the order events arrive in doesn't change the result. That order-independence is the data model's "incremental equals rebuilt from scratch".
+- `useProgress`: reads the history once, adds the events on this device, and recalculates after each one. It remembers whose history it read, so after switching accounts it never shows the previous learner's.
+- **The map** marks started topics "In progress", with the proof checks passed there.
+- **Topic and checkpoint pages:** "Your proof so far" lists the three checks, passed (with the date) or not yet. The Prove it intro no longer calls them extra practice.
+- Docs: the data model's progress section, F8 and F9, the roadmap, and the web README.
+- Tests: 20 new, 229 web tests in all.
+
+**Checked end to end** on the local Supabase, as the local test account:
+- the map showed "In progress" only on Programs and print, ignoring answers on a sample topic that no longer exists;
+- on that topic, the banner build typed into the editor passed its hidden tests in real Pyodide, and "Your proof so far" changed to "✓ Build: passed on Nov 6" with no reload;
+- the map then showed "In progress · Proof checks passed: build", and the Check was in the local database.
+
+**Next**
+
+- Explain it back, graded by AI (F7, F14): the AI proxy, its budget cap and the grading. It needs the owner's Anthropic API key. Then states and gating.
+- Module 2 content, timed to the owner's progress through Module 1.
+
 ## 2026-11-06: Export my data (F16, built early)
 
 **Why now:** the learning history exists only in the Supabase project, and ADR-0010's backup plan is this export, which didn't exist yet. The owner chose to build it first, then carry on with Milestone B.
