@@ -29,3 +29,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0010](0010-environments.md) | Local Supabase in Docker for development; one cloud project for real use | Accepted |
 | [0011](0011-mistakes-come-back.md) | Mistakes come back as fresh questions until relearned | Accepted |
 | [0012](0012-checkpoint-support.md) | Getting unstuck on a checkpoint | Accepted |
+| [0013](0013-explain-grading.md) | Grading explanations with Claude, through the AI proxy | Proposed |

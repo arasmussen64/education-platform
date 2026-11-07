@@ -40,7 +40,7 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 
 - [x] Export my data (F16, planned for D), built first so the learning history has a backup ([ADR-0010](decisions/0010-environments.md))
 - [x] Progress tracking, part 1: the rules for topic states, and which proof checks have passed, on the map and topic pages
-- [ ] Explain it back, graded by AI (F7), through the AI proxy with its budget cap (F14). Needs the owner's Anthropic API key.
+- [ ] Explain it back, graded by AI (F7), through the AI proxy with its budget cap (F14), as proposed in [ADR-0013](decisions/0013-explain-grading.md). Needs the owner's Anthropic API key.
 - [ ] Topic states and gating, with "Prove it now" (F8, F9). They wait for grading: until explanations can pass, no topic can be Learned, so gating would lock every topic after the first.
 - [ ] Module 2 content, ready before the owner finishes Module 1
 

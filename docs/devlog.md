@@ -2,6 +2,25 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Proposed: grading explanations (ADR-0013)
+
+**Why:** explanation grading is the next item, and it's the first part of the platform that costs money and calls an outside service. So the design goes to the owner first.
+
+**Done**
+
+- [ADR-0013](decisions/0013-explain-grading.md), proposed:
+  - the browser sends the explanation to an Edge Function, which checks sign-in, `allowed` and the month's spending, then asks Claude to grade it against the rubric;
+  - a pass means every required rubric item is met; a miss gets up to 3 guiding questions, never the model answer;
+  - an append-only `ai_calls` log carries the $10 monthly cap, with the Anthropic Console's own limit as a backstop;
+  - the model is the cheapest of Claude Haiku 5.5, Sonnet 5.5 and Opus 5.5 that passes a 30-sample test set. Running that set once on all three costs about $1.20, and each run needs the owner's go-ahead.
+- Checked first, on this PC: CLI 3.0 serves functions locally and deploys them to the live project. It sets secrets only on the live project, from a `.env` file or the dashboard. Deno isn't installed yet. Model names and prices come from the current Claude API reference (October 2026), not memory.
+
+**Waiting on the owner**
+
+- Accept or change ADR-0013.
+- Create the Anthropic account, with billing and the $10 limit (setup guide).
+- How far they are in Module 1, which decides when Module 2's content is needed. And whether notes about content should avoid spoilers.
+
 ## 2026-11-06: Progress tracking, part 1
 
 **Decided: gating waits for explanation grading.** The plan had gating before grading. But a topic is Learned only once its build, debug and explain all pass, and explanations can't be graded yet. Gating now would lock the owner out of topics 2–5 partway through Module 1. So this part shows progress without locking anything. States, gating and "Prove it now" switch on with grading. Told to the owner; the roadmap's Milestone B list now says so.
