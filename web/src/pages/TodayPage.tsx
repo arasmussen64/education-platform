@@ -6,11 +6,9 @@ import { PracticeItem } from '../components/PracticeItem.tsx'
 import { BUTTON, INLINE_CODE } from '../components/styles.ts'
 import { getTopic } from '../content/content.ts'
 import type { TopicContent } from '../content/types.ts'
+import { addDays, type Day, dayOf } from '../days.ts'
 import {
-  addDays,
   CORRECT_DAYS_NEEDED,
-  type Day,
-  dayOf,
   type FollowUp,
   type PlannedCard,
   planCards,

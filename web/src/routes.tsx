@@ -1,5 +1,6 @@
 import type { RouteObject } from 'react-router'
 import { Layout } from './components/Layout.tsx'
+import { AccountPage } from './pages/AccountPage.tsx'
 import { ErrorPage } from './pages/ErrorPage.tsx'
 import { MapPage } from './pages/MapPage.tsx'
 import { NotFoundPage } from './pages/NotFoundPage.tsx'
@@ -46,6 +47,7 @@ export const routes: RouteObject[] = [
             },
           },
           { path: 'sign-in', element: <SignInPage /> },
+          { path: 'account', element: <AccountPage /> },
           {
             path: 'playground',
             lazy: async () => {

@@ -2,6 +2,37 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Export my data (F16, built early)
+
+**Why now:** the learning history exists only in the Supabase project, and ADR-0010's backup plan is this export, which didn't exist yet. The owner chose to build it first, then carry on with Milestone B.
+
+**Decided**
+
+- **Where:** a new account page, which opens from the learner's name in the header.
+- **What's in the file:** the profile and every event, with every column, oldest first. It's indented JSON, named after the app and the local date. A `format` number lets the capstone's scripts tell layouts apart. Progress joins once Milestone B computes it.
+- **The outbox too, read before the server.** The owner's answer to an explain-it-back question shaped this: they expected an unsaved answer to be in the file. A server-only export would have missed it.
+  - Reading the outbox first means an event sent in between is on the server by then, and one sent later is in the copy of the outbox.
+  - Events only in the outbox have `received_at: null`, and the page says how many there were.
+  - The event log's new `getPendingRows()` reads the outbox fresh, so other tabs' unsent events count too.
+- **Reading pages until an empty one,** not until a short one. Otherwise a server row limit below 1,000 would silently cut the file short. It costs one extra request.
+
+**Done**
+
+- `web/src/export/`: `exportData.ts` gathers the data, and `download.ts` saves it through the browser's normal download. The file never leaves the browser.
+- `pages/AccountPage.tsx` at `/account`, with "Download my data" and a message saying how many events the file holds.
+- `web/src/days.ts`: `dayOf` and `addDays` moved out of the follow-up rules. Importing `dayOf` from there had pulled 3.7 kB of those rules into the startup bundle.
+- Docs: the file's layout in the data model, a weekly backup routine in the setup guide, and F16 and the roadmap.
+- Tests: 15 new, 209 web tests in all.
+
+**Checked end to end** against the local Supabase, on a dev server that stopped itself, signed in as the local test account:
+- With the API container stopped, the page said the data couldn't be downloaded. On this PC a refused local connection takes a few seconds to fail, so "Gathering your data…" showed until then.
+- With one made-up event placed straight in the outbox, the file had 7 events: the made-up one with `received_at: null`, every column, oldest first, no duplicates. The page said 1 wasn't saved yet. The event was then removed from the outbox, and it never reached the local database.
+- A real download landed in Downloads and read back as valid JSON. I deleted it afterwards.
+
+**Next**
+
+- Progress tracking: each topic's state, worked out from the event log and shown on the map.
+
 ## 2026-11-06: Checkpoint 1, the receipt calculator
 
 **Done**

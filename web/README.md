@@ -28,12 +28,14 @@ CI runs `format:check`, `lint`, `typecheck`, `test` and `build` on every pull re
 ```text
 src/
 ├── config.ts        app-wide settings, including the product name (ADR-0006)
+├── days.ts          calendar days in the learner's own time zone
 ├── main.tsx         starts the app
 ├── routes.tsx       every page and its address
 ├── auth/            who's signed in (see "Sign-in" below)
 ├── components/      shared pieces, such as the page layout, the code runner and exercises
 ├── content/         loading the lessons and exercises from ../content (see below)
 ├── events/          saving what the learner does (see "Saving progress")
+├── export/          "Export my data": everything the learner has done, as one file (see below)
 ├── followups/       mistakes coming back as fresh questions (ADR-0011)
 ├── pages/           one file per page
 ├── python/          running learner Python in the browser (see below)
@@ -104,6 +106,18 @@ The Today page brings missed skills back as fresh questions until they're relear
 | `pages/TodayPage.tsx`       | "Mistakes to revisit" and "Coming back later".                                                                       |
 
 Nothing is stored for follow-ups: they're recalculated from the event log on every visit, so older misses count too.
+
+## Export my data
+
+The account page (`/account`, opened from the learner's name in the header) downloads everything they've done as one JSON file, for backups and the ML capstone (v1 spec, F16). The file's layout is in the [data model](../docs/specs/data-model.md#the-export-file).
+
+| File                    | What it does                                                                                                                                                      |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `export/exportData.ts`  | Reads the outbox, then the profile and every event from Supabase, and joins them, each event once. It reads 1,000 rows per request until a page comes back empty. |
+| `export/download.ts`    | Saves the file through the browser's normal download. The browser makes the file itself; nothing is uploaded.                                                     |
+| `pages/AccountPage.tsx` | "Download my data", and a message saying how many events the file holds and how many came from this browser's outbox.                                             |
+
+The outbox is read first, then the server. An event sent in between is on the server by then, and one sent later is in the copy of the outbox, so none can fall through the gap.
 
 ## Sign-in
 

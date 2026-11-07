@@ -196,6 +196,23 @@ describe('the event log', () => {
     expect(log.getLocalRows()).toEqual([])
   })
 
+  it("lists what's still waiting to be sent, including other tabs' events", async () => {
+    const { log, outbox } = setup(fakeEventsClient(OFFLINE))
+    log.setUser(ADA)
+    log.record(ANSWER)
+    await vi.waitFor(() => expect(log.getStatus().syncing).toBe(false))
+    // Another tab shares the outbox: it records an event of its own.
+    outbox.add({ ...log.getPendingRows()[0]!, id: 'from-another-tab' })
+
+    expect(log.getPendingRows().map((row) => row.id)).toEqual([
+      'id-2',
+      'from-another-tab',
+    ])
+    log.setUser(null)
+    expect(log.getPendingRows()).toEqual([])
+    log.stop()
+  })
+
   it('tells subscribers when the number of unsaved events changes', async () => {
     const { log } = setup(fakeEventsClient(OFFLINE))
     const seen: number[] = []

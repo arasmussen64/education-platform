@@ -104,6 +104,17 @@ describe('app routes', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows the account page at /account', () => {
+    renderAt('/account')
+    expect(
+      screen.getByRole('heading', { name: 'Your account' }),
+    ).toBeInTheDocument()
+    // Signed out, so there's no data to download.
+    expect(
+      screen.getByText(/to see your account and download your data/),
+    ).toBeInTheDocument()
+  })
+
   it('shows a not-found page for unknown addresses', () => {
     renderAt('/no-such-page')
     expect(
