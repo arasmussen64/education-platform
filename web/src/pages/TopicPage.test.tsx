@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import type { Topic, TopicContent } from '../content/types.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
+import { EventsProvider } from '../events/EventsProvider.tsx'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import type { Attempt } from '../followups/followUps.ts'
 import {
@@ -12,7 +13,7 @@ import {
   fakeContent,
   fakeTopic,
 } from '../test/fakeContent.tsx'
-import { recordingEventLog } from '../test/fakeEvents.ts'
+import { fakeEventsClient, recordingEventLog } from '../test/fakeEvents.ts'
 import { allPassed, fakeRunner, oneFailed } from '../test/fakePython.ts'
 import { setFakeRunner } from '../test/mockPython.ts'
 import { TopicView } from './TopicPage.tsx'
@@ -429,5 +430,110 @@ describe('a checkpoint page', () => {
         context: 'practice',
       }),
     )
+  })
+})
+
+describe('your progress on a topic page', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
+  /** "Nov 6", as the page writes a date. */
+  const shortDate = (date: Date) =>
+    date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  /** Noon on November 6, wherever the test runs. */
+  const NOV_6 = new Date(2026, 10, 6, 12)
+
+  /** A passing Check, as the server would send it back. */
+  function passedCheck(item: string, topicId = 'py.values-and-types') {
+    return {
+      id: `check-${item}`,
+      type: 'code_check',
+      topic_id: topicId,
+      item_id: item,
+      correct: true,
+      occurred_at: NOV_6.toISOString(),
+    } satisfies Attempt
+  }
+
+  const proofList = () =>
+    screen.findByRole('list', { name: 'Your proof so far:' })
+
+  it('lists which proof checks have passed, and when', async () => {
+    renderTopic(fakeTopic(), fakeContent(), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([passedCheck('build-hello')]),
+      ),
+    })
+    const items = within(await proofList()).getAllByRole('listitem')
+    expect(items.map((item) => item.textContent)).toEqual([
+      `✓ Build: passed on ${shortDate(NOV_6)}`,
+      '○ Debug: not passed yet',
+      '○ Explain: not graded yet',
+    ])
+  })
+
+  it('counts a check passed on this page straight away', async () => {
+    setFakeRunner(fakeRunner({ check: allPassed('Greets') }))
+    const topic = fakeTopic()
+    render(
+      <AuthProvider auth={fakeAuth(fakeUser())}>
+        <EventsProvider client={fakeEventsClient()}>
+          <MemoryRouter>
+            <TopicView
+              topic={topic}
+              content={fakeContent(topic)}
+              loadAttempts={vi.fn((_topicId: string) =>
+                Promise.resolve<Attempt[]>([]),
+              )}
+            />
+          </MemoryRouter>
+        </EventsProvider>
+      </AuthProvider>,
+    )
+    expect(await proofList()).toHaveTextContent('Debug: not passed yet')
+
+    const debug = screen.getByRole('region', {
+      name: 'Debug: Fix the greeting',
+    })
+    await userEvent.click(within(debug).getByRole('button', { name: 'Check' }))
+    await vi.waitFor(async () =>
+      expect(await proofList()).toHaveTextContent(
+        `Debug: passed on ${shortDate(new Date())}`,
+      ),
+    )
+  })
+
+  it("counts a fresh version as the checkpoint's build", async () => {
+    const content = fakeCheckpointContent()
+    renderTopic(content.topic, content, {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([passedCheck('build-fuel', 'py.m1.checkpoint')]),
+      ),
+    })
+    expect(await proofList()).toHaveTextContent(
+      `Build: passed on ${shortDate(NOV_6)}`,
+    )
+  })
+
+  it('shows no progress to a signed-out visitor', () => {
+    const { loadAttempts } = renderTopic(fakeTopic(), fakeContent(), {
+      signedIn: false,
+    })
+    expect(screen.queryByText('Your proof so far:')).not.toBeInTheDocument()
+    expect(loadAttempts).not.toHaveBeenCalled()
+  })
+
+  it("says so when the progress can't load, and can try again", async () => {
+    const loadAttempts = vi.fn((_topicId: string) =>
+      Promise.resolve<Attempt[]>([]),
+    )
+    loadAttempts.mockRejectedValueOnce(new Error('Failed to fetch'))
+    renderTopic(fakeTopic(), fakeContent(), { loadAttempts })
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Try again' }),
+    )
+    expect(await proofList()).toBeInTheDocument()
   })
 })

@@ -38,6 +38,7 @@ src/
 ├── export/          "Export my data": everything the learner has done, as one file (see below)
 ├── followups/       mistakes coming back as fresh questions (ADR-0011)
 ├── pages/           one file per page
+├── progress/        each topic's progress toward Learned (see below)
 ├── python/          running learner Python in the browser (see below)
 ├── supabase/        the Supabase client, its settings, and generated database types
 └── test/            test setup and helpers (fake sign-in, fake Python, a sample topic)
@@ -106,6 +107,19 @@ The Today page brings missed skills back as fresh questions until they're relear
 | `pages/TodayPage.tsx`       | "Mistakes to revisit" and "Coming back later".                                                                       |
 
 Nothing is stored for follow-ups: they're recalculated from the event log on every visit, so older misses count too.
+
+## Progress
+
+Each topic's progress toward Learned (v1 spec, F8), by the rules in the [data model](../docs/specs/data-model.md#derived-progress).
+
+| File                      | What it does                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `progress/progress.ts`    | The rules, as pure functions: when each proof check first passed (`progressOf`), and each topic's state (`stateOf`). |
+| `progress/useProgress.ts` | Reads the learner's history once, adds the events on this device, and recalculates after each one.                   |
+| `pages/MapPage.tsx`       | Marks the topics the learner has started, and which proof checks they've passed there.                               |
+| `pages/TopicPage.tsx`     | "Your proof so far": each check, passed (and when) or not yet.                                                       |
+
+Like follow-ups, nothing is stored: progress is recalculated from the event log, so passes from before this existed count too. States and gating switch on once explanations are graded.
 
 ## Export my data
 

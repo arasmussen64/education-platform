@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (progress tracking, part 1)
+
+- **Your proof so far:** each topic and checkpoint page lists its three proof checks, each passed (with the date) or not yet. A Check passed on the page shows straight away.
+- **Progress on the map:** for a signed-in learner, each topic they've started says "In progress", and which proof checks they've passed there.
+- The rules behind it (`web/src/progress/progress.ts`), with tests for every state change in the data model: when each proof check first passed, and each topic's state. A pass on any fresh version counts as a checkpoint's build.
+- Progress is worked out from the event log, so passes from before this existed count too.
+- **Not yet:** topic states and gating. No topic can be Learned until explanations are graded, so gating now would lock every topic after the first. They switch on with explanation grading.
+
 ### Added (export my data)
 
 - **Export my data** (v1 spec, F16), built early so the learning history can always be backed up. On the new account page (open it from your name in the header), "Download my data" saves everything as one JSON file: the profile and every event.
