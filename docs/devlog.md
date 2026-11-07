@@ -2,6 +2,46 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-06: Where we stopped (paused for the weekly usage limit)
+
+The owner paused work until the usage limit resets on Sunday.
+
+**State**
+
+- `main` is clean and deployed, with everything from this session merged:
+  - export my data (#29);
+  - progress tracking, part 1 (#30);
+  - ADR-0013, proposed (#31).
+- Nothing is left running: the local Supabase and Docker Desktop are stopped, and my test dev servers stopped themselves.
+
+**Next, in order**
+
+1. **The owner:**
+   - accept or change [ADR-0013](decisions/0013-explain-grading.md);
+   - create the Anthropic account, with billing and a $10 monthly limit;
+   - say how far they are in Module 1;
+   - say whether notes about content should avoid spoilers.
+2. **Explanation grading,** built to ADR-0013 once it's accepted. It needs Deno installed, and the key.
+3. **Topic states, gating and "Prove it now"** (F8, F9).
+4. **Module 2 content,** ready before the owner finishes Module 1.
+5. **Then Milestone C** (reviews, the full Today page) **and D** (the tutor, problem reports).
+
+**How I check the app on my own dev server** (the recipe CLAUDE.md points to). This script lives outside the repo. Run it with `node` as a background task; it serves `web/` on port 5180 and stops itself after 15 minutes:
+
+```js
+import { pathToFileURL } from 'node:url'
+const web = 'C:/Users/arasm/Documents/Education Platform/web'
+const { createServer } = await import(
+  pathToFileURL(`${web}/node_modules/vite/dist/node/index.js`).href
+)
+const server = await createServer({ root: web, server: { port: 5180, strictPort: true } })
+await server.listen()
+setTimeout(async () => { await server.close(); process.exit(0) }, 15 * 60 * 1000)
+```
+
+- **Signing in on it:** the local test account is `test-learner@example.com`. Its sign-in link arrives in Mailpit; fetch it from `http://127.0.0.1:54324/api/v1/messages`.
+- **Docker Desktop** is at `%LOCALAPPDATA%\Programs\DockerDesktop\Docker Desktop.exe`, and `docker desktop stop` quits it. If I start it, I quit it afterwards.
+
 ## 2026-11-06: Proposed: grading explanations (ADR-0013)
 
 **Why:** explanation grading is the next item, and it's the first part of the platform that costs money and calls an outside service. So the design goes to the owner first.
