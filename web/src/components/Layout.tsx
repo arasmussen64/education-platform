@@ -53,7 +53,10 @@ export function Layout() {
   )
 }
 
-/** "Sign in", or the signed-in learner's name with a "Sign out" button. */
+/**
+ * "Sign in", or the signed-in learner's name, which links to their account
+ * page, with a "Sign out" button.
+ */
 function Account() {
   const auth = useAuth()
   if (auth.status === 'loading') return null
@@ -66,9 +69,10 @@ function Account() {
   }
   return (
     <div className="flex items-center gap-1 text-sm">
-      <span className="px-2 text-slate-600 dark:text-slate-400">
-        {displayName(auth.user)}
-      </span>
+      <NavLink to="/account" className={navLinkClass}>
+        {/* Screen readers hear where the link goes, not only a name. */}
+        <span className="sr-only">Your account:</span> {displayName(auth.user)}
+      </NavLink>
       <button
         type="button"
         onClick={() => {

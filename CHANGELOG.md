@@ -6,6 +6,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (export my data)
+
+- **Export my data** (v1 spec, F16), built early so the learning history can always be backed up. On the new account page (open it from your name in the header), "Download my data" saves everything as one JSON file: the profile and every event.
+  - It reads this browser's outbox first, then the server. So an answer that hasn't reached the server yet is in the file too, and none can slip between the two. The page says how many events came from the outbox.
+  - It keeps reading pages until one comes back empty, so a server that sends fewer rows than asked for can't cut the file short.
+  - The browser makes the file itself: nothing is sent anywhere.
+- The file's layout, with a `format` version for scripts that read it, is in the [data model](docs/specs/data-model.md#the-export-file).
+
+### Changed
+
+- The day helpers (`dayOf`, `addDays`) moved from the follow-up rules to `web/src/days.ts`, so a page that only needs a date doesn't load those rules too.
+
 ### Added (Checkpoint 1)
 
 - **Checkpoint 1: receipt calculator** (`py.m1.checkpoint`), ready. That completes Module 1.

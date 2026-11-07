@@ -94,6 +94,14 @@ Local development doesn't use this app. The local Supabase signs in with email l
 2. Set a monthly spending limit of $10. This is on top of the app's own cap.
 3. When we wire up the tutor, create an API key and store it only in Supabase's secret settings.
 
+## Back up your learning data
+
+Your learning history lives only in the Supabase project, and we don't rely on the free plan's backups ([ADR-0010](decisions/0010-environments.md)). Until automatic backups arrive in Phase 2:
+
+1. About once a week, on the live site, click your name in the header, then **Download my data**.
+2. Keep the file somewhere other than this PC, such as a cloud drive.
+3. Don't commit it to the repository. If the repository is ever made public, your learning history would be too.
+
 ## Never commit or paste into chat
 
 - database passwords

@@ -291,6 +291,50 @@ Only the AI proxy writes to it. It's used to enforce the budget cap and to revie
 
 `id`, `user_id`, `created_at`, `topic_id`, `item_id`, `item_rev`, `message`, `status` (`open` or `resolved`).
 
+### The export file
+
+"Export my data" ([F16](v1.md#f16-export-my-data)) downloads everything a learner has done as one JSON file, for backups and the ML capstone. The browser builds it: it reads the learner's profile and events from Supabase (row-level security returns only their own), and adds the events still waiting in the outbox. It reads the outbox first, so an event sent in between is on the server by then.
+
+```json
+{
+  "format": 1,
+  "exported_at": "2026-11-07T09:15:00.000Z",
+  "content_build": "8c5f1ed",
+  "user_id": "0b6e…",
+  "profile": {
+    "id": "0b6e…",
+    "display_name": null,
+    "allowed": false,
+    "settings": {},
+    "created_at": "2026-11-06T10:25:41.123456+00:00"
+  },
+  "events": [
+    {
+      "id": "8d1e…",
+      "user_id": "0b6e…",
+      "type": "answer",
+      "topic_id": "py.programs-and-print",
+      "item_id": "predict-four-lines",
+      "context": "practice",
+      "correct": false,
+      "duration_ms": 41200,
+      "hints_used": 0,
+      "item_rev": 1,
+      "content_build": "2fc7cce",
+      "session_id": "5a90…",
+      "occurred_at": "2026-11-06T10:42:13.123+00:00",
+      "received_at": "2026-11-06T10:42:13.201456+00:00",
+      "data": { "prediction": "Hello world" }
+    }
+  ]
+}
+```
+
+- **`format`** is the layout's version. Adding a field doesn't change it. It changes when an existing field changes meaning, so scripts reading older files can tell them apart.
+- **`events`** holds every column of the `events` table, oldest first. An event that was still in the outbox has `"received_at": null`.
+- **Times** are ISO 8601, in UTC, exactly as stored: the server writes `+00:00`, the browser `Z`.
+- **Not in the file yet:** progress, until Milestone B computes it (it can always be rebuilt from the events); and events the server refused, which stay in the browser for investigation.
+
 ## Derived progress
 
 One pure function, `computeProgress(content, events, now)`, computes progress. The app runs it incrementally, and it can also rebuild everything from scratch. Tests check that both give the same result.

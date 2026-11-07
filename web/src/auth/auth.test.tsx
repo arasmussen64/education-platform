@@ -20,6 +20,10 @@ describe('signing in and out', () => {
     const auth = fakeAuth(fakeUser({ user_metadata: { name: 'Ada Lovelace' } }))
     renderApp('/map', auth)
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument()
+    // The name opens their account page, where the data export is.
+    expect(
+      screen.getByRole('link', { name: 'Your account: Ada Lovelace' }),
+    ).toHaveAttribute('href', '/account')
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(auth.signOut).toHaveBeenCalled()

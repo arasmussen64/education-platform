@@ -36,6 +36,10 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] Mistakes come back as fresh questions until relearned ([ADR-0011](decisions/0011-mistakes-come-back.md)): "Mistakes to revisit" on the Today page
 - [x] Getting unstuck on a checkpoint ([ADR-0012](decisions/0012-checkpoint-support.md)): missed checkpoint tests bring their skills back; a solved sibling, the build in steps, and fresh versions
 
+### Milestone B progress
+
+- [x] Export my data (F16, planned for D), built first so the learning history has a backup ([ADR-0010](decisions/0010-environments.md))
+
 ## Phase 2: Adaptivity and better practice (months 2–4)
 
 Mornings learning on the platform, afternoons building it.

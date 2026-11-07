@@ -21,6 +21,7 @@ export function recordingEventLog() {
     subscribe: () => () => {},
     getStatus: () => ({ pending: 0, syncing: false }),
     getLocalRows: () => NO_ROWS,
+    getPendingRows: () => NO_ROWS,
     stop() {},
   }
   return { log, events }

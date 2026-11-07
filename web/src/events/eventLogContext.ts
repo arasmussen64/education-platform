@@ -17,6 +17,7 @@ const RECORDS_NOTHING: EventLog = {
   subscribe: () => () => {},
   getStatus: () => NOTHING_WAITING,
   getLocalRows: () => NO_ROWS,
+  getPendingRows: () => NO_ROWS,
   stop() {},
 }
 

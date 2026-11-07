@@ -28,6 +28,12 @@ export type EventLog = {
    * changes, for React's useSyncExternalStore.
    */
   getLocalRows(): EventRow[]
+  /**
+   * The signed-in learner's events still waiting in this device's outbox,
+   * read fresh each time, so it includes what other tabs recorded. The data
+   * export adds these, because the server doesn't have them yet.
+   */
+  getPendingRows(): EventRow[]
   /** Cancels any scheduled retry. */
   stop(): void
 }
@@ -194,6 +200,8 @@ export function createEventLog({
     getStatus: () => status,
 
     getLocalRows: () => localRows,
+
+    getPendingRows: () => (userId ? outbox.pending(userId) : []),
 
     stop() {
       clearTimeout(retryTimer)
