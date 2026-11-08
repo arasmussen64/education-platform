@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the grading test set, part 3 of explanation grading)
+
+- **30 sample explanations** for Module 1's six explain checks, in `supabase/functions/ai/test-set/`. Each topic has five, each with the verdict it should get:
+  - a full answer and a short one, both of which should pass;
+  - one missing a required idea, one with a misconception, and one that tries to talk its way to a pass, none of which should.
+- **`npm run fn:eval`** runs them against Claude with the same request the proxy sends, and reports every miss and the cost. It costs money, so each run waits for the owner's go-ahead.
+- A test checks every topic in the test set has an explain check and both kinds of sample. It doesn't call Claude.
+
 ### Added (the AI proxy, part 1 of explanation grading)
 
 - **`ai_calls`**, an append-only log of every call to Claude: who, the model, the tokens and the cost. A learner can read their own rows, and only the proxy can write them. `ai_spend_this_month()` adds up the month's spending for the $10 cap. 11 database tests.

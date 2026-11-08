@@ -42,11 +42,14 @@ Local Studio, a web UI for browsing the database, runs at http://127.0.0.1:54323
 | `grading.ts` | What Claude is asked, and how its answer is read. A pass means every required rubric item is met. |
 | `cost.ts` | Anthropic's prices, and what a call cost. Update the prices when Anthropic's change. |
 | `index.ts` | Connects the handler to the real Supabase and Claude. |
+| `test-set/` | Sample explanations with the verdict each should get, one file per topic. They choose the grading model. |
+| `eval.ts` | Runs the test set against Claude, with the same request the proxy sends. |
 
 | Command | What it does |
 |---|---|
 | `npm run fn:serve` | Serves the functions on your PC, at http://127.0.0.1:54321/functions/v1/ai. Needs the local Supabase running. |
 | `npm run fn:test` | Type-checks the proxy and runs its tests, with Deno. No test calls the real Claude API. |
+| `npm run fn:eval -- [model] [effort]` | Runs the test set against the real Claude API, using the key in `functions/.env`. **It costs money** (about $0.02 for the set on Claude Haiku 5.5, $0.80 on Claude Opus 5.5), so the owner approves each run. |
 
 Deno comes with `npm install` at the repository root, so there's nothing else to install.
 
