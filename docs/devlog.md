@@ -2,6 +2,16 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: The owner's answers
+
+- **ADR-0013 accepted** as proposed, so explanation grading is next.
+- **Anthropic Console:** the owner has an account. Still to confirm before grading goes live: billing and the $10 monthly limit. The API key comes later, when we connect it.
+- **Where the owner is:** Values and types, topic 2 of Module 1. Module 2's content isn't urgent yet, so the order holds: grading, then states and gating, then Module 2.
+- **No spoiler-free notes needed:** the devlog and pull requests can describe exercises in full, as before.
+- **The practice-hours tracker** (toward 10,000 hours) is already on the roadmap, in Phase 2. Every answer and Check already saves its duration, so practice done now will count once it's built.
+
+**Next:** explanation grading, built to ADR-0013.
+
 ## 2026-11-06: Where we stopped (paused for the weekly usage limit)
 
 The owner paused work until the usage limit resets on Sunday.

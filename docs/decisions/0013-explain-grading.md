@@ -1,6 +1,6 @@
 # ADR-0013: Grading explanations with Claude, through the AI proxy
 
-- **Status:** Proposed
+- **Status:** Accepted (by the owner, 2026-11-08, as proposed)
 - **Date:** 2026-11-06
 
 ## Context

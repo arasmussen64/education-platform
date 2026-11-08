@@ -6,9 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
-### Proposed
+### Decided
 
-- [ADR-0013](docs/decisions/0013-explain-grading.md): grading explanations with Claude, through the AI proxy. It covers the path of one explanation, what a pass means, the $10 monthly cap and its call log, how the cheapest model that passes a test set gets chosen, and what the owner sets up before it goes live.
+- [ADR-0013](docs/decisions/0013-explain-grading.md), accepted by the owner: grading explanations with Claude, through the AI proxy. It covers the path of one explanation, what a pass means, the $10 monthly cap and its call log, how the cheapest model that passes a test set gets chosen, and what the owner sets up before it goes live.
 
 ### Added (progress tracking, part 1)
 
