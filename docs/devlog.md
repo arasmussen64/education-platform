@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: The explanation box (part 2) and the grading test set (part 3)
+
+**Done**
+
+- **The explanation box** (draft PR #35):
+  - a text box and "Check my explanation" in each explain card;
+  - the result: Passed, or Needs work with guiding questions, or a plain message when it wasn't graded;
+  - every attempt saved as an `explain_submit` event (item `explain`, context `prove`), with `correct` set only when graded;
+  - the history now reads graded explanations, so a pass counts toward progress straight away;
+  - 13 new tests, 242 in all.
+
+  It stays a draft until the proxy is deployed to the live project. Merged before then, every Check on the live site would fail.
+- **The test set** (`supabase/functions/ai/test-set/`), 5 samples for each of Module 1's six explain checks. They were written to be clear-cut:
+  - the short passes still state every required idea;
+  - the misses lack a required idea outright, or get it wrong.
+
+  `npm run fn:eval -- <model> <effort>` runs them with the proxy's own request, and a Deno test checks the files are usable.
+
+**Decided while building**
+
+- **The test set runs straight against Claude,** from a Deno script that uses `grading.ts`, not a Python script posting to the locally served function as ADR-0013 sketched. That avoids rewriting the prompt in Python, and minting a local sign-in for the script. What's being tested, the instructions and the reading of Claude's answer, is the same code. The proxy's checks and logging have their own tests.
+
+**Waiting on the owner**
+
+- The API key in `supabase/functions/.env`, from `.env.example`. Then approval to run the test set: about $1.20 for all three models.
+
 ## 2026-11-08: The AI proxy (ADR-0013, part 1)
 
 **Done**
