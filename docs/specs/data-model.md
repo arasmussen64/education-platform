@@ -285,7 +285,11 @@ One row per learner and topic. It can be deleted and rebuilt from `events` at an
 
 `id`, `user_id`, `created_at`, `action` (`tutor_hint` or `grade_explanation`), `model`, `input_tokens`, `output_tokens`, `cost_usd`, `request`, `response`.
 
-Only the AI proxy writes to it. It's used to enforce the budget cap and to review the tutor's quality.
+Only the AI proxy writes to it, with the service role. A learner can read their own rows. Like `events`, rows are never updated or deleted, except when deliberately deleting a whole account. It's used to enforce the budget cap and to review the grader's and tutor's quality ([ADR-0013](../decisions/0013-explain-grading.md)).
+
+- `request` holds the topic, the explanation and the prompt version. The rubric and model answer can be found from the topic.
+- `response` holds the grading: the verdict, each rubric item, and the questions. Or, when Claude's answer couldn't be used, the problem.
+- `public.ai_spend_this_month()` adds up `cost_usd` since the start of this calendar month (UTC), across everyone. Only the proxy may call it.
 
 ### `problem_reports`
 

@@ -6,6 +6,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the AI proxy, part 1 of explanation grading)
+
+- **`ai_calls`**, an append-only log of every call to Claude: who, the model, the tokens and the cost. A learner can read their own rows, and only the proxy can write them. `ai_spend_this_month()` adds up the month's spending for the $10 cap. 11 database tests.
+- **The AI proxy**, an Edge Function (`supabase/functions/ai/`), following [ADR-0013](docs/decisions/0013-explain-grading.md):
+  - it checks, in order, that the caller is signed in, `allowed`, under the month's cap, and that a key exists;
+  - it asks Claude to grade the explanation against the rubric, in a fixed JSON shape;
+  - a pass means every required rubric item is met, and guiding questions that repeat the model answer are dropped.
+  19 tests, none of which call the real API.
+- **Deno** (2.9.6) as a pinned development tool at the repository root, with `npm run fn:test` and `npm run fn:serve`. CI has a new **Edge Functions** job.
+- Nothing calls the proxy yet. The explanation box on topic pages comes next.
+
+### Changed
+
+- The first database test now looks only at its own learners, so it also passes on a local database with accounts of its own.
+
 ### Decided
 
 - [ADR-0013](docs/decisions/0013-explain-grading.md), accepted by the owner: grading explanations with Claude, through the AI proxy. It covers the path of one explanation, what a pass means, the $10 monthly cap and its call log, how the cheapest model that passes a test set gets chosen, and what the owner sets up before it goes live.

@@ -11,8 +11,13 @@ insert into auth.users (id, email, raw_user_meta_data) values
 
 -- Profiles -------------------------------------------------------------------
 
+-- Only these two, so the test also passes on a local database with
+-- accounts of its own.
 select results_eq(
-  $$ select display_name, allowed from public.profiles order by display_name $$,
+  $$ select display_name, allowed from public.profiles
+     where id in ('11111111-1111-1111-1111-111111111111',
+                  '22222222-2222-2222-2222-222222222222')
+     order by display_name $$,
   $$ values ('Ada'::text, false), ('bob'::text, false) $$,
   'Signing up creates a profile, named from the sign-in provider, not yet allowed'
 );

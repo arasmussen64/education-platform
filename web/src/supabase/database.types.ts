@@ -9,6 +9,46 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ai_calls: {
+        Row: {
+          action: string
+          cost_usd: number
+          created_at: string
+          id: string
+          input_tokens: number
+          model: string
+          output_tokens: number
+          request: NonNullable<Json>
+          response: NonNullable<Json>
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          action: string
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          model: string
+          output_tokens?: number
+          request?: NonNullable<Json>
+          response?: NonNullable<Json>
+          user_id: string
+        }
+        Update: {
+          action?: string
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          request?: NonNullable<Json>
+          response?: NonNullable<Json>
+          user_id?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           content_build: string
@@ -94,7 +134,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      ai_spend_this_month: { Args: Record<PropertyKey, never>; Returns: number }
     }
     Enums: {
       [_ in never]: never

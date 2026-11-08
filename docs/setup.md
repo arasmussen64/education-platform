@@ -11,6 +11,7 @@ What's needed on the owner's computer and in the cloud. Tick things off as they'
 | Python 3.12 | Content tools and, later, ML | ✅ Installed |
 | Docker Desktop | Runs a private copy of Supabase for development ([ADR-0010](decisions/0010-environments.md)) | ✅ Installed |
 | uv | Python package manager; also installs Python 3.14 | ✅ Installed (`python -m pip install --user uv`; run it as `python -m uv`) |
+| Deno | Runs and tests the AI proxy (an Edge Function) | ✅ Comes with `npm install` at the repository root; nothing to install by hand |
 
 ### Install Docker Desktop
 
