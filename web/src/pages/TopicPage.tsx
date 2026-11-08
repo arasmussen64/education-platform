@@ -17,12 +17,13 @@ import {
 } from '../checkpoints/Unstuck.tsx'
 import { SUGGEST_STEPS_AFTER } from '../checkpoints/versions.ts'
 import { getTopic, moduleFor } from '../content/content.ts'
-import type { Explain, Topic, TopicContent } from '../content/types.ts'
+import type { Topic, TopicContent } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
 import { CARD, PROSE, SECONDARY_BUTTON } from '../components/styles.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
+import { ExplainCheck } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts } from '../followups/history.ts'
 import { type Proof, PROOFS } from '../progress/progress.ts'
 import { useProgress } from '../progress/useProgress.ts'
@@ -339,7 +340,7 @@ function Practice({ content }: { content: TopicContent }) {
 }
 
 const TOPIC_PROOF_INTRO =
-  'Three checks show you can use this on your own: build something from a blank editor, fix broken code, and explain the idea in your own words. No hints here. Passing all three marks the topic as learned. Your build and debug passes already count; explanations will be graded soon.'
+  'Three checks show you can use this on your own: build something from a blank editor, fix broken code, and explain the idea in your own words. No hints here. Passing all three marks the topic as learned.'
 
 /** The three proof checks: build, debug and explain (F7). */
 function ProveIt({
@@ -377,7 +378,7 @@ function ProveIt({
       {debug && (
         <PracticeItem itemId={debug} content={content} context="prove" />
       )}
-      {explain && <ExplainPrompt explain={explain} />}
+      {explain && <ExplainCheck topic={content.topic} explain={explain} />}
     </section>
   )
 }
@@ -440,33 +441,12 @@ function ProofProgress({
               {PROOF_NAMES[proof]}:{' '}
               {when
                 ? `passed on ${new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                : proof === 'explain'
-                  ? 'not graded yet'
-                  : 'not passed yet'}
+                : 'not passed yet'}
             </li>
           )
         })}
       </ul>
     </div>
-  )
-}
-
-/**
- * The explain-it-back check. AI grading arrives in Milestone B; the rubric
- * and model answer are never shown to the learner (F7).
- */
-function ExplainPrompt({ explain }: { explain: Explain }) {
-  return (
-    <section aria-labelledby="explain" className={CARD}>
-      <h3 id="explain" className="text-lg font-semibold">
-        Explain it back
-      </h3>
-      <Markdown>{explain.prompt}</Markdown>
-      <p className="text-sm text-slate-600 dark:text-slate-400">
-        Soon you'll type your answer here and get feedback on it (Milestone B).
-        Until then, explain it out loud or on paper, as if teaching a friend.
-      </p>
-    </section>
   )
 }
 

@@ -1,4 +1,4 @@
-import { type ReactNode, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { STAGES } from '../content/stages.ts'
 import type { TopicContent } from '../content/types.ts'
 import {
@@ -14,6 +14,7 @@ import { type ExerciseActivity, ExerciseView } from './ExerciseView.tsx'
 import { McqQuestion } from './McqQuestion.tsx'
 import { PredictOutput } from './PredictOutput.tsx'
 import { CARD } from './styles.ts'
+import { useAttemptTimer } from './useAttemptTimer.ts'
 
 type Props = {
   /** The item's ID, as listed in topic.yaml. */
@@ -85,27 +86,6 @@ function describe(
     }
   }
   return null
-}
-
-/**
- * Time spent on an attempt: from the learner's first touch of the item, or
- * from their previous attempt, until now. Time spent reading the lesson above
- * doesn't count.
- */
-function useAttemptTimer() {
-  const startedAt = useRef<number | null>(null)
-  return {
-    start() {
-      startedAt.current ??= Date.now()
-    },
-    /** The time since the start, then starts timing the next attempt. */
-    lap(): number | null {
-      const now = Date.now()
-      const started = startedAt.current
-      startedAt.current = now
-      return started === null ? null : now - started
-    },
-  }
 }
 
 /**

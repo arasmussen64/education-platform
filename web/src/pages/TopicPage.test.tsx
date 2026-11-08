@@ -6,6 +6,7 @@ import { AuthProvider } from '../auth/AuthProvider.tsx'
 import type { Topic, TopicContent } from '../content/types.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import { EventsProvider } from '../events/EventsProvider.tsx'
+import { gradeExplanation } from '../explain/grade.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import type { Attempt } from '../followups/followUps.ts'
 import {
@@ -25,6 +26,11 @@ vi.mock(
   '../components/CodeEditor.tsx',
   () => import('../test/FakeCodeEditor.tsx'),
 )
+// Explanations are graded by the AI proxy; tests say what it answers.
+vi.mock('../explain/grade.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../explain/grade.ts')>()),
+  gradeExplanation: vi.fn(),
+}))
 
 /** Renders a topic for a signed-in learner (unless `signedIn` is false). */
 function renderTopic(
@@ -169,10 +175,13 @@ describe('the topic page', () => {
   it('asks signed-out learners to sign in to save their answers', () => {
     renderTopic(fakeTopic(), fakeContent(), { signedIn: false })
     expect(screen.getByText(/won't be saved/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
-      'href',
-      '/sign-in',
-    )
+    // At the top, and in the explain check, which needs a signed-in learner.
+    const links = screen.getAllByRole('link', { name: 'Sign in' })
+    expect(links).toHaveLength(2)
+    for (const link of links) expect(link).toHaveAttribute('href', '/sign-in')
+    expect(
+      screen.getByText(/to have your explanation checked/),
+    ).toBeInTheDocument()
   })
 })
 
@@ -469,7 +478,7 @@ describe('your progress on a topic page', () => {
     expect(items.map((item) => item.textContent)).toEqual([
       `✓ Build: passed on ${shortDate(NOV_6)}`,
       '○ Debug: not passed yet',
-      '○ Explain: not graded yet',
+      '○ Explain: not passed yet',
     ])
   })
 
@@ -500,6 +509,49 @@ describe('your progress on a topic page', () => {
     await vi.waitFor(async () =>
       expect(await proofList()).toHaveTextContent(
         `Debug: passed on ${shortDate(new Date())}`,
+      ),
+    )
+  })
+
+  it('counts an explanation that passes straight away', async () => {
+    vi.mocked(gradeExplanation).mockResolvedValue({
+      status: 'graded',
+      grading: {
+        verdict: 'pass',
+        rubric: [{ id: 'types', met: true }],
+        questions: [],
+      },
+      ai_call_id: 'call-1',
+      model: 'claude-haiku-5-5',
+    })
+    const topic = fakeTopic()
+    render(
+      <AuthProvider auth={fakeAuth(fakeUser())}>
+        <EventsProvider client={fakeEventsClient()}>
+          <MemoryRouter>
+            <TopicView
+              topic={topic}
+              content={fakeContent(topic)}
+              loadAttempts={vi.fn((_topicId: string) =>
+                Promise.resolve<Attempt[]>([]),
+              )}
+            />
+          </MemoryRouter>
+        </EventsProvider>
+      </AuthProvider>,
+    )
+    expect(await proofList()).toHaveTextContent('Explain: not passed yet')
+
+    await userEvent.type(
+      screen.getByLabelText('Your explanation'),
+      '"5" is text; 5 is a number.',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Check my explanation' }),
+    )
+    await vi.waitFor(async () =>
+      expect(await proofList()).toHaveTextContent(
+        `Explain: passed on ${shortDate(new Date())}`,
       ),
     )
   })

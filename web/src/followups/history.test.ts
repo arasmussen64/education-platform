@@ -72,6 +72,18 @@ describe('toAttempt', () => {
     ).toBeUndefined()
   })
 
+  it('keeps graded explanations, which count toward progress', () => {
+    expect(
+      toAttempt(row(1, { type: 'explain_submit', item_id: 'explain' })),
+    ).toMatchObject({ type: 'explain_submit', item_id: 'explain' })
+    // Saved but not graded (say, the AI was paused): not an attempt.
+    expect(
+      toAttempt(
+        row(1, { type: 'explain_submit', item_id: 'explain', correct: null }),
+      ),
+    ).toBeNull()
+  })
+
   it('skips events that are not graded attempts', () => {
     expect(toAttempt(row(1, { type: 'lesson_view' }))).toBeNull()
     expect(toAttempt(row(1, { type: 'code_run', correct: null }))).toBeNull()
