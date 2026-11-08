@@ -9,6 +9,8 @@ Postgres, sign-in and server functions, through [Supabase](https://supabase.com)
 | `config.toml` | Settings for the local copy (ports, auth, which services run) |
 | `migrations/` | The database's history: SQL files, applied in order. They're the only way the schema changes. |
 | `tests/database/` | Database tests (pgTAP): who can read and write what, and the append-only rules |
+| `functions/ai/` | The AI proxy, an Edge Function: the one place the Claude API key exists ([ADR-0013](../docs/decisions/0013-explain-grading.md)) |
+| `functions/.env.example` | The proxy's settings for your PC. Copy it to `functions/.env`, which git ignores. |
 | `seed.sql` | Sample data for the local copy only |
 
 ## Commands
@@ -29,6 +31,24 @@ Run these from the repository root. Docker Desktop must be running.
 | `npx supabase migration list --remote` | Compares migration history on your PC with the real project. |
 
 Local Studio, a web UI for browsing the database, runs at http://127.0.0.1:54323 while the local Supabase is up.
+
+## The AI proxy (Edge Function)
+
+`functions/ai/` grades explanations with Claude ([ADR-0013](../docs/decisions/0013-explain-grading.md)). An Edge Function is a small program Supabase runs on its servers, on Deno, a JavaScript and TypeScript runtime. The browser can call it but can't see inside it, so the API key is safe there.
+
+| File | What it does |
+|---|---|
+| `handler.ts` | The checks, in order: signed in, `allowed`, under the month's $10 cap, a key exists. Then it grades and logs the call in `ai_calls`. |
+| `grading.ts` | What Claude is asked, and how its answer is read. A pass means every required rubric item is met. |
+| `cost.ts` | Anthropic's prices, and what a call cost. Update the prices when Anthropic's change. |
+| `index.ts` | Connects the handler to the real Supabase and Claude. |
+
+| Command | What it does |
+|---|---|
+| `npm run fn:serve` | Serves the functions on your PC, at http://127.0.0.1:54321/functions/v1/ai. Needs the local Supabase running. |
+| `npm run fn:test` | Type-checks the proxy and runs its tests, with Deno. No test calls the real Claude API. |
+
+Deno comes with `npm install` at the repository root, so there's nothing else to install.
 
 ## Rules
 

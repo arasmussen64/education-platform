@@ -2,6 +2,51 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: The AI proxy (ADR-0013, part 1)
+
+**Done**
+
+- **`ai_calls`** (migration `20261108223826_ai_calls.sql`):
+  - append-only, like `events`, with the same deliberate-account-deletion exception;
+  - learners can read their own rows, and only the service role can write;
+  - `ai_spend_this_month()` sums this calendar month's costs in UTC, and only the service role may call it;
+  - 11 pgTAP tests.
+- **The Edge Function `supabase/functions/ai/`**, split so the logic is testable:
+  - `handler.ts`: the checks in ADR-0013's order, with the services passed in;
+  - `grading.ts`: the instructions, the request and reading the answer;
+  - `cost.ts`: the price table;
+  - `index.ts`: connects the real Supabase and Claude.
+- **19 Deno tests** with fakes:
+  - every outcome: graded, not allowed, paused, unavailable;
+  - a stranger gets a 401 before anything else runs;
+  - a failed call costs nothing to log, but an unusable answer is still logged with its cost;
+  - the model-answer filter;
+  - the CORS check.
+- **Deno 2.9.6** is pinned in the root `package.json` from npm, so neither the owner nor CI installs anything by hand. A new **Edge Functions** CI job runs `npm run fn:test`.
+
+**Decided while building**
+
+- **Claude returns only the rubric results and the questions; the code works out the verdict.** A pass needs every required item met, so Claude can't "pass" an explanation the rubric doesn't support.
+- **Structured output uses a plain JSON schema,** with the rubric IDs as an enum, rather than the SDK's Zod helper: one library fewer.
+- **`verify_jwt = false` for this function.** It checks the sign-in itself, with `auth.getUser`, which works with every kind of signing key.
+- **The log keeps the topic, the explanation and the prompt version,** not the rubric or the model answer: those can be found from the topic.
+- Deno found the root `package.json` and wanted the function's packages in `node_modules`. `--node-modules-dir=none` makes it use its own cache, as Supabase's runtime does.
+
+**Checked**
+
+- On the local Supabase, through the real runtime:
+  - the CORS check answered;
+  - no sign-in gave 401;
+  - the local test account got "not allowed", then "unavailable" once allowed (no key yet), which also ran the spending check;
+  - a malformed request got a 400 with a reason.
+- The local test account is now `allowed` in the local database only, for building the explanation box.
+- The first database test assumed an empty `profiles` table, which a local database with accounts never has. It now looks at its own two learners.
+
+**Next**
+
+- The explanation box on topic and checkpoint pages: `explain_submit` events, and progress counting a pass.
+- Then the 30-sample test set, which needs the owner's API key.
+
 ## 2026-11-08: The owner's answers
 
 - **ADR-0013 accepted** as proposed, so explanation grading is next.
