@@ -2,6 +2,36 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Where we stand after the autonomous run
+
+A summary for the owner of everything since "I'm going to be away" (the evening of 2026-11-08), with everything that waits on you in one place. The entries below this one have the details and the "Decisions for you to review" lists.
+
+**Merged, in order** (each squash-merged after green CI, its branch deleted):
+- #47 Module 3, Loops · #48 the hint-only tutor (ADR-0015) · #49 report a problem (F15) · #50 Module 4, Functions · #51 Module 5, Collections
+- #52 Module 6, Real programs, and Checkpoint 6: the Python Foundations track is complete, 36 topics
+- #53 a smaller first download: outline-only tracks load on demand (the main file went from 1,034 KB to 853 KB)
+- #54 practice hours on the Today page (your idea from 2026-11-06)
+- #55 Parsons problems, a third recall item type (ADR-0016), with eleven items · #56 one in every topic but one
+- #57 every reference solution proven in the browser's Python, in every test run
+- #58 the living map, first version: each Learned topic's memory strength on the map
+- #59 a rounding fix for the practice hours
+
+**Live now,** and checked on the live site at the end of the run: the map with its memory bars, the Today page with your 27 minutes of practice, a Parsons item on Variables, and the cloud map loading its outlines on demand.
+
+**Numbers:** 36 topics ready (all of Python Foundations), 235 exercises, 190 recall items; 939 programs validated under CPython and 235 reference solutions under Pyodide on every test run; 645 web tests, 39 tool tests, 69 harness tests.
+
+**Waiting on you** (each needs a "go"; none was done without one):
+1. Deploy the AI proxy with the tutor: `npx supabase functions deploy ai --no-verify-jwt --yes`, then `npm run fn:eval:tutor` to run the tutor test set (a few cents).
+2. The problem-reports migration to the live database: `npx supabase db push --remote --dry-run`, then the same without `--dry-run`.
+3. `npm run db:types` once Docker Desktop is running, since the database types were edited by hand for problem reports.
+4. The $10 monthly limit in the Anthropic Console.
+5. Three ADRs to accept or change: [ADR-0014](decisions/0014-cloud-labs.md) (cloud labs), [ADR-0015](decisions/0015-hint-only-tutor.md) (hint-only tutor), [ADR-0016](decisions/0016-parsons-problems.md) (Parsons problems).
+6. The "Decisions for you to review" lists in the entries below: Modules 3 to 6, the tutor, problem reports, lazy outlines, practice hours, Parsons problems, the living map.
+
+**What I didn't start, and why.** The cloud track's Stage 1 content. Its first module is Linux and the command line, and the platform has no way yet to run or check shell work in the browser; the browser drills that ADR-0014 names (subnetting, policy evaluation, costs, capacity) belong to later Stage 1 modules, which a learner can't reach before Module 1. How Linux is taught and proven is your call (a terminal in the browser, the lab checker on the learner's own machine, or reading and recall only), so it's the first thing to talk through when you're back.
+
+**Housekeeping.** Nothing is left running; every branch is merged and deleted; the working tree is clean. The CRLF warnings git prints on Windows are harmless: the files are stored with LF.
+
 ## 2026-11-09: The living map, first version
 
 The Phase 2 item "topics fade as their predicted memory strength drops", in its smallest useful form. The review scheduler (FSRS, ADR-0009) already predicts, for every Learned topic, the chance that the learner still remembers it; the map now shows that number.
