@@ -1,0 +1,31 @@
+id: mem-pod-oomkilled
+type: predict_shell
+rev: 1
+prompt: |
+  `pod.txt` is part of `kubectl describe pod` for a container that keeps dying. The command keeps the lines that explain what happened and what was configured, and `sed` strips the leading spaces. What is printed?
+files:
+  pod.txt: |
+    Containers:
+      api:
+        State:          Running
+          Started:      Sun, 09 Nov 2026 10:41:03 +0000
+        Last State:     Terminated
+          Reason:       OOMKilled
+          Exit Code:    137
+        Restart Count:  6
+        Limits:
+          memory:  512Mi
+        Requests:
+          memory:  256Mi
+command: grep -E 'Reason|Exit Code|Restart Count|Limits|Requests|memory:' pod.txt | sed 's/^ *//'
+expected_output: |
+  Reason:       OOMKilled
+  Exit Code:    137
+  Restart Count:  6
+  Limits:
+  memory:  512Mi
+  Requests:
+  memory:  256Mi
+explanation: |
+  The previous run ended with `OOMKilled`, exit code 137 (128 + 9), and this has happened six times. The container is allowed 512 MiB and is scheduled as if it needed 256 MiB, so the node may well have room for the request and not for what the program actually uses. The fix starts with measuring real usage, then setting the request near the limit, and raising the limit if the program genuinely needs more. `sed 's/^ *//'` just removes the indentation so the lines line up.
+skills: [container-memory]

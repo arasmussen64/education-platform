@@ -1,0 +1,14 @@
+id: mcq-throttling-symptom
+type: mcq
+rev: 1
+prompt: |
+  An API container has a CPU limit of 0.5 CPU. Its average utilisation is 20%, yet every few requests take ten times longer than the rest. What's the most likely cause, and how do you confirm it?
+choices:
+  - "The network is slow; check `ping`"
+  - "CPU throttling: a request burns the 50 ms quota early in a 100 ms period and the container is stopped for the rest; `cpu.stat` shows `nr_throttled` and `throttled_usec` climbing. Raise or remove the CPU limit (keep the request), or add replicas"
+  - "Memory pressure; check `free`"
+  - "The container has too high a priority"
+answer: 1
+explanation: |
+  A quota is checked every 100 ms, and a burst that needs 60 ms of CPU at once gets 50, then waits 50 ms for the next period, then finishes. The average over a minute stays low; the tail latency doesn't. `cpu.stat` is the evidence, and the Kubernetes metric `container_cpu_cfs_throttled_periods_total` is the same number exported. Priority (weight) can't fix a quota, and the node's idle CPUs don't help: the wall is the container's own.
+skills: [throttling]

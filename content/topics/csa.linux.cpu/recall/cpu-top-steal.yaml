@@ -1,0 +1,15 @@
+id: cpu-top-steal
+type: predict_shell
+rev: 1
+prompt: |
+  `top.txt` is the CPU line from `top` on a cloud VM that feels slow. Each number is a percentage of CPU time: `us` user programs, `sy` kernel, `id` idle, `wa` waiting on disk, `st` steal. The command pulls out two of them. What is printed?
+files:
+  top.txt: |
+    %Cpu(s): 12.0 us,  3.0 sy,  0.0 ni, 40.0 id,  5.0 wa,  0.0 hi,  0.0 si, 40.0 st
+command: grep -o '[0-9.]* st' top.txt; grep -o '[0-9.]* wa' top.txt
+expected_output: |
+  40.0 st
+  5.0 wa
+explanation: |
+  Forty percent **steal**: for forty percent of the time, the hypervisor gave this VM's share of the physical CPU to another tenant. Our programs are only using 12% and the VM shows 40% idle, yet it feels slow, because the CPU it's promised keeps disappearing. Disk wait is a modest 5%, so storage isn't the story. High steal means a noisy neighbour, or a burstable instance that has spent its CPU credits; the fix is a different instance type, not a different program.
+skills: [load-average, scheduler]

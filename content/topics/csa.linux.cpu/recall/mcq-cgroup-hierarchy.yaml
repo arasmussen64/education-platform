@@ -1,0 +1,14 @@
+id: mcq-cgroup-hierarchy
+type: mcq
+rev: 1
+prompt: |
+  What is a cgroup, as you'd find it on a modern (cgroups v2) Linux server?
+choices:
+  - "A Linux user group with extra permissions"
+  - "A directory under `/sys/fs/cgroup` holding a set of processes (`cgroup.procs`) and plain files that set and report their resource limits (`cpu.weight`, `cpu.max`, `memory.max`, `pids.max`, `cpu.stat`); systemd puts each service in one, and every container is one"
+  - "A compressed group of processes"
+  - "A kernel module that must be loaded for containers"
+answer: 1
+explanation: |
+  cgroups are the kernel's way of accounting for and limiting resources per group of processes, and v2 exposes them as one tree of directories whose files you can `cat` and `echo` into. systemd owns the top of the tree (`system.slice`, `user.slice`) and creates a group per unit, which is how `CPUQuota=` and `MemoryMax=` in a unit file work; container runtimes create a group per container. Reading those files is how you see what a container is really allowed.
+skills: [cgroups-v2]

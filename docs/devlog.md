@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Module 1, topics 7 to 9: memory, CPU, containers
+
+Memory and the OOM killer (`csa.linux.memory`), CPU scheduling and cgroups (`csa.linux.cpu`) and How containers work (`csa.linux.containers`), as drafts: 45 recall items, 19 of them `predict_shell`. These three belong together, and the containers lesson is written as the payoff of the two before it: a container is a process tree with namespaces for its view, a cgroup for its limits (the files the memory and CPU topics just taught), and an overlay root built from image layers.
+
+**Where the shell items are real.** Several run bash itself rather than reading captured output: a child shell that kills itself with `SIGKILL` and the parent that prints `exit status 137`; `read quota period < cpu.max` and `$(( quota * 100 / period ))` for a quota as a percentage; a for-loop over two cgroups' `cpu.max` with an `awk` ternary; `$(( $(cat memory.max) / 1048576 ))` for a limit in MiB; and plain folders standing in for an image layer and a container's upper layer, changed, shown and removed in one line. The rest read `free`, `/proc/meminfo`, `vmstat`, the OOM log, `top`'s CPU line, `uptime`, `ps`, `cpu.stat`, a Dockerfile, a `docker images` table and an overlay mount line.
+
+**Resources.** The kernel's own documentation (GPL-2.0) carries three of the topics' main readings: the memory *Concepts overview*, the CFS design note and the overlayfs document, with the cgroup v2 document for both controllers. Around them: Chris Down on swap and Julia Evans on containers (both copyright, linked), the ArchWiki (GNU FDL 1.3), the Linux man-pages, Docker's documentation (Apache-2.0) and the Kubernetes resource-management page (CC BY 4.0).
+
+**Decisions for you to review:**
+1. *Kernel documentation as main readings.* It's dense for a beginner, so each lesson carries the explanation itself and sends the learner to the document for the precise statement; the alternative was blog posts of uneven accuracy.
+2. *Containers wait for Memory and CPU.* The containers topic lists both as prerequisites, because its cgroup half is their material; the spec's outline had it after CPU anyway.
+
+**Next:** networking from the host, boot and cloud-init, shell scripting.
+
 ## 2026-11-09: Module 1, topics 4 to 6: services, packages, disks
 
 The owner chose to finish Module 1's lessons before the lab checker. This batch: Services and logs (`csa.linux.services`), Package management and patching (`csa.linux.packages`) and Disks and filesystems (`csa.linux.storage`), the same shape as the first three: a lesson for a complete beginner, an explain prompt with rubric and model answer, four to five skills, a review pool, and a practice ladder of recall items (49 in all, 20 of them `predict_shell`).

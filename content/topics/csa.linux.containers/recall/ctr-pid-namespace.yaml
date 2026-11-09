@@ -1,0 +1,23 @@
+id: ctr-pid-namespace
+type: predict_shell
+rev: 1
+prompt: |
+  `ps-host.txt` is `ps -eo pid,ppid,comm` on the host; `ps-container.txt` is the same command run *inside* the nginx container. The first command counts the nginx processes the host sees; the second prints the command of the container's PID 1. What is printed?
+files:
+  ps-host.txt: |
+    PID PPID COMMAND
+    1 0 systemd
+    2314 1 containerd-shim
+    2340 2314 nginx: master
+    2360 2340 nginx: worker
+  ps-container.txt: |
+    PID PPID COMMAND
+    1 0 nginx: master
+    7 1 nginx: worker
+command: grep -c nginx ps-host.txt; awk 'NR > 1 && $1 == 1 {print $3, $4}' ps-container.txt
+expected_output: |
+  2
+  nginx: master
+explanation: |
+  The same two processes appear in both listings. The host knows them as 2340 and 2360, children of the runtime's shim; inside the container's pid namespace they are 1 and 7, and the master is PID 1, the container's init. Being PID 1 has consequences: it must reap orphaned children and handle `SIGTERM` itself, which is why images often start with a tiny init like `tini`. Nothing is hidden from the host; the numbering is just different.
+skills: [namespaces]

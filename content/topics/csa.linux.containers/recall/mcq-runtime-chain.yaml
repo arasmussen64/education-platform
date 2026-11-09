@@ -1,0 +1,14 @@
+id: mcq-runtime-chain
+type: mcq
+rev: 1
+prompt: |
+  You type `docker run nginx`. Which programs are involved, in order, in getting nginx running as a container?
+choices:
+  - "`docker` starts a virtual machine, and nginx boots inside it"
+  - "The `docker` command asks the `dockerd` daemon; `dockerd` hands the container to `containerd`; `containerd` runs `runc`, which creates the namespaces and the cgroup, sets up the root filesystem and execs nginx; then `runc` exits and a `containerd-shim` stays as the container's parent"
+  - "`docker` calls the kernel directly; no other program is involved"
+  - "`systemd` starts nginx as a service and `docker` just reports on it"
+answer: 1
+explanation: |
+  Docker is layered. `dockerd` handles images, networks and the API; `containerd` manages container lifecycles (Kubernetes talks to it directly, with no Docker daemon at all); `runc` is the small tool that does the actual Linux work from the earlier topics: `unshare`-style namespaces, a cgroup, a pivot into the overlay root, then `exec`. Knowing the chain explains why `ps` shows `containerd-shim` as the parent of a container's PID 1, and why the Docker daemon can be restarted without stopping containers.
+skills: [container-vs-vm]

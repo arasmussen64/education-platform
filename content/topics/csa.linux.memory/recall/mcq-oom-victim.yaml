@@ -1,0 +1,14 @@
+id: mcq-oom-victim
+type: mcq
+rev: 1
+prompt: |
+  A server runs out of memory and swap. Which process does the kernel's OOM killer kill, and how can you influence the choice?
+choices:
+  - "The newest process; nothing can change that"
+  - "The one with the highest `oom_score`, roughly the one using the most memory, adjusted by each process's `oom_score_adj` (-1000 never, up to 1000 kill first), which you set for a process you want protected or sacrificed"
+  - "Always PID 1, to force a reboot"
+  - "A random process, to be fair"
+answer: 1
+explanation: |
+  The kernel scores every process by how much memory killing it would free, then tilts the score with `oom_score_adj`: set -1000 on the database (`echo -1000 > /proc/PID/oom_score_adj`, or `OOMScoreAdjust=` in its unit file) and it's never chosen; set 500 on a cache you can lose and it goes first. systemd and Kubernetes set these values for you based on a workload's importance. Killing the biggest process is usually right, because it's usually the one that leaked.
+skills: [oom-killer]

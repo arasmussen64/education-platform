@@ -1,0 +1,21 @@
+id: ctr-dockerfile-layers
+type: predict_shell
+rev: 1
+prompt: |
+  Only the instructions that change files add a layer to an image: `RUN`, `COPY` and `ADD` (plus the base image's own layers from `FROM`). `WORKDIR`, `ENV` and `CMD` only record metadata. The command lists the layer-creating lines of this Dockerfile with their line numbers. What is printed?
+files:
+  Dockerfile: |
+    FROM python:3.12-slim
+    WORKDIR /app
+    COPY requirements.txt .
+    RUN pip install -r requirements.txt
+    COPY . .
+    CMD ["python", "app.py"]
+command: grep -n -E '^(RUN|COPY|ADD)' Dockerfile
+expected_output: |
+  3:COPY requirements.txt .
+  4:RUN pip install -r requirements.txt
+  5:COPY . .
+explanation: |
+  Three layers on top of the base image's: the requirements file, the installed packages, and the application code. The order is deliberate. A rebuild reuses every cached layer up to the first instruction whose input changed, and code changes every day while `requirements.txt` rarely does, so copying it first and installing before `COPY . .` means the slow `pip install` layer is reused almost every build. Swap lines 3 to 5 around and every code change reinstalls everything.
+skills: [layers-overlay]

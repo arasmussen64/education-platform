@@ -1,0 +1,15 @@
+id: cpu-quota-percent
+type: predict_shell
+rev: 1
+prompt: |
+  A cgroup's `cpu.max` holds two numbers: the quota of CPU time the group may use, and the period, both in microseconds. `read` loads them into two variables, and the shell does the division. What is printed?
+files:
+  sys/fs/cgroup/app/cpu.max: |
+    50000 100000
+command: |
+  read quota period < sys/fs/cgroup/app/cpu.max; echo "$quota / $period = $((quota * 100 / period))% of one CPU"
+expected_output: |
+  50000 / 100000 = 50% of one CPU
+explanation: |
+  The group may use 50,000 µs of CPU in every 100,000 µs period: half a CPU, however many CPUs the machine has and however idle they are. If it uses its 50 ms in the first 10 ms of a period, it's stopped for the remaining 90. Docker's `--cpus=0.5` and a Kubernetes limit of `500m` both write exactly this file. The multiplication comes before the division because the shell only does whole-number arithmetic.
+skills: [cgroups-v2]

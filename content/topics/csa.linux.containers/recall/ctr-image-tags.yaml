@@ -1,0 +1,19 @@
+id: ctr-image-tags
+type: predict_shell
+rev: 1
+prompt: |
+  `images.txt` is the output of `docker images`: repository, tag, image ID, age and size. The command prints each image as `repository:tag` with its size, which is the last field. What is printed?
+files:
+  images.txt: |
+    REPOSITORY   TAG         IMAGE ID       CREATED        SIZE
+    python       3.12-slim   8f1c2a3b4d5e   3 weeks ago    130MB
+    app          1.4.2       1a2b3c4d5e6f   2 hours ago    215MB
+    app          latest      1a2b3c4d5e6f   2 hours ago    215MB
+command: awk 'NR > 1 {print $1 ":" $2, $NF}' images.txt
+expected_output: |
+  python:3.12-slim 130MB
+  app:1.4.2 215MB
+  app:latest 215MB
+explanation: |
+  `app:1.4.2` and `app:latest` have the same image ID: they are two names for one image, and `latest` is simply the tag that gets used when none is given, not a guarantee of being the newest. The app's 215 MB includes the 130 MB base image, whose layers it shares on disk with anything else built from `python:3.12-slim`, so the two images together take far less than 345 MB. `$NF` is awk for "the last field", which here avoids counting the words in `3 weeks ago`.
+skills: [layers-overlay]

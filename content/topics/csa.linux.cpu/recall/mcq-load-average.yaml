@@ -1,0 +1,14 @@
+id: mcq-load-average
+type: mcq
+rev: 1
+prompt: |
+  A 2-CPU server shows a load average of 6.0, yet `top` says the CPUs are 70% idle. How can both be true?
+choices:
+  - "They can't; one of the tools is broken"
+  - "The load average also counts tasks in uninterruptible sleep, usually waiting on disk or network storage, so six tasks stuck on I/O give a load of 6 while the CPUs sit idle; check `wa` in `top` and `iostat`"
+  - "The load average is a percentage, so 6.0 means 6%"
+  - "The load average counts threads of the kernel only"
+answer: 1
+explanation: |
+  Linux's load average is the number of tasks that are runnable *or* in uninterruptible wait (the `D` state in `ps`), which is why a machine with a sick disk can show a load of 20 with idle CPUs. A high load with high `id` and high `wa` points at storage; a high load with `id` near zero points at CPU. Always read the load average together with the CPU line and the CPU count.
+skills: [load-average]

@@ -1,0 +1,32 @@
+<Intro>
+
+Memory is the resource servers run out of most suddenly. A disk fills up over days; memory runs out in a second, and the kernel responds by killing something. This topic is about reading the numbers correctly before that happens, and reading the log afterwards.
+
+**Virtual memory.** Every process sees its own private range of addresses, from zero up to a huge number, as if it had the whole machine to itself. That range is **virtual**: the kernel maps it, in **pages** of 4 KB, onto physical RAM, and only the pages a process actually touches get real memory behind them. Two processes can't see each other's pages, which is the isolation that keeps a crashing program from corrupting another. Together, processes can reserve far more virtual memory than the machine has physical memory; what matters is how much they actually use, their **resident set size (RSS)**.
+
+**Why `free` looks scary.** Run `free -m` on a healthy 16 GB server and you'll often see a few hundred megabytes "free". That's by design. RAM nothing is using would be wasted, so the kernel fills it with the **page cache**: copies of files that were recently read or written, which make the next read instant and which the kernel drops the moment a program needs the space. `free` counts that under `buff/cache`. The column that answers "could I start something big here?" is **`available`** (`MemAvailable` in `/proc/meminfo`): free memory plus the cache the kernel could give back. Low `free` is normal; low `available` is the warning.
+
+**Swap and paging.** **Swap** is disk space the kernel can move memory pages to. When RAM is tight, it writes out **anonymous pages** (program data, as opposed to file-backed pages, which it can simply drop because the file is still on disk) that haven't been touched in a long time. Some swap in use is fine and even good: idle pages on disk mean more RAM for things that are actually used, which is Chris Down's argument in the second reading. The problem is **thrashing**: pages being written out and read back constantly because the working set doesn't fit. `vmstat 1` shows it as non-zero `si` (swap in) and `so` (swap out) every second, with programs stuck in `wa` (waiting on the disk). That machine needs more memory or less work; no setting fixes it. `swappiness` (0 to 200) tunes how eagerly the kernel swaps anonymous pages rather than dropping cache.
+
+**Huge pages.** Mapping memory in 4 KB pages means a lot of bookkeeping for a program holding tens of gigabytes: page tables, and misses in the CPU's cache of mappings (the TLB). **Huge pages** are 2 MB (or 1 GB) instead, and databases and JVMs with large heaps use them for a measurable speedup. `/proc/meminfo` shows how many are reserved (`HugePages_Total`) and how big (`Hugepagesize`). **Transparent huge pages** let the kernel hand them out automatically, which sometimes causes latency spikes while it compacts memory, so some databases recommend turning THP off.
+
+**The OOM killer.** When memory and swap are both exhausted, the kernel has to free something, and it kills a process. It picks the one with the highest **`oom_score`**, roughly the one using the most memory, adjusted by **`oom_score_adj`** (from -1000, never kill, to 1000, kill first), which operators set to protect a database or to sacrifice a cache. The log line, in `dmesg` or `journalctl -k`, reads like `Out of memory: Killed process 4321 (java) total-vm:12582912kB, anon-rss:7340032kB ...`: the PID, the program, and `anon-rss`, the memory it really held. A process killed this way exits with status **137**, which is 128 plus 9, the number of `SIGKILL`; wherever you see 137, think "out of memory" first.
+
+**Containers die at their own limit.** A container's processes live in a **cgroup**, and the container's memory limit is that cgroup's `memory.max`. When the processes inside reach it, the kernel runs the OOM killer *inside that cgroup*, so the container's main process is killed while the node still has 20 GB free. Kubernetes shows `OOMKilled` and exit code 137; the cgroup's `memory.events` file counts `oom_kill`. The fix is never "the node has memory": it's to measure what the program really uses (`memory.current`, or `memory.peak`), raise the limit to that, fix the leak if the number grows without end, and set the **request** (what the scheduler reserves) close to the **limit** (where the kill happens) so the pod lands on a node that has the memory.
+
+**Read now:** the kernel's *Concepts overview*, the main resource below, as far as the OOM section; it's the clearest short description of all of this. Then Chris Down on swap, the ArchWiki page for the practical side of swap, the Memory section of the cgroup v2 document, and the Kubernetes page on requests and limits. The practice reads `free`, `/proc/meminfo`, `vmstat`, the OOM log, cgroup files and a pod description with the text tools from Shell essentials.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Virtual memory:** each process has its own address space, mapped to physical **pages** (4 KB); what it actually uses is its RSS.
+- **`free -m`:** `free` is small on purpose; `buff/cache` is the **page cache**, given back on demand; **`available`** (`MemAvailable`) is the number that matters.
+- **Swap** holds idle anonymous pages; some use is healthy. **Thrashing** is `vmstat 1` showing steady `si` and `so` with high `wa`: the machine needs more memory. `swappiness` tunes eagerness.
+- **Huge pages** (2 MB) cut page-table and TLB overhead for big-memory programs; `HugePages_Total` and `Hugepagesize` in `/proc/meminfo`; transparent huge pages can cause latency spikes.
+- **OOM killer:** picks the highest `oom_score` (roughly the biggest), adjusted by `oom_score_adj` (-1000 never, 1000 first). Log: `Out of memory: Killed process PID (name) ... anon-rss:...`. Exit status **137** = 128 + `SIGKILL`.
+- **Containers:** the limit is the cgroup's `memory.max`; reaching it OOM-kills inside the cgroup even when the node has memory; `memory.events` counts `oom_kill`; Kubernetes says `OOMKilled`. Measure, raise or fix the leak, and set requests near limits.
+
+</Recap>

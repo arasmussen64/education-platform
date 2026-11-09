@@ -1,0 +1,14 @@
+id: mcq-container-limit
+type: mcq
+rev: 1
+prompt: |
+  A container with a 512 MiB memory limit keeps getting killed with exit code 137, while the node it runs on has 20 GB free. Why does the node's free memory not help?
+choices:
+  - "It should help; the kill must be a bug in the kernel"
+  - "The container's processes live in a cgroup whose `memory.max` is 512 MiB; when they reach it, the kernel runs the OOM killer inside that cgroup only, so the node's free memory is irrelevant. Measure what the program needs and raise the limit, or fix the leak"
+  - "The node's memory is reserved for the kernel"
+  - "Containers can only use swap, not RAM"
+answer: 1
+explanation: |
+  A limit is a wall around the container's own memory, enforced by the cgroup, and it's doing exactly what it was asked. Kubernetes reports the result as `OOMKilled`; the cgroup's `memory.events` shows `oom_kill` ticking up. The fix is to know what the program really uses (`memory.current` or `memory.peak`) and set the limit above that, with the request close to the limit so the scheduler places it where the memory exists; a program that grows forever needs fixing, not a bigger wall.
+skills: [container-memory]

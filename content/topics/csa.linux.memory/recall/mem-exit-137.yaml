@@ -1,0 +1,12 @@
+id: mem-exit-137
+type: predict_shell
+rev: 1
+prompt: |
+  The OOM killer ends a process with `SIGKILL`, signal number 9, which is exactly what this child shell does to itself. The parent then prints the exit status it sees. What is printed? (A process killed by signal N reports 128 + N. The parentheses group the two commands so that the "Killed" notice the shell writes to stderr can be sent to `/dev/null`.)
+command: |
+  ( bash -c 'kill -KILL $$'; echo "exit status $?" ) 2>/dev/null
+expected_output: |
+  exit status 137
+explanation: |
+  128 + 9 = 137. The shell reports a signal death this way so a script can tell "exited with 9" from "killed by signal 9", and it also prints a "Killed" notice on stderr, which the redirection discards here. Whenever a container, a CI job or a service shows exit code 137, the first suspect is an out-of-memory kill, by the kernel or by a cgroup limit; `dmesg`, `journalctl -k` or `kubectl describe pod` (with `OOMKilled` as the reason) confirms it. Exit 143 is the same arithmetic for `SIGTERM` (15), the polite stop.
+skills: [oom-killer]

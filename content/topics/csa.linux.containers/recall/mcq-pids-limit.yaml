@@ -1,0 +1,14 @@
+id: mcq-pids-limit
+type: mcq
+rev: 1
+prompt: |
+  A buggy container spawns processes without end (a fork bomb). What stops it from taking the whole host down?
+choices:
+  - "Nothing; a fork bomb in any container crashes the host"
+  - "The container's cgroup `pids.max` (Docker's `--pids-limit`, Kubernetes' pod PID limit): once the group has that many processes, `fork` fails inside the container and nothing else is affected"
+  - "The network namespace"
+  - "The image's layers, which are read-only"
+answer: 1
+explanation: |
+  Processes are a resource like CPU and memory, and the pids controller caps how many a cgroup may hold. When the limit is reached, new `fork` calls in that group fail with "resource temporarily unavailable", the bomb fizzles, and the host and the other containers never notice. Without the limit, the kernel's global process table fills and everyone suffers, which is why runtimes set a default and why it's worth setting deliberately.
+skills: [cgroups-limits]

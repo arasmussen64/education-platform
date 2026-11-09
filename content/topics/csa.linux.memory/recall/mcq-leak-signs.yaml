@@ -1,0 +1,14 @@
+id: mcq-leak-signs
+type: mcq
+rev: 1
+prompt: |
+  A service is OOM-killed every two days, restarts, and is fine for two days. Its memory graph is a sawtooth: a steady climb to the limit, then a drop. What does that pattern tell you, and what doesn't fix it?
+choices:
+  - "The server has too little memory; adding RAM fixes it for good"
+  - "The program leaks memory: it keeps allocating and never frees, so it will reach any limit eventually; raising the limit only lengthens the cycle, and the fix is in the program (or a deliberate periodic restart while it's found)"
+  - "The page cache is leaking; drop the caches"
+  - "Swap is too small"
+answer: 1
+explanation: |
+  A steady climb with no plateau means memory in use grows with time rather than with load: a leak. Doubling the limit turns two days into four. Caches don't leak (the kernel reclaims them), and swap only delays the kill. Measure which part of the program grows (heap profiles, `memory.current` over time), fix it, and in the meantime a scheduled restart is an honest stopgap.
+skills: [oom-killer, container-memory]

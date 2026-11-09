@@ -1,0 +1,14 @@
+id: mcq-steal-time
+type: mcq
+rev: 1
+prompt: |
+  A small burstable cloud instance ran fine for an hour of load testing, then slowed to a crawl while `top` showed `st` climbing past 50%. What happened?
+choices:
+  - "The disk filled up"
+  - "The instance used up its CPU credits (or a neighbour got busy), and the hypervisor now takes its CPU away for half the time; steal time measures exactly that, and the fix is a bigger or non-burstable instance"
+  - "The kernel's scheduler crashed"
+  - "Too many processes were niced"
+answer: 1
+explanation: |
+  Burstable instances earn credits while idle and spend them to run above a baseline; when the credits are gone, the hypervisor holds the VM to its baseline, and the time it withholds shows up as `st`. Nothing inside the VM can fix that: no nice value, no cgroup. Pick an instance type with the CPU you actually need, or accept the baseline. Steal from a noisy neighbour looks the same and has the same answer.
+skills: [load-average]

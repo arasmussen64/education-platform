@@ -1,0 +1,19 @@
+id: ctr-cgroup-limits
+type: predict_shell
+rev: 1
+prompt: |
+  The folder mirrors the cgroup Docker created for a container started with `--memory=256m --pids-limit=100 --cpus=1`. The command prints the three limits it wrote, converting the memory to MiB. What is printed?
+files:
+  sys/fs/cgroup/system.slice/docker-abc123.scope/memory.max: |
+    268435456
+  sys/fs/cgroup/system.slice/docker-abc123.scope/pids.max: |
+    100
+  sys/fs/cgroup/system.slice/docker-abc123.scope/cpu.max: |
+    100000 100000
+command: |
+  cd sys/fs/cgroup/system.slice/docker-abc123.scope && echo "memory $(( $(cat memory.max) / 1048576 )) MiB, pids $(cat pids.max), cpu $(cat cpu.max)"
+expected_output: |
+  memory 256 MiB, pids 100, cpu 100000 100000
+explanation: |
+  Docker's flags are nothing more than writes to these files: 256 MiB is 268,435,456 bytes in `memory.max`, the process cap goes in `pids.max`, and `--cpus=1` is a quota of 100,000 µs per 100,000 µs period in `cpu.max`. The container is a cgroup like any systemd service's, under `system.slice`. Reading the files is the ground truth when a dashboard and a config file disagree about what a container is allowed.
+skills: [cgroups-limits]

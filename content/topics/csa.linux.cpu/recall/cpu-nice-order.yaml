@@ -1,0 +1,21 @@
+id: cpu-nice-order
+type: predict_shell
+rev: 1
+prompt: |
+  `ps.txt` is the output of `ps -eo pid,ni,comm`: each process with its nice value (NI). The command prints nice and name, skipping the header, sorted so the highest-priority process comes first. What is printed?
+files:
+  ps.txt: |2
+      PID  NI COMMAND
+      812   0 nginx
+     1203  10 backup.sh
+     1417  -5 postgres
+     1522  19 indexer
+command: awk 'NR > 1 {print $2, $3}' ps.txt | sort -n
+expected_output: |
+  -5 postgres
+  0 nginx
+  10 backup.sh
+  19 indexer
+explanation: |
+  Lower nice means a bigger share: at -5 the database gets more CPU than nginx at the default 0 when they compete, the backup at 10 gets less, and the indexer at 19 gets whatever is left. `sort -n` orders the numbers properly, negative first. Someone set these on purpose: `renice -n -5 -p 1417` needs root, while raising a nice value (`nice -n 19 ./indexer`) any user may do.
+skills: [scheduler]

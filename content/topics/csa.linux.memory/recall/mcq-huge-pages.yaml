@@ -1,0 +1,14 @@
+id: mcq-huge-pages
+type: mcq
+rev: 1
+prompt: |
+  Why would a database with a 60 GB memory area want huge pages, and what is the usual warning about transparent huge pages (THP)?
+choices:
+  - "Huge pages are faster disks; THP wears them out"
+  - "Mapping 60 GB in 4 KB pages means millions of page-table entries and frequent misses in the CPU's mapping cache; 2 MB pages cut both. THP hands them out automatically but can stall a process while the kernel compacts memory, so several databases advise turning THP off and reserving huge pages explicitly"
+  - "Huge pages are encrypted; THP disables the encryption"
+  - "Huge pages are only for swap"
+answer: 1
+explanation: |
+  Every 4 KB page needs an entry in the page tables and a slot in the TLB, the CPU's cache of recent address translations; a 60 GB area in 4 KB pages is 15 million entries. 2 MB pages divide that by 512, and TLB misses drop with it. Transparent huge pages let the kernel do this on its own, but assembling 2 MB of contiguous memory can mean pausing a process, which shows up as latency spikes; that's why PostgreSQL, MongoDB and others suggest disabling THP and using explicitly reserved huge pages instead.
+skills: [swap-paging]
