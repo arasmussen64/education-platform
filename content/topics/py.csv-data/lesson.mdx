@@ -1,0 +1,43 @@
+<Intro>
+
+Most data you'll ever be handed arrives as a CSV: *comma-separated values*, a plain text file with one record per line and commas between the fields. Spreadsheets export it; databases import it; the machine-learning track lives on it. In this clip David has a file of students and their houses and reads it with Python's `csv` module. Watch for:
+
+- **`import csv`** and **`csv.reader(file)`**, which splits each line into a list of fields for you, correctly even when a field has a comma inside quotes.
+- **`csv.DictReader(file)`**, which uses the first line, the **header**, as the field names and gives you **one dictionary per row**: `row["name"]`, `row["home"]`. That's the one you'll use most.
+- **Writing** with `csv.writer` and `csv.DictWriter`, the mirror image.
+
+Before the `csv` module, David splits lines by hand with `split(",")` (the second resource, if you want to see why the module exists). Then skim the **`csv.DictReader`** entry in the standard library docs; it's short.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+A CSV file, as text:
+
+```
+name,city,age
+Ada,London,36
+Bob,Leeds,41
+```
+
+**Reading it as records:**
+
+```python
+import csv
+
+with open("people.csv") as f:
+    for row in csv.DictReader(f):          # one dict per data row
+        print(row["name"], row["city"])    # keys from the header
+        age = int(row["age"])              # values are text: convert
+```
+
+- **The header line** names the fields; `DictReader` uses it as the keys. Without a header you'd use `csv.reader`, which gives lists.
+- **Everything is a string.** `"36"` is text until `int()` or `float()` turns it into a number. Do the conversion once, as you read, inside a `try` if the file might have bad rows.
+- **Keep the rows** when you need more than one pass: `rows = list(csv.DictReader(f))` inside the `with`, then work on `rows` after the file is closed.
+- **Summaries are Module 5 patterns:** a running total over `float(row["amount"])`; a count or a total **by group** with a dictionary, `totals[row["region"]] = totals.get(row["region"], 0) + amount`; a filter that keeps the rows where a field matches.
+- **Writing** a CSV: `csv.writer(f)` and `writer.writerow([...])` for lists, or `csv.DictWriter(f, fieldnames=[...])` with `writeheader()` and `writerow(dict)` for dictionaries. On Windows, open the file with `newline=""` when writing CSV, or you get blank lines between rows.
+- `split(",")` works for simple files, but a field like `"Leeds, UK"` breaks it; the `csv` module handles quoting for you.
+
+</Recap>

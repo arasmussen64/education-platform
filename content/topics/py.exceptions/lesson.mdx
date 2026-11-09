@@ -1,0 +1,37 @@
+<Intro>
+
+Every program you've written so far trusts its input. Type `ten` where a number is expected and it dies with a traceback. Real programs expect things to go wrong, and handle it. In this clip David asks for a number, watches `int()` fail, and builds up the standard way to cope. Watch for:
+
+- **A `ValueError`** when `int()` is given text that isn't a number. It's an *exception*: an error while the program runs.
+- **`try` and `except ValueError`:** try the risky lines; if that error happens, run the `except` block instead, and carry on.
+- **Where the risky line goes.** David's first attempt puts `int()` in the `try` but uses the result outside it, and gets a `NameError` when the conversion failed. The fix is **`else`**: a block that runs only when the `try` succeeded.
+- **`while True` around it all**, so the user is asked again until they type something usable. The clip ends as this loop works.
+
+The rest of the lecture (the second resource) turns the loop into a `get_int` function, shows `pass`, adds a prompt parameter, and ends with `raise`. Watch it if you have time; the recap covers what you need. Then read the tutorial's **Handling Exceptions** and **Raising Exceptions** sections.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+```python
+def get_int(prompt):
+    """Ask until the user types a whole number, and return it."""
+    while True:
+        text = input(prompt)
+        try:
+            return int(text)             # the risky line, inside try
+        except ValueError:
+            print("That's not a whole number. Try again.")
+```
+
+- **An exception** is an error while the program runs: `ValueError` (right type, bad value), `ZeroDivisionError`, `KeyError`, `IndexError`, `FileNotFoundError` (next topic). Unhandled, it stops the program.
+- **`try` / `except SomeError`:** the lines under `try` are attempted. If that error happens in them, Python jumps to the `except` block, runs it, and continues after the whole statement. If no error happens, the `except` block is skipped.
+- **Name the error.** `except ValueError:` handles the one thing you expect. A bare `except:` would also swallow typos and bugs you *want* to see.
+- **Only the risky line goes inside `try`.** Using the result goes in **`else`** (runs only if the `try` succeeded) or after a `return`.
+- **Keep asking:** `while True`, `try`, and on success `return` (or `break`). The `except` prints a message and lets the loop come round again.
+- **`raise ValueError("age must be 0 or more")`** stops your function at once and reports the problem to the caller, who can catch it. Raise when a function is given something it can't honestly work with; a wrong answer later is worse than an error now.
+- An error is a value too: `except ValueError as error:` keeps it, and `print(error)` shows its message.
+
+</Recap>

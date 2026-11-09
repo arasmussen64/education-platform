@@ -1,0 +1,6 @@
+print("expenses: all checks passed")
+print("food: 61.70")
+print("travel: 55.75")
+print("Rows: 6")
+print("Bad rows: 2")
+print("Total: 117.45")

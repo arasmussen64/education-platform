@@ -1,10 +1,79 @@
 id: py.modules-and-libraries
 kind: topic
-status: planned
+status: ready
 title: "Modules and libraries"
-summary: "Import from the standard library, and write your own module."
+summary: "Use code other people wrote: import from Python's standard library, read its docs, and make your own file a module."
 prerequisites: [py.m5.checkpoint]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Import from the standard library, and write your own module."
+  - "Bring a module in with `import` and use its functions with a dot, or import one name with `from ... import`, and know the trade-off."
+  - "Use a few standard-library tools: `random.choice`, `random.randint`, `random.shuffle`, `statistics.mean`, `math.sqrt`, and look up the rest in the docs."
+  - "Make your own file a module: functions at the top, and `if __name__ == \"__main__\":` so importing it doesn't run it."
+resources:
+  - title: "CS50P Lecture 4: Libraries, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=MztLZWibctI&t=28s
+    type: video
+    use: embed
+    # Modules and the standard library (0:28 to 19:13): import random,
+    # random.choice, from random import choice and why, randint, shuffle,
+    # and statistics.mean.
+    start: 28
+    end: 1153
+    license: CC BY-NC-SA 4.0
+  - title: "CS50P Lecture 4, making your own module: sayings.py and __name__ (1:10:17 to 1:17:22)"
+    url: https://www.youtube.com/watch?v=MztLZWibctI&t=4217s
+    type: video
+    use: link
+    start: 4217
+    end: 4642
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: Modules, up to Executing modules as scripts (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/modules.html#modules
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-dice
+  - mcq-import-forms
+  - predict-mean
+  - mcq-dot-name
+  - mcq-bare-main
+  - fill-import
+  - write-shuffled
+prove:
+  build: build-helpers-module
+  debug: debug-modules
+  explain:
+    prompt: |
+      A friend writes `choice(["heads", "tails"])` and gets `NameError: name 'choice' is not defined`. They add `import random` at the top and get the same error. Explain, in your own words: what a module is; the two ways to import, and why `random.choice` works after `import random` while plain `choice` doesn't; when `from random import choice` is handy and what you give up; and why a file of their own helper functions should end with `if __name__ == "__main__":` rather than a bare `main()`.
+    rubric:
+      - id: module
+        required: true
+        description: "A module is a file of Python code, usually functions, that other programs can import; Python comes with many (the standard library)."
+      - id: import-forms
+        required: true
+        description: "import random brings in the module under its name, so its functions are reached with a dot, random.choice; from random import choice brings the one name in directly."
+      - id: trade-off
+        required: true
+        description: "from ... import saves typing the module name, but the name can clash with your own variables and hides where the function came from."
+      - id: guard
+        required: true
+        description: "Importing a file runs it top to bottom, so a bare main() would run on import; the __name__ check runs main only when the file is run directly."
+    model_answer: |
+      A module is just a file of Python code, usually functions, that another program can use by importing it. Python ships with hundreds of them, the standard library: random, statistics, math, csv and so on. import random makes the module available under its name, and its functions are reached with a dot, random.choice(...); plain choice is still an undefined name, which is why the error didn't change. from random import choice instead copies that one name into your file, so choice(...) works on its own. It's handy when you call the function a lot, but the name can collide with a variable of your own called choice, and a reader can't see where it came from. Your own file is a module too: another file can import it to use its functions. Importing runs the whole file top to bottom, so a bare main() at the bottom would run every time someone imports it. if __name__ == "__main__": main() runs main only when the file is run directly, because that's the only time Python sets __name__ to "__main__".
+review_pool:
+  - review-predict-from-import
+  - review-mcq-name-main
+  - review-code-middle
+  - mcq-dot-name
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: import-use
+    description: "Import a module or a name from it, and call its functions correctly"
+  - id: stdlib-tools
+    description: "Use `random`, `statistics` and `math` for common jobs, and look up the rest"
+  - id: own-module
+    description: "Make a file a module, with `if __name__ == \"__main__\":` so importing doesn't run it"

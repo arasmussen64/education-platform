@@ -1,0 +1,22 @@
+id: review-predict-dictreader
+type: predict_output
+rev: 1
+prompt: |
+  What does this program print? Two lines.
+code: |
+  import csv
+
+  with open("pets.csv", "w") as f:
+      f.write("name,kind\n")
+      f.write("Rex,dog\n")
+      f.write("Tom,cat\n")
+
+  with open("pets.csv") as f:
+      for row in csv.DictReader(f):
+          print(row["name"], "is a", row["kind"])
+expected_output: |
+  Rex is a dog
+  Tom is a cat
+explanation: |
+  The first block writes a header and two records. `DictReader` reads the header, then gives a dictionary for each record with the keys `name` and `kind`. The header itself isn't a row, so two lines print.
+skills: [dict-reader]

@@ -1,0 +1,60 @@
+id: build-csv-report
+stage: build
+rev: 1
+title: "CSV report tool"
+prompt: |
+  Starting from a blank editor, build this spec into a program: examples first, then a plan, then tests, then small steps.
+
+  > **Sales report.** Sales are kept in a CSV file with the columns `date,region,amount`. Some rows are bad: the amount is blank, or isn't a number. The tool reads the file, skips the bad rows but counts them, adds up the amount for each region, and writes a report file, which it also prints. The report has one line per region, in the order the regions first appear, like `north: 150.50`, then `Rows: 6`, `Bad rows: 2` and `Total: 275.75`. Money always has two decimal places.
+
+  Put this at the top of your file, so the program has a file to work on:
+
+  ```python
+  import csv
+
+
+  def write_sample(path):
+      """Write the sample sales file."""
+      with open(path, "w") as f:
+          f.write("date,region,amount\n")
+          f.write("2026-01-03,north,120.50\n")
+          f.write("2026-01-03,south,80\n")
+          f.write("2026-01-04,north,abc\n")
+          f.write("2026-01-04,east,45.25\n")
+          f.write("2026-01-05,south,\n")
+          f.write("2026-01-05,north,30\n")
+  ```
+
+  Then write these functions, each with a docstring, none of which changes the list it's given:
+
+  - `read_rows(path)` returns the file's rows as a list of dictionaries.
+  - `amount_of(row)` returns the row's amount as a number, or `None` when it's blank or isn't a number.
+  - `good_rows(rows)` returns the rows whose amount is a number, in order.
+  - `totals_by_region(rows)` returns a dictionary of region to total amount over the good rows, in order of first appearance.
+  - `report_lines(rows)` returns the report's lines for all the rows read, good and bad.
+  - `write_report(path, lines)` writes the lines to the file, one per line, replacing what was there.
+  - `test_report()` has at least four asserts, including a row whose amount is text and one whose amount is blank, and ends with `print("report: all checks passed")`.
+  - `main()` writes the sample to `sales.csv`, reads it, writes the report to `report.txt`, and prints each line of the report.
+
+  Finish with `if __name__ == "__main__":`, calling `test_report()` and then `main()`. Running the program should print the lines below, and `report.txt` should hold all of them except the first:
+
+  ```
+  report: all checks passed
+  north: 150.50
+  south: 80.00
+  east: 45.25
+  Rows: 6
+  Bad rows: 2
+  Total: 275.75
+  ```
+test_skills:
+  test_read_rows: [py.csv-data/dict-reader, py.files/with-block]
+  test_amount_of: [py.exceptions/try-except, py.strings-and-input/convert]
+  test_good_rows: [py.list-algorithms/filter-transform, py.return-values/none]
+  test_totals_by_region: [py.csv-data/summarize, py.dictionaries/lookup-update]
+  test_report_lines: [py.strings-and-input/fstrings, py.dictionaries/loop-dict, py.decomposition/compose]
+  test_write_report: [py.files/write-file, py.files/with-block]
+  test_leaves_data_alone: [py.references-and-mutation/mutating-functions]
+  test_docstrings: [py.decomposition/docstrings]
+  test_tests: [py.testing-with-assert/choose-cases, py.spec-to-program/test-first]
+  test_program: [py.modules-and-libraries/own-module, py.spec-to-program/decompose-plan]

@@ -1,0 +1,41 @@
+<Intro>
+
+Until now, every exercise told you which functions to write. Real work starts further back, with a **spec**: a description of what the program should do, usually written by someone who won't write the code. Getting from a spec to a working program is a skill of its own, and this topic is about the method. There's no video this time; the lesson is here, and the reading is a section of *Think Python*.
+
+Here's a spec, the kind a colleague might send:
+
+> Give the customer a discount: 10% off orders of 100 or more, 5% off orders of 50 or more. Show the amount to pay, in dollars and cents.
+
+**Step 1: examples before code.** Read the spec and write down concrete cases, each with its exact answer. That's where the questions hide:
+
+- 120 → 108.00 (10% off), 60 → 57.00 (5% off), 20 → 20.00 (no discount). The ordinary cases.
+- 100 → 90.00 and 50 → 47.50. "100 or more" includes 100: the **boundaries** come straight from the words.
+- 99.99 → 94.99. Just under a boundary, the other way.
+- 0 → 0.00? A negative order? The spec doesn't say. **Write the gap down**, decide something sensible (0 is fine; a negative total is an error), and ask whoever wrote the spec when you can.
+
+**Step 2: plan the functions.** Name the pieces, what goes in and what comes back, before writing any body: `discount_rate(total)` returns the rate (0.1, 0.05 or 0); `amount_to_pay(total)` applies it, rounded to cents; `main()` asks and prints. Each function does one job and returns a value, so each can be tested on its own, the way Module 4 taught.
+
+**Step 3: tests from the examples.** Every example becomes an `assert`: `assert amount_to_pay(100) == 90.0`, `assert amount_to_pay(99.99) == 94.99`, and so on, in a `test_discount()` function. Write each function as a **stub** first, a body that just returns 0, run the tests, and watch them fail. A test that has never failed hasn't proved it can.
+
+**Step 4: small steps.** Fill in one function, run the tests, fix it, then the next. Three new lines are easy to debug; thirty at once aren't. The reading shows exactly this: a `distance` function grown from a stub that returns `0.0`, with temporary `print`s as scaffolding along the way, removed once it works.
+
+Read **Incremental development** now; it's short. Then the worked example below walks a whole spec through the four steps.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+The method, as a checklist to run through before and while you code:
+
+1. **Examples first.** From the spec, write concrete inputs and the exact output for each: ordinary cases, every boundary the words imply ("100 or more" means 100 counts), just past each boundary, and the empty or zero case. Each example is a test waiting to happen.
+2. **Find the gaps.** Where the spec is silent (a negative number? a missing file? two items that tie?), decide, write your decision down as an example, and ask. Guessing silently is how programs come out "working" and wrong.
+3. **Plan the functions.** For each piece: a name that says what it returns, its parameters, its result. Functions return values; only `main` prints. Write them as stubs (`return 0`, `return []`) and the file already runs.
+4. **Tests from the examples.** One `assert` per example, in a `test_...()` function that prints a message at the end. Run it against the stubs: it must fail. If it passes, the test isn't testing.
+5. **Build in small steps.** One function at a time: write it, run the tests, fix, move on. Temporary `print`s inside a function are fine scaffolding; take them out when the tests pass.
+6. **Finish with `main`,** under `if __name__ == "__main__":`, after the tests have run.
+
+The spec is the contract: when your code and the spec disagree, the spec wins; when the spec and your reading of it might disagree, ask.
+
+</Recap>

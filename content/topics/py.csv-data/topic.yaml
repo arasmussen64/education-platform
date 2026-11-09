@@ -1,10 +1,77 @@
 id: py.csv-data
 kind: topic
-status: planned
+status: ready
 title: "CSV data"
-summary: "Read a CSV into records and summarize it."
+summary: "Read a CSV file into records with the csv module, turn its text into numbers, and summarize it."
 prerequisites: [py.files]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Read a CSV into records and summarize it."
+  - "Know what a CSV file is: one record per line, fields separated by commas, and a header line naming the fields."
+  - "Read a CSV with `csv.DictReader`, which gives one dictionary per row with the header's names as keys, and remember that every value is text."
+  - "Summarize rows: convert fields to numbers, total a column, and count or add up by group with a dictionary."
+resources:
+  - title: "CS50P Lecture 6: File I/O, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=KD-Yoel6EVQ&t=3695s
+    type: video
+    use: embed
+    # The csv module (1:01:35 to 1:19:02): csv.reader, then DictReader, then
+    # writing with csv.writer and DictWriter.
+    start: 3695
+    end: 4742
+    license: CC BY-NC-SA 4.0
+  - title: "CS50P Lecture 6, splitting CSV lines by hand with split(\",\") (30:26 to 37:00)"
+    url: https://www.youtube.com/watch?v=KD-Yoel6EVQ&t=1826s
+    type: video
+    use: link
+    start: 1826
+    end: 2220
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Standard Library: csv.DictReader (Python Software Foundation)"
+    url: https://docs.python.org/3/library/csv.html#csv.DictReader
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-read-csv
+  - mcq-header
+  - predict-split
+  - mcq-dictreader-row
+  - fill-total-column
+  - write-rows-where
+prove:
+  build: build-csv-summary
+  debug: debug-csv
+  explain:
+    prompt: |
+      Explain CSV files to a friend who has only seen spreadsheets: what the file itself looks like and why the first line matters; what `csv.DictReader` gives you for each row; why `row["amount"] + 1` fails with a `TypeError` and what to do instead; and how you would add up the amounts for each region using a dictionary.
+    rubric:
+      - id: format
+        required: true
+        description: "A CSV is plain text: one record per line, fields separated by commas, and the first line is a header naming the fields."
+      - id: dictreader
+        required: true
+        description: "DictReader gives one dictionary per data row, with the header's names as keys."
+      - id: strings
+        required: true
+        description: "Every value is text, so a number field must be converted with int() or float() before arithmetic."
+      - id: group-sum
+        required: true
+        description: "Loop over the rows, use the region as a dictionary key, and add the converted amount to that key's total, starting it at 0 the first time."
+    model_answer: |
+      A CSV file is the spreadsheet with everything but the text taken away: each line is one record, the fields are separated by commas, and the first line is a header that names the fields, like date,region,amount. With the csv module, csv.DictReader(f) walks the file for you and gives one dictionary per data row, using the header names as keys, so row["amount"] is that row's amount. The catch is that everything read from a file is text: row["amount"] is the string "2.5", and adding 1 to a string is a TypeError. Convert first, float(row["amount"]), inside a try if the data might be messy. To total by region, make an empty dictionary, loop over the rows, and for each one add the converted amount to totals[row["region"]], starting that key at 0 the first time you see it; at the end the dictionary holds one total per region.
+review_pool:
+  - review-predict-dictreader
+  - review-mcq-strings
+  - review-code-column-values
+  - mcq-header
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: split-rows
+    description: "Know the CSV shape: one record per line, comma-separated fields, a header line"
+  - id: dict-reader
+    description: "Read rows with `csv.DictReader` as dictionaries of strings keyed by the header"
+  - id: summarize
+    description: "Convert fields to numbers and total, count or group them with a dictionary"

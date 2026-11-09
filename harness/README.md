@@ -38,3 +38,4 @@ The expected files are a contract. Never regenerate them just to make a failing 
 - Harness file names and paths must never appear in messages the learner sees.
 - Use the Python minor version that Pyodide bundles, pinned by `requires-python` in the root `pyproject.toml`. There's deliberately no `.python-version` file: Cloudflare's build would spot it and install Python for nothing.
 - Scenarios run in a fresh Python process, not inside pytest. pytest rewrites `assert` statements in any `test_*.py` file it imports, which would change the messages.
+- Tests may create files (`Path("x.txt").write_text(...)`), and programs may read and write files, all in the working folder; the `check-files` scenario pins that both runtimes agree. Only `solution.py` and `test_exercise.py` are ever copied in, so a data file must be made by the test or by the program itself.
