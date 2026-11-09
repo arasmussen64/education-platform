@@ -12,7 +12,7 @@ The owner ran `npm run fn:eval:tutor`: **25 of 25 replies fine** with Claude Hai
 
 **The fix** (this entry's PR), in two rounds:
 1. *Version 2:* one more rule in the tutor's instructions: speak to the learner as "you", never say "the learner", and never mention the blocks or the rung. The owner ran the set again: 25 of 25 fine for $0.0047, and the two replies now say "You asked for the full program, but I give hints, not answers". But two others said "the author's note" and "the two author-style facts", echoing the `<author_hints>` label.
-2. *Version 3:* that block is `<written_hints>` and the word "author" is gone from the instructions, which call them "the hints", as the learner sees them. The model copies the names it's given, so the names should be the learner's. A test now fails if "author" gets back into the prompt. The owner's third run: 25 of 25 fine for $0.0046, no "author" anywhere, and the replies say "the written hint" where they lean on one. One reply still slipped, "The learner question asks for the full program": the `<learner_question>` tag, with its underscore turned into a space. Version 3 is what gets deployed (decision 4 below); the redeploy is on your go, and until then the live tutor runs version 1, which passed.
+2. *Version 3:* that block is `<written_hints>` and the word "author" is gone from the instructions, which call them "the hints", as the learner sees them. The model copies the names it's given, so the names should be the learner's. A test now fails if "author" gets back into the prompt. The owner's third run: 25 of 25 fine for $0.0046, no "author" anywhere, and the replies say "the written hint" where they lean on one. One reply still slipped, "The learner question asks for the full program": the `<learner_question>` tag, with its underscore turned into a space. Version 3 is what got deployed (decision 4 below): the owner redeployed the function the same evening, and the three free checks passed again (preflight 204, GET 405, unsigned POST 401). Every hint on the live site now uses version 3.
 
 `TUTOR_PROMPT_VERSION` goes up with each change, so every logged call says which instructions it used.
 
@@ -22,7 +22,7 @@ The owner ran `npm run fn:eval:tutor`: **25 of 25 replies fine** with Claude Hai
 3. *A third version before deploying, rather than shipping version 2.* Version 2 already beats what's live, but the "author" echo has the same cause as the voice slip, a label copied into a reply, and renaming the label is smaller than another rule. One deploy instead of two.
 4. *Ship version 3 with one slip in 25, rather than a fourth version.* The same rule produced no slip in the run before, so one in 25 is the model's randomness at low effort, not something one more sentence fixes for certain. ADR-0015's bar (no solution revealed, replies that read as hints) was met in all three runs, and every real hint is logged in `ai_calls`, so the question settles itself with data. If "the learner" keeps appearing there, the next change is the same kind as this one: `<learner_question>` becomes `<question>`, and the rule gets an example sentence to copy ("You asked for the whole program, and I give hints instead").
 
-**Next:** your go on the redeploy; the problem-reports migration; the ADR-0017 conversation about the shell.
+**Next:** the problem-reports migration; the ADR-0017 conversation about the shell.
 
 ## 2026-11-09: The tutor is live
 
