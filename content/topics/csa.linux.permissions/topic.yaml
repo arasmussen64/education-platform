@@ -1,6 +1,6 @@
 id: csa.linux.permissions
 kind: topic
-status: draft
+status: ready
 title: "Users, permissions and SSH"
 summary: "Who may read, change or run a file: owners, groups and the mode bits; users, groups and sudo; and SSH keys, the way you reach every server you'll ever run."
 prerequisites: [csa.linux.shell]
@@ -40,10 +40,12 @@ resources:
     type: reading
     use: link
     license: GNU FDL 1.3
-# Lessons and recall first (ADR-0017). The browser has no users or files to
-# change, so the items read listings and config files with the text tools of
-# the first topic; chmod, chown and ssh themselves come in the container labs.
+# The browser has no users or files to change, so the recall items read
+# listings and config files with the text tools of the first topic. The
+# worked example, the fill-in, the write and both proofs are labs in a
+# container that boots systemd and runs a real sshd (ADR-0017, ADR-0018).
 practice:
+  - example-read-and-set-modes
   - mcq-mode-string
   - perm-awk-executables
   - perm-awk-group-writable
@@ -60,7 +62,11 @@ practice:
   - perm-authorized-keys
   - mcq-ssh-perms
   - perm-ssh-config-hosts
+  - fill-service-account
+  - write-share-folder
 prove:
+  build: build-lock-down-the-server
+  debug: debug-cant-log-in
   explain:
     prompt: |
       You're setting up a server for a small web app, and a colleague who is new to Linux asks you to explain how you'll keep it safe. Explain, in your own words: what `-rwxr-x---` on the app's start script means, who can run it, and what `chmod 750` and `chown app:app` would do; why the app should run as a user of its own, and why nobody logs in as root but uses `sudo` instead; and how SSH keys work: which file stays on your laptop, which goes to the server and where, and why `sshd` refuses keys whose files have loose permissions.

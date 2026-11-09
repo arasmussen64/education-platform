@@ -1,0 +1,12 @@
+id: debug-cant-log-in
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Ben can't get in"
+prompt: |
+  Ben, the new deployer, reports two problems. His key doesn't get him into the server: `ssh -i ~/keys/ben ben@localhost` ends in `Permission denied (publickey)`, and someone has already put his public key in his account. And on the one occasion it did work, `sudo systemctl restart shop-api` asked him for a password he doesn't have, although the deploy group is supposed to be allowed exactly that command.
+
+  You're the administrator, and for this lab a copy of Ben's private key is at `~/keys/ben`, so you can test as him. There are three mistakes: one in the key file on the client side, one in Ben's account on the server side, and one in the sudo rule in `/etc/sudoers.d/`. `ssh -v` says what the client thinks; `journalctl -u ssh` says what the server thinks; `sudo -l -U ben` says what Ben may do; `sudo visudo -f FILE` edits a sudoers file safely. You're done when `ssh -i ~/keys/ben ben@localhost 'sudo -n systemctl restart shop-api'` works. Then run the checks.
+skills: [ssh-keys, chmod-chown, users-sudo]

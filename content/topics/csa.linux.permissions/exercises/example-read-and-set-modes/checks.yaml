@@ -1,0 +1,18 @@
+# The checks for "Read the modes, then set them": each file has the owner
+# and the mode the walkthrough gives it.
+checks:
+  - id: deploy-script
+    description: "deploy.sh belongs to shop:shop with mode 750."
+    command: stat -c '%U:%G %a' /srv/shop/deploy.sh
+    expect:
+      equals: "shop:shop 750"
+  - id: secrets-folder
+    description: "The secrets folder belongs to shop, mode 700."
+    command: stat -c '%U %a' /srv/shop/secrets
+    expect:
+      equals: "shop 700"
+  - id: api-key
+    description: "The API key belongs to shop, mode 600."
+    command: stat -c '%U %a' /srv/shop/secrets/api-key
+    expect:
+      equals: "shop 600"

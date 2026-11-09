@@ -1,0 +1,31 @@
+# The checks for "Finish the service-account script": the first runs it for
+# the reports account; the rest look at what it made, and the last runs it
+# again for another account, so a hard-coded answer fails.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/add-service-account"
+  - id: no-login
+    description: "After add-service-account reports /srv/reports, the reports account exists and its shell is /usr/sbin/nologin."
+    command: |
+      id reports > /dev/null 2>&1 || /home/learner/bin/add-service-account reports /srv/reports > /dev/null
+      getent passwd reports | cut -d: -f7
+    expect:
+      equals: /usr/sbin/nologin
+  - id: owns-folder
+    description: "/srv/reports belongs to reports:reports with mode 750."
+    command: stat -c '%U:%G %a' /srv/reports
+    expect:
+      equals: "reports:reports 750"
+  - id: others-kept-out
+    description: "A user outside the group can't enter /srv/reports."
+    command: runuser -u nobody -- test -r /srv/reports
+    expect:
+      exit: 1
+  - id: another-account
+    description: "It works the same for billing and /srv/billing."
+    command: |
+      /home/learner/bin/add-service-account billing /srv/billing > /dev/null
+      echo "$(getent passwd billing | cut -d: -f7) $(stat -c '%U:%G %a' /srv/billing)"
+    expect:
+      equals: "/usr/sbin/nologin billing:billing 750"

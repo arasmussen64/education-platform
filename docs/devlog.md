@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Users, permissions and SSH goes ready, with a real sshd in the lab
+
+The fourth ready cloud topic, and the first whose labs reach the machine the way you reach every server: over SSH, with a key. The shared systemd base now installs `openssh-server`, so every systemd lab has an `sshd` (socket-activated, listening inside the container only); the ten Services and Processes Dockerfiles were regenerated from the same first `RUN` line, and all twenty labs keep their contract on the new base.
+
+**The five labs**, around the shop's server and three people, `ada` (in `developers`), `ben` and `carol`:
+
+- **`example-read-and-set-modes`** (worked example): `ls -l` on a deploy script and an API key root left world-readable; `stat -c '%a %U:%G %n'` for the numbers; `chown shop:shop`, `chmod 750`, `700` and `600`; then `id` and `umask`.
+- **`fill-service-account`** (fill-in): `add-service-account NAME DIR` with three gaps: `/usr/sbin/nologin`, the owner, `750`. Checked for a second account, so a typed-in answer fails.
+- **`write-share-folder`** (write): `share-folder GROUP DIR USER...`: `getent group || groupadd`, `chgrp`, `2770` (or `770`), `usermod -aG`. A check that `ada` is still in `developers` catches `-G` without `-a`; another that `carol` can't get in.
+- **`build-lock-down-the-server`** (build): the secret to `shop` only; a `deploy` group with `ada` and `ben` and the script `shop:deploy 750`; a sudoers file letting the group run exactly `systemctl restart shop-api` without a password (`visudo -c`, `sudo -l -U ben`, and a check that it isn't `NOPASSWD: ALL`); Ben's public key installed with `700`/`600`, then `ssh -i ~/keys/ben ben@localhost 'sudo -n systemctl restart shop-api'` for real. Eight checks, the last two over SSH.
+- **`debug-cant-log-in`** (debug): three mistakes with three different witnesses: the private key is `644` (the client says `UNPROTECTED PRIVATE KEY FILE`), Ben's `.ssh` is `775` (`journalctl -u ssh` says `bad ownership or modes`), and the sudo rule names `shopapi` (`sudo -l -U ben` shows it).
+
+**Keys are made in the image,** by `ssh-keygen` at build time, never committed: a private key in a repository is a bad habit even when it opens nothing. The copy of Ben's private key in the learner's home is there for testing, and the prompts say so and why it's unusual.
+
+**The lesson** gained the commands the labs lean on that it hadn't named: `stat -c`, `getent`, `useradd --system`, `visudo -f` and `-c`, `sudo -l -U`.
+
+**Decisions for you to review:**
+
+1. _Every systemd lab now runs an `sshd`,_ not just this topic's. One base layer for all of them is simpler than two, and a server without `sshd` would be the odd one.
+2. _`2770` is taught in a hint, `770` accepted._ The setgid bit on a shared folder is the right habit but isn't in the lesson; the check takes either.
+3. _The build's SSH test uses a copy of Ben's private key on the server._ Realistic labs have one machine; the prompt says a real private key never leaves its owner's machine, and the debug's first bug (a world-readable private key) makes the point again.
+
+**Next:** Package management and patching, with a local package repository so `apt` works without the network.
+
 ## 2026-11-09: Your place in a long topic
 
 The owner, partway through Shell essentials: "It has 24 practice questions so there needs to be a way to track where you are for the reading and a way to track what practice questions you've done and haven't done. Make it the same across every lesson." Built before the next labs.

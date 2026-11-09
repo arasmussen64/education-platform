@@ -32,11 +32,11 @@ content/
 
 ## A topic's life
 
-| `status` | Meaning |
-|---|---|
+| `status`  | Meaning                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------- |
 | `planned` | An outline: title, summary, prerequisites. It shows on the map, but there's nothing to learn yet. |
-| `draft` | Being written. Whatever exists is checked, but the topic isn't shown to learners. |
-| `ready` | Complete: learners see it. It must meet the content definition of done (below). |
+| `draft`   | Being written. Whatever exists is checked, but the topic isn't shown to learners.                 |
+| `ready`   | Complete: learners see it. It must meet the content definition of done (below).                   |
 
 ## Writing a topic
 
@@ -45,6 +45,7 @@ content/
 3. Add the practice ladder: a worked example with labeled steps, then 2–3 recall items, a fill-in exercise, and a write exercise. A Parsons problem (`type: parsons`: a short program's lines to put back in order, with a decoy or two) goes right after the worked example, where it does the most good. Write a prompt that says what the program prints, so there's exactly one right order, and avoid lines that could swap places without changing the output; the validator runs the lines but can't spot an ambiguous order.
 
    A shell topic (the cloud track's Module 1) asks "what will it print?" with `predict_shell` items instead ([ADR-0017](../docs/decisions/0017-shell-in-the-browser.md)): a few small files, a command over them, and the output, which the validator proves by running the command in real bash. The command runs on Linux in CI and in Git Bash on the owner's PC, so keep it portable: no `jq` or `rev` (Git Bash has neither), no `ls -l`, `date`, `du`, `df` or `stat` (their output differs by machine), nothing that shows a path outside the folder, and `find` piped through `sort`. A command that writes to stderr fails the check; redirect an error you want shown with `2>&1`.
+
 4. Add the proof: a build exercise (hidden tests, no starter), a debug exercise (a buggy starter), and the explain prompt.
 5. Add a review pool: at least 3 items, at least one of them predict-the-output or a `review_code` exercise.
 6. List the topic's **skills** in `topic.yaml`, and give every item `skills: [...]` with the skills it mainly tests. A missed question comes back later as a different question on the same skill ([ADR-0011](../docs/decisions/0011-mistakes-come-back.md)). So each skill needs at least 2 questions that can come back: recall items, or fill-in, write and `review_code` exercises. Aim for 3. Extra questions can go in the review pool.
@@ -55,7 +56,7 @@ content/
 A lab is an exercise that runs in a container on the learner's machine instead of in the browser ([ADR-0018](../docs/decisions/0018-lab-checker-local-mode.md)); the cloud track's Linux module uses them for every stage. Its `exercise.yaml` is the usual one plus `runtime: lab`, and its folder holds, instead of Python files:
 
 - `Dockerfile`: start `FROM ubuntu:24.04`, add a `learner` user with passwordless `sudo`, copy in a `seed.sh` that builds the scenario deterministically (arithmetic on a loop counter, never randomness, so the checks can compute the truth from the data), run it, and end with `USER learner`, `WORKDIR /home/learner` and `CMD ["sleep", "infinity"]`. Keep the first `RUN` line (the packages and the users) identical across a topic's labs, so Docker builds that layer once for all of them.
-- **A lab that needs systemd** (services, limits, boot) sets `lab: { init: systemd }` in `exercise.yaml`. The checker then starts the container privileged with `/sbin/init` and waits for the boot to finish. Its `Dockerfile` installs `systemd systemd-sysv dbus` (D-Bus is what lets `systemctl` work for a user who isn't root), puts the learner in the `adm` and `systemd-journal` groups so `journalctl` shows everything, as a cloud image's default user can, and ends with `CMD ["/sbin/init"]` and no `USER` line, since systemd must run as root; the learner's shell is opened as `learner` by `docker exec`. Services and logs' labs are the pattern. Two things to know: a service that crashes at once and is restarted is "active" for a moment each time, so a check that a service runs should read `is-active` twice a couple of seconds apart with the same `MainPID`; and a `wrong/*.sh` that runs a `systemctl` command expected to fail must end that line with `|| true`, or the checker reports the script as broken rather than wrong.
+- **A lab that needs systemd** (services, limits, boot) sets `lab: { init: systemd }` in `exercise.yaml`. The checker then starts the container privileged with `/sbin/init` and waits for the boot to finish. Its `Dockerfile` installs `systemd systemd-sysv dbus openssh-server` (D-Bus is what lets `systemctl` work for a user who isn't root; a real `sshd`, because every server has one and the permissions labs log in through it), puts the learner in the `adm` and `systemd-journal` groups so `journalctl` shows everything, as a cloud image's default user can, and ends with `CMD ["/sbin/init"]` and no `USER` line, since systemd must run as root; the learner's shell is opened as `learner` by `docker exec`. Every systemd lab starts from the same first `RUN` line, so Docker builds that layer once for all of them; when a topic needs another package, add it there and regenerate every systemd lab's `Dockerfile`. Services and logs' labs are the pattern. Two things to know: a service that crashes at once and is restarted is "active" for a moment each time, so a check that a service runs should read `is-active` twice a couple of seconds apart with the same `MainPID`; and a `wrong/*.sh` that runs a `systemctl` command expected to fail must end that line with `|| true`, or the checker reports the script as broken rather than wrong.
 - **Programs found by name** (`pgrep -x worker`, `ps -o comm`) need a direct shebang, `#!/bin/bash`: with `#!/usr/bin/env bash`, `env` runs bash a second time and the process is called `bash`, not `worker`. And a check that runs `pgrep -f some/path` matches its own command line, which contains that text; write the pattern as `some/pat[h]` so it doesn't.
 - `checks.yaml`: a list of checks, each with an `id`, a `description` the learner sees, and a `command` run inside the container as root. Without an `expect`, exit status 0 is a pass; with one, compare the output (`equals`, `contains`, `not_contains`, `matches`, numeric `lt`/`lte`/`gt`/`gte`) or the exit status (`exit`). Checks only read. Where the right answer comes from the data, compute it in the check (`[ "$(cat the-learner's-file)" = "$(the pipeline over the data)" ]`) rather than hard-coding it.
 - `solution.sh`: the reference fix, as the learner would type it, run by `labcheck test` as the learner in a fresh container. It's shown after a pass.
@@ -90,7 +91,7 @@ Tests that need a file (Module 6 on) create it first, with `Path("name.txt").wri
 
 Hidden tests (in build and `review_code` exercises) must fail with an `assert`, never crash. The page hides why a hidden test failed, but it shows a crash, because a crash is usually in the learner's own code. A crash inside the tests, like a `KeyError` from a missing line, would show how they work. The checker runs each hidden-test exercise on an empty program to catch this.
 
-When an exercise could be passed by typing the expected output in by hand, add a test with `run_with`, which reruns the program with other starting values. A swap must then swap *any* two values (see the Variables topic). Add the hand-typed version as a known-wrong solution, so the checker proves the test catches it.
+When an exercise could be passed by typing the expected output in by hand, add a test with `run_with`, which reruns the program with other starting values. A swap must then swap _any_ two values (see the Variables topic). Add the hand-typed version as a known-wrong solution, so the checker proves the test catches it.
 
 The dev server watches `content/`, so new and changed files show up straight away.
 
