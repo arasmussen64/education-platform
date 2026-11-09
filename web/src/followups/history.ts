@@ -23,9 +23,18 @@ function isTextList(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
 }
 
-/** A graded attempt, if this event is one (an answer, or a Check of code). */
+/**
+ * A graded attempt, if this event is one: an answer, a Check of code, or a
+ * graded explanation.
+ */
 export function toAttempt(row: Row): Attempt | null {
-  if (row.type !== 'answer' && row.type !== 'code_check') return null
+  if (
+    row.type !== 'answer' &&
+    row.type !== 'code_check' &&
+    row.type !== 'explain_submit'
+  ) {
+    return null
+  }
   if (row.item_id === null || row.correct === null) return null
   const attempt: Attempt = {
     id: row.id,
@@ -84,7 +93,7 @@ export async function fetchAttempts(topicId?: string): Promise<Attempt[]> {
       .select(
         'id, type, topic_id, item_id, correct, occurred_at, status:data->>status, failing:data->failing',
       )
-      .in('type', ['answer', 'code_check'])
+      .in('type', ['answer', 'code_check', 'explain_submit'])
       .not('correct', 'is', null)
     if (topicId !== undefined) query = query.eq('topic_id', topicId)
     const { data, error } = await query

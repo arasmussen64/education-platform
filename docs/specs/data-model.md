@@ -253,7 +253,7 @@ Policies allow **insert** and **select** only. There is no update or delete poli
 | `answer` | a multiple-choice or predict-the-output item is answered | `choice` and `choice_text`, or `prediction` |
 | `code_run` | the learner presses Run | `code`; `outcome` (`done`, `timeout` or `failed`); `output`, `error` and `waiting_for_input` (or `message`) |
 | `code_check` | tests are run | `code`; `outcome`; `status`; `passed` and `total`; `failing` (test names); `message` if the tests couldn't run |
-| `explain_submit` | an explanation is graded | the text; the verdict; rubric results; `ai_call_id` |
+| `explain_submit` | an explanation is sent to be checked (item `explain`) | the text and `status`; when graded, the `verdict`, each rubric item's result, the `questions`, `ai_call_id` and `model`. `correct` is set only when graded ([ADR-0013](../decisions/0013-explain-grading.md)) |
 | `hint` | a hint is shown | `level`; `source` (`author` for the written hints, until the tutor exists); later `ai_call_id` |
 | `review` | a topic's review session ends | item IDs; results; the rating |
 

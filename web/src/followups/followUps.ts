@@ -10,7 +10,11 @@ import { addDays, type Day, dayOf } from '../days.ts'
 /** One graded attempt: an answer to a question, or a Check of some code. */
 export type Attempt = {
   id: string
-  type: 'answer' | 'code_check'
+  /**
+   * A graded explanation has the item ID "explain". It names no skills,
+   * so it never brings a mistake back (ADR-0013).
+   */
+  type: 'answer' | 'code_check' | 'explain_submit'
   topic_id: string
   item_id: string
   correct: boolean

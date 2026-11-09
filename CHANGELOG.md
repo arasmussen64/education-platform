@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (explain it back, graded: part 2 of explanation grading)
+
+- **Explain it back** works: each explain card has a box and **Check my explanation**. Claude grades it against the rubric:
+  - **Passed**;
+  - or **Needs work**, with up to 3 guiding questions, never the model answer;
+  - or a plain message when it wasn't graded: paused for the month, unavailable, not switched on for the account, or no connection.
+- Every attempt is saved as an `explain_submit` event, graded or not. A pass shows straight away in "Your proof so far", and counts toward the topic being learned.
+- **The grader is Claude Haiku 5.5 at low effort.** It got all 30 samples of the test set right in two separate runs, so the bigger models weren't needed. A grading costs about $0.0002, so the $10 monthly cap covers tens of thousands.
+
 ### Added (the grading test set, part 3 of explanation grading)
 
 - **30 sample explanations** for Module 1's six explain checks, in `supabase/functions/ai/test-set/`. Each topic has five, each with the verdict it should get:

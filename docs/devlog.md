@@ -2,6 +2,27 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: The grader chosen, and checked end to end
+
+**The test set** (the owner approved up to about $1.20):
+- Claude Haiku 5.5 at low effort got all 30 samples right, for $0.0056.
+- A second run, to check it wasn't luck, got all 30 right again, for $0.0054.
+- So Haiku is the grader, as ADR-0013 says (the cheapest that passes). It's already the proxy's default, and Sonnet and Opus never ran. About 1 cent spent in all.
+
+**Real costs are lower than the ADR's estimate.** A grading used about 1,100 tokens in and 100 out, about $0.00017. At low effort Haiku barely thinks. ADR-0013 assumed 1,000 out, so $10 a month covers about 60,000 gradings, not 15,000.
+
+**Checked end to end** in a real browser, on the local Supabase with the owner's key, as the local test account on Values and types:
+- an explanation without the fix got Needs work. Its one question, "What do you need to do to the text values before the + sign can add them as numbers?", points at the gap without giving the answer;
+- the full explanation got Passed, and "Your proof so far" changed to "✓ Explain: passed on Nov 8" with no reload;
+- the local database had both calls in `ai_calls` with their costs, and both `explain_submit` events, correct false then true, each linked to its call.
+
+**Getting the key in place:** the first check found `supabase/functions/.env` empty, because the editor hadn't saved yet. The check names the file's lines and their lengths, never their values.
+
+**Next: rollout to the live project** (ADR-0013's last steps):
+1. The owner puts the key in the live project's secrets, and switches on `allowed` for their account.
+2. With the owner's go-ahead: apply the `ai_calls` migration (`db push --remote`), deploy the function (`functions deploy ai`), then merge the explanation box (#35).
+3. The owner tries it on the live site.
+
 ## 2026-11-08: The explanation box (part 2) and the grading test set (part 3)
 
 **Done**
