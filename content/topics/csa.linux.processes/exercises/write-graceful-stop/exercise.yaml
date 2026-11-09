@@ -1,0 +1,16 @@
+id: write-graceful-stop
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write graceful-stop"
+prompt: |
+  Write a script, `~/bin/graceful-stop NAME`, that stops a process the polite way first. It finds the process whose name is exactly NAME and sends it `TERM`. Then it waits up to five seconds for the process to go, looking once a second. If it's gone, it prints `stopped NAME politely`. If it's still there after five seconds, it sends `KILL` and prints `had to kill NAME`. Either way it exits 0. If no process called NAME is running, it prints `NAME is not running` and exits 1.
+
+  Two programs to try it on: `/srv/tools/polite-worker`, which stops when asked and notes it in `/tmp/polite-worker.log`, and `/srv/tools/stubborn-worker`, which ignores `TERM`. Start one in the background (`/srv/tools/polite-worker &`), then stop it with your script. Make the script executable with `chmod +x`, and run the checks.
+hints:
+  - "`pgrep -x \"$1\"` prints the PIDs of processes whose name is exactly the first argument, and exits 1 if there are none, so `pid=$(pgrep -x \"$1\") || { echo \"$1 is not running\"; exit 1; }` handles the missing case."
+  - "`kill \"$pid\"` sends TERM. `kill -0 \"$pid\"` sends nothing, but succeeds only while the process exists, so a loop `for _ in 1 2 3 4 5; do sleep 1; kill -0 \"$pid\" 2>/dev/null || break; done` waits up to five seconds."
+  - "After the loop, test once more: if `kill -0` still succeeds, `kill -9 \"$pid\"` and say so; otherwise say it stopped politely."
+skills: [signals, job-control]

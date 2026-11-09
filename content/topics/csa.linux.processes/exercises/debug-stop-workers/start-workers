@@ -1,0 +1,11 @@
+#!/bin/bash
+# Starts any of the shop's three workers that isn't running, detached from
+# this shell, the way they're started at boot.
+for name in order-worker mail-worker report-worker; do
+  if pgrep -x "$name" > /dev/null; then
+    echo "$name is already running"
+  else
+    setsid "/srv/shop/workers/$name" > /dev/null 2>&1 < /dev/null &
+    echo "$name started"
+  fi
+done

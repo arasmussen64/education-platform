@@ -1,0 +1,25 @@
+# The checks for "Write graceful-stop": each starts a fresh worker, runs the
+# learner's script on it and looks at what happened.
+checks:
+  - id: polite
+    description: "On polite-worker: it says 'stopped polite-worker politely', exits 0, and the worker's log shows it was asked, not killed."
+    command: |
+      pkill -9 -x polite-worker 2>/dev/null; rm -f /tmp/polite-worker.log
+      setsid /srv/tools/polite-worker > /dev/null 2>&1 < /dev/null &
+      sleep 1
+      out=$(/home/learner/bin/graceful-stop polite-worker) && test "$out" = "stopped polite-worker politely" \
+        && sleep 1 && ! pgrep -x polite-worker > /dev/null \
+        && grep -q 'caught TERM' /tmp/polite-worker.log
+  - id: stubborn
+    description: "On stubborn-worker, which ignores TERM: it waits, then says 'had to kill stubborn-worker', and the worker is gone."
+    command: |
+      pkill -9 -x stubborn-worker 2>/dev/null
+      setsid /srv/tools/stubborn-worker > /dev/null 2>&1 < /dev/null &
+      sleep 1
+      out=$(/home/learner/bin/graceful-stop stubborn-worker) && test "$out" = "had to kill stubborn-worker" \
+        && sleep 1 && ! pgrep -x stubborn-worker > /dev/null
+  - id: not-running
+    description: "For a name that isn't running: it says so and exits 1."
+    command: |
+      out=$(/home/learner/bin/graceful-stop no-such-worker)
+      test $? -eq 1 && test "$out" = "no-such-worker is not running"

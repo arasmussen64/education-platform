@@ -1,0 +1,43 @@
+# The checks for "The nightly runner": a good night, a bad night, the jobs
+# running side by side, and an interruption that leaves nothing behind.
+checks:
+  - id: good-night
+    description: "With every job succeeding: three 'ok' lines, in order, and exit 0."
+    command: |
+      rm -f /tmp/report-broken
+      out=$(/home/learner/bin/nightly 2>/dev/null) || exit 1
+      printf '%s\n' "$out" | grep -E '^(backup|report|cleanup): ' > /tmp/labcheck-nightly.out
+      test "$(cat /tmp/labcheck-nightly.out)" = "$(printf 'backup: ok\nreport: ok\ncleanup: ok')"
+  - id: bad-night
+    description: "With report.sh failing: 'report: failed (status 2)', the other two ok, and exit 1."
+    command: |
+      touch /tmp/report-broken
+      out=$(/home/learner/bin/nightly 2>/dev/null); status=$?
+      rm -f /tmp/report-broken
+      test "$status" -eq 1 \
+        && grep -q '^backup: ok$' <<< "$out" \
+        && grep -q '^report: failed (status 2)$' <<< "$out" \
+        && grep -q '^cleanup: ok$' <<< "$out"
+  - id: side-by-side
+    description: "The jobs run at the same time: the whole night takes under five seconds, not six."
+    command: |
+      rm -f /tmp/report-broken
+      start=$(date +%s)
+      /home/learner/bin/nightly > /dev/null 2>&1
+      echo $(( $(date +%s) - start ))
+    expect:
+      lt: 5
+  - id: interrupted
+    description: "Sent TERM while running: it says 'nightly interrupted', exits non-zero, and no job is left running."
+    command: |
+      rm -f /tmp/report-broken
+      /home/learner/bin/nightly > /dev/null 2> /tmp/labcheck-nightly.err &
+      runner=$!
+      sleep 0.5
+      kill "$runner"
+      wait "$runner"; status=$?
+      sleep 1
+      # The [s] keeps pgrep from matching this check's own command line.
+      test "$status" -ne 0 \
+        && grep -q 'nightly interrupted' /tmp/labcheck-nightly.err \
+        && ! pgrep -f '/srv/job[s]/' > /dev/null
