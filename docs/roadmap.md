@@ -57,7 +57,7 @@ Milestone C is complete.
 
 ### Milestone D progress
 
-- [ ] The hint-only AI tutor (F13, [ADR-0003](decisions/0003-ai-roles-and-guardrails.md)) through the AI proxy and its budget cap (F14): hints during Learn and Practice, off during Prove it
+- [x] The hint-only AI tutor (F13, [ADR-0015](decisions/0015-hint-only-tutor.md)) through the AI proxy and its budget cap (F14): a hint ladder under practice exercises, off during Prove it and reviews. Built 2026-11-08; the proxy is deployed, and the tutor test set run, once the owner says go.
 - [ ] Report a problem (F15): a note from any page, saved with the page and item it's about
 - [x] Export my data (F16): built early, in Milestone B
 - [ ] Module 4 content (functions), ready before the owner finishes Module 3

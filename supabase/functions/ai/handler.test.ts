@@ -5,7 +5,9 @@ import {
   type CallLog,
   createHandler,
   type Graded,
+  type Hinted,
   readGradeRequest,
+  readHintRequest,
   type Services,
 } from './handler.ts'
 
@@ -31,6 +33,33 @@ const GRADED: Graded = {
   grading: PASS,
 }
 
+const HINT_BODY = {
+  action: 'tutor_hint',
+  topic_id: 'py.while-loops',
+  item_id: 'fill-count-up',
+  exercise: {
+    title: 'Count to n',
+    prompt: 'Count from 1 up to the number typed.',
+    hints: ['The first number printed is 1.'],
+    solution: 'i = 1\nwhile i <= n:\n    print(i)\n    i += 1\n',
+  },
+  code: 'i = ...\nwhile i <= n:\n    print(i)\n',
+  check: {
+    passed: 0,
+    total: 1,
+    results: [{ description: 'Typing 3 prints 1, 2, 3.', outcome: 'fail', message: '' }],
+  },
+  question: 'Why does it print nothing?',
+  earlier: [],
+}
+
+const HINTED: Hinted = {
+  model: 'claude-haiku-5-5',
+  usage: { input_tokens: 2000, output_tokens: 150 },
+  cost_usd: 0.000275,
+  hint: { text: 'What is i before the loop starts?', level: 'nudge', replaced: false },
+}
+
 /** Fake services, all saying yes, that note what was called. */
 function fakes(overrides: Partial<Services> = {}) {
   const calls: string[] = []
@@ -52,6 +81,10 @@ function fakes(overrides: Partial<Services> = {}) {
       calls.push('grade')
       return Promise.resolve(GRADED)
     },
+    hint: () => {
+      calls.push('hint')
+      return Promise.resolve(HINTED)
+    },
     logCall: (call) => {
       calls.push('logCall')
       logged.push(call)
@@ -59,6 +92,7 @@ function fakes(overrides: Partial<Services> = {}) {
     },
     capUsd: 10,
     promptVersion: 1,
+    tutorPromptVersion: 1,
     ...overrides,
   }
   return { handle: createHandler(services), calls, logged }
@@ -189,5 +223,101 @@ Deno.test('cost: tokens times the price per million', () => {
   assert.equal(
     costOf('claude-opus-5-5', { input_tokens: 1_000_000, output_tokens: 0 }),
     4,
+  )
+})
+
+Deno.test('a hint: the same checks, then the rung, the code and the question are logged', async () => {
+  const { handle, calls, logged } = fakes()
+  const { status, body } = await send(handle, post(HINT_BODY))
+  assert.equal(status, 200)
+  assert.deepEqual(body, {
+    status: 'hinted',
+    hint: { text: 'What is i before the loop starts?', level: 'nudge', replaced: false },
+    ai_call_id: 'call-1',
+    model: 'claude-haiku-5-5',
+  })
+  assert.deepEqual(calls, ['userFor', 'isAllowed', 'spentThisMonth', 'hint', 'logCall'])
+  assert.deepEqual(logged[0], {
+    user_id: 'ada',
+    action: 'tutor_hint',
+    model: 'claude-haiku-5-5',
+    input_tokens: 2000,
+    output_tokens: 150,
+    cost_usd: 0.000275,
+    request: {
+      topic_id: 'py.while-loops',
+      item_id: 'fill-count-up',
+      level: 'nudge',
+      hints_so_far: 0,
+      question: 'Why does it print nothing?',
+      code: 'i = ...\nwhile i <= n:\n    print(i)\n',
+      prompt_version: 1,
+    },
+    response: { text: 'What is i before the loop starts?', level: 'nudge', replaced: false },
+  })
+})
+
+Deno.test('the budget cap and the allowed flag guard hints too, before any spending', async () => {
+  const paused = fakes({ spentThisMonth: () => Promise.resolve(10) })
+  assert.deepEqual((await send(paused.handle, post(HINT_BODY))).body, { status: 'paused' })
+  assert.ok(!paused.calls.includes('hint'))
+  const notAllowed = fakes({ isAllowed: () => Promise.resolve(false) })
+  assert.deepEqual((await send(notAllowed.handle, post(HINT_BODY))).body, {
+    status: 'not_allowed',
+  })
+})
+
+Deno.test('without an API key, the tutor is unavailable, and a reply that cannot be used is still logged', async () => {
+  const { handle } = fakes({ hint: null })
+  assert.deepEqual((await send(handle, post(HINT_BODY))).body, { status: 'unavailable' })
+
+  const refused = fakes({
+    hint: () => Promise.resolve({ ...HINTED, hint: null, problem: 'Claude stopped early: refusal' }),
+  })
+  assert.deepEqual((await send(refused.handle, post(HINT_BODY))).body, { status: 'unavailable' })
+  assert.deepEqual(refused.logged[0]?.response, { problem: 'Claude stopped early: refusal' })
+  assert.equal(refused.logged[0]?.cost_usd, 0.000275)
+})
+
+Deno.test('a replaced hint is returned and logged as replaced, with the reason', async () => {
+  const replaced = {
+    text: 'The first number printed is 1.',
+    level: 'nudge' as const,
+    replaced: true,
+    reason: '5 lines of code',
+  }
+  const { handle, logged } = fakes({ hint: () => Promise.resolve({ ...HINTED, hint: replaced }) })
+  const { body } = await send(handle, post(HINT_BODY))
+  assert.deepEqual(body.hint, replaced)
+  assert.deepEqual(logged[0]?.response, replaced)
+})
+
+Deno.test('a hint request is checked before anything costly: sizes, shapes, defaults', async () => {
+  const { handle, calls } = fakes()
+  assert.equal(
+    (await send(handle, post({ ...HINT_BODY, code: 'x'.repeat(6001) }))).status,
+    400,
+  )
+  assert.equal((await send(handle, post({ ...HINT_BODY, exercise: {} }))).status, 400)
+  assert.ok(!calls.includes('isAllowed'))
+  assert.match(
+    readHintRequest({ ...HINT_BODY, question: 'x'.repeat(501) }) as string,
+    /500 characters/,
+  )
+  assert.match(
+    readHintRequest({ ...HINT_BODY, check: { passed: 'no' } }) as string,
+    /check needs passed/,
+  )
+  // A first ask can leave the code, question, check and earlier hints out.
+  const minimal = readHintRequest({
+    action: 'tutor_hint',
+    topic_id: 'py.while-loops',
+    item_id: 'fill-count-up',
+    exercise: HINT_BODY.exercise,
+  })
+  assert.ok(typeof minimal !== 'string')
+  assert.deepEqual(
+    { code: minimal.code, question: minimal.question, check: minimal.check, earlier: minimal.earlier },
+    { code: '', question: '', check: null, earlier: [] },
   )
 })

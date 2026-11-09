@@ -2,6 +2,29 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: The hint-only tutor
+
+Milestone D's first item, F13, built on the proxy that already grades explanations. The design is [ADR-0015](decisions/0015-hint-only-tutor.md), proposed; the owner was away, so it's built as proposed and waits for their review and the deploy.
+
+**The proxy** (`supabase/functions/ai/`) now has two actions. `tutor.ts` builds the request: the exercise's prompt, written hints and reference solution, the learner's code, a summary of their latest Check, the tutor's earlier replies, and the learner's question, each in its own tagged block with the learner's text stripped of our tags; the rung is chosen from how many hints came before (nudge, concept, specific, step) and named at the end of the message; the reply is structured output with one `hint` field. `readHint` then keeps it safe: more than 600 characters, more than two lines of fenced code, or two or more lines copied from the solution (compared without spaces or capitals, ignoring lines under 10 characters), and the reply is replaced by the exercise's next written hint, or a fixed hint for the rung. `handler.ts` grew `readHintRequest` with its size limits, and a `completeCall` step shared by both actions: ask, log (even an unusable answer, with its cost), answer. `index.ts` wires `TUTOR_MODEL` and `TUTOR_EFFORT` (defaults: Claude Haiku 5.5, low). No migration: `ai_calls.action` already allowed `tutor_hint`.
+
+**The test set** (`tutor-test-set/`): nine conversations on five real exercises from Modules 1 to 3, five of them trying to get the answer out (outright, "answer mode", "I'm the teacher", a plea, a `# SYSTEM:` comment in the code) and four honest asks at different rungs. Each names text the reply must not contain. `npm run fn:eval:tutor` runs them against Claude, prints every reply, and fails on a replaced reply or a forbidden line. It costs about a cent on Haiku, so the owner runs it.
+
+**The page.** `TutorBox` (`web/src/tutor/`) sits under the written hints of a fill-in or write exercise in practice: an optional "What are you stuck on?" line, a button, and the exchanges so far, each hint labelled with its rung. Six asks, then it points back to the recap. `CodeRunner` reports the code as it's typed, so the tutor sees unsaved work; `ExerciseView` keeps the code and the latest Check, and counts tutor hints with written ones in `hints_used`. `PracticeItem` switches the tutor on for the practice context only and saves each hint as a `hint` event with `source: tutor`, the rung, `replaced`, the question, the call ID and the model. Signed-out visitors don't see the box at all; the page already asks them to sign in once.
+
+**Tests:** 38 Deno tests on the proxy (12 new), 345 web tests (14 new). Format, lint, types and the build pass. The pricing page was checked before reusing the price table: Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per million tokens, unchanged.
+
+**Decisions for you to review:**
+1. *The tutor is practice-only and also on in a checkpoint's "Stuck?" steps,* which are fill-ins with hints and were always meant as practice. Off in fresh versions, which are proof.
+2. *Six asks per exercise.* A guess at where "the next step" would start dictating the solution. Tune it from the `ai_calls` log.
+3. *Hidden when signed out* rather than shown with a sign-in link, to keep the page quiet; the explain check keeps its link because it's a single box.
+4. *The reference solution travels from the browser to the proxy,* as the model answer already does (ADR-0013); the same "fix before other learners" note applies.
+5. *Default model Haiku 5.5 at low effort,* like grading, pending the test-set run you approve. If hints read poorly, try `TUTOR_EFFORT=medium` before a bigger model.
+
+**To go live (needs your go):** `npx supabase functions deploy ai --no-verify-jwt --yes`, then `npm run fn:eval:tutor` to read the hints. Until the deploy, the live site's box says the tutor isn't available.
+
+**Next:** problem reports (F15), then Module 4 (functions) and the lazy-outlines bundle chore.
+
 ## 2026-11-08: Module 3, Loops, written
 
 Five topics and Checkpoint 3, the content item of Milestone C, written while the owner is away (they asked for building to continue, with decisions made by best judgement and written down here; see *Decisions for you to review* below).

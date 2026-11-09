@@ -37,13 +37,14 @@ type Handlers = {
   onAnswer: (correct: boolean, data: EventData) => void
   onActivity: (activity: ExerciseActivity) => void
   allowHints: boolean
+  allowTutor: boolean
 }
 
 /** The heading and body for an item, whichever kind it is. */
 function describe(
   itemId: string,
   content: TopicContent,
-  { onAnswer, onActivity, allowHints }: Handlers,
+  { onAnswer, onActivity, allowHints, allowTutor }: Handlers,
 ): { heading: string; body: ReactNode } | null {
   const recall = content.recall[itemId]
   if (recall?.type === 'mcq') {
@@ -86,6 +87,8 @@ function describe(
           exercise={exercise}
           onActivity={onActivity}
           allowHints={allowHints}
+          allowTutor={allowTutor}
+          topicId={content.topic.id}
         />
       ),
     }
@@ -118,6 +121,9 @@ export function PracticeItem({
   const item = describe(itemId, content, {
     // No hints in reviews: they stand in for the tutor, which is off there.
     allowHints: context !== 'review',
+    // The tutor is on in practice only (ADR-0015): never in proof checks
+    // or reviews.
+    allowTutor: context === 'practice',
     onAnswer(correct, data) {
       record({
         ...about,
@@ -135,6 +141,22 @@ export function PracticeItem({
           type: 'hint',
           hints_used: activity.hintsUsed,
           data: { level: activity.hintsUsed, source: 'author' },
+        })
+      } else if (activity.kind === 'tutor') {
+        const { given } = activity
+        record({
+          ...about,
+          type: 'hint',
+          hints_used: activity.hintsUsed,
+          data: {
+            level: given.count,
+            source: 'tutor',
+            rung: given.hint.level,
+            replaced: given.hint.replaced,
+            question: given.question,
+            ai_call_id: given.aiCallId,
+            model: given.model,
+          },
         })
       } else if (activity.kind === 'run') {
         record({

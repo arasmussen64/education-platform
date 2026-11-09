@@ -28,6 +28,8 @@ type Props = {
   onRun?: (outcome: RunOutcome, code: string) => void
   /** Called with every Check result and the code that was checked. */
   onCheck?: (outcome: CheckOutcome, code: string) => void
+  /** Called as the learner types, with the code as it is now. */
+  onCodeChange?: (code: string) => void
   /** How long the code may run before it's stopped. */
   timeLimitMs?: number
 }
@@ -80,6 +82,7 @@ export function CodeRunner({
   runner,
   onRun,
   onCheck,
+  onCodeChange,
   timeLimitMs = DEFAULT_TIME_LIMIT_MS,
 }: Props) {
   const python = runner ?? getPythonRunner()
@@ -141,7 +144,10 @@ export function CodeRunner({
     <div className="space-y-3">
       <CodeEditor
         initialCode={initialCode}
-        onChange={setCode}
+        onChange={(next) => {
+          setCode(next)
+          onCodeChange?.(next)
+        }}
         label="Python code"
       />
       <p className="text-xs text-slate-500 dark:text-slate-400">

@@ -34,22 +34,25 @@ Local Studio, a web UI for browsing the database, runs at http://127.0.0.1:54323
 
 ## The AI proxy (Edge Function)
 
-`functions/ai/` grades explanations with Claude ([ADR-0013](../docs/decisions/0013-explain-grading.md)). An Edge Function is a small program Supabase runs on its servers, on Deno, a JavaScript and TypeScript runtime. The browser can call it but can't see inside it, so the API key is safe there.
+`functions/ai/` grades explanations and gives the tutor's hints with Claude ([ADR-0013](../docs/decisions/0013-explain-grading.md), [ADR-0015](../docs/decisions/0015-hint-only-tutor.md)). An Edge Function is a small program Supabase runs on its servers, on Deno, a JavaScript and TypeScript runtime. The browser can call it but can't see inside it, so the API key is safe there.
 
 | File | What it does |
 |---|---|
-| `handler.ts` | The checks, in order: signed in, `allowed`, under the month's $10 cap, a key exists. Then it grades and logs the call in `ai_calls`. |
-| `grading.ts` | What Claude is asked, and how its answer is read. A pass means every required rubric item is met. |
+| `handler.ts` | The checks, in order: signed in, `allowed`, under the month's $10 cap, a key exists. Then it asks Claude (a grading or a hint) and logs the call in `ai_calls`. |
+| `grading.ts` | What Claude is asked to grade an explanation, and how its answer is read. A pass means every required rubric item is met. |
+| `tutor.ts` | What Claude is asked for a hint, the rungs of the hint ladder, and the safety filter that replaces a reply giving too much away. |
 | `cost.ts` | Anthropic's prices, and what a call cost. Update the prices when Anthropic's change. |
 | `index.ts` | Connects the handler to the real Supabase and Claude. |
 | `test-set/` | Sample explanations with the verdict each should get, one file per topic. They choose the grading model. |
-| `eval.ts` | Runs the test set against Claude, with the same request the proxy sends. |
+| `tutor-test-set/` | Conversations with learners trying to get the answer out of the tutor, one file per exercise, with what each reply must not contain. They choose the tutor's model. |
+| `eval.ts`, `tutor-eval.ts` | Run a test set against Claude, with the same request the proxy sends. |
 
 | Command | What it does |
 |---|---|
 | `npm run fn:serve` | Serves the functions on your PC, at http://127.0.0.1:54321/functions/v1/ai. Needs the local Supabase running. |
 | `npm run fn:test` | Type-checks the proxy and runs its tests, with Deno. No test calls the real Claude API. |
-| `npm run fn:eval -- [model] [effort]` | Runs the test set against the real Claude API, using the key in `functions/.env`. **It costs money** (about $0.02 for the set on Claude Haiku 5.5, $0.80 on Claude Opus 5.5), so the owner approves each run. |
+| `npm run fn:eval -- [model] [effort]` | Runs the grading test set against the real Claude API, using the key in `functions/.env`. **It costs money** (about $0.02 for the set on Claude Haiku 5.5, $0.80 on Claude Opus 5.5), so the owner approves each run. |
+| `npm run fn:eval:tutor -- [model] [effort]` | Runs the tutor test set the same way and prints every reply to read. **It costs money** (about $0.01 on Claude Haiku 5.5, $0.15 on Claude Sonnet 5.5), so the owner approves each run. A reply that is replaced by the safety filter, or contains a forbidden line, is a miss. |
 
 Deno comes with `npm install` at the repository root, so there's nothing else to install.
 
