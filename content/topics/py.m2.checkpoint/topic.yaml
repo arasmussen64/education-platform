@@ -1,10 +1,65 @@
 id: py.m2.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 2: ticket pricing"
-summary: "Build a rules-based price calculator, and fix a buggy version."
+summary: "Price a cinema ticket from a set of rules, and fix a parking program with several bugs."
 prerequisites: [py.logical-operators, py.tracing-code, py.reading-errors]
 estimated_minutes: 60
 rev: 1
 objectives:
-  - "Build a rules-based price calculator, and fix a buggy version."
+  - "Turn written rules into an `if` / `elif` / `else` chain whose branches rule each other out, in the right order."
+  - "Combine conditions with `and` and `or`, with a complete comparison on each side."
+  - "Apply extras in the order the rules give: a surcharge before a percentage discount."
+  - "Trace a program by hand to find where its output goes wrong, and read the errors it raises."
+  - "Print neat output with f-strings and two decimal places."
+prove:
+  build: build-tickets
+  debug: debug-parking
+  explain:
+    prompt: |
+      Here's a working ticket program:
+
+      ```python
+      age = int(input("Age? "))
+      day = input("Day? ")
+      member = input("Member (yes/no)? ")
+      if age < 5:
+          price = 0
+      elif age <= 12:
+          price = 6
+      elif age >= 65:
+          price = 8
+      else:
+          price = 12
+      if (day == "Sat" or day == "Sun") and price > 0:
+          price = price + 2
+      if member == "yes":
+          price = price * 0.9
+      print(f"Price: ${price:.2f}")
+      ```
+
+      Someone types `70`, `Sat` and `yes`. Trace it for a friend: which branch of the chain runs and why the others don't, what the weekend condition is checking (and why it's written with two comparisons), how `price` changes line by line, and what is printed. Then: what would be different if the member discount came before the weekend extra?
+    rubric:
+      - id: elif-order
+        required: true
+        description: "The chain is checked from the top and the first True condition wins: 70 is not < 5 and not <= 12, so age >= 65 is the branch that runs, with price 8."
+      - id: weekend-condition
+        required: true
+        description: "The weekend condition needs a complete comparison on each side of or (day == \"Sat\" or day == \"Sun\"), and the and price > 0 part keeps free tickets free."
+      - id: trace
+        required: true
+        description: "price goes 8, then 10 after the weekend extra, then 9.0 after the 10% discount, so it prints Price: $9.00."
+      - id: order-matters
+        required: true
+        description: "With the discount first, 8 becomes 7.2 and then 9.2: the extra would escape the discount, so the order of the two ifs changes the answer."
+      - id: format
+        required: false
+        description: ":.2f shows two decimal places, so 9.0 appears as 9.00."
+    model_answer: |
+      Python reads the chain from the top and stops at the first True condition. For 70, age < 5 is False and age <= 12 is False, so it reaches age >= 65, which is True: price becomes 8 and the else is skipped. Next, the weekend condition: day == "Sat" or day == "Sun" asks two complete questions, and or is True because the first one is; writing day == "Sat" or "Sun" would be always True. The and price > 0 part stops a free ticket from getting the extra. Since Saturday is a weekend and 8 > 0, price becomes 10. Then member == "yes" is True, so price becomes 10 * 0.9 = 9.0, and the f-string prints Price: $9.00. If the discount came first, 8 would become 7.2, then adding 2 would give 9.2, so the extra would escape the discount: the order of the two ifs matters.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-zoo
+  steps: [step-read, step-bands, step-extras, step-outline]
+  versions: [build-pool, build-train]

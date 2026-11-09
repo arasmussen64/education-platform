@@ -1,0 +1,5 @@
+first = int(input("First? "))
+second = int(input("Second? "))
+print("Same:", first == second)
+print("First is bigger:", first >= second)
+print("Add up to 100:", first + second == 100)

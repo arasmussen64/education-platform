@@ -1,0 +1,8 @@
+day = input("Day? ")
+temperature = float(input("Temperature? "))
+weekend = day == "Sat" or day == "Sun"
+beach_day = weekend and temperature > 20
+stay_in = not weekend and temperature < 5
+print("Weekend:", weekend)
+print("Beach day:", beach_day)
+print("Stay in:", stay_in)

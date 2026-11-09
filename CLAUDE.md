@@ -15,7 +15,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Session history: [docs/devlog.md](docs/devlog.md)
 - Owner's machine and accounts: [docs/setup.md](docs/setup.md)
 
-**Current phase:** 1, Milestone B (prove it). The web app lives in `web/`.
+**Current phase:** 1, Milestone C (keep it). The web app lives in `web/`.
 
 **Stack** ([ADR-0007](docs/decisions/0007-tech-stack.md)): TypeScript + React + Vite web app served as static files from Cloudflare; Supabase (Postgres, Auth, Edge Functions as the Claude API proxy); learners' Python runs in the browser via Pyodide in a Web Worker; Python (uv, pytest, ruff) for content tooling and ML; GitHub Actions for CI.
 

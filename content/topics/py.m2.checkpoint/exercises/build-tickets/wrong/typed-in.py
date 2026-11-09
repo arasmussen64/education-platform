@@ -1,0 +1,5 @@
+age = int(input("Age? "))
+day = input("Day? ")
+member = input("Member (yes/no)? ")
+print("Ticket: child")
+print("Price: $8.00")

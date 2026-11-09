@@ -1,0 +1,3 @@
+minutes = input("Minutes? ")
+minutes = ...
+print("Seconds:", minutes * 60)

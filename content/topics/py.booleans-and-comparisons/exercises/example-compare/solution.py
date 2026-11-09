@@ -1,0 +1,5 @@
+a = int(input("First number? "))
+b = int(input("Second number? "))
+print("Equal:", a == b)
+print("First is smaller:", a < b)
+print("Different:", a != b)

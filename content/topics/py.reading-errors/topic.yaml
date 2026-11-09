@@ -1,10 +1,75 @@
 id: py.reading-errors
 kind: topic
-status: planned
+status: ready
 title: "Reading errors"
-summary: "Read a traceback, and fix common errors with a repeatable debugging routine."
+summary: "Read a traceback, name the error, go to the line, and fix it with a repeatable routine."
 prerequisites: [py.m1.checkpoint]
-estimated_minutes: 35
+estimated_minutes: 40
 rev: 1
 objectives:
-  - "Read a traceback, and fix common errors with a repeatable debugging routine."
+  - "Find the line number and the error's name in a traceback, and read its message."
+  - "Recognize five common errors and what each one means: `SyntaxError`, `IndentationError`, `NameError`, `TypeError` and `ValueError`."
+  - "Fix one error at a time: read the message, go to the line, check the names and types, change one thing, run again."
+resources:
+  - title: "The Python Tutorial: Errors and Exceptions, sections 8.1 and 8.2 (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/errors.html
+    type: reading
+    use: link
+    license: PSF License Version 2
+  - title: "Python Tutor: watch a NameError happen, one line at a time"
+    url: "https://pythontutor.com/visualize.html#code=name%20%3D%20%22Ada%22%0Aprint%28%22Hello%22%29%0Aprint%28nmae%29&cumulative=false&curInstr=0&heapPrimitives=true&mode=display&origin=opt-frontend.js&py=311&rawInputLstJSON=%5B%5D&textReferences=false"
+    type: interactive
+    use: link
+    license: "Free to use under pythontutor.com's terms of service (© Philip Guo)"
+practice:
+  - example-fixed
+  - mcq-which-error
+  - mcq-value-error
+  - mcq-which-line
+  - fill-fix-type
+  - write-repeat
+prove:
+  build: build-ten-years
+  debug: debug-three-errors
+  explain:
+    prompt: |
+      A friend runs their program and gets this:
+
+      ```
+      Traceback (most recent call last):
+        File "solution.py", line 3, in <module>
+          total = pricee * quantity
+      NameError: name 'pricee' is not defined
+      ```
+
+      They say "it's broken" and start changing random lines. In your own words: how should they read this message, what does it tell them about where and what the problem is, and what routine would you suggest for fixing errors like it?
+    rubric:
+      - id: last-line
+        required: true
+        description: "Read the last line first: it names the kind of error (NameError) and says what went wrong (a name that isn't defined)."
+      - id: line-number
+        required: true
+        description: "The line above says where: line 3, and shows that line of code."
+      - id: meaning
+        required: true
+        description: "NameError means Python met a name it has never been given a value, so look for a misspelling (pricee for price) or a name used before its line."
+      - id: routine
+        required: false
+        description: "Change one thing, run again, and read the new message; don't change lines the message doesn't point at."
+    model_answer: |
+      Start at the bottom. The last line names the kind of error, NameError, and says what happened: the name pricee is not defined, meaning Python reached a name it has never been given a value. The line above tells them where: line 3, and it even shows the line. A NameError on a line like this almost always means a misspelling, so compare pricee with the names given values earlier; it should be price. The routine: read the last line, go to the line number, look at the names and types on that line, change one thing, run again, and read the new message. Changing lines the message doesn't point at only adds new errors.
+review_pool:
+  - review-mcq-indentation
+  - review-mcq-syntax-location
+  - review-code-double
+  - mcq-value-error
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: read-traceback
+    description: "Find the line number and the error's name in a traceback, and read its message"
+  - id: error-kinds
+    description: "Know what `SyntaxError`, `IndentationError`, `NameError`, `TypeError` and `ValueError` each mean"
+  - id: fix-routine
+    description: "Fix one error at a time: read, go to the line, check names and types, change one thing, run again"
