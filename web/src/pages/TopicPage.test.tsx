@@ -790,3 +790,156 @@ describe('topic states and gating', () => {
     expect(screen.queryByRole('button', { name: 'Prove it now' })).toBeNull()
   })
 })
+
+describe('your place on a long topic', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
+  /** An answer to a recall question, as the server would send it back. */
+  function answered(
+    item: string,
+    correct: boolean,
+    topicId = 'py.values-and-types',
+  ): Attempt {
+    return {
+      id: `answer-${topicId}-${item}-${correct}`,
+      type: 'answer',
+      topic_id: topicId,
+      item_id: item,
+      correct,
+      occurred_at: NOV_6.toISOString(),
+    }
+  }
+
+  const outline = () =>
+    screen.getByRole('navigation', { name: 'Your place in this topic' })
+
+  it('lists the lesson, every practice item with its state, and the proof checks', async () => {
+    renderTopic(fakeTopic(), fakeContent(), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([
+          ...unlocked(fakeTopic()),
+          passedCheck('example-hello'),
+          answered('mcq-print', true),
+          answered('predict-print', false),
+        ]),
+      ),
+    })
+    const nav = outline()
+    expect(await within(nav).findByText(/2 of 5 done/)).toBeInTheDocument()
+    // Each item is a link to its card, named with its state (F9: words,
+    // not only a color).
+    expect(
+      within(nav).getByRole('link', { name: 'Practice 1: Done ✓' }),
+    ).toHaveAttribute('href', '#place-item-py.values-and-types-example-hello')
+    expect(
+      within(nav).getByRole('link', {
+        name: 'Practice 3: Tried, not right yet',
+      }),
+    ).toBeInTheDocument()
+    expect(
+      within(nav).getByRole('link', { name: 'Practice 4: not done yet' }),
+    ).toBeInTheDocument()
+    expect(
+      within(nav).getByRole('link', { name: 'Next not done: Practice 3' }),
+    ).toHaveAttribute('href', '#place-item-py.values-and-types-predict-print')
+    // The lesson's parts and the proof checks are places too.
+    expect(
+      within(nav).getByRole('link', { name: 'The lesson' }),
+    ).toHaveAttribute('href', '#place-lesson-1')
+    expect(document.getElementById('place-lesson-1')).toBeInTheDocument()
+    expect(document.getElementById('place-recap')).toBeInTheDocument()
+    expect(
+      within(nav).getByRole('link', { name: 'Build: not passed yet' }),
+    ).toHaveAttribute('href', '#place-prove-build')
+    expect(document.getElementById('place-prove-build')).toBeInTheDocument()
+  })
+
+  it('shows the places without states to a signed-out visitor', () => {
+    renderTopic(fakeTopic(), fakeContent(), { signedIn: false })
+    const nav = outline()
+    expect(within(nav).queryByText(/of 5 done/)).toBeNull()
+    expect(
+      within(nav).getByRole('link', { name: 'Practice 2: not done yet' }),
+    ).toBeInTheDocument()
+    expect(within(nav).queryByText(/Next not done/)).toBeNull()
+  })
+
+  it('folds away an item already got right, until asked, and marks it done', async () => {
+    renderTopic(fakeTopic(), fakeContent(), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([
+          ...unlocked(fakeTopic()),
+          answered('mcq-print', true),
+        ]),
+      ),
+    })
+    const quick = screen.getByRole('region', { name: 'Quick check' })
+    expect(
+      await within(quick).findByText('Practice 2 of 5 · Done ✓'),
+    ).toBeInTheDocument()
+    expect(within(quick).queryByRole('radio')).toBeNull()
+    await userEvent.click(
+      within(quick).getByRole('button', { name: 'Show it again' }),
+    )
+    expect(within(quick).getAllByRole('radio').length).toBeGreaterThan(0)
+    // An item only tried stays open.
+    const predict = screen.getByRole('region', { name: 'Predict the output' })
+    expect(
+      within(predict).getByRole('button', { name: 'Check' }),
+    ).toBeInTheDocument()
+  })
+
+  it('marks an item done as soon as it is answered right, and keeps it open', async () => {
+    const topic = fakeTopic()
+    render(
+      <AuthProvider auth={fakeAuth(fakeUser())}>
+        <EventsProvider client={fakeEventsClient()}>
+          <MemoryRouter>
+            <TopicView
+              topic={topic}
+              content={fakeContent(topic)}
+              loadAttempts={vi.fn((_topicId: string) =>
+                Promise.resolve(unlocked(topic)),
+              )}
+            />
+          </MemoryRouter>
+        </EventsProvider>
+      </AuthProvider>,
+    )
+    const nav = outline()
+    expect(await within(nav).findByText(/0 of 5 done/)).toBeInTheDocument()
+    const quick = screen.getByRole('region', { name: 'Quick check' })
+    await userEvent.click(within(quick).getByRole('radio', { name: 'Hi' }))
+    await userEvent.click(within(quick).getByRole('button', { name: 'Check' }))
+    expect(
+      await within(quick).findByText('Practice 2 of 5 · Done ✓'),
+    ).toBeInTheDocument()
+    expect(within(quick).getAllByRole('radio').length).toBeGreaterThan(0)
+    expect(within(nav).getByText(/1 of 5 done/)).toBeInTheDocument()
+    expect(
+      within(nav).getByRole('link', { name: 'Next not done: Practice 1' }),
+    ).toBeInTheDocument()
+  })
+
+  it('offers to continue where the last visit stopped', () => {
+    localStorage.setItem(
+      'place:py.values-and-types',
+      'place-item-py.values-and-types-fill-hello',
+    )
+    renderTopic()
+    expect(
+      within(outline()).getByRole('link', {
+        name: 'Continue where you left off: Practice 4',
+      }),
+    ).toHaveAttribute('href', '#place-item-py.values-and-types-fill-hello')
+  })
+
+  it('offers nothing to continue on a first visit', () => {
+    renderTopic()
+    expect(
+      within(outline()).queryByText(/Continue where you left off/),
+    ).toBeNull()
+  })
+})

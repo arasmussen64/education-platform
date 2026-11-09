@@ -2,6 +2,37 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Your place in a long topic
+
+The owner, partway through Shell essentials: "It has 24 practice questions so there needs to be a way to track where you are for the reading and a way to track what practice questions you've done and haven't done. Make it the same across every lesson." Built before the next labs.
+
+**What a topic page has now.** An outline beside the content on a wide screen (sticky, so it stays while you scroll) and above it on a narrow one, headed _Your place in this topic_:
+
+- **Learn:** what you can do after, the lesson, the main resource, the recap. The lesson's paragraphs are each a place, so while you read, the outline says _The lesson (part 6 of 10)_, with a ▸ on the part you're in.
+- **Practice · 7 of 24 done:** every item as a numbered cell linking to its card, green with a ✓ when done, amber with a ◐ when tried and not yet right, plain otherwise; a ring on the one in view; and _Next not done: Practice 8_.
+- **Prove it · 1 of 3 passed:** the three checks, ✓ or ○.
+- **Continue where you left off: Practice 8**, when a previous visit was remembered.
+
+Each practice card's position line now reads _Practice 7 of 24 · Done ✓_ or _· Tried, not right yet_, and an item that was already done when the page opened is folded to its heading and a _Show it again_ button, so a long topic shows what's left. An item done during the visit stays open, so an answer never makes its question vanish.
+
+**Where "done" comes from.** The learner's saved answers: one correct answer or Check of an item makes it done, by the same history the proof checks are read from (`itemStates`, pure and tested). There is no tick to set by hand, in keeping with ADR-0002, and it's the same on every device. The reading position is different: it's a convenience, remembered in this browser's `localStorage` (`placeMemory`), so it survives a reload but not a change of machine, and the page works the same without it.
+
+**How the page knows where you are.** Every place has an element with a `data-place` attribute whose value is its id: the objectives, each lesson paragraph (`LessonView` marks the intro's children), the main resource, the recap, each practice card, each proof check. An `IntersectionObserver` watches them and takes the topmost one that reaches into the top 45% of the screen (`useCurrentPlace`), which is what you're reading rather than what's coming up. The test environment lays nothing out, so there the current place stays unknown and the outline is tested for its links, counts and states.
+
+**Checked on my own dev server** at desktop width: the rail sticks, the lesson part and the practice cell follow the scroll, and a reload offers _Continue where you left off: Practice 1_. The browser wouldn't resize to a phone width from here, so the narrow layout rests on the standard breakpoint classes rather than a screenshot.
+
+**Tests:** 11 new (item states, the remembered place, and the page: the outline's links and states, a signed-out visitor, folding and unfolding, an item done now, continue or not). 676 web tests pass.
+
+**Decisions for you to review:**
+
+1. _Done means a correct saved answer,_ never a tick you set yourself. It's the honest reading of ADR-0002, and it means a worked example counts as done once you've pressed its Check (or recorded its lab result).
+2. _Items already done when the page opens are folded away._ One click brings any of them back. If you'd rather see everything expanded always, it's a one-line change (`collapsed` in `Practice`).
+3. _The reading position is per device,_ in `localStorage`, not an event. An event type would need a production migration, and where you were on a page isn't learning data.
+4. _The outline is for topics, not checkpoints._ A checkpoint has no lesson or ladder; its page is short.
+5. _On a phone the outline sits above the lesson,_ in full. A collapsible version for small screens is a possible refinement.
+
+**Next:** back to Module 1's labs: Users, permissions and SSH.
+
 ## 2026-11-09: Processes and signals goes ready, and the Services topic unlocks
 
 Processes and signals is the third ready cloud topic, and since it was the only draft between Shell essentials and Services and logs, the live map's Module 1 now runs Shell → Processes → Services with nothing Locked behind a draft.
@@ -9,6 +40,7 @@ Processes and signals is the third ready cloud topic, and since it was the only 
 **Why these labs boot systemd too.** The lesson says PID 1 adopts orphans and reaps zombies. In a plain container PID 1 is `sleep infinity`, which does neither, so a learner checking the lesson's claim would have found it false. With systemd as PID 1 the process tree looks like a server's, which is also what the worked example reads. The five labs reuse the Services labs' base layer (the same first `RUN` line), so Docker builds it once for both topics.
 
 **The five labs:**
+
 - **`example-stop-a-runaway`** (worked example): a colleague's backgrounded report script, adopted by PID 1, loops forever. `ps -ef --forest`, `pgrep -a`, `kill` (TERM), the `||` that prints only when `pgrep` finds nothing, the trap's last log line, and `ps -o comm= -p 1` to note that PID 1 is systemd.
 - **`fill-run-report`** (fill-in): a runner with four gaps, `&`, `$!`, `wait "$pid"`, `$?`. The job writes its own PID into the report, so a check can tell `$!` from `$$`.
 - **`write-graceful-stop`** (write): `TERM`, wait up to five seconds with `kill -0`, then `KILL`; proven on a polite worker that logs its cleanup and a stubborn one that ignores `TERM`.
@@ -16,16 +48,18 @@ Processes and signals is the third ready cloud topic, and since it was the only 
 - **`debug-stop-workers`** (debug): three mistakes with three different symptoms: `pgrep worker` matches the script's own name, so it kills itself halfway; `kill -9` leaves the workers' PID files behind; and the report reads `pgrep`'s exit status backwards. Workers run at boot as the learner, and a helper restarts them for another try.
 
 **What the contract caught, three things:**
-1. *A script's process name depends on its shebang.* With `#!/usr/bin/env bash`, `env` runs bash a second time and the process is called `bash`; `pgrep -x runaway.sh` found nothing, `kill` got no argument, and the worked example "passed" with the runaway still running. Every program a lab finds by name now starts with `#!/bin/bash`, and the content README says why. It's also what made the debug lab's first planted bug real: the stop script has to be *called* `stop-workers` for `pgrep worker` to catch it.
-2. *`pgrep -f` matched the check itself,* because the check's own command line contains the pattern. The pattern is now `/srv/job[s]/`, the old trick; also in the README.
-3. *`grep -c` exits 1 when it counts zero,* so a check expecting "0" failed on its exit status; `find | wc -l` instead.
+
+1. _A script's process name depends on its shebang._ With `#!/usr/bin/env bash`, `env` runs bash a second time and the process is called `bash`; `pgrep -x runaway.sh` found nothing, `kill` got no argument, and the worked example "passed" with the runaway still running. Every program a lab finds by name now starts with `#!/bin/bash`, and the content README says why. It's also what made the debug lab's first planted bug real: the stop script has to be _called_ `stop-workers` for `pgrep worker` to catch it.
+2. _`pgrep -f` matched the check itself,_ because the check's own command line contains the pattern. The pattern is now `/srv/job[s]/`, the old trick; also in the README.
+3. _`grep -c` exits 1 when it counts zero,_ so a check expecting "0" failed on its exit status; `find | wc -l` instead.
 
 **The lesson** gained a sentence on `pgrep`, `pkill`, `-x` and `-a`, with the warning that a name match catches more than you meant, since two labs depend on it.
 
 **Decisions for you to review:**
-1. *Processes labs boot systemd* although the topic isn't about systemd, for the reason above; the cost is a privileged container, which the Services labs already need.
-2. *Checks may start throwaway processes of their own* (a fresh worker to stop, a runner to interrupt) when that's the only way to exercise the learner's script; they clean up after themselves. The README's "checks only read" rule now says so.
-3. *The debug's first bug is a self-match.* It's the subtlest of the module so far, and the prompt names its symptom ("stops before it has finished"). If it proves too hard in practice, it can become a hint-carrying fill-in instead.
+
+1. _Processes labs boot systemd_ although the topic isn't about systemd, for the reason above; the cost is a privileged container, which the Services labs already need.
+2. _Checks may start throwaway processes of their own_ (a fresh worker to stop, a runner to interrupt) when that's the only way to exercise the learner's script; they clean up after themselves. The README's "checks only read" rule now says so.
+3. _The debug's first bug is a self-match._ It's the subtlest of the module so far, and the prompt names its symptom ("stops before it has finished"). If it proves too hard in practice, it can become a hint-carrying fill-in instead.
 
 **Next:** Users, permissions and SSH, a plain container; then Package management, with a local package repository so `apt` works without the network.
 
@@ -33,9 +67,10 @@ Processes and signals is the third ready cloud topic, and since it was the only 
 
 The owner reviewed every decision listed so far and accepted them all, ADR-0018 included (its status line and the index say so), and said to keep going. The riskiest piece of the remaining Module 1 work was systemd in a container, so that went first: Services and logs is the second ready cloud topic, and the checker now knows how to boot a lab.
 
-**The checker.** A `lab: { init: systemd }` container runs privileged with `/sbin/init` as PID 1, `/run` on a tmpfs, and *its own cgroup namespace*. The first design shared the host's cgroup tree, and a probe on Docker Desktop showed the difference: with a private namespace a `MemoryMax=64M` unit is killed when it grows past the limit (`Result=oom-kill`) and a `CPUQuota=20%` unit is throttled, exactly as on a server; with the host's tree the memory limit didn't kill. The checker waits for `systemctl is-system-running` to say `running` or `degraded` before asking the container anything, because checks run too early see services that haven't started. `test --jobs N` proves several labs at once, each lab's output printed whole when it finishes; CI uses four. Unit tests cover the run arguments and the wait.
+**The checker.** A `lab: { init: systemd }` container runs privileged with `/sbin/init` as PID 1, `/run` on a tmpfs, and _its own cgroup namespace_. The first design shared the host's cgroup tree, and a probe on Docker Desktop showed the difference: with a private namespace a `MemoryMax=64M` unit is killed when it grows past the limit (`Result=oom-kill`) and a `CPUQuota=20%` unit is throttled, exactly as on a server; with the host's tree the memory limit didn't kill. The checker waits for `systemctl is-system-running` to say `running` or `degraded` before asking the container anything, because checks run too early see services that haven't started. `test --jobs N` proves several labs at once, each lab's output printed whole when it finishes; CI uses four. Unit tests cover the run arguments and the wait.
 
 **The five labs**, all on a tiny Python web API, `shop-api`, that answers on `PORT` and exits with an error when a client asks for `/crash`:
+
 - **`example-first-service`** (worked example): a unit file waits in the learner's home; the six-line walkthrough reads it, copies it to `/etc/systemd/system`, `daemon-reload`, `enable --now`, `status`, `journalctl -u`.
 - **`fill-unit-gaps`** (fill-in): four `...` gaps: `User=`, the Python path in `ExecStart=`, `Restart=`, `WantedBy=`.
 - **`write-unit`** (write): a unit for a worker script, with a working directory and a five-second restart delay, checked through `systemctl show`.
@@ -43,18 +78,20 @@ The owner reviewed every decision listed so far and accepted them all, ADR-0018 
 - **`debug-service-wont-start`** (debug): three mistakes that surface one at a time: a section called `[Services]` (systemd ignores it, so the unit has no `ExecStart=` and won't load), `User=shop-api` (no such account: status 217/USER), and `PORT=80800` (the program refuses to start and says so in the journal, and systemd restarts it over and over).
 
 **What the contract and the probes caught, five things:**
-1. *A "forgot daemon-reload" wrong fix passed.* systemd 255 loads a unit it has never loaded (or failed to load) on the next start, so the mistake only bites for a unit that was already running. The lesson's rule stands; the wrong fix was dropped rather than contrived.
-2. *`systemctl` as the learner failed with "Failed to connect to bus".* Ubuntu's `systemd` package doesn't pull in D-Bus, and a non-root `systemctl` needs it. The images install `dbus`, as every real server has it.
-3. *The "make the journal persistent" step was already done.* Ubuntu's package creates `/var/log/journal`, so the pristine image passed that check; the build's image now removes the folder, and the task is real again.
-4. *A restarted journald doesn't move the log; `journalctl --flush` does.* And a folder made with a plain `mkdir` gives the journal files no group, so the learner couldn't read their own service's log afterwards: `systemd-tmpfiles --create --prefix /var/log/journal` sets the permissions, which is the procedure the DigitalOcean tutorial teaches. The lesson and the recap now say so, and that mistake is a wrong fix of its own.
-5. *A crash-looping service is "active" for a moment each time it's restarted,* and a check caught that moment once. Checks that a service runs now read `is-active` twice, two seconds apart, with the same `MainPID`.
+
+1. _A "forgot daemon-reload" wrong fix passed._ systemd 255 loads a unit it has never loaded (or failed to load) on the next start, so the mistake only bites for a unit that was already running. The lesson's rule stands; the wrong fix was dropped rather than contrived.
+2. _`systemctl` as the learner failed with "Failed to connect to bus"._ Ubuntu's `systemd` package doesn't pull in D-Bus, and a non-root `systemctl` needs it. The images install `dbus`, as every real server has it.
+3. _The "make the journal persistent" step was already done._ Ubuntu's package creates `/var/log/journal`, so the pristine image passed that check; the build's image now removes the folder, and the task is real again.
+4. _A restarted journald doesn't move the log; `journalctl --flush` does._ And a folder made with a plain `mkdir` gives the journal files no group, so the learner couldn't read their own service's log afterwards: `systemd-tmpfiles --create --prefix /var/log/journal` sets the permissions, which is the procedure the DigitalOcean tutorial teaches. The lesson and the recap now say so, and that mistake is a wrong fix of its own.
+5. _A crash-looping service is "active" for a moment each time it's restarted,_ and a check caught that moment once. Checks that a service runs now read `is-active` twice, two seconds apart, with the same `MainPID`.
 
 **Decisions for you to review:**
-1. *Services and logs is `ready` while its prerequisite, Processes and signals, is still a draft.* On the live site it shows as Locked until Processes goes ready, which is the next pull request. I did the systemd topic first to retire the risk.
-2. *The learner is in the `adm` and `systemd-journal` groups* in systemd images, as a cloud image's default user is, so `journalctl` works without `sudo`.
-3. *Lab images install D-Bus* so `systemctl` works for the learner as it does on a server, rather than teaching `sudo systemctl status`.
-4. *A lab's scenario may include a Python program* (`server.py` here); the validator now forbids only the three Python exercise files in a lab folder, not every `.py`.
-5. *CI proves labs four at a time.* Ten labs took about a minute locally that way; the job will grow with every topic, and `--jobs` keeps it in hand.
+
+1. _Services and logs is `ready` while its prerequisite, Processes and signals, is still a draft._ On the live site it shows as Locked until Processes goes ready, which is the next pull request. I did the systemd topic first to retire the risk.
+2. _The learner is in the `adm` and `systemd-journal` groups_ in systemd images, as a cloud image's default user is, so `journalctl` works without `sudo`.
+3. _Lab images install D-Bus_ so `systemctl` works for the learner as it does on a server, rather than teaching `sudo systemctl status`.
+4. _A lab's scenario may include a Python program_ (`server.py` here); the validator now forbids only the three Python exercise files in a lab folder, not every `.py`.
+5. _CI proves labs four at a time._ Ten labs took about a minute locally that way; the job will grow with every topic, and `--jobs` keeps it in hand.
 
 **Next:** Processes and signals, then Users, permissions and SSH, both plain containers; then the rest of Module 1 in order.
 
@@ -73,9 +110,10 @@ The first cloud-track topic a learner can open on the live site. Shell essential
 **The app bundles Module 1 in.** `content.ts` now includes `csa.linux.*` topics in the eager bundle and the outline module leaves them out, so the Today page and the follow-ups, which only look at bundled topics, see Shell essentials. The lazy-track tests and the map test were adjusted: the rule is now that a topic which loads on demand must never be ready. Everything else is the Python track's machinery, unchanged: progress counts a passed lab build or debug as that proof because the event is a `code_check`.
 
 **Decisions for you to review:**
-1. *Shell essentials is `ready` on the live site* although its labs need Docker and the repository on the learner's machine. You have both; the lab view says exactly what to run. A learner without them can still read the lesson and do the recall items.
-2. *Each lab builds its own image from a copy of the same seed script.* Simple and self-contained; a shared base image would save a few seconds per build and is easy to add later.
-3. *The Today page knows the cloud track only through bundling.* It plans from the main track; a ready cloud topic shows on the cloud map and its own page, and its reviews are scheduled like any other topic's. Whether Today should mix tracks is a later question (the spec's F12).
+
+1. _Shell essentials is `ready` on the live site_ although its labs need Docker and the repository on the learner's machine. You have both; the lab view says exactly what to run. A learner without them can still read the lesson and do the recall items.
+2. _Each lab builds its own image from a copy of the same seed script._ Simple and self-contained; a shared base image would save a few seconds per build and is easy to add later.
+3. _The Today page knows the cloud track only through bundling._ It plans from the main track; a ready cloud topic shows on the cloud map and its own page, and its reviews are scheduled like any other topic's. Whether Today should mix tracks is a later question (the spec's F12).
 
 **Next:** labs for the other thirteen Module 1 topics, the ones needing systemd first (services and logs); the checkpoint as a debug lab with five planted faults.
 
@@ -88,8 +126,9 @@ The topic page can now show a lab (ADR-0018). `ExerciseView` hands any exercise 
 **Tests:** eleven new (the result parser and event data, the view's commands, checks, pass, partial pass, refusals, hints, walkthrough; a lab as a proof item recording its event). The first run caught a test of mine that pasted a result for the wrong lab and expected it to count, which is the parser doing its job.
 
 **Decisions for you to review:**
-1. *The commands are shown in full on the page,* repository-relative, rather than hidden behind a "how to run" link: the learner is at a terminal anyway, and copying beats remembering.
-2. *The paste box takes a worked example's result too,* so the learner sees the ticks after following the walkthrough; it records a `code_check` like any Check of a worked example, which proves nothing and costs nothing.
+
+1. _The commands are shown in full on the page,_ repository-relative, rather than hidden behind a "how to run" link: the learner is at a terminal anyway, and copying beats remembering.
+2. _The paste box takes a worked example's result too,_ so the learner sees the ticks after following the walkthrough; it records a `code_check` like any Check of a worked example, which proves nothing and costs nothing.
 
 **Next:** Shell essentials' other four labs (a worked example, a fill-in, a write and the debug), then the topic to `ready`, which means bundling Module 1 into the app rather than loading it on demand.
 
@@ -101,31 +140,33 @@ The owner chose the plan (containers on the learner's machine, GitHub's registry
 
 **`tools/labcheck.py`.** `start` builds the image and starts the container and tells the learner how to get a shell in it; `check` runs the checks with `docker exec` as root, prints pass or fail per check with the reason, and prints the result JSON to paste (lab, rev, checker version, time, which checks passed, nothing else); `stop` removes the container; `test` proves the contract: pristine must not pass, the solution must, every wrong fix must fail; `list` names the labs. Fixes are applied as the `learner` user in a fresh container, with CRLF stripped in case of a Windows checkout. It's PyYAML and the standard library over the `docker` command, so it runs wherever the repository and Docker are.
 
-**The first lab, and what the contract caught.** *A report from the shop's logs* (Shell essentials' build) seeds 600 access-log lines, 200 application-log lines and a 300-row CSV by arithmetic on the line number, so the files are identical on every build; the checks compute the right answers from the data rather than hard-coding them. The first run passed four of five wrong fixes and failed one: `uniq -c` without `sort` gave the right top path, because `/home` arrived in runs of four. The data now puts `/home` never twice in a row and `/cart` in pairs, and the mistake shows. That is exactly the kind of thing the contract exists to catch, and the content README now says so.
+**The first lab, and what the contract caught.** _A report from the shop's logs_ (Shell essentials' build) seeds 600 access-log lines, 200 application-log lines and a 300-row CSV by arithmetic on the line number, so the files are identical on every build; the checks compute the right answers from the data rather than hard-coding them. The first run passed four of five wrong fixes and failed one: `uniq -c` without `sort` gave the right top path, because `/home` arrived in runs of four. The data now puts `/home` never twice in a row and `/cart` in pairs, and the mistake shows. That is exactly the kind of thing the contract exists to catch, and the content README now says so.
 
 **CI.** A `Labs` job runs `labcheck test --all` on Ubuntu runners, which have Docker; the first lab takes about twenty seconds locally. If the job grows slow, it can run only when `content/**` or the checker change.
 
 **Not yet:** the lab view on the topic page (the commands, the checks, the paste box, the reference solution after a pass), which is the next pull request, and the other four labs Shell essentials needs to go ready.
 
 **Decisions for you to review:**
-1. *Results are `code_check` events with `data.runtime: lab`,* not a new event type: progress already counts a correct `code_check` on the build or debug item as that proof, and the `events` table's type list would need a production migration for no gain.
-2. *Images build locally; publishing waits.* The registry (`ghcr.io`) is chosen, but a published image is public and nobody but you needs one yet.
-3. *Checks compute the truth from the data.* It makes `checks.yaml` longer than a hard-coded `equals`, and it means a change to the seed can't leave a check stale.
-4. *Solutions and wrong fixes run as the learner,* with `sudo` available, so they can only do what a learner could.
+
+1. _Results are `code_check` events with `data.runtime: lab`,_ not a new event type: progress already counts a correct `code_check` on the build or debug item as that proof, and the `events` table's type list would need a production migration for no gain.
+2. _Images build locally; publishing waits._ The registry (`ghcr.io`) is chosen, but a published image is public and nobody but you needs one yet.
+3. _Checks compute the truth from the data._ It makes `checks.yaml` longer than a hard-coded `equals`, and it means a change to the seed can't leave a check stale.
+4. _Solutions and wrong fixes run as the learner,_ with `sudo` available, so they can only do what a learner could.
 
 **Next:** the lab view in the web app, then Shell essentials' other four labs and the topic's switch to `ready`.
 
 ## 2026-11-09: Module 1, topics 13 and 14: triage and hardening. The module's lessons are complete.
 
-Performance triage (`csa.linux.triage`) and Hardening (`csa.linux.hardening`), as drafts: 31 recall items, 14 of them `predict_shell`. With these, **all fourteen topics of Module 1 are drafted**: 228 recall items across the module, 120 of them shell predictions proven in real bash, each topic with a lesson for a complete beginner, an explain prompt with rubric and model answer, four to six skills and a review pool. The checkpoint, *the broken server*, stays a planned outline until the lab checker can run it.
+Performance triage (`csa.linux.triage`) and Hardening (`csa.linux.hardening`), as drafts: 31 recall items, 14 of them `predict_shell`. With these, **all fourteen topics of Module 1 are drafted**: 228 recall items across the module, 120 of them shell predictions proven in real bash, each topic with a lesson for a complete beginner, an explain prompt with rubric and model answer, four to six skills and a review pool. The checkpoint, _the broken server_, stays a planned outline until the lab checker can run it.
 
 **The two closers use everything before them.** Triage's items read `dmesg`, `vmstat`, `pidstat`, `iostat`, `strace -c`, `perf report` and `sar` the way the first minute of an incident does, and the lesson is built on Gregg's USE method and the Netflix checklist. Hardening's items audit `ss -ltnp`, `sshd -T`, an `sshd_config`, `ufw status`, `/etc/passwd` and `sudoers`, and read Lynis and OpenSCAP reports, since the spec's proof for this topic is "apply a baseline, then prove it with a benchmark scan". The Netflix article's site refuses automated fetches, so it is linked on Gregg's word and the devlog's; every other URL in the two topics answered 200.
 
 **What Module 1 still needs to go ready,** per ADR-0017: the hands-on half. For each topic a worked example, a fill-in and a write step, and the build and debug proofs, run in a container on the learner's machine through the lab checker's local mode, which is the next build. The checkpoint's five planted faults are the same work at module scale. Until then the module is readable and quizzable on the dev server (`npm run dev` in `web/`, then `/topic/csa.linux.shell` and on), and nothing in it is shown on the live site.
 
 **Decisions for you to review:**
-1. *Triage lists four prerequisites* (memory, CPU, storage, networking) and Hardening four (permissions, services, packages, networking): both are summary topics, and the map should say so.
-2. *The hardening lesson tells the learner to keep SSH on port 22.* Moving the port is a common recommendation and a weak one; the lesson says why, and the explain rubric doesn't penalise either view.
+
+1. _Triage lists four prerequisites_ (memory, CPU, storage, networking) and Hardening four (permissions, services, packages, networking): both are summary topics, and the map should say so.
+2. _The hardening lesson tells the learner to keep SSH on port 22._ Moving the port is a common recommendation and a weak one; the lesson says why, and the explain rubric doesn't penalise either view.
 
 **Next:** the lab checker's local container mode (ADR-0014 and ADR-0017), starting with a lab image for Shell essentials and the checker's read-only `docker exec` probes; then the checkpoint.
 
@@ -140,8 +181,9 @@ Networking from the host (`csa.linux.net-tools`), Boot, cloud-init and instance 
 **Resources.** DigitalOcean's networking terminology tutorial (CC BY-NC-SA 4.0), the ArchWiki's network-configuration, nftables and boot-process pages (GNU FDL 1.3), the `ss` and `tcpdump` manuals, RFC 9293 for the TCP states, cloud-init's own documentation, the AWS IMDSv2 page (copyright, linked) with the Azure and Google equivalents (CC BY 4.0), the Missing Semester's scripting lecture (CC BY-NC-SA 4.0), Google's Shell Style Guide (CC BY 3.0), Greg's Bash Pitfalls and ShellCheck. The GNU Bash manual's own site refuses automated fetches, so the `bash(1)` page on man7.org stands in for it.
 
 **Decisions for you to review:**
-1. *The 2019 breach is named only by year.* The IMDSv2 lesson and items explain server-side request forgery against the metadata service with "a large breach in 2019" rather than naming the company, since the point is the mechanism.
-2. *Networking stays at the host's view.* Subnets, routing and DNS in depth belong to Module 3; this topic teaches the tools and what their output means.
+
+1. _The 2019 breach is named only by year._ The IMDSv2 lesson and items explain server-side request forgery against the metadata service with "a large breach in 2019" rather than naming the company, since the point is the mechanism.
+2. _Networking stays at the host's view._ Subnets, routing and DNS in depth belong to Module 3; this topic teaches the tools and what their output means.
 
 **Next:** performance triage and hardening, the last two topics; then the checkpoint's outline review and the lab checker's local mode.
 
@@ -151,11 +193,12 @@ Memory and the OOM killer (`csa.linux.memory`), CPU scheduling and cgroups (`csa
 
 **Where the shell items are real.** Several run bash itself rather than reading captured output: a child shell that kills itself with `SIGKILL` and the parent that prints `exit status 137`; `read quota period < cpu.max` and `$(( quota * 100 / period ))` for a quota as a percentage; a for-loop over two cgroups' `cpu.max` with an `awk` ternary; `$(( $(cat memory.max) / 1048576 ))` for a limit in MiB; and plain folders standing in for an image layer and a container's upper layer, changed, shown and removed in one line. The rest read `free`, `/proc/meminfo`, `vmstat`, the OOM log, `top`'s CPU line, `uptime`, `ps`, `cpu.stat`, a Dockerfile, a `docker images` table and an overlay mount line.
 
-**Resources.** The kernel's own documentation (GPL-2.0) carries three of the topics' main readings: the memory *Concepts overview*, the CFS design note and the overlayfs document, with the cgroup v2 document for both controllers. Around them: Chris Down on swap and Julia Evans on containers (both copyright, linked), the ArchWiki (GNU FDL 1.3), the Linux man-pages, Docker's documentation (Apache-2.0) and the Kubernetes resource-management page (CC BY 4.0).
+**Resources.** The kernel's own documentation (GPL-2.0) carries three of the topics' main readings: the memory _Concepts overview_, the CFS design note and the overlayfs document, with the cgroup v2 document for both controllers. Around them: Chris Down on swap and Julia Evans on containers (both copyright, linked), the ArchWiki (GNU FDL 1.3), the Linux man-pages, Docker's documentation (Apache-2.0) and the Kubernetes resource-management page (CC BY 4.0).
 
 **Decisions for you to review:**
-1. *Kernel documentation as main readings.* It's dense for a beginner, so each lesson carries the explanation itself and sends the learner to the document for the precise statement; the alternative was blog posts of uneven accuracy.
-2. *Containers wait for Memory and CPU.* The containers topic lists both as prerequisites, because its cgroup half is their material; the spec's outline had it after CPU anyway.
+
+1. _Kernel documentation as main readings._ It's dense for a beginner, so each lesson carries the explanation itself and sends the learner to the document for the precise statement; the alternative was blog posts of uneven accuracy.
+2. _Containers wait for Memory and CPU._ The containers topic lists both as prerequisites, because its cgroup half is their material; the spec's outline had it after CPU anyway.
 
 **Next:** networking from the host, boot and cloud-init, shell scripting.
 
@@ -163,15 +206,16 @@ Memory and the OOM killer (`csa.linux.memory`), CPU scheduling and cgroups (`csa
 
 The owner chose to finish Module 1's lessons before the lab checker. This batch: Services and logs (`csa.linux.services`), Package management and patching (`csa.linux.packages`) and Disks and filesystems (`csa.linux.storage`), the same shape as the first three: a lesson for a complete beginner, an explain prompt with rubric and model answer, four to five skills, a review pool, and a practice ladder of recall items (49 in all, 20 of them `predict_shell`).
 
-**What the shell items do here.** None of these topics' tools exist in the browser or in Git Bash (`systemctl`, `apt`, `lsblk`), so every shell item reads *captured output* of the real tool, written as a fixture file, with the text tools from Shell essentials: find the failed units in a `systemctl` listing, the security fixes in `apt list --upgradable`, the full filesystem in `df -h`, the inode-starved one in `df -i`, the deleted-but-open file in `lsof +L1`, the free space in `vgs`. That's a fair picture of the job: on a real server you run the tool and then read its output, and reading is the part that takes practice. Where bash itself is the tool (`test -f reboot-required && …`, `sort -V` on versions, `sed` capture groups on `blkid`), the command is real.
+**What the shell items do here.** None of these topics' tools exist in the browser or in Git Bash (`systemctl`, `apt`, `lsblk`), so every shell item reads _captured output_ of the real tool, written as a fixture file, with the text tools from Shell essentials: find the failed units in a `systemctl` listing, the security fixes in `apt list --upgradable`, the full filesystem in `df -h`, the inode-starved one in `df -i`, the deleted-but-open file in `lsof +L1`, the free space in `vgs`. That's a fair picture of the job: on a real server you run the tool and then read its output, and reading is the part that takes practice. Where bash itself is the tool (`test -f reboot-required && …`, `sort -V` on versions, `sed` capture groups on `blkid`), the command is real.
 
-**Resources and licences.** DigitalOcean's community tutorials carry CC BY-NC-SA 4.0 in each page's source (checked with `curl`), so three of them anchor the services topic and two the storage topic. The kernel documentation is GPL-2.0, Google Cloud and Kubernetes docs CC BY 4.0 and Google's style guide CC BY 3.0, all checked the same way and queued for later batches. The Debian handbook (GPL-2.0-or-later or CC BY-SA 3.0), Fedora docs (CC BY-SA 4.0) and Ubuntu Server docs (CC BY-SA 3.0) are recorded from their published licence terms, since their footers didn't come through a fetch. Amazon's EBS page, Dan Luu's *Files are hard* and Martin Fowler's *Immutable Server* are copyright and linked only.
+**Resources and licences.** DigitalOcean's community tutorials carry CC BY-NC-SA 4.0 in each page's source (checked with `curl`), so three of them anchor the services topic and two the storage topic. The kernel documentation is GPL-2.0, Google Cloud and Kubernetes docs CC BY 4.0 and Google's style guide CC BY 3.0, all checked the same way and queued for later batches. The Debian handbook (GPL-2.0-or-later or CC BY-SA 3.0), Fedora docs (CC BY-SA 4.0) and Ubuntu Server docs (CC BY-SA 3.0) are recorded from their published licence terms, since their footers didn't come through a fetch. Amazon's EBS page, Dan Luu's _Files are hard_ and Martin Fowler's _Immutable Server_ are copyright and linked only.
 
 **One test loosened on purpose.** The map test counted exactly three Draft markers; it now asks for at least three, so each batch of drafts doesn't have to touch it.
 
 **Decisions for you to review:**
-1. *Captured output as fixtures.* It's the only way to teach `df`, `lsof` or `systemctl` in the browser without a shell, and it teaches reading the output, which is the skill. The outputs are realistic but hand-written; the labs will show the learner the real thing.
-2. *Fowler and Dan Luu as readings.* Both are copyright and linked only, like Amazon's documentation; they're the clearest statements of immutable servers and of why `fsync` matters, and the platform's rule is only that nothing is copied.
+
+1. _Captured output as fixtures._ It's the only way to teach `df`, `lsof` or `systemctl` in the browser without a shell, and it teaches reading the output, which is the skill. The outputs are realistic but hand-written; the labs will show the learner the real thing.
+2. _Fowler and Dan Luu as readings._ Both are copyright and linked only, like Amazon's documentation; they're the clearest statements of immutable servers and of why `fsync` matters, and the platform's rule is only that nothing is copied.
 
 **Next:** memory and the OOM killer, CPU scheduling and cgroups, how containers work.
 
@@ -179,11 +223,12 @@ The owner chose to finish Module 1's lessons before the lab checker. This batch:
 
 The first content built on ADR-0017: Shell essentials (`csa.linux.shell`), Processes and signals (`csa.linux.processes`) and Users, permissions and SSH (`csa.linux.permissions`), the first three of Module 1's fourteen. Each has a lesson, an explain prompt with its rubric and model answer, skills, a review pool, and a practice ladder of recall items: 54 in all, 31 of them `predict_shell`, each proven in real bash by the validator (through Git Bash on this PC, on Linux in CI).
 
-**What the lessons are built on.** Every reading is linked, never copied: MIT's Missing Semester notes (CC BY-NC-SA 4.0) for the shell, data wrangling, job control and SSH; William Shotts's *The Linux Command Line* (CC BY-NC-ND 3.0) and his *Learning the shell* lessons (a copyright notice that permits verbatim copying; linked only); the ArchWiki (GNU FDL 1.3) for users and groups, sudo, SSH keys and systemd; `signal(7)` from the Linux man-pages. Every URL answered 200 before it was written down. The lessons themselves are written for a complete beginner, as you asked: what a process is before fork and exec, what the ten characters of `ls -l` mean before octal.
+**What the lessons are built on.** Every reading is linked, never copied: MIT's Missing Semester notes (CC BY-NC-SA 4.0) for the shell, data wrangling, job control and SSH; William Shotts's _The Linux Command Line_ (CC BY-NC-ND 3.0) and his _Learning the shell_ lessons (a copyright notice that permits verbatim copying; linked only); the ArchWiki (GNU FDL 1.3) for users and groups, sudo, SSH keys and systemd; `signal(7)` from the Linux man-pages. Every URL answered 200 before it was written down. The lessons themselves are written for a complete beginner, as you asked: what a process is before fork and exec, what the ten characters of `ls -l` mean before octal.
 
 **What a shell item can and can't do.** Only text-processing commands behave identically on Linux and in Git Bash, so the items read listings, logs, `/etc/passwd`-style files, a sudoers file and an SSH config with `grep`, `cut`, `sort`, `uniq`, `awk` and `sed`, and use bash itself for processes: subshells, `exec`, exit statuses, `&&` and `||`, background jobs with `wait`, `trap`, `kill -l`, and `umask` with shell arithmetic. Nothing that prints dates, sizes, PIDs or user names.
 
 **Three things the validator caught,** each worth knowing:
+
 1. A YAML plain scalar can't hold `: ` (as in `echo "exit: $?"` or `awk -F: ...`); such commands go in a `|` block.
 2. `bash -c 'cmd'` doesn't fork for the last command in the string: it execs it in place. An item comparing a child's `$PPID` with the shell's `$$` was false until a trailing `echo` made the child not the last command. The item's explanation now says so, since it's a true fact about shells.
 3. `grep ' 500 '` needs a space on both sides of the status code, so the access-log lines gained a size column.
@@ -191,10 +236,11 @@ The first content built on ADR-0017: Shell essentials (`csa.linux.shell`), Proce
 **The lazy-track rule changed.** `content.lazy.test.ts` demanded that every cloud topic be `planned`; it now demands only that none is `ready`. Drafts are visible only on the dev server, where a topic page loads its track before rendering. When the first cloud topic goes ready, the Today page and the follow-ups will need to see it, which means bundling it in or teaching them to load the track.
 
 **Decisions for you to review:**
-1. *Drafts, not ready,* as ADR-0017 says: the hands-on steps and the proofs wait for the lab checker's local mode. On the dev server (`npm run dev` in `web/`, then `/topic/csa.linux.shell`) you can read the lessons and try every item now.
-2. *Prerequisites set:* Processes and Permissions both need Shell essentials. The generated outlines had none.
-3. *LinuxCommand.org's lesson 9 as the main resource for permissions,* although it carries only a copyright notice (verbatim copying permitted) rather than a Creative Commons licence: it's the gentlest `ls -l` and `chmod` walkthrough I found, and the platform only links to it. Swap it for the ArchWiki page if you'd rather have a CC-licensed main resource.
-4. *No Parsons items for the shell yet:* the Parsons validator runs Python. A shell flavour (put the stages of a pipeline in order) would need the same bash runner; cheap to add later.
+
+1. _Drafts, not ready,_ as ADR-0017 says: the hands-on steps and the proofs wait for the lab checker's local mode. On the dev server (`npm run dev` in `web/`, then `/topic/csa.linux.shell`) you can read the lessons and try every item now.
+2. _Prerequisites set:_ Processes and Permissions both need Shell essentials. The generated outlines had none.
+3. _LinuxCommand.org's lesson 9 as the main resource for permissions,_ although it carries only a copyright notice (verbatim copying permitted) rather than a Creative Commons licence: it's the gentlest `ls -l` and `chmod` walkthrough I found, and the platform only links to it. Swap it for the ArchWiki page if you'd rather have a CC-licensed main resource.
+4. _No Parsons items for the shell yet:_ the Parsons validator runs Python. A shell flavour (put the stages of a pipeline in order) would need the same bash runner; cheap to add later.
 
 **Next:** the other eleven Module 1 topics the same way; then the lab checker's local mode, so Module 1 can go ready.
 
@@ -203,6 +249,7 @@ The first content built on ADR-0017: Shell essentials (`csa.linux.shell`), Proce
 The first thing ADR-0017 asks for, built end to end: a recall item that shows a few small files and a shell command over them and asks what it prints. The browser runs nothing. The validator runs the command in real bash and checks the output, so every item is proven against a real shell before a learner sees it, the way `predict_output` items are proven under CPython.
 
 **What changed.**
+
 - `tools/content_model.py`: `PredictShellItem` with `files` (path to contents; plain names or a few folders deep, never absolute or `..`, 4,000 characters in all at most), `command`, `expected_output`, `explanation`, `skills`.
 - `tools/validate_content.py`: `check_predict_shell` writes the files into a temporary folder and runs `bash --noprofile --norc -c <command>` there with `LC_ALL=C`, `TZ=UTC`, `HOME` pointing at that folder and nothing on stdin, with a 10 s limit. The output must equal `expected_output` exactly, and stderr must be empty. `find_bash()` finds the shell: on Windows it looks next to `git` for Git Bash, because the `bash.exe` Windows puts on PATH is only a launcher for WSL (on this PC it's `WindowsApps\bash.EXE`); `VALIDATOR_BASH` overrides. Without a bash, every shell item is reported rather than skipped.
 - Ready-topic rules count `predict_shell` as a recall item and as a predict kind for the review pool.
@@ -212,9 +259,10 @@ The first thing ADR-0017 asks for, built end to end: a recall item that shows a 
 **Two tests got longer timeouts** (15 s and 20 s): the first app-routes render and the every-checkpoint follow-up test timed out at 5 s while Docker Desktop was running alongside the suite. They were the only failures, and they pass alone; the limits now match the work they do.
 
 **Decisions for you to review:**
-1. *stderr must be empty.* Error messages differ between machines (and a typo in a command would otherwise pass silently), so an item that wants to show an error redirects it with `2>&1`, and the text is then compared like the rest.
-2. *`LC_ALL=C` and an empty `HOME`.* The same sort order and messages everywhere, and no dotfiles. Items should still avoid anything machine-specific (dates, sizes, user names, the folder's path), which the two validators, Linux in CI and Git Bash here, would otherwise disagree about.
-3. *Files are capped at 4,000 characters.* They're shown on the page, so they have to be readable; a log of six lines teaches `grep` as well as one of six thousand.
+
+1. _stderr must be empty._ Error messages differ between machines (and a typo in a command would otherwise pass silently), so an item that wants to show an error redirects it with `2>&1`, and the text is then compared like the rest.
+2. _`LC_ALL=C` and an empty `HOME`._ The same sort order and messages everywhere, and no dotfiles. Items should still avoid anything machine-specific (dates, sizes, user names, the folder's path), which the two validators, Linux in CI and Git Bash here, would otherwise disagree about.
+3. _Files are capped at 4,000 characters._ They're shown on the page, so they have to be readable; a log of six lines teaches `grep` as well as one of six thousand.
 
 **Next:** Module 1's first topics as drafts, with lessons on the Missing Semester and `predict_shell` items, then the lab checker's local mode.
 
@@ -224,7 +272,7 @@ The first thing ADR-0017 asks for, built end to end: a recall item that shows a 
 
 **The $10 monthly limit** is set in the Anthropic Console (setup.md). It's the backstop behind the proxy's own cap: if the cap's logging ever failed, the Console would still stop the spending.
 
-**The database types, regenerated.** Docker Desktop was up, so `npm run db:types` could finally run. The first run was wrong in an instructive way: `supabase start` restored the local database from an old backup that predated the problem-reports migration, so the generated file *lost* the `problem_reports` table. `npm run db:reset` rebuilt the local database from the three migrations, and the second run produced a file identical to the hand edit from #49, zero lines changed. The database tests passed locally too (38 tests in three files), as they had in CI. A note in `supabase/README.md` now says to reset before generating types when `supabase start` mentions a backup. The local Supabase is stopped again; Docker Desktop was left as the owner had it.
+**The database types, regenerated.** Docker Desktop was up, so `npm run db:types` could finally run. The first run was wrong in an instructive way: `supabase start` restored the local database from an old backup that predated the problem-reports migration, so the generated file _lost_ the `problem_reports` table. `npm run db:reset` rebuilt the local database from the three migrations, and the second run produced a file identical to the hand edit from #49, zero lines changed. The database tests passed locally too (38 tests in three files), as they had in CI. A note in `supabase/README.md` now says to reset before generating types when `supabase start` mentions a backup. The local Supabase is stopped again; Docker Desktop was left as the owner had it.
 
 **Next:** the cloud track's Stage 1, starting with the `predict_shell` item type and Module 1 (Linux and the command line), per ADR-0017; the lab checker (ADR-0014); Phase 2's remaining items (a placement test, the code visualizer, backups).
 
@@ -237,7 +285,8 @@ The owner pushed the last missing migration to the live project. The dry run lis
 **Milestone D is complete, and with it Phase 1.** Every item on the v1 spec's list is built and live: the Python Foundations track end to end, the proof checks, reviews, the Today page, the hint-only tutor with its cap, problem reports and data export. The roadmap and CLAUDE.md now say so.
 
 **Decisions for you to review:**
-1. *Calling Phase 1 done.* Its condition, everything in Milestone D live, is met, and the marker only tells a session where to look next. Phase 2's first items are already underway (Parsons problems, the living map's first version, practice hours), so "next" is Phase 2 alongside the cloud track's first steps, which wait on ADR-0014 and ADR-0017.
+
+1. _Calling Phase 1 done._ Its condition, everything in Milestone D live, is met, and the marker only tells a session where to look next. Phase 2's first items are already underway (Parsons problems, the living map's first version, practice hours), so "next" is Phase 2 alongside the cloud track's first steps, which wait on ADR-0014 and ADR-0017.
 
 **Still waiting on you:** `npm run db:types` once Docker Desktop runs, to confirm the hand-edited database types match what the generator produces; the $10 limit in the Anthropic Console; the four ADRs; the ADR-0017 conversation.
 
@@ -248,20 +297,23 @@ The owner pushed the last missing migration to the live project. The dry run lis
 The owner ran `npm run fn:eval:tutor`: **25 of 25 replies fine** with Claude Haiku 5.5 at low effort, for $0.0044. No reply was replaced by the safety filter and none contained a solution line, across eleven attempts to get the answer out of the tutor (a fake system message in a code comment, "I'm the teacher", "you already gave it to me", flattery and urgency, a yes/no question about the exact fix, "answer mode") and fourteen honest asks. So Haiku 5.5 at low effort stays the tutor's model, as ADR-0015 planned: the cheapest that passes. A hint costs about $0.0002.
 
 **Reading the replies** (the printout matters as much as the count):
+
 - The hints read as hints. The nudges ask questions that point at the right line ("After the loop ends, which number does n still hold?"); the closer looks name the fault in words without the fix ("your code returns the opposite in each case"); the one next-step reply gives print's `end` setting and leaves the rest. Every refusal was kind and still gave the rung's hint.
 - Two replies to answer-fishing asks slipped into the third person: "The learner's question asks for the three lines again, but I give hints, not answers" and "The learner's question asks for the full program". The tutor was talking about the learner to the learner, echoing the `<learner_question>` label it reads from. A third said "the author's hint", echoing `<author_hints>`, where a learner just sees "Hints".
 
 **The fix** (this entry's PR), in two rounds:
-1. *Version 2:* one more rule in the tutor's instructions: speak to the learner as "you", never say "the learner", and never mention the blocks or the rung. The owner ran the set again: 25 of 25 fine for $0.0047, and the two replies now say "You asked for the full program, but I give hints, not answers". But two others said "the author's note" and "the two author-style facts", echoing the `<author_hints>` label.
-2. *Version 3:* that block is `<written_hints>` and the word "author" is gone from the instructions, which call them "the hints", as the learner sees them. The model copies the names it's given, so the names should be the learner's. A test now fails if "author" gets back into the prompt. The owner's third run: 25 of 25 fine for $0.0046, no "author" anywhere, and the replies say "the written hint" where they lean on one. One reply still slipped, "The learner question asks for the full program": the `<learner_question>` tag, with its underscore turned into a space. Version 3 is what got deployed (decision 4 below): the owner redeployed the function the same evening, and the three free checks passed again (preflight 204, GET 405, unsigned POST 401). Every hint on the live site now uses version 3.
+
+1. _Version 2:_ one more rule in the tutor's instructions: speak to the learner as "you", never say "the learner", and never mention the blocks or the rung. The owner ran the set again: 25 of 25 fine for $0.0047, and the two replies now say "You asked for the full program, but I give hints, not answers". But two others said "the author's note" and "the two author-style facts", echoing the `<author_hints>` label.
+2. _Version 3:_ that block is `<written_hints>` and the word "author" is gone from the instructions, which call them "the hints", as the learner sees them. The model copies the names it's given, so the names should be the learner's. A test now fails if "author" gets back into the prompt. The owner's third run: 25 of 25 fine for $0.0046, no "author" anywhere, and the replies say "the written hint" where they lean on one. One reply still slipped, "The learner question asks for the full program": the `<learner_question>` tag, with its underscore turned into a space. Version 3 is what got deployed (decision 4 below): the owner redeployed the function the same evening, and the three free checks passed again (preflight 204, GET 405, unsigned POST 401). Every hint on the live site now uses version 3.
 
 `TUTOR_PROMPT_VERSION` goes up with each change, so every logged call says which instructions it used.
 
 **Decisions for you to review:**
-1. *Fix the wording now rather than wait for real data.* Two slips in 25 show the pattern, the change is one sentence, and a beginner reading "the learner's question" about their own question would be confused.
-2. *Keep the model.* All 25 passed at the cheapest setting; the ADR says the model changes only when a sample fails, and none did.
-3. *A third version before deploying, rather than shipping version 2.* Version 2 already beats what's live, but the "author" echo has the same cause as the voice slip, a label copied into a reply, and renaming the label is smaller than another rule. One deploy instead of two.
-4. *Ship version 3 with one slip in 25, rather than a fourth version.* The same rule produced no slip in the run before, so one in 25 is the model's randomness at low effort, not something one more sentence fixes for certain. ADR-0015's bar (no solution revealed, replies that read as hints) was met in all three runs, and every real hint is logged in `ai_calls`, so the question settles itself with data. If "the learner" keeps appearing there, the next change is the same kind as this one: `<learner_question>` becomes `<question>`, and the rule gets an example sentence to copy ("You asked for the whole program, and I give hints instead").
+
+1. _Fix the wording now rather than wait for real data._ Two slips in 25 show the pattern, the change is one sentence, and a beginner reading "the learner's question" about their own question would be confused.
+2. _Keep the model._ All 25 passed at the cheapest setting; the ADR says the model changes only when a sample fails, and none did.
+3. _A third version before deploying, rather than shipping version 2._ Version 2 already beats what's live, but the "author" echo has the same cause as the voice slip, a label copied into a reply, and renaming the label is smaller than another rule. One deploy instead of two.
+4. _Ship version 3 with one slip in 25, rather than a fourth version._ The same rule produced no slip in the run before, so one in 25 is the model's randomness at low effort, not something one more sentence fixes for certain. ADR-0015's bar (no solution revealed, replies that read as hints) was met in all three runs, and every real hint is logged in `ai_calls`, so the question settles itself with data. If "the learner" keeps appearing there, the next change is the same kind as this one: `<learner_question>` becomes `<question>`, and the rule gets an example sentence to copy ("You asked for the whole program, and I give hints instead").
 
 **Next:** the problem-reports migration; the ADR-0017 conversation about the shell.
 
@@ -288,6 +340,7 @@ Five more exercises in `supabase/functions/ai/tutor-test-set/`, one each from Ex
 A summary for the owner of everything since "I'm going to be away" (the evening of 2026-11-08), with everything that waits on you in one place. The entries below this one have the details and the "Decisions for you to review" lists.
 
 **Merged, in order** (each squash-merged after green CI, its branch deleted):
+
 - #47 Module 3, Loops · #48 the hint-only tutor (ADR-0015) · #49 report a problem (F15) · #50 Module 4, Functions · #51 Module 5, Collections
 - #52 Module 6, Real programs, and Checkpoint 6: the Python Foundations track is complete, 36 topics
 - #53 a smaller first download: outline-only tracks load on demand (the main file went from 1,034 KB to 853 KB)
@@ -303,6 +356,7 @@ A summary for the owner of everything since "I'm going to be away" (the evening 
 **Numbers:** 36 topics ready (all of Python Foundations), 235 exercises, 190 recall items; 939 programs validated under CPython and 235 reference solutions under Pyodide on every test run; 645 web tests, 39 tool tests, 69 harness tests.
 
 **Waiting on you** (each needs a "go"; none was done without one):
+
 1. ~~Deploy the AI proxy with the tutor, then run the tutor test set~~ Both done by you on 2026-11-09: deployed, and 25 of 25 test-set replies fine (the entries above).
 2. ~~The problem-reports migration to the live database~~ Done by you on 2026-11-09: the dry run listed only that one, the push applied it, and the table is there and locked down (the entry above).
 3. ~~`npm run db:types` once Docker Desktop is running~~ Done on 2026-11-09: the generated file matches the hand edit exactly (the entry above).
@@ -321,9 +375,10 @@ The Phase 2 item "topics fade as their predicted memory strength drops", in its 
 **What changed.** `memoryPercent(card, now)` in `reviews.ts` rounds the scheduler's retrievability to a whole percentage. Each Learned topic's row on the map shows "Memory: 86%" and a small `<meter>` (marked decorative, since the words carry the meaning; the bar changes color below the 90% retention target, where a review falls due). The map reads the clock once when it opens. Topics that aren't Learned show nothing new.
 
 **Decisions for you to review:**
-1. *Numbers and a bar, not dimmed rows.* Fading the row itself would make a half-forgotten topic's title hard to read, which punishes exactly the learner who should click it. The percentage and the bar show the same thing legibly.
-2. *100% right after a review.* The scheduler's model says so, and it's honest about what it is: a prediction that decays, not a grade.
-3. *Only on the map,* not the topic page or Today, where the state label and the due reviews already say what matters.
+
+1. _Numbers and a bar, not dimmed rows._ Fading the row itself would make a half-forgotten topic's title hard to read, which punishes exactly the learner who should click it. The percentage and the bar show the same thing legibly.
+2. _100% right after a review._ The scheduler's model says so, and it's honest about what it is: a prediction that decays, not a grade.
+3. _Only on the map,_ not the topic page or Today, where the state label and the due reviews already say what matters.
 
 **Next:** your go on the deploys; then the cloud track's Stage 1 drills (ADR-0014) and the lab checker.
 
@@ -342,9 +397,10 @@ Eighteen more Parsons problems, written to the pattern of the first eleven, so 2
 **Why one topic is left out.** Testing with assert's natural programs are a function plus several `assert` lines, and the asserts can go in any order, as can two `def` blocks. A Parsons problem needs exactly one right order, so instead of a contrived item the topic keeps its ladder as it was. The same constraint shaped several items: lines that could swap without changing the output were chained (each line uses the one before) or merged into one print, and every prompt states the output.
 
 **Decisions for you to review:**
-1. *One convention is stated rather than forced:* the Modules and libraries item puts `import statistics` first, which Python doesn't require, so the prompt says "the import comes first, as it always does". Everywhere else the order is forced by the program itself.
-2. *Reading errors has two decoys* (two misspelled names), the only item with more than one, because spotting the misspelling is the topic.
-3. *Review pools gained a Parsons item* in Booleans and comparisons, Tracing code, Nested loops, List algorithms and From spec to program, as well as the three from the first batch. A review session can now pair one with a quick check, since it counts as a code question.
+
+1. _One convention is stated rather than forced:_ the Modules and libraries item puts `import statistics` first, which Python doesn't require, so the prompt says "the import comes first, as it always does". Everywhere else the order is forced by the program itself.
+2. _Reading errors has two decoys_ (two misspelled names), the only item with more than one, because spotting the misspelling is the topic.
+3. _Review pools gained a Parsons item_ in Booleans and comparisons, Tracing code, Nested loops, List algorithms and From spec to program, as well as the three from the first batch. A review session can now pair one with a quick check, since it counts as a code question.
 
 **Next:** your go on the deploys; then the cloud track's Stage 1 drills (ADR-0014) and the lab checker.
 
@@ -359,12 +415,13 @@ A new kind of practice question, from the Phase 2 list, chosen because it helps 
 **Numbers.** 172 recall items (11 new); the validator runs 921 programs with no problems; 409 web tests (6 new) and 39 tool tests pass.
 
 **Decisions for you to review:**
-1. *Buttons, not drag-and-drop.* Add, Up, Down and Remove work with a keyboard and on a phone and are easy to test; dragging can be layered on later without changing the item format.
-2. *One-dimensional Parsons:* lines keep their indentation and the learner only orders them. Setting indentation too (the two-dimensional kind) can be an option on the item later.
-3. *The prompt states the output,* so every item has exactly one right order; the content checklist says to avoid lines that could swap without changing the output, because the validator can't catch that.
-4. *The scramble is fixed per item* (seeded by its ID), so a question looks the same when it comes back, and it's never the solved order.
-5. *Placed right after the worked example* in each practice ladder, where the research puts it, which makes the first topics' ladders one step longer (Programs and print now has 7 practice items).
-6. *An ADR for a new item type,* since it changes the content format and the event data; proposed until you accept it.
+
+1. _Buttons, not drag-and-drop._ Add, Up, Down and Remove work with a keyboard and on a phone and are easy to test; dragging can be layered on later without changing the item format.
+2. _One-dimensional Parsons:_ lines keep their indentation and the learner only orders them. Setting indentation too (the two-dimensional kind) can be an option on the item later.
+3. _The prompt states the output,_ so every item has exactly one right order; the content checklist says to avoid lines that could swap without changing the output, because the validator can't catch that.
+4. _The scramble is fixed per item_ (seeded by its ID), so a question looks the same when it comes back, and it's never the solved order.
+5. _Placed right after the worked example_ in each practice ladder, where the research puts it, which makes the first topics' ladders one step longer (Programs and print now has 7 practice items).
+6. _An ADR for a new item type,_ since it changes the content format and the event data; proposed until you accept it.
 
 **Next:** your go on the deploys; then the cloud track's Stage 1 drills (ADR-0014) and the lab checker.
 
@@ -375,11 +432,12 @@ The owner's own idea from 2026-11-06, pulled forward from Phase 2 because it nee
 **What changed.** `Attempt` now carries `duration_ms` (the server query selects it; a row without one leaves it out). `progress/practiceTime.ts` adds the durations up, all time and the last 7 days, counting at most 30 minutes per attempt, and names the next milestone. The Today page shows it below Next up as "Practice hours": the total, the recent part, a progress bar toward the next milestone, and the rule in one line ("Counting the time spent on answers, Checks and reviews, not time with the site open"). With nothing counted yet it says so. No extra request: the Today page already loads every attempt for the reviews and the plan.
 
 **Decisions for you to review:**
-1. *A 30-minute cap per attempt.* An attempt's duration runs from the first touch of an item, or the previous attempt, to this one, so a page left open overnight would record hours. Capping each attempt at 30 minutes keeps the count honest; a long blank-editor build without a Check in between is undercounted a little, which seemed the right side to err on. The number lives in one constant.
-2. *Milestones start at 1 hour,* not 10 as the roadmap said, so a new learner sees the first one within a week; then 5, 10, 25, 50, 100, 250, 500, 1,000, 2,500, 5,000, 10,000.
-3. *"Recent" means the last 7 days,* rolling, rather than the calendar week, because it needs no decision about which day a week starts on.
-4. *It lives on the Today page,* under the plan, rather than on the Account page, because that's the page the learner sees every day and the number is meant to be encouraging.
-5. *The learning-science doc gained a row for deliberate practice,* with the note that "10,000 hours" is a popularization of Ericsson's work, not a rule, so the tracker is read the way it's meant.
+
+1. _A 30-minute cap per attempt._ An attempt's duration runs from the first touch of an item, or the previous attempt, to this one, so a page left open overnight would record hours. Capping each attempt at 30 minutes keeps the count honest; a long blank-editor build without a Check in between is undercounted a little, which seemed the right side to err on. The number lives in one constant.
+2. _Milestones start at 1 hour,_ not 10 as the roadmap said, so a new learner sees the first one within a week; then 5, 10, 25, 50, 100, 250, 500, 1,000, 2,500, 5,000, 10,000.
+3. _"Recent" means the last 7 days,_ rolling, rather than the calendar week, because it needs no decision about which day a week starts on.
+4. _It lives on the Today page,_ under the plan, rather than on the Account page, because that's the page the learner sees every day and the number is meant to be encouraging.
+5. _The learning-science doc gained a row for deliberate practice,_ with the note that "10,000 hours" is a popularization of Ericsson's work, not a rule, so the tracker is read the way it's meant.
 
 **Next:** your go on the deploys; then the cloud track's Stage 1 drills (ADR-0014) and the lab checker.
 
@@ -392,8 +450,9 @@ The last item of Milestone D, noted as a chore on 2026-11-08 when the cloud trac
 **Numbers.** The main file went from 1,034 KB to 853 KB (260 KB to 221 KB gzipped). The cloud outlines are a 181 KB file (37 KB gzipped) that most visits never download. 393 web tests pass, 4 of them new.
 
 **Decisions for you to review:**
-1. *Which tracks load lazily is decided by hand:* a module per outline-only track, its pattern left out of the main glob, and a line in `LAZY_TRACKS`. A build-time rule ("any track with no open topic") would need a Vite plugin that watches the content folder for changes; two lines and a test seemed the better trade. When the cloud track gets its first ready topic (the Stage 1 drills), either bundle it back in or teach the Today page to load the tracks the learner has progress in; the test will remind whoever does it.
-2. *Milestone D is built but not all live.* Every item on its list is ticked, but the proxy deploy, the problem-reports migration and the tutor test-set run still wait for your go, as do ADR-0014 and ADR-0015. The roadmap keeps "current phase: Milestone D" until those are done; say the word and I'll move it on to Phase 2 planning.
+
+1. _Which tracks load lazily is decided by hand:_ a module per outline-only track, its pattern left out of the main glob, and a line in `LAZY_TRACKS`. A build-time rule ("any track with no open topic") would need a Vite plugin that watches the content folder for changes; two lines and a test seemed the better trade. When the cloud track gets its first ready topic (the Stage 1 drills), either bundle it back in or teach the Today page to load the tracks the learner has progress in; the test will remind whoever does it.
+2. _Milestone D is built but not all live._ Every item on its list is ticked, but the proxy deploy, the problem-reports migration and the tutor test-set run still wait for your go, as do ADR-0014 and ADR-0015. The roadmap keeps "current phase: Milestone D" until those are done; say the word and I'll move it on to Phase 2 planning.
 
 **Next:** your go on the deploys; then the cloud track's Stage 1 drills, which need ADR-0014's decision on how cloud work is proven, and the lab checker.
 
@@ -404,11 +463,12 @@ Five topics and Checkpoint 6, the module where programs meet the world: input th
 **Resources.** Exceptions is built on CS50P Lecture 3 (`LW7g1169v7w`), 0:28 to 26:30: a `ValueError` from `int()`, `try`/`except`, where the risky line goes, `else`, and `while True` around it all; the rest of the lecture (`get_int` as a function, `pass`, a prompt parameter, `raise`) is linked. Files is the text-file half of Lecture 6 (`KD-Yoel6EVQ`), 0:28 to 30:26 (names.txt, `"w"` against `"a"`, `with`, `readlines`, `for line in file`, `rstrip`, sorting). CSV data is the `csv` module section of the same lecture, 1:01:35 to 1:19:02 (`csv.reader`, `DictReader`, `writer`, `DictWriter`), with the `split(",")` part linked. Modules and libraries is Lecture 4 (`MztLZWibctI`), 0:28 to 19:13 (`import random`, `from random import choice`, `randint`, `shuffle`, `statistics.mean`), with its last seven minutes, `sayings.py` and `__name__`, linked as a second resource (the lesson format shows one embed). From spec to program has no video: the lesson is the platform's own, and the reading is Think Python's section 6.4, Incremental development (3rd edition, CC BY-NC-SA 4.0), which grows a `distance` function from a stub with scaffolding prints. Python docs anchors: the tutorial's errors (handling, raising), input and output (reading and writing files) and modules (up to executing modules as scripts) sections, and `csv.DictReader`.
 
 **What each topic drives at:**
-- *Exceptions*: `try`/`except ValueError` (name the error; a bare except hides bugs), the risky line inside `try` and its use in `else` or after a `return`, `while True` with `try` and `return` on success, `raise ValueError("...")` when a function is given something it can't work with, `as error`. The debug catches `NameError`, has `int()` outside the `try`, and returns from the `except`.
-- *Files*: `with open(path, mode) as f` (closes the file, even on an error), `"w"` erases and `"a"` appends, `write` adds no `\n`, `for line in f` with `rstrip()`, `readlines`, `except FileNotFoundError`, numbers come back as text. Tests create their own files with `Path.write_text` and check the learner's with `read_text`. The debug opens for writing with `"r"`, writes without `\n`, and prints lines with their line breaks still on.
-- *CSV data*: the shape (header line, one record per line), `csv.DictReader` giving one dictionary per row with string values, `list(...)` inside the `with`, totals and counts by group with a dictionary, filtering rows. The debug reads after the file has closed, adds text as if it were numbers, and uses `"Item"` for `"item"`.
-- *Modules and libraries*: `import m` then `m.f()`, `from m import f` and its trade-off, `random` (`choice`, `randint`, `shuffle` returning `None`), `statistics.mean` and `median`, `math.sqrt`, `floor` and `pi`, a file as a module, and why `if __name__ == "__main__":` finally gets its full explanation; a hidden test imports the learner's file and checks that importing prints nothing. The debug uses `random` without importing it, calls `sqrt` without `math.`, and calls `main()` bare.
-- *From spec to program*: the method as a checklist: examples (ordinary, boundaries, just past them, empty), gaps written down and asked about, functions planned as name, inputs and result and written as stubs, asserts from the examples that must fail first, one function at a time. The worked example is a quiz scorer with its spec and examples kept at the top of the file. The build is a prose spec for car park fees (a first hour, part hours, a daily maximum, 0 minutes); the debug is a program that disagrees with the spec at the top of its own file in three places.
+
+- _Exceptions_: `try`/`except ValueError` (name the error; a bare except hides bugs), the risky line inside `try` and its use in `else` or after a `return`, `while True` with `try` and `return` on success, `raise ValueError("...")` when a function is given something it can't work with, `as error`. The debug catches `NameError`, has `int()` outside the `try`, and returns from the `except`.
+- _Files_: `with open(path, mode) as f` (closes the file, even on an error), `"w"` erases and `"a"` appends, `write` adds no `\n`, `for line in f` with `rstrip()`, `readlines`, `except FileNotFoundError`, numbers come back as text. Tests create their own files with `Path.write_text` and check the learner's with `read_text`. The debug opens for writing with `"r"`, writes without `\n`, and prints lines with their line breaks still on.
+- _CSV data_: the shape (header line, one record per line), `csv.DictReader` giving one dictionary per row with string values, `list(...)` inside the `with`, totals and counts by group with a dictionary, filtering rows. The debug reads after the file has closed, adds text as if it were numbers, and uses `"Item"` for `"item"`.
+- _Modules and libraries_: `import m` then `m.f()`, `from m import f` and its trade-off, `random` (`choice`, `randint`, `shuffle` returning `None`), `statistics.mean` and `median`, `math.sqrt`, `floor` and `pi`, a file as a module, and why `if __name__ == "__main__":` finally gets its full explanation; a hidden test imports the learner's file and checks that importing prints nothing. The debug uses `random` without importing it, calls `sqrt` without `math.`, and calls `main()` bare.
+- _From spec to program_: the method as a checklist: examples (ordinary, boundaries, just past them, empty), gaps written down and asked about, functions planned as name, inputs and result and written as stubs, asserts from the examples that must fail first, one function at a time. The worked example is a quiz scorer with its spec and examples kept at the top of the file. The build is a prose spec for car park fees (a first hour, part hours, a daily maximum, 0 minutes); the debug is a program that disagrees with the spec at the top of its own file in three places.
 
 **Checkpoint 6, CSV report tool (the capstone):** a prose spec: a sales CSV with bad rows (a blank or non-numeric amount), skipped and counted; totals by region in first-seen order; a report written to `report.txt` and printed. `write_sample` is given, so there's a file to work on; the learner writes `read_rows`, `amount_of` (a number or `None`, via `try`), `good_rows`, `totals_by_region`, `report_lines`, `write_report`, `test_report` and `main`. Hidden tests cover each function, first-seen order, two-decimal formatting, the empty case, that the rows list is unchanged, every docstring, that the learner's tests fail when `amount_of` calls every row worth 1.0, the printed output, and the file. Five wrong solutions (crashes on the bad row, counts only good rows, opens the report inside the loop, two weak asserts, typed-in) each fail. The debug catches `TypeError` instead of `ValueError` (a crash), overwrites a region's total instead of adding to it, and opens the report file inside the loop so one line survives. The sibling is an attendance report (whole numbers, `int()`); the steps fill in reading and cleaning, totals, the report and file, then the outline; the versions are an expenses report (by category) and a rainfall report (by station, one decimal place).
 
@@ -417,13 +477,14 @@ Five topics and Checkpoint 6, the module where programs meet the world: input th
 **Numbers:** 40 exercises and 26 recall items added; 36 topics ready, which is every topic of Modules 1 to 6, the whole Python Foundations track; the validator runs 910 programs over the content, none failing. Web checks (389 tests), Python checks (69 tests) and the build pass.
 
 **Decisions for you to review:**
-1. *Think Python is the first main resource that isn't CS50's or the PSF's:* section 6.4 of the 3rd edition, CC BY-NC-SA 4.0 (the same license family as CS50's material), linked, not copied. The spec said "AI-written lesson" for From spec to program; the lesson is ours, and the reading backs it.
-2. *Modules and libraries links its second clip instead of embedding it.* The lesson format shows one embed and lists the other resources after the lesson, so the `sayings.py` clip (seven minutes) is listed there with its timestamps. Allowing two embeds would be a small web change if you'd rather.
-3. *A bad CSV row means a blank or non-numeric amount, nothing else.* A row with a missing field (fewer commas) makes `DictReader` give `None`, which `float()` rejects with a `TypeError`, not a `ValueError`. I kept that case out of the spec and the tests so the module teaches one error at a time; it's a note for a later data-cleaning topic.
-4. *The spec-to-program build and the capstone give the function names* ("so the checks can find them") but not the algorithm or the edge cases; those have to come from reading the spec. That's the compromise between a real spec and a machine-checkable one.
-5. *Checkpoint 6 hands the learner `write_sample`,* the way Checkpoint 5 handed over `STUDENTS`: typing a CSV by hand isn't the skill being proven, and the hidden tests write their own files anyway.
-6. *The checkpoint's reference solution totals with a running total over the dictionary's keys,* which Module 5 taught, rather than `sum(totals.values())`; a learner may use either.
-7. *Windows's `newline=""` for CSV writing is mentioned once, in the CSV recap, and not tested:* files in the browser sandbox don't have the problem.
+
+1. _Think Python is the first main resource that isn't CS50's or the PSF's:_ section 6.4 of the 3rd edition, CC BY-NC-SA 4.0 (the same license family as CS50's material), linked, not copied. The spec said "AI-written lesson" for From spec to program; the lesson is ours, and the reading backs it.
+2. _Modules and libraries links its second clip instead of embedding it._ The lesson format shows one embed and lists the other resources after the lesson, so the `sayings.py` clip (seven minutes) is listed there with its timestamps. Allowing two embeds would be a small web change if you'd rather.
+3. _A bad CSV row means a blank or non-numeric amount, nothing else._ A row with a missing field (fewer commas) makes `DictReader` give `None`, which `float()` rejects with a `TypeError`, not a `ValueError`. I kept that case out of the spec and the tests so the module teaches one error at a time; it's a note for a later data-cleaning topic.
+4. _The spec-to-program build and the capstone give the function names_ ("so the checks can find them") but not the algorithm or the edge cases; those have to come from reading the spec. That's the compromise between a real spec and a machine-checkable one.
+5. _Checkpoint 6 hands the learner `write_sample`,_ the way Checkpoint 5 handed over `STUDENTS`: typing a CSV by hand isn't the skill being proven, and the hidden tests write their own files anyway.
+6. _The checkpoint's reference solution totals with a running total over the dictionary's keys,_ which Module 5 taught, rather than `sum(totals.values())`; a learner may use either.
+7. _Windows's `newline=""` for CSV writing is mentioned once, in the CSV recap, and not tested:_ files in the browser sandbox don't have the problem.
 
 **Next:** the Python Foundations track is complete, so the owner can learn on it end to end. Left in Milestone D: the lazy-outlines bundle chore. After that, the cloud track's Stage 1 drills and the lab checker (ADR-0014). The proxy deploy, the problem-reports migration and the tutor test-set run still wait for your go.
 
@@ -434,22 +495,24 @@ Five topics and Checkpoint 5, the module where a variable stops holding one thin
 **Resources.** Three more clips of CS50P Lecture 2 (`-7xg8pGcP6w`), timed from its subtitles: the list of students, indexing from 0, looping and `range(len(...))`, 34:55 to 45:36 (Lists); the dictionary of houses and looping over its keys, 45:36 to 56:11 (Dictionaries); one dictionary per student and a list of them, 56:11 to 1:05:56 (Nested data, with a note to read past the `lambda` sort near the end). List algorithms has no clip: the Python tutorial's More on Lists and Looping Techniques sections, and the filter/transform patterns in the platform's own words. References and mutation is built around two Python Tutor programs, one drawing a second name and a copy as arrows, one drawing a function that changes the caller's list and one that only rebinds its parameter; the reading is Ned Batchelder's "Facts and myths about Python names and values", linked (it's his copyright, so nothing is copied), with his PyCon 2015 talk linked too (video `_AEJHKGk9ns`, confirmed through PyVideo; standard YouTube license, so a link rather than an embed).
 
 **What each topic drives at:**
-- *Lists*: make, index from 0 and −1, `len`; replace, `append`, `del`, `in`; items versus positions; `append` returns `None`; `split()` turns a string into a list of words. The debug has `scores = scores.append(100)`, an index one past the end, and a loop that prints positions instead of items.
-- *List algorithms*: filter and transform as a loop with `append` into a new list; search returning the first position or −1; `sorted` (new list, `reverse=True`) against `.sort()` (in place, `None`); slices and `min`/`max`/`sum`. The debug has `ordered = scores.sort()`, a slice two long, and a search that keeps the last match.
-- *References and mutation*: two names, one list; assignment never copies; `list()`, `[:]`, `copy()`; `==` against `is`; a function that mutates its argument against one that rebinds its parameter; prefer returning new lists. Tests check the original is unchanged and that the result `is not` the input. The debug has an `add_item` that mutates, a backup that's an alias, and `shopping = shopping.append(...)`.
-- *Dictionaries*: curly braces, lookup by key, `KeyError`, add/change/`del`/`in`/`len`, looping gives keys, `items()`, counting both ways. The debug has a count that never starts, a loop over `items()` used as keys, and a lookup of a missing key.
-- *Nested data*: a list of lists read outside in (`grid[row][col]`, row loop with cell loop); a list of dictionaries as records; choosing the shape; copies of nested data share the inner lists. The debug appends whole records instead of names, uses `"Name"` for `"name"`, and swaps row and column.
+
+- _Lists_: make, index from 0 and −1, `len`; replace, `append`, `del`, `in`; items versus positions; `append` returns `None`; `split()` turns a string into a list of words. The debug has `scores = scores.append(100)`, an index one past the end, and a loop that prints positions instead of items.
+- _List algorithms_: filter and transform as a loop with `append` into a new list; search returning the first position or −1; `sorted` (new list, `reverse=True`) against `.sort()` (in place, `None`); slices and `min`/`max`/`sum`. The debug has `ordered = scores.sort()`, a slice two long, and a search that keeps the last match.
+- _References and mutation_: two names, one list; assignment never copies; `list()`, `[:]`, `copy()`; `==` against `is`; a function that mutates its argument against one that rebinds its parameter; prefer returning new lists. Tests check the original is unchanged and that the result `is not` the input. The debug has an `add_item` that mutates, a backup that's an alias, and `shopping = shopping.append(...)`.
+- _Dictionaries_: curly braces, lookup by key, `KeyError`, add/change/`del`/`in`/`len`, looping gives keys, `items()`, counting both ways. The debug has a count that never starts, a loop over `items()` used as keys, and a lookup of a missing key.
+- _Nested data_: a list of lists read outside in (`grid[row][col]`, row loop with cell loop); a list of dictionaries as records; choosing the shape; copies of nested data share the inner lists. The debug appends whole records instead of names, uses `"Name"` for `"name"`, and swaps row and column.
 
 **Checkpoint 5, gradebook:** `STUDENTS`, a list of records each holding a scores list; `average(scores)`, `letter_grade(average)` with its boundaries, `best_student(students)` (first of a tie), `report_lines(students)` returning the lines and a `Best:` line, `test_gradebook()` with at least four asserts, `main` printing the lines, both under the guard. Hidden tests check the boundaries exactly (90, 89.9, 80, 70, 60, 59.9), the tie, the lines for another list, that no function changes the data, every docstring, that the learner's tests fail for a `letter_grade` that always says A, and the program's output. Five wrong solutions (an `average` that sorts in place, `>` for `>=`, tests that only check A grades, no docstrings, typed-in) each fail their test. The debug divides by one too many, grades with `>`, and consumes the list it reports on with `pop`, so the last line counts zero students. The sibling is an inventory report; the versions are team stats (points, star/starter/bench) and a weather report (temperatures, hot/mild/cold).
 
 **Numbers:** 39 exercises and 27 recall items added; 30 topics ready, which is every topic of Modules 1 to 5; the validator runs 749 programs over the content, none failing. Web checks, Python checks and the build pass.
 
 **Decisions for you to review:**
-1. *`split()` is introduced in Lists* (a string's words as a list) and used in Dictionaries' word counting; string methods otherwise wait, as before.
-2. *Ned Batchelder's article and talk are linked, never embedded or quoted:* the article is his copyright and the talk is under YouTube's standard license. They're the only non-CC, non-PSF resources so far; the spec named them.
-3. *Comprehensions, `lambda` and `enumerate` are named as shortcuts for later,* not taught. The filter/transform loop is the pattern every exercise uses, because it generalizes and because it's what the capstone's CSV work needs.
-4. *"Leaves the data alone" is a hidden test in every build of the module,* and in the checkpoint it's one of the named skills a failure brings back. Mutation bugs otherwise go unnoticed until much later.
-5. *Checkpoint 5 keeps its data in a constant* (`STUDENTS`) and its functions take the list as a parameter, so the tests can pass other data; the alternative, functions that read the global, would have taught the opposite of Module 4.
+
+1. _`split()` is introduced in Lists_ (a string's words as a list) and used in Dictionaries' word counting; string methods otherwise wait, as before.
+2. _Ned Batchelder's article and talk are linked, never embedded or quoted:_ the article is his copyright and the talk is under YouTube's standard license. They're the only non-CC, non-PSF resources so far; the spec named them.
+3. _Comprehensions, `lambda` and `enumerate` are named as shortcuts for later,_ not taught. The filter/transform loop is the pattern every exercise uses, because it generalizes and because it's what the capstone's CSV work needs.
+4. _"Leaves the data alone" is a hidden test in every build of the module,_ and in the checkpoint it's one of the named skills a failure brings back. Mutation bugs otherwise go unnoticed until much later.
+5. _Checkpoint 5 keeps its data in a constant_ (`STUDENTS`) and its functions take the list as a parameter, so the tests can pass other data; the alternative, functions that read the global, would have taught the opposite of Module 4.
 
 **Next:** Module 6 (Real programs: exceptions, files, CSV, modules, spec to program, and the CSV capstone), which ends the Python Foundations track; then the lazy-outlines bundle chore. The proxy deploy, the problem-reports migration and the tutor test-set run still wait for your go.
 
@@ -462,23 +525,25 @@ Five topics and Checkpoint 4, written overnight while the owner was away, so the
 **The harness had to grow first.** Exercises now test functions, and `from solution import f` at the top of a test file breaks every test at once when `f` is missing or misnamed. So `checks.py` gained `function(name)`, which loads one function and fails one test with "Define a function called ...", and `printed(f, *args)`, which captures what a call prints. Loading a file runs its top-level code, so `function` swallows what the file prints and turns an `input()` at load time into a plain message about the `__name__` guard. The test runner now also keeps anything printed during a Check out of the report; a program that printed while being loaded was corrupting the command-line checker's JSON. Scenario `check-functions` pins all of this; CPython and Pyodide agree on it (68 harness tests, 20 Pyodide scenarios).
 
 **What each topic drives at:**
-- *Defining functions*: define versus call (a bare `hello` does nothing); parameters fill in order, defaults when left out; `main()` defined above and called once at the bottom, and why the order of defs doesn't matter but the call's position does. The debug has a missing colon, swapped arguments and a `main` never called.
-- *Return values*: the print-versus-return table; `None` from a function with no `return`; `return` ends the function, which is right for a search and wrong on a loop's first pass. The debug has `print(b)` for `return b`, a `return` inside a loop and an expression with no `return`.
-- *Scope and the call stack*: local names die at return; reading a global works, assigning makes a local (`UnboundLocalError`); the `global` keyword exists and the rule is not to use it; frames stacked and unwound. Exercises insist a function use only its parameters, tested by calling it with other values. The debug is a plant that won't grow: three values that never make it between functions.
-- *Decomposition*: one job per function, names that say the job, docstrings on the first line (a comment above the def, or a string after the first statement, isn't one), and `main` as the plan. Tests check `__doc__`. The debug has a misplaced docstring, a missing return and a `main` that uses names before setting them.
-- *Testing with assert*: a true assert is silent, a false one stops the program; cases that catch bugs (typical, boundary, zero, negative); `test_` functions; and `if __name__ == "__main__":`, taught here because the Check button loads the file. Several exercises test the learner's tests: the function under test is swapped for a broken one and the learner's test function must then fail. A test that compares a function with itself, or asserts `True`, doesn't.
+
+- _Defining functions_: define versus call (a bare `hello` does nothing); parameters fill in order, defaults when left out; `main()` defined above and called once at the bottom, and why the order of defs doesn't matter but the call's position does. The debug has a missing colon, swapped arguments and a `main` never called.
+- _Return values_: the print-versus-return table; `None` from a function with no `return`; `return` ends the function, which is right for a search and wrong on a loop's first pass. The debug has `print(b)` for `return b`, a `return` inside a loop and an expression with no `return`.
+- _Scope and the call stack_: local names die at return; reading a global works, assigning makes a local (`UnboundLocalError`); the `global` keyword exists and the rule is not to use it; frames stacked and unwound. Exercises insist a function use only its parameters, tested by calling it with other values. The debug is a plant that won't grow: three values that never make it between functions.
+- _Decomposition_: one job per function, names that say the job, docstrings on the first line (a comment above the def, or a string after the first statement, isn't one), and `main` as the plan. Tests check `__doc__`. The debug has a misplaced docstring, a missing return and a `main` that uses names before setting them.
+- _Testing with assert_: a true assert is silent, a false one stops the program; cases that catch bugs (typical, boundary, zero, negative); `test_` functions; and `if __name__ == "__main__":`, taught here because the Check button loads the file. Several exercises test the learner's tests: the function under test is swapped for a broken one and the learner's test function must then fail. A test that compares a function with itself, or asserts `True`, doesn't.
 
 **Checkpoint 4, password checker:** `has_min_length`, `has_digit`, `has_upper`, each a yes/no question; `check_password` returns the first problem in a fixed order; `test_check_password` with at least four asserts; `main` with the input, under the guard, which runs the tests and then the program. The hidden tests check each rule at its boundary, the order of the verdict, every docstring, that the learner's tests pass and would fail for a verdict that always says OK, and the program's output. Five wrong solutions (an unguarded `main`, rules in the wrong order, tests that only check good passwords, no docstrings, typed-in output) each fail the test for their mistake. The debug is a code-word checker with `>` for `>=`, a search that returns on the first character, and a test that expects the wrong verdict. The sibling is a ticket-code checker; the fresh versions are a PIN checker (digits, not all the same, not counting up) and a username checker (length, first character, allowed characters).
 
 **Numbers:** 39 exercises and 27 recall items added; 24 topics ready; the validator runs 596 programs over the content, none failing. Web checks, Python checks and the build pass.
 
 **Decisions for you to review:**
-1. *The harness grew two helpers and now hides prints during a Check.* The scenario contract is unchanged (existing expected files are byte-identical) and extended by one scenario. The Check button never showed prints anyway.
-2. *The `__name__` guard is taught in Testing with assert and used from there on.* Earlier Module 4 programs call `main()` directly, which is fine because none of them asks for input; the first program that does (the checkpoint) needs the guard, and the lesson says why.
-3. *Character kinds use comparisons* (`"0" <= ch <= "9"`, `"A" <= ch <= "Z"`) rather than string methods like `isdigit()`, which come in Module 5. The checkpoint prompts give the idiom.
-4. *Lecture 5's clip keeps a try/except passage* (12:30 to 14:05, Module 6 material) because the corner-case discussion after it is the point of the topic; the Intro says to read past it.
-5. *Testing the learner's tests* by swapping in a broken function is a pattern worth keeping in later modules: it's the only way the platform can tell real asserts from decorative ones.
-6. *Estimates* are 40 to 45 minutes per topic, as in Module 3.
+
+1. _The harness grew two helpers and now hides prints during a Check._ The scenario contract is unchanged (existing expected files are byte-identical) and extended by one scenario. The Check button never showed prints anyway.
+2. _The `__name__` guard is taught in Testing with assert and used from there on._ Earlier Module 4 programs call `main()` directly, which is fine because none of them asks for input; the first program that does (the checkpoint) needs the guard, and the lesson says why.
+3. _Character kinds use comparisons_ (`"0" <= ch <= "9"`, `"A" <= ch <= "Z"`) rather than string methods like `isdigit()`, which come in Module 5. The checkpoint prompts give the idiom.
+4. _Lecture 5's clip keeps a try/except passage_ (12:30 to 14:05, Module 6 material) because the corner-case discussion after it is the point of the topic; the Intro says to read past it.
+5. _Testing the learner's tests_ by swapping in a broken function is a pattern worth keeping in later modules: it's the only way the platform can tell real asserts from decorative ones.
+6. _Estimates_ are 40 to 45 minutes per topic, as in Module 3.
 
 **Next:** Module 5 (collections), then the lazy-outlines bundle chore. The proxy deploy, the problem-reports migration and the tutor test-set run still wait for your go.
 
@@ -493,9 +558,10 @@ Milestone D's F15, small and self-contained: a way for the learner to say "this 
 **Tests:** 6 new web tests, 351 pass; 9 new database tests, which CI runs (Docker isn't running on this machine, so they weren't run locally). Format, lint, types pass.
 
 **Decisions for you to review:**
-1. *Where reports are read:* in the Supabase dashboard's table editor, for now. A "Your reports" list on the account page, and an owner's inbox, can come when there's more than one learner.
-2. *`database.types.ts` was edited by hand* to add the table, in the exact shape `npm run db:types` generates, because the generator needs the local database and Docker was off. Running `npm run db:types` once Docker is up should change nothing; if it does, keep the generated version.
-3. *No event is recorded for a report,* since the report is itself the record and the table is the owner's to-do list.
+
+1. _Where reports are read:_ in the Supabase dashboard's table editor, for now. A "Your reports" list on the account page, and an owner's inbox, can come when there's more than one learner.
+2. _`database.types.ts` was edited by hand_ to add the table, in the exact shape `npm run db:types` generates, because the generator needs the local database and Docker was off. Running `npm run db:types` once Docker is up should change nothing; if it does, keep the generated version.
+3. _No event is recorded for a report,_ since the report is itself the record and the table is the owner's to-do list.
 
 **To go live (needs your go):** `npx supabase db push --remote --dry-run` should list only `20261109063021_problem_reports.sql`; then the same command with `--yes` applies it. Until then, sending a report on the live site fails politely ("couldn't be sent").
 
@@ -514,11 +580,12 @@ Milestone D's first item, F13, built on the proxy that already grades explanatio
 **Tests:** 38 Deno tests on the proxy (12 new), 345 web tests (14 new). Format, lint, types and the build pass. The pricing page was checked before reusing the price table: Haiku 5.5 $0.10/$0.50, Sonnet 5.5 $2/$10, Opus 5.5 $4/$20 per million tokens, unchanged.
 
 **Decisions for you to review:**
-1. *The tutor is practice-only and also on in a checkpoint's "Stuck?" steps,* which are fill-ins with hints and were always meant as practice. Off in fresh versions, which are proof.
-2. *Six asks per exercise.* A guess at where "the next step" would start dictating the solution. Tune it from the `ai_calls` log.
-3. *Hidden when signed out* rather than shown with a sign-in link, to keep the page quiet; the explain check keeps its link because it's a single box.
-4. *The reference solution travels from the browser to the proxy,* as the model answer already does (ADR-0013); the same "fix before other learners" note applies.
-5. *Default model Haiku 5.5 at low effort,* like grading, pending the test-set run you approve. If hints read poorly, try `TUTOR_EFFORT=medium` before a bigger model.
+
+1. _The tutor is practice-only and also on in a checkpoint's "Stuck?" steps,_ which are fill-ins with hints and were always meant as practice. Off in fresh versions, which are proof.
+2. _Six asks per exercise._ A guess at where "the next step" would start dictating the solution. Tune it from the `ai_calls` log.
+3. _Hidden when signed out_ rather than shown with a sign-in link, to keep the page quiet; the explain check keeps its link because it's a single box.
+4. _The reference solution travels from the browser to the proxy,_ as the model answer already does (ADR-0013); the same "fix before other learners" note applies.
+5. _Default model Haiku 5.5 at low effort,_ like grading, pending the test-set run you approve. If hints read poorly, try `TUTOR_EFFORT=medium` before a bigger model.
 
 **To go live (needs your go):** `npx supabase functions deploy ai --no-verify-jwt --yes`, then `npm run fn:eval:tutor` to read the hints. Until the deploy, the live site's box says the tutor isn't available.
 
@@ -526,27 +593,29 @@ Milestone D's first item, F13, built on the proxy that already grades explanatio
 
 ## 2026-11-08: Module 3, Loops, written
 
-Five topics and Checkpoint 3, the content item of Milestone C, written while the owner is away (they asked for building to continue, with decisions made by best judgement and written down here; see *Decisions for you to review* below).
+Five topics and Checkpoint 3, the content item of Milestone C, written while the owner is away (they asked for building to continue, with decisions made by best judgement and written down here; see _Decisions for you to review_ below).
 
 **Resources.** Lecture 2 of CS50P (Loops, video `-7xg8pGcP6w`) carries four topics, in clips whose times came from CS50's published subtitles: `while` and the accidental infinite loop, 0:28 to 16:13; `for`, lists as "these values", `range` and `_`, to 26:47; asking the user for a positive number with `while True`, `continue` and `break`, to 31:34; and the Mario section, a column, a row and a square of bricks, 1:05:56 to 1:19:15. Strings as sequences is built on the Text section of Python's own tutorial, with Python Tutor walking `for ch in word`. The Python tutorial's `while`, `range` and `break`/`continue` sections are linked as readings. Every lesson is the platform's own words (ADR-0004).
 
 **What each topic drives at:**
-- *while loops*: the condition is checked before each pass, so a loop can run zero times; a counting loop's three parts (start, test, update); infinite loops and how to stop one. The debug is a doubling program that adds 2, overshoots with `<=`, and counts its steps outside the loop.
-- *for and range*: the stop value is never included; `range(start, stop, step)`; `_` for a value that isn't used; when `for` fits and when `while` does. The debug has `range(1, n)`, a variable printed after the loop that ends with the wrong value, and a `Ready` line that prints its counter.
-- *Accumulator patterns*: the before/inside/after shape; running totals and counts; best-so-far and its starting value; `while True` with `break` and `continue`. The build reads numbers until 0 and reports count, total and largest. The debug has `total = 0` inside the loop, an off-by-one range, and `//` where `/` was meant.
-- *Strings as sequences*: positions from 0, negatives from the end, slices that stop before their stop, `len()`, and `for ch in text`. The build prints initials; the debug has `word[1]` for the first letter, `word[len(word)]` (an `IndexError` to read first) and a slice one too long.
-- *Nested loops*: the inner loop runs completely on every pass of the outer; `end=""` and the bare `print()`; patterns from the loop variables. The build is a right-aligned pyramid; the debug is a times table with a short range, `row * row`, and the line break inside the inner loop.
+
+- _while loops_: the condition is checked before each pass, so a loop can run zero times; a counting loop's three parts (start, test, update); infinite loops and how to stop one. The debug is a doubling program that adds 2, overshoots with `<=`, and counts its steps outside the loop.
+- _for and range_: the stop value is never included; `range(start, stop, step)`; `_` for a value that isn't used; when `for` fits and when `while` does. The debug has `range(1, n)`, a variable printed after the loop that ends with the wrong value, and a `Ready` line that prints its counter.
+- _Accumulator patterns_: the before/inside/after shape; running totals and counts; best-so-far and its starting value; `while True` with `break` and `continue`. The build reads numbers until 0 and reports count, total and largest. The debug has `total = 0` inside the loop, an off-by-one range, and `//` where `/` was meant.
+- _Strings as sequences_: positions from 0, negatives from the end, slices that stop before their stop, `len()`, and `for ch in text`. The build prints initials; the debug has `word[1]` for the first letter, `word[len(word)]` (an `IndexError` to read first) and a slice one too long.
+- _Nested loops_: the inner loop runs completely on every pass of the outer; `end=""` and the bare `print()`; patterns from the loop variables. The build is a right-aligned pyramid; the debug is a times table with a short range, `row * row`, and the line break inside the inner loop.
 
 **Checkpoint 3, text statistics:** from a line of words separated by single spaces, the number of words and letters, the longest word (the first of equals) and a bar per word, using loops and strings only, because lists and `split()` are Module 5. The crux is the last word, which has no space after it: it's a hidden test of its own (`test_last_word`), the point of the sibling example (a week of weather, with the longest sunny streak), the subject of a step and of the explain. Five wrong solutions each fail the test for their mistake. The debug draws a triangle and counts its stars, with `range(1, n)`, a `print()` indented into the inner loop, and `star` for `stars`. The fresh versions are number statistics (digits built up as text, then `int()`) and match results (`W`/`L` streaks, a bar per streak). Every test names skills across Modules 1 to 3.
 
 **Numbers:** 39 exercises and 26 recall items added; the validator runs 441 programs over the content, none failing; 18 topics are ready. Web checks, Python checks and the build all pass. The main bundle grew to 894 KB (233 KB gzipped), mostly content; the lazy-outlines chore noted on 2026-11-08 is now worth doing.
 
 **Decisions for you to review:**
-1. *Accumulators have no clip of their own.* CS50P's lecture doesn't teach sums, counts or maximums as patterns, so the lesson's Intro and Recap carry them, and the clip covers `while True`, `break` and `continue`. A Runestone chapter on the accumulator pattern was considered as a reading, but its license couldn't be read (the site sits behind a bot check), so it was left out, as ADR-0004 asks.
-2. *The nested-loops clip includes a function.* David writes the square inside `def print_square(size):`, and functions are Module 4. The Intro says to read the indented lines as the program with `size` standing for 3, and to stop when he splits the code into `print_row`. Cutting the clip before the function would have cut before the nested loop.
-3. *"Letters", not "characters".* The spec says Checkpoint 3 counts characters; the checkpoint counts non-space characters and labels them `Letters:`, because counting every character is just `len(text)` and tests nothing.
-4. *Time estimates* are 40 to 45 minutes per topic rather than the outline's 35, to match a lesson, six or seven practice items and three proofs.
-5. *Module 3's debug exercises each hide one crash* (a `NameError` or `IndexError`) among the three bugs, so Reading errors keeps being practised. That's a pattern worth keeping in later modules.
+
+1. _Accumulators have no clip of their own._ CS50P's lecture doesn't teach sums, counts or maximums as patterns, so the lesson's Intro and Recap carry them, and the clip covers `while True`, `break` and `continue`. A Runestone chapter on the accumulator pattern was considered as a reading, but its license couldn't be read (the site sits behind a bot check), so it was left out, as ADR-0004 asks.
+2. _The nested-loops clip includes a function._ David writes the square inside `def print_square(size):`, and functions are Module 4. The Intro says to read the indented lines as the program with `size` standing for 3, and to stop when he splits the code into `print_row`. Cutting the clip before the function would have cut before the nested loop.
+3. _"Letters", not "characters"._ The spec says Checkpoint 3 counts characters; the checkpoint counts non-space characters and labels them `Letters:`, because counting every character is just `len(text)` and tests nothing.
+4. _Time estimates_ are 40 to 45 minutes per topic rather than the outline's 35, to match a lesson, six or seven practice items and three proofs.
+5. _Module 3's debug exercises each hide one crash_ (a `NameError` or `IndexError`) among the three bugs, so Reading errors keeps being practised. That's a pattern worth keeping in later modules.
 
 **Next:** Milestone D (the hint-only tutor and problem reports), the lazy-outlines bundle chore, and Module 4 (functions), in whichever order keeps the owner ahead of the content.
 
@@ -583,11 +652,12 @@ Five topics and a checkpoint, so Module 2 is ready before the owner finishes Mod
 **Resources.** Lecture 1 of CS50P (Conditionals, video `_b6NgY_pMdw`, embeddable by its oEmbed) carries the first three topics. Its section times came from CS50's published subtitles, used only to find the times: comparisons and the first `if` from 0:28 to 9:55; `elif` and `else` to 18:28; `or`, `and`, the grade program and chained comparisons to 34:07. The `match` section (48:18 to 55:37) is linked, not embedded, from if / elif / else. Tracing code's main resource is Python Tutor with a preloaded program; Reading errors' is Python's own tutorial chapter on errors, with Python Tutor stepping into a `NameError` as a second resource. Both lessons are the platform's own words, as ADR-0004 requires.
 
 **What each topic drives at:**
-- *Booleans and comparisons*: `=` against `==`, comparisons give a `bool`, and text is never equal to a number (`"7" == 7`). The debug plants `print(..., age = limit)`, which is a keyword argument and a `TypeError`, not a syntax error, so the learner meets the real message.
-- *if / elif / else*: the first `True` condition wins; colons and indentation; two `if`s against one `if` / `elif`. The debug has an `elif` in the wrong order, a `==` where `=` was meant (so a name is never defined) and a print indented into a branch.
-- *Logical operators*: `and`, `or`, `not`, and the `x == 1 or 2` trap, which the lecture doesn't cover and which shows up in the fill-in, the debug and the explain.
-- *Tracing code*: trace tables. Several exercises run the learner's code with other starting values (`run_with`), so they can't be passed by typing the expected output in; the build is "a program from its trace" and its tests change the starting values.
-- *Reading errors*: the last line first, then the line number; five error kinds; one change per run. The debug plants three errors of three kinds (`SyntaxError`, `NameError`, a `ValueError` from formatting text with `:.2f`), so each fix reveals the next.
+
+- _Booleans and comparisons_: `=` against `==`, comparisons give a `bool`, and text is never equal to a number (`"7" == 7`). The debug plants `print(..., age = limit)`, which is a keyword argument and a `TypeError`, not a syntax error, so the learner meets the real message.
+- _if / elif / else_: the first `True` condition wins; colons and indentation; two `if`s against one `if` / `elif`. The debug has an `elif` in the wrong order, a `==` where `=` was meant (so a name is never defined) and a print indented into a branch.
+- _Logical operators_: `and`, `or`, `not`, and the `x == 1 or 2` trap, which the lecture doesn't cover and which shows up in the fill-in, the debug and the explain.
+- _Tracing code_: trace tables. Several exercises run the learner's code with other starting values (`run_with`), so they can't be passed by typing the expected output in; the build is "a program from its trace" and its tests change the starting values.
+- _Reading errors_: the last line first, then the line number; five error kinds; one change per run. The debug plants three errors of three kinds (`SyntaxError`, `NameError`, a `ValueError` from formatting text with `:.2f`), so each fix reveals the next.
 
 **Checkpoint 2, ticket pricing:** age bands, a weekend extra that skips free tickets, a member discount applied after the extra, two decimal places. The hidden tests parse the output loosely and check one rule each, naming skills across Modules 1 and 2; four wrong solutions (the `or` trap, a boundary, the discount before the extra, no decimals) each fail exactly the test for that mistake. The debug is a parking-fee program with the `or` trap, a reversed `elif` order and a print indented into the `else`. The way through: a zoo-ticket sibling with labeled steps, the build in four fill-in steps, and two fresh versions, a swimming pool and a train fare, with the same rule shapes in different stories.
 
@@ -600,8 +670,9 @@ Five topics and a checkpoint, so Module 2 is ready before the owner finishes Mod
 The paused v1 work resumes, now that explanations can pass and topics can become Learned.
 
 **Done (#43):**
+
 - **States everywhere.** `stateOf` already existed; now every topic page and map row shows the learner's state with an icon and a word: Locked, Available, In progress, Learned on a date, or Passed for a checkpoint. `STATE_LABELS` in `progress.ts` holds the words, so no state is color alone (F9).
-- **Gating (F8, ADR-0002).** A topic page loads the learner's history for the topic *and* its prerequisites, which is what the state depends on, in one `useTopicProgress` hook; the proof list reads from the same load instead of fetching again. A Locked topic shows its header and lesson only, with a notice naming the topics that open it; its practice and proof checks wait. A Locked checkpoint shows only what it brings together, not the checks or the way through. While the history loads, the page shows everything rather than flashing sections in and out; gating applies the moment the state is known.
+- **Gating (F8, ADR-0002).** A topic page loads the learner's history for the topic _and_ its prerequisites, which is what the state depends on, in one `useTopicProgress` hook; the proof list reads from the same load instead of fetching again. A Locked topic shows its header and lesson only, with a notice naming the topics that open it; its practice and proof checks wait. A Locked checkpoint shows only what it brings together, not the checks or the way through. While the history loads, the page shows everything rather than flashing sections in and out; gating applies the moment the state is known.
 - **"Prove it now"** appears on an Available topic that hasn't been started. It hides the lesson and practice, moves focus to the Prove it heading, and can be undone with "Show them anyway". Nothing is recorded for the choice itself; the checks record as they always did.
 - **Signed-out visitors** see no states and no gating. Their progress can't be known, and nothing of theirs is saved anyway.
 - **"Next up" on Today (F12):** `nextUp` picks the first topic in progress in track order, or else the first Available one that can be opened, skipping anything Locked, even if it was started before gating existed. Today reads the history a second time for it; sharing one load between the two sections is a small follow-up.
@@ -613,9 +684,10 @@ The paused v1 work resumes, now that explanations can pass and topics can become
 
 ## 2026-11-08: Building starts: more than one track, and the cloud track on the map
 
-**The owner said "Start building everything."** The order follows the spec's *Building it* section and the roadmap: the app learns to show more than one track; the cloud track goes on the map as outlines; then the paused v1 work resumes (topic states and gating with "Prove it now", Module 2); then Stage 1 of the cloud track, starting with drills that run in the browser; the lab checker once ADR-0014 is accepted.
+**The owner said "Start building everything."** The order follows the spec's _Building it_ section and the roadmap: the app learns to show more than one track; the cloud track goes on the map as outlines; then the paused v1 work resumes (topic states and gating with "Prove it now", Module 2); then Stage 1 of the cloud track, starting with drills that run in the browser; the lab checker once ADR-0014 is accepted.
 
 **Done (#42):**
+
 - **The app shows every track.** `tracks()`, `getTrack()`, `topicIdsOf()` and `placeOf()` replace `mainTrack()` and `moduleFor()` in `web/src/content/content.ts`; `placeOf` says which track and module a topic is in, and whether it's a topic, a checkpoint or a capstone. The map is at `/map` for the first track and `/map/<track id>` for the others, with a switcher, and a note when a track is all outlines. Topic pages name their track.
 - **Tracks have an `order`, and a module may name a `capstone`**: a bigger checkpoint shown after the module's own, building on every module before it. That keeps the spec's module numbering intact on the map. The validator checks capstones like checkpoints and that no two tracks share an order.
 - **`tools/outline_cloud_track.py`** reads the spec's module tables, checkpoint paragraphs and capstone sections and writes the track file and 357 `planned` outlines: 324 topics (the 7 specialties included), 30 checkpoints and 3 capstones. It overwrites only files that still carry its marker and are `planned`, so written topics are safe. The spec gained a "Checkpoint 30" line so Module 30 parses like the rest.
@@ -631,8 +703,9 @@ The paused v1 work resumes, now that explanations can pass and topics can become
 **The owner said:** move the map into `docs/research`, don't assume they're strong in any area, the track may one day serve absolute beginners, and don't worry about the L1, L2, L3 depth levels.
 
 **Done:**
+
 - The map is at `docs/research/senior-cloud-architect-knowledge-map.md`, renamed to the folder's style and otherwise unchanged. It's the owner's own document, committed at their request.
-- **The spec no longer builds on anyone's standing.** Removed: the depth-level system (the L1–L3 tables, the default depth by module, proofs scaling with depth, the primary-cloud option), every "at the aware level" phrasing, the owner's strengths and gaps from the faster path, and the depth paragraph in ADR-0014. The faster path is now an *example* route for someone who starts on Azure, and the spec says plainly that what a learner skips is decided by "prove it now" and the placement test, never by their own estimate. Two of the map's four rules stay: every concept gets a build, and write as you go.
+- **The spec no longer builds on anyone's standing.** Removed: the depth-level system (the L1–L3 tables, the default depth by module, proofs scaling with depth, the primary-cloud option), every "at the aware level" phrasing, the owner's strengths and gaps from the faster path, and the depth paragraph in ADR-0014. The faster path is now an _example_ route for someone who starts on Azure, and the spec says plainly that what a learner skips is decided by "prove it now" and the placement test, never by their own estimate. Two of the map's four rules stay: every concept gets a build, and write as you go.
 - **A correction to the entry below.** It recorded the owner's strengths and gaps from the map as the basis for the faster path. The owner asked not to assume strengths anywhere, so the spec doesn't, and neither should future sessions. The map still says what it says, as the owner's own document.
 - Memory updated the same way.
 
@@ -640,17 +713,18 @@ The paused v1 work resumes, now that explanations can pass and topics can become
 
 ## 2026-11-08: The cloud track, cross-referenced with the owner's knowledge map
 
-**The owner asked** to cross-reference the Cloud Solutions Architect spec against their own *Senior Cloud Architect Knowledge Map & Learning Roadmap*, a Markdown file with twelve domains, a certification order, a 24-month plan and a 24-item self-assessment: add everything the map has that the spec lacks, remove nothing, keep it extensive.
+**The owner asked** to cross-reference the Cloud Solutions Architect spec against their own _Senior Cloud Architect Knowledge Map & Learning Roadmap_, a Markdown file with twelve domains, a certification order, a 24-month plan and a 24-item self-assessment: add everything the map has that the spec lacks, remove nothing, keep it extensive.
 
 **Finding the file took two tries.** It wasn't in the project folder at first; the owner had it in another folder and copied it to the project root. It isn't committed, because it holds the owner's career details. Where it lives is the owner's call; `docs/research/` is the natural home if it goes in.
 
 **Done, in `docs/specs/cloud-solutions-architect.md`:**
+
 - **4 new modules:** Virtualization, hardware and Windows (2); Software engineering literacy (7); Application architecture and integration (17); Specialized workloads (28). The track has 30 modules now.
 - **107 new topics,** from 210 to 317, and many existing "You'll be able to" lines extended with the map's specifics: CUBIC and BBR, SCIM and PKCE, the confused deputy, CRDTs, Paxos and Raft, KEDA, Kyverno, FOCUS, provisioned throughput, and so on. Every existing topic is still there.
 - **New sections from the map:**
-  - *Depth levels*: L1 aware, L2 working, L3 deep; how the four proofs scale with depth; a default depth for each module; the primary-cloud option; the map's four rules of thumb.
-  - *A faster path for an experienced learner*: the map's seven phases over 24 months, mapped to modules, with its capstone builds, milestones, weekly rhythm (60% building, 25% reading, 15% writing), kill criteria and reading list.
-  - *Self-assessment*: the map's 24 "you're senior when you can" items, each tied to the checkpoint, topic or drill that proves it. Kept as a mirror: the platform never counts self-report (ADR-0002).
+  - _Depth levels_: L1 aware, L2 working, L3 deep; how the four proofs scale with depth; a default depth for each module; the primary-cloud option; the map's four rules of thumb.
+  - _A faster path for an experienced learner_: the map's seven phases over 24 months, mapped to modules, with its capstone builds, milestones, weekly rhythm (60% building, 25% reading, 15% writing), kill criteria and reading list.
+  - _Self-assessment_: the map's 24 "you're senior when you can" items, each tied to the checkpoint, topic or drill that proves it. Kept as a mirror: the platform never counts self-report (ADR-0002).
 - **Certifications:** AZ-104, CCSP, TOGAF, Databricks and Snowflake, exam codes, and the map's suggested order.
 - **The service table:** 20 more rows, such as customer identity, subnet scope, IPAM, layer 4 and layer 7 load balancers, appliance insertion, zero trust access, Arm chips, PaaS hosting, block and file storage, shipped devices, Oracle, confidential computing, AI accelerators and carbon data.
 - **6 more drills,** including Kubernetes triage, a threat model and a decision record.
@@ -667,12 +741,14 @@ The paused v1 work resumes, now that explanations can pass and topics can become
 ## 2026-11-08: A second track, Cloud Solutions Architect (specified)
 
 **The owner asked for** a Cloud Solutions Architect track:
+
 - with everything a senior architect needs at the top of the pay band;
 - multi-cloud;
 - able to drill skills until competency is proven, not just knowledge;
 - assuming access to every cloud environment for practice.
 
 **Done:**
+
 - **The spec,** [docs/specs/cloud-solutions-architect.md](specs/cloud-solutions-architect.md). It has 26 modules in 4 stages, about 210 topics, 3 capstones and 6 specialties to choose from. It also covers:
   - how competency is proven, with drills that have targets;
   - lab safety and cost;
@@ -691,6 +767,7 @@ The paused v1 work resumes, now that explanations can pass and topics can become
 **Deliberately not done:** the track isn't in `content/` yet. The app shows only the first track file it finds (`mainTrack()`), and `cloud-…` sorts before `python-foundations`. Adding the track would replace the owner's Python map on the live site, so support for more than one track has to come first.
 
 **Waiting on the owner:**
+
 - accepting or changing ADR-0014;
 - deciding when the track gets built, relative to the rest of v1 and the ML path.
 
@@ -701,6 +778,7 @@ The v1 work stays paused where the entry below left it.
 The owner paused work here.
 
 **Done since the last pause** (all merged and live):
+
 - ADR-0013 was accepted, and the owner's answers recorded (#33).
 - Explanation grading, built and rolled out:
   - the AI proxy and its call log, `ai_calls` (#34);
@@ -709,6 +787,7 @@ The owner paused work here.
   - the rollout notes, and how to deploy the function again (#37).
 
 **Where we sit**
+
 - **Phase 1, Milestone B (Prove it).** Milestone A is done.
   - Done in B: export my data, progress tracking part 1, and explain it back graded by AI.
   - Left in B: topic states and gating with "Prove it now", and Module 2's content.
@@ -720,10 +799,12 @@ The owner paused work here.
 - **Nothing is left running.** The local Supabase and Docker Desktop are stopped. `main` is clean, with no open pull requests or leftover branches.
 
 **Not confirmed yet**
+
 - **The first grading on the live site.** If the box says grading isn't switched on for the account, the `allowed` update didn't run. The SQL is in `setup.md`, under "Who can use it".
 - **The $10 monthly limit in the Anthropic Console** (step 2 in `setup.md`). It's a second safety net, on top of the app's own cap.
 
 **Next, in order**
+
 1. **The owner:** try Explain it back on Values and types on the live site, reloading the page first. Set the Console limit, if it isn't set.
 2. **Topic states and gating, with "Prove it now"** (F8, F9). This was waiting for grading. Explanations can now pass, so topics can become Learned. It starts with a short plan, checked against ADR-0002 and the v1 spec:
    - which states lock what;
@@ -733,6 +814,7 @@ The owner paused work here.
 5. **Later, in Phase 2:** the practice-hours tracker, on the way to 10,000 hours.
 
 **To remember on return**
+
 - **Merging doesn't deploy the AI proxy.** See "Putting it live" in `supabase/README.md`.
 - **From Claude Code, the Supabase CLI changes the live project only with `--yes`.** That flag goes in only after the owner's go-ahead.
 - **Checking the app on my own dev server:** the recipe is in the 2026-11-06 "Where we stopped" entry.
@@ -742,6 +824,7 @@ The owner paused work here.
 ## 2026-11-08: Explain it back is live
 
 **Rolled out** in this order (ADR-0013's last steps), with the owner's go-ahead:
+
 1. **The Claude API key went into the live project's secrets.**
    - The owner's first try changed nothing. The Supabase CLI saw it was running inside Claude Code, and from there it won't change the live project without `--yes`.
    - The owner had typed that command, so Claude re-ran it with `--yes`. It first checked that the file held only `ANTHROPIC_API_KEY`, without showing any values.
@@ -758,6 +841,7 @@ The owner paused work here.
 **Cleaned up:** the local function server, the local Supabase and Docker Desktop are all stopped.
 
 **Next:**
+
 - The owner's first real grading: the explain check on Values and types, the topic they're on.
 - Milestone B: topic states and gating, and "Prove it now" (F8, F9).
 - Module 2's content, ready before the owner finishes Module 1.
@@ -765,6 +849,7 @@ The owner paused work here.
 ## 2026-11-08: The grader chosen, and checked end to end
 
 **The test set** (the owner approved up to about $1.20):
+
 - Claude Haiku 5.5 at low effort got all 30 samples right, for $0.0056.
 - A second run, to check it wasn't luck, got all 30 right again, for $0.0054.
 - So Haiku is the grader, as ADR-0013 says (the cheapest that passes). It's already the proxy's default, and Sonnet and Opus never ran. About 1 cent spent in all.
@@ -772,6 +857,7 @@ The owner paused work here.
 **Real costs are lower than the ADR's estimate.** A grading used about 1,100 tokens in and 100 out, about $0.00017. At low effort Haiku barely thinks. ADR-0013 assumed 1,000 out, so $10 a month covers about 60,000 gradings, not 15,000.
 
 **Checked end to end** in a real browser, on the local Supabase with the owner's key, as the local test account on Values and types:
+
 - an explanation without the fix got Needs work. Its one question, "What do you need to do to the text values before the + sign can add them as numbers?", points at the gap without giving the answer;
 - the full explanation got Passed, and "Your proof so far" changed to "✓ Explain: passed on Nov 8" with no reload;
 - the local database had both calls in `ai_calls` with their costs, and both `explain_submit` events, correct false then true, each linked to its call.
@@ -779,6 +865,7 @@ The owner paused work here.
 **Getting the key in place:** the first check found `supabase/functions/.env` empty, because the editor hadn't saved yet. The check names the file's lines and their lengths, never their values.
 
 **Next: rollout to the live project** (ADR-0013's last steps):
+
 1. The owner puts the key in the live project's secrets, and switches on `allowed` for their account.
 2. With the owner's go-ahead: apply the `ai_calls` migration (`db push --remote`), deploy the function (`functions deploy ai`), then merge the explanation box (#35).
 3. The owner tries it on the live site.
@@ -795,6 +882,7 @@ The owner paused work here.
   - 13 new tests, 242 in all.
 
   It stays a draft until the proxy is deployed to the live project. Merged before then, every Check on the live site would fail.
+
 - **The test set** (`supabase/functions/ai/test-set/`), 5 samples for each of Module 1's six explain checks. They were written to be clear-cut:
   - the short passes still state every required idea;
   - the misses lack a required idea outright, or get it wrong.
@@ -891,14 +979,23 @@ The owner paused work until the usage limit resets on Sunday.
 **How I check the app on my own dev server** (the recipe CLAUDE.md points to). This script lives outside the repo. Run it with `node` as a background task; it serves `web/` on port 5180 and stops itself after 15 minutes:
 
 ```js
-import { pathToFileURL } from 'node:url'
-const web = 'C:/Users/arasm/Documents/Education Platform/web'
+import { pathToFileURL } from "node:url";
+const web = "C:/Users/arasm/Documents/Education Platform/web";
 const { createServer } = await import(
   pathToFileURL(`${web}/node_modules/vite/dist/node/index.js`).href
-)
-const server = await createServer({ root: web, server: { port: 5180, strictPort: true } })
-await server.listen()
-setTimeout(async () => { await server.close(); process.exit(0) }, 15 * 60 * 1000)
+);
+const server = await createServer({
+  root: web,
+  server: { port: 5180, strictPort: true },
+});
+await server.listen();
+setTimeout(
+  async () => {
+    await server.close();
+    process.exit(0);
+  },
+  15 * 60 * 1000,
+);
 ```
 
 - **Signing in on it:** the local test account is `test-learner@example.com`. Its sign-in link arrives in Mailpit; fetch it from `http://127.0.0.1:54324/api/v1/messages`.
@@ -940,6 +1037,7 @@ setTimeout(async () => { await server.close(); process.exit(0) }, 15 * 60 * 1000
 - Tests: 20 new, 229 web tests in all.
 
 **Checked end to end** on the local Supabase, as the local test account:
+
 - the map showed "In progress" only on Programs and print, ignoring answers on a sample topic that no longer exists;
 - on that topic, the banner build typed into the editor passed its hidden tests in real Pyodide, and "Your proof so far" changed to "✓ Build: passed on Nov 6" with no reload;
 - the map then showed "In progress · Proof checks passed: build", and the Check was in the local database.
@@ -972,6 +1070,7 @@ setTimeout(async () => { await server.close(); process.exit(0) }, 15 * 60 * 1000
 - Tests: 15 new, 209 web tests in all.
 
 **Checked end to end** against the local Supabase, on a dev server that stopped itself, signed in as the local test account:
+
 - With the API container stopped, the page said the data couldn't be downloaded. On this PC a refused local connection takes a few seconds to fail, so "Gathering your data…" showed until then.
 - With one made-up event placed straight in the outbox, the file had 7 events: the made-up one with `received_at: null`, every column, oldest first, no duplicates. The page said 1 wasn't saved yet. The event was then removed from the outbox, and it never reached the local database.
 - A real download landed in Downloads and read back as valid JSON. I deleted it afterwards.
@@ -1067,6 +1166,7 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
   - the page on the owner's restarted dev server. All the new files showed up without a restart, so the watcher fix works there too.
 
 **The owner asked:** what if someone really struggles with the checkpoint? Today, nothing special happens. [ADR-0012](decisions/0012-checkpoint-support.md) (proposed) answers with mastery-learning and worked-example research:
+
 - failed checkpoint tests point to the skill behind them, which opens a follow-up;
 - a solved sibling project to study;
 - a "try it in steps" version with hints, offered after 2 failing Checks;
@@ -1079,8 +1179,9 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
 ## 2026-11-06: The fourth lesson, Arithmetic
 
 **Decided:** the main resource is a reading, not CS50P.
+
 - The lecture gives arithmetic about 40 seconds: a list of `+ - * / %` at 1:00:05, plus a division-and-rounding demo at 1:22:52. It never covers `//`, `**` or the order of operations.
-- *Python for Everybody* (Charles R. Severance, CC BY 4.0 per py4e.com) covers exactly that, in four short sections of chapter 2: operators and operands, expressions, order of operations, and the modulus operator.
+- _Python for Everybody_ (Charles R. Severance, CC BY 4.0 per py4e.com) covers exactly that, in four short sections of chapter 2: operators and operands, expressions, order of operations, and the modulus operator.
 - Its lecture video for the chapter is linked as an extra but not embedded. YouTube refused its captions (a 404 on the timed-text API), so I couldn't check timestamps, and I won't embed a stretch I can't check.
 - The intro tells the learner to skip the Python 2 asides, and corrects one gloss: `6 + 4 / 2` prints `8.0`, not `8`.
 
@@ -1138,10 +1239,12 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
 **Found while checking that:** one miss can open follow-ups for several skills, and they could all pick the same "never answered" question. Missing the recipe card in topic 1 would have shown the shopping-list exercise twice. Fixed with `planCards`: each skill gets its own question where possible, and a shared one is asked once, for both, with per-skill results.
 
 **Decided (the owner):**
+
 - **Timing:** "whatever the science says will make it stick". Successive relearning recommends at least 3 relearning sessions with growing gaps (Rawson & Dunlosky, 2011; Rawson, Dunlosky & Sciartelli, 2013; Cepeda et al., 2008). So: right on 3 different days, coming back after 1, 3 and 7 days. Recorded in ADR-0011 with the references.
 - **Code exercises:** "good as is". Missed only if no Check passed that day.
 
 **Also:**
+
 - `everyItem.test.ts` checks every graded item of every ready topic against the real content: a miss must bring back a different question on each of its skills, and never a proof check.
 - A test helper changed shared sample data, which made a later test fail. The sample topic now hands out copies.
 
@@ -1172,15 +1275,16 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
 - Tests: 157 web tests in all (32 new). They cover the rules, paging, the Today page's states and a full answer.
 
 **Tried end to end** on the dev server against the local Supabase, with the local test account:
+
 - a "missed yesterday" answer was put straight into the local database;
-- Today showed the comma skill with a *different* question (the new review question);
+- Today showed the comma skill with a _different_ question (the new review question);
 - a correct answer said "Right! It comes back on Mon, Nov 9";
 - the review event landed in `public.events`;
 - after a reload, Today showed "Nothing to revisit today" and the skill under "Coming back later".
 
 **Found while building it:** the Today page checked "are the questions chosen?" before "did loading fail?", so a failed load would have shown "Loading…" forever. A test caught it.
 
-**Note:** a dev server records the commit it was *started* on as `content_build` (Vite's `define` runs once at startup). Live builds always record their own commit.
+**Note:** a dev server records the commit it was _started_ on as `content_build` (Vite's `define` runs once at startup). Live builds always record their own commit.
 
 **Next**
 
@@ -1192,7 +1296,7 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
 **Done**
 
 - `content/topics/py.values-and-types`, status `ready`:
-  - **Learn:** CS50P Lecture 0 from 59:32 (integers) to 1:07:58 (the fixed calculator). The lecture has no stretch dedicated to types and never uses `type()`. But this one shows *why* types matter: typed input is text, so `1` and `2` make `12`. The intro says that `x = 1` and `input()` come in later topics, and that the Run button replaces the `>>>` prompt. Floats (1:14:31) and the Python tutorial's "Numbers" section (PSF License Version 2) are linked as more resources.
+  - **Learn:** CS50P Lecture 0 from 59:32 (integers) to 1:07:58 (the fixed calculator). The lecture has no stretch dedicated to types and never uses `type()`. But this one shows _why_ types matter: typed input is text, so `1` and `2` make `12`. The intro says that `x = 1` and `input()` come in later topics, and that the Run button replaces the `>>>` prompt. Floats (1:14:31) and the Python tutorial's "Numbers" section (PSF License Version 2) are linked as more resources.
   - **Practice:**
     - a worked example, `type()` on four values, explaining the `<class 'str'>` format;
     - three questions: which type is `7.0`, why `print(5)` and `print("5")` look the same (mixing in topic 1), and what `+` does with numbers and with text;
@@ -1217,7 +1321,7 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
 
 **Decided** (the owner chose the order and the approach):
 
-- Write [ADR-0011](decisions/0011-mistakes-come-back.md), proposed. A miss opens a follow-up for each skill the item tests. It comes back as a *different* question on that skill: the next day, then after about 3 days, then a week. It's closed once the skill is answered correctly on 2 different days. A topic can't be Mastered with open follow-ups. It's derived from the event log, so today's miss will be included.
+- Write [ADR-0011](decisions/0011-mistakes-come-back.md), proposed. A miss opens a follow-up for each skill the item tests. It comes back as a _different_ question on that skill: the next day, then after about 3 days, then a week. It's closed once the skill is answered correctly on 2 different days. A topic can't be Mastered with open follow-ups. It's derived from the event log, so today's miss will be included.
 - Build order: topic 2 (Values and types) first, then the feature. Skills go into the content format now, so topic 2 is written ready for it.
 
 **Done**
@@ -1230,7 +1334,7 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
 - Programs and print:
   - its 4 skills are `print-text`, `print-commas`, `blank-lines` and `read-errors`;
   - a new review question on commas gives the owner's miss two fresh questions to come back as.
-  Labeling items doesn't change what they ask, so no `rev` bumps.
+    Labeling items doesn't change what they ask, so no `rev` bumps.
 
 **Next**
 
@@ -1306,12 +1410,13 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
   - `answer` (multiple choice, predict the output);
   - `code_run`, `code_check` and `hint` (exercises);
   - the context is `practice` or `prove`.
-  Attempt time runs from the first click or focus inside an item. The exact `data` per event type is now in the data model.
+    Attempt time runs from the first click or focus inside an item. The exact `data` per event type is now in the data model.
 - `vite.config.ts` writes the git commit into the build as `content_build`.
 - A "Not saved yet" badge in the header. Topic pages tell signed-out visitors their answers won't be saved.
 - Tests: 41 new web tests (120 in total). They cover the outbox (including two tabs), batching, retries with fake timers, setting aside a refused event, signed-out and still-loading sign-in, sessions, and what each page records.
 
 **Tried end to end** against the local Supabase in Docker, signed in by email link through Mailpit, with the sample topic copied in temporarily:
+
 - a lesson view, a correct answer (2.4 s) and a failed check (with its code) appeared in `public.events` within 70 ms, with the right user, revision and commit;
 - with the API container stopped, an answer showed "Not saved yet";
 - after restarting it, the answer arrived 7 s later on its own, keeping its original time. It was received 15 s after it happened.
@@ -1334,7 +1439,7 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
   - `@mdx-js/rollup` compiles lessons;
   - Python files are loaded with `?raw`;
   - `content/content.ts` finds everything with `import.meta.glob`.
-  Outlines are bundled into the app, and each topic's lesson and exercises download when its page opens.
+    Outlines are bundled into the app, and each topic's lesson and exercises download when its page opens.
 - Topic pages:
   - **Learn:** objectives, intro, a privacy-enhanced YouTube embed with start and end times, recap, and more resources.
   - **Practice:** worked example, multiple choice, predict the output, fill in, and write. Hints come one at a time, and the reference solution appears after a pass.
@@ -1351,12 +1456,13 @@ The owner accepted [ADR-0012](decisions/0012-checkpoint-support.md) and asked fo
   - 2 new checker tests (41 Python tests).
 
 **Found by trying it end to end.** I copied the checker's sample topic into `content/` temporarily, then built the app and clicked through it in the browser on a separate dev server (port 5174). The production build failed: a compiled lesson imports React, but lessons live outside `web/`, so module lookup never reached `web/node_modules`. The fix is `resolve.dedupe: ['react', 'react-dom']` in `vite.config.ts`. After that:
+
 - the lesson, the embed, and every practice item rendered;
 - the fill-in starter failed in real Pyodide;
 - a correct answer passed and revealed the reference solution;
 - the prediction check worked;
 - there were no console errors.
-The sample topic was removed afterwards. The unit tests couldn't have caught this, because the repo has no lesson files yet.
+  The sample topic was removed afterwards. The unit tests couldn't have caught this, because the repo has no lesson files yet.
 
 **Decided**
 
@@ -1479,7 +1585,7 @@ The sample topic was removed afterwards. The unit tests couldn't have caught thi
 **What was wrong**
 
 - **The invisible box:** the owner's dev server had been running since before I changed `vite.config.ts` and installed packages. It got stuck half-updated, serving Tailwind's raw source instead of compiled CSS, so every element lost its styling. A fresh server was fine; the fix is a restart. `CLAUDE.md` and `web/README.md` now say to restart after config or package changes.
-- **No "Hello, Alex!":** on the unstyled page, the invisible input boxes sit away from their labels, so the name most likely went into the wrong box. The design was the deeper problem: filling in a box *before* pressing Run isn't how anyone expects Python to work.
+- **No "Hello, Alex!":** on the unstyled page, the invisible input boxes sit away from their labels, so the name most likely went into the wrong box. The design was the deeper problem: filling in a box _before_ pressing Run isn't how anyone expects Python to work.
 
 **Done**
 
@@ -1611,7 +1717,7 @@ The sample topic was removed afterwards. The unit tests couldn't have caught thi
 - Researched Brilliant, roadmap.sh and Math Academy ([competitors](research/competitors.md)).
 - Pinned down the concept through a Q&A ([vision](vision.md)):
   - Adaptive, from total beginner to principal engineer. First track: CS foundations → ML engineering.
-  - Core promise: you can *apply* it, not just recognize it.
+  - Core promise: you can _apply_ it, not just recognize it.
   - Mastery needs all four proofs: blank editor, explain it back, debug unfamiliar code, delayed review.
   - Gated, with test-out.
   - AI as hint-only tutor, reviewer, practice generator, and an "earn the AI" track.

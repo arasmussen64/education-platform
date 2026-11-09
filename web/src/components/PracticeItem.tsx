@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { STAGES } from '../content/stages.ts'
 import type { TopicContent } from '../content/types.ts'
 import {
@@ -11,6 +11,8 @@ import {
 import type { EventContext, EventData } from '../events/types.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { labEventData } from '../labs/result.ts'
+import { PLACE_ATTRIBUTE } from '../place/useCurrentPlace.ts'
+import { type ItemState, ITEM_STATE_LABELS } from '../progress/itemStates.ts'
 import { allChecksPassed } from '../python/runner.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
 import { type ExerciseActivity, ExerciseView } from './ExerciseView.tsx'
@@ -28,6 +30,16 @@ type Props = {
   context: Extract<EventContext, 'practice' | 'prove' | 'review'>
   /** Shown above the heading, e.g. "Practice 2 of 5". */
   position?: string
+  /** Where the learner stands on it, from their saved answers, if known. */
+  status?: ItemState
+  /**
+   * True for an item the learner had already got right before this visit:
+   * its body stays out of the way until they ask for it, so a long topic
+   * shows what's left to do.
+   */
+  collapsed?: boolean
+  /** A place on the page the outline can point at: the card's id. */
+  placeId?: string
   /** Called after each Check of an exercise, with whether every test passed. */
   onCheck?: (passed: boolean) => void
   /**
@@ -124,11 +136,15 @@ export function PracticeItem({
   content,
   context,
   position,
+  status,
+  collapsed = false,
+  placeId,
   onCheck,
   onGraded,
 }: Props) {
   const record = useRecordEvent()
   const timer = useAttemptTimer()
+  const [shown, setShown] = useState(false)
   const rev = (content.recall[itemId] ?? content.exercises[itemId])?.rev
   const about = {
     topic_id: content.topic.id,
@@ -232,6 +248,8 @@ export function PracticeItem({
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <section
       aria-labelledby={headingId}
+      id={placeId}
+      {...(placeId ? { [PLACE_ATTRIBUTE]: placeId } : {})}
       className={CARD}
       onFocus={timer.start}
       onPointerDown={timer.start}
@@ -239,12 +257,26 @@ export function PracticeItem({
       {position && (
         <p className="text-xs font-semibold tracking-wide text-slate-500 uppercase dark:text-slate-400">
           {position}
+          {status && ` · ${ITEM_STATE_LABELS[status]}`}
         </p>
       )}
       <h3 id={headingId} className="text-lg font-semibold">
         {item.heading}
       </h3>
-      {item.body}
+      {collapsed && !shown ? (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          You got this one right already.{' '}
+          <button
+            type="button"
+            onClick={() => setShown(true)}
+            className="underline"
+          >
+            Show it again
+          </button>
+        </p>
+      ) : (
+        item.body
+      )}
       <ReportProblem
         about={{ topicId: content.topic.id, itemId, itemRev: rev }}
       />

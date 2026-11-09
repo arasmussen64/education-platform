@@ -22,11 +22,21 @@ import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
 import { CARD, PROSE, SECONDARY_BUTTON } from '../components/styles.ts'
+import { type LadderItem, TopicOutline } from '../components/TopicOutline.tsx'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { ExplainCheck } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
+import { recallPlace } from '../place/placeMemory.ts'
+import {
+  itemPlace,
+  PLACE_ATTRIBUTE,
+  provePlace,
+  START_PLACE,
+  useCurrentPlace,
+} from '../place/useCurrentPlace.ts'
 import type { Interleaved } from '../practice/interleave.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
+import { type ItemState, itemKey, itemStates } from '../progress/itemStates.ts'
 import {
   type Proof,
   PROOFS,
@@ -76,62 +86,146 @@ export function TopicView({
   // Until then the page shows everything, rather than flashing in and out.
   const locked = state === 'locked'
   const [proveNow, setProveNow] = useState(false)
+  const isTopic = content?.topic.kind === 'topic'
+
+  // The learner's place in a long topic: the practice ladder as the page
+  // shows it, where they stand on each item, and which part they're at.
+  const items = useMemo(
+    () => (content && isTopic ? ladderOf(content, interleaved) : []),
+    [content, interleaved, isTopic],
+  )
+  const states = useMemo(
+    () => (progress.status === 'ready' ? itemStates(progress.attempts) : null),
+    [progress],
+  )
+  // Items done before this visit are folded away; one done during it stays
+  // open, so an answer doesn't make the question vanish. The set is taken
+  // once, the first time the progress is known (setting state during the
+  // render is how React keeps a value from an earlier render).
+  const [doneAtLoad, setDoneAtLoad] = useState<Set<string> | null>(null)
+  if (doneAtLoad === null && states !== null) {
+    setDoneAtLoad(
+      new Set(
+        [...states].filter(([, state]) => state === 'done').map(([key]) => key),
+      ),
+    )
+  }
+  const article = useRef<HTMLElement>(null)
+  const { current, lessonParts } = useCurrentPlace(
+    topic.id,
+    article,
+    `${progress.status} ${proveNow} ${locked}`,
+  )
+  // Read once, before this visit starts remembering places of its own.
+  const [resume] = useState(() => recallPlace(topic.id))
+  const passed =
+    progress.status === 'ready'
+      ? (progress.progress.get(topic.id)?.passed ?? {})
+      : null
+  const showOutline = Boolean(content) && isTopic
 
   return (
-    <article className="space-y-10">
-      <TopicHeader topic={topic} state={state} progress={progress} />
-      {content && content.topic.kind === 'checkpoint' && (
-        <>
-          <SignInToSave />
-          <CheckpointView
+    <article
+      ref={article}
+      className="lg:grid lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-x-10"
+    >
+      <div className="mb-8 lg:col-span-2">
+        <TopicHeader topic={topic} state={state} progress={progress} />
+      </div>
+      {content && showOutline && (
+        <aside className="mb-8 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-2 lg:mb-0 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto">
+          <TopicOutline
             content={content}
-            loadAttempts={loadAttempts}
-            progress={progress}
-            locked={locked}
+            items={items}
+            states={states}
+            passed={passed}
+            current={current}
+            lessonParts={lessonParts}
+            resume={resume}
+            sections={{
+              learn: !proveNow,
+              practice: !locked && !proveNow,
+              prove: !locked,
+            }}
           />
-        </>
+        </aside>
       )}
-      {content && content.topic.kind === 'topic' && (
-        <>
-          <SignInToSave />
-          {locked && <LockedNotice topic={topic} progress={progress} />}
-          {state === 'available' && !proveNow && (
-            <ProveItNow
-              onChoose={() => {
-                // Show the checks straight away, then move focus to them.
-                flushSync(() => setProveNow(true))
-                document.getElementById('prove-it')?.focus()
-              }}
+      <div
+        className={`space-y-10 ${showOutline ? 'lg:col-start-1 lg:row-start-2' : 'lg:col-span-2'}`}
+      >
+        {content && content.topic.kind === 'checkpoint' && (
+          <>
+            <SignInToSave />
+            <CheckpointView
+              content={content}
+              loadAttempts={loadAttempts}
+              progress={progress}
+              locked={locked}
             />
-          )}
-          {proveNow ? (
-            <p className={CARD}>
-              You skipped the lesson and practice to prove it now.{' '}
-              <button
-                type="button"
-                onClick={() => setProveNow(false)}
-                className="underline"
-              >
-                Show them anyway
-              </button>
-            </p>
-          ) : (
-            <Learn content={content} />
-          )}
-          {!locked && !proveNow && (
-            <Practice content={content} interleaved={interleaved} />
-          )}
-          {!locked && <ProveIt content={content} progress={progress} />}
-        </>
-      )}
-      {!content && (
-        <p className={CARD}>
-          This topic is still being written. It's on the map so you can see
-          where it fits.
-        </p>
-      )}
+          </>
+        )}
+        {content && isTopic && (
+          <>
+            <SignInToSave />
+            {locked && <LockedNotice topic={topic} progress={progress} />}
+            {state === 'available' && !proveNow && (
+              <ProveItNow
+                onChoose={() => {
+                  // Show the checks straight away, then move focus to them.
+                  flushSync(() => setProveNow(true))
+                  document.getElementById('prove-it')?.focus()
+                }}
+              />
+            )}
+            {proveNow ? (
+              <p className={CARD}>
+                You skipped the lesson and practice to prove it now.{' '}
+                <button
+                  type="button"
+                  onClick={() => setProveNow(false)}
+                  className="underline"
+                >
+                  Show them anyway
+                </button>
+              </p>
+            ) : (
+              <Learn content={content} />
+            )}
+            {!locked && !proveNow && (
+              <Practice
+                content={content}
+                items={items}
+                states={states}
+                doneAtLoad={doneAtLoad}
+              />
+            )}
+            {!locked && <ProveIt content={content} progress={progress} />}
+          </>
+        )}
+        {!content && (
+          <p className={CARD}>
+            This topic is still being written. It's on the map so you can see
+            where it fits.
+          </p>
+        )}
+      </div>
     </article>
   )
+}
+
+/**
+ * The practice ladder as the page shows it: the topic's own items, with the
+ * earlier topic's question after this topic's own recall questions, before
+ * the exercises (F5).
+ */
+function ladderOf(
+  content: TopicContent,
+  interleaved: Interleaved | null,
+): LadderItem[] {
+  const own = content.topic.practice.map((itemId) => ({ itemId, content }))
+  if (own.length === 0 || !interleaved) return own
+  const lastRecall = own.findLastIndex(({ itemId }) => itemId in content.recall)
+  return own.toSpliced(lastRecall + 1, 0, interleaved)
 }
 
 /**
@@ -465,7 +559,11 @@ function Learn({ content }: { content: TopicContent }) {
   return (
     <section aria-labelledby="learn" className="space-y-4">
       <SectionHeading id="learn">Learn</SectionHeading>
-      <div className={PROSE}>
+      <div
+        id={START_PLACE}
+        {...{ [PLACE_ATTRIBUTE]: START_PLACE }}
+        className={PROSE}
+      >
         <p className="font-medium">By the end of this topic, you can:</p>
         <ul>
           {topic.objectives.map((objective) => (
@@ -512,19 +610,19 @@ function Learn({ content }: { content: TopicContent }) {
 /** The practice ladder, in order: each step asks a little more (F5). */
 function Practice({
   content,
-  interleaved,
+  items,
+  states,
+  doneAtLoad,
 }: {
   content: TopicContent
-  interleaved: Interleaved | null
+  items: LadderItem[]
+  /** Each attempted item's state, by itemKey, once known. */
+  states: Map<string, ItemState> | null
+  /** The items already done when the page opened, by itemKey, once known. */
+  doneAtLoad: Set<string> | null
 }) {
-  const own = content.topic.practice.map((itemId) => ({ itemId, content }))
-  if (own.length === 0) return null
-  // The earlier topic's question goes after this topic's own recall
-  // questions, before the exercises (F5).
-  const lastRecall = own.findLastIndex(({ itemId }) => itemId in content.recall)
-  const items = interleaved
-    ? own.toSpliced(lastRecall + 1, 0, interleaved)
-    : own
+  if (items.length === 0) return null
+  const interleaved = items.some((item) => item.content !== content)
   return (
     <section aria-labelledby="practice" className="space-y-4">
       <SectionHeading id="practice">Practice</SectionHeading>
@@ -533,19 +631,25 @@ function Practice({
         {interleaved &&
           ' One question is from an earlier topic, to keep it fresh.'}
       </p>
-      {items.map((item, index) => (
-        <PracticeItem
-          key={`${item.content.topic.id}/${item.itemId}`}
-          itemId={item.itemId}
-          content={item.content}
-          context="practice"
-          position={
-            item.content === content
-              ? `Practice ${index + 1} of ${items.length}`
-              : `Practice ${index + 1} of ${items.length} · from ${item.content.topic.title}`
-          }
-        />
-      ))}
+      {items.map((item, index) => {
+        const key = itemKey(item.content.topic.id, item.itemId)
+        return (
+          <PracticeItem
+            key={key}
+            itemId={item.itemId}
+            content={item.content}
+            context="practice"
+            position={
+              item.content === content
+                ? `Practice ${index + 1} of ${items.length}`
+                : `Practice ${index + 1} of ${items.length} · from ${item.content.topic.title}`
+            }
+            status={states?.get(key)}
+            collapsed={doneAtLoad?.has(key) ?? false}
+            placeId={itemPlace(item.content.topic.id, item.itemId)}
+          />
+        )
+      })}
     </section>
   )
 }
@@ -582,14 +686,27 @@ function ProveIt({
           itemId={build}
           content={content}
           context="prove"
+          placeId={provePlace('build')}
           onCheck={onBuildCheck}
         />
       )}
       {afterBuild}
       {debug && (
-        <PracticeItem itemId={debug} content={content} context="prove" />
+        <PracticeItem
+          itemId={debug}
+          content={content}
+          context="prove"
+          placeId={provePlace('debug')}
+        />
       )}
-      {explain && <ExplainCheck topic={content.topic} explain={explain} />}
+      {explain && (
+        <div
+          id={provePlace('explain')}
+          {...{ [PLACE_ATTRIBUTE]: provePlace('explain') }}
+        >
+          <ExplainCheck topic={content.topic} explain={explain} />
+        </div>
+      )}
     </section>
   )
 }
