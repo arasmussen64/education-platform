@@ -1,0 +1,14 @@
+# The checks for the worked example: the two files the walkthrough saves,
+# compared with the same pipelines run over the logs.
+checks:
+  - id: example-folder
+    description: "A folder called example exists in your home folder."
+    command: test -d /home/learner/example
+  - id: by-status
+    description: "by-status.txt counts the requests by status, biggest first."
+    command: |
+      diff -q <(awk '{print $3}' /var/log/shop/access.log | sort | uniq -c | sort -rn) /home/learner/example/by-status.txt
+  - id: first-errors
+    description: "first-errors.txt holds the first three lines of app.log that mention an error, in any case."
+    command: |
+      diff -q <(grep -i error /var/log/shop/app.log | head -n 3) /home/learner/example/first-errors.txt

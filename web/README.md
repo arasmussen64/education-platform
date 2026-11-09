@@ -55,7 +55,7 @@ The lessons and exercises live in [`../content`](../content/README.md), as files
 - **Lessons** (`lesson.mdx`) are [MDX](https://mdxjs.com): Markdown that can use components. `<Intro>`, `<Resource index={0} />` and `<Recap>` are drawn by `components/LessonView.tsx`.
 - **Python files** (starter code, solutions, tests) are loaded as text, with Vite's `?raw`.
 
-`content/content.ts` finds the files with `import.meta.glob`. The tracks and the main track's topic outlines are bundled into the app, because the map and the Today page need them at once. A track that is still all outlines (the cloud track) is left out, and its outlines download as one piece the first time its map is shown or one of its topics opens: see `LAZY_TRACKS` in `content.ts`, and `content/outlines/`. A topic's lesson, questions and exercises download only when its page opens.
+`content/content.ts` finds the files with `import.meta.glob`. The tracks and the main track's topic outlines are bundled into the app, because the map and the Today page need them at once. The cloud track's outline-only topics are left out, and download as one piece the first time its map is shown or one of its topics opens: see `LAZY_TRACKS` in `content.ts`, and `content/outlines/`. Its Module 1 (`csa.linux.*`), which has real content, is bundled in like the main track's topics, because the Today page and the follow-ups only look at bundled topics. A topic's lesson, questions and exercises download only when its page opens.
 
 The dev server also shows `draft` topics, marked as drafts, so they can be tried while being written. The live site only shows `ready` ones.
 

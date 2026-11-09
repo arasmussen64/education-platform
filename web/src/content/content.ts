@@ -15,10 +15,12 @@ import type {
 // straight in; lessons, questions and exercises load only when their topic
 // page opens.
 //
-// A track that is still all outlines (the cloud track: hundreds of topics
-// nobody can open yet) would make the first download heavier for everyone,
-// so its outlines are left out here and load as one piece when the map
-// shows that track or one of its topics opens (LAZY_TRACKS, below).
+// The cloud track's hundreds of outline-only topics would make the first
+// download heavier for everyone, so they're left out here and load as one
+// piece when the map shows that track or one of its topics opens
+// (LAZY_TRACKS, below). Its Module 1, Linux, has real content, so its topics
+// are bundled in like the main track's: the Today page and the follow-ups
+// only look at bundled topics.
 
 const topicFiles = import.meta.glob<Partial<Topic>>(
   [
@@ -27,13 +29,18 @@ const topicFiles = import.meta.glob<Partial<Topic>>(
   ],
   { eager: true, import: 'default' },
 )
+const bundledCloudFiles = import.meta.glob<Partial<Topic>>(
+  '../../../content/topics/csa.linux.*/topic.yaml',
+  { eager: true, import: 'default' },
+)
 
 /**
  * Outline-only tracks, by id, each with the module that holds its outlines.
  * To add one: a module like outlines/cloud-solutions-architect.ts, its
- * pattern left out of topicFiles above, and a line here. A lazy track must
- * have no open topic, because the Today page and the follow-ups only look
- * at the topics bundled in (content.lazy.test.ts checks this).
+ * pattern left out of topicFiles above, and a line here. A lazy track's
+ * topics that aren't bundled in must stay unready, because the Today page
+ * and the follow-ups only look at the topics bundled in
+ * (content.lazy.test.ts checks this).
  */
 const LAZY_TRACKS: Record<
   string,
@@ -97,7 +104,10 @@ function withDefaults(raw: Partial<Topic>): Topic {
   return topic
 }
 
-const TOPICS = Object.values(topicFiles).map(withDefaults)
+const TOPICS = [
+  ...Object.values(topicFiles),
+  ...Object.values(bundledCloudFiles),
+].map(withDefaults)
 // The topics bundled in, plus those of any lazy track that has been loaded.
 const TOPICS_BY_ID = new Map(TOPICS.map((topic) => [topic.id, topic]))
 const TRACKS = Object.values(trackFiles).sort((a, b) => a.order - b.order)

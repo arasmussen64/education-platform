@@ -2,6 +2,27 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Shell essentials goes ready, on five labs
+
+The first cloud-track topic a learner can open on the live site. Shell essentials' ladder is now a worked example, 21 recall items, a fill-in and a write, and its proofs are a build and a debug; everything but the recall items is a lab on the same generated logs (ADR-0018).
+
+- **`example-count-requests`** (worked example): a five-line walkthrough, each line a labelled step, that counts requests by status and saves the first three error lines. The checks compare the saved files with the same pipelines over the data.
+- **`fill-count-errors`** (fill-in): `~/bin/count-errors` with three gaps. Checked on `app.log` and on `worker.log`, so an answer typed in by hand (one of the wrong fixes) fails the second log.
+- **`write-top-paths`** (write): a script with two arguments, checked with N=2 on two logs and N=1 on one, with the spacing of its output normalised before comparing.
+- **`build-log-report`** (build): from the last entry.
+- **`debug-broken-report`** (debug): `~/bin/report` with three bugs: `grep -c 500` (which counts a byte count of 500 and misses 503), the status field where the path should be, and `uniq -c` without a sort. Each wrong fix leaves one bug in place.
+
+**What the contract caught this time.** A wrong fix I wrote for two labs, `sort -r` instead of `sort -rn`, passed every check. It turns out not to be a mistake after `uniq -c`: the counts come padded to the same width, so a text sort orders them like numbers (until a count has eight digits). The lesson's warning about `sort -r` stays true for unpadded numbers, and the labs now plant a mistake that really is one. The seed also grew `worker.log` and `old-access.log`, so the fill-in, write and debug labs can check a script on a second file; the seed is one file copied into each lab's folder, since a Docker build only sees its own folder.
+
+**The app bundles Module 1 in.** `content.ts` now includes `csa.linux.*` topics in the eager bundle and the outline module leaves them out, so the Today page and the follow-ups, which only look at bundled topics, see Shell essentials. The lazy-track tests and the map test were adjusted: the rule is now that a topic which loads on demand must never be ready. Everything else is the Python track's machinery, unchanged: progress counts a passed lab build or debug as that proof because the event is a `code_check`.
+
+**Decisions for you to review:**
+1. *Shell essentials is `ready` on the live site* although its labs need Docker and the repository on the learner's machine. You have both; the lab view says exactly what to run. A learner without them can still read the lesson and do the recall items.
+2. *Each lab builds its own image from a copy of the same seed script.* Simple and self-contained; a shared base image would save a few seconds per build and is easy to add later.
+3. *The Today page knows the cloud track only through bundling.* It plans from the main track; a ready cloud topic shows on the cloud map and its own page, and its reviews are scheduled like any other topic's. Whether Today should mix tracks is a later question (the spec's F12).
+
+**Next:** labs for the other thirteen Module 1 topics, the ones needing systemd first (services and logs); the checkpoint as a debug lab with five planted faults.
+
 ## 2026-11-09: The lab view
 
 The topic page can now show a lab (ADR-0018). `ExerciseView` hands any exercise with `runtime: lab` to a new `LabExercise`: the prompt; the three `labcheck.py` commands with the lab's name filled in, and a note that Docker Desktop has to be running; for a worked example, the walkthrough script with its labelled steps; the list of checks, each with a circle that becomes a tick or a cross; and a box for the checker's printed result with a Record button. `parseLabResult` (in `web/src/labs/result.ts`, pure and tested) refuses anything that isn't a result, a result for another lab, or one for another revision, and recounts the passes from the checks rather than trusting the numbers. Recording raises a new `lab` activity, which `PracticeItem` saves as a `code_check` event with `labEventData`: `runtime: lab`, the checker's version, the time, the counts and the failing ids. Because it's a `code_check` on the topic's build or debug item, progress treats a passed lab as that proof with no change to the derivation. Written hints work for the stages that allow them; the tutor stays off, since it has no code to look at.

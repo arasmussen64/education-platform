@@ -99,8 +99,8 @@ Mornings learning on the platform, afternoons building it.
   - [x] More than one track in the app: the map and topic pages know every track (2026-11-08)
   - [x] The track on the map as `planned` outlines, generated from the spec (2026-11-08)
   - [x] Decide how the shell is taught and proven ([ADR-0017](decisions/0017-shell-in-the-browser.md), accepted 2026-11-09): a `predict_shell` item proven by real `bash` in the validator, local container labs through the lab checker, a browser VM later
-  - [ ] Stage 1 content: Module 1's lessons and recall first ([x] all 14 topics drafted on 2026-11-09, with 228 recall items; they go ready, with the checkpoint, once the lab checker's local mode gives them their hands-on half), then the drills that run in the browser
-  - [ ] The lab checker ([ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09). [x] Local mode (2026-11-09, [ADR-0018](decisions/0018-lab-checker-local-mode.md)): `tools/labcheck.py` builds a lab's container from `content/`, runs its checks, prints a result to paste, and proves every lab's contract in CI; the first lab is Shell essentials' build. [ ] The lab view on the topic page. [ ] Cloud mode, with recordings.
+  - [ ] Stage 1 content: Module 1's lessons and recall first ([x] all 14 topics drafted on 2026-11-09, with 228 recall items), then their labs ([x] Shell essentials ready on five labs, 2026-11-09; [ ] the other thirteen topics; [ ] the checkpoint), then the drills that run in the browser
+  - [ ] The lab checker ([ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09). [x] Local mode (2026-11-09, [ADR-0018](decisions/0018-lab-checker-local-mode.md)): `tools/labcheck.py` builds a lab's container from `content/`, runs its checks, prints a result to paste, and proves every lab's contract in CI; the first lab is Shell essentials' build. [x] The lab view on the topic page (2026-11-09). [ ] Cloud mode, with recordings.
   - [ ] Design reviews, game days and "Defend it"
 
 ## The owner's 12-month learning milestone

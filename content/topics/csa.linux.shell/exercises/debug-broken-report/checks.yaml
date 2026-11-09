@@ -1,0 +1,19 @@
+# The checks for "The report that lies": each line of the script's output
+# against the same answer worked out directly, on two logs.
+checks:
+  - id: requests-line
+    description: "The requests line counts the lines of the log."
+    command: |
+      test "$(/home/learner/bin/report /var/log/shop/access.log | sed -n 1p)" = "requests: $(wc -l < /var/log/shop/access.log)"
+  - id: failed-line
+    description: "The failed line counts only the requests whose status is in the 500s."
+    command: |
+      test "$(/home/learner/bin/report /var/log/shop/access.log | sed -n 2p)" = "failed: $(awk '$3 ~ /^5[0-9][0-9]$/' /var/log/shop/access.log | wc -l)"
+  - id: top-line
+    description: "The top line names the most requested path."
+    command: |
+      test "$(/home/learner/bin/report /var/log/shop/access.log | sed -n 3p)" = "top: $(awk '{print $2}' /var/log/shop/access.log | sort | uniq -c | sort -rn | head -n 1 | awk '{print $2}')"
+  - id: other-log
+    description: "All three lines are right for old-access.log as well."
+    command: |
+      diff -q <(/home/learner/bin/report /var/log/shop/old-access.log) <(printf 'requests: %s\nfailed: %s\ntop: %s\n' "$(wc -l < /var/log/shop/old-access.log)" "$(awk '$3 ~ /^5[0-9][0-9]$/' /var/log/shop/old-access.log | wc -l)" "$(awk '{print $2}' /var/log/shop/old-access.log | sort | uniq -c | sort -rn | head -n 1 | awk '{print $2}')")

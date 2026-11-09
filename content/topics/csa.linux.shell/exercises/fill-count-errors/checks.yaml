@@ -1,0 +1,15 @@
+# The checks for "Finish the error counter": the script runs, and its output
+# matches the same question answered directly, on two different logs.
+checks:
+  - id: script-runs
+    description: "~/bin/count-errors is executable and has no gaps left."
+    command: |
+      test -x /home/learner/bin/count-errors && ! grep -q '\.\.\.' /home/learner/bin/count-errors
+  - id: app-log
+    description: "On app.log it prints the number of error lines, then the first one."
+    command: |
+      diff -q <(/home/learner/bin/count-errors /var/log/shop/app.log) <(grep -c -i error /var/log/shop/app.log; grep -i error /var/log/shop/app.log | head -n 1)
+  - id: worker-log
+    description: "It works on another log too: worker.log."
+    command: |
+      diff -q <(/home/learner/bin/count-errors /var/log/shop/worker.log) <(grep -c -i error /var/log/shop/worker.log; grep -i error /var/log/shop/worker.log | head -n 1)

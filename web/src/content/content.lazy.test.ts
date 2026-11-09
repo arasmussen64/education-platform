@@ -10,14 +10,16 @@ import {
 } from './content.ts'
 
 // Vitest gives each test file a fresh copy of content.ts, so this file sees
-// the app as it first loads: with the main track's outlines bundled in and
-// the cloud track's not yet downloaded. Keep these tests in order; each
-// builds on the one before.
+// the app as it first loads: with the main track's outlines bundled in, the
+// cloud track's Module 1 bundled in too, and the rest of the cloud track not
+// yet downloaded. Keep these tests in order; each builds on the one before.
 
 const CLOUD = 'cloud-solutions-architect'
+/** The cloud track's module with real content, bundled into the app. */
+const isBundled = (id: string) => id.startsWith('csa.linux.')
 
 describe('topic outlines that load on demand', () => {
-  it('bundles the main track in, and leaves an outline-only track out', () => {
+  it('bundles the main track and the module being written, and leaves the outlines out', () => {
     expect(trackTopicsLoaded(mainTrack().id)).toBe(true)
     expect(getTopic('py.variables')).toBeDefined()
 
@@ -25,7 +27,8 @@ describe('topic outlines that load on demand', () => {
     if (!cloud) throw new Error('the cloud track should exist')
     expect(trackTopicsLoaded(CLOUD)).toBe(false)
     for (const id of topicIdsOf(cloud)) {
-      expect(getTopic(id), id).toBeUndefined()
+      if (isBundled(id)) expect(getTopic(id), id).toBeDefined()
+      else expect(getTopic(id), id).toBeUndefined()
     }
   })
 
@@ -46,8 +49,8 @@ describe('topic outlines that load on demand', () => {
       status: 'planned',
       practice: [],
     })
-    // A topic being written loads with the rest of its track.
-    expect(getTopic('csa.linux.shell')?.status).toBe('draft')
+    // The bundled module's first topic is ready, with its labs.
+    expect(getTopic('csa.linux.shell')?.status).toBe('ready')
   })
 
   it("has nothing to do for a track bundled in, or a topic's track", async () => {
@@ -58,16 +61,14 @@ describe('topic outlines that load on demand', () => {
   })
 
   // The Today page, the follow-ups and the interleaved questions only look at
-  // the topics bundled in, so a lazy track must have nothing a learner could
-  // open on the live site: no ready topic. Drafts are fine: only the dev
-  // server shows them, and a topic page loads its track first. When the cloud
-  // track gets its first ready topic, bundle it in (or teach those pages to
-  // load it) and change this test.
-  it('keeps every lazy track without a ready topic, so nothing open is missed', () => {
+  // the topics bundled in, so a topic that loads on demand must never be
+  // ready. When another cloud module gets content, bundle it in too (the
+  // bundledCloudFiles glob in content.ts, and its exclusion in outlines/).
+  it('keeps every topic that loads on demand unready, so nothing open is missed', () => {
     const cloud = getTrack(CLOUD)
     if (!cloud) throw new Error('the cloud track should exist')
     for (const id of topicIdsOf(cloud)) {
-      expect(getTopic(id)?.status, id).not.toBe('ready')
+      if (!isBundled(id)) expect(getTopic(id)?.status, id).not.toBe('ready')
     }
   })
 })
