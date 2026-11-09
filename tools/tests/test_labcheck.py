@@ -156,6 +156,30 @@ def test_waiting_for_boot_gives_up_and_says_what_systemd_said(monkeypatch) -> No
         )
 
 
+def test_removing_a_running_container_runs_its_teardown_first(monkeypatch) -> None:
+    calls: list[tuple[str, ...]] = []
+
+    def fake_docker(*args: str, **_: object):
+        calls.append(args)
+        if args[0] == "inspect":
+            return subprocess.CompletedProcess([], 0, stdout="true\n", stderr="")
+        return subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+    monkeypatch.setattr(labcheck, "docker", fake_docker)
+    labcheck.remove_container("box")
+    assert [call[0] for call in calls] == ["inspect", "exec", "rm"]
+    assert labcheck.TEARDOWN in calls[1][-1]
+
+    # A container that isn't running has nothing to let go of.
+    calls.clear()
+    monkeypatch.setattr(
+        labcheck,
+        "docker",
+        lambda *args, **_: subprocess.CompletedProcess([], 1, stdout="", stderr=""),
+    )
+    labcheck.remove_container("gone")
+
+
 def test_the_result_carries_only_what_the_site_needs(tmp_path: Path) -> None:
     content = tmp_path / "content" / "topics"
     lab = "t.hello/exercises/lab-hello"

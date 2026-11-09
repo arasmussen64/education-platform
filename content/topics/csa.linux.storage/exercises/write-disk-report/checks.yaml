@@ -1,0 +1,21 @@
+# The checks for "Write disk-report": each line of the script's answer for
+# /srv/shop against the same question answered directly.
+checks:
+  - id: used-line
+    description: "The used line matches what df says for /srv/shop."
+    command: |
+      test "$(runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^used:')" = "used: $(df --output=pcent /srv/shop | tail -n 1 | tr -d ' ')"
+  - id: inodes-line
+    description: "The inodes line matches what df -i says."
+    command: |
+      test "$(runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^inodes:')" = "inodes: $(df --output=ipcent /srv/shop | tail -n 1 | tr -d ' ')"
+  - id: biggest-line
+    description: "The biggest line names the logs folder, which holds the most."
+    command: runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^biggest:'
+    expect:
+      equals: "biggest: /srv/shop/logs"
+  - id: deleted-line
+    description: "The deleted-but-open line counts the one log a process is still holding."
+    command: runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^deleted but open:'
+    expect:
+      equals: "deleted but open: 1"

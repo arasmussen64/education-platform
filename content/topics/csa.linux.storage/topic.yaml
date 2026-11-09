@@ -1,6 +1,6 @@
 id: csa.linux.storage
 kind: topic
-status: draft
+status: ready
 title: "Disks and filesystems"
 summary: "From a raw disk to files you can use: partitions, filesystems, mount points and fstab; growing a disk in the cloud, with LVM; the two ways a disk fills up and how to fix each; and what durability costs."
 prerequisites: [csa.linux.shell]
@@ -47,10 +47,14 @@ resources:
     type: reading
     use: link
     license: "Copyright Dan Luu; linked, not copied"
-# Lessons and recall first (ADR-0017). The browser has no disks, so the
-# items read lsblk, df, du, blkid, fstab, lsof and vgs output with the text
-# tools of the first topic; formatting, mounting and growing come in the labs.
+# The browser has no disks, so the recall items read lsblk, df, du, blkid,
+# fstab, lsof and vgs output with the text tools of the first topic. The
+# worked example, the fill-in, the write and both proofs are labs on a
+# machine with real (loop-device) disks attached: formatting, mounting,
+# fstab, a full disk, a deleted file held open, and growing a volume
+# (ADR-0017, ADR-0018).
 practice:
+  - example-new-disk
   - disk-lsblk-disks
   - mcq-mount-steps
   - disk-blkid-types
@@ -68,7 +72,11 @@ practice:
   - mcq-grow-cloud-disk
   - mcq-fsync
   - mcq-iops-throughput
+  - fill-add-disk
+  - write-disk-report
 prove:
+  build: build-full-disk
+  debug: debug-wont-mount
   explain:
     prompt: |
       A server's disk is full and the application has stopped writing. Explain, in your own words: how you'd find what is using the space, and the two different ways a disk can be "full"; why deleting a huge log file sometimes frees nothing, and what to do instead; how you'd grow the disk in the cloud without downtime, and what LVM adds to that; how you'd choose between ext4 and XFS for a new volume; and what `fsync` does and why turning it off to make a database faster is dangerous.

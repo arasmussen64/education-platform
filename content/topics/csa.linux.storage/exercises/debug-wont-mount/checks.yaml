@@ -1,0 +1,23 @@
+# The checks for "The disks that didn't come back": the three volumes are
+# mounted from the right disks, fstab still names them by UUID, and
+# mount -a has nothing left to complain about.
+checks:
+  - id: shop-mounted
+    description: "/srv/shop is mounted from data1."
+    command: test "$(findmnt -n -o SOURCE /srv/shop)" = "$(readlink -f /dev/lab/data1)"
+  - id: backups-mounted
+    description: "/srv/backups is mounted from data2, as XFS."
+    command: |
+      test "$(findmnt -n -o SOURCE /srv/backups)" = "$(readlink -f /dev/lab/data2)" && findmnt -n -o FSTYPE /srv/backups
+    expect:
+      equals: xfs
+  - id: archive-mounted
+    description: "/srv/archive exists and is mounted from data3."
+    command: test "$(findmnt -n -o SOURCE /srv/archive)" = "$(readlink -f /dev/lab/data3)"
+  - id: fstab-by-uuid
+    description: "fstab still names all three by UUID, and the shop's UUID is the right one."
+    command: |
+      test "$(grep -c '^UUID=' /etc/fstab)" -eq 3 && grep -q '^UUID=11111111-1111-4111-8111-111111111111[[:space:]]' /etc/fstab
+  - id: mount-a-quiet
+    description: "mount -a succeeds."
+    command: mount -a > /dev/null 2>&1

@@ -1,0 +1,26 @@
+# The checks for "Finish the add-disk script": the first runs it on the new
+# volume; the rest look at the filesystem, the mount and fstab.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/add-disk"
+  - id: runs
+    description: "add-disk /dev/lab/data2 /srv/backups runs through."
+    command: |
+      findmnt -n /srv/backups > /dev/null 2>&1 || /home/learner/bin/add-disk /dev/lab/data2 /srv/backups > /dev/null
+  - id: xfs
+    description: "data2 carries an XFS filesystem."
+    command: blkid -s TYPE -o value "$(readlink -f /dev/lab/data2)"
+    expect:
+      equals: xfs
+  - id: mounted
+    description: "data2 is mounted at /srv/backups."
+    command: test "$(findmnt -n -o SOURCE /srv/backups)" = "$(readlink -f /dev/lab/data2)"
+  - id: fstab-by-uuid
+    description: "/etc/fstab names it by UUID, at /srv/backups, as xfs, with nofail."
+    command: |
+      uuid=$(blkid -s UUID -o value "$(readlink -f /dev/lab/data2)")
+      grep -E "^UUID=$uuid[[:space:]]+/srv/backups[[:space:]]+xfs[[:space:]]+[^[:space:]]*nofail" /etc/fstab
+  - id: fstab-works
+    description: "mount -a is happy with fstab."
+    command: mount -a > /dev/null 2>&1

@@ -1,0 +1,44 @@
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+# systemd as PID 1 (the checker starts the container with /sbin/init) with
+# D-Bus, which systemctl needs when it isn't root; an SSH server, as every
+# server has; apt-utils, for the labs that build a package repository; the
+# disk tools (XFS, LVM, lsof) for the labs with disks; the learner's account
+# with sudo and the right to read the journal, as a cloud image's default
+# user has; the shop's unprivileged service account; and the tools the labs
+# use. Identical in every lab that boots systemd, so Docker builds this
+# layer once.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends systemd systemd-sysv dbus openssh-server apt-utils xfsprogs lvm2 lsof sudo nano less curl python3 procps \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd -m -s /bin/bash -G adm,systemd-journal learner \
+ && echo 'learner ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/learner \
+ && chmod 440 /etc/sudoers.d/learner \
+ && useradd -r -s /usr/sbin/nologin shop
+
+# The lab's disks: image files attached as block devices at boot (disks.sh)
+# and let go of when the lab stops (teardown.sh, which the checker runs),
+# the "cloud console" stand-in that grows one (lab-grow), and LVM told not
+# to wait for udev, which a container doesn't run.
+COPY disks.sh /usr/local/lib/lab/disks.sh
+COPY teardown.sh /usr/local/lib/lab/teardown.sh
+COPY lab-grow /usr/local/bin/lab-grow
+COPY lab-disks.service /etc/systemd/system/lab-disks.service
+RUN chmod 755 /usr/local/lib/lab/disks.sh /usr/local/lib/lab/teardown.sh /usr/local/bin/lab-grow \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants /etc/lab /var/lib/lab \
+ && ln -s /etc/systemd/system/lab-disks.service /etc/systemd/system/multi-user.target.wants/lab-disks.service \
+ && sed -i -E 's/^(\s*)#?\s*udev_sync = 1/\1udev_sync = 0/; s/^(\s*)#?\s*udev_rules = 1/\1udev_rules = 0/; s/^(\s*)#?\s*monitoring = 1/\1monitoring = 0/' /etc/lvm/lvm.conf
+
+# The shop's two data disks, the log shipper that holds a deleted log open,
+# and the unit that uses up the uploads volume's last inodes.
+COPY make-disks.sh /usr/local/lib/lab/make-disks.sh
+COPY log-shipper /usr/local/lib/lab/log-shipper
+COPY log-shipper.service /etc/systemd/system/log-shipper.service
+COPY fill-inodes.service /etc/systemd/system/fill-inodes.service
+RUN bash /usr/local/lib/lab/make-disks.sh && rm /usr/local/lib/lab/make-disks.sh \
+ && chmod 755 /usr/local/lib/lab/log-shipper \
+ && ln -s /etc/systemd/system/log-shipper.service /etc/systemd/system/multi-user.target.wants/log-shipper.service \
+ && ln -s /etc/systemd/system/fill-inodes.service /etc/systemd/system/multi-user.target.wants/fill-inodes.service
+
+CMD ["/sbin/init"]

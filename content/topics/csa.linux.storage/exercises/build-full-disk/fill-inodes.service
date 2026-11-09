@@ -1,0 +1,14 @@
+# Uses up the last inodes on the uploads volume at boot, so it has space
+# free and no room for a single new file. Part of the lab's scenery.
+[Unit]
+Description=Leftover upload parts
+After=lab-disks.service
+Requires=lab-disks.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/bash -c 'for i in $(seq 1 200); do touch /srv/shop/uploads/tmp/leftover-$i.part 2>/dev/null || break; done'
+
+[Install]
+WantedBy=multi-user.target

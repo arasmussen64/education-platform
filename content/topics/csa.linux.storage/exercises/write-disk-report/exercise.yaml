@@ -1,0 +1,23 @@
+id: write-disk-report
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write disk-report"
+prompt: |
+  Write a script, `~/bin/disk-report MOUNTPOINT`, that answers the four questions you ask about a filesystem that's filling up, as four lines:
+
+  ```
+  used: 83%
+  inodes: 1%
+  biggest: /srv/shop/logs
+  deleted but open: 1
+  ```
+
+  `used` is the filesystem's space in use, as `df` reports it; `inodes` the same for inodes; `biggest` the top-level folder inside the mount point that holds the most; and `deleted but open` how many files on that filesystem have been deleted but are still held open by some process (space `df` counts but `du` can't find). The lab has the shop's data disk mounted at `/srv/shop`, and a process on the machine is holding a deleted log open. Make the script executable, run it on `/srv/shop`, and run the checks.
+hints:
+  - "`df --output=pcent MOUNT | tail -n 1 | tr -d ' '` gives just the percentage; `df --output=ipcent` does the same for inodes."
+  - "`sudo du -sk MOUNT/* | sort -rn | head -n 1 | cut -f2` finds the biggest top-level folder: sizes in kilobytes, biggest first, keep the first line, keep its path (the second tab-separated field)."
+  - "`sudo lsof +L1` lists deleted files still held open, one per line, with the path near the end of the line; `grep -c \" MOUNT/\"` counts the ones on your filesystem. It needs `sudo`, or you only see your own processes' files."
+skills: [disk-full, block-devices]
