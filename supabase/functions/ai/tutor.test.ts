@@ -95,6 +95,15 @@ Deno.test('the request: every block in its tags, and the rung at the end', () =>
   })
 })
 
+Deno.test('the instructions: hints only, and spoken to the learner as "you"', () => {
+  const system = tutorRequest(INPUT, 'claude-haiku-5-5', 'low').system as string
+  assert.match(system, /never to give it to them/)
+  // Version 2: two test-set replies said "the learner's question" to the
+  // learner themselves, echoing the block labels. The rule rules that out.
+  assert.match(system, /Speak to the learner directly, as "you"\. Never call them "the learner"/)
+  assert.match(system, /never mention the author, the blocks you were given or the rung/)
+})
+
 Deno.test('an empty editor and no Check yet are said plainly', () => {
   const content = tutorRequest(
     { ...INPUT, code: '  ', check: null, question: '' },

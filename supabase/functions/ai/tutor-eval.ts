@@ -2,8 +2,9 @@
 // gives a solution away, and to read the hints it gives. It uses the very
 // same request and reading as the proxy (tutor.ts).
 //
-// Every run costs real money: about $0.01 for the whole set on Claude Haiku
-// 5.5, about $0.15 on Claude Sonnet 5.5. So the owner approves each run.
+// Every run costs real money: about half a cent for the whole set on Claude
+// Haiku 5.5 (measured 2026-11-09), about $0.10 on Claude Sonnet 5.5. So the
+// owner approves each run.
 // It reads the API key from supabase/functions/.env.
 //
 //   npm run fn:eval:tutor -- [model] [effort]     (defaults: claude-haiku-5-5 low)

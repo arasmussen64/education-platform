@@ -56,6 +56,8 @@ As for grading: the cheapest model that passes the test set, with the test set r
 2. The owner says go, and the function is deployed: `npx supabase functions deploy ai --no-verify-jwt --yes` (no migration this time).
 3. The owner approves a run of the tutor test set: `npm run fn:eval:tutor`. If a sample fails, the prompt changes before the model does.
 
+All three steps were done on 2026-11-09: the owner deployed the function and ran the test set, and 25 of 25 replies were fine on Haiku 5.5 at low effort, for $0.0044. Two replies spoke of "the learner" in the third person, so the instructions gained a rule about voice (`TUTOR_PROMPT_VERSION` 2), to be re-run and redeployed.
+
 ## Alternatives considered
 
 - **Written hints only, no AI tutor.** Free and predictable, but a written hint can't look at the learner's code, and the owner's own experience is that "what's wrong with *my* code" is where beginners get stuck.
