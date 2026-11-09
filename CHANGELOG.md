@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (content: Parsons problems everywhere)
+
+- **Eighteen more Parsons problems**, so 29 of the track's 30 topics have one right after the worked example (Testing with assert is the exception: a test's `assert` lines can go in any order, so no single order would be right). Six are also in their topic's review pool. Each decoy teaches something from its topic: `"Age: " + age` without `str()`, `/` where `//` was meant, `print(age = 21)` for `==`, `and member` for `and not member`, a `print` without `end=""` in a grid, `print(total)` outside the function that owns it, `scores.sort()` assigned to a name, `copy = original` for a real copy, `student.scores` for `student["scores"]`, plain `mean` without its module, and more.
+
 ### Added (Parsons problems)
 
 - **A new kind of practice question: put the lines in order** ([ADR-0016](docs/decisions/0016-parsons-problems.md)). A short program's lines are scrambled, with a decoy that doesn't belong, and you build the program with Add, Up, Down and Remove, then Check. It's right when the lines are exactly in the right order without the decoy; otherwise it shows the program and explains. The buttons work with a keyboard and on a phone. The scramble is the same every time an item comes back, and never the solved order.
