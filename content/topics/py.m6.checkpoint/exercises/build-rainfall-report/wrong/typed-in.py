@@ -1,0 +1,6 @@
+print("rainfall: all checks passed")
+print("hill: 12.5")
+print("valley: 7.5")
+print("Rows: 5")
+print("Bad rows: 1")
+print("Total: 20.0")

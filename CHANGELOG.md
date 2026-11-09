@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Module 6 content: Real programs)
+
+- **Five new topics, all ready:** Exceptions, Files, CSV data, Modules and libraries, and From spec to program. Each has a lesson, a practice ladder, the three proof checks, a review pool and skills.
+  - Four are built on CS50P clips timed from CS50's subtitles: Lecture 3 for exceptions (0:28 to 26:30, the rest linked), Lecture 6 for text files (0:28 to 30:26) and for the `csv` module (1:01:35 to 1:19:02), and Lecture 4 for the standard library (0:28 to 19:13, with the own-module ending linked). From spec to program is the platform's own lesson, with Think Python's "Incremental development" section (CC BY-NC-SA 4.0) as the reading.
+  - Exercise tests can create files and read what the learner's program wrote, so file work is tested for real: `with`, modes, line breaks, `FileNotFoundError`, `csv.DictReader`, totals by group.
+  - Two hidden tests import the learner's file and check that importing prints nothing, which is what `if __name__ == "__main__":` is for.
+- **Checkpoint 6: CSV report tool,** the track's capstone, set as a prose spec: read a sales CSV, skip and count the bad rows, total by region, write the report to a file and print it; with tests, docstrings, untouched data and `main` under the guard. A debug that crashes on a bad row, overwrites totals and loses its report file; a module-level explain. The way through: an attendance-report sibling, the build in four steps, and two fresh versions (expenses by category, rainfall by station). Every test names the skills it checks, across Modules 1 to 6.
+- In all: 40 more exercises and 26 more recall items. The validator runs 910 programs over the content with no problems; 36 topics are ready: the whole Python Foundations track.
+
 ### Added (Module 5 content: Collections)
 
 - **Five new topics, all ready:** Lists, List algorithms, References and mutation, Dictionaries, and Nested data. Each has a lesson, a practice ladder, the three proof checks, a review pool and skills.
@@ -28,6 +37,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - Two helpers for exercise tests, in `checks.py`: `function(name)` loads a function from the learner's file (failing with "Define a function called ..." when it's missing, swallowing anything the file prints while loading, and saying so plainly if the file asks for input), and `printed(f, *args)` returns what a call prints. A new scenario, `check-functions`, pins their behavior in both runtimes.
 - The test runner keeps anything printed during a Check out of the report, so the command-line checker's output stays clean and the Check button shows results only.
+- A scenario, `check-files`, pins that tests and learner programs can create and read files in the working folder, in both runtimes.
 
 ### Added (report a problem)
 

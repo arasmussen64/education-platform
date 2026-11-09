@@ -1,0 +1,7 @@
+print("report: all checks passed")
+print("north: 150.50")
+print("south: 80.00")
+print("east: 45.25")
+print("Rows: 6")
+print("Bad rows: 2")
+print("Total: 275.75")

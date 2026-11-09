@@ -1,0 +1,27 @@
+id: example-attendance-report
+stage: worked_example
+rev: 1
+title: "An attendance report"
+prompt: |
+  This program is the checkpoint's build in a different story: a CSV of class attendance with some bad rows, totals per class, a report written to a file and printed. Press **Run**, then read it in the order it was written: spec and examples, the sample file, reading and cleaning, totals, the report, tests and `main`.
+
+  The shape is the module's: `csv.DictReader` for the rows, `try` and `except` to turn a bad value into `None`, a dictionary for the totals, `with open(..., "w")` for the report, and small functions that return values so the tests can check them.
+steps:
+  - label: "The spec, then its examples"
+    lines: "1-8"
+    note: "Written before any code: the ordinary case worked out by hand (math 25 + 27 = 52), the bad row, and the empty case the spec didn't mention."
+  - label: "A file to work on"
+    lines: "12-19"
+    note: "Plain `write` calls make the CSV: a header line, then one record per line. There's nothing special about a CSV file; it's text with commas."
+  - label: "Read, then decide which rows are good"
+    lines: "22-43"
+    note: "`read_rows` turns the whole file into a list inside the `with`, so the file can close. `present_in` tries `int()` and returns `None` on a `ValueError`; it never crashes. `good_rows` keeps the rows where that gave a number."
+  - label: "Totals by class"
+    lines: "46-53"
+    note: "The class name is the key; `get(name, 0)` is the total so far, or 0 the first time. Only good rows reach this loop, so no `None` is ever added."
+  - label: "The report as lines, and writing it"
+    lines: "56-75"
+    note: "`report_lines` returns the lines rather than printing them, so the test can compare them and `main` can both save and print them. `write_report` opens the file once, with `\"w\"`, and writes every line with its line break."
+  - label: "Tests, then the program"
+    lines: "78-107"
+    note: "The tests use a small list of rows, including a bad one and a blank one, so they don't need a file. `main` is the only place anything is printed, and it runs after the tests, under the guard."

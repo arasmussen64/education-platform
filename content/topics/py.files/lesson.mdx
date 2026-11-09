@@ -1,0 +1,40 @@
+<Intro>
+
+Everything a program has worked out so far vanishes when it ends. Files are how programs remember: text saved on disk that the next run, or another program, can read. In this clip David saves a list of names to a file and reads them back. Watch for:
+
+- **`open("names.txt", "w")`** and **`file.write(...)`**, then **`file.close()`**. Then the surprise: running the program three times leaves only one name, because `"w"` starts the file empty each time. **`"a"`** (append) is the fix.
+- **`\n`**: without it, every name lands on the same line.
+- **`with open(...) as file:`**, which closes the file for you when the indented block ends. From here on, every file is opened this way.
+- **Reading:** `file.readlines()` gives a list of lines; `for line in file:` gives them one at a time. Each one still ends with its line break, which is why **`line.rstrip()`** appears.
+- **Sorting** what was read: the lines go into a list first, then `sorted`.
+
+The clip stops where David turns to CSV files, which is the next topic. Then read the tutorial's **Reading and Writing Files** section, down to the part about JSON.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+```python
+with open("names.txt", "w") as f:        # "w": write, starting empty
+    f.write("Ada\n")                      # one line: text plus \n
+    f.write("Bob\n")
+
+with open("names.txt", "a") as f:        # "a": append to the end
+    f.write("Cy\n")
+
+with open("names.txt") as f:             # no mode: read
+    for line in f:                        # one line at a time
+        print(line.rstrip())              # without its line break
+```
+
+- **`with open(path, mode) as f:`** opens the file, names it `f` inside the block, and **closes it when the block ends**, even if an error happens inside. Text you write isn't guaranteed to be on disk until the file is closed, so always use `with`.
+- **Modes:** `"w"` writes and **erases** whatever was there; `"a"` appends; no mode (or `"r"`) reads. Opening for reading never creates a file.
+- **Writing** is `f.write(text)`, and `write` adds nothing: put `"\n"` at the end of each line yourself. `f.write(f"{name}\n")` is the usual shape.
+- **Reading:** `for line in f` visits each line, **including its `\n`**; `line.rstrip()` removes it. `f.readlines()` gives all the lines as a list; `f.read()` gives the whole file as one string.
+- **A missing file** raises `FileNotFoundError` when opened for reading. Catch it with `try` / `except FileNotFoundError` and decide what the program should do: say so, or start from empty.
+- **Lines are text.** A file of numbers comes back as strings; convert with `int()` or `float()`, inside a `try` if the file might be messy.
+- Here, files live in the page's sandbox and disappear when you leave; on your own computer, `open("names.txt")` means a file in the folder the program runs from.
+
+</Recap>

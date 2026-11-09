@@ -1,10 +1,64 @@
 id: py.spec-to-program
 kind: topic
-status: planned
+status: ready
 title: "From spec to program"
-summary: "Plan before coding: examples, then decomposition, then tests, then small steps."
+summary: "Plan before coding: turn a spec into examples, split the job into functions, write the tests, then build in small steps."
 prerequisites: [py.csv-data, py.modules-and-libraries]
-estimated_minutes: 35
+estimated_minutes: 40
 rev: 1
 objectives:
-  - "Plan before coding: examples, then decomposition, then tests, then small steps."
+  - "Turn a written spec into concrete examples: inputs, the exact expected output for each, and the edge cases the spec implies or leaves open."
+  - "Plan the functions before writing their bodies: a name, what goes in, what comes back, and which function calls which."
+  - "Write the asserts from the examples first, then build one function at a time, running after each step."
+resources:
+  - title: "Think Python, 3rd edition, chapter 6, section 6.4: Incremental development, by Allen B. Downey"
+    url: https://allendowney.github.io/ThinkPython/chap06.html#incremental-development
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+practice:
+  - example-quiz-scorer
+  - mcq-spec-examples
+  - predict-stub-fails
+  - mcq-decompose
+  - fill-spec-to-tests
+  - write-clamp-tests
+prove:
+  build: build-parking-fees
+  debug: debug-library-fines
+  explain:
+    prompt: |
+      A friend gets a one-paragraph spec for a small program and wants to start typing code straight away. Talk them through the method from this topic, in your own words: what you'd write down before any code, and why examples rather than just a careful reading; how you'd decide what functions to write; why the tests come before the function bodies, and what a stub is for; why you add one function at a time and run after each; and what to do when the spec doesn't say what should happen in some case.
+    rubric:
+      - id: examples
+        required: true
+        description: "Write concrete examples from the spec first: ordinary cases, each boundary the words imply, just past each boundary, and the empty or zero case; each one becomes a test."
+      - id: plan
+        required: true
+        description: "Split the job into small functions named for what they return, each with its inputs and result decided before its body; main composes them and does the printing."
+      - id: tests-first
+        required: true
+        description: "Turn the examples into asserts in a test function while the functions are still stubs that return a placeholder, and run it: it must fail first, which proves the test can fail."
+      - id: small-steps
+        required: true
+        description: "Write one function, run the tests, fix, then the next; a failure then points at the few lines just added."
+      - id: gaps
+        required: true
+        description: "When the spec is silent, decide something sensible, write the decision down as an example, and check it with whoever wrote the spec."
+    model_answer: |
+      Before any code, I'd write down examples: concrete inputs with the exact output the spec wants for each. Reading carefully isn't enough, because the questions only show up when you try to write an answer down: "100 or more" means 100 counts, so there's an example at 100 and one at 99.99; there's an example for the empty or zero case; and somewhere the spec goes quiet, say about a negative number. For those gaps I decide something sensible, write it as an example too, and ask whoever wrote the spec. Then I plan the functions: each one named for what it returns, with its inputs and its result decided, and main calling them in turn and doing the printing. I write them as stubs first, bodies that just return 0 or an empty list, so the file runs. The tests come next, before the real bodies: one assert per example in a test function. Run against the stubs, they fail, and that matters, because a test that has never failed hasn't proved it can. Then I fill in one function, run the tests, fix it, and move to the next, so when something breaks it's in the few lines I just wrote, not anywhere in fifty.
+review_pool:
+  - review-mcq-small-steps
+  - review-code-discount
+  - mcq-spec-examples
+  - predict-stub-fails
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: read-spec
+    description: "Turn a spec into examples and edge cases, and notice what it leaves open"
+  - id: decompose-plan
+    description: "Plan small functions (name, inputs, result) and compose them in `main`"
+  - id: test-first
+    description: "Write asserts from the examples before the code, and build in small, run-often steps"

@@ -65,6 +65,8 @@ Tips for tests: give each test a one-line docstring, which is what the learner s
 
 Tests of functions (Module 4 on) load the learner's function with `function("name")` from `checks`, never with `from solution import name` at the top of the file: a missing function then fails one test with "Define a function called name", instead of stopping every test with an import error. `printed(f, *args)` captures what a call prints. A program whose functions are tested should call `main()` only under `if __name__ == "__main__":`, so loading it for the tests doesn't run it (and doesn't ask for input).
 
+Tests that need a file (Module 6 on) create it first, with `Path("name.txt").write_text(...)`: nothing else is copied next to the learner's file, so a data file always comes from the test or from the program. `run()` leaves what the program wrote in place, so a test can `read_text` it afterwards.
+
 Hidden tests (in build and `review_code` exercises) must fail with an `assert`, never crash. The page hides why a hidden test failed, but it shows a crash, because a crash is usually in the learner's own code. A crash inside the tests, like a `KeyError` from a missing line, would show how they work. The checker runs each hidden-test exercise on an empty program to catch this.
 
 When an exercise could be passed by typing the expected output in by hand, add a test with `run_with`, which reruns the program with other starting values. A swap must then swap *any* two values (see the Variables topic). Add the hand-typed version as a known-wrong solution, so the checker proves the test catches it.

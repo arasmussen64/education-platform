@@ -1,10 +1,83 @@
 id: py.exceptions
 kind: topic
-status: planned
+status: ready
 title: "Exceptions"
-summary: "Handle errors with try/except, validate input, and raise your own."
+summary: "Handle errors with try and except, keep asking until input is valid, and raise errors of your own."
 prerequisites: [py.m5.checkpoint]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Handle errors with try/except, validate input, and raise your own."
+  - "Catch a specific error with `try` and `except`, and know which lines run when the error happens and when it doesn't."
+  - "Keep asking until the input is valid: a loop around `try`, with `return` or `break` on success."
+  - "Raise an error yourself, with a message, when a function is given something it can't work with."
+resources:
+  - title: "CS50P Lecture 3: Exceptions, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=LW7g1169v7w&t=28s
+    type: video
+    use: embed
+    # From the start to the loop that keeps asking (0:28 to 26:30): a
+    # ValueError from int(), try and except, where the risky line goes,
+    # else, and while True around it all.
+    start: 28
+    end: 1590
+    license: CC BY-NC-SA 4.0
+  - title: "CS50P Lecture 3, the rest: get_int as a function, pass, a prompt parameter, and raise (26:30 to 44:31)"
+    url: https://www.youtube.com/watch?v=LW7g1169v7w&t=1590s
+    type: video
+    use: link
+    start: 1590
+    end: 2671
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: Handling Exceptions and Raising Exceptions (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/errors.html#handling-exceptions
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-get-int
+  - mcq-which-error
+  - predict-try-flow
+  - mcq-else-clause
+  - mcq-loop-exit
+  - fill-validate
+  - write-safe-divide
+prove:
+  build: build-parse-ages
+  debug: debug-exceptions
+  explain:
+    prompt: |
+      A friend's program crashes with `ValueError: invalid literal for int() with base 10: 'ten'` when someone types `ten` for their age. Explain, in your own words: what an exception is; what `try` and `except ValueError` do, and why you name the error rather than catching everything; where the risky line has to go; why a loop around it lets the person try again; and when you would `raise` an error yourself.
+    rubric:
+      - id: exception
+        required: true
+        description: "An exception is an error that happens while the program runs; unhandled, it stops the program with a traceback."
+      - id: try-except
+        required: true
+        description: "The lines under try are attempted; if the named error happens, the except block runs instead and the program carries on; naming ValueError means other, unexpected errors still stop the program so bugs aren't hidden."
+      - id: placement
+        required: true
+        description: "The line that can fail, int(text), must be inside the try; what uses the result goes after, or in else."
+      - id: loop
+        required: true
+        description: "while True around the try: on success return or break, on a ValueError print a message and go round again."
+      - id: raise
+        required: false
+        description: "raise ValueError(\"...\") in your own function when it's given a value it can't work with, so the caller finds out at once."
+    model_answer: |
+      An exception is an error that happens while the program is running, like turning the text ten into a number. If nothing handles it, Python stops the program and prints a traceback. try and except let you handle it: the lines under try are attempted, and if a ValueError happens there, Python jumps to the except block, runs it, and carries on after. You name ValueError rather than catching everything so that a different, unexpected error still stops the program and shows you the bug instead of being swallowed. The line that can fail, int(text), has to be inside the try; the lines that use the number go after it, or in an else block that runs only when the try succeeded. To let the person try again, put the whole thing in while True: on success return the number (or break), and in the except print a message and let the loop ask again. And when a function of your own is given something it can't work with, like a negative age, raise ValueError with a message, so the problem is reported at once instead of turning into a wrong answer later.
+review_pool:
+  - review-predict-half
+  - review-mcq-raise
+  - review-code-to-int
+  - review-code-check-percent
+  - mcq-which-error
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: try-except
+    description: "Catch a specific error with `try` and `except`, knowing which lines run in each case"
+  - id: validate-loop
+    description: "Keep asking until the input is valid: a loop around `try`, leaving on success"
+  - id: raise
+    description: "Raise an error with a message when a function is given something it can't work with"

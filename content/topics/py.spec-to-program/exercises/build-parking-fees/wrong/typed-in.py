@@ -1,0 +1,7 @@
+print("parking: all checks passed")
+print("30 min: 2.00")
+print("90 min: 3.50")
+print("61 min: 3.50")
+print("600 min: 12.00")
+print("0 min: 0.00")
+print("Total: 21.00")

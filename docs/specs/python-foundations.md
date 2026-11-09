@@ -146,7 +146,7 @@ Some topics within a module can be done in either order. That gives the Today pa
 | 27 | Files | `py.files` | read and write text files using `with` | CS50P Lecture 6 |
 | 28 | CSV data | `py.csv-data` | read a CSV into records and summarize it | CS50P Lecture 6 |
 | 29 | Modules and libraries | `py.modules-and-libraries` | import from the standard library; write your own module | CS50P Lecture 4 |
-| 30 | From spec to program | `py.spec-to-program` | plan before coding: examples, then decomposition, then tests, then small steps | AI-written lesson |
+| 30 | From spec to program | `py.spec-to-program` | plan before coding: examples, then decomposition, then tests, then small steps | Own lesson, with Think Python's "Incremental development" as the reading |
 
 **Checkpoint 6: CSV report tool** (`py.m6.checkpoint`), the track capstone. Starting from a blank file, read a CSV, handle bad rows, and write a summary report.
 

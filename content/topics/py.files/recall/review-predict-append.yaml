@@ -1,0 +1,23 @@
+id: review-predict-append
+type: predict_output
+rev: 1
+prompt: |
+  What does this program print? Two lines. Watch the modes.
+code: |
+  with open("log.txt", "w") as f:
+      f.write("one\n")
+
+  with open("log.txt", "a") as f:
+      f.write("two\n")
+
+  with open("log.txt") as f:
+      lines = f.readlines()
+
+  print(len(lines))
+  print(lines[1].rstrip())
+expected_output: |
+  2
+  two
+explanation: |
+  `"w"` writes `one` into an empty file. `"a"` appends `two` after it, keeping `one`. Reading gives two lines, and the second, without its line break, is `two`. Had the second open used `"w"`, only `two` would be left.
+skills: [write-file, read-lines]

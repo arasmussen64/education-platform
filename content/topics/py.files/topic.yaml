@@ -1,10 +1,71 @@
 id: py.files
 kind: topic
-status: planned
+status: ready
 title: "Files"
-summary: "Read and write text files using with."
+summary: "Read and write text files with open and with, one line at a time."
 prerequisites: [py.exceptions]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Read and write text files using with."
+  - "Read a text file line by line with `with open(...) as f:` and `for line in f:`, stripping the line break from each line."
+  - "Write and append to a text file, one line at a time, with `\"w\"` and `\"a\"` and a `\\n` at the end of each line."
+  - "Know what `with` does for you, and handle a file that isn't there with `except FileNotFoundError`."
+resources:
+  - title: "CS50P Lecture 6: File I/O, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=KD-Yoel6EVQ&t=28s
+    type: video
+    use: embed
+    # The text-file section (0:28 to 30:26): names.txt, open and write,
+    # overwriting against appending, with, readlines, for line in file,
+    # rstrip, and sorting what was read.
+    start: 28
+    end: 1826
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: Reading and Writing Files (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/inputoutput.html#reading-and-writing-files
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-names-file
+  - mcq-mode
+  - predict-rstrip
+  - mcq-with
+  - fill-count-lines
+  - write-save-numbers
+prove:
+  build: build-notes-file
+  debug: debug-files
+  explain:
+    prompt: |
+      A friend writes `f = open("notes.txt", "w")` and then `f.write("hi")`, looks at the file, and finds it empty. Explain, in your own words: what `with open(...) as f:` does that their two lines don't, and why the text might not be in the file yet; what the modes `"w"`, `"a"` and the default mean, and which one would have lost existing notes; why lines read back from a file end in `\n` and what `rstrip()` is for; and what happens if the file isn't there when you read it, and how to handle that.
+    rubric:
+      - id: with-closes
+        required: true
+        description: "with opens the file and closes it when the block ends, even if an error happens; a file that's never closed may not have its text written out yet."
+      - id: modes
+        required: true
+        description: "\"w\" starts the file empty (erasing what was there), \"a\" adds to the end, and no mode means read; \"w\" is the one that loses old notes."
+      - id: newlines
+        required: true
+        description: "Each line in a file ends with a line-break character, which comes back with the line; rstrip() takes it off."
+      - id: missing-file
+        required: true
+        description: "Reading a file that doesn't exist raises FileNotFoundError, which you catch with try and except to give a message or use an empty result."
+    model_answer: |
+      Writing goes through a buffer, and the text is only guaranteed to be in the file once it's closed. with open("notes.txt", "w") as f: opens the file, gives it the name f for the indented block, and closes it when the block ends, even if an error happens inside, so the text is saved and you can't forget the close. The mode says what you mean to do: "w" means write, and it starts the file empty, so existing notes are gone the moment it opens; "a" means append, adding at the end and keeping what's there; no mode means read. When you read, each line comes back with its line-break character at the end, because that's what's in the file, so line.rstrip() takes it off before you use the text. If the file isn't there when you try to read it, open raises FileNotFoundError; put the open in a try and catch that error to print a message or treat it as an empty file.
+review_pool:
+  - review-predict-append
+  - review-mcq-missing-file
+  - review-code-longest-line
+  - mcq-mode
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: read-lines
+    description: "Read a text file line by line, stripping the line break from each"
+  - id: write-file
+    description: "Write and append to a text file, one line at a time, with the right mode"
+  - id: with-block
+    description: "Use `with` to open and close a file, and handle a missing file with `except FileNotFoundError`"

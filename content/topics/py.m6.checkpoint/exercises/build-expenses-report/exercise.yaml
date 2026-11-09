@@ -1,0 +1,59 @@
+id: build-expenses-report
+stage: build
+rev: 1
+title: "Expenses report"
+prompt: |
+  Starting from a blank editor, build this spec into a program: examples first, then a plan, then tests, then small steps.
+
+  > **Expenses report.** Expenses are kept in a CSV file with the columns `date,category,cost`. Some rows are bad: the cost is blank, or isn't a number. The tool reads the file, skips the bad rows but counts them, adds up the cost for each category, and writes a report file, which it also prints. The report has one line per category, in the order the categories first appear, like `food: 61.70`, then `Rows: 6`, `Bad rows: 2` and `Total: 117.45`. Money always has two decimal places.
+
+  Put this at the top of your file, so the program has a file to work on:
+
+  ```python
+  import csv
+
+
+  def write_sample(path):
+      """Write the sample expenses file."""
+      with open(path, "w") as f:
+          f.write("date,category,cost\n")
+          f.write("2026-02-01,food,12.20\n")
+          f.write("2026-02-01,travel,40\n")
+          f.write("2026-02-02,food,abc\n")
+          f.write("2026-02-02,food,49.50\n")
+          f.write("2026-02-03,rent,\n")
+          f.write("2026-02-03,travel,15.75\n")
+  ```
+
+  Then write these functions, each with a docstring, none of which changes the list it's given:
+
+  - `read_rows(path)` returns the file's rows as a list of dictionaries.
+  - `cost_of(row)` returns the row's cost as a number, or `None` when it's blank or isn't a number.
+  - `good_rows(rows)` returns the rows whose cost is a number, in order.
+  - `totals_by_category(rows)` returns a dictionary of category to total cost over the good rows, in order of first appearance.
+  - `report_lines(rows)` returns the report's lines for all the rows read, good and bad.
+  - `write_report(path, lines)` writes the lines to the file, one per line, replacing what was there.
+  - `test_expenses()` has at least four asserts, including a row whose cost is text and one whose cost is blank, and ends with `print("expenses: all checks passed")`.
+  - `main()` writes the sample to `expenses.csv`, reads it, writes the report to `expenses.txt`, and prints each line of the report.
+
+  Finish with `if __name__ == "__main__":`, calling `test_expenses()` and then `main()`. Running the program should print the lines below, and `expenses.txt` should hold all of them except the first:
+
+  ```
+  expenses: all checks passed
+  food: 61.70
+  travel: 55.75
+  Rows: 6
+  Bad rows: 2
+  Total: 117.45
+  ```
+test_skills:
+  test_read_rows: [py.csv-data/dict-reader, py.files/with-block]
+  test_cost_of: [py.exceptions/try-except, py.strings-and-input/convert]
+  test_good_rows: [py.list-algorithms/filter-transform, py.return-values/none]
+  test_totals_by_category: [py.csv-data/summarize, py.dictionaries/lookup-update]
+  test_report_lines: [py.strings-and-input/fstrings, py.dictionaries/loop-dict, py.decomposition/compose]
+  test_write_report: [py.files/write-file, py.files/with-block]
+  test_leaves_data_alone: [py.references-and-mutation/mutating-functions]
+  test_docstrings: [py.decomposition/docstrings]
+  test_tests: [py.testing-with-assert/choose-cases, py.spec-to-program/test-first]
+  test_program: [py.modules-and-libraries/own-module, py.spec-to-program/decompose-plan]

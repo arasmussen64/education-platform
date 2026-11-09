@@ -1,0 +1,14 @@
+id: mcq-bare-main
+type: mcq
+rev: 1
+prompt: |
+  `helpers.py` defines `main()`, which asks the user three questions, and ends with a bare `main()` call instead of the `__name__` check. Another file runs `import helpers` to use one small function from it. What happens?
+choices:
+  - 'Only the functions are defined; `main()` is skipped because the file was imported'
+  - '`main()` runs during the import, and the user is asked the three questions before the other program even starts'
+  - 'An error: a module can''t call its own functions'
+  - 'Nothing, until the other file calls `helpers.main()`'
+answer: 1
+explanation: |
+  Importing a file runs it from top to bottom. The `def` lines create the functions, and the bare `main()` at the end runs too, so the import turns into a conversation nobody asked for. `if __name__ == "__main__": main()` is the fix: it's true only when the file is run directly, so importing defines the functions and runs nothing.
+skills: [own-module]

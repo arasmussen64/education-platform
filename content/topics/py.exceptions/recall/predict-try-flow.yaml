@@ -1,0 +1,27 @@
+id: predict-try-flow
+type: predict_output
+rev: 1
+prompt: |
+  What does this program print? Four lines. Follow which block runs for each call.
+code: |
+  def convert(text):
+      try:
+          number = int(text)
+      except ValueError:
+          print("not a number:", text)
+          return None
+      else:
+          print("got", number)
+          return number
+
+
+  print(convert("12"))
+  print(convert("x"))
+expected_output: |
+  got 12
+  12
+  not a number: x
+  None
+explanation: |
+  For `"12"` the `try` succeeds, so the `else` block runs: it prints and returns 12, which the outer `print` shows. For `"x"`, `int` raises `ValueError`, so the `except` block runs instead: it prints the message and returns `None`, which is printed last. The `else` is skipped when the `except` ran.
+skills: [try-except]

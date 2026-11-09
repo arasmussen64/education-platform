@@ -1,10 +1,82 @@
 id: py.m6.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 6: CSV report tool"
-summary: "Starting from a blank file, read a CSV, handle bad rows, and write a summary report."
+summary: "From a spec and a blank file, build a tool that reads a CSV, skips and counts the bad rows, totals by group and writes a report file; then fix one that crashes on a bad row and loses its report."
 prerequisites: [py.spec-to-program]
 estimated_minutes: 60
 rev: 1
 objectives:
-  - "Starting from a blank file, read a CSV, handle bad rows, and write a summary report."
+  - "Read a CSV file into records with `csv.DictReader`, and turn the text fields you need into numbers."
+  - "Handle bad rows with `try` and `except`: skip them, count them, and never let one stop the program."
+  - "Total a column by group with a dictionary, in order of first appearance."
+  - "Write the report to a file, one line each, and print it, from the same list of lines."
+  - "Work from a spec: examples and edge cases first, small tested functions, `main` under the guard."
+prove:
+  build: build-csv-report
+  debug: debug-csv-report
+  explain:
+    prompt: |
+      Here's a working report tool, cut down:
+
+      ```python
+      import csv
+
+
+      def read_rows(path):
+          """Return the rows of a CSV file as a list of dictionaries."""
+          with open(path) as f:
+              return list(csv.DictReader(f))
+
+
+      def amount_of(row):
+          """Return the row's amount as a number, or None if it isn't one."""
+          try:
+              return float(row["amount"])
+          except ValueError:
+              return None
+
+
+      def totals_by_region(rows):
+          """Return a dictionary of region to total amount, skipping bad rows."""
+          totals = {}
+          for row in rows:
+              amount = amount_of(row)
+              if amount is None:
+                  continue
+              totals[row["region"]] = totals.get(row["region"], 0) + amount
+          return totals
+
+
+      def write_report(path, lines):
+          """Write the lines to the file, one per line."""
+          with open(path, "w") as f:
+              for line in lines:
+                  f.write(line + "\n")
+      ```
+
+      Explain it to a friend: why `read_rows` builds the list inside the `with` instead of returning the `DictReader` itself; what happens at `float(row["amount"])` when the amount is `abc` or blank, and how the `try` turns that into `None` instead of a crash; why it catches `ValueError` and not everything; how `totals_by_region` grows its dictionary, and what `get(..., 0)` is for; and why `write_report` opens the file once, outside the loop, with `"w"`.
+    rubric:
+      - id: read-inside-with
+        required: true
+        description: "The file closes when the with block ends, so the rows must be read into a list before that; a DictReader handed back on its own would try to read a closed file."
+      - id: bad-row
+        required: true
+        description: "float() raises ValueError for text like abc or an empty string; the except catches it and returns None, so the caller can skip the row and the program keeps going."
+      - id: named-error
+        required: true
+        description: "Catching only ValueError means a different error, like a missing column (KeyError), still stops the program and shows the bug instead of being counted as a bad row."
+      - id: totals-dict
+        required: true
+        description: "Each row's region is the key; get(region, 0) gives the total so far, or 0 the first time that region appears, and the amount is added to it."
+      - id: write-once
+        required: true
+        description: "Opening with \"w\" empties the file, so opening inside the loop would leave only the last line; open once, write every line with its line break, and let with close the file."
+    model_answer: |
+      read_rows builds the list inside the with block because the file is closed the moment the block ends. A DictReader reads lazily, line by line, as you loop over it, so if the function returned the reader itself the caller would be looping over a closed file. list() reads everything while the file is still open. amount_of has to deal with bad rows: float("abc") and float("") both raise ValueError. The try catches that one error and returns None, so a bad row becomes a value the caller can check and skip, and the program carries on instead of stopping with a traceback. It names ValueError rather than catching everything because a different error, like a KeyError from a misspelled column name, is a bug in the program, not a bad row, and swallowing it would hide the bug and silently count every row as bad. totals_by_region starts with an empty dictionary and, for each good row, uses the region as the key: totals.get(region, 0) is the running total so far, or 0 the first time that region appears, and the amount is added to it. Regions end up in the order they were first seen. write_report opens the file once, with "w", which empties it, and then writes every line with its line break; if it opened inside the loop with "w", each line would wipe out the one before and only the last would survive. The with block closes the file at the end, which is when the text is safely saved.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-attendance-report
+  steps: [step-read-clean, step-totals, step-report, step-outline]
+  versions: [build-expenses-report, build-rainfall-report]

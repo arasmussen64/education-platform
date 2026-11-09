@@ -1,0 +1,58 @@
+id: build-rainfall-report
+stage: build
+rev: 1
+title: "Rainfall report"
+prompt: |
+  Starting from a blank editor, build this spec into a program: examples first, then a plan, then tests, then small steps.
+
+  > **Rainfall report.** Rain readings are kept in a CSV file with the columns `day,station,mm`. Some rows are bad: the reading is blank, or isn't a number. The tool reads the file, skips the bad rows but counts them, adds up the millimetres for each station, and writes a report file, which it also prints. The report has one line per station, in the order the stations first appear, like `hill: 12.5`, then `Rows: 5`, `Bad rows: 1` and `Total: 20.0`. Millimetres always have one decimal place.
+
+  Put this at the top of your file, so the program has a file to work on:
+
+  ```python
+  import csv
+
+
+  def write_sample(path):
+      """Write the sample rainfall file."""
+      with open(path, "w") as f:
+          f.write("day,station,mm\n")
+          f.write("1,hill,4.5\n")
+          f.write("1,valley,2.0\n")
+          f.write("2,hill,n/a\n")
+          f.write("2,valley,5.5\n")
+          f.write("3,hill,8.0\n")
+  ```
+
+  Then write these functions, each with a docstring, none of which changes the list it's given:
+
+  - `read_rows(path)` returns the file's rows as a list of dictionaries.
+  - `mm_of(row)` returns the row's reading as a number, or `None` when it's blank or isn't a number.
+  - `good_rows(rows)` returns the rows whose reading is a number, in order.
+  - `totals_by_station(rows)` returns a dictionary of station to total millimetres over the good rows, in order of first appearance.
+  - `report_lines(rows)` returns the report's lines for all the rows read, good and bad.
+  - `write_report(path, lines)` writes the lines to the file, one per line, replacing what was there.
+  - `test_rainfall()` has at least four asserts, including a row whose reading is text and one whose reading is blank, and ends with `print("rainfall: all checks passed")`.
+  - `main()` writes the sample to `rainfall.csv`, reads it, writes the report to `rainfall.txt`, and prints each line of the report.
+
+  Finish with `if __name__ == "__main__":`, calling `test_rainfall()` and then `main()`. Running the program should print the lines below, and `rainfall.txt` should hold all of them except the first:
+
+  ```
+  rainfall: all checks passed
+  hill: 12.5
+  valley: 7.5
+  Rows: 5
+  Bad rows: 1
+  Total: 20.0
+  ```
+test_skills:
+  test_read_rows: [py.csv-data/dict-reader, py.files/with-block]
+  test_mm_of: [py.exceptions/try-except, py.strings-and-input/convert]
+  test_good_rows: [py.list-algorithms/filter-transform, py.return-values/none]
+  test_totals_by_station: [py.csv-data/summarize, py.dictionaries/lookup-update]
+  test_report_lines: [py.strings-and-input/fstrings, py.dictionaries/loop-dict, py.decomposition/compose]
+  test_write_report: [py.files/write-file, py.files/with-block]
+  test_leaves_data_alone: [py.references-and-mutation/mutating-functions]
+  test_docstrings: [py.decomposition/docstrings]
+  test_tests: [py.testing-with-assert/choose-cases, py.spec-to-program/test-first]
+  test_program: [py.modules-and-libraries/own-module, py.spec-to-program/decompose-plan]
