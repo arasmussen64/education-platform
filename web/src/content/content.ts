@@ -1,5 +1,6 @@
 import type {
   Exercise,
+  LabCheck,
   LessonComponent,
   Module,
   RecallItem,
@@ -54,10 +55,11 @@ const recallFiles = import.meta.glob<RecallItem>(
   { import: 'default' },
 )
 /** exercise.yaml: the code comes from its own files, and some fields have defaults. */
-type Defaulted = 'time_limit_ms' | 'hints' | 'steps' | 'skills' | 'test_skills'
+type Defaulted =
+  'time_limit_ms' | 'hints' | 'steps' | 'skills' | 'test_skills' | 'runtime'
 type ExerciseFile = Omit<
   Exercise,
-  'starter' | 'solution' | 'tests' | Defaulted
+  'starter' | 'solution' | 'tests' | 'checks' | Defaulted
 > &
   Partial<Pick<Exercise, Defaulted>>
 const exerciseFiles = import.meta.glob<ExerciseFile>(
@@ -67,6 +69,15 @@ const exerciseFiles = import.meta.glob<ExerciseFile>(
 const codeFiles = import.meta.glob<string>(
   '../../../content/topics/*/exercises/*/{starter,solution,test_exercise}.py',
   { query: '?raw', import: 'default' },
+)
+// A lab (ADR-0018) has a shell walkthrough and checks instead of Python.
+const shellFiles = import.meta.glob<string>(
+  '../../../content/topics/*/exercises/*/solution.sh',
+  { query: '?raw', import: 'default' },
+)
+const checksFiles = import.meta.glob<{ checks: LabCheck[] }>(
+  '../../../content/topics/*/exercises/*/checks.yaml',
+  { import: 'default' },
 )
 
 /** Fills in the fields an outline may leave out. */
@@ -247,12 +258,16 @@ export async function loadTopicContent(
       const folder = path.slice(0, path.lastIndexOf('/') + 1)
       const code = (name: string) =>
         codeFiles[`${folder}${name}`]?.() ?? Promise.resolve('')
-      const [file, starter, solution, tests] = await Promise.all([
-        load(),
-        code('starter.py'),
-        code('solution.py'),
-        code('test_exercise.py'),
-      ])
+      const [file, starter, pySolution, tests, shSolution, checksFile] =
+        await Promise.all([
+          load(),
+          code('starter.py'),
+          code('solution.py'),
+          code('test_exercise.py'),
+          shellFiles[`${folder}solution.sh`]?.() ?? Promise.resolve(''),
+          checksFiles[`${folder}checks.yaml`]?.() ?? Promise.resolve(null),
+        ])
+      const runtime = file.runtime ?? 'python'
       exercises[file.id] = {
         time_limit_ms: 5000,
         hints: [],
@@ -260,8 +275,14 @@ export async function loadTopicContent(
         skills: [],
         test_skills: {},
         ...file,
+        runtime,
+        // The page shows what each check is for, never its command.
+        checks: (checksFile?.checks ?? []).map(({ id, description }) => ({
+          id,
+          description,
+        })),
         starter,
-        solution,
+        solution: runtime === 'lab' ? shSolution : pySolution,
         tests,
       }
     })
