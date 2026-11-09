@@ -199,6 +199,61 @@ describe('the topic page', () => {
     expect(within(practice).getByText('Practice 1 of 5')).toBeInTheDocument()
   })
 
+  it("mixes in a question from an earlier topic, after this topic's own (F5)", async () => {
+    const earlier = fakeTopic({
+      id: 'py.programs-and-print',
+      title: 'Programs and print',
+      prerequisites: [],
+    })
+    const { log, events } = recordingEventLog()
+    render(
+      <AuthProvider auth={fakeAuth(fakeUser())}>
+        <EventLogContext value={log}>
+          <MemoryRouter>
+            <TopicView
+              topic={fakeTopic()}
+              content={fakeContent()}
+              interleaved={{
+                content: fakeContent(earlier),
+                itemId: 'mcq-print',
+              }}
+              loadAttempts={vi.fn((_topicId: string) =>
+                Promise.resolve(unlocked(fakeTopic())),
+              )}
+            />
+          </MemoryRouter>
+        </EventLogContext>
+      </AuthProvider>,
+    )
+    const practice = screen.getByRole('region', { name: 'Practice' })
+    expect(itemHeadings(practice)).toEqual([
+      'Worked example: Say hello',
+      'Quick check',
+      'Predict the output',
+      'Quick check',
+      'Fill in the gaps: Say hello',
+      'Write it: Say hello',
+    ])
+    expect(
+      within(practice).getByText('Practice 4 of 6 · from Programs and print'),
+    ).toBeInTheDocument()
+    expect(practice).toHaveTextContent('One question is from an earlier topic')
+
+    // Its answer is saved under the earlier topic, where it counts.
+    const borrowed = screen.getAllByRole('region', { name: 'Quick check' })[1]!
+    await userEvent.click(within(borrowed).getByRole('radio', { name: 'Hi' }))
+    await userEvent.click(
+      within(borrowed).getByRole('button', { name: 'Check' }),
+    )
+    expect(events.at(-1)).toMatchObject({
+      type: 'answer',
+      topic_id: 'py.programs-and-print',
+      item_id: 'mcq-print',
+      context: 'practice',
+      correct: true,
+    })
+  })
+
   it('has the three proof checks, without revealing the model answer', () => {
     renderTopic()
     const prove = screen.getByRole('region', { name: 'Prove it' })

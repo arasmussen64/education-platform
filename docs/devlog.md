@@ -2,6 +2,14 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: Interleaved practice
+
+The last app piece of Milestone C (F5): each practice ladder mixes in one recall question from an earlier topic, so the learner has to decide which idea applies rather than knowing it from the page they're on.
+
+- `web/src/practice/interleave.ts`: `earlierTopicFor` walks the topic's most recent prerequisite, looking through a checkpoint to the last topic before it (so Module 2's first topic borrows from Strings and input), and `interleavedItem` picks one of that topic's recall questions, rotating day by day and stable within a day.
+- The topic page's loader fetches the earlier topic's content alongside the topic's own, and `Practice` splices the question in after the topic's own recall items, labelled "from <topic>". The answer is recorded under the earlier topic, so it counts toward that topic's follow-ups and reviews.
+- 10 new tests (the chooser, the loader, the ladder). Milestone C's app work is done; what's left in C is content: Module 3.
+
 ## 2026-11-08: Reviews, timed to how fast you forget
 
 Milestone C starts with ADR-0009: one review card per Learned topic, scheduled by FSRS, with sessions rated from performance.

@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (interleaved practice)
+
+- **Each practice ladder now includes one question from an earlier topic** (v1 spec, F5): a recall question from the topic's most recent prerequisite, placed after the topic's own quick checks and labelled with where it's from. It changes each day. Answering it counts for the earlier topic, so it helps keep that topic fresh.
+
 ### Added (reviews, timed to how fast you forget)
 
 - **Reviews on the Today page** ([ADR-0009](docs/decisions/0009-reviews.md)). Each Learned topic gets a review card; its first review comes due a few days later, and each review pushes the next one further out when it goes well, or brings it closer when it doesn't. Today lists the topics due, the most forgotten first, up to 20 a day.

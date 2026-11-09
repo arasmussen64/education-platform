@@ -25,6 +25,7 @@ import { CARD, PROSE, SECONDARY_BUTTON } from '../components/styles.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { ExplainCheck } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
+import type { Interleaved } from '../practice/interleave.ts'
 import {
   type Proof,
   PROOFS,
@@ -38,21 +39,31 @@ import type { topicLoader } from './topicLoader.ts'
 // One topic: Learn, Practice and Prove it (v1 spec, F3, F5, F7), gated by
 // its state (F8): a Locked topic shows its lesson only.
 export function TopicPage() {
-  const { topic, content } = useLoaderData<typeof topicLoader>()
+  const { topic, content, interleaved } = useLoaderData<typeof topicLoader>()
   if (!topic) return <UnknownTopic />
   // A new key for each topic, so nothing typed on one topic carries over to
   // the next.
-  return <TopicView key={topic.id} topic={topic} content={content} />
+  return (
+    <TopicView
+      key={topic.id}
+      topic={topic}
+      content={content}
+      interleaved={interleaved}
+    />
+  )
 }
 
 export function TopicView({
   topic,
   content,
+  interleaved = null,
   loadAttempts,
 }: {
   topic: Topic
   /** Null when the topic isn't open yet. */
   content: TopicContent | null
+  /** A recall question from an earlier topic, mixed into the practice (F5). */
+  interleaved?: Interleaved | null
   /** Reads the learner's history in a topic. Tests pass a fake. */
   loadAttempts?: LoadAttempts
 }) {
@@ -106,7 +117,9 @@ export function TopicView({
           ) : (
             <Learn content={content} />
           )}
-          {!locked && !proveNow && <Practice content={content} />}
+          {!locked && !proveNow && (
+            <Practice content={content} interleaved={interleaved} />
+          )}
           {!locked && <ProveIt content={content} progress={progress} />}
         </>
       )}
@@ -493,22 +506,40 @@ function Learn({ content }: { content: TopicContent }) {
 }
 
 /** The practice ladder, in order: each step asks a little more (F5). */
-function Practice({ content }: { content: TopicContent }) {
-  const items = content.topic.practice
-  if (items.length === 0) return null
+function Practice({
+  content,
+  interleaved,
+}: {
+  content: TopicContent
+  interleaved: Interleaved | null
+}) {
+  const own = content.topic.practice.map((itemId) => ({ itemId, content }))
+  if (own.length === 0) return null
+  // The earlier topic's question goes after this topic's own recall
+  // questions, before the exercises (F5).
+  const lastRecall = own.findLastIndex(({ itemId }) => itemId in content.recall)
+  const items = interleaved
+    ? own.toSpliced(lastRecall + 1, 0, interleaved)
+    : own
   return (
     <section aria-labelledby="practice" className="space-y-4">
       <SectionHeading id="practice">Practice</SectionHeading>
       <p className="text-slate-600 dark:text-slate-400">
         Work through these in order. Each one asks a little more of you.
+        {interleaved &&
+          ' One question is from an earlier topic, to keep it fresh.'}
       </p>
-      {items.map((itemId, index) => (
+      {items.map((item, index) => (
         <PracticeItem
-          key={itemId}
-          itemId={itemId}
-          content={content}
+          key={`${item.content.topic.id}/${item.itemId}`}
+          itemId={item.itemId}
+          content={item.content}
           context="practice"
-          position={`Practice ${index + 1} of ${items.length}`}
+          position={
+            item.content === content
+              ? `Practice ${index + 1} of ${items.length}`
+              : `Practice ${index + 1} of ${items.length} · from ${item.content.topic.title}`
+          }
         />
       ))}
     </section>

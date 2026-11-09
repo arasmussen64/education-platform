@@ -50,7 +50,7 @@ Milestone B is complete.
 
 - [x] Reviews (F11, [ADR-0009](decisions/0009-reviews.md)): one card per Learned topic, FSRS scheduling, two-item sessions rated from first attempts, and the states Mastered, Fading and Relearning (2026-11-08)
 - [x] The Today page in full (F12): due reviews, mistakes to revisit, next up (2026-11-08)
-- [ ] Interleaved practice: one recall item from an earlier topic in each practice ladder (F5)
+- [x] Interleaved practice: one recall item from an earlier topic in each practice ladder (F5) (2026-11-08)
 - [ ] Module 3 content (loops), ready before the owner finishes Module 2
 
 Then Milestone D (the tutor, problem reports).
