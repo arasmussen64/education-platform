@@ -1,0 +1,16 @@
+# The checks for "Stop a runaway process": the runaway is gone, it was asked
+# politely (its trap got to run), and PID 1 was noted.
+checks:
+  - id: runaway-gone
+    description: "runaway.sh is no longer running."
+    command: "! pgrep -x runaway.sh > /dev/null"
+  - id: stopped-politely
+    description: "It was stopped with TERM, so its last log line is the one its trap writes."
+    command: tail -n 1 /var/log/shop/runaway.log
+    expect:
+      contains: caught TERM
+  - id: pid1-noted
+    description: "~/example/pid1.txt names process 1: systemd."
+    command: cat /home/learner/example/pid1.txt
+    expect:
+      equals: systemd

@@ -1,0 +1,23 @@
+# The checks for "Finish the report runner": the script runs the job in the
+# background, names the right PID, waits, and passes the job's status on.
+checks:
+  - id: no-gaps
+    description: "~/bin/run-report has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/run-report"
+  - id: good-run
+    description: "A normal run prints 'report finished' and exits 0."
+    command: |
+      out=$(/home/learner/bin/run-report) && grep -q '^report finished$' <<< "$out"
+  - id: names-the-job
+    description: "The PID it prints is the job's: the one the job wrote into the report."
+    command: |
+      rm -f /tmp/report.txt
+      printed=$(/home/learner/bin/run-report | sed -n 's/^started report as PID \([0-9][0-9]*\)$/\1/p')
+      written=$(sed -n 's/^report made by PID \([0-9][0-9]*\)$/\1/p' /tmp/report.txt)
+      test -n "$printed" && test "$printed" = "$written"
+  - id: broken-run
+    description: "With 'broken', it prints 'report failed with status 3' and exits 3."
+    command: |
+      out=$(/home/learner/bin/run-report broken 2>/dev/null)
+      status=$?
+      test "$status" -eq 3 && grep -q '^report failed with status 3$' <<< "$out"

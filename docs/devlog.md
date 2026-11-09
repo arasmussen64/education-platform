@@ -2,6 +2,33 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Processes and signals goes ready, and the Services topic unlocks
+
+Processes and signals is the third ready cloud topic, and since it was the only draft between Shell essentials and Services and logs, the live map's Module 1 now runs Shell → Processes → Services with nothing Locked behind a draft.
+
+**Why these labs boot systemd too.** The lesson says PID 1 adopts orphans and reaps zombies. In a plain container PID 1 is `sleep infinity`, which does neither, so a learner checking the lesson's claim would have found it false. With systemd as PID 1 the process tree looks like a server's, which is also what the worked example reads. The five labs reuse the Services labs' base layer (the same first `RUN` line), so Docker builds it once for both topics.
+
+**The five labs:**
+- **`example-stop-a-runaway`** (worked example): a colleague's backgrounded report script, adopted by PID 1, loops forever. `ps -ef --forest`, `pgrep -a`, `kill` (TERM), the `||` that prints only when `pgrep` finds nothing, the trap's last log line, and `ps -o comm= -p 1` to note that PID 1 is systemd.
+- **`fill-run-report`** (fill-in): a runner with four gaps, `&`, `$!`, `wait "$pid"`, `$?`. The job writes its own PID into the report, so a check can tell `$!` from `$$`.
+- **`write-graceful-stop`** (write): `TERM`, wait up to five seconds with `kill -0`, then `KILL`; proven on a polite worker that logs its cleanup and a stubborn one that ignores `TERM`.
+- **`build-nightly-runner`** (build): three two-second jobs at once, each one's exit status reported in order, exit 1 if any failed, and a `trap` that stops the jobs on `TERM` or Ctrl-C. Checks: a good night, a bad night (a flag file makes one job fail), under five seconds for all three, and an interruption that leaves nothing running.
+- **`debug-stop-workers`** (debug): three mistakes with three different symptoms: `pgrep worker` matches the script's own name, so it kills itself halfway; `kill -9` leaves the workers' PID files behind; and the report reads `pgrep`'s exit status backwards. Workers run at boot as the learner, and a helper restarts them for another try.
+
+**What the contract caught, three things:**
+1. *A script's process name depends on its shebang.* With `#!/usr/bin/env bash`, `env` runs bash a second time and the process is called `bash`; `pgrep -x runaway.sh` found nothing, `kill` got no argument, and the worked example "passed" with the runaway still running. Every program a lab finds by name now starts with `#!/bin/bash`, and the content README says why. It's also what made the debug lab's first planted bug real: the stop script has to be *called* `stop-workers` for `pgrep worker` to catch it.
+2. *`pgrep -f` matched the check itself,* because the check's own command line contains the pattern. The pattern is now `/srv/job[s]/`, the old trick; also in the README.
+3. *`grep -c` exits 1 when it counts zero,* so a check expecting "0" failed on its exit status; `find | wc -l` instead.
+
+**The lesson** gained a sentence on `pgrep`, `pkill`, `-x` and `-a`, with the warning that a name match catches more than you meant, since two labs depend on it.
+
+**Decisions for you to review:**
+1. *Processes labs boot systemd* although the topic isn't about systemd, for the reason above; the cost is a privileged container, which the Services labs already need.
+2. *Checks may start throwaway processes of their own* (a fresh worker to stop, a runner to interrupt) when that's the only way to exercise the learner's script; they clean up after themselves. The README's "checks only read" rule now says so.
+3. *The debug's first bug is a self-match.* It's the subtlest of the module so far, and the prompt names its symptom ("stops before it has finished"). If it proves too hard in practice, it can become a hint-carrying fill-in instead.
+
+**Next:** Users, permissions and SSH, a plain container; then Package management, with a local package repository so `apt` works without the network.
+
 ## 2026-11-09: Services and logs goes ready, on labs that boot systemd
 
 The owner reviewed every decision listed so far and accepted them all, ADR-0018 included (its status line and the index say so), and said to keep going. The riskiest piece of the remaining Module 1 work was systemd in a container, so that went first: Services and logs is the second ready cloud topic, and the checker now knows how to boot a lab.

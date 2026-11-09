@@ -1,0 +1,29 @@
+id: example-stop-a-runaway
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Stop a runaway process"
+prompt: |
+  Earlier, someone on the lab machine started a report script in the background and logged out. It's still running, and it has gone wrong: it loops forever, adding a line to `/var/log/shop/runaway.log` every second. The walkthrough finds it in the process tree, asks it to stop the polite way, checks that it listened, and notes what PID 1 is on this machine. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "Look at the process tree"
+    lines: "1"
+    note: "`ps -ef` lists every process with its PID and its parent's PID (PPID); `--forest` draws the tree. At the root is PID 1, systemd; everything else descends from it. Find `runaway.sh` in the tree: its parent is PID 1, because the shell that started it is gone and systemd adopted it."
+  - label: "Find it by name"
+    lines: "2"
+    note: "`pgrep` searches processes by name and prints matching PIDs; `-a` adds the command line, so you can see it's the right one. Faster than reading the whole tree."
+  - label: "Ask it to stop"
+    lines: "3"
+    note: "`kill` sends a signal; with no option it sends `TERM`, \"please stop\". `-x` makes `pgrep` match the exact name, so nothing else gets the signal. The script has a `trap` for `TERM`, so it gets to write a last line and exit cleanly."
+  - label: "Check that it's gone"
+    lines: "4"
+    note: "A second later, `pgrep` finds nothing and exits with status 1, so the `||` runs the `echo`. Exit status 0 means \"found\", which is why the message prints only when the process is gone."
+  - label: "See that it stopped politely"
+    lines: "5"
+    note: "The last line of the log is the one the trap wrote. `kill -9` would have ended the process at once, with no last line and no cleanup: that's why you send `TERM` first."
+  - label: "Note what PID 1 is"
+    lines: "6"
+    note: "`ps -o comm= -p 1` prints just the name of process 1. On this machine, as on nearly every Linux server, it's systemd, the process that adopted the runaway and would have reaped it had it become a zombie."
+skills: [process-model, signals]

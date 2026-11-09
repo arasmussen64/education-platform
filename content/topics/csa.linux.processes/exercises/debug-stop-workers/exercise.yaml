@@ -1,0 +1,12 @@
+id: debug-stop-workers
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The stop script that doesn't"
+prompt: |
+  The shop runs three workers, `order-worker`, `mail-worker` and `report-worker` (their programs are in `/srv/shop/workers/`). Each writes its PID to `/run/shop/NAME.pid` when it starts and removes that file when it's asked to stop. They're running now; `/srv/shop/start-workers` starts any that aren't, so you can try again as often as you like.
+
+  `~/bin/stop-workers` is meant to stop all three politely, wait for them, print `NAME stopped` for each one, and exit 0, or print `NAME still running` and exit 1 if one didn't stop. Run it and watch what happens. It has three mistakes: one makes the script stop before it has finished its work, one leaves something behind in `/run/shop`, and one gets its report backwards. Fix all three with `nano ~/bin/stop-workers`, and run the checks.
+skills: [signals, process-model, job-control]

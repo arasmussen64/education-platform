@@ -1,0 +1,28 @@
+# The checks for "The stop script that doesn't". The first one starts three
+# fresh workers and runs the script, saving what it printed and its exit
+# status; the others read those.
+checks:
+  - id: reports-all-three
+    description: "Run against three fresh workers, the script prints 'NAME stopped' for each of them."
+    command: |
+      /srv/shop/start-workers > /dev/null
+      sleep 1
+      /home/learner/bin/stop-workers > /tmp/labcheck-stop.out 2>&1
+      echo $? > /tmp/labcheck-stop.status
+      sleep 1
+      grep -c -E '^(order|mail|report)-worker stopped$' /tmp/labcheck-stop.out
+    expect:
+      equals: "3"
+  - id: all-gone
+    description: "No worker is left running afterwards."
+    command: "! pgrep -x order-worker > /dev/null && ! pgrep -x mail-worker > /dev/null && ! pgrep -x report-worker > /dev/null"
+  - id: exit-zero
+    description: "It exited 0, since every worker stopped."
+    command: cat /tmp/labcheck-stop.status
+    expect:
+      equals: "0"
+  - id: cleaned-up
+    description: "The workers were asked politely, so no PID file is left in /run/shop."
+    command: find /run/shop -name '*.pid' | wc -l
+    expect:
+      equals: "0"

@@ -1,0 +1,9 @@
+#!/bin/bash
+# One of the shop's workers. It writes its PID file when it starts and
+# removes it when asked to stop (TERM). KILL skips the cleanup, and the
+# file stays behind. The same program is installed under three names.
+name=$(basename "$0")
+mkdir -p /run/shop
+echo $$ > "/run/shop/$name.pid"
+trap 'rm -f "/run/shop/$name.pid"; exit 0' TERM INT
+while true; do sleep 1; done

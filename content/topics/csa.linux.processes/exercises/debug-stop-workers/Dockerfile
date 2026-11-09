@@ -1,0 +1,30 @@
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+# systemd as PID 1 (the checker starts the container with /sbin/init) with
+# D-Bus, which systemctl needs when it isn't root; the learner's account with
+# sudo and the right to read the journal, as a cloud image's default user
+# has; the shop's unprivileged service account; and the tools the labs use.
+# Identical in every lab that boots systemd, so Docker builds this layer once.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends systemd systemd-sysv dbus sudo nano less curl python3 procps \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd -m -s /bin/bash -G adm,systemd-journal learner \
+ && echo 'learner ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/learner \
+ && chmod 440 /etc/sudoers.d/learner \
+ && useradd -r -s /usr/sbin/nologin shop
+
+# The three workers (one program under three names), the starter that runs
+# them at boot, and the broken stop script in the learner's ~/bin.
+COPY worker /srv/shop/workers/order-worker
+COPY worker /srv/shop/workers/mail-worker
+COPY worker /srv/shop/workers/report-worker
+COPY start-workers /srv/shop/start-workers
+COPY shop-workers.service /etc/systemd/system/shop-workers.service
+COPY stop-workers.starter /home/learner/bin/stop-workers
+RUN chmod 755 /srv/shop/workers/* /srv/shop/start-workers /home/learner/bin/stop-workers \
+ && chown -R learner:learner /home/learner/bin \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/shop-workers.service /etc/systemd/system/multi-user.target.wants/shop-workers.service
+
+CMD ["/sbin/init"]

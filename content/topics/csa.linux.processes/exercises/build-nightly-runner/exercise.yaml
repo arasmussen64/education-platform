@@ -1,0 +1,17 @@
+id: build-nightly-runner
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The nightly runner"
+prompt: |
+  The shop has three nightly jobs in `/srv/jobs/`: `backup.sh`, `report.sh` and `cleanup.sh`. Each takes about two seconds and exits 0 when it succeeds; `report.sh` fails with status 2 when the file `/tmp/report-broken` exists, which is how you'll test failure. Write `~/bin/nightly`, which:
+
+  - starts all three jobs at the same time, in the background, and waits for every one of them;
+  - prints one line per job, in the order backup, report, cleanup: `backup: ok`, or `report: failed (status 2)` with the job's exit status;
+  - exits 0 if every job succeeded and 1 if any failed;
+  - when it receives `TERM` or `INT` (Ctrl-C) while the jobs run, stops the jobs by sending them `TERM`, prints `nightly interrupted` to standard error, and exits with a non-zero status, leaving no job running.
+
+  Make it executable, try a normal run, a run with `/tmp/report-broken` present (remove the file afterwards), and a run you interrupt with Ctrl-C. Then run the checks.
+skills: [job-control, signals, process-model]

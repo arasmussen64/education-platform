@@ -12,7 +12,7 @@ A **process** is a program while it's running: its code, its memory, the files i
 - **`HUP`** (hang-up): sent when the terminal closes. Many servers reread their config on `HUP` instead of quitting.
 - **`TSTP`** (Ctrl-Z) and **`STOP`** pause a process; **`CONT`** resumes it.
 
-`kill -l` lists them with their numbers: `TERM` is 15, `KILL` is 9, which is where `kill -9` comes from. A shell script can react to a signal with `trap`.
+`kill -l` lists them with their numbers: `TERM` is 15, `KILL` is 9, which is where `kill -9` comes from. A shell script can react to a signal with `trap`. To find the PID to signal, `pgrep name` lists the processes whose name contains `name` (`-a` shows their commands too), and `pkill name` signals them all; `-x` matches the whole name only, which matters because `pgrep worker` also matches a script called `stop-workers`, perhaps the one you're running.
 
 **Jobs.** Add `&` after a command and the shell runs it in the background and gives you the prompt back. `jobs` lists them; `fg` brings one to the front; Ctrl-Z stops the front job and `bg` lets it carry on in the background; `wait` pauses until background jobs finish. A job started from a terminal gets `HUP` when the terminal closes; `nohup command &` makes it survive, though on a server the right answer is usually a systemd service.
 
@@ -20,7 +20,7 @@ A **process** is a program while it's running: its code, its memory, the files i
 
 **PID 1: systemd.** The kernel starts exactly one program itself, and that program starts everything else. On nearly every modern Linux it's **systemd**. It reads **unit files** that describe services (`nginx.service`), starts them in the right order, restarts them if they crash, and groups them into **targets** (`multi-user.target` is "a server that's fully up"). `systemctl` is how you talk to it: `systemctl status nginx`, `start`, `stop`, `restart`, and `enable`, which means "also start at boot". The next topic goes into services and their logs; here, know what PID 1 is for.
 
-**Read now:** the *Job Control* section of lecture 5, the main resource below, which shows signals and jobs live. Then chapter 10 of *The Linux Command Line* for `ps`, `top`, `kill` and jobs with more examples, and skim `signal(7)` to see the full list. The practice below runs on `bash` itself, because the shell is a process too: subshells, `exec`, exit statuses, background jobs and traps all behave exactly as described.
+**Read now:** the *Job Control* section of lecture 5, the main resource below, which shows signals and jobs live. Then chapter 10 of *The Linux Command Line* for `ps`, `top`, `kill` and jobs with more examples, and skim `signal(7)` to see the full list. The quick questions below run on `bash` itself, because the shell is a process too: subshells, `exec`, exit statuses, background jobs and traps all behave exactly as described. The labs put you on a machine where PID 1 is systemd: you stop a runaway process the polite way, run jobs in the background and collect their exit statuses, and fix a stop script that kills the wrong things.
 
 </Intro>
 
@@ -31,7 +31,7 @@ A **process** is a program while it's running: its code, its memory, the files i
 - **A process** is a running program with a PID; every one has a parent (PPID). `ps -ef` shows the tree; PID 1 is at the root.
 - **fork, then exec:** the shell copies itself, and the copy replaces its program with the command. A subshell `( ... )` is a copy, so its variable changes don't come back; `exec cmd` replaces the current shell, so nothing after it runs.
 - **Exit status:** `0` means success. `$?` holds the last one. `a && b` runs `b` only on success; `a || b` only on failure. `exit 3` sets it.
-- **Signals:** `INT` (Ctrl-C), `TERM` (please stop, the default for `kill`, can be caught), `KILL` (now, can't be caught: last resort), `HUP` (terminal closed; many servers reload), `TSTP`/`STOP` pause, `CONT` resumes. `kill -l` lists them; `TERM` is 15, `KILL` is 9. `trap 'cmd' TERM` reacts in a script.
+- **Signals:** `INT` (Ctrl-C), `TERM` (please stop, the default for `kill`, can be caught), `KILL` (now, can't be caught: last resort), `HUP` (terminal closed; many servers reload), `TSTP`/`STOP` pause, `CONT` resumes. `kill -l` lists them; `TERM` is 15, `KILL` is 9. `trap 'cmd' TERM` reacts in a script. `pgrep name` / `pkill name` find or signal by name; `-x` for the exact name, `-a` to see the commands.
 - **Jobs:** `cmd &`, `jobs`, `fg`, `bg`, Ctrl-Z, `wait`, `nohup cmd &`.
 - **A zombie** has already exited; only its table entry remains until the parent calls `wait`. `kill -9` can't remove it. Reap it from the parent, or end the parent and PID 1 reaps it.
 - **systemd** is PID 1: unit files describe services, targets group them, `systemctl status|start|stop|restart|enable|disable` controls them.
