@@ -2,6 +2,21 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Practice hours on the Today page
+
+The owner's own idea from 2026-11-06, pulled forward from Phase 2 because it needed nothing new recorded: every graded attempt has saved its `duration_ms` since the event log began.
+
+**What changed.** `Attempt` now carries `duration_ms` (the server query selects it; a row without one leaves it out). `progress/practiceTime.ts` adds the durations up, all time and the last 7 days, counting at most 30 minutes per attempt, and names the next milestone. The Today page shows it below Next up as "Practice hours": the total, the recent part, a progress bar toward the next milestone, and the rule in one line ("Counting the time spent on answers, Checks and reviews, not time with the site open"). With nothing counted yet it says so. No extra request: the Today page already loads every attempt for the reviews and the plan.
+
+**Decisions for you to review:**
+1. *A 30-minute cap per attempt.* An attempt's duration runs from the first touch of an item, or the previous attempt, to this one, so a page left open overnight would record hours. Capping each attempt at 30 minutes keeps the count honest; a long blank-editor build without a Check in between is undercounted a little, which seemed the right side to err on. The number lives in one constant.
+2. *Milestones start at 1 hour,* not 10 as the roadmap said, so a new learner sees the first one within a week; then 5, 10, 25, 50, 100, 250, 500, 1,000, 2,500, 5,000, 10,000.
+3. *"Recent" means the last 7 days,* rolling, rather than the calendar week, because it needs no decision about which day a week starts on.
+4. *It lives on the Today page,* under the plan, rather than on the Account page, because that's the page the learner sees every day and the number is meant to be encouraging.
+5. *The learning-science doc gained a row for deliberate practice,* with the note that "10,000 hours" is a popularization of Ericsson's work, not a rule, so the tracker is read the way it's meant.
+
+**Next:** your go on the deploys; then the cloud track's Stage 1 drills (ADR-0014) and the lab checker.
+
 ## 2026-11-09: A smaller first download: outline-only tracks load on demand
 
 The last item of Milestone D, noted as a chore on 2026-11-08 when the cloud track's outlines went on the map: 357 topics nobody can open yet were being downloaded by every visitor, in the app's main file.

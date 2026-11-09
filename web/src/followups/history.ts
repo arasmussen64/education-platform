@@ -13,6 +13,7 @@ type Row = {
   item_id: string | null
   correct: boolean | null
   occurred_at: string
+  duration_ms?: number | null
   /** A Check's status: "ok" when its tests ran. */
   status?: unknown
   /** The names of a Check's tests that didn't pass. */
@@ -56,6 +57,7 @@ export function toAttempt(row: Row): Attempt | null {
     // the same, so comparing the text compares the times.
     occurred_at: new Date(row.occurred_at).toISOString(),
   }
+  if (typeof row.duration_ms === 'number') attempt.duration_ms = row.duration_ms
   if (row.type === 'review' && isRating(row.rating)) {
     attempt.rating = row.rating
   }
@@ -109,7 +111,7 @@ export async function fetchAttempts(topicId?: string): Promise<Attempt[]> {
     let query = getSupabase()
       .from('events')
       .select(
-        'id, type, topic_id, item_id, correct, occurred_at, status:data->>status, failing:data->failing, rating:data->>rating',
+        'id, type, topic_id, item_id, correct, occurred_at, duration_ms, status:data->>status, failing:data->failing, rating:data->>rating',
       )
       .in('type', [...ATTEMPT_TYPES])
       .not('correct', 'is', null)

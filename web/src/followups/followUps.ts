@@ -25,6 +25,12 @@ export type Attempt = {
   /** In ISO format, UTC, so comparing the text compares the times. */
   occurred_at: string
   /**
+   * How long the attempt took, when known: from the learner's first touch
+   * of the item, or their previous attempt, to this one. The practice-hours
+   * tracker adds these up (progress/practiceTime.ts).
+   */
+  duration_ms?: number | null
+  /**
    * For a Check whose tests ran: the names of those that didn't pass.
    * Checkpoint tests name the skills they check (ADR-0012), so this says
    * which skills a Check missed.

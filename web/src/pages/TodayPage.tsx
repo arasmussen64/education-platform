@@ -20,6 +20,12 @@ import {
   planCards,
 } from '../followups/followUps.ts'
 import { type FollowUpsState, useFollowUps } from '../followups/useFollowUps.ts'
+import {
+  formatDuration,
+  formatHours,
+  nextMilestone,
+  practiceTime,
+} from '../progress/practiceTime.ts'
 import { nextUp } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
@@ -79,7 +85,71 @@ function Plan() {
       <Reviews topics={topics} progress={progress} now={now} />
       <Revisit />
       <NextUp topics={topics} progress={progress} />
+      <PracticeHours progress={progress} now={now} />
     </>
+  )
+}
+
+/**
+ * Deliberate practice so far, on the way to 10,000 hours (the owner's idea;
+ * roadmap, Phase 2). Only time spent on answers, Checks and reviews counts,
+ * not time with the site open: see progress/practiceTime.ts.
+ */
+function PracticeHours({
+  progress,
+  now,
+}: {
+  progress: ProgressState
+  now: string
+}) {
+  if (progress.status !== 'ready') return null
+  const time = practiceTime(progress.attempts, now)
+  const milestone = nextMilestone(time.totalMs)
+  const recent =
+    time.recentMs === 0
+      ? 'none of it in the last 7 days'
+      : `${formatDuration(time.recentMs)} of it in the last 7 days`
+
+  return (
+    <section aria-labelledby="practice-hours" className="space-y-2">
+      <h2 id="practice-hours" className="text-xl font-semibold">
+        Practice hours
+      </h2>
+      {time.attempts === 0 ? (
+        <p className="text-slate-600 dark:text-slate-400">
+          Nothing counted yet. Every answer, Check and review you finish adds
+          its time here.
+        </p>
+      ) : (
+        <>
+          <p>
+            <span className="font-medium">{formatDuration(time.totalMs)}</span>{' '}
+            of deliberate practice so far, {recent}.
+          </p>
+          {milestone ? (
+            <>
+              <progress
+                className="h-2 w-full"
+                max={milestone.hours * 60}
+                value={Math.floor(time.totalMs / 60_000)}
+                aria-label={`Progress toward ${formatHours(milestone.hours)}`}
+              />
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Next milestone: {formatHours(milestone.hours)} (
+                {formatDuration(milestone.remainingMs)} to go). Counting the
+                time spent on answers, Checks and reviews, not time with the
+                site open.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Past {formatHours(10000)}. The milestones stop here; the practice
+              doesn't have to.
+            </p>
+          )}
+        </>
+      )}
+    </section>
   )
 }
 

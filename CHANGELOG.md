@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (web app)
+
+- **Practice hours**, on the Today page: how much deliberate practice you've done so far and in the last 7 days, with a bar toward the next milestone on the way to 10,000 hours (1, 5, 10, 25, 50, 100, 250, 500, 1,000, 2,500, 5,000, 10,000). It adds up the time recorded on every answer, Check, explanation and review, counting at most 30 minutes per attempt, so a page left open isn't practice. Nothing new is recorded: every graded attempt has saved its duration since the event log began.
+
 ### Changed (web app)
 
 - **A smaller first download.** The Cloud Solutions Architect track's 357 topic outlines are no longer bundled into the app's main file. They download as one piece (181 KB, 37 KB compressed) the first time the map shows that track or one of its topics opens, with a "Loading this track's map…" note meanwhile and a Try again if the download fails. The main file shrinks from 1,034 KB to 853 KB (260 KB to 221 KB compressed). The Python Foundations track's outlines stay bundled in, because the map and the Today page need them at once.
