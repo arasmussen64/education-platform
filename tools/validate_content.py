@@ -13,7 +13,9 @@ It checks:
   who's stuck, with every test naming the skills it checks (ADR-0012);
 - by running them through the shared harness, like the browser does: every
   reference solution passes its tests, every starter and known-wrong solution
-  fails them, and every predict-the-output item prints what it claims.
+  fails them, and every predict-the-output item prints what it claims;
+- by running every predict_shell item's command in real bash (ADR-0017), in
+  a temporary folder holding the item's files, and checking what it prints.
 
 It prints every problem it finds and exits with status 1 if there are any.
 """
@@ -22,8 +24,11 @@ from __future__ import annotations
 
 import argparse
 import ast
+import functools
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -42,13 +47,17 @@ from content_model import (
     Module,
     ParsonsItem,
     PredictOutputItem,
+    PredictShellItem,
     Topic,
     Track,
     recall_item,
 )
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-AnyItem = McqItem | PredictOutputItem | ParsonsItem | Exercise
+AnyRecall = McqItem | PredictOutputItem | ParsonsItem | PredictShellItem
+AnyItem = AnyRecall | Exercise
+# The recall kinds that ask for output rather than a choice.
+PREDICT_KINDS = {"predict_output", "predict_shell"}
 
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS_CLI = ROOT / "harness" / "cli.py"
@@ -70,9 +79,7 @@ class Report:
 class TopicFolder:
     path: Path
     topic: Topic
-    recall: dict[str, McqItem | PredictOutputItem | ParsonsItem] = field(
-        default_factory=dict
-    )
+    recall: dict[str, AnyRecall] = field(default_factory=dict)
     exercises: dict[str, tuple[Path, Exercise]] = field(default_factory=dict)
 
     def has_item(self, item_id: str) -> bool:
@@ -241,7 +248,7 @@ def check_ready_topic(folder: TopicFolder, report: Report) -> None:
             report.add(topic_file, "a ready topic needs at least one resource")
 
         stages = Counter(stage_of(item_id) for item_id in topic.practice)
-        recall_count = stages["mcq"] + stages["predict_output"] + stages["parsons"]
+        recall_count = sum(stages[kind] for kind in ("mcq", "parsons", *PREDICT_KINDS))
         if stages["worked_example"] < 1:
             report.add(topic_file, "practice needs a worked example")
         if recall_count < 2:
@@ -254,14 +261,14 @@ def check_ready_topic(folder: TopicFolder, report: Report) -> None:
         if len(topic.review_pool) < 3:
             report.add(topic_file, "the review pool needs at least 3 items")
         review_stages = {stage_of(item_id) for item_id in topic.review_pool}
-        if not review_stages & {"predict_output", "parsons", "review_code"}:
+        if not review_stages & {*PREDICT_KINDS, "parsons", "review_code"}:
             report.add(
                 topic_file,
                 "the review pool needs a predict-the-output, Parsons or "
                 "review_code item",
             )
         for item_id in topic.review_pool:
-            review_kinds = {None, "mcq", "predict_output", "parsons", "review_code"}
+            review_kinds = {None, "mcq", *PREDICT_KINDS, "parsons", "review_code"}
             if stage_of(item_id) not in review_kinds:
                 report.add(topic_file, f"{item_id!r} can't be a review item")
     elif topic.review_pool:
@@ -645,6 +652,107 @@ def check_parsons(path: Path, item: ParsonsItem, report: Report) -> None:
         report.add(path, "the lines ask for input; a Parsons program must not")
 
 
+# --- Running shell commands (ADR-0017) -----------------------------------------------
+
+SHELL_TIMEOUT_SECONDS = 10
+
+
+@functools.cache
+def find_bash() -> str | None:
+    """Where bash is, or None.
+
+    On Windows that's Git Bash, found next to git. It is never the bash.exe
+    that Windows puts on PATH, which is only a launcher for WSL. Set
+    VALIDATOR_BASH to use a particular bash.
+    """
+    chosen = os.environ.get("VALIDATOR_BASH")
+    if chosen:
+        return chosen
+    if sys.platform == "win32":
+        git = shutil.which("git")
+        if git:
+            git_root = Path(git).resolve().parents[1]
+            for candidate in ("usr/bin/bash.exe", "bin/bash.exe"):
+                if (git_root / candidate).exists():
+                    return str(git_root / candidate)
+    found = shutil.which("bash")
+    if found and sys.platform == "win32" and "windowsapps" in found.lower():
+        return None
+    return found
+
+
+def run_shell(item: PredictShellItem, bash: str) -> tuple[str, str]:
+    """Runs the item's command in a temporary folder holding its files, with
+    nothing on stdin. Returns what it wrote to stdout and to stderr."""
+    with tempfile.TemporaryDirectory() as workdir:
+        for name, text in item.files.items():
+            path = Path(workdir) / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8", newline="\n")
+        env = {
+            **os.environ,
+            # The same sort order and the same messages on every machine,
+            # whatever language it's set to, and no dotfiles: HOME is empty.
+            "LC_ALL": "C",
+            "LANG": "C",
+            "LANGUAGE": "C",
+            "TZ": "UTC",
+            "HOME": workdir,
+        }
+        try:
+            completed = subprocess.run(
+                [bash, "--noprofile", "--norc", "-c", item.command],
+                cwd=workdir,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                timeout=SHELL_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RunFailed(
+                f"ran for over {SHELL_TIMEOUT_SECONDS}s (a command waiting for input?)"
+            ) from exc
+    return (
+        completed.stdout.decode("utf-8", errors="replace"),
+        completed.stderr.decode("utf-8", errors="replace"),
+    )
+
+
+def check_predict_shell(path: Path, item: PredictShellItem, report: Report) -> None:
+    """The command must print exactly expected_output, and nothing to stderr.
+
+    Errors go to stderr, so a command that fails (a typo, a missing tool, a
+    file that isn't there) is caught here. An item that wants to show an
+    error message redirects it with 2>&1, so it's compared like the rest.
+    """
+    bash = find_bash()
+    if bash is None:
+        report.add(
+            path,
+            "needs bash to run the command: install Git for Windows, or set "
+            "VALIDATOR_BASH to the bash to use",
+        )
+        return
+    report.counts["runs"] += 1
+    try:
+        output, errors = run_shell(item, bash)
+    except RunFailed as exc:
+        report.add(path, str(exc))
+        return
+    if errors.strip():
+        report.add(
+            path,
+            "the command writes to stderr, which a learner can't see on the "
+            f"page (use 2>&1 to show it):\n{errors.strip()}",
+        )
+    elif output != item.expected_output:
+        expected = item.expected_output
+        report.add(
+            path, f"expected_output is {expected!r}, but the command prints {output!r}"
+        )
+
+
 # --- Putting it together ---------------------------------------------------------
 
 
@@ -690,6 +798,8 @@ def validate(root: Path = ROOT, run: bool = True) -> Report:
                 check_predict_output(item_path, item, report)
             elif isinstance(item, ParsonsItem) and run:
                 check_parsons(item_path, item, report)
+            elif isinstance(item, PredictShellItem) and run:
+                check_predict_shell(item_path, item, report)
         for exercise_folder, exercise in folder.exercises.values():
             report.counts["exercises"] += 1
             check_exercise(exercise_folder, exercise, report, run)

@@ -142,7 +142,7 @@ A checkpoint's tests may name skills of its own module's topics and of earlier m
 ```yaml
 # content/topics/py.variables/recall/reassign-mcq.yaml
 id: reassign-mcq
-type: mcq                       # mcq | predict_output | parsons
+type: mcq                       # mcq | predict_output | parsons | predict_shell
 rev: 1
 prompt: |
   After this code runs, what is the value of `b`?
@@ -160,6 +160,8 @@ skills: [assignment]            # declared in topic.yaml
 A `predict_output` item has `code` and `expected_output` instead of `choices` and `answer`. The validator runs the code and checks that the output matches exactly.
 
 A `parsons` item ([ADR-0016](../decisions/0016-parsons-problems.md)) has `lines`, the program's lines in the right order with their indentation, and optional `distractors`, lines that don't belong. The app scrambles them and the learner puts them back; the answer is right when the lines are exactly the solution's, in order, with no decoy. The prompt must say what the program prints, so there's one right order. The validator runs the lines in order: the program must run without an error and without asking for input, the lines must be distinct, and no distractor may equal a line.
+
+A `predict_shell` item ([ADR-0017](../decisions/0017-shell-in-the-browser.md)) is the same question for the command line. It has `files`, a few small text files by path (a plain name, or a path like `logs/app.log`; never absolute, never `..`; 4,000 characters in all at most), `command`, one line of bash or a few, and `expected_output`. The browser runs nothing: the page shows the files and the command and asks what it prints. The validator runs the command in real bash (Linux in CI, Git Bash on Windows) in a temporary folder holding just those files, with `LC_ALL=C`, an empty `HOME` and nothing on stdin, and checks that stdout is exactly `expected_output` and that stderr is empty. So an item must behave the same on both (no `jq` or `rev`, which Git Bash lacks; nothing that prints dates, sizes, user names or the folder's path), and an error it wants to show is redirected with `2>&1`.
 
 ### Exercises
 

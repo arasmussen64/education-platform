@@ -210,6 +210,9 @@ function withRecallDefaults(item: RecallItem): RecallItem {
   if (item.type === 'parsons') {
     return { ...item, skills, distractors: item.distractors ?? [] }
   }
+  if (item.type === 'predict_shell') {
+    return { ...item, skills, files: item.files ?? {} }
+  }
   return { ...item, skills }
 }
 

@@ -66,7 +66,7 @@ function describe(
       ),
     }
   }
-  if (recall?.type === 'predict_output') {
+  if (recall?.type === 'predict_output' || recall?.type === 'predict_shell') {
     return {
       heading: 'Predict the output',
       body: (

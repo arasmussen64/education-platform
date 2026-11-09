@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { MCQ, PARSONS, PREDICT } from '../test/fakeContent.tsx'
+import { MCQ, PARSONS, PREDICT, PREDICT_SHELL } from '../test/fakeContent.tsx'
 import { McqQuestion } from './McqQuestion.tsx'
 import { ParsonsProblem } from './ParsonsProblem.tsx'
 import { PredictOutput } from './PredictOutput.tsx'
@@ -58,6 +58,31 @@ describe('PredictOutput', () => {
     expect(screen.getByText(/Not quite. It prints:/)).toBeInTheDocument()
     expect(screen.getByLabelText('What will it print?')).toBeDisabled()
     expect(screen.getByText(PREDICT.explanation)).toBeInTheDocument()
+  })
+})
+
+describe('PredictOutput for a shell command', () => {
+  const pre = (text: string) =>
+    screen.getByText(
+      (_, node) => node?.tagName === 'PRE' && node.textContent === text,
+    )
+
+  it('shows the files the command sees, then the command at a prompt', () => {
+    render(<PredictOutput item={PREDICT_SHELL} />)
+    expect(screen.getByText('The folder holds one file:')).toBeInTheDocument()
+    expect(screen.getByText('names.txt')).toBeInTheDocument()
+    expect(pre('ada\ngrace\nada\n')).toBeInTheDocument()
+    expect(pre('$ grep -c ada names.txt')).toBeInTheDocument()
+  })
+
+  it('grades the prediction like any other output', async () => {
+    const onAnswer = vi.fn()
+    render(<PredictOutput item={PREDICT_SHELL} onAnswer={onAnswer} />)
+    await userEvent.type(screen.getByLabelText('What will it print?'), '2')
+    await check()
+    expect(screen.getByText('Correct!')).toBeInTheDocument()
+    expect(screen.getByText(/counts the matching lines/)).toBeInTheDocument()
+    expect(onAnswer).toHaveBeenCalledWith(true, '2')
   })
 })
 

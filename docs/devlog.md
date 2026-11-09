@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: `predict_shell`, the cloud track's first question type
+
+The first thing ADR-0017 asks for, built end to end: a recall item that shows a few small files and a shell command over them and asks what it prints. The browser runs nothing. The validator runs the command in real bash and checks the output, so every item is proven against a real shell before a learner sees it, the way `predict_output` items are proven under CPython.
+
+**What changed.**
+- `tools/content_model.py`: `PredictShellItem` with `files` (path to contents; plain names or a few folders deep, never absolute or `..`, 4,000 characters in all at most), `command`, `expected_output`, `explanation`, `skills`.
+- `tools/validate_content.py`: `check_predict_shell` writes the files into a temporary folder and runs `bash --noprofile --norc -c <command>` there with `LC_ALL=C`, `TZ=UTC`, `HOME` pointing at that folder and nothing on stdin, with a 10 s limit. The output must equal `expected_output` exactly, and stderr must be empty. `find_bash()` finds the shell: on Windows it looks next to `git` for Git Bash, because the `bash.exe` Windows puts on PATH is only a launcher for WSL (on this PC it's `WindowsApps\bash.EXE`); `VALIDATOR_BASH` overrides. Without a bash, every shell item is reported rather than skipped.
+- Ready-topic rules count `predict_shell` as a recall item and as a predict kind for the review pool.
+- Web: the `PredictShellItem` type, `PredictOutput` renders either kind (for a shell item: "The folder holds one file:", each file with its name, then the command at a `$` prompt), `PracticeItem` and the review scheduler treat it like `predict_output`. Tests for the model, the validator (right output, stderr, paths, no bash, a command that never ends) and the view.
+- Docs: the data model, `content/README.md` (portability rules for shell items), the CHANGELOG.
+
+**Two tests got longer timeouts** (15 s and 20 s): the first app-routes render and the every-checkpoint follow-up test timed out at 5 s while Docker Desktop was running alongside the suite. They were the only failures, and they pass alone; the limits now match the work they do.
+
+**Decisions for you to review:**
+1. *stderr must be empty.* Error messages differ between machines (and a typo in a command would otherwise pass silently), so an item that wants to show an error redirects it with `2>&1`, and the text is then compared like the rest.
+2. *`LC_ALL=C` and an empty `HOME`.* The same sort order and messages everywhere, and no dotfiles. Items should still avoid anything machine-specific (dates, sizes, user names, the folder's path), which the two validators, Linux in CI and Git Bash here, would otherwise disagree about.
+3. *Files are capped at 4,000 characters.* They're shown on the page, so they have to be readable; a log of six lines teaches `grep` as well as one of six thousand.
+
+**Next:** Module 1's first topics as drafts, with lessons on the Missing Semester and `predict_shell` items, then the lab checker's local mode.
+
 ## 2026-11-09: Four ADRs accepted, the $10 cap set, the database types confirmed
 
 **Accepted by the owner:** [ADR-0014](decisions/0014-cloud-labs.md) (cloud labs in the learner's own clouds), [ADR-0015](decisions/0015-hint-only-tutor.md) (the hint-only tutor), [ADR-0016](decisions/0016-parsons-problems.md) (Parsons problems) and [ADR-0017](decisions/0017-shell-in-the-browser.md) (teaching and proving the shell). Their status lines, the ADR index, CLAUDE.md, the roadmap and the cloud track's spec no longer say "proposed". With ADR-0017 accepted, the cloud track's Stage 1 can start: the `predict_shell` item type proven by real `bash` in the validator, Module 1's lessons and recall, then the lab checker's local container mode (ADR-0014).

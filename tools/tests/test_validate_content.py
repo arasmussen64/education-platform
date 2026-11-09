@@ -42,9 +42,9 @@ def test_good_content_has_no_problems(tree: Path) -> None:
     assert report.counts["ready"] == 1
     assert report.counts["exercises"] == 6
     # 6 reference solutions + 2 starters + 1 wrong solution + 1 predict item
-    # + 1 Parsons item, and an empty program for each of the 2 exercises with
-    # hidden tests
-    assert report.counts["runs"] == 13
+    # + 1 Parsons item + 1 shell item, and an empty program for each of the 2
+    # exercises with hidden tests
+    assert report.counts["runs"] == 14
 
 
 def test_hidden_tests_fail_instead_of_crashing(tree: Path) -> None:
@@ -267,6 +267,56 @@ def test_parsons_decoys_must_differ_from_the_lines(tree: Path) -> None:
     text = (tree / item).read_text(encoding="utf-8")
     write(tree, item, text.replace("  - 'print(Greeting)'", "  - 'print(greeting)'"))
     assert_reported(tree, "different from every line", run=False)
+
+
+# --- Shell items run in real bash (ADR-0017) ----------------------------------
+
+SHELL_ITEM = f"{TOPIC_DIR}/recall/shell-count.yaml"
+
+
+def test_shell_output_must_be_what_the_command_prints(tree: Path) -> None:
+    text = (tree / SHELL_ITEM).read_text(encoding="utf-8")
+    write(tree, SHELL_ITEM, text.replace("  2\n  ok\n", "  3\n  ok\n"))
+    assert_reported(
+        tree,
+        "expected_output is '3\\nok\\nok\\n', but the command prints '2\\nok\\nok\\n'",
+    )
+
+
+def test_shell_commands_must_not_write_to_stderr(tree: Path) -> None:
+    text = (tree / SHELL_ITEM).read_text(encoding="utf-8")
+    write(
+        tree, SHELL_ITEM, text.replace("grep -c ada names.txt", "grep -c ada nope.txt")
+    )
+    assert_reported(tree, "writes to stderr", "nope.txt")
+
+
+def test_shell_files_stay_inside_their_folder(tree: Path) -> None:
+    text = (tree / SHELL_ITEM).read_text(encoding="utf-8")
+    write(tree, SHELL_ITEM, text.replace("  logs/app.log: |", "  ../app.log: |"))
+    assert_reported(tree, "must not have . or .. parts", run=False)
+    write(tree, SHELL_ITEM, text.replace("  logs/app.log: |", "  /tmp/app.log: |"))
+    assert_reported(tree, "String should match pattern", run=False)
+
+
+def test_shell_items_say_when_there_is_no_bash(
+    tree: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import validate_content
+
+    monkeypatch.setattr(validate_content, "find_bash", lambda: None)
+    assert_reported(tree, "needs bash to run the command")
+
+
+def test_shell_commands_that_never_stop_are_reported(
+    tree: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import validate_content
+
+    monkeypatch.setattr(validate_content, "SHELL_TIMEOUT_SECONDS", 2)
+    text = (tree / SHELL_ITEM).read_text(encoding="utf-8")
+    write(tree, SHELL_ITEM, text.replace("grep -c ada names.txt", "sleep 30"))
+    assert_reported(tree, "ran for over 2s")
 
 
 def test_code_that_never_stops_is_reported(

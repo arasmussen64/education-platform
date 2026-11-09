@@ -7,6 +7,7 @@ import type {
   McqItem,
   ParsonsItem,
   PredictOutputItem,
+  PredictShellItem,
   Topic,
   TopicContent,
 } from '../content/types.ts'
@@ -140,6 +141,19 @@ export const PARSONS: ParsonsItem = {
   distractors: ['while count < 0:'],
   explanation:
     'The loop runs while count is above 0, printing before it counts down.',
+  skills: ['print-text'],
+}
+
+/** A shell item (ADR-0017). Not in the shared recall map, like PARSONS. */
+export const PREDICT_SHELL: PredictShellItem = {
+  id: 'shell-count',
+  type: 'predict_shell',
+  rev: 1,
+  prompt: 'How many lines mention ada?',
+  files: { 'names.txt': 'ada\ngrace\nada\n' },
+  command: 'grep -c ada names.txt',
+  expected_output: '2\n',
+  explanation: '`grep -c` counts the matching lines instead of printing them.',
   skills: ['print-text'],
 }
 

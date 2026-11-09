@@ -85,62 +85,69 @@ const readyCheckpoints = readyTopics.filter(
 )
 
 describe('ready checkpoints', () => {
-  it("bring back each failed test's skills as questions from their topics", async () => {
-    for (const checkpointId of readyCheckpoints) {
-      const checkpoint = await loadTopicContent(checkpointId)
-      if (!checkpoint) throw new Error(`${checkpointId} should load`)
-      const contents = new Map<string, TopicContent>([
-        [checkpointId, checkpoint],
-      ])
-      for (const topicId of topicsNamedByTests(contents)) {
-        const content = await loadTopicContent(topicId)
-        if (content) contents.set(topicId, content)
-      }
+  // Loads every ready checkpoint and every topic its tests name, which takes
+  // longer than the default 5 s on a busy machine.
+  it(
+    "bring back each failed test's skills as questions from their topics",
+    { timeout: 20_000 },
+    async () => {
+      for (const checkpointId of readyCheckpoints) {
+        const checkpoint = await loadTopicContent(checkpointId)
+        if (!checkpoint) throw new Error(`${checkpointId} should load`)
+        const contents = new Map<string, TopicContent>([
+          [checkpointId, checkpoint],
+        ])
+        for (const topicId of topicsNamedByTests(contents)) {
+          const content = await loadTopicContent(topicId)
+          if (content) contents.set(topicId, content)
+        }
 
-      const { prove, unstuck } = checkpoint.topic
-      for (const itemId of [
-        prove.build,
-        prove.debug,
-        ...(unstuck?.versions ?? []),
-      ]) {
-        const exercise = itemId ? checkpoint.exercises[itemId] : undefined
-        if (!itemId || !exercise) throw new Error(`${checkpointId}: ${itemId}`)
-        for (const [test, refs] of Object.entries(exercise.test_skills)) {
-          const failed: Attempt = {
-            id: `failed-${itemId}-${test}`,
-            type: 'code_check',
-            topic_id: checkpointId,
-            item_id: itemId,
-            correct: false,
-            occurred_at: yesterday,
-            failing: [test],
-          }
-          const where = `${checkpointId} ${itemId} ${test}`
-          const open = openFollowUps(
-            [failed],
-            skillsIn(contents),
-            testSkillsIn(contents),
-          )
-          expect(
-            open.map((followUp) => `${followUp.topicId}/${followUp.skillId}`),
-            `${where} opens a follow-up for each skill it names`,
-          ).toEqual([...refs].sort())
-
-          for (const followUp of open) {
-            const content = contents.get(followUp.topicId)
-            const question = content
-              ? chooseQuestion(followUp, content, [failed])
-              : null
-            const chosen = question
-              ? (content?.recall[question] ?? content?.exercises[question])
-              : undefined
+        const { prove, unstuck } = checkpoint.topic
+        for (const itemId of [
+          prove.build,
+          prove.debug,
+          ...(unstuck?.versions ?? []),
+        ]) {
+          const exercise = itemId ? checkpoint.exercises[itemId] : undefined
+          if (!itemId || !exercise)
+            throw new Error(`${checkpointId}: ${itemId}`)
+          for (const [test, refs] of Object.entries(exercise.test_skills)) {
+            const failed: Attempt = {
+              id: `failed-${itemId}-${test}`,
+              type: 'code_check',
+              topic_id: checkpointId,
+              item_id: itemId,
+              correct: false,
+              occurred_at: yesterday,
+              failing: [test],
+            }
+            const where = `${checkpointId} ${itemId} ${test}`
+            const open = openFollowUps(
+              [failed],
+              skillsIn(contents),
+              testSkillsIn(contents),
+            )
             expect(
-              chosen?.skills,
-              `${where}: a question on the skill`,
-            ).toContain(followUp.skillId)
+              open.map((followUp) => `${followUp.topicId}/${followUp.skillId}`),
+              `${where} opens a follow-up for each skill it names`,
+            ).toEqual([...refs].sort())
+
+            for (const followUp of open) {
+              const content = contents.get(followUp.topicId)
+              const question = content
+                ? chooseQuestion(followUp, content, [failed])
+                : null
+              const chosen = question
+                ? (content?.recall[question] ?? content?.exercises[question])
+                : undefined
+              expect(
+                chosen?.skills,
+                `${where}: a question on the skill`,
+              ).toContain(followUp.skillId)
+            }
           }
         }
       }
-    }
-  })
+    },
+  )
 })

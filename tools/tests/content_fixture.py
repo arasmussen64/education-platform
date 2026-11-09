@@ -38,7 +38,7 @@ resources:
     end: 20
     license: CC BY-NC-SA 4.0
 practice: [example-hello, parsons-order, mcq-print, predict-print,
-  fill-hello, write-hello]
+  shell-count, fill-hello, write-hello]
 prove:
   build: build-hello
   debug: debug-hello
@@ -116,6 +116,27 @@ explanation: A name must exist before it's used.
 skills: [print-text]
 """
 
+PREDICT_SHELL = """id: shell-count
+type: predict_shell
+rev: 1
+prompt: The folder holds `names.txt`. What does the command print?
+files:
+  names.txt: |
+    ada
+    grace
+    ada
+  logs/app.log: |
+    ok
+    ok
+command: grep -c ada names.txt; cat logs/app.log
+expected_output: |
+  2
+  ok
+  ok
+explanation: grep -c counts matching lines; cat prints a file as it is.
+skills: [print-text]
+"""
+
 LESSON = """<Intro>Watch for print.</Intro>
 
 <Resource index={0} />
@@ -153,6 +174,7 @@ def make_valid_tree(root: Path) -> Path:
     write(root, f"{topic}/recall/mcq-print.yaml", MCQ)
     write(root, f"{topic}/recall/predict-print.yaml", PREDICT)
     write(root, f"{topic}/recall/parsons-order.yaml", PARSONS)
+    write(root, f"{topic}/recall/shell-count.yaml", PREDICT_SHELL)
     exercises = {
         "example-hello": "worked_example",
         "fill-hello": "fill_in",
