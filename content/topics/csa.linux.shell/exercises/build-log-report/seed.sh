@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Writes the shop's logs into /var/log/shop. Everything is decided by
-# arithmetic on the line number, so the files are the same on every build
-# and the checks can compute the truth from them.
+# The shop's logs, the same in every Shell essentials lab: everything is
+# decided by arithmetic on the line number, so the files are identical on
+# every build and the checks can compute the truth from them.
 set -euo pipefail
 
 mkdir -p /var/log/shop
@@ -39,6 +39,30 @@ for i in $(seq 1 200); do
   else line="INFO handled request $i"
   fi
   echo "$line" >> app.log
+done
+
+# worker.log: a second log in the same shape, so a script can be tried on
+# more than one file.
+: > worker.log
+for i in $(seq 1 120); do
+  if (( i % 9 == 0 )); then line="ERROR worker crashed on task $i"
+  elif (( i % 14 == 0 )); then line="error retrying task $i"
+  else line="INFO task $i done"
+  fi
+  echo "$line" >> worker.log
+done
+
+# old-access.log: last month's requests, with a different favourite path and
+# no ties in the top two.
+: > old-access.log
+for i in $(seq 1 300); do
+  case $((i % 6)) in
+    0|1|2) path=/search ;;
+    3|4)   path=/home ;;
+    *)     path=/cart ;;
+  esac
+  if (( i % 30 == 0 )); then status=500; else status=200; fi
+  echo "GET $path $status $(( (i * 53) % 900 + 100 ))" >> old-access.log
 done
 
 # requests.csv: a header and 300 rows, 37 distinct users.

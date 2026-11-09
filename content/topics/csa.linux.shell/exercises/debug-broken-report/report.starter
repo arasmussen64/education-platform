@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Usage: report LOGFILE
+# Prints three lines about a METHOD PATH STATUS BYTES log:
+#   requests: N    how many requests
+#   failed: N      how many had a status in the 500s
+#   top: PATH      the most requested path
+log="$1"
+echo "requests: $(wc -l < "$log")"
+echo "failed: $(grep -c 500 "$log")"
+echo "top: $(awk '{print $3}' "$log" | uniq -c | sort -rn | head -n 1 | awk '{print $2}')"

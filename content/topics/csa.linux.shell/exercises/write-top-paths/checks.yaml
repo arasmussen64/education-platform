@@ -1,0 +1,19 @@
+# The checks for "Write top-paths": the script's output, with spacing
+# normalised, against the same question answered directly, for two logs and
+# two values of N.
+checks:
+  - id: script-runs
+    description: "~/bin/top-paths exists and is executable."
+    command: test -x /home/learner/bin/top-paths
+  - id: access-top-two
+    description: "On access.log with N=2 it prints the two most requested paths with their counts."
+    command: |
+      diff -q <(/home/learner/bin/top-paths /var/log/shop/access.log 2 | awk '{print $1, $2}') <(awk '{print $2}' /var/log/shop/access.log | sort | uniq -c | sort -rn | head -n 2 | awk '{print $1, $2}')
+  - id: old-top-two
+    description: "On old-access.log with N=2 it gives that log's answer, not access.log's."
+    command: |
+      diff -q <(/home/learner/bin/top-paths /var/log/shop/old-access.log 2 | awk '{print $1, $2}') <(awk '{print $2}' /var/log/shop/old-access.log | sort | uniq -c | sort -rn | head -n 2 | awk '{print $1, $2}')
+  - id: respects-n
+    description: "With N=1 it prints exactly one line."
+    command: |
+      test "$(/home/learner/bin/top-paths /var/log/shop/old-access.log 1 | wc -l)" -eq 1
