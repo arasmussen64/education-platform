@@ -1,0 +1,22 @@
+id: pkg-installed-vs-candidate
+type: predict_shell
+rev: 1
+prompt: |
+  `policy.txt` is the output of `apt policy nginx`: the version installed, the version `apt` would install now (the candidate), and where each comes from. The command prints just those two lines, trimmed to the label and the version. What is printed?
+files:
+  policy.txt: |
+    nginx:
+      Installed: 1.24.0-2ubuntu7
+      Candidate: 1.24.0-2ubuntu7.1
+      Version table:
+         1.24.0-2ubuntu7.1 500
+            500 http://archive.ubuntu.com/ubuntu noble-updates/main amd64 Packages
+     *** 1.24.0-2ubuntu7 100
+            100 /var/lib/dpkg/status
+command: awk '/^  (Installed|Candidate):/ {print $1, $2}' policy.txt
+expected_output: |
+  Installed: 1.24.0-2ubuntu7
+  Candidate: 1.24.0-2ubuntu7.1
+explanation: |
+  The installed version differs from the candidate, so `apt upgrade` would move nginx from `2ubuntu7` to `2ubuntu7.1`, a small packaging revision from `noble-updates`. The version table below shows every version `apt` knows about and its priority: the `***` marks the installed one, whose only source is the local database. When the two lines match, the package is up to date; `apt policy` is how you check one package without upgrading anything.
+skills: [apt-dnf]

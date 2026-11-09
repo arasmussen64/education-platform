@@ -1,0 +1,14 @@
+id: mcq-hold
+type: mcq
+rev: 1
+prompt: |
+  Your database has been tested at one exact version, and the rest of the server must keep getting security updates. What do you do before the next `apt upgrade`?
+choices:
+  - "`apt-mark hold postgresql` (on dnf, `dnf versionlock add postgresql`), so that package stays put while everything else updates"
+  - "Stop running `apt upgrade` on this server"
+  - "Comment out the security repository"
+  - "`apt remove postgresql` before upgrading and reinstall it afterwards"
+answer: 0
+explanation: |
+  A hold tells the package manager to leave that one package at its current version; `apt list --upgradable` still shows a newer version exists, but `upgrade` skips it. The rest of the system keeps its security updates, which is the point. When you're ready to move the database, `apt-mark unhold` and upgrade it deliberately. Turning off updates or the security repository trades a small risk for a large one.
+skills: [patching]

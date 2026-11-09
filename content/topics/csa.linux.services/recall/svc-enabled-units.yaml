@@ -1,0 +1,20 @@
+id: svc-enabled-units
+type: predict_shell
+rev: 1
+prompt: |
+  `unit-files.txt` is the output of `systemctl list-unit-files --type=service`: each unit's name, its STATE (enabled or disabled: does it start at boot?) and its PRESET (what the distribution would choose). Which units start at boot? The command skips the header with `NR > 1`.
+files:
+  unit-files.txt: |
+    UNIT FILE          STATE    PRESET
+    app.service        enabled  enabled
+    backup.service     disabled enabled
+    nginx.service      enabled  enabled
+    ssh.service        enabled  enabled
+command: awk 'NR > 1 && $2 == "enabled" {print $1}' unit-files.txt
+expected_output: |
+  app.service
+  nginx.service
+  ssh.service
+explanation: |
+  `enabled` in the STATE column means the unit is linked into a target, so systemd starts it at boot. `backup.service` is `disabled` even though the preset would enable it, so someone turned it off on purpose; it can still be started by hand. Enabled and running are different questions: `list-units` answers "what's running now", `list-unit-files` answers "what starts at boot".
+skills: [systemctl]

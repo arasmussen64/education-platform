@@ -1,0 +1,18 @@
+id: disk-du-top
+type: predict_shell
+rev: 1
+prompt: |
+  `du.txt` is the output of `du -sk /var/*`: the size of each folder in kilobytes, then its name. The command sorts the biggest first, keeps two, and prints each folder with its size in megabytes (1024 KB each). What is printed?
+files:
+  du.txt: |
+    4096 /var/cache
+    15728640 /var/lib
+    62914560 /var/log
+    16 /var/tmp
+command: sort -rn du.txt | head -n 2 | awk '{print $2, int($1 / 1024), "MB"}'
+expected_output: |
+  /var/log 61440 MB
+  /var/lib 15360 MB
+explanation: |
+  `sort -rn` orders by the number at the start of each line, largest first (plain `sort` would put `62914560` after `4096`, since `4` is less than `6` but `15728640` would land first by its leading `1`). `head -n 2` keeps the top two, and `awk` divides the kilobytes by 1024: `/var/log` holds 60 GB, `/var/lib` 15 GB. The logs are the problem. `du -sh` would print human-readable sizes directly, but `-k` plus `sort -rn` is the form that sorts correctly.
+skills: [disk-full]

@@ -1,15 +1,101 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.packages
 kind: topic
-status: planned
-title: Package management and patching
-summary: Install and pin packages with apt and dnf.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "Package management and patching"
+summary: "Install, update and pin software with apt and dnf, keep a server patched without breaking it, and know why a cloud fleet is replaced from a fresh image rather than patched in place."
+prerequisites: [csa.linux.shell]
+estimated_minutes: 90
 rev: 1
 objectives:
-- Install and pin packages with apt and dnf.
-- Patch a server safely.
-- Explain mutable and immutable servers, and why fleets are replaced rather than patched in place.
+  - "Install, remove, search for and inspect packages with `apt` and `dnf`, and explain what a package, a version, a dependency and a repository are."
+  - "Tell `apt update` from `apt upgrade`, find which updates are security fixes, and pin or hold a package at a known version."
+  - "Patch a server safely: security updates, automatic updates, when a reboot is needed, and how to check what needs restarting."
+  - "Explain mutable and immutable servers, and why a cloud fleet is replaced from a new image rather than patched one machine at a time."
+# Linked, never copied. Licences: Ubuntu Server documentation is CC BY-SA
+# 3.0; The Debian Administrator's Handbook is dual-licensed GPL-2.0-or-later
+# and CC BY-SA 3.0; Fedora Documentation is CC BY-SA 4.0; Martin Fowler's
+# bliki is his copyright and is linked only.
+resources:
+  - title: "Ubuntu Server documentation: Package management (apt, dpkg, repositories, automatic updates)"
+    url: https://documentation.ubuntu.com/server/how-to/software/package-management/
+    type: reading
+    use: link
+    license: CC BY-SA 3.0
+  - title: "The Debian Administrator's Handbook, chapter 6: Maintenance and Updates: The APT Tools"
+    url: https://debian-handbook.info/browse/stable/apt.html
+    type: reading
+    use: link
+    license: "GPL-2.0-or-later or CC BY-SA 3.0 (the book's dual licence)"
+  - title: "Fedora Quick Docs: Using the DNF software package manager"
+    url: https://docs.fedoraproject.org/en-US/quick-docs/dnf/
+    type: reading
+    use: link
+    license: CC BY-SA 4.0
+  - title: "Ubuntu Server documentation: Automatic updates (unattended-upgrades)"
+    url: https://documentation.ubuntu.com/server/how-to/software/automatic-updates/
+    type: reading
+    use: link
+    license: CC BY-SA 3.0
+  - title: "Immutable Server, by Martin Fowler (and its companion, Phoenix Server)"
+    url: https://martinfowler.com/bliki/ImmutableServer.html
+    type: reading
+    use: link
+    license: "Copyright Martin Fowler; linked, not copied"
+# Lessons and recall first (ADR-0017). The browser has no package manager,
+# so the items read apt and dpkg output and repository files with the text
+# tools of the first topic; installing and patching for real comes in the labs.
+practice:
+  - mcq-what-is-a-package
+  - pkg-sources-suites
+  - mcq-update-vs-upgrade
+  - pkg-upgradable-names
+  - pkg-security-updates
+  - pkg-installed-vs-candidate
+  - mcq-hold
+  - pkg-version-sort
+  - pkg-dpkg-states
+  - mcq-purge-vs-remove
+  - pkg-reboot-required
+  - mcq-kernel-reboot
+  - mcq-unattended
+  - mcq-third-party-repo
+  - mcq-mutable-vs-immutable
+  - mcq-replace-the-fleet
+prove:
+  explain:
+    prompt: |
+      A server has been running for two years and nobody dares touch it. Explain, in your own words: how you'd find out what needs updating and which of those are security fixes, and the difference between refreshing the package list and upgrading; how you'd apply the security updates safely, what holding or pinning a package is for, and when a reboot is needed and how you'd know; and why, on a cloud fleet of many identical servers, you'd rather build a new image and replace the servers than patch each one in place.
+    rubric:
+      - id: update-upgrade
+        required: true
+        description: "apt update (dnf check-update) refreshes the list of available versions from the repositories and installs nothing; apt upgrade (dnf upgrade) installs the newer versions; apt list --upgradable shows what would change, and the -security suite marks the security fixes."
+      - id: safe-patching
+        required: true
+        description: "Apply security updates first and regularly (unattended-upgrades or dnf-automatic for those), test on one server before the rest, keep a way back (snapshot or image); a held or pinned package stays at a known-good version while the rest updates."
+      - id: reboot
+        required: true
+        description: "A kernel or libc update needs a reboot to take effect (/var/run/reboot-required on Ubuntu, needs-restarting -r on RHEL); other services need a restart after their libraries change (needs-restarting, or restart them)."
+      - id: immutable
+        required: true
+        description: "Patching in place lets servers drift apart and makes each one unique; building a new image with the updates and replacing instances from it, a few at a time, gives identical servers, a tested artifact, and rollback by redeploying the previous image."
+      - id: trust
+        required: false
+        description: "Repositories are signed; adding a third-party repository and key means trusting its owner with root, so prefer the distribution's repositories."
+    model_answer: |
+      First I'd find out where the server stands. apt update downloads the current list of available packages from the repositories it's configured with; it installs nothing, it only refreshes what apt knows about. Then apt list --upgradable shows every installed package with a newer version available, and the ones whose line names the -security suite are security fixes, which is what I'd apply first. apt upgrade installs those newer versions; apt full-upgrade can also remove packages to resolve dependencies, so I'd read what it proposes. To do it safely I'd snapshot the server or make sure I can rebuild it, apply the security updates, and if there are many servers do one first and watch it before the rest. Holding a package (apt-mark hold, or dnf versionlock) keeps it at a version I know works, say a database we've tested, while everything around it updates; later I release the hold and upgrade it deliberately. Some updates only take effect after a restart: a new kernel or a new libc needs a reboot, and Ubuntu writes /var/run/reboot-required to say so, while RHEL's needs-restarting -r answers the same question; other services need restarting when a library they loaded has changed, which needs-restarting lists. I'd turn on unattended-upgrades for security updates so the next two years don't look like the last two. On a cloud fleet I'd stop patching servers in place altogether. Servers patched by hand drift apart and become one-offs nobody dares touch, exactly this server's problem. Instead I'd build a new machine image with the updates baked in, test it, and replace the running instances from it a few at a time behind the load balancer. Every server is then identical and known, and rolling back is just redeploying the previous image.
+review_pool:
+  - pkg-security-updates
+  - pkg-installed-vs-candidate
+  - pkg-version-sort
+  - mcq-update-vs-upgrade
+  - mcq-kernel-reboot
+  - mcq-mutable-vs-immutable
+skills:
+  - id: apt-dnf
+    description: "Install, remove, search and inspect packages with `apt` and `dnf`; `update` versus `upgrade`; `apt list --upgradable`, `apt policy`, `dpkg -l`"
+  - id: repositories
+    description: "Packages, versions and dependencies; what a repository and a suite are; signed repositories and the trust a third-party one implies"
+  - id: patching
+    description: "Patch safely: security updates first, holds and pins, automatic updates, when a reboot or a restart is needed"
+  - id: immutable
+    description: "Mutable versus immutable servers: drift, golden images, and replacing a fleet from a new image"

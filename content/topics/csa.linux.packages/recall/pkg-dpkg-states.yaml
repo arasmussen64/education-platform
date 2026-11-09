@@ -1,0 +1,18 @@
+id: pkg-dpkg-states
+type: predict_shell
+rev: 1
+prompt: |
+  `dpkg.txt` holds lines from `dpkg -l`. The first two letters are the package's state: `ii` means installed, `rc` means removed but its configuration files were kept. The first command names the `rc` packages with a note; the second counts the installed ones. What is printed?
+files:
+  dpkg.txt: |
+    ii  nginx        1.24.0-2ubuntu7    amd64  small, powerful, scalable web/proxy server
+    rc  apache2      2.4.58-1ubuntu8    amd64  Apache HTTP Server
+    ii  openssl      3.0.13-0ubuntu3.4  amd64  Secure Sockets Layer toolkit - cryptographic utility
+    ii  python3      3.12.3-0ubuntu2    amd64  interactive high-level object-oriented language
+command: awk '$1 == "rc" {print $2, "(removed, config kept)"}' dpkg.txt; awk '$1 == "ii"' dpkg.txt | wc -l
+expected_output: |
+  apache2 (removed, config kept)
+  3
+explanation: |
+  Someone ran `apt remove apache2`: the program is gone but `/etc/apache2` is still there, which is what `rc` records (removed, config-files). `apt purge apache2` would clear that too. Three packages are `ii`, fully installed. `awk '$1 == "ii"'` with no action prints the matching lines, and `wc -l` counts them.
+skills: [apt-dnf]

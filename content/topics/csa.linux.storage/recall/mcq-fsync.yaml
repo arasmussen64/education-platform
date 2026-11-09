@@ -1,0 +1,14 @@
+id: mcq-fsync
+type: mcq
+rev: 1
+prompt: |
+  A teammate suggests turning off `fsync` in the database's configuration because commits are slow. What does `fsync` do, and what would turning it off risk?
+choices:
+  - "`fsync` compresses data before writing; turning it off uses more disk space"
+  - "`fsync` makes the kernel write a file's buffered data to the disk and wait until it's there; without it, a commit is acknowledged while its data is still only in memory, and a crash or power cut loses transactions the clients were told were saved"
+  - "`fsync` checks the disk for errors; turning it off risks nothing on cloud disks"
+  - "`fsync` syncs the clock; turning it off makes timestamps wrong"
+answer: 1
+explanation: |
+  `write()` returns as soon as the data is in the kernel's page cache; the disk may see it seconds later. `fsync` waits for the disk to confirm, which is why a committed transaction survives a power cut, and why each commit costs a disk round trip. Turning it off trades that guarantee for speed: the database may lose or corrupt data it acknowledged. The right fixes for slow commits are a lower-latency disk, batching commits, or a write-ahead log on its own fast volume.
+skills: [durability]

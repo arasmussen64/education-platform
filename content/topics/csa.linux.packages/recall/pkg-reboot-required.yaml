@@ -1,0 +1,19 @@
+id: pkg-reboot-required
+type: predict_shell
+rev: 1
+prompt: |
+  On Ubuntu, an update that needs a reboot creates the file `reboot-required` and lists the packages responsible in `reboot-required.pkgs` (here in the current folder instead of `/var/run`). `test -f` succeeds if the file exists, and `&&` runs the next command only then. What is printed?
+files:
+  reboot-required: |
+    *** System restart required ***
+  reboot-required.pkgs: |
+    linux-image-6.8.0-45-generic
+    libc6
+command: test -f reboot-required && echo "reboot needed, because of:" && cat reboot-required.pkgs
+expected_output: |
+  reboot needed, because of:
+  linux-image-6.8.0-45-generic
+  libc6
+explanation: |
+  The marker file exists, so the message prints and `cat` shows the two packages: a new kernel, which can only start at boot, and the C library, which every running program has loaded and keeps using until it restarts. If the marker weren't there, `test -f` would fail and nothing would print: the `&&` chain stops at the first failure. Patching scripts check exactly this file before deciding to reboot.
+skills: [patching]

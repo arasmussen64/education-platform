@@ -1,0 +1,14 @@
+id: mcq-inodes
+type: mcq
+rev: 1
+prompt: |
+  `df -h` says `/var` is 40% used, but every write there fails with "No space left on device". What is the most likely cause, and how do you confirm it?
+choices:
+  - "The disk is failing; check `dmesg`"
+  - "The filesystem is out of inodes: millions of small files have used every file record although bytes remain; `df -i` shows IUse% at 100%"
+  - "The filesystem is mounted read-only; remount it"
+  - "The disk's write cache is full; run `sync`"
+answer: 1
+explanation: |
+  An ext4 filesystem has a fixed number of inodes, set when it was made, roughly one per 16 KB of space by default. A program that creates millions of tiny files (session files, a queue of small messages, a cache with one file per key) exhausts them long before the bytes run out, and the kernel reports the same error as a full disk. `df -i` tells the two apart. The fix is to delete the files; a bigger disk wouldn't help, and recreating the filesystem with more inodes (or using XFS) prevents a repeat.
+skills: [disk-full, filesystems]

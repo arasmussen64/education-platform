@@ -41,7 +41,8 @@ describe('topic outlines that load on demand', () => {
     for (const id of topicIdsOf(cloud)) {
       expect(getTopic(id), id).toBeDefined()
     }
-    expect(getTopic('csa.linux.services')).toMatchObject({
+    // A Module 2 topic: planned for a long while yet.
+    expect(getTopic('csa.hw.hypervisors')).toMatchObject({
       status: 'planned',
       practice: [],
     })

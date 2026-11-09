@@ -2,6 +2,22 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Module 1, topics 4 to 6: services, packages, disks
+
+The owner chose to finish Module 1's lessons before the lab checker. This batch: Services and logs (`csa.linux.services`), Package management and patching (`csa.linux.packages`) and Disks and filesystems (`csa.linux.storage`), the same shape as the first three: a lesson for a complete beginner, an explain prompt with rubric and model answer, four to five skills, a review pool, and a practice ladder of recall items (49 in all, 20 of them `predict_shell`).
+
+**What the shell items do here.** None of these topics' tools exist in the browser or in Git Bash (`systemctl`, `apt`, `lsblk`), so every shell item reads *captured output* of the real tool, written as a fixture file, with the text tools from Shell essentials: find the failed units in a `systemctl` listing, the security fixes in `apt list --upgradable`, the full filesystem in `df -h`, the inode-starved one in `df -i`, the deleted-but-open file in `lsof +L1`, the free space in `vgs`. That's a fair picture of the job: on a real server you run the tool and then read its output, and reading is the part that takes practice. Where bash itself is the tool (`test -f reboot-required && …`, `sort -V` on versions, `sed` capture groups on `blkid`), the command is real.
+
+**Resources and licences.** DigitalOcean's community tutorials carry CC BY-NC-SA 4.0 in each page's source (checked with `curl`), so three of them anchor the services topic and two the storage topic. The kernel documentation is GPL-2.0, Google Cloud and Kubernetes docs CC BY 4.0 and Google's style guide CC BY 3.0, all checked the same way and queued for later batches. The Debian handbook (GPL-2.0-or-later or CC BY-SA 3.0), Fedora docs (CC BY-SA 4.0) and Ubuntu Server docs (CC BY-SA 3.0) are recorded from their published licence terms, since their footers didn't come through a fetch. Amazon's EBS page, Dan Luu's *Files are hard* and Martin Fowler's *Immutable Server* are copyright and linked only.
+
+**One test loosened on purpose.** The map test counted exactly three Draft markers; it now asks for at least three, so each batch of drafts doesn't have to touch it.
+
+**Decisions for you to review:**
+1. *Captured output as fixtures.* It's the only way to teach `df`, `lsof` or `systemctl` in the browser without a shell, and it teaches reading the output, which is the skill. The outputs are realistic but hand-written; the labs will show the learner the real thing.
+2. *Fowler and Dan Luu as readings.* Both are copyright and linked only, like Amazon's documentation; they're the clearest statements of immutable servers and of why `fsync` matters, and the platform's rule is only that nothing is copied.
+
+**Next:** memory and the OOM killer, CPU scheduling and cgroups, how containers work.
+
 ## 2026-11-09: The cloud track begins: Module 1's first three topics, as drafts
 
 The first content built on ADR-0017: Shell essentials (`csa.linux.shell`), Processes and signals (`csa.linux.processes`) and Users, permissions and SSH (`csa.linux.permissions`), the first three of Module 1's fourteen. Each has a lesson, an explain prompt with its rubric and model answer, skills, a review pool, and a practice ladder of recall items: 54 in all, 31 of them `predict_shell`, each proven in real bash by the validator (through Git Bash on this PC, on Linux in CI).

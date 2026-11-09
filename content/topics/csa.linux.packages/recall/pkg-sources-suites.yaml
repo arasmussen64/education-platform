@@ -1,0 +1,20 @@
+id: pkg-sources-suites
+type: predict_shell
+rev: 1
+prompt: |
+  `sources.list` names the repositories a server fetches packages from. Each active line is `deb URL suite components`. The command drops the comment lines and prints the third field, the suite, of each. What is printed?
+files:
+  sources.list: |
+    # Ubuntu 24.04 (noble) package sources
+    deb http://archive.ubuntu.com/ubuntu noble main restricted universe
+    deb http://archive.ubuntu.com/ubuntu noble-updates main restricted universe
+    deb http://security.ubuntu.com/ubuntu noble-security main restricted universe
+    # deb http://archive.ubuntu.com/ubuntu noble-backports main
+command: grep -v '^#' sources.list | awk '{print $3}'
+expected_output: |
+  noble
+  noble-updates
+  noble-security
+explanation: |
+  Three suites of the same release: `noble` as it shipped, `noble-updates` with bug fixes since, and `noble-security` with security fixes, served from a dedicated security host. The backports line is commented out, so `grep -v '^#'` drops it along with the heading. When `apt list --upgradable` names `noble-security` on a line, that update is a security fix.
+skills: [repositories]

@@ -1,0 +1,14 @@
+id: mcq-mount-steps
+type: mcq
+rev: 1
+prompt: |
+  A new empty 500G volume shows up as `/dev/nvme2n1`. In what order do you make it usable at `/data`, permanently?
+choices:
+  - "`mount /dev/nvme2n1 /data`, then `mkfs.xfs /dev/nvme2n1`"
+  - "`mkfs.xfs /dev/nvme2n1`; `mkdir /data`; `mount /dev/nvme2n1 /data`; add a line to `/etc/fstab` using the UUID from `blkid`; `mount -a` to test it"
+  - "Add it to `/etc/fstab` and reboot; Linux formats it on first boot"
+  - "`mkdir /data` is enough; the disk is used automatically"
+answer: 1
+explanation: |
+  A filesystem has to exist before anything can be mounted, so `mkfs` comes first (and wipes the disk, so check `lsblk` twice). Mounting makes it usable now; the `fstab` line makes it come back at boot, by UUID so a renamed device can't break it; `mount -a` mounts everything in `fstab` that isn't mounted yet, which proves the line is right while you can still fix it. Mounting an unformatted disk fails, and nothing formats disks for you.
+skills: [block-devices]

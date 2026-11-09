@@ -1,0 +1,20 @@
+id: svc-failed-units
+type: predict_shell
+rev: 1
+prompt: |
+  `units.txt` is the output of `systemctl list-units --type=service --all`, with the columns UNIT, LOAD, ACTIVE, SUB and DESCRIPTION. The command prints the name of every unit whose ACTIVE column says `failed`. What is printed?
+files:
+  units.txt: |
+    UNIT              LOAD   ACTIVE   SUB     DESCRIPTION
+    app.service       loaded failed   failed  Example web app
+    cron.service      loaded active   running Regular background program processing daemon
+    metrics.service   loaded failed   failed  Metrics exporter
+    nginx.service     loaded active   running A high performance web server
+    backup.service    loaded inactive dead    Nightly backup
+command: awk '$3 == "failed" {print $1}' units.txt
+expected_output: |
+  app.service
+  metrics.service
+explanation: |
+  ACTIVE is the third column: `active` means running or done, `inactive` means stopped on purpose (the nightly backup isn't running right now, which is fine), and `failed` means it tried and died. Two units have failed. On a real server `systemctl --failed` prints just those, and `systemctl status app` then shows why.
+skills: [systemctl]

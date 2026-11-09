@@ -1,0 +1,23 @@
+id: svc-where-units-live
+type: predict_shell
+rev: 1
+prompt: |
+  The folder mirrors a server: a packaged unit under `usr/lib/systemd/system/` and an administrator's drop-in under `etc/systemd/system/app.service.d/`. `find . -type f` lists every file below the current folder. What is printed?
+files:
+  usr/lib/systemd/system/app.service: |
+    [Service]
+    ExecStart=/usr/bin/app
+    Environment=PORT=8080
+  etc/systemd/system/app.service.d/override.conf: |
+    [Service]
+    Environment=PORT=9090
+command: find . -type f | sort; echo ---; cat etc/systemd/system/app.service.d/override.conf
+expected_output: |
+  ./etc/systemd/system/app.service.d/override.conf
+  ./usr/lib/systemd/system/app.service
+  ---
+  [Service]
+  Environment=PORT=9090
+explanation: |
+  Two files: the unit the package installed, and the drop-in that changes one line of it. systemd reads the packaged unit, then applies every `.conf` in the matching `.d` folder on top, so the port becomes 9090 without the packaged file being edited, and a package update can't undo the change. `systemctl edit app` creates exactly this drop-in, and `systemctl cat app` shows the result.
+skills: [unit-files]

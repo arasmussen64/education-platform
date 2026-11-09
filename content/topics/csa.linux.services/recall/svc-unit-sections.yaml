@@ -1,0 +1,31 @@
+id: svc-unit-sections
+type: predict_shell
+rev: 1
+prompt: |
+  `app.service` is a unit file. `grep -n '^\['` prints every line that starts with `[`, with its line number: the section headings. What is printed?
+files:
+  app.service: |
+    [Unit]
+    Description=Example web app
+    After=network-online.target
+    Wants=network-online.target
+
+    [Service]
+    Type=simple
+    User=app
+    WorkingDirectory=/srv/app
+    Environment=PORT=8080
+    ExecStart=/usr/bin/python3 /srv/app/app.py
+    Restart=on-failure
+    RestartSec=5
+
+    [Install]
+    WantedBy=multi-user.target
+command: grep -n '^\[' app.service
+expected_output: |
+  1:[Unit]
+  6:[Service]
+  15:[Install]
+explanation: |
+  Three sections, always in this order by convention: `[Unit]` describes the service and orders it, `[Service]` says how to run it, `[Install]` says when it's wanted. The `\[` in the pattern escapes the bracket, which otherwise starts a character class in `grep`. Counting the blank lines is what gets you to 6 and 15.
+skills: [unit-files]

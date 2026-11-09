@@ -1,0 +1,18 @@
+id: disk-df-full
+type: predict_shell
+rev: 1
+prompt: |
+  `df.txt` is the output of `df -h`. The Use% column is field 5, as text like `96%`; adding 0 to it in `awk` turns it into the number 96. The command prints the mount point and usage of every filesystem at 90% or more. What is printed?
+files:
+  df.txt: |
+    Filesystem      Size  Used Avail Use% Mounted on
+    /dev/nvme0n1p1   20G   12G  8.0G  60% /
+    /dev/nvme1n1    100G   96G  4.1G  96% /var
+    tmpfs           2.0G     0  2.0G   0% /dev/shm
+    /dev/nvme2n1    500G  410G   91G  82% /data
+command: awk 'NR > 1 && $5+0 >= 90 {print $6, $5}' df.txt
+expected_output: |
+  /var 96%
+explanation: |
+  Only `/var` is over the line: 96 GB of 100 used, 4.1 GB left. `/data` is at 82%, worth watching but not the emergency. `$5+0` is the `awk` trick for "treat this as a number": the `%` and anything after the digits are dropped. `tmpfs` is memory, not a disk, and shows up in `df` because it's mounted like one. Logs under `/var/log` are the usual suspect on `/var`.
+skills: [disk-full]

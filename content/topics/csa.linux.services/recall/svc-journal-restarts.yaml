@@ -1,0 +1,25 @@
+id: svc-journal-restarts
+type: predict_shell
+rev: 1
+prompt: |
+  `journal.txt` is `journalctl -u app` for a service that keeps crashing. The first command counts how many times systemd scheduled a restart; the second pulls out the last restart counter it logged. What is printed?
+files:
+  journal.txt: |
+    Nov 09 10:01:02 web1 systemd[1]: Started app.service - Example web app.
+    Nov 09 10:01:03 web1 python3[2314]: Listening on port 8080
+    Nov 09 10:05:17 web1 python3[2314]: ERROR database connection refused
+    Nov 09 10:05:17 web1 systemd[1]: app.service: Main process exited, code=exited, status=1/FAILURE
+    Nov 09 10:05:17 web1 systemd[1]: app.service: Failed with result 'exit-code'.
+    Nov 09 10:05:22 web1 systemd[1]: app.service: Scheduled restart job, restart counter is at 1.
+    Nov 09 10:05:22 web1 systemd[1]: Started app.service - Example web app.
+    Nov 09 10:05:23 web1 python3[2318]: Listening on port 8080
+    Nov 09 10:09:40 web1 python3[2318]: ERROR database connection refused
+    Nov 09 10:09:40 web1 systemd[1]: app.service: Main process exited, code=exited, status=1/FAILURE
+    Nov 09 10:09:45 web1 systemd[1]: app.service: Scheduled restart job, restart counter is at 2.
+command: grep -c 'Scheduled restart' journal.txt; grep -o 'restart counter is at [0-9]*' journal.txt | tail -n 1
+expected_output: |
+  2
+  restart counter is at 2
+explanation: |
+  Two `Scheduled restart job` lines, so `-c` prints 2. `grep -o` prints only the matching part of each line, and `tail -n 1` keeps the last, so you see the current counter without the rest of the line. Both lines come from systemd itself (`systemd[1]`), while the `ERROR` lines come from the program (`python3[2314]`): the journal holds both, in one stream, in time order. The crash itself is the line before each failure: the database refused the connection.
+skills: [journalctl]

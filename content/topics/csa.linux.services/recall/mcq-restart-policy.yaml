@@ -1,0 +1,14 @@
+id: mcq-restart-policy
+type: mcq
+rev: 1
+prompt: |
+  A service has `Restart=on-failure` and `RestartSec=5`. Which is true?
+choices:
+  - "If it exits with a non-zero status or is killed by a signal, systemd starts it again five seconds later; if it exits cleanly with 0, it stays stopped"
+  - "It restarts every five seconds whatever happens"
+  - "It restarts after any exit, including a clean one"
+  - "It restarts once, then gives up"
+answer: 0
+explanation: |
+  `on-failure` restarts after an unclean exit (a non-zero status, a signal, a timeout) and leaves a clean exit alone, which is right for a program that may legitimately finish. `Restart=always` restarts even after exit 0, right for a server that should never stop. `RestartSec` is the pause between attempts. systemd does give up if a unit fails too often too quickly (`StartLimitBurst`), which is what "start request repeated too quickly" means in the journal.
+skills: [supervision, unit-files]

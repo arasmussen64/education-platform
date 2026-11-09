@@ -1,13 +1,100 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.services
 kind: topic
-status: planned
-title: Services and logs
-summary: Run and supervise services with systemd, and read their logs with journalctl.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "Services and logs"
+summary: "Run a program as a service that starts at boot, restarts when it crashes and keeps its logs: systemd unit files, systemctl, and reading the journal with journalctl."
+prerequisites: [csa.linux.processes]
+estimated_minutes: 90
 rev: 1
 objectives:
-- Run and supervise services with systemd, and read their logs with journalctl.
+  - "Read and write a service's unit file: what the `[Unit]`, `[Service]` and `[Install]` sections are for, and the handful of lines most services need (`ExecStart`, `User`, `Restart`, `WantedBy`)."
+  - "Control a service with `systemctl`: start, stop, restart, reload, status, enable and disable, and what to run after editing a unit file."
+  - "Read a service's logs with `journalctl`: one unit, the last lines, following live, only errors, since the last boot, and as JSON."
+  - "Explain why a systemd service beats a program started with `nohup` or `&`: supervision, restarts, boot order and logging in one place."
+# Linked, never copied. Licences: DigitalOcean's community tutorials are
+# CC BY-NC-SA 4.0 (stated in each page); systemd's manual pages are part of
+# systemd (LGPL-2.1-or-later); the ArchWiki is GNU FDL 1.3.
+resources:
+  - title: "How To Use Systemctl to Manage Systemd Services and Units, by Justin Ellingwood (DigitalOcean community tutorials)"
+    url: https://www.digitalocean.com/community/tutorials/how-to-use-systemctl-to-manage-systemd-services-and-units
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "Understanding Systemd Units and Unit Files (DigitalOcean community tutorials)"
+    url: https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "How To Use Journalctl to View and Manipulate Systemd Logs (DigitalOcean community tutorials)"
+    url: https://www.digitalocean.com/community/tutorials/how-to-use-journalctl-to-view-and-manipulate-systemd-logs
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "systemd.service(5): the reference for every [Service] setting (systemd manual pages)"
+    url: https://www.freedesktop.org/software/systemd/man/latest/systemd.service.html
+    type: reading
+    use: link
+    license: "LGPL-2.1-or-later (systemd documentation)"
+  - title: "ArchWiki: systemd/Journal (persistent storage, size limits, priorities)"
+    url: https://wiki.archlinux.org/title/Systemd/Journal
+    type: reading
+    use: link
+    license: GNU FDL 1.3
+# Lessons and recall first (ADR-0017). The browser has no systemd, so the
+# items read unit files, systemctl listings and journal output with the text
+# tools of the first topic; writing a unit and running it comes in the labs.
+practice:
+  - mcq-why-a-service
+  - svc-unit-sections
+  - svc-unit-fields
+  - mcq-after-wants
+  - mcq-daemon-reload
+  - svc-where-units-live
+  - svc-failed-units
+  - svc-enabled-units
+  - mcq-status-output
+  - mcq-restart-policy
+  - svc-journal-restarts
+  - svc-journal-errors
+  - mcq-journalctl-flags
+  - svc-journal-priorities
+  - mcq-journal-persistent
+  - mcq-reload-vs-restart
+prove:
+  explain:
+    prompt: |
+      A teammate wrote a small Python web app and starts it by logging in over SSH and running `python3 app.py &`. It dies at every reboot and whenever their terminal drops, and nobody knows where its output goes. Explain, in your own words: why a systemd service fixes all three problems; what the three sections of a unit file are for and the four or five lines you'd write for this app; what you run after editing the unit and how you check that it's running now and will start at boot; and how you'd read its logs: the last fifty lines, following live, only errors, and since the last boot.
+    rubric:
+      - id: why-service
+        required: true
+        description: "PID 1 supervises a service: it starts it at boot (enable), restarts it when it crashes (Restart=), it doesn't belong to a terminal so a dropped SSH session can't kill it, and its stdout and stderr go to the journal."
+      - id: unit-sections
+        required: true
+        description: "[Unit] describes it and orders it (Description, After=network-online.target); [Service] says how to run it (ExecStart, User, WorkingDirectory, Restart=on-failure); [Install] says when it's wanted (WantedBy=multi-user.target)."
+      - id: lifecycle
+        required: true
+        description: "After editing a unit, systemctl daemon-reload, then systemctl restart app; systemctl status app (or is-active) shows it running; systemctl enable app (or enable --now) makes it start at boot, is-enabled checks."
+      - id: journal
+        required: true
+        description: "journalctl -u app -n 50; -f to follow; -p err for errors only; -b for this boot; --since for a time range."
+      - id: user
+        required: false
+        description: "Run it as its own unprivileged user (User=), never root, and keep the unit in /etc/systemd/system."
+    model_answer: |
+      A systemd service is a program that PID 1 looks after. Enabling it makes systemd start it at boot, so a reboot brings it back; Restart=on-failure makes systemd start it again when it crashes; and because systemd started it rather than a terminal, closing an SSH session can't send it the hang-up signal that kills a backgrounded command. Everything it prints goes to the journal, so the logs are in one known place. A unit file has three sections. [Unit] describes the service and says where it fits: Description=, and After=network-online.target with Wants=network-online.target so it starts once the network is up. [Service] says how to run it: ExecStart=/usr/bin/python3 /srv/app/app.py, WorkingDirectory=/srv/app, User=app so it doesn't run as root, and Restart=on-failure with RestartSec=5. [Install] says when it's wanted: WantedBy=multi-user.target, which is the normal server state. The file goes in /etc/systemd/system/app.service. After writing or editing it I run systemctl daemon-reload, because systemd reads unit files once and has to be told they changed, then systemctl restart app. systemctl status app shows whether it's active and running, its main PID and the last log lines; systemctl is-active app gives a one-word answer. systemctl enable app links it into multi-user.target so it starts at boot (enable --now also starts it), and is-enabled checks that. For the logs: journalctl -u app -n 50 shows the last fifty lines; journalctl -u app -f follows them live; journalctl -u app -p err shows only errors and worse; journalctl -u app -b shows everything since the last boot; and --since "1 hour ago" narrows a time range.
+review_pool:
+  - svc-unit-fields
+  - svc-journal-priorities
+  - svc-failed-units
+  - mcq-daemon-reload
+  - mcq-journalctl-flags
+  - mcq-restart-policy
+skills:
+  - id: unit-files
+    description: "Read and write a unit file: the `[Unit]`, `[Service]` and `[Install]` sections, the common settings, where units and drop-ins live"
+  - id: systemctl
+    description: "Control and inspect services with `systemctl`: start, stop, restart, reload, status, enable, disable, the failed and enabled listings"
+  - id: journalctl
+    description: "Read the journal with `journalctl`: by unit, the last lines, following, by priority, by boot and time, as JSON; keeping it across reboots"
+  - id: supervision
+    description: "Why a service beats a backgrounded command: supervision, restart policies, ordering, and logging in one place"
