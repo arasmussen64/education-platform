@@ -1,0 +1,12 @@
+id: debug-nightly-patch
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The patch script that patches nothing"
+prompt: |
+  The shop's server runs `~/bin/nightly-patch` every night. It's meant to refresh the package list, keep `shop-report` at 2.0 (2.1 hasn't been tested), upgrade everything else, and say `reboot needed` when the machine needs one. Last night it printed `0 upgraded` while three updates were waiting, two of them security fixes, and nobody was told about the new kernel.
+
+  Run it and compare what it does with what `apt list --upgradable`, `apt-mark showhold`, `apt policy shop-report` and `ls /run` tell you. There are three mistakes: one about the order things happen in, one about which package is kept back, and one about where the machine says a reboot is needed. Fix them with `nano ~/bin/nightly-patch`, run it again, and run the checks.
+skills: [apt-dnf, patching]

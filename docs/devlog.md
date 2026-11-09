@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Package management goes ready, with a package repository in the image
+
+The fifth ready cloud topic. Its problem was that `apt` needs repositories, and a lab that reaches Ubuntu's would be slow, different every day and useless offline. So the image builds a repository of its own.
+
+**`make-repo.sh`** runs once at image build: it makes five small packages with `dpkg-deb` (each installs a script that prints its own version), puts them in three suites, `noble`, `noble-updates` and `noble-security`, writes the `Packages` and `Release` files with `apt-ftparchive`, replaces Ubuntu's sources with a `file:` source marked trusted, installs the old versions on purpose, and then empties `/var/lib/apt/lists`, as on a server that hasn't checked in a while. Two of the packages carry the lesson's gotchas: `linux-image-shop`, a stand-in for a kernel, whose install script creates `/run/reboot-required` and lists itself in `reboot-required.pkgs` the way Ubuntu's does; and `shop-theme`, which has a configuration file under `/etc`, so `apt remove` leaves an `rc` record and the file, and `apt purge` takes both. `apt list --upgradable` then reads exactly as the lesson says: `shop-agent/noble-security 1.1 all [upgradable from: 1.0]`.
+
+**The five labs:**
+
+- **`example-update-then-look`** (worked example): `apt update`, `apt list --upgradable`, `apt policy`, `apt install`, `dpkg -l`, and save the list of what still waits; nothing upgraded.
+- **`fill-patch-server`** (fill-in): `update`, `--upgradable`, `hold`, `upgrade -y`, and the reboot note. Wrong fixes include forgetting `-y` (apt asks, nobody answers, nothing happens) and holding the wrong package.
+- **`write-security-updates`** (write): only the packages whose update comes from `noble-security`, with `apt install --only-upgrade`; `nothing to do` on the second run.
+- **`build-patch-day`** (build): hold `shop-report`, upgrade the rest, purge the theme, install the dashboard, and report what still waits and whether the machine wants a reboot, from the machine itself.
+- **`debug-nightly-patch`** (debug): upgrade before update, the wrong package held, and `/etc/reboot-required` where `/run` was meant; each witnessed by a different command.
+
+**What the contract caught, three things, all in my checks rather than the labs:** apt doesn't copy a `file:` repository's lists where I looked for them, so the "list refreshed" check now asks apt what it knows; and twice a check ran the learner's script a _second_ time, after the solution had already done the work, which hid the "upgrade before update" bug and made a "forgot update" script look right. Those checks now put the server back to a fresh night first (old versions, nothing held, no list, no reboot note) and run the script once. That's a new kind of check, a scenario reset, and the content README now describes it.
+
+**Decisions for you to review:**
+
+1. _A fake repository rather than Ubuntu's._ The lesson's commands are the real ones; only the packages are the shop's. Deterministic, offline, and the kernel stand-in demonstrates the reboot mechanism without a kernel.
+2. _The base layer gained `apt-utils`,_ for `apt-ftparchive`; small, and now every systemd lab image is rebuilt from the same line once more.
+3. _Checks may reset the scenario_ (downgrade packages, empty the list) before running the learner's script, when the script's behaviour on a fresh state is what's being proved. They leave the server in the state a correct script produces.
+
+**Next:** Disks and filesystems, on loop devices: a probe shows ext4, XFS (at 400 MB and up), growing with `resize2fs`/`xfs_growfs`, `fstab` with `mount -a`, an inode-starved filesystem and a deleted-but-open file all work in the lab; LVM needs its udev settings turned off in `lvm.conf`, and lab loop devices need cleaning up at boot, since a removed container leaves them attached to Docker's machine.
+
 ## 2026-11-09: Users, permissions and SSH goes ready, with a real sshd in the lab
 
 The fourth ready cloud topic, and the first whose labs reach the machine the way you reach every server: over SSH, with a key. The shared systemd base now installs `openssh-server`, so every systemd lab has an `sshd` (socket-activated, listening inside the container only); the ten Services and Processes Dockerfiles were regenerated from the same first `RUN` line, and all twenty labs keep their contract on the new base.

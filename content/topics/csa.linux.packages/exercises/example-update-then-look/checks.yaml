@@ -1,0 +1,24 @@
+# The checks for "Refresh the list, then look before you leap": the list was
+# refreshed, the new package is in, the upgrades still wait, and the saved
+# file names them.
+checks:
+  - id: list-refreshed
+    description: "The list was refreshed: apt knows about the three updates waiting."
+    command: apt list --upgradable 2>/dev/null | grep -c 'upgradable from'
+    expect:
+      equals: "3"
+  - id: dashboard-installed
+    description: "shop-dashboard is installed."
+    command: dpkg-query -W -f='${Status}' shop-dashboard
+    expect:
+      equals: install ok installed
+  - id: nothing-upgraded-yet
+    description: "shop-agent is still at 1.0: looking at the upgrades didn't install them."
+    command: dpkg-query -W -f='${Version}' shop-agent
+    expect:
+      equals: "1.0"
+  - id: list-saved
+    description: "~/example/upgradable.txt names the three packages that have updates waiting."
+    command: grep -c -e '^shop-agent/' -e '^shop-report/' -e '^linux-image-shop/' /home/learner/example/upgradable.txt
+    expect:
+      equals: "3"

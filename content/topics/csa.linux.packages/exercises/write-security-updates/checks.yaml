@@ -1,0 +1,32 @@
+# The checks for "Write security-updates". The first puts the server back to
+# the morning's state (the old versions, no reboot note) and runs the script
+# once, so it's always a real first run; the rest look at the result and at
+# a second run.
+checks:
+  - id: first-run
+    description: "On a server with the updates waiting, it names the two security updates and says a reboot is needed."
+    command: |
+      apt-get update -qq 2>/dev/null
+      apt-get install -y -qq --allow-downgrades shop-agent=1.0 linux-image-shop=6.8.0-1 > /dev/null 2>&1
+      rm -rf /var/lib/apt/lists/*
+      rm -f /run/reboot-required /run/reboot-required.pkgs
+      /home/learner/bin/security-updates > /tmp/labcheck-sec.out 2>&1 || exit 1
+      grep -E '^security updates:' /tmp/labcheck-sec.out | tr ' ' '\n' | grep -c -x -e shop-agent -e linux-image-shop | tr -d '\n'
+      echo " $(grep -c 'reboot needed' /tmp/labcheck-sec.out)"
+    expect:
+      equals: "2 1"
+  - id: security-fixes-in
+    description: "shop-agent is 1.1 and linux-image-shop is 6.8.0-2 afterwards."
+    command: echo "$(dpkg-query -W -f='${Version}' shop-agent) $(dpkg-query -W -f='${Version}' linux-image-shop)"
+    expect:
+      equals: "1.1 6.8.0-2"
+  - id: others-untouched
+    description: "shop-report, whose update isn't a security fix, is still 2.0."
+    command: dpkg-query -W -f='${Version}' shop-report
+    expect:
+      equals: "2.0"
+  - id: second-run
+    description: "Run again, it says 'nothing to do'."
+    command: /home/learner/bin/security-updates 2>/dev/null
+    expect:
+      contains: nothing to do
