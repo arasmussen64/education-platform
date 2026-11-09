@@ -1,10 +1,89 @@
 id: py.m5.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 5: gradebook"
-summary: "Turn student records into a report."
+summary: "Turn a list of student records into a report with small, tested functions that leave the data alone; then fix a gradebook whose functions have bugs."
 prerequisites: [py.references-and-mutation, py.nested-data]
 estimated_minutes: 60
 rev: 1
 objectives:
-  - "Turn student records into a report."
+  - "Read a list of records, each a dictionary holding a list of scores, and work out something from each one."
+  - "Split the job into small functions: a number from a list, a grade from a number, the best record, and the report lines."
+  - "Return lists and strings from functions, and let `main` do the printing, so each function can be tested."
+  - "Leave the data as you found it: no function changes the list it's given."
+  - "Write a test function whose asserts cover the grade boundaries and would fail if a grade were wrong."
+prove:
+  build: build-gradebook
+  debug: debug-gradebook
+  explain:
+    prompt: |
+      Here's a working gradebook, cut down:
+
+      ```python
+      STUDENTS = [
+          {"name": "Ada", "scores": [95, 88, 92]},
+          {"name": "Bob", "scores": [72, 65, 80]},
+      ]
+
+
+      def average(scores):
+          """Return the average of a non-empty list of scores."""
+          total = 0
+          for score in scores:
+              total += score
+          return total / len(scores)
+
+
+      def letter_grade(average):
+          """Return A, B, C, D or F for an average."""
+          if average >= 90:
+              return "A"
+          if average >= 80:
+              return "B"
+          if average >= 70:
+              return "C"
+          if average >= 60:
+              return "D"
+          return "F"
+
+
+      def report_lines(students):
+          """Return one line per student, like 'Ada: 91.7 (A)'."""
+          lines = []
+          for student in students:
+              avg = average(student["scores"])
+              lines.append(f"{student['name']}: {avg:.1f} ({letter_grade(avg)})")
+          return lines
+
+
+      def main():
+          for line in report_lines(STUDENTS):
+              print(line)
+
+
+      if __name__ == "__main__":
+          main()
+      ```
+
+      Explain it to a friend: what shape is `STUDENTS`, and how does `student["scores"]` reach a list? Why does `report_lines` return a list of strings instead of printing them? Why must none of these functions change `STUDENTS` or a scores list, and what would go wrong if `average` sorted its list in place? And which values would you put in a test for `letter_grade`, and why those?
+    rubric:
+      - id: shape
+        required: true
+        description: "A list of dictionaries, one per student; each has a name and a scores list, so student[\"scores\"] picks the record's field, which is a list."
+      - id: return-not-print
+        required: true
+        description: "Returning the lines lets a test compare them and lets main decide what to do with them; a function that prints can only print."
+      - id: no-mutation
+        required: true
+        description: "The lists are shared: main and the tests use STUDENTS again, so a function that changed a scores list (like sorting it in place) would quietly change the data for everyone after it."
+      - id: boundaries
+        required: true
+        description: "Test the grade boundaries, like 90, 89.9 and 60, and a value below 60, because that's where a > for >= mistake shows."
+    model_answer: |
+      STUDENTS is a list of records: each item is a dictionary with a name and a scores list. In the loop, student is one dictionary and student["scores"] is its list of scores, which average takes as a plain list. report_lines returns a list of strings rather than printing because a value can be checked by a test and used by main however main likes; a function that prints can only print, and testing it would mean reading the screen. None of the functions may change what they're given because the data is shared: main, the tests and any later function all use the same STUDENTS list and the same scores lists. If average sorted its list in place, every scores list would come out reordered for everyone after it, with no error to point at the cause. For letter_grade I'd test the boundaries, 90 and 80 and 70 and 60, one value just below a boundary like 89.9, and something below 60, because a > where >= belongs only shows up exactly on the boundaries.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-inventory
+  steps: [step-average-letter, step-best, step-report, step-outline]
+  versions: [build-team-stats, build-weather-report]

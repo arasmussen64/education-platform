@@ -61,7 +61,7 @@ Milestone C is complete.
 - [x] Report a problem (F15): a note under any lesson, item or check, saved with the item it's about. Built 2026-11-08; its migration reaches the live database once the owner says go.
 - [x] Export my data (F16): built early, in Milestone B
 - [x] Module 4 content (functions), ready before the owner finishes Module 3 (2026-11-09)
-- [ ] Module 5 content (collections)
+- [x] Module 5 content (collections) (2026-11-09)
 - [ ] Module 6 content, and the end of the Python Foundations track
 - [ ] Smaller app bundle: load the cloud track's outlines only when the map asks for them
 

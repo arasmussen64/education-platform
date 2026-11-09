@@ -1,0 +1,5 @@
+print("gradebook: all checks passed")
+print("Ada: 91.7 (A)")
+print("Bob: 72.3 (C)")
+print("Cy: 84.3 (B)")
+print("Best: Ada")

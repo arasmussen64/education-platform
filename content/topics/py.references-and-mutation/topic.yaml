@@ -1,10 +1,88 @@
 id: py.references-and-mutation
 kind: topic
-status: planned
+status: ready
 title: "References and mutation"
-summary: "Predict aliasing, copy lists, and spot functions that change their arguments."
+summary: "Two names can refer to one list; know when a change shows through both, how to copy, and which functions change what they're given."
 prerequisites: [py.lists]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Predict aliasing, copy lists, and spot functions that change their arguments."
+  - "Predict what happens when two names refer to the same list and one of them is used to change it."
+  - "Make a real copy of a list when you need one, and tell `==` (same contents) from `is` (the very same list)."
+  - "Tell a function that changes the list it's given from one that returns a new list, and prefer writing the second kind."
+resources:
+  - title: "Python Tutor: two names, one list, then a copy, step by step"
+    url: "https://pythontutor.com/visualize.html#code=a%20%3D%20%5B1%2C%202%2C%203%5D%0Ab%20%3D%20a%0Ab.append%284%29%0Aprint%28a%29%0Ac%20%3D%20a%5B%3A%5D%0Ac.append%285%29%0Aprint%28a%29%0Aprint%28c%29%0A&cumulative=false&curInstr=0&heapPrimitives=true&mode=display&origin=opt-frontend.js&py=311&rawInputLstJSON=%5B%5D&textReferences=false"
+    type: interactive
+    use: link
+    license: "Free to use under pythontutor.com's terms of service (© Philip Guo)"
+  - title: "Facts and myths about Python names and values, by Ned Batchelder (the article)"
+    url: https://nedbatchelder.com/text/names.html
+    type: reading
+    use: link
+    license: "© Ned Batchelder; linked, not copied"
+  - title: "Python Tutor: a function that changes the caller's list, and one that only rebinds its parameter"
+    url: "https://pythontutor.com/visualize.html#code=def%20add_item%28items%29%3A%0A%20%20%20%20items.append%28%22eggs%22%29%0A%0Adef%20replace%28items%29%3A%0A%20%20%20%20items%20%3D%20%5B%22new%20list%22%5D%0A%0Ashopping%20%3D%20%5B%22milk%22%5D%0Aadd_item%28shopping%29%0Areplace%28shopping%29%0Aprint%28shopping%29%0A&cumulative=false&curInstr=0&heapPrimitives=true&mode=display&origin=opt-frontend.js&py=311&rawInputLstJSON=%5B%5D&textReferences=false"
+    type: interactive
+    use: link
+    license: "Free to use under pythontutor.com's terms of service (© Philip Guo)"
+  - title: "Facts and Myths about Python names and values, Ned Batchelder's PyCon 2015 talk (about 30 minutes)"
+    url: https://www.youtube.com/watch?v=_AEJHKGk9ns
+    type: video
+    use: link
+    license: "Standard YouTube License; linked, not embedded"
+practice:
+  - example-two-names
+  - mcq-alias
+  - predict-copy
+  - mcq-function-changes
+  - fill-copy
+  - write-with-bonus
+prove:
+  build: build-safe-functions
+  debug: debug-mutation
+  explain:
+    prompt: |
+      A friend expected `queue` to be unchanged after this, but it prints `['Bob', 'Cy']`:
+
+      ```python
+      def remove_first(items):
+          del items[0]
+          return items
+
+      queue = ["Ada", "Bob", "Cy"]
+      served = remove_first(queue)
+      print(queue)
+      ```
+
+      In your own words: what does the parameter `items` refer to while the function runs, and why did `del` change `queue`? Does `return items` give back a copy? How would you write a version that leaves `queue` as it was? And what is `served is queue` here, and why?
+    rubric:
+      - id: same-object
+        required: true
+        description: "The argument is passed by assignment: items refers to the very same list as queue, not a copy."
+      - id: mutation-visible
+        required: true
+        description: "del changes that one list, and the change shows through every name that refers to it, so queue is shorter too."
+      - id: fix
+        required: true
+        description: "Make a new list first (items[1:], or list(items) and then del) and return that, leaving the original alone."
+      - id: identity
+        required: true
+        description: "served is queue is True, because return items hands back the same list, not a copy."
+    model_answer: |
+      Calling remove_first(queue) assigns the list to the parameter: items and queue are two names for one list; nothing is copied. del items[0] changes that list, and because queue refers to the same list, queue sees the change too. return items doesn't copy either; it hands back the same list, so served is queue is True. To leave queue alone, the function has to make a new list and work on that: return items[1:], which builds a new list of everything but the first item, or copy with list(items) and delete from the copy. The rule of thumb: a function either changes the list it's given and returns None, like append, or returns a new list and leaves the original alone. Doing both at once is what surprised your friend.
+review_pool:
+  - review-predict-alias
+  - review-mcq-is-vs-equals
+  - review-code-appended
+  - mcq-alias
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: aliasing
+    description: "Predict what happens when two names refer to one list and it's changed through either"
+  - id: copying
+    description: "Make a real copy with `list()`, a slice or `copy()`, and tell `==` from `is`"
+  - id: mutating-functions
+    description: "Tell a function that changes its argument from one that returns a new list, and prefer the second"

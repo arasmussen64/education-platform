@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Module 5, Collections, written
+
+Five topics and Checkpoint 5, the module where a variable stops holding one thing. Written while the owner was away; decisions at the end.
+
+**Resources.** Three more clips of CS50P Lecture 2 (`-7xg8pGcP6w`), timed from its subtitles: the list of students, indexing from 0, looping and `range(len(...))`, 34:55 to 45:36 (Lists); the dictionary of houses and looping over its keys, 45:36 to 56:11 (Dictionaries); one dictionary per student and a list of them, 56:11 to 1:05:56 (Nested data, with a note to read past the `lambda` sort near the end). List algorithms has no clip: the Python tutorial's More on Lists and Looping Techniques sections, and the filter/transform patterns in the platform's own words. References and mutation is built around two Python Tutor programs, one drawing a second name and a copy as arrows, one drawing a function that changes the caller's list and one that only rebinds its parameter; the reading is Ned Batchelder's "Facts and myths about Python names and values", linked (it's his copyright, so nothing is copied), with his PyCon 2015 talk linked too (video `_AEJHKGk9ns`, confirmed through PyVideo; standard YouTube license, so a link rather than an embed).
+
+**What each topic drives at:**
+- *Lists*: make, index from 0 and −1, `len`; replace, `append`, `del`, `in`; items versus positions; `append` returns `None`; `split()` turns a string into a list of words. The debug has `scores = scores.append(100)`, an index one past the end, and a loop that prints positions instead of items.
+- *List algorithms*: filter and transform as a loop with `append` into a new list; search returning the first position or −1; `sorted` (new list, `reverse=True`) against `.sort()` (in place, `None`); slices and `min`/`max`/`sum`. The debug has `ordered = scores.sort()`, a slice two long, and a search that keeps the last match.
+- *References and mutation*: two names, one list; assignment never copies; `list()`, `[:]`, `copy()`; `==` against `is`; a function that mutates its argument against one that rebinds its parameter; prefer returning new lists. Tests check the original is unchanged and that the result `is not` the input. The debug has an `add_item` that mutates, a backup that's an alias, and `shopping = shopping.append(...)`.
+- *Dictionaries*: curly braces, lookup by key, `KeyError`, add/change/`del`/`in`/`len`, looping gives keys, `items()`, counting both ways. The debug has a count that never starts, a loop over `items()` used as keys, and a lookup of a missing key.
+- *Nested data*: a list of lists read outside in (`grid[row][col]`, row loop with cell loop); a list of dictionaries as records; choosing the shape; copies of nested data share the inner lists. The debug appends whole records instead of names, uses `"Name"` for `"name"`, and swaps row and column.
+
+**Checkpoint 5, gradebook:** `STUDENTS`, a list of records each holding a scores list; `average(scores)`, `letter_grade(average)` with its boundaries, `best_student(students)` (first of a tie), `report_lines(students)` returning the lines and a `Best:` line, `test_gradebook()` with at least four asserts, `main` printing the lines, both under the guard. Hidden tests check the boundaries exactly (90, 89.9, 80, 70, 60, 59.9), the tie, the lines for another list, that no function changes the data, every docstring, that the learner's tests fail for a `letter_grade` that always says A, and the program's output. Five wrong solutions (an `average` that sorts in place, `>` for `>=`, tests that only check A grades, no docstrings, typed-in) each fail their test. The debug divides by one too many, grades with `>`, and consumes the list it reports on with `pop`, so the last line counts zero students. The sibling is an inventory report; the versions are team stats (points, star/starter/bench) and a weather report (temperatures, hot/mild/cold).
+
+**Numbers:** 39 exercises and 27 recall items added; 30 topics ready, which is every topic of Modules 1 to 5; the validator runs 749 programs over the content, none failing. Web checks, Python checks and the build pass.
+
+**Decisions for you to review:**
+1. *`split()` is introduced in Lists* (a string's words as a list) and used in Dictionaries' word counting; string methods otherwise wait, as before.
+2. *Ned Batchelder's article and talk are linked, never embedded or quoted:* the article is his copyright and the talk is under YouTube's standard license. They're the only non-CC, non-PSF resources so far; the spec named them.
+3. *Comprehensions, `lambda` and `enumerate` are named as shortcuts for later,* not taught. The filter/transform loop is the pattern every exercise uses, because it generalizes and because it's what the capstone's CSV work needs.
+4. *"Leaves the data alone" is a hidden test in every build of the module,* and in the checkpoint it's one of the named skills a failure brings back. Mutation bugs otherwise go unnoticed until much later.
+5. *Checkpoint 5 keeps its data in a constant* (`STUDENTS`) and its functions take the list as a parameter, so the tests can pass other data; the alternative, functions that read the global, would have taught the opposite of Module 4.
+
+**Next:** Module 6 (Real programs: exceptions, files, CSV, modules, spec to program, and the CSV capstone), which ends the Python Foundations track; then the lazy-outlines bundle chore. The proxy deploy, the problem-reports migration and the tutor test-set run still wait for your go.
+
 ## 2026-11-09: Module 4, Functions, written
 
 Five topics and Checkpoint 4, written overnight while the owner was away, so the content stays a module ahead. Decisions are listed at the end for review.

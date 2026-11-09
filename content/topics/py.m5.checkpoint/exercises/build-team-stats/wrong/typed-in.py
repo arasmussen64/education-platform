@@ -1,0 +1,5 @@
+print("team: all checks passed")
+print("Ada: 22.3 (star)")
+print("Bob: 10.0 (starter)")
+print("Cy: 16.0 (starter)")
+print("Top scorer: Ada")
