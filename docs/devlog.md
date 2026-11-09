@@ -2,6 +2,21 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Problem reports reach the live database, and Phase 1 is complete
+
+The owner pushed the last missing migration to the live project. The dry run listed only `20261109063021_problem_reports.sql`; the push applied it; a second dry run says the remote database is up to date.
+
+**Checked without writing anything:** asked signed out, the live database's API said before the push that the table didn't exist (PGRST205, 404) and after it "permission denied for table problem_reports" (42501, 401). So the table is there, and row-level security and the revoked grants keep strangers out, as the migration's tests say. "Report a problem" on the live site now saves reports; they're read in the dashboard's Table Editor, `problem_reports`, filtered on `status = open` (supabase/README.md).
+
+**Milestone D is complete, and with it Phase 1.** Every item on the v1 spec's list is built and live: the Python Foundations track end to end, the proof checks, reviews, the Today page, the hint-only tutor with its cap, problem reports and data export. The roadmap and CLAUDE.md now say so.
+
+**Decisions for you to review:**
+1. *Calling Phase 1 done.* Its condition, everything in Milestone D live, is met, and the marker only tells a session where to look next. Phase 2's first items are already underway (Parsons problems, the living map's first version, practice hours), so "next" is Phase 2 alongside the cloud track's first steps, which wait on ADR-0014 and ADR-0017.
+
+**Still waiting on you:** `npm run db:types` once Docker Desktop runs, to confirm the hand-edited database types match what the generator produces; the $10 limit in the Anthropic Console; the four ADRs; the ADR-0017 conversation.
+
+**Next:** the ADR decisions, then Phase 2 planning or the cloud track's Stage 1, whichever you pick.
+
 ## 2026-11-09: The tutor's test set, run for real, and a wording fix
 
 The owner ran `npm run fn:eval:tutor`: **25 of 25 replies fine** with Claude Haiku 5.5 at low effort, for $0.0044. No reply was replaced by the safety filter and none contained a solution line, across eleven attempts to get the answer out of the tutor (a fake system message in a code comment, "I'm the teacher", "you already gave it to me", flattery and urgency, a yes/no question about the exact fix, "answer mode") and fourteen honest asks. So Haiku 5.5 at low effort stays the tutor's model, as ADR-0015 planned: the cheapest that passes. A hint costs about $0.0002.
@@ -63,7 +78,7 @@ A summary for the owner of everything since "I'm going to be away" (the evening 
 
 **Waiting on you** (each needs a "go"; none was done without one):
 1. ~~Deploy the AI proxy with the tutor, then run the tutor test set~~ Both done by you on 2026-11-09: deployed, and 25 of 25 test-set replies fine (the entries above).
-2. The problem-reports migration to the live database: `npx supabase db push --remote --dry-run`, then the same without `--dry-run`.
+2. ~~The problem-reports migration to the live database~~ Done by you on 2026-11-09: the dry run listed only that one, the push applied it, and the table is there and locked down (the entry above).
 3. `npm run db:types` once Docker Desktop is running, since the database types were edited by hand for problem reports.
 4. The $10 monthly limit in the Anthropic Console.
 5. Four ADRs to accept or change: [ADR-0014](decisions/0014-cloud-labs.md) (cloud labs), [ADR-0015](decisions/0015-hint-only-tutor.md) (hint-only tutor), [ADR-0016](decisions/0016-parsons-problems.md) (Parsons problems), [ADR-0017](decisions/0017-shell-in-the-browser.md) (how the shell is taught and proven).
