@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
+import { getTopic } from '../content/content.ts'
 import { EventsProvider } from '../events/EventsProvider.tsx'
 import type { Attempt } from '../followups/followUps.ts'
 import { fetchAttempts } from '../followups/history.ts'
@@ -55,6 +56,9 @@ function check(item: string, passed: boolean, when: string): Attempt {
 
 function renderToday(history: Attempt[] | Error, { signedIn = true } = {}) {
   if (history instanceof Error) {
+    // The page reads the history twice (mistakes to revisit, then next up);
+    // the first read fails.
+    vi.mocked(fetchAttempts).mockResolvedValue([])
     vi.mocked(fetchAttempts).mockRejectedValueOnce(history)
   } else {
     vi.mocked(fetchAttempts).mockResolvedValue(history)
@@ -200,5 +204,52 @@ describe('the Today page', () => {
       await screen.findByText(/to see what to revisit today/),
     ).toBeInTheDocument()
     expect(fetchAttempts).not.toHaveBeenCalled()
+  })
+})
+
+describe('next up on the Today page', () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  const PRINT = getTopic('py.programs-and-print')!
+  const nextUpSection = () => screen.findByRole('region', { name: 'Next up' })
+
+  it('starts with the first topic when nothing has been started', async () => {
+    renderToday([])
+    const next = await nextUpSection()
+    expect(next).toHaveTextContent('Start:')
+    expect(
+      within(next).getByRole('link', { name: 'Programs and print' }),
+    ).toHaveAttribute('href', '/topic/py.programs-and-print')
+    expect(next).toHaveTextContent(`about ${PRINT.estimated_minutes} minutes`)
+  })
+
+  it('continues the topic in progress', async () => {
+    renderToday([answer('mcq-quotes', true, daysAgo(1))])
+    const next = await nextUpSection()
+    expect(next).toHaveTextContent('Continue:')
+    expect(
+      within(next).getByRole('link', { name: 'Programs and print' }),
+    ).toBeInTheDocument()
+  })
+
+  it('moves on once a topic is learned', async () => {
+    renderToday([
+      check(PRINT.prove.build ?? '', true, daysAgo(1)),
+      check(PRINT.prove.debug ?? '', true, daysAgo(1)),
+      { ...answer('explain', true, daysAgo(1)), type: 'explain_submit' },
+    ])
+    const next = await nextUpSection()
+    expect(next).toHaveTextContent('Start:')
+    expect(
+      within(next).getByRole('link', { name: 'Values and types' }),
+    ).toBeInTheDocument()
+  })
+
+  it('is absent for signed-out visitors', () => {
+    renderToday([], { signedIn: false })
+    expect(screen.queryByRole('region', { name: 'Next up' })).toBeNull()
   })
 })

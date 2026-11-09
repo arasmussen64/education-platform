@@ -73,22 +73,45 @@ describe('progress on the map', () => {
     vi.mocked(fetchAttempts).mockReset()
   })
 
-  it("shows what the learner has done on each topic they've started", async () => {
+  it("shows each topic's state, and the proof checks passed so far", async () => {
     renderMap([
       attempt(PRINT.id, PRINT.practice[1], 'answer', false),
       attempt(TYPES.id, TYPES.prove.build, 'code_check', true),
       attempt(TYPES.id, TYPES.prove.debug, 'code_check', false),
     ])
 
+    // Started, but its prerequisite isn't learned, so it's Locked (F8).
+    const types = row('Values and types')
     expect(
-      await within(row('Values and types')).findByText(
-        'In progress · Proof checks passed: build',
-      ),
+      await within(types).findByText('Proof checks passed: build'),
+    ).toBeInTheDocument()
+    expect(within(types).getByText(/Locked/)).toBeInTheDocument()
+    expect(
+      within(row('Programs and print')).getByText(/In progress/),
+    ).toBeInTheDocument()
+    expect(within(row('Variables')).getByText(/Locked/)).toBeInTheDocument()
+    expect(within(row('Variables')).queryByText(/Proof checks/)).toBeNull()
+  })
+
+  it('unlocks the next topic once one is Learned', async () => {
+    renderMap([
+      attempt(PRINT.id, PRINT.prove.build, 'code_check', true),
+      attempt(PRINT.id, PRINT.prove.debug, 'code_check', true),
+      attempt(PRINT.id, 'explain', 'explain_submit', true),
+    ])
+    expect(
+      await within(row('Programs and print')).findByText(/Learned/),
     ).toBeInTheDocument()
     expect(
-      within(row('Programs and print')).getByText('In progress'),
+      within(row('Values and types')).getByText(/Available/),
     ).toBeInTheDocument()
-    expect(within(row('Variables')).queryByText(/In progress/)).toBeNull()
+    expect(within(row('Variables')).getByText(/Locked/)).toBeInTheDocument()
+  })
+
+  it('shows signed-out visitors only whether a topic can be opened', () => {
+    renderMap([], { signedIn: false })
+    expect(within(row('Variables')).getByText(/Ready/)).toBeInTheDocument()
+    expect(within(row('Variables')).queryByText(/Locked/)).toBeNull()
   })
 
   it('says while the progress loads, and if it fails, with a way to try again', async () => {

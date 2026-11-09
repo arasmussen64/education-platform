@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
 import { BUTTON, INLINE_CODE } from '../components/styles.ts'
-import { getTopic } from '../content/content.ts'
+import { getTopic, isOpen, topicIdsOf, tracks } from '../content/content.ts'
 import type { TopicContent } from '../content/types.ts'
 import { addDays, type Day, dayOf } from '../days.ts'
 import {
@@ -14,10 +14,12 @@ import {
   planCards,
 } from '../followups/followUps.ts'
 import { type FollowUpsState, useFollowUps } from '../followups/useFollowUps.ts'
+import { nextUp } from '../progress/progress.ts'
+import { useProgress } from '../progress/useProgress.ts'
 
-// The daily plan (v1 spec, F12). For now it holds one thing: mistakes coming
-// back as fresh questions until they're relearned (ADR-0011). Topic reviews
-// and the next topic join it in Milestone C.
+// The daily plan (v1 spec, F12): mistakes coming back as fresh questions
+// until they're relearned (ADR-0011), then the topic to work on. Topic
+// reviews join it in Milestone C.
 export function TodayPage() {
   const auth = useAuth()
   return (
@@ -26,10 +28,16 @@ export function TodayPage() {
         <h1 className="text-2xl font-bold">Today</h1>
         <p className="text-slate-600 dark:text-slate-400">
           Skills you've missed come back here as different questions, until
-          you've got them right on {CORRECT_DAYS_NEEDED} different days.
+          you've got them right on {CORRECT_DAYS_NEEDED} different days. Then
+          comes the topic you're on.
         </p>
       </header>
-      {auth.status === 'signed-in' && <Revisit />}
+      {auth.status === 'signed-in' && (
+        <>
+          <Revisit />
+          <NextUp />
+        </>
+      )}
       {auth.status === 'signed-out' && (
         <p>
           <Link to="/sign-in" className="underline">
@@ -43,6 +51,49 @@ export function TodayPage() {
           See every topic on the map
         </Link>
       </p>
+    </section>
+  )
+}
+
+/** The topic to work on: the one in progress, or the next Available (F12). */
+function NextUp() {
+  const topics = useMemo(
+    () =>
+      tracks()
+        .flatMap(topicIdsOf)
+        .map((id) => getTopic(id))
+        .filter((topic) => topic !== undefined),
+    [],
+  )
+  const progress = useProgress(topics)
+  if (progress.status !== 'ready') return null
+  const next = nextUp(topics.filter(isOpen), progress.progress)
+
+  return (
+    <section aria-labelledby="next-up" className="space-y-2">
+      <h2 id="next-up" className="text-xl font-semibold">
+        Next up
+      </h2>
+      {next ? (
+        <p>
+          <span className="font-medium">
+            {next.state === 'in-progress' ? 'Continue' : 'Start'}:
+          </span>{' '}
+          <Link to={`/topic/${next.topic.id}`} className="underline">
+            {next.topic.title}
+          </Link>
+          {' · '}
+          {next.topic.summary}
+          <span className="text-sm text-slate-500 dark:text-slate-400">
+            {' · about '}
+            {next.topic.estimated_minutes} minutes
+          </span>
+        </p>
+      ) : (
+        <p className="text-slate-600 dark:text-slate-400">
+          You've learned everything that's written so far. More is on the way.
+        </p>
+      )}
     </section>
   )
 }

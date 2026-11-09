@@ -2,6 +2,22 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: Topic states, gating and "Prove it now"
+
+The paused v1 work resumes, now that explanations can pass and topics can become Learned.
+
+**Done (#43):**
+- **States everywhere.** `stateOf` already existed; now every topic page and map row shows the learner's state with an icon and a word: Locked, Available, In progress, Learned on a date, or Passed for a checkpoint. `STATE_LABELS` in `progress.ts` holds the words, so no state is color alone (F9).
+- **Gating (F8, ADR-0002).** A topic page loads the learner's history for the topic *and* its prerequisites, which is what the state depends on, in one `useTopicProgress` hook; the proof list reads from the same load instead of fetching again. A Locked topic shows its header and lesson only, with a notice naming the topics that open it; its practice and proof checks wait. A Locked checkpoint shows only what it brings together, not the checks or the way through. While the history loads, the page shows everything rather than flashing sections in and out; gating applies the moment the state is known.
+- **"Prove it now"** appears on an Available topic that hasn't been started. It hides the lesson and practice, moves focus to the Prove it heading, and can be undone with "Show them anyway". Nothing is recorded for the choice itself; the checks record as they always did.
+- **Signed-out visitors** see no states and no gating. Their progress can't be known, and nothing of theirs is saved anyway.
+- **"Next up" on Today (F12):** `nextUp` picks the first topic in progress in track order, or else the first Available one that can be opened, skipping anything Locked, even if it was started before gating existed. Today reads the history a second time for it; sharing one load between the two sections is a small follow-up.
+- **Tests:** 5 for `nextUp`, 6 for gating on topic pages, 2 more on the map, 4 on Today. The page tests needed a helper, `unlocked(topic)`, that supplies passing proof checks for a topic's real prerequisites, since a fake topic with an unlearned prerequisite is now Locked. 263 web tests pass.
+
+**What the owner will see.** Gating is live for their account. Values and types, where they are, is Locked until Programs and print's three checks are passed, and Today now says "Continue: Programs and print". That's ADR-0002 working as written, but it's worth saying out loud.
+
+**Next:** Module 2's content, so it's ready before the owner finishes Module 1. Then Stage 1 of the cloud track, starting with browser drills.
+
 ## 2026-11-08: Building starts: more than one track, and the cloud track on the map
 
 **The owner said "Start building everything."** The order follows the spec's *Building it* section and the roadmap: the app learns to show more than one track; the cloud track goes on the map as outlines; then the paused v1 work resumes (topic states and gating with "Prove it now", Module 2); then Stage 1 of the cloud track, starting with drills that run in the browser; the lab checker once ADR-0014 is accepted.
