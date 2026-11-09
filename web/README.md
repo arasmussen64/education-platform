@@ -125,13 +125,13 @@ Like follow-ups, nothing is stored: progress is recalculated from the event log,
 
 **Your place in a topic.** A topic page can be long (Shell essentials has 24 practice items), so every topic page has an outline beside the content (above it on a narrow screen): the lesson's parts, every practice item with whether it's done, the three proof checks, and "Continue where you left off".
 
-| File                           | What it does                                                                                                                                                                |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `progress/itemStates.ts`       | Each practice item's state from the learner's graded attempts: done after one correct answer or Check, tried after only wrong ones. A learner can't tick an item off themselves. |
-| `components/TopicOutline.tsx`  | The outline. Items and sections are links to places on the page; the current one is marked; done items carry a mark as well as a color.                                      |
-| `place/useCurrentPlace.ts`     | Which place is at the top of the screen (an IntersectionObserver over every `data-place` element: the lesson's paragraphs, each item card, the proof checks), remembered as you go. |
-| `place/placeMemory.ts`         | The remembered place, in `localStorage`, per device. A convenience: the page works the same without it.                                                                      |
-| `components/PracticeItem.tsx`  | Shows an item's state in its position line, and folds away an item that was already done when the page opened ("Show it again" brings it back).                              |
+| File                          | What it does                                                                                                                                                                        |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `progress/itemStates.ts`      | Each practice item's state from the learner's graded attempts: done after one correct answer or Check, tried after only wrong ones. A learner can't tick an item off themselves.    |
+| `components/TopicOutline.tsx` | The outline. Items and sections are links to places on the page; the current one is marked; done items carry a mark as well as a color.                                             |
+| `place/useCurrentPlace.ts`    | Which place is at the top of the screen (an IntersectionObserver over every `data-place` element: the lesson's paragraphs, each item card, the proof checks), remembered as you go. |
+| `place/placeMemory.ts`        | The remembered place, in `localStorage`, per device. A convenience: the page works the same without it.                                                                             |
+| `components/PracticeItem.tsx` | Shows an item's state in its position line, and folds away an item that was already done when the page opened ("Show it again" brings it back).                                     |
 
 ## Export my data
 
