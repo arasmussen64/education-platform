@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: A smaller first download: outline-only tracks load on demand
+
+The last item of Milestone D, noted as a chore on 2026-11-08 when the cloud track's outlines went on the map: 357 topics nobody can open yet were being downloaded by every visitor, in the app's main file.
+
+**What changed.** `content.ts` bundles the tracks and the main track's outlines as before, but leaves out the cloud track's (`csa.*`). Those live in their own module, `content/outlines/cloud-solutions-architect.ts`, which Vite turns into a separate file. `loadTrackTopics(trackId)` downloads it once and adds its topics to the same lookup `getTopic` uses; `trackTopicsLoaded` says whether that has happened; `loadTrackOf(topicId)` does it for whichever track a topic belongs to. The map page shows "Loading this track's map…" until the outlines arrive, and a Try again if the download fails; the topic loader awaits them before looking the topic up. The Today page, the follow-ups and the interleaved questions are unchanged: they only look at topics bundled in, which is right because a lazy track has no open topic, and `content.lazy.test.ts` fails the day one does.
+
+**Numbers.** The main file went from 1,034 KB to 853 KB (260 KB to 221 KB gzipped). The cloud outlines are a 181 KB file (37 KB gzipped) that most visits never download. 393 web tests pass, 4 of them new.
+
+**Decisions for you to review:**
+1. *Which tracks load lazily is decided by hand:* a module per outline-only track, its pattern left out of the main glob, and a line in `LAZY_TRACKS`. A build-time rule ("any track with no open topic") would need a Vite plugin that watches the content folder for changes; two lines and a test seemed the better trade. When the cloud track gets its first ready topic (the Stage 1 drills), either bundle it back in or teach the Today page to load the tracks the learner has progress in; the test will remind whoever does it.
+2. *Milestone D is built but not all live.* Every item on its list is ticked, but the proxy deploy, the problem-reports migration and the tutor test-set run still wait for your go, as do ADR-0014 and ADR-0015. The roadmap keeps "current phase: Milestone D" until those are done; say the word and I'll move it on to Phase 2 planning.
+
+**Next:** your go on the deploys; then the cloud track's Stage 1 drills, which need ADR-0014's decision on how cloud work is proven, and the lab checker.
+
 ## 2026-11-09: Module 6, Real programs, written; the Python Foundations track is complete
 
 Five topics and Checkpoint 6, the module where programs meet the world: input that's wrong, files on disk, data in CSVs, code other people wrote, and a spec instead of a recipe. Written while the owner was away; decisions at the end.

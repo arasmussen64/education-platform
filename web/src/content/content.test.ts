@@ -3,6 +3,7 @@ import {
   getTopic,
   isOpen,
   loadTopicContent,
+  loadTrackTopics,
   mainTrack,
   placeOf,
   topicIdsOf,
@@ -11,7 +12,10 @@ import {
 import type { Topic } from './types.ts'
 
 // These read the real files in content/, through the same Vite plugins the
-// app uses.
+// app uses. A track that's all outlines loads on demand (content.lazy.test.ts
+// covers that); here every track is loaded first, so each topic can be
+// checked.
+await Promise.all(tracks().map((track) => loadTrackTopics(track.id)))
 
 const everyTopicId = tracks().flatMap(topicIdsOf)
 

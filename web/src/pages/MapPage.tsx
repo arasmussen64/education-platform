@@ -1,13 +1,15 @@
-import { useMemo } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, useParams } from 'react-router'
 import { SECONDARY_BUTTON } from '../components/styles.ts'
 import {
   getTopic,
   getTrack,
   isOpen,
+  loadTrackTopics,
   mainTrack,
   topicIdsOf,
   tracks,
+  trackTopicsLoaded,
 } from '../content/content.ts'
 import type { Module, Topic, Track } from '../content/types.ts'
 import {
@@ -30,7 +32,81 @@ export function MapPage() {
   return <TrackMap key={track.id} track={track} />
 }
 
+type OutlinesState = 'loading' | 'ready' | 'failed'
+
+/**
+ * Whether the track's topic outlines are here. The main track's are bundled
+ * with the app; another track's download the first time its map is shown
+ * (content.ts), so this says "loading" until they arrive.
+ */
+function useTrackOutlines(track: Track): [OutlinesState, () => void] {
+  const [state, setState] = useState<OutlinesState>(() =>
+    trackTopicsLoaded(track.id) ? 'ready' : 'loading',
+  )
+  useEffect(() => {
+    if (state !== 'loading') return
+    let current = true
+    loadTrackTopics(track.id).then(
+      () => current && setState('ready'),
+      () => current && setState('failed'),
+    )
+    return () => {
+      current = false
+    }
+  }, [track.id, state])
+  return [state, () => setState('loading')]
+}
+
 function TrackMap({ track }: { track: Track }) {
+  const [outlines, retryOutlines] = useTrackOutlines(track)
+  if (outlines !== 'ready') {
+    return (
+      <section className="space-y-8">
+        <TrackHeader track={track} />
+        {outlines === 'loading' ? (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Loading this track's map…
+          </p>
+        ) : (
+          <p className="flex flex-wrap items-center gap-2 text-sm">
+            This track's map couldn't load. Check your connection, then try
+            again.
+            <button
+              type="button"
+              onClick={retryOutlines}
+              className={SECONDARY_BUTTON}
+            >
+              Try again
+            </button>
+          </p>
+        )}
+      </section>
+    )
+  }
+  return <LoadedTrackMap track={track} />
+}
+
+/** The title, the links to the other tracks, and the track's summary. */
+function TrackHeader({
+  track,
+  children,
+}: {
+  track: Track
+  children?: ReactNode
+}) {
+  return (
+    <header className="space-y-2">
+      <h1 className="text-2xl font-bold">Topic map</h1>
+      <TrackSwitcher current={track} />
+      <p className="text-slate-600 dark:text-slate-400">
+        <span className="font-medium">{track.title}:</span> {track.summary}
+      </p>
+      {children}
+    </header>
+  )
+}
+
+function LoadedTrackMap({ track }: { track: Track }) {
   const topics = useMemo(
     () =>
       topicIdsOf(track)
@@ -43,12 +119,7 @@ function TrackMap({ track }: { track: Track }) {
 
   return (
     <section className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-bold">Topic map</h1>
-        <TrackSwitcher current={track} />
-        <p className="text-slate-600 dark:text-slate-400">
-          <span className="font-medium">{track.title}:</span> {track.summary}
-        </p>
+      <TrackHeader track={track}>
         {!anythingOpen && (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             This track is an outline so far: every topic is still being written.
@@ -56,7 +127,7 @@ function TrackMap({ track }: { track: Track }) {
           </p>
         )}
         <ProgressStatus state={progress} />
-      </header>
+      </TrackHeader>
       <ol className="space-y-8">
         {track.modules.map((module, index) => (
           <ModuleSection

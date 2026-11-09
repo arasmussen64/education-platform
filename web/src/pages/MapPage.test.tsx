@@ -166,15 +166,18 @@ describe('more than one track', () => {
     ).toHaveAttribute('href', '/map/cloud-solutions-architect')
   })
 
-  it('shows another track at its own address, with its capstones', () => {
+  it('shows another track at its own address, with its capstones, once its outlines load', async () => {
     renderMap([], { path: '/map/cloud-solutions-architect' })
+    // The track's name and summary are bundled with the app; its outlines
+    // download when the map first shows it.
     expect(screen.getByText('Cloud Solutions Architect:')).toBeInTheDocument()
-    expect(screen.getByText(/an outline so far/)).toBeInTheDocument()
+    expect(screen.getByText("Loading this track's map…")).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', {
+      await screen.findByRole('heading', {
         name: 'Module 1: Linux and the command line',
       }),
     ).toBeInTheDocument()
+    expect(screen.getByText(/an outline so far/)).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { name: 'Capstone' })).toHaveLength(3)
     expect(
       screen.getByRole('link', {
