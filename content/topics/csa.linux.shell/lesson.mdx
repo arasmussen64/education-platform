@@ -1,0 +1,44 @@
+<Intro>
+
+Every cloud server is a Linux machine you talk to through a **shell**: a program that reads a line of text you type, runs it as a command, and prints the result. No windows, no mouse. It feels bare at first, and then it becomes the fastest way there is to ask a machine a question. This topic is about reading and writing those commands.
+
+**How a command is built.** A line like `grep -n error app.log` has three parts: the **program** to run (`grep`), **options** that change how it behaves (`-n`: show line numbers), and **arguments**, the things to work on (`error`, the text to look for, and `app.log`, the file to look in). Spaces separate the parts, which is why a file name with a space in it needs quotes: `cat "my notes.txt"`. Every program has a manual: `man grep` opens it, and `grep --help` prints the short version.
+
+**Where you are.** Files live in a tree of folders that starts at `/`, the root. `/var/log/app.log` is an *absolute* path: it starts from the root. `logs/app.log` is *relative*: it starts from where you are now, which `pwd` prints. `cd logs` moves into a folder, `cd ..` moves up one, `cd` on its own goes to your home folder (`~`), and `ls` lists what's here. `cat` prints a whole file, `head -n 20` and `tail -n 20` print its first or last twenty lines, and `find . -name '*.log'` walks every folder below you looking for names that match.
+
+**Everything is text, flowing.** This is the idea that makes the shell powerful. Every program reads from an input stream and writes to an output stream, plus a second output stream, **stderr**, for complaints. The pipe, `|`, connects one program's output to the next program's input. So `grep ' 500 ' access.log | wc -l` runs `grep` to keep only the lines with a server error, and `wc -l` counts the lines it was handed. Small tools, each doing one thing well, joined into a pipeline that answers your question. `>` sends output into a file instead of the screen (replacing the file), `>>` adds to the end of a file, `2>/dev/null` throws the complaints away, and `2>&1` folds them into the main output so you can see or search them.
+
+**The question-answering tools,** which the readings introduce and the practice below exercises:
+
+- To keep the lines that mention something: `grep pattern file`, with `-i` to ignore case, `-v` for the lines that *don't* match, `-c` to count, `-n` for line numbers, `-r` to search whole folders.
+- To take one column: `cut -d, -f2` (split on commas, keep field 2), or `awk '{print $2}'` (split on spaces).
+- To count how many of each: `sort`, then `uniq -c`, then `sort -rn`. Group, count, biggest first.
+- To count lines: `wc -l`.
+- To change text: `sed 's/old/new/g'`.
+- To filter on a column or add one up: `awk -F, '$3 > 100 {print $1}'`, or `awk -F, '{total += $3} END {print total}'`.
+- The same for JSON, which cloud tools print constantly: `jq '.servers[0].name'`.
+
+**Build pipelines one stage at a time.** Run the first command and look at what it prints. Add the next stage, look again. A pipeline you can't predict is one you can't trust, which is why the practice here asks you to predict a command's output before anything runs.
+
+**When a program misbehaves,** the shell has tools that look *at the program* rather than at files. `strace` shows the system calls a program is making right now, so you can see what it's stuck waiting for. `lsof` shows which files and network ports a process has open, so you can see who is holding port 8080. `iostat` shows whether a disk is saturated, and `vmstat` whether the machine is swapping. You'll use them properly in the performance-triage topic; for now, learn which question each one answers.
+
+**Read lecture 1 now,** the main resource below. It's the written version of an hour's lecture, and it covers the shell, paths and redirection with examples you can type along with. Then read the *Shell Tools* half of lecture 2 (`find`, `grep` and friends) and the first half of lecture 4, *Data wrangling*, up to and including `awk`. Lecture 7 is the reference for the diagnosis tools: skim its `strace` and `lsof` parts.
+
+**Trying things yourself.** The browser can't run a shell yet, so the practice below asks you to predict what a command prints, and every answer was checked by running the command in a real `bash`. To experiment while you read, open a terminal on your own machine: on Windows, Git Bash (it comes with Git) or WSL both run everything in this topic; on a Mac, Terminal. Make a scratch folder, create a few small files with `echo some text > file.txt`, and try each command on them.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A command** is a program, its options (`-n`, `--count`) and its arguments. `man cmd` and `cmd --help` explain them.
+- **Paths:** `/` is the root. `pwd` says where you are; `cd folder`, `cd ..` (up one), `cd` (home, `~`). Absolute paths start at `/`; relative ones start where you are.
+- **Looking:** `ls`, `cat`, `head -n N`, `tail -n N`, `find . -name 'pattern'`. Quote patterns so the shell doesn't expand them before the program sees them.
+- **Streams:** stdin in, stdout out, stderr for errors. `|` joins stdout to the next command's stdin. `>` replaces a file, `>>` appends, `2>/dev/null` discards errors, `2>&1` merges them into stdout. `$?` is the last command's exit status: `0` means it worked.
+- **Filtering:** `grep` (`-i`, `-v`, `-c`, `-n`, `-r`). **Fields:** `cut -d, -fN`, `awk '{print $N}'`. **Counting:** `wc -l`; `sort | uniq -c | sort -rn | head` for "which most".
+- **`sort` compares text** unless you say `-n`; `uniq` only merges neighbouring lines, so sort first; `tail -n +2` skips a header line.
+- **Editing and computing:** `sed 's/old/new/g'` (without `g`, only the first match on each line changes); `awk -F, 'NR > 1 && $3 > 100 {print $1}'` (skip the header, or its text gets compared as if it were a number); `jq` for JSON.
+- **Diagnosis:** `strace` (system calls), `lsof` (open files and ports), `iostat` (disks), `vmstat` (memory, swap, CPU).
+
+</Recap>

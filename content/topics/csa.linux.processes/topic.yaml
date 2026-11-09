@@ -1,15 +1,95 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.processes
 kind: topic
-status: planned
-title: Processes and signals
-summary: Explain fork and exec, process IDs and signals.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "Processes and signals"
+summary: "What a running program is to Linux: how a process is born with fork and exec, how signals stop it politely or by force, what a zombie is, and what PID 1 does for the services on a server."
+prerequisites: [csa.linux.shell]
+estimated_minutes: 90
 rev: 1
 objectives:
-- Explain fork and exec, process IDs and signals.
-- Find and clear zombie processes.
-- Explain what the init system does (systemd units and targets).
+  - "Explain how a process comes into being (fork, then exec), what a PID and a parent process are, and what an exit status tells the shell."
+  - "Say what a signal is and choose the right one: `TERM` to ask a program to stop, `KILL` when it won't, `INT` from Ctrl-C, `HUP` when a terminal closes."
+  - "Run jobs in the background with `&`, `wait`, `jobs`, `fg`, `bg` and `nohup`, and read `$?`, `&&` and `||`."
+  - "Explain what a zombie process is, why `kill -9` can't remove one, and what the init system (systemd, PID 1) does: units, targets and `systemctl`."
+# Linked, never copied. Licences: the Missing Semester's notes are CC BY-NC-SA
+# 4.0; The Linux Command Line is CC BY-NC-ND 3.0; the Arch Wiki is GNU FDL 1.3;
+# the Linux man-pages are free documentation (licences vary by page).
+resources:
+  - title: "The Missing Semester of Your CS Education, lecture 5: Command-line environment (read the Job Control section: signals, Ctrl-C, Ctrl-Z, bg, fg, nohup)"
+    url: https://missing.csail.mit.edu/2020/command-line/
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "The Linux Command Line, by William Shotts, chapter 10: Processes (ps, top, kill, jobs; a free PDF)"
+    url: https://linuxcommand.org/tlcl.php
+    type: reading
+    use: link
+    license: CC BY-NC-ND 3.0
+  - title: "signal(7), from the Linux man-pages project: the standard signals and what each does by default"
+    url: https://man7.org/linux/man-pages/man7/signal.7.html
+    type: reading
+    use: link
+    license: "Linux man-pages project (free documentation; linked, not copied)"
+  - title: "ArchWiki: systemd (units, targets and systemctl, the basic usage section)"
+    url: https://wiki.archlinux.org/title/Systemd
+    type: reading
+    use: link
+    license: GNU FDL 1.3
+# Lessons and recall first (ADR-0017); the hands-on steps and the proofs run
+# in a container on the learner's machine once the lab checker's local mode exists.
+practice:
+  - mcq-fork-exec
+  - proc-subshell-var
+  - proc-exec-replaces
+  - proc-child-ppid
+  - proc-exit-status
+  - proc-exit-code-custom
+  - proc-and-or
+  - proc-background-wait
+  - mcq-ctrl-z-bg
+  - mcq-nohup
+  - proc-kill-l
+  - proc-trap-term
+  - mcq-term-vs-kill
+  - mcq-zombie
+  - mcq-pid1-systemd
+  - mcq-systemctl-enable-start
+  - mcq-target
+prove:
+  explain:
+    prompt: |
+      A teammate says a service "won't die": `kill` did nothing, and it still shows in `ps`, marked `<defunct>`. Another teammate wants to stop a runaway script "the gentle way first". Explain, in your own words: what a process is and how a new one comes into being (fork and exec), and what a PID and a parent process are; what a signal is, the difference between `TERM` and `KILL`, and why you send `TERM` first; what a zombie actually is and why `kill -9` can't remove one, and what does; and what PID 1 (systemd) does for the services on a server.
+    rubric:
+      - id: fork-exec
+        required: true
+        description: "A process is a running program with its own ID (PID); a new one is made by fork, a copy of the parent, which then calls exec to replace itself with the new program; every process but PID 1 has a parent."
+      - id: signals
+        required: true
+        description: "A signal is a short message from the kernel to a process; TERM asks the program to stop and lets it clean up (it can be caught or ignored), KILL ends it at once and can't be caught; TERM first so files and connections close cleanly, KILL only if it doesn't stop."
+      - id: zombie
+        required: true
+        description: "A zombie has already exited; what's left is its entry in the process table, kept until the parent reads its exit status with wait. Signals can't kill what's already dead; the fix is to make the parent reap it, or end the parent so PID 1 adopts and reaps it."
+      - id: init
+        required: true
+        description: "PID 1, systemd, is started by the kernel and starts everything else: it starts services from unit files, restarts them, groups them into targets, and adopts orphaned processes; systemctl talks to it."
+      - id: job-control
+        required: false
+        description: "& runs a command in the background, Ctrl-Z stops it, bg and fg resume it, wait waits for it, nohup lets it outlive the terminal; $? is the exit status, 0 for success, which && and || test."
+    model_answer: |
+      A process is a program that is running: its code, its memory, its open files, and a number, the PID, that the kernel uses to refer to it. New processes come from existing ones. When the shell runs a command it first calls fork, which makes a copy of itself, and the copy then calls exec, which replaces the copied program with the one you asked for; the original shell is the parent, the new process is its child, and the child's PPID is the parent's PID. When a process finishes it leaves an exit status, 0 for success, which the parent collects. A signal is a short message from the kernel to a process, usually sent with kill or by a key like Ctrl-C. TERM means "please stop": the program can catch it, finish writing its files, close its connections and exit, or even ignore it. KILL can't be caught or ignored: the kernel just ends the process. So you send TERM first, wait a moment, and only then KILL, because a program killed outright may leave half-written files or locks behind. A zombie is a process that has already exited; what's left is only its entry in the process table, kept so the parent can read its exit status with wait. Signals act on running programs, and a zombie isn't running, so kill -9 does nothing to it. It disappears when the parent reads the status, or when the parent itself ends, because then PID 1 adopts the zombie and reaps it. PID 1 is systemd, the first process the kernel starts; it starts the services described in unit files, restarts them when they fail, groups them into targets like multi-user.target, adopts orphans, and is what systemctl talks to when you start, stop, enable or check a service.
+review_pool:
+  - proc-subshell-var
+  - proc-trap-term
+  - proc-and-or
+  - mcq-zombie
+  - mcq-term-vs-kill
+  - mcq-pid1-systemd
+skills:
+  - id: process-model
+    description: "Fork and exec, PIDs and parents, exit status, and what a zombie is"
+  - id: signals
+    description: "What a signal is, and `TERM`, `KILL`, `INT`, `HUP`, `STOP` and `TSTP`; `kill`, `trap` and the keys that send them"
+  - id: job-control
+    description: "Background jobs with `&`, `wait`, `jobs`, `fg`, `bg` and `nohup`; reading `$?`, `&&` and `||`"
+  - id: init-systemd
+    description: "What PID 1 does: systemd units, targets, and the `systemctl` verbs"

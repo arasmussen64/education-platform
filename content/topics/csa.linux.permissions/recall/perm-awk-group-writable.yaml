@@ -1,0 +1,18 @@
+id: perm-awk-group-writable
+type: predict_shell
+rev: 1
+prompt: |
+  Same listing. `substr($1, 6, 1)` is the sixth character of the mode: the group's write bit. Which names are printed?
+files:
+  listing.txt: |
+    -rwxr-xr-x 1 app app  120 Nov  9 09:00 deploy.sh
+    -rw-r--r-- 1 app app  310 Nov  9 09:00 notes.txt
+    -rw------- 1 app app 1679 Nov  9 09:00 id_ed25519
+    -rwxrwxr-x 1 app app  220 Nov  9 09:00 backup.sh
+    drwxr-x--- 2 app app 4096 Nov  9 09:00 secrets
+command: awk 'substr($1, 6, 1) == "w" {print $NF}' listing.txt
+expected_output: |
+  backup.sh
+explanation: |
+  Count along `-rwxrwxr-x`: character 1 is the type, 2 to 4 the owner's bits, 5 to 7 the group's. Character 6 is the group's `w`, and only `backup.sh` has it: anyone in the `app` group can change that script, which on a shared server is worth a second look. Every other line has `-` in position 6.
+skills: [read-modes]

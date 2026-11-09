@@ -1,0 +1,19 @@
+id: shell-top-path
+type: predict_shell
+rev: 1
+prompt: |
+  Which page was requested most? Follow the pipeline stage by stage: `cut` takes the second comma-separated field, `tail -n +2` skips the header line, `sort` groups equal lines together, `uniq -c` counts each group (printing the count, padded with spaces, before the line), `sort -rn` puts the biggest count first, and `head -n 1` keeps it. What is printed? Include the padding before the count.
+files:
+  requests.csv: |
+    user,path
+    ada,/home
+    grace,/login
+    ada,/home
+    ken,/report
+    grace,/home
+command: cut -d, -f2 requests.csv | tail -n +2 | sort | uniq -c | sort -rn | head -n 1
+expected_output: |2
+        3 /home
+explanation: |
+  After `cut` and `tail` the stream is the five paths. `sort` puts the three `/home` lines next to each other, which is what `uniq -c` needs: it counts runs of identical neighbouring lines, printing each count right-aligned in seven characters before the line. `sort -rn` sorts by that number, biggest first, and `head -n 1` keeps the winner. This `sort | uniq -c | sort -rn | head` shape answers "which most?" for anything.
+skills: [count-and-sort]

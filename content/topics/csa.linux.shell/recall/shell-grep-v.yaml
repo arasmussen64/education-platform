@@ -1,0 +1,18 @@
+id: shell-grep-v
+type: predict_shell
+rev: 1
+prompt: |
+  `-v` turns `grep` around: it prints the lines that do *not* match. What does this print?
+files:
+  app.log: |
+    INFO started
+    WARN slow query
+    INFO listening on 8080
+    ERROR disk full
+command: grep -v INFO app.log
+expected_output: |
+  WARN slow query
+  ERROR disk full
+explanation: |
+  Two lines contain `INFO`; `-v` drops those and keeps the other two, in their original order. Filtering out the noise is often the quickest way to see what's wrong in a busy log.
+skills: [grep-filter]

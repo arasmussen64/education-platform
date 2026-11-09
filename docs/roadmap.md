@@ -99,7 +99,7 @@ Mornings learning on the platform, afternoons building it.
   - [x] More than one track in the app: the map and topic pages know every track (2026-11-08)
   - [x] The track on the map as `planned` outlines, generated from the spec (2026-11-08)
   - [x] Decide how the shell is taught and proven ([ADR-0017](decisions/0017-shell-in-the-browser.md), accepted 2026-11-09): a `predict_shell` item proven by real `bash` in the validator, local container labs through the lab checker, a browser VM later
-  - [ ] Stage 1 content: Module 1's lessons and recall first, then the drills that run in the browser
+  - [ ] Stage 1 content: Module 1's lessons and recall first (3 of 14 topics drafted on 2026-11-09: the shell, processes and signals, users and permissions), then the drills that run in the browser
   - [ ] The lab checker ([ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09)
   - [ ] Design reviews, game days and "Defend it"
 

@@ -116,14 +116,16 @@ function LoadedTrackMap({ track }: { track: Track }) {
     [track],
   )
   const progress = useProgress(topics)
-  const anythingOpen = topics.some(isOpen)
+  // Drafts count as "still being written": the dev server can open them,
+  // but the note is about what a learner can do.
+  const anythingReady = topics.some((topic) => topic.status === 'ready')
   // Read the clock once, when the map opens, for the memory percentages.
   const [now] = useState(() => new Date().toISOString())
 
   return (
     <section className="space-y-8">
       <TrackHeader track={track}>
-        {!anythingOpen && (
+        {!anythingReady && (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             This track is an outline so far: every topic is still being written.
             It's on the map so you can see where everything fits.

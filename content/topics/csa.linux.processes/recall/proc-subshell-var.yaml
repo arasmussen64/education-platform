@@ -1,0 +1,12 @@
+id: proc-subshell-var
+type: predict_shell
+rev: 1
+prompt: |
+  Parentheses run their commands in a **subshell**: a forked copy of the shell. What is printed?
+command: x=1; (x=2; echo $x); echo $x
+expected_output: |
+  2
+  1
+explanation: |
+  Inside the parentheses, the copy sets its own `x` to 2 and prints `2`. The copy then ends, and its memory with it. The original shell's `x` was never touched, so the second `echo` prints `1`. A forked process gets a *copy* of its parent's variables; changes flow down, never back up. That's also why `cd` inside a subshell or a script doesn't move your own shell.
+skills: [process-model]

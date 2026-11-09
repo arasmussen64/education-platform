@@ -1,0 +1,39 @@
+<Intro>
+
+A **process** is a program while it's running: its code, its memory, the files it has open, and a number the kernel uses to refer to it, the **PID** (process ID). Type `ps` and you see the processes your shell started; `ps -ef` or `ps aux` shows every process on the machine, with each one's PID and its **PPID**, the PID of its parent. Every process has a parent, because new processes are made from existing ones, and the whole machine is one family tree with **PID 1** at the root.
+
+**How a process is born.** When you type `grep error app.log`, the shell doesn't "load" grep into itself. It calls **fork**, which makes a copy of the shell, a child process, and in that child it calls **exec**, which throws away the copied shell program and replaces it with `grep`. Same process, new program. The parent shell then **waits** for the child to finish. This two-step dance is why a subshell `( ... )` can change a variable without affecting your shell: it's a copy. And it's why `exec some-command` in a script replaces the script, so nothing after it runs. When a process ends, it leaves an **exit status**: `0` means success, anything else means failure, and the shell stores it in `$?`. `a && b` runs `b` only if `a` succeeded; `a || b` runs `b` only if `a` failed.
+
+**Signals.** A signal is a short message from the kernel to a process: not data, just "something happened". You send most of them with `kill`, which despite its name just delivers a signal, by PID. The ones to know:
+
+- **`INT`** (interrupt): what Ctrl-C sends. Most programs stop.
+- **`TERM`** (terminate): "please stop". The default for `kill`. A program can *catch* it, finish writing its files, close its connections, then exit. It can also ignore it.
+- **`KILL`**: the kernel ends the process at once. It can't be caught or ignored. Send it only after `TERM` didn't work, because a program killed outright leaves half-written files and locks behind.
+- **`HUP`** (hang-up): sent when the terminal closes. Many servers reread their config on `HUP` instead of quitting.
+- **`TSTP`** (Ctrl-Z) and **`STOP`** pause a process; **`CONT`** resumes it.
+
+`kill -l` lists them with their numbers: `TERM` is 15, `KILL` is 9, which is where `kill -9` comes from. A shell script can react to a signal with `trap`.
+
+**Jobs.** Add `&` after a command and the shell runs it in the background and gives you the prompt back. `jobs` lists them; `fg` brings one to the front; Ctrl-Z stops the front job and `bg` lets it carry on in the background; `wait` pauses until background jobs finish. A job started from a terminal gets `HUP` when the terminal closes; `nohup command &` makes it survive, though on a server the right answer is usually a systemd service.
+
+**Zombies.** When a process exits, its entry in the process table stays until its parent reads the exit status (with `wait`). A process in that state shows up in `ps` as `<defunct>`: a **zombie**. It uses no memory and no CPU, just the entry. `kill -9` does nothing to it, because there's nothing left to kill. Zombies go away when the parent reaps them, or when the parent dies, because PID 1 adopts orphans and reaps them. Lots of zombies mean a parent that forgot to wait.
+
+**PID 1: systemd.** The kernel starts exactly one program itself, and that program starts everything else. On nearly every modern Linux it's **systemd**. It reads **unit files** that describe services (`nginx.service`), starts them in the right order, restarts them if they crash, and groups them into **targets** (`multi-user.target` is "a server that's fully up"). `systemctl` is how you talk to it: `systemctl status nginx`, `start`, `stop`, `restart`, and `enable`, which means "also start at boot". The next topic goes into services and their logs; here, know what PID 1 is for.
+
+**Read now:** the *Job Control* section of lecture 5, the main resource below, which shows signals and jobs live. Then chapter 10 of *The Linux Command Line* for `ps`, `top`, `kill` and jobs with more examples, and skim `signal(7)` to see the full list. The practice below runs on `bash` itself, because the shell is a process too: subshells, `exec`, exit statuses, background jobs and traps all behave exactly as described.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A process** is a running program with a PID; every one has a parent (PPID). `ps -ef` shows the tree; PID 1 is at the root.
+- **fork, then exec:** the shell copies itself, and the copy replaces its program with the command. A subshell `( ... )` is a copy, so its variable changes don't come back; `exec cmd` replaces the current shell, so nothing after it runs.
+- **Exit status:** `0` means success. `$?` holds the last one. `a && b` runs `b` only on success; `a || b` only on failure. `exit 3` sets it.
+- **Signals:** `INT` (Ctrl-C), `TERM` (please stop, the default for `kill`, can be caught), `KILL` (now, can't be caught: last resort), `HUP` (terminal closed; many servers reload), `TSTP`/`STOP` pause, `CONT` resumes. `kill -l` lists them; `TERM` is 15, `KILL` is 9. `trap 'cmd' TERM` reacts in a script.
+- **Jobs:** `cmd &`, `jobs`, `fg`, `bg`, Ctrl-Z, `wait`, `nohup cmd &`.
+- **A zombie** has already exited; only its table entry remains until the parent calls `wait`. `kill -9` can't remove it. Reap it from the parent, or end the parent and PID 1 reaps it.
+- **systemd** is PID 1: unit files describe services, targets group them, `systemctl status|start|stop|restart|enable|disable` controls them.
+
+</Recap>

@@ -30,8 +30,8 @@ describe('the topic loader', () => {
 
   it('loads nothing for a topic that is still an outline, or unknown', async () => {
     // The cloud track's outlines aren't bundled in; the loader fetches them.
-    expect(await load('csa.linux.shell')).toMatchObject({
-      topic: { id: 'csa.linux.shell', status: 'planned' },
+    expect(await load('csa.linux.services')).toMatchObject({
+      topic: { id: 'csa.linux.services', status: 'planned' },
       content: null,
       interleaved: null,
     })

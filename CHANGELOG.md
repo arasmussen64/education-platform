@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (content: the cloud track begins)
+
+- **The first three topics of Module 1, Linux and the command line, as drafts:** Shell essentials, Processes and signals, and Users, permissions and SSH. Each has a lesson written for a complete beginner around freely licensed readings (MIT's Missing Semester, *The Linux Command Line*, the ArchWiki, the Linux man-pages), an explain prompt with its rubric, four to six skills, and a practice ladder of recall items: 54 between them, 31 of the new `predict_shell` kind, every one proven in real bash by the validator. They're drafts, visible on the dev server only, because their hands-on steps and proofs wait for the lab checker's local container mode ([ADR-0017](docs/decisions/0017-shell-in-the-browser.md)).
+
 ### Added (the cloud track's first question type)
 
 - **A new kind of question for the command line, `predict_shell`** ([ADR-0017](docs/decisions/0017-shell-in-the-browser.md)): a few small files, a shell command over them, and "what will it print?". The browser runs nothing; the page shows the files and the command, and the answer is checked like a Python predict-the-output question. Every item is proven before a learner sees it: the validator runs the command in real bash (Linux in CI, Git Bash on Windows) in a temporary folder holding just those files, and the output must match exactly, with nothing written to stderr.

@@ -1,0 +1,14 @@
+id: mcq-term-vs-kill
+type: mcq
+rev: 1
+prompt: |
+  A database process is misbehaving and you need to stop it. Why send `kill PID` (that is, `TERM`) before `kill -9 PID`?
+choices:
+  - "`TERM` is faster than `KILL`"
+  - "`TERM` lets the program catch the signal and finish writing and closing cleanly; `KILL` ends it at once and can't be caught, so it may leave corrupt files and locks"
+  - "`KILL` only works as root"
+  - "`TERM` kills the children too; `KILL` only kills the parent"
+answer: 1
+explanation: |
+  `TERM` is a request the program can handle: flush its files, close connections, remove its lock file, then exit. `KILL` is carried out by the kernel without the program's involvement, so whatever it was in the middle of stays half-done. The order is: `TERM`, wait a little, then `KILL` only if it didn't stop. Neither signal is sent to children automatically, and both work on any process you own.
+skills: [signals]

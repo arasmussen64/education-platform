@@ -1,0 +1,12 @@
+id: shell-stderr-status
+type: predict_shell
+rev: 1
+prompt: |
+  There is no file called `missing.txt`. Error messages go to a separate stream, stderr, and `2>/dev/null` throws that stream away. `$?` holds the exit status of the last command: `0` means it worked. What is printed?
+command: |
+  cat missing.txt 2>/dev/null; echo "exit: $?"
+expected_output: |
+  exit: 1
+explanation: |
+  `cat` can't open the file, so it writes a complaint to stderr, which the redirection discards, and it exits with status `1`, meaning failure. Nothing is printed for the first command at all. `echo` then prints the status it finds in `$?`. Programs report success and failure through this number, which is what `&&`, `||` and scripts look at, not the text of the message.
+skills: [pipes-redirects]

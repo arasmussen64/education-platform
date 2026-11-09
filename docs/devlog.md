@@ -2,6 +2,29 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The cloud track begins: Module 1's first three topics, as drafts
+
+The first content built on ADR-0017: Shell essentials (`csa.linux.shell`), Processes and signals (`csa.linux.processes`) and Users, permissions and SSH (`csa.linux.permissions`), the first three of Module 1's fourteen. Each has a lesson, an explain prompt with its rubric and model answer, skills, a review pool, and a practice ladder of recall items: 54 in all, 31 of them `predict_shell`, each proven in real bash by the validator (through Git Bash on this PC, on Linux in CI).
+
+**What the lessons are built on.** Every reading is linked, never copied: MIT's Missing Semester notes (CC BY-NC-SA 4.0) for the shell, data wrangling, job control and SSH; William Shotts's *The Linux Command Line* (CC BY-NC-ND 3.0) and his *Learning the shell* lessons (a copyright notice that permits verbatim copying; linked only); the ArchWiki (GNU FDL 1.3) for users and groups, sudo, SSH keys and systemd; `signal(7)` from the Linux man-pages. Every URL answered 200 before it was written down. The lessons themselves are written for a complete beginner, as you asked: what a process is before fork and exec, what the ten characters of `ls -l` mean before octal.
+
+**What a shell item can and can't do.** Only text-processing commands behave identically on Linux and in Git Bash, so the items read listings, logs, `/etc/passwd`-style files, a sudoers file and an SSH config with `grep`, `cut`, `sort`, `uniq`, `awk` and `sed`, and use bash itself for processes: subshells, `exec`, exit statuses, `&&` and `||`, background jobs with `wait`, `trap`, `kill -l`, and `umask` with shell arithmetic. Nothing that prints dates, sizes, PIDs or user names.
+
+**Three things the validator caught,** each worth knowing:
+1. A YAML plain scalar can't hold `: ` (as in `echo "exit: $?"` or `awk -F: ...`); such commands go in a `|` block.
+2. `bash -c 'cmd'` doesn't fork for the last command in the string: it execs it in place. An item comparing a child's `$PPID` with the shell's `$$` was false until a trailing `echo` made the child not the last command. The item's explanation now says so, since it's a true fact about shells.
+3. `grep ' 500 '` needs a space on both sides of the status code, so the access-log lines gained a size column.
+
+**The lazy-track rule changed.** `content.lazy.test.ts` demanded that every cloud topic be `planned`; it now demands only that none is `ready`. Drafts are visible only on the dev server, where a topic page loads its track before rendering. When the first cloud topic goes ready, the Today page and the follow-ups will need to see it, which means bundling it in or teaching them to load the track.
+
+**Decisions for you to review:**
+1. *Drafts, not ready,* as ADR-0017 says: the hands-on steps and the proofs wait for the lab checker's local mode. On the dev server (`npm run dev` in `web/`, then `/topic/csa.linux.shell`) you can read the lessons and try every item now.
+2. *Prerequisites set:* Processes and Permissions both need Shell essentials. The generated outlines had none.
+3. *LinuxCommand.org's lesson 9 as the main resource for permissions,* although it carries only a copyright notice (verbatim copying permitted) rather than a Creative Commons licence: it's the gentlest `ls -l` and `chmod` walkthrough I found, and the platform only links to it. Swap it for the ArchWiki page if you'd rather have a CC-licensed main resource.
+4. *No Parsons items for the shell yet:* the Parsons validator runs Python. A shell flavour (put the stages of a pipeline in order) would need the same bash runner; cheap to add later.
+
+**Next:** the other eleven Module 1 topics the same way; then the lab checker's local mode, so Module 1 can go ready.
+
 ## 2026-11-09: `predict_shell`, the cloud track's first question type
 
 The first thing ADR-0017 asks for, built end to end: a recall item that shows a few small files and a shell command over them and asks what it prints. The browser runs nothing. The validator runs the command in real bash and checks the output, so every item is proven against a real shell before a learner sees it, the way `predict_output` items are proven under CPython.

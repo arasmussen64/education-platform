@@ -1,0 +1,19 @@
+id: perm-awk-executables
+type: predict_shell
+rev: 1
+prompt: |
+  `listing.txt` holds the output of `ls -l`. The `awk` pattern `$1 ~ /^-..x/` matches lines whose first field (the mode) starts with `-` (an ordinary file) and has `x` as its fourth character, the owner's execute bit. `$NF` is the last field, the name. What is printed?
+files:
+  listing.txt: |
+    -rwxr-xr-x 1 app app  120 Nov  9 09:00 deploy.sh
+    -rw-r--r-- 1 app app  310 Nov  9 09:00 notes.txt
+    -rw------- 1 app app 1679 Nov  9 09:00 id_ed25519
+    -rwxrwxr-x 1 app app  220 Nov  9 09:00 backup.sh
+    drwxr-x--- 2 app app 4096 Nov  9 09:00 secrets
+command: awk '$1 ~ /^-..x/ {print $NF}' listing.txt
+expected_output: |
+  deploy.sh
+  backup.sh
+explanation: |
+  Characters 2 to 4 of the mode are the owner's `rwx`. `deploy.sh` and `backup.sh` have `x` there, so their owner can run them. `notes.txt` and the key have `-`. `secrets` has `x` in that position too, but its mode starts with `d`, a directory, and the pattern asks for a `-` first, so it's left out. Reading the mode column this way is how you audit a folder for files that are executable when they shouldn't be.
+skills: [read-modes]

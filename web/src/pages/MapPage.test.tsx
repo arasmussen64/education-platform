@@ -196,7 +196,11 @@ describe('more than one track', () => {
         name: 'Module 1: Linux and the command line',
       }),
     ).toBeInTheDocument()
+    // Topics being written are drafts: the dev server (and so this test)
+    // can open them, but the track is still "an outline so far" until one
+    // is ready.
     expect(screen.getByText(/an outline so far/)).toBeInTheDocument()
+    expect(screen.getAllByText(/Draft/)).toHaveLength(3)
     expect(screen.getAllByRole('heading', { name: 'Capstone' })).toHaveLength(3)
     expect(
       screen.getByRole('link', {

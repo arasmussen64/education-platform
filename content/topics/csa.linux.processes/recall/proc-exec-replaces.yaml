@@ -1,0 +1,12 @@
+id: proc-exec-replaces
+type: predict_shell
+rev: 1
+prompt: |
+  `exec command` replaces the current shell's program with the command, in the same process. A child `bash` runs three statements. What is printed?
+command: bash -c 'echo before; exec echo replaced; echo never'
+expected_output: |
+  before
+  replaced
+explanation: |
+  The child shell prints `before`, then `exec` turns that very process into `echo replaced`. `echo` prints and exits, and with it the process is over, so there's no shell left to run `echo never`. This is the second half of how commands run: fork makes the copy, exec swaps the program. In a service's start script, `exec` is used on purpose so the service, not a leftover shell, is what PID 1 supervises.
+skills: [process-model]

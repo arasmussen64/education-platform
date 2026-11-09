@@ -1,0 +1,13 @@
+id: proc-trap-term
+type: predict_shell
+rev: 1
+prompt: |
+  `trap 'commands' SIGNAL` tells the shell what to do when that signal arrives, instead of dying. The shell then sends `TERM` to itself (`$$` is its own PID). What is printed?
+command: |
+  trap 'echo caught TERM' TERM; kill -TERM $$; echo after
+expected_output: |
+  caught TERM
+  after
+explanation: |
+  Without the trap, `TERM` would end the shell and nothing more would print. With it, the signal runs the handler, which prints `caught TERM`, and the shell carries on to `echo after`. This is what a well-behaved program does with `TERM`: catch it, tidy up, then exit. It's also why `TERM` can be ignored and `KILL` can't: there is no trap for `KILL`.
+skills: [signals]

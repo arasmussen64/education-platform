@@ -1,0 +1,14 @@
+id: mcq-groups-relogin
+type: mcq
+rev: 1
+prompt: |
+  You run `sudo usermod -aG docker ada` so Ada can use Docker, but in her open terminal `docker ps` still says permission denied. Why?
+choices:
+  - "The command needs a reboot to take effect"
+  - "Her group list is read when she logs in; she needs to log out and in again (or start a new login shell). Also, `-aG` was right: without `-a`, `-G` would have replaced her other groups"
+  - "`usermod` only changes the primary group; she needs `chmod`"
+  - "The `docker` group doesn't exist until Docker is restarted"
+answer: 1
+explanation: |
+  A process gets its groups when the session starts, so running shells don't see a new membership; a fresh login (or `newgrp docker`) does. No reboot is needed. The `-a` (append) flag is the common trap: `usermod -G docker ada` on its own would make `docker` her *only* extra group and drop her from `sudo` and the rest. `id ada` shows the result.
+skills: [users-sudo]

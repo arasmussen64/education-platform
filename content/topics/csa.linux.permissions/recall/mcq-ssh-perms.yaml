@@ -1,0 +1,14 @@
+id: mcq-ssh-perms
+type: mcq
+rev: 1
+prompt: |
+  You added your public key to a server's `~/.ssh/authorized_keys`, but `ssh` still asks for a password. On the server, `ls -ld ~/.ssh` shows `drwxrwxr-x`. What's wrong?
+choices:
+  - "The key is in the wrong format and must be RSA"
+  - "`~/.ssh` is group-writable, so `sshd` ignores the whole directory; it must be `700`, with `authorized_keys` (and private keys) `600`"
+  - "Password login must be turned off before keys work"
+  - "The public key must be copied to `/etc/ssh` instead"
+answer: 1
+explanation: |
+  `sshd` checks the ownership and modes of `~/.ssh` and the files in it, and refuses to use them if anyone but the owner could write them, because a writable `authorized_keys` would let another user add their own key to your account. Fix it with `chmod 700 ~/.ssh` and `chmod 600 ~/.ssh/authorized_keys`, and look in the server's auth log for the "bad ownership or modes" message when keys mysteriously don't work.
+skills: [ssh-keys]

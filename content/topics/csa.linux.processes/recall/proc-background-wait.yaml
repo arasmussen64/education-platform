@@ -1,0 +1,13 @@
+id: proc-background-wait
+type: predict_shell
+rev: 1
+prompt: |
+  `&` runs the command before it in the background, so the shell goes straight on to the next one. `wait` pauses until every background job has finished. The background job sleeps for a second before printing. What is printed, in order?
+command: (sleep 1; echo slow) & echo fast; wait; echo done
+expected_output: |
+  fast
+  slow
+  done
+explanation: |
+  The subshell starts in the background and sleeps. Meanwhile the shell prints `fast` at once. `wait` then blocks until the background job finishes, which prints `slow`, and only then does `done` appear. Without `wait`, `done` would come before `slow`, and a script could exit while work was still running.
+skills: [job-control]

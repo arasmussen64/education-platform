@@ -1,0 +1,17 @@
+id: shell-awk-sum
+type: predict_shell
+rev: 1
+prompt: |
+  `awk` reads a file line by line and splits each line into fields: `-F,` says the fields are separated by commas, and `$3` is the third one. `NR` is the line number, so `NR > 1` skips the header. The `END` block runs once, after the last line. What is printed?
+files:
+  sales.csv: |
+    name,region,amount
+    ada,north,150
+    grace,south,80
+    ken,north,45
+command: awk -F, 'NR > 1 {total += $3} END {print total}' sales.csv
+expected_output: |
+  275
+explanation: |
+  For each line after the first, `awk` adds the third field to `total`: 150, then 80, then 45, making 275, and `END` prints it. A variable you haven't set starts at 0 in `awk`, so there's nothing to initialise. This one-liner is a spreadsheet's SUM, for files too big to open in one.
+skills: [sed-awk]

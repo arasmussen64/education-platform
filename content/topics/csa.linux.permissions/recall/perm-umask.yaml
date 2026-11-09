@@ -1,0 +1,13 @@
+id: perm-umask
+type: predict_shell
+rev: 1
+prompt: |
+  New files start from `666` (`rw-rw-rw-`) and the `umask` takes bits away: the mode is `666 AND NOT umask`. `printf '%o'` prints a number in octal, and `~` flips the bits. What do the two `printf` lines print, for `umask 022` and then `umask 077`?
+command: |
+  umask 022; printf '%o\n' $((0666 & ~0022)); umask 077; printf '%o\n' $((0666 & ~0077))
+expected_output: |
+  644
+  600
+explanation: |
+  `022` removes write permission from the group and from others, leaving `644`: the owner writes, everyone reads, the default on most systems. `077` removes everything from the group and others, leaving `600`: a private file. Directories start from `777` instead, so the same masks give `755` and `700`. A service that must not leak files sets `umask 077` before it creates them.
+skills: [chmod-chown]
