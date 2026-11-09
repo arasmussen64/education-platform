@@ -1,0 +1,21 @@
+id: boot-journal-targets
+type: predict_shell
+rev: 1
+prompt: |
+  `boot.txt` holds lines from `journalctl -b`, this boot's log. Each `Reached target` line marks a milestone of the boot. The first command counts them; the second prints the last milestone reached, with the text before it removed. What is printed?
+files:
+  boot.txt: |
+    Nov 09 10:40:31 web1 kernel: Linux version 6.8.0-45-generic (buildd@lcy02) ...
+    Nov 09 10:40:33 web1 systemd[1]: Reached target Local File Systems.
+    Nov 09 10:40:36 web1 systemd[1]: Reached target Network is Online.
+    Nov 09 10:40:36 web1 systemd[1]: Starting cloud-init.service - Cloud-init: Network Stage...
+    Nov 09 10:40:38 web1 cloud-init[612]: Cloud-init v. 24.4 running 'init' at Sun, 09 Nov 2026 10:40:38 +0000.
+    Nov 09 10:40:50 web1 systemd[1]: Reached target Multi-User System.
+    Nov 09 10:40:51 web1 systemd[1]: Startup finished in 2.104s (kernel) + 18.512s (userspace) = 20.616s.
+command: grep -c 'Reached target' boot.txt; grep 'Reached target' boot.txt | tail -n 1 | sed 's/.*Reached target //'
+expected_output: |
+  3
+  Multi-User System.
+explanation: |
+  Three milestones: local filesystems mounted, the network online, and finally the multi-user target, which is "the server is up". Between the second and third you can see cloud-init's network stage start, twelve seconds before the finish. Reading a boot log as a sequence of targets, with the units between them, is how you find where a slow or stuck boot spent its time. `sed 's/.*Reached target //'` deletes everything up to and including that phrase.
+skills: [boot-sequence]

@@ -1,0 +1,14 @@
+id: scr-mkdir-twice
+type: predict_shell
+rev: 1
+prompt: |
+  The same directory is created three times: with `mkdir`, with `mkdir` again (its complaint discarded), and with `mkdir -p`. After each, the exit status is printed. What is printed?
+command: |
+  mkdir build; echo "first: $?"; mkdir build 2>/dev/null; echo "second: $?"; mkdir -p build; echo "with -p: $?"
+expected_output: |
+  first: 0
+  second: 1
+  with -p: 0
+explanation: |
+  Plain `mkdir` fails when the directory already exists, and under `set -e` that failure would stop a script on its second run, at a step that had already succeeded. `mkdir -p` means "make sure this exists", creating missing parents on the way and succeeding if it's already there: the idempotent form. The same pattern recurs everywhere: prefer the command that describes the state you want over the one that describes an action.
+skills: [idempotent]

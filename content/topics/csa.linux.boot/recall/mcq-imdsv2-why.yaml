@@ -1,0 +1,14 @@
+id: mcq-imdsv2-why
+type: mcq
+rev: 1
+prompt: |
+  A web application on an instance has a feature that fetches any URL a user types in and shows the result. Why is the instance metadata service a problem, and how does IMDSv2 help?
+choices:
+  - "It isn't a problem; the metadata service only answers the cloud console"
+  - "An attacker types `http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE` and the app fetches the instance's credentials for them (server-side request forgery, the mechanism of a major 2019 breach). IMDSv2 requires a PUT with a TTL header to get a session token and that token on every GET, which a forged GET can't supply, so the request gets 401"
+  - "The metadata service is slow, and the app will time out"
+  - "IMDSv2 encrypts the metadata, so the attacker sees ciphertext"
+answer: 1
+explanation: |
+  The metadata service trusts any request from the instance, and a vulnerable app makes requests on the attacker's behalf from the instance. IMDSv2 turns one request into a session: `PUT /latest/api/token` with `X-aws-ec2-metadata-token-ttl-seconds`, then `X-aws-ec2-metadata-token: …` on each `GET`. Web-app fetch features send GETs without custom headers, so they fail at the first step, and the token's hop limit of 1 stops it travelling through a proxy or container. Require v2 on every instance; it's a setting, not code.
+skills: [imds-v2]

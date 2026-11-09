@@ -1,0 +1,12 @@
+id: scr-ln-sfn
+type: predict_shell
+rev: 1
+prompt: |
+  A deployment keeps a link called `current` pointing at the live release. Two releases are written, `current` is pointed at the first with `ln -s`, then switched to the second with `ln -sfn`, and the file behind `current` is shown. What is printed?
+command: |
+  echo v1 > app-v1; echo v2 > app-v2; ln -s app-v1 current; ln -sfn app-v2 current; cat current
+expected_output: |
+  v2
+explanation: |
+  `ln -sfn`: `-s` makes a symbolic link, `-f` replaces an existing one instead of failing, and `-n` treats an existing link to a directory as the link itself rather than descending into it (without `-n`, `ln -sf app-v2 current` on a directory link would create `current/app-v2` inside the old release). The result is that the second command works whether or not `current` already exists, which is what a redeploy needs. Plain `ln -s` would have failed on the second run.
+skills: [idempotent]

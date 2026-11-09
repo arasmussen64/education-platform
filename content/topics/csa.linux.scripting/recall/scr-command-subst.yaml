@@ -1,0 +1,13 @@
+id: scr-command-subst
+type: predict_shell
+rev: 1
+prompt: |
+  `$(…)` runs a command and hands back what it printed. Here it captures a line count into a variable, and `[[ … ]]` tests it. What is printed?
+command: |
+  count=$(printf 'x\ny\nz\n' | wc -l); echo "lines: $count"; [[ $count -gt 2 ]] && echo "more than two"
+expected_output: |
+  lines: 3
+  more than two
+explanation: |
+  `wc -l` prints `3`, the substitution puts it in `count`, and `[[ $count -gt 2 ]]` is true, so `&&` runs the `echo`. `[[ ]]` is the modern test: it doesn't split or glob what's inside it, so it's safe even when a variable is empty, where the older `[ $count -gt 2 ]` would fail with a syntax error. `-gt` is a numeric comparison; `>` inside `[[ ]]` compares strings.
+skills: [quoting-vars]

@@ -1,0 +1,16 @@
+id: net-ip-addr-up
+type: predict_shell
+rev: 1
+prompt: |
+  `addr.txt` is the output of `ip -brief addr`: each interface, its state, and its addresses. The command prints the name and the first address of every interface that is UP. What is printed?
+files:
+  addr.txt: |
+    lo               UNKNOWN        127.0.0.1/8 ::1/128
+    eth0             UP             10.0.1.23/24 fe80::1a2b:3c4d:5e6f:7a8b/64
+    docker0          DOWN           172.17.0.1/16
+command: awk '$2 == "UP" {print $1, $3}' addr.txt
+expected_output: |
+  eth0 10.0.1.23/24
+explanation: |
+  One interface is up: `eth0`, with the address `10.0.1.23` on a `/24` network (so `10.0.1.0` to `10.0.1.255` are neighbours). `lo` is the loopback, always `127.0.0.1`, shown as UNKNOWN because it has no link to be up or down; `docker0` is the bridge for containers and is DOWN because no container is running. The second address on `eth0`, starting `fe80::`, is its link-local IPv6 address, present on every interface.
+skills: [ip-and-routes]

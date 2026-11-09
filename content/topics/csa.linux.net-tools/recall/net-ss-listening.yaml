@@ -1,0 +1,22 @@
+id: net-ss-listening
+type: predict_shell
+rev: 1
+prompt: |
+  `ss.txt` is the output of `ss -ltnp`: the TCP sockets that are listening, with the local address and port in field 4 and the process at the end. The command splits field 4 at the colon and prints the port, then the address it's bound to. What is printed?
+files:
+  ss.txt: |
+    State  Recv-Q Send-Q Local Address:Port  Peer Address:Port Process
+    LISTEN 0      4096         0.0.0.0:22          0.0.0.0:*     users:(("sshd",pid=812,fd=3))
+    LISTEN 0      511          0.0.0.0:80          0.0.0.0:*     users:(("nginx",pid=1340,fd=6))
+    LISTEN 0      4096       127.0.0.1:5432        0.0.0.0:*     users:(("postgres",pid=1502,fd=5))
+    LISTEN 0      4096       127.0.0.1:8080        0.0.0.0:*     users:(("python3",pid=2314,fd=4))
+command: |
+  awk 'NR > 1 {split($4, a, ":"); print a[2], a[1]}' ss.txt
+expected_output: |
+  22 0.0.0.0
+  80 0.0.0.0
+  5432 127.0.0.1
+  8080 127.0.0.1
+explanation: |
+  Four services. SSH and nginx listen on `0.0.0.0`, every interface, so the world can reach them (subject to the firewall). PostgreSQL listens on `127.0.0.1` only, which is right for a database. The Python app on 8080 also listens on `127.0.0.1`, which is why "it works on the server but not from my laptop": it never sees a packet from outside. `split($4, a, ":")` cuts the address from the port in `awk`; `ss -ltnp` with the `-p` needs root to show other users' processes.
+skills: [sockets-ss]

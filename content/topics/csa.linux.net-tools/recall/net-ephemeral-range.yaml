@@ -1,0 +1,15 @@
+id: net-ephemeral-range
+type: predict_shell
+rev: 1
+prompt: |
+  When a program connects out, the kernel picks a source port for it from the ephemeral range in `/proc/sys/net/ipv4/ip_local_port_range` (copied here as `port_range`, two numbers). The command reads the two numbers and works out how many ports that is. What is printed?
+files:
+  port_range: |
+    32768 60999
+command: |
+  read lo hi < port_range; echo "$((hi - lo + 1)) ephemeral ports, from $lo to $hi"
+expected_output: |
+  28232 ephemeral ports, from 32768 to 60999
+explanation: |
+  Every outgoing connection to the same destination address and port needs a distinct source port, and there are 28,232 to choose from, so a proxy or a client that opens tens of thousands of short connections to one backend can run out, which shows up as "cannot assign requested address". `TIME-WAIT` holds a port for a minute after closing, which is why busy clients reuse connections or widen this range. `read lo hi` assigns the two words of the line to two variables.
+skills: [sockets-ss]

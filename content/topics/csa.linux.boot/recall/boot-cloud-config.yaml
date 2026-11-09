@@ -1,0 +1,30 @@
+id: boot-cloud-config
+type: predict_shell
+rev: 1
+prompt: |
+  `user-data` is a cloud-config document attached to an instance at launch. The first command checks its first line; the second prints the `packages:` section with the three lines after it. What is printed?
+files:
+  user-data: |
+    #cloud-config
+    hostname: web1
+    users:
+      - name: deploy
+        groups: [sudo]
+        ssh_authorized_keys:
+          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyForDeploy deploy@laptop
+    packages:
+      - nginx
+      - git
+      - unattended-upgrades
+    runcmd:
+      - systemctl enable --now nginx
+command: head -n 1 user-data; grep -A3 '^packages:' user-data
+expected_output: |
+  #cloud-config
+  packages:
+    - nginx
+    - git
+    - unattended-upgrades
+explanation: |
+  The first line is the marker that makes cloud-init treat the rest as cloud-config YAML rather than a script. This document sets the hostname, creates a `deploy` user with sudo and an SSH key, installs three packages, and at the very end (the final stage) enables and starts nginx. `grep -A3` prints a match and the three lines after it. Each section is handled by a cloud-init module, in a fixed order: users before packages before `runcmd`.
+skills: [cloud-init]

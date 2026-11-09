@@ -1,0 +1,14 @@
+id: mcq-traceroute-stars
+type: mcq
+rev: 1
+prompt: |
+  `traceroute` to a server shows hops 1 to 6 with times, hops 7 and 8 as `* * *`, and hop 9, the destination, answering in 30 ms. What does that mean?
+choices:
+  - "Hops 7 and 8 are down, and the packets are getting through by luck"
+  - "Routers 7 and 8 don't send the ICMP replies traceroute relies on (many are configured not to), but traffic passes through them fine, as the destination's reply proves; only stars that continue to the end mean a real break"
+  - "The destination is unreachable"
+  - "The path has a loop"
+answer: 1
+explanation: |
+  `traceroute` sends packets with increasing time-to-live and listens for each router's "time exceeded" message; a router that stays silent shows as stars, which says nothing about whether it forwards traffic. The destination answering at hop 9 settles it. A run of stars that never ends, or ends at a hop before the destination, is where to look for the break, and `mtr` keeps probing so a flaky hop shows as packet loss over time.
+skills: [test-tools]

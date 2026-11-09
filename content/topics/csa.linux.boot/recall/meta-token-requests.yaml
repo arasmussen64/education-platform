@@ -1,0 +1,18 @@
+id: meta-token-requests
+type: predict_shell
+rev: 1
+prompt: |
+  `requests.log` records three requests to the metadata service on an instance that requires IMDSv2, each with its method, path, the header it carried and the status it got back. The first command counts the rejected requests; the second prints the method and path of the ones that succeeded. What is printed?
+files:
+  requests.log: |
+    PUT /latest/api/token X-aws-ec2-metadata-token-ttl-seconds:21600 -> 200
+    GET /latest/meta-data/iam/security-credentials/ (no-token) -> 401
+    GET /latest/meta-data/iam/security-credentials/ X-aws-ec2-metadata-token:AQAEAExampleToken -> 200
+command: grep -c -- '-> 401' requests.log; grep -- '-> 200' requests.log | awk '{print $1, $2}'
+expected_output: |
+  1
+  PUT /latest/api/token
+  GET /latest/meta-data/iam/security-credentials/
+explanation: |
+  The plain `GET` without a token was refused with 401: that's the forged request a vulnerable web app would make, and it gets nothing. The legitimate client first did a `PUT` for a token good for 21,600 seconds (six hours, the maximum), then repeated the `GET` with the token header and got the credentials. The `--` after `grep -c` tells grep that `-> 401` is the pattern, not an option, since it starts with a dash.
+skills: [imds-v2]

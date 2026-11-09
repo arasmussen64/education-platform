@@ -1,0 +1,15 @@
+id: scr-set-u
+type: predict_shell
+rev: 1
+prompt: |
+  `DIR_NAME` was never set. Two child shells print it, the second with `set -u`. The `sed` at the end just removes the `bash: line 1: ` prefix from any error message, so the message itself shows. What is printed?
+command: |
+  bash -c 'echo "dir is [$DIR_NAME]"; echo after'; echo ---; bash -c 'set -u; echo "dir is [$DIR_NAME]"; echo after' 2>&1 | sed 's/^.*: line [0-9]*: //'
+expected_output: |
+  dir is []
+  after
+  ---
+  DIR_NAME: unbound variable
+explanation: |
+  By default an unset variable is silently empty, so the first shell prints empty brackets and carries on; in a real script that's how `rm -rf "$DIR_NAME/"` becomes `rm -rf /`. With `set -u`, reading an unset variable is an error: the shell prints `DIR_NAME: unbound variable` and exits before `after`. A misspelt variable name is the usual way this happens, which is why `-u` belongs in every script.
+skills: [strict-mode]

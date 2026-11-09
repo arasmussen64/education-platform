@@ -1,0 +1,14 @@
+id: mcq-metadata-what
+type: mcq
+rev: 1
+prompt: |
+  A program on an EC2 instance uploads to S3 without any access key in its configuration or environment. How?
+choices:
+  - "S3 doesn't require authentication from EC2"
+  - "The instance has an IAM role, and the program's SDK fetches short-lived credentials for it from the instance metadata service at `169.254.169.254`, renewing them before they expire"
+  - "The key is hidden in the AMI"
+  - "AWS logs the program in with the console user's password"
+answer: 1
+explanation: |
+  The metadata service answers HTTP requests only from the instance itself, and among the things it serves (`instance-id`, `instance-type`, `placement/`, `tags/`, user data) is `iam/security-credentials/ROLE`: a temporary access key, secret and session token for the role attached to the instance. Every SDK checks there automatically. No secret ever has to be written to disk, and rotation is free. Azure's managed identities and Google's service accounts attached to VMs work the same way through their metadata servers.
+skills: [metadata]

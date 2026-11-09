@@ -1,0 +1,15 @@
+id: scr-pipefail
+type: predict_shell
+rev: 1
+prompt: |
+  `missing.txt` doesn't exist. Each child shell pipes `cat` of it into `wc -l` (with cat's complaint discarded) and then prints the pipeline's exit status; the second shell sets `pipefail` first. What is printed?
+command: |
+  bash -c 'cat missing.txt 2>/dev/null | wc -l; echo "status $?"'; bash -c 'set -o pipefail; cat missing.txt 2>/dev/null | wc -l; echo "status $?"'
+expected_output: |
+  0
+  status 0
+  0
+  status 1
+explanation: |
+  `wc -l` counts zero lines either way. Without `pipefail`, a pipeline's status is the status of its *last* command, and `wc` succeeded, so the failure of `cat` vanishes: `status 0`. With `pipefail`, the pipeline reports the status of the rightmost command that failed, `cat`'s 1. That's the difference between a backup script that notices its source was missing and one that reports success for an empty archive.
+skills: [strict-mode]

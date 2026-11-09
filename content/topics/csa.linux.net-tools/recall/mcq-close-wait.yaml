@@ -1,0 +1,14 @@
+id: mcq-close-wait
+type: mcq
+rev: 1
+prompt: |
+  `ss -tan | grep -c CLOSE-WAIT` on an application server climbs from a handful to thousands over a day, and eventually the app fails with "too many open files". What's happening?
+choices:
+  - "Clients are attacking the server with half-open connections"
+  - "The remote side closed each connection, but the application never closed its own end, so the sockets stay in CLOSE-WAIT forever and use up file descriptors: a bug in the application (a missing close), not in the network"
+  - "TIME-WAIT and CLOSE-WAIT are the same, and both are harmless"
+  - "The kernel is slow to clean up connections; raise the ephemeral port range"
+answer: 1
+explanation: |
+  CLOSE-WAIT is the state between "they said goodbye" and "we said goodbye", and only the application can move past it by closing the socket. A steady climb means some code path reads a response and forgets to close, or an HTTP client library is used without closing connections. TIME-WAIT, by contrast, is the kernel's own timer after a clean close and clears itself. Half-open attacks show as SYN-RECV, and the port range is about outgoing connections.
+skills: [sockets-ss]

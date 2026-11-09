@@ -1,13 +1,105 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.scripting
 kind: topic
-status: planned
-title: Shell scripting
-summary: Write Bash scripts that stop safely on errors (set -euo pipefail, traps) and are safe to run twice.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "Shell scripting"
+summary: "Turn commands into scripts you can trust: strict mode (set -euo pipefail) and its one trap, quoting that survives spaces, functions and \"$@\", a trap for cleanup, honest exit codes, and steps that are safe to run twice."
+prerequisites: [csa.linux.shell, csa.linux.processes]
+estimated_minutes: 90
 rev: 1
 objectives:
-- Write Bash scripts that stop safely on errors (set -euo pipefail, traps) and are safe to run twice.
+  - "Explain what `set -e`, `set -u` and `set -o pipefail` each catch, show the difference with and without them, and name the case where `set -e` doesn't fire."
+  - "Quote variables so that spaces and empty values can't break a script, use `\"$@\"` in functions, and read `$(...)`, `[[ ]]` and `||`/`&&`."
+  - "Use `trap ... EXIT` for cleanup that always runs, and exit with a meaningful status when something is missing."
+  - "Make a script idempotent: safe to run twice, with `mkdir -p`, `ln -sfn`, check-before-append and similar steps, and say why cloud scripts must be."
+  - "Use ShellCheck and a style guide, start scripts with `#!/usr/bin/env bash`, and know when a script has outgrown bash."
+# Linked, never copied. Licences: the Missing Semester's notes are CC BY-NC-SA
+# 4.0; Google's Shell Style Guide is CC BY 3.0; Greg's Wiki is its authors'
+# copyright; ShellCheck is a GPL-3.0 tool; the Bash manual page is part of
+# GNU Bash (GPL-3.0-or-later).
+resources:
+  - title: "The Missing Semester of Your CS Education, lecture 2: Shell tools and scripting (the Shell Scripting half: variables, functions, exit codes, conditionals, loops)"
+    url: https://missing.csail.mit.edu/2020/shell-tools/
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "Google Shell Style Guide (when to use shell, quoting, functions, error handling)"
+    url: https://google.github.io/styleguide/shellguide.html
+    type: reading
+    use: link
+    license: CC BY 3.0
+  - title: "Bash Pitfalls, on Greg's Wiki: the classic mistakes, with the fix for each"
+    url: https://mywiki.wooledge.org/BashPitfalls
+    type: reading
+    use: link
+    license: "Greg's Wiki (copyright its authors; linked, not copied)"
+  - title: "ShellCheck: a linter for shell scripts, online and as a command"
+    url: https://www.shellcheck.net/
+    type: interactive
+    use: link
+    license: "ShellCheck project (GPL-3.0); linked, not copied"
+  - title: "bash(1), the Bash manual page (the reference for set options, traps, parameter expansion)"
+    url: https://man7.org/linux/man-pages/man1/bash.1.html
+    type: reading
+    use: link
+    license: "GNU Bash manual (GPL-3.0-or-later); linked, not copied"
+# Lessons and recall first (ADR-0017). Every shell item here runs in real
+# bash, because bash itself is the subject; writing and running whole scripts
+# comes in the labs.
+practice:
+  - mcq-strict-mode-line
+  - scr-set-e
+  - scr-set-u
+  - scr-pipefail
+  - mcq-set-e-gotcha
+  - scr-quoting
+  - scr-dollar-at
+  - scr-command-subst
+  - scr-exit-codes
+  - mcq-exit-code-convention
+  - scr-trap-exit
+  - mcq-idempotent-why
+  - scr-mkdir-twice
+  - scr-ln-sfn
+  - scr-check-before
+  - mcq-shellcheck
+  - mcq-when-not-bash
+prove:
+  explain:
+    prompt: |
+      A colleague's deployment script "mostly works": sometimes it carries on after a failed step and deploys half a release, a file name with a space once broke it, and running it a second time after a failure breaks things. Explain, in your own words: what `set -e`, `set -u` and `set -o pipefail` each catch, and the common case where `set -e` does not stop the script; why variables are quoted and what `"$@"` is for; how a trap on `EXIT` makes cleanup reliable and why a script should exit with a meaningful status; and what it means for a script to be safe to run twice, with two or three concrete ways to make its steps idempotent.
+    rubric:
+      - id: strict-mode
+        required: true
+        description: "set -e exits on a command that fails, -u makes an unset variable an error instead of an empty string, -o pipefail makes a pipeline fail if any stage fails rather than only the last; set -e doesn't fire for a command in an if condition or on the left of || or &&, and a failing $(…) inside local x=… is masked."
+      - id: quoting
+        required: true
+        description: "Unquoted $var is split on spaces and expanded as a glob, so \"$var\" keeps it as one word even when empty; \"$@\" passes a function's or script's arguments on exactly as received, where $* and unquoted $@ re-split them."
+      - id: trap-exit
+        required: true
+        description: "trap 'cleanup' EXIT runs the cleanup whether the script ends normally, fails under set -e or is interrupted; exiting with a non-zero status (exit 2, with a message to stderr) tells the caller, including CI and systemd, that it failed."
+      - id: idempotent
+        required: true
+        description: "A script that fails halfway will be run again, so every step must be safe to repeat: mkdir -p instead of mkdir, ln -sfn instead of ln -s, check before appending a line, create a user only if it doesn't exist, declare the desired state rather than the change."
+      - id: tooling
+        required: false
+        description: "Start with #!/usr/bin/env bash, run ShellCheck, follow a style guide, and move to Python when the script needs data structures or passes a hundred lines."
+    model_answer: |
+      Those three symptoms map onto three habits. First, strict mode. By default bash runs every line whatever happened before, so a failed step is followed by the next as if nothing were wrong, which is how half a release gets deployed. set -e makes the script stop at the first command that fails; set -u makes a misspelt or missing variable an error instead of a silent empty string, which matters when the empty string would turn rm -rf "$BUILD_DIR"/ into rm -rf /; and set -o pipefail makes a pipeline count as failed if any stage failed, not just the last one, so cat missing | wc -l no longer looks like success. The one case to remember is that set -e doesn't fire where the result is being tested: inside an if condition, on the left side of || or &&, and a failing command inside $(…) on a local x=… line is masked by local succeeding. Second, quoting. An unquoted $file is split at spaces and treated as a glob pattern, so a name like "my notes.txt" becomes two arguments and a loop over it breaks; "$file" keeps it as one word, even when it's empty. In functions and scripts "$@" passes the arguments on exactly as they were received, each as its own word, where $* and unquoted $@ re-split them. Third, failing well and cleaning up. trap cleanup EXIT runs the cleanup function however the script ends: a normal finish, a set -e exit, Ctrl-C, so a temporary directory from mktemp -d is always removed and a lock is always released. And when something essential is missing, the script should say so on stderr and exit 2 or some other non-zero status, because the caller, a CI job, systemd or another script, reads that number to decide whether the deployment worked. Finally, idempotency: a script that fails halfway will be run again, by hand or by cloud-init or a retry loop, so each step must be safe to repeat and leave the same result. Concretely: mkdir -p build instead of mkdir build, which fails if the directory exists; ln -sfn release-42 current instead of ln -s, which fails because the link exists; grep -qxF "10.0.1.5 db" /etc/hosts || echo "10.0.1.5 db" >> /etc/hosts so the line is added once; id deploy >/dev/null 2>&1 || useradd deploy. The habit is to describe the state you want and make each step check before it acts. ShellCheck catches most of the quoting and set -e mistakes automatically, and once the script needs arrays of records or passes a hundred lines, it's time for Python.
+review_pool:
+  - scr-set-e
+  - scr-pipefail
+  - scr-quoting
+  - scr-trap-exit
+  - scr-check-before
+  - mcq-set-e-gotcha
+skills:
+  - id: strict-mode
+    description: "`set -e`, `set -u` and `set -o pipefail`: what each catches, and where `set -e` doesn't fire"
+  - id: quoting-vars
+    description: "Quoting `\"$var\"` and `\"$@\"`, word splitting, `$(...)`, `[[ ]]`, `&&` and `||`"
+  - id: traps-cleanup
+    description: "`trap ... EXIT` for cleanup that always runs, `mktemp`, and exiting with a meaningful status"
+  - id: idempotent
+    description: "Scripts that are safe to run twice: `mkdir -p`, `ln -sfn`, check-before-append, and why cloud scripts must be"
+  - id: tooling
+    description: "`#!/usr/bin/env bash`, ShellCheck, a style guide, and when a script has outgrown bash"

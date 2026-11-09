@@ -1,0 +1,18 @@
+id: mcq-set-e-gotcha
+type: mcq
+rev: 1
+prompt: |
+  A script starts with `set -e`, yet this line doesn't stop it when `build_assets` fails:
+  ```
+  local output=$(build_assets)
+  ```
+  Why not, and what's the fix?
+choices:
+  - "`set -e` only works in the main script, not in functions"
+  - "The line's command is `local`, which succeeds; the failure of `build_assets` inside `$(…)` is masked. Declare and assign separately: `local output; output=$(build_assets)`"
+  - "Command substitution disables `set -e` for the rest of the script"
+  - "`build_assets` must be called with `exec`"
+answer: 1
+explanation: |
+  `set -e` looks at the status of the whole simple command, and here that command is `local`, which returns 0 whatever the substitution did. Splitting the declaration from the assignment makes the assignment's status the substitution's, so `-e` sees the failure. The same masking happens with `export VAR=$(…)`. ShellCheck flags this (SC2155), which is one good reason to run it.
+skills: [strict-mode]

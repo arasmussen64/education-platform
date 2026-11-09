@@ -1,0 +1,14 @@
+id: mcq-tcpdump-filter
+type: mcq
+rev: 1
+prompt: |
+  You want to see only the traffic between your server and one client, `198.51.100.7`, on port 443, without tcpdump turning every address into a name, and save it to open in Wireshark later. Which command?
+choices:
+  - "`tcpdump -i eth0`"
+  - "`tcpdump -nn -i eth0 host 198.51.100.7 and port 443 -w client.pcap`"
+  - "`tcpdump -nn port 443 > client.pcap`"
+  - "`tcpdump -i eth0 -w client.pcap | grep 198.51.100.7`"
+answer: 1
+explanation: |
+  The filter (`host … and port …`) is evaluated in the kernel, so only matching packets are captured and the server isn't buried; `-nn` keeps addresses and ports numeric, which is both faster and clearer; `-w` writes the raw packets in pcap format, which Wireshark reads. Redirecting text output with `>` saves the printed summaries, not the packets, and `grep` after `-w` sees nothing, because `-w` sends nothing to stdout.
+skills: [tcpdump]

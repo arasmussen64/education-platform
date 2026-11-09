@@ -1,0 +1,20 @@
+id: net-curl-redirect
+type: predict_shell
+rev: 1
+prompt: |
+  `headers.txt` is the output of `curl -I http://example.com/`, which asks for the response headers only. The command prints the status line and the `Location` header. What is printed?
+files:
+  headers.txt: |
+    HTTP/1.1 301 Moved Permanently
+    Server: nginx
+    Date: Sun, 09 Nov 2026 10:41:03 GMT
+    Content-Type: text/html
+    Content-Length: 0
+    Location: https://example.com/
+command: head -n 1 headers.txt; grep -i '^location:' headers.txt
+expected_output: |
+  HTTP/1.1 301 Moved Permanently
+  Location: https://example.com/
+explanation: |
+  The plain-HTTP request was answered with a permanent redirect to the HTTPS address, which is what a well-configured web server does. `curl -I` stops there; `curl -L` would follow the redirect. Status lines are the first thing to read in any HTTP test: 2xx worked, 3xx go elsewhere, 4xx the request was wrong (or forbidden), 5xx the server failed. `grep -i` matches `Location` whatever its capitalisation, since header names aren't case-sensitive.
+skills: [test-tools]
