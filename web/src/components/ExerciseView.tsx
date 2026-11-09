@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { STAGES } from '../content/stages.ts'
 import type { Exercise, Step } from '../content/types.ts'
+import type { LabResult } from '../labs/result.ts'
 import {
   allChecksPassed,
   type CheckOutcome,
@@ -8,8 +9,9 @@ import {
 } from '../python/runner.ts'
 import { TutorBox, type TutorHintGiven } from '../tutor/TutorBox.tsx'
 import { CodeRunner } from './CodeRunner.tsx'
+import { Hints, ReferenceSolution } from './exerciseParts.tsx'
+import { LabExercise } from './LabExercise.tsx'
 import { Markdown } from './Markdown.tsx'
-import { SECONDARY_BUTTON } from './styles.ts'
 
 /** Something the learner did in an exercise, reported so it can be saved. */
 export type ExerciseActivity =
@@ -19,6 +21,8 @@ export type ExerciseActivity =
   | { kind: 'hint'; hintsUsed: number }
   /** The tutor gave a hint (ADR-0015). */
   | { kind: 'tutor'; hintsUsed: number; given: TutorHintGiven }
+  /** The learner recorded a lab's result from the checker (ADR-0018). */
+  | { kind: 'lab'; result: LabResult; hintsUsed: number }
 
 type ActivityHandler = (activity: ExerciseActivity) => void
 
@@ -29,7 +33,7 @@ type Props = {
   allowHints?: boolean
   /** True in practice only: the tutor is off in proof checks and reviews. */
   allowTutor?: boolean
-  /** Where the exercise lives, for the tutor's log. */
+  /** Where the exercise lives, for the tutor's log and the lab's name. */
   topicId?: string
 }
 
@@ -41,6 +45,17 @@ export function ExerciseView({
   allowTutor = false,
   topicId = '',
 }: Props) {
+  if (exercise.runtime === 'lab') {
+    // The tutor is off in labs for now: it has no code to look at (ADR-0018).
+    return (
+      <LabExercise
+        exercise={exercise}
+        topicId={topicId}
+        onActivity={onActivity}
+        allowHints={allowHints}
+      />
+    )
+  }
   if (exercise.stage === 'worked_example') {
     return <WorkedExample exercise={exercise} onActivity={onActivity} />
   }
@@ -174,51 +189,5 @@ function CodingExercise({
       )}
       {passed && <ReferenceSolution code={exercise.solution} />}
     </div>
-  )
-}
-
-/** Hints, one at a time, so the learner takes only as much help as they need. */
-function Hints({
-  hints,
-  shown,
-  onShowMore,
-}: {
-  hints: string[]
-  shown: number
-  onShowMore: () => void
-}) {
-  return (
-    <div className="space-y-2">
-      {hints.slice(0, shown).map((hint, index) => (
-        <div
-          // Hints never change order, so their position is a stable key.
-          // oxlint-disable-next-line react/no-array-index-key
-          key={index}
-          className="rounded-md border-l-4 border-amber-400 bg-amber-50 p-3 dark:bg-amber-950/40"
-        >
-          <p className="text-sm font-semibold">Hint {index + 1}</p>
-          <Markdown>{hint}</Markdown>
-        </div>
-      ))}
-      {shown < hints.length && (
-        <button type="button" onClick={onShowMore} className={SECONDARY_BUTTON}>
-          {shown === 0 ? 'Show a hint' : 'Show another hint'}
-        </button>
-      )}
-    </div>
-  )
-}
-
-/** Shown only after a pass (v1 spec, F5), so it can't replace the effort. */
-function ReferenceSolution({ code }: { code: string }) {
-  return (
-    <details className="rounded-md border border-slate-200 dark:border-slate-700">
-      <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-        Compare with a reference solution
-      </summary>
-      <pre className="overflow-x-auto border-t border-slate-200 p-3 font-mono text-sm dark:border-slate-700">
-        {code}
-      </pre>
-    </details>
   )
 }

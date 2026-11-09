@@ -50,7 +50,8 @@ Tests live next to the code they test, named `*.test.ts` or `*.test.tsx`. They m
 
 The lessons and exercises live in [`../content`](../content/README.md), as files. The app reads them while it's being built, so there's no content server or database:
 
-- **YAML** files (topics, questions, exercises) become plain data, through a small plugin in `vite.config.ts`.
+- **YAML** files (topics, questions, exercises, a lab's `checks.yaml`) become plain data, through a small plugin in `vite.config.ts`.
+- A **lab** (an exercise with `runtime: lab`, [ADR-0018](../docs/decisions/0018-lab-checker-local-mode.md)) runs in a container on the learner's machine, not in the browser. The page shows the `tools/labcheck.py` commands, the checks, and a box for the checker's printed result, which `web/src/labs/result.ts` validates and `PracticeItem` saves as a `code_check` event marked `runtime: lab`.
 - **Lessons** (`lesson.mdx`) are [MDX](https://mdxjs.com): Markdown that can use components. `<Intro>`, `<Resource index={0} />` and `<Recap>` are drawn by `components/LessonView.tsx`.
 - **Python files** (starter code, solutions, tests) are loaded as text, with Vite's `?raw`.
 

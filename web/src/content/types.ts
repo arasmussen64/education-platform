@@ -134,24 +134,40 @@ export type Stage =
 
 export type Step = { label: string; lines: string; note: string }
 
+/**
+ * Where an exercise runs: as Python in the browser, or as a lab, a
+ * container on the learner's machine checked by tools/labcheck.py
+ * (ADR-0018).
+ */
+export type Runtime = 'python' | 'lab'
+
+/** One check of a lab, as the learner sees it; the command stays in content/. */
+export type LabCheck = { id: string; description: string }
+
 export type Exercise = {
   id: string
   stage: Stage
   rev: number
   title: string
   prompt: string
+  runtime: Runtime
   time_limit_ms: number
   hints: string[]
   steps: Step[]
   skills: string[]
   /**
    * Checkpoint builds and debugs: the skills each test checks, as
-   * "topic/skill", by test name (ADR-0012). Empty for other exercises.
+   * "topic/skill", by test name, or by check id for a lab (ADR-0012).
+   * Empty for other exercises.
    */
   test_skills: Record<string, string[]>
-  /** Empty for exercises that start from a blank file. */
+  /** A lab's checks, in order. Empty for a Python exercise. */
+  checks: LabCheck[]
+  /** Empty for exercises that start from a blank file, and for labs. */
   starter: string
+  /** The reference solution: Python, or a lab's shell walkthrough. */
   solution: string
+  /** The Python tests. Empty for a lab, whose checks are above. */
   tests: string
 }
 

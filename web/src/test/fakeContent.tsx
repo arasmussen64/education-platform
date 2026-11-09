@@ -93,16 +93,39 @@ export function fakeExercise(
     rev: 1,
     title: 'Say hello',
     prompt: 'Print `Hello!`',
+    runtime: 'python',
     time_limit_ms: 5000,
     hints: [],
     steps: [],
     skills: ['print-text'],
     test_skills: {},
+    checks: [],
     starter: '',
     solution: 'print("Hello!")\n',
     tests: 'the tests',
     ...overrides,
   }
+}
+
+/** A lab (ADR-0018): a container on the learner's machine, checked by tools/labcheck.py. */
+export function fakeLab(
+  overrides: Partial<Exercise> & Pick<Exercise, 'id' | 'stage'>,
+): Exercise {
+  return fakeExercise({
+    runtime: 'lab',
+    title: 'A report from the logs',
+    prompt: 'Make the report in your home folder.',
+    checks: [
+      { id: 'report-folder', description: 'A report folder exists.' },
+      {
+        id: 'failed-count',
+        description: 'failed-count.txt holds the number of 5xx requests.',
+      },
+    ],
+    solution: 'mkdir -p ~/report\n',
+    tests: '',
+    ...overrides,
+  })
 }
 
 export const MCQ: McqItem = {

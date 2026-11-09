@@ -10,6 +10,7 @@ import {
 } from '../events/payloads.ts'
 import type { EventContext, EventData } from '../events/types.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
+import { labEventData } from '../labs/result.ts'
 import { allChecksPassed } from '../python/runner.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
 import { type ExerciseActivity, ExerciseView } from './ExerciseView.tsx'
@@ -182,6 +183,20 @@ export function PracticeItem({
           type: 'code_run',
           data: runEventData(activity.code, activity.outcome),
         })
+      } else if (activity.kind === 'lab') {
+        // A lab's result is a Check of the learner's work, like a Python
+        // Check, so it's the same event (ADR-0018) and counts the same way.
+        const passed = activity.result.passed === activity.result.total
+        record({
+          ...about,
+          type: 'code_check',
+          correct: passed,
+          duration_ms: timer.lap(),
+          hints_used: activity.hintsUsed,
+          data: labEventData(activity.result),
+        })
+        onCheck?.(passed)
+        onGraded?.(passed)
       } else {
         const passed = allChecksPassed(activity.outcome)
         record({

@@ -110,7 +110,12 @@ describe('the content the app loads', () => {
       }
       for (const exercise of Object.values(content.exercises)) {
         expect(exercise.solution, exercise.id).not.toBe('')
-        expect(exercise.tests, exercise.id).toContain('def test_')
+        if (exercise.runtime === 'lab') {
+          // A lab has checks and a shell walkthrough instead of tests.
+          expect(exercise.checks.length, exercise.id).toBeGreaterThan(0)
+        } else {
+          expect(exercise.tests, exercise.id).toContain('def test_')
+        }
       }
       // Skills, so a missed question can come back as another (ADR-0011).
       expect(content.topic.skills.length).toBeGreaterThan(0)

@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The lab view
+
+The topic page can now show a lab (ADR-0018). `ExerciseView` hands any exercise with `runtime: lab` to a new `LabExercise`: the prompt; the three `labcheck.py` commands with the lab's name filled in, and a note that Docker Desktop has to be running; for a worked example, the walkthrough script with its labelled steps; the list of checks, each with a circle that becomes a tick or a cross; and a box for the checker's printed result with a Record button. `parseLabResult` (in `web/src/labs/result.ts`, pure and tested) refuses anything that isn't a result, a result for another lab, or one for another revision, and recounts the passes from the checks rather than trusting the numbers. Recording raises a new `lab` activity, which `PracticeItem` saves as a `code_check` event with `labEventData`: `runtime: lab`, the checker's version, the time, the counts and the failing ids. Because it's a `code_check` on the topic's build or debug item, progress treats a passed lab as that proof with no change to the derivation. Written hints work for the stages that allow them; the tutor stays off, since it has no code to look at.
+
+**Loading.** `content.ts` grew two globs, `solution.sh` and `checks.yaml`, and an exercise now carries `runtime` and `checks` (ids and descriptions only; the commands never reach the browser). The content test that insists every exercise has Python tests now asks a lab for checks instead. `Hints` and `ReferenceSolution` moved to `exerciseParts.tsx`, shared by both views.
+
+**Tests:** eleven new (the result parser and event data, the view's commands, checks, pass, partial pass, refusals, hints, walkthrough; a lab as a proof item recording its event). The first run caught a test of mine that pasted a result for the wrong lab and expected it to count, which is the parser doing its job.
+
+**Decisions for you to review:**
+1. *The commands are shown in full on the page,* repository-relative, rather than hidden behind a "how to run" link: the learner is at a terminal anyway, and copying beats remembering.
+2. *The paste box takes a worked example's result too,* so the learner sees the ticks after following the walkthrough; it records a `code_check` like any Check of a worked example, which proves nothing and costs nothing.
+
+**Next:** Shell essentials' other four labs (a worked example, a fill-in, a write and the debug), then the topic to `ready`, which means bundling Module 1 into the app rather than loading it on demand.
+
 ## 2026-11-09: The lab checker's local mode, and the first lab
 
 The owner chose the plan (containers on the learner's machine, GitHub's registry when a second learner needs it, results pasted in) and said go. The design is [ADR-0018](decisions/0018-lab-checker-local-mode.md); this entry is the build.

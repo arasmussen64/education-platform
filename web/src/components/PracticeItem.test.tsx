@@ -1,11 +1,11 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import { fakeAuth } from '../test/fakeAuth.ts'
-import { fakeContent, PARSONS } from '../test/fakeContent.tsx'
+import { fakeContent, fakeLab, PARSONS } from '../test/fakeContent.tsx'
 import { recordingEventLog } from '../test/fakeEvents.ts'
 import { PracticeItem } from './PracticeItem.tsx'
 
@@ -50,6 +50,72 @@ describe('a Parsons problem as a practice item', () => {
         context: 'practice',
         correct: true,
         data: { program: PARSONS.lines.join('\n') },
+      }),
+    ])
+  })
+})
+
+describe('a lab as a proof item', () => {
+  it("records the checker's result as a code check, marked as a lab", async () => {
+    const base = fakeContent()
+    const lab = fakeLab({ id: 'build-report', stage: 'build' })
+    const content = {
+      ...base,
+      topic: { ...base.topic, prove: { ...base.topic.prove, build: lab.id } },
+      exercises: { ...base.exercises, [lab.id]: lab },
+    }
+    const { log, events } = recordingEventLog()
+    const onCheck = vi.fn()
+    render(
+      <AuthProvider auth={fakeAuth(null)}>
+        <EventLogContext value={log}>
+          <MemoryRouter>
+            <PracticeItem
+              itemId={lab.id}
+              content={content}
+              context="prove"
+              onCheck={onCheck}
+            />
+          </MemoryRouter>
+        </EventLogContext>
+      </AuthProvider>,
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Build: A report from the logs' }),
+    ).toBeInTheDocument()
+    await userEvent.click(screen.getByLabelText("The checker's result"))
+    await userEvent.paste(
+      JSON.stringify({
+        lab: `${content.topic.id}/${lab.id}`,
+        rev: 1,
+        checker: '1',
+        checked_at: '2026-11-09T18:00:00+00:00',
+        passed: 1,
+        total: 2,
+        checks: [
+          { id: 'report-folder', passed: true },
+          { id: 'failed-count', passed: false },
+        ],
+      }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Record result' }))
+    expect(onCheck).toHaveBeenCalledWith(false)
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'code_check',
+        topic_id: content.topic.id,
+        item_id: lab.id,
+        context: 'prove',
+        correct: false,
+        hints_used: 0,
+        data: {
+          runtime: 'lab',
+          checker: '1',
+          checked_at: '2026-11-09T18:00:00+00:00',
+          passed: 1,
+          total: 2,
+          failing: ['failed-count'],
+        },
       }),
     ])
   })
