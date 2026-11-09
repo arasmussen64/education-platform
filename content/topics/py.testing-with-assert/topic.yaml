@@ -1,10 +1,73 @@
 id: py.testing-with-assert
 kind: topic
-status: planned
+status: ready
 title: "Testing with assert"
-summary: "Test your own functions, including edge cases."
+summary: "Check your own functions with assert, choose the cases that catch bugs, and keep tests in test functions that run only when you ask."
 prerequisites: [py.return-values]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Test your own functions, including edge cases."
+  - "Use `assert` to state what a function should return, and know what happens when the statement is true and when it isn't."
+  - "Choose test cases that catch bugs: a typical value, the boundaries, zero, a negative number, an empty text."
+  - "Put asserts in a `test_` function, run it under `if __name__ == \"__main__\":`, and know why that line matters."
+resources:
+  - title: "CS50P Lecture 5: Unit Tests, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=tIrcxwLqzjQ&t=80s
+    type: video
+    use: embed
+    # From the calculator's square function to the corner-case discussion
+    # (1:20 to 16:25): testing by hand, assert, and which values to test.
+    # The try/except part in the middle is Module 6.
+    start: 80
+    end: 985
+    license: CC BY-NC-SA 4.0
+practice:
+  - example-tests
+  - mcq-assert-outcome
+  - predict-assert-passes
+  - mcq-which-cases
+  - fill-asserts
+  - write-tests-for-is-even
+prove:
+  build: build-leap-year
+  debug: debug-tests
+  explain:
+    prompt: |
+      A friend wrote `square(n)` as `return n + n` by mistake, tested it with these two lines, and both passed, so they shipped it:
+
+      ```python
+      assert square(2) == 4
+      assert square(0) == 0
+      ```
+
+      In your own words: what does `assert` do when its statement is true, and when it isn't? Why did these two tests pass even though the function is wrong? Which values would have caught the bug, and why? And what does a passing test prove, and not prove?
+    rubric:
+      - id: assert-behaviour
+        required: true
+        description: "A true assert does nothing; a false one stops the program with an AssertionError."
+      - id: why-passed
+        required: true
+        description: "2 + 2 equals 2 × 2 and 0 + 0 equals 0 × 0, so for those two inputs the wrong function gives the right answer."
+      - id: better-cases
+        required: true
+        description: "Any other value, like 3 (6 instead of 9) or −2 (−4 instead of 4), tells the two formulas apart; test typical values, negatives and zero, not just the easy ones."
+      - id: proof
+        required: true
+        description: "A passing test proves the function is right for the cases tested, and nothing more; more varied cases give more confidence, never certainty."
+    model_answer: |
+      assert checks a statement. If it's true, nothing happens and the program carries on; if it's false, Python stops with an AssertionError pointing at that line. The two tests passed because they happen to be the values where adding and multiplying agree: 2 + 2 and 2 × 2 are both 4, and 0 + 0 and 0 × 0 are both 0. Almost any other value tells the two apart: square(3) should be 9 but n + n gives 6, and square(-2) should be 4 but gives −4. Good test cases cover a typical value, the boundaries, zero and negative numbers, because bugs hide where the cases are easy. A passing test proves the function is right for exactly the cases it tried; it never proves the function is right in general. More and more varied cases raise confidence, but can't give certainty.
+review_pool:
+  - review-mcq-silent
+  - review-predict-test-function
+  - review-code-tests-for-absolute
+  - mcq-which-cases
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: assert-basics
+    description: "Use `assert` to state what a function should return, and know what a true and a false assert do"
+  - id: choose-cases
+    description: "Choose test cases that catch bugs: typical values, boundaries, zero, negatives, empty text"
+  - id: test-functions
+    description: "Put asserts in a `test_` function and run it under `if __name__ == \"__main__\":`"

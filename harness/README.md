@@ -9,7 +9,7 @@ The small layer of Python that runs a learner's code and an exercise's tests. Th
 
 | File | What it does |
 |---|---|
-| `checks.py` | What exercise tests use. `run(stdin)` runs the learner's program and returns what it printed. `run_with(values)` does the same with some names starting at other values, so a test can check the code works with its names rather than with retyped values. |
+| `checks.py` | What exercise tests use. `run(stdin)` runs the learner's program and returns what it printed. `run_with(values)` does the same with some names starting at other values, so a test can check the code works with its names rather than with retyped values. `function(name)` loads the learner's function of that name (failing with a plain "Define a function called ..." when it's missing, swallowing anything the file prints while loading), and `printed(f, *args)` returns what a call prints, for testing functions that print. |
 | `program.py` | The Run button. Runs the program the way a terminal would, showing prompts and typed input, and returns the output plus a trimmed traceback. When the program wants more input than it was given, it stops and reports `waiting_for_input`, so the app can ask the learner and run it again. `seed` keeps random choices the same across those re-runs. |
 | `testrunner.py` | The Check button. Finds the `test_…` functions in `test_exercise.py`, runs them, and reports each one as pass, fail or error. |
 | `errors.py` | Turns errors into messages that only mention the learner's own file. |

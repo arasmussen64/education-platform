@@ -1,10 +1,61 @@
 id: py.decomposition
 kind: topic
-status: planned
+status: ready
 title: "Decomposition"
-summary: "Break a problem into small functions, and write docstrings."
+summary: "Break a problem into small functions with one job each, name them well, give them docstrings, and compose them in main."
 prerequisites: [py.return-values]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Break a problem into small functions, and write docstrings."
+  - "Split a program into small functions that each do one job, with names that say what they do."
+  - "Write a docstring on the first line of a function: what it does, and what it returns."
+  - "Compose the pieces: `main` calls the functions in order, and a function can use another's result."
+resources:
+  - title: "The Python Tutorial: Documentation Strings (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/controlflow.html#documentation-strings
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-receipt
+  - mcq-one-job
+  - mcq-docstring-where
+  - predict-compose
+  - fill-docstring
+  - write-initials-function
+prove:
+  build: build-report
+  debug: debug-pieces
+  explain:
+    prompt: |
+      A friend has a 40-line `main()` that asks for a temperature in Celsius, converts it to Fahrenheit, decides whether to print a heat warning, and prints a sentence. It works, but every change breaks something. In your own words: why would splitting it into small functions help (give at least two reasons), how would you split and name it, what is a docstring and where does it go, and how would `main` use the pieces?
+    rubric:
+      - id: reasons
+        required: true
+        description: "Small functions are easier to read, to test one at a time, to reuse, and to change without breaking the rest."
+      - id: split
+        required: true
+        description: "One job per function, named for what it does: something like ask_celsius(), to_fahrenheit(celsius), is_too_hot(fahrenheit) and describe(celsius, fahrenheit), with main putting them together."
+      - id: docstring
+        required: true
+        description: "A docstring is a sentence in triple quotes on the first line inside the function, saying what it does and what it returns."
+      - id: compose
+        required: true
+        description: "main calls the functions in order and passes each result on to the next: the number from to_fahrenheit goes into is_too_hot and describe."
+    model_answer: |
+      One long main does everything at once, so to change one part you have to understand all of it, and a mistake anywhere breaks everything. Splitting it into small functions, each with one job, makes each piece short enough to read at a glance, lets you test each one on its own with a few asserts, and lets you reuse a piece elsewhere. I'd write ask_celsius() to get the number, to_fahrenheit(celsius) to convert it, is_too_hot(fahrenheit) to answer the warning question with True or False, and describe(celsius, fahrenheit) to build the sentence. Each gets a docstring: a sentence in triple quotes as the first line of the body, saying what the function does and returns, so a reader (and help()) can see its job without reading its code. Then main is four or five lines: get the Celsius value, pass it to to_fahrenheit, pass that result to is_too_hot and describe, and print.
+review_pool:
+  - review-mcq-good-name
+  - review-predict-compose
+  - review-code-square-description
+  - mcq-docstring-where
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: split-jobs
+    description: "Split a program into small functions with one job each, named for what they do"
+  - id: docstrings
+    description: "Write a docstring on the first line of a function: what it does and returns"
+  - id: compose
+    description: "Compose functions: `main` calls them in order, and one function can use another's result"

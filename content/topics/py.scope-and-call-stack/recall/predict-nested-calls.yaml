@@ -1,0 +1,27 @@
+id: predict-nested-calls
+type: predict_output
+rev: 1
+prompt: |
+  Trace this program and say what it prints: four lines. When `outer` calls `inner`, `outer` waits for the answer before carrying on.
+code: |
+  def inner(x):
+      print("inner starts with", x)
+      return x + 1
+
+
+  def outer(x):
+      print("outer starts with", x)
+      y = inner(x * 2)
+      print("outer continues with", y)
+      return y
+
+
+  print(outer(3))
+expected_output: |
+  outer starts with 3
+  inner starts with 6
+  outer continues with 7
+  7
+explanation: |
+  `outer(3)` prints its first line, then calls `inner(6)` and waits. `inner` prints its line and returns 7, so `outer` continues with `y` as 7, prints that, and returns 7 to the last `print`. Each function has its own `x`: `outer`'s is 3 and `inner`'s is 6.
+skills: [call-stack]

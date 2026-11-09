@@ -1,10 +1,82 @@
 id: py.m4.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 4: password checker"
-summary: "Build a password checker from small functions, each with tests."
+summary: "Build a password checker from small functions, each with a docstring and tests, and fix a code-word checker whose functions and tests have bugs."
 prerequisites: [py.scope-and-call-stack, py.decomposition, py.testing-with-assert]
 estimated_minutes: 60
 rev: 1
 objectives:
-  - "Build a password checker from small functions, each with tests."
+  - "Break a set of rules into small functions that each answer one yes/no question with `True` or `False`."
+  - "Compose them in one function that returns a verdict, checking the rules in a fixed order so the first problem wins."
+  - "Write a test function whose asserts cover every rule, including the boundary cases, and that would fail if the verdict were wrong."
+  - "Keep input and printing in `main`, under `if __name__ == \"__main__\":`, so the functions can be loaded and tested."
+  - "Give every function a docstring."
+prove:
+  build: build-password-checker
+  debug: debug-code-word
+  explain:
+    prompt: |
+      Here's a working checker, cut down to two rules:
+
+      ```python
+      def has_min_length(password):
+          """Return True when the password has at least 8 characters."""
+          return len(password) >= 8
+
+
+      def has_digit(password):
+          """Return True when the password has at least one digit."""
+          for ch in password:
+              if "0" <= ch <= "9":
+                  return True
+          return False
+
+
+      def check_password(password):
+          """Return OK, or the first problem: too short, then needs a digit."""
+          if not has_min_length(password):
+              return "too short"
+          if not has_digit(password):
+              return "needs a digit"
+          return "OK"
+
+
+      def test_check_password():
+          assert check_password("abcdefg1") == "OK"
+          assert check_password("abc") == "too short"
+          assert check_password("abcdefgh") == "needs a digit"
+          print("check_password: all checks passed")
+
+
+      def main():
+          print(check_password(input("Password? ")))
+
+
+      if __name__ == "__main__":
+          test_check_password()
+          main()
+      ```
+
+      Explain it to a friend: why is each rule its own small function that returns `True` or `False`? Why does `check_password("abc")` say `too short` rather than `needs a digit`, and what decides that? Why is `main` only called under `if __name__ == "__main__":`? And which cases do the tests cover, which boundary is in there, and what would a test for a password of exactly 7 characters add?
+    rubric:
+      - id: small-functions
+        required: true
+        description: "Each rule is a function that answers one yes/no question, so it can be read, tested and reused on its own, and check_password just combines them."
+      - id: order
+        required: true
+        description: "check_password tests the rules in order and returns at the first one that fails; abc fails the length rule first, so the digit rule is never reached."
+      - id: guard
+        required: true
+        description: "__name__ is \"__main__\" only when the file is run directly; when the file is loaded to test its functions, main (and its input) must not run."
+      - id: cases
+        required: true
+        description: "The tests cover a good password, a too-short one and one without a digit; abcdefg1 is the boundary of exactly 8 characters; a 7-character test would check the other side of that boundary."
+    model_answer: |
+      Each rule is a small function because each is a separate yes/no question: is it long enough, does it have a digit. A function that returns True or False for one question is easy to read, easy to test with a few asserts, and can be reused in any other checker. check_password doesn't repeat the rules; it asks the small functions in a fixed order and returns at the first one that says no. That order is what decides the message: "abc" fails has_min_length first, so check_password returns "too short" and never gets as far as the digit rule. main reads the input and prints, and it sits under if __name__ == "__main__" because that line is true only when the file is run directly. When the file is loaded instead, by the Check button or by another file that wants to use the functions, main must not run, or the load would stop to ask for a password. The tests cover a good password, a too-short one and one with letters only. "abcdefg1" has exactly 8 characters, which is the boundary of the length rule; a test for a 7-character password would check the other side of that boundary, where the rule tips from OK to too short.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-ticket-code
+  steps: [step-rules, step-verdict, step-tests, step-outline]
+  versions: [build-pin-checker, build-username-checker]

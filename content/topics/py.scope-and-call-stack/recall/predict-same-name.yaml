@@ -1,0 +1,20 @@
+id: predict-same-name
+type: predict_output
+rev: 1
+prompt: |
+  What does this program print? Two lines. The function and the outer code both use a variable called `n`.
+code: |
+  def change(n):
+      n = n + 10
+      print("inside", n)
+
+
+  n = 1
+  change(n)
+  print("outside", n)
+expected_output: |
+  inside 11
+  outside 1
+explanation: |
+  The call copies the value `1` into the function's own `n`, a local variable. Adding 10 changes that local `n` to 11, which the first line prints. The outer `n` is a different variable and still holds 1. To change the outer value, the function would have to `return n` and the caller would store it.
+skills: [local-global, pass-dont-reach]

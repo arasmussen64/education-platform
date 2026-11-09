@@ -1,0 +1,24 @@
+id: review-mcq-unbound
+type: mcq
+rev: 1
+prompt: |
+  What happens when this program runs?
+
+  ```python
+  count = 0
+
+  def tick():
+      count = count + 1
+
+  tick()
+  print(count)
+  ```
+choices:
+  - 'It prints `1`'
+  - 'It prints `0`'
+  - 'An `UnboundLocalError`: assigning to `count` inside the function makes it local, and the right side reads it before it has a value'
+  - 'A `NameError`: `count` isn''t defined'
+answer: 2
+explanation: |
+  Because the function assigns to `count`, Python treats `count` as local throughout `tick`. The right-hand side, `count + 1`, then reads a local that has no value yet, so the call stops with `UnboundLocalError`. The fix isn't the `global` keyword; it's to pass the count in and return the new one: `def tick(count): return count + 1`, then `count = tick(count)`.
+skills: [local-global, pass-dont-reach]

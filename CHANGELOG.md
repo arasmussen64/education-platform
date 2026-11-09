@@ -6,6 +6,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Module 4 content: Functions)
+
+- **Five new topics, all ready:** Defining functions, Return values, Scope and the call stack, Decomposition, and Testing with assert. Each has a lesson, a practice ladder, the three proof checks, a review pool and skills.
+  - Three are built on CS50P clips timed from CS50's subtitles: the end of Lecture 0 for `def`, parameters, `main()` and `return` (1:26:44 to 1:45:36, in two clips), Lecture 9's global-variables section for scope (7:45 to 17:33), and Lecture 5's unit-testing section for `assert` (1:20 to 16:25). Scope also has two Python Tutor programs that draw frames and the call stack. Decomposition is the platform's own lesson, around the Python tutorial's section on docstrings.
+  - From Testing with assert on, programs end with `if __name__ == "__main__":`, so a file can be loaded for its functions without running.
+  - Exercises now test functions, not just whole programs: a function is loaded by name, its return value checked, and its printing checked to be absent. Tests of the learner's own tests make sure they'd fail if the function were broken.
+- **Checkpoint 4: password checker.** Three rule functions, a verdict function that returns the first problem in a fixed order, a test function with asserts, docstrings throughout, and a `main` under the guard; a code-word checker with three bugs, one of them in its tests; a module-level explain. The way through: a ticket-code sibling, the build in four steps, and two fresh versions (a PIN checker and a username checker). Every test names the skills it checks, across Modules 1 to 4.
+- In all: 39 more exercises and 27 more recall items. The validator runs 596 programs over the content with no problems; 24 topics are ready.
+
+### Changed (Python harness)
+
+- Two helpers for exercise tests, in `checks.py`: `function(name)` loads a function from the learner's file (failing with "Define a function called ..." when it's missing, swallowing anything the file prints while loading, and saying so plainly if the file asks for input), and `printed(f, *args)` returns what a call prints. A new scenario, `check-functions`, pins their behavior in both runtimes.
+- The test runner keeps anything printed during a Check out of the report, so the command-line checker's output stays clean and the Check button shows results only.
+
 ### Added (report a problem)
 
 - **"Report a problem"** under the lesson, under every practice, proof and review item, and under the explain check (v1 spec, F15). It opens a small box for what's wrong (a wrong answer, a confusing hint, a broken link) and saves the report with the topic, the item and its revision, so the content can be fixed. Hidden when signed out.

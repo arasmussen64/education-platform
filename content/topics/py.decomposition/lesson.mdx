@@ -1,0 +1,46 @@
+<Intro>
+
+Until now a program was one list of steps, read top to bottom. From here on, a program is a **set of small functions, each with one job, and a `main` that puts them together**. Programmers call this *decomposition*: breaking a problem into parts you can solve, name and check one at a time. It's the single habit that most separates code that keeps working from code that collapses when you touch it.
+
+This topic has no video. The reading is short: the Python tutorial's **Documentation Strings** section, about the sentence you put at the top of a function to say what it does. Read it, then work through the example below, which is the receipt program from Checkpoint 1 rebuilt as functions. Watch for:
+
+- **One job per function**, and a name that says what the job is: `total_with_tax`, `receipt_line`. If you can't name a function in two or three words, it's probably doing two jobs.
+- **A docstring**: a sentence in triple quotes on the first line inside the function. Python keeps it, so `help(total_with_tax)` shows it.
+- **`main` composes**: it calls the pieces in order and passes each result into the next. `main` reads like the plan of the program.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+**Decomposition** is turning one big job into small functions that each do one thing, then composing them.
+
+```python
+def total_with_tax(price, rate):
+    """Return the price plus tax at the given rate."""
+    return price + price * rate
+
+
+def receipt_line(label, amount):
+    """Return one line of a receipt, like 'Total: $12.00'."""
+    return f"{label}: ${amount:.2f}"
+
+
+def main():
+    price = 20.0
+    total = total_with_tax(price, 0.1)
+    print(receipt_line("Price", price))
+    print(receipt_line("Total", total))
+```
+
+- **One job each.** A function should be describable in a short phrase. If the description has an "and" in it (convert *and* print), that's two functions.
+- **Names say what they do.** Actions get verbs (`ask_price`, `print_report`), values get nouns (`total_with_tax`, `receipt_line`), yes/no questions start with `is_` or `has_` (`is_leap`, `has_digit`). Names like `process`, `helper` or `func2` hide the job.
+- **Docstrings.** The first line inside the function, in triple quotes: what it does and what it returns, as a sentence. `"""Return the price plus tax at the given rate."""` It's for the reader; it isn't a comment and it isn't printed. A comment placed above the `def`, or a string placed after the first statement, isn't a docstring.
+- **Return, don't print,** in the small functions. A function that returns can be used by `main`, by another function, and by a test. Printing belongs in `main` (or in a function whose one job is printing).
+- **Compose.** `main` is the plan: get a value, pass it to the next function, pass that result on. A function may call another function; that's how `receipt_line` and `total_with_tax` can be combined.
+- **How to start a program now:** write `main` first as comments (the plan), turn each comment into a function call, then write each function. Checkpoint 4 asks for exactly this.
+
+Why bother, in three words: **read, test, reuse.** Small functions are readable at a glance, testable on their own (the next topic), and usable again somewhere else.
+
+</Recap>

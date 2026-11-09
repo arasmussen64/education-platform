@@ -1,10 +1,80 @@
 id: py.return-values
 kind: topic
-status: planned
+status: ready
 title: "Return values"
-summary: "Tell return from print, and understand None."
+summary: "Hand a result back with return, tell it apart from print, and know what None is."
 prerequisites: [py.defining-functions]
-estimated_minutes: 35
+estimated_minutes: 40
 rev: 1
 objectives:
-  - "Tell return from print, and understand None."
+  - "Hand a value back to the caller with `return`, and tell that apart from showing it with `print`."
+  - "Know that a function without `return` gives back `None`, and recognize `None` when it turns up."
+  - "Use a returned value: store it, pass it into another call, combine it, or test it in an `if`."
+resources:
+  - title: "CS50P Lecture 0: Functions, Variables, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=JP7ITIXGpHk&t=6082s
+    type: video
+    use: embed
+    # The end of the lecture (1:41:22 to 1:45:36): input, int and float
+    # return values, then a square function that returns n * n.
+    start: 6082
+    end: 6336
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: Defining Functions, the part about return and None (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/controlflow.html#defining-functions
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-square
+  - mcq-print-vs-return
+  - predict-return-ends
+  - mcq-none-value
+  - fill-area
+  - write-is-even
+prove:
+  build: build-prices
+  debug: debug-returns
+  explain:
+    prompt: |
+      A friend's program prints `5` and then `None`, and they don't understand the second line:
+
+      ```python
+      def add(a, b):
+          print(a + b)
+
+      total = add(2, 3)
+      print(total)
+      ```
+
+      In your own words: why does `total` end up as `None`, what does `print` do that `return` doesn't (and the other way round), what one change fixes it, and what happens to any lines written after a `return`?
+    rubric:
+      - id: print-shows
+        required: true
+        description: "print shows a value on the screen; it hands nothing back to the caller."
+      - id: none
+        required: true
+        description: "A function with no return gives back None, so total holds None and the second print shows it."
+      - id: fix
+        required: true
+        description: "return a + b hands the value back, so total is 5 and can be printed or used further."
+      - id: return-ends
+        required: false
+        description: "return ends the function at once; lines after it never run."
+    model_answer: |
+      print and return do different jobs. print shows a value on the screen and that's all; it gives nothing back to whoever called the function. So add(2, 3) shows 5, but the call itself produces no value, and Python fills that gap with None. That's what total holds, and the second print shows it. Changing print(a + b) to return a + b fixes it: return hands the value back to the caller, so total becomes 5, and the caller can print it, store it or use it in another calculation. return also ends the function immediately, so anything written after it in the body never runs.
+review_pool:
+  - review-predict-none
+  - review-mcq-return-stops
+  - review-code-absolute
+  - mcq-print-vs-return
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: return-vs-print
+    description: "Hand a value back with `return`, and tell it apart from showing it with `print`"
+  - id: none
+    description: "Know that a function without `return` gives back `None`"
+  - id: use-result
+    description: "Use a returned value: store it, pass it on, combine it, or test it; `return` ends the function"

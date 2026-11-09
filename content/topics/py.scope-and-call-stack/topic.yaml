@@ -1,10 +1,90 @@
 id: py.scope-and-call-stack
 kind: topic
-status: planned
+status: ready
 title: "Scope and the call stack"
-summary: "Tell local from global, and trace calls on the stack."
+summary: "Know which variables a function can see, pass values in and out instead of reaching for globals, and trace calls on the stack."
 prerequisites: [py.return-values]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Tell local from global, and trace calls on the stack."
+  - "Tell a local variable (made inside a function, gone when it returns) from a global one (made outside every function), and know what a function can and can't do with each."
+  - "Pass values into a function as arguments and out with `return`, instead of reaching for variables outside it."
+  - "Trace nested calls on the call stack: each call waits for the one it made, and each has its own variables."
+resources:
+  - title: "CS50P Lecture 9: Et Cetera, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=6pgodt1mezg&t=465s
+    type: video
+    use: embed
+    # The global variables section (7:45 to 17:33): bank.py, a balance at
+    # the top of the file, reading it, failing to change it, the global
+    # keyword, and why not to use it.
+    start: 465
+    end: 1053
+    license: CC BY-NC-SA 4.0
+  - title: "Python Tutor: watch a function get its own n and result, and lose them when it returns"
+    url: "https://pythontutor.com/visualize.html#code=def%20double%28n%29%3A%0A%20%20%20%20result%20%3D%20n%20%2A%202%0A%20%20%20%20return%20result%0A%0An%20%3D%205%0Aanswer%20%3D%20double%28n%20%2B%201%29%0Aprint%28answer%29%0Aprint%28n%29%0A&cumulative=false&curInstr=0&heapPrimitives=true&mode=display&origin=opt-frontend.js&py=311&rawInputLstJSON=%5B%5D&textReferences=false"
+    type: interactive
+    use: link
+    license: "Free to use under pythontutor.com's terms of service (© Philip Guo)"
+  - title: "Python Tutor: watch the call stack as one function calls another"
+    url: "https://pythontutor.com/visualize.html#code=def%20greet%28name%29%3A%0A%20%20%20%20message%20%3D%20make_message%28name%29%0A%20%20%20%20print%28message%29%0A%0Adef%20make_message%28name%29%3A%0A%20%20%20%20return%20%22Hello%2C%20%22%20%2B%20name%20%2B%20%22%21%22%0A%0Agreet%28%22Ada%22%29%0Agreet%28%22Bob%22%29%0A&cumulative=false&curInstr=0&heapPrimitives=true&mode=display&origin=opt-frontend.js&py=311&rawInputLstJSON=%5B%5D&textReferences=false"
+    type: interactive
+    use: link
+    license: "Free to use under pythontutor.com's terms of service (© Philip Guo)"
+practice:
+  - example-frames
+  - mcq-local-dies
+  - predict-same-name
+  - mcq-global-read
+  - predict-nested-calls
+  - fill-pass-in
+  - write-pure
+prove:
+  build: build-describe-average
+  debug: debug-scope
+  explain:
+    prompt: |
+      This program prints `50 60`:
+
+      ```python
+      def add_bonus(score):
+          score = score + 10
+          return score
+
+      score = 50
+      new_score = add_bonus(score)
+      print(score, new_score)
+      ```
+
+      Explain it step by step for a friend who expected `60 60`: which `score` is which, how the value got into the function and how the new one got out, and what would happen if the line `score = 50` were deleted. Would the function itself still work?
+    rubric:
+      - id: two-scores
+        required: true
+        description: "The parameter score is a separate, local name; score = score + 10 changes only the function's own score, so the outer one stays 50."
+      - id: in-and-out
+        required: true
+        description: "The value gets in as an argument (the call passes 50) and comes out with return, which the caller stores as new_score."
+      - id: deletion
+        required: true
+        description: "The function would still work, because it uses only its parameter; the call line would fail with a NameError, because the outer score no longer exists."
+      - id: stack
+        required: false
+        description: "While add_bonus runs, the outer code waits; when it returns, its own names are gone."
+    model_answer: |
+      There are two different variables called score. One is made at the top level by score = 50. The other is the function's parameter: a local name that exists only while add_bonus runs. The call add_bonus(score) copies the value 50 into that local score. Inside, score = score + 10 makes the local score 60; the outer one isn't touched, because a function can't change a variable outside itself by assigning to a name. The new value comes out through return, and the caller stores it as new_score. So the print shows 50 and 60. If score = 50 were deleted, the function would be fine, since it only uses its parameter, but the line add_bonus(score) would fail with a NameError: there would be no outer score to pass in. While the function runs, the outer code waits; when it returns, its local score disappears.
+review_pool:
+  - review-predict-shadow
+  - review-predict-stack
+  - review-mcq-unbound
+  - review-code-in-range
+  - mcq-local-dies
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: local-global
+    description: "Tell local variables (made inside a function, gone when it returns) from global ones, and know what a function can do with each"
+  - id: pass-dont-reach
+    description: "Pass values in as arguments and out with `return`, instead of using variables outside the function"
+  - id: call-stack
+    description: "Trace nested calls: each call waits for the one it made, and each has its own variables"
