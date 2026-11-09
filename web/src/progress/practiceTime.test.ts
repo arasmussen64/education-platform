@@ -82,6 +82,14 @@ describe('milestones', () => {
     })
     expect(nextMilestone(10_000 * 60 * MINUTE)).toBeNull()
   })
+
+  it('counts the gap from the whole minutes shown, so the page adds up', () => {
+    // 27.6 minutes shows as 27; the gap to the hour must then be 33, not 32.
+    expect(nextMilestone(27.6 * MINUTE)).toEqual({
+      hours: 1,
+      remainingMs: 33 * MINUTE,
+    })
+  })
 })
 
 describe('formatting', () => {
