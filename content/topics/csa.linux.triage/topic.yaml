@@ -1,14 +1,108 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.triage
 kind: topic
-status: planned
-title: Performance triage
-summary: 'Find out why a server is slow with the USE method: utilization, saturation and errors.'
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "Performance triage"
+summary: "When a server is slow, find out why in minutes instead of guessing: the USE method (utilisation, saturation, errors, for every resource), the sixty-second checklist, and reading vmstat, iostat, pidstat, sar, strace and perf to see where the time goes."
+prerequisites: [csa.linux.memory, csa.linux.cpu, csa.linux.storage, csa.linux.net-tools]
+estimated_minutes: 100
 rev: 1
 objectives:
-- 'Find out why a server is slow with the USE method: utilization, saturation and errors.'
-- Use perf, strace, iostat and vmstat to see where the time goes.
+  - "Apply the USE method: for each resource (CPU, memory, disks, network), check utilisation, saturation and errors, and say why saturation, not utilisation, is the sign of trouble."
+  - "Run the sixty-second checklist (`uptime`, `dmesg -T`, `vmstat 1`, `mpstat -P ALL 1`, `pidstat 1`, `iostat -xz 1`, `free -m`, `sar -n DEV 1`, `sar -n TCP,ETCP 1`, `top`) and read what each line is for."
+  - "Read `iostat -xz` for a saturated disk: `%util`, `await` and the queue size."
+  - "Choose between `perf` (where CPU time goes) and `strace` (which system calls, how long, how many errors), and read a `perf report` and a `strace -c` summary."
+  - "Read `sar -n DEV` and `sar -n ETCP` for a saturated interface and for retransmits, and say what retransmits mean."
+# Linked, never copied. Licences: Brendan Gregg's pages and the Netflix
+# article are their authors' copyright; the Missing Semester's notes are
+# CC BY-NC-SA 4.0; the Linux man-pages are free documentation; the perf wiki
+# is part of the kernel project.
+resources:
+  - title: "The USE Method, by Brendan Gregg"
+    url: https://www.brendangregg.com/usemethod.html
+    type: reading
+    use: link
+    license: "Copyright Brendan Gregg; linked, not copied"
+  - title: "Linux Performance Analysis in 60,000 Milliseconds (Netflix Technology Blog): the sixty-second checklist"
+    url: https://netflixtechblog.com/linux-performance-analysis-in-60-000-milliseconds-accc10403c55
+    type: reading
+    use: link
+    license: "Copyright Netflix; linked, not copied"
+  - title: "Linux Performance, by Brendan Gregg: the tools map and the flame graphs"
+    url: https://www.brendangregg.com/linuxperf.html
+    type: reading
+    use: link
+    license: "Copyright Brendan Gregg; linked, not copied"
+  - title: "The Missing Semester of Your CS Education, lecture 7: Debugging and profiling (the Profiling section: strace, perf, htop, iostat)"
+    url: https://missing.csail.mit.edu/2020/debugging-profiling/
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "vmstat(8), from the Linux man-pages project: every column explained"
+    url: https://man7.org/linux/man-pages/man8/vmstat.8.html
+    type: reading
+    use: link
+    license: "Linux man-pages project (free documentation; linked, not copied)"
+  - title: "strace(1), from the Linux man-pages project (-c, -T, -p, -f)"
+    url: https://man7.org/linux/man-pages/man1/strace.1.html
+    type: reading
+    use: link
+    license: "Linux man-pages project (free documentation; linked, not copied)"
+# Lessons and recall first (ADR-0017). The items read dmesg, vmstat, iostat,
+# pidstat, strace -c, perf report and sar output with the text tools of the
+# first topic; the labs provide a slow server to triage for real.
+practice:
+  - mcq-use-method
+  - mcq-saturation-vs-utilization
+  - mcq-first-minute-order
+  - tri-dmesg-errors
+  - tri-vmstat-saturated
+  - mcq-mpstat-single-core
+  - tri-pidstat-top
+  - tri-iostat-await
+  - mcq-iowait
+  - mcq-on-off-cpu
+  - tri-strace-summary
+  - tri-perf-report
+  - tri-sar-dev
+  - tri-sar-retrans
+  - mcq-retransmits
+prove:
+  explain:
+    prompt: |
+      A teammate says a server "is slow" and has already started changing settings at random. Explain, in your own words, how you'd find the cause instead: what the USE method asks of every resource and why saturation matters more than utilisation; which commands you'd run in the first minute and what each one tells you; how you'd recognise a saturated disk in `iostat`, a saturated network interface or retransmits in `sar`, and a single hot CPU that an average hides; and how you'd decide between `perf` and `strace` once you know which process is the problem.
+    rubric:
+      - id: use
+        required: true
+        description: "For each resource (CPU, memory, disk, network) check utilisation (how busy), saturation (work queued or waiting: run queue above the CPU count, swap in/out, disk queue, dropped packets) and errors (dmesg, interface errors); saturation and errors point at the bottleneck, high utilisation alone may be fine."
+      - id: checklist
+        required: true
+        description: "uptime (load trend), dmesg -T | tail (kernel errors), vmstat 1 (run queue, swap, CPU split), mpstat -P ALL 1 (per-CPU), pidstat 1 (which process), iostat -xz 1 (disks), free -m (memory and cache), sar -n DEV 1 (interface throughput), sar -n TCP,ETCP 1 (connections and retransmits), top."
+      - id: disk-net
+        required: true
+        description: "A saturated disk shows %util near 100 with high await and a queue (aqu-sz) above 1; a saturated interface shows kB/s near the link's capacity; retransmits in sar -n ETCP mean packets are being lost or the path is congested; mpstat -P ALL shows one CPU at 100% while the average looks fine, a single-threaded bottleneck."
+      - id: perf-strace
+        required: true
+        description: "perf (perf top, perf record -g, flame graphs) shows where a process spends CPU time, for a process that is busy; strace -c and strace -T show which system calls it makes, how long they take and which fail, for a process that is waiting (off-CPU) or erroring."
+      - id: method
+        required: false
+        description: "Measure before changing anything, change one thing, measure again; keep the first minute's output as the baseline."
+    model_answer: |
+      Changing settings at random is how a slow server becomes a slow server nobody understands, so I'd start by measuring. The USE method gives me a checklist instead of a hunch: for each resource, CPU, memory, disks and the network, I ask three questions. Utilisation, how busy is it; saturation, is work queueing up because it can't be served, which for the CPU means a run queue longer than the number of CPUs, for memory swapping in and out, for a disk a queue of requests waiting, for the network dropped packets; and errors, anything the kernel or the hardware is complaining about. High utilisation on its own can be fine, a CPU at 100% doing useful work is what we pay for; saturation and errors are what make things slow. In the first minute I'd run the standard list. uptime gives the load averages and whether they're rising. dmesg -T | tail shows recent kernel messages: OOM kills, disk timeouts, network errors. vmstat 1 shows the run queue, swap in and out, the CPU split between user, system, idle and iowait, every second. mpstat -P ALL 1 shows each CPU separately, because an average of 25% can be one CPU at 100% and three idle, a single-threaded bottleneck. pidstat 1 names the processes using the CPU. iostat -xz 1 shows each disk's utilisation, await and queue; a disk near 100% busy with await in the tens of milliseconds and a queue above one is saturated, and high iowait in vmstat agrees. free -m shows memory and how much is cache. sar -n DEV 1 shows each interface's kilobytes per second, which I compare with the link's capacity, about 125,000 kB/s for a gigabit; sar -n TCP,ETCP 1 shows new connections and retransmits per second, and retransmits mean packets are being lost or the path is congested, so the problem may not be on this machine at all. top ties it together. By then I usually know which resource is saturated and which process is responsible. If that process is busy on the CPU, I'd profile it with perf, perf top for a live view or perf record -g and a flame graph, to see which functions the time goes to. If the process is slow but not busy, it's waiting on something, and strace shows what: strace -c for a summary of which system calls it made, how many failed and how long they took in total, and strace -T to see the slow ones individually, which usually points at the disk, the network or a lock. Then I'd change one thing, measure again, and keep the first minute's output as the baseline to compare against.
+review_pool:
+  - tri-vmstat-saturated
+  - tri-iostat-await
+  - tri-strace-summary
+  - tri-sar-retrans
+  - mcq-saturation-vs-utilization
+  - mcq-on-off-cpu
+skills:
+  - id: use-method
+    description: "Utilisation, saturation and errors for every resource, and why saturation is the sign of trouble"
+  - id: first-minute
+    description: "The sixty-second checklist and what each command's output tells you: `uptime`, `dmesg`, `vmstat`, `mpstat`, `pidstat`, `free`, `top`"
+  - id: disk-io
+    description: "Reading `iostat -xz`: `%util`, `await` and the queue, and recognising a saturated disk"
+  - id: cpu-profiling
+    description: "`perf` for where CPU time goes, `strace -c` and `-T` for system calls, and choosing between them"
+  - id: network-errors
+    description: "`sar -n DEV` for interface throughput and `sar -n ETCP` for retransmits, and what they mean"

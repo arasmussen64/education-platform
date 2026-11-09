@@ -1,0 +1,25 @@
+id: hard-ufw-status
+type: predict_shell
+rev: 1
+prompt: |
+  `ufw.txt` is the output of `ufw status verbose` on a web server. The first command prints the default policies; the second counts the rules that allow traffic in. What is printed?
+files:
+  ufw.txt: |
+    Status: active
+    Logging: on (low)
+    Default: deny (incoming), allow (outgoing), disabled (routed)
+    New profiles: skip
+
+    To                         Action      From
+    --                         ------      ----
+    22/tcp                     ALLOW IN    Anywhere
+    443/tcp                    ALLOW IN    Anywhere
+    80/tcp                     ALLOW IN    Anywhere
+command: |
+  grep '^Default:' ufw.txt; grep -c 'ALLOW IN' ufw.txt
+expected_output: |
+  Default: deny (incoming), allow (outgoing), disabled (routed)
+  3
+explanation: |
+  Everything inbound is denied unless a rule allows it, outbound is allowed, and forwarding between interfaces is off: the right defaults for a server. Three doors are open: SSH, HTTPS and HTTP (which the web server redirects to HTTPS). `ufw` is a friendly front end that writes nftables (or iptables) rules; `nft list ruleset` shows what it produced. The cloud's security group should say the same three things, so that loosening one layer doesn't open the machine.
+skills: [firewall-min]

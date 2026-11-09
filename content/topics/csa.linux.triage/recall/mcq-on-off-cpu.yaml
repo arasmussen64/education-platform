@@ -1,0 +1,14 @@
+id: mcq-on-off-cpu
+type: mcq
+rev: 1
+prompt: |
+  Two slow processes. Process A is at 190% CPU. Process B is at 2% CPU but each request takes seconds. Which tool first, for each?
+choices:
+  - "`strace` for both; it shows everything"
+  - "A is busy on the CPU, so `perf top -p PID` (or `perf record -g` and a flame graph) shows which functions the time goes to; B is waiting, so `strace -c -p PID` and `strace -T -p PID` show which system calls it's stuck in and for how long"
+  - "`perf` for both; `strace` is obsolete"
+  - "`top` for both; nothing else is needed"
+answer: 1
+explanation: |
+  Profilers answer "where is the CPU time going?", which is only a useful question for a process that is using CPU. A process that is slow without CPU use is off-CPU: waiting for a disk, a socket, a lock, a sleep. `strace -c` summarises its system calls, their total time and their errors; `-T` prints each call's duration so a 1.7-second `connect` or a `fsync` stands out. `strace` slows what it traces, so use it briefly; `perf` is light enough for production.
+skills: [cpu-profiling]

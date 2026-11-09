@@ -1,0 +1,31 @@
+id: hard-oscap-failures
+type: predict_shell
+rev: 1
+prompt: |
+  `oscap.txt` is part of an OpenSCAP report: for each rule, its title, its identifier and its result. The first command counts the failing rules; the second prints the titles of the rules that failed (`grep -B2` includes the two lines before each match). What is printed?
+files:
+  oscap.txt: |
+    Title   Disable SSH Root Login
+    Rule    xccdf_org.ssgproject.content_rule_sshd_disable_root_login
+    Result  fail
+
+    Title   Disable SSH Access via Empty Passwords
+    Rule    xccdf_org.ssgproject.content_rule_sshd_disable_empty_passwords
+    Result  pass
+
+    Title   Ensure auditd is Installed
+    Rule    xccdf_org.ssgproject.content_rule_package_audit_installed
+    Result  fail
+
+    Title   Verify Permissions on /etc/passwd
+    Rule    xccdf_org.ssgproject.content_rule_file_permissions_etc_passwd
+    Result  pass
+command: |
+  grep -c '^Result *fail' oscap.txt; grep -B2 '^Result *fail' oscap.txt | grep '^Title' | sed 's/^Title *//'
+expected_output: |
+  2
+  Disable SSH Root Login
+  Ensure auditd is Installed
+explanation: |
+  Two of four rules fail: root can still log in over SSH, and the audit daemon isn't installed. Each rule in the report maps to a benchmark recommendation with a fix, and OpenSCAP can generate a remediation script for the failures. The two passes are worth noticing too: a report is evidence of what's right as well as what's wrong. `grep -B2` pulls the title and rule lines above each failing result; the `sed` trims the label.
+skills: [benchmarks-scanning]

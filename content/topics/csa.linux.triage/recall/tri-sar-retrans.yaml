@@ -1,0 +1,19 @@
+id: tri-sar-retrans
+type: predict_shell
+rev: 1
+prompt: |
+  `sar-etcp.txt` is a sample from `sar -n ETCP 1`, TCP's error counters per second; `retrans/s` is field 4. The command prints the time and the retransmits for each second. What is printed?
+files:
+  sar-etcp.txt: |
+    time atmptf/s estres/s retrans/s isegerr/s orsts/s
+    10:41:02 0.00 0.00 142.00 0.00 2.00
+    10:41:03 0.00 1.00 156.00 0.00 3.00
+    10:41:04 0.00 0.00 149.00 0.00 2.00
+command: awk 'NR > 1 {print $1, "retransmits/s:", $4}' sar-etcp.txt
+expected_output: |
+  10:41:02 retransmits/s: 142.00
+  10:41:03 retransmits/s: 156.00
+  10:41:04 retransmits/s: 149.00
+explanation: |
+  About 150 TCP segments a second are being sent again because the first copy was never acknowledged: packets are being lost, or the path is congested, and every retransmit is a round trip or more of delay for someone. A healthy server shows a handful at most. The cause may be this host's interface (check `sar -n EDEV` for drops), the network in between, or an overloaded peer; what the number gives you is proof that the slowness is in the network, with a figure to take to whoever runs it.
+skills: [network-errors]

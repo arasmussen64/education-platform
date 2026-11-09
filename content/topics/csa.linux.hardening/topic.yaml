@@ -1,13 +1,120 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.hardening
 kind: topic
-status: planned
-title: Hardening
-summary: Apply a security baseline, then prove it with a benchmark scan.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "Hardening"
+summary: "Apply a security baseline to a server, then prove it: SSH with keys only and no root login, a default-deny firewall, fewer services, least privilege, automatic security updates, and a benchmark scan (CIS, OpenSCAP, Lynis) before and after to show the difference."
+prerequisites: [csa.linux.permissions, csa.linux.services, csa.linux.packages, csa.linux.net-tools]
+estimated_minutes: 100
 rev: 1
 objectives:
-- Apply a security baseline, then prove it with a benchmark scan.
+  - "List what a server security baseline contains and why each item is there: updates, minimal packages, SSH keys only and no root login, a default-deny firewall, least-privilege users and services, file permissions, time sync, logging."
+  - "Harden SSH: `PasswordAuthentication no`, `PermitRootLogin no`, allowed groups, and `sshd -T` and `sshd -t` to see and test the effective configuration without locking yourself out."
+  - "Set a default-deny inbound firewall with only the needed ports, with the cloud's security group as the outer layer."
+  - "Audit what a server exposes and remove what it doesn't need: `ss -ltnp` as the checklist, uninstalling and disabling services."
+  - "Explain what a CIS Benchmark is (Levels 1 and 2), run a scan with OpenSCAP or Lynis, and prove the baseline with a before-and-after comparison, documenting exceptions."
+# Linked, never copied. Licences: DigitalOcean's community tutorials are
+# CC BY-NC-SA 4.0; the ArchWiki is GNU FDL 1.3; NIST publications are works
+# of the US government; the CIS, OpenSCAP, Lynis and Ubuntu pages are their
+# owners' copyright and are linked only; the Linux man-pages are free documentation.
+resources:
+  - title: "Recommended Security Measures to Protect Your Servers, by Justin Ellingwood (DigitalOcean community tutorials)"
+    url: https://www.digitalocean.com/community/tutorials/recommended-security-measures-to-protect-your-servers
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "ArchWiki: Security (a long, careful checklist: accounts, SSH, firewall, kernel, mandatory access control)"
+    url: https://wiki.archlinux.org/title/Security
+    type: reading
+    use: link
+    license: GNU FDL 1.3
+  - title: "sshd_config(5), from the Linux man-pages project: every SSH server setting"
+    url: https://man7.org/linux/man-pages/man5/sshd_config.5.html
+    type: reading
+    use: link
+    license: "Linux man-pages project (free documentation; linked, not copied)"
+  - title: "CIS Benchmarks (Center for Internet Security): what the benchmarks are and how to get them"
+    url: https://www.cisecurity.org/cis-benchmarks
+    type: reading
+    use: link
+    license: "Copyright Center for Internet Security; linked, not copied"
+  - title: "OpenSCAP: scanning a system against a security profile"
+    url: https://www.open-scap.org/
+    type: reading
+    use: link
+    license: "OpenSCAP project (LGPL-2.1 tooling); linked, not copied"
+  - title: "Lynis, by CISOFY: a security audit tool for Linux and Unix"
+    url: https://cisofy.com/lynis/
+    type: reading
+    use: link
+    license: "Lynis (GPL-3.0 tool), CISOFY; linked, not copied"
+  - title: "Ubuntu Security Guide: applying and auditing CIS and DISA-STIG profiles on Ubuntu"
+    url: https://ubuntu.com/security/certifications/docs/usg
+    type: reading
+    use: link
+    license: "Copyright Canonical; linked, not copied"
+  - title: "NIST SP 800-123: Guide to General Server Security"
+    url: https://csrc.nist.gov/pubs/sp/800/123/final
+    type: reading
+    use: link
+    license: "US government work (public domain); linked"
+# Lessons and recall first (ADR-0017). The items read sshd configuration,
+# socket listings, firewall status, sudoers and scan reports with the text
+# tools of the first topic; hardening a real machine comes in the labs and
+# the checkpoint, where turning the firewall off fails the check.
+practice:
+  - mcq-baseline-contents
+  - hard-listening-audit
+  - mcq-remove-services
+  - hard-sshd-effective
+  - hard-sshd-config
+  - mcq-ssh-settings
+  - mcq-fail2ban-mfa
+  - hard-ufw-status
+  - mcq-firewall-default-deny
+  - hard-shell-users
+  - hard-sudoers-nopasswd
+  - mcq-least-privilege-service
+  - mcq-cis-levels
+  - hard-lynis-before-after
+  - hard-oscap-failures
+  - mcq-prove-with-scan
+prove:
+  explain:
+    prompt: |
+      You're handed a freshly installed Ubuntu server that will face the internet, and a week to make it defensible. Explain, in your own words: what your baseline would contain and why each item matters; the SSH changes you'd make and how you'd make them without locking yourself out; how you'd set the firewall and what the cloud's security group adds; how you'd find and remove what the server doesn't need; and how you'd prove the result with a benchmark scan, including what you'd do with a finding you can't fix.
+    rubric:
+      - id: baseline
+        required: true
+        description: "Updates applied and automatic security updates on; only needed packages and services; SSH keys only and no root login; a default-deny firewall with the needed ports; people log in as themselves and use sudo, services run as their own users; sane permissions on secrets; time sync; logs kept and shipped; a baseline is applied once and then audited."
+      - id: ssh
+        required: true
+        description: "In sshd_config: PasswordAuthentication no, PermitRootLogin no, an AllowGroups or AllowUsers list, a low MaxAuthTries; check with sshd -t before restarting, keep the current session open while testing a new one, and read the effective settings with sshd -T; keys are already in place first."
+      - id: firewall
+        required: true
+        description: "Default deny inbound, allow established, loopback, SSH and the service's ports (ufw or nftables); allow outbound; the cloud security group is the same rule set at the network edge, and both are set because either alone can be misconfigured."
+      - id: surface
+        required: true
+        description: "ss -ltnp lists what listens and on which address; anything on 0.0.0.0 that isn't needed (print servers, rpcbind, unused databases) is uninstalled or disabled, or bound to localhost; fewer packages mean fewer updates and fewer holes."
+      - id: scan
+        required: true
+        description: "A CIS Benchmark is a published, numbered list of settings (Level 1 safe for all, Level 2 stricter); OpenSCAP, Lynis or the Ubuntu Security Guide scan the machine against it and score it; scan before, apply the baseline, scan after and keep both reports; a finding you can't fix is recorded as an exception with the reason and a compensating control, not hidden."
+    model_answer: |
+      My baseline is the short list that stops the common attacks, applied once and then checked. First, patch it fully and turn on unattended security updates, since most compromises use fixes that already exist. Second, SSH: the key is already installed for my user, so I set PasswordAuthentication no, so passwords can't be guessed, PermitRootLogin no, so the one account everyone knows the name of can't be used, AllowGroups ssh-users so only people in that group can log in, and MaxAuthTries 3. Before restarting sshd I run sshd -t, which checks the file for mistakes, and I keep my current session open while I open a new one to prove the change works; sshd -T then shows the settings actually in effect, which catches a stray include file. Third, the firewall: default deny on everything inbound, allow established connections and the loopback, then only 22 and 443 (or 80 if the site redirects), with outbound allowed for now; ufw does this in four lines, nftables in a short ruleset. The cloud's security group gets the same rules, because it filters at the network edge before packets reach the host, and because either one can be misconfigured by someone later. Fourth, attack surface: ss -ltnp shows everything that is listening and on which address; a print service, rpcbind or a database listening on 0.0.0.0 that nothing needs gets uninstalled, or at least disabled and bound to localhost, and I remove packages I'm not using, since each one is an update to track and a potential hole. Fifth, least privilege: people log in as themselves and use sudo, with no NOPASSWD: ALL for a whole group; services run as their own unprivileged users with systemd's sandboxing where it's cheap; secrets are mode 600; the clock is synced so logs and certificates agree; logs are kept past a reboot and shipped off the box so an intruder can't erase them. Then I prove it. A CIS Benchmark is a published, numbered list of recommended settings for a given OS, Level 1 being the safe-for-everyone set and Level 2 the stricter one that can break things. I run a scan before any change, with the Ubuntu Security Guide, OpenSCAP against the CIS profile, or Lynis for a quick hardening index, apply the baseline, and scan again, keeping both reports so the improvement is on record and the next scan has something to compare to. A finding I can't or shouldn't fix, say a setting the application needs, is written down as an exception with the reason and the compensating control, not quietly ignored, and the scan is scheduled to run again so drift shows up.
+review_pool:
+  - hard-listening-audit
+  - hard-sshd-effective
+  - hard-ufw-status
+  - hard-lynis-before-after
+  - mcq-ssh-settings
+  - mcq-prove-with-scan
+skills:
+  - id: baseline
+    description: "What a server security baseline contains and why: updates, minimal packages, keys, firewall, least privilege, permissions, time, logs"
+  - id: ssh-hardening
+    description: "Hardening `sshd_config` safely: keys only, no root login, allowed groups, `sshd -t` and `sshd -T`, keeping a session open"
+  - id: firewall-min
+    description: "A default-deny inbound firewall with only the needed ports, and the cloud security group as the outer layer"
+  - id: attack-surface
+    description: "Auditing what a server exposes with `ss -ltnp` and removing or disabling what it doesn't need"
+  - id: benchmarks-scanning
+    description: "CIS Benchmarks and their levels, scanning with OpenSCAP, Lynis or the Ubuntu Security Guide, and proving a baseline before and after"

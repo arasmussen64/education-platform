@@ -1,0 +1,25 @@
+id: hard-sshd-effective
+type: predict_shell
+rev: 1
+prompt: |
+  `sshd-T.txt` is the output of `sshd -T`, which prints every SSH server setting as it is actually in effect, in lowercase, after all the included files. The command picks the three that decide who can log in and how. What is printed?
+files:
+  sshd-T.txt: |
+    port 22
+    addressfamily any
+    permitrootlogin yes
+    passwordauthentication yes
+    pubkeyauthentication yes
+    kbdinteractiveauthentication no
+    x11forwarding no
+    allowtcpforwarding yes
+    maxauthtries 6
+    clientaliveinterval 0
+command: grep -E '^(permitrootlogin|passwordauthentication|pubkeyauthentication) ' sshd-T.txt
+expected_output: |
+  permitrootlogin yes
+  passwordauthentication yes
+  pubkeyauthentication yes
+explanation: |
+  Keys work (`pubkeyauthentication yes`), which is good, but passwords are also accepted and so is root, which together mean this server can be brute-forced: a dictionary against `root` over port 22, the most common attack on the internet. The fix is two lines, `PermitRootLogin no` and `PasswordAuthentication no`, after confirming a key is installed. `sshd -T` is the right thing to read on a server you didn't set up, because `sshd_config` can be overridden by files in `sshd_config.d/`.
+skills: [ssh-hardening]

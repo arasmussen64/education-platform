@@ -1,0 +1,14 @@
+id: mcq-retransmits
+type: mcq
+rev: 1
+prompt: |
+  A service's requests to a database are slow, the database server itself is idle, and `sar -n ETCP 1` on the application server shows a steady 150 retransmits per second. What does that point to, and what would you check next?
+choices:
+  - "The database is slow; add an index"
+  - "Packets between the two are being lost or the path is congested, so TCP keeps resending and waiting; check for drops and errors on both interfaces (`sar -n EDEV`, `ip -s link`), the link's utilisation, and the path between them (`mtr`), and take the numbers to the network team if the loss is beyond the hosts"
+  - "The application server is out of memory"
+  - "Retransmits are normal at any rate"
+answer: 1
+explanation: |
+  A retransmit is TCP's reaction to a lost segment: wait, send again. A few per second is noise; a steady hundred and fifty means something between the two servers is dropping packets, and each loss adds at least a round trip to a request. Since the database is idle, the delay is in transit. Interface errors and drops, a saturated link (`sar -n DEV`), a wrong MTU or a congested switch are the usual culprits; `mtr` shows where on the path the loss appears.
+skills: [network-errors]

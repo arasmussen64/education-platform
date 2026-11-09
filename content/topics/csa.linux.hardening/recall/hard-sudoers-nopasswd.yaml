@@ -1,0 +1,19 @@
+id: hard-sudoers-nopasswd
+type: predict_shell
+rev: 1
+prompt: |
+  `sudoers` is a server's sudo policy. The command finds, with line numbers, any rule that grants *every* command as root *without a password*, the broadest grant there is. What is printed?
+files:
+  sudoers: |
+    Defaults        env_reset
+    root    ALL=(ALL:ALL) ALL
+    %sudo   ALL=(ALL:ALL) ALL
+    %admins ALL=(ALL) NOPASSWD: ALL
+    %deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart app
+command: |
+  grep -n 'NOPASSWD: ALL' sudoers
+expected_output: |
+  4:%admins ALL=(ALL) NOPASSWD: ALL
+explanation: |
+  Line 4 lets every member of `admins` run any command as root with no password at all: an unlocked laptop or a stolen session in that group is root on the server, with nothing to slow it down. The `deploy` rule on line 5 is the shape to prefer: passwordless, but for exactly one command. A scanner (and a CIS Benchmark) flags blanket `NOPASSWD`; the fix is to drop `NOPASSWD:` from line 4, and to edit the file only with `visudo`, which refuses to save a broken policy.
+skills: [baseline]

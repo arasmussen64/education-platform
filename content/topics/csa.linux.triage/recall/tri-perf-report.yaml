@@ -1,0 +1,20 @@
+id: tri-perf-report
+type: predict_shell
+rev: 1
+prompt: |
+  `perf.txt` is the top of a `perf report --stdio` for a busy Java process: each line is the share of CPU samples, the command, the library and the function. The command drops the comment lines and prints the share and function of the two hottest. What is printed?
+files:
+  perf.txt: |
+    # Overhead  Command  Shared Object       Symbol
+    # ........  .......  ..................  ..........................
+    45.12%  java  libjvm.so  [.] G1ConcurrentMark::mark
+    22.40%  java  libjvm.so  [.] G1ParScanThreadState::copy
+    8.75%  java  libc.so.6  [.] memcpy
+    3.10%  java  perf-2314.map  [.] com.example.Handler.parse
+command: grep -v '^#' perf.txt | head -n 2 | awk '{print $1, $NF}'
+expected_output: |
+  45.12% G1ConcurrentMark::mark
+  22.40% G1ParScanThreadState::copy
+explanation: |
+  Two thirds of the CPU time is inside the JVM's garbage collector (`G1…` functions in `libjvm.so`), not in the application's own code, which appears far down at 3%. The program isn't slow because its logic is slow; it's slow because it allocates faster than the collector can keep up, so the fix is a bigger heap or fewer allocations, not a faster CPU. A flame graph shows the same data as a picture. `$NF` is the symbol name, the last field on each line.
+skills: [cpu-profiling]
