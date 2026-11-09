@@ -94,7 +94,7 @@ Local development doesn't use this app. The local Supabase signs in with email l
 1. Create an account at console.anthropic.com and add billing.
 2. Set a monthly spending limit of $10. This is on top of the app's own cap.
 3. Create an API key. It's kept in two places only:
-   - `supabase/functions/.env` on your PC (gitignored), for local testing and `npm run fn:eval`;
+   - `supabase/functions/.env` on your PC (gitignored), for local testing, `npm run fn:eval` and `npm run fn:eval:tutor`;
    - the live project's secrets, as `ANTHROPIC_API_KEY`. It was put there on 2026-11-08 with `npx supabase secrets set --env-file supabase/functions/.env --yes`. That command reads the file, so the key never appears on screen.
 
 **To change the key:**

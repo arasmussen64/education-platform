@@ -6,6 +6,7 @@ import {
   type CheckOutcome,
   type RunOutcome,
 } from '../python/runner.ts'
+import { TutorBox, type TutorHintGiven } from '../tutor/TutorBox.tsx'
 import { CodeRunner } from './CodeRunner.tsx'
 import { Markdown } from './Markdown.tsx'
 import { SECONDARY_BUTTON } from './styles.ts'
@@ -14,7 +15,10 @@ import { SECONDARY_BUTTON } from './styles.ts'
 export type ExerciseActivity =
   | { kind: 'run'; code: string; outcome: RunOutcome }
   | { kind: 'check'; code: string; outcome: CheckOutcome; hintsUsed: number }
+  /** A written hint was opened. `hintsUsed` counts written and tutor hints. */
   | { kind: 'hint'; hintsUsed: number }
+  /** The tutor gave a hint (ADR-0015). */
+  | { kind: 'tutor'; hintsUsed: number; given: TutorHintGiven }
 
 type ActivityHandler = (activity: ExerciseActivity) => void
 
@@ -23,6 +27,10 @@ type Props = {
   onActivity?: ActivityHandler
   /** False in reviews: hints stand in for the tutor, which is off there. */
   allowHints?: boolean
+  /** True in practice only: the tutor is off in proof checks and reviews. */
+  allowTutor?: boolean
+  /** Where the exercise lives, for the tutor's log. */
+  topicId?: string
 }
 
 /** One exercise: its instructions, the code runner, hints and, once passed, the answer. */
@@ -30,6 +38,8 @@ export function ExerciseView({
   exercise,
   onActivity,
   allowHints = true,
+  allowTutor = false,
+  topicId = '',
 }: Props) {
   if (exercise.stage === 'worked_example') {
     return <WorkedExample exercise={exercise} onActivity={onActivity} />
@@ -39,6 +49,8 @@ export function ExerciseView({
       exercise={exercise}
       onActivity={onActivity}
       allowHints={allowHints}
+      allowTutor={allowTutor}
+      topicId={topicId}
     />
   )
 }
@@ -92,26 +104,43 @@ function CodingExercise({
   exercise,
   onActivity,
   allowHints,
+  allowTutor,
+  topicId,
 }: {
   exercise: Exercise
   onActivity?: ActivityHandler
   allowHints: boolean
+  allowTutor: boolean
+  topicId: string
 }) {
   const stage = STAGES[exercise.stage]
   const [passed, setPassed] = useState(false)
-  // Kept here, not in <Hints>, because checks report how many were used.
+  // Kept here, not in <Hints> or <TutorBox>, because checks report how many
+  // hints of both kinds were used.
   const [hintsShown, setHintsShown] = useState(0)
+  const [tutorHints, setTutorHints] = useState(0)
+  // What the tutor sees: the code as it is now, and the latest Check.
+  const [code, setCode] = useState(exercise.starter)
+  const [lastCheck, setLastCheck] = useState<CheckOutcome | null>(null)
+  const hintsUsed = hintsShown + tutorHints
 
-  function handleCheck(outcome: CheckOutcome, code: string) {
+  function handleCheck(outcome: CheckOutcome, checked: string) {
     if (allChecksPassed(outcome)) setPassed(true)
-    onActivity?.({ kind: 'check', code, outcome, hintsUsed: hintsShown })
+    setLastCheck(outcome)
+    onActivity?.({ kind: 'check', code: checked, outcome, hintsUsed })
   }
 
   function showHint() {
     setHintsShown(hintsShown + 1)
-    onActivity?.({ kind: 'hint', hintsUsed: hintsShown + 1 })
+    onActivity?.({ kind: 'hint', hintsUsed: hintsUsed + 1 })
   }
 
+  function handleTutorHint(given: TutorHintGiven) {
+    setTutorHints(given.count)
+    onActivity?.({ kind: 'tutor', hintsUsed: hintsShown + given.count, given })
+  }
+
+  const helpOffered = stage.hints && !passed
   return (
     <div className="space-y-3">
       <Markdown>{exercise.prompt}</Markdown>
@@ -120,14 +149,27 @@ function CodingExercise({
         tests={exercise.tests}
         hiddenTests={stage.hiddenTests}
         timeLimitMs={exercise.time_limit_ms}
-        onRun={(outcome, code) => onActivity?.({ kind: 'run', code, outcome })}
+        onRun={(outcome, ran) =>
+          onActivity?.({ kind: 'run', code: ran, outcome })
+        }
         onCheck={handleCheck}
+        onCodeChange={setCode}
       />
-      {stage.hints && allowHints && exercise.hints.length > 0 && !passed && (
+      {helpOffered && allowHints && exercise.hints.length > 0 && (
         <Hints
           hints={exercise.hints}
           shown={hintsShown}
           onShowMore={showHint}
+        />
+      )}
+      {helpOffered && allowTutor && (
+        <TutorBox
+          topicId={topicId}
+          itemId={exercise.id}
+          exercise={exercise}
+          code={code}
+          check={lastCheck}
+          onHint={handleTutorHint}
         />
       )}
       {passed && <ReferenceSolution code={exercise.solution} />}

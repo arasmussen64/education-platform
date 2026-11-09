@@ -1,6 +1,9 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
+import { AuthProvider } from '../auth/AuthProvider.tsx'
+import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { fakeExercise } from '../test/fakeContent.tsx'
 import {
   allPassed,
@@ -9,12 +12,17 @@ import {
   printed,
 } from '../test/fakePython.ts'
 import { setFakeRunner } from '../test/mockPython.ts'
+import { askTutor } from '../tutor/hint.ts'
 import { ExerciseView } from './ExerciseView.tsx'
 
 vi.mock('../python/runner.ts', () =>
   import('../test/mockPython.ts').then((module) => module.mockRunnerModule()),
 )
 vi.mock('./CodeEditor.tsx', () => import('../test/FakeCodeEditor.tsx'))
+vi.mock('../tutor/hint.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../tutor/hint.ts')>()),
+  askTutor: vi.fn(),
+}))
 
 const check = () =>
   userEvent.click(screen.getByRole('button', { name: 'Check' }))
@@ -165,5 +173,101 @@ describe('ExerciseView', () => {
       },
     ])
     expect(runner.run).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the tutor in an exercise', () => {
+  function renderInPractice(onActivity = vi.fn()) {
+    render(
+      <AuthProvider auth={fakeAuth(fakeUser())}>
+        <MemoryRouter>
+          <ExerciseView
+            exercise={fakeExercise({
+              id: 'write',
+              stage: 'write',
+              hints: ['A written hint'],
+            })}
+            onActivity={onActivity}
+            allowTutor
+            topicId="py.values-and-types"
+          />
+        </MemoryRouter>
+      </AuthProvider>,
+    )
+    return onActivity
+  }
+
+  it('sees the code as typed and the latest Check, and its hints count as hints', async () => {
+    setFakeRunner(fakeRunner({ check: oneFailed('Says hi') }))
+    vi.mocked(askTutor).mockResolvedValue({
+      status: 'hinted',
+      hint: {
+        text: 'What did the check expect?',
+        level: 'nudge',
+        replaced: false,
+      },
+      ai_call_id: 'call-1',
+      model: 'claude-haiku-5-5',
+    })
+    const onActivity = renderInPractice()
+
+    await userEvent.type(screen.getByLabelText('Python code'), 'print(hi)')
+    await check()
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the tutor' }))
+
+    expect(askTutor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        topicId: 'py.values-and-types',
+        itemId: 'write',
+        code: 'print(hi)',
+        check: oneFailed('Says hi'),
+        earlier: [],
+      }),
+    )
+    const tutor = screen.getByRole('region', { name: 'Tutor' })
+    expect(
+      within(tutor).getByText('What did the check expect?'),
+    ).toBeInTheDocument()
+    expect(onActivity).toHaveBeenLastCalledWith({
+      kind: 'tutor',
+      hintsUsed: 1,
+      given: {
+        hint: {
+          text: 'What did the check expect?',
+          level: 'nudge',
+          replaced: false,
+        },
+        count: 1,
+        question: '',
+        aiCallId: 'call-1',
+        model: 'claude-haiku-5-5',
+      },
+    })
+
+    // A written hint on top makes two, and the next Check says so.
+    await userEvent.click(screen.getByRole('button', { name: 'Show a hint' }))
+    await check()
+    expect(onActivity).toHaveBeenLastCalledWith(
+      expect.objectContaining({ kind: 'check', hintsUsed: 2 }),
+    )
+  })
+
+  it('is off unless the item allows it, and never in a proof check', () => {
+    setFakeRunner()
+    render(
+      <ExerciseView exercise={fakeExercise({ id: 'write', stage: 'write' })} />,
+    )
+    expect(
+      screen.queryByRole('region', { name: 'Tutor' }),
+    ).not.toBeInTheDocument()
+    render(
+      <ExerciseView
+        exercise={fakeExercise({ id: 'build', stage: 'build' })}
+        allowTutor
+      />,
+    )
+    expect(
+      screen.queryByRole('region', { name: 'Tutor' }),
+    ).not.toBeInTheDocument()
   })
 })

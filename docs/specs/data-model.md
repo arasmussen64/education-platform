@@ -269,7 +269,7 @@ Policies allow **insert** and **select** only. There is no update or delete poli
 | `code_run` | the learner presses Run | `code`; `outcome` (`done`, `timeout` or `failed`); `output`, `error` and `waiting_for_input` (or `message`) |
 | `code_check` | tests are run | `code`; `outcome`; `status`; `passed` and `total`; `failing` (test names); `message` if the tests couldn't run |
 | `explain_submit` | an explanation is sent to be checked (item `explain`) | the text and `status`; when graded, the `verdict`, each rubric item's result, the `questions`, `ai_call_id` and `model`. `correct` is set only when graded ([ADR-0013](../decisions/0013-explain-grading.md)) |
-| `hint` | a hint is shown | `level`; `source` (`author` for the written hints, until the tutor exists); later `ai_call_id` |
+| `hint` | a hint is shown | `level` (how many hints of that source so far); `source` (`author` for a written hint, `tutor` for one from the AI tutor). For the tutor ([ADR-0015](../decisions/0015-hint-only-tutor.md)): `rung` (`nudge`, `concept`, `specific` or `step`), `replaced` (whether the proxy swapped Claude's reply for a safer hint), the learner's `question`, `ai_call_id` and `model` |
 | `review` | a review session's items have all had a first attempt (item `review`) | `rating` (`good`, `hard` or `again`) and `items`: each item's ID and whether its first attempt was correct. `correct` is whether the rating was Good ([ADR-0009](../decisions/0009-reviews.md)) |
 | `review` | a topic's review session ends | item IDs; results; the rating |
 
@@ -303,8 +303,8 @@ One row per learner and topic. It can be deleted and rebuilt from `events` at an
 
 Only the AI proxy writes to it, with the service role. A learner can read their own rows. Like `events`, rows are never updated or deleted, except when deliberately deleting a whole account. It's used to enforce the budget cap and to review the grader's and tutor's quality ([ADR-0013](../decisions/0013-explain-grading.md)).
 
-- `request` holds the topic, the explanation and the prompt version. The rubric and model answer can be found from the topic.
-- `response` holds the grading: the verdict, each rubric item, and the questions. Or, when Claude's answer couldn't be used, the problem.
+- For `grade_explanation`, `request` holds the topic, the explanation and the prompt version. The rubric and model answer can be found from the topic. `response` holds the grading: the verdict, each rubric item, and the questions. Or, when Claude's answer couldn't be used, the problem.
+- For `tutor_hint` ([ADR-0015](../decisions/0015-hint-only-tutor.md)), `request` holds the topic, the item, the rung (`level`), how many tutor hints came before (`hints_so_far`), the learner's question and code, and the prompt version. `response` holds the hint's text, its rung, and whether it was `replaced` by a safer hint (and why). Or the problem.
 - `public.ai_spend_this_month()` adds up `cost_usd` since the start of this calendar month (UTC), across everyone. Only the proxy may call it.
 
 ### `problem_reports`

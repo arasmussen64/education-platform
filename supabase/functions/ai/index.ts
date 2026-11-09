@@ -1,14 +1,17 @@
-// The AI proxy (ADR-0013): the one place the Claude API key exists. The
-// browser calls it with the learner's sign-in; it checks them, checks the
-// month's budget, asks Claude, and logs the call.
+// The AI proxy (ADR-0013, ADR-0015): the one place the Claude API key
+// exists. The browser calls it with the learner's sign-in; it checks them,
+// checks the month's budget, asks Claude, and logs the call. Two actions:
+// grading an explanation, and a hint from the tutor.
 //
 // Settings, from the function's secrets (never from the browser):
-//   ANTHROPIC_API_KEY   the Claude API key; without it, grading is unavailable
+//   ANTHROPIC_API_KEY   the Claude API key; without it, the AI is unavailable
 //   GRADER_MODEL        which model grades (default claude-haiku-5-5)
 //   GRADER_EFFORT       how hard it thinks (default low)
+//   TUTOR_MODEL         which model gives hints (default claude-haiku-5-5)
+//   TUTOR_EFFORT        how hard it thinks (default low)
 import Anthropic from 'npm:@anthropic-ai/sdk@1.6.0'
 import { createClient } from 'npm:@supabase/supabase-js@2.119.0'
-import { costOf, isPricedModel } from './cost.ts'
+import { costOf, isPricedModel, type PricedModel } from './cost.ts'
 import {
   type Effort,
   GradingUnavailable,
@@ -16,16 +19,31 @@ import {
   PROMPT_VERSION,
   readGrading,
 } from './grading.ts'
-import { createHandler, type Graded } from './handler.ts'
+import { createHandler, type Graded, type Hinted } from './handler.ts'
+import {
+  type HintInput,
+  HintUnavailable,
+  readHint,
+  TUTOR_PROMPT_VERSION,
+  tutorRequest,
+} from './tutor.ts'
 
 /** Calls stop once this month's spending reaches this many US dollars. */
 const CAP_USD = 10
 
-const model = Deno.env.get('GRADER_MODEL') ?? 'claude-haiku-5-5'
-if (!isPricedModel(model)) {
-  throw new Error(`No price for ${model}: add it to cost.ts first`)
+/** A model name from the settings, checked against the price table. */
+function pricedModel(setting: string, fallback: PricedModel): PricedModel {
+  const model = Deno.env.get(setting) ?? fallback
+  if (!isPricedModel(model)) {
+    throw new Error(`No price for ${model}: add it to cost.ts first`)
+  }
+  return model
 }
-const effort = (Deno.env.get('GRADER_EFFORT') ?? 'low') as Effort
+
+const graderModel = pricedModel('GRADER_MODEL', 'claude-haiku-5-5')
+const graderEffort = (Deno.env.get('GRADER_EFFORT') ?? 'low') as Effort
+const tutorModel = pricedModel('TUTOR_MODEL', 'claude-haiku-5-5')
+const tutorEffort = (Deno.env.get('TUTOR_EFFORT') ?? 'low') as Effort
 
 // Supabase gives every Edge Function its project's address and service role
 // key. The service role skips row-level security, so this client is only
@@ -44,18 +62,47 @@ async function grade(
 ): Promise<Graded> {
   if (!claude) throw new Error('No API key')
   const message = await claude.messages.create(
-    gradingRequest(input, model, effort),
+    gradingRequest(input, graderModel, graderEffort),
   )
   const usage = {
     input_tokens: message.usage.input_tokens,
     output_tokens: message.usage.output_tokens,
   }
-  const cost_usd = costOf(model as Parameters<typeof costOf>[0], usage)
+  const cost_usd = costOf(graderModel, usage)
   try {
-    return { model, usage, cost_usd, grading: readGrading(message, input) }
+    return {
+      model: graderModel,
+      usage,
+      cost_usd,
+      grading: readGrading(message, input),
+    }
   } catch (error) {
     if (!(error instanceof GradingUnavailable)) throw error
-    return { model, usage, cost_usd, grading: null, problem: error.message }
+    return {
+      model: graderModel,
+      usage,
+      cost_usd,
+      grading: null,
+      problem: error.message,
+    }
+  }
+}
+
+async function hint(input: HintInput): Promise<Hinted> {
+  if (!claude) throw new Error('No API key')
+  const message = await claude.messages.create(
+    tutorRequest(input, tutorModel, tutorEffort),
+  )
+  const usage = {
+    input_tokens: message.usage.input_tokens,
+    output_tokens: message.usage.output_tokens,
+  }
+  const cost_usd = costOf(tutorModel, usage)
+  try {
+    return { model: tutorModel, usage, cost_usd, hint: readHint(message, input) }
+  } catch (error) {
+    if (!(error instanceof HintUnavailable)) throw error
+    return { model: tutorModel, usage, cost_usd, hint: null, problem: error.message }
   }
 }
 
@@ -83,6 +130,7 @@ Deno.serve(
       return Number(data)
     },
     grade: claude ? grade : null,
+    hint: claude ? hint : null,
     async logCall(call) {
       const { data, error } = await admin
         .from('ai_calls')
@@ -94,5 +142,6 @@ Deno.serve(
     },
     capUsd: CAP_USD,
     promptVersion: PROMPT_VERSION,
+    tutorPromptVersion: TUTOR_PROMPT_VERSION,
   }),
 )

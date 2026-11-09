@@ -31,3 +31,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0012](0012-checkpoint-support.md) | Getting unstuck on a checkpoint | Accepted |
 | [0013](0013-explain-grading.md) | Grading explanations with Claude, through the AI proxy | Accepted |
 | [0014](0014-cloud-labs.md) | Proving cloud skills with labs in the learner's own clouds | Proposed |
+| [0015](0015-hint-only-tutor.md) | The hint-only tutor | Proposed |
