@@ -1,0 +1,25 @@
+id: pkg-version-sort
+type: predict_shell
+rev: 1
+prompt: |
+  Version numbers are not words. `sort` compares them as text; `sort -V` understands version numbering, where `1.10` comes after `1.9`. What do the two sorts print? The `echo ---` separates them.
+files:
+  versions.txt: |
+    1.24.0-2ubuntu7.1
+    1.9.0
+    1.24.0-2ubuntu7
+    1.10.0
+command: sort versions.txt; echo ---; sort -V versions.txt
+expected_output: |
+  1.10.0
+  1.24.0-2ubuntu7
+  1.24.0-2ubuntu7.1
+  1.9.0
+  ---
+  1.9.0
+  1.10.0
+  1.24.0-2ubuntu7
+  1.24.0-2ubuntu7.1
+explanation: |
+  As text, `1.1...` and `1.2...` come before `1.9...` because the character `1` and `2` come before `9`, so `1.9.0` lands last. `-V` compares the numeric parts as numbers, so 9 comes before 10 and 24, and `2ubuntu7` before `2ubuntu7.1`. Package managers compare versions this way, which is how `apt` knows `1.24.0-2ubuntu7.1` is the upgrade and not the downgrade.
+skills: [repositories]

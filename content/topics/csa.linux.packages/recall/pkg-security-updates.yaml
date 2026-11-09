@@ -1,0 +1,19 @@
+id: pkg-security-updates
+type: predict_shell
+rev: 1
+prompt: |
+  Same listing. Which of the pending updates are security fixes? A security fix is published in the `noble-security` suite, which the line names after the `/`. The first command counts those lines; the second prints their package names. What is printed?
+files:
+  upgradable.txt: |
+    Listing...
+    curl/noble-updates,noble-security 8.5.0-2ubuntu10.6 amd64 [upgradable from: 8.5.0-2ubuntu10.5]
+    openssl/noble-security 3.0.13-0ubuntu3.5 amd64 [upgradable from: 3.0.13-0ubuntu3.4]
+    vim/noble-updates 2:9.1.0016-1ubuntu7.8 amd64 [upgradable from: 2:9.1.0016-1ubuntu7.7]
+command: grep -c security upgradable.txt; grep security upgradable.txt | cut -d/ -f1
+expected_output: |
+  2
+  curl
+  openssl
+explanation: |
+  `curl` is in both `noble-updates` and `noble-security` (the same version is published in both), `openssl` only in `noble-security`, and `vim` only in `noble-updates`, so two of the three are security fixes: the ones to apply first. On a server you'd then run `apt upgrade` for those (or let `unattended-upgrades` do it), and treat the `vim` update as routine.
+skills: [patching, apt-dnf]

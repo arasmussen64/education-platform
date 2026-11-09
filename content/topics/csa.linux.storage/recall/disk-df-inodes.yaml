@@ -1,0 +1,16 @@
+id: disk-df-inodes
+type: predict_shell
+rev: 1
+prompt: |
+  Programs on this server fail with "No space left on device", yet `df -h` shows space free. `df-i.txt` is the output of `df -i`, which counts inodes instead of bytes. The command finds the filesystem whose inode usage is 100%. What is printed?
+files:
+  df-i.txt: |
+    Filesystem      Inodes   IUsed   IFree IUse% Mounted on
+    /dev/nvme0n1p1 1310720  210334 1100386   17% /
+    /dev/nvme1n1   6553600 6553600       0  100% /var
+command: awk 'NR > 1 && $5 == "100%" {print $6, "has", $4, "inodes free"}' df-i.txt
+expected_output: |
+  /var has 0 inodes free
+explanation: |
+  Every file needs an inode, the record that holds its metadata and points at its blocks, and an ext4 filesystem gets a fixed number of them when it's created. `/var` has used all 6.5 million: something has written millions of tiny files, often a session store, a mail queue or a cache. Deleting them frees inodes; growing the disk doesn't. XFS allocates inodes as needed, so it doesn't fail this way.
+skills: [disk-full, filesystems]

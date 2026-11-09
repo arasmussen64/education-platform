@@ -9,6 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Added (content: the cloud track begins)
 
 - **The first three topics of Module 1, Linux and the command line, as drafts:** Shell essentials, Processes and signals, and Users, permissions and SSH. Each has a lesson written for a complete beginner around freely licensed readings (MIT's Missing Semester, *The Linux Command Line*, the ArchWiki, the Linux man-pages), an explain prompt with its rubric, four to six skills, and a practice ladder of recall items: 54 between them, 31 of the new `predict_shell` kind, every one proven in real bash by the validator. They're drafts, visible on the dev server only, because their hands-on steps and proofs wait for the lab checker's local container mode ([ADR-0017](docs/decisions/0017-shell-in-the-browser.md)).
+- **Three more Module 1 topics as drafts:** Services and logs (systemd unit files, `systemctl`, `journalctl`), Package management and patching (`apt` and `dnf`, security updates, holds, reboots, immutable servers) and Disks and filesystems (`lsblk` to `fstab`, ext4 and XFS, growing a cloud disk with LVM, the two ways a disk fills up, `fsync` and IOPS). 49 recall items between them, 20 of them `predict_shell` items that read real tool output (`df`, `du`, `lsblk`, `blkid`, `lsof`, `vgs`, `dpkg -l`, `apt list`, `systemctl` listings, the journal) with the text tools from Shell essentials.
 
 ### Added (the cloud track's first question type)
 

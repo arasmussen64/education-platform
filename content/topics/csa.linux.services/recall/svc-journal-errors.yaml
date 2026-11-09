@@ -1,0 +1,25 @@
+id: svc-journal-errors
+type: predict_shell
+rev: 1
+prompt: |
+  Same journal. The command keeps the lines the program itself logged as errors and prints the time (the third field) of each. What is printed?
+files:
+  journal.txt: |
+    Nov 09 10:01:02 web1 systemd[1]: Started app.service - Example web app.
+    Nov 09 10:01:03 web1 python3[2314]: Listening on port 8080
+    Nov 09 10:05:17 web1 python3[2314]: ERROR database connection refused
+    Nov 09 10:05:17 web1 systemd[1]: app.service: Main process exited, code=exited, status=1/FAILURE
+    Nov 09 10:05:17 web1 systemd[1]: app.service: Failed with result 'exit-code'.
+    Nov 09 10:05:22 web1 systemd[1]: app.service: Scheduled restart job, restart counter is at 1.
+    Nov 09 10:05:22 web1 systemd[1]: Started app.service - Example web app.
+    Nov 09 10:05:23 web1 python3[2318]: Listening on port 8080
+    Nov 09 10:09:40 web1 python3[2318]: ERROR database connection refused
+    Nov 09 10:09:40 web1 systemd[1]: app.service: Main process exited, code=exited, status=1/FAILURE
+    Nov 09 10:09:45 web1 systemd[1]: app.service: Scheduled restart job, restart counter is at 2.
+command: grep ERROR journal.txt | awk '{print $3}'
+expected_output: |
+  10:05:17
+  10:09:40
+explanation: |
+  Each journal line starts with the month, the day and the time, so the time is field 3 for `awk`. Two `ERROR` lines, two times, about four minutes apart: the app starts, runs for a few minutes, then loses the database and dies, and the pattern repeats. On a live server `journalctl -u app -p err` does the filtering for you, but only for entries the program logged *with* an error priority; a plain `print` of the word ERROR is still priority info, which is why `grep` is often what you reach for.
+skills: [journalctl]

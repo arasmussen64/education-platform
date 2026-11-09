@@ -1,0 +1,19 @@
+id: pkg-upgradable-names
+type: predict_shell
+rev: 1
+prompt: |
+  `upgradable.txt` is the output of `apt list --upgradable`: a `Listing...` line, then one line per package as `name/suites version arch [upgradable from: old]`. The command skips the first line and keeps what's before the `/` on each. What is printed?
+files:
+  upgradable.txt: |
+    Listing...
+    curl/noble-updates,noble-security 8.5.0-2ubuntu10.6 amd64 [upgradable from: 8.5.0-2ubuntu10.5]
+    openssl/noble-security 3.0.13-0ubuntu3.5 amd64 [upgradable from: 3.0.13-0ubuntu3.4]
+    vim/noble-updates 2:9.1.0016-1ubuntu7.8 amd64 [upgradable from: 2:9.1.0016-1ubuntu7.7]
+command: tail -n +2 upgradable.txt | cut -d/ -f1
+expected_output: |
+  curl
+  openssl
+  vim
+explanation: |
+  `tail -n +2` starts at line 2, dropping `Listing...`. `cut -d/ -f1` splits each line at the `/` and keeps the first piece, the package name. Three packages would change if you ran `apt upgrade` now. The rest of each line tells you which suite the new version comes from and what version you have, which the next question uses.
+skills: [apt-dnf]

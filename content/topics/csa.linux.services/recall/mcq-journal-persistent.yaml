@@ -1,0 +1,14 @@
+id: mcq-journal-persistent
+type: mcq
+rev: 1
+prompt: |
+  After a reboot, `journalctl -b -1` (the previous boot's log) says there is no such boot. Why, and what fixes it?
+choices:
+  - "The journal was kept only in memory; create `/var/log/journal` (or set `Storage=persistent` in `journald.conf`) so it's written to disk"
+  - "Logs are always deleted at reboot; use a text file instead"
+  - "`-b -1` means one boot in the future"
+  - "The service must be enabled for its logs to be kept"
+answer: 0
+explanation: |
+  With `Storage=auto`, the default, journald writes to disk only if `/var/log/journal` exists; otherwise the journal lives in `/run`, which is memory, and is gone at reboot. Creating that directory (or setting `Storage=persistent`) keeps boots' logs, and `journalctl --list-boots` then shows them. Size is managed for you, and `--vacuum-time=2weeks` or `SystemMaxUse=` trims it.
+skills: [journalctl]

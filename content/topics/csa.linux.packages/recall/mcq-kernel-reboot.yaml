@@ -1,0 +1,14 @@
+id: mcq-kernel-reboot
+type: mcq
+rev: 1
+prompt: |
+  `apt upgrade` installed a new kernel and a new OpenSSL library. `uname -r` still shows the old kernel version, and the web server is still using the old OpenSSL. Why?
+choices:
+  - "The upgrade failed silently"
+  - "A new kernel only runs after a reboot, and a running program keeps the library versions it loaded until it's restarted; `/var/run/reboot-required` and `needs-restarting` tell you which is which"
+  - "Kernels and libraries are never actually updated, only downloaded"
+  - "You must run `apt update` again to activate them"
+answer: 1
+explanation: |
+  Files on disk changed, but the running kernel was loaded at boot, and a process maps a library into memory when it starts; both keep the old code until restarted. Ubuntu drops `/var/run/reboot-required` for the kernel case (RHEL's `needs-restarting -r` says the same), and `needs-restarting` or `checkrestart` lists the services that still hold old libraries, so you can restart just those. Live-patching exists for kernels, but a planned reboot is the normal answer.
+skills: [patching]

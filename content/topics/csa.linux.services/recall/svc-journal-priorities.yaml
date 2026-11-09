@@ -1,0 +1,20 @@
+id: svc-journal-priorities
+type: predict_shell
+rev: 1
+prompt: |
+  `journal.json` is `journalctl -u app -o json`: one JSON object per line, with a `PRIORITY` field using the syslog numbers (3 is `err`, 4 is `warning`, 6 is `info`). `grep -o` pulls out just the priority field of each line, and `sort | uniq -c` counts each value. What is printed? Include the padding before each count.
+files:
+  journal.json: |
+    {"PRIORITY":"6","_SYSTEMD_UNIT":"app.service","MESSAGE":"Listening on port 8080"}
+    {"PRIORITY":"3","_SYSTEMD_UNIT":"app.service","MESSAGE":"database connection refused"}
+    {"PRIORITY":"4","_SYSTEMD_UNIT":"app.service","MESSAGE":"slow query 2.1s"}
+    {"PRIORITY":"6","_SYSTEMD_UNIT":"app.service","MESSAGE":"Listening on port 8080"}
+    {"PRIORITY":"3","_SYSTEMD_UNIT":"app.service","MESSAGE":"database connection refused"}
+command: grep -o '"PRIORITY":"[0-9]"' journal.json | sort | uniq -c
+expected_output: |2
+        2 "PRIORITY":"3"
+        1 "PRIORITY":"4"
+        2 "PRIORITY":"6"
+explanation: |
+  Two errors (3), one warning (4), two informational entries (6). `sort` groups the equal lines so `uniq -c` can count them, and the counts come out padded to seven characters, as `uniq -c` always prints them. The priorities are what `journalctl -p err` filters on: it would show the two `3` entries (and anything more serious). `-o json` is also how you'd hand the journal to `jq` or a log shipper.
+skills: [journalctl]

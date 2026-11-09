@@ -1,0 +1,22 @@
+id: disk-lsblk-disks
+type: predict_shell
+rev: 1
+prompt: |
+  `lsblk.txt` is the output of `lsblk` on a cloud server that just had a new volume attached. The TYPE column (field 6) says whether a row is a whole disk or a partition, and MOUNTPOINTS (field 7, when present) says where it's mounted. The command prints each disk with its size and its mount point, or a note when there isn't one. What is printed?
+files:
+  lsblk.txt: |
+    NAME        MAJ:MIN RM  SIZE RO TYPE MOUNTPOINTS
+    nvme0n1     259:0    0   20G  0 disk
+    ├─nvme0n1p1 259:1    0   19G  0 part /
+    └─nvme0n1p2 259:2    0    1G  0 part /boot
+    nvme1n1     259:3    0  100G  0 disk /var
+    nvme2n1     259:4    0  500G  0 disk
+command: |
+  awk '$6 == "disk" {print $1, $4, ($7 == "" ? "(no mountpoint)" : $7)}' lsblk.txt
+expected_output: |
+  nvme0n1 20G (no mountpoint)
+  nvme1n1 100G /var
+  nvme2n1 500G (no mountpoint)
+explanation: |
+  Three disks. `nvme0n1` itself has no mount point because it's split into partitions, and those are mounted (`/` and `/boot`). `nvme1n1` has a filesystem written straight onto the disk, no partitions, mounted at `/var`. `nvme2n1` is the new 500G volume: no partitions, no filesystem yet, nothing mounted. That's the one to format and mount. The `? :` in `awk` picks a note when the seventh field is empty.
+skills: [block-devices]

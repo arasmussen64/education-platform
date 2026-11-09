@@ -1,17 +1,110 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.storage
 kind: topic
-status: planned
-title: Disks and filesystems
-summary: Attach, format, mount and grow a disk.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "Disks and filesystems"
+summary: "From a raw disk to files you can use: partitions, filesystems, mount points and fstab; growing a disk in the cloud, with LVM; the two ways a disk fills up and how to fix each; and what durability costs."
+prerequisites: [csa.linux.shell]
+estimated_minutes: 100
 rev: 1
 objectives:
-- Attach, format, mount and grow a disk.
-- Choose between ext4 and XFS.
-- Use LVM.
-- Fix "disk full", including running out of inodes and deleted files held open.
-- Explain fsync, queue depth, and what durability costs.
+  - "Read `lsblk`, `blkid`, `df` and `/etc/fstab`: disks, partitions, filesystems, UUIDs and mount points, and attach, format and mount a new disk."
+  - "Choose between ext4 and XFS for a new volume, and explain what inodes are."
+  - "Grow a disk in the cloud without downtime, including what LVM adds (physical volumes, volume groups, logical volumes)."
+  - "Fix a full disk: find what's using the space, tell a full disk from one that's out of inodes, and free a deleted file a process still holds open."
+  - "Explain `fsync`, IOPS, throughput, latency and queue depth, and why turning durability off is dangerous."
+# Linked, never copied. Licences: DigitalOcean's community tutorials are
+# CC BY-NC-SA 4.0 (stated in each page); the ArchWiki is GNU FDL 1.3; the
+# AWS documentation and Dan Luu's article are their authors' copyright and
+# are linked only.
+resources:
+  - title: "An Introduction to Storage Terminology and Concepts in Linux, by Justin Ellingwood (DigitalOcean community tutorials)"
+    url: https://www.digitalocean.com/community/tutorials/an-introduction-to-storage-terminology-and-concepts-in-linux
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "How To Partition and Format Storage Devices in Linux (DigitalOcean community tutorials)"
+    url: https://www.digitalocean.com/community/tutorials/how-to-partition-and-format-storage-devices-in-linux
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "ArchWiki: LVM (physical volumes, volume groups and logical volumes; growing a logical volume)"
+    url: https://wiki.archlinux.org/title/LVM
+    type: reading
+    use: link
+    license: GNU FDL 1.3
+  - title: "ArchWiki: fstab (the fields, UUIDs, and the nofail option)"
+    url: https://wiki.archlinux.org/title/Fstab
+    type: reading
+    use: link
+    license: GNU FDL 1.3
+  - title: "Extend a Linux file system after resizing a volume (Amazon EBS User Guide): growpart, resize2fs and xfs_growfs on a live server"
+    url: https://docs.aws.amazon.com/ebs/latest/userguide/recognize-expanded-volume-linux.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Files are hard, by Dan Luu: what it takes for a write to really be on disk (read the first half)"
+    url: https://danluu.com/file-consistency/
+    type: reading
+    use: link
+    license: "Copyright Dan Luu; linked, not copied"
+# Lessons and recall first (ADR-0017). The browser has no disks, so the
+# items read lsblk, df, du, blkid, fstab, lsof and vgs output with the text
+# tools of the first topic; formatting, mounting and growing come in the labs.
+practice:
+  - disk-lsblk-disks
+  - mcq-mount-steps
+  - disk-blkid-types
+  - disk-fstab-fields
+  - mcq-uuid-fstab
+  - mcq-ext4-vs-xfs
+  - disk-df-full
+  - disk-du-top
+  - disk-df-inodes
+  - mcq-inodes
+  - disk-lsof-deleted
+  - mcq-deleted-open
+  - mcq-lvm-why
+  - disk-vg-free
+  - mcq-grow-cloud-disk
+  - mcq-fsync
+  - mcq-iops-throughput
+prove:
+  explain:
+    prompt: |
+      A server's disk is full and the application has stopped writing. Explain, in your own words: how you'd find what is using the space, and the two different ways a disk can be "full"; why deleting a huge log file sometimes frees nothing, and what to do instead; how you'd grow the disk in the cloud without downtime, and what LVM adds to that; how you'd choose between ext4 and XFS for a new volume; and what `fsync` does and why turning it off to make a database faster is dangerous.
+    rubric:
+      - id: find-space
+        required: true
+        description: "df -h shows which filesystem is full; du -sh on its folders, sorted, finds the big ones; df -i shows inodes, because a filesystem can be out of inodes (millions of tiny files) while bytes remain."
+      - id: deleted-open
+        required: true
+        description: "A deleted file's space isn't freed while a process holds it open; lsof +L1 (or lsof | grep deleted) finds the process; truncate the file (: > /proc/PID/fd/N) or restart the process; for logs, truncate rather than delete, or use logrotate's copytruncate."
+      - id: grow
+        required: true
+        description: "Enlarge the volume in the cloud console or CLI, then growpart the partition and grow the filesystem online (resize2fs for ext4, xfs_growfs for XFS); with LVM, pvresize, then lvextend -r, which grows the filesystem too; LVM lets a filesystem span disks and be resized online."
+      - id: choose-fs
+        required: true
+        description: "Both are journaling filesystems fine for most workloads; XFS grows online but can't shrink and is the Red Hat default, ext4 can shrink offline and is the Debian/Ubuntu default; XFS allocates inodes dynamically, ext4 fixes them at mkfs."
+      - id: fsync
+        required: true
+        description: "write() returns once data is in the kernel's cache; fsync forces it to the disk before returning, which is what makes a committed transaction survive a power cut; it costs latency, and turning it off means acknowledged writes can be lost."
+    model_answer: |
+      I'd start with df -h to see which filesystem is full, then du -sh on its top-level folders, sorted with sort -rh, and down into the biggest until I find the culprit, usually logs or a cache. A disk can be full in two ways: out of bytes, which df -h shows, or out of inodes, which df -i shows; a filesystem that holds millions of tiny files can have free space and no inodes left, and the error message is the same "No space left on device". Deleting a huge log sometimes frees nothing because a process still has the file open: the name is gone but the data stays on disk until the last process closes it. lsof +L1 (or lsof | grep deleted) finds the process and the file descriptor, and then I either truncate the file through the descriptor with : > /proc/PID/fd/N or restart the process. For live logs the right move is to truncate rather than delete, or let logrotate do it with copytruncate. To grow the disk in the cloud I enlarge the volume in the console or CLI, which is instant and online, then make Linux use the space: growpart to extend the partition, then resize2fs for ext4 or xfs_growfs for XFS, both while mounted. With LVM there's one more layer: pvresize to tell LVM the disk grew, then lvextend -r on the logical volume, which grows the filesystem in the same step. What LVM adds is that a filesystem can span several disks and be resized online, so growing is routine. For a new volume, ext4 and XFS are both journaling filesystems and both fine for most things. XFS can grow online but never shrink, allocates inodes as needed, handles large files and parallel writes well, and is the default on Red Hat; ext4 can shrink when unmounted, fixes its inode count at mkfs, and is the default on Debian and Ubuntu. I'd pick XFS for a data or log volume and ext4 where the distribution expects it. fsync is the call that forces a file's data out of the kernel's write cache onto the disk before returning; a plain write() returns as soon as the data is in memory. A database calls fsync when it commits so the transaction survives a power cut. Turning that off makes writes faster because they no longer wait for the disk, and it means that on a crash the database may have told clients their data was saved when it wasn't.
+review_pool:
+  - disk-df-full
+  - disk-df-inodes
+  - disk-lsof-deleted
+  - disk-fstab-fields
+  - mcq-grow-cloud-disk
+  - mcq-fsync
+skills:
+  - id: block-devices
+    description: "Disks, partitions, filesystems and mount points: `lsblk`, `blkid`, `mkfs`, `mount`, `/etc/fstab` with UUIDs"
+  - id: filesystems
+    description: "ext4 versus XFS, journaling, inodes, and reading a filesystem's type"
+  - id: lvm-grow
+    description: "Growing a disk in the cloud: `growpart`, `resize2fs`, `xfs_growfs`; LVM's physical volumes, volume groups and logical volumes, `lvextend -r`"
+  - id: disk-full
+    description: "A full disk: `df -h`, `du`, `df -i` for inodes, and deleted files a process still holds open"
+  - id: durability
+    description: "`fsync`, write caches, IOPS, throughput, latency and queue depth, and what durability costs"

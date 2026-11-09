@@ -1,0 +1,18 @@
+id: disk-blkid-types
+type: predict_shell
+rev: 1
+prompt: |
+  `blkid.txt` is the output of `blkid`: one line per device, with its UUID and its filesystem TYPE when it has one. The `sed` command prints only what's inside the quotes after ` TYPE=`, and nothing for lines without it (`-n` prints only when the `p` flag fires). What is printed?
+files:
+  blkid.txt: |
+    /dev/nvme0n1p1: UUID="3f2a9c1e-5b7d-4e2f-9a1b-2c3d4e5f6a7b" BLOCK_SIZE="4096" TYPE="ext4" PARTUUID="0001"
+    /dev/nvme1n1: UUID="7c1d2e3f-4a5b-6c7d-8e9f-0a1b2c3d4e5f" BLOCK_SIZE="512" TYPE="xfs"
+    /dev/nvme2n1: PTUUID="9d8c7b6a" PTTYPE="gpt"
+command: |
+  sed -n 's/.* TYPE="\([^"]*\)".*/\1/p' blkid.txt
+expected_output: |
+  ext4
+  xfs
+explanation: |
+  The pattern looks for a space, `TYPE="`, then captures everything up to the next quote in `\( \)`, and replaces the whole line with that capture, `\1`. Lines 1 and 2 have a filesystem: ext4 on the root partition, xfs on `/var`. Line 3 has `PTTYPE="gpt"`, a partition-table type, not a filesystem; the leading space in the pattern keeps `PTTYPE` from matching, and with `-n` the unmatched line prints nothing. The new disk has no filesystem yet.
+skills: [filesystems]

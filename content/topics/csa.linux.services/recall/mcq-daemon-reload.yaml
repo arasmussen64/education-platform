@@ -1,0 +1,14 @@
+id: mcq-daemon-reload
+type: mcq
+rev: 1
+prompt: |
+  You change `ExecStart=` in `/etc/systemd/system/app.service` and run `systemctl restart app`, but the old command is still what's running. What did you miss?
+choices:
+  - "`systemctl daemon-reload`: systemd reads unit files once and has to be told they changed, before the restart"
+  - "A reboot; unit files are only read at boot"
+  - "`systemctl enable app`; changes only apply to enabled services"
+  - "`systemctl reload app`, which rereads the unit file"
+answer: 0
+explanation: |
+  systemd keeps its own copy of every unit it has loaded. Editing the file on disk changes nothing until `systemctl daemon-reload` makes it reread them; `systemctl status` even warns "changed on disk" when you forget. No reboot is needed. `enable` is about boot, not about rereading. `reload` sends the *service* a signal to reread *its own* config (nginx's, say), not systemd's unit file.
+skills: [unit-files, systemctl]

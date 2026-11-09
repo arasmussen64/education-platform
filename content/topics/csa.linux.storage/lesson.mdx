@@ -1,0 +1,32 @@
+<Intro>
+
+A disk, to Linux, is a **block device**: a long row of numbered blocks you can read and write, and nothing more. Everything you think of as "files" is layered on top. This topic walks up the layers, because every cloud server has at least one disk attached and sooner or later one of them fills up.
+
+**The layers.** A **disk** (`/dev/nvme0n1`, `/dev/sda`, `/dev/xvdf` on older clouds) may be split into **partitions** (`/dev/nvme0n1p1`). A **filesystem** (`ext4`, `xfs`) is written onto a disk or a partition with `mkfs`; it's the structure that turns blocks into named files and folders. A filesystem is then **mounted** at a folder, its **mount point**, so that `/var` or `/data` leads into it. `lsblk` shows the tree of disks, partitions and where each is mounted; `blkid` shows each filesystem's type and its **UUID**, a unique ID that doesn't change when the disk gets a different device name after a reboot. That's why `/etc/fstab`, the file that says what to mount at boot, names filesystems by `UUID=` rather than `/dev/sdb`, and why a volume that might be detached gets the `nofail` option, so a missing disk doesn't stop the boot. Attaching a new disk is: `lsblk` to find it, `mkfs.xfs /dev/nvme2n1`, `mkdir /data`, `mount /dev/nvme2n1 /data`, a line in `fstab` with the UUID from `blkid`, and `mount -a` to prove the line works before you ever reboot.
+
+**ext4 or XFS.** Both are **journaling** filesystems: they write a log of what they're about to change, so a crash mid-write doesn't corrupt them. Both are fine for almost everything. XFS can grow while mounted but can never shrink, allocates inodes as needed, is good with large files and parallel writers, and is the default on Red Hat and its relatives. ext4 can shrink when unmounted, fixes its number of inodes when it's created, and is the default on Debian and Ubuntu. An **inode** is the record that holds a file's metadata and points at its blocks: every file costs one, so a filesystem with a fixed inode count can run out of inodes while it still has free bytes.
+
+**A full disk.** `df -h` shows every mounted filesystem with its size, what's used and the percentage. `du -sh /var/*` shows how much each folder holds; `du -sk` gives kilobytes you can `sort -rn`. Drill down until you find the culprit, usually logs or a cache. If `df -h` shows space free but programs still fail with "No space left on device", look at `df -i`: the filesystem is out of **inodes**, because something created millions of tiny files. And if you delete a huge log and `df` doesn't change, a process still has the file open: deleting removes the *name*, and the data stays until the last program closes it. `lsof +L1` (or `lsof | grep deleted`) finds the process and the file descriptor; truncate the file through it with `: > /proc/PID/fd/N`, or restart the process. For live logs, truncate instead of deleting, or let `logrotate` handle it.
+
+**Growing a disk in the cloud.** Cloud disks grow while attached. Enlarge the volume in the console or the CLI, then tell Linux: `growpart /dev/nvme0n1 1` extends the partition, and `resize2fs /dev/nvme0n1p1` (ext4) or `xfs_growfs /` (XFS, by mount point) grows the filesystem, all while it's mounted and in use. **LVM** adds a layer that makes this routine: disks become **physical volumes**, pooled into a **volume group**, carved into **logical volumes** that hold the filesystems. A logical volume can span disks, and growing it is `lvextend -r -L +50G /dev/data/vol1`, where `-r` grows the filesystem in the same step; `vgs` shows how much free space the group has. Adding a disk to the group (`vgextend`) adds room to every logical volume in it.
+
+**What durability costs.** When a program writes a file, `write()` returns as soon as the data is in the kernel's memory cache; the disk hasn't seen it yet. **`fsync`** forces the data onto the disk before returning. That's what a database does when it commits a transaction, so the commit survives a power cut, and it's why databases care so much about disk **latency**: each commit waits for the disk. Disks are rated in **IOPS** (operations per second, which small random reads and writes run into), **throughput** (megabytes per second, which large sequential reads and writes run into) and latency, and cloud volumes have IOPS limits per volume and per instance. **Queue depth** is how many requests are in flight at once: deeper queues give more throughput at the cost of each request's latency. Turning `fsync` off makes a database faster and means it can tell a client "saved" about data that is lost in the next crash.
+
+**Read now:** the storage terminology tutorial, the main resource below, then the one on partitioning and formatting, the ArchWiki's LVM and fstab pages for the details, the AWS page for the exact grow sequence on a live server, and the first half of Dan Luu's article for why `fsync` is harder than it looks. The practice reads `lsblk`, `df`, `du`, `blkid`, `fstab`, `lsof` and `vgs` output with the text tools from Shell essentials.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Layers:** disk, partition, filesystem (`mkfs.ext4`, `mkfs.xfs`), mount point. `lsblk` shows the tree; `blkid` shows types and UUIDs; `mount`, `umount`, `mount -a` to test `fstab`.
+- **fstab fields:** what (`UUID=…`), where, type, options (`defaults`, `nofail`), dump, pass. UUIDs survive device renames; `nofail` keeps a missing disk from blocking boot.
+- **ext4 vs XFS:** both journaling. XFS grows online, never shrinks, dynamic inodes, Red Hat's default. ext4 shrinks offline, fixed inodes, Debian and Ubuntu's default.
+- **Full disk:** `df -h` (bytes), `du -sh` or `du -sk | sort -rn` (who), `df -i` (inodes). "No space left" with free bytes means no inodes.
+- **Deleted but open:** the space stays until the process closes the file. `lsof +L1`, then `: > /proc/PID/fd/N` or restart it. Truncate live logs; don't `rm` them.
+- **Grow in the cloud:** enlarge the volume; `growpart disk partition-number`; `resize2fs device` (ext4) or `xfs_growfs mountpoint` (XFS); online.
+- **LVM:** physical volume, volume group, logical volume; `vgs` for free space; `lvextend -r -L +50G lv` grows the filesystem too; `vgextend` adds a disk.
+- **Durability:** `write()` fills the cache; `fsync` waits for the disk. IOPS (small random), throughput (large sequential), latency; queue depth trades latency for throughput. No `fsync`, no promise.
+
+</Recap>

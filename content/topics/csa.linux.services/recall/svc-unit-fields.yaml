@@ -1,0 +1,32 @@
+id: svc-unit-fields
+type: predict_shell
+rev: 1
+prompt: |
+  Four settings do most of the work in a unit file: what to run, who runs it, when to restart it, and when it's wanted. `grep -E` with `^(A|B)=` matches lines that start with any of the names followed by `=`. What is printed, in file order?
+files:
+  app.service: |
+    [Unit]
+    Description=Example web app
+    After=network-online.target
+    Wants=network-online.target
+
+    [Service]
+    Type=simple
+    User=app
+    WorkingDirectory=/srv/app
+    Environment=PORT=8080
+    ExecStart=/usr/bin/python3 /srv/app/app.py
+    Restart=on-failure
+    RestartSec=5
+
+    [Install]
+    WantedBy=multi-user.target
+command: grep -E '^(ExecStart|User|Restart|WantedBy)=' app.service
+expected_output: |
+  User=app
+  ExecStart=/usr/bin/python3 /srv/app/app.py
+  Restart=on-failure
+  WantedBy=multi-user.target
+explanation: |
+  `grep` prints matches in the order they appear in the file, so `User=` comes before `ExecStart=`. Notice that `RestartSec=5` is *not* printed: the pattern requires `=` right after `Restart`, and `RestartSec` has `Sec` in between. Those four lines say: run this Python program, as the `app` user, start it again if it fails, and make it part of a normally booted server.
+skills: [unit-files]

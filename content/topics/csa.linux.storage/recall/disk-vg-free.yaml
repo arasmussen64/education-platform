@@ -1,0 +1,15 @@
+id: disk-vg-free
+type: predict_shell
+rev: 1
+prompt: |
+  `vgs.txt` is the output of `vgs`, which lists LVM volume groups: their size (VSize, field 6) and how much is still unallocated (VFree, field 7). Before growing a logical volume you check there's room. What is printed?
+files:
+  vgs.txt: |
+    VG   #PV #LV #SN Attr   VSize   VFree
+    data   1   1   0 wz--n- 500.00g 100.00g
+command: awk 'NR > 1 {print $1 " has " $7 " free of " $6}' vgs.txt
+expected_output: |
+  data has 100.00g free of 500.00g
+explanation: |
+  The group `data` has one physical volume (one disk, `#PV 1`), one logical volume carved from it (`#LV 1`), and 100 GB not yet handed to any volume. So `lvextend -r -L +50G /dev/data/vol1` would succeed and grow the filesystem too; asking for +200G would fail until a disk is added with `vgextend` or the existing one is enlarged and `pvresize`d. `lvs` and `pvs` show the same layers from the other sides.
+skills: [lvm-grow]
