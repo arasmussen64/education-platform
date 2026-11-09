@@ -53,6 +53,22 @@ Local Studio, a web UI for browsing the database, runs at http://127.0.0.1:54323
 
 Deno comes with `npm install` at the repository root, so there's nothing else to install.
 
+### Putting it live
+
+Merging deploys the web app, but not the function. A change to `functions/ai/` reaches the live project only when it's deployed by hand, with the owner's go-ahead. Once the change is merged, run these from the repository root, in this order:
+
+1. `npx supabase db push --remote --dry-run` lists the migrations the live database is missing. If the change has one, apply it: run the same command with `--yes` in place of `--dry-run`.
+2. `npx supabase functions deploy ai --no-verify-jwt --yes` deploys the function. `--no-verify-jwt` matches `config.toml`: the function checks sign-in itself.
+3. Check it without calling Claude. This request should get a 401 and `{"error":"Sign in first."}`:
+
+   ```sh
+   curl -s -X POST https://<ref>.supabase.co/functions/v1/ai -H "apikey: <publishable key>"
+   ```
+
+The key is set once, and again only when it changes: `npx supabase secrets set --env-file supabase/functions/.env --yes`.
+
+**Why `--yes`:** the CLI asks before it changes the live project. Inside Claude Code it can't ask, so it refuses unless the command includes `--yes`. That flag goes in only once the owner has agreed.
+
 ## Rules
 
 - **Change the schema only with a new migration.** Never edit tables in a dashboard, and never edit a migration that has reached production.

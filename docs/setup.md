@@ -30,7 +30,7 @@ Docker Desktop uses a few GB of memory while it's running, so quit it when you'r
 | GitHub OAuth app | "Sign in with GitHub" on the live site | ✅ Created and connected to Supabase |
 | Supabase | The real database and sign-in (one project, `education-platform`) | ✅ Linked; migrations applied |
 | Cloudflare | Hosts the app | ✅ Connected; deploys on every merge to `main` |
-| Anthropic Console | The Claude API for the tutor and grading (week 2) | ☐ Later |
+| Anthropic Console | The Claude API, for grading explanations now and the tutor later | ✅ Key in the live project's secrets |
 
 ### Supabase
 
@@ -89,11 +89,20 @@ Its client ID and secret are stored only in Supabase (**Authentication → Sign 
 
 Local development doesn't use this app. The local Supabase signs in with email links, which land in its test inbox at http://127.0.0.1:54324.
 
-### Anthropic Console (week 2)
+### Anthropic Console (the Claude API)
 
 1. Create an account at console.anthropic.com and add billing.
 2. Set a monthly spending limit of $10. This is on top of the app's own cap.
-3. When we wire up the tutor, create an API key and store it only in Supabase's secret settings.
+3. Create an API key. It's kept in two places only:
+   - `supabase/functions/.env` on your PC (gitignored), for local testing and `npm run fn:eval`;
+   - the live project's secrets, as `ANTHROPIC_API_KEY`. It was put there on 2026-11-08 with `npx supabase secrets set --env-file supabase/functions/.env --yes`. That command reads the file, so the key never appears on screen.
+
+**To change the key:**
+1. Put the new key in the `.env` file.
+2. Run that command again.
+3. Delete the old key in the Console.
+
+**Who can use it.** Explanations are graded only for accounts with `allowed` switched on, a column in `profiles`. The owner's account was switched on on 2026-11-08, in the dashboard's SQL editor.
 
 ## Back up your learning data
 
