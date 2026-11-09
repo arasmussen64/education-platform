@@ -13,7 +13,8 @@ How content and learner data are stored, and how progress is computed.
 ```text
 content/
 ├── tracks/
-│   └── python-foundations.yaml
+│   ├── python-foundations.yaml
+│   └── cloud-solutions-architect.yaml   generated from its spec by tools/outline_cloud_track.py
 └── topics/
     └── py.variables/
         ├── topic.yaml
@@ -42,6 +43,8 @@ content/
 # content/tracks/python-foundations.yaml
 id: python-foundations
 title: Python Foundations
+summary: From your first line of code to small, real programs you can build from a blank file.
+order: 1                        # where the track comes in the app, lowest first; each track has its own
 modules:
   - id: py.m1
     title: First programs
@@ -49,6 +52,18 @@ modules:
     checkpoint: py.m1.checkpoint
   # ...modules 2-6
 ```
+
+A module may also name a **capstone**: a bigger checkpoint that ends a stage. It comes after the module's own checkpoint and builds on every module before it, so a ready capstone needs every earlier topic ready:
+
+```yaml
+  - id: csa.m15
+    title: Observability and operations
+    topics: [csa.ops.telemetry, ...]
+    checkpoint: csa.m15.checkpoint
+    capstone: csa.capstone-1    # kind: checkpoint, like any checkpoint
+```
+
+The app shows the first track at `/map` and the others at `/map/<track id>`.
 
 ### Topic
 

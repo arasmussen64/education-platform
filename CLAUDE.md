@@ -85,6 +85,7 @@ Database: run these from the repository root, with Docker Desktop running. Detai
 Content: run this from the repository root. Details are in [content/README.md](content/README.md).
 
 - `python -m uv run python tools/validate_content.py` checks every topic and runs every exercise (`--no-run` skips running code). CI runs it on every pull request, and content must pass it before being marked `ready`.
+- `python -m uv run python tools/outline_cloud_track.py` regenerates the Cloud Solutions Architect track's `planned` outlines from its spec. Change the spec, not the outlines. It never touches a topic that's being written.
 
 ## Environment
 

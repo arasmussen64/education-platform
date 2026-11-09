@@ -69,6 +69,7 @@ objectives:
 TRACK = """id: test-track
 title: Test track
 summary: A tiny track for tests.
+order: 1
 modules:
   - id: t.m1
     title: Module one

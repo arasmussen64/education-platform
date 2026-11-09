@@ -9,6 +9,7 @@ from content_fixture import (
     MCQ,
     READY_CHECKPOINT,
     TOPIC,
+    TRACK,
     make_ready_checkpoint,
     make_valid_tree,
     write,
@@ -96,6 +97,60 @@ def test_every_topic_must_be_in_a_track(tree: Path) -> None:
         ),
     )
     assert_reported(tree, "isn't in any track", run=False)
+
+
+def test_tracks_each_have_their_own_order(tree: Path) -> None:
+    second = TRACK.replace("test-track", "other-track").replace(
+        "topics: [t.hello]", "topics: [t.other]"
+    )
+    second = second.replace("t.m1.checkpoint", "t.m2.checkpoint")
+    write(tree, "content/tracks/other.yaml", second)
+    write(
+        tree,
+        "content/topics/t.other/topic.yaml",
+        "id: t.other\nkind: topic\nstatus: planned\ntitle: Other\n"
+        "summary: Another topic.\nestimated_minutes: 30\nrev: 1\n"
+        "objectives:\n  - Do another thing.\n",
+    )
+    write(
+        tree,
+        "content/topics/t.m2.checkpoint/topic.yaml",
+        CHECKPOINT.replace("t.m1.checkpoint", "t.m2.checkpoint").replace(
+            "[t.hello]", "[t.other]"
+        ),
+    )
+    # Whichever file comes second gets the report.
+    assert_reported(tree, "order 1 is also", run=False)
+    write(tree, "content/tracks/other.yaml", second.replace("order: 1", "order: 2"))
+    assert problems(tree, run=False) == []
+
+
+def test_a_capstone_is_a_checkpoint_that_follows_its_module(tree: Path) -> None:
+    write(
+        tree,
+        "content/tracks/test.yaml",
+        TRACK.replace(
+            "checkpoint: t.m1.checkpoint",
+            "checkpoint: t.m1.checkpoint\n    capstone: t.capstone",
+        ),
+    )
+    assert_reported(tree, "t.m1 lists 't.capstone', which doesn't exist", run=False)
+
+    write(
+        tree,
+        "content/topics/t.capstone/topic.yaml",
+        CHECKPOINT.replace("t.m1.checkpoint", "t.capstone").replace(
+            "kind: checkpoint", "kind: topic"
+        ),
+    )
+    assert_reported(tree, "'t.capstone' must have kind: checkpoint", run=False)
+
+    write(
+        tree,
+        "content/topics/t.capstone/topic.yaml",
+        CHECKPOINT.replace("t.m1.checkpoint", "t.capstone"),
+    )
+    assert problems(tree, run=False) == []
 
 
 def test_ready_topics_need_every_part(tree: Path) -> None:

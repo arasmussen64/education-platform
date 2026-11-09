@@ -4,24 +4,31 @@ import {
   isOpen,
   loadTopicContent,
   mainTrack,
-  moduleFor,
+  placeOf,
+  topicIdsOf,
+  tracks,
 } from './content.ts'
 import type { Topic } from './types.ts'
 
 // These read the real files in content/, through the same Vite plugins the
 // app uses.
 
+const everyTopicId = tracks().flatMap(topicIdsOf)
+
 describe('the content the app loads', () => {
-  it('has the Python Foundations track, with every topic in it', () => {
+  it('has the Python Foundations track first, with every topic in it', () => {
     const track = mainTrack()
     expect(track.id).toBe('python-foundations')
     expect(track.modules).toHaveLength(6)
-    const ids = track.modules.flatMap((module) => [
-      ...module.topics,
-      module.checkpoint,
+    expect(topicIdsOf(track)).toHaveLength(36)
+  })
+
+  it('lists the tracks in order, and knows every topic they name', () => {
+    expect(tracks().map((track) => track.id)).toEqual([
+      'python-foundations',
+      'cloud-solutions-architect',
     ])
-    expect(ids).toHaveLength(36)
-    for (const id of ids) {
+    for (const id of everyTopicId) {
       expect(getTopic(id), id).toBeDefined()
     }
   })
@@ -35,8 +42,7 @@ describe('the content the app loads', () => {
 
   // Whichever topic is still only an outline, so these keep working as
   // topics get written.
-  const outline = mainTrack()
-    .modules.flatMap((module) => [...module.topics, module.checkpoint])
+  const outline = everyTopicId
     .map((id) => getTopic(id))
     .find((topic) => topic?.status === 'planned')
 
@@ -49,24 +55,36 @@ describe('the content the app loads', () => {
     })
   })
 
-  it('knows which module each topic is in', () => {
-    expect(moduleFor('py.variables')).toMatchObject({
+  it("knows each topic's track and module, and what it is there", () => {
+    expect(placeOf('py.variables')).toMatchObject({
+      track: { id: 'python-foundations' },
       number: 1,
       module: { title: 'First programs' },
+      role: 'topic',
     })
-    expect(moduleFor('py.m2.checkpoint')?.number).toBe(2)
-    expect(moduleFor('py.nothing')).toBeUndefined()
+    expect(placeOf('py.m2.checkpoint')).toMatchObject({
+      number: 2,
+      role: 'checkpoint',
+    })
+    // A capstone follows its module's own checkpoint.
+    expect(placeOf('csa.capstone-1')).toMatchObject({
+      track: { id: 'cloud-solutions-architect' },
+      number: 15,
+      module: { title: 'Observability and operations' },
+      role: 'capstone',
+    })
+    expect(placeOf('py.nothing')).toBeUndefined()
   })
 
   // Every ready topic and checkpoint, so each new one is checked as soon as
   // it's added.
-  const isReady = (id: string) => getTopic(id)?.status === 'ready'
-  const readyTopics = mainTrack()
-    .modules.flatMap((module) => module.topics)
-    .filter(isReady)
-  const readyCheckpoints = mainTrack()
-    .modules.map((module) => module.checkpoint)
-    .filter(isReady)
+  const ready = (kind: Topic['kind']) =>
+    everyTopicId.filter((id) => {
+      const topic = getTopic(id)
+      return topic?.status === 'ready' && topic.kind === kind
+    })
+  const readyTopics = ready('topic')
+  const readyCheckpoints = ready('checkpoint')
 
   it('has at least one ready topic', () => {
     expect(readyTopics.length).toBeGreaterThan(0)

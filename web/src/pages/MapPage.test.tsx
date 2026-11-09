@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { getTopic } from '../content/content.ts'
@@ -38,7 +38,10 @@ function attempt(
   }
 }
 
-function renderMap(history: Attempt[] | Error, { signedIn = true } = {}) {
+function renderMap(
+  history: Attempt[] | Error,
+  { signedIn = true, path = '/map' } = {},
+) {
   vi.mocked(fetchAttempts).mockResolvedValue([])
   if (history instanceof Error) {
     vi.mocked(fetchAttempts).mockRejectedValueOnce(history)
@@ -48,8 +51,10 @@ function renderMap(history: Attempt[] | Error, { signedIn = true } = {}) {
   render(
     <AuthProvider auth={fakeAuth(signedIn ? fakeUser() : null)}>
       <EventLogContext value={recordingEventLog().log}>
-        <MemoryRouter>
-          <MapPage />
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="/map/:trackId?" element={<MapPage />} />
+          </Routes>
         </MemoryRouter>
       </EventLogContext>
     </AuthProvider>,
@@ -105,5 +110,47 @@ describe('progress on the map', () => {
     renderMap([], { signedIn: false })
     expect(screen.queryByText('Loading your progress…')).not.toBeInTheDocument()
     expect(fetchAttempts).not.toHaveBeenCalled()
+  })
+})
+
+describe('more than one track', () => {
+  beforeEach(() => {
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  it('opens on the first track and links to the others', () => {
+    renderMap([])
+    expect(screen.getByText('Python Foundations:')).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Tracks' })
+    expect(
+      within(nav).getByRole('link', { name: 'Python Foundations' }),
+    ).toHaveAttribute('aria-current', 'page')
+    expect(
+      within(nav).getByRole('link', { name: 'Cloud Solutions Architect' }),
+    ).toHaveAttribute('href', '/map/cloud-solutions-architect')
+  })
+
+  it('shows another track at its own address, with its capstones', () => {
+    renderMap([], { path: '/map/cloud-solutions-architect' })
+    expect(screen.getByText('Cloud Solutions Architect:')).toBeInTheDocument()
+    expect(screen.getByText(/an outline so far/)).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', {
+        name: 'Module 1: Linux and the command line',
+      }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { name: 'Capstone' })).toHaveLength(3)
+    expect(
+      screen.getByRole('link', {
+        name: 'Capstone 1: one product, three clouds',
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('says when there is no such track', () => {
+    renderMap([], { path: '/map/nothing' })
+    expect(
+      screen.getByRole('heading', { name: 'No such track' }),
+    ).toBeInTheDocument()
   })
 })

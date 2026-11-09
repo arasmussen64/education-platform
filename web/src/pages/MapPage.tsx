@@ -1,60 +1,151 @@
 import { useMemo } from 'react'
-import { Link } from 'react-router'
+import { Link, NavLink, useParams } from 'react-router'
 import { SECONDARY_BUTTON } from '../components/styles.ts'
-import { getTopic, isOpen, mainTrack } from '../content/content.ts'
-import type { Topic } from '../content/types.ts'
+import {
+  getTopic,
+  getTrack,
+  isOpen,
+  mainTrack,
+  topicIdsOf,
+  tracks,
+} from '../content/content.ts'
+import type { Module, Topic, Track } from '../content/types.ts'
 import { PROOFS, type TopicProgress } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 
-// The topic map: every topic in the track, by module (v1 spec, F9), with the
-// signed-in learner's progress on each. Topic states (Locked, Learned...)
-// and the graph arrive once explanations are graded (Milestone B).
+// The topic map: every topic in a track, by module (v1 spec, F9), with the
+// signed-in learner's progress on each. /map shows the first track, and
+// /map/<track id> another. Topic states (Locked, Learned...) and the graph
+// arrive with gating (Milestone B).
 export function MapPage() {
-  const track = mainTrack()
+  const { trackId } = useParams()
+  const track = trackId ? getTrack(trackId) : mainTrack()
+  if (!track) return <UnknownTrack />
+  return <TrackMap key={track.id} track={track} />
+}
+
+function TrackMap({ track }: { track: Track }) {
   const topics = useMemo(
     () =>
-      track.modules
-        .flatMap((module) => [...module.topics, module.checkpoint])
+      topicIdsOf(track)
         .map((id) => getTopic(id))
         .filter((topic) => topic !== undefined),
     [track],
   )
   const progress = useProgress(topics)
+  const anythingOpen = topics.some(isOpen)
 
   return (
     <section className="space-y-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">Topic map</h1>
+        <TrackSwitcher current={track} />
         <p className="text-slate-600 dark:text-slate-400">
           <span className="font-medium">{track.title}:</span> {track.summary}
         </p>
+        {!anythingOpen && (
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            This track is an outline so far: every topic is still being written.
+            It's on the map so you can see where everything fits.
+          </p>
+        )}
         <ProgressStatus state={progress} />
       </header>
       <ol className="space-y-8">
         {track.modules.map((module, index) => (
-          <li key={module.id} className="space-y-3">
-            <h2 className="text-xl font-semibold">
-              Module {index + 1}: {module.title}
-            </h2>
-            <ol className="space-y-2">
-              {[...module.topics, module.checkpoint].map((topicId) => {
-                const topic = getTopic(topicId)
-                return topic ? (
-                  <TopicRow
-                    key={topicId}
-                    topic={topic}
-                    progress={
-                      progress.status === 'ready'
-                        ? progress.progress.get(topicId)
-                        : undefined
-                    }
-                  />
-                ) : null
-              })}
-            </ol>
-          </li>
+          <ModuleSection
+            key={module.id}
+            module={module}
+            number={index + 1}
+            progress={progress}
+          />
         ))}
       </ol>
+    </section>
+  )
+}
+
+/** Links to the other tracks, once there's more than one. */
+function TrackSwitcher({ current }: { current: Track }) {
+  const all = tracks()
+  if (all.length < 2) return null
+  return (
+    <nav aria-label="Tracks">
+      <ul className="flex flex-wrap gap-2">
+        {all.map((track, index) => (
+          <li key={track.id}>
+            <NavLink
+              // The first track lives at /map itself. NavLink marks the
+              // current one with aria-current="page".
+              to={index === 0 ? '/map' : `/map/${track.id}`}
+              end
+              className={`inline-block rounded-full border px-3 py-1 text-sm ${
+                track.id === current.id
+                  ? 'border-lime-600 bg-lime-50 font-medium dark:bg-lime-950'
+                  : 'border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800'
+              }`}
+            >
+              {track.title}
+            </NavLink>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+/** A module's topics and checkpoint, then its capstone if it has one. */
+function ModuleSection({
+  module,
+  number,
+  progress,
+}: {
+  module: Module
+  number: number
+  progress: ProgressState
+}) {
+  const progressOf = (topicId: string) =>
+    progress.status === 'ready' ? progress.progress.get(topicId) : undefined
+  const rows = (ids: string[]) =>
+    ids.map((topicId) => {
+      const topic = getTopic(topicId)
+      return topic ? (
+        <TopicRow key={topicId} topic={topic} progress={progressOf(topicId)} />
+      ) : null
+    })
+  const capstone = module.capstone ? getTopic(module.capstone) : undefined
+
+  return (
+    <>
+      <li className="space-y-3">
+        <h2 className="text-xl font-semibold">
+          Module {number}: {module.title}
+        </h2>
+        <ol className="space-y-2">
+          {rows([...module.topics, module.checkpoint])}
+        </ol>
+      </li>
+      {capstone && (
+        <li className="space-y-3">
+          <h2 className="text-xl font-semibold">Capstone</h2>
+          <ol className="space-y-2">{rows([capstone.id])}</ol>
+        </li>
+      )}
+    </>
+  )
+}
+
+function UnknownTrack() {
+  return (
+    <section className="space-y-3">
+      <h1 className="text-2xl font-bold">No such track</h1>
+      <p>
+        There's no track at this address.{' '}
+        <Link to="/map" className="underline">
+          See the topic map
+        </Link>
+        .
+      </p>
     </section>
   )
 }

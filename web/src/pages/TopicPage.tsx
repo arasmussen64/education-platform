@@ -16,7 +16,7 @@ import {
   Unstuck,
 } from '../checkpoints/Unstuck.tsx'
 import { SUGGEST_STEPS_AFTER } from '../checkpoints/versions.ts'
-import { getTopic, moduleFor } from '../content/content.ts'
+import { getTopic, placeOf, tracks } from '../content/content.ts'
 import type { Topic, TopicContent } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
@@ -147,7 +147,12 @@ function CheckpointView({
 
 /** In place of a lesson: what the checkpoint brings together. */
 function CheckpointIntro({ content }: { content: TopicContent }) {
-  const topics = (moduleFor(content.topic.id)?.module.topics ?? [])
+  const place = placeOf(content.topic.id)
+  // A capstone brings a whole stage together, so there's no short list of
+  // topics to go back to.
+  const topics = (
+    place?.role === 'capstone' ? [] : (place?.module.topics ?? [])
+  )
     .map((id) => getTopic(id))
     .filter((topic) => topic !== undefined)
 
@@ -215,7 +220,7 @@ function SignInToSave() {
 }
 
 function TopicHeader({ topic }: { topic: Topic }) {
-  const place = moduleFor(topic.id)
+  const place = placeOf(topic.id)
   const prerequisites = topic.prerequisites
     .map((id) => getTopic(id))
     .filter((found) => found !== undefined)
@@ -224,7 +229,12 @@ function TopicHeader({ topic }: { topic: Topic }) {
     <header className="space-y-2">
       {place && (
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Module {place.number}: {place.module.title}
+          {/* The track's name matters once there's more than one. */}
+          {tracks().length > 1 && `${place.track.title} · `}
+          {place.role === 'capstone'
+            ? `Capstone, after module ${place.number}: `
+            : `Module ${place.number}: `}
+          {place.module.title}
         </p>
       )}
       <h1 className="text-3xl font-bold">{topic.title}</h1>

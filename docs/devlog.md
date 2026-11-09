@@ -2,6 +2,21 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: Building starts: more than one track, and the cloud track on the map
+
+**The owner said "Start building everything."** The order follows the spec's *Building it* section and the roadmap: the app learns to show more than one track; the cloud track goes on the map as outlines; then the paused v1 work resumes (topic states and gating with "Prove it now", Module 2); then Stage 1 of the cloud track, starting with drills that run in the browser; the lab checker once ADR-0014 is accepted.
+
+**Done (#42):**
+- **The app shows every track.** `tracks()`, `getTrack()`, `topicIdsOf()` and `placeOf()` replace `mainTrack()` and `moduleFor()` in `web/src/content/content.ts`; `placeOf` says which track and module a topic is in, and whether it's a topic, a checkpoint or a capstone. The map is at `/map` for the first track and `/map/<track id>` for the others, with a switcher, and a note when a track is all outlines. Topic pages name their track.
+- **Tracks have an `order`, and a module may name a `capstone`**: a bigger checkpoint shown after the module's own, building on every module before it. That keeps the spec's module numbering intact on the map. The validator checks capstones like checkpoints and that no two tracks share an order.
+- **`tools/outline_cloud_track.py`** reads the spec's module tables, checkpoint paragraphs and capstone sections and writes the track file and 357 `planned` outlines: 324 topics (the 7 specialties included), 30 checkpoints and 3 capstones. It overwrites only files that still carry its marker and are `planned`, so written topics are safe. The spec gained a "Checkpoint 30" line so Module 30 parses like the rest.
+- **Gating between modules** comes from the spec's module map: a module's topics list the checkpoints of the modules it builds on as prerequisites, a checkpoint lists its module's topics, and a capstone lists the checkpoints that feed it. Python Foundations' Checkpoint 6 gates Module 6 (Automation). Within a module there's no order, as the spec says.
+- **Checked:** the validator passes over 393 topics (6 ready, 387 planned); 37 Python tests, including one that runs the validator over generated content; 246 web tests.
+
+**A cost to come back to.** Topic outlines are bundled with the app, so the main bundle grew from 612 KB to 806 KB (173 KB to 215 KB gzipped) for topics nobody can open yet. Loading a track's outlines on demand would undo that. Noted as a chore, not done now.
+
+**Waiting on the owner:** accepting ADR-0014, before the lab checker is built.
+
 ## 2026-11-08: The map in docs/research; the track assumes nothing about the learner
 
 **The owner said:** move the map into `docs/research`, don't assume they're strong in any area, the track may one day serve absolute beginners, and don't worry about the L1, L2, L3 depth levels.

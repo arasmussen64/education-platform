@@ -39,6 +39,7 @@ from content_model import (
     STAGES_WITH_HIDDEN_TESTS,
     Exercise,
     McqItem,
+    Module,
     PredictOutputItem,
     Topic,
     Track,
@@ -145,15 +146,28 @@ def load_topic_folder(folder: Path, report: Report) -> TopicFolder | None:
 # --- The topic map ---------------------------------------------------------------
 
 
+def checkpoints_of(module: Module) -> list[str]:
+    """A module's checkpoint, and its capstone if it has one."""
+    return [module.checkpoint, *([module.capstone] if module.capstone else [])]
+
+
 def check_tracks(
     tracks: dict[Path, Track], topics: dict[str, TopicFolder], report: Report
 ) -> None:
+    orders: dict[int, Path] = {}
+    for path, track in tracks.items():
+        if track.order in orders:
+            report.add(
+                path, f"order {track.order} is also {orders[track.order].name}'s"
+            )
+        orders[track.order] = path
+
     placed: dict[str, Path] = {}
     for path, track in tracks.items():
         for module in track.modules:
-            for topic_id in [*module.topics, module.checkpoint]:
+            for topic_id in [*module.topics, *checkpoints_of(module)]:
                 expected_kind = (
-                    "checkpoint" if topic_id == module.checkpoint else "topic"
+                    "checkpoint" if topic_id in checkpoints_of(module) else "topic"
                 )
                 if topic_id not in topics:
                     report.add(
@@ -308,6 +322,9 @@ def checkpoint_places(tracks: dict[Path, Track]) -> dict[str, CheckpointPlace]:
         for module in track.modules:
             so_far = [*so_far, *module.topics]
             places[module.checkpoint] = CheckpointPlace(list(module.topics), so_far)
+            # A capstone ends a stage, so it builds on everything before it.
+            if module.capstone:
+                places[module.capstone] = CheckpointPlace(so_far, so_far)
     return places
 
 

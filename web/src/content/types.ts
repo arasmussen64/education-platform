@@ -9,12 +9,19 @@ export type Module = {
   title: string
   topics: string[]
   checkpoint: string
+  /**
+   * A capstone: a bigger checkpoint that ends a stage. It comes after this
+   * module's own checkpoint and builds on every module before it.
+   */
+  capstone?: string
 }
 
 export type Track = {
   id: string
   title: string
   summary: string
+  /** Where the track comes in the app, lowest first. */
+  order: number
   modules: Module[]
 }
 
