@@ -78,7 +78,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - **"Ask the tutor"** under every fill-in and write exercise in practice, including a checkpoint's steps ([ADR-0015](docs/decisions/0015-hint-only-tutor.md), v1 spec F13). The learner can say what they're stuck on; the tutor sees the exercise, their code as it is now and their latest Check, and answers with one hint, a rung further up the ladder each time: a nudge, the idea, a closer look at their code, then the next step. Six asks per exercise. It never writes the solution: the proxy replaces any reply with more than two lines of code or copied solution lines with a safer hint. Off in proof checks and reviews, and hidden when signed out.
 - **The AI proxy's second action**, `tutor_hint`, with the same checks, log and $10 monthly cap as grading, its own model and effort settings (`TUTOR_MODEL`, `TUTOR_EFFORT`), and a test set of "just give me the answer" conversations run by hand with `npm run fn:eval:tutor`. Each hint is saved as a `hint` event with `source: tutor`, its rung and the call's ID, and counts in `hints_used` alongside the written hints.
-- The tutor reaches the live site when the owner deploys the proxy; until then the box says the tutor isn't available and the written hints carry on.
+- The tutor reached the live site on 2026-11-09, when the owner deployed the proxy. Until then the box said the tutor wasn't available and the written hints carried on.
 
 ### Added (Module 3 content: Loops)
 

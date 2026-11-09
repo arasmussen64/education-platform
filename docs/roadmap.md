@@ -57,7 +57,7 @@ Milestone C is complete.
 
 ### Milestone D progress
 
-- [x] The hint-only AI tutor (F13, [ADR-0015](decisions/0015-hint-only-tutor.md)) through the AI proxy and its budget cap (F14): a hint ladder under practice exercises, off during Prove it and reviews. Built 2026-11-08; the proxy is deployed, and the tutor test set run, once the owner says go.
+- [x] The hint-only AI tutor (F13, [ADR-0015](decisions/0015-hint-only-tutor.md)) through the AI proxy and its budget cap (F14): a hint ladder under practice exercises, off during Prove it and reviews. Built 2026-11-08, live since 2026-11-09; the tutor test set runs once the owner says go.
 - [x] Report a problem (F15): a note under any lesson, item or check, saved with the item it's about. Built 2026-11-08; its migration reaches the live database once the owner says go.
 - [x] Export my data (F16): built early, in Milestone B
 - [x] Module 4 content (functions), ready before the owner finishes Module 3 (2026-11-09)
@@ -65,7 +65,7 @@ Milestone C is complete.
 - [x] Module 6 content, and the end of the Python Foundations track (2026-11-09)
 - [x] Smaller app bundle: load the cloud track's outlines only when the map asks for them (2026-11-09)
 
-Milestone D is built. It's complete once the owner has deployed the AI proxy and the problem-reports migration and run the tutor test set (devlog, 2026-11-08 and 2026-11-09).
+Milestone D is built, and the AI proxy with the tutor is live (2026-11-09). It's complete once the owner has applied the problem-reports migration and run the tutor test set (devlog, 2026-11-09).
 
 ## Phase 2: Adaptivity and better practice (months 2–4)
 
