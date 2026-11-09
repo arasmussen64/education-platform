@@ -64,24 +64,61 @@ function withDefaults(raw: Partial<Topic>): Topic {
 
 const TOPICS = Object.values(topicFiles).map(withDefaults)
 const TOPICS_BY_ID = new Map(TOPICS.map((topic) => [topic.id, topic]))
-const [MAIN_TRACK] = Object.values(trackFiles)
+const TRACKS = Object.values(trackFiles).sort((a, b) => a.order - b.order)
 
-/** The learning track (v1 has one: Python Foundations). */
-export function mainTrack(): Track {
-  if (!MAIN_TRACK) throw new Error('There is no track in content/tracks.')
-  return MAIN_TRACK
+/** Every learning track, in the order they're shown. */
+export function tracks(): Track[] {
+  if (TRACKS.length === 0) {
+    throw new Error('There is no track in content/tracks.')
+  }
+  return TRACKS
 }
 
-/** The module a topic belongs to, and that module's number (1, 2, …). */
-export function moduleFor(
-  topicId: string,
-): { module: Module; number: number } | undefined {
-  for (const [index, module] of mainTrack().modules.entries()) {
-    if (module.topics.includes(topicId) || module.checkpoint === topicId) {
-      return { module, number: index + 1 }
+/** The first track, which the map opens on: Python Foundations. */
+export function mainTrack(): Track {
+  return tracks()[0]
+}
+
+export function getTrack(id: string): Track | undefined {
+  return TRACKS.find((track) => track.id === id)
+}
+
+/** Every topic, checkpoint and capstone in a track, in the track's order. */
+export function topicIdsOf(track: Track): string[] {
+  return track.modules.flatMap((module) => [
+    ...module.topics,
+    module.checkpoint,
+    ...(module.capstone ? [module.capstone] : []),
+  ])
+}
+
+/** Where a topic sits: its track, its module, and that module's number. */
+export type Place = {
+  track: Track
+  module: Module
+  /** 1, 2, … */
+  number: number
+  /** A capstone comes after its module's own checkpoint. */
+  role: 'topic' | 'checkpoint' | 'capstone'
+}
+
+/** Finds a topic's place in the given tracks. The app uses placeOf. */
+export function placeIn(tracks: Track[], topicId: string): Place | undefined {
+  for (const track of tracks) {
+    for (const [index, module] of track.modules.entries()) {
+      const place = { track, module, number: index + 1 }
+      if (module.topics.includes(topicId)) return { ...place, role: 'topic' }
+      if (module.checkpoint === topicId) {
+        return { ...place, role: 'checkpoint' }
+      }
+      if (module.capstone === topicId) return { ...place, role: 'capstone' }
     }
   }
   return undefined
+}
+
+export function placeOf(topicId: string): Place | undefined {
+  return placeIn(tracks(), topicId)
 }
 
 export function getTopic(id: string): Topic | undefined {

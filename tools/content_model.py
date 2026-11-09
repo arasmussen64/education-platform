@@ -27,12 +27,17 @@ class Module(Strict):
     title: Text
     topics: list[TopicId] = Field(min_length=1)
     checkpoint: TopicId
+    # A capstone is a bigger checkpoint that ends a stage. It sits after
+    # this module's own checkpoint and builds on every module before it.
+    capstone: TopicId | None = None
 
 
 class Track(Strict):
     id: TopicId
     title: Text
     summary: Text
+    # Where the track comes in the app, lowest first. Each track has its own.
+    order: Annotated[int, Field(ge=1)]
     modules: list[Module] = Field(min_length=1)
 
 

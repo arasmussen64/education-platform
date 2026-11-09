@@ -886,6 +886,8 @@ Senior architects are usually broad across everything above and deep in one or t
 | Application modernization | `csa.deep.modernization` | domain-driven design at scale, strangler programs, replatforming to containers and PaaS, legacy Java and .NET estates | A monolith broken up where it pays, with the business case |
 | FinOps | `csa.deep.finops` | portfolios of enterprise commitments, unit-economics programs, negotiating enterprise agreements | A measured cost program that saves real money |
 
+**Checkpoint 30: your specialty's checkpoint** (`csa.m30.checkpoint`). The checkpoint of whichever specialty you chose, from the table above. Choosing two specialties means passing both.
+
 ### Capstone 3: the merger
 
 `csa.capstone-3`, about 100 hours. Company A runs on AWS and has bought Company B, which runs on Azure. The board wants AI features built on Google Cloud's models.
@@ -1111,8 +1113,8 @@ A map of equivalent services, for orientation. Service names change often, so ea
 
 The app can't show this track yet, and some proofs need tools that don't exist. In order:
 
-1. **More than one track in the app.** Today the app shows only the first track file (`mainTrack()` in `web/src/content/content.ts`). The map, topic pages and Today page need to know which track each topic belongs to.
-2. **The map as outlines.** Every topic and checkpoint goes into `content/` as a `planned` outline, so the track appears on the map.
+1. **More than one track in the app.** *Done 2026-11-08:* the map shows the first track at `/map` and each other track at `/map/<track id>`, and every topic page names its track and module (`tracks()` and `placeOf()` in `web/src/content/content.ts`). The Today page still only knows Python Foundations; it learns tracks with gating (F12).
+2. **The map as outlines.** *Done 2026-11-08:* every topic, checkpoint and capstone is a `planned` outline in `content/`, generated from this spec by `tools/outline_cloud_track.py`. Change the spec and run the script; it never touches a topic that's being written.
 3. **Stage 1 content.** Much of it uses the exercise kinds that exist today: recall items, and Python drills run in the browser (subnetting, availability math, cost). Local labs in containers need the first version of the lab checker.
 4. **The lab checker** ([ADR-0014](../decisions/0014-cloud-labs.md)). First offline checks for infrastructure code, then live checks on the three clouds, and fault modules for break-fix proofs.
 5. **Design reviews, game days and "Defend it".** These need AI grading with longer rubrics (the approach from ADR-0013) and the game-day modules.

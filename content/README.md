@@ -6,7 +6,7 @@ Everything learners see: tracks, topics, lessons and exercises, as plain files i
 
 ```text
 content/
-├── tracks/python-foundations.yaml   modules, and which topics are in each
+├── tracks/<track-id>.yaml           modules, and which topics are in each; one file per track
 └── topics/<topic-id>/
     ├── topic.yaml                   metadata, prerequisites, resources, which items to use
     ├── lesson.mdx                   the AI-written intro and recap around the main resource
@@ -18,6 +18,11 @@ content/
         ├── test_exercise.py         the tests
         └── wrong/*.py               known-wrong solutions (each must fail)
 ```
+
+## Two tracks
+
+- **Python Foundations** (`py.*`) is written by hand, topic by topic.
+- **Cloud Solutions Architect** (`csa.*`) is, for now, an outline: every topic is `planned`. The outlines are generated from the track's spec, [docs/specs/cloud-solutions-architect.md](../docs/specs/cloud-solutions-architect.md), by `tools/outline_cloud_track.py`. To change an outline, change the spec and run the script again (`python -m uv run python tools/outline_cloud_track.py`). Once a topic is being written, its `topic.yaml` loses the generated marker and the script leaves it alone from then on.
 
 ## A topic's life
 

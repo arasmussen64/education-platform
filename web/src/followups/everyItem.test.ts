@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { getTopic, loadTopicContent, mainTrack } from '../content/content.ts'
+import {
+  getTopic,
+  loadTopicContent,
+  topicIdsOf,
+  tracks,
+} from '../content/content.ts'
 import { STAGES } from '../content/stages.ts'
 import type { TopicContent } from '../content/types.ts'
 import {
@@ -16,8 +21,8 @@ import {
 // back a different question on every skill it tests. New topics are
 // covered as soon as they're marked ready.
 
-const readyTopics = mainTrack()
-  .modules.flatMap((module) => [...module.topics, module.checkpoint])
+const readyTopics = tracks()
+  .flatMap(topicIdsOf)
   .filter((id) => getTopic(id)?.status === 'ready')
 
 const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -75,9 +80,9 @@ describe.each(readyTopics)('%s', (topicId) => {
 // or debug brings back each skill it names, as a question from that skill's
 // own topic. New checkpoints are covered as soon as they're marked ready.
 
-const readyCheckpoints = mainTrack()
-  .modules.map((module) => module.checkpoint)
-  .filter((id) => getTopic(id)?.status === 'ready')
+const readyCheckpoints = readyTopics.filter(
+  (id) => getTopic(id)?.kind === 'checkpoint',
+)
 
 describe('ready checkpoints', () => {
   it("bring back each failed test's skills as questions from their topics", async () => {

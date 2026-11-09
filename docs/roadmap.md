@@ -70,7 +70,14 @@ Mornings learning on the platform, afternoons building it.
 
 ## Other tracks
 
-- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), proposed. Building it needs support for more than one track in the app, and the lab checker.
+- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), proposed.
+
+  Building it, in the order the spec's *Building it* section gives:
+  - [x] More than one track in the app: the map and topic pages know every track (2026-11-08)
+  - [x] The track on the map as `planned` outlines, generated from the spec (2026-11-08)
+  - [ ] Stage 1 content, starting with the drills that run in the browser
+  - [ ] The lab checker (needs ADR-0014 accepted)
+  - [ ] Design reviews, game days and "Defend it"
 
 ## The owner's 12-month learning milestone
 

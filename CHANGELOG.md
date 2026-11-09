@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (more than one track, and the cloud track on the map)
+
+- **The app shows every track.** The topic map opens on Python Foundations at `/map`, with a switcher to the others, each at `/map/<track id>`. A topic page names its track as well as its module. Tracks carry an `order`, and a module may name a **capstone**: a bigger checkpoint that ends a stage, shown after the module's own checkpoint.
+- **The Cloud Solutions Architect track is on the map** as 357 `planned` outlines (324 topics, 30 checkpoints, 3 capstones), generated from its spec by `tools/outline_cloud_track.py`. Each module's topics unlock when the modules it builds on are passed, following the spec's module map. Nothing in it can be opened yet; the map says so.
+- The validator checks capstones like checkpoints, and that no two tracks share an `order`. 4 new validator tests, and 4 for the generator, one of which runs the validator over generated content.
+
 ### Added (planning: a second track)
 
 - **The Cloud Solutions Architect track is specified** in [docs/specs/cloud-solutions-architect.md](docs/specs/cloud-solutions-architect.md). It isn't built yet.

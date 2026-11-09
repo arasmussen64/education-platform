@@ -35,7 +35,8 @@ export const routes: RouteObject[] = [
               return { Component: TodayPage }
             },
           },
-          { path: 'map', element: <MapPage /> },
+          // /map shows the first track; /map/<track id> another.
+          { path: 'map/:trackId?', element: <MapPage /> },
           {
             path: 'topic/:topicId',
             // The topic's content and the page's code download at the same

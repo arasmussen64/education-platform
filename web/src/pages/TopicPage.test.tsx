@@ -75,7 +75,10 @@ describe('the topic page', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: 'Values and types' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Module 1: First programs')).toBeInTheDocument()
+    // With more than one track, the header names the track too.
+    expect(
+      screen.getByText('Python Foundations · Module 1: First programs'),
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: 'Programs and print' }),
     ).toHaveAttribute('href', '/topic/py.programs-and-print')
