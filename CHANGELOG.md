@@ -10,8 +10,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - **The Cloud Solutions Architect track is specified** in [docs/specs/cloud-solutions-architect.md](docs/specs/cloud-solutions-architect.md). It isn't built yet.
   - It runs from Linux and networking up to principal-level multi-cloud strategy, on AWS, Azure and Google Cloud.
-  - It has 26 modules in 4 stages, about 210 topics, 3 capstones and a choice of specialties.
+  - It has 30 modules in 4 stages, about 320 topics, 3 capstones and a choice of specialties.
   - Every topic is proven by doing: build, explain, fix a broken version, and review. The senior stages add design reviews, game days and "Defend it".
+  - **Cross-referenced with the owner's *Senior Cloud Architect Knowledge Map & Learning Roadmap*** (2026-11-08), adding everything the map had that the spec lacked and removing nothing:
+    - 4 new modules: Virtualization, hardware and Windows; Software engineering literacy; Application architecture and integration; Specialized workloads. 107 new topics, 210 to 317, and many existing topics extended.
+    - **Depth levels** (L1 aware, L2 working, L3 deep), how the proofs scale with depth, a default depth for each module, and a primary-cloud option.
+    - **A faster path for an experienced learner:** the map's seven-phase, 24-month plan mapped to the track's modules, with its weekly rhythm, kill criteria and reading list.
+    - **A 24-item self-assessment,** each item tied to the proof that covers it.
+    - More certifications, with a suggested order; 6 more drills; 20 more rows in the three-cloud service table.
+    - Module numbers and positional checkpoint IDs shifted because modules were inserted; nothing is built, so nothing refers to them.
 - **[ADR-0014](docs/decisions/0014-cloud-labs.md), proposed,** decides how cloud skills are proven:
   - labs run in the learner's own sandboxes;
   - a local, read-only lab checker inspects the results;
