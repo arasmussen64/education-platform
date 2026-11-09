@@ -7,14 +7,18 @@ import { STAGES } from '../content/stages.ts'
 import type { TopicContent } from '../content/types.ts'
 import { addDays, type Day, dayOf } from '../days.ts'
 
-/** One graded attempt: an answer to a question, or a Check of some code. */
+/**
+ * One graded attempt: an answer to a question, a Check of some code, a
+ * graded explanation, or a finished review session.
+ */
 export type Attempt = {
   id: string
   /**
-   * A graded explanation has the item ID "explain". It names no skills,
-   * so it never brings a mistake back (ADR-0013).
+   * A graded explanation has the item ID "explain", and a review session
+   * "review". Neither names skills, so neither brings a mistake back
+   * (ADR-0013, ADR-0009).
    */
-  type: 'answer' | 'code_check' | 'explain_submit'
+  type: 'answer' | 'code_check' | 'explain_submit' | 'review'
   topic_id: string
   item_id: string
   correct: boolean
@@ -26,6 +30,8 @@ export type Attempt = {
    * which skills a Check missed.
    */
   failing?: string[]
+  /** For a review session: how it was rated (ADR-0009). */
+  rating?: 'again' | 'hard' | 'good'
 }
 
 /** A skill the learner missed and is relearning. */

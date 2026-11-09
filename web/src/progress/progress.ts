@@ -1,28 +1,33 @@
-// Each topic's progress toward Learned (v1 spec, F8), worked out from the
-// learner's graded events by the rules in docs/specs/data-model.md
-// ("Derived progress"). Like mistakes to revisit, nothing is stored: it's
-// recalculated from the event log, so earlier passes count too.
-//
-// The pages show which proof checks have passed. Topic states, and gating
-// by them, appear once explanations are graded: until then no topic can be
-// Learned, so every topic after the first would show as Locked.
+// Each topic's progress toward Learned and beyond (v1 spec, F8, F11), worked
+// out from the learner's graded events by the rules in
+// docs/specs/data-model.md ("Derived progress"). Like mistakes to revisit,
+// nothing is stored: it's recalculated from the event log, so earlier passes
+// count too.
 import type { Topic } from '../content/types.ts'
+import {
+  type Card,
+  type Rating,
+  replayCard,
+  type Review,
+} from '../reviews/fsrs.ts'
 
 /** The three proof checks a topic needs (ADR-0002). */
 export type Proof = 'build' | 'debug' | 'explain'
 export const PROOFS: Proof[] = ['build', 'debug', 'explain']
 
 /**
- * A graded event: an answer, a Check of code, or a graded explanation.
- * `correct` is whether it passed.
+ * A graded event: an answer, a Check of code, a graded explanation, or a
+ * finished review session. `correct` is whether it passed.
  */
 export type GradedEvent = {
-  type: 'answer' | 'code_check' | 'explain_submit'
+  type: 'answer' | 'code_check' | 'explain_submit' | 'review'
   topic_id: string
   item_id: string | null
   correct: boolean
   /** In ISO format, UTC, so comparing the text compares the times. */
   occurred_at: string
+  /** For a review session: how it was rated (ADR-0009). */
+  rating?: Rating
 }
 
 export type TopicProgress = {
@@ -35,14 +40,28 @@ export type TopicProgress = {
    * Learned (a checkpoint, Passed).
    */
   learnedAt: string | null
+  /** The review sessions since then, oldest first. */
+  reviews: Review[]
+  /** The review card, once the topic is Learned. Checkpoints have none. */
+  card: Card | null
 }
 
+/** A review rated Good this long after Learned makes a topic Mastered. */
+export const MASTERY_DAYS = 7
+
 /**
- * Where a topic stands. Mastered, Fading and Relearning arrive with reviews
- * (Milestone C); checkpoints are Passed rather than Learned.
+ * Where a topic stands (ADR-0002, data-model.md "Derived progress").
+ * Checkpoints are Passed rather than Learned, and never go further.
  */
 export type TopicState =
-  'locked' | 'available' | 'in-progress' | 'learned' | 'passed'
+  | 'locked'
+  | 'available'
+  | 'in-progress'
+  | 'learned'
+  | 'mastered'
+  | 'fading'
+  | 'relearning'
+  | 'passed'
 
 /** Which proof check, if any, passing this event counts as. */
 function proofOf(topic: Topic, event: GradedEvent): Proof | undefined {
@@ -69,7 +88,7 @@ export function progressOf(
   const progress = new Map<string, TopicProgress>(
     topics.map((topic) => [
       topic.id,
-      { started: false, passed: {}, learnedAt: null },
+      { started: false, passed: {}, learnedAt: null, reviews: [], card: null },
     ]),
   )
   const topicsById = new Map(topics.map((topic) => [topic.id, topic]))
@@ -78,6 +97,12 @@ export function progressOf(
     const topic = topicsById.get(event.topic_id)
     const entry = progress.get(event.topic_id)
     if (!topic || !entry) continue
+    if (event.type === 'review') {
+      if (event.rating) {
+        entry.reviews.push({ at: event.occurred_at, rating: event.rating })
+      }
+      continue
+    }
     entry.started = true
     const proof = proofOf(topic, event)
     const earlier = proof && entry.passed[proof]
@@ -86,28 +111,53 @@ export function progressOf(
     }
   }
 
-  for (const entry of progress.values()) {
+  for (const [topicId, entry] of progress) {
     const times = PROOFS.map((proof) => entry.passed[proof]).filter(
       (time) => time !== undefined,
     )
     // ISO times in UTC sort in time order, so the last is the latest.
     entry.learnedAt =
       times.length === PROOFS.length ? (times.sort().at(-1) ?? null) : null
+    entry.reviews.sort((a, b) => a.at.localeCompare(b.at))
+    // The card starts when the topic becomes Learned (ADR-0009); reviews
+    // from before then can't count.
+    if (entry.learnedAt && topicsById.get(topicId)?.kind === 'topic') {
+      entry.reviews = entry.reviews.filter(
+        (review) => review.at >= (entry.learnedAt ?? ''),
+      )
+      entry.card = replayCard(entry.learnedAt, entry.reviews)
+    }
   }
   return progress
 }
 
+/** Whether a Learned topic has survived a review at least a week later. */
+function isMastered(entry: TopicProgress): boolean {
+  if (!entry.learnedAt) return false
+  const since = Date.parse(entry.learnedAt) + MASTERY_DAYS * 24 * 60 * 60 * 1000
+  return entry.reviews.some(
+    (review) => review.rating === 'good' && Date.parse(review.at) >= since,
+  )
+}
+
 /**
- * Where a topic stands, given everyone's progress (its prerequisites'
- * included). A prerequisite counts once it's Learned or Passed, so a later
- * failed review never locks the topics built on it (ADR-0002).
+ * Where a topic stands at `now`, given everyone's progress (its
+ * prerequisites' included). A prerequisite counts once it's Learned or
+ * Passed, in any of the learned states, so a later failed review never
+ * locks the topics built on it (ADR-0002).
  */
 export function stateOf(
   topic: Topic,
   progress: Map<string, TopicProgress>,
+  now: string = new Date().toISOString(),
 ): TopicState {
   const own = progress.get(topic.id)
-  if (own?.learnedAt) return topic.kind === 'checkpoint' ? 'passed' : 'learned'
+  if (own?.learnedAt) {
+    if (topic.kind === 'checkpoint') return 'passed'
+    if (own.reviews.at(-1)?.rating === 'again') return 'relearning'
+    if (own.card && own.card.due <= now) return 'fading'
+    return isMastered(own) ? 'mastered' : 'learned'
+  }
   const unlocked = topic.prerequisites.every(
     (id) => progress.get(id)?.learnedAt,
   )
@@ -122,6 +172,9 @@ export const STATE_LABELS: Record<TopicState, { icon: string; label: string }> =
     available: { icon: '○', label: 'Available' },
     'in-progress': { icon: '◐', label: 'In progress' },
     learned: { icon: '✓', label: 'Learned' },
+    mastered: { icon: '★', label: 'Mastered' },
+    fading: { icon: '◔', label: 'Fading: review due' },
+    relearning: { icon: '↻', label: 'Relearning' },
     passed: { icon: '✓', label: 'Passed' },
   }
 

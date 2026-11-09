@@ -44,7 +44,16 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] Topic states and gating, with "Prove it now" (F8, F9), and "Next up" on the Today page (F12). Built 2026-11-08, once grading was live: until explanations could pass, no topic could be Learned, and gating would have locked every topic after the first.
 - [x] Module 2 content, ready before the owner finishes Module 1 (2026-11-08): five topics and Checkpoint 2, ticket pricing
 
-Milestone B is complete. Next: Milestone C (reviews, the full Today page, recall items, interleaved practice), then D (the tutor, problem reports). Module 3's content comes before the owner finishes Module 2.
+Milestone B is complete.
+
+### Milestone C progress
+
+- [x] Reviews (F11, [ADR-0009](decisions/0009-reviews.md)): one card per Learned topic, FSRS scheduling, two-item sessions rated from first attempts, and the states Mastered, Fading and Relearning (2026-11-08)
+- [x] The Today page in full (F12): due reviews, mistakes to revisit, next up (2026-11-08)
+- [ ] Interleaved practice: one recall item from an earlier topic in each practice ladder (F5)
+- [ ] Module 3 content (loops), ready before the owner finishes Module 2
+
+Then Milestone D (the tutor, problem reports).
 
 ## Phase 2: Adaptivity and better practice (months 2–4)
 

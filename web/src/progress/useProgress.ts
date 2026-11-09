@@ -21,7 +21,12 @@ export type ProgressState =
   | { status: 'signed-out' }
   | { status: 'loading' }
   | { status: 'failed'; retry: () => void }
-  | { status: 'ready'; progress: Map<string, TopicProgress> }
+  | {
+      status: 'ready'
+      progress: Map<string, TopicProgress>
+      /** The graded history the progress was worked out from. */
+      attempts: Attempt[]
+    }
 
 /** What the server sent, and for whom, so another learner never sees it. */
 type Fetched = { userId: string; attempts: Attempt[] | 'failed' }
@@ -77,9 +82,7 @@ export function useProgress(
     const local = localRows
       .map(localAttempt)
       .filter((attempt) => attempt !== null)
-    return {
-      status: 'ready',
-      progress: progressOf(topics, mergeAttempts(fetched.attempts, local)),
-    }
+    const attempts = mergeAttempts(fetched.attempts, local)
+    return { status: 'ready', progress: progressOf(topics, attempts), attempts }
   }, [auth.status, fetched, userId, retry, localRows, topics])
 }

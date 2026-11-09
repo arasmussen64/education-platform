@@ -9,6 +9,7 @@ import type { Attempt } from '../followups/followUps.ts'
 import { fetchAttempts } from '../followups/history.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { fakeEventsClient } from '../test/fakeEvents.ts'
+import { allPassed, fakeRunner, oneFailed } from '../test/fakePython.ts'
 import { setFakeRunner } from '../test/mockPython.ts'
 import { TodayPage } from './TodayPage.tsx'
 
@@ -204,6 +205,115 @@ describe('the Today page', () => {
       await screen.findByText(/to see what to revisit today/),
     ).toBeInTheDocument()
     expect(fetchAttempts).not.toHaveBeenCalled()
+  })
+})
+
+describe('reviews on the Today page', () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  const PRINT = getTopic('py.programs-and-print')!
+
+  /** The three proof checks of Programs and print, passed `days` ago. */
+  function learnedDaysAgo(days: number): Attempt[] {
+    return [
+      check(PRINT.prove.build ?? '', true, daysAgo(days)),
+      check(PRINT.prove.debug ?? '', true, daysAgo(days)),
+      { ...answer('explain', true, daysAgo(days)), type: 'explain_submit' },
+    ]
+  }
+
+  const reviewsSection = () => screen.findByRole('region', { name: 'Reviews' })
+
+  /** Answers the session's two items: the postcard exercise and the quick check. */
+  async function answerBoth(choice: string) {
+    const postcard = await screen.findByRole('region', {
+      name: 'Review: A postcard',
+    })
+    await userEvent.type(
+      within(postcard).getByLabelText('Python code'),
+      'print()',
+    )
+    await userEvent.click(
+      within(postcard).getByRole('button', { name: 'Check' }),
+    )
+    const quick = screen.getByRole('region', { name: 'Quick check' })
+    await userEvent.click(within(quick).getByRole('radio', { name: choice }))
+    await userEvent.click(within(quick).getByRole('button', { name: 'Check' }))
+  }
+
+  it('says when nothing is due', async () => {
+    renderToday([])
+    expect(await screen.findByText('No reviews due today.')).toBeInTheDocument()
+  })
+
+  it('reviews a Learned topic once its review is due, with two items from its pool', async () => {
+    renderToday(learnedDaysAgo(10))
+    // The section shows once the due topics' content has loaded.
+    expect(
+      await screen.findByText(/One topic is due for a review/),
+    ).toBeInTheDocument()
+    const reviews = await reviewsSection()
+    expect(
+      within(reviews).getByRole('link', { name: 'Programs and print' }),
+    ).toHaveAttribute('href', '/topic/py.programs-and-print')
+    expect(
+      await screen.findByRole('region', { name: 'Review: A postcard' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('region', { name: 'Quick check' }),
+    ).toBeInTheDocument()
+    expect(within(reviews).getAllByText(/Review \d of 2/)).toHaveLength(2)
+  })
+
+  it("isn't due the day after Learned", async () => {
+    renderToday(learnedDaysAgo(1))
+    expect(await screen.findByText('No reviews due today.')).toBeInTheDocument()
+  })
+
+  it('rates the session Good when both are right, and schedules the next one', async () => {
+    setFakeRunner(fakeRunner({ check: allPassed('Prints the postcard') }))
+    const { client } = renderToday(learnedDaysAgo(10))
+    await answerBoth('Hi, Ada!')
+    expect(
+      await screen.findByText(/^Good: all right\. Next review/),
+    ).toBeInTheDocument()
+    await vi.waitFor(() => {
+      const sent = client.send.mock.calls.flatMap(([rows]) => rows)
+      const review = sent.find((row) => row.type === 'review')
+      expect(review).toMatchObject({
+        topic_id: 'py.programs-and-print',
+        item_id: 'review',
+        context: 'review',
+        correct: true,
+        data: { rating: 'good' },
+      })
+    })
+  })
+
+  it('rates it Hard when one is right, and Again when neither is', async () => {
+    setFakeRunner(fakeRunner({ check: oneFailed('Prints the postcard') }))
+    const { client } = renderToday(learnedDaysAgo(10))
+    await answerBoth('Hi, Ada!')
+    expect(await screen.findByText(/^Hard: some right/)).toBeInTheDocument()
+    await vi.waitFor(() => {
+      const sent = client.send.mock.calls.flatMap(([rows]) => rows)
+      expect(sent.find((row) => row.type === 'review')).toMatchObject({
+        correct: false,
+        data: { rating: 'hard' },
+      })
+    })
+  })
+
+  it('rates it Again when nothing is right', async () => {
+    setFakeRunner(fakeRunner({ check: oneFailed('Prints the postcard') }))
+    renderToday(learnedDaysAgo(10))
+    await answerBoth('Hi Ada!')
+    expect(
+      await screen.findByText(/^Again: none right this time/),
+    ).toBeInTheDocument()
   })
 })
 

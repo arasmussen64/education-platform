@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (reviews, timed to how fast you forget)
+
+- **Reviews on the Today page** ([ADR-0009](docs/decisions/0009-reviews.md)). Each Learned topic gets a review card; its first review comes due a few days later, and each review pushes the next one further out when it goes well, or brings it closer when it doesn't. Today lists the topics due, the most forgotten first, up to 20 a day.
+- **A review session** asks two items from the topic's review pool, at least one of them code or predict-the-output, choosing the ones answered longest ago. It's rated from the first attempt at each: all right is Good, some is Hard, none is Again. The result is saved as a `review` event, and the page says when the next review is.
+- **Three more topic states,** on topic pages and the map: Mastered (a review went well at least a week after learning), Fading (a review is due) and Relearning (the last review went badly). A topic in any of these still unlocks what builds on it.
+- **The scheduler is the platform's own code** (`web/src/reviews/fsrs.ts`): the published FSRS-4.5 formulas and default parameters, with a 90% target retention. The ML capstone will fit them to real data.
+
 ### Added (Module 2 content: Decisions and debugging)
 
 - **Five new topics, all ready:** Booleans and comparisons, if / elif / else, Logical operators, Tracing code, and Reading errors. Each has a lesson, a practice ladder, the three proof checks, a review pool and skills, so missed questions come back.

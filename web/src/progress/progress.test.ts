@@ -77,6 +77,8 @@ describe('progressOf', () => {
       started: true,
       passed: { build: at(10), debug: at(12) },
       learnedAt: null,
+      reviews: [],
+      card: null,
     })
   })
 
@@ -90,7 +92,13 @@ describe('progressOf', () => {
       ],
       SECOND,
     )
-    expect(progress).toEqual({ started: true, passed: {}, learnedAt: null })
+    expect(progress).toEqual({
+      started: true,
+      passed: {},
+      learnedAt: null,
+      reviews: [],
+      card: null,
+    })
   })
 
   it('is Learned when the last of the three passes, in any order', () => {
@@ -188,6 +196,77 @@ describe('stateOf', () => {
   it("stays Locked when a prerequisite isn't on the map", () => {
     const orphan = fakeTopic({ id: 'py.orphan', prerequisites: ['py.gone'] })
     expect(stateOf(orphan, progressOf([orphan], []))).toBe('locked')
+  })
+})
+
+describe('reviews and the states after Learned', () => {
+  const dayAfter = (days: number) =>
+    new Date(Date.parse(at(9)) + days * 24 * 60 * 60 * 1000).toISOString()
+  const review = (
+    topic: Topic,
+    rating: 'again' | 'hard' | 'good',
+    days: number,
+  ): GradedEvent => ({
+    type: 'review',
+    topic_id: topic.id,
+    item_id: 'review',
+    correct: rating === 'good',
+    occurred_at: dayAfter(days),
+    rating,
+  })
+  const stateAt = (events: GradedEvent[], topic: Topic, days: number) =>
+    stateOf(topic, progressOf(TOPICS, events), dayAfter(days))
+
+  it('starts a review card when a topic becomes Learned, but not for checkpoints', () => {
+    const progress = progressOf(TOPICS, [
+      ...proved(FIRST),
+      ...proved(SECOND),
+      check(CHECKPOINT, 'build-split', true),
+      check(CHECKPOINT, 'debug-tickets', true),
+      explained(CHECKPOINT, true),
+    ])
+    const card = progress.get(FIRST.id)?.card
+    expect(card?.lastReview).toBe(at(9))
+    expect(card?.due.localeCompare(at(9))).toBeGreaterThan(0)
+    expect(progress.get(AFTER.id)?.card).toBeNull()
+    expect(progress.get(CHECKPOINT.id)?.card).toBeNull()
+  })
+
+  it('is Learned until the review is due, then Fading', () => {
+    const events = proved(FIRST)
+    expect(stateAt(events, FIRST, 0)).toBe('learned')
+    expect(stateAt(events, FIRST, 1)).toBe('learned')
+    expect(stateAt(events, FIRST, 30)).toBe('fading')
+  })
+
+  it('is Mastered once a review a week or more after Learned is rated Good', () => {
+    const early = [...proved(FIRST), review(FIRST, 'good', 4)]
+    expect(stateAt(early, FIRST, 5)).toBe('learned')
+    const late = [...early, review(FIRST, 'good', 12)]
+    expect(stateAt(late, FIRST, 13)).toBe('mastered')
+    // A Hard review a week later isn't enough.
+    const hard = [...proved(FIRST), review(FIRST, 'hard', 10)]
+    expect(stateAt(hard, FIRST, 11)).toBe('learned')
+  })
+
+  it('is Relearning after a review rated Again, and stays unlocked below', () => {
+    const events = [...proved(FIRST), review(FIRST, 'again', 4)]
+    expect(stateAt(events, FIRST, 4)).toBe('relearning')
+    // A failed review never re-locks the topics built on it (ADR-0002).
+    expect(stateAt(events, SECOND, 4)).toBe('available')
+    // The next Good review ends the relearning.
+    expect(stateAt([...events, review(FIRST, 'good', 6)], FIRST, 6)).toBe(
+      'learned',
+    )
+  })
+
+  it('ignores reviews from before the topic was Learned', () => {
+    const progress = progressOf(TOPICS, [
+      review(FIRST, 'again', -3),
+      ...proved(FIRST),
+    ])
+    expect(progress.get(FIRST.id)?.reviews).toEqual([])
+    expect(progress.get(FIRST.id)?.card?.lapses).toBe(0)
   })
 })
 
