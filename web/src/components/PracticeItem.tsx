@@ -10,6 +10,7 @@ import {
 import type { EventContext, EventData } from '../events/types.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { allChecksPassed } from '../python/runner.ts'
+import { ReportProblem } from '../reports/ReportProblem.tsx'
 import { type ExerciseActivity, ExerciseView } from './ExerciseView.tsx'
 import { McqQuestion } from './McqQuestion.tsx'
 import { PredictOutput } from './PredictOutput.tsx'
@@ -212,6 +213,9 @@ export function PracticeItem({
         {item.heading}
       </h3>
       {item.body}
+      <ReportProblem
+        about={{ topicId: content.topic.id, itemId, itemRev: rev }}
+      />
     </section>
   )
 }

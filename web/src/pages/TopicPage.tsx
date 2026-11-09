@@ -26,6 +26,7 @@ import { useRecordEvent } from '../events/useEvents.ts'
 import { ExplainCheck } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
 import type { Interleaved } from '../practice/interleave.ts'
+import { ReportProblem } from '../reports/ReportProblem.tsx'
 import {
   type Proof,
   PROOFS,
@@ -479,6 +480,9 @@ function Learn({ content }: { content: TopicContent }) {
       ) : (
         <p>The lesson for this topic hasn't been written yet.</p>
       )}
+      <ReportProblem
+        about={{ topicId: topic.id, itemId: 'lesson', itemRev: topic.rev }}
+      />
       {moreResources.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-semibold">More resources</h3>

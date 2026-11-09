@@ -6,6 +6,7 @@ import { BUTTON, CARD, TEXT_INPUT } from '../components/styles.ts'
 import { useAttemptTimer } from '../components/useAttemptTimer.ts'
 import type { Explain, Topic } from '../content/types.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
+import { ReportProblem } from '../reports/ReportProblem.tsx'
 import {
   type GradeExplanation,
   gradeExplanation,
@@ -117,6 +118,9 @@ export function ExplainCheck({
           </output>
         </div>
       )}
+      <ReportProblem
+        about={{ topicId: topic.id, itemId: 'explain', itemRev: topic.rev }}
+      />
     </section>
   )
 }

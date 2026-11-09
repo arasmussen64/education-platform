@@ -311,6 +311,10 @@ Only the AI proxy writes to it, with the service role. A learner can read their 
 
 `id`, `user_id`, `created_at`, `topic_id`, `item_id`, `item_rev`, `message`, `status` (`open` or `resolved`).
 
+A learner's note that something on a lesson, exercise or question is wrong ([F15](v1.md#f15-report-a-problem)). `item_id` is the item's ID within the topic, `lesson` or `explain` for the parts of a topic that aren't items, or null for the topic as a whole; `item_rev` is the item's `rev` at the time, so a report about an old version can be told apart from one about the current one. `message` is 1 to 2,000 characters.
+
+Learners insert and read their own reports, and nothing else: `status` isn't in their insert grant, so every report starts `open`, and only the owner changes it, in the dashboard, once the content is fixed.
+
 ### The export file
 
 "Export my data" ([F16](v1.md#f16-export-my-data)) downloads everything a learner has done as one JSON file, for backups and the ML capstone. The browser builds it: it reads the learner's profile and events from Supabase (row-level security returns only their own), and adds the events still waiting in the outbox. It reads the outbox first, so an event sent in between is on the server by then.
