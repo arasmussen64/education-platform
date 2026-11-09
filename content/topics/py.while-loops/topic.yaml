@@ -1,10 +1,80 @@
 id: py.while-loops
 kind: topic
-status: planned
+status: ready
 title: "while loops"
-summary: "Repeat until a condition changes, and stop an infinite loop."
+summary: "Repeat until a condition changes, count with a loop variable, and stop an infinite loop."
 prerequisites: [py.m2.checkpoint]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Repeat until a condition changes, and stop an infinite loop."
+  - "Repeat lines with `while` for as long as a condition is `True`, and know exactly when the condition is checked."
+  - "Count up or down with a loop variable: give it a start, test it, and update it with `+= 1` or `-= 1`."
+  - "Recognize an infinite loop, stop one, and fix the condition or the update that caused it."
+resources:
+  - title: "CS50P Lecture 2: Loops, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=-7xg8pGcP6w
+    type: video
+    use: embed
+    # From the start of the lecture to the transition to for loops (0:28 to
+    # 16:13): why loops, while, an accidental infinite loop, counting down
+    # and up, and i += 1.
+    start: 28
+    end: 973
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: First Steps Towards Programming, the while loop (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/introduction.html#first-steps-towards-programming
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-countdown
+  - mcq-how-many-times
+  - predict-doubling
+  - mcq-infinite
+  - fill-count-up
+  - write-sum-to-n
+prove:
+  build: build-countdown
+  debug: debug-doubling
+  explain:
+    prompt: |
+      A friend's program is meant to count down from 3, but it never stops printing:
+
+      ```python
+      i = 3
+      while i > 0:
+          print(i)
+          i = i + 1
+      ```
+
+      In your own words: when does Python check the condition of a `while` loop, why does this one never become `False`, and what are two different one-line changes that would fix it? Say what each fixed version prints.
+    rubric:
+      - id: when-checked
+        required: true
+        description: "The condition is checked before each repeat (before the body runs), not continuously."
+      - id: why-infinite
+        required: true
+        description: "i goes up, so i > 0 stays True forever."
+      - id: fixes
+        required: true
+        description: "Two fixes: count down with i = i - 1 (prints 3, 2, 1), or keep counting up but test the other way, such as while i < 6 (prints 3, 4, 5)."
+      - id: stopping
+        required: false
+        description: "A stuck loop is stopped from outside: Ctrl-C in a terminal, or the page's time limit here."
+    model_answer: |
+      Python checks a while loop's condition before each pass through the body: if it's True the indented lines run once, then the condition is checked again. Here i starts at 3 and the body makes it bigger every time, so i > 0 is True on every check and the loop never ends. One fix is to make i smaller instead: i = i - 1, which prints 3, 2, 1 and stops when i is 0. The other is to keep i growing but change the question so that growing eventually makes it False, for example while i < 6, which prints 3, 4, 5. A loop that's already stuck has to be stopped from outside, with Ctrl-C in a terminal or, on this page, the time limit.
+review_pool:
+  - review-predict-halving
+  - review-mcq-check-when
+  - review-code-count-down-to-zero
+  - mcq-how-many-times
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: while-condition
+    description: "Run a block while a condition is `True`, checking it before each repeat"
+  - id: counting
+    description: "Count with a loop variable: start it, test it, and update it with `+= 1` or `-= 1`"
+  - id: infinite-loops
+    description: "Spot and fix a loop whose condition never becomes `False`"

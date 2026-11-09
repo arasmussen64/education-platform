@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Module 3 content: Loops)
+
+- **Five new topics, all ready:** while loops, for and range, Accumulator patterns, Strings as sequences, and Nested loops. Each has a lesson, a practice ladder, the three proof checks, a review pool and skills, so missed questions come back.
+  - Four are built on CS50P Lecture 2 (Loops), embedded in clips whose times come from CS50's own subtitles: while loops (0:28 to 16:13), for and range (to 26:47), `while True` with `break` and `continue` (to 31:34), and the Mario section for nested loops (1:05:56 to 1:19:15). Strings as sequences is built on the Text section of Python's own tutorial, with Python Tutor walking a loop along a string.
+  - Accumulator patterns names the three shapes (running total, count, best so far) and makes a point of the starting value: 0 is the wrong start for a smallest-so-far.
+  - Off-by-one mistakes get their own attention throughout: `range` stops before its stop value, `word[len(word)]` is one too far, and the last word of a line has no space after it.
+- **Checkpoint 3: text statistics.** From a line of text: the number of words and letters, the longest word, and a bar chart of word lengths, using loops and strings only (lists and `split()` come in Module 5); a triangle-drawing program with three bugs, one of them a crash; a module-level explain about the word that ends with the text. The way through for a stuck learner: a week-of-weather sibling (sunny streaks), the build in four steps, and two fresh versions (number statistics, match results). Every test names the skills it checks, across Modules 1 to 3.
+- In all: 39 more exercises and 26 more recall items. The validator runs 441 programs over the content with no problems. With this, Milestone C is complete.
+
 ### Added (interleaved practice)
 
 - **Each practice ladder now includes one question from an earlier topic** (v1 spec, F5): a recall question from the topic's most recent prerequisite, placed after the topic's own quick checks and labelled with where it's from. It changes each day. Answering it counts for the earlier topic, so it helps keep that topic fresh.

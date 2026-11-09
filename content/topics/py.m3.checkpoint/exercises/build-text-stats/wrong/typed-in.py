@@ -1,0 +1,8 @@
+text = input("Text? ")
+print("Words: 4")
+print("Letters: 16")
+print("Longest word: quick")
+print("###")
+print("#####")
+print("#####")
+print("###")

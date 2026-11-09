@@ -1,6 +1,6 @@
 # Roadmap
 
-**Current phase: 1, Milestone C (keep it).** Milestones A and B are done.
+**Current phase: 1, Milestone D (tutor and polish).** Milestones A, B and C are done.
 
 The owner works full time, split between learning (mornings, on the platform once it exists) and building (afternoons). The roadmap serves both: the platform's content stays one module ahead of the owner's own learning.
 
@@ -51,9 +51,19 @@ Milestone B is complete.
 - [x] Reviews (F11, [ADR-0009](decisions/0009-reviews.md)): one card per Learned topic, FSRS scheduling, two-item sessions rated from first attempts, and the states Mastered, Fading and Relearning (2026-11-08)
 - [x] The Today page in full (F12): due reviews, mistakes to revisit, next up (2026-11-08)
 - [x] Interleaved practice: one recall item from an earlier topic in each practice ladder (F5) (2026-11-08)
-- [ ] Module 3 content (loops), ready before the owner finishes Module 2
+- [x] Module 3 content (loops), ready before the owner finishes Module 2 (2026-11-08)
 
-Then Milestone D (the tutor, problem reports).
+Milestone C is complete.
+
+### Milestone D progress
+
+- [ ] The hint-only AI tutor (F13, [ADR-0003](decisions/0003-ai-roles-and-guardrails.md)) through the AI proxy and its budget cap (F14): hints during Learn and Practice, off during Prove it
+- [ ] Report a problem (F15): a note from any page, saved with the page and item it's about
+- [x] Export my data (F16): built early, in Milestone B
+- [ ] Module 4 content (functions), ready before the owner finishes Module 3
+- [ ] Module 5 content (collections)
+- [ ] Module 6 content, and the end of the Python Foundations track
+- [ ] Smaller app bundle: load the cloud track's outlines only when the map asks for them
 
 ## Phase 2: Adaptivity and better practice (months 2–4)
 

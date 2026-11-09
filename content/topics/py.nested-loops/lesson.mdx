@@ -1,0 +1,46 @@
+<Intro>
+
+A loop's body can hold anything, including another loop. That's how programs draw grids, compare every pair of things, or work through rows and columns. In this clip, David rebuilds a piece of a classic platform game out of `#` characters. Watch for:
+
+- **A column of bricks** with one loop, then **a row of bricks** on a single line. To stay on one line, `print("#", end="")` replaces the usual line break with nothing, and a bare `print()` ends the line afterwards.
+- **A square**: a loop inside a loop. The outer loop runs once per row; the inner loop prints each brick in that row. Watch where the `print()` that ends the line sits: inside the outer loop, after the inner one.
+- **A shortcut.** `"#" * 3` is `"###"`, so a row can be printed without a loop at all. Both ways are fine; the loop version is the one that generalizes.
+
+One thing to read past: David puts his code inside a **function**, `def print_square(size):`. Writing your own functions is Module 4. For now, read the indented lines under `def` as the program itself, with `size` standing for 3. Stop watching when he starts splitting the code into two functions (`print_row`).
+
+Then open the Python Tutor link and press **Next >** through the loop. Watch how `col` runs through all its values before `row` changes once.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+**Inner and outer.** The inner loop runs all the way through on *every* pass of the outer loop. Two rows of three columns means the inner body runs 2 × 3 = 6 times, and the inner variable changes fastest:
+
+```python
+for row in range(2):          # outer: once per row
+    for col in range(3):      # inner: once per column, in each row
+        print(row, col)
+```
+
+prints `0 0`, `0 1`, `0 2`, `1 0`, `1 1`, `1 2`.
+
+**Staying on one line.** `print(x, end="")` prints `x` and nothing after it, so the next print carries on the same line. A bare `print()` prints just the line break. Drawing a grid is the combination:
+
+```python
+for row in range(3):
+    for col in range(4):
+        print("#", end="")    # four bricks on the line
+    print()                   # end the row
+```
+
+**Where a line sits decides which loop it belongs to.** The `print()` above is indented once: inside the outer loop, after the inner one, so it runs once per row. Indent it twice and every brick gets its own line; don't indent it and the whole grid comes out on one line.
+
+**Patterns come from the loop variables.** The inner range can depend on the outer variable: `for col in range(row + 1)` gives a triangle. The variables are also positions: `if row == col` picks out a diagonal.
+
+**Tracing.** When a nested loop confuses you, write a table with a column for each variable and a row for each pass of the *inner* body. It's slower than guessing and much more often right.
+
+`break` leaves only the loop it's inside; to stop the outer loop too, you need a flag variable or, later, a function with `return`.
+
+</Recap>

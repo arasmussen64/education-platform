@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: Module 3, Loops, written
+
+Five topics and Checkpoint 3, the content item of Milestone C, written while the owner is away (they asked for building to continue, with decisions made by best judgement and written down here; see *Decisions for you to review* below).
+
+**Resources.** Lecture 2 of CS50P (Loops, video `-7xg8pGcP6w`) carries four topics, in clips whose times came from CS50's published subtitles: `while` and the accidental infinite loop, 0:28 to 16:13; `for`, lists as "these values", `range` and `_`, to 26:47; asking the user for a positive number with `while True`, `continue` and `break`, to 31:34; and the Mario section, a column, a row and a square of bricks, 1:05:56 to 1:19:15. Strings as sequences is built on the Text section of Python's own tutorial, with Python Tutor walking `for ch in word`. The Python tutorial's `while`, `range` and `break`/`continue` sections are linked as readings. Every lesson is the platform's own words (ADR-0004).
+
+**What each topic drives at:**
+- *while loops*: the condition is checked before each pass, so a loop can run zero times; a counting loop's three parts (start, test, update); infinite loops and how to stop one. The debug is a doubling program that adds 2, overshoots with `<=`, and counts its steps outside the loop.
+- *for and range*: the stop value is never included; `range(start, stop, step)`; `_` for a value that isn't used; when `for` fits and when `while` does. The debug has `range(1, n)`, a variable printed after the loop that ends with the wrong value, and a `Ready` line that prints its counter.
+- *Accumulator patterns*: the before/inside/after shape; running totals and counts; best-so-far and its starting value; `while True` with `break` and `continue`. The build reads numbers until 0 and reports count, total and largest. The debug has `total = 0` inside the loop, an off-by-one range, and `//` where `/` was meant.
+- *Strings as sequences*: positions from 0, negatives from the end, slices that stop before their stop, `len()`, and `for ch in text`. The build prints initials; the debug has `word[1]` for the first letter, `word[len(word)]` (an `IndexError` to read first) and a slice one too long.
+- *Nested loops*: the inner loop runs completely on every pass of the outer; `end=""` and the bare `print()`; patterns from the loop variables. The build is a right-aligned pyramid; the debug is a times table with a short range, `row * row`, and the line break inside the inner loop.
+
+**Checkpoint 3, text statistics:** from a line of words separated by single spaces, the number of words and letters, the longest word (the first of equals) and a bar per word, using loops and strings only, because lists and `split()` are Module 5. The crux is the last word, which has no space after it: it's a hidden test of its own (`test_last_word`), the point of the sibling example (a week of weather, with the longest sunny streak), the subject of a step and of the explain. Five wrong solutions each fail the test for their mistake. The debug draws a triangle and counts its stars, with `range(1, n)`, a `print()` indented into the inner loop, and `star` for `stars`. The fresh versions are number statistics (digits built up as text, then `int()`) and match results (`W`/`L` streaks, a bar per streak). Every test names skills across Modules 1 to 3.
+
+**Numbers:** 39 exercises and 26 recall items added; the validator runs 441 programs over the content, none failing; 18 topics are ready. Web checks, Python checks and the build all pass. The main bundle grew to 894 KB (233 KB gzipped), mostly content; the lazy-outlines chore noted on 2026-11-08 is now worth doing.
+
+**Decisions for you to review:**
+1. *Accumulators have no clip of their own.* CS50P's lecture doesn't teach sums, counts or maximums as patterns, so the lesson's Intro and Recap carry them, and the clip covers `while True`, `break` and `continue`. A Runestone chapter on the accumulator pattern was considered as a reading, but its license couldn't be read (the site sits behind a bot check), so it was left out, as ADR-0004 asks.
+2. *The nested-loops clip includes a function.* David writes the square inside `def print_square(size):`, and functions are Module 4. The Intro says to read the indented lines as the program with `size` standing for 3, and to stop when he splits the code into `print_row`. Cutting the clip before the function would have cut before the nested loop.
+3. *"Letters", not "characters".* The spec says Checkpoint 3 counts characters; the checkpoint counts non-space characters and labels them `Letters:`, because counting every character is just `len(text)` and tests nothing.
+4. *Time estimates* are 40 to 45 minutes per topic rather than the outline's 35, to match a lesson, six or seven practice items and three proofs.
+5. *Module 3's debug exercises each hide one crash* (a `NameError` or `IndexError`) among the three bugs, so Reading errors keeps being practised. That's a pattern worth keeping in later modules.
+
+**Next:** Milestone D (the hint-only tutor and problem reports), the lazy-outlines bundle chore, and Module 4 (functions), in whichever order keeps the owner ahead of the content.
+
 ## 2026-11-08: Interleaved practice
 
 The last app piece of Milestone C (F5): each practice ladder mixes in one recall question from an earlier topic, so the learner has to decide which idea applies rather than knowing it from the page they're on.

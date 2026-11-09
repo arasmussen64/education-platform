@@ -1,0 +1,6 @@
+results = input("Results? ")
+print("Games: 7")
+print("Wins: 5")
+print("Longest winning streak: 3")
+print("##")
+print("###")
