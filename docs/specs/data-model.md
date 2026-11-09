@@ -142,7 +142,7 @@ A checkpoint's tests may name skills of its own module's topics and of earlier m
 ```yaml
 # content/topics/py.variables/recall/reassign-mcq.yaml
 id: reassign-mcq
-type: mcq                       # mcq | predict_output
+type: mcq                       # mcq | predict_output | parsons
 rev: 1
 prompt: |
   After this code runs, what is the value of `b`?
@@ -158,6 +158,8 @@ skills: [assignment]            # declared in topic.yaml
 ```
 
 A `predict_output` item has `code` and `expected_output` instead of `choices` and `answer`. The validator runs the code and checks that the output matches exactly.
+
+A `parsons` item ([ADR-0016](../decisions/0016-parsons-problems.md)) has `lines`, the program's lines in the right order with their indentation, and optional `distractors`, lines that don't belong. The app scrambles them and the learner puts them back; the answer is right when the lines are exactly the solution's, in order, with no decoy. The prompt must say what the program prints, so there's one right order. The validator runs the lines in order: the program must run without an error and without asking for input, the lines must be distinct, and no distractor may equal a line.
 
 ### Exercises
 
@@ -265,7 +267,7 @@ Policies allow **insert** and **select** only. There is no update or delete poli
 | Event type | When | `data` holds |
 |---|---|---|
 | `lesson_view` | a topic's lesson is opened | `resource`: the main resource's URL |
-| `answer` | a multiple-choice or predict-the-output item is answered | `choice` and `choice_text`, or `prediction` |
+| `answer` | a multiple-choice, predict-the-output or Parsons item is answered | `choice` and `choice_text`, or `prediction`, or `program` (the lines in the order the learner left them) |
 | `code_run` | the learner presses Run | `code`; `outcome` (`done`, `timeout` or `failed`); `output`, `error` and `waiting_for_input` (or `message`) |
 | `code_check` | tests are run | `code`; `outcome`; `status`; `passed` and `total`; `failing` (test names); `message` if the tests couldn't run |
 | `explain_submit` | an explanation is sent to be checked (item `explain`) | the text and `status`; when graded, the `verdict`, each rubric item's result, the `questions`, `ai_call_id` and `model`. `correct` is set only when graded ([ADR-0013](../decisions/0013-explain-grading.md)) |

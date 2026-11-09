@@ -4,6 +4,7 @@ import type { TopicContent } from '../content/types.ts'
 import {
   checkEventData,
   clip,
+  MAX_CODE_CHARS,
   MAX_TEXT_CHARS,
   runEventData,
 } from '../events/payloads.ts'
@@ -13,6 +14,7 @@ import { allChecksPassed } from '../python/runner.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
 import { type ExerciseActivity, ExerciseView } from './ExerciseView.tsx'
 import { McqQuestion } from './McqQuestion.tsx'
+import { ParsonsProblem } from './ParsonsProblem.tsx'
 import { PredictOutput } from './PredictOutput.tsx'
 import { CARD } from './styles.ts'
 import { useAttemptTimer } from './useAttemptTimer.ts'
@@ -73,6 +75,21 @@ function describe(
           onAnswer={(correct, prediction) =>
             onAnswer(correct, {
               prediction: clip(prediction, MAX_TEXT_CHARS),
+            })
+          }
+        />
+      ),
+    }
+  }
+  if (recall?.type === 'parsons') {
+    return {
+      heading: 'Put the lines in order',
+      body: (
+        <ParsonsProblem
+          item={recall}
+          onAnswer={(correct, program) =>
+            onAnswer(correct, {
+              program: clip(program.join('\n'), MAX_CODE_CHARS),
             })
           }
         />

@@ -187,7 +187,38 @@ class PredictOutputItem(Strict):
     skills: list[ItemId] = []
 
 
-RecallItem = Annotated[McqItem | PredictOutputItem, Field(discriminator="type")]
+class ParsonsItem(Strict):
+    """Scrambled lines of a short program, to put back in order (ADR-0016)."""
+
+    id: ItemId
+    type: Literal["parsons"]
+    rev: Rev
+    prompt: Text
+    # The program's lines in the right order, each with its indentation.
+    lines: list[str] = Field(min_length=3)
+    # Lines that don't belong, mixed in with the real ones.
+    distractors: list[str] = []
+    explanation: Text
+    skills: list[ItemId] = []
+
+    @model_validator(mode="after")
+    def lines_are_distinct(self) -> ParsonsItem:
+        lines = [line.strip() for line in self.lines]
+        if any(line == "" for line in lines):
+            raise ValueError("lines must not be blank")
+        if len(set(lines)) != len(lines):
+            raise ValueError("lines must all be different, so the order can be checked")
+        decoys = [line.strip() for line in self.distractors]
+        if any(decoy == "" for decoy in decoys) or len(set(decoys)) != len(decoys):
+            raise ValueError("distractors must be non-blank and all different")
+        if set(decoys) & set(lines):
+            raise ValueError("a distractor must be different from every line")
+        return self
+
+
+RecallItem = Annotated[
+    McqItem | PredictOutputItem | ParsonsItem, Field(discriminator="type")
+]
 recall_item = TypeAdapter(RecallItem)
 
 Stage = Literal["worked_example", "fill_in", "write", "build", "debug", "review_code"]

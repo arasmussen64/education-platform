@@ -5,6 +5,7 @@ import type { ComponentType, ReactNode } from 'react'
 import type {
   Exercise,
   McqItem,
+  ParsonsItem,
   PredictOutputItem,
   Topic,
   TopicContent,
@@ -122,6 +123,23 @@ export const PREDICT: PredictOutputItem = {
   code: 'print("a")\nprint("b")\n',
   expected_output: 'a\nb\n',
   explanation: 'Each print starts a new line.',
+  skills: ['print-text'],
+}
+
+export const PARSONS: ParsonsItem = {
+  id: 'parsons-countdown',
+  type: 'parsons',
+  rev: 1,
+  prompt: 'Put the lines in order so the program prints 3, 2, 1.',
+  lines: [
+    'count = 3',
+    'while count > 0:',
+    '    print(count)',
+    '    count = count - 1',
+  ],
+  distractors: ['while count < 0:'],
+  explanation:
+    'The loop runs while count is above 0, printing before it counts down.',
   skills: ['print-text'],
 }
 

@@ -42,7 +42,8 @@ export function dueReviews(
 
 /** Whether an item asks for code or a prediction, rather than a choice. */
 function isCodeOrPredict(content: TopicContent, itemId: string): boolean {
-  if (content.recall[itemId]?.type === 'predict_output') return true
+  const type = content.recall[itemId]?.type
+  if (type === 'predict_output' || type === 'parsons') return true
   const exercise = content.exercises[itemId]
   return exercise !== undefined && exercise.stage !== 'worked_example'
 }

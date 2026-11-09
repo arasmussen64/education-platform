@@ -89,7 +89,7 @@ describe('app routes', () => {
       'This clip: 0:24 to 9:51 (about 9 minutes).',
     )
     expect(screen.getByRole('region', { name: 'Practice' })).toHaveTextContent(
-      'Practice 6 of 6',
+      'Practice 7 of 7',
     )
   })
 

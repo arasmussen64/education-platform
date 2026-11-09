@@ -1,9 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { MCQ, PREDICT } from '../test/fakeContent.tsx'
+import { MCQ, PARSONS, PREDICT } from '../test/fakeContent.tsx'
 import { McqQuestion } from './McqQuestion.tsx'
+import { ParsonsProblem } from './ParsonsProblem.tsx'
 import { PredictOutput } from './PredictOutput.tsx'
+import { scramble } from './scramble.ts'
 
 const check = () =>
   userEvent.click(screen.getByRole('button', { name: 'Check' }))
@@ -56,5 +58,94 @@ describe('PredictOutput', () => {
     expect(screen.getByText(/Not quite. It prints:/)).toBeInTheDocument()
     expect(screen.getByLabelText('What will it print?')).toBeDisabled()
     expect(screen.getByText(PREDICT.explanation)).toBeInTheDocument()
+  })
+})
+
+describe('ParsonsProblem', () => {
+  const add = (line: string) =>
+    userEvent.click(screen.getByRole('button', { name: `Add: ${line}` }))
+  const programList = () =>
+    within(screen.getByRole('region', { name: 'Your program' })).queryAllByRole(
+      'listitem',
+    )
+
+  it('scrambles the lines and the decoy the same way every time, never solved', () => {
+    const once = scramble(PARSONS)
+    expect(scramble(PARSONS)).toEqual(once)
+    expect(once).toHaveLength(5)
+    expect([...once].sort()).toEqual(
+      [...PARSONS.lines, ...PARSONS.distractors].sort(),
+    )
+    expect(once.slice(0, 4)).not.toEqual(PARSONS.lines)
+  })
+
+  it('starts empty, says a decoy is in the mix, and waits for a line before checking', () => {
+    render(<ParsonsProblem item={PARSONS} />)
+    expect(programList()).toHaveLength(0)
+    expect(
+      screen.getByText("One line is a decoy that doesn't belong."),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check' })).toBeDisabled()
+    expect(screen.getAllByRole('button', { name: /^Add: / })).toHaveLength(5)
+  })
+
+  it('is right when the lines are in order without the decoy', async () => {
+    const onAnswer = vi.fn()
+    render(<ParsonsProblem item={PARSONS} onAnswer={onAnswer} />)
+    // Added out of order, then fixed with Up and Down.
+    await add('while count > 0:')
+    await add('count = 3')
+    await add('count = count - 1')
+    await add('print(count)')
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Move up: count = 3' }),
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Move down: count = count - 1' }),
+    )
+    expect(programList().map((item) => item.textContent)).toEqual([
+      'count = 3UpDownRemove',
+      'while count > 0:UpDownRemove',
+      '    print(count)UpDownRemove',
+      '    count = count - 1UpDownRemove',
+    ])
+    await check()
+    expect(screen.getByText('Correct!')).toBeInTheDocument()
+    expect(screen.getByText(PARSONS.explanation)).toBeInTheDocument()
+    expect(onAnswer).toHaveBeenCalledWith(true, PARSONS.lines)
+  })
+
+  it('is wrong with the decoy in, shows the program, and locks the lines', async () => {
+    const onAnswer = vi.fn()
+    render(<ParsonsProblem item={PARSONS} onAnswer={onAnswer} />)
+    await add('count = 3')
+    await add('while count < 0:')
+    await add('print(count)')
+    await add('count = count - 1')
+    // Removing puts a line back in the tray.
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Remove: count = count - 1' }),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Add: count = count - 1' }),
+    ).toBeInTheDocument()
+    await add('count = count - 1')
+    await check()
+    expect(screen.getByText(/Not quite. The program is:/)).toBeInTheDocument()
+    // The right program, with its line breaks and indentation kept.
+    const shown = screen.getByText((_, node) => node?.tagName === 'PRE')
+    expect(shown.textContent).toBe(PARSONS.lines.join('\n'))
+    expect(
+      screen.getByRole('button', { name: 'Add: while count > 0:' }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Remove: count = 3' }),
+    ).toBeDisabled()
+    expect(onAnswer).toHaveBeenCalledWith(false, [
+      'count = 3',
+      'while count < 0:',
+      '    print(count)',
+      '    count = count - 1',
+    ])
   })
 })

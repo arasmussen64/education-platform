@@ -95,7 +95,21 @@ export type PredictOutputItem = {
   skills: string[]
 }
 
-export type RecallItem = McqItem | PredictOutputItem
+/** Scrambled lines of a program to put back in order (ADR-0016). */
+export type ParsonsItem = {
+  id: string
+  type: 'parsons'
+  rev: number
+  prompt: string
+  /** The program's lines in the right order, each with its indentation. */
+  lines: string[]
+  /** Lines that don't belong, mixed in with the real ones. */
+  distractors: string[]
+  explanation: string
+  skills: string[]
+}
+
+export type RecallItem = McqItem | PredictOutputItem | ParsonsItem
 
 export type Stage =
   'worked_example' | 'fill_in' | 'write' | 'build' | 'debug' | 'review_code'
