@@ -37,7 +37,8 @@ resources:
     start: 10
     end: 20
     license: CC BY-NC-SA 4.0
-practice: [example-hello, mcq-print, predict-print, fill-hello, write-hello]
+practice: [example-hello, parsons-order, mcq-print, predict-print,
+  fill-hello, write-hello]
 prove:
   build: build-hello
   debug: debug-hello
@@ -101,6 +102,20 @@ explanation: Each print starts a new line.
 skills: [print-text]
 """
 
+PARSONS = """id: parsons-order
+type: parsons
+rev: 1
+prompt: Put the lines in order so the program prints Hello!
+lines:
+  - 'greeting = "Hello"'
+  - 'greeting = greeting + "!"'
+  - 'print(greeting)'
+distractors:
+  - 'print(Greeting)'
+explanation: A name must exist before it's used.
+skills: [print-text]
+"""
+
 LESSON = """<Intro>Watch for print.</Intro>
 
 <Resource index={0} />
@@ -137,6 +152,7 @@ def make_valid_tree(root: Path) -> Path:
     write(root, f"{topic}/lesson.mdx", LESSON)
     write(root, f"{topic}/recall/mcq-print.yaml", MCQ)
     write(root, f"{topic}/recall/predict-print.yaml", PREDICT)
+    write(root, f"{topic}/recall/parsons-order.yaml", PARSONS)
     exercises = {
         "example-hello": "worked_example",
         "fill-hello": "fill_in",

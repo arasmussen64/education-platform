@@ -204,6 +204,15 @@ export function isOpen(topic: Topic): boolean {
   )
 }
 
+/** Fills in the fields a question file may leave out. */
+function withRecallDefaults(item: RecallItem): RecallItem {
+  const skills = item.skills ?? []
+  if (item.type === 'parsons') {
+    return { ...item, skills, distractors: item.distractors ?? [] }
+  }
+  return { ...item, skills }
+}
+
 function inTopic(path: string, topicId: string): boolean {
   return path.includes(`/topics/${topicId}/`)
 }
@@ -225,7 +234,7 @@ export async function loadTopicContent(
     .filter(([path]) => inTopic(path, topicId))
     .map(async ([, load]) => {
       const item = await load()
-      recall[item.id] = { ...item, skills: item.skills ?? [] }
+      recall[item.id] = withRecallDefaults(item)
     })
 
   const exercises: Record<string, Exercise> = {}

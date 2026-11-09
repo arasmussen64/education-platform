@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Parsons problems
+
+A new kind of practice question, from the Phase 2 list, chosen because it helps most at the start of the track the owner is on: the lines of a short program are scrambled, with a decoy, and the learner puts them back in order. The research (Ericson, Margulieux and Rick, 2017) finds this teaches program structure with less effort than writing from scratch, for the same learning. [ADR-0016](decisions/0016-parsons-problems.md), proposed.
+
+**What changed.** A third recall item type, `parsons`, in the content model and the validator: `lines` in the right order with their indentation, optional `distractors`, a prompt that says what the program prints, an explanation and skills. The validator runs the lines in order (no error, no input) and checks that lines are distinct and that no decoy equals a line; its tests cover a crashing order and a decoy that copies a line. In the app, `ParsonsProblem` shows the scrambled lines in a tray and an empty program with Add, Up, Down and Remove buttons, then Check; right means exactly the solution's lines in order. `PracticeItem` gives it the heading "Put the lines in order" and saves an `answer` event whose data holds the program. Review sessions count it as "code or predict". The scramble is seeded by the item's ID (same every time) and never the solved order.
+
+**Content.** Eleven items, one per topic, right after the worked example: a shopping list of prints (Programs and print), a running total (Variables), an adult check with `if`/`else` (If, elif and else), a countdown (While loops), a sum over a range (For and range), a running sum with prints inside and after the loop (Accumulator patterns), a function defined then called twice (Defining functions), appends and a lookup (Lists), word counting with `get` (Dictionaries), a safe `int()` with `try`/`except` (Exceptions), and write-then-read (Files). Each has one decoy that teaches something: `Print` for `print`, `Total` for `total`, `elif` with no second test, `while count < 0:`, `range(1, 3)`, `total = n`, `def greet():`, `append[...]`, `counts[word] + 1`, `except NameError:`, `f.write(hello)`. Three are also in review pools (Variables, For and range, Exceptions).
+
+**Numbers.** 172 recall items (11 new); the validator runs 921 programs with no problems; 409 web tests (6 new) and 39 tool tests pass.
+
+**Decisions for you to review:**
+1. *Buttons, not drag-and-drop.* Add, Up, Down and Remove work with a keyboard and on a phone and are easy to test; dragging can be layered on later without changing the item format.
+2. *One-dimensional Parsons:* lines keep their indentation and the learner only orders them. Setting indentation too (the two-dimensional kind) can be an option on the item later.
+3. *The prompt states the output,* so every item has exactly one right order; the content checklist says to avoid lines that could swap without changing the output, because the validator can't catch that.
+4. *The scramble is fixed per item* (seeded by its ID), so a question looks the same when it comes back, and it's never the solved order.
+5. *Placed right after the worked example* in each practice ladder, where the research puts it, which makes the first topics' ladders one step longer (Programs and print now has 7 practice items).
+6. *An ADR for a new item type,* since it changes the content format and the event data; proposed until you accept it.
+
+**Next:** your go on the deploys; then the cloud track's Stage 1 drills (ADR-0014) and the lab checker.
+
 ## 2026-11-09: Practice hours on the Today page
 
 The owner's own idea from 2026-11-06, pulled forward from Phase 2 because it needed nothing new recorded: every graded attempt has saved its `duration_ms` since the event log began.

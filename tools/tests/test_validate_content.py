@@ -41,9 +41,10 @@ def test_good_content_has_no_problems(tree: Path) -> None:
     assert report.problems == []
     assert report.counts["ready"] == 1
     assert report.counts["exercises"] == 6
-    # 6 reference solutions + 2 starters + 1 wrong solution + 1 predict item,
-    # and an empty program for each of the 2 exercises with hidden tests
-    assert report.counts["runs"] == 12
+    # 6 reference solutions + 2 starters + 1 wrong solution + 1 predict item
+    # + 1 Parsons item, and an empty program for each of the 2 exercises with
+    # hidden tests
+    assert report.counts["runs"] == 13
 
 
 def test_hidden_tests_fail_instead_of_crashing(tree: Path) -> None:
@@ -252,6 +253,20 @@ def test_predicted_output_must_be_what_the_code_prints(tree: Path) -> None:
     assert_reported(
         tree, "expected_output is 'a\\nc\\n', but the code prints 'a\\nb\\n'"
     )
+
+
+def test_parsons_lines_must_run_in_order(tree: Path) -> None:
+    item = f"{TOPIC_DIR}/recall/parsons-order.yaml"
+    text = (tree / item).read_text(encoding="utf-8")
+    write(tree, item, text.replace("  - 'print(greeting)'", "  - 'print(greting)'"))
+    assert_reported(tree, "the lines in order crash")
+
+
+def test_parsons_decoys_must_differ_from_the_lines(tree: Path) -> None:
+    item = f"{TOPIC_DIR}/recall/parsons-order.yaml"
+    text = (tree / item).read_text(encoding="utf-8")
+    write(tree, item, text.replace("  - 'print(Greeting)'", "  - 'print(greeting)'"))
+    assert_reported(tree, "different from every line", run=False)
 
 
 def test_code_that_never_stops_is_reported(

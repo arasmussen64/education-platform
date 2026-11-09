@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Parsons problems)
+
+- **A new kind of practice question: put the lines in order** ([ADR-0016](docs/decisions/0016-parsons-problems.md)). A short program's lines are scrambled, with a decoy that doesn't belong, and you build the program with Add, Up, Down and Remove, then Check. It's right when the lines are exactly in the right order without the decoy; otherwise it shows the program and explains. The buttons work with a keyboard and on a phone. The scramble is the same every time an item comes back, and never the solved order.
+- **Eleven Parsons problems**, one in each of these topics, right after the worked example: Programs and print, Variables, If, elif and else, While loops, For and range, Accumulator patterns, Defining functions, Lists, Dictionaries, Exceptions and Files. Three are also in their topic's review pool. The validator runs each one's lines in order and checks the decoys differ from the real lines.
+- In reviews, a Parsons item counts as a code question rather than a multiple-choice one, so a session can pair it with a quick check.
+
 ### Added (web app)
 
 - **Practice hours**, on the Today page: how much deliberate practice you've done so far and in the last 7 days, with a bar toward the next milestone on the way to 10,000 hours (1, 5, 10, 25, 50, 100, 250, 500, 1,000, 2,500, 5,000, 10,000). It adds up the time recorded on every answer, Check, explanation and review, counting at most 30 minutes per attempt, so a page left open isn't practice. Nothing new is recorded: every graded attempt has saved its duration since the event log began.

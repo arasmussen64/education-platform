@@ -40,12 +40,15 @@ from content_model import (
     Exercise,
     McqItem,
     Module,
+    ParsonsItem,
     PredictOutputItem,
     Topic,
     Track,
     recall_item,
 )
 from pydantic import BaseModel, TypeAdapter, ValidationError
+
+AnyItem = McqItem | PredictOutputItem | ParsonsItem | Exercise
 
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS_CLI = ROOT / "harness" / "cli.py"
@@ -67,7 +70,9 @@ class Report:
 class TopicFolder:
     path: Path
     topic: Topic
-    recall: dict[str, McqItem | PredictOutputItem] = field(default_factory=dict)
+    recall: dict[str, McqItem | PredictOutputItem | ParsonsItem] = field(
+        default_factory=dict
+    )
     exercises: dict[str, tuple[Path, Exercise]] = field(default_factory=dict)
 
     def has_item(self, item_id: str) -> bool:
@@ -81,9 +86,9 @@ class TopicFolder:
             return self.recall[item_id].type
         return None
 
-    def items(self) -> list[tuple[Path, McqItem | PredictOutputItem | Exercise]]:
+    def items(self) -> list[tuple[Path, AnyItem]]:
         """Every question and exercise, with the file it came from."""
-        found: list[tuple[Path, McqItem | PredictOutputItem | Exercise]] = [
+        found: list[tuple[Path, AnyItem]] = [
             (self.path / "recall" / f"{item.id}.yaml", item)
             for item in self.recall.values()
         ]
@@ -236,7 +241,7 @@ def check_ready_topic(folder: TopicFolder, report: Report) -> None:
             report.add(topic_file, "a ready topic needs at least one resource")
 
         stages = Counter(stage_of(item_id) for item_id in topic.practice)
-        recall_count = stages["mcq"] + stages["predict_output"]
+        recall_count = stages["mcq"] + stages["predict_output"] + stages["parsons"]
         if stages["worked_example"] < 1:
             report.add(topic_file, "practice needs a worked example")
         if recall_count < 2:
@@ -249,13 +254,15 @@ def check_ready_topic(folder: TopicFolder, report: Report) -> None:
         if len(topic.review_pool) < 3:
             report.add(topic_file, "the review pool needs at least 3 items")
         review_stages = {stage_of(item_id) for item_id in topic.review_pool}
-        if not review_stages & {"predict_output", "review_code"}:
+        if not review_stages & {"predict_output", "parsons", "review_code"}:
             report.add(
                 topic_file,
-                "the review pool needs a predict-the-output or review_code item",
+                "the review pool needs a predict-the-output, Parsons or "
+                "review_code item",
             )
         for item_id in topic.review_pool:
-            if stage_of(item_id) not in {None, "mcq", "predict_output", "review_code"}:
+            review_kinds = {None, "mcq", "predict_output", "parsons", "review_code"}
+            if stage_of(item_id) not in review_kinds:
                 report.add(topic_file, f"{item_id!r} can't be a review item")
     elif topic.review_pool:
         report.add(topic_file, "checkpoints don't have review pools")
@@ -623,6 +630,21 @@ def check_predict_output(path: Path, item: PredictOutputItem, report: Report) ->
         )
 
 
+def check_parsons(path: Path, item: ParsonsItem, report: Report) -> None:
+    """The lines in order must make a program that runs, without input or error."""
+    report.counts["runs"] += 1
+    program = "\n".join(item.lines) + "\n"
+    try:
+        result = run_harness("run", {"solution.py": program})
+    except RunFailed as exc:
+        report.add(path, str(exc))
+        return
+    if result["error"]:
+        report.add(path, f"the lines in order crash:\n{result['error']}")
+    elif result["waiting_for_input"]:
+        report.add(path, "the lines ask for input; a Parsons program must not")
+
+
 # --- Putting it together ---------------------------------------------------------
 
 
@@ -663,10 +685,11 @@ def validate(root: Path = ROOT, run: bool = True) -> Report:
                 check_ready_checkpoint(folder, topics, place, report)
         for item_path_id, item in folder.recall.items():
             report.counts["recall items"] += 1
+            item_path = folder.path / "recall" / f"{item_path_id}.yaml"
             if isinstance(item, PredictOutputItem) and run:
-                check_predict_output(
-                    folder.path / "recall" / f"{item_path_id}.yaml", item, report
-                )
+                check_predict_output(item_path, item, report)
+            elif isinstance(item, ParsonsItem) and run:
+                check_parsons(item_path, item, report)
         for exercise_folder, exercise in folder.exercises.values():
             report.counts["exercises"] += 1
             check_exercise(exercise_folder, exercise, report, run)

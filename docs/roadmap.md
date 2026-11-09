@@ -72,7 +72,7 @@ Milestone D is built. It's complete once the owner has deployed the AI proxy and
 Mornings learning on the platform, afternoons building it.
 
 - A placement test that walks the topic map, including a math diagnostic
-- More exercise types: Parsons problems, a step-through code visualizer
+- More exercise types: [x] Parsons problems ([ADR-0016](decisions/0016-parsons-problems.md), 2026-11-09, eleven items across Modules 1 to 6); [ ] a step-through code visualizer
 - The living map: topics fade as their predicted memory strength drops
 - [x] A practice-hours tracker (the owner's idea, 2026-11-06): total time spent in active practice, from the attempt durations in the event log, with milestones from 1 hour on the way to 10,000. It counts deliberate practice (attempts, proof checks, reviews), not time with the site open, because that's what the research behind "10,000 hours" measured. Built early, on the Today page (2026-11-09).
 - Automated data backups
