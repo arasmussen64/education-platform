@@ -2,6 +2,18 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: The map in docs/research; the track assumes nothing about the learner
+
+**The owner said:** move the map into `docs/research`, don't assume they're strong in any area, the track may one day serve absolute beginners, and don't worry about the L1, L2, L3 depth levels.
+
+**Done:**
+- The map is at `docs/research/senior-cloud-architect-knowledge-map.md`, renamed to the folder's style and otherwise unchanged. It's the owner's own document, committed at their request.
+- **The spec no longer builds on anyone's standing.** Removed: the depth-level system (the L1–L3 tables, the default depth by module, proofs scaling with depth, the primary-cloud option), every "at the aware level" phrasing, the owner's strengths and gaps from the faster path, and the depth paragraph in ADR-0014. The faster path is now an *example* route for someone who starts on Azure, and the spec says plainly that what a learner skips is decided by "prove it now" and the placement test, never by their own estimate. Two of the map's four rules stay: every concept gets a build, and write as you go.
+- **A correction to the entry below.** It recorded the owner's strengths and gaps from the map as the basis for the faster path. The owner asked not to assume strengths anywhere, so the spec doesn't, and neither should future sessions. The map still says what it says, as the owner's own document.
+- Memory updated the same way.
+
+**Checked:** every topic ID and heading from before this change is still present, no IDs are duplicated, and every relative link resolves.
+
 ## 2026-11-08: The cloud track, cross-referenced with the owner's knowledge map
 
 **The owner asked** to cross-reference the Cloud Solutions Architect spec against their own *Senior Cloud Architect Knowledge Map & Learning Roadmap*, a Markdown file with twelve domains, a certification order, a 24-month plan and a 24-item self-assessment: add everything the map has that the spec lacks, remove nothing, keep it extensive.

@@ -14,8 +14,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   - Every topic is proven by doing: build, explain, fix a broken version, and review. The senior stages add design reviews, game days and "Defend it".
   - **Cross-referenced with the owner's *Senior Cloud Architect Knowledge Map & Learning Roadmap*** (2026-11-08), adding everything the map had that the spec lacked and removing nothing:
     - 4 new modules: Virtualization, hardware and Windows; Software engineering literacy; Application architecture and integration; Specialized workloads. 107 new topics, 210 to 317, and many existing topics extended.
-    - **Depth levels** (L1 aware, L2 working, L3 deep), how the proofs scale with depth, a default depth for each module, and a primary-cloud option.
-    - **A faster path for an experienced learner:** the map's seven-phase, 24-month plan mapped to the track's modules, with its weekly rhythm, kill criteria and reading list.
+    - **The map itself** is kept in `docs/research/senior-cloud-architect-knowledge-map.md`, unchanged.
+    - **An example path for an experienced learner:** the map's seven-phase, 24-month plan mapped to the track's modules, with its weekly rhythm, kill criteria and reading list. What a learner skips is decided by proofs, never by their own estimate.
+    - **The track assumes nothing about the learner.** It starts from zero and teaches every topic in full, so it can serve absolute beginners. For that reason the map's depth levels (L1 to L3) were left out, at the owner's request.
     - **A 24-item self-assessment,** each item tied to the proof that covers it.
     - More certifications, with a suggested order; 6 more drills; 20 more rows in the three-cloud service table.
     - Module numbers and positional checkpoint IDs shifted because modules were inserted; nothing is built, so nothing refers to them.

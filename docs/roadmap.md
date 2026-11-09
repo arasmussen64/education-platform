@@ -70,7 +70,7 @@ Mornings learning on the platform, afternoons building it.
 
 ## Other tracks
 
-- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map, which added depth levels, a 24-month path for an experienced learner and a self-assessment. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), proposed. Building it needs support for more than one track in the app, and the lab checker.
+- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), proposed. Building it needs support for more than one track in the app, and the lab checker.
 
 ## The owner's 12-month learning milestone
 
