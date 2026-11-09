@@ -173,7 +173,21 @@ describe('more than one track', () => {
     expect(screen.getByText('Cloud Solutions Architect:')).toBeInTheDocument()
     expect(screen.getByText("Loading this track's map…")).toBeInTheDocument()
     expect(
-      await screen.findByRole('heading', {
+      // The first load turns 357 outline files into code, which can take a
+      // few seconds on a slow machine (CI); the default wait is one second.
+      await screen.findByRole(
+        'heading',
+        { name: 'Module 1: Linux and the command line' },
+        { timeout: 15_000 },
+      ),
+    ).toBeInTheDocument()
+  }, 20_000)
+
+  it('still shows the track when its outlines are already loaded', () => {
+    // The test above loaded them; now they're there at once.
+    renderMap([], { path: '/map/cloud-solutions-architect' })
+    expect(
+      screen.getByRole('heading', {
         name: 'Module 1: Linux and the command line',
       }),
     ).toBeInTheDocument()

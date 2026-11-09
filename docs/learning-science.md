@@ -17,6 +17,7 @@ The methods Switchback is built on, and the features they drive. Rule of thumb: 
 | **Desirable difficulties** | Some struggle (recall, spacing, variation) slows practice but improves long-term learning | Blank-editor challenges; no answer-giving AI |
 | **Feedback on confident errors** | Mistakes made with high confidence, once corrected, are remembered especially well | Immediate, specific feedback. Candidate feature: ask for confidence before revealing answers |
 | **Dual coding / multimedia** | Words plus well-designed visuals beat words alone | Diagrams, execution visualizations, embedded videos |
+| **Deliberate practice** | Expertise tracks hours of focused, effortful practice on tasks just beyond current skill, with feedback (Ericsson et al., 1993); the "10,000 hours" figure is a popularization of that work, not a rule | The practice-hours tracker on the Today page counts only time spent on graded attempts, Checks, explanations and reviews, never time with the site open, and marks milestones from 1 hour to 10,000 |
 
 ## Programming-specific methods
 

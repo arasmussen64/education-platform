@@ -275,7 +275,7 @@ Policies allow **insert** and **select** only. There is no update or delete poli
 
 How the browser fills in the other columns:
 
-- **`duration_ms`** (graded events): from the learner's first click or focus inside the item, or from their previous attempt at it, to this attempt. Time spent reading the lesson above doesn't count.
+- **`duration_ms`** (graded events): from the learner's first click or focus inside the item, or from their previous attempt at it, to this attempt. Time spent reading the lesson above doesn't count. The practice-hours tracker on the Today page adds these up, counting at most 30 minutes per attempt.
 - **`hints_used`**: how many hints were showing at the time.
 - **`session_id`**: a new study session starts when the app opens, and after 30 minutes without any events.
 - **`content_build`**: the git commit the app was built from.

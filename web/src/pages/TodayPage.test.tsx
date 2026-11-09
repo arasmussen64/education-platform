@@ -144,6 +144,38 @@ describe('the Today page', () => {
     ).toBeInTheDocument()
   })
 
+  it('adds up practice time, capped per attempt, toward the next milestone', async () => {
+    renderToday([
+      // Ninety seconds, ninety seconds, and three hours with the page left
+      // open, which counts as the 30-minute cap.
+      { ...answer('mcq-print', true, daysAgo(1)), duration_ms: 90_000 },
+      { ...check('fill-greeting', true, daysAgo(2)), duration_ms: 90_000 },
+      {
+        ...answer('predict-four-lines', true, daysAgo(10)),
+        duration_ms: 3 * 60 * 60_000,
+      },
+      answer('review-mcq-commas', true, daysAgo(3)),
+    ])
+    const hours = await screen.findByRole('region', { name: 'Practice hours' })
+    expect(hours).toHaveTextContent(
+      '33 minutes of deliberate practice so far, 3 minutes of it in the last 7 days.',
+    )
+    expect(hours).toHaveTextContent(
+      'Next milestone: 1 hour (27 minutes to go).',
+    )
+    expect(
+      within(hours).getByRole('progressbar', {
+        name: 'Progress toward 1 hour',
+      }),
+    ).toHaveAttribute('value', '33')
+  })
+
+  it('says when no practice time has been counted yet', async () => {
+    renderToday([])
+    const hours = await screen.findByRole('region', { name: 'Practice hours' })
+    expect(hours).toHaveTextContent('Nothing counted yet.')
+  })
+
   it('gives each skill its own question when one miss opens several', async () => {
     // The recipe card tests two skills, and it never passed that day.
     renderToday([check('write-recipe-card', false, daysAgo(1))])

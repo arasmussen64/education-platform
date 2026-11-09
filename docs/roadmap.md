@@ -74,7 +74,7 @@ Mornings learning on the platform, afternoons building it.
 - A placement test that walks the topic map, including a math diagnostic
 - More exercise types: Parsons problems, a step-through code visualizer
 - The living map: topics fade as their predicted memory strength drops
-- A practice-hours tracker (the owner's idea, 2026-11-06): total time spent in active practice, from the attempt durations in the event log, with milestones from 10 hours on the way to 10,000. It counts deliberate practice (attempts, proof checks, reviews), not time with the site open, because that's what the research behind "10,000 hours" measured.
+- [x] A practice-hours tracker (the owner's idea, 2026-11-06): total time spent in active practice, from the attempt durations in the event log, with milestones from 1 hour on the way to 10,000. It counts deliberate practice (attempts, proof checks, reviews), not time with the site open, because that's what the research behind "10,000 hours" measured. Built early, on the Today page (2026-11-09).
 - Automated data backups
 - Content: intermediate Python; a math refresher for the ML track
 

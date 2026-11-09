@@ -58,6 +58,13 @@ describe('toAttempt', () => {
     })
   })
 
+  it('keeps how long an attempt took, when the row says', () => {
+    expect(toAttempt(row(1, { duration_ms: 41200 }))?.duration_ms).toBe(41200)
+    expect(toAttempt(row(2, { duration_ms: null }))).not.toHaveProperty(
+      'duration_ms',
+    )
+  })
+
   it('keeps which tests a Check failed, when its tests ran', () => {
     const checked = { type: 'code_check', correct: false, status: 'ok' }
     expect(
