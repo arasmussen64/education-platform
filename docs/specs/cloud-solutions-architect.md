@@ -4,7 +4,9 @@ This track takes a learner to the work of a senior, then principal, cloud soluti
 
 **Status: specified, not built.** It's the second track, after Python Foundations. Building it needs two things first: the app has to support more than one track, and the lab checker from [ADR-0014](../decisions/0014-cloud-labs.md) (proposed) has to exist. See [Building it](#building-it).
 
-**Two sources.** The track was first designed from the platform's own rules, then cross-referenced on 2026-11-08 against the owner's *Senior Cloud Architect Knowledge Map & Learning Roadmap* (twelve domains, a certification order, a 24-month plan and a self-assessment), so that everything in that map is in the track. The map's [depth levels](#depth-levels), [faster path](#a-faster-path-for-an-experienced-learner) and [self-assessment](#self-assessment-youre-senior-when-you-can) are now part of this spec.
+**Two sources.** The track was first designed from the platform's own rules, then cross-referenced on 2026-11-08 against the owner's *Senior Cloud Architect Knowledge Map & Learning Roadmap* (twelve domains, a certification order, a 24-month plan and a self-assessment), so that everything in that map is in the track. The map's [24-month example path](#a-faster-path-for-an-experienced-learner) and [self-assessment](#self-assessment-youre-senior-when-you-can) are part of this spec, and the map itself is kept at [docs/research/senior-cloud-architect-knowledge-map.md](../research/senior-cloud-architect-knowledge-map.md).
+
+**It assumes nothing about the learner.** The track starts from zero and teaches every topic in full, so it can serve an absolute beginner. Someone who arrives with experience doesn't declare it: they skip a topic by proving it, through "prove it now" or the placement test ([ADR-0002](../decisions/0002-mastery-and-gating.md)).
 
 - **Size:** 30 modules in 4 stages, about 320 topics, plus a specialty. Every module ends with a checkpoint, and stages 2–4 each end with a capstone.
 - **Proven by doing.** Every topic gets the platform's four proofs ([ADR-0002](../decisions/0002-mastery-and-gating.md)), done in the learner's own cloud accounts:
@@ -14,12 +16,11 @@ This track takes a learner to the work of a senior, then principal, cloud soluti
   - still do it weeks later.
 
   The senior stages add design reviews, game days, and defending a design to skeptical stakeholders.
-- **Multi-cloud by default.** Core topics are built on all three clouds, and their explain checks ask how the clouds differ. Multi-cloud designs usually go wrong at those differences. A learner can also choose a primary cloud for depth and build the other two comparatively (see [Depth levels](#depth-levels)).
-- **Depth on purpose.** Not every topic needs the same depth. Each has a target depth, from "aware" to "deep", and the proofs scale with it. A senior architect is deep on about a third of the map.
-- **Time:** at full depth, roughly 2,200–2,600 hours of focused work including reviews, which is 2–3 years at 15–20 hours a week. Nobody takes it at full depth: the target depths, "prove it now" for what you already know, and the [faster path](#a-faster-path-for-an-experienced-learner) bring an experienced learner to about 24 months at 10–15 hours a week.
+- **Multi-cloud by default.** Core topics are built on all three clouds, and their explain checks ask how the clouds differ. Multi-cloud designs usually go wrong at those differences.
+- **Time:** roughly 2,200–2,600 hours of focused work including reviews, which is 2–3 years at 15–20 hours a week, for someone starting from zero. A learner who can already prove some of it skips those topics with "prove it now"; the [24-month example](#a-faster-path-for-an-experienced-learner) shows what that can look like.
 - **Practice environments:** it assumes access to AWS, Azure and Google Cloud accounts. Cost control counts as part of the job (see [Lab safety and cost](#lab-safety-and-cost)).
 
-| Stage | Modules | Topics | Ends with | Rough hours at full depth |
+| Stage | Modules | Topics | Ends with | Rough hours |
 |---|---|---|---|---|
 | 1. Foundations | 1–7 | 83 | Level 1 | 300–350 |
 | 2. Core cloud on three providers | 8–15 | 84 | Capstone 1 | 550–600 |
@@ -53,42 +54,10 @@ The owner's map puts it in one sentence: a senior cloud architect is not someone
 | 3. Senior architect | Capstone 2 | design, secure, govern and cost enterprise systems; lead migrations; run game days |
 | 4. Principal architect | Capstone 3 | set multi-cloud strategy, design data and AI platforms, and win executive support, with a deep specialty |
 
-## Depth levels
+## Two rules from the map
 
-From the owner's map. Every topic has a target depth. Decide which depth a topic needs for *you* before you study it, and don't aim for the deepest level everywhere: a senior architect is deep on roughly a third of the map, working on another third, and aware of the rest. Which third depends on the target role: enterprise infrastructure, application modernization, data platform, or security.
-
-| Depth | Meaning | The test |
-|---|---|---|
-| **L1 Aware** | You know it exists, what problem it solves, and when to bring in a specialist | You can explain it in two sentences to a non-expert |
-| **L2 Working** | You have built or operated it hands-on at least once | You can set it up from a blank account without a tutorial |
-| **L3 Deep** | You can design, debug and teach it; you know its failure modes | You can predict how it breaks under load, misconfiguration or region loss |
-
-**How the proofs scale with depth.** ADR-0002 allows quick versions of the four proofs for small topics, and that's how depth works here:
-
-| Depth | Build | Explain | Debug | Review |
-|---|---|---|---|---|
-| L1 | A short design exercise: choose and justify, no lab | Two sentences for a non-expert, graded | Spot the flaw in a described design | Recall questions |
-| L2 | The lab, on one cloud, from a blank file | The concept, graded | Break-fix on that cloud | Drills, and a rebuild now and then |
-| L3 | The lab on all three clouds, with a time limit | The concept, the differences between clouds, and the failure modes | Break-fix with several faults, timed | Drills, timed rebuilds, and a game day where it fits |
-
-Every build at L2 and L3 is a real build. If you can't deploy it, break it and fix it in a sandbox, you're at L1 for that topic, whatever you've read.
-
-**Default depth by module.** These are targets for a generalist senior architect; a specialty moves its modules to L3.
-
-| Depth | Modules |
-|---|---|
-| L3 | 1 Linux, 3 Networking, 4 Security foundations, 5 Distributed systems, 9 Infrastructure as code, 10 Identity and access, 11 Cloud networking, 13 Storage and databases, 16 The architecture practice, 20 Security architecture, 21 Governance, 22 Reliability, 23 Cost and FinOps, 29 Leadership and consulting, 30 your specialty |
-| L2 | 2 Virtualization, hardware and Windows, 6 Automation, 8 Cloud foundations, 12 Compute, 14 Integration, 15 Observability, 17 Application architecture, 18 IaC at scale, 19 Kubernetes and platforms, 24 Migration, 25 Multi-cloud, 26 Data and analytics, 27 AI and ML platforms |
-| L1 | 7 Software engineering literacy (except Python and SQL, at L2–L3), 28 Specialized workloads |
-
-**Primary and secondary clouds.** The map's rule: learn one cloud deeply and a second comparatively, because pattern knowledge transfers and console knowledge doesn't. The track supports that. Choose a primary cloud: its labs are at the module's depth, and the other two clouds are built at L2 in core modules and compared in every explain check. Multi-cloud topics (Modules 11, 21, 25) stay on all three regardless.
-
-**Four rules of thumb,** also from the map:
-
-1. Don't try to reach L3 on everything.
-2. Learn one cloud deeply and a second comparatively.
-3. Every concept gets a build.
-4. Write as you go. Decision records and one-page design documents are both the job and the best way to study.
+1. **Every concept gets a build.** If you can't deploy it, break it and fix it in a sandbox, you haven't learned it, whatever you've read. That's the platform's own rule ([ADR-0002](../decisions/0002-mastery-and-gating.md)), and the map arrives at it independently.
+2. **Write as you go.** Decision records and one-page design documents are both the job and the best way to study, so from Stage 3 on they're part of the proofs.
 
 ## Words used here
 
@@ -100,7 +69,6 @@ Every build at L2 and L3 is a real build. If you can't deploy it, break it and f
 - **Lab checker:** the platform's tool that inspects what you built in your cloud account and checks that it works ([ADR-0014](../decisions/0014-cloud-labs.md)).
 - **Fault module:** code that deliberately breaks something in your sandbox, for a debugging proof or a game day.
 - **Game day:** a real failure, caused on purpose, that you have to recover from against the clock.
-- **L1, L2, L3:** the [depth levels](#depth-levels): aware, working, deep.
 - **IdP (identity provider):** the system people sign in to, such as Entra ID or Okta, which then vouches for them to everything else.
 - **DDD (domain-driven design):** a way of drawing the boundaries between parts of a system from the business's own language.
 - **CQRS and event sourcing:** keeping separate models for writing and reading (CQRS), and storing every change as an event instead of overwriting state (event sourcing).
@@ -128,8 +96,6 @@ From Stage 3, three more proofs test senior judgment:
 | **Defend it** | AI plays stakeholders, such as a CISO, a CFO and an SRE lead, and questions your design. | Graded against a rubric: did you answer the real concern, with evidence, and own the trade-offs? |
 
 **Standards, not just correctness.** Checkpoints have time limits and accuracy targets, because fluency is part of competency. A senior architect plans a subnet layout in minutes and restores a service within its RTO.
-
-**Depth sets the size of the proof.** An L1 topic is proven with a short design exercise and a two-sentence explanation; an L3 topic with timed builds on three clouds. See [Depth levels](#depth-levels).
 
 **Writing is a proof.** From Module 16 on, most checkpoints include a written piece: a decision record, a one-page design, a postmortem or an executive brief. Each is graded, and each is kept, because the collection becomes the portfolio a senior architect is hired on.
 
@@ -347,7 +313,7 @@ Services change every year; these ideas haven't changed in twenty. This is the m
 | 50 | The fallacies of distributed computing | `csa.ds.fallacies` | name all eight fallacies, each with a real outage it caused, and spot them in a design |
 | 51 | Consistency | `csa.ds.consistency` | explain strong, eventual, read-your-writes and causal consistency, and the CAP and PACELC theorems; choose per use case |
 | 52 | Replication | `csa.ds.replication` | compare synchronous and asynchronous, leader-follower, multi-leader, leaderless and quorum replication; predict data loss on failover; resolve conflicts with last-writer-wins or CRDTs, and say what each loses |
-| 53 | Consensus | `csa.ds.consensus` | explain leader election, quorums and split brain; explain Paxos and Raft at the aware level; say how etcd, ZooKeeper and DynamoDB use them |
+| 53 | Consensus | `csa.ds.consensus` | explain leader election, quorums and split brain; explain Paxos and Raft in outline; say how etcd, ZooKeeper and DynamoDB use them |
 | 54 | Time | `csa.ds.time` | explain clock skew and NTP; use logical clocks (Lamport, vector) and explain TrueTime; say why "the latest write" is ambiguous |
 | 55 | Partitioning | `csa.ds.partitioning` | choose partition keys and a strategy (hash, range, directory, consistent hashing); spot hot partitions; plan resharding |
 | 56 | Caching | `csa.ds.caching` | choose a caching pattern; set TTLs; prevent cache stampedes |
@@ -373,7 +339,7 @@ This module needs Python Foundations.
 | 64 | Cloud SDKs in Python | `csa.auto.sdk` | call all three clouds' Python SDKs; page through results; retry when throttled |
 | 65 | APIs and data formats | `csa.auto.apis` | read and write JSON and YAML; call REST APIs with authentication; respect rate limits |
 | 66 | Containers | `csa.auto.containers` | build small, secure images (multi-stage, distroless, rootless); explain OCI images and runtimes (containerd, CRI-O) and layer caching; push images to a registry; scan them; use Compose locally and say why it isn't production |
-| 67 | Configuration management | `csa.auto.config-management` | write idempotent Ansible playbooks; read Chef and Puppet at the aware level, for legacy estates; say when configuration management is the wrong tool and an image is right |
+| 67 | Configuration management | `csa.auto.config-management` | write idempotent Ansible playbooks; read Chef and Puppet well enough to work with legacy estates; say when configuration management is the wrong tool and an image is right |
 | 68 | Continuous integration | `csa.auto.ci` | run tests, linters and scanners on every pull request |
 
 **Checkpoint 6: the estate inventory** (`csa.m6.checkpoint`). Build a read-only Python tool that lists compute, storage and public endpoints across all three clouds, and flags resources that are untagged or public.
@@ -382,7 +348,7 @@ This module needs Python Foundations.
 
 ### Module 7: Software engineering literacy
 
-An architect isn't the primary coder, but must read code, write automation and review designs with developers as a peer. Aim for L2 in one general-purpose language (Python, from Python Foundations) and L3 in scripting; the rest is L1. This module needs Python Foundations.
+An architect isn't the primary coder, but must read code, write automation and review designs with developers as a peer. Python, from Python Foundations, is the main language here; the other languages are learned to the point of reading them fluently and writing small tools. This module needs Python Foundations.
 
 | # | Topic | ID | You'll be able to… |
 |---|---|---|---|
@@ -394,7 +360,7 @@ An architect isn't the primary coder, but must read code, write automation and r
 | 74 | Testing | `csa.se.testing` | place unit, integration, contract (Pact), end-to-end and property-based tests on the pyramid; use test doubles; explain testing in production |
 | 75 | Dependencies and versions | `csa.se.dependencies` | use semantic versioning and lockfiles; run a vulnerability-remediation workflow; prevent dependency confusion |
 | 76 | API-first development | `csa.se.api-first` | write an OpenAPI description first; generate SDKs and mock servers from it |
-| 77 | Design patterns and clean code | `csa.se.patterns` | use the vocabulary of refactoring, the design patterns that actually recur, and SOLID at the aware level |
+| 77 | Design patterns and clean code | `csa.se.patterns` | use the vocabulary of refactoring, the design patterns that actually recur, and the SOLID principles |
 | 78 | Application performance | `csa.se.app-performance` | profile an application; find memory leaks, N+1 queries, undersized connection pools and async pitfalls |
 | 79 | Secure coding | `csa.se.secure-coding` | apply the OWASP Top 10: input validation, secrets handling, dependency hygiene |
 | 80 | Reading unfamiliar code | `csa.se.reading-code` | read an unfamiliar codebase quickly: entry points, configuration, dependency graph, build system; identify a service's state, its external dependencies, and what breaks when it's scaled horizontally |
@@ -409,7 +375,7 @@ An architect isn't the primary coder, but must read code, write automation and r
 
 ## Stage 2: Core cloud on three providers
 
-This is associate level, on all three clouds. Most topics are taught once as a concept, then built on AWS, Azure and Google Cloud, and their explain checks ask how the clouds differ. The goal, in the map's words, is to know the *category* at L3 and the service names at L2 on your primary cloud and L1–L2 on the others. A few topics cover one cloud's own model; Module 10 has one for each cloud. The [appendix](#same-idea-three-clouds) maps the equivalent services.
+This is associate level, on all three clouds. Most topics are taught once as a concept, then built on AWS, Azure and Google Cloud, and their explain checks ask how the clouds differ. The aim is to know each *category* of service deeply, and the service names on every cloud well enough to build with them. A few topics cover one cloud's own model; Module 10 has one for each cloud. The [appendix](#same-idea-three-clouds) maps the equivalent services.
 
 ### Module 8: Cloud foundations
 
@@ -559,7 +525,7 @@ Data is where cloud bills, compliance exposure and lock-in concentrate, and wher
 
 ### Module 15: Observability and operations
 
-You can't architect for reliability you can't measure. Support-engineering experience gives incident instincts; this module adds the SRE formalism and the design-time thinking.
+You can't architect for reliability you can't measure. Incident instincts come from experience; this module adds the SRE formalism and the design-time thinking.
 
 | # | Topic | ID | You'll be able to… |
 |---|---|---|---|
@@ -610,7 +576,7 @@ This stage adds depth, judgment and scale. Design reviews, game days and "Defend
 | 173 | Review boards and fitness functions | `csa.arch.review-boards` | run an architecture review board so it accelerates rather than gates; encode the rules that matter as fitness functions, so the architecture can evolve and still be checked |
 | 174 | Well-Architected reviews | `csa.arch.well-architected` | run a review with the AWS, Azure and Google Cloud Well-Architected Frameworks; turn the findings into a prioritized plan |
 | 175 | Patterns and reference architectures | `csa.arch.patterns` | apply the clouds' design-pattern catalogs and reference architectures as a reuse mechanism, and know when a pattern doesn't fit |
-| 176 | Enterprise architecture frameworks | `csa.arch.frameworks` | use the AWS and Azure Cloud Adoption Frameworks; speak TOGAF and Zachman at the aware level; document with arc42 |
+| 176 | Enterprise architecture frameworks | `csa.arch.frameworks` | use the AWS and Azure Cloud Adoption Frameworks; speak TOGAF's and Zachman's vocabulary; document with arc42 |
 | 177 | Total cost of ownership | `csa.arch.tco` | model the total cost of ownership of competing options, including the migration bubble and the payback period, and test how sensitive it is to the assumptions |
 | 178 | Risk and technical debt | `csa.arch.risk` | keep a risk register; size and prioritize technical debt, and explain it to non-technical stakeholders |
 
@@ -626,7 +592,7 @@ Architects review application designs and draw the boundaries between services. 
 | 180 | Domain-driven design | `csa.app.ddd` | find bounded contexts and aggregates from the business's ubiquitous language; draw a context map; use it to set service boundaries |
 | 181 | Event-driven architecture | `csa.app.event-driven` | tell events from commands; apply event sourcing and CQRS where they pay; manage event schemas with a registry and evolve them safely |
 | 182 | API design | `csa.app.api-design` | design REST APIs (maturity levels, resource modeling, pagination, versioning); choose gRPC or GraphQL when they fit; describe async APIs with AsyncAPI; work OpenAPI-first |
-| 183 | Cloud-native application principles | `csa.app.cloud-native` | apply the twelve-factor principles and their successors; read hexagonal and clean architecture at the aware level, to talk with application teams credibly |
+| 183 | Cloud-native application principles | `csa.app.cloud-native` | apply the twelve-factor principles and their successors; explain hexagonal and clean architecture well enough to talk with application teams credibly |
 | 184 | Multi-tenancy | `csa.app.multi-tenancy` | choose silo, pool or bridge isolation; control noisy neighbours; attribute cost per tenant |
 | 185 | Caching and performance in applications | `csa.app.caching` | design the cache hierarchy (browser, CDN, gateway, application, database buffer pool); choose invalidation and TTLs; stop stampedes with request coalescing; use write-behind and materialized views; test with load, stress, soak and spike runs, and read percentiles instead of averages |
 | 186 | Enterprise integration patterns | `csa.app.eip` | apply the classic patterns: message router, translator, splitter and aggregator, content-based routing |
@@ -837,9 +803,9 @@ This stage covers strategy, breadth at the top, influence, and one deep specialt
 | 281 | Pipelines and orchestration | `csa.da.pipelines` | build ELT pipelines with managed Airflow (MWAA, Cloud Composer), Dagster or Prefect, or each cloud's data-integration service (Data Factory), and dbt as the transformation standard; choose ELT or ETL |
 | 282 | Streaming analytics | `csa.da.streaming` | analyze data in real time with managed Flink, Spark Structured Streaming or Kafka Streams: windows, watermarks, late data, state stores; choose between Lambda and Kappa architectures, and say when batch is still right |
 | 283 | Data governance | `csa.da.governance` | run a catalog with lineage and fine-grained access (Lake Formation, Purview, Dataplex); use data contracts |
-| 284 | Data quality and observability | `csa.da.quality` | test data with Great Expectations or Soda; monitor pipelines; run master data management at the aware level |
+| 284 | Data quality and observability | `csa.da.quality` | test data with Great Expectations or Soda; monitor pipelines; explain master data management and when it's needed |
 | 285 | Data lifecycle and privacy | `csa.da.lifecycle` | discover PII; set retention and deletion, including the right to be forgotten in an immutable lake |
-| 286 | Data mesh, semantic layers and BI | `csa.da.mesh` | weigh a data mesh (domain ownership) against a central platform; place semantic layers and BI tools (Power BI, Looker, Tableau) at the aware level |
+| 286 | Data mesh, semantic layers and BI | `csa.da.mesh` | weigh a data mesh (domain ownership) against a central platform; place semantic layers and BI tools (Power BI, Looker, Tableau) in the architecture |
 | 287 | Data platform cost | `csa.da.cost` | control storage tiering, scan-based pricing, egress, over-provisioned IOPS and idle warehouses |
 | 288 | Data for machine learning | `csa.da.ml-data` | build feature pipelines that are correct at every point in time; run reverse ETL and operational analytics; tell real-time dashboards from batch reports |
 
@@ -867,7 +833,7 @@ This stage covers strategy, breadth at the top, influence, and one deep specialt
 
 ### Module 28: Specialized workloads
 
-Breadth at the aware level, so that nothing in an architecture review is a surprise. Each topic ends with a short design exercise rather than a lab.
+Breadth, so that nothing in an architecture review is a surprise. Each topic ends with a short design exercise, and a small lab where one is affordable.
 
 | # | Topic | ID | You'll be able to… |
 |---|---|---|---|
@@ -886,7 +852,7 @@ The technical modules get you into the room. This module decides whether the arc
 | # | Topic | ID | You'll be able to… |
 |---|---|---|---|
 | 303 | Discovery | `csa.lead.discovery` | run a discovery conversation that uncovers the goals, the constraints and the real problem |
-| 304 | Business fluency | `csa.lead.business` | read a P&L and a balance sheet at the aware level; explain CapEx against OpEx and why cloud changes that conversation; explain depreciation and amortization; speak the language of risk: likelihood, impact, appetite, controls |
+| 304 | Business fluency | `csa.lead.business` | read a P&L and a balance sheet; explain CapEx against OpEx and why cloud changes that conversation; explain depreciation and amortization; speak the language of risk: likelihood, impact, appetite, controls |
 | 305 | Whiteboarding | `csa.lead.whiteboarding` | design live and out loud in 45 minutes while taking questions |
 | 306 | Writing for executives | `csa.lead.exec-writing` | write a one-page brief: the answer first (bottom line up front), then the reasons, the risks and the ask; present three options with a recommendation on one slide, knowing the number they care about |
 | 307 | Business cases | `csa.lead.business-case` | build a business case with total cost of ownership, the migration bubble, payback, ROI and NPV, risk and strategic value, the unit economics of the product and the impact on gross margin; defend its assumptions to a CFO |
@@ -938,8 +904,6 @@ This is what every topic looks like once it's written, using *Private access to 
 
 **Prerequisites:** `csa.cnet.vnet`, `csa.cnet.firewalls` and `csa.cnet.dns`.
 
-**Target depth:** L3.
-
 **Skills.** A question missed on a skill comes back later as a fresh question on the same skill ([ADR-0011](../decisions/0011-mistakes-come-back.md)).
 
 | Skill | What it covers |
@@ -979,7 +943,7 @@ This is what every topic looks like once it's written, using *Private access to 
 
 ## A faster path for an experienced learner
 
-The full track is for someone starting from Linux. An experienced engineer takes a different route through the same modules, using "prove it now" ([ADR-0002](../decisions/0002-mastery-and-gating.md)) to skip what they can already prove. This is the owner's own 24-month plan from their knowledge map, mapped to the track: 10–15 focused hours a week, Azure as the primary cloud and AWS as the second, with Linux, networking and Azure already at L2–L3, and the gaps in AWS fluency, Kubernetes and platform engineering, data and streaming, FinOps, and the business layer. Adjust it after the [self-assessment](#self-assessment-youre-senior-when-you-can).
+The full track assumes nothing and starts from zero. A learner who arrives with experience takes a shorter route through the same modules, skipping a topic only by proving it, through "prove it now" or the placement test ([ADR-0002](../decisions/0002-mastery-and-gating.md)); what gets skipped is decided by the proofs, never by the learner's own estimate. The map's 24-month plan is one example of what that route can look like, mapped to the track: 10–15 focused hours a week, for someone who starts on Azure and takes AWS as the second cloud. Anyone else's route will differ.
 
 | Phase | Months | Modules | Capstone build | Milestone |
 |---|---|---|---|---|
@@ -1035,7 +999,7 @@ The map's mirror, kept here as a mirror. On the platform nothing is self-reporte
 
 ## Certifications
 
-Certifications are optional evidence for employers: a forcing function for breadth and a screening signal for recruiters, not evidence of L3. They test knowledge, while this track's proofs test skill, so the track goes further. Exam guides change, so check the current version before booking.
+Certifications are optional evidence for employers: a forcing function for breadth and a screening signal for recruiters, not evidence of skill. They test knowledge, while this track's proofs test skill, so the track goes further. Exam guides change, so check the current version before booking.
 
 | Certification | Covered by |
 |---|---|
@@ -1053,7 +1017,7 @@ Certifications are optional evidence for employers: a forcing function for bread
 | TOGAF | Module 16; enterprise-architecture vocabulary, role-dependent |
 | Databricks or Snowflake architect certifications | Module 26; role-dependent |
 
-**A suggested order,** from the owner's map, for a learner with Azure as the primary cloud. Each exam's study doubles as study for the modules it drills:
+**A suggested order,** from the owner's map, for a learner who starts on Azure. Each exam's study doubles as study for the modules it drills:
 
 1. Azure Solutions Architect Expert (AZ-104, then AZ-305).
 2. AWS Solutions Architect Associate (SAA-C03): the fastest route to credible second-cloud fluency, and what most job postings screen for.
@@ -1148,11 +1112,10 @@ A map of equivalent services, for orientation. Service names change often, so ea
 The app can't show this track yet, and some proofs need tools that don't exist. In order:
 
 1. **More than one track in the app.** Today the app shows only the first track file (`mainTrack()` in `web/src/content/content.ts`). The map, topic pages and Today page need to know which track each topic belongs to.
-2. **The map as outlines.** Every topic and checkpoint goes into `content/` as a `planned` outline, so the track appears on the map. Each outline carries its target depth.
+2. **The map as outlines.** Every topic and checkpoint goes into `content/` as a `planned` outline, so the track appears on the map.
 3. **Stage 1 content.** Much of it uses the exercise kinds that exist today: recall items, and Python drills run in the browser (subnetting, availability math, cost). Local labs in containers need the first version of the lab checker.
 4. **The lab checker** ([ADR-0014](../decisions/0014-cloud-labs.md)). First offline checks for infrastructure code, then live checks on the three clouds, and fault modules for break-fix proofs.
 5. **Design reviews, game days and "Defend it".** These need AI grading with longer rubrics (the approach from ADR-0013) and the game-day modules.
-6. **A primary-cloud setting,** so a learner can choose which cloud gets the module's depth and which two are built comparatively.
 
 As with Python Foundations, content stays a module or so ahead of the learner.
 
@@ -1170,4 +1133,3 @@ As with Python Foundations, content stays a module or so ahead of the learner.
 - **A fourth cloud?** Oracle Cloud is left out. The three covered here make up most of the market.
 - **How lab results reach the platform.** The learner could paste them from the checker, or the checker could send them while the learner is signed in ([ADR-0014](../decisions/0014-cloud-labs.md)).
 - **Stable checkpoint IDs.** Checkpoints are numbered by position (`csa.m11.checkpoint`), so inserting a module renumbers the ones after it, as the 2026-11-08 cross-reference did. Naming them after their module (`csa.cnet.checkpoint`) would avoid that. Decide before anything is built.
-- **Depth as content.** Where the target depth lives (a field on each topic, or a per-learner choice) and how the primary-cloud setting changes a topic's proofs.
