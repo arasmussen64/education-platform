@@ -1,0 +1,39 @@
+# The checks for "The disk is full": the space is back, the shipper is
+# alive, the held file is empty, the inodes are back, the filesystem grew,
+# and the report says so.
+checks:
+  - id: old-logs-gone
+    description: "No rotated logs are left in /srv/shop/logs/old."
+    command: find /srv/shop/logs/old -type f | wc -l
+    expect:
+      equals: "0"
+  - id: space-freed
+    description: "/srv/shop is under 20% used."
+    command: df --output=pcent /srv/shop | tail -n 1 | tr -d ' %'
+    expect:
+      lt: 20
+  - id: shipper-alive
+    description: "log-shipper.service is still running."
+    command: systemctl is-active log-shipper
+    expect:
+      equals: active
+  - id: held-file-emptied
+    description: "No deleted-but-open file on /srv/shop still holds space (it was truncated, not the process killed)."
+    command: lsof +L1 2>/dev/null | awk '$(NF-1) ~ "^/srv/shop/" && $7 > 0' | wc -l
+    expect:
+      equals: "0"
+  - id: inodes-freed
+    description: "/srv/shop/uploads is under 50% of its inodes."
+    command: df --output=ipcent /srv/shop/uploads | tail -n 1 | tr -d ' %'
+    expect:
+      lt: 50
+  - id: grown
+    description: "The filesystem on /srv/shop uses the enlarged volume: at least 250 MB."
+    command: df --output=size -BM /srv/shop | tail -n 1 | tr -d ' M'
+    expect:
+      gte: 250
+  - id: report
+    description: "~/report/df.txt holds df's line for /srv/shop."
+    command: grep -c '/srv/shop' /home/learner/report/df.txt
+    expect:
+      gte: 1

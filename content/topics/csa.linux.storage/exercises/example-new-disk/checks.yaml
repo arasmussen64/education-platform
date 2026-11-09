@@ -1,0 +1,19 @@
+# The checks for "A new disk, from blocks to files": the disk has a
+# filesystem, it's mounted at /data, and fstab knows it by UUID with nofail.
+checks:
+  - id: formatted
+    description: "data1 carries an ext4 filesystem."
+    command: blkid -s TYPE -o value "$(readlink -f /dev/lab/data1)"
+    expect:
+      equals: ext4
+  - id: mounted
+    description: "data1 is mounted at /data."
+    command: test "$(findmnt -n -o SOURCE /data)" = "$(readlink -f /dev/lab/data1)"
+  - id: fstab-by-uuid
+    description: "/etc/fstab names it by UUID, at /data, as ext4, with nofail."
+    command: |
+      uuid=$(blkid -s UUID -o value "$(readlink -f /dev/lab/data1)")
+      grep -E "^UUID=$uuid[[:space:]]+/data[[:space:]]+ext4[[:space:]]+[^[:space:]]*nofail" /etc/fstab
+  - id: fstab-works
+    description: "mount -a is happy with fstab."
+    command: mount -a > /dev/null 2>&1

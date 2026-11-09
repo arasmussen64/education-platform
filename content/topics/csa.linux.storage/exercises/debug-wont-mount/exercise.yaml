@@ -1,0 +1,12 @@
+id: debug-wont-mount
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The disks that didn't come back"
+prompt: |
+  After a reboot, the shop's three data volumes didn't come back: `/srv/shop` and `/srv/backups` are empty folders, and `/srv/archive` isn't even there. The disks themselves are fine (`lsblk -f` and `sudo blkid` show all three, with their filesystems). The problem is `/etc/fstab`, the file that says what to mount at boot.
+
+  `sudo mount -a` asks for everything in fstab to be mounted, and it complains three times. Each complaint is a different mistake in the file: read each message, compare the line it's about with what `blkid` says about the disk and what exists on the system, and fix it (`sudo nano /etc/fstab`, then `sudo systemctl daemon-reload`). You're done when `sudo mount -a` is quiet and `df -h /srv/shop /srv/backups /srv/archive` shows all three mounted. Then run the checks.
+skills: [block-devices, filesystems]

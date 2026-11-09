@@ -1,0 +1,8 @@
+#!/bin/bash
+# Stands in for the shop's log shipper: a program that keeps the shipping
+# log open while it runs. Someone deleted that log while it was open, so
+# the space can't come back until the file is truncated through this
+# process, or this process closes it. Part of the lab's scenery.
+exec 3< /srv/shop/logs/shipping.log
+rm -f /srv/shop/logs/shipping.log
+while true; do sleep 3600 3<&-; done  # the child must not inherit the open log

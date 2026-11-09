@@ -1,0 +1,16 @@
+#!/bin/bash
+# Usage: add-disk DEVICE MOUNTPOINT
+# Puts the team's standard filesystem on a new disk, mounts it, and adds it
+# to fstab by UUID so it comes back at boot (and a missing disk can't stop
+# the boot).
+set -e
+device="$1"
+mount_point="$2"
+fstype=...
+sudo mkfs.$fstype -q "$device"
+sudo mkdir -p "$mount_point"
+uuid=$(sudo blkid -s ... -o value "$device")
+echo "UUID=$uuid $mount_point $fstype defaults,... 0 2" | sudo tee -a /etc/fstab > /dev/null
+sudo systemctl daemon-reload
+sudo mount ...
+df -h "$mount_point"

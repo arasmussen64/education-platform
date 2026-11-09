@@ -1,0 +1,32 @@
+id: example-new-disk
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "A new disk, from blocks to files"
+prompt: |
+  A new 200 MB volume has been attached to the lab machine. Like a cloud volume, it shows up as a disk with a device name and nothing on it; the lab labels its disks under `/dev/lab/`, the way a cloud labels volumes under `/dev/disk/by-id/`. The walkthrough finds the disk, puts a filesystem on it, mounts it, and adds it to `/etc/fstab` so it comes back at boot. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "Find the new disk"
+    lines: "1"
+    note: "`lsblk` lists block devices with their size, filesystem type and mount point. The 200M disk has no FSTYPE and no MOUNTPOINT: raw blocks. `ls -l /dev/lab/` shows which device the label `data1` points at."
+  - label: "Put a filesystem on it"
+    lines: "2"
+    note: "`mkfs.ext4` writes the structure that turns blocks into files and folders. This destroys whatever was on the device, so check the name twice. `-q` keeps it quiet."
+  - label: "Mount it"
+    lines: "3"
+    note: "A filesystem is reached through a folder, its mount point. `mkdir -p /data` makes the folder; `mount device folder` connects them. From now on, `/data` leads into the new disk."
+  - label: "Check the space"
+    lines: "4"
+    note: "`df -h` shows the filesystem's size, what's used and where it's mounted. The size is a little under 200M: the filesystem keeps some for itself."
+  - label: "Read its identity"
+    lines: "5"
+    note: "`blkid` prints the filesystem's type and its UUID. The device name (`/dev/loop2`, say) can change at the next boot; the UUID never does, which is why fstab uses it."
+  - label: "Add it to fstab"
+    lines: "6"
+    note: "The six fields: what (by UUID), where, type, options, dump, pass. `nofail` means a missing disk doesn't stop the boot, right for any volume that might be detached. `tee -a` appends as root."
+  - label: "Prove the line works"
+    lines: "7"
+    note: "Unmount it, tell systemd fstab changed (`daemon-reload`, or it warns), then `mount -a` mounts everything in fstab that isn't mounted yet. If `/data` comes back, the line is right, and you've proved it without rebooting."
+skills: [block-devices, filesystems]

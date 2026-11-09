@@ -2,6 +2,36 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Disks and filesystems goes ready, with real disks in the lab
+
+The sixth ready cloud topic, and the one I expected to be hardest, since a container has no disks. It turns out a privileged container can attach a file as a block device (a loop device), format it, mount it, grow it, and even run LVM on it, so the labs use real `mkfs`, `mount`, `fstab`, `df`, `lsof` and `resize2fs` on disks the image brings along.
+
+**How a lab gets its disks.** Each disk is an image file under `/var/lib/lab`, made at image build (blank, or formatted and filled with `mkfs.ext4 -d seed`). At boot a oneshot unit runs `disks.sh`, which attaches each image to a loop device, labels it under `/dev/lab/` (as a cloud labels volumes under `/dev/disk/by-id/`, so no prompt or check depends on which loop number a disk got) and mounts the ones the scenario needs. `lab-grow NAME SIZE` stands in for the cloud console's "modify volume". LVM works once `lvm.conf` stops waiting for udev, which a container doesn't run.
+
+**The five labs:**
+
+- **`example-new-disk`** (worked example): `lsblk`, `mkfs.ext4`, `mkdir` and `mount`, `df -h`, `blkid`, an `fstab` line by UUID with `nofail`, then `umount`, `daemon-reload` and `mount -a` to prove the line without a reboot.
+- **`fill-add-disk`** (fill-in): the same as a script, for XFS: `xfs`, `UUID`, `nofail`, `-a`.
+- **`write-disk-report`** (write): four lines about a filesystem: bytes used, inodes used, the biggest top-level folder, and how many deleted files are still held open (`lsof +L1`, which needs `sudo` to see other users' processes, so the checks run the script as the learner).
+- **`build-full-disk`** (build): a data volume at 90%, rotated logs to remove, a 40 MB log the running shipper holds open after someone deleted it (truncate it through `/proc/PID/fd/N`; the shipper must stay up), an uploads volume with free bytes and no inodes, and a volume enlarged "in the console" that `resize2fs` grows while mounted. Seven checks.
+- **`debug-wont-mount`** (debug): three data disks with fixed UUIDs and an `fstab` with three mistakes: a UUID one digit off, `ext4` for an XFS disk, a mount point that doesn't exist. `mount -a` complains once per mistake, each differently.
+
+**What the contract and the probes caught, four things:**
+
+1. _Loop devices outlive their container._ Removing a container doesn't detach them, and the "(deleted)" marker I meant to clean up by never appears for a file on an overlay filesystem, so after a few runs the free loop numbers climbed past the device nodes a container is born with and the disks stopped attaching. The checker now runs an image's `/usr/local/lib/lab/teardown.sh` before removing a container (unit-tested), the storage labs' teardown unmounts and detaches their disks, and `disks.sh` makes a missing device node itself. After a full run, Docker's own two loop devices are the only ones left.
+2. _Fixed UUIDs plus a stale device make `mount` by UUID pick the stale one,_ which is how the debug lab's XFS mount showed up from the wrong device. The teardown fixes the cause; the lesson gains nothing from it, but the devlog does.
+3. _`mkfs.ext4 -d` turns zero-filled files into holes,_ so a disk seeded from `/dev/zero` was nearly empty and `lost+found` was its biggest folder. The seeds use `/dev/urandom`.
+4. _A child process inherits the open file._ The shipper's `sleep` held the deleted log too, so `lsof` counted two; the child closes it (`3<&-`). And `df -i` can't be combined with `--output`; `--output=ipcent` alone gives the inode percentage.
+
+**Decisions for you to review:**
+
+1. _The storage labs are the first with a teardown step,_ and the checker runs it for any lab that has one. A learner who removes a container by hand instead of `labcheck stop` leaves loop devices attached until Docker Desktop restarts; the README says so.
+2. _No LVM hands-on yet,_ although it works in the lab: the build grows a plain volume with `resize2fs`, which is the common cloud case for a data volume. An LVM lab (`pvresize`, `lvextend -r`) would fit a later revision of the topic.
+3. _The base layer gained `xfsprogs`, `lvm2` and `lsof`._ One line for all systemd labs, as before.
+4. _`x-systemd.device-timeout=5` in the debug lab's planted `fstab`,_ so systemd doesn't wait ninety seconds at boot for volumes it can't see (a container has no udev); the mistakes are elsewhere, and the option is documented on the fstab page the lesson links.
+
+**Next:** Memory and the OOM killer, and CPU scheduling and cgroups, which the first probe of the day showed work with `systemd-run -p MemoryMax=` and `-p CPUQuota=` in these containers.
+
 ## 2026-11-09: Package management goes ready, with a package repository in the image
 
 The fifth ready cloud topic. Its problem was that `apt` needs repositories, and a lab that reaches Ubuntu's would be slow, different every day and useless offline. So the image builds a repository of its own.

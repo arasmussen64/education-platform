@@ -21,7 +21,9 @@ fail at least one check. `--jobs` tests several labs at once.
 
 A lab whose exercise.yaml says `lab: { init: systemd }` boots systemd as PID 1
 in a privileged container, and the checker waits for the boot to finish before
-asking it anything.
+asking it anything. If the image has /usr/local/lib/lab/teardown.sh, the
+checker runs it before removing the container, so a lab can let go of what it
+attached to Docker's machine (the loop devices behind its disks).
 
 The checker only asks the container questions. It never changes it, except
 when `test` applies a solution to a fresh container of its own.
@@ -165,7 +167,29 @@ def build_image(lab: Lab, quiet: bool = True) -> None:
     docker(*args, timeout=BUILD_TIMEOUT_SECONDS)
 
 
+# A lab that attaches things to the machine Docker runs on (disks, say) can
+# put a script here to let go of them. It runs just before the container is
+# removed, because removing a container doesn't detach its loop devices.
+TEARDOWN = "/usr/local/lib/lab/teardown.sh"
+
+
+def is_running(name: str) -> bool:
+    found = docker("inspect", "-f", "{{.State.Running}}", name, timeout=30, check=False)
+    return found.returncode == 0 and found.stdout.strip() == "true"
+
+
 def remove_container(name: str) -> None:
+    """Removes a lab's container, after its teardown script if it has one."""
+    if is_running(name):
+        docker(
+            "exec",
+            name,
+            "bash",
+            "-c",
+            f"[ -x {TEARDOWN} ] && {TEARDOWN} || true",
+            timeout=60,
+            check=False,
+        )
     docker("rm", "-f", name, check=False)
 
 
