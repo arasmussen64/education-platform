@@ -10,7 +10,7 @@ content/
 └── topics/<topic-id>/
     ├── topic.yaml                   metadata, prerequisites, resources, which items to use
     ├── lesson.mdx                   the AI-written intro and recap around the main resource
-    ├── recall/<item>.yaml           multiple-choice, predict-the-output and Parsons items
+    ├── recall/<item>.yaml           multiple-choice, predict-the-output (Python or shell) and Parsons items
     └── exercises/<item>/
         ├── exercise.yaml
         ├── starter.py               fill-in and debug exercises (must fail the tests)
@@ -37,6 +37,8 @@ content/
 1. Set `status: draft` and fill in `topic.yaml`: objectives, resources (each with its license, and whether we embed or link it), the explain prompt and rubric.
 2. Write `lesson.mdx`: `<Intro>` (what to watch for), `<Resource index={0} />`, then `<Recap>`. The first resource in `topic.yaml` is the main one, shown in the lesson; any others are listed after the lesson as "More resources". Write your own explanations; never copy or paraphrase a resource's text.
 3. Add the practice ladder: a worked example with labeled steps, then 2–3 recall items, a fill-in exercise, and a write exercise. A Parsons problem (`type: parsons`: a short program's lines to put back in order, with a decoy or two) goes right after the worked example, where it does the most good. Write a prompt that says what the program prints, so there's exactly one right order, and avoid lines that could swap places without changing the output; the validator runs the lines but can't spot an ambiguous order.
+
+   A shell topic (the cloud track's Module 1) asks "what will it print?" with `predict_shell` items instead ([ADR-0017](../docs/decisions/0017-shell-in-the-browser.md)): a few small files, a command over them, and the output, which the validator proves by running the command in real bash. The command runs on Linux in CI and in Git Bash on the owner's PC, so keep it portable: no `jq` or `rev` (Git Bash has neither), no `ls -l`, `date`, `du`, `df` or `stat` (their output differs by machine), nothing that shows a path outside the folder, and `find` piped through `sort`. A command that writes to stderr fails the check; redirect an error you want shown with `2>&1`.
 4. Add the proof: a build exercise (hidden tests, no starter), a debug exercise (a buggy starter), and the explain prompt.
 5. Add a review pool: at least 3 items, at least one of them predict-the-output or a `review_code` exercise.
 6. List the topic's **skills** in `topic.yaml`, and give every item `skills: [...]` with the skills it mainly tests. A missed question comes back later as a different question on the same skill ([ADR-0011](../docs/decisions/0011-mistakes-come-back.md)). So each skill needs at least 2 questions that can come back: recall items, or fill-in, write and `review_code` exercises. Aim for 3. Extra questions can go in the review pool.

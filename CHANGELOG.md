@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the cloud track's first question type)
+
+- **A new kind of question for the command line, `predict_shell`** ([ADR-0017](docs/decisions/0017-shell-in-the-browser.md)): a few small files, a shell command over them, and "what will it print?". The browser runs nothing; the page shows the files and the command, and the answer is checked like a Python predict-the-output question. Every item is proven before a learner sees it: the validator runs the command in real bash (Linux in CI, Git Bash on Windows) in a temporary folder holding just those files, and the output must match exactly, with nothing written to stderr.
+
 ### Changed (AI tutor)
 
 - **The tutor speaks to you as "you"** (instructions version 3). In the test set's first real run (25 of 25 replies fine on Claude Haiku 5.5, for $0.0044), two replies to "just give me the answer" asks said "the learner's question asks for…" to the learner themselves, and others spoke of "the author's note": the tutor was echoing the labels on the information it reads. The instructions now say to speak as "you", and the written hints are labelled as the hints you see, not an author's. Live since 2026-11-09.

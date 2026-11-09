@@ -1,18 +1,54 @@
 import { useId, useState } from 'react'
 import { normalizeOutput } from '../content/answers.ts'
-import type { PredictOutputItem } from '../content/types.ts'
+import type { PredictOutputItem, PredictShellItem } from '../content/types.ts'
 import { Markdown } from './Markdown.tsx'
 import { BUTTON, CODE_BOX, TEXT_INPUT } from './styles.ts'
 
 type Props = {
-  item: PredictOutputItem
+  item: PredictOutputItem | PredictShellItem
   /** Called once, when the learner checks their prediction. */
   onAnswer?: (correct: boolean, prediction: string) => void
 }
 
+const NOTE = 'text-sm text-slate-600 dark:text-slate-300'
+
+/**
+ * The scene of a shell item: the files the command sees, then the command
+ * itself at a prompt (ADR-0017). Nothing here runs; the validator proved
+ * the output in real bash.
+ */
+function ShellScene({ item }: { item: PredictShellItem }) {
+  const files = Object.entries(item.files)
+  return (
+    <div className="space-y-2">
+      {files.length > 0 && (
+        <p className={NOTE}>
+          {files.length === 1
+            ? 'The folder holds one file:'
+            : `The folder holds ${files.length} files:`}
+        </p>
+      )}
+      {files.map(([name, text]) => (
+        <figure key={name} className="space-y-1">
+          <figcaption className="font-mono text-xs text-slate-600 dark:text-slate-300">
+            {name}
+          </figcaption>
+          <pre className={CODE_BOX}>{text}</pre>
+        </figure>
+      ))}
+      <p className={NOTE}>The command:</p>
+      <pre className={CODE_BOX}>
+        <span aria-hidden="true">$ </span>
+        {item.command}
+      </pre>
+    </div>
+  )
+}
+
 /**
  * "What will this print?" Reading and tracing code comes before writing it
- * (docs/learning-science.md), so learners predict first, then compare.
+ * (docs/learning-science.md), so learners predict first, then compare. The
+ * same question works for a Python program and for a shell command.
  */
 export function PredictOutput({ item, onAnswer }: Props) {
   const fieldId = useId()
@@ -30,7 +66,11 @@ export function PredictOutput({ item, onAnswer }: Props) {
   return (
     <div className="space-y-3">
       <Markdown>{item.prompt}</Markdown>
-      <pre className={CODE_BOX}>{item.code}</pre>
+      {item.type === 'predict_shell' ? (
+        <ShellScene item={item} />
+      ) : (
+        <pre className={CODE_BOX}>{item.code}</pre>
+      )}
       <label htmlFor={fieldId} className="block text-sm font-medium">
         What will it print?
       </label>

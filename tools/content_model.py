@@ -216,8 +216,52 @@ class ParsonsItem(Strict):
         return self
 
 
+# A fixture file's path inside the item's folder: a plain name, or a few
+# folders deep. Never absolute, and (checked below) never "." or "..".
+FixturePath = Annotated[
+    str, Field(pattern=r"^[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*$", max_length=120)
+]
+
+# Fixture files stay small: they're shown on the page and bundled with the item.
+MAX_FIXTURE_CHARS = 4000
+
+
+class PredictShellItem(Strict):
+    """A shell command over a few small files, and what it prints (ADR-0017).
+
+    The browser runs nothing: the validator runs the command in real bash,
+    in a temporary folder holding just these files, and checks the output.
+    """
+
+    id: ItemId
+    type: Literal["predict_shell"]
+    rev: Rev
+    prompt: Text
+    # The files the command sees, by path, with their contents. The command
+    # runs in a folder holding only these, so they are its whole world.
+    files: dict[FixturePath, str] = {}
+    # One line of bash, or a few. Portable across Linux and Git Bash.
+    command: Text
+    expected_output: str
+    explanation: Text
+    skills: list[ItemId] = []
+
+    @model_validator(mode="after")
+    def files_stay_inside_and_small(self) -> PredictShellItem:
+        for path in self.files:
+            if {".", ".."} & set(path.split("/")):
+                raise ValueError(f"file path {path!r} must not have . or .. parts")
+        if sum(len(text) for text in self.files.values()) > MAX_FIXTURE_CHARS:
+            raise ValueError(
+                f"the files hold more than {MAX_FIXTURE_CHARS} characters in all; "
+                "keep them small enough to read on the page"
+            )
+        return self
+
+
 RecallItem = Annotated[
-    McqItem | PredictOutputItem | ParsonsItem, Field(discriminator="type")
+    McqItem | PredictOutputItem | ParsonsItem | PredictShellItem,
+    Field(discriminator="type"),
 ]
 recall_item = TypeAdapter(RecallItem)
 

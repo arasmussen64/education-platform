@@ -19,17 +19,26 @@ function renderAt(path: string) {
 }
 
 describe('app routes', () => {
-  // Today and topic pages load their code first, so tests wait for them.
-  it('shows the app name and the main navigation', async () => {
-    renderAt('/')
-    expect(
-      await screen.findByRole('link', { name: APP_NAME }, { timeout: 10_000 }),
-    ).toBeInTheDocument()
-    const nav = screen.getByRole('navigation', { name: 'Main' })
-    expect(nav).toHaveTextContent('Today')
-    expect(nav).toHaveTextContent('Map')
-    expect(nav).toHaveTextContent('Playground')
-  })
+  // Today and topic pages load their code first, so tests wait for them. The
+  // first render also warms everything up, so its test gets the most time.
+  it(
+    'shows the app name and the main navigation',
+    { timeout: 15_000 },
+    async () => {
+      renderAt('/')
+      expect(
+        await screen.findByRole(
+          'link',
+          { name: APP_NAME },
+          { timeout: 10_000 },
+        ),
+      ).toBeInTheDocument()
+      const nav = screen.getByRole('navigation', { name: 'Main' })
+      expect(nav).toHaveTextContent('Today')
+      expect(nav).toHaveTextContent('Map')
+      expect(nav).toHaveTextContent('Playground')
+    },
+  )
 
   it('shows the Today page at /', async () => {
     renderAt('/')

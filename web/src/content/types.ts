@@ -109,7 +109,25 @@ export type ParsonsItem = {
   skills: string[]
 }
 
-export type RecallItem = McqItem | PredictOutputItem | ParsonsItem
+/**
+ * A shell command over a few small files, and what it prints (ADR-0017).
+ * The browser runs nothing: the validator proved the output in real bash.
+ */
+export type PredictShellItem = {
+  id: string
+  type: 'predict_shell'
+  rev: number
+  prompt: string
+  /** The files the command sees, by path, with their contents. */
+  files: Record<string, string>
+  command: string
+  expected_output: string
+  explanation: string
+  skills: string[]
+}
+
+export type RecallItem =
+  McqItem | PredictOutputItem | ParsonsItem | PredictShellItem
 
 export type Stage =
   'worked_example' | 'fill_in' | 'write' | 'build' | 'debug' | 'review_code'
