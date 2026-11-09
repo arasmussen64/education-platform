@@ -21,6 +21,7 @@ A summary for the owner of everything since "I'm going to be away" (the evening 
 - #57 every reference solution proven in the browser's Python, in every test run
 - #58 the living map, first version: each Learned topic's memory strength on the map
 - #59 a rounding fix for the practice hours
+- #60 this summary · #61 ADR-0017, how the shell is taught and proven (proposed) · #62 the tutor's test set extended to Module 6
 
 **Live now,** and checked on the live site at the end of the run: the map with its memory bars, the Today page with your 27 minutes of practice, a Parsons item on Variables, and the cloud map loading its outlines on demand.
 
