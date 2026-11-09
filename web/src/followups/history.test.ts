@@ -84,6 +84,23 @@ describe('toAttempt', () => {
     ).toBeNull()
   })
 
+  it('keeps finished review sessions, with their rating', () => {
+    const attempt = toAttempt(
+      row(5, {
+        type: 'review',
+        item_id: 'review',
+        correct: false,
+        rating: 'hard',
+      }),
+    )
+    expect(attempt).toMatchObject({ type: 'review', rating: 'hard' })
+    // A review without a rating can't be used.
+    expect(toAttempt(row(6, { type: 'review', item_id: 'review' }))).toBeNull()
+    expect(
+      toAttempt(row(7, { type: 'review', item_id: 'review', rating: 'easy' })),
+    ).toBeNull()
+  })
+
   it('skips events that are not graded attempts', () => {
     expect(toAttempt(row(1, { type: 'lesson_view' }))).toBeNull()
     expect(toAttempt(row(1, { type: 'code_run', correct: null }))).toBeNull()

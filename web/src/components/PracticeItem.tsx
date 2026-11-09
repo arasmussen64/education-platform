@@ -26,6 +26,11 @@ type Props = {
   position?: string
   /** Called after each Check of an exercise, with whether every test passed. */
   onCheck?: (passed: boolean) => void
+  /**
+   * Called after each graded attempt, an answer or a Check, with whether it
+   * was correct. Review sessions rate themselves from these (ADR-0009).
+   */
+  onGraded?: (correct: boolean) => void
 }
 
 type Handlers = {
@@ -98,6 +103,7 @@ export function PracticeItem({
   context,
   position,
   onCheck,
+  onGraded,
 }: Props) {
   const record = useRecordEvent()
   const timer = useAttemptTimer()
@@ -120,6 +126,7 @@ export function PracticeItem({
         duration_ms: timer.lap(),
         data,
       })
+      onGraded?.(correct)
     },
     onActivity(activity) {
       if (activity.kind === 'hint') {
@@ -146,6 +153,7 @@ export function PracticeItem({
           data: checkEventData(activity.code, activity.outcome),
         })
         onCheck?.(passed)
+        onGraded?.(passed)
       }
     },
   })

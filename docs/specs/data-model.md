@@ -270,6 +270,7 @@ Policies allow **insert** and **select** only. There is no update or delete poli
 | `code_check` | tests are run | `code`; `outcome`; `status`; `passed` and `total`; `failing` (test names); `message` if the tests couldn't run |
 | `explain_submit` | an explanation is sent to be checked (item `explain`) | the text and `status`; when graded, the `verdict`, each rubric item's result, the `questions`, `ai_call_id` and `model`. `correct` is set only when graded ([ADR-0013](../decisions/0013-explain-grading.md)) |
 | `hint` | a hint is shown | `level`; `source` (`author` for the written hints, until the tutor exists); later `ai_call_id` |
+| `review` | a review session's items have all had a first attempt (item `review`) | `rating` (`good`, `hard` or `again`) and `items`: each item's ID and whether its first attempt was correct. `correct` is whether the rating was Good ([ADR-0009](../decisions/0009-reviews.md)) |
 | `review` | a topic's review session ends | item IDs; results; the rating |
 
 How the browser fills in the other columns:
@@ -402,7 +403,10 @@ Details are in [ADR-0011](../decisions/0011-mistakes-come-back.md). They're work
 
 ### Reviews
 
-Details are in [ADR-0009](../decisions/0009-reviews.md).
+Details are in [ADR-0009](../decisions/0009-reviews.md). The scheduler is `web/src/reviews/fsrs.ts`: the published FSRS-4.5 formulas and default parameters, a 90% target retention, and intervals capped at 365 days. The formulas are the platform's own code so they can be fitted to the owner's history in the ML capstone.
 
-- The FSRS card is created when a topic becomes Learned. That counts as a first review rated Good.
-- Each review session rates the card: all items correct is Good; some correct is Hard; none is Again.
+- A topic's card is replayed from its events each visit, like everything else here: it starts when the topic becomes Learned, which counts as a first review rated Good, and each `review` event after that updates it. Checkpoints have no cards.
+- The card holds a **stability** (days until the chance of remembering drops to 90%) and a **difficulty** (1 to 10). The next review is due `stability` days after the last one, rounded, at least 1.
+- Each review session rates the card from its items' **first** attempts: all correct is Good; some correct is Hard; none is Again.
+- States after Learned, in this order: **Relearning** if the most recent review was Again; **Fading** if the review is due; **Mastered** if a review rated Good happened at least 7 days after `learned_at`; otherwise **Learned**.
+- Today lists the topics whose review is due, the most forgotten first (lowest chance of remembering), up to 20 a day. A session asks 2 items from the topic's review pool, at least one of them code or predict-the-output, the ones answered longest ago first, so sessions rotate through the pool.

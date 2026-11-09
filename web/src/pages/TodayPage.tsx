@@ -1,11 +1,17 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
 import { BUTTON, INLINE_CODE } from '../components/styles.ts'
-import { getTopic, isOpen, topicIdsOf, tracks } from '../content/content.ts'
-import type { TopicContent } from '../content/types.ts'
+import {
+  getTopic,
+  isOpen,
+  loadTopicContent,
+  topicIdsOf,
+  tracks,
+} from '../content/content.ts'
+import type { Topic, TopicContent } from '../content/types.ts'
 import { addDays, type Day, dayOf } from '../days.ts'
 import {
   CORRECT_DAYS_NEEDED,
@@ -15,11 +21,13 @@ import {
 } from '../followups/followUps.ts'
 import { type FollowUpsState, useFollowUps } from '../followups/useFollowUps.ts'
 import { nextUp } from '../progress/progress.ts'
-import { useProgress } from '../progress/useProgress.ts'
+import { type ProgressState, useProgress } from '../progress/useProgress.ts'
+import { ReviewSession } from '../reviews/ReviewSession.tsx'
+import { type DueReview, dueReviews } from '../reviews/reviews.ts'
 
-// The daily plan (v1 spec, F12): mistakes coming back as fresh questions
-// until they're relearned (ADR-0011), then the topic to work on. Topic
-// reviews join it in Milestone C.
+// The daily plan (v1 spec, F12), in this order: reviews that are due
+// (ADR-0009), mistakes coming back as fresh questions until they're
+// relearned (ADR-0011), then the topic to work on.
 export function TodayPage() {
   const auth = useAuth()
   return (
@@ -27,17 +35,13 @@ export function TodayPage() {
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">Today</h1>
         <p className="text-slate-600 dark:text-slate-400">
-          Skills you've missed come back here as different questions, until
-          you've got them right on {CORRECT_DAYS_NEEDED} different days. Then
-          comes the topic you're on.
+          First the topics due for a review, timed to how fast you forget. Then
+          skills you've missed, back as different questions until you've got
+          them right on {CORRECT_DAYS_NEEDED} different days. Then the topic
+          you're on.
         </p>
       </header>
-      {auth.status === 'signed-in' && (
-        <>
-          <Revisit />
-          <NextUp />
-        </>
-      )}
+      {auth.status === 'signed-in' && <Plan />}
       {auth.status === 'signed-out' && (
         <p>
           <Link to="/sign-in" className="underline">
@@ -55,8 +59,8 @@ export function TodayPage() {
   )
 }
 
-/** The topic to work on: the one in progress, or the next Available (F12). */
-function NextUp() {
+/** The signed-in learner's plan. The progress is read once, for all of it. */
+function Plan() {
   const topics = useMemo(
     () =>
       tracks()
@@ -66,6 +70,106 @@ function NextUp() {
     [],
   )
   const progress = useProgress(topics)
+  // Read the clock once, when the page opens.
+  const [now] = useState(() => new Date().toISOString())
+  return (
+    <>
+      <Reviews topics={topics} progress={progress} now={now} />
+      <Revisit />
+      <NextUp topics={topics} progress={progress} />
+    </>
+  )
+}
+
+/**
+ * The topics due for a review (ADR-0009, F11), most forgotten first, up to
+ * the daily limit. Each gets a session; finishing one doesn't make it
+ * disappear, because the list is fixed when it first loads.
+ */
+function Reviews({
+  topics,
+  progress,
+  now,
+}: {
+  topics: Topic[]
+  progress: ProgressState
+  now: string
+}) {
+  const [due, setDue] = useState<DueReview[] | null>(null)
+  if (progress.status === 'ready' && due === null) {
+    setDue(dueReviews(topics.filter(isOpen), progress.progress, now))
+  }
+  const [contents, setContents] = useState<Map<string, TopicContent> | null>(
+    null,
+  )
+  useEffect(() => {
+    if (due === null) return
+    let active = true
+    Promise.all(due.map((review) => loadTopicContent(review.topic.id))).then(
+      (loaded) => {
+        if (!active) return
+        const found = loaded.filter((content) => content !== null)
+        setContents(
+          new Map(found.map((content) => [content.topic.id, content])),
+        )
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [due])
+
+  if (progress.status === 'signed-out' || progress.status === 'failed') {
+    return null
+  }
+  return (
+    <section aria-labelledby="reviews" className="space-y-4">
+      <h2 id="reviews" className="text-xl font-semibold">
+        Reviews
+      </h2>
+      {due === null || contents === null || progress.status !== 'ready' ? (
+        <p className="text-slate-500 dark:text-slate-400">
+          Loading your reviews…
+        </p>
+      ) : due.length === 0 ? (
+        <p className="text-slate-600 dark:text-slate-400">
+          No reviews due today.
+        </p>
+      ) : (
+        <>
+          <p className="text-slate-600 dark:text-slate-400">
+            {due.length === 1
+              ? 'One topic is due for a review.'
+              : `${due.length} topics are due for a review, the most forgotten first.`}{' '}
+            Each asks two quick questions. No hints here.
+          </p>
+          {due.map((review) => {
+            const content = contents.get(review.topic.id)
+            const entry = progress.progress.get(review.topic.id)
+            return content && entry ? (
+              <ReviewSession
+                key={review.topic.id}
+                content={content}
+                progress={entry}
+                attempts={progress.attempts}
+                now={now}
+              />
+            ) : null
+          })}
+        </>
+      )}
+    </section>
+  )
+}
+
+/** The topic to work on: the one in progress, or the next Available (F12). */
+function NextUp({
+  topics,
+  progress,
+}: {
+  topics: Topic[]
+  progress: ProgressState
+}) {
   if (progress.status !== 'ready') return null
   const next = nextUp(topics.filter(isOpen), progress.progress)
 

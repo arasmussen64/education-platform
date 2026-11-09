@@ -108,6 +108,19 @@ describe('progress on the map', () => {
     expect(within(row('Variables')).getByText(/Locked/)).toBeInTheDocument()
   })
 
+  it('says when a Learned topic is due for a review', async () => {
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000)
+    const learned = [
+      attempt(PRINT.id, PRINT.prove.build, 'code_check', true),
+      attempt(PRINT.id, PRINT.prove.debug, 'code_check', true),
+      attempt(PRINT.id, 'explain', 'explain_submit', true),
+    ].map((each) => ({ ...each, occurred_at: tenDaysAgo.toISOString() }))
+    renderMap(learned)
+    expect(
+      await within(row('Programs and print')).findByText(/Fading: review due/),
+    ).toBeInTheDocument()
+  })
+
   it('shows signed-out visitors only whether a topic can be opened', () => {
     renderMap([], { signedIn: false })
     expect(within(row('Variables')).getByText(/Ready/)).toBeInTheDocument()

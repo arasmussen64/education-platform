@@ -2,6 +2,24 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: Reviews, timed to how fast you forget
+
+Milestone C starts with ADR-0009: one review card per Learned topic, scheduled by FSRS, with sessions rated from performance.
+
+**The scheduler is our own code.** `ts-fsrs` is at version 6 with a new, sparsely documented API (an awaited factory, model plug-ins), and the ML capstone is to fit this very scheduler to the owner's history. So `web/src/reviews/fsrs.ts` implements the published FSRS-4.5 formulas and default parameters in about a hundred lines: the forgetting curve, the first stability per rating, the next stability after a pass or a lapse, difficulty with mean reversion, and the interval for a 90% target retention (which makes the interval equal the stability). Intervals are capped at 365 days. The tests check the shape of the behavior, not magic numbers: 90% at `t = S`, growth on Good, less on Hard, shrinkage on Again, bounded difficulty, overdue reviews rewarded more than early ones.
+
+**Cards are replayed from events** (ADR-0008), not stored: Learned counts as a first review rated Good, and each `review` event after it updates the card. `progressOf` now carries `reviews` and `card` per topic, and `stateOf` takes `now` and adds Relearning (last review Again), Fading (due) and Mastered (a Good review at least 7 days after Learned), in that order. A topic in any of those still unlocks what builds on it.
+
+**Sessions on Today.** The page now reads progress once (`Plan`) and shows, in the spec's order: Reviews, Mistakes to revisit, Next up. A session (`ReviewSession`) asks two items from the review pool, at least one code or predict-the-output, choosing the ones answered longest ago so sessions rotate; it rates itself from each item's first attempt (Good, Hard, Again) and records one `review` event (item `review`, `data.rating` and `data.items`). `PracticeItem` gained `onGraded`, called for answers and Checks alike. The due list is fixed when it loads, so finishing a review doesn't make it vanish. Up to 20 a day, most forgotten first.
+
+**History transport.** `fetchAttempts` now includes `review` events and their rating (`data->>rating`), so `Attempt` has an optional `rating`. A review with no rating is dropped rather than guessed.
+
+**Docs:** the `review` event in the data model's events table, the reviews rules under Derived progress, F11 and F12 marked built, and a Milestone C checklist in the roadmap.
+
+**Tests:** 11 for the scheduler, 9 for sessions and due lists, 5 for the new states, 6 on Today (including the Good, Hard and Again flows, and the saved event), 1 on the map, 1 on history. 308 web tests pass.
+
+**Next:** interleaved practice (a recall item from an earlier topic in each ladder, F5), then Module 3 (loops).
+
 ## 2026-11-08: Module 2, Decisions and debugging, written
 
 Five topics and a checkpoint, so Module 2 is ready before the owner finishes Module 1. This closes Milestone B.
