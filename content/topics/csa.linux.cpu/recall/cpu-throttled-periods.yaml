@@ -1,0 +1,20 @@
+id: cpu-throttled-periods
+type: predict_shell
+rev: 1
+prompt: |
+  A container's `cpu.stat` counts periods: `nr_periods` is how many 100 ms periods have passed, `nr_throttled` how many of those the group was stopped in for using up its quota, and `throttled_usec` the total time it spent stopped. The command works out the share of periods with throttling. What is printed?
+files:
+  sys/fs/cgroup/app/cpu.stat: |
+    usage_usec 184000000
+    user_usec 150000000
+    system_usec 34000000
+    nr_periods 36000
+    nr_throttled 9000
+    throttled_usec 450000000
+command: |
+  awk '$1 == "nr_periods" {p = $2} $1 == "nr_throttled" {t = $2} END {print t, "of", p, "periods throttled:", int(t * 100 / p) "%"}' sys/fs/cgroup/app/cpu.stat
+expected_output: |
+  9000 of 36000 periods throttled: 25%
+explanation: |
+  In one period out of four, the container used its whole quota and was stopped until the next period, 450 seconds of waiting in all. Its total CPU use (`usage_usec`, 184 s over 3,600 s of periods) averages only 5% of a CPU, which is the puzzle this file solves: the work comes in bursts that hit the quota, so the average looks tiny while every burst waits. This is the file to read whenever a container is slow with a low CPU graph.
+skills: [throttling]

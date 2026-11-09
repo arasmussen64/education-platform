@@ -1,0 +1,31 @@
+<Intro>
+
+A server with four CPUs and forty runnable processes has a decision to make forty times a millisecond: who runs next? The part of the kernel that decides is the **scheduler**, and once you can read its numbers you can tell a slow machine from a slow program, and a busy container from a throttled one.
+
+**The fair scheduler.** Linux's scheduler is called **CFS**, the Completely Fair Scheduler. It keeps track of how much CPU time each runnable task has had and always runs the one that has had the least, so over any short window every task gets a fair share. **Nice** values tilt the shares: nice runs from -20 (the biggest share) to 19 (the smallest), the default is 0, and `nice -n 10 ./backup.sh` or `renice` sets it; only root may *lower* a nice value. Nice is not a hard cap: when a CPU is idle, a nice-19 task gets all of it. It only matters under contention, which is why "give it a higher priority" rarely fixes anything on a machine that isn't busy. **Context switches** (`cs` in `vmstat`) are the scheduler swapping one task for another; thousands a second is normal.
+
+**Reading `top`.** The CPU line splits time into `us` (user programs), `sy` (the kernel), `ni` (niced programs), `id` (idle), `wa` (waiting for disk), `hi` and `si` (interrupts), and **`st`**, **steal**: time the hypervisor took our virtual CPU away to run someone else's VM. High `st` means the *host* is the problem: a noisy neighbour, or a burstable instance that has used up its CPU credits. High `wa` means the disk, not the CPU. The **load average** (`uptime`, or the first line of `top`) is three numbers: the average number of tasks that were runnable *or waiting on disk* over the last 1, 5 and 15 minutes. Read it against the CPU count (`nproc`): 8 on a 4-CPU machine means two tasks queued per CPU; 8 on 16 CPUs is a quiet afternoon. Rising from 15 to 1 minute means it's getting worse.
+
+**cgroups.** A **control group** is a set of processes with limits attached, arranged in a tree under `/sys/fs/cgroup`. systemd puts every service in its own group (`system.slice/nginx.service`), and every container is one too. Each group is a directory of plain files: `cgroup.procs` lists its PIDs, and the controllers add files like `cpu.weight`, `cpu.max`, `memory.max` and `pids.max`. Two CPU controls matter:
+
+- **`cpu.weight`** (1 to 10,000, default 100) is a *share*. When groups compete for CPU, time is divided in proportion to their weights: a group at 300 gets three times what a group at 100 gets. When there's spare CPU, weight does nothing. Docker's `--cpu-shares` and a Kubernetes CPU *request* set this.
+- **`cpu.max`** is a *quota*: two numbers, the microseconds of CPU the group may use in each period. `50000 100000` means 50 ms of every 100 ms, half a CPU; `200000 100000` means two CPUs; `max 100000` means no quota. It is enforced even when the machine is idle. Docker's `--cpus=0.5` and a Kubernetes CPU *limit* of `500m` set this.
+
+**Throttling.** When a group uses up its quota before the period ends, the kernel stops its tasks until the next period begins. The group's `cpu.stat` counts it: `nr_periods`, `nr_throttled` (periods in which it was stopped) and `throttled_usec` (how long in total). The trap is that a *bursty* service, a web API that's idle and then handles a request, burns its 50 ms in the first few milliseconds of a period and then waits out the rest, request after request. Its average utilisation over a second looks like 30%; its latency looks terrible. The fix is to raise the limit well above the average, or remove the CPU limit altogether and keep the request (so the service is only slowed when the node is genuinely contended), or spread the work over more replicas. A higher weight or a lower nice value does nothing against a quota.
+
+**Read now:** the kernel's CFS design note, the main resource below, which is short and says what fairness means precisely. Then the ArchWiki's cgroups page for the hierarchy and systemd's `CPUWeight=` and `CPUQuota=`, the CPU section of the cgroup v2 document for the files, and the Docker and Kubernetes pages to see how their flags map onto those files. The practice reads `top`, `uptime`, `ps` and cgroup files with the text tools from Shell essentials, and does the quota arithmetic with bash.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **CFS** runs the runnable task that has had the least CPU; **nice** (-20 to 19, default 0; `nice -n`, `renice`) weights the shares under contention and does nothing when a CPU is idle.
+- **`top` CPU line:** `us` programs, `sy` kernel, `id` idle, `wa` disk wait, **`st` steal** (the hypervisor gave our CPU away: noisy neighbour or exhausted burst credits).
+- **Load average** = runnable + uninterruptible-wait tasks, over 1, 5 and 15 minutes; compare to `nproc`. Rising short-term numbers mean it's getting worse.
+- **cgroups v2** live under `/sys/fs/cgroup` as directories of files: `cgroup.procs`, `cpu.weight`, `cpu.max`, `cpu.stat`, `memory.max`, `pids.max`. systemd slices and containers are groups.
+- **`cpu.weight`** (default 100) splits CPU only under contention: a request, `--cpu-shares`. **`cpu.max`** `quota period` in µs is a hard cap even when idle: `50000 100000` = half a CPU, `max` = none: a limit, `--cpus`.
+- **Throttling:** `cpu.stat` `nr_throttled` and `throttled_usec`. Bursty work hits the quota early in each 100 ms period and waits: high latency at low average utilisation. Raise or drop the limit, keep the request, or add replicas. Priority doesn't help against a quota.
+
+</Recap>

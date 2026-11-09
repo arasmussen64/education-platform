@@ -1,0 +1,24 @@
+id: mem-cgroup-memory
+type: predict_shell
+rev: 1
+prompt: |
+  The folder mirrors a container's cgroup under `/sys/fs/cgroup`: `memory.max` is its limit in bytes, `memory.current` what it uses now, and `memory.events` counts what has happened to it. The command converts the two numbers to MB (1,048,576 bytes each, integer division) and shows the kill count. What is printed?
+files:
+  sys/fs/cgroup/app/memory.max: |
+    536870912
+  sys/fs/cgroup/app/memory.current: |
+    531234816
+  sys/fs/cgroup/app/memory.events: |
+    low 0
+    high 0
+    max 12
+    oom 3
+    oom_kill 3
+command: |
+  cd sys/fs/cgroup/app && echo "limit $(( $(cat memory.max) / 1048576 )) MB, using $(( $(cat memory.current) / 1048576 )) MB" && grep oom_kill memory.events
+expected_output: |
+  limit 512 MB, using 506 MB
+  oom_kill 3
+explanation: |
+  The container may use 512 MB and is using 506: it's pressed against its limit. `memory.events` says the limit has been hit 12 times (`max`), the kernel ran the OOM killer in this cgroup 3 times (`oom`) and killed a process each time (`oom_kill`). That's the container's whole story in three files, independent of how much memory the node has. `$(( ))` does the arithmetic and `$( )` runs `cat` inside it.
+skills: [container-memory]

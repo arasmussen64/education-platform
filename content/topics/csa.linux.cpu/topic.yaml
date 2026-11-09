@@ -1,15 +1,100 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.cpu
 kind: topic
-status: planned
-title: CPU scheduling and cgroups
-summary: Explain the scheduler (CFS) and nice values.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "CPU scheduling and cgroups"
+summary: "How Linux shares the CPUs: the fair scheduler and nice values, load average and what it really counts, steal time in a VM, cgroups v2 weights and quotas, and how to find and fix a container that's being throttled."
+prerequisites: [csa.linux.processes]
+estimated_minutes: 90
 rev: 1
 objectives:
-- Explain the scheduler (CFS) and nice values.
-- Set cgroups v2 CPU shares and quotas.
-- Find CPU throttling in a container and fix it.
+  - "Explain how the Completely Fair Scheduler shares CPU time, what nice values do, and read `top`'s CPU line (`us`, `sy`, `id`, `wa`, `st`)."
+  - "Read a load average against the number of CPUs, and recognise steal time as a virtual machine's host taking the CPU away."
+  - "Read and set cgroups v2 CPU controls: `cpu.weight` (a share under contention) and `cpu.max` (a hard quota per period), and know how systemd and containers use them."
+  - "Find CPU throttling in a container with `cpu.stat`, explain why it shows up as latency while utilisation looks low, and fix it."
+# Linked, never copied. Licences: the Linux kernel documentation is GPL-2.0;
+# the ArchWiki is GNU FDL 1.3; Docker's documentation is Apache-2.0; the
+# Kubernetes documentation is CC BY 4.0.
+resources:
+  - title: "CFS Scheduler, from the Linux kernel documentation: the design of the Completely Fair Scheduler in a few pages"
+    url: https://docs.kernel.org/scheduler/sched-design-CFS.html
+    type: reading
+    use: link
+    license: GPL-2.0
+  - title: "ArchWiki: cgroups (what they are, the v2 hierarchy under /sys/fs/cgroup, and setting limits with systemd)"
+    url: https://wiki.archlinux.org/title/Cgroups
+    type: reading
+    use: link
+    license: GNU FDL 1.3
+  - title: "Control Group v2, from the Linux kernel documentation (the CPU section: cpu.weight, cpu.max, cpu.stat)"
+    url: https://docs.kernel.org/admin-guide/cgroup-v2.html
+    type: reading
+    use: link
+    license: GPL-2.0
+  - title: "Runtime options with Memory, CPUs, and GPUs (Docker documentation): what --cpus and --cpu-shares set"
+    url: https://docs.docker.com/engine/containers/resource_constraints/
+    type: reading
+    use: link
+    license: "Apache-2.0 (Docker documentation)"
+  - title: "Resource Management for Pods and Containers (Kubernetes documentation): CPU requests and limits, and how a limit becomes a quota"
+    url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+    type: reading
+    use: link
+    license: CC BY 4.0
+# Lessons and recall first (ADR-0017). The items read top, uptime, ps and
+# cgroup files with the text tools of the first topic and bash arithmetic;
+# setting weights and quotas on a real machine comes in the labs.
+practice:
+  - mcq-cfs-fair-share
+  - cpu-nice-order
+  - mcq-nice-values
+  - cpu-load-vs-cores
+  - mcq-load-average
+  - cpu-top-steal
+  - mcq-steal-time
+  - mcq-cgroup-hierarchy
+  - cpu-cgroup-procs
+  - cpu-weights
+  - cpu-quota-percent
+  - cpu-quota-two-groups
+  - mcq-weight-vs-quota
+  - cpu-throttled-periods
+  - mcq-throttling-symptom
+  - mcq-k8s-cpu-limits
+prove:
+  explain:
+    prompt: |
+      A service in a container responds slowly in bursts although the node's CPU graph sits around 30%, and a colleague wants to "give it a higher priority". Explain, in your own words: how Linux shares CPU time between runnable processes and what nice values change; how you'd read the node's load average and steal time to rule the machine in or out; what a cgroup's CPU weight and CPU quota each do, and how a Kubernetes CPU limit becomes one of them; and how you'd confirm the container is being throttled and what you'd change.
+    rubric:
+      - id: cfs
+        required: true
+        description: "CFS gives every runnable task a fair share of CPU time, weighted by nice (-20 highest to 19 lowest); nice changes the share under contention, not a hard cap, and an idle CPU goes to whoever is runnable."
+      - id: load-steal
+        required: true
+        description: "Load average counts runnable tasks plus those in uninterruptible (disk) wait, averaged over 1, 5 and 15 minutes, read against the CPU count; steal time (st) is CPU the hypervisor gave to another VM, a sign of a noisy neighbour or exhausted burst credits."
+      - id: weight-vs-quota
+        required: true
+        description: "cpu.weight (shares) decides how CPU is split only when groups compete; cpu.max is a hard quota of microseconds per period (e.g. 50000 100000 = half a CPU) enforced even when the machine is idle; a Kubernetes CPU limit sets cpu.max, a request sets cpu.weight."
+      - id: throttling
+        required: true
+        description: "cpu.stat's nr_throttled and throttled_usec show the group being stopped for the rest of a period after using its quota; a bursty service hits the quota in a few milliseconds and then waits, so latency rises while average utilisation looks low; raise or remove the CPU limit, keep the request, or spread the work."
+      - id: priority
+        required: false
+        description: "A higher priority (lower nice or higher weight) only helps when CPUs are contended; it does nothing against a quota, which is the usual cause in containers."
+    model_answer: |
+      Linux's scheduler, CFS, keeps a list of the tasks that are ready to run and gives each a fair slice of CPU time, weighted by its nice value: nice runs from -20, the biggest share, to 19, the smallest, and the default is 0. Nice only matters when tasks compete for a CPU; an idle CPU goes to whoever wants it, so "a higher priority" changes nothing unless the machine is busy. To know whether it is, I'd read the load average from uptime against the number of CPUs: it counts tasks that are runnable or stuck in uninterruptible disk wait, averaged over one, five and fifteen minutes, so 8 on a 4-CPU machine means two tasks waiting per CPU and 2 on 16 CPUs means mostly idle. In top's CPU line I'd look at st, steal time, which is time the hypervisor gave our virtual CPU to another tenant; if that's high the node itself is the problem, a noisy neighbour or a burstable instance out of credits. Then the container. Its processes live in a cgroup with two CPU controls. cpu.weight is a share: when groups compete, CPU is divided in proportion to their weights, and it has no effect when there's spare CPU. cpu.max is a quota: two numbers, how many microseconds of CPU the group may use in each period, so 50000 100000 means half a CPU, and it's enforced even on an idle machine. A Kubernetes CPU request sets the weight; a CPU limit sets the quota, with 500m becoming 50000 100000. To confirm throttling I'd read the group's cpu.stat: nr_throttled is how many periods the group was stopped in, and throttled_usec how long it spent stopped. A bursty service uses its 50 ms of quota in the first few milliseconds of a period when a request arrives, then sits throttled until the next period starts, so each request waits, latency goes up, and yet the average over a second looks like 30%. The fix is to raise the CPU limit well above the average, or remove it and rely on the request so the service is only slowed when the node is actually contended, or spread the work over more replicas. Giving it a higher priority wouldn't help, because a quota isn't a priority.
+review_pool:
+  - cpu-quota-percent
+  - cpu-throttled-periods
+  - cpu-load-vs-cores
+  - cpu-nice-order
+  - mcq-weight-vs-quota
+  - mcq-throttling-symptom
+skills:
+  - id: scheduler
+    description: "How CFS shares the CPU, nice values and `renice`, and reading `top`'s CPU line"
+  - id: load-average
+    description: "Load average against the CPU count, the run queue, and steal time in a virtual machine"
+  - id: cgroups-v2
+    description: "The cgroups v2 hierarchy under `/sys/fs/cgroup`: `cgroup.procs`, `cpu.weight`, `cpu.max`, and how systemd and containers use them"
+  - id: throttling
+    description: "CPU throttling: `cpu.stat`'s `nr_throttled` and `throttled_usec`, why it shows as latency, and how Kubernetes limits cause it"

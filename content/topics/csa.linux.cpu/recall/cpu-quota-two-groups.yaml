@@ -1,0 +1,18 @@
+id: cpu-quota-two-groups
+type: predict_shell
+rev: 1
+prompt: |
+  Two groups again, this time their `cpu.max`. A quota of `max` means no limit. For each group the loop prints its name and either "no quota" or the quota expressed in CPUs (quota divided by period). What is printed?
+files:
+  sys/fs/cgroup/web/cpu.max: |
+    max 100000
+  sys/fs/cgroup/batch/cpu.max: |
+    200000 100000
+command: |
+  for g in web batch; do printf '%s: ' "$g"; awk '{print ($1 == "max" ? "no quota" : $1 / $2 " CPUs")}' sys/fs/cgroup/$g/cpu.max; done
+expected_output: |
+  web: no quota
+  batch: 2 CPUs
+explanation: |
+  `web` has no cap: it can use every idle CPU on the machine, held back only by its weight when others compete. `batch` may use 200,000 µs per 100,000 µs period, which is two CPUs' worth, even on a 32-CPU machine, even when the other thirty are idle. That's the difference between a weight and a quota in two lines, and why the web tier is usually left without a quota while batch work gets one.
+skills: [cgroups-v2]

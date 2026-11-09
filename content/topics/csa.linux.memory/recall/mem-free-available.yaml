@@ -1,0 +1,16 @@
+id: mem-free-available
+type: predict_shell
+rev: 1
+prompt: |
+  `free.txt` is the output of `free -m` on a 16 GB server. The `Mem:` line has these columns: total, used, free, shared, buff/cache, available. The command prints two of them. What is printed?
+files:
+  free.txt: |2
+                   total        used        free      shared  buff/cache   available
+    Mem:           16012        9830         412         120        5770        5862
+    Swap:           2047         300        1747
+command: awk '/^Mem:/ {print "free:", $4, "MB; available:", $7, "MB"}' free.txt
+expected_output: |
+  free: 412 MB; available: 5862 MB
+explanation: |
+  Only 412 MB is literally unused, but 5,770 MB is page cache, which the kernel gives back the moment a program needs it, so about 5.9 GB is *available*. This server is not short of memory. Field 4 is `free` and field 7 is `available` because `Mem:` itself is field 1. Teach yourself to look at `available` and never at `free`; 300 MB of swap in use with this much available is nothing to worry about.
+skills: [virtual-memory]

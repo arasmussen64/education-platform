@@ -1,0 +1,20 @@
+id: mem-vmstat-swapping
+type: predict_shell
+rev: 1
+prompt: |
+  `vmstat.txt` is three seconds of `vmstat 1` on a struggling server. After two header lines, each line has the swap columns `si` (pages swapped in per second, field 7) and `so` (swapped out, field 8). The command prints them for each second. What is printed?
+files:
+  vmstat.txt: |
+    procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+     r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+     3  1 1843200  98304  10240 204800  1250 2100   310  2400 1800 3200 40 25  5 30  0
+     4  2 1851392  90112  10240 198656  1800 2600   280  2900 1900 3500 38 27  3 32  0
+     2  1 1859584  86016  10240 192512  1500 2300   300  2700 1750 3300 41 24  6 29  0
+command: awk 'NR > 2 {print "in", $7, "out", $8}' vmstat.txt
+expected_output: |
+  in 1250 out 2100
+  in 1800 out 2600
+  in 1500 out 2300
+explanation: |
+  Thousands of pages swapped in *and* out every second, three seconds running, is thrashing: the kernel is writing memory to disk and reading it straight back because the programs' working set doesn't fit in RAM. The other columns agree: `swpd` keeps growing, `free` and `cache` keep shrinking, and `wa` (time waiting on the disk) is around 30%. No tuning fixes this; the server needs more memory or less load.
+skills: [swap-paging]

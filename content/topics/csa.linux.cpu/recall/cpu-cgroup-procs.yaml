@@ -1,0 +1,20 @@
+id: cpu-cgroup-procs
+type: predict_shell
+rev: 1
+prompt: |
+  The folder mirrors a service's cgroup: `cgroup.procs` lists the PIDs in it, one per line, and `cgroup.controllers` names the resource controllers available to it. The command counts the processes and shows the controllers. What is printed?
+files:
+  sys/fs/cgroup/system.slice/app.service/cgroup.procs: |
+    1234
+    1235
+    1236
+  sys/fs/cgroup/system.slice/app.service/cgroup.controllers: |
+    cpu memory pids
+command: |
+  cd sys/fs/cgroup/system.slice/app.service && echo "processes: $(wc -l < cgroup.procs)" && cat cgroup.controllers
+expected_output: |
+  processes: 3
+  cpu memory pids
+explanation: |
+  Three processes belong to `app.service` (a main process and two workers, say), and the group can be limited in CPU, memory and number of processes. systemd created this directory when it started the unit; `systemctl status app` shows the same cgroup path and its tasks. Every limit the service has is a file one level down from here, which is why "what is this service allowed?" is a question you can answer with `cat`.
+skills: [cgroups-v2]

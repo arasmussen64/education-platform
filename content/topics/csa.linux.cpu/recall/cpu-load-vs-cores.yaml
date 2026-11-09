@@ -1,0 +1,18 @@
+id: cpu-load-vs-cores
+type: predict_shell
+rev: 1
+prompt: |
+  `uptime.txt` is the output of `uptime`, whose last part is the load average over 1, 5 and 15 minutes; `nproc.txt` is the output of `nproc`, the number of CPUs. The command prints the three numbers, then the CPU count. What is printed?
+files:
+  uptime.txt: |
+     10:42:01 up 12 days,  3:14,  2 users,  load average: 8.12, 6.40, 3.95
+  nproc.txt: |
+    4
+command: |
+  awk -F'load average: ' '{print $2}' uptime.txt; echo "CPUs: $(cat nproc.txt)"
+expected_output: |
+  8.12, 6.40, 3.95
+  CPUs: 4
+explanation: |
+  A load of 8 on 4 CPUs means that, on average over the last minute, eight tasks wanted to run (or were stuck waiting on disk): two per CPU, so every task waits half the time. And it's getting worse: 3.95 over fifteen minutes, 6.40 over five, 8.12 over one. The same 8.12 on a 16-CPU machine would be a quiet afternoon; the load average means nothing until you divide by the CPU count. `-F'load average: '` makes the text before the numbers the field separator so `$2` is just the numbers.
+skills: [load-average]

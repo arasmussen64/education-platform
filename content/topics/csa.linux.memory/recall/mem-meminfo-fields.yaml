@@ -1,0 +1,26 @@
+id: mem-meminfo-fields
+type: predict_shell
+rev: 1
+prompt: |
+  `meminfo` is a shortened `/proc/meminfo`, the file `free` reads: one field per line, in kB. The command picks three fields and converts each to MB (integer division by 1024). What is printed?
+files:
+  meminfo: |
+    MemTotal:       16396288 kB
+    MemFree:          421888 kB
+    MemAvailable:    6002688 kB
+    Buffers:          327680 kB
+    Cached:          5455872 kB
+    SwapTotal:       2097148 kB
+    SwapFree:        1789948 kB
+    Dirty:             12288 kB
+    AnonPages:       9437184 kB
+    HugePages_Total:     512
+    Hugepagesize:       2048 kB
+command: awk '/^(MemTotal|MemAvailable|Cached):/ {print $1, int($2 / 1024), "MB"}' meminfo
+expected_output: |
+  MemTotal: 16012 MB
+  MemAvailable: 5862 MB
+  Cached: 5328 MB
+explanation: |
+  `free` is just this file with arithmetic. `Cached` is the page cache (plus `Buffers`, the smaller block-device cache); `AnonPages` is program memory, the kind that has to go to swap rather than being dropped; `Dirty` is cached data not yet written to disk. `MemAvailable` is the kernel's own estimate of what a new program could get, and it's what to alert on. The regular expression matches the three labels followed by a colon so `MemFree` isn't included.
+skills: [virtual-memory]

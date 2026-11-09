@@ -1,0 +1,17 @@
+id: mem-oom-log
+type: predict_shell
+rev: 1
+prompt: |
+  `dmesg.txt` holds the kernel's messages from an out-of-memory event. The first command pulls out who was killed; the second pulls the first `anon-rss` value, the memory the victim really held. What is printed?
+files:
+  dmesg.txt: |
+    [12345.678901] java invoked oom-killer: gfp_mask=0x140cca(GFP_HIGHUSER_MOVABLE|__GFP_COMP), order=0, oom_score_adj=0
+    [12345.678950] Out of memory: Killed process 4321 (java) total-vm:12582912kB, anon-rss:7340032kB, file-rss:0kB, shmem-rss:0kB, UID:1001 pgtables:15360kB oom_score_adj:0
+    [12345.701234] oom_reaper: reaped process 4321 (java), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB
+command: grep -o 'Killed process [0-9]* ([a-z0-9]*)' dmesg.txt; grep -o 'anon-rss:[0-9]*kB' dmesg.txt | head -n 1
+expected_output: |
+  Killed process 4321 (java)
+  anon-rss:7340032kB
+explanation: |
+  The kernel killed PID 4321, a Java program, which held about 7 GB of anonymous memory (7,340,032 kB), its heap and stacks, while `total-vm` of 12 GB is only what it had *reserved*. The first line says Java itself triggered the hunt by asking for a page that couldn't be found, and the last says the reaper took its memory back. On a live server this is `dmesg -T | grep -i 'killed process'` or `journalctl -k`, and the process's exit status was 137.
+skills: [oom-killer]

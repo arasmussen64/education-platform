@@ -1,0 +1,14 @@
+id: mcq-container-is-a-process
+type: mcq
+rev: 1
+prompt: |
+  You run `ps -ef` on a Docker host that has one nginx container running. What do you see?
+choices:
+  - "Nothing from the container; its processes are hidden inside a virtual machine"
+  - "The container's nginx processes, with the host's own PIDs, as children of a `containerd-shim` process: a container is a process tree on the host's kernel, isolated by namespaces and limited by a cgroup"
+  - "A single process called `docker` that stands in for the whole container"
+  - "The processes, but only if you run `ps` as root"
+answer: 1
+explanation: |
+  There is one kernel, and the container's processes are its processes. Namespaces change what the *container* sees (its nginx thinks it's PID 1), not what the host sees. That's why a host-level `top` shows a container's CPU use directly, why `kill` from the host works on it, and why the cgroup, not a hypervisor, is what limits it. If it were a VM, the host would see only the VM's own process.
+skills: [container-vs-vm, cgroups-limits]

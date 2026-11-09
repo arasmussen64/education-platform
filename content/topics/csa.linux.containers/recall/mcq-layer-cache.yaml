@@ -1,0 +1,14 @@
+id: mcq-layer-cache
+type: mcq
+rev: 1
+prompt: |
+  A Dockerfile copies the whole project with `COPY . .` and then runs `npm install`. Every build takes four minutes even when only one source file changed. What's wrong?
+choices:
+  - "Docker doesn't cache; builds always take that long"
+  - "The `COPY . .` layer changes with every source edit, which invalidates the cache for everything after it, including the install. Copy `package.json` and the lockfile first, run `npm install`, then `COPY . .`, so the install layer is reused until the dependencies change"
+  - "`npm install` must come before `FROM`"
+  - "Use `ADD` instead of `COPY`; `ADD` is cached"
+answer: 1
+explanation: |
+  The build cache works layer by layer, top to bottom, and stops reusing at the first instruction whose inputs differ. Putting the code copy before the dependency install makes the expensive step depend on every file in the project. Reordering so that only the dependency manifests are copied before the install turns the four minutes into seconds for most builds, and it also makes the image's dependency layer shareable across versions of the app.
+skills: [layers-overlay]

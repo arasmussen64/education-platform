@@ -1,0 +1,16 @@
+id: ctr-overlay-mount
+type: predict_shell
+rev: 1
+prompt: |
+  `mounts.txt` is one line from `mount` on a Docker host: a running container's overlay filesystem, whose options list its `lowerdir` (the image layers, separated by colons), `upperdir` (the container's writable layer) and `workdir`. The first command counts the lower layers; the second prints the upper directory. What is printed?
+files:
+  mounts.txt: |
+    overlay on /var/lib/docker/overlay2/abc/merged type overlay (rw,relatime,lowerdir=/var/lib/docker/overlay2/l/AAA:/var/lib/docker/overlay2/l/BBB,upperdir=/var/lib/docker/overlay2/abc/diff,workdir=/var/lib/docker/overlay2/abc/work)
+command: |
+  tr ',' '\n' < mounts.txt | grep '^lowerdir=' | tr ':' '\n' | wc -l; tr ',' '\n' < mounts.txt | grep '^upperdir='
+expected_output: |
+  2
+  upperdir=/var/lib/docker/overlay2/abc/diff
+explanation: |
+  Two read-only image layers underneath (`AAA` and `BBB`), one writable layer on top (`diff`), and the container sees their union at `merged`. `tr ',' '\n'` splits the options onto separate lines so `grep` can pick one; splitting the lowerdir list at the colons and counting the lines gives the number of layers. Everything the container writes appears under `diff`, which is what gets thrown away when the container is removed.
+skills: [layers-overlay]

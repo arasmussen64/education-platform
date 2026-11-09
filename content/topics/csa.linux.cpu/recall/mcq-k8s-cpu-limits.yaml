@@ -1,0 +1,14 @@
+id: mcq-k8s-cpu-limits
+type: mcq
+rev: 1
+prompt: |
+  A Kubernetes pod sets `requests.cpu: 250m` and `limits.cpu: 500m`. What does each become on the node?
+choices:
+  - "The request is a hard cap of a quarter CPU; the limit is a warning threshold"
+  - "The request becomes the cgroup's `cpu.weight` (a share used for scheduling and under contention); the limit becomes `cpu.max` `50000 100000`, a hard quota of half a CPU that can throttle the container"
+  - "Both set `cpu.max`; the request applies at night and the limit by day"
+  - "Neither touches cgroups; they're only used by the scheduler to place the pod"
+answer: 1
+explanation: |
+  The request does two jobs: the scheduler only places the pod on a node with that much CPU unreserved, and the kubelet turns it into a weight so the container gets its share when the node is contended. The limit is a quota, enforced every period whether the node is busy or not. That's why many teams set CPU requests on everything and CPU limits only where a runaway process must be contained: a limit buys predictability at the price of throttling.
+skills: [throttling, cgroups-v2]

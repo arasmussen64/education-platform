@@ -1,0 +1,17 @@
+id: ctr-writable-layer
+type: predict_shell
+rev: 1
+prompt: |
+  Plain folders stand in for an image layer (`image/`) and a container's writable layer (`container/upper/`). The command "runs a container" that changes a config file, shows the image's copy and the container's copy, then "removes the container" and lists what's left. What is printed?
+files:
+  image/app.conf: |
+    color=blue
+command: |
+  mkdir -p container/upper; echo "color=red" > container/upper/app.conf; cat image/app.conf; cat container/upper/app.conf; rm -r container; ls
+expected_output: |
+  color=blue
+  color=red
+  image
+explanation: |
+  The image's file is untouched (`color=blue`); the container's change lives in its own upper layer (`color=red`), which is what overlayfs's copy-up does for real. Removing the container deletes the upper layer, and the change with it, leaving only the image. That's the whole lifecycle in four commands: images never change, containers are disposable, and anything that must survive goes in a volume outside the layers.
+skills: [layers-overlay]

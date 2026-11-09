@@ -1,0 +1,14 @@
+id: mcq-volumes
+type: mcq
+rev: 1
+prompt: |
+  A PostgreSQL container has been running for a month. You upgrade it by removing the container and starting a new one from the newer image, and all the data is gone. Why, and what should have been done?
+choices:
+  - "The new image has a bug; roll back and the data reappears"
+  - "The database wrote its files into the container's writable layer, which is deleted with the container; the data directory should have been a volume or bind mount (`-v pgdata:/var/lib/postgresql/data`), which outlives containers"
+  - "Images are read-only, so the database could never have written anything"
+  - "Removing a container always deletes the host's `/var/lib`"
+answer: 1
+explanation: |
+  Every write a container makes goes to its upper layer, and the upper layer is part of the container, not the image. Remove the container and the layer is gone; the next container starts from a clean one. Volumes are directories managed by the runtime outside the layers, mounted into the container at a path, and they persist until you delete them on purpose. Any stateful service in a container needs one, and the official database images document the path to mount.
+skills: [layers-overlay]

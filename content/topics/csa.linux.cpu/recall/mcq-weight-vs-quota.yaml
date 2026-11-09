@@ -1,0 +1,14 @@
+id: mcq-weight-vs-quota
+type: mcq
+rev: 1
+prompt: |
+  A service's cgroup has `cpu.weight` 1000 and `cpu.max` `100000 100000`, on an otherwise idle 8-CPU server. How much CPU can it use?
+choices:
+  - "All eight CPUs, because the weight is high and nothing competes"
+  - "One CPU: the quota of 100,000 µs per 100,000 µs period is a hard cap, and the weight only matters when groups compete, which they don't on an idle machine"
+  - "Ten CPUs, because weight 1000 is ten times the default"
+  - "Nothing until another group starts"
+answer: 1
+explanation: |
+  Weight is a share for dividing CPU under contention; on an idle machine it changes nothing. The quota is absolute: one CPU's worth per period, no matter how much is free. So this service can never exceed one CPU, and its high weight will only help if other groups fight it for that one. Mixing the two up is the most common misreading of container CPU settings.
+skills: [cgroups-v2, throttling]

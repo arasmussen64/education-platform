@@ -1,14 +1,98 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.containers
 kind: topic
-status: planned
-title: How containers work
-summary: Build a container by hand from namespaces, cgroups and an overlay filesystem.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "How containers work"
+summary: "A container is a process on the host's kernel with its own view of the system: namespaces for isolation, cgroups for limits, and a root filesystem assembled from image layers by overlayfs. Why that makes it fast and dense, and why it is not a virtual machine."
+prerequisites: [csa.linux.cpu, csa.linux.memory]
+estimated_minutes: 90
 rev: 1
 objectives:
-- Build a container by hand from namespaces, cgroups and an overlay filesystem.
-- Explain image layers and why a container is not a VM.
+  - "Explain what a container is: a process tree on the host kernel, isolated by namespaces (pid, net, mnt, uts, ipc, user) and limited by a cgroup, with its own root filesystem."
+  - "Explain how an image is built from read-only layers, how overlayfs stacks them under a writable layer when a container runs, and what happens to a container's writes when it's removed."
+  - "Read a Dockerfile for the layers it creates and order its steps for caching."
+  - "Say how a container differs from a virtual machine, in startup, density and isolation, and what root inside a container means for security."
+# Linked, never copied. Licences: Julia Evans's post is her copyright and is
+# linked only; the Linux man-pages are free documentation; Docker's
+# documentation is Apache-2.0; the Linux kernel documentation is GPL-2.0.
+resources:
+  - title: "What even is a container: namespaces and cgroups, by Julia Evans"
+    url: https://jvns.ca/blog/2016/10/10/what-even-is-a-container/
+    type: reading
+    use: link
+    license: "Copyright Julia Evans; linked, not copied"
+  - title: "namespaces(7), from the Linux man-pages project: the namespace types and what each isolates"
+    url: https://man7.org/linux/man-pages/man7/namespaces.7.html
+    type: reading
+    use: link
+    license: "Linux man-pages project (free documentation; linked, not copied)"
+  - title: "cgroups(7), from the Linux man-pages project (the overview and the v2 sections)"
+    url: https://man7.org/linux/man-pages/man7/cgroups.7.html
+    type: reading
+    use: link
+    license: "Linux man-pages project (free documentation; linked, not copied)"
+  - title: "Understanding the image layers (Docker documentation)"
+    url: https://docs.docker.com/get-started/docker-concepts/building-images/understanding-image-layers/
+    type: reading
+    use: link
+    license: "Apache-2.0 (Docker documentation)"
+  - title: "Overlay Filesystem, from the Linux kernel documentation: lower, upper and merged directories"
+    url: https://docs.kernel.org/filesystems/overlayfs.html
+    type: reading
+    use: link
+    license: GPL-2.0
+# Lessons and recall first (ADR-0017). The items read Dockerfiles, mount
+# tables, process listings and cgroup files with the text tools of the first
+# topic; building a container by hand with unshare comes in the labs.
+practice:
+  - mcq-container-is-a-process
+  - ctr-pid-namespace
+  - mcq-namespaces-which
+  - mcq-root-in-container
+  - ctr-cgroup-limits
+  - mcq-pids-limit
+  - ctr-dockerfile-layers
+  - mcq-layer-cache
+  - ctr-image-tags
+  - ctr-overlay-mount
+  - ctr-writable-layer
+  - mcq-volumes
+  - mcq-container-vs-vm
+  - mcq-runtime-chain
+prove:
+  explain:
+    prompt: |
+      A colleague says "a container is just a lightweight VM". Explain, in your own words, what a container really is: what namespaces do and which ones matter; what cgroups add; how an image is built from layers and what overlayfs does with them when a container runs; where a container's writes go and what happens to them when the container is removed; and the real differences from a virtual machine, including what root inside a container means for security.
+    rubric:
+      - id: process-namespaces
+        required: true
+        description: "A container is an ordinary process tree on the host's kernel, given its own view of the system by namespaces: pid (its own PID 1 and numbering), net (its own interfaces and ports), mnt (its own mounts and root filesystem), uts (hostname), ipc, and optionally user (its root mapped to an unprivileged host user)."
+      - id: cgroups
+        required: true
+        description: "A cgroup limits and accounts the container's CPU, memory and process count (cpu.max, memory.max, pids.max), so one container can't starve the host or the others."
+      - id: layers
+        required: true
+        description: "An image is a stack of read-only layers, one per Dockerfile instruction that changes files (FROM's base, RUN, COPY, ADD); overlayfs mounts them as lowerdir under a writable upperdir and shows the merged result as the container's root; files are copied up on first write."
+      - id: writes
+        required: true
+        description: "Writes go to the container's own upper layer, which is deleted with the container; the image is never changed; data that must survive goes in a volume or bind mount."
+      - id: vs-vm
+        required: true
+        description: "A VM runs its own kernel on a hypervisor: stronger isolation, slower start, more memory per instance; a container shares the host kernel: starts in milliseconds, runs densely, but a kernel bug or a privileged container affects the host, and root in a container without user namespaces is root on the host, so run as a non-root user and drop capabilities."
+    model_answer: |
+      A container is not a small virtual machine; it's a normal process, or a tree of processes, running on the host's own kernel. What makes it feel like a separate machine is a set of namespaces, which give those processes their own view of the system. The pid namespace gives the container its own process numbers, with its main process as PID 1 inside, although the host sees the same process under some other PID. The network namespace gives it its own interfaces, IP address and ports, so two containers can both listen on 8080. The mount namespace gives it its own set of mounts, and so its own root filesystem. The uts namespace gives it its own hostname, ipc its own shared-memory objects, and a user namespace can map root inside the container to an ordinary user outside. A cgroup then limits what the container may consume: cpu.max caps its CPU, memory.max its memory, pids.max how many processes it may create, so one container can't take the host down. The root filesystem comes from an image, which is a stack of read-only layers: the base image's layers from FROM, then one more for each Dockerfile instruction that changes files, RUN, COPY and ADD, while instructions like WORKDIR and CMD only change metadata. When the container starts, overlayfs mounts those layers as the lower directories under a fresh, empty upper directory and presents the merged view as the container's root. Reading goes down through the layers until a file is found; the first time a file is written, it's copied up to the upper layer and changed there. So every write a container makes lands in its own upper layer, the image underneath never changes, and when the container is removed the upper layer goes with it, which is why anything that must survive, a database's files, uploads, goes in a volume or a bind mount from the host. The real differences from a virtual machine follow from the shared kernel. A VM boots its own kernel on a hypervisor, which takes seconds to start and costs hundreds of megabytes before the application runs, but gives strong isolation: a bug in the guest kernel stays in the guest. A container starts in milliseconds and dozens fit where a few VMs would, but it is only as isolated as the kernel's namespaces and cgroups make it: a kernel vulnerability affects every container on the host, and root inside a container is, without a user namespace, the same root as the host's, held back only by the capabilities and the seccomp filter the runtime applies. That's why images should run as a non-root user, why privileged containers are a last resort, and why multi-tenant platforms put a VM boundary around containers that don't trust each other.
+review_pool:
+  - ctr-pid-namespace
+  - ctr-dockerfile-layers
+  - ctr-overlay-mount
+  - ctr-cgroup-limits
+  - mcq-container-vs-vm
+  - mcq-volumes
+skills:
+  - id: namespaces
+    description: "What namespaces isolate (pid, net, mnt, uts, ipc, user), a container's PID 1, and what root inside a container means"
+  - id: cgroups-limits
+    description: "A container's cgroup: `cpu.max`, `memory.max`, `pids.max`, and why a container is a process the host can see"
+  - id: layers-overlay
+    description: "Image layers from a Dockerfile, overlayfs lower, upper and merged directories, the writable layer, caching order, tags, volumes"
+  - id: container-vs-vm
+    description: "Containers versus virtual machines: shared kernel, startup, density, isolation, and the runtime chain from the CLI down to runc"

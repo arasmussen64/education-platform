@@ -1,0 +1,18 @@
+id: cpu-weights
+type: predict_shell
+rev: 1
+prompt: |
+  Two cgroups, `web` and `batch`, each have a `cpu.weight` file. The loop prints each group's weight. What is printed, and so how is the CPU split when both are busy?
+files:
+  sys/fs/cgroup/web/cpu.weight: |
+    300
+  sys/fs/cgroup/batch/cpu.weight: |
+    100
+command: |
+  for g in web batch; do echo "$g $(cat sys/fs/cgroup/$g/cpu.weight)"; done
+expected_output: |
+  web 300
+  batch 100
+explanation: |
+  When both groups want all the CPU they can get, it's divided in proportion to the weights: `web` gets 300 of 400 shares, three quarters, and `batch` one quarter. When `web` is idle, `batch` gets everything; weights only matter under contention. The default weight is 100, so someone deliberately favoured the web tier. `systemctl set-property web.service CPUWeight=300` is how that's done for a systemd unit, and a Kubernetes CPU request sets the same file.
+skills: [cgroups-v2]
