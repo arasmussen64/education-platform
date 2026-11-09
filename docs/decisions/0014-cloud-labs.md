@@ -29,6 +29,8 @@ Certification-style knowledge tests are what this track exists to go beyond. A s
 | Game days | The learner's sandbox, with a failure the learner sets off | The lab checker measures time to detect and recover, and data lost |
 | Defend it | The browser | AI plays stakeholders, then grades the answers against a rubric |
 
+**Proofs scale with depth.** The spec gives every topic a target depth (L1 aware, L2 working, L3 deep). An L1 topic is proven with a short design exercise and a two-sentence explanation; an L2 topic with a lab on one cloud; an L3 topic with timed labs on all three. ADR-0002's quick versions of the proofs are how that's allowed.
+
 ### 2. The lab checker
 
 The lab checker is a Python command-line tool in this repository (`labs/`), run on the learner's machine.

@@ -2,6 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: The cloud track, cross-referenced with the owner's knowledge map
+
+**The owner asked** to cross-reference the Cloud Solutions Architect spec against their own *Senior Cloud Architect Knowledge Map & Learning Roadmap*, a Markdown file with twelve domains, a certification order, a 24-month plan and a 24-item self-assessment: add everything the map has that the spec lacks, remove nothing, keep it extensive.
+
+**Finding the file took two tries.** It wasn't in the project folder at first; the owner had it in another folder and copied it to the project root. It isn't committed, because it holds the owner's career details. Where it lives is the owner's call; `docs/research/` is the natural home if it goes in.
+
+**Done, in `docs/specs/cloud-solutions-architect.md`:**
+- **4 new modules:** Virtualization, hardware and Windows (2); Software engineering literacy (7); Application architecture and integration (17); Specialized workloads (28). The track has 30 modules now.
+- **107 new topics,** from 210 to 317, and many existing "You'll be able to" lines extended with the map's specifics: CUBIC and BBR, SCIM and PKCE, the confused deputy, CRDTs, Paxos and Raft, KEDA, Kyverno, FOCUS, provisioned throughput, and so on. Every existing topic is still there.
+- **New sections from the map:**
+  - *Depth levels*: L1 aware, L2 working, L3 deep; how the four proofs scale with depth; a default depth for each module; the primary-cloud option; the map's four rules of thumb.
+  - *A faster path for an experienced learner*: the map's seven phases over 24 months, mapped to modules, with its capstone builds, milestones, weekly rhythm (60% building, 25% reading, 15% writing), kill criteria and reading list.
+  - *Self-assessment*: the map's 24 "you're senior when you can" items, each tied to the checkpoint, topic or drill that proves it. Kept as a mirror: the platform never counts self-report (ADR-0002).
+- **Certifications:** AZ-104, CCSP, TOGAF, Databricks and Snowflake, exam codes, and the map's suggested order.
+- **The service table:** 20 more rows, such as customer identity, subnet scope, IPAM, layer 4 and layer 7 load balancers, appliance insertion, zero trust access, Arm chips, PaaS hosting, block and file storage, shipped devices, Oracle, confidential computing, AI accelerators and carbon data.
+- **6 more drills,** including Kubernetes triage, a threat model and a decision record.
+- ADR-0014 gained a line on proofs scaling with depth. The roadmap and CHANGELOG carry the new counts.
+
+**Numbering shifted.** Modules were inserted, so module numbers and the positional checkpoint IDs (`csa.mN.checkpoint`) moved. Nothing is built, so nothing refers to them yet. Stable IDs are now an open question in the spec.
+
+**Checked by script, not by eye:** all 244 IDs from the previous version are present; no duplicate IDs; all 47 previous headings are present; every checkpoint ID matches its module number; every relative link resolves; and a sweep of 660 distinctive terms from the map found all of them in the spec (four were missing on the first pass and were added).
+
+**Personal context from the map,** kept out of the repo's text beyond what the faster path needs: the owner's strengths are Linux, networking and Azure, and their stated gaps are AWS, Kubernetes and platforms, data and streaming, FinOps, and the business layer. The faster path is built on that.
+
+**Next:** the owner decides on ADR-0014 and on when the track gets built. The v1 work stays paused where the earlier entry left it.
+
 ## 2026-11-08: A second track, Cloud Solutions Architect (specified)
 
 **The owner asked for** a Cloud Solutions Architect track:
