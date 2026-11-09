@@ -1,10 +1,81 @@
 id: py.logical-operators
 kind: topic
-status: planned
+status: ready
 title: "Logical operators"
-summary: "Combine conditions with and, or and not; avoid `x == 1 or 2`."
+summary: "Combine conditions with and, or and not, and avoid the `x == 1 or 2` trap."
 prerequisites: [py.if-elif-else]
-estimated_minutes: 35
+estimated_minutes: 50
 rev: 1
 objectives:
-  - "Combine conditions with and, or and not; avoid `x == 1 or 2`."
+  - "Combine two conditions with `and` (both must be `True`) or `or` (either is enough), and predict the answer."
+  - "Flip a condition with `not`."
+  - "Spot the trap `x == 1 or 2`, which is always `True`, and compare on both sides instead: `x == 1 or x == 2`."
+resources:
+  - title: "CS50P Lecture 1: Conditionals, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=_b6NgY_pMdw&t=1108s
+    type: video
+    use: embed
+    # From "or" to just before the parity program (18:28 to 34:07): or, and,
+    # the grade program, chained comparisons like 90 <= score <= 100, and
+    # why an elif chain's conditions should rule each other out.
+    start: 1108
+    end: 2047
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Standard Library: Boolean Operations, and, or, not (Python Software Foundation)"
+    url: https://docs.python.org/3/library/stdtypes.html#boolean-operations-and-or-not
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-discount
+  - mcq-and-or
+  - predict-not
+  - mcq-or-trap
+  - fill-opening-hours
+  - write-login
+prove:
+  build: build-museum
+  debug: debug-weekend
+  explain:
+    prompt: |
+      A friend's program asks "Continue? (y/n)" and then checks the answer:
+
+      ```python
+      answer = input("Continue? (y/n) ")
+      if answer == "y" or "Y":
+          print("Continuing")
+      else:
+          print("Stopping")
+      ```
+
+      It prints `Continuing` whatever they type, even `n`. In your own words: what two things is `or` joining here, why does the second one always count as `True`, and how should the line be written? Then say what the line would do with `and` in place of `or`.
+    rubric:
+      - id: two-questions
+        required: true
+        description: "or joins two separate questions: answer == \"y\" and, on its own, \"Y\"."
+      - id: text-is-true
+        required: true
+        description: "A piece of text on its own counts as True (only empty text counts as False), so the whole condition is always True."
+      - id: fix
+        required: true
+        description: "Compare on both sides: answer == \"y\" or answer == \"Y\"."
+      - id: and-meaning
+        required: false
+        description: "With and, both sides must be True; here answer == \"y\" and \"Y\" is True only when they type y."
+    model_answer: |
+      or joins two separate yes-or-no questions and is True if either is. Here the first question is answer == "y", but the second isn't a question at all: it's just the text "Y". Python treats any non-empty text as True, so the second half is always True, and the whole condition is too, whatever was typed. The fix is to ask both questions in full: if answer == "y" or answer == "Y":. With and instead, both halves must be True: answer == "y" and "Y" is True only when they type y, because "Y" on its own is always True and the comparison decides.
+review_pool:
+  - review-predict-truth
+  - review-mcq-not
+  - review-code-range
+  - review-mcq-or-trap-fix
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: and-or
+    description: "Combine conditions with `and` (both) or `or` (either), and predict the answer"
+  - id: not
+    description: "Flip a condition with `not`"
+  - id: or-trap
+    description: "Spot `x == 1 or 2`, which is always `True`, and compare on both sides: `x == 1 or x == 2`"

@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Module 2 content: Decisions and debugging)
+
+- **Five new topics, all ready:** Booleans and comparisons, if / elif / else, Logical operators, Tracing code, and Reading errors. Each has a lesson, a practice ladder, the three proof checks, a review pool and skills, so missed questions come back.
+  - The first three are built on CS50P Lecture 1 (Conditionals), embedded in three segments whose times come from CS50's own subtitles: comparisons and `if` (0:28 to 9:55), `elif` and `else` (to 18:28), `or` and `and` (to 34:07).
+  - Tracing code is built around Python Tutor; Reading errors around Python's own tutorial on errors. Both lessons are the platform's own words.
+  - Logical operators makes a point of the `x == 1 or 2` trap, which is always `True`.
+  - Several exercises check the code with other starting values (`run_with`), so a trace exercise can't be passed by typing the expected output in.
+- **Checkpoint 2: ticket pricing.** A rules-based cinema ticket program (age bands, a weekend extra, a member discount) from a blank editor; a parking-fee program with three bugs to fix; a module-level explain. The way through for a stuck learner: a zoo-ticket sibling, the build in four steps, and two fresh versions (a swimming pool and a train fare). Every test names the skills it checks, across Modules 1 and 2.
+- In all: 39 more exercises and 26 more recall items. The validator runs 292 programs over the content with no problems. Milestone B is complete.
+
 ### Added (topic states, gating and "Prove it now")
 
 - **Every topic now has a state** for the signed-in learner, shown with an icon and a word on its page and on the map: Locked, Available, In progress, Learned (or Passed, for a checkpoint), with the date it was learned.

@@ -1,6 +1,6 @@
 # Roadmap
 
-**Current phase: 1, Milestone B (prove it).** Milestone A is done.
+**Current phase: 1, Milestone C (keep it).** Milestones A and B are done.
 
 The owner works full time, split between learning (mornings, on the platform once it exists) and building (afternoons). The roadmap serves both: the platform's content stays one module ahead of the owner's own learning.
 
@@ -42,7 +42,9 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] Progress tracking, part 1: the rules for topic states, and which proof checks have passed, on the map and topic pages
 - [x] Explain it back, graded by AI (F7), through the AI proxy with its budget cap (F14), as decided in [ADR-0013](decisions/0013-explain-grading.md). Graded by Claude Haiku 5.5, which got the 30-sample test set right twice. Live since 2026-11-08.
 - [x] Topic states and gating, with "Prove it now" (F8, F9), and "Next up" on the Today page (F12). Built 2026-11-08, once grading was live: until explanations could pass, no topic could be Learned, and gating would have locked every topic after the first.
-- [ ] Module 2 content, ready before the owner finishes Module 1
+- [x] Module 2 content, ready before the owner finishes Module 1 (2026-11-08): five topics and Checkpoint 2, ticket pricing
+
+Milestone B is complete. Next: Milestone C (reviews, the full Today page, recall items, interleaved practice), then D (the tutor, problem reports). Module 3's content comes before the owner finishes Module 2.
 
 ## Phase 2: Adaptivity and better practice (months 2–4)
 

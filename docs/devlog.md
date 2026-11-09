@@ -2,6 +2,25 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: Module 2, Decisions and debugging, written
+
+Five topics and a checkpoint, so Module 2 is ready before the owner finishes Module 1. This closes Milestone B.
+
+**Resources.** Lecture 1 of CS50P (Conditionals, video `_b6NgY_pMdw`, embeddable by its oEmbed) carries the first three topics. Its section times came from CS50's published subtitles, used only to find the times: comparisons and the first `if` from 0:28 to 9:55; `elif` and `else` to 18:28; `or`, `and`, the grade program and chained comparisons to 34:07. The `match` section (48:18 to 55:37) is linked, not embedded, from if / elif / else. Tracing code's main resource is Python Tutor with a preloaded program; Reading errors' is Python's own tutorial chapter on errors, with Python Tutor stepping into a `NameError` as a second resource. Both lessons are the platform's own words, as ADR-0004 requires.
+
+**What each topic drives at:**
+- *Booleans and comparisons*: `=` against `==`, comparisons give a `bool`, and text is never equal to a number (`"7" == 7`). The debug plants `print(..., age = limit)`, which is a keyword argument and a `TypeError`, not a syntax error, so the learner meets the real message.
+- *if / elif / else*: the first `True` condition wins; colons and indentation; two `if`s against one `if` / `elif`. The debug has an `elif` in the wrong order, a `==` where `=` was meant (so a name is never defined) and a print indented into a branch.
+- *Logical operators*: `and`, `or`, `not`, and the `x == 1 or 2` trap, which the lecture doesn't cover and which shows up in the fill-in, the debug and the explain.
+- *Tracing code*: trace tables. Several exercises run the learner's code with other starting values (`run_with`), so they can't be passed by typing the expected output in; the build is "a program from its trace" and its tests change the starting values.
+- *Reading errors*: the last line first, then the line number; five error kinds; one change per run. The debug plants three errors of three kinds (`SyntaxError`, `NameError`, a `ValueError` from formatting text with `:.2f`), so each fix reveals the next.
+
+**Checkpoint 2, ticket pricing:** age bands, a weekend extra that skips free tickets, a member discount applied after the extra, two decimal places. The hidden tests parse the output loosely and check one rule each, naming skills across Modules 1 and 2; four wrong solutions (the `or` trap, a boundary, the discount before the extra, no decimals) each fail exactly the test for that mistake. The debug is a parking-fee program with the `or` trap, a reversed `elif` order and a print indented into the `else`. The way through: a zoo-ticket sibling with labeled steps, the build in four fill-in steps, and two fresh versions, a swimming pool and a train fare, with the same rule shapes in different stories.
+
+**Numbers:** 39 exercises and 26 recall items added; the validator runs 292 programs over the content, none failing; 275 web tests pass, including the follow-up invariants over every ready topic.
+
+**Next:** Milestone C, starting with reviews (ADR-0009), and Module 3 (loops) before the owner finishes Module 2.
+
 ## 2026-11-08: Topic states, gating and "Prove it now"
 
 The paused v1 work resumes, now that explanations can pass and topics can become Learned.

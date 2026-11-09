@@ -1,10 +1,75 @@
 id: py.tracing-code
 kind: topic
-status: planned
+status: ready
 title: "Tracing code"
-summary: "Predict a program's output with a trace table."
+summary: "Predict what a program does by tracing it line by line with a trace table."
 prerequisites: [py.if-elif-else]
-estimated_minutes: 35
+estimated_minutes: 40
 rev: 1
 objectives:
-  - "Predict a program's output with a trace table."
+  - "Keep a trace table: one column per name, one row for each line that changes something, and the output as it appears."
+  - "Decide which branch of an `if` runs by working out its condition from the current values."
+  - "Say exactly what a program prints, line by line, before you run it."
+resources:
+  - title: "Python Tutor: step through a program with an if, watching each name change"
+    url: "https://pythontutor.com/visualize.html#code=total%20%3D%2010%0Abonus%20%3D%203%0Aif%20total%20%3E%208%3A%0A%20%20%20%20total%20%3D%20total%20%2B%20bonus%0Aelse%3A%0A%20%20%20%20bonus%20%3D%200%0Aprint%28total,%20bonus%29&cumulative=false&curInstr=0&heapPrimitives=true&mode=display&origin=opt-frontend.js&py=311&rawInputLstJSON=%5B%5D&textReferences=false"
+    type: interactive
+    use: link
+    license: "Free to use under pythontutor.com's terms of service (© Philip Guo)"
+practice:
+  - example-trace
+  - predict-swap-if
+  - mcq-trace-value
+  - predict-two-branches
+  - fill-trace-table
+  - write-from-table
+prove:
+  build: build-from-trace
+  debug: debug-trace-mixup
+  explain:
+    prompt: |
+      Without running it, work out what this program prints:
+
+      ```python
+      x = 5
+      y = 2
+      if x > y:
+          x = x - y
+      else:
+          y = y - x
+      if x == y:
+          print("equal")
+      print(x, y)
+      ```
+
+      In your own words: what does it print, and how did you work it out? Describe the trace table you kept, say which branch of the first `if` ran and why, and what happened at the second `if`.
+    rubric:
+      - id: table
+        required: true
+        description: "Tracks x and y line by line: x is 5 and y is 2 to start."
+      - id: first-branch
+        required: true
+        description: "5 > 2 is True, so x becomes 3 and the else is skipped: y stays 2."
+      - id: second-if
+        required: true
+        description: "3 == 2 is False, so \"equal\" isn't printed."
+      - id: output
+        required: true
+        description: "The program prints 3 2."
+    model_answer: |
+      I keep a table with a column for x and one for y. After the first two lines, x is 5 and y is 2. At the first if, I work out x > y with those values: 5 > 2 is True, so the if branch runs and x becomes 5 - 2, which is 3; the else branch is skipped, so y stays 2. At the second if, x == y is 3 == 2, which is False, so nothing is printed there. The last line prints the current values: 3 2.
+review_pool:
+  - review-predict-if-ladder
+  - review-mcq-final-value
+  - review-code-table
+  - mcq-trace-value
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: trace-table
+    description: "Keep a trace table: a column per name, a row for each line that changes something"
+  - id: follow-branches
+    description: "Work out which branch of an `if` runs from the current values"
+  - id: predict-output
+    description: "Say exactly what a program prints, line by line, before running it"

@@ -1,10 +1,93 @@
 id: py.if-elif-else
 kind: topic
-status: planned
+status: ready
 title: "if / elif / else"
-summary: "Choose between paths, and indent blocks correctly."
+summary: "Choose between paths with if, elif and else, and indent the lines that belong to each."
 prerequisites: [py.booleans-and-comparisons]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Choose between paths, and indent blocks correctly."
+  - "Run some lines only when a condition is `True`, with `if`, and other lines when it isn't, with `else`."
+  - "Chain several conditions with `elif`, knowing that the first `True` one wins and the rest are skipped."
+  - "End an `if` line with a colon, indent the lines that belong to it, and tell which lines run every time."
+resources:
+  - title: "CS50P Lecture 1: Conditionals, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=_b6NgY_pMdw&t=595s
+    type: video
+    use: embed
+    # From elif's introduction to the end of the else discussion, before
+    # "or" (9:55 to 18:28): elif, else, mutually exclusive branches, and
+    # why fewer questions make a program easier to read.
+    start: 595
+    end: 1108
+    license: CC BY-NC-SA 4.0
+  - title: "CS50P Lecture 1 on match, another way to choose between many values, from 48:18 (about 7 minutes; you won't need it yet)"
+    url: https://www.youtube.com/watch?v=_b6NgY_pMdw&t=2898s
+    type: video
+    use: link
+    start: 2898
+    end: 3337
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: if Statements (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/controlflow.html#if-statements
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-ticket
+  - mcq-first-true-wins
+  - predict-indent
+  - mcq-else-when
+  - fill-grade
+  - write-sign
+prove:
+  build: build-shipping
+  debug: debug-discount
+  explain:
+    prompt: |
+      A friend's program is meant to print `Distinction` for scores of 90 or more, `Pass` for 60 or more, and `Fail` otherwise:
+
+      ```python
+      score = int(input("Score? "))
+      if score >= 60:
+          print("Pass")
+      elif score >= 90:
+          print("Distinction")
+      else:
+          print("Fail")
+      ```
+
+      It prints `Pass` for 95, and never prints `Distinction`. In your own words: how does Python work through an if / elif / else chain, why does this one never reach `Distinction`, how would you fix it, and when does the `else` part run?
+    rubric:
+      - id: first-true-wins
+        required: true
+        description: "Python checks the conditions from the top and runs only the first branch whose condition is True; the rest are skipped."
+      - id: why-never
+        required: true
+        description: "95 is >= 60, so the first branch wins and the elif is never looked at."
+      - id: fix
+        required: true
+        description: "Put the stricter test first: check score >= 90 before score >= 60."
+      - id: else-runs
+        required: true
+        description: "else runs only when none of the conditions above it were True."
+      - id: blocks
+        required: false
+        description: "The indented lines under each condition are what belongs to that branch."
+    model_answer: |
+      Python reads an if / elif / else chain from the top and stops at the first condition that is True: it runs that branch's indented lines and skips every other branch. For 95, the first question, score >= 60, is already True, so it prints Pass and never even looks at score >= 90. The fix is to ask the stricter question first: if score >= 90, print Distinction; elif score >= 60, print Pass; else, print Fail. The else branch runs only when none of the conditions above it were True, so here it catches every score under 60.
+review_pool:
+  - review-predict-chain
+  - review-mcq-colon
+  - review-code-temperature
+  - mcq-first-true-wins
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: if-else
+    description: "Run a block only when a condition is `True`, with `else` for when it isn't"
+  - id: elif-order
+    description: "Chain conditions with `elif`: the first `True` one wins, so their order matters"
+  - id: blocks
+    description: "End an `if` line with a colon and indent the lines that belong to it; unindented lines run every time"
