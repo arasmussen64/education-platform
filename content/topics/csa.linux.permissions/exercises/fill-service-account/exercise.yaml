@@ -1,0 +1,14 @@
+id: fill-service-account
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the service-account script"
+prompt: |
+  In the lab, `~/bin/add-service-account NAME DIR` is meant to make a service account the way the lesson describes: a system user nobody can log in as, with a group of its own, owning a folder that only it and its group may enter. Three of its lines have `...` where a value belongs. Fill them in with `nano ~/bin/add-service-account`, then try it: `~/bin/add-service-account reports /srv/reports`, and look at the result with `getent passwd reports` and `ls -ld /srv/reports`. Then run the checks.
+hints:
+  - "A service account's shell is `/usr/sbin/nologin`, a program that only says \"this account is not available\" and exits. That's the first gap."
+  - "`useradd --system` makes a group with the same name as the user, so the folder's owner and group are both `$name`: `sudo chown \"$name\":\"$name\" \"$dir\"`."
+  - "The folder: the owner may do everything, the group may read and enter, others nothing: 750."
+skills: [users-sudo, chmod-chown]

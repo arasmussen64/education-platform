@@ -1,0 +1,17 @@
+id: build-lock-down-the-server
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Lock down the shop's server"
+prompt: |
+  The shop's server was set up in a hurry, and Ben is joining the team as a deployer. Put it right:
+
+  1. `/srv/shop/secrets/api-key` can be read by everyone. Make the `secrets` folder enterable by its owner `shop` only, and the key readable and writable by `shop` only.
+  2. `/srv/shop/deploy.sh` belongs to root and nobody can run it. Create a `deploy` group, add `ada` and `ben` to it without removing them from their other groups, and make the script belong to `shop` and the `deploy` group, with the owner able to do everything, the group able to read and run it, and others nothing.
+  3. Let members of `deploy` restart the API, and nothing else, without a password: a file in `/etc/sudoers.d/` with a rule for `/usr/bin/systemctl restart shop-api`. Check the syntax with `sudo visudo -c`, and what Ben may do with `sudo -l -U ben`.
+  4. Give Ben SSH access: his public key is at `/srv/keys/ben.pub`. Install it for his account, with the ownership and permissions `sshd` insists on. Then test as Ben: a copy of his private key is at `~/keys/ben` for this lab only (a real private key never leaves its owner's machine): `ssh -i ~/keys/ben ben@localhost`, and from there `sudo -n systemctl restart shop-api`.
+
+  Then run the checks.
+skills: [chmod-chown, users-sudo, ssh-keys]

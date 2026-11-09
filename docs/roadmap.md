@@ -11,6 +11,7 @@ The owner works full time, split between learning (mornings, on the platform onc
 - [x] Repository, documentation and development process (backed up to a private GitHub repo)
 - [x] Accept a tech stack ([ADR-0007](decisions/0007-tech-stack.md))
 - [x] v1 spec ([specs/v1.md](specs/v1.md)): features and milestones, the [data model](specs/data-model.md), and the [first 30 Python topics](specs/python-foundations.md)
+
 ## Phase 1: v1 for an audience of one (weeks 1–4, done 2026-11-09)
 
 Spec: [specs/v1.md](specs/v1.md). Built mostly with AI help, in thin end-to-end slices, so the owner can start learning on it after the first one. Until then, the owner learns from the curated resources directly.
@@ -95,11 +96,11 @@ Mornings learning on the platform, afternoons building it.
 
 - **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09.
 
-  Building it, in the order the spec's *Building it* section gives:
+  Building it, in the order the spec's _Building it_ section gives:
   - [x] More than one track in the app: the map and topic pages know every track (2026-11-08)
   - [x] The track on the map as `planned` outlines, generated from the spec (2026-11-08)
   - [x] Decide how the shell is taught and proven ([ADR-0017](decisions/0017-shell-in-the-browser.md), accepted 2026-11-09): a `predict_shell` item proven by real `bash` in the validator, local container labs through the lab checker, a browser VM later
-  - [ ] Stage 1 content: Module 1's lessons and recall first ([x] all 14 topics drafted on 2026-11-09, with 228 recall items), then their labs ([x] Shell essentials ready on five labs, 2026-11-09; [x] Services and logs, the first systemd labs, 2026-11-09; [x] Processes and signals, 2026-11-09; [ ] the other eleven topics; [ ] the checkpoint), then the drills that run in the browser
+  - [ ] Stage 1 content: Module 1's lessons and recall first ([x] all 14 topics drafted on 2026-11-09, with 228 recall items), then their labs ([x] Shell essentials ready on five labs, 2026-11-09; [x] Services and logs, the first systemd labs, 2026-11-09; [x] Processes and signals, 2026-11-09; [x] Users, permissions and SSH, 2026-11-09; [ ] the other ten topics; [ ] the checkpoint), then the drills that run in the browser
   - [ ] The lab checker ([ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09). [x] Local mode (2026-11-09, [ADR-0018](decisions/0018-lab-checker-local-mode.md)): `tools/labcheck.py` builds a lab's container from `content/`, runs its checks, prints a result to paste, and proves every lab's contract in CI; the first lab is Shell essentials' build. [x] The lab view on the topic page (2026-11-09). [ ] Cloud mode, with recordings.
   - [ ] Design reviews, game days and "Defend it"
 

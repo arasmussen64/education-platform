@@ -1,0 +1,35 @@
+# The checks for "Write share-folder": the first runs it for the deploy
+# group and looks at the folder; the rest look at the people; the last runs
+# it again for another group.
+checks:
+  - id: shared-folder
+    description: "After share-folder deploy /srv/app ada ben, the folder's group is deploy and its mode 770 (or 2770)."
+    command: |
+      getent group deploy > /dev/null || /home/learner/bin/share-folder deploy /srv/app ada ben > /dev/null
+      stat -c '%G %a' /srv/app
+    expect:
+      matches: "^deploy 2?770$"
+  - id: members-added
+    description: "ada and ben are in the deploy group."
+    command: |
+      for user in ada ben; do id -nG "$user" | tr ' ' '\n' | grep -qx deploy || { echo "$user is not in deploy"; exit 1; }; done
+      echo "both in deploy"
+    expect:
+      equals: both in deploy
+  - id: other-groups-kept
+    description: "ada is still in developers: the script added a group rather than replacing hers."
+    command: id -nG ada | tr ' ' '\n' | grep -x developers
+    expect:
+      equals: developers
+  - id: others-kept-out
+    description: "carol, who isn't in the group, can't look inside /srv/app."
+    command: runuser -u carol -- ls /srv/app
+    expect:
+      exit: 2
+  - id: another-group
+    description: "It works the same for share-folder docs /srv/docs carol."
+    command: |
+      /home/learner/bin/share-folder docs /srv/docs carol > /dev/null
+      echo "$(stat -c '%G %a' /srv/docs) $(id -nG carol | tr ' ' '\n' | grep -x docs)"
+    expect:
+      matches: "^docs 2?770 docs$"

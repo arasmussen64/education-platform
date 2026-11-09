@@ -1,0 +1,29 @@
+id: example-read-and-set-modes
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Read the modes, then set them"
+prompt: |
+  The shop's files on the lab machine are in `/srv/shop/`: a deploy script, and a `secrets` folder holding the shop's API key. They were copied there by root, with whatever permissions they happened to have. The walkthrough reads what `ls -l` says about them, says the same in numbers, then gives them to the `shop` user with the permissions they should have. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "Read the permissions"
+    lines: "1"
+    note: "Each line starts with the mode: the type (`-` file, `d` directory), then `rwx` for the owner, the group and everyone else. `deploy.sh` is `-rw-r--r--`: root can read and change it, everyone can read it, nobody can run it. The API key is readable by everyone, which is wrong for a secret."
+  - label: "The same in numbers"
+    lines: "2"
+    note: "`stat -c` prints just what you ask for: `%a` is the mode as a number (`r`=4, `w`=2, `x`=1, added up per group, so `rw-r--r--` is 644), `%U:%G` the owner and group, `%n` the name."
+  - label: "Give them to the shop user"
+    lines: "3"
+    note: "`chown owner:group` sets both at once. Only root may change an owner, hence `sudo`. The shop's files belong to the `shop` account, the one its services run as."
+  - label: "Make the script runnable by the right people"
+    lines: "4"
+    note: "750: the owner may read, write and run (7), the group may read and run (5), others nothing (0). That's `-rwxr-x---`."
+  - label: "Lock the secret away"
+    lines: "5"
+    note: "A folder with 700 can only be entered by its owner, and a file with 600 can only be read and written by its owner. No `x` on the file: a key isn't a program."
+  - label: "Look again, and at yourself"
+    lines: "6"
+    note: "Plain `ls` can no longer look inside `secrets`, because you aren't `shop`; `sudo ls` can. `id` shows who you are and your groups. `umask` prints `0022`: new files you create start at 666 minus 022, so 644, and folders 755."
+skills: [read-modes, chmod-chown]

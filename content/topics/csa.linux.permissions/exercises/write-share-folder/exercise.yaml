@@ -1,0 +1,16 @@
+id: write-share-folder
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write share-folder"
+prompt: |
+  Write a script, `~/bin/share-folder GROUP DIR USER...`, that gives a group of people a folder of their own. It creates the group if it doesn't exist yet, creates the folder, makes the group its group, and sets its permissions so that the group may do everything in it and everyone else nothing. Then it adds each user named after the folder to the group, without removing them from the groups they're already in.
+
+  The lab machine has three people on it: `ada` (already in the `developers` group), `ben` and `carol`. Try `~/bin/share-folder deploy /srv/app ada ben`, then `id ada`, `ls -ld /srv/app`, and check that carol can't get in: `sudo -u carol ls /srv/app`. Make the script executable, and run the checks.
+hints:
+  - "`getent group deploy` prints the group's line if it exists and exits 1 if not, so `getent group \"$group\" > /dev/null || sudo groupadd \"$group\"` creates it only when needed. The arguments: `group=\"$1\"`, `dir=\"$2\"`, then `shift 2` leaves just the users in `\"$@\"`."
+  - "`sudo chgrp \"$group\" \"$dir\"` sets the group; `sudo chmod 770 \"$dir\"` gives the owner and the group everything and others nothing. `2770` also sets the setgid bit, which makes new files inside belong to the group automatically; either is accepted."
+  - "Add each user with `for user in \"$@\"; do sudo usermod -aG \"$group\" \"$user\"; done`. The `-a` is what keeps their other groups."
+skills: [users-sudo, chmod-chown]

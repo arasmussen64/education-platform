@@ -1,0 +1,47 @@
+# The checks for "Lock down the shop's server": the secret, the script and
+# its group, the sudo rule (and no more than the rule), and Ben's key, tried
+# for real over SSH.
+checks:
+  - id: api-key
+    description: "The API key belongs to shop, mode 600."
+    command: stat -c '%U %a' /srv/shop/secrets/api-key
+    expect:
+      equals: "shop 600"
+  - id: secrets-folder
+    description: "The secrets folder belongs to shop, mode 700."
+    command: stat -c '%U %a' /srv/shop/secrets
+    expect:
+      equals: "shop 700"
+  - id: deploy-script
+    description: "deploy.sh belongs to shop:deploy with mode 750."
+    command: stat -c '%U:%G %a' /srv/shop/deploy.sh
+    expect:
+      equals: "shop:deploy 750"
+  - id: deploy-group
+    description: "ada and ben are in deploy, and ada is still in developers."
+    command: |
+      echo "$(id -nG ada | tr ' ' '\n' | grep -x -e deploy -e developers | sort | tr '\n' ' ')| $(id -nG ben | tr ' ' '\n' | grep -x deploy)"
+    expect:
+      equals: "deploy developers | deploy"
+  - id: sudo-rule
+    description: "Ben may restart shop-api without a password, and nothing else; the sudoers files parse."
+    command: visudo -c -q && sudo -l -U ben | grep NOPASSWD
+    expect:
+      contains: "/usr/bin/systemctl restart shop-api"
+      not_contains: "NOPASSWD: ALL"
+  - id: ssh-files
+    description: "Ben's ~/.ssh is his, mode 700, and his authorized_keys mode 600."
+    command: stat -c '%U %a' /home/ben/.ssh /home/ben/.ssh/authorized_keys | tr '\n' ' '
+    expect:
+      equals: "ben 700 ben 600"
+  - id: ben-can-log-in
+    description: "Ben's key gets him in: ssh -i ~/keys/ben ben@localhost works."
+    command: |
+      sudo -u learner -H ssh -i /home/learner/keys/ben -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 ben@localhost true
+  - id: ben-can-restart
+    description: "Over SSH, Ben can restart shop-api without a password, and it's running afterwards."
+    command: |
+      sudo -u learner -H ssh -i /home/learner/keys/ben -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 ben@localhost 'sudo -n /usr/bin/systemctl restart shop-api' \
+        && systemctl is-active shop-api
+    expect:
+      equals: active

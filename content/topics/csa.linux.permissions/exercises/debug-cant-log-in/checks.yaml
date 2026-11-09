@@ -1,0 +1,24 @@
+# The checks for "Ben can't get in": the key file, Ben's .ssh folder, and
+# the whole thing tried for real over SSH.
+checks:
+  - id: key-file-private
+    description: "The private key ~/keys/ben is readable by its owner only (600)."
+    command: stat -c '%a' /home/learner/keys/ben
+    expect:
+      equals: "600"
+  - id: ssh-folder
+    description: "Ben's ~/.ssh is his and mode 700, as sshd insists."
+    command: stat -c '%U %a' /home/ben/.ssh
+    expect:
+      equals: "ben 700"
+  - id: ben-can-log-in
+    description: "ssh -i ~/keys/ben ben@localhost gets in."
+    command: |
+      sudo -u learner -H ssh -i /home/learner/keys/ben -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 ben@localhost true
+  - id: ben-can-restart
+    description: "Over SSH, Ben can restart shop-api without a password."
+    command: |
+      sudo -u learner -H ssh -i /home/learner/keys/ben -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 ben@localhost 'sudo -n /usr/bin/systemctl restart shop-api' \
+        && systemctl is-active shop-api
+    expect:
+      equals: active
