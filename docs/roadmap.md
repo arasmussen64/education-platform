@@ -68,6 +68,10 @@ Mornings learning on the platform, afternoons building it.
 - AI-assisted coding track ("earn the AI")
 - Decide whether to open it, free, to other beginners
 
+## Other tracks
+
+- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 26 modules in 4 stages, up to principal level, on AWS, Azure and Google Cloud. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), proposed. Building it needs support for more than one track in the app, and the lab checker.
+
 ## The owner's 12-month learning milestone
 
 - Solid CS foundations and the math behind ML
@@ -82,3 +86,4 @@ Principal-engineer level stays the long-term ceiling of the map. It takes years 
 - Final product name ([ADR-0006](decisions/0006-working-name.md))
 - Hidden tests run in the browser, so a determined learner could peek. Fine for personal use; revisit before a public launch.
 - When and how to open it to other learners
+- When to build the Cloud Solutions Architect track, relative to the rest of v1 and the ML path

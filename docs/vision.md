@@ -22,6 +22,7 @@ Most people who learn computer science online hit one of these walls:
 - **No ceiling.** The map runs all the way to principal-engineer level.
 - **First learner: the owner.** The platform is built partly by and for its first learner, who is learning to code while building it.
 - **First track:** CS foundations → ML engineering.
+- **Next track (specified, not built):** [Cloud Solutions Architect](specs/cloud-solutions-architect.md), on AWS, Azure and Google Cloud, up to principal level.
 
 ## How it compares
 
