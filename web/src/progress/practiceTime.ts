@@ -53,13 +53,18 @@ export function practiceTime(attempts: Attempt[], now: string): PracticeTime {
   return { totalMs, recentMs, attempts: counted }
 }
 
-/** The next milestone to reach, and how far off it is; null past the last. */
+/**
+ * The next milestone to reach, and how far off it is; null past the last.
+ * The gap is counted from the whole minutes the page shows for the total, so
+ * "27 minutes so far" and "33 minutes to go" add up to the hour.
+ */
 export function nextMilestone(
   totalMs: number,
 ): { hours: number; remainingMs: number } | null {
   const hours = MILESTONE_HOURS.find((each) => each * HOUR_MS > totalMs)
   if (hours === undefined) return null
-  return { hours, remainingMs: hours * HOUR_MS - totalMs }
+  const doneMinutes = Math.floor(totalMs / MINUTE_MS)
+  return { hours, remainingMs: (hours * 60 - doneMinutes) * MINUTE_MS }
 }
 
 /** "2 hours 15 minutes", "1 hour", "15 minutes" or "under a minute". */
