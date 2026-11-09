@@ -17,6 +17,12 @@ content/
         ├── solution.py              the reference solution (must pass)
         ├── test_exercise.py         the tests
         └── wrong/*.py               known-wrong solutions (each must fail)
+    └── exercises/<lab>/             a lab (runtime: lab in exercise.yaml, ADR-0018)
+        ├── exercise.yaml
+        ├── Dockerfile               the scenario: a base image, a learner user, seed.sh
+        ├── checks.yaml              the checks: a command each, run inside the container
+        ├── solution.sh              the reference fix (must pass every check)
+        └── wrong/*.sh               known-wrong fixes (each must fail a check)
 ```
 
 ## Two tracks
@@ -43,6 +49,17 @@ content/
 5. Add a review pool: at least 3 items, at least one of them predict-the-output or a `review_code` exercise.
 6. List the topic's **skills** in `topic.yaml`, and give every item `skills: [...]` with the skills it mainly tests. A missed question comes back later as a different question on the same skill ([ADR-0011](../docs/decisions/0011-mistakes-come-back.md)). So each skill needs at least 2 questions that can come back: recall items, or fill-in, write and `review_code` exercises. Aim for 3. Extra questions can go in the review pool.
 7. Run the checker until it's clean, then go through the topic once as a learner. The dev server (`npm run dev` in `web/`) shows drafts, so you can try it at `http://localhost:5173/topic/<topic-id>`. Then set `status: ready`. While the owner is the only learner, a topic can go straight to `ready`: their first pass, on the live site, is the review ([v1 spec](../docs/specs/v1.md#content-definition-of-done)).
+
+## Writing a lab
+
+A lab is an exercise that runs in a container on the learner's machine instead of in the browser ([ADR-0018](../docs/decisions/0018-lab-checker-local-mode.md)); the cloud track's Linux module uses them for every stage. Its `exercise.yaml` is the usual one plus `runtime: lab`, and its folder holds, instead of Python files:
+
+- `Dockerfile`: start `FROM ubuntu:24.04`, add a `learner` user with passwordless `sudo`, copy in a `seed.sh` that builds the scenario deterministically (arithmetic on a loop counter, never randomness, so the checks can compute the truth from the data), run it, and end with `USER learner`, `WORKDIR /home/learner` and `CMD ["sleep", "infinity"]`. A lab that needs systemd sets `lab: { init: systemd }` in `exercise.yaml` instead of the `CMD`.
+- `checks.yaml`: a list of checks, each with an `id`, a `description` the learner sees, and a `command` run inside the container as root. Without an `expect`, exit status 0 is a pass; with one, compare the output (`equals`, `contains`, `not_contains`, `matches`, numeric `lt`/`lte`/`gt`/`gte`) or the exit status (`exit`). Checks only read. Where the right answer comes from the data, compute it in the check (`[ "$(cat the-learner's-file)" = "$(the pipeline over the data)" ]`) rather than hard-coding it.
+- `solution.sh`: the reference fix, as the learner would type it, run by `labcheck test` as the learner in a fresh container. It's shown after a pass.
+- `wrong/*.sh`: one file per likely mistake; each must leave at least one check failing. If a wrong fix passes, change the data until the mistake shows (the first lab's `uniq -c` without `sort` passed until `/home` stopped arriving in runs).
+
+Prove the contract with `python -m uv run python tools/labcheck.py test <topic> <lab>`: the pristine container must not pass, the solution must, every wrong fix must fail. CI's Labs job runs it for every lab. Then try it as a learner: `start`, open the shell it prints, do the work, `check`, paste the result into the lab's box on the dev server.
 
 ## Writing a checkpoint
 

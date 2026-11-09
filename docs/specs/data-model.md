@@ -169,6 +169,7 @@ A `predict_shell` item ([ADR-0017](../decisions/0017-shell-in-the-browser.md)) i
 # content/topics/py.variables/exercises/fill-swap/exercise.yaml
 id: fill-swap
 stage: fill_in        # worked_example | fill_in | write | build | debug | review_code
+# runtime: python     # python (the default) | lab, a container on the learner's machine (below)
 rev: 1
 title: Swap two values
 prompt: |
@@ -190,6 +191,22 @@ How each stage behaves:
 | `build` | empty | descriptions only | off |
 | `debug` | buggy code; must fail | yes | off |
 | `review_code` | empty, or a function signature | descriptions only | off |
+
+### Labs
+
+An exercise with `runtime: lab` ([ADR-0018](../decisions/0018-lab-checker-local-mode.md)) runs in a container on the learner's machine, started and checked by `tools/labcheck.py`. Its folder holds a `Dockerfile` (the scenario), `checks.yaml`, `solution.sh` and `wrong/*.sh` in place of the Python files; `lab: { init: systemd }` marks a lab whose container must boot systemd. `checks.yaml`:
+
+```yaml
+checks:
+  - id: failed-count            # unique; what test_skills names in a checkpoint lab
+    description: "failed-count.txt holds the number of 5xx requests."
+    command: |                  # run inside the container as root; read-only
+      [ "$(cat /home/learner/report/failed-count.txt)" = "$(awk '$3 ~ /^5/' /var/log/shop/access.log | wc -l)" ]
+    # expect:                   # optional; without it, exit status 0 passes
+    #   equals: "36"            # or contains, not_contains, matches, exit, lt, lte, gt, gte
+```
+
+The checker's result is a small JSON object the learner pastes into the lab's box: the lab (`topic/exercise`), its `rev`, the checker's version, the time, and which checks passed. The page records it as a `code_check` event with `data.runtime = "lab"`, so progress derivation treats a passed lab build or debug exactly like a passed Python one.
 
 ### Tests and the `checks` helper
 
