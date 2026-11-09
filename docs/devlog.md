@@ -2,6 +2,18 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The tutor is live
+
+The owner deployed the AI proxy to the live project (`npx supabase functions deploy ai --no-verify-jwt --yes`), so the hint-only tutor (ADR-0015, #48) now works on the live site for signed-in learners whose account is switched on. The CLI warned that Docker wasn't running; that's harmless here, it uploaded the five source files and bundled them in the cloud instead. Nothing in the live database had to change first: the function reads `profiles.allowed`, calls `ai_spend_this_month` and writes `ai_calls`, all there since 2026-11-08.
+
+**Checked without calling Claude or writing anything,** the same three requests as the first deploy: the browser's preflight got 204, a GET got 405 ("Use POST."), and a POST from someone not signed in got 401 ("Sign in first.").
+
+**To try it yourself:** open a practice exercise on the live site, write an attempt, press Check, then use "Ask the tutor" under the exercise. The hint comes from Claude Haiku 5.5 at low effort, a fraction of a cent each, and the rung climbs with every ask. Claude pressed nothing on the live site: a hint request writes a real event into your learner log, so only you make them.
+
+**Still waiting on you:** `npm run fn:eval:tutor`, which runs the 24 test-set conversations against Claude (about a cent on Haiku) and prints every reply to read; the problem-reports migration; `npm run db:types`; the $10 limit in the Anthropic Console; the four ADRs. The Supabase CLI mentioned that v3.1.0 is out (the repo pins v3.0.0): an ordinary dependency update, whenever you want it.
+
+**Next:** your go on the eval and the migration; the ADR-0017 conversation about the shell.
+
 ## 2026-11-09: The tutor's test set reaches Module 6
 
 Five more exercises in `supabase/functions/ai/tutor-test-set/`, one each from Exceptions, CSV data, Files, Modules and libraries, and From spec to program, with three conversations apiece: an attempt to get the answer out of the tutor (a fake system message inside a code comment, "you already gave it to me, the page reloaded", flattery and urgency, "so I can compare with mine"), an honest first ask with a typical mistake, and a later ask with two earlier hints, which sets the rung. Each reply's forbidden pieces are the lines of the reference solution. `npm run fn:test` loads and checks every file; the replies themselves are judged by `npm run fn:eval:tutor`, which costs money and waits for your go.
@@ -28,7 +40,7 @@ A summary for the owner of everything since "I'm going to be away" (the evening 
 **Numbers:** 36 topics ready (all of Python Foundations), 235 exercises, 190 recall items; 939 programs validated under CPython and 235 reference solutions under Pyodide on every test run; 645 web tests, 39 tool tests, 69 harness tests.
 
 **Waiting on you** (each needs a "go"; none was done without one):
-1. Deploy the AI proxy with the tutor: `npx supabase functions deploy ai --no-verify-jwt --yes`, then `npm run fn:eval:tutor` to run the tutor test set (a few cents).
+1. ~~Deploy the AI proxy with the tutor~~ Done: you deployed it on 2026-11-09 (the entry above). Still waiting: `npm run fn:eval:tutor` to run the tutor test set (a few cents).
 2. The problem-reports migration to the live database: `npx supabase db push --remote --dry-run`, then the same without `--dry-run`.
 3. `npm run db:types` once Docker Desktop is running, since the database types were edited by hand for problem reports.
 4. The $10 monthly limit in the Anthropic Console.

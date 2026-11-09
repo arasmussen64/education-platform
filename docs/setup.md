@@ -30,7 +30,7 @@ Docker Desktop uses a few GB of memory while it's running, so quit it when you'r
 | GitHub OAuth app | "Sign in with GitHub" on the live site | ✅ Created and connected to Supabase |
 | Supabase | The real database and sign-in (one project, `education-platform`) | ✅ Linked; migrations applied |
 | Cloudflare | Hosts the app | ✅ Connected; deploys on every merge to `main` |
-| Anthropic Console | The Claude API, for grading explanations now and the tutor later | ✅ Key in the live project's secrets |
+| Anthropic Console | The Claude API, for grading explanations and the tutor's hints | ✅ Key in the live project's secrets; both actions live |
 
 ### Supabase
 
