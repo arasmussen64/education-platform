@@ -32,10 +32,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   - a pass means every required rubric item is met, and guiding questions that repeat the model answer are dropped.
   19 tests, none of which call the real API.
 - **Deno** (2.9.6) as a pinned development tool at the repository root, with `npm run fn:test` and `npm run fn:serve`. CI has a new **Edge Functions** job.
-- Nothing calls the proxy yet. The explanation box on topic pages comes next.
+- The explanation box (part 2) is what calls it. Both went live on 2026-11-08.
 
 ### Changed
 
+- `supabase/README.md` says how to put the AI proxy live. Merging deploys the web app, but the function is deployed by hand.
 - The first database test now looks only at its own learners, so it also passes on a local database with accounts of its own.
 
 ### Decided

@@ -78,6 +78,7 @@ Database: run these from the repository root, with Docker Desktop running. Detai
 - `npm run db:test` and `npm run db:lint` run the database tests and check the SQL.
 - `npx supabase migration new <name>` starts a schema change. Never edit a migration that has reached production. After a migration, run `npm run db:types`.
 - `npm run fn:test` type-checks and tests the AI proxy, an Edge Function, with Deno. CI runs it. `npm run fn:serve` serves it locally; its settings go in `supabase/functions/.env` (gitignored).
+- Merging doesn't deploy the AI proxy. With the owner's go-ahead, `npx supabase functions deploy ai --no-verify-jwt --yes` does. The steps are in [supabase/README.md](supabase/README.md).
 - Signing in locally: the dev server uses email links. They land in the local test inbox (Mailpit) at http://127.0.0.1:54324. The live site uses GitHub.
 
 Content: run this from the repository root. Details are in [content/README.md](content/README.md).

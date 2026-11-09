@@ -2,6 +2,29 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: Explain it back is live
+
+**Rolled out** in this order (ADR-0013's last steps), with the owner's go-ahead:
+1. **The Claude API key went into the live project's secrets.**
+   - The owner's first try changed nothing. The Supabase CLI saw it was running inside Claude Code, and from there it won't change the live project without `--yes`.
+   - The owner had typed that command, so Claude re-ran it with `--yes`. It first checked that the file held only `ANTHROPIC_API_KEY`, without showing any values.
+2. **The owner switched on `allowed` for their account,** in the dashboard's SQL editor.
+3. **The `ai_calls` migration went to the live database.** The dry run listed only that one.
+4. **The `ai` function was deployed** (2.5 MB). Three requests checked it without calling Claude or writing anything:
+   - the browser's preflight got 204;
+   - a GET got 405;
+   - a POST from someone not signed in got 401.
+5. **The explanation box (#35) was merged,** and Cloudflare deployed it. The live site's code now has "Check my explanation".
+
+**Merging doesn't deploy the function.** Cloudflare deploys the web app on every merge, but a change to `supabase/functions/` reaches the live project only through `npx supabase functions deploy ai`. The steps are now in `supabase/README.md`. Deploying from CI would need a Supabase access token in GitHub's secrets. That can wait until function changes are frequent.
+
+**Cleaned up:** the local function server, the local Supabase and Docker Desktop are all stopped.
+
+**Next:**
+- The owner's first real grading: the explain check on Values and types, the topic they're on.
+- Milestone B: topic states and gating, and "Prove it now" (F8, F9).
+- Module 2's content, ready before the owner finishes Module 1.
+
 ## 2026-11-08: The grader chosen, and checked end to end
 
 **The test set** (the owner approved up to about $1.20):
