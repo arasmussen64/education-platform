@@ -2,6 +2,35 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Your place in a long topic
+
+The owner, partway through Shell essentials: "It has 24 practice questions so there needs to be a way to track where you are for the reading and a way to track what practice questions you've done and haven't done. Make it the same across every lesson." Built before the next labs.
+
+**What a topic page has now.** An outline beside the content on a wide screen (sticky, so it stays while you scroll) and above it on a narrow one, headed *Your place in this topic*:
+- **Learn:** what you can do after, the lesson, the main resource, the recap. The lesson's paragraphs are each a place, so while you read, the outline says *The lesson (part 6 of 10)*, with a ▸ on the part you're in.
+- **Practice · 7 of 24 done:** every item as a numbered cell linking to its card, green with a ✓ when done, amber with a ◐ when tried and not yet right, plain otherwise; a ring on the one in view; and *Next not done: Practice 8*.
+- **Prove it · 1 of 3 passed:** the three checks, ✓ or ○.
+- **Continue where you left off: Practice 8**, when a previous visit was remembered.
+
+Each practice card's position line now reads *Practice 7 of 24 · Done ✓* or *· Tried, not right yet*, and an item that was already done when the page opened is folded to its heading and a *Show it again* button, so a long topic shows what's left. An item done during the visit stays open, so an answer never makes its question vanish.
+
+**Where "done" comes from.** The learner's saved answers: one correct answer or Check of an item makes it done, by the same history the proof checks are read from (`itemStates`, pure and tested). There is no tick to set by hand, in keeping with ADR-0002, and it's the same on every device. The reading position is different: it's a convenience, remembered in this browser's `localStorage` (`placeMemory`), so it survives a reload but not a change of machine, and the page works the same without it.
+
+**How the page knows where you are.** Every place has an element with a `data-place` attribute whose value is its id: the objectives, each lesson paragraph (`LessonView` marks the intro's children), the main resource, the recap, each practice card, each proof check. An `IntersectionObserver` watches them and takes the topmost one that reaches into the top 45% of the screen (`useCurrentPlace`), which is what you're reading rather than what's coming up. The test environment lays nothing out, so there the current place stays unknown and the outline is tested for its links, counts and states.
+
+**Checked on my own dev server** at desktop width: the rail sticks, the lesson part and the practice cell follow the scroll, and a reload offers *Continue where you left off: Practice 1*. The browser wouldn't resize to a phone width from here, so the narrow layout rests on the standard breakpoint classes rather than a screenshot.
+
+**Tests:** 11 new (item states, the remembered place, and the page: the outline's links and states, a signed-out visitor, folding and unfolding, an item done now, continue or not). 676 web tests pass.
+
+**Decisions for you to review:**
+1. *Done means a correct saved answer,* never a tick you set yourself. It's the honest reading of ADR-0002, and it means a worked example counts as done once you've pressed its Check (or recorded its lab result).
+2. *Items already done when the page opens are folded away.* One click brings any of them back. If you'd rather see everything expanded always, it's a one-line change (`collapsed` in `Practice`).
+3. *The reading position is per device,* in `localStorage`, not an event. An event type would need a production migration, and where you were on a page isn't learning data.
+4. *The outline is for topics, not checkpoints.* A checkpoint has no lesson or ladder; its page is short.
+5. *On a phone the outline sits above the lesson,* in full. A collapsible version for small screens is a possible refinement.
+
+**Next:** back to Module 1's labs: Users, permissions and SSH.
+
 ## 2026-11-09: Processes and signals goes ready, and the Services topic unlocks
 
 Processes and signals is the third ready cloud topic, and since it was the only draft between Shell essentials and Services and logs, the live map's Module 1 now runs Shell → Processes → Services with nothing Locked behind a draft.
