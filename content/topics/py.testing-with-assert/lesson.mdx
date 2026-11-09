@@ -1,0 +1,60 @@
+<Intro>
+
+Every exercise here has been checked by tests you didn't write. This topic hands you the tool: `assert`, a one-line way to say "this must be true", and the habit of testing your own functions before you trust them. In this clip David has just written `square` and wants to be sure it works. Watch for:
+
+- **Testing by hand first:** an `if square(2) != 4: print(...)`, which works but takes five lines per check.
+- **`assert square(2) == 4`**: one line. If it's true, nothing happens. If it's false, Python stops with an `AssertionError` and shows the line.
+- **The bug that hides.** David breaks `square` on purpose (`n + n`), and the test for 2 still passes, because 2 + 2 is 4. The test for 3 catches it.
+- **Which values to test.** Around 14:10 he adds negative numbers and zero, and explains the instinct: positive numbers probably behave alike, negatives might not, and zero is its own case.
+- **Read past the `try` / `except` part** (about 12:30 to 14:05). Catching errors is Module 6; you don't need it to write tests.
+
+One more thing the clip doesn't cover, because the platform's Check button does it for you: the line `if __name__ == "__main__":`. It's explained in the recap, and the exercises use it.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+**`assert`** states something that must be true:
+
+```python
+assert square(3) == 9
+assert square(-2) == 4, "a negative number squared is positive"
+```
+
+True: nothing happens. False: the program stops with `AssertionError`, and the message after the comma (if you gave one) is shown. So a file full of passing asserts prints nothing; silence is good news.
+
+**Test functions.** Put the asserts for one function in a function named `test_` plus its name, and end it with a line that says the checks passed, so you can see it ran:
+
+```python
+def test_square():
+    assert square(2) == 4
+    assert square(3) == 9
+    assert square(-2) == 4
+    assert square(0) == 0
+    print("square: all checks passed")
+```
+
+**Choosing cases.** Bugs hide where the cases are easy. For each function, try to cover:
+
+- a **typical** value (3);
+- the **boundaries**, where a rule changes (the smallest allowed length, the last day of a month);
+- **zero**, **negative** numbers, and **empty** text, when they make sense;
+- **one case per rule** when a function has several.
+
+Two tests that happen to agree with a wrong answer (2 and 0 for `n + n`) prove nothing. A passing test proves the function is right **for the cases tested**, no more.
+
+**`if __name__ == "__main__":`**
+
+```python
+if __name__ == "__main__":
+    test_square()
+    main()
+```
+
+When you run a file directly, Python sets `__name__` to `"__main__"`, so the indented lines run. When another file (or the Check button) *loads* your file to use its functions, `__name__` is the file's name instead, and those lines are skipped. That's what lets tests call your functions without your program asking for input or printing. From now on, programs end with this instead of a bare `main()`.
+
+Professional Python uses a tool called **pytest**, which finds every `test_` function and runs it with better messages. The idea is exactly what you've done here; the tool comes later.
+
+</Recap>

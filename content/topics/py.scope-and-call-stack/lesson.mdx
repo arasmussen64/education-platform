@@ -1,0 +1,39 @@
+<Intro>
+
+Last topic's clip ended on a puzzle: a variable made inside `main` wasn't known inside `hello`. This topic is about that rule. Every function gets its own set of variables, called its **scope**, which appears when the function is called and vanishes when it returns. Understanding scope is what makes the next two topics (splitting programs into functions, and testing them) possible.
+
+In this clip from a later lecture, David builds a tiny bank with a `balance` variable at the top of the file. Watch for:
+
+- **Reading an outside variable works.** `main` can print `balance`.
+- **Changing it doesn't.** `balance += n` inside a function fails with `UnboundLocalError`, because assigning to a name inside a function makes a *new, local* variable of that name. Python sees the assignment and treats `balance` as local for the whole function, so reading it first is reading a variable that doesn't exist yet.
+- **The `global` keyword** makes the function change the outside variable. David shows it, then gives the rule of thumb: **just don't**. Pass values in as arguments and out with `return` instead. (He then rebuilds the bank as a *class*; that's a later module, so stop at the transition around 17:33.)
+
+Then open the two Python Tutor links (under *More resources*) and press **Next >** slowly. In the first, watch `double` get its own `n` and `result`, and lose them when it returns, while the outer `n` is untouched. In the second, watch the **call stack** on the right: `greet` calls `make_message`, a second frame appears on top, and disappears when it returns.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+**Scope: which names a line can see.**
+
+- A variable made **inside** a function (including its parameters) is **local**: it exists only while that call runs, and disappears when the function returns. Using it after the call is a `NameError`.
+- A variable made **outside** every function is **global**. A function can **read** a global, but **assigning** to that name inside the function makes a new local variable instead, and reading it before that assignment is an `UnboundLocalError`.
+- The same name in two functions, or inside and outside, means **two different variables**. Changing one doesn't change the other.
+
+**Pass in, return out.** A function should get what it needs through its parameters and give its result back with `return`:
+
+```python
+def with_tax(price, rate):          # in: what it needs
+    return price + price * rate     # out: the result
+
+
+total = with_tax(100, 0.2)          # the caller keeps the result
+```
+
+Python has a `global` keyword that lets a function change an outside variable. Don't use it: a function that quietly changes things outside itself is hard to read, hard to test and easy to break. If a value has to change, return the new one and let the caller store it.
+
+**The call stack.** When `main` calls `describe`, `main` pauses at that line and waits. If `describe` calls `double`, `describe` pauses too. Each running call is a *frame* with its own variables, stacked on top of the one that called it. When a function returns, its frame is removed and the caller continues with the returned value. To trace a program, keep a column for each frame and cross it out when it returns. The Python Tutor links draw exactly this picture.
+
+</Recap>

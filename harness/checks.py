@@ -13,11 +13,14 @@ working directory. Tests either import functions from it
 from __future__ import annotations
 
 import builtins
+import importlib
 import io
 import re
 import sys
+from collections.abc import Callable
 from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Any
 
 SOLUTION_FILE = "solution.py"
 
@@ -44,6 +47,43 @@ def run(stdin: str = "") -> str:
     """
     output = io.StringIO()
     execute(stdin, output, echo_input=False)
+    return output.getvalue()
+
+
+ASKED_FOR_INPUT = (
+    "Your program asked for input while its functions were being loaded. "
+    "Put the input() calls inside main(), and call main() only under "
+    'if __name__ == "__main__":'
+)
+
+
+def function(name: str) -> Callable[..., Any]:
+    """The function called ``name`` in the learner's solution.py.
+
+    Loading the file runs its top-level code, so anything it prints there is
+    swallowed, and a program that asks for input at that point fails with a
+    plain message instead of hanging or crashing. A missing function fails
+    the test with "Define a function called ...", which a hidden test can
+    show, rather than crashing on an import.
+    """
+    sys.modules.pop("solution", None)
+    importlib.invalidate_caches()
+    try:
+        with redirect_stdout(io.StringIO()):
+            module = importlib.import_module("solution")
+    except EOFError:
+        raise AssertionError(ASKED_FOR_INPUT) from None
+    found = getattr(module, name, None)
+    if not callable(found):
+        raise AssertionError(f"Define a function called {name}.")
+    return found
+
+
+def printed(call: Callable[..., Any], *args: Any) -> str:
+    """Everything ``call(*args)`` prints, for testing a function that prints."""
+    output = io.StringIO()
+    with redirect_stdout(output):
+        call(*args)
     return output.getvalue()
 
 

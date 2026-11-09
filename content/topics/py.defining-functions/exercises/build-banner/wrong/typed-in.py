@@ -1,0 +1,6 @@
+print("====")
+print("Menu")
+print("====")
+print("======")
+print("Prices")
+print("======")

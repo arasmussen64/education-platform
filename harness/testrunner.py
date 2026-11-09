@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import io
 import sys
 import traceback
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import FunctionType, ModuleType
 from typing import Literal, TypedDict
@@ -46,7 +48,10 @@ def run_tests() -> Report:
     """Run every test in test_exercise.py, in the order they're written."""
     _forget_learner_modules()
     try:
-        module = importlib.import_module(TEST_MODULE)
+        # Loading the tests loads the learner's code too, if the tests import
+        # it at the top; anything it prints then isn't part of the report.
+        with redirect_stdout(io.StringIO()):
+            module = importlib.import_module(TEST_MODULE)
     except Exception as exc:
         if deepest_file(exc) == TEST_FILE:
             message = (
@@ -98,7 +103,10 @@ def _description(test: FunctionType) -> str:
 def _run_one(test: FunctionType) -> TestResult:
     outcome: Outcome
     try:
-        test()
+        # A test may call a function that prints; the Check button shows
+        # the results, not that output, and the CLI needs a clean report.
+        with redirect_stdout(io.StringIO()):
+            test()
     except AssertionError as exc:
         if deepest_file(exc) == SOLUTION_FILE:
             # An assert in the learner's own code failed: that's their error.

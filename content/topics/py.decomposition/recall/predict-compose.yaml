@@ -1,0 +1,29 @@
+id: predict-compose
+type: predict_output
+rev: 1
+prompt: |
+  What does this program print? Two lines. Work from the inside out: the innermost call happens first.
+code: |
+  def double(n):
+      """Return twice n."""
+      return n * 2
+
+
+  def add_one(n):
+      """Return n plus one."""
+      return n + 1
+
+
+  def double_then_add_one(n):
+      """Return n doubled, then plus one."""
+      return add_one(double(n))
+
+
+  print(double_then_add_one(5))
+  print(add_one(double(1)))
+expected_output: |
+  11
+  3
+explanation: |
+  `double_then_add_one(5)` calls `double(5)`, which is 10, and passes that to `add_one`, giving 11. The last line does the same by hand with 1: `double(1)` is 2, `add_one(2)` is 3. Composing small functions means feeding one's result into the next.
+skills: [compose]

@@ -1,0 +1,19 @@
+id: example-frames
+stage: worked_example
+rev: 1
+title: "Three frames"
+prompt: |
+  Three functions, each with its own variables. Press **Run**, then trace it by hand: when `main` calls `describe`, `main` waits; when `describe` calls `double`, `describe` waits too. Then rename `n` in `main` to `number` (both lines) and run again: nothing changes, because each function's names are its own.
+steps:
+  - label: "double: its own n and result"
+    lines: "1-3"
+    note: "The `n` here is `double`'s parameter, a local name. `result` is local too. Both exist only while a call to `double` runs."
+  - label: "describe calls double, and waits"
+    lines: "6-8"
+    note: "`describe` has its own `n`. On line 7 it calls `double` and pauses until the value comes back, then stores it as `doubled`. When line 8 returns, `describe`'s names are gone."
+  - label: "main: another n"
+    lines: "11-14"
+    note: "A third `n`. `main` passes its value to `describe` and prints what comes back, then prints its own `n`, which no other function could have changed."
+  - label: "The stack"
+    lines: "17"
+    note: "While line 13 runs, three frames are stacked: `main` waiting on `describe`, which is waiting on `double`. They unwind in reverse as each returns."
