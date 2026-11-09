@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
+import { getTopic } from '../content/content.ts'
 import type { Topic, TopicContent } from '../content/types.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import { EventsProvider } from '../events/EventsProvider.tsx'
@@ -32,13 +33,61 @@ vi.mock('../explain/grade.ts', async (importOriginal) => ({
   gradeExplanation: vi.fn(),
 }))
 
-/** Renders a topic for a signed-in learner (unless `signedIn` is false). */
+/** Noon on November 6, wherever the test runs. */
+const NOV_6 = new Date(2026, 10, 6, 12)
+
+/** A passing Check, as the server would send it back. */
+function passedCheck(item: string, topicId = 'py.values-and-types'): Attempt {
+  return {
+    id: `check-${topicId}-${item}`,
+    type: 'code_check',
+    topic_id: topicId,
+    item_id: item,
+    correct: true,
+    occurred_at: NOV_6.toISOString(),
+  }
+}
+
+/** A graded explanation that passed. */
+function explainPassed(topicId = 'py.values-and-types'): Attempt {
+  return {
+    id: `explain-${topicId}`,
+    type: 'explain_submit',
+    topic_id: topicId,
+    item_id: 'explain',
+    correct: true,
+    occurred_at: NOV_6.toISOString(),
+  }
+}
+
+/**
+ * Passing proof checks for everything a topic builds on, so the topic isn't
+ * Locked (F8). The prerequisites are real topics, with real proof checks.
+ */
+function unlocked(topic: Topic): Attempt[] {
+  return topic.prerequisites.flatMap((id) => {
+    const prerequisite = getTopic(id)
+    if (!prerequisite) return []
+    return [
+      passedCheck(prerequisite.prove.build ?? '', id),
+      passedCheck(prerequisite.prove.debug ?? '', id),
+      explainPassed(id),
+    ]
+  })
+}
+
+/**
+ * Renders a topic for a signed-in learner (unless `signedIn` is false), with
+ * what it builds on already learned, so the whole page shows.
+ */
 function renderTopic(
   topic: Topic = fakeTopic(),
   content: TopicContent | null = fakeContent(topic),
   {
     signedIn = true,
-    loadAttempts = vi.fn((_topicId: string) => Promise.resolve<Attempt[]>([])),
+    loadAttempts = vi.fn((_topicId: string) =>
+      Promise.resolve<Attempt[]>(unlocked(topic)),
+    ),
   } = {},
 ) {
   const { log, events } = recordingEventLog()
@@ -258,13 +307,18 @@ describe('a checkpoint page', () => {
     setFakeRunner()
   })
 
-  /** Renders the fake checkpoint; `history` is what the server says was tried. */
+  /**
+   * Renders the fake checkpoint, with its module's topics learned; `history`
+   * is what else the server says was tried.
+   */
   function renderCheckpoint({
     signedIn = true,
     history = [] as Attempt[],
   } = {}) {
     const content = fakeCheckpointContent()
-    const loadAttempts = vi.fn((_topicId: string) => Promise.resolve(history))
+    const loadAttempts = vi.fn((_topicId: string) =>
+      Promise.resolve([...unlocked(content.topic), ...history]),
+    )
     return renderTopic(content.topic, content, { signedIn, loadAttempts })
   }
 
@@ -453,20 +507,6 @@ describe('your progress on a topic page', () => {
   /** "Nov 6", as the page writes a date. */
   const shortDate = (date: Date) =>
     date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  /** Noon on November 6, wherever the test runs. */
-  const NOV_6 = new Date(2026, 10, 6, 12)
-
-  /** A passing Check, as the server would send it back. */
-  function passedCheck(item: string, topicId = 'py.values-and-types') {
-    return {
-      id: `check-${item}`,
-      type: 'code_check',
-      topic_id: topicId,
-      item_id: item,
-      correct: true,
-      occurred_at: NOV_6.toISOString(),
-    } satisfies Attempt
-  }
 
   const proofList = () =>
     screen.findByRole('list', { name: 'Your proof so far:' })
@@ -474,7 +514,7 @@ describe('your progress on a topic page', () => {
   it('lists which proof checks have passed, and when', async () => {
     renderTopic(fakeTopic(), fakeContent(), {
       loadAttempts: vi.fn((_topicId: string) =>
-        Promise.resolve([passedCheck('build-hello')]),
+        Promise.resolve([...unlocked(fakeTopic()), passedCheck('build-hello')]),
       ),
     })
     const items = within(await proofList()).getAllByRole('listitem')
@@ -496,7 +536,7 @@ describe('your progress on a topic page', () => {
               topic={topic}
               content={fakeContent(topic)}
               loadAttempts={vi.fn((_topicId: string) =>
-                Promise.resolve<Attempt[]>([]),
+                Promise.resolve(unlocked(topic)),
               )}
             />
           </MemoryRouter>
@@ -536,7 +576,7 @@ describe('your progress on a topic page', () => {
               topic={topic}
               content={fakeContent(topic)}
               loadAttempts={vi.fn((_topicId: string) =>
-                Promise.resolve<Attempt[]>([]),
+                Promise.resolve(unlocked(topic)),
               )}
             />
           </MemoryRouter>
@@ -563,7 +603,10 @@ describe('your progress on a topic page', () => {
     const content = fakeCheckpointContent()
     renderTopic(content.topic, content, {
       loadAttempts: vi.fn((_topicId: string) =>
-        Promise.resolve([passedCheck('build-fuel', 'py.m1.checkpoint')]),
+        Promise.resolve([
+          ...unlocked(content.topic),
+          passedCheck('build-fuel', 'py.m1.checkpoint'),
+        ]),
       ),
     })
     expect(await proofList()).toHaveTextContent(
@@ -581,7 +624,7 @@ describe('your progress on a topic page', () => {
 
   it("says so when the progress can't load, and can try again", async () => {
     const loadAttempts = vi.fn((_topicId: string) =>
-      Promise.resolve<Attempt[]>([]),
+      Promise.resolve(unlocked(fakeTopic())),
     )
     loadAttempts.mockRejectedValueOnce(new Error('Failed to fetch'))
     renderTopic(fakeTopic(), fakeContent(), { loadAttempts })
@@ -590,5 +633,105 @@ describe('your progress on a topic page', () => {
       await screen.findByRole('button', { name: 'Try again' }),
     )
     expect(await proofList()).toBeInTheDocument()
+  })
+})
+
+describe('topic states and gating', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
+  const stateLine = () => screen.findByTestId('topic-state')
+  const lockedNotice = () =>
+    screen.findByRole('complementary', { name: 'Locked' })
+
+  it('locks a topic until what it builds on is learned: lesson only', async () => {
+    // Nothing learned yet, so the prerequisite isn't either.
+    renderTopic(fakeTopic(), fakeContent(), {
+      loadAttempts: vi.fn((_topicId: string) => Promise.resolve<Attempt[]>([])),
+    })
+    const notice = await lockedNotice()
+    expect(notice).toHaveTextContent(/opens once you've learned/)
+    expect(
+      within(notice).getByRole('link', { name: 'Programs and print' }),
+    ).toHaveAttribute('href', '/topic/py.programs-and-print')
+    expect(await stateLine()).toHaveTextContent('Locked')
+
+    expect(screen.getByRole('region', { name: 'Learn' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Practice' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Prove it' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Prove it now' })).toBeNull()
+  })
+
+  it('is Available once what it builds on is learned, and offers Prove it now', async () => {
+    renderTopic()
+    expect(await stateLine()).toHaveTextContent('Available')
+    expect(screen.getByRole('region', { name: 'Practice' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Prove it now' }))
+    expect(screen.queryByRole('region', { name: 'Learn' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Practice' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Prove it' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Prove it' })).toHaveFocus()
+    expect(screen.queryByRole('button', { name: 'Prove it now' })).toBeNull()
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Show them anyway' }),
+    )
+    expect(screen.getByRole('region', { name: 'Learn' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Practice' })).toBeInTheDocument()
+  })
+
+  it('is In progress once started, with no shortcut offered', async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([...unlocked(topic), passedCheck('build-hello')]),
+      ),
+    })
+    expect(await stateLine()).toHaveTextContent('In progress')
+    expect(screen.queryByRole('button', { name: 'Prove it now' })).toBeNull()
+  })
+
+  it('says when, once all three checks have passed', async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([
+          ...unlocked(topic),
+          passedCheck('build-hello'),
+          passedCheck('debug-hello'),
+          explainPassed(),
+        ]),
+      ),
+    })
+    expect(await stateLine()).toHaveTextContent('Learned on Nov 6')
+  })
+
+  it('locks a checkpoint the same way', async () => {
+    const content = fakeCheckpointContent()
+    renderTopic(content.topic, content, {
+      loadAttempts: vi.fn((_topicId: string) => Promise.resolve<Attempt[]>([])),
+    })
+    const notice = await lockedNotice()
+    expect(notice).toHaveTextContent(/This checkpoint opens once/)
+    expect(
+      within(notice).getByRole('link', { name: 'Arithmetic' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('region', { name: 'About this checkpoint' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Prove it' })).toBeNull()
+    expect(
+      screen.queryByRole('region', { name: 'Stuck? Try it in steps' }),
+    ).toBeNull()
+  })
+
+  it("doesn't gate a signed-out visitor, whose progress it can't know", () => {
+    renderTopic(fakeTopic(), fakeContent(), { signedIn: false })
+    expect(screen.queryByTestId('topic-state')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Practice' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Prove it' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Prove it now' })).toBeNull()
   })
 })

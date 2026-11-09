@@ -24,12 +24,19 @@ import { PracticeItem } from '../components/PracticeItem.tsx'
 import { CARD, PROSE, SECONDARY_BUTTON } from '../components/styles.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { ExplainCheck } from '../explain/ExplainCheck.tsx'
-import { fetchAttempts } from '../followups/history.ts'
-import { type Proof, PROOFS } from '../progress/progress.ts'
-import { useProgress } from '../progress/useProgress.ts'
+import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
+import {
+  type Proof,
+  PROOFS,
+  STATE_LABELS,
+  stateOf,
+  type TopicState,
+} from '../progress/progress.ts'
+import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import type { topicLoader } from './topicLoader.ts'
 
-// One topic: Learn, Practice and Prove it (v1 spec, F3, F5, F7).
+// One topic: Learn, Practice and Prove it (v1 spec, F3, F5, F7), gated by
+// its state (F8): a Locked topic shows its lesson only.
 export function TopicPage() {
   const { topic, content } = useLoaderData<typeof topicLoader>()
   if (!topic) return <UnknownTopic />
@@ -46,25 +53,61 @@ export function TopicView({
   topic: Topic
   /** Null when the topic isn't open yet. */
   content: TopicContent | null
-  /** For checkpoints: reads the learner's history. Tests pass a fake. */
+  /** Reads the learner's history in a topic. Tests pass a fake. */
   loadAttempts?: LoadAttempts
 }) {
   useLessonView(content)
+  const progress = useTopicProgress(topic, loadAttempts)
+  const state =
+    progress.status === 'ready' ? stateOf(topic, progress.progress) : null
+  // Gating applies to a signed-in learner once their progress is known.
+  // Until then the page shows everything, rather than flashing in and out.
+  const locked = state === 'locked'
+  const [proveNow, setProveNow] = useState(false)
+
   return (
     <article className="space-y-10">
-      <TopicHeader topic={topic} />
+      <TopicHeader topic={topic} state={state} progress={progress} />
       {content && content.topic.kind === 'checkpoint' && (
         <>
           <SignInToSave />
-          <CheckpointView content={content} loadAttempts={loadAttempts} />
+          <CheckpointView
+            content={content}
+            loadAttempts={loadAttempts}
+            progress={progress}
+            locked={locked}
+          />
         </>
       )}
       {content && content.topic.kind === 'topic' && (
         <>
           <SignInToSave />
-          <Learn content={content} />
-          <Practice content={content} />
-          <ProveIt content={content} loadAttempts={loadAttempts} />
+          {locked && <LockedNotice topic={topic} progress={progress} />}
+          {state === 'available' && !proveNow && (
+            <ProveItNow
+              onChoose={() => {
+                // Show the checks straight away, then move focus to them.
+                flushSync(() => setProveNow(true))
+                document.getElementById('prove-it')?.focus()
+              }}
+            />
+          )}
+          {proveNow ? (
+            <p className={CARD}>
+              You skipped the lesson and practice to prove it now.{' '}
+              <button
+                type="button"
+                onClick={() => setProveNow(false)}
+                className="underline"
+              >
+                Show them anyway
+              </button>
+            </p>
+          ) : (
+            <Learn content={content} />
+          )}
+          {!locked && !proveNow && <Practice content={content} />}
+          {!locked && <ProveIt content={content} progress={progress} />}
         </>
       )}
       {!content && (
@@ -78,15 +121,99 @@ export function TopicView({
 }
 
 /**
+ * The learner's progress on a topic and on what it builds on, which is what
+ * its state depends on. Reads each of those topics' history.
+ */
+function useTopicProgress(
+  topic: Topic,
+  loadAttempts?: LoadAttempts,
+): ProgressState {
+  const topics = useMemo(
+    () => [
+      topic,
+      ...topic.prerequisites
+        .map((id) => getTopic(id))
+        .filter((found) => found !== undefined),
+    ],
+    [topic],
+  )
+  const load = useCallback(async () => {
+    const read = loadAttempts ?? fetchAttempts
+    const lists = await Promise.all(topics.map((each) => read(each.id)))
+    return mergeAttempts(...lists)
+  }, [loadAttempts, topics])
+  return useProgress(topics, load)
+}
+
+/** Why a topic is Locked, and what opens it (F3, F8). */
+function LockedNotice({
+  topic,
+  progress,
+}: {
+  topic: Topic
+  progress: ProgressState
+}) {
+  const learned = (id: string) =>
+    progress.status === 'ready' && Boolean(progress.progress.get(id)?.learnedAt)
+  const waitingOn = topic.prerequisites
+    .filter((id) => !learned(id))
+    .map((id) => getTopic(id))
+    .filter((found) => found !== undefined)
+  return (
+    <aside aria-labelledby="locked" className={`${CARD} space-y-2`}>
+      <p id="locked" className="font-medium">
+        <span aria-hidden="true">{STATE_LABELS.locked.icon} </span>
+        {STATE_LABELS.locked.label}
+      </p>
+      <p>
+        This {topic.kind === 'checkpoint' ? 'checkpoint' : 'topic'} opens once
+        you've learned{' '}
+        {waitingOn.map((prerequisite, index) => (
+          <span key={prerequisite.id}>
+            {index > 0 && (index === waitingOn.length - 1 ? ' and ' : ', ')}
+            <Link to={`/topic/${prerequisite.id}`} className="underline">
+              {prerequisite.title}
+            </Link>
+          </span>
+        ))}
+        . Until then you can read the lesson, but the practice and the proof
+        checks wait.
+      </p>
+    </aside>
+  )
+}
+
+/** On an Available topic: skip straight to the proof checks (F8). */
+function ProveItNow({ onChoose }: { onChoose: () => void }) {
+  return (
+    <aside aria-label="Already know this?" className={`${CARD} space-y-2`}>
+      <p>
+        <span className="font-medium">Already know this?</span> Prove it now:
+        skip the lesson and practice and go straight to the three checks.
+        Passing them marks the topic as learned, just the same.
+      </p>
+      <button type="button" onClick={onChoose} className={SECONDARY_BUTTON}>
+        Prove it now
+      </button>
+    </aside>
+  )
+}
+
+/**
  * A module's checkpoint (F10): what it brings together, the three proof
  * checks, and a way through the build for a learner who's stuck (ADR-0012).
+ * A Locked checkpoint shows only what it brings together.
  */
 function CheckpointView({
   content,
   loadAttempts,
+  progress,
+  locked,
 }: {
   content: TopicContent
   loadAttempts?: LoadAttempts
+  progress: ProgressState
+  locked: boolean
 }) {
   const { unstuck } = content.topic
   const [failedChecks, setFailedChecks] = useState(0)
@@ -99,12 +226,21 @@ function CheckpointView({
     !buildPassed &&
     !stepsOpen
 
+  if (locked) {
+    return (
+      <>
+        <CheckpointIntro content={content} />
+        <LockedNotice topic={content.topic} progress={progress} />
+      </>
+    )
+  }
+
   return (
     <>
       <CheckpointIntro content={content} />
       <ProveIt
         content={content}
-        loadAttempts={loadAttempts}
+        progress={progress}
         intro="Three checks show you can use everything in this module on your own: build a program from a blank editor, fix code with several bugs, and explain how it works. No hints here. If you get stuck on the build, there's a way through it below."
         onBuildCheck={(passed) => {
           if (passed) setBuildPassed(true)
@@ -219,11 +355,32 @@ function SignInToSave() {
   )
 }
 
-function TopicHeader({ topic }: { topic: Topic }) {
+/** "Nov 6", as the page writes a date. */
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function TopicHeader({
+  topic,
+  state,
+  progress,
+}: {
+  topic: Topic
+  /** Null until a signed-in learner's progress is known. */
+  state: TopicState | null
+  progress: ProgressState
+}) {
   const place = placeOf(topic.id)
   const prerequisites = topic.prerequisites
     .map((id) => getTopic(id))
     .filter((found) => found !== undefined)
+  const learnedAt =
+    progress.status === 'ready'
+      ? progress.progress.get(topic.id)?.learnedAt
+      : null
 
   return (
     <header className="space-y-2">
@@ -238,6 +395,14 @@ function TopicHeader({ topic }: { topic: Topic }) {
         </p>
       )}
       <h1 className="text-3xl font-bold">{topic.title}</h1>
+      {state && (
+        <p className="text-sm font-medium" data-testid="topic-state">
+          {/* An icon and a word, never color alone (F9). */}
+          <span aria-hidden="true">{STATE_LABELS[state].icon} </span>
+          {STATE_LABELS[state].label}
+          {learnedAt && ` on ${shortDate(learnedAt)}`}
+        </p>
+      )}
       {topic.status === 'draft' && (
         <p className="inline-block rounded bg-amber-100 px-2 py-0.5 text-sm font-medium text-amber-900 dark:bg-amber-900 dark:text-amber-100">
           Draft: only shown on the dev server
@@ -269,7 +434,8 @@ function TopicHeader({ topic }: { topic: Topic }) {
 
 function SectionHeading({ id, children }: { id: string; children: string }) {
   return (
-    <h2 id={id} className="text-2xl font-bold">
+    // Focusable, so "Prove it now" can move focus to the checks.
+    <h2 id={id} tabIndex={-1} className="text-2xl font-bold">
       {children}
     </h2>
   )
@@ -358,7 +524,7 @@ function ProveIt({
   intro = TOPIC_PROOF_INTRO,
   onBuildCheck,
   afterBuild,
-  loadAttempts,
+  progress,
 }: {
   content: TopicContent
   intro?: string
@@ -366,8 +532,8 @@ function ProveIt({
   onBuildCheck?: (passed: boolean) => void
   /** Shown right after the build. */
   afterBuild?: ReactNode
-  /** Reads the learner's history in this topic. Tests pass a fake. */
-  loadAttempts?: LoadAttempts
+  /** The learner's progress here, which the page loads once. */
+  progress: ProgressState
 }) {
   const { build, debug, explain } = content.topic.prove
   if (!build && !debug && !explain) return null
@@ -375,7 +541,7 @@ function ProveIt({
     <section aria-labelledby="prove-it" className="space-y-4">
       <SectionHeading id="prove-it">Prove it</SectionHeading>
       <p className="text-slate-600 dark:text-slate-400">{intro}</p>
-      <ProofProgress topic={content.topic} loadAttempts={loadAttempts} />
+      <ProofProgress topic={content.topic} state={progress} />
       {build && (
         <PracticeItem
           itemId={build}
@@ -405,18 +571,11 @@ const PROOF_NAMES: Record<Proof, string> = {
  */
 function ProofProgress({
   topic,
-  loadAttempts,
+  state,
 }: {
   topic: Topic
-  loadAttempts?: LoadAttempts
+  state: ProgressState
 }) {
-  // Stable between renders, as useProgress needs.
-  const load = useCallback(
-    () => (loadAttempts ?? fetchAttempts)(topic.id),
-    [loadAttempts, topic.id],
-  )
-  const topics = useMemo(() => [topic], [topic])
-  const state = useProgress(topics, load)
   const labelId = useId()
 
   if (state.status === 'failed') {
@@ -449,9 +608,7 @@ function ProofProgress({
               {/* An icon and words, never color alone. */}
               <span aria-hidden="true">{when ? '✓ ' : '○ '}</span>
               {PROOF_NAMES[proof]}:{' '}
-              {when
-                ? `passed on ${new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-                : 'not passed yet'}
+              {when ? `passed on ${shortDate(when)}` : 'not passed yet'}
             </li>
           )
         })}

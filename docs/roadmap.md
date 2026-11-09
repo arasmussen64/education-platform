@@ -41,7 +41,7 @@ Content: the [Python Foundations track](specs/python-foundations.md), 30 topics 
 - [x] Export my data (F16, planned for D), built first so the learning history has a backup ([ADR-0010](decisions/0010-environments.md))
 - [x] Progress tracking, part 1: the rules for topic states, and which proof checks have passed, on the map and topic pages
 - [x] Explain it back, graded by AI (F7), through the AI proxy with its budget cap (F14), as decided in [ADR-0013](decisions/0013-explain-grading.md). Graded by Claude Haiku 5.5, which got the 30-sample test set right twice. Live since 2026-11-08.
-- [ ] Topic states and gating, with "Prove it now" (F8, F9). Next up. They were waiting for grading: until explanations could pass, no topic could be Learned, and gating would have locked every topic after the first. Grading is live now.
+- [x] Topic states and gating, with "Prove it now" (F8, F9), and "Next up" on the Today page (F12). Built 2026-11-08, once grading was live: until explanations could pass, no topic could be Learned, and gating would have locked every topic after the first.
 - [ ] Module 2 content, ready before the owner finishes Module 1
 
 ## Phase 2: Adaptivity and better practice (months 2–4)

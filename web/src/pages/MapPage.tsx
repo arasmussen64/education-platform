@@ -10,13 +10,19 @@ import {
   tracks,
 } from '../content/content.ts'
 import type { Module, Topic, Track } from '../content/types.ts'
-import { PROOFS, type TopicProgress } from '../progress/progress.ts'
+import {
+  PROOFS,
+  STATE_LABELS,
+  stateOf,
+  type TopicProgress,
+  type TopicState,
+} from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 
-// The topic map: every topic in a track, by module (v1 spec, F9), with the
-// signed-in learner's progress on each. /map shows the first track, and
-// /map/<track id> another. Topic states (Locked, Learned...) and the graph
-// arrive with gating (Milestone B).
+// The topic map: every topic in a track, by module (v1 spec, F9), each with
+// its state for the signed-in learner (F8). /map shows the first track, and
+// /map/<track id> another. The graph view arrives later; the list is what
+// narrow screens get anyway.
 export function MapPage() {
   const { trackId } = useParams()
   const track = trackId ? getTrack(trackId) : mainTrack()
@@ -104,14 +110,20 @@ function ModuleSection({
   number: number
   progress: ProgressState
 }) {
-  const progressOf = (topicId: string) =>
-    progress.status === 'ready' ? progress.progress.get(topicId) : undefined
   const rows = (ids: string[]) =>
     ids.map((topicId) => {
       const topic = getTopic(topicId)
-      return topic ? (
-        <TopicRow key={topicId} topic={topic} progress={progressOf(topicId)} />
-      ) : null
+      if (!topic) return null
+      // A state needs the learner's progress, and a topic that can be opened.
+      const known = progress.status === 'ready' && isOpen(topic)
+      return (
+        <TopicRow
+          key={topicId}
+          topic={topic}
+          progress={known ? progress.progress.get(topicId) : undefined}
+          state={known ? stateOf(topic, progress.progress) : undefined}
+        />
+      )
     })
   const capstone = module.capstone ? getTopic(module.capstone) : undefined
 
@@ -194,27 +206,29 @@ function listOf(words: string[]): string {
   return `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
 }
 
-/** What the learner has done on a topic they've started. */
-function progressNote(topic: Topic, progress: TopicProgress): string {
-  if (progress.learnedAt) {
-    return topic.kind === 'checkpoint' ? '✓ Passed' : '✓ Learned'
-  }
+/** The proof checks passed on a topic that isn't Learned yet, if any. */
+function passedNote(progress: TopicProgress): string | null {
+  if (progress.learnedAt) return null
   const passed = PROOFS.filter((proof) => progress.passed[proof])
-  return passed.length === 0
-    ? 'In progress'
-    : `In progress · Proof checks passed: ${listOf(passed)}`
+  return passed.length === 0 ? null : `Proof checks passed: ${listOf(passed)}`
 }
 
 function TopicRow({
   topic,
   progress,
+  state,
 }: {
   topic: Topic
   /** The learner's progress, once it has loaded. */
   progress?: TopicProgress
+  /** The topic's state for the learner, once known (F8). */
+  state?: TopicState
 }) {
-  const state = availability(topic)
-  const open = state !== AVAILABILITY.soon
+  // A signed-in learner sees the topic's state; everyone else, whether it
+  // can be opened.
+  const shown = state ? STATE_LABELS[state] : availability(topic)
+  const open = isOpen(topic)
+  const note = progress ? passedNote(progress) : null
   return (
     <li
       className={`rounded-lg border p-3 ${
@@ -231,16 +245,16 @@ function TopicRow({
           {topic.title}
         </Link>
         <span className="text-sm text-slate-500 dark:text-slate-400">
-          <span aria-hidden="true">{state.icon} </span>
-          {state.label}
+          <span aria-hidden="true">{shown.icon} </span>
+          {shown.label}
         </span>
       </div>
       <p className="text-sm text-slate-600 dark:text-slate-400">
         {topic.summary}
       </p>
-      {progress?.started && (
+      {note && (
         <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">
-          {progressNote(topic, progress)}
+          {note}
         </p>
       )}
     </li>

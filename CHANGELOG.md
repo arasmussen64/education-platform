@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (topic states, gating and "Prove it now")
+
+- **Every topic now has a state** for the signed-in learner, shown with an icon and a word on its page and on the map: Locked, Available, In progress, Learned (or Passed, for a checkpoint), with the date it was learned.
+- **Gating is on** ([ADR-0002](docs/decisions/0002-mastery-and-gating.md)). A Locked topic, one whose prerequisites aren't learned yet, shows its lesson only, with a note saying which topics open it. Its practice and proof checks wait. A Locked checkpoint shows only what it brings together.
+- **"Prove it now"** on an Available topic skips the lesson and practice and goes straight to the three checks, which can be shown again with one click. Passing them marks the topic learned, just the same.
+- **"Next up" on the Today page:** the topic in progress, or else the next Available topic in track order, with its time estimate.
+- Signed-out visitors see no states and no gating, because nothing of theirs is saved anyway.
+
 ### Added (more than one track, and the cloud track on the map)
 
 - **The app shows every track.** The topic map opens on Python Foundations at `/map`, with a switcher to the others, each at `/map/<track id>`. A topic page names its track as well as its module. Tracks carry an `order`, and a module may name a **capstone**: a bigger checkpoint that ends a stage, shown after the module's own checkpoint.

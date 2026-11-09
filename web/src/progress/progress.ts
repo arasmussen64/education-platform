@@ -114,3 +114,30 @@ export function stateOf(
   if (!unlocked) return 'locked'
   return own?.started ? 'in-progress' : 'available'
 }
+
+/** Each state's icon and word, so no state is shown by color alone (F9). */
+export const STATE_LABELS: Record<TopicState, { icon: string; label: string }> =
+  {
+    locked: { icon: '🔒', label: 'Locked' },
+    available: { icon: '○', label: 'Available' },
+    'in-progress': { icon: '◐', label: 'In progress' },
+    learned: { icon: '✓', label: 'Learned' },
+    passed: { icon: '✓', label: 'Passed' },
+  }
+
+/**
+ * What to work on next (v1 spec, F12): the first topic in progress, in the
+ * order given, or else the first Available one. `topics` are the ones that
+ * can be opened, in track order. `progress` must cover what they build on
+ * too, so their states can be worked out.
+ */
+export function nextUp(
+  topics: Topic[],
+  progress: Map<string, TopicProgress>,
+): { topic: Topic; state: 'in-progress' | 'available' } | null {
+  for (const wanted of ['in-progress', 'available'] as const) {
+    const topic = topics.find((topic) => stateOf(topic, progress) === wanted)
+    if (topic) return { topic, state: wanted }
+  }
+  return null
+}

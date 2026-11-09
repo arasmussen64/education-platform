@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Topic } from '../content/types.ts'
 import { fakeCheckpointContent, fakeTopic } from '../test/fakeContent.tsx'
-import { type GradedEvent, progressOf, stateOf } from './progress.ts'
+import { type GradedEvent, nextUp, progressOf, stateOf } from './progress.ts'
 
 // A small map: the first topic, a second built on it, a checkpoint built on
 // the second, and a topic after the checkpoint. Every topic's build is
@@ -188,5 +188,54 @@ describe('stateOf', () => {
   it("stays Locked when a prerequisite isn't on the map", () => {
     const orphan = fakeTopic({ id: 'py.orphan', prerequisites: ['py.gone'] })
     expect(stateOf(orphan, progressOf([orphan], []))).toBe('locked')
+  })
+})
+
+describe('nextUp', () => {
+  const next = (events: GradedEvent[]) =>
+    nextUp(TOPICS, progressOf(TOPICS, events))
+  const checkpointPassed = [
+    check(CHECKPOINT, 'build-split', true),
+    check(CHECKPOINT, 'debug-tickets', true),
+    explained(CHECKPOINT, true),
+  ]
+
+  it('starts with the first topic, and stays with it once started', () => {
+    expect(next([])).toEqual({ topic: FIRST, state: 'available' })
+    expect(next([answer(FIRST, 'mcq-print', false)])).toEqual({
+      topic: FIRST,
+      state: 'in-progress',
+    })
+  })
+
+  it('moves on once a topic is Learned', () => {
+    expect(next(proved(FIRST))).toEqual({ topic: SECOND, state: 'available' })
+  })
+
+  it('prefers a started topic further on to a fresh one', () => {
+    const events = [
+      ...proved(FIRST),
+      ...proved(SECOND),
+      check(CHECKPOINT, 'build-receipt', false),
+    ]
+    expect(next(events)).toEqual({ topic: CHECKPOINT, state: 'in-progress' })
+  })
+
+  it('skips a started topic that is still Locked', () => {
+    // Started before gating existed, with its prerequisite not yet Learned.
+    expect(next([answer(SECOND, 'mcq-print', true)])).toEqual({
+      topic: FIRST,
+      state: 'available',
+    })
+  })
+
+  it('has nothing left once everything is Learned', () => {
+    const events = [
+      ...proved(FIRST),
+      ...proved(SECOND),
+      ...checkpointPassed,
+      ...proved(AFTER),
+    ]
+    expect(next(events)).toBeNull()
   })
 })
