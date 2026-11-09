@@ -1,0 +1,56 @@
+# The checks for "Killed, again and again": the cache and the indexer stay
+# up with limits they fit in, and the database is protected, not exposed.
+checks:
+  - id: cache-stays-up
+    description: "shop-cache is running, and stays running."
+    command: |
+      for _ in $(seq 1 8); do
+        state=$(systemctl is-active shop-cache)
+        [ "$state" = active ] && break
+        sleep 1
+      done
+      pid=$(systemctl show -p MainPID --value shop-cache)
+      sleep 3
+      if [ "$(systemctl is-active shop-cache)" = active ] && [ "$(systemctl show -p MainPID --value shop-cache)" = "$pid" ]; then
+        echo active
+      else
+        echo "not steadily active (last state: $state)"
+      fi
+    expect:
+      equals: active
+  - id: cache-limit-fits
+    description: "shop-cache's limit is at least 128 MB (or there is none)."
+    command: |
+      limit=$(systemctl show shop-cache -p MemoryMax --value)
+      if [ "$limit" = infinity ]; then echo 999999999999; else echo "$limit"; fi
+    expect:
+      gte: 134217728
+  - id: indexer-stays-up
+    description: "shop-indexer is running, and stays running."
+    command: |
+      for _ in $(seq 1 8); do
+        state=$(systemctl is-active shop-indexer)
+        [ "$state" = active ] && break
+        sleep 1
+      done
+      pid=$(systemctl show -p MainPID --value shop-indexer)
+      sleep 3
+      if [ "$(systemctl is-active shop-indexer)" = active ] && [ "$(systemctl show -p MainPID --value shop-indexer)" = "$pid" ]; then
+        echo active
+      else
+        echo "not steadily active (last state: $state)"
+      fi
+    expect:
+      equals: active
+  - id: indexer-limit-sane
+    description: "shop-indexer's limit is at least 64 MB (or there is none): 512 bytes was never a limit a program could live in."
+    command: |
+      limit=$(systemctl show shop-indexer -p MemoryMax --value)
+      if [ "$limit" = infinity ]; then echo 999999999999; else echo "$limit"; fi
+    expect:
+      gte: 67108864
+  - id: db-protected
+    description: "The running shop-db process has oom_score_adj of -500 or lower, not 1000."
+    command: cat "/proc/$(systemctl show shop-db -p MainPID --value)/oom_score_adj"
+    expect:
+      lte: -500

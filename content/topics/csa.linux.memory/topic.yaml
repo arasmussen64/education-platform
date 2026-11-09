@@ -1,6 +1,6 @@
 id: csa.linux.memory
 kind: topic
-status: draft
+status: ready
 title: "Memory and the OOM killer"
 summary: "How Linux hands out memory: virtual memory and pages, the page cache that makes 'free' look small, swap and when it's a problem, huge pages, how the kernel picks a process to kill when memory runs out, and why a container dies at its own limit while the server has plenty."
 prerequisites: [csa.linux.processes]
@@ -40,10 +40,13 @@ resources:
     type: reading
     use: link
     license: CC BY 4.0
-# Lessons and recall first (ADR-0017). The items read free, /proc/meminfo,
-# vmstat, dmesg, cgroup files and a pod description with the text tools of
-# the first topic, and use bash arithmetic; the labs provide the real machine.
+# The recall items read free, /proc/meminfo, vmstat, dmesg, cgroup files and
+# a pod description with the text tools of the first topic, and use bash
+# arithmetic. The worked example, the fill-in, the write and both proofs are
+# labs on a machine that boots systemd, where memory limits are real cgroup
+# limits and the OOM killer really kills (ADR-0017, ADR-0018).
 practice:
+  - example-limit-a-hog
   - mcq-virtual-memory
   - mem-free-available
   - mcq-page-cache
@@ -59,7 +62,11 @@ practice:
   - mcq-container-limit
   - mem-cgroup-memory
   - mem-pod-oomkilled
+  - fill-memory-report
+  - write-limited-run
 prove:
+  build: build-contain-the-leak
+  debug: debug-oomkilled
   explain:
     prompt: |
       A teammate says a 16 GB server is "almost out of memory" because `free` shows 400 MB free, and separately that a container on a Kubernetes node "keeps getting killed although the node has 20 GB free". Explain, in your own words: what virtual memory and the page cache are and which number in `free` tells you whether the server is short of memory; what swap is for, and how you'd tell harmless swap use from a machine that is thrashing; how the kernel's OOM killer chooses a process and what its log line tells you; and why a container is killed at its own memory limit while the node still has memory, and what to change.

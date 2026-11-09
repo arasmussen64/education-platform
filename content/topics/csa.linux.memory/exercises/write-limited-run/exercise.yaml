@@ -1,0 +1,16 @@
+id: write-limited-run
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write limited-run"
+prompt: |
+  Write a script, `~/bin/limited-run NAME LIMIT COMMAND...`, that runs a command the way a container runs it: inside a memory limit. It runs COMMAND as a systemd service called NAME, with a hard memory limit of LIMIT (such as `64M`) and no swap, waits for it to finish, and then prints `NAME: finished` and exits 0, or, if the kernel killed it for reaching the limit, prints `NAME: killed: out of memory at LIMIT` and exits 137, the status a shell gives a process killed by SIGKILL.
+
+  Try it with the lab's `memhog`: `~/bin/limited-run small 32M memhog 100 1` should be killed, and `~/bin/limited-run big 256M memhog 50 1` should finish. Make the script executable, and run the checks.
+hints:
+  - "`sudo systemd-run --wait --collect --unit=\"$name\" -p MemoryMax=\"$limit\" -p MemorySwapMax=0 \"$@\"` runs the command as a service and waits for it. The arguments: `name=\"$1\"`, `limit=\"$2\"`, then `shift 2` leaves the command in `\"$@\"`."
+  - "With `--wait`, systemd-run prints a line `Finished with result: success` or `Finished with result: oom-kill` (to standard error, so capture it with `2>&1`), and exits non-zero when the unit failed; keep the output with `out=$(... 2>&1 || true)` and pick the result out of it with `grep` and `awk`."
+  - "`--collect` cleans the unit up afterwards even when it failed, so the same name can be used again. Exit with `exit 137` for a kill and `exit 0` otherwise."
+skills: [container-memory, oom-killer]

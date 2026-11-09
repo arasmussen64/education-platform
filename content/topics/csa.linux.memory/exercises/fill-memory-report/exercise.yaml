@@ -1,0 +1,14 @@
+id: fill-memory-report
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the memory report"
+prompt: |
+  In the lab, `~/bin/memory-report` is meant to say how the machine's memory is doing in four lines: how much is available, how much swap is in use, which process holds the most memory and how much, and how many times the kernel has killed a process for running out. Four of its lines have `...` where a value belongs. Fill them in with `nano ~/bin/memory-report`, run it, and compare with `free -m`, `ps -eo comm,rss --sort=-rss | head`, and `journalctl -k`. A service on the machine is holding 150 MB on purpose, so there is a clear answer. Then run the checks.
+hints:
+  - "The line in `/proc/meminfo` that says what a new program could use is `MemAvailable`, not `MemFree`."
+  - "In `free -m`'s Swap line the columns are total, used, free: used is `$3`. `ps --sort=-rss` sorts by resident memory, biggest first; without the minus it's smallest first."
+  - "The kernel's log line for each kill contains `Killed process`; `grep -c` counts the lines."
+skills: [virtual-memory, oom-killer]

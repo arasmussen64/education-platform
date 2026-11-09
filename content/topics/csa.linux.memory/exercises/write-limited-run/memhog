@@ -1,0 +1,16 @@
+#!/usr/bin/python3
+"""memhog MB [SECONDS]: takes MB megabytes of memory, really uses them, holds
+them for SECONDS (5 by default), then exits 0. A stand-in for a program
+that needs a known amount of memory."""
+
+import sys
+import time
+
+mb = int(sys.argv[1])
+seconds = int(sys.argv[2]) if len(sys.argv) > 2 else 5
+data = bytearray(mb * 1024 * 1024)
+# Touch every page, so the memory is really resident and not just promised.
+for i in range(0, len(data), 4096):
+    data[i] = 1
+time.sleep(seconds)
+print(f"held {mb} MB for {seconds} s")
