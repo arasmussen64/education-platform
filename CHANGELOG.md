@@ -73,7 +73,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Added (report a problem)
 
 - **"Report a problem"** under the lesson, under every practice, proof and review item, and under the explain check (v1 spec, F15). It opens a small box for what's wrong (a wrong answer, a confusing hint, a broken link) and saves the report with the topic, the item and its revision, so the content can be fixed. Hidden when signed out.
-- A new table, `problem_reports`, with its migration and database tests: learners add and read their own reports and nothing else; every report starts open, and only the owner resolves it, in the Supabase dashboard. The migration reaches the live database once the owner says go.
+- A new table, `problem_reports`, with its migration and database tests: learners add and read their own reports and nothing else; every report starts open, and only the owner resolves it, in the Supabase dashboard. In the live database since 2026-11-09.
 
 ### Added (the hint-only tutor)
 

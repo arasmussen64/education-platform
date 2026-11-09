@@ -1,6 +1,6 @@
 # Roadmap
 
-**Current phase: 1, Milestone D (tutor and polish).** Milestones A, B and C are done.
+**Current phase: Phase 1 is complete (2026-11-09). Phase 2, adaptivity and better practice, is next,** alongside the cloud track's first steps once [ADR-0014](decisions/0014-cloud-labs.md) and [ADR-0017](decisions/0017-shell-in-the-browser.md) are decided.
 
 The owner works full time, split between learning (mornings, on the platform once it exists) and building (afternoons). The roadmap serves both: the platform's content stays one module ahead of the owner's own learning.
 
@@ -11,7 +11,7 @@ The owner works full time, split between learning (mornings, on the platform onc
 - [x] Repository, documentation and development process (backed up to a private GitHub repo)
 - [x] Accept a tech stack ([ADR-0007](decisions/0007-tech-stack.md))
 - [x] v1 spec ([specs/v1.md](specs/v1.md)): features and milestones, the [data model](specs/data-model.md), and the [first 30 Python topics](specs/python-foundations.md)
-## Phase 1: v1 for an audience of one (weeks 1–4, now)
+## Phase 1: v1 for an audience of one (weeks 1–4, done 2026-11-09)
 
 Spec: [specs/v1.md](specs/v1.md). Built mostly with AI help, in thin end-to-end slices, so the owner can start learning on it after the first one. Until then, the owner learns from the curated resources directly.
 
@@ -58,16 +58,16 @@ Milestone C is complete.
 ### Milestone D progress
 
 - [x] The hint-only AI tutor (F13, [ADR-0015](decisions/0015-hint-only-tutor.md)) through the AI proxy and its budget cap (F14): a hint ladder under practice exercises, off during Prove it and reviews. Built 2026-11-08, live since 2026-11-09, its test set run the same day: 25 of 25 replies fine on Haiku 5.5.
-- [x] Report a problem (F15): a note under any lesson, item or check, saved with the item it's about. Built 2026-11-08; its migration reaches the live database once the owner says go.
+- [x] Report a problem (F15): a note under any lesson, item or check, saved with the item it's about. Built 2026-11-08, in the live database since 2026-11-09.
 - [x] Export my data (F16): built early, in Milestone B
 - [x] Module 4 content (functions), ready before the owner finishes Module 3 (2026-11-09)
 - [x] Module 5 content (collections) (2026-11-09)
 - [x] Module 6 content, and the end of the Python Foundations track (2026-11-09)
 - [x] Smaller app bundle: load the cloud track's outlines only when the map asks for them (2026-11-09)
 
-Milestone D is built, and the AI proxy with the tutor is live and its test set run (2026-11-09). It's complete once the owner has applied the problem-reports migration (devlog, 2026-11-09).
+Milestone D is complete (2026-11-09): the AI proxy with the tutor is live, its test set run, and the problem-reports table is in the live database. With it, Phase 1 is done: the owner can learn on the platform end to end, from Programs and print to the CSV report capstone, with proofs, reviews, a tutor and a way to report problems.
 
-## Phase 2: Adaptivity and better practice (months 2–4)
+## Phase 2: Adaptivity and better practice (months 2–4, next)
 
 Mornings learning on the platform, afternoons building it.
 
