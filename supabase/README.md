@@ -72,6 +72,10 @@ The key is set once, and again only when it changes: `npx supabase secrets set -
 
 **Why `--yes`:** the CLI asks before it changes the live project. Inside Claude Code it can't ask, so it refuses unless the command includes `--yes`. That flag goes in only once the owner has agreed.
 
+## Problem reports
+
+"Report a problem" on the site (v1 spec, F15) adds a row to `problem_reports`: who, when, the topic, the item and its `rev`, and the message. To read them, open the live project's dashboard, **Table Editor**, `problem_reports`, and filter on `status = open`. Once the content is fixed (and merged), set that row's `status` to `resolved`. Learners can't change a report themselves. The same table is in the local database, so a report made on a dev server lands in local Studio (http://127.0.0.1:54323).
+
 ## Rules
 
 - **Change the schema only with a new migration.** Never edit tables in a dashboard, and never edit a migration that has reached production.

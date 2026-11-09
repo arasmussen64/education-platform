@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (report a problem)
+
+- **"Report a problem"** under the lesson, under every practice, proof and review item, and under the explain check (v1 spec, F15). It opens a small box for what's wrong (a wrong answer, a confusing hint, a broken link) and saves the report with the topic, the item and its revision, so the content can be fixed. Hidden when signed out.
+- A new table, `problem_reports`, with its migration and database tests: learners add and read their own reports and nothing else; every report starts open, and only the owner resolves it, in the Supabase dashboard. The migration reaches the live database once the owner says go.
+
 ### Added (the hint-only tutor)
 
 - **"Ask the tutor"** under every fill-in and write exercise in practice, including a checkpoint's steps ([ADR-0015](docs/decisions/0015-hint-only-tutor.md), v1 spec F13). The learner can say what they're stuck on; the tutor sees the exercise, their code as it is now and their latest Check, and answers with one hint, a rung further up the ladder each time: a nudge, the idea, a closer look at their code, then the next step. Six asks per exercise. It never writes the solution: the proxy replaces any reply with more than two lines of code or copied solution lines with a safer hint. Off in proof checks and reviews, and hidden when signed out.

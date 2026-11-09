@@ -2,6 +2,25 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: Report a problem
+
+Milestone D's F15, small and self-contained: a way for the learner to say "this is wrong" from the page where it's wrong, so content mistakes don't get lost.
+
+**The table.** Migration `problem_reports`: who, when, `topic_id`, `item_id` (an item, `lesson`, `explain`, or null for the topic), `item_rev`, a 1 to 2,000 character `message`, and `status` (`open` or `resolved`). Row-level security lets a learner insert and read their own rows; `status` is left out of their insert grant, so every report starts open and only the owner, in the dashboard, resolves it. Nine pgTAP tests cover all of that, including that a learner can't report in someone else's name or delete a report.
+
+**The page.** `ReportProblem` (`web/src/reports/`) is a quiet "Report a problem" link that opens a box with a Send button; it's placed in three spots: the bottom of every `PracticeItem` card (so practice, proof and review items all have it, with the item's `rev`), under the lesson (`item_id: lesson`), and under the explain check (`item_id: explain`). `sendReport` inserts straight into the table and never throws; the box keeps the text on failure. Hidden when signed out, like the tutor.
+
+**Tests:** 6 new web tests, 351 pass; 9 new database tests, which CI runs (Docker isn't running on this machine, so they weren't run locally). Format, lint, types pass.
+
+**Decisions for you to review:**
+1. *Where reports are read:* in the Supabase dashboard's table editor, for now. A "Your reports" list on the account page, and an owner's inbox, can come when there's more than one learner.
+2. *`database.types.ts` was edited by hand* to add the table, in the exact shape `npm run db:types` generates, because the generator needs the local database and Docker was off. Running `npm run db:types` once Docker is up should change nothing; if it does, keep the generated version.
+3. *No event is recorded for a report,* since the report is itself the record and the table is the owner's to-do list.
+
+**To go live (needs your go):** `npx supabase db push --remote --dry-run` should list only `20261109063021_problem_reports.sql`; then the same command with `--yes` applies it. Until then, sending a report on the live site fails politely ("couldn't be sent").
+
+**Next:** Module 4 (functions), then the lazy-outlines bundle chore.
+
 ## 2026-11-08: The hint-only tutor
 
 Milestone D's first item, F13, built on the proxy that already grades explanations. The design is [ADR-0015](decisions/0015-hint-only-tutor.md), proposed; the owner was away, so it's built as proposed and waits for their review and the deploy.
