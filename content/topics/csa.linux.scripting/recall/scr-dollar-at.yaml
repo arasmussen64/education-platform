@@ -1,0 +1,17 @@
+id: scr-dollar-at
+type: predict_shell
+rev: 1
+prompt: |
+  Two functions print their arguments one per line in brackets. `show` uses `"$@"`; `show2` uses unquoted `$*`. Both are called with two arguments, the first containing a space. What is printed?
+command: |
+  show() { printf '[%s]\n' "$@"; }; show "a b" c; echo ---; show2() { printf '[%s]\n' $*; }; show2 "a b" c
+expected_output: |
+  [a b]
+  [c]
+  ---
+  [a]
+  [b]
+  [c]
+explanation: |
+  `"$@"` hands the arguments on exactly as the function received them: two of them, `a b` and `c`. Unquoted `$*` joins them into one string and splits it again at every space, giving three. Whenever a script or function passes its arguments to another command, `"$@"` is the right spelling; the others only look right until an argument has a space in it.
+skills: [quoting-vars]

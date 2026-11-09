@@ -1,0 +1,14 @@
+id: mcq-conntrack
+type: mcq
+rev: 1
+prompt: |
+  A server's input chain is `policy drop` with only `ct state established,related accept` and `tcp dport 22 accept`. The server itself runs `curl https://example.com` and it works. How do the reply packets get in, with no rule for port 443?
+choices:
+  - "They don't; `curl` must be using port 22"
+  - "Connection tracking recorded the outgoing connection when the server sent its SYN, so the replies arrive with state `established` and the first rule accepts them; a rule per port is needed only for connections *initiated* from outside"
+  - "The policy `drop` only applies to the first packet of the day"
+  - "HTTPS packets are exempt from firewalls"
+answer: 1
+explanation: |
+  The kernel's connection-tracking table remembers every connection it has seen start, in either direction, and classifies later packets as `established` (part of a known connection) or `related` (such as an ICMP error about one). That single rule is what makes a default-deny firewall usable: our own outgoing connections and the connections we've accepted keep flowing, and a `new` packet needs an explicit accept. `conntrack -L` shows the table.
+skills: [firewall-path]

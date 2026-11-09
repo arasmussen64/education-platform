@@ -1,0 +1,26 @@
+id: boot-cloud-init-stages
+type: predict_shell
+rev: 1
+prompt: |
+  `cloud-init-output.log` records each stage cloud-init ran. The first command lists the stages in order (the quoted word after `running`); the second shows which datasource it used. What is printed?
+files:
+  cloud-init-output.log: |
+    Cloud-init v. 24.4 running 'init-local' at Sun, 09 Nov 2026 10:40:33 +0000. Up 2.80 seconds.
+    Cloud-init v. 24.4 running 'init' at Sun, 09 Nov 2026 10:40:38 +0000. Up 7.90 seconds.
+    ci-info: ++++++++++++++++++++++++++Net device info+++++++++++++++++++++++++++
+    Cloud-init v. 24.4 running 'modules:config' at Sun, 09 Nov 2026 10:40:40 +0000. Up 9.70 seconds.
+    Cloud-init v. 24.4 running 'modules:final' at Sun, 09 Nov 2026 10:40:41 +0000. Up 10.60 seconds.
+    Reading package lists...
+    Setting up nginx (1.24.0-2ubuntu7) ...
+    Cloud-init v. 24.4 finished at Sun, 09 Nov 2026 10:40:50 +0000. Datasource DataSourceEc2Local.  Up 20.10 seconds
+command: |
+  grep -o "running '[a-z:-]*'" cloud-init-output.log | sed "s/running //"; grep -o 'Datasource [A-Za-z0-9]*' cloud-init-output.log
+expected_output: |
+  'init-local'
+  'init'
+  'modules:config'
+  'modules:final'
+  Datasource DataSourceEc2Local
+explanation: |
+  The four stages, in order: local (before the network), init (the network stage, which fetched the user data), config, and final, where the packages were installed; the whole run took twenty seconds. The datasource is EC2's metadata service, which is where this instance got its instructions. When something you expected didn't happen, this file shows which stage it should have run in and what that stage printed, and `cloud-init status --long` gives the verdict.
+skills: [cloud-init]

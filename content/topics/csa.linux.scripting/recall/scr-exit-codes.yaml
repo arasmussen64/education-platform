@@ -1,0 +1,13 @@
+id: scr-exit-codes
+type: predict_shell
+rev: 1
+prompt: |
+  A child script needs `config.ini`, which doesn't exist. The `|| { …; }` runs its block when the command before it fails, and `exit 2` ends the script with that status. The outer shell then prints the status it saw. What is printed?
+command: |
+  bash -c 'cat config.ini >/dev/null 2>&1 || { echo "could not read config.ini"; exit 2; }; echo "never printed"'; echo "status $?"
+expected_output: |
+  could not read config.ini
+  status 2
+explanation: |
+  `cat` fails, so the block runs: a message, then `exit 2`, which ends the child before the last `echo`. The outer shell receives 2, which is how a caller, a CI job or systemd, learns that the script failed and roughly why. In a real script the message would go to stderr (`>&2`) so it isn't mixed with output someone might parse. This `command || { message; exit N; }` shape is the standard way to check a requirement at the top of a script.
+skills: [traps-cleanup]

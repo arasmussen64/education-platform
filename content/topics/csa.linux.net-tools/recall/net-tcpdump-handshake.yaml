@@ -1,0 +1,19 @@
+id: net-tcpdump-handshake
+type: predict_shell
+rev: 1
+prompt: |
+  `capture.txt` is four lines from `tcpdump -nn`, a client opening a connection to a web server on port 443. Each line names the source and destination with their ports, and the TCP flags in brackets. The command prints the flags of the first three packets. What is printed?
+files:
+  capture.txt: |
+    10:41:03.120001 IP 10.0.1.23.51514 > 203.0.113.10.443: Flags [S], seq 1000, win 64240, length 0
+    10:41:03.135002 IP 203.0.113.10.443 > 10.0.1.23.51514: Flags [S.], seq 2000, ack 1001, win 65535, length 0
+    10:41:03.135100 IP 10.0.1.23.51514 > 203.0.113.10.443: Flags [.], ack 2001, win 502, length 0
+    10:41:03.136000 IP 10.0.1.23.51514 > 203.0.113.10.443: Flags [P.], seq 1001:1518, ack 2001, win 502, length 517
+command: grep -o 'Flags \[[A-Z.]*\]' capture.txt | head -n 3
+expected_output: |
+  Flags [S]
+  Flags [S.]
+  Flags [.]
+explanation: |
+  The three-way handshake: the client sends SYN (`[S]`) from its ephemeral port 51514, the server answers SYN-ACK (`[S.]`, where the dot is tcpdump's ACK), the client acknowledges (`[.]`), and the connection is open; the fourth packet, `[P.]` with 517 bytes, is the first data, a TLS hello. Had the server answered the SYN with `[R.]`, nothing was listening on 443; had nothing come back and the SYN repeated a second later, something dropped it. Fifteen milliseconds between the first two packets is the round trip.
+skills: [tcpdump]

@@ -1,0 +1,17 @@
+id: boot-instance-id
+type: predict_shell
+rev: 1
+prompt: |
+  cloud-init decides whether this is a new instance by comparing the instance ID it sees now with the one it saved after the last run (two files under `/var/lib/cloud/data`, copied here). This machine was made from an image of another instance. What is printed?
+files:
+  instance-id: |
+    i-0f3e7a9c2b1d4e5f6
+  previous-instance-id: |
+    i-0a1b2c3d4e5f67890
+command: |
+  if [ "$(cat instance-id)" = "$(cat previous-instance-id)" ]; then echo "same instance: per-instance modules skipped"; else echo "new instance: per-instance modules run again"; fi
+expected_output: |
+  new instance: per-instance modules run again
+explanation: |
+  The IDs differ, so cloud-init treats this boot as the first boot of a new instance and runs the once-per-instance modules again: users, keys, packages, `runcmd`. That's exactly what you want from a machine image made out of a configured server, and it's why a plain reboot of the *same* instance (same ID on both sides) skips them. `cloud-init clean` deletes the saved ID to force the same thing by hand. The comparison is the one cloud-init itself makes.
+skills: [cloud-init]

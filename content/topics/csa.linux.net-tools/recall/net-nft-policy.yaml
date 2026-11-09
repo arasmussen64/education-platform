@@ -1,0 +1,23 @@
+id: net-nft-policy
+type: predict_shell
+rev: 1
+prompt: |
+  `ruleset.txt` is the output of `nft list ruleset` on a server. The first command finds the chain's default policy; the second counts how many rules open a TCP port. What is printed?
+files:
+  ruleset.txt: |
+    table inet filter {
+        chain input {
+            type filter hook input priority filter; policy drop;
+            ct state established,related accept
+            iif "lo" accept
+            tcp dport 22 accept
+            tcp dport { 80, 443 } accept
+        }
+    }
+command: grep -o 'policy [a-z]*' ruleset.txt; grep -c 'tcp dport' ruleset.txt
+expected_output: |
+  policy drop
+  2
+explanation: |
+  The input chain hooks into incoming traffic for this host and drops anything no rule accepts: default deny. Then, in order: packets belonging to connections already accepted or started by us are let through (connection tracking), anything on the loopback interface is fine, and new connections may come in to SSH (22) and the web ports (80 and 443, one rule with a set). Two `tcp dport` rules, three ports. A new connection to 8080 matches nothing and is silently dropped, which to the client looks like a hang, not a refusal.
+skills: [firewall-path]

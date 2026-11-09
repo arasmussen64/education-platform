@@ -1,0 +1,24 @@
+id: meta-paths
+type: predict_shell
+rev: 1
+prompt: |
+  `metadata.txt` is what `curl http://169.254.169.254/latest/meta-data/` returns on an EC2 instance: the available paths, one per line, with directories ending in `/`. The first command counts the directories; the second lists them on one line. What is printed?
+files:
+  metadata.txt: |
+    ami-id
+    hostname
+    iam/
+    instance-id
+    instance-type
+    local-ipv4
+    placement/
+    public-ipv4
+    security-groups
+    tags/
+command: grep -c '/$' metadata.txt; grep '/$' metadata.txt | paste -sd' '
+expected_output: |
+  3
+  iam/ placement/ tags/
+explanation: |
+  Three directories: `iam/`, which leads to the instance role's temporary credentials; `placement/`, the availability zone and region; and `tags/`, the instance's tags when tag access is enabled. The plain entries are single values: `instance-id`, `instance-type`, the addresses. Append a path to the URL to read it. `paste -sd' '` joins the lines with spaces, which is a handy way to make a list one line long.
+skills: [metadata]

@@ -1,0 +1,17 @@
+id: scr-check-before
+type: predict_shell
+rev: 1
+prompt: |
+  `add_line` appends a line to `hosts.txt` only if it isn't there already: `grep -qxF` looks for the exact whole line quietly, and `||` runs the append only when grep finds nothing. The function is called three times, twice with the same line. What is printed by the final `cat`?
+files:
+  hosts.txt: |
+    127.0.0.1 localhost
+command: |
+  add_line() { grep -qxF "$1" hosts.txt || echo "$1" >> hosts.txt; }; add_line "10.0.1.5 db"; add_line "10.0.1.5 db"; add_line "10.0.1.6 cache"; cat hosts.txt
+expected_output: |
+  127.0.0.1 localhost
+  10.0.1.5 db
+  10.0.1.6 cache
+explanation: |
+  The second `add_line "10.0.1.5 db"` found the line and did nothing, so the file has each entry once. `-q` is quiet (exit status only), `-x` matches whole lines, `-F` treats the pattern as plain text rather than a regular expression, so the dots in the address don't mean "any character". A plain `echo … >> hosts.txt` would have added the line on every run; this check-before-append is the idempotent version, and it's how setup scripts edit config files safely.
+skills: [idempotent]

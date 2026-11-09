@@ -1,0 +1,20 @@
+id: net-dig-answer
+type: predict_shell
+rev: 1
+prompt: |
+  `dig.txt` is the answer section from `dig api.example.com`: each line is a name, a TTL in seconds, the class `IN`, a record type and a value. The command prints the alias and the addresses it leads to. What is printed?
+files:
+  dig.txt: |
+    ;; ANSWER SECTION:
+    api.example.com.    300 IN CNAME lb.example.com.
+    lb.example.com.     60  IN A     203.0.113.10
+    lb.example.com.     60  IN A     203.0.113.11
+command: |
+  awk '$4 == "CNAME" {print $1, "->", $5} $4 == "A" {print $1, "->", $5}' dig.txt
+expected_output: |
+  api.example.com. -> lb.example.com.
+  lb.example.com. -> 203.0.113.10
+  lb.example.com. -> 203.0.113.11
+explanation: |
+  `api.example.com` is a `CNAME`, an alias for `lb.example.com`, and that name has two `A` records, so clients spread across the two addresses. The TTLs say how long a resolver may cache each answer: the alias for 300 seconds, the addresses for only 60, so an address can be changed and reach everyone within a minute. `dig +short` would print just the right-hand values; this form shows where each comes from.
+skills: [test-tools]

@@ -1,0 +1,39 @@
+<Intro>
+
+Every command from the earlier topics can be saved in a file and run again, and that file is a **shell script**. Scripts glue a server together: the deploy step, the backup, the health check, the `runcmd` in your cloud-init. The trouble is that bash was designed to keep going whatever happens, which is fine at a prompt and dangerous in a script. This topic is about the handful of habits that make a script something you can trust.
+
+**The shape of a script.** It starts with a **shebang**, `#!/usr/bin/env bash`, which tells the kernel what should run the file; `chmod +x deploy.sh` and `./deploy.sh` run it. Variables are set with `name=value` (no spaces around `=`) and read with `$name`. `$(command)` runs a command and gives you its output. `if [[ -f config.ini ]]; then … fi` tests things, `for f in *.log; do … done` loops, and `name() { …; }` defines a function. Arguments arrive as `$1`, `$2` and, all together, `"$@"`.
+
+**Strict mode.** Three settings at the top change bash from "carry on regardless" to "stop when something's wrong":
+
+- **`set -e`**: exit the moment a command fails. Without it, a failed `cd` is followed by an `rm` in the wrong directory.
+- **`set -u`**: treat an unset variable as an error. Without it, a misspelt `$BUILD_DRI` is an empty string, and `rm -rf "$BUILD_DRI/"` is `rm -rf /`.
+- **`set -o pipefail`**: a pipeline fails if *any* stage fails. Without it, `cat missing.txt | wc -l` succeeds, because `wc` did.
+
+Together: `set -euo pipefail`. One trap to know: `set -e` deliberately doesn't fire where a result is being *tested*: inside an `if` condition, on the left of `||` or `&&`, and inside `$(…)` on a `local x=$(…)` line, where `local` succeeding masks the failure. For a command that's allowed to fail, say so: `grep pattern file || true`.
+
+**Quoting.** When bash sees an unquoted `$file`, it splits the value at spaces and treats it as a filename pattern. `"my notes.txt"` becomes two arguments; `*` becomes every file in the folder. **Quote every variable**: `"$file"`, `"$(command)"`. In a function or a script, `"$@"` passes the arguments on exactly as they came, each one its own word, which `$*` and unquoted `$@` do not. `[[ … ]]` is the modern test: it doesn't word-split its contents, so `[[ $count -gt 2 ]]` is safe where `[ $count -gt 2 ]` breaks on an empty `$count`.
+
+**Failing well.** Exit status is the contract with whoever runs the script. `0` means success; anything else means failure, and CI, systemd and other scripts act on it. When something essential is missing, say so on stderr and stop: `cat config.ini >/dev/null || { echo "could not read config.ini" >&2; exit 2; }`. For cleanup that must happen no matter how the script ends, use a **trap**: `tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT` runs the removal on a normal exit, on a `set -e` failure and on Ctrl-C alike. Lock files, temporary directories and "put the service back" steps all belong in an `EXIT` trap.
+
+**Safe to run twice.** A script that fails halfway *will* be run again: by you, by cloud-init on a new instance, by a retry loop. If step three failed, steps one and two already happened, and the second run must not break on them. That property is called **idempotency**: running the script once or ten times leaves the same result. The habits: `mkdir -p dir` instead of `mkdir dir` (which fails if it exists); `ln -sfn target link` instead of `ln -s` (which fails if the link exists); `grep -qxF "$line" file || echo "$line" >> file` instead of a plain append (which duplicates); `id deploy >/dev/null 2>&1 || useradd deploy`; `install -d -m 750 /srv/app` to create a directory with its mode in one step. Describe the state you want, and make each step check before it acts. Configuration-management tools later in the track are built on exactly this idea.
+
+**Tooling.** **ShellCheck** reads a script and points out the quoting, `set -e` and portability mistakes above, with a wiki page for each; run it on every script, in your editor or in CI. Google's style guide is short and sensible: small functions, `main "$@"` at the bottom, errors to stderr, and the advice that a script which needs data structures or has passed about a hundred lines should be rewritten in Python. The Missing Semester's scripting half is the reading for the syntax; Bash Pitfalls is the list of ways it goes wrong.
+
+**The practice here runs in bash itself**, because bash is the subject: each item is a few lines, and the validator ran them to prove the answers. Read each one as a tiny script and predict what it prints, then try it in Git Bash or a Linux terminal.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Shape:** `#!/usr/bin/env bash`; `name=value`; `"$name"`; `"$(command)"`; `if [[ … ]]; then … fi`; `for x in …; do … done`; `name() { …; }`; arguments `$1`, `"$@"`.
+- **`set -euo pipefail`:** stop on failure, unset variables are errors, pipelines fail if any stage fails. `set -e` doesn't fire inside `if`, left of `||`/`&&`, or in `$(…)` on a `local x=` line. Allow a failure on purpose with `|| true`.
+- **Quote everything:** `"$file"` (spaces, globs, empty values), `"$@"` (arguments passed on intact). `[[ ]]` over `[ ]`.
+- **Exit status is the contract:** `0` success; `echo "…" >&2; exit 2` for a missing requirement; CI, systemd and other scripts read it.
+- **`trap 'cleanup' EXIT`** runs on normal exit, failure and Ctrl-C; pair with `mktemp -d`.
+- **Idempotent steps:** `mkdir -p`, `ln -sfn`, `grep -qxF … || echo … >>`, `id user || useradd`, `install -d -m`. State, not change. A failed script will be run again.
+- **Tooling:** ShellCheck on every script; Google's style guide; past ~100 lines or real data structures, use Python.
+
+</Recap>

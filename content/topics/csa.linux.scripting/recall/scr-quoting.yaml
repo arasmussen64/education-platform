@@ -1,0 +1,15 @@
+id: scr-quoting
+type: predict_shell
+rev: 1
+prompt: |
+  A variable holds a file name with a space in it. `printf '%s\n'` prints each argument it receives on its own line, so it shows how many arguments bash made of the variable: first unquoted, then quoted. What is printed?
+command: |
+  f="my notes.txt"; printf '%s\n' $f; echo ---; printf '%s\n' "$f"
+expected_output: |
+  my
+  notes.txt
+  ---
+  my notes.txt
+explanation: |
+  Unquoted, `$f` is split at the space into two arguments, `my` and `notes.txt`, which is why `rm $f` would complain about two files that don't exist and `cp $f backup/` would do something else entirely. Quoted, `"$f"` stays one argument. Bash also expands unquoted values as filename patterns, so a value containing `*` would turn into a list of files. Quote every variable, every time; the exceptions are rare enough to comment.
+skills: [quoting-vars]

@@ -1,0 +1,17 @@
+id: net-ip-route-default
+type: predict_shell
+rev: 1
+prompt: |
+  `route.txt` is the output of `ip route`. The first command picks the default route and prints its gateway (field 3) and interface (field 5); the second counts the routes. What is printed?
+files:
+  route.txt: |
+    default via 10.0.1.1 dev eth0 proto dhcp src 10.0.1.23 metric 100
+    10.0.1.0/24 dev eth0 proto kernel scope link src 10.0.1.23 metric 100
+    172.17.0.0/16 dev docker0 proto kernel scope link src 172.17.0.1 linkdown
+command: awk '$1 == "default" {print "gateway", $3, "via", $5}' route.txt; grep -c dev route.txt
+expected_output: |
+  gateway 10.0.1.1 via eth0
+  3
+explanation: |
+  Anything not matched by a more specific route goes to `10.0.1.1` through `eth0`: that's the default gateway, learned from DHCP. The second route says the `10.0.1.0/24` block is directly reachable on `eth0` (`scope link`, no gateway), and the third that containers' `172.17.0.0/16` addresses are on the `docker0` bridge, currently with no link. A packet to `8.8.8.8` matches only the default; a packet to `10.0.1.50` matches the second, more specific route and goes straight out.
+skills: [ip-and-routes]

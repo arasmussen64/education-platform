@@ -1,17 +1,110 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.net-tools
 kind: topic
-status: planned
-title: Networking from the host
-summary: Inspect interfaces, routes and sockets with ip and ss.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "Networking from the host"
+summary: "Find out what a server is listening on and where its packets go: ip and ss, curl, dig, nc and traceroute, tcpdump for the truth on the wire, the TCP states and ephemeral ports, and the path a packet takes through nftables, connection tracking and a container's network namespace."
+prerequisites: [csa.linux.shell]
+estimated_minutes: 120
 rev: 1
 objectives:
-- Inspect interfaces, routes and sockets with ip and ss.
-- Test with curl, dig, nc and traceroute.
-- Capture traffic with tcpdump.
-- Read the TCP state machine and ephemeral ports.
-- Follow a packet through nftables or iptables, conntrack and a network namespace.
+  - "Read a host's interfaces, addresses and routes with `ip`, and say which interface and gateway a packet to a given address will use."
+  - "Read `ss` output: what is listening on which address and port and by which process, the TCP states (`LISTEN`, `ESTAB`, `TIME-WAIT`, `CLOSE-WAIT`), and what ephemeral ports are."
+  - "Pick the right test tool for a question, `curl`, `dig`, `nc` or `traceroute`, and read what each answers."
+  - "Capture traffic with `tcpdump` and recognise a three-way handshake, a refused connection and a filter that keeps the capture small."
+  - "Follow a packet through an nftables ruleset: hooks, chains, default policy and connection tracking, and through a container's network namespace and veth pair."
+# Linked, never copied. Licences: DigitalOcean's community tutorials are
+# CC BY-NC-SA 4.0; the ArchWiki is GNU FDL 1.3; the Linux man-pages are free
+# documentation; tcpdump's manual is BSD-licensed; RFCs are published under
+# the IETF Trust's provisions.
+resources:
+  - title: "An Introduction to Networking Terminology, Interfaces, and Protocols, by Justin Ellingwood (DigitalOcean community tutorials)"
+    url: https://www.digitalocean.com/community/tutorials/an-introduction-to-networking-terminology-interfaces-and-protocols
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "ArchWiki: Network configuration (interfaces, addresses and routes with ip; checking a connection)"
+    url: https://wiki.archlinux.org/title/Network_configuration
+    type: reading
+    use: link
+    license: GNU FDL 1.3
+  - title: "ss(8), from the Linux man-pages project: the socket statistics tool and its filters"
+    url: https://man7.org/linux/man-pages/man8/ss.8.html
+    type: reading
+    use: link
+    license: "Linux man-pages project (free documentation; linked, not copied)"
+  - title: "tcpdump(1), the tcpdump manual page (read the examples and the filter syntax)"
+    url: https://www.tcpdump.org/manpages/tcpdump.1.html
+    type: reading
+    use: link
+    license: "BSD-3-Clause (tcpdump documentation)"
+  - title: "ArchWiki: nftables (tables, chains, hooks and a simple stateful firewall)"
+    url: https://wiki.archlinux.org/title/Nftables
+    type: reading
+    use: link
+    license: GNU FDL 1.3
+  - title: "RFC 9293: Transmission Control Protocol (the state diagram in section 3.3.2)"
+    url: https://www.rfc-editor.org/rfc/rfc9293.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+# Lessons and recall first (ADR-0017). The browser has no network stack to
+# inspect, so the items read ip, ss, dig, curl, tcpdump and nft output with
+# the text tools of the first topic; the labs provide the real interfaces.
+practice:
+  - net-ip-addr-up
+  - net-ip-route-default
+  - mcq-bind-localhost
+  - net-ss-listening
+  - net-ss-states
+  - mcq-close-wait
+  - net-ephemeral-range
+  - mcq-which-tool
+  - net-dig-answer
+  - net-curl-redirect
+  - mcq-traceroute-stars
+  - net-tcpdump-handshake
+  - mcq-tcpdump-filter
+  - net-nft-policy
+  - mcq-nft-hooks
+  - mcq-conntrack
+  - mcq-netns-veth
+prove:
+  explain:
+    prompt: |
+      A new web app on a server "doesn't work from the office", though it works when you `curl` it on the server itself. Explain, in your own words, how you'd narrow that down from the host: how you'd check what the server is listening on and on which addresses, and why `127.0.0.1` would explain everything; how you'd check the routes and the default gateway, and test name resolution, the TCP port and the HTTP response from another machine; what you'd capture with `tcpdump` and how a completed handshake looks different from a refused or a silently dropped connection; and how you'd read the firewall's rules and default policy, including why connection tracking means you don't need a rule for the replies.
+    rubric:
+      - id: listening
+        required: true
+        description: "ss -ltnp shows listening TCP sockets with their address, port and process; a service bound to 127.0.0.1 only accepts local connections, so it must bind 0.0.0.0 (or the interface's address) to be reachable from the office."
+      - id: routes-and-tests
+        required: true
+        description: "ip addr and ip route show the interface, its address and the default gateway; from another machine dig resolves the name, nc -zv host port tests whether the port answers, curl -v shows the HTTP exchange, traceroute/mtr shows the path."
+      - id: tcpdump
+        required: true
+        description: "tcpdump -nn -i eth0 port 80 (and host X) shows packets on the wire: SYN, SYN-ACK, ACK is a completed handshake; SYN answered by RST means refused (nothing listening); SYN with no reply, retried, means dropped, usually by a firewall or a security group."
+      - id: firewall
+        required: true
+        description: "nft list ruleset shows the input chain's default policy (drop) and its accept rules; ct state established,related accept lets replies to our own connections through, so only the first packet of a new connection needs a matching port rule."
+      - id: states
+        required: false
+        description: "ESTAB is an open connection, TIME-WAIT is normal on the side that closed first, many CLOSE-WAIT means our program isn't closing sockets; ephemeral ports are the client-side range the kernel picks from."
+    model_answer: |
+      I'd start on the server with ss -ltnp, which lists every TCP socket that is listening, with the address and port it's bound to and the process behind it. If the app shows 127.0.0.1:8080, that's the whole answer: it only accepts connections from the machine itself, which is why curl on the server works and the office can't connect; it has to listen on 0.0.0.0 or the interface's address. If it's on 0.0.0.0 I'd check the network itself: ip addr for the interface and its address, ip route for the default gateway the replies will go out through. Then from another machine I'd test one layer at a time: dig +short for the name, to see it resolves to this server's address; nc -zv host 8080 to see whether the TCP port answers at all; curl -v to see the HTTP request and response and any redirect; and traceroute or mtr if the path itself looks broken. If nc fails, I'd capture on the server with tcpdump -nn -i eth0 port 8080 while the office retries. A working connection shows the three-way handshake: a packet with flags S from the client, S. from the server, then a plain ack. If the server answers the SYN with R, a reset, nothing is listening on that port and the connection is refused. If the SYN arrives and nothing goes back, or if no SYN arrives at all, something is dropping packets silently: the host firewall, or in the cloud a security group or network ACL, which is the usual cause. For the host firewall I'd read nft list ruleset: the input chain's default policy is usually drop, and the accept rules say what gets through. The rule ct state established,related accept is connection tracking: the kernel remembers connections we've accepted or started, and lets their later packets and replies through without a rule for each, so only the first packet of a new connection needs a matching tcp dport rule, and a missing tcp dport 8080 accept would explain the drop. While I'm in ss, the states tell a story too: ESTAB connections are open, TIME-WAIT entries are the normal aftermath on the side that closed first, and a pile of CLOSE-WAIT means our program isn't closing sockets it's been handed.
+review_pool:
+  - net-ss-listening
+  - net-ss-states
+  - net-tcpdump-handshake
+  - net-ip-route-default
+  - net-nft-policy
+  - mcq-conntrack
+skills:
+  - id: ip-and-routes
+    description: "Interfaces, addresses and routes with `ip addr` and `ip route`: the default gateway and which interface carries a packet"
+  - id: sockets-ss
+    description: "What is listening where, with `ss -ltnp`; the TCP states and what each means; ephemeral ports"
+  - id: test-tools
+    description: "Which tool answers which question: `curl`, `dig`, `nc`, `traceroute` and `mtr`, and reading their output"
+  - id: tcpdump
+    description: "Capturing with `tcpdump`: filters, `-nn`, reading a handshake, a reset and a dropped SYN"
+  - id: firewall-path
+    description: "A packet's path through nftables hooks and chains, the default policy, connection tracking, and a container's network namespace"

@@ -1,0 +1,14 @@
+id: mcq-other-clouds-headers
+type: mcq
+rev: 1
+prompt: |
+  Azure's and Google Cloud's metadata services have no PUT-token step. How do they defend against the same forged-request attack?
+choices:
+  - "They don't; the attack only exists on AWS"
+  - "They require a header a naive forwarder wouldn't add: Azure demands `Metadata: true` (and refuses requests carrying `X-Forwarded-For`, which proxies add), Google demands `Metadata-Flavor: Google`; a web app fetching a user-supplied URL sends neither"
+  - "They only answer requests signed with the VM's private key"
+  - "They require the request to come from port 22"
+answer: 1
+explanation: |
+  The defence in every cloud is the same shape: make the request something a server-side request forgery can't produce. AWS uses a token obtained with a PUT; Azure and Google use a mandatory custom header, and Azure additionally rejects requests that have passed through a proxy. A fetch feature that takes a URL from a user can't add headers, so it is turned away. On AWS, the equivalent of "the header is mandatory" is requiring IMDSv2 on the instance.
+skills: [imds-v2, metadata]

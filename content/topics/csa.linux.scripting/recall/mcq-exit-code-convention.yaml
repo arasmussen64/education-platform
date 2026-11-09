@@ -1,0 +1,14 @@
+id: mcq-exit-code-convention
+type: mcq
+rev: 1
+prompt: |
+  A deployment script prints "ERROR: upload failed" and then ends with `exit 0`. What's wrong with that, and where should the message have gone?
+choices:
+  - "Nothing; the message is enough"
+  - "Exit 0 means success, so the CI job, systemd unit or calling script treats the deployment as done; the script should `exit 1` (or another non-zero code) and print the error to stderr with `>&2`, so it isn't mixed into normal output"
+  - "Scripts can't change their exit status"
+  - "It should exit with 200, like HTTP"
+answer: 1
+explanation: |
+  Nothing reads your messages; everything reads your exit status. `set -e` gives most failures the right status automatically, and an explicit `exit 1` or `exit 2` covers the checks you write yourself. Errors go to stderr so that a caller capturing the script's output (`result=$(./deploy.sh)`) gets data, not error text, and so the two streams can be logged separately. Codes above 125 have special meanings (128 + signal), so pick small numbers.
+skills: [traps-cleanup]

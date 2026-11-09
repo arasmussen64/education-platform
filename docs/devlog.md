@@ -2,6 +2,22 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Module 1, topics 10 to 12: networking, boot, scripting
+
+Networking from the host (`csa.linux.net-tools`), Boot, cloud-init and instance metadata (`csa.linux.boot`) and Shell scripting (`csa.linux.scripting`), as drafts: 50 recall items, 25 of them `predict_shell`.
+
+**Scripting is the topic the item type was made for.** Every shell item there runs bash itself: `set -e` with and without, `set -u`'s `unbound variable`, `pipefail`'s status, word splitting on an unquoted variable, `"$@"` against `$*`, an `EXIT` trap firing after a failure, `exit 2` seen by the caller, `mkdir` against `mkdir -p`, `ln -sfn`, and a check-before-append function called twice. Each is a tiny script whose output the validator proved. The networking and boot items read captured output as before (`ip`, `ss`, `dig`, `curl -I`, `tcpdump`, `nft list ruleset`, `systemd-analyze`, the boot journal, user data, cloud-init's log, a metadata listing), with two real-bash exceptions: the ephemeral-port arithmetic with `read`, and the instance-ID comparison that cloud-init itself makes.
+
+**Two portability notes for shell items,** learned here: an error message's `bash: line 1: ` prefix is stripped with `sed` before comparing, since the program name can differ between machines; and `set -u`'s message text itself is identical in bash 5 on both. `ln -s` on Git Bash makes a copy rather than a link unless Windows symlinks are enabled, but the item only shows the file behind `current`, which comes out the same.
+
+**Resources.** DigitalOcean's networking terminology tutorial (CC BY-NC-SA 4.0), the ArchWiki's network-configuration, nftables and boot-process pages (GNU FDL 1.3), the `ss` and `tcpdump` manuals, RFC 9293 for the TCP states, cloud-init's own documentation, the AWS IMDSv2 page (copyright, linked) with the Azure and Google equivalents (CC BY 4.0), the Missing Semester's scripting lecture (CC BY-NC-SA 4.0), Google's Shell Style Guide (CC BY 3.0), Greg's Bash Pitfalls and ShellCheck. The GNU Bash manual's own site refuses automated fetches, so the `bash(1)` page on man7.org stands in for it.
+
+**Decisions for you to review:**
+1. *The 2019 breach is named only by year.* The IMDSv2 lesson and items explain server-side request forgery against the metadata service with "a large breach in 2019" rather than naming the company, since the point is the mechanism.
+2. *Networking stays at the host's view.* Subnets, routing and DNS in depth belong to Module 3; this topic teaches the tools and what their output means.
+
+**Next:** performance triage and hardening, the last two topics; then the checkpoint's outline review and the lab checker's local mode.
+
 ## 2026-11-09: Module 1, topics 7 to 9: memory, CPU, containers
 
 Memory and the OOM killer (`csa.linux.memory`), CPU scheduling and cgroups (`csa.linux.cpu`) and How containers work (`csa.linux.containers`), as drafts: 45 recall items, 19 of them `predict_shell`. These three belong together, and the containers lesson is written as the payoff of the two before it: a container is a process tree with namespaces for its view, a cgroup for its limits (the files the memory and CPU topics just taught), and an overlay root built from image layers.

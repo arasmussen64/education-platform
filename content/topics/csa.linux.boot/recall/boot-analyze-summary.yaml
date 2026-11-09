@@ -1,0 +1,16 @@
+id: boot-analyze-summary
+type: predict_shell
+rev: 1
+prompt: |
+  `analyze.txt` is the output of `systemd-analyze`, which sums up the last boot. The command pulls out the two timed phases. What is printed?
+files:
+  analyze.txt: |
+    Startup finished in 2.104s (kernel) + 18.512s (userspace) = 20.616s
+    multi-user.target reached after 18.500s in userspace.
+command: grep -o '[0-9.]*s (kernel)\|[0-9.]*s (userspace)' analyze.txt
+expected_output: |
+  2.104s (kernel)
+  18.512s (userspace)
+explanation: |
+  The kernel took about two seconds; everything systemd started after it took eighteen and a half, which is where the time went. That split is the first thing to read when a boot is slow: a long kernel phase points at hardware or drivers, a long userspace phase at a unit, and `systemd-analyze blame` names it. On a cloud instance cloud-init is often that unit, because it's waiting on the network and installing packages.
+skills: [boot-sequence]

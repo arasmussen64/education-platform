@@ -1,0 +1,20 @@
+id: boot-analyze-blame
+type: predict_shell
+rev: 1
+prompt: |
+  `blame.txt` is the output of `systemd-analyze blame`: every unit and how long it took to start, slowest first. The command shows the top three as name then time. What is printed?
+files:
+  blame.txt: |
+    12.345s cloud-final.service
+    3.210s snapd.seeded.service
+    1.870s cloud-init.service
+    0.912s systemd-networkd-wait-online.service
+    0.304s ssh.service
+command: head -n 3 blame.txt | awk '{print $2, $1}'
+expected_output: |
+  cloud-final.service 12.345s
+  snapd.seeded.service 3.210s
+  cloud-init.service 1.870s
+explanation: |
+  `cloud-final.service`, cloud-init's last stage, took twelve of the twenty seconds: that's `runcmd` and package installation, which wait on the network and on package mirrors. The times are each unit's own start-up, measured in parallel, so they don't add up to the boot time, but the biggest one is still the first place to look. Moving work out of first boot and into the image (baking the packages in) is the usual way to shorten this.
+skills: [boot-sequence]

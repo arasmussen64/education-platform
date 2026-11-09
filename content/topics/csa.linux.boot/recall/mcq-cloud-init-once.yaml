@@ -1,0 +1,14 @@
+id: mcq-cloud-init-once
+type: mcq
+rev: 1
+prompt: |
+  You fix a typo in a running instance's user data (through the cloud console) and reboot it. The fix doesn't take effect. Why?
+choices:
+  - "User data can't be changed after launch"
+  - "cloud-init's per-instance modules run only on the first boot of a given instance ID; on a reboot of the same instance they're skipped. Launch a new instance from the fixed user data, or run `cloud-init clean` and reboot to force a rerun"
+  - "The reboot wasn't a full power cycle"
+  - "User data is read only by the bootloader"
+answer: 1
+explanation: |
+  cloud-init saves the instance ID after configuring it and checks it on every boot: same ID, nothing per-instance to do. That protects a running server from being reconfigured by accident, and it means user data is a *launch-time* input in practice. Treat the instance as disposable: fix the user data (or, better, the image) and replace it. `cloud-init clean --logs` followed by a reboot is the escape hatch for a lab.
+skills: [cloud-init]

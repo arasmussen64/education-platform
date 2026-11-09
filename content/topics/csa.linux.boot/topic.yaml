@@ -1,15 +1,110 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.boot
 kind: topic
-status: planned
-title: Boot, cloud-init and instance metadata
-summary: Follow a VM from boot to ready.
-prerequisites: []
-estimated_minutes: 240
+status: draft
+title: "Boot, cloud-init and instance metadata"
+summary: "What happens between pressing power and a ready server: firmware, bootloader, kernel, systemd; how cloud-init turns a bare image into your configured instance from user data; what the instance metadata service offers; and why its session-based form (IMDSv2 and its cousins) closes a famous hole."
+prerequisites: [csa.linux.services]
+estimated_minutes: 90
 rev: 1
 objectives:
-- Follow a VM from boot to ready.
-- Configure it with cloud-init and user data.
-- Read the instance metadata service, and explain why session-based access to it (IMDSv2 and its equivalents) matters for security.
+  - "Follow a Linux machine from power-on to ready: firmware, bootloader, kernel and initramfs, systemd and its targets, and read `systemd-analyze` and the boot journal."
+  - "Explain what cloud-init does on first boot, its stages and datasource, the two forms of user data, and why most of it runs once per instance."
+  - "Describe what the instance metadata service provides and how a program reaches it, on AWS, Azure and Google Cloud."
+  - "Explain the server-side request forgery risk that session-based metadata access (IMDSv2, and the required headers on Azure and Google Cloud) defends against, and how to require it."
+# Linked, never copied. Licences: the ArchWiki is GNU FDL 1.3; the cloud-init
+# documentation belongs to the cloud-init project (GPL-3.0 or Apache-2.0);
+# AWS documentation is Amazon's copyright; Microsoft Learn and Google Cloud
+# documentation are CC BY 4.0; systemd's manual pages are LGPL-2.1-or-later.
+resources:
+  - title: "ArchWiki: Arch boot process (firmware, bootloader, kernel, initramfs, init; the ideas hold for every distribution)"
+    url: https://wiki.archlinux.org/title/Arch_boot_process
+    type: reading
+    use: link
+    license: GNU FDL 1.3
+  - title: "cloud-init documentation: Introduction to cloud-init"
+    url: https://docs.cloud-init.io/en/latest/explanation/introduction.html
+    type: reading
+    use: link
+    license: "GPL-3.0 or Apache-2.0 (cloud-init project documentation)"
+  - title: "cloud-init documentation: Boot stages"
+    url: https://docs.cloud-init.io/en/latest/explanation/boot.html
+    type: reading
+    use: link
+    license: "GPL-3.0 or Apache-2.0 (cloud-init project documentation)"
+  - title: "Use the Instance Metadata Service (Amazon EC2 User Guide): IMDSv1 and IMDSv2, tokens, and requiring v2"
+    url: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/configuring-instance-metadata-service.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Azure Instance Metadata Service for virtual machines (Microsoft Learn): the required Metadata header"
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "About VM metadata (Google Cloud documentation): the metadata server and the Metadata-Flavor header"
+    url: https://docs.cloud.google.com/compute/docs/metadata/overview
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "systemd-analyze(1): timing the boot and finding the slow units (systemd manual pages)"
+    url: https://www.freedesktop.org/software/systemd/man/latest/systemd-analyze.html
+    type: reading
+    use: link
+    license: "LGPL-2.1-or-later (systemd documentation)"
+# Lessons and recall first (ADR-0017). The items read systemd-analyze,
+# the boot journal, user data, cloud-init's log and metadata listings with
+# the text tools of the first topic; booting a real instance comes in the labs.
+practice:
+  - mcq-boot-order
+  - boot-analyze-summary
+  - boot-analyze-blame
+  - boot-journal-targets
+  - mcq-boot-debug
+  - mcq-user-data-formats
+  - boot-cloud-config
+  - boot-cloud-init-stages
+  - boot-instance-id
+  - mcq-cloud-init-once
+  - mcq-metadata-what
+  - meta-paths
+  - mcq-imdsv2-why
+  - meta-token-requests
+  - mcq-other-clouds-headers
+prove:
+  explain:
+    prompt: |
+      A new cloud VM "comes up but isn't configured": the package your user data was meant to install isn't there, and a colleague wants to know "where the VM even gets that script from". Explain, in your own words: the steps from power-on to a ready server and where cloud-init fits among them; where cloud-init finds its instructions and the two forms user data can take; why a change to the user data after the first boot changes nothing, and where you'd look to see what cloud-init did; what the instance metadata service is and what it hands out; and why the newer, session-based way of reaching it matters for security.
+    rubric:
+      - id: boot-steps
+        required: true
+        description: "Firmware (UEFI) starts the bootloader (GRUB), which loads the kernel and the initramfs; the kernel mounts the root filesystem and starts systemd as PID 1, which reaches its targets by starting services; cloud-init runs as systemd services during this, in stages (local, network, config, final)."
+      - id: user-data
+        required: true
+        description: "cloud-init reads user data (and metadata) from the cloud's datasource, usually the metadata service; user data is either a #cloud-config YAML document (users, packages, files, runcmd) or a script starting with a shebang; per-instance modules run only on the first boot of an instance ID, so later edits do nothing until a new instance or cloud-init clean; /var/log/cloud-init-output.log and cloud-init status --long show what happened."
+      - id: metadata
+        required: true
+        description: "The metadata service at 169.254.169.254 (or metadata.google.internal) answers HTTP requests from the instance with its identity, network details, tags, user data and temporary credentials for the instance's role, so software needs no embedded keys."
+      - id: imdsv2
+        required: true
+        description: "A web app with a server-side request forgery bug can be tricked into fetching the metadata URL and leaking the instance's credentials; IMDSv2 requires a PUT to get a session token with a TTL and that token on every GET, with a hop limit of 1, which such bugs can't do; Azure requires a Metadata: true header and Google a Metadata-Flavor: Google header for the same reason; require v2 on every instance."
+      - id: timing
+        required: false
+        description: "systemd-analyze and systemd-analyze blame show how long the boot took and which units were slow; journalctl -b shows the boot's log."
+    model_answer: |
+      When the VM is powered on, its firmware, UEFI on modern machines, finds and starts the bootloader, usually GRUB, from the disk. GRUB loads the kernel and the initramfs, a small temporary root filesystem with the drivers needed to find the real one. The kernel starts, mounts the real root filesystem, and starts one process, systemd, as PID 1. systemd then works towards its default target by starting services in dependency order, and the machine is ready when multi-user.target is reached. cloud-init is a set of systemd services inside that sequence, running in four stages: a local stage before networking that finds the datasource and applies network config, a network stage that fetches metadata and user data and can set hostnames, users and SSH keys, then a config stage and a final stage that run the configuration modules and, at the very end, your runcmd commands and package installs. Its instructions come from the datasource, which on a cloud is the instance metadata service: an HTTP endpoint at 169.254.169.254 that answers only to the instance itself. User data is whatever you attached when launching: either a #cloud-config document, YAML describing the desired state (users and their keys, packages to install, files to write, commands to run at the end), or a script starting with a shebang line that cloud-init simply runs. Most of that is per-instance: cloud-init records the instance ID it configured, and on later boots of the same instance it skips the once-per-instance modules, so editing the user data of an existing VM changes nothing until you launch a new instance from it or run cloud-init clean and reboot. To see what it did I'd read /var/log/cloud-init-output.log, where the output of each stage and of runcmd lands, and run cloud-init status --long; a missing package usually shows up there as a failed apt command or a stage that never ran. The metadata service itself hands out the instance's identity and type, its network addresses, its tags, the user data, and, most importantly, temporary credentials for the IAM role attached to the instance, which is how software on the instance calls cloud APIs without any key stored on disk. That last part is why access to it matters. A web application with a server-side request forgery bug, one that fetches a URL a user supplies, can be tricked into fetching http://169.254.169.254/latest/meta-data/iam/security-credentials/ and returning the instance's credentials to an attacker, which is how a large breach happened in 2019. IMDSv2 closes it: the client must first send a PUT request for a session token with a time to live, and then present that token in a header on every request; a forged GET from a web app can't do either, and the token's hop limit of 1 keeps it from leaving the instance through a proxy or container. Azure requires a Metadata: true header and refuses requests with X-Forwarded-For, and Google requires a Metadata-Flavor: Google header, for the same reason. I'd require v2 on every instance and in every launch template.
+review_pool:
+  - boot-analyze-blame
+  - boot-cloud-init-stages
+  - boot-instance-id
+  - meta-token-requests
+  - mcq-boot-order
+  - mcq-imdsv2-why
+skills:
+  - id: boot-sequence
+    description: "Firmware, bootloader, kernel and initramfs, systemd and its targets; `systemd-analyze`, `journalctl -b` and the boot's log"
+  - id: cloud-init
+    description: "cloud-init's datasource and stages, the two forms of user data, once-per-instance behaviour, and its logs and status"
+  - id: metadata
+    description: "The instance metadata service: what it offers, where it lives, and how programs on the instance reach it on each cloud"
+  - id: imds-v2
+    description: "Server-side request forgery against the metadata service, and the session tokens and required headers that defend against it"

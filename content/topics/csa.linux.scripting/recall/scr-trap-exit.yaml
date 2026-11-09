@@ -1,0 +1,14 @@
+id: scr-trap-exit
+type: predict_shell
+rev: 1
+prompt: |
+  A child script makes a temporary directory with `mktemp -d`, sets a trap on `EXIT` to announce the cleanup and remove it, does some work, and then fails. The outer shell prints the status. What is printed?
+command: |
+  bash -c 'tmp=$(mktemp -d); trap "echo cleaning up; rm -r \"$tmp\"" EXIT; echo "working in a temp dir"; false'; echo "status $?"
+expected_output: |
+  working in a temp dir
+  cleaning up
+  status 1
+explanation: |
+  The trap runs when the shell exits, however it exits: after the last command here, but equally after a `set -e` failure or a Ctrl-C. So the temporary directory is removed even though the script failed, and the failure still shows as status 1 (the status of `false`, the last command). Lock files, "stop maintenance mode" steps and temporary files all belong in an `EXIT` trap, so they can't be forgotten on the unhappy path.
+skills: [traps-cleanup]

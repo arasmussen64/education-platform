@@ -1,0 +1,15 @@
+id: scr-set-e
+type: predict_shell
+rev: 1
+prompt: |
+  The same three-line script runs twice in child shells: first as bash normally behaves, then with `set -e`. `false` is a command that does nothing and fails. What is printed?
+command: |
+  bash -c 'echo one; false; echo two'; echo ---; bash -c 'set -e; echo one; false; echo two'
+expected_output: |
+  one
+  two
+  ---
+  one
+explanation: |
+  Without `set -e`, bash runs every line regardless: `false` fails and `two` prints anyway, which in a deployment script means the step after a failed one still runs. With `set -e`, the shell exits at `false` and `two` never prints; the child exits with status 1. The `---` is printed by the outer shell between the two runs.
+skills: [strict-mode]
