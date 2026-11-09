@@ -1,0 +1,17 @@
+id: build-share-the-cpu
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Share the CPU"
+prompt: |
+  Two of the shop's services are busy on the lab machine: `shop-api`, which answers customers and must stay quick, and `shop-report`, a batch job that can take as long as it takes. Both are running flat out. Arrange the CPU between them with cgroup settings, without stopping either:
+
+  1. See what's busy and how busy the machine is: `top`, `uptime` against `nproc`, `ps -eo comm,%cpu --sort=-%cpu`.
+  2. The report is a batch job: cap it at a quarter of one CPU with a drop-in (`sudo systemctl edit shop-report`; `CPUQuota=` under `[Service]`), reload systemd and restart it. Confirm the kernel's view in its cgroup's `cpu.max`, and watch `cpu.stat`'s `nr_throttled` climb.
+  3. The API must win whenever CPUs are contended: give it three times the default weight (`CPUWeight=300`) the same way. It must have no quota: a cap would make it slow on an idle machine for nothing. Confirm `cpu.weight` in its cgroup.
+  4. Save `~/report/cpu.txt` with two lines: the report's `cpu.max` line and the API's `cpu.weight` line, as the files print them.
+
+  Then run the checks.
+skills: [cgroups-v2, throttling, load-average]

@@ -1,0 +1,37 @@
+# The checks for "Share the CPU": the report is capped and throttled and
+# still running, the API is weighted and uncapped, and the report file says so.
+checks:
+  - id: report-capped
+    description: "shop-report has a quota of a quarter of a CPU (250ms per second; cpu.max 25000 100000)."
+    command: echo "$(systemctl show shop-report -p CPUQuotaPerSecUSec --value) $(cat /sys/fs/cgroup/system.slice/shop-report.service/cpu.max)"
+    expect:
+      equals: "250ms 25000 100000"
+  - id: report-throttled
+    description: "shop-report's throttled periods keep climbing."
+    command: |
+      first=$(awk '/^nr_throttled/ {print $2}' /sys/fs/cgroup/system.slice/shop-report.service/cpu.stat)
+      sleep 1
+      second=$(awk '/^nr_throttled/ {print $2}' /sys/fs/cgroup/system.slice/shop-report.service/cpu.stat)
+      test "$second" -gt "$first" && echo "rising from $first to $second"
+    expect:
+      contains: rising
+  - id: report-alive
+    description: "shop-report is still running."
+    command: systemctl is-active shop-report
+    expect:
+      equals: active
+  - id: api-weighted
+    description: "shop-api's cgroup has cpu.weight 300."
+    command: cat /sys/fs/cgroup/system.slice/shop-api.service/cpu.weight
+    expect:
+      equals: "300"
+  - id: api-uncapped
+    description: "shop-api has no quota."
+    command: systemctl show shop-api -p CPUQuotaPerSecUSec --value
+    expect:
+      equals: infinity
+  - id: report-file
+    description: "~/report/cpu.txt holds the report's cpu.max line and the API's cpu.weight line."
+    command: grep -c -x -e '25000 100000' -e '300' /home/learner/report/cpu.txt
+    expect:
+      equals: "2"

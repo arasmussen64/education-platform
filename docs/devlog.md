@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: CPU scheduling and cgroups goes ready, and GitHub runs out of minutes
+
+The eighth ready cloud topic, built on the same cgroup machinery as the memory labs: `systemd-run -p CPUQuota=20%` on a spinner gives `cpu.max` of `20000 100000`, `top` shows it at 20%, and `cpu.stat` counts a throttled period for nearly every period, which the probe had shown this morning.
+
+**The five labs**, around `spin` (a bash loop that keeps one CPU busy, installed under whatever name a service needs so `ps` and `top` show `shop-api` or `shop-worker`):
+
+- **`example-quota-a-spinner`** (worked example): `nproc` and `uptime`, a spinner at 100% in `top`, the same spinner under a 20% quota, `cpu.max`, `cpu.stat`, stop it.
+- **`fill-cpu-report`** (fill-in): `nproc`, the three load averages from `/proc/loadavg`, the busiest process from `ps --sort=-%cpu`, and a service's `nr_throttled`.
+- **`write-cpu-cap`** (write): `cpu-cap SERVICE PERCENT` writes a drop-in, reloads, restarts and prints `cpu.max`; a second run replaces the cap rather than adding a file.
+- **`build-share-the-cpu`** (build): a quarter of a CPU for the batch report (and its throttling counters climbing), three times the default weight and no quota for the API. Six checks.
+- **`debug-throttled-api`** (debug): one unit with `CPUQuota=5%`, `Nice=19` and `CPUWeight=1`; each a different witness (`cpu.stat`, `ps -o ni`, `cpu.weight`).
+
+**What the contract caught, three things:** a spinner under a quota is throttled in _every_ period, so `nr_periods` and `nr_throttled` are nearly equal and a wrong fix that printed the wrong one passed; the check now compares the script's number with the true count (within a few periods), and the wrong fix prints `throttled_usec` instead. `top` truncates command names to `shop-worke+`, so a check that grepped for the full name found nothing; it asks `top -p PID`. And a YAML mistake of mine (a plain scalar holding `: `) raised an exception inside one worker thread and ended the whole parallel run; `test_quietly` now reports any exception as that lab's problem and the run continues.
+
+**GitHub Actions ran out of minutes.** The memory topic's pull request (#85) got no CI: every job failed in three seconds with "The job was not started because recent account payments have failed or your spending limit needs to be increased". The repository is private, where the free plan includes 2,000 minutes a month, and today alone had 102 workflow runs: 53 on pull requests and 49 on `main` after merges, each run six jobs and the Labs job alone five to six minutes by the end. Nothing can merge under the standing permission until minutes are back, so from here the topics are built on branches stacked on #85, each verified locally with the same commands CI runs (lint, types, the web tests, the validator, and `labcheck test --all --jobs 4`), and the pull requests wait. A separate change cuts the usage: no run on `main` after a merge (the pull request already ran on that commit), and the Labs job only when labs or the checker change.
+
+**Decisions for you to review:**
+
+1. _How to get CI back._ Four ways, in my order of preference: make the repository public (public repositories get unlimited Actions minutes; nothing in it is secret, every resource is linked not copied, and the licences allow it); or wait for the monthly reset; or run a self-hosted runner on your PC (free, but your machine has to be on); or set a paid spending limit, which ADR-0005 rules out unless you decide otherwise. I can't read the account's billing page from here (`gh` lacks the `user` scope), so I don't know when the month resets.
+2. _The CI diet_ (its own pull request): no `push` run on `main`, and the Labs job only on changes under `content/topics/**`, `tools/**` or the workflow. Merging a pull request will rely on the pull request's own run, which is what the process does already.
+3. _Topics keep going on stacked branches_ until merging is possible: cpu on memory, and so on, one pull request each, so each diff stays readable.
+
+**Next:** How containers work (namespaces, cgroups and overlay filesystems by hand), then networking from the host.
+
 ## 2026-11-09: Memory and the OOM killer goes ready, and the kernel does the killing
 
 The seventh ready cloud topic. The first probe of the day had shown that a `systemd-run -p MemoryMax=64M` unit really gets OOM-killed in these containers, and that's the spine of all five labs: the kernel's own behaviour, not a description of it.

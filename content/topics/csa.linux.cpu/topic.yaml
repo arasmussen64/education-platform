@@ -1,6 +1,6 @@
 id: csa.linux.cpu
 kind: topic
-status: draft
+status: ready
 title: "CPU scheduling and cgroups"
 summary: "How Linux shares the CPUs: the fair scheduler and nice values, load average and what it really counts, steal time in a VM, cgroups v2 weights and quotas, and how to find and fix a container that's being throttled."
 prerequisites: [csa.linux.processes]
@@ -40,10 +40,13 @@ resources:
     type: reading
     use: link
     license: CC BY 4.0
-# Lessons and recall first (ADR-0017). The items read top, uptime, ps and
-# cgroup files with the text tools of the first topic and bash arithmetic;
-# setting weights and quotas on a real machine comes in the labs.
+# The recall items read top, uptime, ps and cgroup files with the text tools
+# of the first topic and bash arithmetic. The worked example, the fill-in,
+# the write and both proofs are labs on a machine that boots systemd, where
+# quotas and weights are real cgroup settings and the kernel does the
+# throttling (ADR-0017, ADR-0018).
 practice:
+  - example-quota-a-spinner
   - mcq-cfs-fair-share
   - cpu-nice-order
   - mcq-nice-values
@@ -60,7 +63,11 @@ practice:
   - cpu-throttled-periods
   - mcq-throttling-symptom
   - mcq-k8s-cpu-limits
+  - fill-cpu-report
+  - write-cpu-cap
 prove:
+  build: build-share-the-cpu
+  debug: debug-throttled-api
   explain:
     prompt: |
       A service in a container responds slowly in bursts although the node's CPU graph sits around 30%, and a colleague wants to "give it a higher priority". Explain, in your own words: how Linux shares CPU time between runnable processes and what nice values change; how you'd read the node's load average and steal time to rule the machine in or out; what a cgroup's CPU weight and CPU quota each do, and how a Kubernetes CPU limit becomes one of them; and how you'd confirm the container is being throttled and what you'd change.
