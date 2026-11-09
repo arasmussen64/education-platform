@@ -6,6 +6,7 @@ of silently ignored.
 
 from __future__ import annotations
 
+import re
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
@@ -95,8 +96,6 @@ class Skill(Strict):
 SkillRef = Annotated[
     str, Field(pattern=r"^[a-z0-9]+(?:[.-][a-z0-9]+)*/[a-z0-9]+(?:-[a-z0-9]+)*$")
 ]
-# A test function in test_exercise.py, like "test_tip".
-TestName = Annotated[str, Field(pattern=r"^test_\w+$")]
 
 
 class Unstuck(Strict):
@@ -287,19 +286,34 @@ class Step(Strict):
     note: Text
 
 
+# Where an exercise runs: Python in the browser, or a lab container on the
+# learner's machine, checked by tools/labcheck.py (ADR-0018).
+Runtime = Literal["python", "lab"]
+
+
+class LabOptions(Strict):
+    """How the checker starts a lab's container (ADR-0018)."""
+
+    # systemd labs run privileged with /sbin/init; the rest just sleep.
+    init: Literal["none", "systemd"] = "none"
+
+
 class Exercise(Strict):
     id: ItemId
     stage: Stage
     rev: Rev
     title: Text
     prompt: Text
+    runtime: Runtime = "python"
+    lab: LabOptions | None = None
     time_limit_ms: Annotated[int, Field(ge=100, le=30_000)] = 5000
     hints: list[Text] = []
     steps: list[Step] = []
     skills: list[ItemId] = []
     # Checkpoint builds and debugs only: the skills each test checks, as
-    # "topic/skill", so a failed test brings them back (ADR-0012).
-    test_skills: dict[TestName, Annotated[list[SkillRef], Field(min_length=1)]] = {}
+    # "topic/skill", so a failed test brings them back (ADR-0012). For a lab,
+    # the keys are check ids from checks.yaml instead of test names.
+    test_skills: dict[str, Annotated[list[SkillRef], Field(min_length=1)]] = {}
 
     @model_validator(mode="after")
     def steps_only_for_worked_examples(self) -> Exercise:
@@ -307,4 +321,65 @@ class Exercise(Strict):
             raise ValueError("a worked example needs labeled steps")
         if self.stage != "worked_example" and self.steps:
             raise ValueError("only worked examples have steps")
+        return self
+
+    @model_validator(mode="after")
+    def lab_options_only_for_labs(self) -> Exercise:
+        if self.lab is not None and self.runtime != "lab":
+            raise ValueError("lab options are only for runtime: lab")
+        return self
+
+    @model_validator(mode="after")
+    def test_skill_keys_fit_the_runtime(self) -> Exercise:
+        for key in self.test_skills:
+            if self.runtime == "python" and not re.fullmatch(r"test_\w+", key):
+                raise ValueError(f"{key!r} isn't a test name (test_...)")
+            if self.runtime == "lab" and not re.fullmatch(
+                r"[a-z0-9]+(?:-[a-z0-9]+)*", key
+            ):
+                raise ValueError(f"{key!r} isn't a check id (like disk-has-room)")
+        return self
+
+
+# --- Labs (ADR-0018) -------------------------------------------------------------
+
+
+class Expect(Strict):
+    """What a lab check's command must produce. Without one, exit status 0."""
+
+    exit: Annotated[int, Field(ge=0, le=255)] | None = None
+    equals: str | None = None
+    contains: Text | None = None
+    not_contains: Text | None = None
+    matches: Text | None = None
+    lt: float | None = None
+    lte: float | None = None
+    gt: float | None = None
+    gte: float | None = None
+
+    @model_validator(mode="after")
+    def says_something(self) -> Expect:
+        if all(value is None for value in self.__dict__.values()):
+            raise ValueError("expect needs at least one condition")
+        return self
+
+
+class LabCheck(Strict):
+    """One check of a lab: a command run inside the container, read-only."""
+
+    id: ItemId
+    # What the learner sees: the first line is the check's name.
+    description: Text
+    command: Text
+    expect: Expect | None = None
+
+
+class LabChecks(Strict):
+    checks: list[LabCheck] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def ids_are_unique(self) -> LabChecks:
+        ids = [check.id for check in self.checks]
+        if len(set(ids)) != len(ids):
+            raise ValueError("check ids must all be different")
         return self

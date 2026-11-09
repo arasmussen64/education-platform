@@ -70,6 +70,20 @@ jobs:
       - name: Check every topic, exercise and recall item
         run: uv run python tools/validate_content.py
 
+  labs:
+    name: Labs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv only publishes exact version tags (no floating "v10").
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Install Python and dependencies
+        run: uv sync --locked
+      # Every lab's contract, against real containers (ADR-0018): the pristine
+      # container must not pass, the solution must, every wrong fix must not.
+      - name: Prove every lab's contract in Docker
+        run: uv run python tools/labcheck.py test --all
+
   database:
     name: Database
     runs-on: ubuntu-latest

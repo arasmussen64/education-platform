@@ -34,3 +34,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0015](0015-hint-only-tutor.md) | The hint-only tutor | Accepted |
 | [0016](0016-parsons-problems.md) | Parsons problems as a recall item type | Accepted |
 | [0017](0017-shell-in-the-browser.md) | Teaching and proving the shell | Accepted |
+| [0018](0018-lab-checker-local-mode.md) | The lab checker's local mode | Proposed (the approach approved by the owner on 2026-11-09) |

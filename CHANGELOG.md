@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (labs on your own machine)
+
+- **The lab checker's local mode** ([ADR-0018](docs/decisions/0018-lab-checker-local-mode.md)): `tools/labcheck.py` builds a lab's container from its folder in `content/`, starts it, runs the lab's checks inside it with `docker exec`, and prints a small result to paste into the site. A lab is an exercise with `runtime: lab`: a `Dockerfile` for the scenario, `checks.yaml` for what must be true when it's done, `solution.sh` for the reference fix and `wrong/*.sh` for fixes that must fail. `labcheck test` proves that contract against real containers, and a new Labs job in CI does so for every lab on every pull request. The validator checks a lab's structure, and `--labs` runs the contract locally.
+- **The first lab:** Shell essentials' build, *A report from the shop's logs*: a container with generated access, application and CSV logs, and four files to produce with pipelines; five checks that compute the right answers from the data themselves, a reference solution, and four known-wrong fixes (counting 4xx with 5xx, a case-sensitive grep, `uniq -c` without `sort`, a header counted as a user), each of which fails a check.
+
 ### Added (content: the cloud track begins)
 
 - **The first three topics of Module 1, Linux and the command line, as drafts:** Shell essentials, Processes and signals, and Users, permissions and SSH. Each has a lesson written for a complete beginner around freely licensed readings (MIT's Missing Semester, *The Linux Command Line*, the ArchWiki, the Linux man-pages), an explain prompt with its rubric, four to six skills, and a practice ladder of recall items: 54 between them, 31 of the new `predict_shell` kind, every one proven in real bash by the validator. They're drafts, visible on the dev server only, because their hands-on steps and proofs wait for the lab checker's local container mode ([ADR-0017](docs/decisions/0017-shell-in-the-browser.md)).

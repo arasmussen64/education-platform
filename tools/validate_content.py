@@ -43,6 +43,7 @@ from content_model import (
     STAGES_WITH_FAILING_STARTER,
     STAGES_WITH_HIDDEN_TESTS,
     Exercise,
+    LabChecks,
     McqItem,
     Module,
     ParsonsItem,
@@ -356,6 +357,22 @@ def find_test_names(test_file: Path) -> list[str] | None:
     ]
 
 
+def find_check_ids(checks_file: Path) -> list[str] | None:
+    """A lab's check ids, from checks.yaml. None if it can't be read."""
+    try:
+        data = yaml.safe_load(checks_file.read_text(encoding="utf-8"))
+        return [check.id for check in LabChecks.model_validate(data).checks]
+    except OSError, yaml.YAMLError, ValidationError:
+        return None
+
+
+def test_names_of(folder: Path, exercise: Exercise) -> list[str] | None:
+    """What test_skills may name: test functions for Python, check ids for a lab."""
+    if exercise.runtime == "lab":
+        return find_check_ids(folder / "checks.yaml")
+    return find_test_names(folder / "test_exercise.py")
+
+
 def check_test_skills(
     folder: TopicFolder,
     topics: dict[str, TopicFolder],
@@ -375,13 +392,13 @@ def check_test_skills(
                 "a topic's items name their skills with skills:",
             )
             continue
-        tests = find_test_names(exercise_folder / "test_exercise.py")
+        tests = test_names_of(exercise_folder, exercise)
+        where = "checks.yaml" if exercise.runtime == "lab" else "test_exercise.py"
         for test, refs in exercise.test_skills.items():
             if tests is not None and test not in tests:
                 report.add(
                     path,
-                    f"test_skills names {test!r}, "
-                    "which isn't a test in test_exercise.py",
+                    f"test_skills names {test!r}, which isn't a test in {where}",
                 )
             for ref in refs:
                 topic_id, skill_id = ref.split("/")
@@ -459,7 +476,7 @@ def check_ready_checkpoint(
         if item_id not in folder.exercises:
             continue
         exercise_folder, exercise = folder.exercises[item_id]
-        tests = find_test_names(exercise_folder / "test_exercise.py") or []
+        tests = test_names_of(exercise_folder, exercise) or []
         missing = [test for test in tests if test not in exercise.test_skills]
         if missing:
             report.add(
@@ -557,7 +574,46 @@ def describe(result: dict[str, Any]) -> str:
     return f"{result['passed']}/{result['total']} passed ({details})"
 
 
-def check_exercise(folder: Path, exercise: Exercise, report: Report, run: bool) -> None:
+def check_lab(folder: Path, exercise: Exercise, report: Report, run: bool) -> None:
+    """A lab (ADR-0018) needs its image, its checks and its solution. Its
+    contract (pristine fails, the solution passes, wrong fixes fail) needs
+    Docker, so it runs only with --labs; CI's Labs job runs it for every lab."""
+    yaml_file = folder / "exercise.yaml"
+    for name in ("Dockerfile", "checks.yaml", "solution.sh"):
+        if not (folder / name).exists():
+            report.add(yaml_file, f"a lab needs {name}")
+    if (folder / "checks.yaml").exists():
+        load(folder / "checks.yaml", LabChecks, report)
+    for stray in sorted(folder.glob("*.py")):
+        report.add(stray, "a lab has no Python files; its checks are in checks.yaml")
+    if (
+        not run
+        or report.problems
+        and any(
+            str(folder.relative_to(report.root).as_posix()) in p
+            for p in report.problems
+        )
+    ):
+        return
+    import labcheck
+
+    report.counts["labs run"] += 1
+    try:
+        lab = labcheck.load_lab(folder.parents[1].name, exercise.id, folder.parents[2])
+        contract = labcheck.test_lab(lab, verbose=False)
+    except labcheck.LabError as exc:
+        report.add(yaml_file, str(exc))
+        return
+    for problem in contract.problems:
+        report.add(yaml_file, f"the lab's contract is broken: {problem}")
+
+
+def check_exercise(
+    folder: Path, exercise: Exercise, report: Report, run: bool, labs: bool = False
+) -> None:
+    if exercise.runtime == "lab":
+        check_lab(folder, exercise, report, run=labs)
+        return
     yaml_file = folder / "exercise.yaml"
     solution, tests, starter = (
         folder / "solution.py",
@@ -756,7 +812,7 @@ def check_predict_shell(path: Path, item: PredictShellItem, report: Report) -> N
 # --- Putting it together ---------------------------------------------------------
 
 
-def validate(root: Path = ROOT, run: bool = True) -> Report:
+def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
     report = Report(root)
     content = root / "content"
 
@@ -802,7 +858,9 @@ def validate(root: Path = ROOT, run: bool = True) -> Report:
                 check_predict_shell(item_path, item, report)
         for exercise_folder, exercise in folder.exercises.values():
             report.counts["exercises"] += 1
-            check_exercise(exercise_folder, exercise, report, run)
+            if exercise.runtime == "lab":
+                report.counts["labs"] += 1
+            check_exercise(exercise_folder, exercise, report, run, labs)
 
     report.counts["topics"] = len(topics)
     return report
@@ -811,15 +869,23 @@ def validate(root: Path = ROOT, run: bool = True) -> Report:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check everything in content/.")
     parser.add_argument("--no-run", action="store_true", help="don't run any code")
+    parser.add_argument(
+        "--labs",
+        action="store_true",
+        help="also prove every lab's contract in Docker (slow; CI does this)",
+    )
     parser.add_argument("--root", type=Path, default=ROOT, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
-    report = validate(args.root, run=not args.no_run)
+    report = validate(args.root, run=not args.no_run, labs=args.labs)
     c = report.counts
+    labs_note = f", {c['labs']} of them labs" if c["labs"] else ""
     print(
         f"Checked {c['topics']} topics ({c['ready']} ready, {c['draft']} draft, "
-        f"{c['planned']} planned), {c['exercises']} exercises, {c['recall items']} "
-        f"recall items; ran {c['runs']} programs."
+        f"{c['planned']} planned), {c['exercises']} exercises{labs_note}, "
+        f"{c['recall items']} recall items; ran {c['runs']} programs"
+        + (f" and {c['labs run']} labs" if c["labs run"] else "")
+        + "."
     )
     if report.problems:
         print(f"\n{len(report.problems)} problem(s):")

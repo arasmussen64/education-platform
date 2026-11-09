@@ -31,6 +31,7 @@ Docker Desktop uses a few GB of memory while it's running, so quit it when you'r
 | Supabase | The real database and sign-in (one project, `education-platform`) | ✅ Linked; migrations applied |
 | Cloudflare | Hosts the app | ✅ Connected; deploys on every merge to `main` |
 | Anthropic Console | The Claude API, for grading explanations and the tutor's hints | ✅ Key in the live project's secrets; both actions live; $10 monthly limit set in the Console (2026-11-09) |
+| Docker Desktop | The local Supabase, and the cloud track's labs (containers on this PC, run by `tools/labcheck.py`, [ADR-0018](decisions/0018-lab-checker-local-mode.md)) | ✅ Installed |
 
 ### Supabase
 

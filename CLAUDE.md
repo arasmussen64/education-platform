@@ -9,7 +9,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Concept: [docs/vision.md](docs/vision.md)
 - Plan and current phase: [docs/roadmap.md](docs/roadmap.md)
 - v1 spec: [docs/specs/v1.md](docs/specs/v1.md), with the [data model](docs/specs/data-model.md) and the [first track](docs/specs/python-foundations.md)
-- Next track, specified but not built: [Cloud Solutions Architect](docs/specs/cloud-solutions-architect.md). How its cloud work is proven is [ADR-0014](docs/decisions/0014-cloud-labs.md); how its shell module is taught and proven is [ADR-0017](docs/decisions/0017-shell-in-the-browser.md). Both accepted 2026-11-09.
+- Next track, specified but not built: [Cloud Solutions Architect](docs/specs/cloud-solutions-architect.md). How its cloud work is proven is [ADR-0014](docs/decisions/0014-cloud-labs.md); how its shell module is taught and proven is [ADR-0017](docs/decisions/0017-shell-in-the-browser.md). Both accepted 2026-11-09. Labs run in containers on the learner's machine through `tools/labcheck.py` ([ADR-0018](docs/decisions/0018-lab-checker-local-mode.md)).
 - Decisions (ADRs): [docs/decisions/](docs/decisions/)
 - Methods behind the features: [docs/learning-science.md](docs/learning-science.md)
 - Session history: [docs/devlog.md](docs/devlog.md)

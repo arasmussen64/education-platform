@@ -10,6 +10,7 @@ from content_fixture import (
     READY_CHECKPOINT,
     TOPIC,
     TRACK,
+    exercise_yaml,
     make_ready_checkpoint,
     make_valid_tree,
     write,
@@ -267,6 +268,92 @@ def test_parsons_decoys_must_differ_from_the_lines(tree: Path) -> None:
     text = (tree / item).read_text(encoding="utf-8")
     write(tree, item, text.replace("  - 'print(Greeting)'", "  - 'print(greeting)'"))
     assert_reported(tree, "different from every line", run=False)
+
+
+# --- Labs: exercises in containers (ADR-0018) -----------------------------------
+
+LAB_DIR = f"{TOPIC_DIR}/exercises/lab-report"
+LAB_EXERCISE = (
+    "id: lab-report\nstage: write\nruntime: lab\nrev: 1\n"
+    "title: A report\nprompt: Make a report.\nskills: [print-text]\n"
+)
+LAB_CHECKS = (
+    "checks:\n  - id: report-exists\n    description: The report exists.\n"
+    "    command: test -f /home/learner/report.txt\n"
+)
+
+
+def add_lab(tree: Path) -> None:
+    write(tree, f"{LAB_DIR}/exercise.yaml", LAB_EXERCISE)
+    write(tree, f"{LAB_DIR}/Dockerfile", "FROM ubuntu:24.04\n")
+    write(tree, f"{LAB_DIR}/checks.yaml", LAB_CHECKS)
+    write(tree, f"{LAB_DIR}/solution.sh", "echo done > ~/report.txt\n")
+
+
+def test_a_lab_needs_its_image_checks_and_solution(tree: Path) -> None:
+    add_lab(tree)
+    assert problems(tree, run=False) == []
+    (tree / LAB_DIR / "checks.yaml").unlink()
+    (tree / LAB_DIR / "solution.sh").unlink()
+    assert_reported(
+        tree, "a lab needs checks.yaml", "a lab needs solution.sh", run=False
+    )
+
+
+def test_a_lab_has_no_python_files(tree: Path) -> None:
+    add_lab(tree)
+    write(tree, f"{LAB_DIR}/solution.py", "print(1)\n")
+    assert_reported(tree, "a lab has no Python files", run=False)
+
+
+def test_lab_checks_need_distinct_ids_and_a_condition(tree: Path) -> None:
+    add_lab(tree)
+    write(tree, f"{LAB_DIR}/checks.yaml", LAB_CHECKS + LAB_CHECKS[8:])
+    assert_reported(tree, "check ids must all be different", run=False)
+    write(
+        tree,
+        f"{LAB_DIR}/checks.yaml",
+        LAB_CHECKS.replace("    command: test", "    expect: {}\n    command: test"),
+    )
+    assert_reported(tree, "expect needs at least one condition", run=False)
+
+
+def test_lab_options_only_for_labs(tree: Path) -> None:
+    add_lab(tree)
+    write(
+        tree,
+        f"{TOPIC_DIR}/exercises/write-hello/exercise.yaml",
+        exercise_yaml("write-hello", "write") + "lab:\n  init: systemd\n",
+    )
+    assert_reported(tree, "lab options are only for runtime: lab", run=False)
+
+
+def test_checkpoint_lab_test_skills_name_check_ids(checkpoint: Path) -> None:
+    folder = f"{CHECKPOINT_DIR}/exercises/debug-card"
+    for name in ("solution.py", "starter.py", "test_exercise.py"):
+        (checkpoint / folder / name).unlink()
+    write(
+        checkpoint,
+        f"{folder}/exercise.yaml",
+        "id: debug-card\nstage: debug\nruntime: lab\nrev: 1\ntitle: A card\n"
+        "prompt: Fix it.\ntest_skills:\n  report-exists: [t.hello/print-text]\n"
+        "  report-gone: [t.hello/print-text]\n",
+    )
+    write(checkpoint, f"{folder}/Dockerfile", "FROM ubuntu:24.04\n")
+    write(checkpoint, f"{folder}/checks.yaml", LAB_CHECKS)
+    write(checkpoint, f"{folder}/solution.sh", "echo done > ~/report.txt\n")
+    assert_reported(
+        checkpoint,
+        "test_skills names 'report-gone', which isn't a test in checks.yaml",
+        run=False,
+    )
+    write(
+        checkpoint,
+        f"{folder}/exercise.yaml",
+        "id: debug-card\nstage: debug\nruntime: lab\nrev: 1\ntitle: A card\n"
+        "prompt: Fix it.\ntest_skills:\n  test_says_hello: [t.hello/print-text]\n",
+    )
+    assert_reported(checkpoint, "isn't a check id", run=False)
 
 
 # --- Shell items run in real bash (ADR-0017) ----------------------------------

@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The lab checker's local mode, and the first lab
+
+The owner chose the plan (containers on the learner's machine, GitHub's registry when a second learner needs it, results pasted in) and said go. The design is [ADR-0018](decisions/0018-lab-checker-local-mode.md); this entry is the build.
+
+**A lab is an exercise with `runtime: lab`.** Same `exercise.yaml`, same stages, same place in a topic's ladder, so the definition of done doesn't change; the folder holds a `Dockerfile`, `checks.yaml`, `solution.sh` and `wrong/*.sh` instead of Python files. The content model gained `runtime`, `lab: { init }`, and the `Expect`, `LabCheck` and `LabChecks` shapes; `test_skills` keys may now be check ids for labs; the validator checks a lab's structure and, with `--labs`, its contract.
+
+**`tools/labcheck.py`.** `start` builds the image and starts the container and tells the learner how to get a shell in it; `check` runs the checks with `docker exec` as root, prints pass or fail per check with the reason, and prints the result JSON to paste (lab, rev, checker version, time, which checks passed, nothing else); `stop` removes the container; `test` proves the contract: pristine must not pass, the solution must, every wrong fix must fail; `list` names the labs. Fixes are applied as the `learner` user in a fresh container, with CRLF stripped in case of a Windows checkout. It's PyYAML and the standard library over the `docker` command, so it runs wherever the repository and Docker are.
+
+**The first lab, and what the contract caught.** *A report from the shop's logs* (Shell essentials' build) seeds 600 access-log lines, 200 application-log lines and a 300-row CSV by arithmetic on the line number, so the files are identical on every build; the checks compute the right answers from the data rather than hard-coding them. The first run passed four of five wrong fixes and failed one: `uniq -c` without `sort` gave the right top path, because `/home` arrived in runs of four. The data now puts `/home` never twice in a row and `/cart` in pairs, and the mistake shows. That is exactly the kind of thing the contract exists to catch, and the content README now says so.
+
+**CI.** A `Labs` job runs `labcheck test --all` on Ubuntu runners, which have Docker; the first lab takes about twenty seconds locally. If the job grows slow, it can run only when `content/**` or the checker change.
+
+**Not yet:** the lab view on the topic page (the commands, the checks, the paste box, the reference solution after a pass), which is the next pull request, and the other four labs Shell essentials needs to go ready.
+
+**Decisions for you to review:**
+1. *Results are `code_check` events with `data.runtime: lab`,* not a new event type: progress already counts a correct `code_check` on the build or debug item as that proof, and the `events` table's type list would need a production migration for no gain.
+2. *Images build locally; publishing waits.* The registry (`ghcr.io`) is chosen, but a published image is public and nobody but you needs one yet.
+3. *Checks compute the truth from the data.* It makes `checks.yaml` longer than a hard-coded `equals`, and it means a change to the seed can't leave a check stale.
+4. *Solutions and wrong fixes run as the learner,* with `sudo` available, so they can only do what a learner could.
+
+**Next:** the lab view in the web app, then Shell essentials' other four labs and the topic's switch to `ready`.
+
 ## 2026-11-09: Module 1, topics 13 and 14: triage and hardening. The module's lessons are complete.
 
 Performance triage (`csa.linux.triage`) and Hardening (`csa.linux.hardening`), as drafts: 31 recall items, 14 of them `predict_shell`. With these, **all fourteen topics of Module 1 are drafted**: 228 recall items across the module, 120 of them shell predictions proven in real bash, each topic with a lesson for a complete beginner, an explain prompt with rubric and model answer, four to six skills and a review pool. The checkpoint, *the broken server*, stays a planned outline until the lab checker can run it.

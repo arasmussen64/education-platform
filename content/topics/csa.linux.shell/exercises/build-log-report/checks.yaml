@@ -1,0 +1,24 @@
+# The checks for "A report from the shop's logs". Each runs inside the
+# container as root and only reads. Without an `expect`, exit status 0 passes.
+# The truth is computed from the logs themselves, so a change to seed.sh can't
+# make a check stale.
+checks:
+  - id: report-folder
+    description: "A folder called report exists in your home folder."
+    command: test -d /home/learner/report
+  - id: failed-count
+    description: "failed-count.txt holds the number of requests with a 5xx status."
+    command: |
+      [ "$(tr -d '[:space:]' < /home/learner/report/failed-count.txt)" = "$(awk '$3 ~ /^5[0-9][0-9]$/' /var/log/shop/access.log | wc -l)" ]
+  - id: top-path
+    description: "top-path.txt names the most requested path."
+    command: |
+      [ "$(tr -d '[:space:]' < /home/learner/report/top-path.txt)" = "$(awk '{print $2}' /var/log/shop/access.log | sort | uniq -c | sort -rn | head -n 1 | awk '{print $2}')" ]
+  - id: unique-users
+    description: "unique-users.txt holds the number of distinct users in requests.csv, without the header."
+    command: |
+      [ "$(tr -d '[:space:]' < /home/learner/report/unique-users.txt)" = "$(tail -n +2 /var/log/shop/requests.csv | cut -d, -f1 | sort -u | wc -l)" ]
+  - id: errors-file
+    description: "errors.txt holds every app.log line that mentions an error, in any case, in order, unchanged."
+    command: |
+      diff -q <(grep -i error /var/log/shop/app.log) /home/learner/report/errors.txt
