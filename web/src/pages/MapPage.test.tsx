@@ -119,6 +119,11 @@ describe('progress on the map', () => {
     expect(
       await within(row('Programs and print')).findByText(/Fading: review due/),
     ).toBeInTheDocument()
+    // The living map: how well the topic is predicted to be remembered.
+    const memory = within(row('Programs and print')).getByText(/^Memory: \d+%$/)
+    expect(Number(/\d+/.exec(memory.textContent ?? '')?.[0])).toBeLessThan(90)
+    // A topic that isn't Learned yet has no memory to show.
+    expect(within(row('Variables')).queryByText(/Memory:/)).toBeNull()
   })
 
   it('shows signed-out visitors only whether a topic can be opened', () => {

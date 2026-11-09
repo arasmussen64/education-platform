@@ -20,6 +20,7 @@ import {
   type TopicState,
 } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
+import { memoryPercent } from '../reviews/reviews.ts'
 
 // The topic map: every topic in a track, by module (v1 spec, F9), each with
 // its state for the signed-in learner (F8). /map shows the first track, and
@@ -116,6 +117,8 @@ function LoadedTrackMap({ track }: { track: Track }) {
   )
   const progress = useProgress(topics)
   const anythingOpen = topics.some(isOpen)
+  // Read the clock once, when the map opens, for the memory percentages.
+  const [now] = useState(() => new Date().toISOString())
 
   return (
     <section className="space-y-8">
@@ -135,6 +138,7 @@ function LoadedTrackMap({ track }: { track: Track }) {
             module={module}
             number={index + 1}
             progress={progress}
+            now={now}
           />
         ))}
       </ol>
@@ -176,10 +180,12 @@ function ModuleSection({
   module,
   number,
   progress,
+  now,
 }: {
   module: Module
   number: number
   progress: ProgressState
+  now: string
 }) {
   const rows = (ids: string[]) =>
     ids.map((topicId) => {
@@ -193,6 +199,7 @@ function ModuleSection({
           topic={topic}
           progress={known ? progress.progress.get(topicId) : undefined}
           state={known ? stateOf(topic, progress.progress) : undefined}
+          now={now}
         />
       )
     })
@@ -288,18 +295,23 @@ function TopicRow({
   topic,
   progress,
   state,
+  now,
 }: {
   topic: Topic
   /** The learner's progress, once it has loaded. */
   progress?: TopicProgress
   /** The topic's state for the learner, once known (F8). */
   state?: TopicState
+  now: string
 }) {
   // A signed-in learner sees the topic's state; everyone else, whether it
   // can be opened.
   const shown = state ? STATE_LABELS[state] : availability(topic)
   const open = isOpen(topic)
   const note = progress ? passedNote(progress) : null
+  // The living map: a Learned topic shows how well it's predicted to be
+  // remembered right now, so the spacing is something the learner can see.
+  const memory = progress?.card ? memoryPercent(progress.card, now) : null
   return (
     <li
       className={`rounded-lg border p-3 ${
@@ -326,6 +338,20 @@ function TopicRow({
       {note && (
         <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">
           {note}
+        </p>
+      )}
+      {memory !== null && (
+        <p className="mt-1 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+          <span>Memory: {memory}%</span>
+          {/* The words carry the meaning; the bar only shows it at a glance. */}
+          <meter
+            className="h-2 w-24"
+            min={0}
+            max={100}
+            low={90}
+            value={memory}
+            aria-hidden="true"
+          />
         </p>
       )}
     </li>

@@ -40,6 +40,15 @@ export function dueReviews(
   return due.sort((a, b) => a.retrievability - b.retrievability).slice(0, limit)
 }
 
+/**
+ * The predicted chance of still remembering a Learned topic, as a whole
+ * percentage, for the map (roadmap: "the living map"). 100 right after a
+ * review, drifting down until the next one is due at the 90% target.
+ */
+export function memoryPercent(card: Card, now: string): number {
+  return Math.round(100 * retrievabilityAt(card, now))
+}
+
 /** Whether an item asks for code or a prediction, rather than a choice. */
 function isCodeOrPredict(content: TopicContent, itemId: string): boolean {
   const type = content.recall[itemId]?.type

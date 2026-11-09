@@ -2,6 +2,19 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The living map, first version
+
+The Phase 2 item "topics fade as their predicted memory strength drops", in its smallest useful form. The review scheduler (FSRS, ADR-0009) already predicts, for every Learned topic, the chance that the learner still remembers it; the map now shows that number.
+
+**What changed.** `memoryPercent(card, now)` in `reviews.ts` rounds the scheduler's retrievability to a whole percentage. Each Learned topic's row on the map shows "Memory: 86%" and a small `<meter>` (marked decorative, since the words carry the meaning; the bar changes color below the 90% retention target, where a review falls due). The map reads the clock once when it opens. Topics that aren't Learned show nothing new.
+
+**Decisions for you to review:**
+1. *Numbers and a bar, not dimmed rows.* Fading the row itself would make a half-forgotten topic's title hard to read, which punishes exactly the learner who should click it. The percentage and the bar show the same thing legibly.
+2. *100% right after a review.* The scheduler's model says so, and it's honest about what it is: a prediction that decays, not a grade.
+3. *Only on the map,* not the topic page or Today, where the state label and the due reviews already say what matters.
+
+**Next:** your go on the deploys; then the cloud track's Stage 1 drills (ADR-0014) and the lab checker.
+
 ## 2026-11-09: Every exercise proven in the browser's Python
 
 A gap closed. The validator runs every exercise under CPython, and the harness scenarios prove the two runtimes agree on a small set of programs, but no check ran the actual exercises in Pyodide. Module 6 brought new ground (files, `csv`, `importlib` in tests), so it was time.
