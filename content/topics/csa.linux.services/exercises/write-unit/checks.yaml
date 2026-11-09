@@ -1,0 +1,48 @@
+# The checks for "Write a unit file": the unit is in the right place and asks
+# for everything the prompt asks for, and the worker's lines reach the journal.
+checks:
+  - id: unit-in-etc
+    description: "/etc/systemd/system/shop-worker.service exists."
+    command: test -f /etc/systemd/system/shop-worker.service
+  - id: active
+    description: "shop-worker is running."
+    command: systemctl is-active shop-worker
+    expect:
+      equals: active
+  - id: enabled
+    description: "shop-worker is enabled, so it starts at boot."
+    command: systemctl is-enabled shop-worker
+    expect:
+      equals: enabled
+  - id: runs-as-shop
+    description: "The worker runs as the shop user."
+    command: ps -o user= -p "$(systemctl show -p MainPID --value shop-worker)"
+    expect:
+      equals: shop
+  - id: working-directory
+    description: "Its working directory is /srv/shop-worker."
+    command: systemctl show -p WorkingDirectory --value shop-worker
+    expect:
+      equals: /srv/shop-worker
+  - id: restart-policy
+    description: "systemd restarts it after a failure."
+    command: systemctl show -p Restart --value shop-worker
+    expect:
+      matches: "^(on-failure|always)$"
+  - id: restart-delay
+    description: "It waits five seconds before restarting."
+    command: systemctl show -p RestartUSec --value shop-worker
+    expect:
+      equals: 5s
+  - id: logs
+    description: "Its 'processed order' lines are in the journal."
+    command: |
+      count=0
+      for _ in 1 2 3 4 5 6; do
+        count=$(journalctl -u shop-worker -o cat --no-pager 2>/dev/null | grep -c 'processed order')
+        [ "$count" -ge 1 ] && break
+        sleep 1
+      done
+      echo "$count"
+    expect:
+      gte: 1

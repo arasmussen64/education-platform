@@ -1,0 +1,36 @@
+# The checks for "Finish the unit file": the gaps are gone, systemd runs the
+# service as asked, and the API answers.
+checks:
+  - id: no-gaps
+    description: "The unit file has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /etc/systemd/system/shop-api.service"
+  - id: active
+    description: "shop-api is running."
+    command: systemctl is-active shop-api
+    expect:
+      equals: active
+  - id: enabled
+    description: "shop-api is enabled, so it starts at boot."
+    command: systemctl is-enabled shop-api
+    expect:
+      equals: enabled
+  - id: runs-as-shop
+    description: "The process runs as the shop user, not root."
+    command: ps -o user= -p "$(systemctl show -p MainPID --value shop-api)"
+    expect:
+      equals: shop
+  - id: restart-policy
+    description: "systemd restarts it when it fails."
+    command: systemctl show -p Restart --value shop-api
+    expect:
+      matches: "^(on-failure|always)$"
+  - id: answers
+    description: "curl http://localhost:8080/ gets an answer from shop-api."
+    command: |
+      for _ in 1 2 3 4 5 6; do
+        reply=$(curl -fsS http://localhost:8080/ 2>/dev/null) && break
+        sleep 1
+      done
+      echo "$reply"
+    expect:
+      contains: shop-api

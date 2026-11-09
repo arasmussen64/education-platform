@@ -1,0 +1,14 @@
+id: write-unit
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write a unit file"
+prompt: |
+  The shop's background worker is `/srv/shop-worker/worker.sh`: read it first; it prints a line every few seconds. Write `/etc/systemd/system/shop-worker.service` for it. The service must run as the `shop` user with `/srv/shop-worker` as its working directory, restart five seconds after a failure, and start at boot on a normally booted server. Enable it, start it, read its log in the journal, and run the checks.
+hints:
+  - "Three sections: `[Unit]` with a `Description=`, `[Service]` with how to run it, `[Install]` with `WantedBy=multi-user.target`."
+  - "The `[Service]` lines: `ExecStart=/srv/shop-worker/worker.sh` (the full path), `User=shop`, `WorkingDirectory=/srv/shop-worker`, `Restart=on-failure`, `RestartSec=5`."
+  - "Write the file with `sudo nano /etc/systemd/system/shop-worker.service`, then `sudo systemctl daemon-reload` and `sudo systemctl enable --now shop-worker`. `systemctl status shop-worker` says whether it started; `journalctl -u shop-worker` shows its lines."
+skills: [unit-files, systemctl, journalctl]

@@ -1,0 +1,64 @@
+# The checks for "A service that survives a crash": the unit asks for the
+# right things, the journal is persistent, systemd brought the service back
+# after a crash at least once, and the report files say so.
+checks:
+  - id: active
+    description: "shop-api is running, and stays running."
+    # A service that crashes at once and is restarted is "active" for a
+    # moment each time; a healthy one keeps the same main process.
+    command: |
+      for _ in 1 2 3 4 5 6 7 8; do
+        state=$(systemctl is-active shop-api)
+        [ "$state" = active ] && break
+        sleep 1
+      done
+      pid=$(systemctl show -p MainPID --value shop-api)
+      sleep 2
+      if [ "$(systemctl is-active shop-api)" = active ] && [ "$(systemctl show -p MainPID --value shop-api)" = "$pid" ]; then
+        echo active
+      else
+        echo "not steadily active (last state: $state)"
+      fi
+    expect:
+      equals: active
+  - id: enabled
+    description: "shop-api is enabled, so it starts at boot."
+    command: systemctl is-enabled shop-api
+    expect:
+      equals: enabled
+  - id: runs-as-shop
+    description: "The process runs as the shop user."
+    command: ps -o user= -p "$(systemctl show -p MainPID --value shop-api)"
+    expect:
+      equals: shop
+  - id: restart-policy
+    description: "systemd restarts it when it fails."
+    command: systemctl show -p Restart --value shop-api
+    expect:
+      matches: "^(on-failure|always)$"
+  - id: restart-delay
+    description: "It restarts within five seconds."
+    command: systemctl show -p RestartUSec --value shop-api
+    expect:
+      matches: "^([1-5]s|[1-9][0-9]{0,2}ms)$"
+  - id: persistent-journal
+    description: "The journal is persistent: /var/log/journal exists with the systemd-journal group, and journald is writing to it."
+    command: |
+      test "$(stat -c %G /var/log/journal)" = systemd-journal \
+        && test -n "$(ls -A /var/log/journal)"
+  - id: came-back-by-itself
+    description: "systemd counts at least one automatic restart, so the service crashed and came back on its own."
+    command: systemctl show -p NRestarts --value shop-api
+    expect:
+      gte: 1
+  - id: errors-file
+    description: "~/report/errors.txt holds the service's error-priority journal lines, including the crash, and no ordinary request lines."
+    command: |
+      grep -q 'FATAL: crash requested' /home/learner/report/errors.txt \
+        && ! grep -q 'GET /' /home/learner/report/errors.txt
+  - id: restarts-file
+    description: "~/report/restarts.txt is the number of restarts systemd counts, at least 1."
+    command: cat /home/learner/report/restarts.txt
+    expect:
+      matches: "^[0-9]+$"
+      gte: 1

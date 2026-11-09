@@ -11,13 +11,17 @@ Run from the repository root:
     python -m uv run python tools/labcheck.py check csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py stop  csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py test  csa.linux.shell build-log-report
-    python -m uv run python tools/labcheck.py test  --all
+    python -m uv run python tools/labcheck.py test  --all --jobs 4
 
 `start` builds the lab's image and starts its container; `check` runs the
 checks and prints the result to paste into the lab's box on the site; `stop`
 removes the container. `test` is for authors and CI: the pristine container
 must not pass, the reference solution must pass, every known-wrong fix must
-fail at least one check.
+fail at least one check. `--jobs` tests several labs at once.
+
+A lab whose exercise.yaml says `lab: { init: systemd }` boots systemd as PID 1
+in a privileged container, and the checker waits for the boot to finish before
+asking it anything.
 
 The checker only asks the container questions. It never changes it, except
 when `test` applies a solution to a fresh container of its own.
@@ -32,7 +36,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass
+import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -50,6 +57,8 @@ CHECKER_VERSION = "1"
 CHECK_TIMEOUT_SECONDS = 30
 BUILD_TIMEOUT_SECONDS = 900
 APPLY_TIMEOUT_SECONDS = 300
+# systemd boots in a second or two; a slow machine gets a lot longer.
+BOOT_TIMEOUT_SECONDS = 90
 
 # The learner's account inside every lab image.
 LEARNER = "learner"
@@ -160,29 +169,68 @@ def remove_container(name: str) -> None:
     docker("rm", "-f", name, check=False)
 
 
-def start_container(lab: Lab, name: str | None = None) -> str:
-    """Starts a fresh container for the lab and returns its name."""
-    name = name or lab.container
-    remove_container(name)
+def run_arguments(lab: Lab, name: str) -> list[str]:
+    """The `docker run` arguments for a lab's container."""
     args = ["run", "-d", "--name", name, "--hostname", "lab"]
     if lab.init == "systemd":
-        # systemd needs to be PID 1 with the cgroup tree and /run writable.
+        # systemd has to be PID 1, own a writable cgroup tree and have /run as
+        # a tmpfs. A private cgroup namespace gives it a tree of its own, so
+        # the limits a lab sets (MemoryMax=, CPUQuota=) apply inside the
+        # container the way they do on a server; sharing the host's tree
+        # doesn't (tried on Docker Desktop, 2026-11-09).
         args += [
             "--privileged",
-            "--cgroupns=host",
+            "--cgroupns=private",
             "--tmpfs",
             "/run",
             "--tmpfs",
             "/run/lock",
-            "-v",
-            "/sys/fs/cgroup:/sys/fs/cgroup:rw",
             lab.image,
             "/sbin/init",
         ]
     else:
         args += [lab.image]
-    docker(*args, timeout=120)
+    return args
+
+
+def start_container(lab: Lab, name: str | None = None) -> str:
+    """Starts a fresh container for the lab, booted if it boots; returns its name."""
+    name = name or lab.container
+    remove_container(name)
+    docker(*run_arguments(lab, name), timeout=120)
+    if lab.init == "systemd":
+        wait_for_boot(name)
     return name
+
+
+# What `systemctl is-system-running` says once boot is over: everything is up,
+# or everything is up except a unit that failed (a lab may plant one).
+BOOTED = {"running", "degraded"}
+
+
+def wait_for_boot(
+    container: str,
+    timeout: float = BOOT_TIMEOUT_SECONDS,
+    clock: Callable[[], float] = time.monotonic,
+    pause: Callable[[float], None] = time.sleep,
+) -> str:
+    """Waits until systemd in the container has finished booting; returns its state.
+
+    Checks run too early would see services that haven't started yet.
+    """
+    deadline = clock() + timeout
+    state = "unknown"
+    while True:
+        completed = exec_in(container, "systemctl is-system-running", timeout=15)
+        state = completed.stdout.strip() or completed.stderr.strip() or state
+        if state in BOOTED:
+            return state
+        if clock() >= deadline:
+            raise LabError(
+                f"{container} didn't finish booting in {timeout:g} s "
+                f"(systemd says: {state})"
+            )
+        pause(0.5)
 
 
 def exec_in(
@@ -304,13 +352,17 @@ def title_of(check: CheckResult) -> str:
     return check.description.strip().splitlines()[0]
 
 
-def print_results(results: list[CheckResult], show_detail: bool) -> None:
+def print_results(
+    results: list[CheckResult],
+    show_detail: bool,
+    say: Callable[[str], None] = print,
+) -> None:
     for result in results:
         mark = "PASS" if result.passed else "FAIL"
         line = f"  {mark}  {title_of(result)}"
         if show_detail and not result.passed:
             line += f"\n        {result.detail}"
-        print(line)
+        say(line)
 
 
 # --- Commands ---------------------------------------------------------------------
@@ -380,16 +432,23 @@ def cmd_stop(args: argparse.Namespace) -> int:
 class ContractReport:
     lab: str
     problems: list[str]
+    # What the run printed, kept so parallel runs can print each lab's whole.
+    log: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
         return not self.problems
 
 
-def test_lab(lab: Lab, verbose: bool = True) -> ContractReport:
+def test_lab(
+    lab: Lab,
+    verbose: bool = True,
+    say: Callable[[str], None] = print,
+) -> ContractReport:
     """The contract: pristine fails, the solution passes, every wrong fix fails."""
     problems: list[str] = []
-    say = print if verbose else (lambda *_: None)
+    if not verbose:
+        say = lambda _: None  # noqa: E731
     say(f"== {lab.name}")
     say("  building the image...")
     build_image(lab)
@@ -417,7 +476,7 @@ def test_lab(lab: Lab, verbose: bool = True) -> ContractReport:
                         f"after solution.sh, {result.id} fails: {result.detail}"
                     )
             if verbose:
-                print_results(solved, show_detail=True)
+                print_results(solved, show_detail=True, say=say)
 
         for wrong in sorted(lab.folder.glob("wrong/*.sh")):
             say(f"  {wrong.name}: at least one check must fail")
@@ -434,6 +493,21 @@ def test_lab(lab: Lab, verbose: bool = True) -> ContractReport:
     return ContractReport(lab.name, problems)
 
 
+def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
+    """One lab's contract run with its output kept, for running several at once.
+
+    A machine problem (Docker down, an image that won't build) becomes a
+    problem of that lab rather than ending the whole run.
+    """
+    log: list[str] = []
+    try:
+        report = test_lab(load_lab(topic_id, exercise_id), say=log.append)
+    except LabError as error:
+        report = ContractReport(f"{topic_id}/{exercise_id}", [f"labcheck: {error}"])
+    report.log = log
+    return report
+
+
 def cmd_test(args: argparse.Namespace) -> int:
     if args.all:
         targets = find_labs()
@@ -441,7 +515,17 @@ def cmd_test(args: argparse.Namespace) -> int:
         targets = [(args.topic, args.exercise)]
     else:
         raise LabError("test needs a topic and an exercise, or --all")
-    reports = [test_lab(load_lab(topic, exercise)) for topic, exercise in targets]
+    jobs = max(1, args.jobs)
+    if jobs == 1:
+        reports = [test_lab(load_lab(topic, exercise)) for topic, exercise in targets]
+    else:
+        # Docker runs the containers side by side; each lab's output is
+        # printed whole when it finishes, so the runs don't interleave.
+        reports = []
+        with ThreadPoolExecutor(max_workers=jobs) as pool:
+            for report in pool.map(lambda t: test_quietly(*t), targets):
+                print("\n".join(report.log))
+                reports.append(report)
     broken = [report for report in reports if not report.ok]
     print()
     for report in reports:
@@ -473,6 +557,12 @@ def main(argv: list[str] | None = None) -> int:
     test.add_argument("topic", nargs="?")
     test.add_argument("exercise", nargs="?")
     test.add_argument("--all", action="store_true", help="every lab in content/")
+    test.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="how many labs to test at once (CI uses 4)",
+    )
     test.set_defaults(run=cmd_test)
 
     args = parser.parse_args(argv)

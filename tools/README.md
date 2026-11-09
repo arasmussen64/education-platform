@@ -22,5 +22,5 @@ python -m uv run python tools/labcheck.py list                                  
 python -m uv run python tools/labcheck.py start csa.linux.shell build-log-report  build and start it
 python -m uv run python tools/labcheck.py check csa.linux.shell build-log-report  run the checks, print the result
 python -m uv run python tools/labcheck.py stop  csa.linux.shell build-log-report  remove the container
-python -m uv run python tools/labcheck.py test  --all                           prove every lab's contract
+python -m uv run python tools/labcheck.py test  --all --jobs 4                  prove every lab's contract, four at a time
 ```

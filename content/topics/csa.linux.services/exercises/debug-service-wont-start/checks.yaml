@@ -1,0 +1,42 @@
+# The checks for "The service that won't start": it runs, as the right user,
+# on the right port, and is still enabled.
+checks:
+  - id: active
+    description: "shop-api is running, and stays running."
+    # A service that crashes at once and is restarted is "active" for a
+    # moment each time; a healthy one keeps the same main process.
+    command: |
+      for _ in 1 2 3 4 5 6 7 8; do
+        state=$(systemctl is-active shop-api)
+        [ "$state" = active ] && break
+        sleep 1
+      done
+      pid=$(systemctl show -p MainPID --value shop-api)
+      sleep 2
+      if [ "$(systemctl is-active shop-api)" = active ] && [ "$(systemctl show -p MainPID --value shop-api)" = "$pid" ]; then
+        echo active
+      else
+        echo "not steadily active (last state: $state)"
+      fi
+    expect:
+      equals: active
+  - id: runs-as-shop
+    description: "The process runs as the shop user."
+    command: ps -o user= -p "$(systemctl show -p MainPID --value shop-api)"
+    expect:
+      equals: shop
+  - id: answers
+    description: "curl http://localhost:8080/ gets an answer from shop-api."
+    command: |
+      for _ in 1 2 3 4 5 6; do
+        reply=$(curl -fsS http://localhost:8080/ 2>/dev/null) && break
+        sleep 1
+      done
+      echo "$reply"
+    expect:
+      contains: shop-api
+  - id: enabled
+    description: "shop-api is still enabled."
+    command: systemctl is-enabled shop-api
+    expect:
+      equals: enabled

@@ -1,0 +1,14 @@
+id: fill-unit-gaps
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the unit file"
+prompt: |
+  In the lab, `/etc/systemd/system/shop-api.service` describes the shop's web API, a Python program at `/srv/shop-api/server.py` that answers on port 8080. Four of its lines have `...` where a value belongs. Fill them in so that the service runs as the `shop` user, starts Python by its full path, restarts when it fails, and starts at boot on a normally booted server. Edit it with `sudo nano /etc/systemd/system/shop-api.service`. Then tell systemd about the change, enable and start the service, and check that `curl http://localhost:8080/` answers. Then run the checks.
+hints:
+  - "`User=shop`. The full path to Python is what `which python3` prints: `ExecStart=/usr/bin/python3 /srv/shop-api/server.py`."
+  - "`Restart=on-failure` restarts it after an error exit or a crash. A normally booted server is `multi-user.target`, so `WantedBy=multi-user.target`."
+  - "After editing: `sudo systemctl daemon-reload`, then `sudo systemctl enable --now shop-api`. `systemctl status shop-api` and `journalctl -u shop-api` show what happened."
+skills: [unit-files, systemctl]

@@ -1,0 +1,29 @@
+id: example-first-service
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Your first service"
+prompt: |
+  The lab machine boots systemd, like a real server. In `/srv/heartbeat/` there's a tiny program, `heartbeat.sh`, that prints a line every two seconds for as long as it runs: the smallest stand-in for an app that should always be up. A unit file for it is waiting in your home folder. The walkthrough installs the unit, starts the service, makes it start at boot, and reads its log. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "Read the unit file"
+    lines: "1"
+    note: "Three sections. `[Unit]` describes the service; `[Service]` says what to run (`ExecStart=`, with the program's full path), as whom (`User=shop`, never root) and what to do when it fails (`Restart=on-failure`, after `RestartSec=2` seconds); `[Install]` says it belongs to a normally booted server (`WantedBy=multi-user.target`)."
+  - label: "Put it where your units live"
+    lines: "2"
+    note: "Your own unit files go in `/etc/systemd/system/`. Writing there needs root, so the command runs under `sudo`. The file's name is the service's name."
+  - label: "Tell systemd the files changed"
+    lines: "3"
+    note: "systemd reads unit files once and keeps them in memory. `daemon-reload` makes it read them again. Run it after every edit to a unit file."
+  - label: "Enable it and start it"
+    lines: "4"
+    note: "`enable` makes the service start at boot, by linking it into `multi-user.target`; `--now` also starts it right away. `systemctl start heartbeat` alone would start it today and forget it tomorrow."
+  - label: "Look at it"
+    lines: "5"
+    note: "`status` shows the unit is loaded and enabled, that it's active (running) and since when, its main PID, and the last few log lines. If the output is longer than the screen, it opens in a pager; `q` quits."
+  - label: "Read its log"
+    lines: "6"
+    note: "Whatever the program prints goes to the journal. `-u heartbeat` is just this service; `-n 3` the last three lines. Try `journalctl -u heartbeat -f` too: it follows the log live, and Ctrl+C stops following."
+skills: [unit-files, systemctl, journalctl]
