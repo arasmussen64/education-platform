@@ -1,10 +1,78 @@
 id: py.for-and-range
 kind: topic
-status: planned
+status: ready
 title: "for and range"
-summary: "Loop a set number of times, and avoid off-by-one errors."
+summary: "Loop a set number of times with for and range, and avoid off-by-one errors."
 prerequisites: [py.while-loops]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Loop a set number of times, and avoid off-by-one errors."
+  - "Repeat a block a set number of times with `for i in range(n)`, knowing that `i` runs from 0 to n − 1."
+  - "Use `range(start, stop)` and `range(start, stop, step)`, and predict exactly which numbers come out."
+  - "Choose between `for` and `while`: a known number of repeats, or a condition that has to change."
+resources:
+  - title: "CS50P Lecture 2: Loops, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=-7xg8pGcP6w&t=973s
+    type: video
+    use: embed
+    # From the transition to for loops to the start of the user-input
+    # section (16:13 to 26:47): for over a list, range, naming the variable
+    # _ when it isn't used, and printing a repeated string.
+    start: 973
+    end: 1607
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: The range() Function (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/controlflow.html#the-range-function
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-meow
+  - mcq-range-values
+  - predict-range
+  - mcq-for-or-while
+  - fill-times-table
+  - write-squares
+prove:
+  build: build-evens
+  debug: debug-lines
+  explain:
+    prompt: |
+      A friend writes this to print the numbers 1 to 5:
+
+      ```python
+      for i in range(5):
+          print(i)
+      ```
+
+      It prints 0 to 4. In your own words: why does `range(5)` give those numbers, how many times does a loop over `range(n)` run, and what are two different ways to print 1 to 5 instead?
+    rubric:
+      - id: zero-based
+        required: true
+        description: "range(5) starts at 0 and stops before 5: 0, 1, 2, 3, 4."
+      - id: count
+        required: true
+        description: "A loop over range(n) runs exactly n times."
+      - id: fixes
+        required: true
+        description: "Two fixes: range(1, 6), or keep range(5) and print(i + 1)."
+      - id: stop-excluded
+        required: false
+        description: "The stop value is never included, which is why range(1, 6) is needed to reach 5."
+    model_answer: |
+      range(5) counts from 0 and stops before 5, so it gives 0, 1, 2, 3 and 4: five numbers, which is why a loop over range(n) runs exactly n times. The stop value itself is never included. To print 1 to 5, either ask for that range directly, range(1, 6), which starts at 1 and stops before 6, or keep range(5) and print i + 1 inside the loop.
+review_pool:
+  - review-predict-step
+  - review-mcq-count
+  - review-code-fives
+  - review-mcq-choose-loop
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: range-bounds
+    description: "Know that `range(n)` runs 0 to n − 1, and that `range(start, stop, step)` stops before `stop`"
+  - id: for-body
+    description: "Repeat a block with `for`, using the loop variable, or `_` when it isn't needed"
+  - id: for-vs-while
+    description: "Choose `for` for a known number of repeats and `while` for a condition"

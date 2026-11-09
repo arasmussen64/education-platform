@@ -1,10 +1,59 @@
 id: py.m3.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 3: text statistics"
-summary: "Count words and characters, find the longest word, and print simple patterns."
+summary: "Count the words and letters in a line of text, find the longest word and chart the word lengths; then fix a pattern-printing program with several bugs."
 prerequisites: [py.strings-as-sequences, py.nested-loops]
 estimated_minutes: 60
 rev: 1
 objectives:
-  - "Count words and characters, find the longest word, and print simple patterns."
+  - "Walk along a string one character at a time, keeping counts as you go."
+  - "Notice where one word ends and the next begins, and handle the last word, which has no space after it."
+  - "Keep two things at once: the word being built and the longest word so far."
+  - "Draw a pattern with loops and `end=\"\"`: one bar per word, one character per letter."
+  - "Find bugs in nested loops by comparing the output with the expected output, line by line."
+prove:
+  build: build-text-stats
+  debug: debug-triangle
+  explain:
+    prompt: |
+      Here's a working program that finds the longest word in a line of text:
+
+      ```python
+      text = input("Text? ")
+      word = ""
+      longest = ""
+      for ch in text:
+          if ch == " ":
+              if len(word) > len(longest):
+                  longest = word
+              word = ""
+          else:
+              word = word + ch
+      if len(word) > len(longest):
+          longest = word
+      print(longest)
+      ```
+
+      Someone types `we go far`. Trace it for a friend: what do `word` and `longest` hold as the loop goes along, why are the two lines after the loop needed (what would be printed without them), what is `word = ""` for, and what would change for the text `big cat` if `>` became `>=`?
+    rubric:
+      - id: trace
+        required: true
+        description: "word builds up letter by letter (w, we); at each space the finished word is compared with longest (we replaces the empty string; go doesn't beat we) and word is emptied; the loop ends with word holding far, not yet compared."
+      - id: after-loop
+        required: true
+        description: "The last word has no space after it, so it's only compared after the loop; without those lines the program would print we."
+      - id: reset
+        required: true
+        description: "word = \"\" starts the next word from nothing; without it the letters of every word would run together (wego, wegofar)."
+      - id: tie
+        required: true
+        description: "With >=, a later word of the same length would replace an earlier one, so big cat would print cat instead of big."
+    model_answer: |
+      The loop looks at one character at a time. For w and e, word grows to "we". At the first space, the finished word is compared with longest, which is still "", so longest becomes "we", and word is emptied ready for the next word. Then g and o build "go"; at the next space "go" isn't longer than "we", so longest stays, and word is emptied again. Then f, a, r build "far", and the text ends. No space follows the last word, so inside the loop it's never compared: the two lines after the loop do that comparison once more, and longest becomes "far". Without them the program would print "we". The word = "" line matters because otherwise the letters would keep piling up: "wego", then "wegofar". If > became >=, a later word of equal length would replace an earlier one, so for "big cat" the program would print "cat" instead of "big".
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-weather
+  steps: [step-count, step-longest, step-chart, step-outline]
+  versions: [build-number-stats, build-results]

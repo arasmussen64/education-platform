@@ -1,10 +1,79 @@
 id: py.nested-loops
 kind: topic
-status: planned
+status: ready
 title: "Nested loops"
 summary: "Put loops inside loops for grids and patterns."
 prerequisites: [py.accumulator-patterns]
-estimated_minutes: 35
+estimated_minutes: 40
 rev: 1
 objectives:
-  - "Put loops inside loops for grids and patterns."
+  - "Trace a loop inside a loop: the inner loop runs all the way through on every pass of the outer loop."
+  - "Print several things on one line with `end=\"\"`, and end the line with a bare `print()`."
+  - "Draw grids and patterns, rows and columns, using the loop variables to decide what goes where."
+resources:
+  - title: "CS50P Lecture 2: Loops, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=-7xg8pGcP6w&t=3956s
+    type: video
+    use: embed
+    # The Mario section (1:05:56 to 1:19:15): a column of bricks, a row of
+    # bricks with end="", and a 3-by-3 square with a loop inside a loop.
+    start: 3956
+    end: 4755
+    license: CC BY-NC-SA 4.0
+  - title: "Python Tutor: watch an inner loop run inside an outer loop"
+    url: "https://pythontutor.com/visualize.html#code=for%20row%20in%20range%282%29%3A%0A%20%20%20%20for%20col%20in%20range%283%29%3A%0A%20%20%20%20%20%20%20%20print%28row%2C%20col%29%0A%20%20%20%20print%28%22row%20done%22%29&cumulative=false&curInstr=0&heapPrimitives=true&mode=display&origin=opt-frontend.js&py=311&rawInputLstJSON=%5B%5D&textReferences=false"
+    type: interactive
+    use: link
+    license: "Free to use under pythontutor.com's terms of service (© Philip Guo)"
+practice:
+  - example-grid
+  - mcq-how-many
+  - predict-pairs
+  - mcq-end
+  - fill-rectangle
+  - write-triangle
+prove:
+  build: build-pyramid
+  debug: debug-table
+  explain:
+    prompt: |
+      Explain this program to a friend who has only used one loop at a time:
+
+      ```python
+      for row in range(3):
+          for col in range(2):
+              print(row, col)
+          print()
+      ```
+
+      In your own words: how many times does the inner `print` run and in what order do the pairs come out, which of the two variables changes fastest and why, and what does the last line do and why is it indented the way it is?
+    rubric:
+      - id: count-order
+        required: true
+        description: "Six lines: 0 0, 0 1, 1 0, 1 1, 2 0, 2 1."
+      - id: inner-fastest
+        required: true
+        description: "col changes fastest, because the inner loop runs all the way through (both values) on every single pass of the outer loop."
+      - id: blank-line
+        required: true
+        description: "print() with nothing in the brackets prints an empty line, once per outer pass, because it's inside the outer loop but after (not inside) the inner one."
+      - id: indentation
+        required: false
+        description: "The indentation decides which loop a line belongs to."
+    model_answer: |
+      The outer loop gives row the values 0, 1 and 2. For each of those, the inner loop runs completely, giving col the values 0 and 1, so the inner print runs 2 times per outer pass, 6 times in all, and the pairs come out as 0 0, 0 1, then 1 0, 1 1, then 2 0, 2 1. col changes fastest because the whole inner loop happens before row moves on. The last line, print() with nothing in the brackets, prints an empty line. It's indented once, so it belongs to the outer loop but not the inner one: it runs after each row's two pairs, three times in all. Indented twice, it would run after every pair; not indented, it would run once at the end.
+review_pool:
+  - review-predict-nested
+  - review-mcq-print-blank
+  - review-code-rectangle
+  - mcq-how-many
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: inner-outer
+    description: "Trace a loop inside a loop: the inner loop runs completely on every pass of the outer"
+  - id: end-param
+    description: "Print on one line with `end=\"\"` and end the line with a bare `print()`"
+  - id: grids
+    description: "Draw rows and columns, using the loop variables to decide what goes where"

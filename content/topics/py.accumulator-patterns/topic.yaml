@@ -1,10 +1,85 @@
 id: py.accumulator-patterns
 kind: topic
-status: planned
+status: ready
 title: "Accumulator patterns"
 summary: "Sum, count, find the max or min, and search; use break and continue."
 prerequisites: [py.for-and-range]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Sum, count, find the max or min, and search; use break and continue."
+  - "Keep a running total or a count: set a variable before the loop, update it inside, use it after."
+  - "Find the largest or smallest value seen so far, starting from a safe value."
+  - "Leave a loop early with `break`, skip to the next pass with `continue`, and loop with `while True` until the user gives a usable answer."
+resources:
+  - title: "CS50P Lecture 2: Loops, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=-7xg8pGcP6w&t=1607s
+    type: video
+    use: embed
+    # The user-input section (26:47 to 31:34): asking how many times to
+    # meow, insisting on a positive number with while True, continue and
+    # break, then tightening the loop.
+    start: 1607
+    end: 1894
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: break and continue Statements (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/controlflow.html#break-and-continue-statements
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-total
+  - mcq-start-value
+  - predict-odd-total
+  - mcq-safe-start
+  - mcq-break-vs-continue
+  - fill-count-evens
+  - write-largest
+prove:
+  build: build-until-zero
+  debug: debug-average
+  explain:
+    prompt: |
+      A friend's program is meant to find the smallest of the positive numbers the user types, stopping at 0. It always prints `0`:
+
+      ```python
+      smallest = 0
+      while True:
+          n = int(input("Number? "))
+          if n == 0:
+              break
+          if n < smallest:
+              smallest = n
+      print(smallest)
+      ```
+
+      In your own words: why does it always print `0`, what starting value would work and why, and what does `break` do on the line it's on?
+    rubric:
+      - id: why-zero
+        required: true
+        description: "0 is smaller than every positive number, so n < smallest is never True and smallest never changes."
+      - id: safe-start
+        required: true
+        description: "Start from a value no typed number can beat (a very large number), or from the first number typed, for example by treating smallest == 0 as 'nothing yet'."
+      - id: break
+        required: true
+        description: "break leaves the while loop at once, skipping the rest of that pass, and the program continues at print(smallest)."
+      - id: shape
+        required: false
+        description: "The accumulator shape: set before the loop, updated inside it, used after it."
+    model_answer: |
+      The program starts smallest at 0. Every number the user types is positive, so n < smallest is False every time and smallest is never replaced: the loop ends with the starting value still there. A best-so-far variable has to start from something the real values can beat. Either start it very large, like 10 ** 9, so the first number typed replaces it, or treat 0 as "nothing seen yet" and write if smallest == 0 or n < smallest. The break runs when the user types 0: it leaves the while loop immediately, without finishing that pass, and Python carries on at the print after the loop. The shape is the same as for a total or a count: set the variable before the loop, update it inside, use it after.
+review_pool:
+  - review-predict-break
+  - review-mcq-sentinel
+  - review-code-smallest
+  - mcq-safe-start
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: running-total
+    description: "Keep a running total or a count: set it before the loop, update it inside, use it after"
+  - id: best-so-far
+    description: "Find the largest or smallest value by comparing each value with the best so far, from a safe start"
+  - id: break-continue
+    description: "Leave a loop with `break`, skip a pass with `continue`, and loop with `while True` until an answer is usable"

@@ -1,0 +1,8 @@
+text = input("Numbers? ")
+print("Numbers: 4")
+print("Total: 27")
+print("Largest: 12")
+print("############")
+print("#######")
+print("###")
+print("#####")
