@@ -1,10 +1,71 @@
 id: py.nested-data
 kind: topic
-status: planned
+status: ready
 title: "Nested data"
-summary: "Work with lists of lists (grids, matrices) and lists of dicts (records)."
+summary: "Lists inside lists for grids, dictionaries inside lists for records, and how to read, loop over and build them."
 prerequisites: [py.list-algorithms, py.dictionaries]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Work with lists of lists (grids, matrices) and lists of dicts (records)."
+  - "Work with a list of lists as a grid: `grid[row][col]`, a loop over rows with a loop over cells inside, and building one."
+  - "Work with a list of dictionaries as records: each dictionary is one thing with named fields; loop over them, read fields, find and filter."
+  - "Choose a shape for data: a list of lists for a grid of same-kind values, a list of dictionaries for things with named fields."
+resources:
+  - title: "CS50P Lecture 2: Loops, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=-7xg8pGcP6w&t=3371s
+    type: video
+    use: embed
+    # The list-of-dictionaries section (56:11 to 1:05:56): one dictionary
+    # per student, a list of them, and a loop that reads each one's fields.
+    start: 3371
+    end: 3956
+    license: CC BY-NC-SA 4.0
+  - title: "Python Tutor: a grid and a list of records, drawn as boxes inside boxes"
+    url: "https://pythontutor.com/visualize.html#code=grid%20%3D%20%5B%5B1%2C%202%2C%203%5D%2C%20%5B4%2C%205%2C%206%5D%5D%0Aprint%28grid%5B1%5D%5B0%5D%29%0Astudents%20%3D%20%5B%7B%22name%22%3A%20%22Ada%22%2C%20%22score%22%3A%2091%7D%2C%20%7B%22name%22%3A%20%22Bob%22%2C%20%22score%22%3A%2078%7D%5D%0Afor%20student%20in%20students%3A%0A%20%20%20%20print%28student%5B%22name%22%5D%2C%20student%5B%22score%22%5D%29%0A&cumulative=false&curInstr=0&heapPrimitives=true&mode=display&origin=opt-frontend.js&py=311&rawInputLstJSON=%5B%5D&textReferences=false"
+    type: interactive
+    use: link
+    license: "Free to use under pythontutor.com's terms of service (© Philip Guo)"
+practice:
+  - example-grid-records
+  - mcq-grid-index
+  - predict-records
+  - mcq-choose-shape
+  - fill-row-totals
+  - write-names-over
+prove:
+  build: build-class-list
+  debug: debug-nested
+  explain:
+    prompt: |
+      A friend keeps students as two separate lists, `names` and `scores`, and keeps getting them out of step. Explain the list-of-dictionaries shape to them: what one record is and what it looks like, how to get the second student's score, how to loop over all the students and print each one, why `students[1]["score"]` reads from the outside in, and when a list of lists would be the better shape instead.
+    rubric:
+      - id: record
+        required: true
+        description: "Each student is a dictionary with named fields, like {\"name\": \"Bob\", \"score\": 78}, so a name and its score can't come apart; the list holds one dictionary per student."
+      - id: access
+        required: true
+        description: "students[1] is the second dictionary, and [\"score\"] then reads one field of it: outer brackets first, then inner."
+      - id: loop
+        required: true
+        description: "for student in students: gives one dictionary at a time, and student[\"name\"], student[\"score\"] read its fields."
+      - id: shape
+        required: true
+        description: "A list of lists suits a grid of same-kind values reached by row and column; a list of dictionaries suits things with named fields."
+    model_answer: |
+      Keep each student's facts together in one dictionary: {"name": "Bob", "score": 78}. That's one record, with named fields, so the name and the score can never slip out of step. The class is a list of those dictionaries, one per student. To get the second student's score, work from the outside in: students[1] picks the second dictionary, and ["score"] reads that field of it. To print them all, loop over the list: for student in students, then student["name"] and student["score"] on each. A list of lists is the better shape when everything is the same kind of value and you reach it by position, like the cells of a grid: grid[row][col]. When the parts have names, use dictionaries; when they have positions, use lists.
+review_pool:
+  - review-predict-grid
+  - review-mcq-field
+  - review-mcq-shape-grid
+  - review-code-column
+  - mcq-grid-index
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: grids
+    description: "Read, loop over and build a list of lists, as a grid of rows and columns"
+  - id: records
+    description: "Read, loop over, find and filter a list of dictionaries, as records with named fields"
+  - id: shape
+    description: "Choose between a list of lists and a list of dictionaries for a set of data"

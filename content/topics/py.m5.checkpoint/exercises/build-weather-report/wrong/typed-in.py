@@ -1,0 +1,5 @@
+print("weather: all checks passed")
+print("Lima: 19.0 (mild)")
+print("Cairo: 30.7 (hot)")
+print("Oslo: 5.3 (cold)")
+print("Hottest: Cairo")

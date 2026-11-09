@@ -1,0 +1,42 @@
+<Intro>
+
+Here's a surprise waiting for every new programmer: you make a list, give it a second name, change the second one, and the first one changes too. It isn't a bug. It's how Python's names work, and once you see it clearly it never surprises you again. It matters more and more from here: in Module 6 and in machine learning, where huge arrays are passed around, a hidden shared list is one of the most common bugs there is.
+
+This topic has no lecture clip. Instead:
+
+1. **Open the first Python Tutor link** (below) and press **Next >** one step at a time. Watch the arrows on the right: `b = a` draws a second arrow to the *same* list, and `b.append(4)` grows the one list both arrows point at. Then `c = a[:]` makes a *new* list, and `c.append(5)` touches only that.
+2. **Read Ned Batchelder's article** (under *More resources*), at least as far as "Python passes function arguments by assigning to them". Each idea is labelled a *fact* or a *myth*; the facts about names referring to values, assignment never copying, and changes showing through every name are the ones to take away. The diagrams are the same arrows Python Tutor draws.
+3. **Open the second Python Tutor link** and watch two functions: one that *changes* the caller's list through its parameter, and one that only points its own name at a new list, leaving the caller's list alone.
+
+The PyCon talk is the same material as the article, as a half-hour video, if you'd rather watch.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+**Names refer to values; assignment never copies.**
+
+```python
+a = [1, 2, 3]
+b = a            # two names, one list (an alias)
+b.append(4)      # changes the one list
+print(a)         # [1, 2, 3, 4]: the change shows through a too
+```
+
+- **A change to a list shows through every name that refers to it.** That's true for `append`, `del`, `sort`, `items[0] = ...`, and any other change in place.
+- **Reassigning a name is different.** `b = [9]` points `b` at a new list; `a` is untouched. Changing *the list* and changing *where a name points* are two different things.
+- **Numbers and strings can't be changed in place,** so this never shows up with them: `n = m; n += 1` makes `n` refer to a new number. Lists (and dictionaries) can be changed in place, and that's when sharing matters.
+
+**Copying,** when you need a list of your own: `list(a)`, `a[:]` or `a.copy()` all make a new list with the same items. (If the items are themselves lists, the copy shares those inner lists; the next topic comes back to this.)
+
+**`==` and `is`:** `a == b` asks whether two lists have the same contents; `a is b` asks whether they're the very same list. After `b = a`, both are `True`; after `b = list(a)`, only `==` is.
+
+**Functions.** Calling `f(shopping)` assigns the list to `f`'s parameter: the parameter is another name for the same list.
+
+- A function that calls `items.append(...)`, `items.sort()` or `del items[0]` **changes the caller's list**.
+- A function that does `items = [...]` only **rebinds its own name**; the caller sees nothing.
+- The safe habit: **return a new list and leave the argument alone** (`sorted`, not `sort`; build a result with a loop and `append`). When a function does change its argument on purpose, say so in its docstring and return `None`, the way `append` does, so nobody is tempted to write `items = f(items)`.
+
+</Recap>

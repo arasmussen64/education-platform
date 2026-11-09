@@ -1,10 +1,78 @@
 id: py.lists
 kind: topic
-status: planned
+status: ready
 title: "Lists"
-summary: "Create, index, change and grow lists."
+summary: "Create a list, index into it, change and grow it, and loop over it."
 prerequisites: [py.m4.checkpoint]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Create, index, change and grow lists."
+  - "Make a list with square brackets, read items by position from the front (0) and the back (−1), and measure it with `len()`."
+  - "Change a list: replace an item by position, add to the end with `append`, remove one, and check whether something is in it with `in`."
+  - "Loop over a list's items with `for`, or over its positions with `range(len(...))` when the position matters."
+resources:
+  - title: "CS50P Lecture 2: Loops, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=-7xg8pGcP6w&t=2095s
+    type: video
+    use: embed
+    # The lists section (34:55 to 45:36): a list of students, indexing from
+    # 0, looping over the items, len, and range(len(...)) for positions.
+    start: 2095
+    end: 2736
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: Lists (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/introduction.html#lists
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-shopping
+  - mcq-index-list
+  - predict-append
+  - mcq-in-list
+  - fill-total
+  - write-count-over
+prove:
+  build: build-list-functions
+  debug: debug-list
+  explain:
+    prompt: |
+      A friend writes this and gets `TypeError: 'NoneType' object is not subscriptable` on the last line:
+
+      ```python
+      names = ["Ada", "Bob"]
+      names = names.append("Cy")
+      print(names[len(names)])
+      ```
+
+      In your own words: what does `append` do, and what does it give back? Why did `names` become `None`? How should the second line read? And once that's fixed, why would `names[len(names)]` still fail, and what should it be?
+    rubric:
+      - id: append-in-place
+        required: true
+        description: "append adds the item to the end of the list it's called on, changing that list; it returns None."
+      - id: none
+        required: true
+        description: "Assigning the result replaced the list with None, so names no longer refers to a list."
+      - id: fix
+        required: true
+        description: "Just names.append(\"Cy\"), with no assignment."
+      - id: index
+        required: true
+        description: "Positions run from 0 to len(names) - 1, so len(names) is one past the end; the last item is names[-1] or names[len(names) - 1]."
+    model_answer: |
+      append changes the list it's called on: it adds the item to the end, in place. It doesn't give the list back; it returns None. So names = names.append("Cy") first adds Cy to the list and then throws the list away by making names refer to None, and the next line tries to index into None. The fix is to drop the assignment: names.append("Cy") on its own. After that, names has three items at positions 0, 1 and 2, so names[len(names)] asks for position 3, which doesn't exist and raises an IndexError. The last item is names[-1], or names[len(names) - 1].
+review_pool:
+  - review-predict-change
+  - review-mcq-last-item
+  - review-code-reversed
+  - mcq-in-list
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: create-index
+    description: "Make a list, read items by position from the front or the back, and measure it with `len()`"
+  - id: change-grow
+    description: "Replace an item, `append` to the end, remove one, and test membership with `in`"
+  - id: loop-lists
+    description: "Loop over a list's items, or over its positions when the position matters"

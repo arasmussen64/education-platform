@@ -1,10 +1,73 @@
 id: py.list-algorithms
 kind: topic
-status: planned
+status: ready
 title: "List algorithms"
-summary: "Filter, transform, search, sort and slice lists."
+summary: "Filter and transform lists into new lists, search them, and sort and slice them."
 prerequisites: [py.lists]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Filter, transform, search, sort and slice lists."
+  - "Build a new list from an old one with a loop and `append`: keep the items that pass a test (filter), or change each item (transform)."
+  - "Search a list: whether something is in it, and the position of the first match, or −1 if there's none."
+  - "Sort and slice: `sorted()` for a new sorted list (and `reverse=True` for highest first), `.sort()` for sorting in place, and `min`, `max` and `sum`."
+resources:
+  - title: "The Python Tutorial: More on Lists (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/datastructures.html#more-on-lists
+    type: reading
+    use: link
+    license: PSF License Version 2
+  - title: "The Python Tutorial: Looping Techniques (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/datastructures.html#looping-techniques
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-filter-transform
+  - mcq-sorted-vs-sort
+  - predict-slice-list
+  - mcq-builtins
+  - mcq-not-found
+  - fill-filter
+  - write-doubled
+prove:
+  build: build-score-tools
+  debug: debug-algorithms
+  explain:
+    prompt: |
+      A friend wants the three highest scores and writes:
+
+      ```python
+      top = scores.sort()[:3]
+      ```
+
+      They get `TypeError: 'NoneType' object is not subscriptable`. In your own words: what's the difference between `scores.sort()` and `sorted(scores)`, and why did this line fail? What does the slice `[:3]` take? How would you get the three *highest* rather than the three lowest? And how would you build a list of only the passing scores?
+    rubric:
+      - id: sort-vs-sorted
+        required: true
+        description: "sort() changes the list in place and returns None, which is what the slice was applied to; sorted(scores) returns a new sorted list and leaves scores alone."
+      - id: slice
+        required: true
+        description: "[:3] takes the first three items (positions 0, 1 and 2) of a list."
+      - id: highest-first
+        required: true
+        description: "sorted(scores, reverse=True)[:3], or sort ascending and take the last three with [-3:]."
+      - id: filter-pattern
+        required: true
+        description: "Start a new empty list, loop over the scores, and append each one that passes the test; return or use the new list."
+    model_answer: |
+      scores.sort() sorts the list where it is and gives back None, so the line tried to slice None. sorted(scores) is a function that gives back a new, sorted list and leaves the original as it was, which is what you want here. A slice like [:3] takes the items at positions 0, 1 and 2: the first three. Since sorted puts the smallest first, [:3] would give the three lowest; sorted(scores, reverse=True)[:3] puts the biggest first and takes three of them. To keep only the passing scores, use the filter pattern: start with an empty list, loop over scores, and append each score that is at least the pass mark, then use that new list.
+review_pool:
+  - review-predict-search
+  - review-mcq-highest
+  - review-code-evens
+  - mcq-sorted-vs-sort
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: filter-transform
+    description: "Build a new list from an old one with a loop and `append`, keeping some items or changing each"
+  - id: search
+    description: "Search a list: membership with `in`, and the position of the first match or −1"
+  - id: sort-slice
+    description: "Use `sorted()`, `.sort()`, slices, and `min`, `max` and `sum` on lists"

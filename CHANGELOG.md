@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Module 5 content: Collections)
+
+- **Five new topics, all ready:** Lists, List algorithms, References and mutation, Dictionaries, and Nested data. Each has a lesson, a practice ladder, the three proof checks, a review pool and skills.
+  - Lists, Dictionaries and Nested data are built on three more clips of CS50P Lecture 2, timed from CS50's subtitles: the list of students (34:55 to 45:36), the dictionary of houses (45:36 to 56:11), and the list of dictionaries (56:11 to 1:05:56). List algorithms is built on the Python tutorial's More on Lists and Looping Techniques. References and mutation is built around two Python Tutor programs that draw names as arrows, with Ned Batchelder's "Facts and myths about Python names and values" (the article, and his PyCon 2015 talk) as the reading and video, both linked.
+  - Filtering and transforming are taught as a loop with `append`; comprehensions are named as a later shortcut. Counting with a dictionary is taught both ways: check with `in`, or `get(key, 0) + 1`.
+  - Every build in the module checks that the functions leave the lists they're given unchanged, so "don't change what you were given" is tested, not just said.
+- **Checkpoint 5: gradebook.** A list of student records, each with a list of scores, turned into report lines by small functions (an average, a letter grade, the best student, the lines), with a test function, docstrings, data left untouched, and `main` under the guard; a gradebook whose functions divide wrong, grade off by one, and eat the list they're given; a module-level explain. The way through: an inventory sibling, the build in four steps, and two fresh versions (team stats, weather report). Every test names the skills it checks, across Modules 1 to 5.
+- In all: 39 more exercises and 27 more recall items. The validator runs 749 programs over the content with no problems; 30 topics are ready.
+
 ### Added (Module 4 content: Functions)
 
 - **Five new topics, all ready:** Defining functions, Return values, Scope and the call stack, Decomposition, and Testing with assert. Each has a lesson, a practice ladder, the three proof checks, a review pool and skills.

@@ -1,10 +1,77 @@
 id: py.dictionaries
 kind: topic
-status: planned
+status: ready
 title: "Dictionaries"
-summary: "Look up, update and loop over dicts, and count things with one."
+summary: "Look things up by name instead of position: create a dict, read and change it, loop over it, and count with it."
 prerequisites: [py.lists]
-estimated_minutes: 35
+estimated_minutes: 45
 rev: 1
 objectives:
-  - "Look up, update and loop over dicts, and count things with one."
+  - "Make a dictionary of keys and values, look a value up by its key, add or change an entry, and check whether a key is there with `in`."
+  - "Loop over a dictionary's keys, or over its keys and values together with `items()`."
+  - "Count things with a dictionary: the first time a key is seen, start it at 1; after that, add 1."
+resources:
+  - title: "CS50P Lecture 2: Loops, by David J. Malan (Harvard CS50)"
+    url: https://www.youtube.com/watch?v=-7xg8pGcP6w&t=2736s
+    type: video
+    use: embed
+    # The dictionaries section (45:36 to 56:11): keys and values, curly
+    # braces, looking a student's house up by name, and looping over a
+    # dictionary, which gives its keys.
+    start: 2736
+    end: 3371
+    license: CC BY-NC-SA 4.0
+  - title: "The Python Tutorial: Dictionaries (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/datastructures.html#dictionaries
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-phonebook
+  - mcq-key-error
+  - predict-update
+  - mcq-in-dict
+  - fill-count
+  - write-word-lengths
+prove:
+  build: build-letter-counts
+  debug: debug-dict
+  explain:
+    prompt: |
+      A friend is counting words and gets `KeyError: 'the'` from this line, the first time it runs:
+
+      ```python
+      counts[word] = counts[word] + 1
+      ```
+
+      In your own words: what is a dictionary, and what are its keys and values here? Why does this line fail the first time a word is seen, but would work the second time? Give two ways to fix it. And what does `for word in counts:` give you, the keys or the values?
+    rubric:
+      - id: keys-values
+        required: true
+        description: "A dictionary maps keys to values; here each word is a key and its count is the value."
+      - id: first-time
+        required: true
+        description: "Reading counts[word] for a word that isn't a key yet raises KeyError; once the word has an entry, the line works."
+      - id: fixes
+        required: true
+        description: "Check first (if word in counts: add 1, else: set it to 1), or use counts.get(word, 0) + 1, which gives 0 for a missing key."
+      - id: loop-keys
+        required: true
+        description: "Looping over a dictionary gives its keys; counts[word] or items() gets the values."
+    model_answer: |
+      A dictionary pairs keys with values, the way a real dictionary pairs words with definitions. Here the words are the keys and the counts are the values. counts[word] + 1 has to read the current count first, and the first time a word turns up it has no entry yet, so the lookup raises KeyError; the second time, the entry exists and the line works. One fix is to ask first: if word in counts, add 1, else set counts[word] to 1. The other is counts[word] = counts.get(word, 0) + 1: get gives the value if the key is there and 0 if it isn't. Looping with for word in counts gives the keys, one at a time; counts[word] gets each value, or for word, count in counts.items() gives both together.
+review_pool:
+  - review-predict-loop-dict
+  - review-mcq-get
+  - review-code-count-words
+  - mcq-in-dict
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: lookup-update
+    description: "Make a dict, look a value up by key, add or change an entry, and test a key with `in`"
+  - id: loop-dict
+    description: "Loop over a dict's keys, or over keys and values with `items()`"
+  - id: counting
+    description: "Count things with a dict: start a new key at 1, then add 1 each time"
