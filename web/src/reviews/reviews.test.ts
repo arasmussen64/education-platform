@@ -8,6 +8,7 @@ import {
   DAILY_REVIEW_LIMIT,
   describeGap,
   dueReviews,
+  memoryPercent,
   ratingOf,
 } from './reviews.ts'
 
@@ -23,6 +24,18 @@ function learned(id: string, learnedDay: number) {
   ].map((event) => ({ ...event, topic_id: id, occurred_at: day(learnedDay) }))
   return { topic, events }
 }
+
+describe('memoryPercent', () => {
+  it('is 100 right after a review, near the 90% target when due, and drifts down', () => {
+    const card = replayCard(day(0), [])
+    expect(memoryPercent(card, day(0))).toBe(100)
+    const atDue = memoryPercent(card, card.due)
+    expect(atDue).toBeGreaterThan(80)
+    expect(atDue).toBeLessThan(100)
+    expect(memoryPercent(card, day(365))).toBeLessThan(atDue)
+    expect(memoryPercent(card, day(365))).toBeGreaterThanOrEqual(0)
+  })
+})
 
 describe('dueReviews', () => {
   const a = learned('py.a', 0)

@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the living map)
+
+- **Memory strength on the map.** Every topic you've Learned shows how well the review scheduler predicts you remember it right now, as "Memory: 86%" with a small bar: 100% just after a review, drifting down until a review falls due at the 90% target. It's the same number the scheduler uses to decide what's due, made visible, so the spacing of reviews stops being a mystery.
+
 ### Changed (checks)
 
 - **Every exercise is now proven in the browser's Python too.** The web tests run each ready exercise's reference solution against its tests inside Pyodide, the same way the Check button does, in a few seconds for the whole track. The validator keeps proving, under CPython, that the reference solution passes and the known-wrong ones fail.
