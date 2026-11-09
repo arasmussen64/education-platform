@@ -1,0 +1,29 @@
+# The checks for "The patch script that patches nothing". The first puts
+# the server back to how a fresh night finds it (the old versions, nothing
+# held, no package list, no reboot note) and runs the script once; the rest
+# look at the result.
+checks:
+  - id: fresh-night
+    description: "On a fresh night (old versions, no package list yet), the script runs through without an error."
+    command: |
+      held=$(apt-mark showhold); [ -n "$held" ] && apt-mark unhold $held > /dev/null
+      apt-get update -qq 2>/dev/null
+      apt-get install -y -qq --allow-downgrades shop-agent=1.0 linux-image-shop=6.8.0-1 shop-report=2.0 > /dev/null 2>&1
+      rm -rf /var/lib/apt/lists/*
+      rm -f /run/reboot-required /run/reboot-required.pkgs
+      /home/learner/bin/nightly-patch > /tmp/labcheck-nightly.out 2>&1
+  - id: security-fixes-in
+    description: "shop-agent is 1.1 and linux-image-shop is 6.8.0-2 afterwards."
+    command: echo "$(dpkg-query -W -f='${Version}' shop-agent) $(dpkg-query -W -f='${Version}' linux-image-shop)"
+    expect:
+      equals: "1.1 6.8.0-2"
+  - id: right-package-held
+    description: "shop-report is still 2.0 and is the only package held."
+    command: echo "$(dpkg-query -W -f='${Version}' shop-report) $(apt-mark showhold | tr '\n' ' ')"
+    expect:
+      equals: "2.0 shop-report"
+  - id: says-reboot
+    description: "It said 'reboot needed', because the kernel package changed."
+    command: grep -c 'reboot needed' /tmp/labcheck-nightly.out
+    expect:
+      gte: 1

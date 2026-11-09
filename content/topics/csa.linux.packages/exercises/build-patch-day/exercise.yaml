@@ -1,0 +1,18 @@
+id: build-patch-day
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Patch day"
+prompt: |
+  It's patch day for the shop's server, which gets its software from the shop's own package repository (so `apt` works without the internet here). Do it the careful way:
+
+  1. Refresh the package list and look at what's waiting, and which of it is a security fix.
+  2. The team hasn't tested `shop-report` 2.1 yet: make sure it stays at 2.0 while everything else is upgraded, then upgrade everything else.
+  3. `shop-theme` isn't used any more. Remove it together with its configuration file: afterwards `/etc/shop/theme.conf` must be gone and `dpkg -l` must not list the package at all, not even as removed-with-config.
+  4. Install `shop-dashboard`.
+  5. Report: `~/report/waiting.txt` holds the output of `apt list --upgradable` once you're done (only the package you kept back should still be listed), and `~/report/reboot.txt` holds the single word `yes` or `no`: whether the server needs a reboot, according to the machine itself, not your guess.
+
+  Then run the checks.
+skills: [apt-dnf, patching]

@@ -1,0 +1,16 @@
+id: write-security-updates
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write security-updates"
+prompt: |
+  Write a script, `~/bin/security-updates`, that installs the security fixes and nothing else, the way `unattended-upgrades` does every night. It refreshes the package list, finds the packages whose waiting update comes from the `noble-security` suite, prints `security updates:` followed by their names on one line, upgrades only those packages, and then prints `reboot needed` if the machine says a reboot is needed. When no security update is waiting it prints `nothing to do` instead. Everything else that's waiting (here, `shop-report` from `noble-updates`) stays as it is.
+
+  Make it executable, run it, run it again to see `nothing to do`, and check `apt policy shop-report` is untouched. Then run the checks.
+hints:
+  - "`apt list --upgradable 2>/dev/null` prints one line per waiting update, like `shop-agent/noble-security 1.1 all [upgradable from: 1.0]`. `grep /noble-security` keeps the security ones and `cut -d/ -f1` keeps the name before the slash."
+  - "`sudo apt install -y --only-upgrade $names` upgrades just those packages and installs nothing new. Test for an empty `$names` first: `if [ -z \"$names\" ]; then echo 'nothing to do'; exit 0; fi`."
+  - "The machine says a reboot is needed by creating `/run/reboot-required`: `[ -f /run/reboot-required ] && echo 'reboot needed'`."
+skills: [patching, apt-dnf]

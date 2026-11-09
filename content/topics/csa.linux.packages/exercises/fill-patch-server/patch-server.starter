@@ -1,0 +1,14 @@
+#!/bin/bash
+# Patches this server the careful way: refresh the list, show what's
+# waiting, keep the report tool where it is (2.1 isn't tested yet), upgrade
+# everything else, and say whether a reboot is needed.
+set -e
+sudo apt ...
+apt list ... 2>/dev/null
+sudo apt-mark ... shop-report
+sudo apt ... -y
+if [ -f /run/reboot-required ]; then
+  echo "reboot needed: $(tr '\n' ' ' < /run/reboot-required.pkgs)"
+else
+  echo "no reboot needed"
+fi

@@ -1,6 +1,6 @@
 id: csa.linux.packages
 kind: topic
-status: draft
+status: ready
 title: "Package management and patching"
 summary: "Install, update and pin software with apt and dnf, keep a server patched without breaking it, and know why a cloud fleet is replaced from a fresh image rather than patched in place."
 prerequisites: [csa.linux.shell]
@@ -41,10 +41,13 @@ resources:
     type: reading
     use: link
     license: "Copyright Martin Fowler; linked, not copied"
-# Lessons and recall first (ADR-0017). The browser has no package manager,
-# so the items read apt and dpkg output and repository files with the text
-# tools of the first topic; installing and patching for real comes in the labs.
+# The browser has no package manager, so the recall items read apt and dpkg
+# output and repository files with the text tools of the first topic. The
+# worked example, the fill-in, the write and both proofs are labs on a
+# machine with a package repository of its own, so apt works without the
+# network and gives everyone the same answers (ADR-0017, ADR-0018).
 practice:
+  - example-update-then-look
   - mcq-what-is-a-package
   - pkg-sources-suites
   - mcq-update-vs-upgrade
@@ -61,7 +64,11 @@ practice:
   - mcq-third-party-repo
   - mcq-mutable-vs-immutable
   - mcq-replace-the-fleet
+  - fill-patch-server
+  - write-security-updates
 prove:
+  build: build-patch-day
+  debug: debug-nightly-patch
   explain:
     prompt: |
       A server has been running for two years and nobody dares touch it. Explain, in your own words: how you'd find out what needs updating and which of those are security fixes, and the difference between refreshing the package list and upgrading; how you'd apply the security updates safely, what holding or pinning a package is for, and when a reboot is needed and how you'd know; and why, on a cloud fleet of many identical servers, you'd rather build a new image and replace the servers than patch each one in place.

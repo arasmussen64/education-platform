@@ -1,0 +1,29 @@
+# The checks for "Finish the patch script": the first runs it and keeps
+# what it printed; the rest look at the packages afterwards.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/patch-server"
+  - id: runs
+    description: "The script runs through without an error."
+    command: /home/learner/bin/patch-server > /tmp/labcheck-patch.out 2>&1
+  - id: agent-upgraded
+    description: "shop-agent is at 1.1 afterwards."
+    command: dpkg-query -W -f='${Version}' shop-agent
+    expect:
+      equals: "1.1"
+  - id: kernel-upgraded
+    description: "linux-image-shop is at 6.8.0-2 afterwards."
+    command: dpkg-query -W -f='${Version}' linux-image-shop
+    expect:
+      equals: "6.8.0-2"
+  - id: report-held
+    description: "shop-report is still 2.0, and held."
+    command: echo "$(dpkg-query -W -f='${Version}' shop-report) $(apt-mark showhold)"
+    expect:
+      equals: "2.0 shop-report"
+  - id: says-reboot
+    description: "It said a reboot is needed, naming the kernel package."
+    command: grep 'reboot needed' /tmp/labcheck-patch.out
+    expect:
+      contains: linux-image-shop

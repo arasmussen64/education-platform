@@ -1,0 +1,31 @@
+# The checks for "Patch day": what's upgraded, what's held, what's gone,
+# what's new, and the two report files.
+checks:
+  - id: security-fixes-in
+    description: "shop-agent is 1.1 and linux-image-shop is 6.8.0-2."
+    command: echo "$(dpkg-query -W -f='${Version}' shop-agent) $(dpkg-query -W -f='${Version}' linux-image-shop)"
+    expect:
+      equals: "1.1 6.8.0-2"
+  - id: report-kept-back
+    description: "shop-report is still 2.0, and held so an upgrade won't take it."
+    command: echo "$(dpkg-query -W -f='${Version}' shop-report) $(apt-mark showhold | tr '\n' ' ')"
+    expect:
+      equals: "2.0 shop-report"
+  - id: theme-purged
+    description: "shop-theme is gone entirely: not even dpkg's removed-with-config record, and no /etc/shop/theme.conf."
+    command: "! dpkg-query -W shop-theme > /dev/null 2>&1 && ! test -e /etc/shop/theme.conf"
+  - id: dashboard-installed
+    description: "shop-dashboard is installed."
+    command: dpkg-query -W -f='${Status}' shop-dashboard
+    expect:
+      equals: install ok installed
+  - id: waiting-file
+    description: "~/report/waiting.txt lists shop-report as the only package still waiting."
+    command: grep -c '^[a-z]' /home/learner/report/waiting.txt | tr -d '\n' && echo " $(grep -c '^shop-report/' /home/learner/report/waiting.txt)"
+    expect:
+      equals: "1 1"
+  - id: reboot-file
+    description: "~/report/reboot.txt says yes, because the kernel package was upgraded."
+    command: cat /home/learner/report/reboot.txt
+    expect:
+      equals: "yes"

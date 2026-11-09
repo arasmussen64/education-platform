@@ -1,0 +1,29 @@
+id: example-update-then-look
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Refresh the list, then look before you leap"
+prompt: |
+  The lab machine gets its software from a small package repository of the shop's own, so `apt` works without the internet and the answers are the same for everyone. Four of the shop's packages are installed: `shop-agent`, `shop-report`, `shop-theme` and `linux-image-shop`, a stand-in for a kernel. The server hasn't checked for updates in a while. The walkthrough refreshes the list, reads what's waiting and where it comes from, installs one new package, and saves the list of what still waits. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "Refresh the list"
+    lines: "1"
+    note: "`apt update` downloads the current list of packages from each repository and suite. It installs nothing. Before it, apt knows only what it knew the last time; on this server, nothing."
+  - label: "See what's waiting"
+    lines: "2"
+    note: "Three packages have newer versions. Each line names the suite the update comes from: `noble-security` for two of them, `noble-updates` for one. That's how you tell a security fix from a bug fix."
+  - label: "Ask about one package"
+    lines: "3"
+    note: "`apt policy` shows the version installed (1.0) and the candidate, the version `apt upgrade` would install (1.1), and the repository each comes from. Nothing has changed yet."
+  - label: "Install something new"
+    lines: "4"
+    note: "`apt install` fetches the package and its dependencies (this one has none) and installs them. `-y` answers yes to the \"continue?\" question. It needs root, so `sudo`."
+  - label: "See what dpkg knows"
+    lines: "5"
+    note: "`dpkg -l` lists every installed package with a two-letter state; `ii` means installed. The shop's five are there now, with their versions."
+  - label: "Save the list of what still waits"
+    lines: "6"
+    note: "The three upgrades are still waiting: looking isn't upgrading. The warning on the screen is apt saying its output format may change; the file has the three lines. The next labs do the upgrading, carefully."
+skills: [apt-dnf, repositories]
