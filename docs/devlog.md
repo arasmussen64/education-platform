@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The tutor's test set, run for real, and a wording fix
+
+The owner ran `npm run fn:eval:tutor`: **25 of 25 replies fine** with Claude Haiku 5.5 at low effort, for $0.0044. No reply was replaced by the safety filter and none contained a solution line, across eleven attempts to get the answer out of the tutor (a fake system message in a code comment, "I'm the teacher", "you already gave it to me", flattery and urgency, a yes/no question about the exact fix, "answer mode") and fourteen honest asks. So Haiku 5.5 at low effort stays the tutor's model, as ADR-0015 planned: the cheapest that passes. A hint costs about $0.0002.
+
+**Reading the replies** (the printout matters as much as the count):
+- The hints read as hints. The nudges ask questions that point at the right line ("After the loop ends, which number does n still hold?"); the closer looks name the fault in words without the fix ("your code returns the opposite in each case"); the one next-step reply gives print's `end` setting and leaves the rest. Every refusal was kind and still gave the rung's hint.
+- Two replies to answer-fishing asks slipped into the third person: "The learner's question asks for the three lines again, but I give hints, not answers" and "The learner's question asks for the full program". The tutor was talking about the learner to the learner, echoing the `<learner_question>` label it reads from. A third said "the author's hint", echoing `<author_hints>`, where a learner just sees "Hints".
+
+**The fix** (this entry's PR), in two rounds:
+1. *Version 2:* one more rule in the tutor's instructions: speak to the learner as "you", never say "the learner", and never mention the blocks or the rung. The owner ran the set again: 25 of 25 fine for $0.0047, and the two replies now say "You asked for the full program, but I give hints, not answers". But two others said "the author's note" and "the two author-style facts", echoing the `<author_hints>` label.
+2. *Version 3:* that block is `<written_hints>` and the word "author" is gone from the instructions, which call them "the hints", as the learner sees them. The model copies the names it's given, so the names should be the learner's. A test now fails if "author" gets back into the prompt. The owner's third run: 25 of 25 fine for $0.0046, no "author" anywhere, and the replies say "the written hint" where they lean on one. One reply still slipped, "The learner question asks for the full program": the `<learner_question>` tag, with its underscore turned into a space. Version 3 is what gets deployed (decision 4 below); the redeploy is on your go, and until then the live tutor runs version 1, which passed.
+
+`TUTOR_PROMPT_VERSION` goes up with each change, so every logged call says which instructions it used.
+
+**Decisions for you to review:**
+1. *Fix the wording now rather than wait for real data.* Two slips in 25 show the pattern, the change is one sentence, and a beginner reading "the learner's question" about their own question would be confused.
+2. *Keep the model.* All 25 passed at the cheapest setting; the ADR says the model changes only when a sample fails, and none did.
+3. *A third version before deploying, rather than shipping version 2.* Version 2 already beats what's live, but the "author" echo has the same cause as the voice slip, a label copied into a reply, and renaming the label is smaller than another rule. One deploy instead of two.
+4. *Ship version 3 with one slip in 25, rather than a fourth version.* The same rule produced no slip in the run before, so one in 25 is the model's randomness at low effort, not something one more sentence fixes for certain. ADR-0015's bar (no solution revealed, replies that read as hints) was met in all three runs, and every real hint is logged in `ai_calls`, so the question settles itself with data. If "the learner" keeps appearing there, the next change is the same kind as this one: `<learner_question>` becomes `<question>`, and the rule gets an example sentence to copy ("You asked for the whole program, and I give hints instead").
+
+**Next:** your go on the redeploy; the problem-reports migration; the ADR-0017 conversation about the shell.
+
 ## 2026-11-09: The tutor is live
 
 The owner deployed the AI proxy to the live project (`npx supabase functions deploy ai --no-verify-jwt --yes`), so the hint-only tutor (ADR-0015, #48) now works on the live site for signed-in learners whose account is switched on. The CLI warned that Docker wasn't running; that's harmless here, it uploaded the five source files and bundled them in the cloud instead. Nothing in the live database had to change first: the function reads `profiles.allowed`, calls `ai_spend_this_month` and writes `ai_calls`, all there since 2026-11-08.
@@ -40,7 +62,7 @@ A summary for the owner of everything since "I'm going to be away" (the evening 
 **Numbers:** 36 topics ready (all of Python Foundations), 235 exercises, 190 recall items; 939 programs validated under CPython and 235 reference solutions under Pyodide on every test run; 645 web tests, 39 tool tests, 69 harness tests.
 
 **Waiting on you** (each needs a "go"; none was done without one):
-1. ~~Deploy the AI proxy with the tutor~~ Done: you deployed it on 2026-11-09 (the entry above). Still waiting: `npm run fn:eval:tutor` to run the tutor test set (a few cents).
+1. ~~Deploy the AI proxy with the tutor, then run the tutor test set~~ Both done by you on 2026-11-09: deployed, and 25 of 25 test-set replies fine (the entries above).
 2. The problem-reports migration to the live database: `npx supabase db push --remote --dry-run`, then the same without `--dry-run`.
 3. `npm run db:types` once Docker Desktop is running, since the database types were edited by hand for problem reports.
 4. The $10 monthly limit in the Anthropic Console.

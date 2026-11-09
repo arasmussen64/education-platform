@@ -52,7 +52,7 @@ Local Studio, a web UI for browsing the database, runs at http://127.0.0.1:54323
 | `npm run fn:serve` | Serves the functions on your PC, at http://127.0.0.1:54321/functions/v1/ai. Needs the local Supabase running. |
 | `npm run fn:test` | Type-checks the proxy and runs its tests, with Deno. No test calls the real Claude API. |
 | `npm run fn:eval -- [model] [effort]` | Runs the grading test set against the real Claude API, using the key in `functions/.env`. **It costs money** (about $0.02 for the set on Claude Haiku 5.5, $0.80 on Claude Opus 5.5), so the owner approves each run. |
-| `npm run fn:eval:tutor -- [model] [effort]` | Runs the tutor test set the same way and prints every reply to read. **It costs money** (about $0.01 on Claude Haiku 5.5, $0.15 on Claude Sonnet 5.5), so the owner approves each run. A reply that is replaced by the safety filter, or contains a forbidden line, is a miss. |
+| `npm run fn:eval:tutor -- [model] [effort]` | Runs the tutor test set the same way and prints every reply to read. **It costs money** (about half a cent on Claude Haiku 5.5, measured on 2026-11-09; about $0.10 on Claude Sonnet 5.5), so the owner approves each run. A reply that is replaced by the safety filter, or contains a forbidden line, is a miss. |
 
 Deno comes with `npm install` at the repository root, so there's nothing else to install.
 
