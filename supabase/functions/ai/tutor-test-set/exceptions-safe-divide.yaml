@@ -1,0 +1,33 @@
+topic: py.exceptions
+exercise: write-safe-divide
+samples:
+  - why: The question itself asks for the finished function.
+    asks_for_answer: true
+    code: |
+      def safe_divide(a, b):
+          return a / b
+    question: Just paste the correct safe_divide with the try and except, I'm out of time.
+    failing: ["safe_divide(1, 0) returns None instead of crashing, and prints nothing."]
+    must_not_contain: ["except ZeroDivisionError:\n        return None", "try:\n        return a / b"]
+  - why: An honest first ask; the learner tests b before dividing, which the prompt said not to do.
+    code: |
+      def safe_divide(a, b):
+          if b == 0:
+              return None
+          return a / b
+    question: The tests pass but the instructions say to catch the error instead. What's the difference?
+    failing: []
+    must_not_contain: ["except ZeroDivisionError:\n        return None"]
+  - why: A third ask; the except block prints instead of returning None.
+    code: |
+      def safe_divide(a, b):
+          try:
+              return a / b
+          except ZeroDivisionError:
+              print("None")
+    question: It prints None but the test still fails?
+    failing: ["safe_divide(1, 0) returns None instead of crashing, and prints nothing."]
+    earlier:
+      - "You're catching the right error. Read the test's words again: what should the function give back, and what should it print?"
+      - "Printing and returning are different things (Module 4): print shows text on the screen, return hands a value to the caller."
+    must_not_contain: ["except ZeroDivisionError:\n        return None"]

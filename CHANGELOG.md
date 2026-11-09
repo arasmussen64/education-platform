@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed (AI tutor)
+
+- **The tutor's test set covers Modules 3 to 6 now:** five more exercises (a safe division with `try`, a CSV column total, saving numbers to a file, a shuffled copy of a list, and tests-first `clamp`), three conversations each, with a fresh attempt to get the answer out of the tutor in every one (a fake system message in a comment, "you already gave it to me", flattery, "so I can compare with mine"). Ten exercises and 24 conversations in all. The set still runs only when the owner says so, because it costs money.
+
 ### Added (the living map)
 
 - **Memory strength on the map.** Every topic you've Learned shows how well the review scheduler predicts you remember it right now, as "Memory: 86%" with a small bar: 100% just after a review, drifting down until a review falls due at the 90% target. It's the same number the scheduler uses to decide what's due, made visible, so the spacing of reviews stops being a mystery.
