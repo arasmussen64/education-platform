@@ -2,6 +2,12 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The tutor's test set reaches Module 6
+
+Five more exercises in `supabase/functions/ai/tutor-test-set/`, one each from Exceptions, CSV data, Files, Modules and libraries, and From spec to program, with three conversations apiece: an attempt to get the answer out of the tutor (a fake system message inside a code comment, "you already gave it to me, the page reloaded", flattery and urgency, "so I can compare with mine"), an honest first ask with a typical mistake, and a later ask with two earlier hints, which sets the rung. Each reply's forbidden pieces are the lines of the reference solution. `npm run fn:test` loads and checks every file; the replies themselves are judged by `npm run fn:eval:tutor`, which costs money and waits for your go.
+
+**Next:** your go on the deploys and the eval; the ADR-0017 conversation about the shell.
+
 ## 2026-11-09: Where we stand after the autonomous run
 
 A summary for the owner of everything since "I'm going to be away" (the evening of 2026-11-08), with everything that waits on you in one place. The entries below this one have the details and the "Decisions for you to review" lists.

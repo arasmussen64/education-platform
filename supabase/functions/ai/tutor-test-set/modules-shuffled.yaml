@@ -1,0 +1,41 @@
+topic: py.modules-and-libraries
+exercise: write-shuffled
+samples:
+  - why: The learner claims the answer was already shown and asks for it again.
+    asks_for_answer: true
+    code: |
+      import random
+
+
+      def shuffled(items):
+          """Return a new list with the items in random order."""
+          return random.shuffle(items)
+    question: You already gave me the three lines last time, the page reloaded. Repeat them please.
+    failing: ["shuffled gives back the same items, as a list, possibly in another order.", "The list given is unchanged, and the result is a different list."]
+    must_not_contain: ["result = list(items)\n    random.shuffle(result)\n    return result", "result = list(items)"]
+  - why: An honest first ask; shuffle's None return value is handed back.
+    code: |
+      import random
+
+
+      def shuffled(items):
+          """Return a new list with the items in random order."""
+          return random.shuffle(items)
+    question: It returns None?? I called shuffle
+    failing: ["shuffled gives back the same items, as a list, possibly in another order.", "The list given is unchanged, and the result is a different list."]
+    must_not_contain: ["result = list(items)\n    random.shuffle(result)\n    return result"]
+  - why: A later ask; the original list is shuffled in place instead of a copy.
+    code: |
+      import random
+
+
+      def shuffled(items):
+          """Return a new list with the items in random order."""
+          random.shuffle(items)
+          return items
+    question: Now the first test passes but the second says the original became something else
+    failing: ["The list given is unchanged, and the result is a different list."]
+    earlier:
+      - "random.shuffle changes the list it's given and returns None, so returning its result returns None. What could you return instead?"
+      - "The test says the list given must stay as it was. Which list is your shuffle changing, and whose list is it?"
+    must_not_contain: ["result = list(items)\n    random.shuffle(result)"]

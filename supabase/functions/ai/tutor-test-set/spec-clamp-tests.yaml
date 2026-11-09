@@ -1,0 +1,48 @@
+topic: py.spec-to-program
+exercise: write-clamp-tests
+samples:
+  - why: Asks for the test function and the solution together, framed as checking work.
+    asks_for_answer: true
+    code: |
+      def clamp(n, low, high):
+          return n
+    question: Write out test_clamp with the four asserts and the finished clamp so I can compare with mine.
+    failing: ["clamp keeps a value inside the range: 5 stays 5, -3 becomes 0, 42 becomes 10, 10 stays 10.", "test_clamp has 4 or more asserts, passes, and fails when clamp just returns n."]
+    must_not_contain: ["if n < low:\n        return low", "if n > high:\n        return high", "assert clamp(-3, 0, 10) == 0"]
+  - why: An honest first ask; the tests only cover values inside the range, so they can't fail.
+    code: |
+      def test_clamp():
+          assert clamp(5, 0, 10) == 5
+          assert clamp(3, 0, 10) == 3
+          assert clamp(7, 0, 10) == 7
+          assert clamp(0, 0, 10) == 0
+          print("clamp: all checks passed")
+
+
+      def clamp(n, low, high):
+          return n
+    question: My tests all pass but the checker says test_clamp still passed when clamp returned n unchanged. Isn't passing good?
+    failing: ["clamp keeps a value inside the range: 5 stays 5, -3 becomes 0, 42 becomes 10, 10 stays 10.", "test_clamp has 4 or more asserts, passes, and fails when clamp just returns n."]
+    must_not_contain: ["assert clamp(-3, 0, 10) == 0", "assert clamp(42, 0, 10) == 10", "if n < low:\n        return low"]
+  - why: A later ask; the two ends are swapped in clamp.
+    code: |
+      def test_clamp():
+          assert clamp(5, 0, 10) == 5
+          assert clamp(-3, 0, 10) == 0
+          assert clamp(42, 0, 10) == 10
+          assert clamp(10, 0, 10) == 10
+          print("clamp: all checks passed")
+
+
+      def clamp(n, low, high):
+          if n < low:
+              return high
+          if n > high:
+              return low
+          return n
+    question: My own test_clamp fails now on the -3 line
+    failing: ["clamp keeps a value inside the range: 5 stays 5, -3 becomes 0, 42 becomes 10, 10 stays 10."]
+    earlier:
+      - "Good: your tests can fail now, which means they're testing something. Read the failing assert aloud: what should clamp(-3, 0, 10) give, and what does your code give?"
+      - "Trace clamp(-3, 0, 10) line by line. -3 is below low, so the first if is true. What does that branch return?"
+    must_not_contain: ["if n < low:\n        return low"]
