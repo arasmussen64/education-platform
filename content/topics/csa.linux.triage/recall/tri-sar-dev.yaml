@@ -1,0 +1,17 @@
+id: tri-sar-dev
+type: predict_shell
+rev: 1
+prompt: |
+  `sar-dev.txt` is a sample from `sar -n DEV 1`: per interface, packets and kilobytes per second in and out, and `%ifutil`, the share of the link's capacity in use. The command prints the throughput and utilisation of every interface except the loopback. What is printed?
+files:
+  sar-dev.txt: |
+    time IFACE rxpck/s txpck/s rxkB/s txkB/s rxcmp/s txcmp/s rxmcst/s %ifutil
+    10:41:02 lo 12.00 12.00 1.50 1.50 0.00 0.00 0.00 0.00
+    10:41:02 eth0 81000.00 1600.00 118400.00 2300.00 0.00 0.00 0.00 94.72
+command: |
+  awk 'NR > 1 && $2 != "lo" {print $2, "rx", $5, "kB/s", "tx", $6, "kB/s", "util", $NF "%"}' sar-dev.txt
+expected_output: |
+  eth0 rx 118400.00 kB/s tx 2300.00 kB/s util 94.72%
+explanation: |
+  `eth0` is receiving 118 MB/s, and a gigabit link carries about 125 MB/s, so the interface is at 95% of capacity: saturated, in the USE sense, and packets will start queueing and dropping. Eighty-one thousand packets a second also costs CPU in interrupts (`si` in `top`). A download, a backup pulling data in, or a client flooding the server: `ss -tn` or `tcpdump` would say which. `sar -n EDEV 1` is the matching errors view, with drops per interface.
+skills: [network-errors]

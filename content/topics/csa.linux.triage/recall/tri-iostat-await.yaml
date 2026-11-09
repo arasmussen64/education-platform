@@ -1,0 +1,17 @@
+id: tri-iostat-await
+type: predict_shell
+rev: 1
+prompt: |
+  `iostat.txt` is a simplified sample from `iostat -xz 1`: per disk, reads and writes per second, kilobytes per second, the average wait for reads and writes in milliseconds, the queue size and the utilisation. The command prints, for any disk over 90% busy, its write wait and queue. What is printed?
+files:
+  iostat.txt: |
+    Device r/s w/s rkB/s wkB/s r_await w_await aqu-sz %util
+    nvme0n1 2.0 12.0 48.0 180.0 0.4 0.9 0.01 1.2
+    nvme1n1 15.0 2100.0 420.0 84000.0 3.1 48.2 9.80 99.6
+command: |
+  awk 'NR > 1 && $NF+0 > 90 {print $1, "util", $NF "%", "w_await", $7, "ms", "queue", $8}' iostat.txt
+expected_output: |
+  nvme1n1 util 99.6% w_await 48.2 ms queue 9.80
+explanation: |
+  `nvme1n1` is saturated: busy 99.6% of the time, each write waiting 48 ms (an SSD should be well under 5), and nearly ten requests queued on average. The 84 MB/s of writes at 2,100 per second is probably a cloud volume at its IOPS limit, or a log flood. `nvme0n1` is idle. Together with `wa` in `vmstat` this is the disk's saturation answered; `pidstat -d 1` names the writer. `$NF+0 > 90` reads the last column as a number.
+skills: [disk-io]

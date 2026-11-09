@@ -1,0 +1,23 @@
+id: hard-shell-users
+type: predict_shell
+rev: 1
+prompt: |
+  `passwd` is a server's `/etc/passwd`. Human accounts have user IDs of 1000 and up; service accounts have a shell of `nologin` or `false`. The command prints the human accounts that can actually log in. What is printed?
+files:
+  passwd: |
+    root:x:0:0:root:/root:/bin/bash
+    daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+    ada:x:1000:1000:Ada:/home/ada:/bin/bash
+    deploy:x:1001:1001::/home/deploy:/bin/bash
+    backup:x:1002:1002::/var/backups:/usr/sbin/nologin
+    oldintern:x:1003:1003::/home/oldintern:/bin/bash
+    nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+command: |
+  awk -F: '$3 >= 1000 && $7 !~ /nologin|false/ {print $1}' passwd
+expected_output: |
+  ada
+  deploy
+  oldintern
+explanation: |
+  Three accounts can log in with a shell. `ada` and `deploy` are expected; `oldintern` is the kind of thing an audit exists to find: an account for someone who left, still able to log in, and probably still in `authorized_keys` somewhere. Lock it (`usermod -L`), remove it, or set its shell to `nologin`. The service accounts are correctly unable to log in, and `nobody`'s high ID puts it in the list only to be excluded by its shell.
+skills: [baseline, attack-surface]

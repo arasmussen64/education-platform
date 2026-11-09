@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Module 1, topics 13 and 14: triage and hardening. The module's lessons are complete.
+
+Performance triage (`csa.linux.triage`) and Hardening (`csa.linux.hardening`), as drafts: 31 recall items, 14 of them `predict_shell`. With these, **all fourteen topics of Module 1 are drafted**: 229 recall items across the module, 120 of them shell predictions proven in real bash, each topic with a lesson for a complete beginner, an explain prompt with rubric and model answer, four to six skills and a review pool. The checkpoint, *the broken server*, stays a planned outline until the lab checker can run it.
+
+**The two closers use everything before them.** Triage's items read `dmesg`, `vmstat`, `pidstat`, `iostat`, `strace -c`, `perf report` and `sar` the way the first minute of an incident does, and the lesson is built on Gregg's USE method and the Netflix checklist. Hardening's items audit `ss -ltnp`, `sshd -T`, an `sshd_config`, `ufw status`, `/etc/passwd` and `sudoers`, and read Lynis and OpenSCAP reports, since the spec's proof for this topic is "apply a baseline, then prove it with a benchmark scan". The Netflix article's site refuses automated fetches, so it is linked on Gregg's word and the devlog's; every other URL in the two topics answered 200.
+
+**What Module 1 still needs to go ready,** per ADR-0017: the hands-on half. For each topic a worked example, a fill-in and a write step, and the build and debug proofs, run in a container on the learner's machine through the lab checker's local mode, which is the next build. The checkpoint's five planted faults are the same work at module scale. Until then the module is readable and quizzable on the dev server (`npm run dev` in `web/`, then `/topic/csa.linux.shell` and on), and nothing in it is shown on the live site.
+
+**Decisions for you to review:**
+1. *Triage lists four prerequisites* (memory, CPU, storage, networking) and Hardening four (permissions, services, packages, networking): both are summary topics, and the map should say so.
+2. *The hardening lesson tells the learner to keep SSH on port 22.* Moving the port is a common recommendation and a weak one; the lesson says why, and the explain rubric doesn't penalise either view.
+
+**Next:** the lab checker's local container mode (ADR-0014 and ADR-0017), starting with a lab image for Shell essentials and the checker's read-only `docker exec` probes; then the checkpoint.
+
 ## 2026-11-09: Module 1, topics 10 to 12: networking, boot, scripting
 
 Networking from the host (`csa.linux.net-tools`), Boot, cloud-init and instance metadata (`csa.linux.boot`) and Shell scripting (`csa.linux.scripting`), as drafts: 50 recall items, 25 of them `predict_shell`.

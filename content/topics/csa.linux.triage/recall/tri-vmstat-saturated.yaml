@@ -1,0 +1,21 @@
+id: tri-vmstat-saturated
+type: predict_shell
+rev: 1
+prompt: |
+  `vmstat.txt` is three seconds of `vmstat 1` on a 4-CPU server. After the two header lines, field 1 is `r` (runnable tasks), field 7 is `si` (swap in), field 15 is `id` (idle CPU %) and field 16 is `wa` (waiting on disk %). The command prints those four per second. What is printed?
+files:
+  vmstat.txt: |
+    procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+     r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+    12  0      0 812340  10240 2048000    0    0     0    40 2200 5100 85 10  5  0  0
+    14  0      0 810200  10240 2048000    0    0     0    36 2300 5400 88  9  3  0  0
+    11  0      0 811900  10240 2048000    0    0     0    44 2150 5000 84 11  5  0  0
+command: |
+  awk 'NR > 2 {print "runnable", $1, "swap-in", $7, "idle", $15 "%", "iowait", $16 "%"}' vmstat.txt
+expected_output: |
+  runnable 12 swap-in 0 idle 5% iowait 0%
+  runnable 14 swap-in 0 idle 3% iowait 0%
+  runnable 11 swap-in 0 idle 5% iowait 0%
+explanation: |
+  Eleven to fourteen runnable tasks on four CPUs, every second: CPU saturation, three times over. No swapping, no disk wait, so memory and disk are not the story; the CPU column agrees, with user time around 85% and idle near zero. The next step is `mpstat -P ALL 1` to see whether all four CPUs are busy or one is pinned, then `pidstat 1` to name the process. This is the USE method's saturation question answered by one column.
+skills: [first-minute, use-method]

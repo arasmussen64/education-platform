@@ -1,0 +1,14 @@
+id: mcq-fail2ban-mfa
+type: mcq
+rev: 1
+prompt: |
+  The auth log shows thousands of failed SSH logins a day from the internet. Passwords are already disabled. What's the right level of concern, and what helps?
+choices:
+  - "Critical: move SSH to port 2222 immediately"
+  - "Low: with keys only, password guessing can't succeed; `fail2ban` or rate limits cut the noise in the logs, restricting the source addresses in the security group cuts it further, and the place that really needs multi-factor authentication is the cloud console"
+  - "Critical: disable SSH entirely"
+  - "Low, but only if you also rename the `root` user"
+answer: 1
+explanation: |
+  Guessing attacks need something to guess; against a key there is nothing. What's left is log noise and a little CPU, which `fail2ban` (temporary bans after repeated failures) and a security group that allows SSH only from your network handle. A different port stops some scanners for a week and confuses your own team for years. The cloud console, where one password can create or destroy every server, is where a second factor is worth the friction.
+skills: [ssh-hardening, attack-surface]

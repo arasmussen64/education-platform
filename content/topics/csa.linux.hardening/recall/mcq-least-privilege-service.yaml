@@ -1,0 +1,14 @@
+id: mcq-least-privilege-service
+type: mcq
+rev: 1
+prompt: |
+  A web application's unit file runs it as root "because it needs port 80". What should change, and what cheap extra protection does systemd offer?
+choices:
+  - "Nothing; web servers always run as root"
+  - "Run it as its own unprivileged user (`User=app`) and give it the port through a reverse proxy, `AmbientCapabilities=CAP_NET_BIND_SERVICE`, or a port above 1024; then add `ProtectSystem=strict`, `PrivateTmp=yes` and `NoNewPrivileges=yes` so even a compromised process can't write to the system or gain privileges"
+  - "Run it as root but change the port to 8080"
+  - "Run it as `nobody`, which has no restrictions"
+answer: 1
+explanation: |
+  A bug in a root process is a root compromise; the same bug in `app` reaches only what `app` can. Binding a low port is the only thing root was needed for, and there are three ways around it. systemd's sandboxing options cost one line each and remove whole classes of damage: a read-only system, a private `/tmp`, no privilege escalation. `nobody` is shared by many services, which defeats the point of separate users.
+skills: [baseline]

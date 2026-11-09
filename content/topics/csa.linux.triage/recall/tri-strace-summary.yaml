@@ -1,0 +1,24 @@
+id: tri-strace-summary
+type: predict_shell
+rev: 1
+prompt: |
+  `strace-c.txt` is the summary `strace -c` printed after watching a process for five seconds: for each system call, the share of time, total seconds, microseconds per call, number of calls, and errors. The first command prints the two calls that took the most time; the second prints the error count of `stat`. What is printed?
+files:
+  strace-c.txt: |
+    % time     seconds  usecs/call     calls    errors syscall
+    ------ ----------- ----------- --------- --------- ----------------
+     71.20    3.560000        1780      2000           fsync
+     20.10    1.005000           5    201000           write
+      6.30    0.315000           3    105000           read
+      2.40    0.120000           2     60000     60000 stat
+    ------ ----------- ----------- --------- --------- ----------------
+    100.00    5.000000                368000     60000 total
+command: |
+  awk 'NR > 2 && $NF != "total" && $1 ~ /^[0-9]/ {print $NF, $1 "%"}' strace-c.txt | head -n 2; awk '$NF == "stat" {print $NF, "errors:", $5}' strace-c.txt
+expected_output: |
+  fsync 71.20%
+  write 20.10%
+  stat errors: 60000
+explanation: |
+  Seventy percent of the process's time went into 2,000 `fsync` calls at 1.78 ms each: it forces every write to disk, and the disk's latency is the program's latency. And every one of its 60,000 `stat` calls failed: it keeps looking for a file that isn't there, twelve thousand times a second. Neither shows up in CPU use, which is why `strace -c` is the tool for a slow-but-idle process. The first `awk` skips the headers, the dashes and the total; the second reads the errors column of the `stat` row.
+skills: [cpu-profiling]

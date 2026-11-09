@@ -1,0 +1,28 @@
+id: hard-sshd-config
+type: predict_shell
+rev: 1
+prompt: |
+  `sshd_config` is a hardened SSH server configuration, mostly comments. The command drops the comment lines and the empty ones, leaving the settings that are in force. What is printed?
+files:
+  sshd_config: |
+    # Hardened sshd configuration. Test with: sshd -t
+    # Keep the port: moving it hides nothing from a scanner.
+    Port 22
+
+    # No root, no passwords: keys only, for members of one group.
+    PermitRootLogin no
+    PasswordAuthentication no
+    AllowGroups ssh-users
+    MaxAuthTries 3
+
+    # Include /etc/ssh/sshd_config.d/*.conf
+command: grep -v '^#' sshd_config | grep -v '^$'
+expected_output: |
+  Port 22
+  PermitRootLogin no
+  PasswordAuthentication no
+  AllowGroups ssh-users
+  MaxAuthTries 3
+explanation: |
+  Five lines do the work: port 22 stays, root can't log in, passwords are refused so only keys work, only members of `ssh-users` may log in at all, and a client gets three attempts. The `Include` line is commented out here, but on a real Ubuntu server it's active and comes *first*, so a file in `sshd_config.d/` can override these settings, which is why you check with `sshd -T` after a change and test with `sshd -t` before reloading.
+skills: [ssh-hardening]

@@ -1,0 +1,36 @@
+<Intro>
+
+A server on the internet is scanned within minutes of getting an address, and attacked with every known default: `root` with a dictionary of passwords, every port that answers, every service with a year-old hole. **Hardening** is the short list of changes that make those attacks fail, and the module's last topic because it uses everything before it: permissions, services, packages, the firewall tools. The second half of the topic is about *proving* it, because a baseline you can't demonstrate is a baseline that drifts.
+
+**The baseline.** Every organisation's list differs in detail and agrees in shape:
+
+- **Patched, and staying patched.** Updates applied, and automatic security updates turned on (`unattended-upgrades`). Most compromises use fixes that already existed.
+- **SSH with keys only, no root login.** The two settings that end password guessing: `PasswordAuthentication no` and `PermitRootLogin no`.
+- **A default-deny firewall** with only the ports the server needs, plus the cloud's security group doing the same at the edge.
+- **Fewer services.** Everything listening is a door; remove the doors you don't use.
+- **Least privilege.** People log in as themselves and use `sudo`; services run as their own users; secrets are mode `600`; no `NOPASSWD: ALL` for whole groups.
+- **Time and logs.** A synced clock (so logs, certificates and tokens agree) and logs kept past a reboot and shipped off the machine, so an intruder can't erase their tracks.
+
+**SSH, without locking yourself out.** The settings live in `/etc/ssh/sshd_config` and the files it includes. Set `PasswordAuthentication no` (your key is already installed; check that first), `PermitRootLogin no`, `AllowGroups ssh-users` so only members of that group may log in, `MaxAuthTries 3`, and leave the port alone: moving it off 22 hides nothing from a scanner and confuses everyone else. Then the ritual that saves careers: `sshd -t` checks the file for mistakes *before* you restart; `systemctl reload ssh` applies it; and you **keep your current session open while you open a new one** to prove you can still get in. `sshd -T` prints the settings actually in effect, lowercase, including anything an included file changed, which is how you audit a server you didn't set up. Brute-force noise against port 22 stops mattering once passwords are off; `fail2ban` keeps the logs quieter, and multi-factor authentication belongs on the cloud console, which is the real front door.
+
+**The firewall.** Default deny inbound, allow outbound (for now; later modules tighten egress), and explicit allows: established connections, the loopback, SSH, and the service's ports. On Ubuntu, `ufw default deny incoming`, `ufw allow 22/tcp`, `ufw allow 443/tcp`, `ufw enable`, and `ufw status verbose` to read it back; underneath, it's the nftables ruleset from the networking topic. The cloud **security group** holds the same rules at the network edge, and you set both: they fail independently, and the one somebody loosens "just for a minute" is rarely both.
+
+**Attack surface.** `ss -ltnp` is the audit: everything listening, on which address, by which process. A print server, `rpcbind`, an unused database or a debugging port listening on `0.0.0.0` is a door to close: uninstall the package (`apt purge cups`), or at least disable the service and bind it to `127.0.0.1`. Fewer packages also mean fewer updates to track. Check who can log in (`/etc/passwd` users with a real shell), what `sudoers` allows, and which files in `/etc` are world-writable (`find /etc -perm -o+w`). systemd offers cheap sandboxing for the services that remain: `ProtectSystem=strict`, `PrivateTmp=yes`, `NoNewPrivileges=yes` in a unit's `[Service]` section.
+
+**Benchmarks, and proving it.** A **CIS Benchmark** is a published, numbered list of recommended settings for a given operating system, written by consensus, with a rationale and an audit command for each. **Level 1** settings are safe for every server; **Level 2** are stricter and may break things, chosen case by case. You don't apply a benchmark by hand: a scanner checks the machine against the list and scores it. **OpenSCAP** (`oscap xccdf eval` with a CIS or STIG profile) is the standard, the **Ubuntu Security Guide** wraps it for Ubuntu, and **Lynis** gives a quick "hardening index" and a list of warnings and suggestions with codes. The method is the same as everywhere in this track: **scan before**, apply the baseline, **scan after**, keep both reports. The difference between the two is your proof. A finding you can't fix, because the application needs the setting, becomes a written **exception** with the reason and a compensating control, not a silence; and the scan runs again on a schedule, because servers drift.
+
+**Read now:** DigitalOcean's server-security measures, the main resource below, which is the baseline in plain language with the commands; then the ArchWiki's Security page as the long checklist to come back to, the `sshd_config` manual for the exact settings, the CIS Benchmarks page to see what a benchmark is, and the OpenSCAP, Lynis and Ubuntu Security Guide pages to see the scanners; NIST SP 800-123 is the formal statement of the same ideas. The practice reads `sshd -T` output and an `sshd_config`, socket listings, `ufw status`, `passwd` and `sudoers`, and scan reports with the text tools from Shell essentials. The checkpoint's broken server will test the whole module, and turning the firewall off to make something work fails it.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Baseline:** patched plus automatic security updates; SSH keys only, no root login; default-deny firewall and matching security group; fewer services; least privilege (sudo, service users, `600` secrets, no blanket `NOPASSWD`); synced time; logs kept and shipped.
+- **SSH:** `PasswordAuthentication no`, `PermitRootLogin no`, `AllowGroups`, `MaxAuthTries 3`; keep port 22. `sshd -t` to test, reload, **keep a session open**, `sshd -T` to read the effective settings. `fail2ban` for noise; MFA on the console.
+- **Firewall:** `ufw default deny incoming`, allow 22 and the service's ports, `ufw enable`, `ufw status verbose`; same rules in the security group.
+- **Surface:** `ss -ltnp`; purge or disable what isn't needed, bind the rest to localhost; review shell users, `sudoers`, world-writable files; systemd sandboxing (`ProtectSystem=strict`, `PrivateTmp=yes`, `NoNewPrivileges=yes`).
+- **Prove it:** CIS Benchmarks (Level 1 for everyone, Level 2 stricter); scan with OpenSCAP, the Ubuntu Security Guide or Lynis; before and after reports; exceptions written down with a reason; rescan on a schedule.
+
+</Recap>

@@ -1,0 +1,21 @@
+id: tri-dmesg-errors
+type: predict_shell
+rev: 1
+prompt: |
+  `dmesg.txt` is the tail of `dmesg -T` on a slow server. The first command counts the lines that mention running out of memory or a timeout; the second prints the first three words of each such message, after the timestamp. What is printed?
+files:
+  dmesg.txt: |
+    [Sun Nov  9 10:40:31 2026] EXT4-fs (nvme1n1): mounted filesystem with ordered data mode.
+    [Sun Nov  9 11:02:14 2026] TCP: out of memory -- consider tuning tcp_mem
+    [Sun Nov  9 11:05:17 2026] Out of memory: Killed process 4321 (java) total-vm:12582912kB, anon-rss:7340032kB, file-rss:0kB, shmem-rss:0kB, UID:1001 pgtables:15360kB oom_score_adj:0
+    [Sun Nov  9 11:07:02 2026] nvme nvme1: I/O 42 QID 3 timeout, completion polled
+command: |
+  grep -c -i -E 'out of memory|timeout' dmesg.txt; grep -i -E 'out of memory|timeout' dmesg.txt | awk -F'] ' '{print $2}' | cut -d' ' -f1-3
+expected_output: |
+  3
+  TCP: out of
+  Out of memory:
+  nvme nvme1: I/O
+explanation: |
+  Three errors in five minutes, and they tell a story on their own: the TCP stack ran short of memory, the kernel then killed the Java process to free some, and the NVMe disk reported an I/O timeout. That's the E of USE answered before any measuring: this server has a memory problem and possibly a disk problem, and the "slowness" was probably the Java service being killed and restarted. `-F'] '` splits each line after the timestamp's closing bracket.
+skills: [first-minute, use-method]

@@ -1,0 +1,25 @@
+id: hard-lynis-before-after
+type: predict_shell
+rev: 1
+prompt: |
+  `before.log` and `after.log` are the summaries Lynis printed before and after a server was hardened; each has a "Hardening index" line. The loop prints each file's name and its index. What is printed?
+files:
+  before.log: |
+    Tests performed : 262
+    Hardening index : 58 [###########         ]
+    Warnings (3):
+    ! Found one or more vulnerable packages [PKGS-7392]
+    ! Reboot of system is most likely needed [KRNL-5830]
+    ! PermitRootLogin is set to yes [SSH-7408]
+  after.log: |
+    Tests performed : 262
+    Hardening index : 81 [################    ]
+    Warnings (0):
+command: |
+  for f in before.log after.log; do printf '%s: ' "$f"; grep -o 'Hardening index : [0-9]*' "$f" | awk '{print $NF}'; done
+expected_output: |
+  before.log: 58
+  after.log: 81
+explanation: |
+  From 58 to 81, and the three warnings gone: the unpatched packages were updated, the pending reboot was done, and root login over SSH was turned off. The number itself is Lynis's own scale, not a universal grade, but the *difference* is the proof the topic asks for: the same scan, the same machine, before and after. Keep both reports, and schedule the scan to run again so the index can't drift back down unnoticed.
+skills: [benchmarks-scanning]

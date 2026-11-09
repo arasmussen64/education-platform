@@ -1,0 +1,14 @@
+id: mcq-firewall-default-deny
+type: mcq
+rev: 1
+prompt: |
+  A web server's firewall allows everything inbound except a blocklist of ports someone wrote down last year, and the cloud security group allows all traffic "because the host firewall handles it". What's wrong?
+choices:
+  - "Nothing, as long as the blocklist is long enough"
+  - "Both layers are backwards: the host firewall should deny inbound by default and allow only the ports the server needs, and the security group should hold the same short allow list at the network edge; two independent default-deny layers mean one mistake doesn't open the machine"
+  - "The host firewall is unnecessary when a security group exists"
+  - "Only outbound traffic needs filtering on a web server"
+answer: 1
+explanation: |
+  A blocklist protects against the ports you thought of; a default deny protects against the ones you didn't, including the debugging port someone opens next month. The two layers are deliberately redundant: a security group is edited in a console by many hands, a host firewall by an admin on the box, and each catches the other's slips. Outbound filtering comes later in the track, when the server's own egress is worth controlling.
+skills: [firewall-min]

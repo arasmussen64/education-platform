@@ -1,0 +1,19 @@
+id: tri-pidstat-top
+type: predict_shell
+rev: 1
+prompt: |
+  `pidstat.txt` is a simplified `pidstat 1` sample: PID, CPU percentage and command. The command prints the two busiest processes as name then percentage. What is printed? (A percentage above 100 means more than one CPU.)
+files:
+  pidstat.txt: |
+    PID %CPU Command
+    2314 182.0 java
+    1340 12.5 nginx
+    1502 6.0 postgres
+    4410 0.5 sshd
+command: awk 'NR > 1 {print $3, $2}' pidstat.txt | sort -k2 -rn | head -n 2
+expected_output: |
+  java 182.0
+  nginx 12.5
+explanation: |
+  Java is using nearly two CPUs' worth of time; everything else is quiet. On a 4-CPU box with a run queue of twelve, that one process is the thing to look at next, with `perf top -p 2314` if it's genuinely busy or `strace -c -p 2314` if it's spinning on failing calls. `sort -k2 -rn` sorts by the second field numerically, biggest first; `pidstat` itself can sort too, but reading its columns is the point.
+skills: [first-minute, cpu-profiling]

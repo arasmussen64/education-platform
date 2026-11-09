@@ -1,0 +1,23 @@
+id: hard-listening-audit
+type: predict_shell
+rev: 1
+prompt: |
+  `ss.txt` is `ss -ltnp` on a server that is about to face the internet. The command prints the port of every socket bound to `0.0.0.0` (every interface), in numeric order: the server's open doors. What is printed?
+files:
+  ss.txt: |
+    State  Recv-Q Send-Q Local Address:Port  Peer Address:Port Process
+    LISTEN 0      4096         0.0.0.0:22          0.0.0.0:*     users:(("sshd",pid=812,fd=3))
+    LISTEN 0      4096         0.0.0.0:111         0.0.0.0:*     users:(("rpcbind",pid=640,fd=4))
+    LISTEN 0      511          0.0.0.0:443         0.0.0.0:*     users:(("nginx",pid=1340,fd=6))
+    LISTEN 0      128          0.0.0.0:631         0.0.0.0:*     users:(("cupsd",pid=905,fd=7))
+    LISTEN 0      4096       127.0.0.1:5432        0.0.0.0:*     users:(("postgres",pid=1502,fd=5))
+command: |
+  awk 'NR > 1 {split($4, a, ":"); if (a[1] == "0.0.0.0") print a[2]}' ss.txt | sort -n
+expected_output: |
+  22
+  111
+  443
+  631
+explanation: |
+  Four doors open to the world. SSH (22) and the web server (443) are the point of the machine. `rpcbind` (111) and the printing service `cupsd` (631) are not: they came with the installation, nobody uses them, and each is a service to patch and a possible way in. Remove them (`apt purge rpcbind cups`) rather than just firewalling them. PostgreSQL is bound to `127.0.0.1`, so it's not in the list, which is exactly right.
+skills: [attack-surface]

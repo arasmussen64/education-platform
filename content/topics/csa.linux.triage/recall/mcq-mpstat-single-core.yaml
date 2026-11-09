@@ -1,0 +1,14 @@
+id: mcq-mpstat-single-core
+type: mcq
+rev: 1
+prompt: |
+  A dashboard shows an 8-CPU server at 13% CPU, yet its API is slow and `vmstat` shows a run queue of 2 to 3. `mpstat -P ALL 1` shows CPU 3 at 100% and the others nearly idle. What's going on?
+choices:
+  - "The dashboard is wrong; the server is fine"
+  - "One single-threaded process (or one hot thread) is using an entire CPU and can't use the others; the average hides it. Find it with `pidstat -t 1` or `top -H`; the fix is in the program (more workers or threads), not more CPUs"
+  - "CPU 3 is faulty and should be disabled"
+  - "The kernel is pinning everything to one CPU by mistake"
+answer: 1
+explanation: |
+  An average over eight CPUs turns one saturated CPU into 12.5%, which looks healthy. Per-CPU view is why `mpstat -P ALL` is on the checklist. A program that can only use one thread is limited by that one CPU, and adding CPUs changes nothing; running more processes or making the program multi-threaded does. `pidstat -t` and `top -H` show threads, so you can see which one is pinned.
+skills: [use-method, first-minute]
