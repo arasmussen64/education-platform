@@ -30,3 +30,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0011](0011-mistakes-come-back.md) | Mistakes come back as fresh questions until relearned | Accepted |
 | [0012](0012-checkpoint-support.md) | Getting unstuck on a checkpoint | Accepted |
 | [0013](0013-explain-grading.md) | Grading explanations with Claude, through the AI proxy | Accepted |
+| [0014](0014-cloud-labs.md) | Proving cloud skills with labs in the learner's own clouds | Proposed |

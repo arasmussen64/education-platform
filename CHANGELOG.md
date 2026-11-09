@@ -6,6 +6,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (planning: a second track)
+
+- **The Cloud Solutions Architect track is specified** in [docs/specs/cloud-solutions-architect.md](docs/specs/cloud-solutions-architect.md). It isn't built yet.
+  - It runs from Linux and networking up to principal-level multi-cloud strategy, on AWS, Azure and Google Cloud.
+  - It has 26 modules in 4 stages, about 210 topics, 3 capstones and a choice of specialties.
+  - Every topic is proven by doing: build, explain, fix a broken version, and review. The senior stages add design reviews, game days and "Defend it".
+- **[ADR-0014](docs/decisions/0014-cloud-labs.md), proposed,** decides how cloud skills are proven:
+  - labs run in the learner's own sandboxes;
+  - a local, read-only lab checker inspects the results;
+  - fault modules provide break-fix exercises and game days;
+  - AI grades designs;
+  - CI tests the checks against recorded API responses, without touching a cloud.
+
 ### Added (explain it back, graded: part 2 of explanation grading)
 
 - **Explain it back** works: each explain card has a box and **Check my explanation**. Claude grades it against the rubric:

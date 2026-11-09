@@ -2,6 +2,38 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: A second track, Cloud Solutions Architect (specified)
+
+**The owner asked for** a Cloud Solutions Architect track:
+- with everything a senior architect needs at the top of the pay band;
+- multi-cloud;
+- able to drill skills until competency is proven, not just knowledge;
+- assuming access to every cloud environment for practice.
+
+**Done:**
+- **The spec,** [docs/specs/cloud-solutions-architect.md](specs/cloud-solutions-architect.md). It has 26 modules in 4 stages, about 210 topics, 3 capstones and 6 specialties to choose from. It also covers:
+  - how competency is proven, with drills that have targets;
+  - lab safety and cost;
+  - one topic written out in full;
+  - a map to certifications;
+  - a table of equivalent services on the three clouds.
+- **ADR-0014, proposed:** how cloud skills are proven.
+  - A local, read-only lab checker inspects what the learner built in their own sandbox. The platform receives only which checks passed.
+  - CI tests the checks against recorded API responses, so ADR-0004 still holds without touching a cloud.
+- **Links:** the roadmap, the vision, CLAUDE.md and the ADR index now point to the spec and the ADR.
+- **Checked by web search:** current product names.
+  - Azure AI Foundry is now Microsoft Foundry.
+  - AWS Interconnect – multicloud gives a managed private link to Google Cloud.
+  - Google's framework is now the Well-Architected Framework, with six pillars.
+
+**Deliberately not done:** the track isn't in `content/` yet. The app shows only the first track file it finds (`mainTrack()`), and `cloud-…` sorts before `python-foundations`. Adding the track would replace the owner's Python map on the live site, so support for more than one track has to come first.
+
+**Waiting on the owner:**
+- accepting or changing ADR-0014;
+- deciding when the track gets built, relative to the rest of v1 and the ML path.
+
+The v1 work stays paused where the entry below left it.
+
 ## 2026-11-08: Where we stopped (paused)
 
 The owner paused work here.
