@@ -300,10 +300,14 @@ def test_a_lab_needs_its_image_checks_and_solution(tree: Path) -> None:
     )
 
 
-def test_a_lab_has_no_python_files(tree: Path) -> None:
+def test_a_lab_has_no_python_exercise_files(tree: Path) -> None:
     add_lab(tree)
+    # A program that's part of the scenario is fine...
+    write(tree, f"{LAB_DIR}/server.py", "print(1)\n")
+    assert problems(tree, run=False) == []
+    # ...a Python exercise's files are not.
     write(tree, f"{LAB_DIR}/solution.py", "print(1)\n")
-    assert_reported(tree, "a lab has no Python files", run=False)
+    assert_reported(tree, "a lab has no solution.py", run=False)
 
 
 def test_lab_checks_need_distinct_ids_and_a_condition(tree: Path) -> None:

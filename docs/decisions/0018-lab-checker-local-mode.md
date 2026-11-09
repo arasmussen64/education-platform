@@ -1,6 +1,6 @@
 # ADR-0018: The lab checker's local mode
 
-- **Status:** Accepted in principle by the owner on 2026-11-09 ("go" on the plan: local containers, GitHub's registry when needed, paste-first results); the details below are proposed until reviewed
+- **Status:** Accepted by the owner on 2026-11-09 (the plan first, as "go" on local containers, GitHub's registry when needed and paste-first results; then the details below, once built and reviewed)
 - **Date:** 2026-11-09
 
 ## Context

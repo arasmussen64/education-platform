@@ -2,6 +2,35 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Services and logs goes ready, on labs that boot systemd
+
+The owner reviewed every decision listed so far and accepted them all, ADR-0018 included (its status line and the index say so), and said to keep going. The riskiest piece of the remaining Module 1 work was systemd in a container, so that went first: Services and logs is the second ready cloud topic, and the checker now knows how to boot a lab.
+
+**The checker.** A `lab: { init: systemd }` container runs privileged with `/sbin/init` as PID 1, `/run` on a tmpfs, and *its own cgroup namespace*. The first design shared the host's cgroup tree, and a probe on Docker Desktop showed the difference: with a private namespace a `MemoryMax=64M` unit is killed when it grows past the limit (`Result=oom-kill`) and a `CPUQuota=20%` unit is throttled, exactly as on a server; with the host's tree the memory limit didn't kill. The checker waits for `systemctl is-system-running` to say `running` or `degraded` before asking the container anything, because checks run too early see services that haven't started. `test --jobs N` proves several labs at once, each lab's output printed whole when it finishes; CI uses four. Unit tests cover the run arguments and the wait.
+
+**The five labs**, all on a tiny Python web API, `shop-api`, that answers on `PORT` and exits with an error when a client asks for `/crash`:
+- **`example-first-service`** (worked example): a unit file waits in the learner's home; the six-line walkthrough reads it, copies it to `/etc/systemd/system`, `daemon-reload`, `enable --now`, `status`, `journalctl -u`.
+- **`fill-unit-gaps`** (fill-in): four `...` gaps: `User=`, the Python path in `ExecStart=`, `Restart=`, `WantedBy=`.
+- **`write-unit`** (write): a unit for a worker script, with a working directory and a five-second restart delay, checked through `systemctl show`.
+- **`build-restarting-api`** (build): the unit from scratch; a persistent journal; then crash the service on purpose, watch systemd bring it back, and report the `-p err` lines and systemd's own restart count. Nine checks.
+- **`debug-service-wont-start`** (debug): three mistakes that surface one at a time: a section called `[Services]` (systemd ignores it, so the unit has no `ExecStart=` and won't load), `User=shop-api` (no such account: status 217/USER), and `PORT=80800` (the program refuses to start and says so in the journal, and systemd restarts it over and over).
+
+**What the contract and the probes caught, five things:**
+1. *A "forgot daemon-reload" wrong fix passed.* systemd 255 loads a unit it has never loaded (or failed to load) on the next start, so the mistake only bites for a unit that was already running. The lesson's rule stands; the wrong fix was dropped rather than contrived.
+2. *`systemctl` as the learner failed with "Failed to connect to bus".* Ubuntu's `systemd` package doesn't pull in D-Bus, and a non-root `systemctl` needs it. The images install `dbus`, as every real server has it.
+3. *The "make the journal persistent" step was already done.* Ubuntu's package creates `/var/log/journal`, so the pristine image passed that check; the build's image now removes the folder, and the task is real again.
+4. *A restarted journald doesn't move the log; `journalctl --flush` does.* And a folder made with a plain `mkdir` gives the journal files no group, so the learner couldn't read their own service's log afterwards: `systemd-tmpfiles --create --prefix /var/log/journal` sets the permissions, which is the procedure the DigitalOcean tutorial teaches. The lesson and the recap now say so, and that mistake is a wrong fix of its own.
+5. *A crash-looping service is "active" for a moment each time it's restarted,* and a check caught that moment once. Checks that a service runs now read `is-active` twice, two seconds apart, with the same `MainPID`.
+
+**Decisions for you to review:**
+1. *Services and logs is `ready` while its prerequisite, Processes and signals, is still a draft.* On the live site it shows as Locked until Processes goes ready, which is the next pull request. I did the systemd topic first to retire the risk.
+2. *The learner is in the `adm` and `systemd-journal` groups* in systemd images, as a cloud image's default user is, so `journalctl` works without `sudo`.
+3. *Lab images install D-Bus* so `systemctl` works for the learner as it does on a server, rather than teaching `sudo systemctl status`.
+4. *A lab's scenario may include a Python program* (`server.py` here); the validator now forbids only the three Python exercise files in a lab folder, not every `.py`.
+5. *CI proves labs four at a time.* Ten labs took about a minute locally that way; the job will grow with every topic, and `--jobs` keeps it in hand.
+
+**Next:** Processes and signals, then Users, permissions and SSH, both plain containers; then the rest of Module 1 in order.
+
 ## 2026-11-09: Shell essentials goes ready, on five labs
 
 The first cloud-track topic a learner can open on the live site. Shell essentials' ladder is now a worked example, 21 recall items, a fill-in and a write, and its proofs are a build and a debug; everything but the recall items is a lab on the same generated logs (ADR-0018).

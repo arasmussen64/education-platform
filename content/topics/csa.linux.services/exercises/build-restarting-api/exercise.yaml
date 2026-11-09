@@ -1,0 +1,14 @@
+id: build-restarting-api
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "A service that survives a crash"
+prompt: |
+  The shop's web API, `/srv/shop-api/server.py`, is a Python program that answers on the port named by the `PORT` environment variable. It has a bug: a request to `/crash` makes it exit with an error. Your job is to run it as a service that survives that.
+
+  1. Write `/etc/systemd/system/shop-api.service`: it runs `/usr/bin/python3 /srv/shop-api/server.py` as the `shop` user with `PORT=8080`, restarts within five seconds when it fails, and starts at boot on a normally booted server. Enable and start it, and check that `curl http://localhost:8080/` answers.
+  2. This server keeps its journal in memory, so a reboot loses the logs. Make it persistent: create `/var/log/journal`, give it the permissions the journal expects with `sudo systemd-tmpfiles --create --prefix /var/log/journal`, then `sudo journalctl --flush` so journald moves the log there now rather than at the next boot. Check that you can still read the service's log afterwards.
+  3. Prove it: do these last, with no more changes to the unit afterwards. Crash the service with `curl http://localhost:8080/crash`, wait, and show it came back by itself. Then make a folder `~/report` with two files: `errors.txt`, the service's journal lines of priority `err` and worse, nothing else, as `journalctl -o cat` prints them; and `restarts.txt`, the number of times systemd has restarted the service by itself, as a plain number (systemd keeps the count).
+skills: [unit-files, systemctl, journalctl, supervision]

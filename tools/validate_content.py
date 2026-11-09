@@ -584,8 +584,15 @@ def check_lab(folder: Path, exercise: Exercise, report: Report, run: bool) -> No
             report.add(yaml_file, f"a lab needs {name}")
     if (folder / "checks.yaml").exists():
         load(folder / "checks.yaml", LabChecks, report)
-    for stray in sorted(folder.glob("*.py")):
-        report.add(stray, "a lab has no Python files; its checks are in checks.yaml")
+    # A lab's scenario may well include a Python program; what it can't have
+    # is a Python exercise's files, which would mean two kinds of checks.
+    for name in ("starter.py", "solution.py", "test_exercise.py"):
+        if (folder / name).exists():
+            report.add(
+                folder / name,
+                f"a lab has no {name}; its checks are in checks.yaml "
+                "and its reference fix in solution.sh",
+            )
     if (
         not run
         or report.problems

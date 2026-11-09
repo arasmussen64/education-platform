@@ -1,0 +1,12 @@
+id: debug-service-wont-start
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The service that won't start"
+prompt: |
+  Someone installed the shop's web API as a service, `shop-api`, and enabled it, but `curl http://localhost:8080/` gets nothing. The unit file is `/etc/systemd/system/shop-api.service`; the program is `/srv/shop-api/server.py`, which answers on the port named by `PORT`; the shop's services run as the `shop` account.
+
+  There are three mistakes, and fixing one uncovers the next. Start with `systemctl status shop-api` and read what systemd says, and remember `journalctl -u shop-api` for the program's own words. After each change to the unit: `sudo systemctl daemon-reload`, then `sudo systemctl restart shop-api`. You're done when the service is running as `shop` and `curl http://localhost:8080/` answers. Then run the checks.
+skills: [unit-files, systemctl, journalctl]
