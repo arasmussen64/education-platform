@@ -2,6 +2,14 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Every exercise proven in the browser's Python
+
+A gap closed. The validator runs every exercise under CPython, and the harness scenarios prove the two runtimes agree on a small set of programs, but no check ran the actual exercises in Pyodide. Module 6 brought new ground (files, `csv`, `importlib` in tests), so it was time.
+
+**What changed.** `web/src/content/content.pyodide.test.ts` loads Pyodide once and runs every ready exercise's reference solution against its tests, the way the Check button does; all 235 pass, in about 3.5 seconds, so it's part of `npm test` and of CI's Web app job. Only the reference solutions run there: a known-wrong solution may loop forever on purpose (the while-loops topic has several), and Pyodide in Node can't be interrupted, so the first attempt at this check, which included them, hung for an hour. The validator keeps proving under CPython that the wrong ones fail.
+
+**Next:** your go on the deploys; then the cloud track's Stage 1 drills (ADR-0014) and the lab checker.
+
 ## 2026-11-09: Parsons problems in every topic
 
 Eighteen more Parsons problems, written to the pattern of the first eleven, so 29 of the track's 30 topics now have one right after the worked example; six are also in their topic's review pool. The validator runs each one's lines in order and checks its decoy against the real lines. 190 recall items; 939 programs run with no problems.

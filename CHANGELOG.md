@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed (checks)
+
+- **Every exercise is now proven in the browser's Python too.** The web tests run each ready exercise's reference solution against its tests inside Pyodide, the same way the Check button does, in a few seconds for the whole track. The validator keeps proving, under CPython, that the reference solution passes and the known-wrong ones fail.
+
 ### Added (content: Parsons problems everywhere)
 
 - **Eighteen more Parsons problems**, so 29 of the track's 30 topics have one right after the worked example (Testing with assert is the exception: a test's `assert` lines can go in any order, so no single order would be right). Six are also in their topic's review pool. Each decoy teaches something from its topic: `"Age: " + age` without `str()`, `/` where `//` was meant, `print(age = 21)` for `==`, `and member` for `and not member`, a `print` without `end=""` in a grid, `print(total)` outside the function that owns it, `scores.sort()` assigned to a name, `copy = original` for a real copy, `student.scores` for `student["scores"]`, plain `mean` without its module, and more.
