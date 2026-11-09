@@ -1115,7 +1115,7 @@ The app can't show this track yet, and some proofs need tools that don't exist. 
 
 1. **More than one track in the app.** *Done 2026-11-08:* the map shows the first track at `/map` and each other track at `/map/<track id>`, and every topic page names its track and module (`tracks()` and `placeOf()` in `web/src/content/content.ts`). The Today page still only knows Python Foundations; it learns tracks with gating (F12).
 2. **The map as outlines.** *Done 2026-11-08:* every topic, checkpoint and capstone is a `planned` outline in `content/`, generated from this spec by `tools/outline_cloud_track.py`. Change the spec and run the script; it never touches a topic that's being written.
-3. **Stage 1 content.** Much of it uses the exercise kinds that exist today: recall items, and Python drills run in the browser (subnetting, availability math, cost). Local labs in containers need the first version of the lab checker.
+3. **Stage 1 content.** Much of it uses the exercise kinds that exist today: recall items, and Python drills run in the browser (subnetting, availability math, cost). Local labs in containers need the first version of the lab checker. *Started 2026-11-09:* Module 1's first three topics are drafts, with lessons and `predict_shell` recall items ([ADR-0017](../decisions/0017-shell-in-the-browser.md)).
 4. **The lab checker** ([ADR-0014](../decisions/0014-cloud-labs.md)). First offline checks for infrastructure code, then live checks on the three clouds, and fault modules for break-fix proofs.
 5. **Design reviews, game days and "Defend it".** These need AI grading with longer rubrics (the approach from ADR-0013) and the game-day modules.
 

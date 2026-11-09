@@ -1,0 +1,19 @@
+id: shell-find-logs
+type: predict_shell
+rev: 1
+prompt: |
+  Log files are scattered through the folders below. `find` walks every folder under `.` (the current one) and prints the paths that match. `sort` puts them in order, because `find` prints in whatever order the disk gives it. What is printed?
+files:
+  logs/app.log: |
+    started
+  logs/old/app.log: |
+    rotated
+  notes.txt: |
+    not a log
+command: find . -name '*.log' | sort
+expected_output: |
+  ./logs/app.log
+  ./logs/old/app.log
+explanation: |
+  `find . -name '*.log'` prints every path under the current folder whose name ends in `.log`, however deep, each starting with `./`. The quotes around `*.log` matter: without them the shell would expand the pattern itself, before `find` ran. `notes.txt` doesn't match, so it isn't printed.
+skills: [navigate]

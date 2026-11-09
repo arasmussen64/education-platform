@@ -1,0 +1,13 @@
+id: proc-child-ppid
+type: predict_shell
+rev: 1
+prompt: |
+  `$$` is the current shell's PID and `$PPID` is its parent's. The outer shell expands its own `$$` into the command string before starting a child `bash`, which then compares that number with its `$PPID`. Afterwards the outer shell prints one more line. What is printed?
+command: |
+  bash -c 'test "$PPID" = "'"$$"'" && echo "child of the shell"'; echo "and the shell goes on"
+expected_output: |
+  child of the shell
+  and the shell goes on
+explanation: |
+  The child `bash` was forked by the outer shell, so the child's parent PID is exactly the outer shell's PID, and the test is true. Every process knows its parent this way, which is how `ps -ef` can draw the whole tree from PID 1 down. The odd quoting splices the outer `$$` into single quotes so the inner shell sees a plain number. The final `echo` matters more than it looks: when a command is the *last* thing a shell has to do, bash saves a fork and execs it in place, so without that `echo` the child would have taken over the outer shell's process and its parent would have been whatever started the shell.
+skills: [process-model]

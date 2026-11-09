@@ -1,0 +1,12 @@
+id: proc-and-or
+type: predict_shell
+rev: 1
+prompt: |
+  `a && b` runs `b` only if `a` succeeded; `a || b` runs `b` only if `a` failed. What is printed?
+command: false && echo yes || echo no; true && echo yes
+expected_output: |
+  no
+  yes
+explanation: |
+  `false` fails, so `&& echo yes` is skipped; the failure then reaches `|| echo no`, which runs and prints `no`. After the `;`, `true` succeeds, so `&& echo yes` runs. These two operators turn exit statuses into control flow, which is how one-liners like `mkdir build && cd build` or `test -f config || echo missing` work.
+skills: [job-control]

@@ -1,0 +1,14 @@
+id: mcq-nohup
+type: mcq
+rev: 1
+prompt: |
+  You start a long data import over SSH with `./import.sh &`, close your laptop, and later find it stopped partway. Why, and what would have kept it running?
+choices:
+  - "Background jobs always stop after an hour; use `sleep` inside the script"
+  - "Closing the connection sent `HUP` to the jobs of that terminal; `nohup ./import.sh &` (or a systemd service) survives it"
+  - "`&` only works for short commands; run it without `&`"
+  - "The script needed `sudo`"
+answer: 1
+explanation: |
+  When the terminal goes away, its jobs get `HUP` (hang-up), whose default action is to exit. `nohup` makes the command ignore `HUP` (and sends its output to `nohup.out`), so it outlives the session; tools like `tmux` do the same by keeping the terminal alive; on a server, the lasting answer is a systemd unit, which PID 1 supervises and restarts. Nothing about `&` or `sudo` changes which signals arrive.
+skills: [job-control]

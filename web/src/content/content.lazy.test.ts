@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   getTopic,
   getTrack,
-  isOpen,
   loadTrackOf,
   loadTrackTopics,
   mainTrack,
@@ -42,10 +41,12 @@ describe('topic outlines that load on demand', () => {
     for (const id of topicIdsOf(cloud)) {
       expect(getTopic(id), id).toBeDefined()
     }
-    expect(getTopic('csa.linux.shell')).toMatchObject({
+    expect(getTopic('csa.linux.services')).toMatchObject({
       status: 'planned',
       practice: [],
     })
+    // A topic being written loads with the rest of its track.
+    expect(getTopic('csa.linux.shell')?.status).toBe('draft')
   })
 
   it("has nothing to do for a track bundled in, or a topic's track", async () => {
@@ -57,15 +58,15 @@ describe('topic outlines that load on demand', () => {
 
   // The Today page, the follow-ups and the interleaved questions only look at
   // the topics bundled in, so a lazy track must have nothing a learner could
-  // open. When the cloud track gets its first ready topic, bundle it in (or
-  // teach those pages to load it) and change this test.
-  it('keeps every lazy track all outlines, so nothing open is missed', () => {
+  // open on the live site: no ready topic. Drafts are fine: only the dev
+  // server shows them, and a topic page loads its track first. When the cloud
+  // track gets its first ready topic, bundle it in (or teach those pages to
+  // load it) and change this test.
+  it('keeps every lazy track without a ready topic, so nothing open is missed', () => {
     const cloud = getTrack(CLOUD)
     if (!cloud) throw new Error('the cloud track should exist')
     for (const id of topicIdsOf(cloud)) {
-      const topic = getTopic(id)
-      expect(topic && isOpen(topic), id).toBe(false)
-      expect(topic?.status, id).toBe('planned')
+      expect(getTopic(id)?.status, id).not.toBe('ready')
     }
   })
 })

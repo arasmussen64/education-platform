@@ -1,0 +1,18 @@
+id: perm-authorized-keys
+type: predict_shell
+rev: 1
+prompt: |
+  `authorized_keys` is a server's list of accepted public keys, one per line, each ending with a comment that says where the key came from. The first command counts the key lines; the second prints the comment (the third field) of each. What is printed?
+files:
+  authorized_keys: |
+    # keys for ada
+    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyOneForTheLaptop ada@laptop
+    ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyTwoForTheDesk ada@desktop
+command: grep -c '^ssh-' authorized_keys; awk '/^ssh-/ {print $3}' authorized_keys
+expected_output: |
+  2
+  ada@laptop
+  ada@desktop
+explanation: |
+  Each key line is `type key comment`. Two lines start with `ssh-`, so `grep -c` prints `2`, and `awk` prints the comment of each. The comment is only a label, but it's what lets you remove the right key when a laptop is lost: delete that line and the laptop can't get in any more. Reading this file is part of checking who can reach a server.
+skills: [ssh-keys]

@@ -22,7 +22,7 @@ content/
 ## Two tracks
 
 - **Python Foundations** (`py.*`) is written by hand, topic by topic.
-- **Cloud Solutions Architect** (`csa.*`) is, for now, an outline: every topic is `planned`. The outlines are generated from the track's spec, [docs/specs/cloud-solutions-architect.md](../docs/specs/cloud-solutions-architect.md), by `tools/outline_cloud_track.py`. To change an outline, change the spec and run the script again (`python -m uv run python tools/outline_cloud_track.py`). Once a topic is being written, its `topic.yaml` loses the generated marker and the script leaves it alone from then on.
+- **Cloud Solutions Architect** (`csa.*`) is mostly an outline: a topic is `planned` until it's written, and Module 1's first topics are `draft` (lessons and recall now; the labs come when the lab checker's local mode exists, per [ADR-0017](../docs/decisions/0017-shell-in-the-browser.md)). The outlines are generated from the track's spec, [docs/specs/cloud-solutions-architect.md](../docs/specs/cloud-solutions-architect.md), by `tools/outline_cloud_track.py`. To change an outline, change the spec and run the script again (`python -m uv run python tools/outline_cloud_track.py`). Once a topic is being written, its `topic.yaml` loses the generated marker and the script leaves it alone from then on.
 
 ## A topic's life
 

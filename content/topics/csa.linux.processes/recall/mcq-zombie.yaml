@@ -1,0 +1,14 @@
+id: mcq-zombie
+type: mcq
+rev: 1
+prompt: |
+  `ps` shows a process marked `<defunct>`, and `kill -9` on it changes nothing. What is going on, and what removes it?
+choices:
+  - "It's hung in the kernel; only a reboot removes it"
+  - "It has already exited, and only its process-table entry remains until its parent reads the exit status; make the parent `wait`, or end the parent so PID 1 adopts and reaps it"
+  - "It's being debugged; detach the debugger"
+  - "It's out of memory; free some memory and it will exit"
+answer: 1
+explanation: |
+  A zombie is finished: no memory, no CPU, just an entry kept so the parent can collect the exit status with `wait`. Signals act on running code, and there's none left, so `kill -9` has nothing to do. The entry disappears when the parent reaps it, or when the parent dies, because PID 1 adopts orphans and reaps them. Many zombies point at a parent with a bug: it spawns children and never waits.
+skills: [process-model]

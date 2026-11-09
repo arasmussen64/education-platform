@@ -1,0 +1,21 @@
+id: perm-sudoers-effective
+type: predict_shell
+rev: 1
+prompt: |
+  `sudoers` is a short sudoers file. Comments start with `#`, and `grep -v '^#'` drops them; `grep -v '^$'` drops the empty lines. What is printed, and so which rules are actually in force?
+files:
+  sudoers: |
+    # User privilege specification
+    root    ALL=(ALL:ALL) ALL
+
+    # Members of group sudo may run any command
+    %sudo   ALL=(ALL:ALL) ALL
+    %deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart app
+command: grep -v '^#' sudoers | grep -v '^$'
+expected_output: |
+  root    ALL=(ALL:ALL) ALL
+  %sudo   ALL=(ALL:ALL) ALL
+  %deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart app
+explanation: |
+  Three rules remain. `root` may run anything (it could anyway). `%sudo` means *the group* `sudo`: its members may run any command as any user, with their password. `%deploy` is the shape to copy: members of the `deploy` group may run exactly one command, as root, without a password, so a deployment script can restart the app and nothing else. Filtering comments and blank lines out this way is the quickest way to read any config file.
+skills: [users-sudo]

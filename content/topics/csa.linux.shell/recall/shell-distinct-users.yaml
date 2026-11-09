@@ -1,0 +1,19 @@
+id: shell-distinct-users
+type: predict_shell
+rev: 1
+prompt: |
+  How many different users made requests? `cut -d, -f1` takes the first field, `tail -n +2` drops the header, `sort -u` keeps one copy of each distinct line, and `wc -l` counts. What is printed?
+files:
+  requests.csv: |
+    user,path
+    ada,/home
+    grace,/login
+    ada,/home
+    ken,/report
+    grace,/home
+command: cut -d, -f1 requests.csv | tail -n +2 | sort -u | wc -l
+expected_output: |
+  3
+explanation: |
+  The first field of the five data lines is `ada`, `grace`, `ada`, `ken`, `grace`; `sort -u` leaves `ada`, `grace` and `ken`; `wc -l` counts three lines. Reading from a pipe, `wc` prints just the number; given a file name it would print the name too.
+skills: [count-and-sort]

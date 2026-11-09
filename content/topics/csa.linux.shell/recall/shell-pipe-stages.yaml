@@ -1,0 +1,18 @@
+id: shell-pipe-stages
+type: predict_shell
+rev: 1
+prompt: |
+  A web server's log has one request per line: the method, the path, the status code and the response size. `grep ' 500 '` keeps the lines containing ` 500 ` with a space on each side (a server error), and `wc -l` counts lines. What is printed?
+files:
+  access.log: |
+    GET /home 200 512
+    GET /login 500 88
+    POST /login 200 64
+    GET /report 500 91
+    GET /home 304 0
+command: cat access.log | grep ' 500 ' | wc -l
+expected_output: |
+  2
+explanation: |
+  Three stages. `cat` prints the file; `grep` lets only the two lines with ` 500 ` through; `wc -l` counts the lines it receives and prints `2`. Each `|` connects the output of one program to the input of the next. The `cat` isn't needed, since `grep ' 500 ' access.log` can read the file itself, but starting a pipeline with `cat` is a common habit while you build it up.
+skills: [pipes-redirects]

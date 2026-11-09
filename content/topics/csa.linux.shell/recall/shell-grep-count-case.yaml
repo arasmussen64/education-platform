@@ -1,0 +1,18 @@
+id: shell-grep-count-case
+type: predict_shell
+rev: 1
+prompt: |
+  `grep` prints the lines that contain a pattern. `-c` counts them instead of printing them, `-i` ignores the difference between capitals and small letters, and `-n` adds line numbers. What do the two commands print?
+files:
+  app.log: |
+    INFO started
+    ERROR disk full
+    INFO retrying
+    error retry failed
+command: grep -c -i error app.log; grep -n ERROR app.log
+expected_output: |
+  2
+  2:ERROR disk full
+explanation: |
+  With `-i`, both `ERROR` and `error` match, so `-c` prints `2`. Without `-i`, `grep` is exact about case: only line 2 contains `ERROR`, and `-n` prefixes it with its line number. Logs often mix spellings, so `-i` is a good first reflex when you're counting problems.
+skills: [grep-filter]

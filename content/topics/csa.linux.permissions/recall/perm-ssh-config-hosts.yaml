@@ -1,0 +1,22 @@
+id: perm-ssh-config-hosts
+type: predict_shell
+rev: 1
+prompt: |
+  `config` is an `~/.ssh/config` file: each `Host` block gives a short name for a server, and the indented lines below it say the real address, the user and the key to use. The command prints the second word of every line that starts with `Host ` (with a space). What is printed?
+files:
+  config: |
+    Host web
+        HostName 203.0.113.10
+        User deploy
+        IdentityFile ~/.ssh/id_ed25519
+
+    Host db
+        HostName 203.0.113.20
+        User admin
+command: awk '/^Host / {print $2}' config
+expected_output: |
+  web
+  db
+explanation: |
+  Only two lines begin with `Host` followed by a space: the aliases `web` and `db`. The `HostName` lines are indented and spell a different word, so `^Host ` doesn't match them. With this file, `ssh web` means `ssh -i ~/.ssh/id_ed25519 deploy@203.0.113.10`, which is why the config file is worth keeping as soon as you have more than one server.
+skills: [ssh-keys]

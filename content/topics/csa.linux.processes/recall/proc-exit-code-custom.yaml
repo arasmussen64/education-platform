@@ -1,0 +1,11 @@
+id: proc-exit-code-custom
+type: predict_shell
+rev: 1
+prompt: |
+  A child `bash` ends itself with `exit 3`. The outer shell then reads `$?`. What is printed?
+command: bash -c 'exit 3'; echo "status $?"
+expected_output: |
+  status 3
+explanation: |
+  `exit 3` ends the child process with status 3, and the parent collects that number when it waits for the child. Programs use small non-zero numbers to say *how* they failed; `grep`, for instance, exits 1 for "no match" and 2 for "an error". `$?` only ever holds the most recent status, so read it right away.
+skills: [job-control]

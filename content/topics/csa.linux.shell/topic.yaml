@@ -1,14 +1,106 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.linux.shell
 kind: topic
-status: planned
-title: Shell essentials
-summary: Find files and answer questions about logs with pipes, grep, sed, awk and jq.
+status: draft
+title: "Shell essentials"
+summary: "Move around a Linux machine from the command line, and answer questions about files and logs by joining small tools with pipes: grep, cut, sort, uniq, sed and awk."
 prerequisites: []
-estimated_minutes: 240
+estimated_minutes: 120
 rev: 1
 objectives:
-- Find files and answer questions about logs with pipes, grep, sed, awk and jq.
-- Reach for strace, lsof, iostat and vmstat when a program misbehaves.
+  - "Read a command as a program, its options and its arguments; move around with `pwd`, `cd` and `ls`; look inside files with `cat`, `head`, `tail` and `find`."
+  - "Join commands with pipes and redirections (`|`, `>`, `>>`, `2>&1`) and say what each stage receives and produces."
+  - "Answer a question about a log or a CSV file with `grep`, `cut`, `sort`, `uniq -c`, `wc`, `sed` and `awk`, and know what `jq` is for."
+  - "Name the tool that shows what a misbehaving program is doing: `strace`, `lsof`, `iostat` or `vmstat`."
+# Linked, never copied: the Missing Semester's notes are CC BY-NC-SA 4.0.
+resources:
+  - title: "The Missing Semester of Your CS Education, lecture 1: Course overview + the shell (MIT)"
+    url: https://missing.csail.mit.edu/2020/course-shell/
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "The Missing Semester, lecture 2: Shell tools and scripting (read the Shell Tools half: find, grep and friends)"
+    url: https://missing.csail.mit.edu/2020/shell-tools/
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "The Missing Semester, lecture 4: Data wrangling (sed, regular expressions, sort, uniq and awk)"
+    url: https://missing.csail.mit.edu/2020/data-wrangling/
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "The Missing Semester, lecture 7: Debugging and profiling (strace, lsof, iostat, vmstat and friends)"
+    url: https://missing.csail.mit.edu/2020/debugging-profiling/
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+# Lessons and recall first (ADR-0017): the worked example, the fill-in and
+# write steps, and the proofs run in a container on the learner's machine,
+# through the lab checker, once its local mode exists.
+practice:
+  - shell-ls-order
+  - mcq-cd-pwd
+  - shell-find-logs
+  - shell-head-tail
+  - mcq-pipe-meaning
+  - shell-redirect-overwrite
+  - shell-pipe-stages
+  - shell-stderr-status
+  - shell-grep-count-case
+  - shell-grep-v
+  - mcq-grep-recursive
+  - shell-sort-numbers
+  - shell-distinct-users
+  - shell-top-path
+  - shell-sed-first-vs-all
+  - shell-awk-sum
+  - shell-awk-header-trap
+  - mcq-jq-path
+  - mcq-strace
+  - mcq-lsof-port
+  - mcq-iostat-vmstat
+prove:
+  explain:
+    prompt: |
+      A colleague hands you a web server's log, one request per line with its status code, and asks two things: how many requests failed yesterday, and which page failed most. Explain, in your own words, how you'd answer with the shell: what a pipeline is and why you'd build it one stage at a time; which tool picks out the lines, which splits off the field, and how `sort` and `uniq -c` work together to count; where `awk` or `sed` would come in; and what you'd reach for instead if the server itself were misbehaving, say hanging, or refusing to start because its port is taken.
+    rubric:
+      - id: pipeline
+        required: true
+        description: "A pipeline passes one command's output into the next command's input with |; it's built one stage at a time, looking at each stage's output before adding the next."
+      - id: pick-lines
+        required: true
+        description: "grep selects the lines that match (the failing status), with -c to count them, -v to drop lines, -i to ignore case."
+      - id: fields-and-counts
+        required: true
+        description: "cut or awk takes the field with the page; sort puts equal lines next to each other so uniq -c can count them; sort -rn and head give the most frequent."
+      - id: edit-compute
+        required: false
+        description: "sed changes text (s/old/new/g); awk filters and adds up fields (NR > 1 to skip a header); jq does the same for JSON."
+      - id: diagnose
+        required: true
+        description: "For a misbehaving program: strace shows the system calls it's stuck in, lsof shows which process holds a file or a port, iostat and vmstat show disk and memory pressure."
+    model_answer: |
+      A pipeline is a chain of small programs joined with |, where each one's output becomes the next one's input, and I'd build it one stage at a time, running it and looking at the result before adding the next stage, so I always know what the next tool is being handed. For the failures I'd start with grep to keep only the lines with the failing status, say grep ' 500 ' access.log, and count them with grep -c or by piping into wc -l. For the page that failed most I'd take the same lines and cut out the field that holds the page, with cut -d' ' -f2 or awk '{print $2}', then sort, because uniq only merges lines that are next to each other, then uniq -c to count each page, sort -rn to put the biggest count first, and head -n 1 to keep the top one. If the log needed cleaning first, sed could change or strip text on each line, and awk could filter on a field or add a column up, remembering to skip a header line with NR > 1 so the header's text isn't compared as a number. If the server itself were the problem rather than the log, I'd look at the program instead of at text: strace to see which system call it's stuck in, lsof -i :8080 (or ss -ltnp) to see which process already holds its port, and iostat or vmstat to see whether the disk is saturated or the machine is swapping.
+review_pool:
+  - shell-top-path
+  - shell-awk-sum
+  - shell-stderr-status
+  - shell-find-logs
+  - shell-sort-numbers
+  - mcq-strace
+  - mcq-iostat-vmstat
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: navigate
+    description: "Move around and look: `pwd`, `cd`, `ls`, `cat`, `head`, `tail`, and `find` by name"
+  - id: pipes-redirects
+    description: "Join commands with `|`, `>`, `>>` and `2>&1`, and say what each stage receives and produces"
+  - id: grep-filter
+    description: "Pick lines out of files with `grep` and its flags: `-n`, `-i`, `-c`, `-v`, `-r`"
+  - id: count-and-sort
+    description: "Fields and counts: `cut`, `sort`, `uniq -c`, `wc` and `head`, to answer how many and which most"
+  - id: sed-awk
+    description: "Edit and compute over text with `sed` and `awk`, and know that `jq` does the same for JSON"
+  - id: diagnose-tools
+    description: "Pick the tool that shows what a misbehaving program is doing: `strace`, `lsof`, `iostat`, `vmstat`"

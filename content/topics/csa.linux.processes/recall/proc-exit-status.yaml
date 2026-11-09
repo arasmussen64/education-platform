@@ -1,0 +1,12 @@
+id: proc-exit-status
+type: predict_shell
+rev: 1
+prompt: |
+  `false` is a command that does nothing and fails; `true` does nothing and succeeds. `$?` is the exit status of the command before it. What is printed?
+command: false; echo $?; true; echo $?
+expected_output: |
+  1
+  0
+explanation: |
+  Every process ends with a number. `0` means success and anything else means failure: `false` exits with `1`. The shell keeps the latest one in `$?`, so each `echo` shows the status of the command just before it. Scripts, `&&`, `||` and CI pipelines all read this number, not the program's text.
+skills: [job-control]

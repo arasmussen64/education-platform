@@ -1,0 +1,18 @@
+id: shell-awk-header-trap
+type: predict_shell
+rev: 1
+prompt: |
+  The pattern `$3 > 100` is meant to pick the big sales and print each name. The header line is still in the file. What is printed? Think about what `awk` does when it compares the word `amount` with `100`.
+files:
+  sales.csv: |
+    name,region,amount
+    ada,north,150
+    grace,south,80
+    ken,north,45
+command: awk -F, '$3 > 100 {print $1}' sales.csv
+expected_output: |
+  name
+  ada
+explanation: |
+  `ada` is expected: 150 is more than 100. The surprise is `name`. On the header line, `$3` is the word `amount`, which isn't a number, so `awk` compares the two as text, and in text the letter `a` comes after the digit `1`, so `amount > 100` is true. Skip the header with `NR > 1 && $3 > 100`, or strip it first with `tail -n +2`. Headers are the most common source of an odd first line in a result.
+skills: [sed-awk]
