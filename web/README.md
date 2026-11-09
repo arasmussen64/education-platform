@@ -72,7 +72,7 @@ Learner code runs in [Pyodide](https://pyodide.org) (Python compiled to WebAssem
 | `python/protocol.ts`  | The messages and results passed between the two.                                                                                      |
 | `python/constants.ts` | The Pyodide version, its CDN address, and the time limit.                                                                             |
 
-The Pyodide version is pinned in two places: `python/constants.ts`, which is what the browser loads, and `package.json`, which the tests use. `session.pyodide.test.ts` fails if they differ. It also runs every harness scenario in real Pyodide and checks that the results exactly match CPython's.
+The Pyodide version is pinned in two places: `python/constants.ts`, which is what the browser loads, and `package.json`, which the tests use. `session.pyodide.test.ts` fails if they differ. It also runs every harness scenario in real Pyodide and checks that the results exactly match CPython's. `content/content.pyodide.test.ts` goes further: it runs every ready exercise's reference solution against its tests in Pyodide, so an exercise that passes in CI but not in the browser can't reach a learner. Only the reference solutions run there, because a known-wrong solution may loop forever on purpose and Pyodide in Node can't be interrupted; the validator proves those fail under CPython.
 
 The app starts loading Pyodide (about 10 MB, cached after the first visit) in the background as soon as it opens.
 

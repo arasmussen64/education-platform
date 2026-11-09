@@ -22,7 +22,7 @@ The learner's code is always `solution.py` in the working folder, and the tests 
 Each folder in `scenarios/` is a small case: a `solution.py`, then either tests (`test_exercise.py`) or, for a Run, optional input (`stdin.txt`) and random seed (`seed.txt`), plus an `expected.json`. Both runtimes must produce exactly the expected report:
 
 - **CPython:** `python -m uv run pytest`, run from the repository root.
-- **Pyodide:** `npm test`, run in `web/` (`src/python/session.pyodide.test.ts`).
+- **Pyodide:** `npm test`, run in `web/` (`src/python/session.pyodide.test.ts`). The same run also checks every ready exercise's reference solution in Pyodide (`src/content/content.pyodide.test.ts`).
 
 To add a scenario:
 
