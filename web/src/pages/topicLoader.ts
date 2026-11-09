@@ -1,5 +1,10 @@
 import type { LoaderFunctionArgs } from 'react-router'
-import { getTopic, isOpen, loadTopicContent } from '../content/content.ts'
+import {
+  getTopic,
+  isOpen,
+  loadTopicContent,
+  loadTrackOf,
+} from '../content/content.ts'
 import type { Topic } from '../content/types.ts'
 import { dayOf } from '../days.ts'
 import {
@@ -15,7 +20,10 @@ import {
  * practice (F5). The page then reads the result with useLoaderData().
  */
 export async function topicLoader({ params }: LoaderFunctionArgs) {
-  const topic = getTopic(params.topicId ?? '')
+  const topicId = params.topicId ?? ''
+  // A topic of an outline-only track isn't bundled in until asked for.
+  await loadTrackOf(topicId)
+  const topic = getTopic(topicId)
   const content =
     topic && isOpen(topic) ? await loadTopicContent(topic.id) : null
   const interleaved =

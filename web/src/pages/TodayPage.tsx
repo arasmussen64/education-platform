@@ -61,6 +61,8 @@ export function TodayPage() {
 
 /** The signed-in learner's plan. The progress is read once, for all of it. */
 function Plan() {
+  // The topics bundled with the app. An outline-only track's topics aren't,
+  // and don't need to be: nothing in them can be due or next (content.ts).
   const topics = useMemo(
     () =>
       tracks()

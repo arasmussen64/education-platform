@@ -63,7 +63,9 @@ Milestone C is complete.
 - [x] Module 4 content (functions), ready before the owner finishes Module 3 (2026-11-09)
 - [x] Module 5 content (collections) (2026-11-09)
 - [x] Module 6 content, and the end of the Python Foundations track (2026-11-09)
-- [ ] Smaller app bundle: load the cloud track's outlines only when the map asks for them
+- [x] Smaller app bundle: load the cloud track's outlines only when the map asks for them (2026-11-09)
+
+Milestone D is built. It's complete once the owner has deployed the AI proxy and the problem-reports migration and run the tutor test set (devlog, 2026-11-08 and 2026-11-09).
 
 ## Phase 2: Adaptivity and better practice (months 2–4)
 
