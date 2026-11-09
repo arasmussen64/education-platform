@@ -9,13 +9,13 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Concept: [docs/vision.md](docs/vision.md)
 - Plan and current phase: [docs/roadmap.md](docs/roadmap.md)
 - v1 spec: [docs/specs/v1.md](docs/specs/v1.md), with the [data model](docs/specs/data-model.md) and the [first track](docs/specs/python-foundations.md)
-- Next track, specified but not built: [Cloud Solutions Architect](docs/specs/cloud-solutions-architect.md). How its cloud work is proven is [ADR-0014](docs/decisions/0014-cloud-labs.md) (proposed); how its shell module is taught and proven is [ADR-0017](docs/decisions/0017-shell-in-the-browser.md) (proposed).
+- Next track, specified but not built: [Cloud Solutions Architect](docs/specs/cloud-solutions-architect.md). How its cloud work is proven is [ADR-0014](docs/decisions/0014-cloud-labs.md); how its shell module is taught and proven is [ADR-0017](docs/decisions/0017-shell-in-the-browser.md). Both accepted 2026-11-09.
 - Decisions (ADRs): [docs/decisions/](docs/decisions/)
 - Methods behind the features: [docs/learning-science.md](docs/learning-science.md)
 - Session history: [docs/devlog.md](docs/devlog.md)
 - Owner's machine and accounts: [docs/setup.md](docs/setup.md)
 
-**Current phase:** Phase 1 is complete (2026-11-09). Phase 2 (adaptivity and better practice) is next, with the cloud track's first steps once ADR-0014 and ADR-0017 are decided. The web app lives in `web/`.
+**Current phase:** Phase 1 is complete (2026-11-09). Phase 2 (adaptivity and better practice) is next, alongside the cloud track's first steps, now that ADR-0014 and ADR-0017 are accepted. The web app lives in `web/`.
 
 **Stack** ([ADR-0007](docs/decisions/0007-tech-stack.md)): TypeScript + React + Vite web app served as static files from Cloudflare; Supabase (Postgres, Auth, Edge Functions as the Claude API proxy); learners' Python runs in the browser via Pyodide in a Web Worker; Python (uv, pytest, ruff) for content tooling and ML; GitHub Actions for CI.
 

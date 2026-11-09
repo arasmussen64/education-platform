@@ -1,6 +1,6 @@
 # ADR-0015: The hint-only tutor
 
-- **Status:** Proposed (built on 2026-11-08 while the owner was away, as the roadmap's next item; the owner reviews this ADR and says "go" before the proxy is deployed)
+- **Status:** Accepted (2026-11-09). Built on 2026-11-08 while the owner was away, as the roadmap's next item; the owner deployed it and ran its test set on 2026-11-09 (see *Rolling it out*), then accepted this ADR.
 - **Date:** 2026-11-08
 
 ## Context

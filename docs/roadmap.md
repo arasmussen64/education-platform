@@ -1,6 +1,6 @@
 # Roadmap
 
-**Current phase: Phase 1 is complete (2026-11-09). Phase 2, adaptivity and better practice, is next,** alongside the cloud track's first steps once [ADR-0014](decisions/0014-cloud-labs.md) and [ADR-0017](decisions/0017-shell-in-the-browser.md) are decided.
+**Current phase: Phase 1 is complete (2026-11-09). Phase 2, adaptivity and better practice, is next,** alongside the cloud track's first steps, now that [ADR-0014](decisions/0014-cloud-labs.md) and [ADR-0017](decisions/0017-shell-in-the-browser.md) are accepted (2026-11-09).
 
 The owner works full time, split between learning (mornings, on the platform once it exists) and building (afternoons). The roadmap serves both: the platform's content stays one module ahead of the owner's own learning.
 
@@ -93,14 +93,14 @@ Mornings learning on the platform, afternoons building it.
 
 ## Other tracks
 
-- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), proposed.
+- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09.
 
   Building it, in the order the spec's *Building it* section gives:
   - [x] More than one track in the app: the map and topic pages know every track (2026-11-08)
   - [x] The track on the map as `planned` outlines, generated from the spec (2026-11-08)
-  - [ ] Decide how the shell is taught and proven ([ADR-0017](decisions/0017-shell-in-the-browser.md), proposed): a `predict_shell` item proven by real `bash` in the validator, local container labs through the lab checker, a browser VM later
+  - [x] Decide how the shell is taught and proven ([ADR-0017](decisions/0017-shell-in-the-browser.md), accepted 2026-11-09): a `predict_shell` item proven by real `bash` in the validator, local container labs through the lab checker, a browser VM later
   - [ ] Stage 1 content: Module 1's lessons and recall first, then the drills that run in the browser
-  - [ ] The lab checker (needs ADR-0014 accepted)
+  - [ ] The lab checker ([ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09)
   - [ ] Design reviews, game days and "Defend it"
 
 ## The owner's 12-month learning milestone

@@ -1,6 +1,6 @@
 # ADR-0016: Parsons problems as a recall item type
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-11-09)
 - **Date:** 2026-11-09
 
 ## Context

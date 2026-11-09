@@ -25,7 +25,7 @@ Run these from the repository root. Docker Desktop must be running.
 | `npm run db:test` | Runs the database tests. |
 | `npm run db:lint` | Checks the SQL in migrations for mistakes. |
 | `npm run db:stop` | Stops the local Supabase. Your local data is kept for next time. |
-| `npm run db:types` | Regenerates `web/src/supabase/database.types.ts` from the local database. Run it after every migration. |
+| `npm run db:types` | Regenerates `web/src/supabase/database.types.ts` from the local database. Run it after every migration. If `npm run db:start` said "Starting database from backup", run `npm run db:reset` first: the backup may predate your newest migration, and the generated file would silently lose that table (it happened on 2026-11-09). |
 | `npx supabase migration new <name>` | Creates a new, empty migration file. |
 | `npx supabase db push --remote --dry-run` | Shows which merged migrations the real project is missing. Without `--dry-run` (and with `--yes`), it applies them. Without `--remote`, it targets the local database. |
 | `npx supabase migration list --remote` | Compares migration history on your PC with the real project. |
