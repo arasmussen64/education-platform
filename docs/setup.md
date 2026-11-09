@@ -102,7 +102,15 @@ Local development doesn't use this app. The local Supabase signs in with email l
 2. Run that command again.
 3. Delete the old key in the Console.
 
-**Who can use it.** Explanations are graded only for accounts with `allowed` switched on, a column in `profiles`. The owner's account was switched on on 2026-11-08, in the dashboard's SQL editor.
+**Who can use it.** Explanations are graded only for accounts with `allowed` switched on, a column in `profiles`. The owner's account was switched on on 2026-11-08, in the dashboard's SQL editor, with:
+
+```sql
+update public.profiles set allowed = true
+where id = (select id from auth.users order by created_at limit 1)
+returning display_name, allowed;
+```
+
+It picks the oldest account, which is the owner's. For another learner, use their id from **Authentication → Users** instead.
 
 ## Back up your learning data
 

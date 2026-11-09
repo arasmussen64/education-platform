@@ -2,6 +2,49 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-08: Where we stopped (paused)
+
+The owner paused work here.
+
+**Done since the last pause** (all merged and live):
+- ADR-0013 was accepted, and the owner's answers recorded (#33).
+- Explanation grading, built and rolled out:
+  - the AI proxy and its call log, `ai_calls` (#34);
+  - the explanation box on every topic and checkpoint (#35);
+  - the grading test set. Claude Haiku 5.5 at low effort got all 30 samples right twice, so it's the grader (#36);
+  - the rollout notes, and how to deploy the function again (#37).
+
+**Where we sit**
+- **Phase 1, Milestone B (Prove it).** Milestone A is done.
+  - Done in B: export my data, progress tracking part 1, and explain it back graded by AI.
+  - Left in B: topic states and gating with "Prove it now", and Module 2's content.
+- **The live site has everything on `main`.**
+  - The `ai` function is deployed, and the Claude API key is in the live project's secrets.
+  - The owner switched on `allowed` for their account, so their explanations get graded.
+  - The app stops grading at $10 a month.
+- **The owner is on Module 1, Values and types.** Their next explain check there will be the first real grading.
+- **Nothing is left running.** The local Supabase and Docker Desktop are stopped. `main` is clean, with no open pull requests or leftover branches.
+
+**Not confirmed yet**
+- **The first grading on the live site.** If the box says grading isn't switched on for the account, the `allowed` update didn't run. The SQL is in `setup.md`, under "Who can use it".
+- **The $10 monthly limit in the Anthropic Console** (step 2 in `setup.md`). It's a second safety net, on top of the app's own cap.
+
+**Next, in order**
+1. **The owner:** try Explain it back on Values and types on the live site, reloading the page first. Set the Console limit, if it isn't set.
+2. **Topic states and gating, with "Prove it now"** (F8, F9). This was waiting for grading. Explanations can now pass, so topics can become Learned. It starts with a short plan, checked against ADR-0002 and the v1 spec:
+   - which states lock what;
+   - what "Prove it now" lets a learner skip.
+3. **Module 2's content,** ready before the owner finishes Module 1.
+4. **Then Milestone C** (FSRS reviews, the full Today page, recall items, interleaved practice) **and D** (the hint-only tutor, problem reports).
+5. **Later, in Phase 2:** the practice-hours tracker, on the way to 10,000 hours.
+
+**To remember on return**
+- **Merging doesn't deploy the AI proxy.** See "Putting it live" in `supabase/README.md`.
+- **From Claude Code, the Supabase CLI changes the live project only with `--yes`.** That flag goes in only after the owner's go-ahead.
+- **Checking the app on my own dev server:** the recipe is in the 2026-11-06 "Where we stopped" entry.
+  - Local grading also needs `npm run fn:serve`, with the key in `supabase/functions/.env`.
+  - The local test account is `allowed` in the local database only.
+
 ## 2026-11-08: Explain it back is live
 
 **Rolled out** in this order (ADR-0013's last steps), with the owner's go-ahead:
