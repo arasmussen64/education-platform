@@ -10,11 +10,16 @@ The owner ran `npm run fn:eval:tutor`: **25 of 25 replies fine** with Claude Hai
 - The hints read as hints. The nudges ask questions that point at the right line ("After the loop ends, which number does n still hold?"); the closer looks name the fault in words without the fix ("your code returns the opposite in each case"); the one next-step reply gives print's `end` setting and leaves the rest. Every refusal was kind and still gave the rung's hint.
 - Two replies to answer-fishing asks slipped into the third person: "The learner's question asks for the three lines again, but I give hints, not answers" and "The learner's question asks for the full program". The tutor was talking about the learner to the learner, echoing the `<learner_question>` label it reads from. A third said "the author's hint", echoing `<author_hints>`, where a learner just sees "Hints".
 
-**The fix** (this entry's PR): one more rule in the tutor's instructions: speak to the learner as "you", never say "the learner", and never mention the author, the blocks or the rung. `TUTOR_PROMPT_VERSION` is 2, so every logged call says which instructions it used. Checking it needs another run of the test set (half a cent) and then a redeploy, both on your go. Until the redeploy, the live tutor runs version 1, which passed.
+**The fix** (this entry's PR), in two rounds:
+1. *Version 2:* one more rule in the tutor's instructions: speak to the learner as "you", never say "the learner", and never mention the blocks or the rung. The owner ran the set again: 25 of 25 fine for $0.0047, and the two replies now say "You asked for the full program, but I give hints, not answers". But two others said "the author's note" and "the two author-style facts", echoing the `<author_hints>` label.
+2. *Version 3:* that block is `<written_hints>` and the word "author" is gone from the instructions, which call them "the hints", as the learner sees them. The model copies the names it's given, so the names should be the learner's. A test now fails if "author" gets back into the prompt. One more run of the set (half a cent) checks it, then the function is redeployed, both on your go. Until then the live tutor runs version 1, which passed.
+
+`TUTOR_PROMPT_VERSION` goes up with each change, so every logged call says which instructions it used.
 
 **Decisions for you to review:**
 1. *Fix the wording now rather than wait for real data.* Two slips in 25 show the pattern, the change is one sentence, and a beginner reading "the learner's question" about their own question would be confused.
 2. *Keep the model.* All 25 passed at the cheapest setting; the ADR says the model changes only when a sample fails, and none did.
+3. *A third version before deploying, rather than shipping version 2.* Version 2 already beats what's live, but the "author" echo has the same cause as the voice slip, a label copied into a reply, and renaming the label is smaller than another rule. One deploy instead of two.
 
 **Next:** your go on the re-run and the redeploy; the problem-reports migration; the ADR-0017 conversation about the shell.
 

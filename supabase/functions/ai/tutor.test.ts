@@ -75,7 +75,7 @@ Deno.test('the request: every block in its tags, and the rung at the end', () =>
   assert.equal(request.model, 'claude-haiku-5-5')
   const content = request.messages[0]?.content as string
   assert.match(content, /<exercise title="Count to n">\nCount from 1/)
-  assert.match(content, /<author_hints>\n- The first number printed is 1\./)
+  assert.match(content, /<written_hints>\n- The first number printed is 1\./)
   assert.match(content, /<reference_solution>\nn = int/)
   assert.match(content, /\[FAIL\] Typing 3 prints 1, 2, 3\. -- printed nothing/)
   assert.match(content, /<earlier_hints>\n1\. Look at line 2\./)
@@ -98,10 +98,16 @@ Deno.test('the request: every block in its tags, and the rung at the end', () =>
 Deno.test('the instructions: hints only, and spoken to the learner as "you"', () => {
   const system = tutorRequest(INPUT, 'claude-haiku-5-5', 'low').system as string
   assert.match(system, /never to give it to them/)
-  // Version 2: two test-set replies said "the learner's question" to the
-  // learner themselves, echoing the block labels. The rule rules that out.
+  // Versions 2 and 3: test-set replies said "the learner's question" and "the
+  // author's note" to the learner, echoing the labels in the prompt. So the
+  // rule below, and no "author" anywhere: the hints are just "the hints".
   assert.match(system, /Speak to the learner directly, as "you"\. Never call them "the learner"/)
-  assert.match(system, /never mention the author, the blocks you were given or the rung/)
+  assert.match(system, /never mention the blocks you were given or the rung/)
+  assert.doesNotMatch(system, /author/i)
+  assert.doesNotMatch(
+    tutorRequest(INPUT, 'claude-haiku-5-5', 'low').messages[0]?.content as string,
+    /author/i,
+  )
 })
 
 Deno.test('an empty editor and no Check yet are said plainly', () => {

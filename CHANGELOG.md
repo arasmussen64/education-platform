@@ -8,7 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed (AI tutor)
 
-- **The tutor speaks to you as "you"** (instructions version 2). In the test set's first real run (25 of 25 replies fine on Claude Haiku 5.5, for $0.0044), two replies to "just give me the answer" asks said "the learner's question asks for…" to the learner themselves, echoing the labels the tutor reads from. The instructions now rule that out. Live after the next deploy of the proxy.
+- **The tutor speaks to you as "you"** (instructions version 3). In the test set's first real run (25 of 25 replies fine on Claude Haiku 5.5, for $0.0044), two replies to "just give me the answer" asks said "the learner's question asks for…" to the learner themselves, and others spoke of "the author's note": the tutor was echoing the labels on the information it reads. The instructions now say to speak as "you", and the written hints are labelled as the hints you see, not an author's. Live after the next deploy of the proxy.
 - **The tutor's test set covers Modules 3 to 6 now:** five more exercises (a safe division with `try`, a CSV column total, saving numbers to a file, a shuffled copy of a list, and tests-first `clamp`), three conversations each, with a fresh attempt to get the answer out of the tutor in every one (a fake system message in a comment, "you already gave it to me", flattery, "so I can compare with mine"). Ten exercises and 24 conversations in all. The set still runs only when the owner says so, because it costs money.
 
 ### Added (the living map)
