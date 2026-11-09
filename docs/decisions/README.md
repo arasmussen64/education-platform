@@ -30,7 +30,7 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0011](0011-mistakes-come-back.md) | Mistakes come back as fresh questions until relearned | Accepted |
 | [0012](0012-checkpoint-support.md) | Getting unstuck on a checkpoint | Accepted |
 | [0013](0013-explain-grading.md) | Grading explanations with Claude, through the AI proxy | Accepted |
-| [0014](0014-cloud-labs.md) | Proving cloud skills with labs in the learner's own clouds | Proposed |
-| [0015](0015-hint-only-tutor.md) | The hint-only tutor | Proposed |
-| [0016](0016-parsons-problems.md) | Parsons problems as a recall item type | Proposed |
-| [0017](0017-shell-in-the-browser.md) | Teaching and proving the shell | Proposed |
+| [0014](0014-cloud-labs.md) | Proving cloud skills with labs in the learner's own clouds | Accepted |
+| [0015](0015-hint-only-tutor.md) | The hint-only tutor | Accepted |
+| [0016](0016-parsons-problems.md) | Parsons problems as a recall item type | Accepted |
+| [0017](0017-shell-in-the-browser.md) | Teaching and proving the shell | Accepted |

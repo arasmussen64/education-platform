@@ -2,6 +2,16 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Four ADRs accepted, the $10 cap set, the database types confirmed
+
+**Accepted by the owner:** [ADR-0014](decisions/0014-cloud-labs.md) (cloud labs in the learner's own clouds), [ADR-0015](decisions/0015-hint-only-tutor.md) (the hint-only tutor), [ADR-0016](decisions/0016-parsons-problems.md) (Parsons problems) and [ADR-0017](decisions/0017-shell-in-the-browser.md) (teaching and proving the shell). Their status lines, the ADR index, CLAUDE.md, the roadmap and the cloud track's spec no longer say "proposed". With ADR-0017 accepted, the cloud track's Stage 1 can start: the `predict_shell` item type proven by real `bash` in the validator, Module 1's lessons and recall, then the lab checker's local container mode (ADR-0014).
+
+**The $10 monthly limit** is set in the Anthropic Console (setup.md). It's the backstop behind the proxy's own cap: if the cap's logging ever failed, the Console would still stop the spending.
+
+**The database types, regenerated.** Docker Desktop was up, so `npm run db:types` could finally run. The first run was wrong in an instructive way: `supabase start` restored the local database from an old backup that predated the problem-reports migration, so the generated file *lost* the `problem_reports` table. `npm run db:reset` rebuilt the local database from the three migrations, and the second run produced a file identical to the hand edit from #49, zero lines changed. The database tests passed locally too (38 tests in three files), as they had in CI. A note in `supabase/README.md` now says to reset before generating types when `supabase start` mentions a backup. The local Supabase is stopped again; Docker Desktop was left as the owner had it.
+
+**Next:** the cloud track's Stage 1, starting with the `predict_shell` item type and Module 1 (Linux and the command line), per ADR-0017; the lab checker (ADR-0014); Phase 2's remaining items (a placement test, the code visualizer, backups).
+
 ## 2026-11-09: Problem reports reach the live database, and Phase 1 is complete
 
 The owner pushed the last missing migration to the live project. The dry run listed only `20261109063021_problem_reports.sql`; the push applied it; a second dry run says the remote database is up to date.
@@ -79,9 +89,9 @@ A summary for the owner of everything since "I'm going to be away" (the evening 
 **Waiting on you** (each needs a "go"; none was done without one):
 1. ~~Deploy the AI proxy with the tutor, then run the tutor test set~~ Both done by you on 2026-11-09: deployed, and 25 of 25 test-set replies fine (the entries above).
 2. ~~The problem-reports migration to the live database~~ Done by you on 2026-11-09: the dry run listed only that one, the push applied it, and the table is there and locked down (the entry above).
-3. `npm run db:types` once Docker Desktop is running, since the database types were edited by hand for problem reports.
-4. The $10 monthly limit in the Anthropic Console.
-5. Four ADRs to accept or change: [ADR-0014](decisions/0014-cloud-labs.md) (cloud labs), [ADR-0015](decisions/0015-hint-only-tutor.md) (hint-only tutor), [ADR-0016](decisions/0016-parsons-problems.md) (Parsons problems), [ADR-0017](decisions/0017-shell-in-the-browser.md) (how the shell is taught and proven).
+3. ~~`npm run db:types` once Docker Desktop is running~~ Done on 2026-11-09: the generated file matches the hand edit exactly (the entry above).
+4. ~~The $10 monthly limit in the Anthropic Console.~~ Set by you on 2026-11-09.
+5. ~~Four ADRs to accept or change~~ All four accepted by you on 2026-11-09: [ADR-0014](decisions/0014-cloud-labs.md) (cloud labs), [ADR-0015](decisions/0015-hint-only-tutor.md) (hint-only tutor), [ADR-0016](decisions/0016-parsons-problems.md) (Parsons problems), [ADR-0017](decisions/0017-shell-in-the-browser.md) (how the shell is taught and proven).
 6. The "Decisions for you to review" lists in the entries below: Modules 3 to 6, the tutor, problem reports, lazy outlines, practice hours, Parsons problems, the living map.
 
 **What I didn't start, and why.** The cloud track's Stage 1 content. Its first module is Linux and the command line, and the platform has no way yet to run or check shell work in the browser; the browser drills that ADR-0014 names (subnetting, policy evaluation, costs, capacity) belong to later Stage 1 modules, which a learner can't reach before Module 1. How Linux is taught and proven is your call, so I wrote the options up as [ADR-0017](decisions/0017-shell-in-the-browser.md) (proposed): lessons and a validator-proven "predict the output of this command" item in the browser first, labs in containers on the learner's own machine through the lab checker, and a real Linux VM in the browser (v86, open licence, a 60 MB download) as the later enhancement; a shell simulator is ruled out, and WebVM's engine isn't self-hostable without a licence. It's the first thing to talk through when you're back.

@@ -1,6 +1,6 @@
 # ADR-0014: Proving cloud skills with labs in the learner's own clouds
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-11-09)
 - **Date:** 2026-11-08
 
 ## Context

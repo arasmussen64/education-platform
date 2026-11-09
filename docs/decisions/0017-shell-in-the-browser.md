@@ -1,6 +1,6 @@
 # ADR-0017: Teaching and proving the shell
 
-- **Status:** Proposed
+- **Status:** Accepted (2026-11-09)
 - **Date:** 2026-11-09
 
 ## Context

@@ -2,7 +2,7 @@
 
 This track takes a learner to the work of a senior, then principal, cloud solutions architect on AWS, Microsoft Azure and Google Cloud. It aims at the top of the pay band: an architect who can design an enterprise's cloud estate, build the hard parts themselves, keep it secure, reliable and affordable, and win executives' support.
 
-**Status: specified, not built.** It's the second track, after Python Foundations. Building it needs two things first: the app has to support more than one track, and the lab checker from [ADR-0014](../decisions/0014-cloud-labs.md) (proposed) has to exist. See [Building it](#building-it).
+**Status: specified, not built.** It's the second track, after Python Foundations. Building it needs two things first: the app has to support more than one track, and the lab checker from [ADR-0014](../decisions/0014-cloud-labs.md) (accepted 2026-11-09) has to exist. See [Building it](#building-it).
 
 **Two sources.** The track was first designed from the platform's own rules, then cross-referenced on 2026-11-08 against the owner's *Senior Cloud Architect Knowledge Map & Learning Roadmap* (twelve domains, a certification order, a 24-month plan and a self-assessment), so that everything in that map is in the track. The map's [24-month example path](#a-faster-path-for-an-experienced-learner) and [self-assessment](#self-assessment-youre-senior-when-you-can) are part of this spec, and the map itself is kept at [docs/research/senior-cloud-architect-knowledge-map.md](../research/senior-cloud-architect-knowledge-map.md).
 
