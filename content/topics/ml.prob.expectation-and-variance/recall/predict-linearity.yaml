@@ -1,0 +1,21 @@
+id: predict-linearity
+type: predict_output
+rev: 1
+prompt: |
+  A three-value table, then the same variable scaled and shifted. What does the program print?
+code: |
+  import numpy as np
+  
+  x = np.array([0.0, 1.0, 2.0])
+  p = np.array([0.5, 0.3, 0.2])
+  mean = (x * p).sum()
+  var = ((x - mean) ** 2 * p).sum()
+  print(round(float(mean), 4), round(float(var), 4))
+  y = 3 * x + 2
+  print(round(float((y * p).sum()), 4), round(float(((y - (y * p).sum()) ** 2 * p).sum()), 4))
+expected_output: |
+  0.7 0.61
+  4.1 5.49
+explanation: |
+  The mean is `0 * 0.5 + 1 * 0.3 + 2 * 0.2 = 0.7`, and the variance is the probability-weighted squared distance from it, 0.61. For `y = 3x + 2` the mean is `3 * 0.7 + 2 = 4.1` (linearity) and the variance is `9 * 0.61 = 5.49`: the shift by 2 moves every value equally and changes no spread, and scaling by 3 scales the variance by `3² = 9`.
+skills: [variance, expectation]

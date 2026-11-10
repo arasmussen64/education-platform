@@ -1,16 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.prob.expectation-and-variance
 kind: topic
-status: planned
-title: Expectation and variance
-summary: The mean of a random variable, its spread, the rules they follow, and the law of large numbers watched in a simulation.
-prerequisites:
-- ml.prob.distributions
+status: ready
+title: "Expectation and variance"
+summary: "The mean of a random variable, its spread, the rules they follow, and the law of large numbers watched in a simulation."
+prerequisites: [ml.prob.distributions]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Compute the expected value and the variance of a discrete distribution from its table.
-- Use linearity of expectation, and the rule for the variance of a sum of independent variables.
-- Watch sample means settle on the expectation as the sample grows, and say what the law of large numbers promises.
-- Standardize a value with the mean and the standard deviation, and read the result.
+  - "Compute the expected value and the variance of a discrete distribution from its table."
+  - "Use linearity of expectation, and the rule for the variance of a sum of independent variables."
+  - "Watch sample means settle on the expectation as the sample grows, and say what the law of large numbers promises."
+  - "Standardize a value with the mean and the standard deviation, and read the result."
+# Linked, never copied or embedded: OpenStax is CC BY 4.0; StatQuest's videos
+# are under the standard YouTube licence; NumPy's documentation is under the
+# NumPy licence (BSD-3-Clause).
+resources:
+  - title: "OpenStax Introductory Statistics 2e: section 4.2 (Mean or Expected Value and Standard Deviation) and section 6.1 (The Standard Normal Distribution, for z-scores)"
+    url: https://openstax.org/details/books/introductory-statistics-2e
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "StatQuest: Expected Values, Main Ideas!!! (Josh Starmer)"
+    url: https://www.youtube.com/watch?v=KLs_7b7SKi4
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "numpy.cumsum (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.cumsum.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-a-die-in-expectation
+  - parsons-expected-prize
+  - mcq-expected-profit
+  - predict-linearity
+  - mcq-gamblers-fallacy
+  - fill-expectation-and-variance
+  - write-standardize
+prove:
+  build: build-moments-and-running-means
+  debug: debug-spread-report
+  explain:
+    prompt: |
+      A teammate says two things: "the expected number of heads in 100 flips is 50, so I expect to see exactly 50", and "if I average two independent noisy sensors, the noise doubles". In your own words: what does an expected value promise, and what doesn't it? What does the law of large numbers say, and what is the gambler's fallacy? Why does averaging two independent readings reduce the variance rather than double it? And what does a z-score of 2 mean?
+    rubric:
+      - id: expectation
+        required: true
+        description: "The expected value is the long-run average of many draws, each value weighted by its probability; a single draw needn't equal it (exactly 50 heads has chance about 0.08), and the standard deviation (5 here) says how far a draw typically lands from it."
+      - id: law
+        required: true
+        description: "As the number of draws grows, the sample mean settles on the expected value; it does so by swamping early luck, not by compensating for it, so after ten heads the next flip is still a half: expecting tails to 'catch up' is the gambler's fallacy."
+      - id: independence
+        required: true
+        description: "Variances of independent variables add, so the sum of two readings has twice the variance; the average divides by 2, which divides the variance by 4, leaving half the variance (standard deviation over root 2): averaging independent noise shrinks it. Doubling one reading would quadruple the variance, which is the case the teammate has in mind."
+      - id: z-score
+        required: false
+        description: "A z-score is how many standard deviations a value sits from the mean; 2 means two standard deviations above, which for a normal is beyond about 97.7 percent of values, and it lets values on different scales be compared."
+    model_answer: |
+      An expected value is the average you'd get over a great many draws: each value times its probability, added up. For 100 flips that's 50, but it promises nothing about one run; getting exactly 50 happens only about 8 percent of the time, and the standard deviation, 5 here, says a run typically lands within a handful of 50. The law of large numbers says that as the number of draws grows, the sample's mean settles on the expected value, and it settles by swamping: ten early heads are a drop in a million flips, not a debt the coin pays back. Each flip is still a half, whatever came before, and expecting tails to catch up is the gambler's fallacy. For the sensors: when independent variables are added, their variances add, so the sum of two readings has twice the variance of one. Averaging divides the sum by 2, and dividing a variable by 2 divides its variance by 4, so the average has half the variance of a single reading, a standard deviation smaller by root 2. The noise shrinks, which is why averaging repeated measurements works. What the teammate is picturing is doubling one reading, which does quadruple the variance, because the same noise is counted twice rather than two independent noises partly cancelling. A z-score is a value's distance from the mean measured in standard deviations: 2 means two standard deviations above the mean, which for a normal is higher than about 97.7 percent of values, and it lets a score on one scale be compared with a score on another.
+review_pool:
+  - review-predict-bernoulli-moments
+  - review-mcq-two-dice-or-one-doubled
+  - review-mcq-which-score-is-better
+  - review-expectation
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: expectation
+    description: "Compute an expected value from a distribution's table and read it as a long-run average"
+  - id: variance
+    description: "Compute a variance and a standard deviation from a table, and apply the rules for scaling and for sums of independent variables"
+  - id: law
+    description: "Say what the law of large numbers promises, watch it in a simulation, and name the gambler's fallacy"
+  - id: standardize
+    description: "Standardize a value with the mean and the standard deviation, and read a z-score"
