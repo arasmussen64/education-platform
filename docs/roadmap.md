@@ -84,7 +84,7 @@ Every item below is built (2026-11-10). Two production steps wait for the owner:
 
 ## Phase 3: CS and ML tracks (months 5–9, content begun 2026-11-10)
 
-- Content: math for ML ([x] linear algebra, the ML track's Module 3, 2026-11-10; [x] calculus, the ML track's Module 4, 2026-11-10: seven topics and a checkpoint that trains a network from scratch; [ ] probability), core CS (data structures, algorithms, how computers and GPUs work), then neural networks from scratch, building up to transformers
+- Content: math for ML ([x] linear algebra, the ML track's Module 3, 2026-11-10; [x] calculus, the ML track's Module 4, 2026-11-10: seven topics and a checkpoint that trains a network from scratch; [ ] probability, Module 5, outlined 2026-11-10), core CS (data structures, algorithms, how computers and GPUs work), then neural networks from scratch, building up to transformers
 - The owner writes a growing share of the platform's code
 - Senior-engineer code review and the practice generator
 
