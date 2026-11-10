@@ -201,3 +201,27 @@ def test_the_result_carries_only_what_the_site_needs(tmp_path: Path) -> None:
     ]
     # Details stay on the learner's machine.
     assert "detail" not in str(result) and "printed" not in str(result)
+
+
+def test_warming_builds_the_first_lab_of_each_topic_in_order(monkeypatch) -> None:
+    built: list[tuple[str, str]] = []
+    monkeypatch.setattr(labcheck, "load_lab", lambda topic, exercise: (topic, exercise))
+    monkeypatch.setattr(labcheck, "build_image", built.append)
+    said: list[str] = []
+    labcheck.warm_images(
+        [("t.a", "x"), ("t.a", "y"), ("t.b", "z"), ("t.a", "w")], say=said.append
+    )
+    assert built == [("t.a", "x"), ("t.b", "z")]
+    assert said == ["warming t.a with x...", "warming t.b with z..."]
+
+
+def test_warming_reports_a_failed_build_and_goes_on(monkeypatch) -> None:
+    def boom(lab: object) -> None:
+        raise labcheck.LabError("docker build failed: no space left")
+
+    monkeypatch.setattr(labcheck, "load_lab", lambda topic, exercise: (topic, exercise))
+    monkeypatch.setattr(labcheck, "build_image", boom)
+    said: list[str] = []
+    labcheck.warm_images([("t.a", "x"), ("t.b", "y")], say=said.append)
+    assert sum("warming" in line for line in said) == 2
+    assert "  LabError: docker build failed: no space left" in said
