@@ -1,0 +1,17 @@
+id: review-predict-cost-of-confidence
+type: predict_output
+rev: 1
+prompt: |
+  The cost of a probability when it's right, and when it's wrong. What does the program print?
+code: |
+  import numpy as np
+  
+  p = np.array([0.5, 0.9, 0.99, 0.999])
+  print(np.round(-np.log(p), 3))
+  print(np.round(-np.log(1 - p), 3))
+expected_output: |
+  [0.693 0.105 0.01  0.001]
+  [0.693 2.303 4.605 6.908]
+explanation: |
+  The first line is `-log(p)`, the cost when the answer the model gave `p` to is right: small and shrinking as confidence grows. The second is `-log(1 - p)`, the cost when it's wrong: 2.3 at 0.9, 4.6 at 0.99, 6.9 at 0.999. Each extra nine of misplaced confidence adds another 2.3. That's the log doing its job.
+skills: [cross-entropy]

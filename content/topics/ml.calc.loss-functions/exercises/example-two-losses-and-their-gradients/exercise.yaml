@@ -1,0 +1,19 @@
+id: example-two-losses-and-their-gradients
+stage: worked_example
+rev: 1
+title: "Two losses and their gradients"
+prompt: |
+  This program computes mean squared error and its gradient, cross-entropy and the cost of a confident mistake, the gradient of cross-entropy through a sigmoid, and a softmax over three scores. Press **Run**, then read how each part works.
+steps:
+  - label: "Mean squared error"
+    lines: "8-12"
+    note: "Four predictions of numbers, four targets. `miss` is the gap for each; the loss is the mean of the squared gaps, 0.1375. Its gradient with respect to the predictions is `2 * miss / n`: the push on each prediction is proportional to how far off it is, and the sign says which way."
+  - label: "Cross-entropy, and the price of confidence"
+    lines: "14-18"
+    note: "Four probabilities for a yes-or-no answer, with the true answers `y`. Each example costs minus the log of the probability given to the **right** answer: `-log(0.9)` is 0.105, `-log(1 - 0.3)` is 0.357, and the confident miss, 0.05 for a true 1, costs 2.996 on its own. The last line compares a 0.01 for a true 1: cross-entropy charges 4.6, squared error 0.98."
+  - label: "The gradient through the sigmoid"
+    lines: "20-24"
+    note: "Scores `z` become probabilities through the sigmoid. The gradient of the cross-entropy with respect to each score is just `p - y`: the log's `1/p` and the sigmoid's `p(1 - p)` cancel. The third example, a true 1 given 0.269, gets a push of -0.731; the loss falls as its score rises."
+  - label: "Softmax, for more than two classes"
+    lines: "26-30"
+    note: "Three scores become three probabilities that add to 1: `exp` of each over the sum. Subtracting the largest score first changes nothing mathematically (it cancels top and bottom) and keeps `exp` from overflowing on big scores. The loss for a true first class is minus the log of its probability, 0.417."

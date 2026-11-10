@@ -1,0 +1,21 @@
+id: build-loss-functions
+stage: build
+rev: 1
+title: "Two losses, with gradients"
+prompt: |
+  Starting from a blank editor, write the two losses a network ends in, each with its gradient:
+
+  - `mse(pred, target)`: the mean squared error, as a float; `d_mse(pred, target)`: its gradient with respect to `pred`, `2 * (pred - target) / n`.
+  - `cross_entropy(p, y, eps=1e-12)`: the mean cross-entropy of probabilities `p` against labels `y`, with `p` clipped into `[eps, 1 - eps]` first; `d_cross_entropy_dz(z, y)`: the gradient of that mean loss with respect to the **scores** `z`, where `p = sigmoid(z)`. It comes out to `(sigmoid(z) - y) / n`; write `sigmoid` yourself.
+
+  Then print four lines: `mse` and `d_mse` for predictions `[2.5, 0.0, 2.1, 7.8]` against targets `[3.0, -0.5, 2.0, 8.0]`; `cross_entropy` for `p = [0.9, 0.6, 0.3, 0.05]` against `y = [1, 1, 0, 1]`; and `d_cross_entropy_dz` for scores `[2.0, 0.0, -1.0]` against `y = [1, 0, 1]`, rounded as shown:
+
+  ```
+  mse 0.1375
+  d_mse [-0.25  0.25  0.05 -0.1 ]
+  cross-entropy 0.992
+  d/dz [-0.04   0.167 -0.244]
+  ```
+
+  The checks compare both gradients with numeric ones, and try losses whose values are known exactly.
+skills: [mse, cross-entropy, gradient]

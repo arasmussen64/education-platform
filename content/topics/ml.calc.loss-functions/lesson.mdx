@@ -1,0 +1,25 @@
+<Intro>
+
+Every chain in this module ends in the same link: a **loss**, one number that says how wrong the model is. Training steps the weights to shrink it, so the loss decides what the model learns to care about, and its gradient is where every backward pass starts. This topic has the two losses that cover most of machine learning, mean squared error for numbers and cross-entropy for probabilities, each computed, differentiated and checked, and the reason the second one has logs in it.
+
+The main resource is **Michael Nielsen's chapter 3**, the section on the cross-entropy cost function, which shows a sigmoid neuron learning slowly under squared error and briskly under cross-entropy, and works out why; about 25 minutes. 3Blue1Brown's _Neural networks_ chapter 2 introduces the cost function with pictures. Watch for:
+
+- **The learning slowdown:** a confidently wrong sigmoid barely moves under squared error.
+- **Why the cross-entropy gradient is `p - y`:** two derivatives cancel.
+- **Minus log of a probability** as the cost of a prediction.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Mean squared error**, for predicting numbers: `np.mean((pred - target) ** 2)`. A miss of 2 costs four times a miss of 1. Its gradient with respect to the predictions is `2 * (pred - target) / n`: proportional to the miss, pulling harder the further off you are.
+- **Cross-entropy**, for predicting probabilities: for each example, minus the log of the probability the model gave to the right answer, `-(y * np.log(p) + (1 - y) * np.log(1 - p))` with `y` 1 or 0, averaged. Guessing 0.9 for a true 1 costs 0.105; 0.05 for a true 1 costs 3.0; 0.01 costs 4.6, where squared error would charge about 1.
+- **Why logs.** The probability of getting many independent answers right is a product; a log turns it into a sum that can be averaged and differentiated. And `-log` is steep near zero, so confidence in the wrong answer is expensive in the right way. Clip `p` to `[1e-12, 1 - 1e-12]` before the log, or a model that says exactly 0 gives an infinite loss.
+- **The gradient through the sigmoid.** With `p = sigmoid(z)` and cross-entropy, `dL/dz = p - y` for each example (divided by `n` for the mean). The log's derivative `1/p` and the sigmoid's `p(1 - p)` cancel. A model that says 0.99 for a true 0 gets a gradient of 0.99: a hard shove, exactly when it needs one. Under squared error the sigmoid's `p(1 - p)` stays in the product and is nearly zero at `p` near 0 or 1, so confident mistakes barely move: the **learning slowdown**.
+- **Softmax**, for several classes: `np.exp(scores - scores.max())` divided by its sum, probabilities that add to 1. Subtracting the maximum first changes nothing mathematically and stops `exp` overflowing. The loss is minus the log of the probability given to the true class, and its gradient with respect to the scores is again `p - onehot`.
+- **Reading loss curves.** Training and held-out loss both falling: learning. Training falling while held-out rises: **overfitting**, memorizing the training set; stop early or regularize. A two-class cross-entropy flat at 0.693 (`log 2`): the model is guessing a half for everything, so check the gradient, the rate and the data. Below 0.693 and falling: it has found something.
+- **In machine learning:** the loss is the last link of the chain and the first factor of the backward pass; `p - y` is the gradient that enters every network in the next topic.
+
+</Recap>
