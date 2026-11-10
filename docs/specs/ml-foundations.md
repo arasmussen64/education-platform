@@ -94,7 +94,6 @@ The language every model is written in. Vectors and matrices come back from Modu
 
 Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Module 3 has.
 
-- **3. Linear algebra for ML:** vectors and matrices with NumPy; linear transformations as pictures; systems of equations; projections and least squares; eigenvalues and what they mean for data.
 - **4. Calculus for ML:** derivatives of the functions ML uses; partial derivatives and the gradient; the chain rule as backpropagation; optimizers beyond plain gradient descent.
 - **5. Probability and statistics for ML:** distributions; expectation and variance; Bayes' rule properly; maximum likelihood; sampling and confidence; the statistics of evaluating a model.
 - **6. Data structures and algorithms:** complexity; arrays, hashing, trees, graphs; sorting and searching; dynamic programming; the algorithms behind data pipelines.
