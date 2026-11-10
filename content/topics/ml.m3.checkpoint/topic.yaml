@@ -1,18 +1,41 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.m3.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 3: fit and compress"
-summary: Fit a plane to points with least squares, then find the directions the same points vary most along with PCA.
-prerequisites:
-- ml.la.least-squares
-- ml.la.eigen
-- ml.la.pca
+summary: "Fit a plane to points with least squares, then find the directions the same points vary most along with PCA."
+prerequisites: [ml.la.least-squares, ml.la.eigen, ml.la.pca]
 estimated_minutes: 120
+packages: [numpy]
 rev: 1
 objectives:
-- Fit a plane to points with the normal equations, and check it against np.linalg.lstsq.
-- Reduce the same points to their top principal components and report the variance kept.
-- "Find and fix three bugs in a matrix program: a shape mismatch, a transposed multiply and an uncentered covariance."
-- Explain why the normal equations give the least-squares fit, and what the top eigenvector of a covariance matrix means.
+  - "Fit a plane to points with the normal equations, and check it against np.linalg.lstsq."
+  - "Reduce the same points to their top principal components and report the variance kept."
+  - "Find and fix three bugs in a matrix program: a shape mismatch, a transposed multiply and an uncentered covariance."
+  - "Explain why the normal equations give the least-squares fit, and what the top eigenvector of a covariance matrix means."
+prove:
+  build: build-fit-and-compress
+  debug: debug-matrix-report
+  explain:
+    prompt: |
+      Your checkpoint program did Module 3 in one go: it fitted a plane to some points, and it compressed the same points with PCA. In your own words: why do the normal equations `AᵀA x = Aᵀz` give the least-squares plane, and what is perpendicular to what when they hold? What does the top eigenvector of the covariance matrix mean for the points, and why is the direction of most spread an eigenvector at all? The fitted plane and PCA's plane through the same points are not the same plane: what does each one make small? And what would change about both if the points lay exactly on a plane?
+    rubric:
+      - id: normal-equations
+        required: true
+        description: "The least-squares fit makes the residual z - A x perpendicular to every column of A (the fitted values are the projection of z onto the column space); writing Aᵀ(z - A x) = 0 gives AᵀA x = Aᵀz."
+      - id: top-eigenvector
+        required: true
+        description: "The covariance matrix's top eigenvector is the direction along which the centered points' variance is largest; the variance along a unit direction u is uᵀCu, which is maximized by the eigenvector with the largest eigenvalue, and that eigenvalue is the variance along it."
+      - id: two-planes
+        required: true
+        description: "Least squares minimizes the squared vertical gaps in z (z is special, the target); PCA's plane minimizes the squared perpendicular distances, treating all three coordinates alike, so the two planes differ unless the points are exactly planar."
+      - id: exact
+        required: false
+        description: "On exactly planar points both agree: the residual is zero, lstsq and the normal equations give the exact coefficients, the smallest eigenvalue is zero, two components keep all the variance and rebuild the points exactly."
+    model_answer: |
+      The fitted plane's predictions A x are a combination of the columns of A, so they live in the plane those columns span inside the six-dimensional space of all possible z vectors. The closest point in that plane to the real z is its projection, and what's left over, the residual z - A x, sticks straight out: it is perpendicular to every column of A. Saying that in symbols is Aᵀ(z - A x) = 0, which rearranges to AᵀA x = Aᵀz, a square system you can solve; that's why solving it gives the least-squares fit. For PCA, the covariance matrix C holds how the centered points spread; the variance along any unit direction u is uᵀCu, and the direction that makes that largest turns out to be the eigenvector of C with the largest eigenvalue, with the variance along it equal to that eigenvalue. So the top eigenvector is the line the cloud is longest along, and the top two span the plane it's flattest around. That plane is not the regression plane. Least squares treats z as the target and minimizes the squared vertical gaps in z only; PCA treats all three coordinates alike and minimizes the squared perpendicular distances to the plane. If the points lay exactly on a plane, the two would agree: the residual would be zero, lstsq and the normal equations would give the exact coefficients, the smallest eigenvalue would be zero, and two components would keep all the variance and rebuild every point exactly.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-fit-and-compress-in-2d
+  steps: [step-design-matrix, step-normal-equations, step-covariance, step-components]
+  versions: [build-fit-and-compress-heights, build-fit-and-compress-sensors]
