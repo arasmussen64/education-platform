@@ -1,18 +1,41 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.m2.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 2: a small data library"
-summary: A Dataset class that loads JSON records, iterates lazily, summarizes a column and writes a report.
-prerequisites:
-- ml.py.iterators-and-generators
-- ml.py.functions-as-values
-- ml.py.writing-tests
-- ml.py.json-and-nested-data
+summary: "A Dataset class that reads JSON records lazily, summarizes a column and writes a report, with tests."
+prerequisites: [ml.py.iterators-and-generators, ml.py.functions-as-values, ml.py.writing-tests, ml.py.json-and-nested-data]
 estimated_minutes: 120
 rev: 1
 objectives:
-- Build a Dataset class from a spec, with tests.
-- "Find and fix three bugs across a class's methods."
-- Explain the difference between a class, an instance and a generator.
+  - "Write a class whose methods read records lazily from a JSON Lines file."
+  - "Summarize a numeric column with count, mean, min and max, skipping records that lack it."
+  - "Write a report file, and tests that would catch a wrong summary."
+  - "Find and fix three bugs spread across a class's methods."
+  - "Explain the difference between a class, an instance and a generator."
+prove:
+  build: build-dataset
+  debug: debug-dataset-three-bugs
+  explain:
+    prompt: |
+      Your `Dataset` has a class, an instance and a generator in it: `Dataset`, `ds = Dataset("readings.jsonl")`, and `ds.rows()`. In your own words: what is each of the three, and what does each one hold in memory? Why can `summary` call `self.column(name)` and get all the values, then another method call it again and get them all again, when a generator can only be used once? And what would change if `rows()` returned a list instead: what would get simpler, and what would stop working for a file of a billion lines?
+    rubric:
+      - id: three-things
+        required: true
+        description: "The class is the blueprint, the code for every dataset; the instance holds this dataset's state, which is only the path; the generator is one in-progress walk through the file, holding the open file and the current line."
+      - id: fresh-each-call
+        required: true
+        description: "Each call to rows() or column() makes a new generator, which reads the file again from the start; single use is a property of one generator object, not of the method."
+      - id: list-tradeoff
+        required: true
+        description: "A list would allow len, indexing and reuse without re-reading, but it holds every record in memory at once, which a billion-line file can't afford; the generator holds one line at a time, at the price of re-reading per pass."
+      - id: memory
+        required: false
+        description: "Says that the instance holds no data at all, so a thousand Datasets cost nothing until they're read, or connects this to a training data loader."
+    model_answer: |
+      Dataset, the class, is the code: it says what every dataset can do, and nothing is read or stored by defining it. ds is an instance, one particular dataset; all it holds is the path, a short string, because the records stay in the file until something asks for them. ds.rows() is a generator, a walk through the file that is in progress: it holds the open file and the record it's on, and each next() reads one more line, turns it into a dict and hands it over. A generator can be walked once, but a method call makes a fresh generator every time: summary's self.column(name) makes a new column generator, which itself calls self.rows() and gets a new rows generator, so the file is read again from the top for every pass. That's why two methods can each get all the values. If rows() returned a list instead, a lot would get simpler: len(ds.rows()), indexing, looping twice without re-reading. The price is that the whole file is in memory at once. For a billion lines that's the program running out of memory before it starts, while the generator version holds one line at a time and finishes, slower, but it finishes. That trade is the one every training data loader makes.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-a-log-library
+  steps: [step-the-rows, step-the-column, step-the-summary, step-the-report]
+  versions: [build-dataset-rainfall, build-dataset-scores]

@@ -1,0 +1,25 @@
+id: example-a-log-library
+stage: worked_example
+rev: 1
+title: "A small log library"
+prompt: |
+  Before a `Dataset` of JSON records, here is the same shape of program over a plain log file: a class that remembers a path, reads the file lazily, filters one stream out of another, counts, and writes a summary. Press **Run**, then read how each part works. Every method of `Dataset` has a twin here.
+steps:
+  - label: "The data file"
+    lines: "1-9"
+    note: "The program writes its own data first, so it can run anywhere. A log is one entry per line, like JSON Lines; one line is blank, which the reader will have to skip."
+  - label: "A class that remembers only the path"
+    lines: "12-14"
+    note: "Making a `Log` reads nothing. The instance holds a path and nothing else; the file stays on disk until a method asks for it."
+  - label: "A lazy stream of lines"
+    lines: "16-20"
+    note: "`lines()` is a generator: `for line in f` reads one line at a time, blank lines are skipped, and `yield` hands each one out. However long the log, one line is in memory."
+  - label: "A stream filtered from a stream"
+    lines: "22-28"
+    note: "`level()` loops over `self.lines()`, a fresh generator each call, and yields only the lines that start with the level. `count()` consumes one such stream without building a list. `Dataset.column` is this method with `name in row` as the test."
+  - label: "A report"
+    lines: "30-32"
+    note: "The summary is computed by calling the other methods and written as one line. Opening with `\"w\"` creates or replaces the file."
+  - label: "Using it"
+    lines: "35-40"
+    note: "Make one instance, ask it things, write the summary, read it back. `len(list(...))` is the one place the whole stream is collected; it's fine for a count, and it's what `summary` does with `list(self.column(name))`."
