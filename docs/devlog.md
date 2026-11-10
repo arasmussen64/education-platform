@@ -2,6 +2,19 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Module 6 of the ML track is outlined
+
+**Data structures and algorithms has an outline:** seven planned topics and Checkpoint 6 in the track file and on the map, with the spec's prose bullet turned into a table. Counting steps and big-O, with a function timed as its input doubles; arrays, hash tables and sets, and what each list, dict and set operation costs and why; stacks, queues and recursion, which neither Python Foundations nor Module 2 taught; sorting and searching, with binary search, insertion sort and merge sort written and timed; trees and heaps, with a decision tree read as a tree of questions; graphs, with breadth-first and depth-first search, Dijkstra's algorithm and topological order, the order a computation graph runs in; and dynamic programming, with memoization, the edit distance and the knapsack. Checkpoint 6 builds the algorithms behind a small data pipeline (deduplicate, join, top-k, near-duplicate matching, step ordering), each shown to scale as its order says. The first topic follows Checkpoint 2, as the spec's module map draws it.
+
+**Decisions for you to review:**
+
+1. _Module 6 before the cloud track's Module 2._ The roadmap's Phase 3 lists core CS next after the math modules, and every Module 6 proof runs in the browser with the harness that exists. The cloud track's Module 2 (virtualization, hardware and Windows) needs Windows and Active Directory labs on real cloud VMs ([ADR-0014](decisions/0014-cloud-labs.md)), which cost money and need your approval for each run, so it waits for you.
+2. _Counts, not clocks._ Pyodide in a browser and CPython in CI don't share a clock, so the hidden tests will count operations (a counter the function increments, or `lru_cache`'s own statistics) rather than time them; timings appear only in the worked examples, read as ratios as the input doubles.
+3. _Seven topics from a six-item bullet._ The spec's "arrays, hashing, trees, graphs" became three topics (arrays and hashing; trees and heaps; graphs) and stacks, queues and recursion got a topic of their own, because recursion is new to this learner and everything after it leans on it.
+4. _The checkpoint is the spec's last bullet,_ "the algorithms behind data pipelines", rather than a separate topic: a pipeline is the natural place to use every structure the module taught, and it keeps the module at seven topics like the others.
+
+**Next:** writing Module 6, one topic per pull request, with a cold prose review at the end as for Modules 4 and 5.
+
 ## 2026-11-10: Module 5's cold review, 48 findings fixed
 
 **Two cold reviewers read all eight Module 5 topics** (every file, every number checked against the running code, every resource title checked against the live site), the same brief as Module 4's review, and found 48 problems the validator can't see. All are fixed in one pull request, 64 files in the module.
