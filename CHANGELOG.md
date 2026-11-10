@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed (multiple-choice questions)
+
+- The app shows a multiple-choice item's choices in a repeatable shuffled order, seeded from the item's id, so an answer's position never gives it away: authors tend to write the right answer first, and every answer in the ML track's Module 4 sat at position 0 before its review (71 of the repository's 319 still do). The same item looks the same every time it comes back, and recorded answers still use the author's index, so the event log is unchanged. `choiceOrder` in `web/src/components/scramble.ts`, with tests.
+
 ### Added (content: calculus for ML begins)
 
 - **Derivatives of the functions ML uses** (`ml.calc.derivatives`) goes ready, the first topic of the ML track's Module 4: a power, `exp`, `log`, the sigmoid and ReLU each checked against a central difference, then the sigmoid's and ReLU's derivatives on a whole array, as the worked example; a Parsons sigmoid check (the decoy multiplies by `1 + s`), four recall questions (a saturated sigmoid, ReLU's derivative on an array, the rules for `exp` and `log`, the direction and speed a derivative gives descent), a table of checked rules to fill in and `d_sigmoid` to write for arrays; a derivative checker to build (five functions, their derivatives and `max_error`, with hidden tests that try a rule wrong on purpose), a report to debug whose `h` is too small and whose sigmoid rule uses `1 - x`, and an explanation of why sigmoid layers stall and ReLU helped; a review pool of four.

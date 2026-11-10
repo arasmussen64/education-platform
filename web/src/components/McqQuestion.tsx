@@ -1,7 +1,8 @@
-import { useId, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import type { McqItem } from '../content/types.ts'
 import { Markdown } from './Markdown.tsx'
 import { Recorded } from './Recorded.tsx'
+import { choiceOrder } from './scramble.ts'
 import { BUTTON, INLINE_CODE } from './styles.ts'
 
 type Props = {
@@ -17,10 +18,13 @@ type Props = {
 
 /**
  * A multiple-choice question. The learner commits to an answer before seeing
- * whether it's right and why (retrieval practice).
+ * whether it's right and why (retrieval practice). The choices are shown in a
+ * repeatable shuffled order so their position gives nothing away; `choice` is
+ * always the author's index, which is what gets recorded.
  */
 export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
   const promptId = useId()
+  const order = useMemo(() => choiceOrder(item), [item])
   const [choice, setChoice] = useState<number | null>(null)
   const [checked, setChecked] = useState(false)
 
@@ -37,9 +41,9 @@ export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
         <Markdown>{item.prompt}</Markdown>
       </div>
       <div role="radiogroup" aria-labelledby={promptId} className="space-y-2">
-        {item.choices.map((text, index) => (
+        {order.map((index) => (
           <label
-            key={text}
+            key={index}
             className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 px-3 py-2 dark:border-slate-700"
           >
             <input
@@ -51,7 +55,7 @@ export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
             />
             {/* Choices may use Markdown, e.g. `print("Hi")` for code. */}
             <span className={INLINE_CODE}>
-              <Markdown inline>{text}</Markdown>
+              <Markdown inline>{item.choices[index] ?? ''}</Markdown>
             </span>
           </label>
         ))}
