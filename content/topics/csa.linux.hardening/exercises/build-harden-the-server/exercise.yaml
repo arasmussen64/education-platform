@@ -8,7 +8,7 @@ title: "Apply the baseline"
 prompt: |
   Put the whole baseline on this server, and don't lock yourself out. Four things:
 
-  1. **Harden SSH.** A drop-in in `/etc/ssh/sshd_config.d/` with `PasswordAuthentication no`, `PermitRootLogin no`, `AllowGroups ssh-users`, `MaxAuthTries 3`. Check it with `sudo sshd -t`.
+  1. **Harden SSH.** A drop-in in `/etc/ssh/sshd_config.d/` with `PasswordAuthentication no`, `PermitRootLogin no`, `AllowGroups ssh-users`, `MaxAuthTries 3`. Check it with `sudo sshd -t`, then apply it with `sudo systemctl reload ssh` (`restart` if the service isn't running).
   2. **A default-deny firewall.** Write `/etc/nftables.conf` with an `input` chain whose policy is `drop`, accepting only loopback, established and related connections, and new connections to SSH (`tcp dport 22`). Load it with `sudo nft -f /etc/nftables.conf` and enable it with `sudo systemctl enable nftables`, so it comes back on reboot. (Turning the firewall *off* to make something work is the thing a baseline forbids.)
   3. **Close the open door.** A debugging service, `shop-debug`, is listening on `0.0.0.0:9000`. Stop and disable it so it isn't listening and won't come back.
   4. **Prove you can still get in:** `ssh -i ~/keys/ben ben@localhost` must still work (ben is in `ssh-users`).

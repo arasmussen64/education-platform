@@ -9,6 +9,6 @@ prompt: |
   Try `~/bin/backup-logs`, then `tar -tzf ~/backups/shop-logs.tgz` to see what's inside (the logs include one whose name has a space, which must be in there). Run it again and check `ls ~/backups` still shows one file. Try `~/bin/backup-logs /no/such/dir; echo $?` and watch it exit 2. Run `shellcheck ~/bin/backup-logs` (it should say nothing). Make the script executable, and run the checks.
 hints:
   - "Strict mode and the argument: `set -euo pipefail`, then `src=\"${1:-/var/log/shop}\"` takes the first argument or the default. Guard it: `[[ -d \"$src\" ]] || { echo \"no directory at $src\" >&2; exit 2; }`."
-  - "Build in a temp dir and clean it up: `tmp=$(mktemp -d); trap 'rm -rf \"$tmp\"' EXIT`. Copy the logs in with a quoted glob so the spaced name survives: `cp -r \"$src\" \"$tmp/logs\"`."
+  - "Build in a temp dir and clean it up: `tmp=$(mktemp -d); trap 'rm -rf \"$tmp\"' EXIT`. Copy the whole directory with the variable quoted, so the spaced name survives: `cp -r \"$src\" \"$tmp/logs\"` (no `$(ls)`, no unquoted names)."
   - "Make the output folder and the archive: `mkdir -p \"$HOME/backups\"`, then `tar -czf \"$HOME/backups/shop-logs.tgz\" -C \"$tmp\" logs`. The fixed name is what makes a second run replace, not duplicate."
 skills: [strict-mode, traps-cleanup, idempotent, quoting-vars]

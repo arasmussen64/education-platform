@@ -12,7 +12,7 @@ prompt: |
   - `AllowGroups` names a group `ben` isn't in (he's in `ssh-users`), so even a valid login is refused;
   - `PubkeyAuthentication` is `no`, which switches off the key-based login ben relies on.
 
-  Fix all three in `/etc/ssh/sshd_config.d/90-hardening.conf` with `sudo nano`, keeping the server hardened: passwords and root login stay off, the try limit becomes a sensible number, the group becomes `ssh-users`, and key authentication is on. The fix is **not** to turn passwords back on. Confirm with `sudo sshd -t`, `sudo sshd -T`, and `ssh -i ~/keys/ben ben@localhost`. Then run the checks.
+  Fix all three in `/etc/ssh/sshd_config.d/90-hardening.conf` with `sudo nano`, keeping the server hardened: passwords and root login stay off, the try limit becomes a sensible number, the group becomes `ssh-users`, and key authentication is on. The fix is **not** to turn passwords back on. Confirm with `sudo sshd -t`, then `sudo systemctl restart ssh` (it wouldn't start with the broken file), `sudo sshd -T`, and `ssh -i ~/keys/ben ben@localhost`. Then run the checks.
 hints:
   - "`sudo sshd -t` points at the first line it can't parse; `MaxAuthTries 3` is a valid value. Work until `sshd -t` is silent."
   - "`AllowGroups ssh-users` lets ben in (check with `groups ben`). `PubkeyAuthentication yes` turns key login back on (or remove the line, since keys are on by default)."

@@ -25,7 +25,7 @@ steps:
     note: "`nft -f` loads the file into the running kernel; `systemctl enable nftables` makes the service load it at boot. Counting the `dport` rules confirms both ports are in. Your own `ssh` to `localhost` goes over loopback, which the first rule accepts, so you're not locked out."
   - label: "Harden SSH"
     lines: "14"
-    note: "A drop-in turning off password and root logins, then `sshd -t`, which is silent when the file is valid. Because SSH here is socket-activated, each new connection reads the new settings at once."
+    note: "A drop-in turning off password and root logins, then `sshd -t`, which is silent when the file is valid, then the reload. `sshd -t` only checks the file: the running `sshd`, started by `ssh.socket` at your first login in step 2, keeps its old settings until `sudo systemctl reload ssh`, so reload before you test."
   - label: "Prove it, and write it down"
     lines: "15-16"
     note: "The login still works with the key, with passwords off and the firewall up. Then the three facts that say the runbook was followed, the service active, the port answering, the login working, go into `~/runbook/done.txt`. An incident or a handover starts from a file like this."
