@@ -124,7 +124,7 @@ Module 1 counted chances with a table of 1,000 people, and Module 4 took cross-e
 
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 and 4 had before they were written (both on 2026-11-10) and Module 5 has (outlined 2026-11-10).
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 5 had before they were written (all three on 2026-11-10).
 
 - **6. Data structures and algorithms:** complexity; arrays, hashing, trees, graphs; sorting and searching; dynamic programming; the algorithms behind data pipelines.
 - **7. How computers and GPUs work:** memory and caches; why vectorized code is fast; floating point; what a GPU is good at; reading a profiler.
