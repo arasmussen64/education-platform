@@ -943,3 +943,13 @@ describe('your place on a long topic', () => {
     ).toBeNull()
   })
 })
+
+// Every fixture here is dated Nov 6, 2026, and a topic proved that day has a
+// review due a few days later. These tests aren't about reviews, so they run
+// at the end of that day, whatever day it really is (as progress.test does).
+// Only Date is faked: the timers that waitFor and userEvent rely on stay real.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 10, 6, 23))
+  return () => vi.useRealTimers()
+})
