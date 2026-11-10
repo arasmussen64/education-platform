@@ -6,13 +6,23 @@ checks:
     command: "! grep -q '\\.\\.\\.' /home/learner/bin/memory-report"
   - id: available-line
     description: "The available line is MemAvailable in MB."
+    # The script and this check read MemAvailable a moment apart, and on a
+    # busy machine the two readings differ by a few MB, so allow a little.
+    # MemFree, the likely mistake, is hundreds of MB off.
     command: |
       kb=$(grep '^MemAvailable:' /proc/meminfo | awk '{print $2}')
-      test "$(runuser -u learner -- /home/learner/bin/memory-report | grep '^available:')" = "available: $((kb / 1024)) MB"
+      reported=$(runuser -u learner -- /home/learner/bin/memory-report | sed -n 's/^available: \([0-9][0-9]*\) MB$/\1/p')
+      test -n "$reported" && test $((reported - kb / 1024)) -le 64 && test $((kb / 1024 - reported)) -le 64
   - id: swap-line
     description: "The swap line is the swap in use, in MB."
+    # The same two readings a moment apart, of the whole machine: on a CI
+    # runner where a neighbouring lab is filling memory, the swap in use
+    # moves between them, so allow a little. The total, the likely mistake,
+    # is thousands of MB off.
     command: |
-      test "$(runuser -u learner -- /home/learner/bin/memory-report | grep '^swap used:')" = "swap used: $(free -m | awk '/^Swap:/ {print $3}') MB"
+      used=$(free -m | awk '/^Swap:/ {print $3}')
+      reported=$(runuser -u learner -- /home/learner/bin/memory-report | sed -n 's/^swap used: \([0-9][0-9]*\) MB$/\1/p')
+      test -n "$reported" && test $((reported - used)) -le 64 && test $((used - reported)) -le 64
   - id: top-process-line
     description: "The top process line names the process holding the most memory (memhog, holding 150 MB)."
     command: runuser -u learner -- /home/learner/bin/memory-report | grep '^top process:'
