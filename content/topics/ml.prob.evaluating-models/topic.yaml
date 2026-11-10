@@ -1,17 +1,81 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.prob.evaluating-models
 kind: topic
-status: planned
-title: Evaluating a model with statistics
-summary: Train, validation and test splits, the confusion matrix and the metrics built from it, confidence intervals on an accuracy, and comparing two models fairly.
-prerequisites:
-- ml.prob.sampling-and-confidence
-- ml.calc.loss-functions
+status: ready
+title: "Evaluating a model with statistics"
+summary: "Train, validation and test splits, the confusion matrix and the metrics built from it, confidence intervals on an accuracy, and comparing two models fairly."
+prerequisites: [ml.prob.sampling-and-confidence, ml.calc.loss-functions]
+packages: [numpy]
 estimated_minutes: 60
 rev: 1
 objectives:
-- Split data into train, validation and test sets, and say what each is for and what leaks between them.
-- Build a confusion matrix and compute accuracy, precision, recall and F1 from it.
-- Put a confidence interval on an accuracy, and say when a test set is too small to tell.
-- Compare two models on the same test set, and say whether the difference is real.
+  - "Split data into train, validation and test sets, and say what each is for and what leaks between them."
+  - "Build a confusion matrix and compute accuracy, precision, recall and F1 from it."
+  - "Put a confidence interval on an accuracy, and say when a test set is too small to tell."
+  - "Compare two models on the same test set, and say whether the difference is real."
+# Linked, never copied or embedded: Google's Machine Learning Crash Course is
+# CC BY 4.0; Wikipedia is CC BY-SA 4.0; NumPy's documentation is under the
+# NumPy licence (BSD-3-Clause).
+resources:
+  - title: "Google Machine Learning Crash Course: Classification, the pages on thresholds, the confusion matrix, and accuracy, recall, precision and related metrics"
+    url: https://developers.google.com/machine-learning/crash-course/classification
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Wikipedia: Precision and recall (the Introduction and Definition sections)"
+    url: https://en.wikipedia.org/wiki/Precision_and_recall
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "numpy.percentile (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.percentile.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-judging-two-classifiers
+  - parsons-precision-and-recall
+  - mcq-ninety-seven-percent-accurate
+  - predict-a-confusion-matrix
+  - mcq-what-each-split-is-for
+  - mcq-why-paired
+  - fill-the-four-metrics
+  - write-accuracy-interval
+prove:
+  build: build-an-evaluation-report
+  debug: debug-metrics-report
+  explain:
+    prompt: |
+      Your team's new model scores 0.91 accuracy on the test set against the old model's 0.89, on the same 200 examples, and the team wants to ship it. In your own words: what are the train, validation and test splits for, and what would have gone wrong if the new model's threshold had been tuned on the test set? Why can accuracy alone mislead, and what question do precision and recall each answer? How sure can you be about 0.91 from 200 examples? And how would you decide whether 0.91 really beats 0.89 on the same examples?
+    rubric:
+      - id: splits
+        required: true
+        description: "Train fits the weights; validation chooses what the training can't (thresholds, learning rates, when to stop); test is touched once, to report. Tuning anything on the test set leaks it into the model's choices, so the reported number is optimistic and no longer an estimate of performance on new data."
+      - id: metrics
+        required: true
+        description: "Accuracy counts every example alike, so on a rare class a model that always says no scores high; precision answers 'of the ones flagged, how many were right?' and recall 'of the real ones, how many were found?', from the confusion matrix's true and false positives and negatives; F1 combines them."
+      - id: interval
+        required: true
+        description: "An accuracy from 200 examples has standard error sqrt(0.91 × 0.09 / 200), about 0.02, so the interval is roughly 0.87 to 0.95; the two models' intervals overlap heavily."
+      - id: compare
+        required: true
+        description: "Because both models were scored on the same examples, compare them paired: take each example's difference in correctness, bootstrap the mean difference, and see whether the interval excludes zero; two points on 200 examples is about one standard error and usually doesn't, so the honest answer is 'not established; test on more data before shipping on this evidence'."
+    model_answer: |
+      The three splits keep three jobs apart. The training set fits the model's weights. The validation set chooses the things training can't choose for itself: the classification threshold, the learning rate, how long to train, which of several models to keep. The test set is touched once, at the end, to report a number that estimates how the model will do on data it has never seen. If the new model's threshold had been tuned on the test set, the test set would have leaked into the model's choices: the reported 0.91 would be the best of many tries on those particular 200 examples, optimistic by construction, and no longer an estimate of anything about new data. Accuracy alone can mislead because it counts every example the same way; if only one example in ten is positive, a model that always says no is 90 percent accurate and useless. The confusion matrix splits the results into true and false positives and negatives, and from it precision answers "of the examples the model flagged, how many really were positive?" while recall answers "of the examples that really were positive, how many did the model find?". F1 combines the two so that neither can hide the other. As for how sure 0.91 is: it is a sample mean of 200 zeros and ones, so its standard error is the square root of 0.91 times 0.09 over 200, about 0.02, and the 95 percent interval runs from about 0.87 to 0.95. The old model's interval, around 0.89, overlaps it almost entirely. To compare them properly I'd use the fact that both were scored on the same 200 examples: for each example, take the new model's correctness minus the old one's, bootstrap the mean of those differences, and see whether the interval excludes zero. A two-point difference on 200 examples is about one standard error and usually doesn't, so the honest conclusion is that the improvement isn't established yet, and the right next step is a bigger test set, not a launch.
+review_pool:
+  - review-predict-standard-errors-of-an-accuracy
+  - review-mcq-which-metric
+  - review-mcq-two-points-apart
+  - review-mcq-validation-and-test
+  - review-precision-recall
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: splits
+    description: "Say what the train, validation and test splits are for, and what leaks when the test set is used for choices"
+  - id: metrics
+    description: "Build a confusion matrix and compute accuracy, precision, recall and F1, and say when accuracy misleads"
+  - id: interval
+    description: "Put a confidence interval on an accuracy and say when a test set is too small to tell"
+  - id: compare
+    description: "Compare two models on the same test set with a paired bootstrap, and say whether the difference is established"
