@@ -464,6 +464,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The progress tests ask what state a topic is in at the end of their fixtures' day instead of at the real time of the run; four days after that day, a topic proved in the fixtures became "fading" (its first review had come due) and one test failed on every branch.
 - The map and topic page tests run at the end of their fixtures' day too (only `Date` is faked, so the timers the page tests wait on stay real). Four days after that day, at noon UTC, the topic they prove became due for review, "Learned" turned into "Fading", and every pull request's web check failed at once.
 
+### Changed (CI)
+
+- The Labs workflow splits the labs by topic across four machines (`labcheck test --all --shard I/4`, every fourth topic each) instead of running all eighty on one, which took a quarter of an hour and was the whole wait for every lab pull request; a last job still named Labs passes only when every share did, so nothing that waits for "Labs" changes. Actions minutes are free for a public repository, so four machines cost nothing more.
+
 ### Fixed (lab checker)
 
 - `labcheck test --all --jobs N` builds the first lab of each topic on its own before the parallel run, so the heavy first layer a topic's labs share is built once instead of four times at once; and a build may take up to 30 minutes instead of 15. On a busy CI runner, twelve builds had run out of time.
@@ -474,3 +478,4 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A lab may take up to eight minutes to finish booting, and when it doesn't, the error also carries the last forty journal lines of each unit still starting. The cloud-init debug lab sat in `cloud-final.service` past four minutes on CI with nothing to say why.
 - In a parallel run (`labcheck test --all --jobs N`), a lab the checker gave up on in the crowd (a boot that didn't finish, a build or an apply script that ran out of time) is retried once on its own, after the others; a check that fails or a wrong fix that passes is never retried. Four CI runs today were lost to one lab that boots in seconds alone and hangs beside three others.
 - The triage report lab's run-queue check hands the learner's script a `vmstat` with fixed numbers (r 7, b 3) instead of trusting the real one, which reads the whole machine rather than the container: on a busy CI runner the blocked column was 1 or more, and the known-wrong fix that prints it passed the check by luck once, stopping the merge of #98.
+- The memory report lab's swap line is compared with the checker's own reading to within 64 MB, as its available line already was: both read the whole machine a moment apart, and on a CI runner where a neighbouring lab was filling memory the swap in use moved between the two readings. The swap total, the likely mistake, still fails.
