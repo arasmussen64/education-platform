@@ -64,6 +64,15 @@ type Handlers = {
   quiet: boolean
 }
 
+/**
+ * The mark an answer's data carries when the learner chose "I don't know
+ * this" in the placement test (ADR-0021, amended 2026-11-10); nothing when
+ * they answered.
+ */
+function unknownIf(dontKnow: boolean): EventData {
+  return dontKnow ? { dont_know: true } : {}
+}
+
 /** The heading and body for an item, whichever kind it is. */
 function describe(
   itemId: string,
@@ -81,7 +90,9 @@ function describe(
           onAnswer={(correct, choice) =>
             onAnswer(correct, {
               choice,
-              choice_text: recall.choices[choice] ?? null,
+              choice_text:
+                choice === null ? null : (recall.choices[choice] ?? null),
+              ...unknownIf(choice === null),
             })
           }
         />
@@ -98,7 +109,9 @@ function describe(
           quiet={quiet}
           onAnswer={(correct, prediction) =>
             onAnswer(correct, {
-              prediction: clip(prediction, MAX_TEXT_CHARS),
+              prediction:
+                prediction === null ? null : clip(prediction, MAX_TEXT_CHARS),
+              ...unknownIf(prediction === null),
             })
           }
         />
@@ -114,7 +127,11 @@ function describe(
           quiet={quiet}
           onAnswer={(correct, program) =>
             onAnswer(correct, {
-              program: clip(program.join('\n'), MAX_CODE_CHARS),
+              program:
+                program === null
+                  ? null
+                  : clip(program.join('\n'), MAX_CODE_CHARS),
+              ...unknownIf(program === null),
             })
           }
         />

@@ -10,9 +10,15 @@ import { BUTTON, CODE_BOX, SECONDARY_BUTTON, TEXT_INPUT } from './styles.ts'
 
 type Props = {
   item: PredictOutputItem | PredictShellItem
-  /** Called once, when the learner checks their prediction. */
-  onAnswer?: (correct: boolean, prediction: string) => void
-  /** True in the placement test (ADR-0021): no word on whether it was right. */
+  /**
+   * Called once, when the learner checks their prediction; `prediction` is
+   * null for "I don't know this" (placement only).
+   */
+  onAnswer?: (correct: boolean, prediction: string | null) => void
+  /**
+   * True in the placement test (ADR-0021): no word on whether it was right,
+   * and an "I don't know this" button beside Check.
+   */
   quiet?: boolean
   /** Called when the learner steps through the code afterwards (ADR-0022). */
   onStepThrough?: (outcome: TraceOutcome) => void
@@ -80,6 +86,12 @@ export function PredictOutput({
   function handleCheck() {
     setChecked(true)
     onAnswer?.(correct, prediction)
+  }
+
+  /** The placement test's way out of guessing: recorded as a wrong answer. */
+  function dontKnow() {
+    setChecked(true)
+    onAnswer?.(false, null)
   }
 
   // After predicting (never before: predicting first is the point), the
@@ -156,9 +168,20 @@ export function PredictOutput({
           )}
         </output>
       ) : (
-        <button type="button" onClick={handleCheck} className={BUTTON}>
-          Check
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={handleCheck} className={BUTTON}>
+            Check
+          </button>
+          {quiet && (
+            <button
+              type="button"
+              onClick={dontKnow}
+              className={SECONDARY_BUTTON}
+            >
+              I don't know this
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

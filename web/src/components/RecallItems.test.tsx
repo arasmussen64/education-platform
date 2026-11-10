@@ -42,6 +42,51 @@ describe('McqQuestion', () => {
   })
 })
 
+describe('"I don\'t know this" in the placement test (ADR-0021)', () => {
+  const dontKnow = "I don't know this"
+
+  it('is a last choice on a multiple-choice question, taken as a wrong answer', async () => {
+    const onAnswer = vi.fn()
+    render(<McqQuestion item={MCQ} quiet onAnswer={onAnswer} />)
+    const radios = screen.getAllByRole('radio')
+    expect(radios.at(-1)).toHaveAccessibleName(dontKnow)
+    await userEvent.click(screen.getByRole('radio', { name: dontKnow }))
+    await check()
+    expect(screen.getByText('Answer recorded.')).toBeInTheDocument()
+    expect(onAnswer).toHaveBeenCalledWith(false, null)
+  })
+
+  it('is a button beside Check for a prediction, with nothing typed', async () => {
+    const onAnswer = vi.fn()
+    render(<PredictOutput item={PREDICT} quiet onAnswer={onAnswer} />)
+    await userEvent.click(screen.getByRole('button', { name: dontKnow }))
+    expect(screen.getByText('Answer recorded.')).toBeInTheDocument()
+    expect(screen.getByLabelText('What will it print?')).toBeDisabled()
+    expect(onAnswer).toHaveBeenCalledWith(false, null)
+  })
+
+  it('is a button beside Check for a Parsons problem, even with no lines placed', async () => {
+    const onAnswer = vi.fn()
+    render(<ParsonsProblem item={PARSONS} quiet onAnswer={onAnswer} />)
+    expect(screen.getByRole('button', { name: 'Check' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: dontKnow }))
+    expect(screen.getByText('Answer recorded.')).toBeInTheDocument()
+    expect(onAnswer).toHaveBeenCalledWith(false, null)
+  })
+
+  it('is not offered in practice, where a wrong answer is followed by the explanation', () => {
+    render(<McqQuestion item={MCQ} />)
+    render(<PredictOutput item={PREDICT} />)
+    render(<ParsonsProblem item={PARSONS} />)
+    expect(
+      screen.queryByRole('radio', { name: dontKnow }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: dontKnow }),
+    ).not.toBeInTheDocument()
+  })
+})
+
 describe('PredictOutput', () => {
   it('accepts a prediction that matches, ignoring spaces at line ends', async () => {
     const onAnswer = vi.fn()
