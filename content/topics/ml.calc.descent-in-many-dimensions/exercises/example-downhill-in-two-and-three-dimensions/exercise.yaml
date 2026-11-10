@@ -1,0 +1,25 @@
+id: example-downhill-in-two-and-three-dimensions
+stage: worked_example
+rev: 1
+title: "Downhill in two and three dimensions"
+prompt: |
+  This program walks down a bowl and prints the path, compares four learning rates, then fits a plane to six points by descent and checks it against `lstsq`. Press **Run**, then read how each part works.
+steps:
+  - label: "The bowl and its gradient"
+    lines: "4-11"
+    note: "`x² + 3y²`, the bowl from the last topic, with gradient `[2x, 6y]`. It's three times steeper in `y`, which is about to matter."
+  - label: "The loop, and the path it takes"
+    lines: "14-18"
+    note: "One line, `p = p - 0.1 * grad_bowl(p)`, moves both coordinates at once. Each step multiplies `x` by 0.8 and `y` by 0.4, so `y` arrives almost at once and `x` takes its time: 4, 3.2, 2.56, 1.311, 0.429. The steps shrink on their own, because the gradient does; nobody touched the rate."
+  - label: "Four learning rates"
+    lines: "20-24"
+    note: "After ten steps from the same start: 0.05 has barely begun (loss 1.96); 0.1 is well down (0.18); 0.3 is still fine; 0.4 has blown up past 10,000. At 0.4 the `y` step is `1 - 0.4 * 6 = -1.4` times the old value: each step overshoots the bottom and lands further up the far side. Too small crawls, too large diverges."
+  - label: "A plane to fit, as a design matrix"
+    lines: "26-36"
+    note: "Module 3's six nearly planar points. `A` has a row per point (`x`, `y`, 1) and `z` is the target. The loss will be the mean squared error of `A @ w - z`, a bowl in three dimensions: one for each of `a`, `b`, `c`."
+  - label: "Descent on the mean squared error"
+    lines: "37-42"
+    note: "`miss` is the vector of errors, the loss is the mean of their squares, and the gradient of that loss is `2 / n * A.T @ miss` (you'll derive and check it in the write exercise). Two thousand steps at rate 0.1 from all zeros. The loss falls from 21.24 and settles at 0.0063 by step 100: the floor the data leaves, since no plane passes through all six points."
+  - label: "The same plane least squares gave"
+    lines: "43-45"
+    note: "`[2.015, -1.035, 3.024]`, the plane `lstsq` returned in Module 3, to six decimals. The normal equations found it in one step because a plane is linear in its weights; descent found it with nothing but the gradient, which is why it works when there's no formula."

@@ -1,17 +1,80 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.calc.descent-in-many-dimensions
 kind: topic
-status: planned
-title: Gradient descent in many dimensions
-summary: Stepping against the gradient with a learning rate, watching the loss, and fitting a plane by descent to compare with least squares.
-prerequisites:
-- ml.calc.partials-and-gradient
-- ml.la.least-squares
+status: ready
+title: "Gradient descent in many dimensions"
+summary: "Stepping against the gradient with a learning rate, watching the loss, and fitting a plane by descent to compare with least squares."
+prerequisites: [ml.calc.partials-and-gradient, ml.la.least-squares]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Write gradient descent for a function of several variables, with a learning rate and a stopping rule.
-- Fit a plane by descent and compare the answer with the normal equations.
-- Say what a learning rate too large and too small each do, and recognise each from the loss curve.
-- Explain why descent slows near the bottom without being told to.
+  - "Write gradient descent for a function of several variables, with a learning rate and a stopping rule."
+  - "Fit a plane by descent and compare the answer with the normal equations."
+  - "Say what a learning rate too large and too small each do, and recognise each from the loss curve."
+  - "Explain why descent slows near the bottom without being told to."
+# Linked, never copied or embedded: 3Blue1Brown's videos are under the
+# standard YouTube licence; Michael Nielsen's book is CC BY-NC 3.0; NumPy's
+# documentation is under the NumPy licence (BSD-3-Clause).
+resources:
+  - title: "3Blue1Brown: Neural networks (Grant Sanderson), chapter 2: Gradient descent, how neural networks learn"
+    url: https://www.3blue1brown.com/topics/neural-networks
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "Neural Networks and Deep Learning, chapter 1, the section Learning with gradient descent (Michael Nielsen)"
+    url: https://neuralnetworksanddeeplearning.com/chap1.html#learning_with_gradient_descent
+    type: reading
+    use: link
+    license: CC BY-NC 3.0 (linked, not copied)
+  - title: "numpy.linalg.lstsq (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.linalg.lstsq.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-downhill-in-two-and-three-dimensions
+  - parsons-descent-loop
+  - mcq-which-rate-is-too-large
+  - predict-three-steps
+  - mcq-why-descent-slows
+  - fill-descent-with-a-stopping-rule
+  - write-mse-and-its-gradient
+prove:
+  build: build-fit-a-plane-by-descent
+  debug: debug-plane-by-descent
+  explain:
+    prompt: |
+      A teammate shows you three training runs of the same model. At a learning rate of 0.5 the loss goes 13.5, 40, 150, 600 and keeps climbing. At 0.0005 it goes 13.5, 13.46, 13.42, 13.38 and is still near 13 after hundreds of steps. At 0.05 it goes 13.5, 2.1, 0.4, 0.1, 0.05, 0.05, 0.05. In your own words: what does the learning rate trade off, and what is each curve telling you? Why does the healthy run slow down by itself near the end, when nobody changed the rate? And when you fitted a plane today, descent and the normal equations gave the same answer, so why does anyone use descent at all?
+    rubric:
+      - id: trade-off
+        required: true
+        description: "A large rate takes big steps that can overshoot the bottom and land higher, so the loss grows (the 0.5 run is diverging); a small rate is safe but crawls (the 0.0005 run); the 0.05 run falls fast and then flattens at the floor, which is what a good rate looks like."
+      - id: self-slowing
+        required: true
+        description: "Each step is rate times the gradient, and the gradient shrinks to zero at the bottom, so the steps shrink by themselves as the loss flattens; the rate never changed."
+      - id: why-descent
+        required: true
+        description: "The normal equations exist only because the plane is linear in its weights; most models (any network) have no formula for the minimum, and even for linear ones forming AᵀA can be too big; descent only needs the gradient, so the same loop trains anything differentiable."
+      - id: floor
+        required: false
+        description: "The healthy run's loss settles at 0.05 rather than 0 because the data doesn't fit the model exactly; that floor is the least-squares residual, not a sign that descent stopped early."
+    model_answer: |
+      The learning rate is how far each step goes along the downhill direction, and it trades speed against safety. At 0.5 the steps are so long that each one jumps past the bottom and lands higher up the other side, and the next step, from a steeper place, jumps further still: the loss climbs, and the run is diverging. At 0.0005 every step is safe and tiny, so the loss creeps down by a few hundredths at a time and would need thousands of steps to arrive. At 0.05 the loss falls fast and then levels off at 0.05, which is what a good rate looks like; the 0.05 it settles at isn't zero because the data doesn't fit the model exactly, and that floor is the same residual least squares would leave. The healthy run slows down on its own because each step is the rate times the gradient, and the gradient is the slope, which shrinks to nothing at the bottom of the valley. Near the floor the slope is tiny, so the steps are tiny, with the rate untouched. As for why descent at all: the normal equations gave the plane in one line only because a plane is linear in its weights, so the minimum has a formula. A neural network has no such formula, and even a linear model with millions of rows and columns can make AᵀA too big to build. Descent asks only for the gradient, and the same loop that fitted the plane today will train anything whose loss has a derivative.
+review_pool:
+  - review-predict-two-steps
+  - review-mcq-crawling
+  - review-mcq-stopping-rule
+  - review-mcq-descent-and-lstsq
+  - review-descend
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: loop
+    description: "Write gradient descent for several variables, with a learning rate and a stopping rule"
+  - id: fit
+    description: "Fit a linear model by descent on the mean squared error, and compare with the normal equations"
+  - id: rate
+    description: "Recognise a learning rate too large or too small from the loss curve"
+  - id: slowing
+    description: "Explain why descent slows near the bottom by itself, and when it has arrived"

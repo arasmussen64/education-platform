@@ -1,0 +1,34 @@
+id: build-fit-a-plane-by-descent
+stage: build
+rev: 1
+title: "Fit a plane by descent"
+prompt: |
+  Starting from a blank editor, write the training loop for a linear model:
+
+  - `mse(A, w, z)`: the mean squared error of the weights `w` on the design matrix `A` and targets `z`, as a float.
+  - `gradient(A, w, z)`: its gradient, `2 / n * A.T @ (A @ w - z)`.
+  - `fit_by_descent(A, z, rate, steps)`: starts from `w` all zeros, takes `steps` steps of `w = w - rate * gradient`, and returns `w` and a list `losses` with the loss **before** each step (so `losses[0]` is the loss at all zeros, and there are `steps` entries).
+
+  Then build `A` and `z` from Module 3's six points, fit with rate 0.1 for 2000 steps, and print the plane rounded to 3 places, whether it agrees with `np.linalg.lstsq` (`np.allclose` with `atol=1e-4`), and the losses at steps 0, 10 and the last, rounded to 4:
+
+  ```python
+  points = np.array([
+      [0.0, 0.0, 3.1],
+      [1.0, 0.0, 4.9],
+      [0.0, 1.0, 2.05],
+      [2.0, 3.0, 3.95],
+      [3.0, 1.0, 8.1],
+      [1.0, 2.0, 2.9],
+  ])
+  A = np.column_stack([points[:, 0], points[:, 1], np.ones(6)])
+  z = points[:, 2]
+  ```
+
+  ```
+  plane [ 2.015 -1.035  3.024]
+  lstsq agrees True
+  loss 21.2408 0.7298 0.0063
+  ```
+
+  The checks fit other points, including four that lie exactly on a plane, and compare your gradient with a numeric one.
+skills: [fit, loop, rate]
