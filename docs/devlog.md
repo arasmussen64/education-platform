@@ -2,6 +2,18 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Module 4 of the ML track is outlined
+
+**Calculus for ML has an outline:** seven planned topics and Checkpoint 4 in the track file and on the map, with the spec's prose bullet turned into a table. The derivatives of the functions every model uses (powers, exp, log, the sigmoid, ReLU), each checked numerically; partial derivatives and the gradient; gradient descent in many dimensions, fitting a plane by descent to compare with Module 3's normal equations; the chain rule; loss functions and their gradients (squared error, cross-entropy, why logs); backpropagation on a one-hidden-layer network with a gradient check; and optimizers (momentum, schedules, Adam) compared on one problem. Checkpoint 4 trains a tiny network from scratch. Prerequisites reach back into Module 1's calculus and Module 3's vectors, matrices and least squares.
+
+**Decisions for you to review:**
+
+1. _Module 4 leans on NumPy as Module 3 did,_ so it too rests on ADR-0023. Nothing in it is written yet; the outline costs nothing to change.
+2. _Backpropagation comes before optimizers,_ and loss functions before backpropagation, so the checkpoint's network is built from parts the learner has each proved on their own. The spec's prose had optimizers last too.
+3. _No automatic differentiation._ Every gradient in this module is written by hand and checked numerically, because the point is to understand what PyTorch does before using it; a later module can introduce the tool.
+
+**Next:** merge the stack; then either Module 4's first topic (on the NumPy decision) or the cloud track's Module 2, whichever the owner prefers.
+
 ## 2026-11-10: Checkpoint 3 closes Module 3
 
 **`ml.m3.checkpoint`, "Checkpoint 3: fit and compress", is ready,** and with it Module 3 of the Machine Learning Foundations track: 24 topics ready across three modules, all written today's and yesterday's sessions. The build does Module 3 in one program: `fit_plane` builds the design matrix from six 3-D points and solves the normal equations, `compress` runs PCA on the same points and rebuilds them from their top two components, and `report` prints the plane, whether `lstsq` agrees, the variance kept and the compression error. The hidden tests call the functions on other points and on points exactly on a plane, where everything comes out exact, and check a property the topics never stated outright: the squared compression error with two components equals `n - 1` times the smallest eigenvalue (known-wrong: no intercept column, an uncentered covariance). The debug is the same program with three bugs that each hide the next: `np.ones(2)` where six ones were needed, `A @ A.T` where `A.T @ A` was, and a covariance of uncentered points. The explain asks why the normal equations give the fit, why the direction of most spread is an eigenvector, why the regression plane and PCA's plane differ (vertical against perpendicular gaps), and what exact planarity would change. For a stuck learner: the two jobs on the PCA topic's six 2-D points as the solved sibling, with the line's residual (0.894) and PCA's compression error (0.695) side by side; four steps that build the design matrix, the normal equations, the covariance and the shares; and two fresh versions, people's heights, ages and weights, and three sensors. Every test of the build, the debug and the versions names the Module 3 skills it checks (ADR-0012).
