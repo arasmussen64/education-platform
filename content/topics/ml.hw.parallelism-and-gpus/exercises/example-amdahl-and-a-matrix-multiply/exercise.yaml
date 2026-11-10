@@ -1,0 +1,25 @@
+id: example-amdahl-and-a-matrix-multiply
+stage: worked_example
+rev: 1
+title: "Amdahl's law and a matrix multiply"
+prompt: |
+  Amdahl's law for three parallel fractions; a million items that split and a million steps that don't; the FLOPs and bytes of a matrix multiply and of a vector add; a roofline of round numbers; why a batch raises the FLOPs per byte; and what a transfer across the bus costs. Press **Run**, then read how each part works.
+steps:
+  - label: "Amdahl's law"
+    lines: "4-11"
+    note: "The serial part keeps its whole time; the parallel part is divided among the workers. At 50 percent parallel no number of workers gets past 2 times, at 90 percent past 10, at 99 past 100. The line for each fraction flattens as the workers grow: 90 percent on 64 workers is 8.8 times, and 1,000 workers add only one more."
+  - label: "What splits and what doesn't"
+    lines: "13-14"
+    note: "A million independent items on 8 workers is 125,000 each; a chain where each step needs the previous step's result is a million steps however many workers wait beside it. The parallel fraction in Amdahl's law is the share of the work that is the first kind."
+  - label: "Counting a matrix multiply, and a vector add"
+    lines: "17-27"
+    note: "Each of the `m * n` outputs sums `k` products, a multiply and an add per term: `2 * m * k * n` FLOPs. The bytes are both inputs read and the output written. A 1024-cube in float32 is 2.1 billion FLOPs over 12.6 megabytes, 171 FLOPs per byte; adding two vectors of a million is 1 FLOP per 12 bytes."
+  - label: "A roofline of round numbers"
+    lines: "29-33"
+    note: "A machine that does 10 TFLOP/s and moves 500 GB/s can do 20 FLOPs for every byte it fetches: its ridge. Above the ridge the arithmetic takes longer than the fetching and sets the time (the multiply: 215 microseconds against 25); below it the fetching does (the add: 24 microseconds of traffic for a tenth of a microsecond of arithmetic). The machine overlaps the two, so the time is the larger."
+  - label: "Why batches help"
+    lines: "35-36"
+    note: "A layer's weights are read once per batch, so the FLOPs per byte of `(batch, 1024) @ (1024, 1024)` rise with the batch: 0.5 at a batch of 1, 3.9 at 8, 28 at 64, 128 at 512. Below the ridge of 20 the GPU waits on memory; above it, it computes. One example at a time is on the wrong side."
+  - label: "Crossing the bus"
+    lines: "38-40"
+    note: "The bus between CPU and GPU memory moves tens of gigabytes per second and charges a fixed latency per transfer. A gigabyte in one piece is 40 milliseconds; the same gigabyte as a million small pieces is 10 seconds, nearly all of it the per-transfer cost. Data moves once and stays."

@@ -1,0 +1,19 @@
+id: predict-matmul-counts
+type: predict_output
+rev: 1
+prompt: |
+  The FLOPs and bytes of a small matrix multiply in float64, and of a 256-cube in float32 with its FLOPs per byte. What does the program print?
+code: |
+  def matmul_cost(m, k, n, itemsize):
+      return 2 * m * k * n, (m * k + k * n + m * n) * itemsize
+  
+  
+  print(matmul_cost(2, 3, 4, 8))
+  flops, bytes_moved = matmul_cost(256, 256, 256, 4)
+  print(flops, bytes_moved, flops // bytes_moved)
+expected_output: |
+  (48, 208)
+  33554432 786432 42
+explanation: |
+  `(2, 3) @ (3, 4)` makes 8 outputs of 3 terms each, 24 multiplies and 24 adds, 48 FLOPs; it reads 6 and 12 elements and writes 8, 26 elements of 8 bytes, 208 bytes. The 256-cube is 2 times 256 cubed, 33,554,432 FLOPs, over 3 times 256 squared elements of 4 bytes, 786,432 bytes: 42 FLOPs per byte, and a 1024-cube would be four times that, since the FLOPs grow as the cube and the bytes as the square.
+skills: [intensity]
