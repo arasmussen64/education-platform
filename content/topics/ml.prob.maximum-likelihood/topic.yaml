@@ -1,17 +1,81 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.prob.maximum-likelihood
 kind: topic
-status: planned
-title: Maximum likelihood
-summary: The likelihood of data under a model, why logs turn it into a sum, fitting a coin and a normal by maximizing it, and why least squares and cross-entropy are maximum likelihood in disguise.
-prerequisites:
-- ml.prob.expectation-and-variance
-- ml.calc.loss-functions
+status: ready
+title: "Maximum likelihood"
+summary: "The likelihood of data under a model, why logs turn it into a sum, fitting a coin and a normal by maximizing it, and why least squares and cross-entropy are maximum likelihood in disguise."
+prerequisites: [ml.prob.expectation-and-variance, ml.calc.loss-functions]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Write the likelihood of a dataset under a model with a parameter.
-- Take the log, and find the maximum by calculus and by gradient descent.
-- "Fit a coin's bias and a normal's mean and spread by maximum likelihood, and check against the sample statistics."
-- Say why least squares and cross-entropy are maximum-likelihood losses.
+  - "Write the likelihood of a dataset under a model with a parameter."
+  - "Take the log, and find the maximum by calculus and by gradient descent."
+  - "Fit a coin's bias and a normal's mean and spread by maximum likelihood, and check against the sample statistics."
+  - "Say why least squares and cross-entropy are maximum-likelihood losses."
+# Linked, never copied or embedded: StatQuest's videos are under the standard
+# YouTube licence; Wikipedia is CC BY-SA 4.0; NumPy's documentation is under
+# the NumPy licence (BSD-3-Clause).
+resources:
+  - title: "StatQuest: Maximum Likelihood, clearly explained!!! (Josh Starmer)"
+    url: https://www.youtube.com/watch?v=XepXtl9YKwc
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "Wikipedia: Maximum likelihood estimation (the sections Principles and Examples)"
+    url: https://en.wikipedia.org/wiki/Maximum_likelihood_estimation
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "numpy.argmax (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.argmax.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-a-coin-and-a-normal-by-likelihood
+  - parsons-log-likelihood-of-a-coin
+  - mcq-what-a-likelihood-is
+  - predict-two-heads
+  - mcq-why-the-log
+  - mcq-what-cross-entropy-assumes
+  - fill-fit-a-coin-by-descent
+  - write-mle-normal
+prove:
+  build: build-likelihoods-and-losses
+  debug: debug-likelihood-report
+  explain:
+    prompt: |
+      A teammate asks why the loss for a regression is squared error and the loss for a classifier is cross-entropy: "who decided that?" In your own words: what is a likelihood, and what does maximum likelihood choose? Why work with the log of it? Show why minimizing squared error is the same as maximizing the likelihood when the errors are normal, and why cross-entropy is the negative log-likelihood of the labels. And what is each loss assuming about the data?
+    rubric:
+      - id: likelihood
+        required: true
+        description: "The likelihood is the probability of the data you saw, read as a function of the model's parameter; maximum likelihood picks the parameter under which the data was most probable (6 heads in 8 flips: p = 0.75)."
+      - id: log
+        required: true
+        description: "The log is increasing, so it has the same maximizer; it turns a product of many small probabilities into a sum that neither underflows nor needs the product rule to differentiate; the negative log-likelihood is a loss to minimize."
+      - id: squared-error
+        required: true
+        description: "If each y is the model's prediction plus normal noise with spread sigma, the log-likelihood of the data is a constant minus the sum of squared errors over 2 sigma squared, so maximizing it is minimizing the sum of squared errors: least squares is maximum likelihood under normal errors."
+      - id: cross-entropy
+        required: true
+        description: "If each label is a Bernoulli with the model's p, the probability of the labels is the product of p for the ones and 1 - p for the zeros, whose negative log is exactly the cross-entropy: minimizing it maximizes the likelihood of the labels. Squared error assumes normal noise, cross-entropy assumes independent Bernoulli labels; when the assumption is wrong, so is the loss."
+    model_answer: |
+      A likelihood is the probability of the data you actually saw, written as a function of the thing you don't know. Six heads in eight flips has probability p to the sixth times one minus p squared, and reading that as a function of p is the likelihood of p. Maximum likelihood chooses the parameter under which the data was most probable: 0.75 here, which is where the derivative is zero and where a grid search peaks. We work with the log because the log is increasing, so it has the same maximizer, and because it turns a product of many small probabilities, which would underflow to zero and be a nightmare to differentiate, into a sum of logs, which does neither. Minus the log-likelihood is then a loss to minimize, and that is where the two losses come from. Suppose each regression target is the model's prediction plus normal noise with spread sigma. The probability density of one observation is proportional to exp of minus the squared error over two sigma squared, so the log-likelihood of all of them is a constant minus the sum of squared errors over two sigma squared. Making that as large as possible is making the sum of squared errors as small as possible: least squares is maximum likelihood under normal errors. Now suppose each label is a Bernoulli with the model's probability p. The probability of the labels you saw is the product of p for every one and one minus p for every zero, and minus its log is minus the sum of y log p plus one minus y log one minus p, which is the cross-entropy exactly. So each loss is a statement about the data: squared error says the noise is normal with the same spread everywhere, cross-entropy says the labels are independent coin flips with the model's probabilities. Nobody decided; the assumption did, and when the assumption is wrong, say heavy-tailed noise, the loss is the wrong one too.
+review_pool:
+  - review-predict-a-sequence
+  - review-mcq-likelihood-is-not-probability-of-p
+  - review-mcq-divide-by-n
+  - review-mcq-what-squared-error-assumes
+  - review-mle-coin
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: likelihood
+    description: "Write the likelihood and the log-likelihood of data under a model with a parameter"
+  - id: maximize
+    description: "Find the maximum-likelihood parameter by a grid, by calculus or by descent on the negative log-likelihood"
+  - id: fit
+    description: "Fit a coin's bias and a normal's mean and spread by maximum likelihood, and check against the sample statistics"
+  - id: losses
+    description: "Say why least squares and cross-entropy are negative log-likelihoods, and what each assumes"

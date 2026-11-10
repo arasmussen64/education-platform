@@ -1,0 +1,22 @@
+id: build-likelihoods-and-losses
+stage: build
+rev: 1
+title: "Likelihoods, and the losses they become"
+prompt: |
+  Starting from a blank editor, write:
+
+  - `log_likelihood_coin(p, heads, flips)`: `heads * log(p) + tails * log(1 - p)`, for a number or an array of `p`.
+  - `mle_coin(heads, flips)`: the `p` on the grid `np.linspace(0.001, 0.999, 999)` with the largest log-likelihood, as a float.
+  - `nll_bernoulli(p_hat, y)`: the negative log-likelihood of labels `y` (1s and 0s) under predicted probabilities `p_hat`, as a float: `-Σ [y log p_hat + (1 - y) log(1 - p_hat)]`.
+  - `nll_normal(x, mu, sigma)`: the negative log-likelihood of a sample under a normal with mean `mu` and spread `sigma`, dropping the constant: `n * log(sigma) + Σ (x - mu)² / (2 sigma²)`, as a float.
+
+  Then print the coin fits for 6 heads in 8 and 3 in 10; the labels' negative log-likelihood for `y = [1, 0, 1, 1]` and `p_hat = [0.9, 0.2, 0.7, 0.6]` beside minus the log of the product of the matching probabilities (both rounded to 4); and `nll_normal` of the five heights `[168, 171, 174, 167, 170]` with `sigma = 3` at means 168, 170 and 172, rounded to 3:
+
+  ```
+  coin 0.75 0.3
+  labels 1.196 1.196
+  normal [8.271, 7.16, 8.271]
+  ```
+
+  The checks fit other coins, compare `nll_bernoulli` with Module 4's cross-entropy, and check `nll_normal` is lowest at the sample mean.
+skills: [likelihood, maximize, fit, losses]

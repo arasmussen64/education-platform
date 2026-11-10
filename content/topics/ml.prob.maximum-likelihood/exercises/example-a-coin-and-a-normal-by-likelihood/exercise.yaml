@@ -1,0 +1,22 @@
+id: example-a-coin-and-a-normal-by-likelihood
+stage: worked_example
+rev: 1
+title: "A coin and a normal, by likelihood"
+prompt: |
+  This program finds a coin's bias by maximum likelihood three ways, fits a normal's mean and spread the same way, and then shows that cross-entropy is a negative log-likelihood. Press **Run**, then read how each part works.
+steps:
+  - label: "The likelihood of six heads in eight"
+    lines: "3-6"
+    note: "`ps` is a grid of 99 candidate biases. For each, the probability of the observed flips is `p**6 * (1 - p)**2`. It peaks at 0.75, and the peak is tiny (0.01112): the data was improbable under every bias, and maximum likelihood picks the least improbable one."
+  - label: "The log-likelihood, same peak"
+    lines: "7-8"
+    note: "`6 log p + 2 log(1 - p)` peaks at the same 0.75, because the log keeps order. It also equals `heads / flips`, which is what setting the derivative `6/p - 2/(1 - p)` to zero gives."
+  - label: "Found by descent"
+    lines: "10-14"
+    note: "Module 4's loop, climbing the log-likelihood instead of descending a loss: the slope is `heads / p - tails / (1 - p)`, and 200 small steps from 0.5 arrive at 0.75. Minimizing the negative log-likelihood is the same loop with the signs flipped, which is what a training loop does."
+  - label: "A normal's mean and spread"
+    lines: "16-21"
+    note: "A thousand heights from a normal. Over a grid of candidate means, the log-likelihood (a constant minus the sum of squared distances over `2σ²`) peaks at 169.9, which is the sample mean. The best spread is the root of the squared deviations divided by `n`, 9.89, which is `x.std()` with NumPy's default: maximum likelihood is where that default comes from."
+  - label: "Cross-entropy is a negative log-likelihood"
+    lines: "23-26"
+    note: "Four labels and a model's four probabilities. The probability of seeing those labels is the product of `p` for each 1 and `1 - p` for each 0: 0.3024. Its negative log, 1.196, is exactly the cross-entropy sum from Module 4. Minimizing cross-entropy maximizes the likelihood of the labels; the loss was a likelihood all along."
