@@ -1,15 +1,68 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.py.writing-tests
 kind: topic
-status: planned
-title: Writing tests
-summary: pytest-style tests for a function, its edge cases, and a fixture.
-prerequisites:
-- py.m6.checkpoint
+status: ready
+title: "Writing tests"
+summary: "Tests for a function, its edge cases, and what a test proves and can't."
+prerequisites: [py.m6.checkpoint]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Write pytest-style tests for a function, including its edge cases.
-- Use a fixture.
-- "Say what a test proves and what it can't."
+  - "Write pytest-style tests for a function, including its edge cases."
+  - "Share set-up between tests with a helper, and say what a pytest fixture is for."
+  - "Say what a test proves and what it can't."
+resources:
+  - title: "pytest documentation: Get Started (the pytest developers)"
+    url: https://docs.pytest.org/en/stable/getting-started.html
+    type: reading
+    use: link
+    license: MIT (linked, not copied)
+  - title: "The Python Tutorial: the assert statement, in Simple statements (Python Software Foundation)"
+    url: https://docs.python.org/3/reference/simple_stmts.html#the-assert-statement
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-tests-for-a-leap-year
+  - parsons-arrange-act-assert
+  - mcq-what-a-test-proves
+  - predict-assert-message
+  - mcq-which-is-the-edge-case
+  - fill-tests-for-clamp
+  - write-tests-for-median
+prove:
+  build: build-word-count-with-tests
+  debug: debug-tests-that-dont-test
+  explain:
+    prompt: |
+      A teammate says: "All 40 tests pass, so the function has no bugs." Another says: "I don't write tests for the empty list; nobody passes an empty list." In your own words: what does a passing test prove, and what can't it prove? Why do the edge cases (empty, one item, the boundary values) deserve their own tests? And when three tests all start with the same five lines of set-up, what should you do about it, and what does pytest call its version of that?
+    rubric:
+      - id: proves
+        required: true
+        description: "A passing test proves the function behaved correctly for that one case; it can't prove there are no bugs, only that the tested cases work."
+      - id: edges
+        required: true
+        description: "Edge cases are where bugs hide (off-by-one, empty input, a boundary included or not), and 'nobody passes that' is exactly how it reaches production untested."
+      - id: setup
+        required: true
+        description: "Repeated set-up belongs in a helper function the tests call, or in a pytest fixture: a function that builds the thing and is handed to each test that names it as a parameter."
+      - id: spec
+        required: false
+        description: "Mentions that a good test reads as a sentence about the behaviour, or that tests are a specification you can run."
+    model_answer: |
+      A passing test proves one thing: for the inputs that test used, the function gave the expected result. Forty passing tests prove forty cases; they say nothing about the cases nobody wrote down. So "no bugs" doesn't follow, only "none of these forty bugs". Edge cases are where the bugs actually live: an empty list that makes a division by zero, a single item that breaks a "middle two" median, a boundary value that the code excludes with < where it meant <=. "Nobody passes an empty list" is a prediction about users, and the day it's wrong the failure is in production instead of in the test run. When several tests share the same set-up, put it in a helper function the tests call, so a change to the set-up happens once; pytest's version is a fixture, a function marked @pytest.fixture that builds the thing, and any test that names it as a parameter gets a fresh one. Either way, each test still reads as one sentence about one behaviour.
+review_pool:
+  - review-predict-which-fails
+  - review-mcq-test-names
+  - review-tests-for-clamp-boundaries
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: write-tests
+    description: "Write a test function: arrange, act, assert, with a name that says what it checks"
+  - id: edge-cases
+    description: "Test the edge cases: empty, one, the boundaries"
+  - id: assert
+    description: "Read and write assert, with a message that says what went wrong"
+  - id: meaning
+    description: "Say what a test proves and what it can't"

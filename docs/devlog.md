@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Writing tests
+
+**`ml.py.writing-tests` is ready.** Every Check the learner has passed on this platform was a test someone wrote; now they write them. The worked example is `is_leap` with three tests, one per rule, and a six-line runner that finds every `test_` function and calls it, which is what pytest does and what every program in this topic ends with. Then a Parsons test whose decoy asserts with a single `=`, three recall questions (forty passing tests prove forty cases; an assert message read out of an `AssertionError`; the even-count list is the median's edge case), expected values to fill in for `clamp` and two tests for `median` to write, one that catches a median that forgets to sort and one that catches a median that only handles odd counts. The proofs: `word_count` with at least three tests to build, two tests that don't test to debug (a wrong expected value, and a test named `check_…` that is never collected), and an explanation built on two teammates, one who thinks forty green tests mean no bugs and one who won't test the empty list. The review pool has a `word_count` test that is wrong about `split()`, which names are collected, and tests at `clamp`'s boundaries.
+
+**How the tests are graded.** A test the learner writes can't be checked by comparing output: `assert True` prints `2 passed` too. So the hidden tests import the learner's program, swap the function under test for a planted bug, and run the learner's tests again; a test suite that doesn't fail on the bug doesn't pass the exercise. Each exercise says so in its prompt, and the known-wrong solutions (tests that only use sorted odd-length lists; tests that only check the middle of a range) are exactly the suites that look fine and catch nothing.
+
+**Decisions for you to review:**
+
+1. _Fixtures are explained, not exercised._ pytest doesn't run inside the browser's Python, so the programs use a plain runner loop and a helper function for shared set-up; the recap and the explain rubric cover what `@pytest.fixture` is and when it's the right tool. The spec's table says so now.
+2. _The learner's tests are graded against planted bugs._ The alternative, counting `assert`s, rewards the wrong thing. The planted bugs are the ones the prompt warns about, so a learner who reads the prompt knows what their tests must catch.
+3. _A failing test can mean the test is wrong._ The predict question and the debug exercise both have that case, because a learner who believes a red test always blames the code will "fix" working code.
+
+**Next:** JSON and nested data (`ml.py.json-and-nested-data`).
+
 ## 2026-11-10: Functions as values
 
 **`ml.py.functions-as-values` is ready.** A function is a value; that one idea is behind `key=`, behind every `@decorator`, and behind plugging a loss function into a library by name. The worked example writes `apply(func, text)`, sorts with `key=len` and `key=abs`, and maps `len` over words. Then a Parsons sort by length whose decoy writes `key=len()`, three recall questions (`sorted(numbers, key=abs)` returns the originals in size order; pairs sorted and `min`'d with a lambda; which of four functions deserves a `def`), ranking scores to fill in (a lambda over a dict, `reverse=True`, `max` with the same key) and `compose(f, g)` to write, which returns a new function. The proofs: a counting decorator to build, with `*args` and a `count` kept on the wrapper, whose hidden tests decorate a two-argument function and check that two decorated functions keep separate counts (known-wrong: a shared global count, a wrapper that forgets to return the result); two wrong keys to debug; and an explanation of `len` against `len()`, when a lambda should become a `def`, and what `@timed` does to the function below it. The review pool has `filter` and `map` with lambdas, what `@timed` means, the order a decorator's prints come out in, and a sort by last letter.
