@@ -1,0 +1,14 @@
+id: mcq-seven-digits
+type: mcq
+rev: 1
+prompt: |
+  A float32 holds about 7 significant decimal digits and `np.float32(16777216) + 1` is still `16777216`. What limits it?
+choices:
+  - 'The exponent: 8 bits can''t reach past 16 million, so larger numbers are clipped to the largest value it can express'
+  - 'Rounding mode: NumPy rounds down by default, so adding 1 to a large number is lost'
+  - 'Python converts the result to an int, which truncates anything a float32 carries'
+  - 'The mantissa: 24 significant bits tell integers apart only up to `2**24`; above it neighbours are 2 apart'
+answer: 3
+explanation: |
+  The exponent sets the scale and 8 bits reach to about 3.4 times 10 to the 38; it is the 24-bit mantissa that fixes how many distinct values each scale has. Between 2 to the 24 and 2 to the 25 the representable numbers are 2 apart, so 16,777,217 doesn't exist in float32 and the sum rounds back. float64's 53 bits push the same cliff out to 9 quadrillion.
+skills: [representation]

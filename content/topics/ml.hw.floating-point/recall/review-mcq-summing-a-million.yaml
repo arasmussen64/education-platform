@@ -1,0 +1,14 @@
+id: review-mcq-summing-a-million
+type: mcq
+rev: 1
+prompt: |
+  A million per-example losses are float32 and must be averaged. Which way of summing them is wrong, and why?
+choices:
+  - '`np.sum` on the float32 array, which adds pairwise so that partners stay about the same size and few digits are dropped'
+  - 'Converting to float64 first and summing, which has digits to spare for a million values'
+  - 'A float32 running total in a Python loop: once it is large, each small loss loses its low digits, a million times'
+  - '`math.fsum` over the values, which keeps the exact sum and rounds once at the end'
+answer: 2
+explanation: |
+  The running total is the problem: with the total near a million and each loss near one, a float32 addition keeps about 7 digits, so each loss's last digits are dropped, always in the same direction. Pairwise summation, float64 accumulation and `fsum` all avoid that; the one-at-a-time float32 total is the version that drifts, as the worked example's hundred thousand tenths show.
+skills: [accumulation]

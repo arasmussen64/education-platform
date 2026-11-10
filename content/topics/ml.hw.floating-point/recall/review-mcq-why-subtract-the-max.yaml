@@ -1,0 +1,14 @@
+id: review-mcq-why-subtract-the-max
+type: mcq
+rev: 1
+prompt: |
+  A stable softmax subtracts the largest logit from every logit before exponentiating. Why doesn't that change the answer, and what does it prevent?
+choices:
+  - 'It does change the answer slightly, but the error is far smaller than the overflow would be, so it is the lesser of two evils in practice'
+  - 'It centres the logits so that the softmax sums to 1, which it otherwise wouldn''t for large inputs of either sign'
+  - 'It makes the largest probability exactly 1, which is what argmax needs to pick a class without ties'
+  - 'A common factor exp(-m) cancels in the ratio, so the probabilities are the same; every exponent is at most 0, so none overflows'
+answer: 3
+explanation: |
+  `exp(x - m)` is `exp(x) * exp(-m)`, the same factor for every entry, and a common factor cancels when each entry is divided by the sum. So the probabilities are exactly the same in exact arithmetic, and in float arithmetic the shifted version is the one that can be computed at all: the largest exponent is 0, so the largest term is 1 and nothing overflows. The softmax always sums to 1; the subtraction is about range, not normalization.
+skills: [special]
