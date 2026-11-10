@@ -77,7 +77,7 @@ Mornings learning on the platform, afternoons building it.
 - The living map: topics fade as their predicted memory strength drops. [x] First version (2026-11-09): each Learned topic shows "Memory: N%" and a bar from the scheduler's predicted retrievability; dimming the rows themselves was left out for legibility.
 - [x] A practice-hours tracker (the owner's idea, 2026-11-06): total time spent in active practice, from the attempt durations in the event log, with milestones from 1 hour on the way to 10,000. It counts deliberate practice (attempts, proof checks, reviews), not time with the site open, because that's what the research behind "10,000 hours" measured. Built early, on the Today page (2026-11-09). [x] Counted per track, each on its own ladder ([ADR-0019](decisions/0019-today-across-tracks.md), 2026-11-09).
 - [x] Today shows every track (2026-11-09, [ADR-0019](decisions/0019-today-across-tracks.md)): one Next up per track, with how far along each is, so a learner on two tracks sees where they stand on both.
-- Automated data backups
+- [x] Automated data backups (2026-11-09, [ADR-0020](decisions/0020-automated-backups.md)): a nightly encrypted dump to a private backups repository, with the restore rehearsed on every pull request; three secrets for the owner to add.
 - Content: intermediate Python; a math refresher for the ML track
 
 ## Phase 3: CS and ML tracks (months 5–9)

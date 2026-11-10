@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (automated backups)
+
+- **A nightly encrypted backup of the learning data** ([ADR-0020](docs/decisions/0020-automated-backups.md)). A scheduled workflow dumps the real database's data (the `public` and `auth` schemas; the schema itself comes from the migrations), encrypts it with AES-256 on the runner, shreds the plain file, and commits the encrypted dump to a private backups repository, one file a night. Until the owner adds the three secrets it needs (the session-pooler database URL, the passphrase, a token for the backups repository; `docs/setup.md` says how) it says which are missing and stops green. Every pull request's CI rehearses the restore on the throwaway local database with `tools/backup_restore_check.sh`: a learner and an event in, dumped, encrypted and decrypted, the database reset, the dump restored, the rows back.
+
 ### Added (Today across tracks)
 
 - **Today shows where you stand on every track, and counts your practice hours per track** ([ADR-0019](docs/decisions/0019-today-across-tracks.md), the owner's ask). _Next up_ has one entry per track: its name, how many of its topics are learned, and the topic in progress or next Available. _Practice hours_ keeps one sentence for the total, then gives each track its own time and its own milestone ladder on the way to 10,000 hours, since the hours are about mastering one domain; time on a topic outside every track shows as "Other" only when there is some. Reviews and mistakes to revisit already drew on every track.

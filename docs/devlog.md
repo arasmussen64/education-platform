@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Nightly backups, the second Phase 2 item
+
+The learner's history has lived in one Supabase project with no backup but the manual export ([ADR-0010](decisions/0010-environments.md) said as much, and asked for this in Phase 2). Now a scheduled workflow takes an encrypted data dump every night ([ADR-0020](decisions/0020-automated-backups.md)): the pinned Supabase CLI dumps the real project's data over its session-pooler connection (data only, `public` and `auth`, so the learner keeps their id on restore and the events stay theirs), the dump is AES-256 encrypted on the runner and the plain file shredded, and the encrypted file is committed to a private `education-platform-backups` repository, one a night, for good. The repository being public since this morning is what makes the workflow free, and what makes "nothing readable ever leaves the runner" the first rule.
+
+**The restore is rehearsed on every pull request,** not assumed. CI's database job runs `tools/backup_restore_check.sh`: a learner with one event goes into the throwaway local database, the data is dumped with the same command, the encryption is round-tripped with a throwaway passphrase, the database is reset to empty tables, the dump is restored with `psql`, and the learner, their profile and the event must be back. It ran clean here first, against the local stack. The same script runs on your PC with the local Supabase up.
+
+**Also today:** the CI diet (#87) merged into `main`, so pull requests no longer re-run CI after a merge, and the labs run only when content or tooling changes. The Module 1 stack merges next, bottom up, as each run passes.
+
+**Waiting on you:** four one-time steps, all credentials, written out in [docs/setup.md](setup.md) under "Back up your learning data": the private repository, the passphrase (into your password manager the day you make it; it's the whole secret), a fine-grained token scoped to that one repository, and the three repository secrets. Until then the nightly run reports which secrets are missing and stops green, so you won't see a red X while you set it up.
+
+**Decisions for you to review:**
+
+1. _Data only, not schema._ The migrations are the schema's source of truth; a restore into a new project is "migrations, then the dump", which is what the rehearsal does.
+2. _`auth` is in the dump._ It carries hashed credentials and refresh tokens, but leaving it out would orphan the events on restore; it's encrypted everywhere it's kept and the backups repository is private.
+3. _A private Git repository as the only archive,_ not the run's artifacts as well: a public repository's artifacts can be downloaded by anyone with a GitHub account, and even encrypted that's a footprint for no gain. Clone the backups repository onto another drive now and then for the copy that isn't on GitHub.
+4. _The workflow stops green without the secrets._ A red schedule nobody can fix yet teaches people to ignore red; a notice naming the missing secrets doesn't.
+5. _The rehearsal resets the local database._ That's what a new project looks like, and the restore puts back everything that was there plus the test learner. Local data is throwaway by ADR-0010, but you should know it happens.
+
+**Next in Phase 2:** the placement test with its math diagnostic.
+
 ## 2026-11-09: The repository goes public, the stack starts merging, and Today shows both tracks
 
 **Your four decisions, carried out.** The repository is public (a scan of the tree and the whole history first: no `.env` ever committed, no key material; the one "service role" hit is the Edge Function reading an environment variable's name). GitHub Actions minutes came back with it; the failed runs for the CI diet (#87), the bottom of the stack (#85) and its top (#95) were re-run, the CI diet's CI job is already green, and the merges go in order as each run passes, each next branch rebased onto the new `main` and force-pushed to its own pull-request branch with `--force-with-lease` (never `main`), because a squash-merged parent can't be merged under its child without rebasing. Phase 2 starts with the two things you named.
