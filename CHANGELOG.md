@@ -462,3 +462,4 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed (lab checker)
 
 - `labcheck test --all --jobs N` builds the first lab of each topic on its own before the parallel run, so the heavy first layer a topic's labs share is built once instead of four times at once; and a build may take up to 30 minutes instead of 15. On a busy CI runner, twelve builds had run out of time.
+- The memory report lab's check of the available line allows the few megabytes by which two readings of MemAvailable a moment apart differ on a busy machine; it had failed on CI once for exactly that.
