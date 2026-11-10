@@ -1,0 +1,20 @@
+id: predict-relu-derivative
+type: predict_output
+rev: 1
+prompt: |
+  ReLU and its derivative, applied to a whole array. What does the program print?
+code: |
+  import numpy as np
+  
+  z = np.array([-2.0, -0.5, 0.5, 3.0])
+  relu = np.maximum(z, 0.0)
+  print(relu)
+  print(np.where(z > 0, 1.0, 0.0))
+  print(relu * 2)
+expected_output: |
+  [0.  0.  0.5 3. ]
+  [0. 0. 1. 1.]
+  [0. 0. 1. 6.]
+explanation: |
+  `np.maximum(z, 0.0)` keeps the positive entries and turns the negative ones into 0: that's ReLU. Its derivative is 1 where the input was positive and 0 where it wasn't, which `np.where(z > 0, 1.0, 0.0)` writes in one line. The last line is just ReLU doubled: the slope of `2 * relu` is 2 on the right and 0 on the left, a constant times a function has a constant times the derivative.
+skills: [arrays, rules]

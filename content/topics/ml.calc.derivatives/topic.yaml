@@ -1,18 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.calc.derivatives
 kind: topic
-status: planned
-title: Derivatives of the functions ML uses
+status: ready
+title: "Derivatives of the functions ML uses"
 summary: "The derivatives of powers, exp, log, the sigmoid and ReLU, each checked numerically, and what each one's shape means for learning."
-prerequisites:
-- ml.math.calculus
-- ml.math.exponents-and-logs
-- ml.la.numpy-arrays
+prerequisites: [ml.math.calculus, ml.math.exponents-and-logs, ml.la.numpy-arrays]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Differentiate powers, exp, log, the sigmoid and ReLU by rule, and check each numerically.
-- "Say why the sigmoid's derivative is small far from zero and what that does to learning."
-- Apply a derivative to a whole array of inputs at once.
-- "Read a derivative's sign and size as the direction and speed to move."
+  - "Differentiate powers, exp, log, the sigmoid and ReLU by rule, and check each numerically."
+  - "Say why the sigmoid's derivative is small far from zero and what that does to learning."
+  - "Apply a derivative to a whole array of inputs at once."
+  - "Read a derivative's sign and size as the direction and speed to move."
+# Linked, never copied or embedded: OpenStax is CC BY 4.0; 3Blue1Brown's
+# videos are under the standard YouTube licence; NumPy's documentation is
+# under the NumPy licence (BSD-3-Clause).
+resources:
+  - title: "3Blue1Brown: Essence of calculus (Grant Sanderson), chapters 3 (Derivative formulas through geometry) and 5 (What's so special about Euler's number e?)"
+    url: https://www.3blue1brown.com/topics/calculus
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "OpenStax Calculus Volume 1: sections 3.3 (Differentiation Rules) and 3.9 (Derivatives of Exponential and Logarithmic Functions)"
+    url: https://openstax.org/details/books/calculus-volume-1
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "numpy.where (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.where.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-five-derivatives-checked
+  - parsons-sigmoid-check
+  - mcq-sigmoid-flat
+  - predict-relu-derivative
+  - mcq-exp-and-log
+  - fill-derivative-table
+  - write-d-sigmoid
+prove:
+  build: build-derivative-checker
+  debug: debug-derivative-report
+  explain:
+    prompt: |
+      A teammate is watching a training run. The network's early layers barely change when every unit uses the sigmoid, and switching those units to ReLU helped. They ask you why. In your own words: what does a derivative tell training, in direction and in speed? Why is the sigmoid's derivative small far from zero, and what does that do to learning? What is ReLU's derivative, and why does that help? And why do you check a derivative numerically before trusting it?
+    rubric:
+      - id: direction-and-speed
+        required: true
+        description: "The derivative's sign says which way the output rises, so descent steps the other way; its size says how fast the output changes, so how far a step moves."
+      - id: saturation
+        required: true
+        description: "The sigmoid flattens towards 0 and 1, so its derivative sigma(1 - sigma) is at most 0.25 and nearly zero far from zero; a unit out there passes almost no slope back, and it (and everything behind it) stops learning."
+      - id: relu
+        required: true
+        description: "ReLU is max(x, 0): derivative 1 wherever the unit is active and 0 where it's off, so an active unit passes the slope through at full strength rather than shrinking it."
+      - id: numeric-check
+        required: false
+        description: "A rule can be misremembered or mistyped; comparing it with a central difference, (f(x + h) - f(x - h)) / 2h, at a few points catches that before training runs on a wrong slope."
+    model_answer: |
+      Training moves each knob a little, and the derivative of the loss with respect to that knob says how. Its sign says which way the loss rises, so the step goes the other way; its size says how fast the loss changes there, so a big derivative means a big step and a tiny one means almost no movement. The sigmoid is the trouble. It squashes any input into a number between 0 and 1, so it flattens out on both sides, and its derivative, sigma times one minus sigma, is at most 0.25 at zero and almost nothing far from zero: about 0.0066 at 5 and 0.00005 at 10. A unit whose input is out there is saturated: it passes almost no slope back to the layers behind it, so they barely change, and a stack of such units multiplies several tiny factors together. ReLU is max(x, 0). Its derivative is 1 wherever the unit is active and 0 where it's off, so an active unit hands the slope straight through at full strength, which is why the early layers started moving. And a rule is only a claim until it's checked: I compute the central difference, f(x + h) minus f(x - h) over 2h with a small h, at a few points and compare. A misremembered rule, or a slip like one minus x instead of one minus sigma, shows up as a gap in the sixth decimal before it has cost a day of training.
+review_pool:
+  - review-predict-power-rule
+  - review-mcq-exp-derivative
+  - review-mcq-direction-and-speed
+  - review-d-relu
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: rules
+    description: "Differentiate powers, exp, log, the sigmoid and ReLU by rule"
+  - id: numeric-check
+    description: "Check a derivative against a central difference"
+  - id: arrays
+    description: "Apply a function and its derivative to a whole array"
+  - id: reading
+    description: "Read a derivative's sign and size as direction and speed, and a tiny one as a unit that has stopped learning"

@@ -1,0 +1,22 @@
+id: example-five-derivatives-checked
+stage: worked_example
+rev: 1
+title: "Five derivatives, each checked"
+prompt: |
+  This program checks the derivative of a power, `exp`, `log`, the sigmoid and ReLU against a numeric slope, then applies two of them to a whole array. Press **Run**, then read how each part works.
+steps:
+  - label: "A better slope estimate"
+    lines: "4-5"
+    note: "Module 1 stepped one way: `(f(x + h) - f(x)) / h`. Stepping both ways and dividing by `2 * h` is the **central difference**, and its error shrinks with `h` squared rather than `h`. At `h = 1e-6` it matches the exact derivative to about six decimals, so every check in this module can ask for six decimals."
+  - label: "Three rules, checked"
+    lines: "16-18"
+    note: "Each line prints the numeric slope, then the rule's answer. The power rule: `3 * x ** 2` is 12 at 2. The exponential is its own derivative: both numbers are `e`, 2.718282. The log's derivative is `1 / x`: 0.25 at 4."
+  - label: "The sigmoid"
+    lines: "19-20"
+    note: "`sigmoid` (lines 8 and 9) squashes any number into the range 0 to 1. Its derivative is the output times one minus the output, `s * (1 - s)`: at 2, the numeric slope and the rule both give 0.104994. Notice how small that already is."
+  - label: "ReLU"
+    lines: "21"
+    note: "`relu` (lines 12 and 13) is `max(x, 0)`. Left of zero it's flat, slope 0; right of zero it's the input itself, slope 1. At exactly 0 there's a corner with no single slope; training uses 0 there by convention."
+  - label: "Whole arrays at once"
+    lines: "23-25"
+    note: "The same formulas take an array and return one. The sigmoid's derivative is 0.25 at zero and 0.0066 at plus or minus 5: a unit that far out is **saturated** and barely learns. ReLU's derivative is 0 or 1, written with `np.where`: wherever the input is positive, the slope passes through at full strength."

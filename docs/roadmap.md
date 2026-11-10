@@ -68,9 +68,11 @@ Milestone C is complete.
 
 Milestone D is complete (2026-11-09): the AI proxy with the tutor is live, its test set run, and the problem-reports table is in the live database. With it, Phase 1 is done: the owner can learn on the platform end to end, from Programs and print to the CSV report capstone, with proofs, reviews, a tutor and a way to report problems.
 
-## Phase 2: Adaptivity and better practice (months 2–4, next)
+## Phase 2: Adaptivity and better practice (months 2–4, built 2026-11-10)
 
 Mornings learning on the platform, afternoons building it.
+
+Every item below is built (2026-11-10). Two production steps wait for the owner: the placement test's migration (`npx supabase db push`, [ADR-0021](decisions/0021-placement-test.md)) and the three backup secrets ([ADR-0020](decisions/0020-automated-backups.md)).
 
 - [x] A placement test that walks the topic map, including a math diagnostic (2026-11-09, [ADR-0021](decisions/0021-placement-test.md)): a walk by halving through a track's unlearned topics, probing each with its own review questions; the result is a place to start and a list of topics to prove first, never a tick. The math ladder has seven levels, arithmetic to the first ideas of calculus, each with a free refresher to point at until the platform's own exists.
 - More exercise types: [x] Parsons problems ([ADR-0016](decisions/0016-parsons-problems.md), 2026-11-09, one in 29 of the 30 topics); [x] a step-through code visualizer (2026-11-09, [ADR-0022](decisions/0022-step-through.md)): the harness records each line's effect under Python's own trace hook, in the browser and in CI alike; a Step through button beside Run, and under predict-the-output questions once answered, plays it back with the variables and the output so far.
@@ -80,9 +82,9 @@ Mornings learning on the platform, afternoons building it.
 - [x] Automated data backups (2026-11-09, [ADR-0020](decisions/0020-automated-backups.md)): a nightly encrypted dump to a private backups repository, with the restore rehearsed on every pull request; three secrets for the owner to add.
 - Content: intermediate Python; a math refresher for the ML track. Both live in the new **Machine Learning Foundations** track ([spec](specs/ml-foundations.md), 2026-11-09): Module 1 is the math refresher (the placement test's seven levels as topics, each proven in Python), Module 2 intermediate Python; both are outlined. [x] Module 1 is complete (2026-11-10): seven topics and a checkpoint that fits a line by gradient descent. [x] Module 2 is complete (2026-11-10): seven topics and a checkpoint that builds a small data library, so every outlined topic of the track is ready. [x] Module 3, linear algebra, is complete (2026-11-10): seven NumPy topics and a checkpoint that fits a plane and compresses the same points, written on the NumPy decision in [ADR-0023](decisions/0023-packages-in-both-runtimes.md), which is proposed; Module 4, calculus for ML, is outlined (2026-11-10); modules 5 and later are prose in the spec until they're outlined.
 
-## Phase 3: CS and ML tracks (months 5–9)
+## Phase 3: CS and ML tracks (months 5–9, content begun 2026-11-10)
 
-- Content: math for ML (linear algebra, calculus, probability), core CS (data structures, algorithms, how computers and GPUs work), then neural networks from scratch, building up to transformers
+- Content: math for ML ([x] linear algebra, the ML track's Module 3, 2026-11-10; [ ] calculus, Module 4, begun 2026-11-10 with _Derivatives of the functions ML uses_; [ ] probability), core CS (data structures, algorithms, how computers and GPUs work), then neural networks from scratch, building up to transformers
 - The owner writes a growing share of the platform's code
 - Senior-engineer code review and the practice generator
 
