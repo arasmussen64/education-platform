@@ -1,0 +1,25 @@
+# The checks for "The server is slow: the first minute": the verdict names
+# CPU as the bottleneck and shop-worker as the culprit, memory and disk are
+# ruled out, and the evidence is saved.
+checks:
+  - id: bottleneck-is-cpu
+    description: "The verdict names CPU as the bottleneck."
+    command: grep -i '^bottleneck:' /home/learner/triage/verdict.txt
+    expect:
+      matches: "(?i)^bottleneck: *cpu"
+  - id: culprit-is-the-worker
+    description: "The verdict names shop-worker as the process behind it."
+    command: grep -i '^culprit:' /home/learner/triage/verdict.txt
+    expect:
+      contains: "shop-worker"
+  - id: ruled-out-the-rest
+    description: "Memory and disk were checked and found fine."
+    command: |
+      grep -iqE '^memory: *ok' /home/learner/triage/verdict.txt && grep -iqE '^disk: *ok' /home/learner/triage/verdict.txt && echo "ruled out"
+    expect:
+      contains: "ruled out"
+  - id: evidence-saved
+    description: "~/triage/top-cpu.txt holds the top processes, with shop-worker among them."
+    command: grep -c 'shop-worker' /home/learner/triage/top-cpu.txt
+    expect:
+      gte: 1

@@ -1,0 +1,16 @@
+id: write-cpu-culprit
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write top-cpu"
+prompt: |
+  Write a script, `~/bin/top-cpu`, that prints the processes using the most CPU, busiest first, one per line as the process name and its CPU percentage (for example `shop-worker 99.4%`). It takes an optional count and shows that many, defaulting to five: `top-cpu` shows five, `top-cpu 3` shows three. This is the "which process" step of the checklist, made into one command you can run at a glance.
+
+  The shop's worker is pegging a CPU, so it should be the first line. Try `top-cpu`, then `top-cpu 3`, and compare with `ps -eo comm,%cpu --sort=-%cpu | head`. Make the script executable, and run the checks.
+hints:
+  - "`ps -eo comm,%cpu --sort=-%cpu` lists every process with its name and CPU percentage, busiest first; the first line is a header. The default count comes from `n=\"${1:-5}\"` (the first argument, or 5)."
+  - "Skip the header and take the next `n` lines. With awk: `ps -eo comm,%cpu --sort=-%cpu | awk -v n=\"$n\" 'NR > 1 && NR <= n + 1 {print $1, $2 \"%\"}'` prints the name, then the percentage with a `%` after it."
+  - "Start with `#!/bin/bash` and `set -euo pipefail`, and quote `\"$n\"`."
+skills: [first-minute, use-method]

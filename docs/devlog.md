@@ -2,6 +2,31 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Performance triage goes ready, and what a container will and won't show
+
+The thirteenth ready cloud topic, and the one where the lab environment pushed back hardest. Performance signals are noisy, and a container hides some of them: a single spinner on an eight-core host is not system-wide saturation, `iostat` shows the host's disks not the container's load, and `perf` needs kernel tooling a container doesn't have. So the labs are built on the signals that _are_ reliable and deterministic inside a container, and the fragile ones stay in the lesson and the recall.
+
+**What's deterministic in a container, and what the labs use:**
+
+- A busy spinner is unambiguously the top process by CPU (`ps`, `pidstat`), and `ps comm` names it from its script name (`#!/bin/bash`, the trick from the processes topic).
+- Per-cgroup CPU accounting is exact: a service's `cpu.stat` `usage_usec` sampled a second apart is how much CPU it used, which is what `build-busiest-service` is built on.
+- `strace -c` error counts are decisive: a service in a `openat` storm shows millions of failing calls, which is how the debug lab's runaway is identified.
+- PSI (`/proc/pressure/*`, per-cgroup `cpu.pressure`) works and is clean, kept in reserve for now.
+
+`sysstat` (iostat, mpstat, pidstat, sar) and `strace` go in the triage labs' own `tail-common`, not the shared base, so the other sixty lab images don't rebuild. (A transient apt hiccup during a probe installed nothing once; at image-build time a failure would just fail the build, which is visible.)
+
+**The five labs:** `example-sixty-seconds` (the checklist to a written verdict), `fill-triage-report` (the signals, with the CPU-percent field and the run-queue column as gaps), `write-cpu-culprit` (`top-cpu`), `build-busiest-service` (the heaviest service by cgroup CPU), `debug-syscall-storm` (find the `openat` storm with `strace`, stop it at the service because it restarts, write the finding down). Twenty checks, sixteen known-wrong fixes.
+
+**What the contract caught, a lesson about weak checks:** the fill lab first shipped with two wrong fixes passing, because the run-queue and idle checks only asked "is it a number?", and a wrong column is also a number, and `%idle` versus `%usr` is indistinguishable once parallel labs load the host. The fix was to pick signals with a deterministic _value_, not just a type: the run queue is at least 1 while the worker spins (the blocked column is 0), and the busiest process's CPU share is near 100 (the wrong field is its name, not a number). A check that any wrong answer can satisfy isn't a check.
+
+**Decisions for you to review:**
+
+1. _The triage labs are CPU- and syscall-centred,_ because that's what a container shows deterministically. Disk and network saturation are taught and quizzed (iostat `await`, `sar` retransmits) but not proven in a lab; proving them would need signals the container can't reliably produce.
+2. _`strace` as the debug tool,_ not `perf`. `perf` doesn't work in the lab container; `strace -c` does, and it's the right tool for a process that's busy in the kernel anyway.
+3. _Per-topic packages in a tail,_ not the shared base, for tools only one topic needs. It keeps the shared layer stable and the other labs' images untouched.
+
+**Next:** Hardening, the last Module 1 topic, a security baseline proved with a benchmark scan, and then the module's checkpoint.
+
 ## 2026-11-09: Shell scripting goes ready, the first plain labs
 
 The twelfth ready cloud topic, and a change of lab shape. Every cloud lab so far boots systemd in a privileged container; shell scripting doesn't need that, so these are the track's first **plain labs**, the same kind the first topic (Shell essentials) used: a light Ubuntu image with ShellCheck, `CMD ["sleep", "infinity"]`, and the learner's work done through `docker exec`. They build and run much faster than the systemd labs, with no boot to wait for.

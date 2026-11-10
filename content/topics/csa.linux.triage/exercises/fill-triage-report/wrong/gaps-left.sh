@@ -1,0 +1,3 @@
+# Wrong: run with the gaps still in, so the lines are broken and the ...
+# remain.
+~/bin/triage-report || true

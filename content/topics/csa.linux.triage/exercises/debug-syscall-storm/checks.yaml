@@ -1,0 +1,26 @@
+# The checks for "The runaway that's eating a CPU": the runaway is stopped
+# and gone, the healthy service is untouched, and the finding records the
+# culprit and the system call it was storming on.
+checks:
+  - id: tailer-stopped
+    description: "shop-tailer is no longer active."
+    command: systemctl is-active shop-tailer 2>/dev/null; true
+    expect:
+      matches: "^(inactive|failed|masked)$"
+  - id: culprit-gone
+    description: "No shop-tailer process is running (it wasn't just killed and restarted)."
+    command: |
+      sleep 2
+      pgrep -x shop-tailer > /dev/null && echo "still running" || echo "gone"
+    expect:
+      contains: "gone"
+  - id: healthy-service-untouched
+    description: "shop-api, the healthy service, is still running."
+    command: systemctl is-active shop-api
+    expect:
+      equals: "active"
+  - id: finding-records-the-cause
+    description: "~/triage/finding.txt names shop-tailer and the system call it was storming on."
+    command: grep -iq 'shop-tailer' /home/learner/triage/finding.txt && grep -iqE 'open(at)?|system call|syscall' /home/learner/triage/finding.txt && echo "finding is complete"
+    expect:
+      contains: "complete"

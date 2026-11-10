@@ -1,0 +1,14 @@
+id: fill-triage-report
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the triage report"
+prompt: |
+  `~/bin/triage-report` prints the first-minute signals in one place: the number of CPUs, the load, the run queue, the busiest process, and that process's CPU share. Four values are missing, each marked `...`: the command that prints the CPU count, the column of `vmstat` that is the run queue, the sort key that puts the busiest process first, and the column that is a process's CPU percentage. Fill them in with `nano ~/bin/triage-report`, then run it (the shop's worker is pegging a CPU, so the busiest line should name it and its share should be near 100), and compare with `nproc`, `vmstat 1 2` and `ps -eo comm,%cpu --sort=-%cpu`. Then run the checks.
+hints:
+  - "The CPU count is `nproc`. In `vmstat`, the very first column is `r`, the run queue (the second column, `b`, is blocked, and is usually 0), so the field is `$1`."
+  - "`ps --sort=-%cpu` puts the busiest process first (the minus means descending). In `ps -eo comm,%cpu`, the first field (`$1`) is the name and the second (`$2`) is the CPU percentage."
+  - "Run `vmstat 1 2` and `ps -eo comm,%cpu --sort=-%cpu | head` on their own first and count the columns, so you can see which field you're reaching for."
+skills: [first-minute, use-method]

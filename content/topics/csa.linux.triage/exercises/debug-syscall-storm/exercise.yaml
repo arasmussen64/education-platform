@@ -1,0 +1,16 @@
+id: debug-syscall-storm
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The runaway that's eating a CPU"
+prompt: |
+  This server is slow, and a process is eating a whole CPU, but not doing obvious work: most of its time is in the kernel (`sy` in `vmstat`, not `us`), which is the sign of a system-call storm. Find it, confirm what it's doing, stop it, and write down what you found.
+
+  Work the checklist: `vmstat 1` (notice `sy` is high), `pidstat 1` or `ps -eo pid,comm,%cpu --sort=-%cpu` to name the process, then the tool for a busy-in-the-kernel process, `sudo strace -c -f -p PID` for a couple of seconds, which counts its system calls and shows one call failing over and over. The culprit is the `shop-tailer` service (its `MainPID` comes from `systemctl show -p MainPID --value shop-tailer`); the other service, `shop-api`, is healthy and must stay running. Because the service is set to restart, killing the process alone brings it straight back, so stop it at the service with `sudo systemctl stop shop-tailer` (and `sudo systemctl mask shop-tailer` so it can't come back). Then save a one- or two-line note to `~/triage/finding.txt` naming the culprit and the system call it was storming on. Run the checks.
+hints:
+  - "`strace -c -f -p PID` prints a table when you stop it (Ctrl-C, or run it under `sudo timeout 3 strace -c -f -p PID`): the `calls` and `errors` columns show which call is being made, and failing, millions of times. Here it's `openat` (the C library's `open`), failing because the path isn't there."
+  - "`systemctl stop` is the fix, not `kill`: the unit has `Restart=always`, so a killed process is restarted within a second. Confirm with `systemctl is-active shop-tailer` (it should read `inactive`) and check `shop-api` is still `active`."
+  - "The finding is for the next person: `printf 'culprit: shop-tailer\\ncause: a busy loop of failing openat calls on a missing queue path\\n' > ~/triage/finding.txt`."
+skills: [first-minute, cpu-profiling, use-method]

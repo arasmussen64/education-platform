@@ -1,0 +1,31 @@
+# The checks for "Finish the triage report": no gaps, the CPU count matches
+# nproc, the run queue is the r column (at least 1 while the worker spins,
+# not the blocked column, which is 0), the busiest process is the worker,
+# and its CPU share is a real percentage.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/triage-report"
+  - id: cpus-line
+    description: "The cpus line is nproc."
+    command: |
+      test "$(/home/learner/bin/triage-report | awk -F': ' '/^cpus:/ {print $2}')" = "$(nproc)" && echo "cpus match"
+    expect:
+      contains: "cpus match"
+  - id: run-queue-is-the-runqueue
+    description: "The run-queue line is vmstat's r (at least 1 while the worker spins), not the blocked column (0)."
+    command: |
+      /home/learner/bin/triage-report | awk -F': ' '/^run-queue:/ {print $2}'
+    expect:
+      gte: 1
+  - id: busiest-is-the-worker
+    description: "The busiest process is the shop's worker."
+    command: /home/learner/bin/triage-report | grep '^busiest:'
+    expect:
+      contains: "shop-worker"
+  - id: busiest-cpu-is-a-high-percentage
+    description: "The busiest-cpu line is the worker's CPU percentage (field 2), near 100, not its name (field 1)."
+    command: |
+      /home/learner/bin/triage-report | awk -F': ' '/^busiest-cpu:/ {print $2}'
+    expect:
+      gte: 50

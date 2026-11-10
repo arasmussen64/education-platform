@@ -1,0 +1,23 @@
+# The checks for "Write top-cpu": the busiest process is first, the default
+# is five lines, a count is respected, and each line is "name pct%".
+checks:
+  - id: busiest-first
+    description: "The first line names the shop's worker, the process pegging a CPU."
+    command: /home/learner/bin/top-cpu | head -1
+    expect:
+      contains: "shop-worker"
+  - id: default-is-five
+    description: "With no argument it prints five lines."
+    command: /home/learner/bin/top-cpu | wc -l | tr -d ' '
+    expect:
+      equals: "5"
+  - id: respects-the-count
+    description: "top-cpu 3 prints three lines."
+    command: /home/learner/bin/top-cpu 3 | wc -l | tr -d ' '
+    expect:
+      equals: "3"
+  - id: line-format
+    description: "Each line is a name and a percentage, like 'shop-worker 99.4%'."
+    command: /home/learner/bin/top-cpu | head -1
+    expect:
+      matches: "^[^ ]+ [0-9]+([.][0-9]+)?%$"
