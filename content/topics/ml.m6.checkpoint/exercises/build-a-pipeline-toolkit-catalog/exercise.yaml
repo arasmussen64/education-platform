@@ -1,0 +1,57 @@
+id: build-a-pipeline-toolkit-catalog
+stage: build
+rev: 1
+title: "The algorithms behind a pipeline: a product catalogue"
+prompt: |
+  Starting from a blank editor, build the same five pieces for a catalogue import: product rows with duplicates, the dearest products, the suppliers' countries, a misspelled supplier, and an import's steps.
+
+  **Write five functions**, each at the right order of growth:
+
+  - `dedupe(records, key)`: the first record for each value of the `key` field, in order; one pass with a set.
+  - `top_k(records, field, k)`: the `k` records with the largest `field` value, largest first, through a heap that never holds more than `k` entries; ties keep the earlier record first.
+  - `join(left, right, key)`: every left record merged with every right record that has the same `key` value (`{**left_record, **right_record}`), in left order; index the right side in a dict first (a hash join).
+  - `closest_name(query, names)`: the name with the smallest edit distance to `query`, and that distance, as a tuple; ties keep the first name. You will need `edit_distance(a, b)` by the table.
+  - `schedule(steps)`: `steps` maps each step to the list of steps it depends on; return an order that runs every step after its dependencies, taking ready steps in the order they became ready (a queue), and raise `ValueError` if the steps form a cycle.
+
+  **Then run them on a catalogue export with repeated rows, and the suppliers' countries:**
+
+  ```python
+  products = [
+      {"sku": "A1", "supplier": "north", "price": 25},
+      {"sku": "B2", "supplier": "east", "price": 60},
+      {"sku": "A1", "supplier": "north", "price": 25},
+      {"sku": "C3", "supplier": "north", "price": 60},
+      {"sku": "D4", "supplier": "west", "price": 12},
+      {"sku": "B2", "supplier": "east", "price": 60},
+      {"sku": "E5", "supplier": "east", "price": 45},
+  ]
+  suppliers = [{"supplier": "north", "country": "NO"}, {"supplier": "east", "country": "EE"}]
+  unique = dedupe(products, "sku")
+  print(len(products), "rows,", len(unique), "products")
+  print([row["sku"] for row in top_k(unique, "price", 3)])
+  print([(row["sku"], row["country"]) for row in join(unique, suppliers, "supplier")])
+  print(closest_name("nroth", ["north", "east", "west"]))
+  steps = {"download": [], "parse": ["download"], "validate": ["parse"], "prices": ["parse"], "merge": ["validate", "prices"], "publish": ["merge"]}
+  print(schedule(steps))
+  ```
+
+  ```
+  7 rows, 5 products
+  ['B2', 'C3', 'E5']
+  [('A1', 'NO'), ('B2', 'EE'), ('C3', 'NO'), ('E5', 'EE')]
+  ('north', 2)
+  ['download', 'parse', 'validate', 'prices', 'merge', 'publish']
+  ```
+
+  Seven rows with two duplicates leave five products; the top three by price put the two 60s first with the earlier ahead; the join drops the products whose supplier has no country record; `nroth` is two edits from `north`; and the import downloads, parses, validates and prices, then merges and publishes.
+
+  The checks count how often your code compares two keys or values: 3,000 records to dedupe within 30,000 comparisons, the top 5 of 20,000 within 170,151, a join of 1,000 with 2,000 within 60,000; a chain of 300 steps to schedule, a diamond and a cycle; and names at known distances.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.dsa.arrays-and-hashing/patterns, ml.dsa.graphs/topo, ml.dsa.dynamic-programming/edit-distance]
+  test_dedupe_scales: [ml.dsa.arrays-and-hashing/replace, ml.dsa.complexity/choose]
+  test_top_k_scales: [ml.dsa.trees-and-heaps/heap, ml.dsa.complexity/choose]
+  test_join_scales: [ml.dsa.arrays-and-hashing/patterns, ml.dsa.arrays-and-hashing/hashing]
+  test_closest_name: [ml.dsa.dynamic-programming/edit-distance]
+  test_schedule: [ml.dsa.graphs/topo, ml.dsa.stacks-queues-recursion/stack-queue]

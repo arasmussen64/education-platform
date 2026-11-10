@@ -140,7 +140,7 @@ Module 2 gave the learner Python; this module gives them the cost of what they w
 
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 5 had before they were written (all three on 2026-11-10) and Module 6 has (outlined 2026-11-10).
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 6 had before they were written (all four on 2026-11-10).
 
 - **7. How computers and GPUs work:** memory and caches; why vectorized code is fast; floating point; what a GPU is good at; reading a profiler.
 - **8. Neural networks from scratch:** a neuron, a layer, a loss; backpropagation by hand and in code; training loops; regularization; a small network that reads digits.

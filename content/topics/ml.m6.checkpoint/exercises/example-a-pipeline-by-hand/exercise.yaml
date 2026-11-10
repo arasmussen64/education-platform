@@ -1,0 +1,25 @@
+id: example-a-pipeline-by-hand
+stage: worked_example
+rev: 1
+title: "A pipeline by hand"
+prompt: |
+  The checkpoint's five tools, run on four sensor readings. Press **Run**, then read how each part works; the checkpoint is the same tools on a bigger dataset, with the checks counting what they cost.
+steps:
+  - label: "Dedupe: a set beside a list"
+    lines: "5-13"
+    note: "One pass. The set remembers the keys seen so far, so `record[key] not in seen` is a constant-time lookup; the list keeps the first record for each key in the order it came. A list for `seen` would scan, and the checkpoint's checks would count it."
+  - label: "Top k: a heap of at most k"
+    lines: "16-23"
+    note: "Each record is pushed as `(value, -index, record)`; when the heap holds more than `k`, the smallest is popped, so the heap always holds the `k` largest seen. The `-index` breaks ties so that the earlier record wins and the records themselves are never compared. At the end the few survivors are sorted, largest first."
+  - label: "Join: index one side, scan the other"
+    lines: "26-35"
+    note: "The right side is grouped by key in a dict of lists, one pass; then each left record looks its key up and merges with every match. Left records with no match are dropped, as are right records nothing refers to."
+  - label: "Edit distance, and the closest name"
+    lines: "38-59"
+    note: "The dynamic-programming table from the last topic: first row and column are lengths, each cell the cheapest of delete, insert and substitute or match. `closest_name` tries every candidate and keeps the smallest distance, the first on a tie."
+  - label: "Schedule: Kahn's algorithm over dependencies"
+    lines: "62-80"
+    note: "Each step counts how many dependencies it still waits for; the ready queue starts with the steps that wait for none; running a step decrements its dependents and queues any that reach zero. Steps left over mean a cycle, which is an error. The queue is what makes steps run in the order they became ready."
+  - label: "Four readings through the pipeline"
+    lines: "83-95"
+    note: "Four readings, one duplicated, from three sensors; the top two by value; the join with the rooms (s2 has no room and is dropped); kitten to sitting is 3 and `hal` is one edit from `hall`; and the schedule reads, calibrates, then stores and plots in the order they became ready."
