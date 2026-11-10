@@ -1,16 +1,81 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.dsa.graphs
 kind: topic
-status: planned
-title: Graphs
+status: ready
+title: "Graphs"
 summary: "Graphs as adjacency lists: breadth-first and depth-first search, shortest paths in hops and with Dijkstra's algorithm, and topological order, which is the order a computation graph runs in and backpropagation walks backwards."
-prerequisites:
-- ml.dsa.trees-and-heaps
+prerequisites: [ml.dsa.trees-and-heaps]
 estimated_minutes: 60
 rev: 1
 objectives:
-- Represent a graph as a dict of adjacency lists, directed or not, weighted or not.
-- Find what is reachable and the shortest path in hops with breadth-first search, and detect a cycle with depth-first search.
-- "Find the cheapest path with Dijkstra's algorithm and a heap."
-- Order a directed acyclic graph topologically, and say why a computation graph and a data pipeline both need that order.
+  - "Represent a graph as a dict of adjacency lists, directed or not, weighted or not."
+  - "Find what is reachable and the shortest path in hops with breadth-first search, and detect a cycle with depth-first search."
+  - "Find the cheapest path with Dijkstra's algorithm and a heap."
+  - "Order a directed acyclic graph topologically, and say why a computation graph and a data pipeline both need that order."
+# Linked, never copied or embedded: the Runestone book is CC BY-NC-SA 4.0;
+# the Python documentation is under the PSF licence; Open Data Structures is
+# CC BY 2.5.
+resources:
+  - title: "Problem Solving with Algorithms and Data Structures using Python (Brad Miller and David Ranum), chapter 8: Graphs and Graph Algorithms, sections 8.2 (vocabulary), 8.4 (adjacency lists), 8.6 and 8.7 (breadth-first search), 8.8 (depth-first search), 8.11 (topological sorting) and 8.13 (Dijkstra's algorithm)"
+    url: https://runestone.academy/ns/books/published/pythonds3/Graphs/toctree.html
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "The Python documentation: graphlib.TopologicalSorter, topological order from the standard library"
+    url: https://docs.python.org/3/library/graphlib.html
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+  - title: "Open Data Structures in Python (Pat Morin), chapter 12: Graphs, sections 12.1 to 12.3 (representations, breadth-first and depth-first traversal)"
+    url: https://opendatastructures.org/ods-python/12_Graphs.html
+    type: reading
+    use: link
+    license: CC BY 2.5
+practice:
+  - example-a-map-and-a-pipeline
+  - predict-an-adjacency-list
+  - parsons-hops-by-queue
+  - mcq-fewest-edges
+  - mcq-why-the-closest-first
+  - predict-a-topological-order
+  - mcq-no-order-means
+  - mcq-the-backward-pass
+  - fill-fewest-hops-path
+  - write-has-cycle
+prove:
+  build: build-a-graph-toolkit
+  debug: debug-a-scheduler
+  explain:
+    prompt: |
+      A teammate stores a road network as a list of (from, to, km) triples and answers "how do I get from A to F" by trying every route; another runs a data pipeline's steps in the order they were written and gets "features not found" errors; a third asks why Module 4's backpropagation walked the layers backwards. In your own words: how you would store the network so that a node's neighbours are one lookup; how breadth-first search finds the fewest-roads route and why a visited set matters; how Dijkstra's algorithm finds the fewest-kilometres route and what a heap does for it; and what a topological order is, how to compute one, what it means when none exists, and why the forward pass and the backward pass of a network are the same order read two ways.
+    rubric:
+      - id: represent
+        required: true
+        description: "An adjacency list: a dict from each node to its neighbours (a list, or a dict of neighbour to weight), with both directions added for an undirected graph; memory proportional to nodes plus edges."
+      - id: search
+        required: true
+        description: "Breadth-first search takes nodes from a queue in discovery order, so the first time a node is reached is along a fewest-edges path; parent links rebuild the path; the visited (or hops) set stops revisits and infinite loops. Depth-first search with a set of nodes on the current path finds cycles."
+      - id: dijkstra
+        required: true
+        description: "Keep tentative distances; repeatedly settle the unsettled node with the smallest, relaxing its edges; a heap of (distance, node) makes picking the smallest cheap, about (V + E) log V overall; weights must not be negative."
+      - id: topo
+        required: true
+        description: "A topological order lists nodes so every edge points forward; Kahn's algorithm takes nodes with no remaining incoming edges, decrementing in-degrees; nodes left over mean a cycle, which no order can satisfy. A computation graph's forward pass is a topological order and backpropagation visits the same nodes reversed, so each gradient is complete before it is used."
+    model_answer: |
+      I would store the network as a dict from each city to its neighbours, with the distance as the value: an adjacency list, built by adding each road in both directions. Then a city's neighbours are one lookup, and the whole thing takes memory proportional to the number of cities plus roads. The fewest-roads route is breadth-first search: start at A, put it in a queue, and repeatedly take the front city and add its unseen neighbours to the back, recording each one's parent. Because the queue hands out cities in the order they were discovered, every city is first reached along a path with the fewest edges, and following the parent links back from F gives that path. The visited set, or the hops dictionary, is what stops a city being added twice and stops the search looping forever around a circuit of roads. For the fewest kilometres, Dijkstra's algorithm keeps a tentative distance to every city and repeatedly settles the unsettled city with the smallest one, then checks whether going through it shortens the distance to each of its neighbours. A heap of (distance, city) pairs makes "the smallest unsettled" a cheap pop instead of a scan, so the whole thing costs about the number of roads times the logarithm of the number of cities; stale entries are skipped, and it needs road lengths that aren't negative. A topological order of the pipeline is a list of its steps in which every arrow points forward, so a step runs only after everything it depends on. Kahn's algorithm counts each step's incoming arrows, starts with the steps that have none, and each time a step runs decrements the counts of the steps it points at, releasing any that reach zero. If steps are left over when nothing is ready, the graph has a cycle, and no order can run it; the pipeline that failed was simply run in writing order instead of a topological one. A network's computation graph is the same kind of graph: each operation depends on its inputs, so the forward pass runs it in a topological order, and the backward pass walks exactly that order reversed, so that when a node's gradient is needed, every node that depends on it has already contributed. Module 4's layers formed a chain, where the topological order is just the layers in sequence and backpropagation is the sequence reversed.
+review_pool:
+  - review-predict-dijkstra-settles
+  - review-mcq-list-or-matrix
+  - review-mcq-looping-forever
+  - review-reachable
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: represent
+    description: "Represent a graph as a dict of adjacency lists, directed or not, weighted or not"
+  - id: search
+    description: "Find reachability and fewest-hops paths with breadth-first search, and cycles with depth-first search"
+  - id: dijkstra
+    description: "Find the cheapest path with Dijkstra's algorithm and a heap"
+  - id: topo
+    description: "Order a directed acyclic graph topologically, and say why computation graphs and pipelines need it"

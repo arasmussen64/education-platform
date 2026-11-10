@@ -1,0 +1,14 @@
+id: debug-a-scheduler
+stage: debug
+rev: 1
+title: "A scheduler that gets stuck"
+prompt: |
+  `schedule(graph)` should list a pipeline's steps in an order that respects every arrow (Kahn's algorithm) and say whether every step was placed. The program should print:
+
+  ```
+  ['load', 'clean', 'features', 'report', 'train', 'evaluate'] complete
+  ([], False)
+  ```
+
+  It has two bugs. Run it: the schedule starts with `report` and `evaluate`, the steps that nothing depends on, and then gets stuck, because the counting loop adds to the **source** of each arrow instead of its target: it counts outgoing arrows, not incoming ones. Fix that, and the schedule is `['load']` and stuck: when a step is taken, each step it points at must have its incoming count reduced, or nothing ever becomes ready. The cyclic graph should stay stuck either way.
+skills: [topo]

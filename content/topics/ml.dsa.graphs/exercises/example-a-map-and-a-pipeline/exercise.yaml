@@ -1,0 +1,28 @@
+id: example-a-map-and-a-pipeline
+stage: worked_example
+rev: 1
+title: "A map and a pipeline"
+prompt: |
+  A road map stored as a dict, searched for the fewest roads and the fewest kilometres; then a pipeline's steps put in an order that respects their dependencies, a cycle caught, and a network's computation graph ordered forward and backward. Press **Run**, then read how each part works.
+steps:
+  - label: "A map as an adjacency list"
+    lines: "4-9"
+    note: "Seven roads between six cities, each with a length. The graph is a dict from each city to a dict of its neighbours and the distance to each; every road is added in both directions. C's neighbours are A, B and E."
+  - label: "Breadth-first search, with parents"
+    lines: "12-24"
+    note: "A queue of cities to expand and a dict of hops that also records which cities have been seen. Each city taken from the front adds its unseen neighbours to the back, one hop further, and notes itself as their parent. Cities come out in order of hops, so the first discovery of a city is along a fewest-roads path."
+  - label: "Rebuilding a path"
+    lines: "27-38"
+    note: "Following parent links from F back to A gives the path reversed. The fewest-roads route is A, B, D, F: three roads, which happen to be long ones."
+  - label: "Dijkstra's algorithm"
+    lines: "41-57"
+    note: "Tentative distances start at 0 for A. A heap of (distance, city) pops the closest unsettled city; its edges are relaxed, meaning each neighbour's distance is improved if going through this city is shorter, and the improved neighbour is pushed. A city popped a second time is already settled and skipped."
+  - label: "Fewest kilometres"
+    lines: "60-62"
+    note: "The cheapest route to F is 20 km along A, C, E, D, F, five cities instead of four: more roads, fewer kilometres. The two searches answer two different questions on the same graph."
+  - label: "A pipeline in topological order"
+    lines: "64-92"
+    note: "Six steps with arrows from each to what depends on it. Kahn's algorithm counts incoming arrows, starts with the steps that have none, and releases a step when its last incoming arrow has been taken: load, clean, features, report, train, evaluate. An arrow from evaluate back to clean leaves steps that never become ready, which is what a cycle looks like, and the function says so."
+  - label: "The forward pass and the backward pass"
+    lines: "94-97"
+    note: "The computation graph of `loss = (w * x + b - y) ** 2` as a DAG: inputs feed operations, operations feed the next. Its topological order is the forward pass, with every operation's inputs ready before it runs; the same list reversed is the order backpropagation takes, so every node's gradient is complete before it is used."

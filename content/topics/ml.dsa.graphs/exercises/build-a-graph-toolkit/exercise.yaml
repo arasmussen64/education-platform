@@ -1,0 +1,32 @@
+id: build-a-graph-toolkit
+stage: build
+rev: 1
+title: "A graph toolkit"
+prompt: |
+  Starting from a blank editor, write four functions over graphs stored as dicts:
+
+  - `shortest_hops(graph, start)`: a dict from every reachable node to its hops from `start`, by breadth-first search (the graph maps each node to a list, or a dict, of neighbours).
+  - `cheapest_path(graph, start, goal)`: for a weighted graph (each node maps to a dict of neighbour to cost), the tuple `(cost, path)` of a cheapest path from `start` to `goal` by Dijkstra's algorithm with a heap, or `None` if the goal is unreachable.
+  - `topological_order(graph)`: for a directed graph (each node maps to the list it points at), a list in which every edge points forward, by Kahn's algorithm; raise `ValueError` if the graph has a cycle. Take ready nodes in the order they become ready, starting from the dict's order.
+  - `has_cycle(graph)`: whether a directed graph has a cycle.
+
+  Then print:
+
+  ```python
+  roads = {"A": {"B": 4, "C": 2}, "B": {"A": 4, "C": 5, "D": 10}, "C": {"A": 2, "B": 5, "E": 3}, "D": {"B": 10, "E": 4, "F": 11}, "E": {"C": 3, "D": 4}, "F": {"D": 11}}
+  print(shortest_hops(roads, "A"))
+  print(cheapest_path(roads, "A", "F"))
+  pipeline = {"load": ["clean"], "clean": ["features", "report"], "features": ["train"], "train": ["evaluate"], "report": [], "evaluate": []}
+  print(topological_order(pipeline), has_cycle(pipeline))
+  print(has_cycle({"a": ["b"], "b": ["a"]}))
+  ```
+
+  ```
+  {'A': 0, 'B': 1, 'C': 1, 'D': 2, 'E': 2, 'F': 3}
+  (20, ['A', 'C', 'E', 'D', 'F'])
+  ['load', 'clean', 'features', 'report', 'train', 'evaluate'] False
+  True
+  ```
+
+  The checks use a 40 by 40 grid, a map where the direct road is dearer than a detour, a chain of 400 steps, and graphs with and without cycles.
+skills: [search, dijkstra, topo]

@@ -1,0 +1,30 @@
+id: predict-a-topological-order
+type: predict_output
+rev: 1
+prompt: |
+  Kahn's algorithm on a four-step graph: in-degrees first, then the order. What does the program print?
+code: |
+  from collections import deque
+  
+  graph = {"a": ["b", "c"], "b": ["d"], "c": ["d"], "d": []}
+  indegree = {node: 0 for node in graph}
+  for node in graph:
+      for next_node in graph[node]:
+          indegree[next_node] += 1
+  print(indegree)
+  ready = deque(node for node in graph if indegree[node] == 0)
+  order = []
+  while ready:
+      node = ready.popleft()
+      order.append(node)
+      for next_node in graph[node]:
+          indegree[next_node] -= 1
+          if indegree[next_node] == 0:
+              ready.append(next_node)
+  print(order)
+expected_output: |
+  {'a': 0, 'b': 1, 'c': 1, 'd': 2}
+  ['a', 'b', 'c', 'd']
+explanation: |
+  `a` has no incoming edges, `b` and `c` have one each (from `a`), `d` has two. Only `a` is ready at first; taking it frees `b` and `c` in that order, and `d` becomes ready only after both of them have been taken, so it comes last. Every edge points forward in the result.
+skills: [topo]
