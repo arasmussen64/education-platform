@@ -1,0 +1,24 @@
+# The checks for "Write exposed-ports": SSH is allowed, the debug port is
+# flagged, and the loopback-only database is not listed.
+checks:
+  - id: ssh-allowed
+    description: "Port 22 is listed and marked allowed."
+    command: /home/learner/bin/exposed-ports | grep -E '^22 '
+    expect:
+      contains: "allowed"
+  - id: debug-flagged
+    description: "The debug port 9000 is listed and marked unexpected."
+    command: /home/learner/bin/exposed-ports | grep -E '^9000 '
+    expect:
+      contains: "unexpected"
+  - id: loopback-skipped
+    description: "The database on 127.0.0.1:5432 is not listed (it isn't exposed)."
+    command: |
+      /home/learner/bin/exposed-ports | grep -qE '^5432 ' && echo "listed" || echo "skipped"
+    expect:
+      contains: "skipped"
+  - id: line-format
+    description: "Each line is a port, a process and a verdict."
+    command: /home/learner/bin/exposed-ports | grep -E '^9000 '
+    expect:
+      matches: "^9000 [^ ]+ (allowed|unexpected)$"

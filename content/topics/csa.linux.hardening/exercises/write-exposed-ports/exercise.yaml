@@ -1,0 +1,16 @@
+id: write-exposed-ports
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write exposed-ports"
+prompt: |
+  Auditing what a server exposes is the first move of a hardening pass. Write a script, `~/bin/exposed-ports`, that lists every TCP port **listening on a public address** (`0.0.0.0` or `::`, reachable from outside), each with the process behind it and a verdict: `allowed` for SSH (port 22), `unexpected` for anything else. A service bound only to `127.0.0.1` is not exposed and must not be listed.
+
+  This server has SSH on 22, a debugging port left open on `0.0.0.0:9000`, and a database correctly bound to `127.0.0.1:5432`. Run `exposed-ports` and you should see 22 as allowed, 9000 as unexpected, and no mention of 5432. Compare with `sudo ss -ltnp`. Make the script executable, and run the checks.
+hints:
+  - "`sudo ss -ltnpH` lists listening TCP sockets with no header line; field 4 is the local address and port. Keep only the public ones: a local address starting `0.0.0.0:`, `[::]:` or `*:`. Everything on `127.0.0.1` is skipped."
+  - "The port is the part after the last colon: `port=${laddr##*:}`. The process name is inside the `users:((\"name\",...))` column; `grep -oP '\\(\"\\K[^\"]+'` pulls the first one out."
+  - "For each public socket print `port process verdict`, where the verdict is `allowed` when the port is 22 and `unexpected` otherwise."
+skills: [attack-surface, baseline]

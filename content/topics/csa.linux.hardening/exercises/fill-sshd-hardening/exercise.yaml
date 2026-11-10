@@ -1,0 +1,14 @@
+id: fill-sshd-hardening
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the SSH hardening"
+prompt: |
+  A hardening drop-in has been started at `/etc/ssh/sshd_config.d/90-hardening.conf`, but four values are missing, each marked `...`: whether to allow password logins, whether to allow root logins, which group may log in, and the maximum number of tries. Fill them in with `sudo nano /etc/ssh/sshd_config.d/90-hardening.conf` so that passwords and root login are off, only the `ssh-users` group may log in, and the try limit is `3`. Check the file with `sudo sshd -t` (it should say nothing), read the effective settings with `sudo sshd -T | grep -iE 'password|root|allowgroups|maxauth'`, and prove you can still get in with `ssh -i ~/keys/ben ben@localhost` (ben is in `ssh-users`). Then run the checks.
+hints:
+  - "`PasswordAuthentication` and `PermitRootLogin` both take `no`. `AllowGroups` takes the group name, `ssh-users`. `MaxAuthTries` takes the number `3`."
+  - "`sudo sshd -t` parses the file and is silent when it's valid; if you leave a `...` in, it will complain about a bad value. Fix it until it's quiet."
+  - "`sudo sshd -T` prints the settings actually in force, lowercased; that's how you confirm the drop-in took effect."
+skills: [ssh-hardening]

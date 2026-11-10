@@ -1,0 +1,20 @@
+id: debug-locked-out
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Hardened, and locked out"
+prompt: |
+  Someone hardened this server's SSH and now `ben` can't log in: `ssh -i ~/keys/ben ben@localhost` is refused, even though his key is fine. The drop-in they wrote, `/etc/ssh/sshd_config.d/90-hardening.conf`, is wrong three ways:
+
+  - `MaxAuthTries` is set to a word, not a number, so `sudo sshd -t` rejects the whole file and SSH won't start at all;
+  - `AllowGroups` names a group `ben` isn't in (he's in `ssh-users`), so even a valid login is refused;
+  - `PubkeyAuthentication` is `no`, which switches off the key-based login ben relies on.
+
+  Fix all three in `/etc/ssh/sshd_config.d/90-hardening.conf` with `sudo nano`, keeping the server hardened: passwords and root login stay off, the try limit becomes a sensible number, the group becomes `ssh-users`, and key authentication is on. The fix is **not** to turn passwords back on. Confirm with `sudo sshd -t`, `sudo sshd -T`, and `ssh -i ~/keys/ben ben@localhost`. Then run the checks.
+hints:
+  - "`sudo sshd -t` points at the first line it can't parse; `MaxAuthTries 3` is a valid value. Work until `sshd -t` is silent."
+  - "`AllowGroups ssh-users` lets ben in (check with `groups ben`). `PubkeyAuthentication yes` turns key login back on (or remove the line, since keys are on by default)."
+  - "Keep `PasswordAuthentication no`: the point is to get ben in with his key, not to weaken the server. Prove it with the login at the end."
+skills: [ssh-hardening, baseline]
