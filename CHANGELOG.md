@@ -448,6 +448,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed (tests)
 
 - The progress tests ask what state a topic is in at the end of their fixtures' day instead of at the real time of the run; four days after that day, a topic proved in the fixtures became "fading" (its first review had come due) and one test failed on every branch.
+- The map and topic page tests run at the end of their fixtures' day too (only `Date` is faked, so the timers the page tests wait on stay real). Four days after that day, at noon UTC, the topic they prove became due for review, "Learned" turned into "Fading", and every pull request's web check failed at once.
 
 ### Fixed (lab checker)
 
