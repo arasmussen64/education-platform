@@ -1,0 +1,52 @@
+id: build-train-a-tiny-network
+stage: build
+rev: 1
+title: "Train a tiny network"
+prompt: |
+  Starting from a blank editor, do Module 4 in one program: build a two-layer network, train it with backpropagation and momentum on sixteen labelled points, and report its loss and accuracy.
+
+  **The data.** Sixteen points on a grid, each labelled 1 or 0:
+
+  ```python
+  g = np.array([-1.5, -0.5, 0.5, 1.5])
+  X = np.array([[a, b] for a in g for b in g])
+  y = (X[:, 0] ** 2 + X[:, 1] ** 2 < 1).astype(float)
+  ```
+
+  A point is labelled 1 when it lies inside the circle of radius 1 around the origin: the four points nearest the centre. No straight line separates them from the rest, so the hidden layer has work to do.
+
+  **The network.** Two inputs, four hidden ReLU units, one sigmoid output. The parameters live in a dict `params` with keys `"W1"` (2 by 4), `"b1"` (4), `"W2"` (4) and `"b2"` (a 0-d array). Write:
+
+  - `forward(X, params)` returning `(z1, h, p)`, with `sigmoid` written by you.
+  - `loss(p, y)`: the mean cross-entropy, with `p` clipped into `[1e-12, 1 - 1e-12]` first, as a float.
+  - `backward(X, y, params, z1, h, p)` returning a dict of gradients with the same keys, by the chain rule from `dz2 = (p - y) / n` inward.
+  - `train(X, y, params, rate, beta, steps)`: `steps` steps of **momentum**, a velocity per parameter (`v = beta * v + grad`, then `param = param - rate * v`), updating `params` in place and returning the list of losses, one per step, measured before the step.
+  - `report(X, y, params)`: trains for 2000 steps at rate 0.1 with `beta = 0.9`, then prints three lines: the losses at steps 0, 500 and the last, rounded to 3; the accuracy, `np.mean((p > 0.5) == (y == 1))`; and the predicted classes, `(p > 0.5).astype(int)`.
+
+  **The starting weights**, then the call:
+
+  ```python
+  params = {
+      "W1": np.array([[0.2, -0.4, -0.3, -2.0], [1.4, 0.9, -0.3, 0.6]]),
+      "b1": np.array([0.1, -0.2, 0.25, -0.15]),
+      "W2": np.array([-0.3, -0.6, 0.4, -0.1]),
+      "b2": np.array(0.0),
+  }
+  report(X, y, params)
+  ```
+
+  ```
+  loss 0.598 0.006 0.001
+  accuracy 1.0
+  classes [0 0 0 0 0 1 1 0 0 1 1 0 0 0 0 0]
+  ```
+
+  The checks compare every gradient with a numeric one from other starting weights, check two steps of your `train` against the momentum rule, and train from the weights above.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.calc.backpropagation/train, ml.calc.optimizers/momentum, ml.calc.loss-functions/cross-entropy]
+  test_forward_and_loss: [ml.calc.backpropagation/forward, ml.calc.loss-functions/cross-entropy]
+  test_every_gradient_from_other_weights: [ml.calc.backpropagation/backward, ml.calc.backpropagation/check, ml.calc.chain-rule/many, ml.calc.loss-functions/gradient]
+  test_the_momentum_update: [ml.calc.optimizers/momentum, ml.calc.descent-in-many-dimensions/loop]
+  test_training_learns_the_data: [ml.calc.backpropagation/train, ml.calc.descent-in-many-dimensions/rate]

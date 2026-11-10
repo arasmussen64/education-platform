@@ -1,17 +1,40 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.m4.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 4: train a tiny network"
-summary: A two-layer network built from scratch and trained with backpropagation and an optimizer, on a small dataset.
-prerequisites:
-- ml.calc.backpropagation
-- ml.calc.loss-functions
-- ml.calc.optimizers
+summary: "A two-layer network built from scratch and trained with backpropagation and an optimizer, on a small dataset."
+prerequisites: [ml.calc.backpropagation, ml.calc.loss-functions, ml.calc.optimizers]
 estimated_minutes: 120
+packages: [numpy]
 rev: 1
 objectives:
-- Build a two-layer network from scratch, train it with backpropagation and an optimizer, and report its loss and accuracy.
-- "Find and fix three bugs in a training loop: a chain-rule step out of order, an update with the wrong sign, and a shape mistake."
-- Explain the chain rule as backpropagation, and what the learning rate trades off.
+  - "Build a two-layer network from scratch, train it with backpropagation and an optimizer, and report its loss and accuracy."
+  - "Find and fix three bugs in a training loop: a chain-rule step out of order, an update with the wrong sign, and a shape mistake."
+  - "Explain the chain rule as backpropagation, and what the learning rate trades off."
+prove:
+  build: build-train-a-tiny-network
+  debug: debug-training-loop
+  explain:
+    prompt: |
+      Your checkpoint program trained a network from scratch with nothing but NumPy. Explain it to a teammate who has only ever called `loss.backward()` and `optimizer.step()`. In your own words: how is backpropagation the chain rule, line by line, and what does the forward pass keep for it? Why does each layer need only the gradient handed back to it? What does the learning rate trade off, and what did momentum change about the step? And what would you look at first if the loss fell but the accuracy stayed at 0.75?
+    rubric:
+      - id: chain-rule
+        required: true
+        description: "The network is a chain of functions; the derivative of the loss with respect to any weight is the product of the local derivatives from the loss back to it, each evaluated at the value the forward pass kept (z1 for ReLU's mask, h for dW2, X for dW1); the backward pass computes those products from the loss inward, so each layer multiplies its own local derivative into the gradient it receives and passes the result on."
+      - id: learning-rate
+        required: true
+        description: "The step is the rate times the gradient (or the velocity): too large overshoots and the loss climbs or bounces, too small crawls; a good rate falls fast and then flattens, and the steps shrink by themselves as the gradient does."
+      - id: momentum
+        required: true
+        description: "Momentum keeps a velocity per parameter, beta times the old velocity plus the gradient, and steps along it; agreeing gradients build speed along a valley and alternating ones cancel across it, which is why it reached the floor in fewer steps."
+      - id: diagnosis
+        required: false
+        description: "Check the gradients numerically, then look at which examples are wrong and whether a hidden unit is dead (off for every example), and whether the loss is at a floor (rate too large or a dead unit) or still falling (more steps)."
+    model_answer: |
+      The network is a chain: multiply by W1 and add b1, bend with ReLU, multiply by W2 and add b2, squash with the sigmoid, measure the cross-entropy. The chain rule says the derivative of the loss with respect to anything inside is the product of each link's own derivative from the loss back to that point, each one evaluated at the value that link received, which is why the forward pass keeps z1, h and p. The backward pass is that product computed from the loss inward. dz2 is p minus y over n, the loss and the sigmoid together. dW2 is h transposed times dz2, because the output score is h times W2 and a weight's derivative is its input. dh spreads dz2 back along W2. dz1 is dh with ReLU's mask applied, 1 where z1 was positive and 0 where it wasn't. dW1 is X transposed times dz1, the same rule one layer earlier, and the biases are the column sums. Each layer needs only the gradient handed to it from the layer after, because that gradient already contains every link beyond it; the layer multiplies in its own local derivative and passes the result back. That is what loss.backward() does. The learning rate scales each step: too large and the step overshoots the bottom, so the loss climbs or bounces at a floor; too small and it crawls; a good one falls fast and then flattens, and the steps shrink by themselves because the gradient does. Momentum changed the step from the gradient to a velocity, beta times the old velocity plus the new gradient. Along a valley the gradients agree and the velocity builds speed; across it they alternate and cancel; so the same rate reached the floor in fewer steps. If the loss fell but the accuracy sat at 0.75, four of the sixteen points are still wrong. I'd check the gradients numerically first, then look at which four points they are and whether a hidden unit is dead, off for every example, since a dead unit can't move, and whether the loss had reached a floor or was still falling, which would mean more steps or a smaller rate rather than a bug.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-xor-with-momentum
+  steps: [step-forward-pass, step-loss-and-first-gradient, step-backward-pass, step-momentum-update]
+  versions: [build-train-a-tiny-network-quadrants, build-train-a-tiny-network-band]

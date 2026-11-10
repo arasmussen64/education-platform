@@ -1,0 +1,24 @@
+id: debug-training-loop
+stage: debug
+rev: 1
+title: "Three bugs in a training loop"
+prompt: |
+  This is the checkpoint's program on the circle data, and it should print:
+
+  ```
+  loss 0.598 0.006 0.001
+  accuracy 1.0
+  classes [0 0 0 0 0 1 1 0 0 1 1 0 0 0 0 0]
+  ```
+
+  It has three bugs, each of which hides the next. Run it and read each error:
+
+  1. A **shape mistake** in `backward`: the gradient at the hidden layer spreads each example's `dz2` along `W2`, which is an outer product, not a matrix product of two flat arrays.
+  2. Once it runs, the loss **climbs** instead of falling: the momentum update has the wrong sign.
+  3. Once it falls, it stops well above the floor (0.023 at the end, where 0.001 is expected): a **chain-rule step is out of order**. ReLU's mask must be applied before the first layer's weight gradient is formed, so `dW1` must use `dz1`, not `dh`.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.calc.backpropagation/backward, ml.calc.optimizers/momentum, ml.calc.backpropagation/train]
+  test_the_mask_comes_before_dW1: [ml.calc.backpropagation/backward, ml.calc.chain-rule/many]
+  test_descent_not_ascent: [ml.calc.descent-in-many-dimensions/loop, ml.calc.optimizers/momentum]
