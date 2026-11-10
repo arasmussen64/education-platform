@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (NumPy in both runtimes)
+
+- A topic may declare the Python packages its code imports (`packages: [numpy]` in `topic.yaml`, [ADR-0023](docs/decisions/0023-packages-in-both-runtimes.md), proposed). The browser's Python loads them from Pyodide's CDN on the first Run, Check or Step through of that topic, with its own two-minute limit, and keeps them for the session; topics without packages download nothing. CPython gets the same NumPy version through uv, pinned to the one Pyodide ships, so both runtimes agree. The content checker refuses code that imports a package its topic doesn't declare, and the Pyodide test loads every ready topic's packages before running its solutions.
+- **NumPy arrays** (`ml.la.numpy-arrays`) goes ready, the first topic of the ML track's Module 3 and the proof the path works: arrays from lists and ranges, shape and dtype, indexing and slicing in two dimensions, arithmetic on whole arrays and broadcasting, and a loop replaced by one array operation.
+
 ### Added (content: intermediate Python begins)
 
 - **Comprehensions** (`ml.py.comprehensions`) goes ready, the first topic of the ML track's Module 2: the same list built by a loop and by a comprehension, then a condition, a dict and a set, as the worked example; a Parsons problem with the `if` in the wrong place as the decoy, three recall questions (reading one, a dict comprehension over `.items()`, which job wants a plain loop), the long words to fill in and pass-or-fail to write; three one-line summary functions to build, two mix-ups to debug (an odd test labelled even, a dict with its key and value swapped), and an explanation of what a loop can do that a comprehension can't and why nesting goes wrong; a review pool of four. It needs Python Foundations' Checkpoint 5.

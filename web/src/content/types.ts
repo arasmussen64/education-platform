@@ -61,6 +61,8 @@ export type Topic = {
   title: string
   summary: string
   prerequisites: string[]
+  /** Python packages the topic's code imports, loaded on demand (ADR-0023). */
+  packages: string[]
   estimated_minutes: number
   rev: number
   objectives: string[]

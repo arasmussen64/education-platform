@@ -94,6 +94,7 @@ function describe(
       body: (
         <PredictOutput
           item={recall}
+          packages={content.topic.packages}
           quiet={quiet}
           onAnswer={(correct, prediction) =>
             onAnswer(correct, {

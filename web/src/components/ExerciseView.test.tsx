@@ -72,6 +72,7 @@ describe('ExerciseView', () => {
     await check()
     expect(runner.check).toHaveBeenCalledWith('print(...)', 'the tests', {
       timeLimitMs: 2000,
+      packages: [],
     })
   })
 

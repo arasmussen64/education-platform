@@ -1,0 +1,30 @@
+<Intro>
+
+In Module 1 you built vectors as lists and multiplied matrices with loops, so you know what the work is. NumPy does the same work in compiled code over a single block of memory, and every machine-learning library is built on it. From here on the array **is** the lesson.
+
+The main resource is NumPy's own **absolute basics for beginners**, as far as "Basic array operations" and "Broadcasting"; about 20 minutes. Then the short **Broadcasting** page from the user guide. Watch for:
+
+- **`shape` and `dtype`:** an array has a shape (how many along each dimension) and one data type for every value.
+- **Indexing with commas:** `grid[1, 2]` is row 1, column 2; `grid[:, 0]` is the whole first column.
+- **Arithmetic on whole arrays:** `a * 2` and `a + b` work element by element, with no loop written by you.
+- **Broadcasting:** how a row can be added to every row of a grid, and the rule for when shapes fit.
+
+The first time you press Run on this topic, the browser downloads NumPy (around ten megabytes, once); after that it's instant.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Making arrays.** `np.array([1.5, 2.0, 3.5])` from a list, `np.array([[1, 2, 3], [4, 5, 6]])` from nested lists (a 2-D array), `np.arange(5)` for `[0 1 2 3 4]`, `np.linspace(0, 1, 5)` for five evenly spaced values, `np.zeros(3)` and `np.ones((2, 2))`.
+- **Shape and dtype.** `a.shape` is a tuple, `(3,)` or `(2, 3)`; `a.dtype` is the one type every value has, `float64` for decimals. Whole numbers get an integer dtype whose width depends on the machine: the browser's NumPy is a 32-bit build and says `int32` where a laptop says `int64`, which is why this topic prints dtypes only for floats and for types it chose, like `np.int8`.
+- **The dtype trap.** `a = np.array([1, 2, 3]); a[0] = 2.7` stores `2`: an integer array can't hold a fraction and doesn't complain. Make it float from the start: `np.array([1.0, 2, 3])`.
+- **Indexing and slicing.** `grid[1, 2]` one value; `grid[0]` a row; `grid[:, 2]` a column; `grid[1:, :2]` a block; `grid[grid > 5]` the values where a condition holds (a boolean mask). Slices are views: changing one changes the original.
+- **Elementwise arithmetic.** `a * 2`, `a + b`, `a ** 2`, `np.sqrt(a)` act on every element at once. No loop, and no Python object per number, which is where the speed comes from.
+- **Broadcasting.** Shapes line up from the right. Where one array has size 1 or no dimension there, it's stretched to match, so `(2, 3) + (3,)` adds the row to each row. `(2, 3) + (2,)` fails: `operands could not be broadcast together`. A column is shape `(2, 1)`.
+- **Reducing along an axis.** `grid.sum()` everything; `grid.sum(axis=0)` down the rows, one value per column; `grid.mean(axis=1)` across the columns, one value per row. `argmax` gives the position of the largest.
+- **Vectorize.** When you catch yourself writing `for i in range(len(values))` over numbers, ask what array operation says the same thing. It's shorter, it's what everyone else will read, and it's often a hundred times faster.
+- **In machine learning:** a dataset is a 2-D array (rows are examples, columns are features); standardizing its columns is `(x - x.mean(axis=0)) / x.std(axis=0)`, this topic's build; a batch of images is a 4-D array, and `shape` is the first thing you print when something's wrong.
+
+</Recap>

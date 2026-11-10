@@ -1,4 +1,7 @@
-import { DEFAULT_TIME_LIMIT_MS } from './constants.ts'
+import {
+  DEFAULT_TIME_LIMIT_MS,
+  PACKAGE_LOAD_TIME_LIMIT_MS,
+} from './constants.ts'
 import type {
   CheckReport,
   ProgramResult,
@@ -39,6 +42,14 @@ export type RunOptions = {
   /** Seeds Python's random module, so re-runs make the same choices. */
   seed?: number | null
   timeLimitMs?: number
+  /** Packages the code imports, loaded first if they aren't yet (ADR-0023). */
+  packages?: string[]
+}
+
+/** The options Check takes: a time limit, and the topic's packages. */
+export type CheckOptions = {
+  timeLimitMs?: number
+  packages?: string[]
 }
 
 /** The parts of a Web Worker the runner uses, so tests can pass a fake. */
@@ -60,6 +71,7 @@ type RequestBody =
   | { type: 'run'; code: string; stdin: string; seed: number | null }
   | { type: 'check'; code: string; tests: string }
   | { type: 'trace'; code: string; stdin: string; seed: number | null }
+  | { type: 'load'; packages: string[] }
 
 type Reply =
   | { kind: 'done'; message: WorkerResponse }
@@ -90,6 +102,8 @@ export class PythonRunner {
   private pending: Pending | null = null
   private queue: Promise<unknown> = Promise.resolve()
   private nextId = 1
+  /** The packages the current worker has loaded (ADR-0023). */
+  private loaded = new Set<string>()
 
   constructor(createWorker: CreateWorker = createBrowserWorker) {
     this.createWorker = createWorker
@@ -106,8 +120,11 @@ export class PythonRunner {
       stdin = '',
       seed = null,
       timeLimitMs = DEFAULT_TIME_LIMIT_MS,
+      packages = [],
     }: RunOptions = {},
   ): Promise<RunOutcome> {
+    const notLoaded = await this.ensurePackages(packages)
+    if (notLoaded) return notLoaded
     const reply = await this.send(
       { type: 'run', code, stdin, seed },
       timeLimitMs,
@@ -126,8 +143,11 @@ export class PythonRunner {
       stdin = '',
       seed = null,
       timeLimitMs = DEFAULT_TIME_LIMIT_MS,
+      packages = [],
     }: RunOptions = {},
   ): Promise<TraceOutcome> {
+    const notLoaded = await this.ensurePackages(packages)
+    if (notLoaded) return notLoaded
     const reply = await this.send(
       { type: 'trace', code, stdin, seed },
       timeLimitMs,
@@ -142,14 +162,43 @@ export class PythonRunner {
   async check(
     code: string,
     tests: string,
-    { timeLimitMs = DEFAULT_TIME_LIMIT_MS }: { timeLimitMs?: number } = {},
+    { timeLimitMs = DEFAULT_TIME_LIMIT_MS, packages = [] }: CheckOptions = {},
   ): Promise<CheckOutcome> {
+    const notLoaded = await this.ensurePackages(packages)
+    if (notLoaded) return notLoaded
     const reply = await this.send({ type: 'check', code, tests }, timeLimitMs)
     if (reply.kind !== 'done') return reply
     if (reply.message.type === 'check-result') {
       return { kind: 'done', report: reply.message.report }
     }
     return { kind: 'failed', message: unexpected(reply.message) }
+  }
+
+  /**
+   * Loads the packages a topic declares (ADR-0023) into the worker, once per
+   * worker. Gives back the failure to hand on, or null once they're loaded.
+   */
+  private async ensurePackages(
+    packages: string[],
+  ): Promise<{ kind: 'failed'; message: string } | null> {
+    const missing = packages.filter((name) => !this.loaded.has(name))
+    if (missing.length === 0) return null
+    const reply = await this.send(
+      { type: 'load', packages: missing },
+      PACKAGE_LOAD_TIME_LIMIT_MS,
+    )
+    if (reply.kind === 'timeout') {
+      return {
+        kind: 'failed',
+        message: `Loading ${missing.join(', ')} took too long. Check your connection and try again.`,
+      }
+    }
+    if (reply.kind === 'failed') return reply
+    if (reply.message.type !== 'load-result') {
+      return { kind: 'failed', message: unexpected(reply.message) }
+    }
+    for (const name of missing) this.loaded.add(name)
+    return null
   }
 
   private boot(): Promise<WorkerLike> {
@@ -244,6 +293,8 @@ export class PythonRunner {
     this.worker?.terminate()
     this.worker = null
     this.booting = null
+    // A fresh worker starts with nothing loaded.
+    this.loaded = new Set()
     this.start().catch(() => undefined)
   }
 }

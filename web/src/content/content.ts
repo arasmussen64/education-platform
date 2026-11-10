@@ -102,6 +102,7 @@ const checksFiles = import.meta.glob<{ checks: LabCheck[] }>(
 function withDefaults(raw: Partial<Topic>): Topic {
   const topic = {
     prerequisites: [],
+    packages: [],
     resources: [],
     practice: [],
     prove: {},
