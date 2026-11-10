@@ -1,0 +1,14 @@
+id: mcq-the-profiler-overhead
+type: mcq
+rev: 1
+prompt: |
+  Under cProfile, a one-line helper called a million times shows 0.4 seconds of own time. Without the profiler the whole program takes 0.3 seconds. What happened?
+choices:
+  - 'The profiler found a bug: the helper is slower than the whole program, so it must also be running in the background between calls, which the plain run doesn''t show at all'
+  - 'The helper allocates memory that the profiler has to free, which the plain run skips'
+  - 'The two runs used different inputs; profiling changes the random seed'
+  - 'cProfile adds a fixed cost to every call, so a tiny function called a million times looks far slower than it is; read its share and time it outside the profiler'
+answer: 3
+explanation: |
+  A profiler intercepts every call and return, and that costs a few hundred nanoseconds each time. For a function whose own work is a few nanoseconds, the overhead is the measurement. Shares between functions are still roughly right, which is what the profile is for; absolute times for tiny, hot functions are not. `time.perf_counter` around the program, without the profiler, is the number to believe.
+skills: [measure]

@@ -1,0 +1,33 @@
+id: predict-call-counts
+type: predict_output
+rev: 1
+prompt: |
+  A function profiled under cProfile, and its call counts read from the table. What does the program print?
+code: |
+  import cProfile
+  import pstats
+  
+  
+  def square(x):
+      return x * x
+  
+  
+  def sum_of_squares(n):
+      total = 0
+      for i in range(n):
+          total += square(i)
+      return total
+  
+  
+  profiler = cProfile.Profile()
+  profiler.enable()
+  sum_of_squares(1000)
+  sum_of_squares(10)
+  profiler.disable()
+  counts = {func: row[1] for (file, line, func), row in pstats.Stats(profiler).stats.items()}
+  print(counts["square"], counts["sum_of_squares"])
+expected_output: |
+  1010 2
+explanation: |
+  `sum_of_squares` ran twice, once for 1,000 and once for 10, and each run called `square` once per iteration: 1,010 calls in all. The table's value for each function is `(primitive calls, calls, own time, cumulative time, callers)`, so `row[1]` is the call count, which is exact; the times in the same row would differ from run to run.
+skills: [cprofile]

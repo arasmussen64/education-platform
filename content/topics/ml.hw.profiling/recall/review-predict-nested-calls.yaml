@@ -1,0 +1,34 @@
+id: review-predict-nested-calls
+type: predict_output
+rev: 1
+prompt: |
+  Three functions that call each other, profiled, with their call counts read from the table. What does the program print?
+code: |
+  import cProfile
+  import pstats
+  
+  
+  def leaf():
+      return 1
+  
+  
+  def inner():
+      return sum(leaf() for _ in range(4))
+  
+  
+  def outer():
+      return inner() + inner() + inner()
+  
+  
+  profiler = cProfile.Profile()
+  profiler.enable()
+  outer()
+  outer()
+  profiler.disable()
+  counts = {func: row[1] for (file, line, func), row in pstats.Stats(profiler).stats.items()}
+  print(counts["leaf"], counts["inner"], counts["outer"])
+expected_output: |
+  24 6 2
+explanation: |
+  `outer` ran twice; each run calls `inner` three times, six in all; each `inner` calls `leaf` four times, twenty-four in all. The counts multiply down the call tree, which is why a cheap function at the bottom of two nested loops can hold most of a program's time.
+skills: [cprofile]

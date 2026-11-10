@@ -1,0 +1,30 @@
+id: predict-the-doubling-test-by-counting
+type: predict_output
+rev: 1
+prompt: |
+  The doubling test on counts: how a nested loop and a halving loop grow when their input doubles. What does the program print?
+code: |
+  def pairs(items):
+      count = 0
+      for a in items:
+          for b in items:
+              count += 1
+      return count
+  
+  
+  def halvings(n):
+      count = 0
+      while n > 1:
+          n //= 2
+          count += 1
+      return count
+  
+  
+  print(pairs(range(100)), pairs(range(200)), pairs(range(200)) / pairs(range(100)))
+  print(halvings(1024), halvings(2048), halvings(2048) - halvings(1024))
+expected_output: |
+  10000 40000 4.0
+  10 11 1
+explanation: |
+  `pairs` visits every pair, so 100 items is 10,000 steps and 200 is 40,000: four times for a doubled input, quadratic. `halvings` divides by two until it reaches 1: ten times from 1,024 and eleven from 2,048, one more step for a doubled input, logarithmic. Counting is the doubling test with the clock taken out: the same answer every run, on any machine.
+skills: [decide]

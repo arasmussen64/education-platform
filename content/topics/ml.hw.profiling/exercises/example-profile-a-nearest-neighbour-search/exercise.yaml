@@ -1,0 +1,22 @@
+id: example-profile-a-nearest-neighbour-search
+stage: worked_example
+rev: 1
+title: "Profile a nearest-neighbour search"
+prompt: |
+  A nearest-neighbour search profiled with cProfile and read through pstats: the call counts, the hot function's share of the time, the doubling test on counts, the same search vectorized and profiled again, and the memory of a list against an array under tracemalloc. Press **Run**, then read how each part works. The share and the byte counts are measured on your machine and will differ from anyone else's.
+steps:
+  - label: "A search with a call per pair"
+    lines: "8-27"
+    note: "`nearest` compares every query with every point, and each comparison is a call to `distance_squared`: 100 queries by 300 points is 30,000 calls. It compares squared distances, since the nearest point is the same either way and the square root is wasted work."
+  - label: "Profiling in code"
+    lines: "30-45"
+    note: "A `cProfile.Profile` is enabled around the call and read with `pstats.Stats`. Its `stats` dictionary maps `(file, line, name)` to `(primitive calls, calls, own time, cumulative time, callers)`, which is the same table `print_stats` would print, so a program can read its own profile: `calls` picks the call count and `own_time` the time in the function's own body."
+  - label: "Counts, a share, and the doubling test"
+    lines: "49-55"
+    note: "The counts are exact: 30,000 calls to `distance_squared`, one to `nearest`, 100 to the list's `append`. The share is a time, so it varies by machine, but it says the same thing everywhere: most of the profiled time is inside the small function called 30,000 times. Doubling both inputs makes 120,000 calls, four times as many: the loop is quadratic, and a bigger input will be four times worse."
+  - label: "Change what the profile points at, and profile again"
+    lines: "58-65"
+    note: "The fix is to remove the calls, not to speed each one up: broadcasting computes all the squared distances in one operation and `argmin` picks the nearest. The second profile is the proof: `distance_squared` is called zero times, and the answers are the same."
+  - label: "Memory: a list against an array"
+    lines: "67-72"
+    note: "`tracemalloc` traces allocations between `start` and `stop`; `get_traced_memory` returns the current bytes and the peak. A list of 100,000 Python floats is several times the 800,000 bytes of the same numbers in a NumPy array, because every float is an object with a header and the list holds a pointer to each. The exact bytes differ by machine (the browser's Python is 32-bit); the ratio is the lesson."

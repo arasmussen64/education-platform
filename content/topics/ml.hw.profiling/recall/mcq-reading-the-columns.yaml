@@ -1,0 +1,14 @@
+id: mcq-reading-the-columns
+type: mcq
+rev: 1
+prompt: |
+  In a pstats table, what do `tottime` and `cumtime` mean, and which do you sort by to find where a program's time goes?
+choices:
+  - '`tottime` is the total run time and `cumtime` the time since the program started; sort by `ncalls`'
+  - '`tottime` is wall-clock time and `cumtime` is CPU time; sort by `percall` to find the slowest single call, which is always the function to rewrite first, whatever the counts say'
+  - 'They are the same number, measured twice to check the profiler; sort by either'
+  - '`tottime` is own time with callees excluded, `cumtime` includes them; sort by `cumtime` to follow the time down, by `tottime` to see who does the work'
+answer: 3
+explanation: |
+  Own time against inclusive time is the whole trick of reading a profile. `cumtime` sorted high to low reads like a map from the entry point to the function holding most of the time; `tottime` says which function's own body is busy, which is where a rewrite would go. `ncalls` is the count, and a huge count on a small function is the other shape a hot spot takes; `percall` is a division of the other two.
+skills: [cprofile]

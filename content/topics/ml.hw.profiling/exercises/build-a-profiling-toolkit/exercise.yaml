@@ -1,0 +1,74 @@
+id: build-a-profiling-toolkit
+stage: build
+rev: 1
+title: "A profiling toolkit"
+prompt: |
+  Starting from a blank editor, write five functions:
+
+  - `profile(function, *args)`: run the function under `cProfile.Profile` and return `(its result, pstats.Stats(profiler))`.
+  - `call_counts(stats)`: a dictionary from function name to how many times it ran, for the Python-level functions only (cProfile files the built-ins under a file name of `'~'`).
+  - `hot_spots(stats, k)`: the names of the `k` Python-level functions with the most own time, largest first.
+  - `peak_bytes(function, *args)`: the peak memory, in bytes, that tracemalloc saw while the function ran.
+  - `growth(function, make_input, n, name)`: how many times more often `name` is called when `function` runs on `make_input(2 * n)` than on `make_input(n)`: the doubling test on counts.
+
+  `stats.stats` maps `(file, line, name)` to `(primitive calls, calls, own time, cumulative time, callers)`. Then paste this workload and print:
+
+  ```python
+  def leaf(x):
+      return x + 1
+
+
+  def branch(n):
+      total = 0
+      for i in range(n):
+          total += leaf(i)
+      return total
+
+
+  def root(n):
+      return branch(n) + branch(n)
+
+
+  def pairs(items):
+      total = 0
+      for a in items:
+          for b in items:
+              total += leaf(a)
+      return total
+
+
+  def tap():
+      return 1
+
+
+  def grind(n):
+      total = 0
+      for i in range(n):
+          total += i * i
+      return total
+
+
+  def run():
+      for _ in range(50):
+          tap()
+      return grind(100_000)
+
+
+  result, stats = profile(root, 1000)
+  counts = call_counts(stats)
+  print(result, counts["leaf"], counts["branch"], counts["root"], sorted(counts))
+  _, grind_stats = profile(run)
+  print(hot_spots(grind_stats, 1))
+  print(peak_bytes(lambda: [float(i) for i in range(50_000)]) > 50_000 * 8)
+  print(growth(branch, lambda n: n, 500, "leaf"), growth(pairs, lambda n: list(range(n)), 50, "leaf"))
+  ```
+
+  ```
+  1001000 2000 2 1 ['branch', 'leaf', 'root']
+  ['grind']
+  True
+  2.0 4.0
+  ```
+
+  The checks profile other functions and compare the counts with the arithmetic, make sure the built-ins stay out of the counts and the hot spots, measure the peak of a function that allocates and then frees, and run the doubling test on a linear and a quadratic loop.
+skills: [cprofile, tracemalloc, decide]

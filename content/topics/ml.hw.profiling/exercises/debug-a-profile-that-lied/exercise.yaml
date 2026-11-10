@@ -1,0 +1,13 @@
+id: debug-a-profile-that-lied
+stage: debug
+rev: 1
+title: "A profile that lied"
+prompt: |
+  The program profiles `run`, which calls `light` a thousand times and `heavy` once, and should name the function with the most own time and the number of calls to `light`:
+
+  ```
+  most own time: heavy | calls to light: 1000
+  ```
+
+  It has two bugs. Run it: it crashes with `IndexError`, because the profiler is **disabled before** `run()` is called, so the table has no Python-level rows at all; the work has to happen between `enable` and `disable`. Fix that, and it names `light` as the hot spot: the rows are sorted by **calls** (the second value) when the question is about **own time** (the third). A thousand cheap calls are not a hot spot; one call that does 200,000 iterations is.
+skills: [cprofile, decide]
