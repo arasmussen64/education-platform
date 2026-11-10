@@ -102,6 +102,13 @@ function TrackHeader({
       <p className="text-slate-600 dark:text-slate-400">
         <span className="font-medium">{track.title}:</span> {track.summary}
       </p>
+      <p className="text-sm">
+        Know some of this already?{' '}
+        <Link to="/placement" className="underline">
+          Take the placement test
+        </Link>
+        .
+      </p>
       {children}
     </header>
   )

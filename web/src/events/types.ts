@@ -10,8 +10,15 @@ export type EventType =
   | 'explain_submit'
   | 'hint'
   | 'review'
+  /** A finished placement run (ADR-0021): what it found. */
+  | 'placement'
 
-export type EventContext = 'learn' | 'practice' | 'prove' | 'review'
+/**
+ * Where an event happened. Answers given during the placement test carry
+ * 'placement': they aren't practice and don't start a topic (ADR-0021).
+ */
+export type EventContext =
+  'learn' | 'practice' | 'prove' | 'review' | 'placement'
 
 /** Details for one event type, saved as the row's `data` (at most 16 KB). */
 export type EventData = { [key: string]: Json | undefined }

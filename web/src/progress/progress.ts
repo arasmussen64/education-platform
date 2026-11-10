@@ -28,6 +28,8 @@ export type GradedEvent = {
   occurred_at: string
   /** For a review session: how it was rated (ADR-0009). */
   rating?: Rating
+  /** Where it happened. Placement answers don't count as starting a topic. */
+  context?: string
 }
 
 export type TopicProgress = {
@@ -97,6 +99,9 @@ export function progressOf(
     const topic = topicsById.get(event.topic_id)
     const entry = progress.get(event.topic_id)
     if (!topic || !entry) continue
+    // The placement test asks about topics the learner hasn't opened; its
+    // answers say where to start, not that a topic is in progress (ADR-0021).
+    if (event.context === 'placement') continue
     if (event.type === 'review') {
       if (event.rating) {
         entry.reviews.push({ at: event.occurred_at, rating: event.rating })

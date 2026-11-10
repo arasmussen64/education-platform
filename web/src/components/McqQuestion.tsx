@@ -1,19 +1,25 @@
 import { useId, useState } from 'react'
 import type { McqItem } from '../content/types.ts'
 import { Markdown } from './Markdown.tsx'
+import { Recorded } from './Recorded.tsx'
 import { BUTTON, INLINE_CODE } from './styles.ts'
 
 type Props = {
   item: McqItem
   /** Called once, when the learner checks their answer. */
   onAnswer?: (correct: boolean, choice: number) => void
+  /**
+   * True in the placement test (ADR-0021): the answer is taken without
+   * saying whether it was right, so the test measures instead of teaching.
+   */
+  quiet?: boolean
 }
 
 /**
  * A multiple-choice question. The learner commits to an answer before seeing
  * whether it's right and why (retrieval practice).
  */
-export function McqQuestion({ item, onAnswer }: Props) {
+export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
   const promptId = useId()
   const [choice, setChoice] = useState<number | null>(null)
   const [checked, setChecked] = useState(false)
@@ -50,7 +56,9 @@ export function McqQuestion({ item, onAnswer }: Props) {
           </label>
         ))}
       </div>
-      {checked ? (
+      {checked && quiet ? (
+        <Recorded />
+      ) : checked ? (
         <output className="block space-y-2 rounded-md bg-slate-100 p-3 dark:bg-slate-800">
           <p className="font-medium">
             {correct ? (

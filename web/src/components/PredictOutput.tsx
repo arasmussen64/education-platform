@@ -2,12 +2,15 @@ import { useId, useState } from 'react'
 import { normalizeOutput } from '../content/answers.ts'
 import type { PredictOutputItem, PredictShellItem } from '../content/types.ts'
 import { Markdown } from './Markdown.tsx'
+import { Recorded } from './Recorded.tsx'
 import { BUTTON, CODE_BOX, TEXT_INPUT } from './styles.ts'
 
 type Props = {
   item: PredictOutputItem | PredictShellItem
   /** Called once, when the learner checks their prediction. */
   onAnswer?: (correct: boolean, prediction: string) => void
+  /** True in the placement test (ADR-0021): no word on whether it was right. */
+  quiet?: boolean
 }
 
 const NOTE = 'text-sm text-slate-600 dark:text-slate-300'
@@ -50,7 +53,7 @@ function ShellScene({ item }: { item: PredictShellItem }) {
  * (docs/learning-science.md), so learners predict first, then compare. The
  * same question works for a Python program and for a shell command.
  */
-export function PredictOutput({ item, onAnswer }: Props) {
+export function PredictOutput({ item, onAnswer, quiet = false }: Props) {
   const fieldId = useId()
   const [prediction, setPrediction] = useState('')
   const [checked, setChecked] = useState(false)
@@ -84,7 +87,9 @@ export function PredictOutput({ item, onAnswer }: Props) {
         autoComplete="off"
         className={`${TEXT_INPUT} font-mono`}
       />
-      {checked ? (
+      {checked && quiet ? (
+        <Recorded />
+      ) : checked ? (
         <output className="block space-y-2 rounded-md bg-slate-100 p-3 dark:bg-slate-800">
           <p className="font-medium">
             {correct ? (

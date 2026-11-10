@@ -16,6 +16,7 @@ It checks:
   fails them, and every predict-the-output item prints what it claims;
 - by running every predict_shell item's command in real bash (ADR-0017), in
   a temporary folder holding the item's files, and checking what it prints.
+- the diagnostics the placement test walks (ADR-0021): their shape and ids.
 
 It prints every problem it finds and exits with status 1 if there are any.
 """
@@ -42,6 +43,7 @@ from content_model import (
     FOLLOW_UP_STAGES,
     STAGES_WITH_FAILING_STARTER,
     STAGES_WITH_HIDDEN_TESTS,
+    Diagnostic,
     Exercise,
     LabChecks,
     McqItem,
@@ -819,6 +821,21 @@ def check_predict_shell(path: Path, item: PredictShellItem, report: Report) -> N
 # --- Putting it together ---------------------------------------------------------
 
 
+def check_diagnostics(content: Path, report: Report) -> None:
+    """The diagnostics the placement test walks (ADR-0021): each file's shape,
+    and that its id matches its file name, like a topic's folder."""
+    for path in sorted((content / "diagnostics").glob("*.yaml")):
+        diagnostic = load(path, Diagnostic, report)
+        if diagnostic is None:
+            continue
+        report.counts["diagnostics"] += 1
+        if diagnostic.id != path.stem:
+            report.add(
+                path,
+                f"id {diagnostic.id!r} doesn't match the file name {path.stem!r}",
+            )
+
+
 def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
     report = Report(root)
     content = root / "content"
@@ -869,6 +886,7 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
                 report.counts["labs"] += 1
             check_exercise(exercise_folder, exercise, report, run, labs)
 
+    check_diagnostics(content, report)
     report.counts["topics"] = len(topics)
     return report
 

@@ -1,4 +1,5 @@
 import type {
+  Diagnostic,
   Exercise,
   LabCheck,
   LessonComponent,
@@ -57,6 +58,12 @@ const trackFiles = import.meta.glob<Track>('../../../content/tracks/*.yaml', {
   eager: true,
   import: 'default',
 })
+// The diagnostics the placement test walks (ADR-0021): a few dozen
+// questions in all, so they're bundled in.
+const diagnosticFiles = import.meta.glob<Diagnostic>(
+  '../../../content/diagnostics/*.yaml',
+  { eager: true, import: 'default' },
+)
 const lessonFiles = import.meta.glob<LessonComponent>(
   '../../../content/topics/*/lesson.mdx',
   { import: 'default' },
@@ -115,6 +122,19 @@ const TOPICS = [
 // The topics bundled in, plus those of any lazy track that has been loaded.
 const TOPICS_BY_ID = new Map(TOPICS.map((topic) => [topic.id, topic]))
 const TRACKS = Object.values(trackFiles).sort((a, b) => a.order - b.order)
+const DIAGNOSTICS: Diagnostic[] = Object.values(diagnosticFiles).map(
+  (diagnostic) => ({
+    ...diagnostic,
+    levels: diagnostic.levels.map((level) => ({
+      ...level,
+      // A diagnostic's questions name no skills: there's no topic to relearn.
+      items: level.items.map((item) => ({
+        ...item,
+        skills: item.skills ?? [],
+      })),
+    })),
+  }),
+)
 
 // One download per lazy track, shared by everything that asks for it.
 const trackLoads = new Map<string, Promise<void>>()
@@ -173,6 +193,15 @@ export function mainTrack(): Track {
 
 export function getTrack(id: string): Track | undefined {
   return TRACKS.find((track) => track.id === id)
+}
+
+/** The diagnostics the placement test can walk (ADR-0021), e.g. math. */
+export function diagnostics(): Diagnostic[] {
+  return DIAGNOSTICS
+}
+
+export function getDiagnostic(id: string): Diagnostic | undefined {
+  return DIAGNOSTICS.find((diagnostic) => diagnostic.id === id)
 }
 
 /** Every topic, checkpoint and capstone in a track, in the track's order. */

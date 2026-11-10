@@ -383,3 +383,44 @@ class LabChecks(Strict):
         if len(set(ids)) != len(ids):
             raise ValueError("check ids must all be different")
         return self
+
+
+class DiagnosticLevel(Strict):
+    """One rung of a diagnostic's ladder (ADR-0021): a few questions, and
+    where to refresh the level until the platform teaches it itself."""
+
+    id: ItemId
+    title: Text
+    summary: Text
+    # A link to a free refresher. Recorded like any resource (ADR-0004).
+    refresh: Resource
+    items: list[McqItem] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def fits(self) -> DiagnosticLevel:
+        if self.refresh.use != "link":
+            raise ValueError("refresh must be a link, not an embed")
+        if any(item.skills for item in self.items):
+            raise ValueError(
+                "diagnostic items don't name skills: there's no topic to relearn"
+            )
+        return self
+
+
+class Diagnostic(Strict):
+    """A ladder of levels the placement test walks like a track (ADR-0021)."""
+
+    id: ItemId
+    title: Text
+    summary: Text
+    levels: list[DiagnosticLevel] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def ids_are_unique(self) -> Diagnostic:
+        level_ids = [level.id for level in self.levels]
+        if len(set(level_ids)) != len(level_ids):
+            raise ValueError("level ids must all be different")
+        item_ids = [item.id for level in self.levels for item in level.items]
+        if len(set(item_ids)) != len(item_ids):
+            raise ValueError("item ids must all be different across the diagnostic")
+        return self
