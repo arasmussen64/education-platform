@@ -1,0 +1,27 @@
+id: predict-batches
+type: predict_output
+rev: 1
+prompt: |
+  `batches` shuffles the row indices and hands them out `batch_size` at a time. For 100 rows in batches of 32, and then twice for 10 rows with the same seed. What does the program print?
+code: |
+  import numpy as np
+  
+  
+  def batches(n, batch_size, rng):
+      order = rng.permutation(n)
+      for start in range(0, n, batch_size):
+          yield order[start : start + batch_size]
+  
+  
+  rng = np.random.default_rng(0)
+  sizes = [len(index) for index in batches(100, 32, rng)]
+  print(len(sizes), sizes, sum(sizes))
+  first = np.concatenate(list(batches(10, 4, np.random.default_rng(1))))
+  second = np.concatenate(list(batches(10, 4, np.random.default_rng(1))))
+  print(sorted(first.tolist()) == list(range(10)), bool((first == second).all()))
+expected_output: |
+  4 [32, 32, 32, 4] 100
+  True True
+explanation: |
+  100 rows make three full batches of 32 and a last one of 4, covering every row once. Two generators with the same seed produce the same permutation, so the two runs hand out the same indices in the same order, and every index from 0 to 9 appears exactly once.
+skills: [loop]

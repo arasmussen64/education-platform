@@ -1,0 +1,14 @@
+id: mcq-why-shuffle
+type: mcq
+rev: 1
+prompt: |
+  Why does `fit` reshuffle the training rows at the start of every epoch, rather than once?
+choices:
+  - 'So that the validation set changes every epoch and the accuracy reported at the end is an average over many different held-out sets rather than one'
+  - 'Because NumPy requires a new permutation before it can slice an array'
+  - 'So that each batch is a fresh random sample: no batch is always the same rows, and an ordering in the data can''t leak into the gradients'
+  - 'To make the loss curve smoother, since shuffled rows have smaller gradients'
+answer: 2
+explanation: |
+  Without a fresh shuffle the same 32 rows would form the same batch in the same position every epoch, the last short batch would always hold the same leftovers, and any structure in the row order would repeat into every step. The validation set is cut once and never changes; shuffling makes the gradients noisier, not smaller.
+skills: [loop]

@@ -1,0 +1,26 @@
+<Intro>
+
+The last two topics gave every layer a `backward` and every loss a gradient; this one turns "forward, loss, backward, update" into the loop every library calls `fit`. The loop walks the training rows in shuffled **mini-batches**, takes one optimizer step per batch, and after each pass over the data (an **epoch**) measures the loss and the accuracy on rows it has never trained on. The topic ends by reading the curve that loop produces, converging, stalled or diverging, and by changing the two knobs that shape it, the learning rate and the batch size.
+
+The main resource is **Wikipedia's _Stochastic gradient descent_ page**, whose Background and Iterative method sections say why one mini-batch's gradient is a fair stand-in for the whole set's; about 15 minutes. The _Training, validation, and test data sets_ page explains the split, and Nielsen's chapter 1 has the same mini-batch loop written out in code. Watch for:
+
+- **Stochastic**: a random subset's gradient points roughly the right way, far more cheaply.
+- **Held-out rows**: why the validation set is never trained on.
+- **The learning rate** in the update rule, and what happens on either side of the right value.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **The loop.** For each **epoch** (one pass over the training rows), shuffle the row indices, cut them into **mini-batches** of `batch_size`, and for each batch take one **step**: forward, loss, backward, update. 240 rows in batches of 32 is 8 steps per epoch (the last batch has 16); 30 epochs is 240 steps. `fit` wraps this and returns a **history**: training loss, validation loss and validation accuracy after every epoch.
+- **Shuffling** every epoch makes each batch a fresh random sample: no batch is always the same rows, the short last batch rotates, and an ordering in the data (classes stored in blocks, rows sorted by date) can't leak into the gradient. `rng.permutation(n)` with a seeded generator makes the shuffle reproducible.
+- **Optimizers as objects.** `SGD(rate).step(params, grads)` does `param -= rate * grad` for every pair; `Adam(rate)` keeps a running average of each gradient and of its square and scales each parameter's step by their ratio, as Optimizers beyond plain gradient descent derived. The loop doesn't care which: it asks the network for `parameters()` and `gradients()` and hands them over.
+- **The split.** Cut the rows once, before training, with a seeded shuffle: 80 percent to train on, 20 percent held out as the **validation set**, which is only ever evaluated. Training loss measures what the network has memorized as much as what it has learned; the held-out rows measure what **generalizes**. Later topics use the validation curve to catch overfitting and to decide when to stop; a final **test set**, touched once at the very end, is the convention when the validation set has been used to make choices.
+- **Reading the curve.** The example's loss falls steadily from its first epoch and levels off (guessing a third for every class would sit at `log 3`, 1.099; the random start happens to do better): **converging**, with validation accuracy 92%. At a learning rate of 0.00005 it moves by a few hundredths in 30 epochs: **stalled**, usually a rate that is too low, sometimes dead starting weights or broken data. At 30 the weights overflow within the first epoch and the loss is NaN: **diverging**, a rate that is too high, each step overshooting. The first fix for either is the rate, by a factor of ten; When training goes wrong adds the checks that tell a bad rate from a bug.
+- **The batch size trades noise against speed.** Batch 8 took 900 steps in 30 epochs and reached 97%; the full batch of 240 took 30 smooth steps and reached 83% at the same rate: fewer, smoother steps cover less ground per epoch, so a large batch needs more epochs or a larger learning rate (and uses the hardware better, as Parallelism and what a GPU is good at showed). Batch 1 is pure stochastic descent; the whole set is plain gradient descent; 32 to 256 is the usual middle. **Changing the batch size means re-tuning the rate.**
+- **Accuracy** is the share of rows whose largest logit is the true class, `(logits.argmax(axis=1) == labels).mean()`; the axis matters, since `argmax(axis=0)` picks rows instead of classes. **Evaluation never updates**: forward and loss only, on the whole set at once.
+- **In machine learning** (names you'll meet later): a `DataLoader` is `batches` with the shuffle and the slicing built in; `model.train()` and `model.eval()` switch layers such as dropout between the two modes the next topic introduces; a **learning-rate schedule** lowers the rate as training goes on; **early stopping** watches the validation curve; and the loss curve in a dashboard is `history` plotted.
+
+</Recap>

@@ -1,16 +1,82 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.nn.training-loop
 kind: topic
-status: planned
-title: The training loop
+status: ready
+title: "The training loop"
 summary: "Epochs, mini-batches and shuffling; a fit function that trains a network with an optimizer and records the loss; evaluating on data the network hasn't seen; accuracy and a loss curve read from text; and what the batch size and the learning rate change."
-prerequisites:
-- ml.nn.backward-layers
+prerequisites: [ml.nn.backward-layers]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Write a training loop over epochs and shuffled mini-batches, with a stochastic gradient descent or Adam step per batch.
-- Split data into training and validation sets, and evaluate loss and accuracy on the validation set every epoch.
-- "Read a loss curve: converging, diverging, stalled."
-- Say what the batch size trades (noise against speed) and how the learning rate interacts with it.
+  - "Write a training loop over epochs and shuffled mini-batches, with a stochastic gradient descent or Adam step per batch."
+  - "Split data into training and validation sets, and evaluate loss and accuracy on the validation set every epoch."
+  - "Read a loss curve: converging, diverging, stalled."
+  - "Say what the batch size trades (noise against speed) and how the learning rate interacts with it."
+# Linked, never copied or embedded: Wikipedia is CC BY-SA 4.0; Nielsen's book
+# is CC BY-NC 3.0.
+resources:
+  - title: "Wikipedia: Stochastic gradient descent (the Background and Iterative method sections: why a mini-batch's gradient stands in for the whole set's)"
+    url: https://en.wikipedia.org/wiki/Stochastic_gradient_descent
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Wikipedia: Training, validation, and test data sets (what each set is for, and why the validation set is never trained on)"
+    url: https://en.wikipedia.org/wiki/Training,_validation,_and_test_data_sets
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Neural Networks and Deep Learning, chapter 1 (Michael Nielsen), the sections Learning with gradient descent and Implementing our network to classify digits: the mini-batch loop in code"
+    url: https://neuralnetworksanddeeplearning.com/chap1.html
+    type: reading
+    use: link
+    license: CC BY-NC 3.0 (linked, not copied)
+practice:
+  - example-a-training-loop
+  - predict-batches
+  - mcq-epoch-and-step
+  - predict-a-split
+  - mcq-why-shuffle
+  - parsons-one-step
+  - mcq-why-a-validation-set
+  - mcq-reading-the-curve
+  - mcq-the-batch-size-trade
+  - fill-batches
+  - write-accuracy-and-evaluate
+prove:
+  build: build-fit
+  debug: debug-a-loop-that-does-not-learn
+  explain:
+    prompt: |
+      A teammate who has only ever called a library's `fit` asks four things about yours. "What is an epoch, what is a step, and why do you shuffle the rows every epoch?" "Why hold rows back in a validation set when more training rows would help?" "My training loss went 1.1, 1.0, 1.1, 1.3, 2.0, 7.4: what is that curve telling me, and what if it had gone 1.10, 1.09, 1.09, 1.08 instead?" "Is a batch size of 1 or of the whole set better, and does the learning rate have to change with it?" In your own words, answer all four.
+    rubric:
+      - id: loop
+        required: true
+        description: "An epoch is one pass over every training row; a step is one forward, loss, backward and update on one mini-batch, so an epoch has rows over batch size steps. The rows are shuffled every epoch so that each batch is a fresh sample, no batch is always the same rows, and an ordering in the data can't leak into the gradient."
+      - id: validation
+        required: true
+        description: "Training loss and accuracy measure what the network has memorized as much as what it has learned; rows it never trained on measure what generalizes. The validation set is cut once, before training, and used only to evaluate (and later to choose hyperparameters and when to stop); the price of a few fewer training rows buys the only honest number."
+      - id: curves
+        required: true
+        description: "A loss that rises and keeps rising is diverging: the learning rate is too high (or something is wrong with the data or the gradients) and each step overshoots. A loss that barely moves is stalled: the learning rate is too low, or the starting weights or the data are broken, which the next topics' checks tell apart. Converging is a fall that levels off."
+      - id: batch
+        required: true
+        description: "A smaller batch gives more steps per epoch and a noisier gradient, and uses less memory; a larger batch gives a smoother gradient and fewer steps, so it needs more epochs or a larger learning rate to cover the same ground, and uses the hardware better (Parallelism and what a GPU is good at). Batch size 1 is pure stochastic descent; the whole set is plain gradient descent; 32 to 256 is the usual middle."
+    model_answer: |
+      An epoch is one pass through every training row. A step is what happens on one mini-batch: a forward pass, the loss, a backward pass and one update of every parameter, so an epoch of 240 rows in batches of 32 is 8 steps, and 30 epochs is 240 steps. I shuffle the rows at the start of every epoch so that each batch is a fresh random sample of the data rather than the same 32 rows in the same order every time; without the shuffle the last, short batch would always hold the same rows, any ordering in the file, such as the classes being stored in blocks, would leak into every gradient, and the loss would move in a pattern that has nothing to do with learning. The validation rows are held back because the training loss can't tell learning from memorizing: a network that has seen a row can get it right by remembering it. Rows it has never trained on measure what generalizes, which is the only number that matters when the model meets new data. The set is cut once, before training, with a seeded shuffle so the cut is reproducible, and it is used only to evaluate after each epoch; later it also decides when to stop and which settings to keep. A few fewer training rows is a cheap price for an honest score. The curve 1.1, 1.0, 1.1, 1.3, 2.0, 7.4 is diverging: after a small improvement the loss rises and then runs away, which means each step is overshooting, and the usual cause is a learning rate that is too high, with a broken gradient or unscaled inputs as the other suspects. The fix is to lower the rate, by a factor of ten to start, and watch again. The curve 1.10, 1.09, 1.09, 1.08 is stalled: it is moving in the right direction but so slowly that something is off, usually a learning rate that is too low, sometimes weights that started at zero or too small, or data that isn't what the code thinks it is. Converging looks like neither: a clear fall that levels off. A batch of 1 is stochastic gradient descent in its purest form, one update per row, the most steps per epoch and the noisiest gradient, which can be good for escaping flat regions but wastes the hardware; a batch of the whole set is plain gradient descent, one smooth step per epoch, so it needs many more epochs or a larger learning rate to travel the same distance. The example's batch of 8 took 900 steps in 30 epochs and the full batch of 240 took 30, and the full batch finished less accurate at the same rate. The learning rate does interact with it: a larger batch has a less noisy gradient and can usually take a larger step, and a smaller batch needs a smaller one, which is why changing the batch size means re-tuning the rate. The usual middle is 32 to 256, a size the hardware handles in one go, with Adam adjusting the step per parameter on top.
+review_pool:
+  - review-predict-steps-per-epoch
+  - review-mcq-a-flat-curve
+  - review-mcq-batch-and-rate
+  - review-batches
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: loop
+    description: "Write a training loop over epochs and shuffled mini-batches, one forward, loss, backward and update per batch"
+  - id: validation
+    description: "Split data into training and validation sets and evaluate loss and accuracy on the held-out rows"
+  - id: curves
+    description: "Read a loss curve as converging, stalled or diverging, and say what each means"
+  - id: batch
+    description: "Say what the batch size trades and how the learning rate interacts with it"

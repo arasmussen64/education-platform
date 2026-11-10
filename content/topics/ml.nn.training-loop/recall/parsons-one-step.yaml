@@ -1,0 +1,18 @@
+id: parsons-one-step
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to take one gradient-descent step of a one-layer network in plain arrays (forward, the mean-squared-error gradient, the weight gradient, the update) and print the new weights, `[[0.7], [1.0]]`. One line is a decoy that doesn't belong.
+lines:
+  - 'import numpy as np'
+  - 'X = np.array([[1.0, 2.0], [3.0, 4.0]])'
+  - 'W = np.zeros((X.shape[1], 1))'
+  - 'pred = X @ W'
+  - 'grad = X.T @ (2 * (pred - np.array([[1.0], [2.0]])) / 2)'
+  - 'W = W - 0.1 * grad'
+  - 'print(W.round(2).tolist())'
+distractors:
+  - 'W = W + 0.1 * grad'
+explanation: |
+  The forward pass needs X and W, the loss's gradient needs the prediction, the weight gradient is X transposed times that, and the update subtracts the learning rate times the gradient: each line depends on the one before, which is the order of every training step. With zero weights the predictions are 0, the differences are -1 and -2, and the gradient is [-7, -10], so the new weights are 0.7 and 1.0. The decoy adds the gradient instead of subtracting it, which steps uphill.
+skills: [loop]
