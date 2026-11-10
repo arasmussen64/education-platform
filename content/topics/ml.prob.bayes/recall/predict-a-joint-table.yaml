@@ -1,0 +1,21 @@
+id: predict-a-joint-table
+type: predict_output
+rev: 1
+prompt: |
+  A joint table of 100 people. What does the program print?
+code: |
+  import numpy as np
+  
+  # rows: has the condition, doesn't; columns: tests positive, tests negative
+  table = np.array([[30, 10], [20, 40]])
+  has, positive = table[0].sum(), table[:, 0].sum()
+  print(table.sum(), has, positive)
+  print(round(table[0, 0] / has, 2))
+  print(round(table[0, 0] / positive, 2))
+expected_output: |
+  100 40 50
+  0.75
+  0.6
+explanation: |
+  40 people have the condition (the first row) and 50 test positive (the first column). `P(positive | has it)` restricts attention to the first row: 30 of 40, 0.75. `P(has it | positive)` restricts attention to the first column: the same 30, but out of 50, 0.6. Same cell, different denominator, different question.
+skills: [conditional]

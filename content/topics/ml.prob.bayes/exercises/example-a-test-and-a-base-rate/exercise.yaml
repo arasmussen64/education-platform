@@ -1,0 +1,22 @@
+id: example-a-test-and-a-base-rate
+stage: worked_example
+rev: 1
+title: "A test, a base rate, and a belief that updates"
+prompt: |
+  This program works a positive test result three ways (a table of 100,000 people, Bayes' rule, and a simulation), applies the rule twice in a row, and then keeps a belief about a coin's bias in an array and updates it flip by flip. Press **Run**, then read how each part works.
+steps:
+  - label: "The table of 100,000 people"
+    lines: "3-13"
+    note: "A condition 1 in 100 has; a test with sensitivity 0.95 (it catches 95 percent of cases) and specificity 0.90 (it clears 90 percent of the healthy). Of 100,000 people, 1,000 are sick and 950 of them test positive; 99,000 are healthy and 9,900 of them test positive anyway. A positive person is one of 10,850, and 950 of those have the condition: 0.088."
+  - label: "The same, as Bayes' rule"
+    lines: "15-17"
+    note: "Prior times likelihood, over the evidence. The evidence is the total chance of a positive from both groups, `0.01 * 0.95 + 0.99 * 0.10`; the posterior is the sick group's share of it. Same 0.088, without the 100,000 people."
+  - label: "A second positive test"
+    lines: "19-21"
+    note: "The posterior becomes the prior and the same rule runs again: 0.477. The second test isn't better than the first; it starts from 0.088 instead of 0.01. A third would pass 0.9."
+  - label: "A simulation agrees"
+    lines: "23-26"
+    note: "A hundred thousand simulated people: each has the condition with chance 0.01, and tests positive with chance 0.95 if so and 0.10 if not. Among those who tested positive, the fraction who have it is 0.085, close to the rule's 0.088. Chance alone made the difference."
+  - label: "A belief about a coin, updated flip by flip"
+    lines: "28-34"
+    note: "Eleven candidate biases, 0 to 1, each believed equally at first. Each flip multiplies every candidate's belief by the likelihood of that flip under it (`biases` for heads, `1 - biases` for tails), and dividing by the sum keeps the beliefs adding to 1. After six heads in eight flips the belief peaks at 0.7, with 0.8 close behind. That loop is Bayesian inference: the posterior after each flip is the prior for the next."

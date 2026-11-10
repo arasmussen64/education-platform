@@ -1,0 +1,20 @@
+id: review-predict-rain-and-umbrellas
+type: predict_output
+rev: 1
+prompt: |
+  A hundred days, by rain and by umbrella. What does the program print?
+code: |
+  import numpy as np
+  
+  # rows: it rained, it didn't; columns: took an umbrella, didn't
+  table = np.array([[18, 2], [12, 68]])
+  rained = table[0].sum()
+  umbrella = table[:, 0].sum()
+  print(round(table[0, 0] / rained, 2), round(table[0, 0] / umbrella, 2))
+  print(round(rained / table.sum(), 2))
+expected_output: |
+  0.9 0.6
+  0.2
+explanation: |
+  It rained on 20 days and umbrellas went out on 30. `P(umbrella | rain)` is 18 of the 20 rainy days, 0.9; `P(rain | umbrella)` is the same 18 days out of the 30 with umbrellas, 0.6. The base rate of rain is 0.2. Seeing an umbrella is good evidence of rain, but 12 of 30 umbrellas went out on dry days.
+skills: [conditional]

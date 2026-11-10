@@ -1,0 +1,26 @@
+<Intro>
+
+Module 1 put 1,000 people in a table and discovered that a positive test for a rare condition is usually a false alarm. This topic turns that table into a rule, **Bayes' rule**, applies it twice in a row to see evidence compound, keeps a whole belief in an array and updates it flip by flip, and finishes with the rule's most famous application in software: a **naive Bayes** spam filter, built from scratch in twenty lines.
+
+The main resource is **3Blue1Brown's _Bayes theorem_** (the geometry of changing beliefs) and its sequel **_The medical test paradox_**; about 35 minutes, and the second one is this topic's worked example drawn as rectangles. OpenStax _Introductory Statistics 2e_ sections 3.3 and 3.4 have the rules and contingency tables as text. Watch for:
+
+- **Conditional probability as restricting attention:** "given a positive test" means looking only at the positive column.
+- **The base rate** (how common the thing is to begin with) deciding the answer.
+- **Evidence multiplies in**, and the posterior becomes the next prior.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A joint table** (a **contingency table**) counts every combination: rows for has-it or not, columns for tests-positive or not. A **conditional probability** `P(A | B)`, read "the probability of A given B", restricts attention to the B row or column: `P(positive | has it)` is the positives in the has-it row over that row's total; `P(has it | positive)` is the same cell over the positive **column's** total. They are different numbers, and mixing them up is the commonest mistake in probability.
+- **Bayes' rule** goes from one to the other: `P(has it | positive) = P(has it) * P(positive | has it) / P(positive)`. In words, **posterior** = **prior** (the base rate) times **likelihood** (how probable the evidence is if it's true), divided by the **evidence** (how probable the evidence is overall, from both groups): `prior * like_true + (1 - prior) * like_false`.
+- **The base rate decides.** A condition 1 in 100 has, a test with **sensitivity** 0.95 (it catches 95 percent of cases) and **specificity** 0.90 (it clears 90 percent of the healthy, so a 10 percent **false-positive** rate): of 100,000 people, 950 true positives and 9,900 false ones, so a positive person has the condition with probability `950 / 10850 = 0.088`. The healthy group is 99 times larger, and its small error rate outweighs the sick group's high hit rate. A simulation of 100,000 people gave 0.085.
+- **Evidence compounds.** After one positive the prior is no longer 0.01 but 0.088; a second independent positive, through the same rule, gives 0.477, and a third would pass 0.9. The posterior after each piece of evidence is the prior for the next.
+- **A belief as an array.** For a coin of unknown bias, keep a probability for each candidate bias (`np.linspace(0, 1, 11)`, each starting at 1/11). After each flip, multiply by the likelihood of that flip under each bias (`biases` for heads, `1 - biases` for tails) and divide by the sum so the beliefs add to 1. After six heads in eight flips the belief peaks at 0.7: `[0.    0.    0.001 0.009 0.037 0.099 0.188 0.267 0.265 0.134 0.   ]`.
+- **Naive Bayes.** For a message, the evidence is its words. Train: count each word in spam and in not-spam (**ham**), with 1 added to every count (**add-one smoothing**, so an unseen word has a small probability instead of zero, which would veto everything). Classify: start from the log of each class's prior, add the log of each word's probability under that class, and turn the two log scores back into a probability for spam. The logs are there because a product of fifty small probabilities underflows to zero; sums of logs don't.
+- **"Naive"** is the assumption that the words are independent given the class, so their likelihoods multiply. It's false (words come in phrases), so the probabilities it reports are overconfident, but the ranking is usually right, which is why the method filtered spam for years.
+- **In machine learning:** every classifier that outputs a probability is reporting a posterior; the base rate is why a model that is 99 percent accurate can be useless on a rare class; and the belief array updated flip by flip is Bayesian inference in miniature, the idea behind every "update your estimate as data arrives" system.
+
+</Recap>

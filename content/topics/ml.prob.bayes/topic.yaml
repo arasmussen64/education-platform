@@ -1,16 +1,80 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.prob.bayes
 kind: topic
-status: planned
+status: ready
 title: "Bayes' rule, properly"
 summary: "Conditional probability, Bayes' rule with base rates, updating a belief as evidence arrives, and a naive Bayes spam filter."
-prerequisites:
-- ml.prob.distributions
+prerequisites: [ml.prob.distributions]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Compute a conditional probability from a joint table.
-- "Apply Bayes' rule to a test result with a base rate, and say why the answer surprises people."
-- Update a belief step by step as evidence arrives, in code.
-- "Build a naive Bayes classifier for short messages, and say what 'naive' assumes."
+  - "Compute a conditional probability from a joint table."
+  - "Apply Bayes' rule to a test result with a base rate, and say why the answer surprises people."
+  - "Update a belief step by step as evidence arrives, in code."
+  - "Build a naive Bayes classifier for short messages, and say what 'naive' assumes."
+# Linked, never copied or embedded: 3Blue1Brown's videos are under the
+# standard YouTube licence; OpenStax is CC BY 4.0; NumPy's documentation is
+# under the NumPy licence (BSD-3-Clause).
+resources:
+  - title: "3Blue1Brown: Probability (Grant Sanderson), the lessons Bayes theorem, the geometry of changing beliefs, and The medical test paradox"
+    url: https://www.3blue1brown.com/topics/probability
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "OpenStax Introductory Statistics 2e: sections 3.3 (Two Basic Rules of Probability) and 3.4 (Contingency Tables and Probability Trees)"
+    url: https://openstax.org/details/books/introductory-statistics-2e
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "numpy.linspace (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.linspace.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-a-test-and-a-base-rate
+  - parsons-bayes-in-one-line
+  - mcq-ninety-five-percent-accurate
+  - predict-a-joint-table
+  - mcq-what-naive-means
+  - fill-posterior
+  - write-update-a-belief
+prove:
+  build: build-a-spam-filter
+  debug: debug-base-rate-report
+  explain:
+    prompt: |
+      A friend has tested positive for a condition that 1 person in 100 has, with a test that catches 95 percent of cases and wrongly flags 10 percent of healthy people, and is sure they have it. In your own words: what does Bayes' rule say, and what is the base rate's part in it? Walk them through a table of 100,000 people. Why would a second positive test change the picture so much more than the first? And what does "naive" mean in naive Bayes, and why does the method work anyway?
+    rubric:
+      - id: rule
+        required: true
+        description: "The chance of the condition given a positive test is the prior (base rate) times the test's hit rate, divided by the total chance of a positive from both groups: posterior = prior × likelihood / evidence; the direction matters, P(positive | sick) is not P(sick | positive)."
+      - id: table
+        required: true
+        description: "Of 100,000 people, 1,000 have it and 950 test positive; 99,000 don't and 9,900 test positive anyway; so a positive person is one of 10,850, of whom 950 have it: about 9 percent. The healthy group is 99 times larger, so its small false-positive rate outweighs the sick group's high hit rate."
+      - id: update
+        required: true
+        description: "After the first test the prior is no longer 1 percent but 9 percent; the same rule with that prior gives about 48 percent after a second positive. Each piece of independent evidence multiplies in, and the posterior becomes the next prior."
+      - id: naive
+        required: false
+        description: "Naive Bayes assumes the words of a message are independent given its class, so their likelihoods just multiply; that's false (words come in phrases), so its probabilities are overconfident, but the ranking of spam against not-spam is usually right, which is all a filter needs."
+    model_answer: |
+      Bayes' rule turns the question round. The test's 95 percent is the chance of a positive given that you're sick; what your friend wants is the chance of being sick given a positive, and getting from one to the other needs the base rate, how common the condition is to begin with. Take 100,000 people. One in a hundred has it: 1,000 people, and the test catches 950 of them. The other 99,000 don't have it, and the test wrongly flags 10 percent, 9,900 people. So the positives are 950 plus 9,900, and only 950 of those 10,850 have the condition: about 9 percent. The healthy group is 99 times bigger than the sick group, so even a small false-positive rate on it swamps the hits. Written as a formula, that's the prior, 0.01, times the likelihood of a positive when sick, 0.95, divided by the total chance of a positive from both groups, which is Bayes' rule. A second positive test changes much more because it starts from a different place: the prior is no longer 1 percent but 9 percent, and running the same rule again gives about 48 percent. Each independent piece of evidence multiplies in, and yesterday's posterior is today's prior; a third positive would take it past 90. Naive Bayes is the same rule applied to a message word by word, and "naive" is the assumption that the words are independent once you know whether the message is spam, so their likelihoods simply multiply. That isn't true, since words come in phrases, so the probabilities it reports are too confident; but the comparison between spam and not-spam usually comes out the right way round, which is all a filter needs.
+review_pool:
+  - review-predict-rain-and-umbrellas
+  - review-mcq-which-way-round
+  - review-mcq-two-tests-at-once
+  - review-mcq-why-add-one
+  - review-bayes
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: conditional
+    description: "Compute a conditional probability from a joint table, and keep P(A given B) apart from P(B given A)"
+  - id: bayes
+    description: "Apply Bayes' rule with a base rate, by table and by formula, and say why a positive test is still probably a false alarm when the condition is rare"
+  - id: update
+    description: "Update a belief step by step as evidence arrives, with the posterior as the next prior"
+  - id: naive-bayes
+    description: "Build a naive Bayes classifier and say what 'naive' assumes"

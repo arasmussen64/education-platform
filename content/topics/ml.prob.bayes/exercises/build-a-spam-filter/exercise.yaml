@@ -1,0 +1,27 @@
+id: build-a-spam-filter
+stage: build
+rev: 1
+title: "A naive Bayes spam filter"
+prompt: |
+  Starting from a blank editor, write a naive Bayes filter for short messages (words separated by spaces):
+
+  - `train(spam, ham)` takes two lists of messages and returns `(probs, prior)`. `probs["spam"]` and `probs["ham"]` map every word in the whole vocabulary to its probability under that class: the word's count in that class's messages **plus one** (add-one smoothing), divided by the class's total of those smoothed counts. `prior` maps each class to its share of the messages.
+  - `classify(message, probs, prior)` returns the probability that the message is spam: for each class, start a score at the log of its prior and add the log of each word's probability under that class (skip words not in the vocabulary); then turn the two log scores into a probability for spam, `exp(spam_score) / (exp(spam_score) + exp(ham_score))`, subtracting the larger score from both first so the exponentials can't overflow.
+
+  Then train on these messages and print `P(cash | spam)` and `P(cash | ham)` rounded to 3, and the spam probability of four messages:
+
+  ```python
+  SPAM = ["win cash now", "cash prize now", "win a prize", "claim cash now"]
+  HAM = ["meeting at noon", "lunch at noon", "cash for lunch", "see you at the meeting"]
+  ```
+
+  ```
+  P(cash | spam) 0.154 P(cash | ham) 0.071
+  win cash: 0.874
+  lunch at noon: 0.034
+  cash at noon: 0.172
+  hello: 0.5
+  ```
+
+  The checks train on other messages, including ones where a word appears in only one class and a message with no known words.
+skills: [naive-bayes, bayes, conditional]
