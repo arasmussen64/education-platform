@@ -67,6 +67,21 @@ def test_unknown_fields_are_caught(tree: Path) -> None:
     assert_reported(tree, "titel: Extra inputs are not permitted", run=False)
 
 
+def test_doubled_apostrophes_are_caught(tree: Path) -> None:
+    # In a single-quoted scalar '' is an apostrophe; in a block scalar it isn't.
+    write(
+        tree,
+        f"{TOPIC_DIR}/recall/mcq-print.yaml",
+        MCQ.replace(
+            "explanation: print shows its argument.",
+            "explanation: |\n  print shows its argument; it doesn''t add quotes.",
+        ),
+    )
+    assert_reported(
+        tree, "keeps a doubled apostrophe", "it doesn''t add quotes", run=False
+    )
+
+
 def test_ids_must_match_folders(tree: Path) -> None:
     write(tree, f"{TOPIC_DIR}/topic.yaml", TOPIC.replace("id: t.hello", "id: t.other"))
     assert_reported(tree, "must match its folder name", run=False)

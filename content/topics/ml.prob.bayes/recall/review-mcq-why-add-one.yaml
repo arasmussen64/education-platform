@@ -4,10 +4,10 @@ rev: 1
 prompt: |
   A naive Bayes filter was trained on messages in which the word "invoice" never appeared in spam. Without add-one smoothing, what happens to a new message that contains "invoice" along with five obvious spam words?
 choices:
-  - 'It is classified by the other five words; one unknown word makes no difference'
-  - 'The word''s probability under spam is 0, so the spam score is log 0 and the message can never be spam, whatever the other words say; adding one to every count keeps every probability small but positive'
-  - 'It is classified as spam with certainty, because a rare word is suspicious'
-  - 'The filter asks for the word to be labelled by hand'
+  - 'It is classified by the other five words; one unknown word contributes nothing either way and makes no difference'
+  - 'The word''s probability under spam is 0, so log 0 vetoes spam whatever the other five words say'
+  - 'It is classified as spam with certainty, because a word never seen in training is treated as suspicious by default'
+  - 'The filter stops and asks for the word to be labelled by hand, since it has no count to go on'
 answer: 1
 explanation: |
   The likelihoods multiply (the logs add), so a single zero vetoes the class no matter how strong the other evidence is, and `log(0)` isn't even a number. Add-one smoothing pretends every word was seen once in every class, which turns the zero into a small probability and lets the other five words decide.
