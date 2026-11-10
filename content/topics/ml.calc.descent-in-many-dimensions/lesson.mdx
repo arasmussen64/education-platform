@@ -1,0 +1,26 @@
+<Intro>
+
+Module 1 walked downhill on one knob, and Checkpoint 1 on two, with the slopes written out by hand. The last topic built the gradient. This topic is the loop that training runs on: step against the gradient, scaled by a **learning rate**, until the gradient is small; watch the loss as you go; and learn to read the loss curve, because the rate is the one number a learner tunes most. The worked example fits a plane this way and gets the same plane the normal equations gave in Module 3.
+
+The main resource is **3Blue1Brown's _Neural networks_, chapter 2**, gradient descent, how neural networks learn, which draws the loss as a landscape and the gradient as the way down; 20 minutes. Michael Nielsen's free book has the same picture in text (chapter 1, _Learning with gradient descent_). Watch for:
+
+- **The loss landscape:** one height for every setting of the knobs, and the gradient pointing uphill at every point.
+- **The step is `-rate * gradient`:** against the slope, longer where it's steep.
+- **Why "learning" is just this loop**, run on a loss with thousands of knobs.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **The loop.** From a starting point `p`, repeat `p = p - rate * grad(p)`. In code the point is an array and the gradient is an array of the same shape, so one line updates every variable at once. The **learning rate** is the step scale; `0.1` is a usual first try.
+- **A stopping rule.** Stop when the gradient's length is below a tolerance (`np.linalg.norm(g) < 1e-6`: flat, so arrived), or after a maximum number of steps (so a bad rate can't run forever). Count the steps; they're the first thing to look at when tuning.
+- **Too small, too large.** On the bowl `x² + 3y²` from `(4, 2)`, ten steps at rate 0.1 leave a loss of 0.18; at 0.05 it's still 1.96 (crawling); at 0.4 it's over 10,000, because the step in `y` is `1 - 0.4 * 6 = -1.4` times the old value: each step overshoots the bottom and lands further up the other side. Too large **diverges**; too small **crawls**; the right one falls fast and then flattens.
+- **Descent slows by itself.** The step is `rate * gradient`, and the gradient shrinks to zero at the bottom. Nobody changes the rate; the slope does. (Steps 0, 1, 2, 5, 10 on the bowl: 4, 3.2, 2.56, 1.31, 0.43 along `x`, each 0.8 of the last.)
+- **Reading a loss curve.** Falling fast then flat: good. Climbing, or bouncing up and down: the rate is too large. Falling by a hair each step: too small. Flat from the start at a high value: a zero gradient (a bad start, or a bug in the gradient; check it numerically).
+- **Fitting a plane by descent.** The loss is the mean squared error `np.mean((A @ w - z) ** 2)`, whose gradient is `2 / n * A.T @ (A @ w - z)`. Two thousand steps at rate 0.1 from `w = 0` give `[2.015, -1.035, 3.024]`, the plane `lstsq` returned in Module 3, and the loss settles at 0.0063: the floor the data leaves, not zero.
+- **Why descent when a formula exists?** It doesn't, for most models: the normal equations need a loss that's quadratic in the weights. Descent only needs the gradient, so the same loop fits a plane today and a network in three topics' time.
+- **In machine learning:** every optimizer in the next topics is this loop with a better step; every training script's `lr` is this `rate`; the loss curve on the dashboard is `losses` here.
+
+</Recap>
