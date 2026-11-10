@@ -1,0 +1,20 @@
+id: review-predict-the-softmax-gradient
+type: predict_output
+rev: 1
+prompt: |
+  Two rows of softmax probabilities with their true classes: the gradient of the mean cross-entropy with respect to the logits, and the loss itself. What does the program print?
+code: |
+  import numpy as np
+  
+  probs = np.array([[0.7, 0.2, 0.1], [0.1, 0.1, 0.8]])
+  labels = np.array([0, 2])
+  grad = probs.copy()
+  grad[np.arange(2), labels] -= 1
+  print(np.round(grad / 2, 2).tolist())
+  print(round(float(-np.log(probs[np.arange(2), labels]).mean()), 4))
+expected_output: |
+  [[-0.15, 0.1, 0.05], [0.05, 0.05, -0.1]]
+  0.2899
+explanation: |
+  The gradient per example is the probabilities with 1 subtracted at the true class, so the true class gets a negative entry (push its logit up) and the others positive ones (push them down), then divided by the two examples. The loss is the mean of minus the log of the true-class probabilities, 0.7 and 0.8.
+skills: [loss-layers]

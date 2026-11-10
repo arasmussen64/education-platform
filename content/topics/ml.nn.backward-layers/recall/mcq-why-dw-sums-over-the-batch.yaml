@@ -1,0 +1,14 @@
+id: mcq-why-dw-sums-over-the-batch
+type: mcq
+rev: 1
+prompt: |
+  Why is a dense layer's weight gradient `X.T @ grad_out`, a sum over the rows of the batch, rather than one gradient per example?
+choices:
+  - 'Because every example used the same `W`: the loss''s dependence on `W[j, k]` is the sum over examples of input `j` times the gradient at output `k`'
+  - 'Because NumPy can only multiply matrices, so the per-example gradients get summed by accident'
+  - 'Because the gradient of the first example is all that matters; the others are averaged out by the learning rate over many steps, so summing them changes nothing'
+  - 'Because `X.T @ grad_out` is cheaper to compute than the per-example gradients'
+answer: 0
+explanation: |
+  Output `k` of row `i` is `sum_j X[i, j] * W[j, k] + b[k]`, so the derivative of that output with respect to `W[j, k]` is `X[i, j]`, and the loss's gradient for `W[j, k]` is `X[i, j] * grad_out[i, k]` summed over `i`, since the same weight touched every row. `X.T @ grad_out` computes exactly that for every `j` and `k`. Averaging over the batch is already inside `grad_out` when the loss is a mean.
+skills: [layer-backward]

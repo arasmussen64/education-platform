@@ -1,0 +1,14 @@
+id: mcq-what-the-check-proves
+type: mcq
+rev: 1
+prompt: |
+  Your network passes the gradient check with a worst gap of 3e-9. What has been shown, and what hasn't?
+choices:
+  - 'That the network will train well on this data, since its gradients are exact'
+  - 'That `backward` computes the derivative of the loss the code implements, to within rounding; not that the loss or the architecture suit the task'
+  - 'That the loss function is the right one for the task, since its gradient agrees with the numeric slope'
+  - 'Nothing, since the numeric check has its own rounding error of about the same size as the gap it reports, so it can''t tell a right gradient from a wrong one unless the gap is exactly zero'
+answer: 1
+explanation: |
+  The check compares backward with a brute-force slope of the same loss function, so a tiny gap means the two agree: the implementation matches the math. It says nothing about whether that math is a good idea; a wrong loss, a network too small for the task, or a learning rate that diverges all pass the check. The numeric slope's own rounding error is around 1e-10 to 1e-8 in float64 with h = 1e-6, far below the gaps a bug makes, which are of order 1.
+skills: [why]

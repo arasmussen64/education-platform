@@ -1,0 +1,14 @@
+id: mcq-why-cache-the-input
+type: mcq
+rev: 1
+prompt: |
+  Why does `Dense.forward` store `self.X = X` before returning `X @ self.W + self.b`?
+choices:
+  - 'So that `forward` can be called again without passing `X`, which saves copying the batch on every call'
+  - 'So that the optimizer can normalize the inputs before the update'
+  - 'Because `backward` runs later and needs `X` for `dW = X.T @ grad_out`'
+  - 'To check in `backward` that the batch hasn''t changed'
+answer: 2
+explanation: |
+  The weight gradient is input times output gradient summed over the batch, so backward can't be computed without the input that forward saw. Every layer that needs something from its forward pass keeps it: Dense keeps X, ReLU keeps its mask, Sigmoid keeps its output. The memory those caches take, for every layer and every example in the batch, is the activation memory Counting a model's cost measured.
+skills: [layer-backward]

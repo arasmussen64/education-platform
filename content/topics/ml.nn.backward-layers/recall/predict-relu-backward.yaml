@@ -1,0 +1,19 @@
+id: predict-relu-backward
+type: predict_output
+rev: 1
+prompt: |
+  A ReLU's mask on a two-row input, and the gradient it passes back. What does the program print?
+code: |
+  import numpy as np
+  
+  X = np.array([[2.0, -1.0, 0.0], [-0.5, 3.0, 1.0]])
+  mask = X > 0
+  grad_out = np.array([[1.0, 1.0, 1.0], [0.5, -2.0, 4.0]])
+  print(mask.astype(int).tolist())
+  print((grad_out * mask).tolist())
+expected_output: |
+  [[1, 0, 0], [0, 1, 1]]
+  [[1.0, 0.0, 0.0], [0.0, -2.0, 4.0]]
+explanation: |
+  The mask is 1 where the input was positive and 0 where it was zero or negative; an input of exactly 0 is on the flat side, so its gradient is 0. The gradient coming back is kept where the mask is 1 and dropped where it is 0, whatever its sign or size.
+skills: [layer-backward]
