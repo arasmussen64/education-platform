@@ -2,6 +2,17 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Classes and objects
+
+**`ml.py.classes` is ready.** A class puts data and behaviour together, and every library the learner will meet hands them objects made this way, so reading one has to be second nature before writing one is. The worked example is a bank account: `__init__` storing values on `self`, a `deposit` method, a `__repr__` that looks like the call that would recreate the object, and two instances that don't share a balance. Then a Parsons counter whose decoy is `count = count + 1` without `self.`, three recall questions (what `self` is in `ada.deposit(50)`; two jars with separate coins; `Dog` against `rex`), a rectangle's methods to fill in and a `Temperature` class to write with a `fahrenheit()` method and a `__repr__`. The proofs: an `Inventory` class to build, whose hidden tests make two inventories and check they don't share counts (the known-wrong solution with a class-level `counts = {}` does share them, which is the classic mistake); a `Player` class with two forgotten `self`s to debug, one in a method's parameters and one in `__init__`, where the second bug only shows once the first is fixed; and an explanation of class against instance, what `self` is and why callers never pass it, and what `balance = balance` would do. The recap ends with the ML shape: `model = LinearRegression()`, `model.fit(x, y)`, `model.coef_`.
+
+**Decisions for you to review:**
+
+1. _The shared-state mistake is a known-wrong solution,_ not a lesson paragraph: a class attribute where an instance attribute was meant is the bug every beginner writes once, and the hidden test that makes two inventories is how they'll meet it.
+2. _`__repr__` is taught in the first class,_ not later: an object that prints as `<__main__.Account object at 0x...>` teaches nothing while debugging.
+
+**Next:** Dataclasses and type hints (`ml.py.dataclasses-and-typing`).
+
 ## 2026-11-10: Module 2 begins: comprehensions
 
 **`ml.py.comprehensions` is ready,** the first topic of intermediate Python. A comprehension is the loop the learner has written a hundred times, said as a description of the result, and most Python they'll read from now on uses it. The worked example builds the squares twice, by loop and by comprehension, then adds a condition, a dict comprehension and a set comprehension (printed through `sorted()`, because a set has no order). Then a Parsons problem whose decoy puts the `if` before the `for`, three recall questions (reading `[len(w) for w in ...]`; a dict comprehension over `.items()`; which of four jobs wants a plain loop: the one that prints), the long words to fill in and pass-or-fail to write (a conditional expression at the front of a dict comprehension). The proofs: three one-line summary functions to build (`evens`, `lengths`, `initials`; known-wrong: a list where a set was needed, odds instead of evens), two mix-ups to debug (an odd test labelled even; a dict with key and value swapped), and an explanation that asks what a loop can do that a comprehension can't, whether a real loop should be rewritten (no: it uses a computed value twice), and why nesting goes wrong. The review pool has four, one per skill, including the flattening form with its `for` clauses in loop order.
