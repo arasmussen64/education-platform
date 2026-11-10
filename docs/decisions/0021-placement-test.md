@@ -35,3 +35,7 @@
 - The walk's math is a pure module (`web/src/placement/placement.ts`) with its own tests, so it can be reasoned about and, later, replaced by a model fitted to the owner's data (Phase 4).
 - The answers are a new, labelled signal for the knowledge-tracing work: "did the learner know this before studying it".
 - Writing diagnostics is now a content task like any other: `content/README.md` says how.
+
+## Amendment (2026-11-10): "I don't know this"
+
+Every placement question offers an "I don't know this" answer beside its choices: a last option on a multiple-choice question, a button beside Check on a prediction or a Parsons problem. It counts as a wrong answer for the probe and is saved as one, with `dont_know: true` and a null `choice`, `prediction` or `program` in the answer's data, so that a learner who doesn't know needn't guess. A lucky guess would place them past what they know, and the proofs would catch it later at a cost of time; the honest answer places them right the first time. The option exists only in the placement test: in practice and reviews a wrong guess is followed by the explanation, which is the point there. The owner asked for this on 2026-11-10.
