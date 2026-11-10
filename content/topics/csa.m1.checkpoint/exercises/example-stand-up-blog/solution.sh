@@ -11,6 +11,6 @@ table inet filter {
 }
 NFT
 sudo nft -f /etc/nftables.conf; sudo systemctl enable nftables; echo "dport rules: $(sudo nft list ruleset | grep -c dport)"
-printf 'PasswordAuthentication no\nPermitRootLogin no\n' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf; sudo sshd -t && echo "config valid"
+printf 'PasswordAuthentication no\nPermitRootLogin no\n' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf; sudo sshd -t && echo "config valid" && sudo systemctl reload ssh
 ssh -i ~/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
 mkdir -p ~/runbook; { echo "service: $(systemctl is-active blog-web)"; echo "answers: $(curl -s localhost:8000)"; echo "login: $(ssh -i ~/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami)"; } > ~/runbook/done.txt; cat ~/runbook/done.txt

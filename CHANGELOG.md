@@ -445,6 +445,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Process: Claude merges its own pull requests once CI passes, under standing permission from the owner.
 - Roadmap: the "prove it" checks, topic states and gating move from Phase 2 into Phase 1.
 
+### Fixed (content)
+
+- **Thirty-two corrections from a cold review of the cloud track's Module 1**, by two reviewers who ran every doubtful claim in a throwaway Ubuntu 24.04 container. The largest: the SSH hardening walkthroughs said the socket-activated `sshd` reads new settings on every connection, but Ubuntu's `ssh.socket` starts one long-running daemon at the first login, so the example and the checkpoint's walkthrough now reload it before proving the login, and every prompt that hardens SSH says to; a build's output format that its check depends on is now stated; `ps aux` has no PPID column; only root may `chown`; `dig +short` shows no record types; a reset to a SYN prints as `[R.]`; `TIME-WAIT` lasts a minute; plain `reject` sends an ICMP unreachable; Ubuntu 24.04 keeps its package sources in `ubuntu.sources`; `systemctl list-units` needs `--plain` before `awk`; the fair scheduler's rule has been EEVDF since kernel 6.6; and hypervisor, VM, WSL, Kubernetes, pod, node, capabilities, seccomp, ARP, NAT, DNAT and symbolic link are defined where they first appear.
+
 ### Fixed (tests)
 
 - The progress tests ask what state a topic is in at the end of their fixtures' day instead of at the real time of the run; four days after that day, a topic proved in the fixtures became "fading" (its first review had come due) and one test failed on every branch.
