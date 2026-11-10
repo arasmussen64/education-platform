@@ -1,0 +1,26 @@
+id: predict-lazy-order
+type: predict_output
+rev: 1
+prompt: |
+  A generator with prints inside, to show when its body runs. What does the program print, in what order?
+code: |
+  def steps():
+      print("start")
+      yield 1
+      print("middle")
+      yield 2
+
+
+  g = steps()
+  print("made")
+  print(next(g))
+  print(next(g))
+expected_output: |
+  made
+  start
+  1
+  middle
+  2
+explanation: |
+  Calling `steps()` runs none of its body: it just makes the generator, so `made` prints first. The first `next(g)` runs the body up to the first `yield`: `start`, then hands out `1`. The second `next(g)` resumes right after that `yield`: `middle`, then `2`. The body runs only when asked, one step at a time.
+skills: [generators]

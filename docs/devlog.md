@@ -2,6 +2,17 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Iterators and generators
+
+**`ml.py.iterators-and-generators` is ready.** Every `for` loop asks "give me the next one"; lists answer from memory and generators compute the answer on demand, which is how a file bigger than memory gets read and how a data loader feeds a model one batch at a time. The worked example does `iter` and `next` by hand, writes a `countdown` generator, sums a generator expression and shows it empty afterwards. Then a Parsons generator whose decoy says `return`, three recall questions (a generator expression listed twice gives `[]` the second time; a generator with prints inside shows `made` before `start`; `yield` pauses and `return` ends), clean lines to fill in and a running total to write. The proofs: sliding windows to build, whose hidden tests call `next()` on the result so a returned list fails (known-wrong: an off-by-one range, a list instead of a generator); two mistakes to debug (`return` inside the generator, and a generator consumed by `list()` before `sum` and `max` get to it); and an explanation built around a teammate's log file that ran out of memory, with the single-use trap as the third question. The review pool has four: a generator expression summed twice, what `for` calls, square against round brackets, and the first squares.
+
+**Decisions for you to review:**
+
+1. _Laziness is shown, not asserted:_ the prints inside the generator in the predict question are the evidence, and the explain prompt's memory story is the reason.
+2. _The hidden tests call `next()` on the learner's result._ A generator that works but is really a list would otherwise pass an exercise about generators.
+
+**Next:** Functions as values (`ml.py.functions-as-values`).
+
 ## 2026-11-10: Dataclasses and type hints
 
 **`ml.py.dataclasses-and-typing` is ready.** Most classes are records, and Python writes those from a list of fields; the same field list is documentation, and type hints are that documentation everywhere else. The worked example declares a `Book` with a default, makes two, prints them, compares two equal ones, and ends with a hinted function over a list of them. Then a Parsons `Point` whose decoy is `x = float` (an assignment, not a field), three recall questions (`double("ab")` returns `"abab"` because hints aren't checked; dataclass equality against a plain class's identity; what `values: list[float]) -> float` promises), hints to fill in on `area`, which the checks read off the function's `__annotations__`, and a `Student` record to write with an `average()` method. The proofs: order lines to build (a dataclass with a `total()` method and a hinted `order_total`; the hidden tests read the fields, compare records and check the return hint), a `Ticket` record with a missing decorator and a string default to debug, and an explanation of what `@dataclass` generates, what hints do and don't do at run time, and when a dict or a hand-written class is still the right choice.
