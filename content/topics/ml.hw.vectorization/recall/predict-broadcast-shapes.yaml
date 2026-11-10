@@ -1,0 +1,21 @@
+id: predict-broadcast-shapes
+type: predict_output
+rev: 1
+prompt: |
+  A `(2, 3)` matrix combined with a `(3,)` row, a `(2, 1)` column, and its own column means. What does the program print?
+code: |
+  import numpy as np
+  
+  X = np.arange(6, dtype=np.float64).reshape(2, 3)
+  print(X + np.array([10.0, 20.0, 30.0]))
+  print(X * np.array([[1.0], [-1.0]]))
+  print((X - X.mean(axis=0)).sum(axis=0), X.mean(axis=1))
+expected_output: |
+  [[10. 21. 32.]
+   [13. 24. 35.]]
+  [[ 0.  1.  2.]
+   [-3. -4. -5.]]
+  [0. 0. 0.] [1. 4.]
+explanation: |
+  A `(3,)` row lines up with the last axis of `(2, 3)` and is stretched down both rows, so each column gets its own addend. A `(2, 1)` column lines up with the first axis and is stretched across the columns, so row 0 is multiplied by 1 and row 1 by -1. `X.mean(axis=0)` is one mean per column, `(3,)`, subtracted from every row, so each column sums to 0; `X.mean(axis=1)` is one mean per row.
+skills: [broadcasting]

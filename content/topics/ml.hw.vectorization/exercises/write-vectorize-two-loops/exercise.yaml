@@ -1,0 +1,21 @@
+id: write-vectorize-two-loops
+stage: write
+rev: 1
+title: "Vectorize two loops"
+prompt: |
+  The starter has `relu_loop` and `standardize_loop`, written one element at a time. Write `relu(x)` and `standardize(X)` as array operations with no Python loop: `relu` keeps `x` where it is positive and puts 0 elsewhere; `standardize` subtracts each column's mean from the column and divides by the column's standard deviation (`X.mean(axis=0)` and `X.std(axis=0)` are one value per column, and broadcasting stretches them down the rows). The program then compares each against its loop and prints:
+
+  ```
+  [0.  0.  0.  1.5 3. ] True
+  [[-1.    -1.066 -1.112]
+   [-0.714 -0.671 -0.64 ]
+   [ 0.143  0.197  0.236]
+   [ 1.571  1.54   1.516]]
+  True
+  ```
+
+  The checks also hand your functions an array that counts how often Python iterates over it or reads single elements from it, and expect zero.
+hints:
+  - "A condition becomes a mask: `np.where(x > 0, x, 0.0)` chooses from `x` where the mask is true and from 0 elsewhere."
+  - "`axis=0` means down the rows, giving one number per column; without it, `mean` and `std` collapse the whole matrix to one number."
+skills: [broadcasting]

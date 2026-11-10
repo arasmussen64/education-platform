@@ -1,0 +1,14 @@
+id: debug-a-broadcast-that-went-wrong
+stage: debug
+rev: 1
+title: "A broadcast that went wrong"
+prompt: |
+  `center` should subtract each column's mean so that every column sums to 0, and `score` should give one weighted sum per row. The program should print:
+
+  ```
+  column sums after centering: [0. 0. 0.]
+  scores: [-11.25  -6.75  -2.25   2.25   6.75  11.25]
+  ```
+
+  It has two bugs. Run it: it crashes with `operands could not be broadcast together with shapes (6,3) (3,1)`, because the weights are reshaped into a `(3, 1)` column and lined up from the right against `(6, 3)` the 3 matches the 3 but the 1 then has to stretch to 6 rows of weights that don't exist; one weight per column is a `(3,)` vector. Fix that, and the column sums come out `[-6. 0. 6.]`: `center` subtracts the single grand mean from everything instead of each column's own mean. The mean needs an axis.
+skills: [broadcasting]

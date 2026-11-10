@@ -1,0 +1,14 @@
+id: review-mcq-loop-over-the-dependent-axis
+type: mcq
+rev: 1
+prompt: |
+  An exponential moving average must be computed down a `(100000, 50)` matrix: each row's smoothed value depends on the previous row's. Which plan is right?
+choices:
+  - 'Loop over the 100,000 rows in Python and, inside, loop over the 50 columns, since the dependence rules out array operations'
+  - 'Loop over the 100,000 rows in Python, computing each row''s 50 values as one array operation on the previous state'
+  - 'Loop over the 50 columns in Python and vectorize down the 100,000 rows with a single array operation per column'
+  - 'Use `np.vectorize` on the update function, which removes the dependence'
+answer: 1
+explanation: |
+  The dependence runs down the rows, so the rows must be visited in order; the 50 columns are independent of each other, so each step can update all of them at once. That is 100,000 vector operations instead of 5,000,000 scalar ones. Looping over columns doesn't help, since the dependence inside a column still has to be unrolled one row at a time, and `np.vectorize` is a per-element Python loop that changes nothing.
+skills: [dependence]

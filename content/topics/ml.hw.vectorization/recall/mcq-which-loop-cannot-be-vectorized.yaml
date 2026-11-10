@@ -1,0 +1,14 @@
+id: mcq-which-loop-cannot-be-vectorized
+type: mcq
+rev: 1
+prompt: |
+  Which of these loops can't be replaced by a single array operation, and why?
+choices:
+  - '`for t: state = a * x[t] + (1 - a) * state; out[t] = state`, because each step needs the state the step before produced'
+  - '`for i: out[i] = x[i] ** 2`, because exponentiation isn''t a NumPy operation and has to go through Python''s `**` for every element'
+  - '`for i: out[i] = x[i] if x[i] > 0 else 0`, because an `if` can''t be vectorized and has to be decided one element at a time'
+  - '`for i: row_sums[i] = X[i].sum()`, because each row has to be summed separately before the results can be collected'
+answer: 0
+explanation: |
+  Squaring is `x ** 2`, the `if` is `np.where(x > 0, x, 0)`, and the row sums are `X.sum(axis=1)`: each element's answer depends only on its own inputs, so all of them can be computed at once. The moving average is different: step `t` needs the state after step `t - 1`, a sequential dependence. For that, look for a library function that runs the recurrence in C (a running total is `np.cumsum`), or loop over the time axis only and vectorize across everything else.
+skills: [dependence]

@@ -1,0 +1,14 @@
+id: review-mcq-constant-not-order
+type: mcq
+rev: 1
+prompt: |
+  After vectorizing a feature step, the doubling test still shows a ratio of 2.0. A teammate says the vectorizing must have failed. Did it?
+choices:
+  - 'Yes: a successful vectorization makes the time independent of the number of rows, so the ratio should have dropped towards 1'
+  - 'Yes, unless the array was converted to float32 along the way, which is what makes vectorized code fast in the first place'
+  - 'Not necessarily: vectorizing can''t change the order, since every row is still touched; compare times at one size, not ratios'
+  - 'Not necessarily, but only if the whole array fits in the cache; otherwise the ratio would have changed along with the constant'
+answer: 2
+explanation: |
+  The ratio measures the order, and a linear step stays linear however it is written: twice the rows is twice the elements to touch. What vectorizing changes is the constant, which shows up as the time at a given size, not as the ratio between sizes. If the vectorized step is tens of times faster than the loop at 2,000 rows and at 4,000, it worked. Precision and cache fit affect the constant too, but neither changes the reading of the ratio.
+skills: [doubling-test]
