@@ -1,17 +1,40 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.m8.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 8: a network that reads digits"
 summary: "Build the layers, the loss, the training loop and the regularizers from the module, train a small network on noisy, shifted images of the ten digits, reach the accuracy bar on images it hasn't seen, and find three bugs in a training script that won't learn."
-prerequisites:
-- ml.nn.regularization
-- ml.nn.convolution
-- ml.nn.debugging-training
+prerequisites: [ml.nn.regularization, ml.nn.convolution, ml.nn.debugging-training]
+packages: [numpy]
 estimated_minutes: 150
 rev: 1
 objectives:
-- Build dense and convolutional layers with forward and backward passes, softmax cross-entropy, and a mini-batch training loop with Adam, weight decay and dropout, and gradient-check the pieces.
-- "Train the network on the module's digit images, with a seed, to at least the accuracy bar on a held-out set, within the time the browser allows."
-- "Find and fix three bugs in a training script that won't learn (weights started at zero, dropout left on at evaluation, a learning rate ten times too high), and explain backpropagation and regularization in your own words."
+  - "Build dense and convolutional layers with forward and backward passes, softmax cross-entropy, and a mini-batch training loop with Adam, weight decay and dropout, and gradient-check the pieces."
+  - "Train the network on the module's digit images, with a seed, to at least the accuracy bar on a held-out set, within the time the browser allows."
+  - "Find and fix three bugs in a training script that won't learn (weights started at zero, dropout left on at evaluation, a learning rate ten times too high), and explain backpropagation and regularization in your own words."
+prove:
+  build: build-a-network-that-reads-digits
+  debug: debug-a-script-that-will-not-learn
+  explain:
+    prompt: |
+      Your digit reader is in code review. The reviewer asks four things. First: "walk me through one training step: what does each layer store on the way forward, and what does backward do at each layer boundary to get from the loss to the kernel's nine numbers, which are used at every position of every image?" Second: "how do you know the gradients are right, and why did you run that check with dropout off?" Third: "what are the weight decay, the dropout and the held-out set each protecting against, what does each assume, and when would you take one out?" Fourth: "the script you fixed had its weights at zero, its dropout on at evaluation and its rate ten times too high: what did each one look like from the outside, and how did you tell them apart?" In your own words, answer all four.
+    rubric:
+      - id: backprop
+        required: true
+        description: "Forward, each layer stores what backward will need (Dense its input, ReLU its mask, the pool which cell won, dropout its mask, the loss its probabilities); backward starts from the loss's gradient (probabilities minus one-hot labels, over the batch) and each layer multiplies by its own local derivative and hands the result to the layer below (the chain rule at a boundary), setting its parameter gradients on the way. A kernel weight used at every position gets the sum over all of them, and a weight used by every row of the batch gets the sum over the rows."
+      - id: gradient-check
+        required: true
+        description: "A central difference of the loss, nudging each parameter up and down, is compared with backward's gradient and the largest gap must be below about a millionth. Dropout draws a fresh random mask on every forward pass in training mode, so the function would change between the two evaluations and the check would fail for no reason; eval mode fixes the function."
+      - id: regularization
+        required: true
+        description: "All three protect against fitting the training rows' noise. Weight decay pulls every weight towards zero so only weights the data keeps pushing stay large (assumes smooth, small-weight models are better; remove it when the network underfits). Dropout makes units redundant (assumes redundancy helps; remove it from small layers or when training is already too slow). The held-out set measures generalization and chooses when to stop; it assumes it comes from the same source as the training rows and is never trained on."
+      - id: three-bugs
+        required: true
+        description: "Zero weights: the loss sits at log 10, 2.30, and accuracy at a tenth, because no gradient reaches any weight (every hidden value is zero) and only the output bias moves. Dropout on at evaluation: two evaluations of the same network give two different numbers, and the accuracy is lower than the network's. A rate ten times too high: the run learns something but ends well short of the bar with a loss that bounces. They are told apart by the first loss, the dead-flat curve, the double evaluation and the curve's shape, in that order."
+    model_answer: |
+      One training step runs the batch forward and the gradient backward. Going forward, each layer keeps what it will need: the dense layer keeps its input, because its weight gradient is that input transposed times the gradient from above; the ReLU keeps a mask of where its input was positive, because that is where it passes gradient; the pool keeps which cell of each window won, because only that cell affected the output; dropout keeps the random mask it applied and the scaling by one over one minus p; the loss keeps the softmax probabilities. Backward begins at the loss, whose gradient with respect to the logits is the probabilities minus the one-hot labels, divided by the batch size, and then each layer does one thing: it multiplies the gradient it receives by its own local derivative and passes the result down, setting its parameter gradients on the way. That is the chain rule applied at each boundary, and no layer needs to know what the others do. At the convolution the nine numbers of a kernel were used at every output position of every image, so the gradient for weight (i, j) is the sum, over all positions and all images in the batch, of the output gradient there times the input pixel that weight multiplied, which is itself a correlation of the input with the output gradient; and the gradient for the input spreads each output cell's gradient back over its patch through the kernel's weights. The dense layer's weights, used by every row of the batch, likewise get a sum over rows. I know the gradients are right because of the numeric check: nudge each parameter up and down by a millionth, measure the loss both times, and compare the central difference with what backward computed; the largest gap in the network is below a millionth. I ran it with dropout off because in training mode dropout draws a fresh random mask on every forward pass, so the two evaluations of the nudged loss would be of two different functions and the check would fail for no reason; evaluation mode makes the network a fixed function, which is what a derivative is a derivative of. The three regularizers all guard against fitting the noise in six hundred training images. Weight decay adds a small multiple of each weight to its gradient, a steady pull towards zero, so a weight stays large only if the data keeps pushing it; it assumes that a smooth model with small weights is the better one, which is usually right, and I would take it out if the network were underfitting, since it only makes that worse. Dropout zeroes a fifth of the flattened features on every training step, scaled up to keep the expected value, so the output layer cannot rely on any one feature and learns redundant ones; it assumes redundancy helps, and I would take it out of a layer too small to spare a fifth of itself, or if training were too slow, since it slows it. The held-out set is two hundred images the network never trains on, so its accuracy measures what the network has learned about digits rather than about those six hundred images; it assumes those images come from the same source as the training ones, and the one rule is that no decision about the network trains on them. The three bugs each had a face. With the weights at zero, every hidden value was zero, so no gradient reached any weight and only the output bias moved: the loss sat at log 10, 2.30, for twenty epochs and the accuracy at a tenth, a dead-flat curve from the first loss on, which no learning rate changes. With dropout left on at evaluation, the network gave a different answer every time it was asked, because a fresh mask was drawn each time, and the answers were worse than the network's: two evaluations in a row disagreeing is the tell, and it cannot be a learning-rate or an initialization problem, since the weights don't change between the two. With the rate ten times too high, the run learned, so the weights and the data were fine, but the loss bounced and the accuracy ended well under the bar; the curve's shape, moving but not settling, says the step is too big. The order I told them apart in is the checklist's: the first loss and whether it moves at all, then whether the same network gives the same answer twice, then the shape of the curve.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-a-network-that-reads-shapes
+  steps: [step-the-dense-layers, step-the-convolutional-layer, step-the-loss-and-the-optimizer, step-train-and-evaluate]
+  versions: [build-a-network-that-reads-letters, build-a-network-that-reads-symbols]

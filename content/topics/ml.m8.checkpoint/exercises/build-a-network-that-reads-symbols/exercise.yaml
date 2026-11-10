@@ -1,0 +1,87 @@
+id: build-a-network-that-reads-symbols
+stage: build
+rev: 1
+title: "A network that reads symbols"
+prompt: |
+  A fresh version of the build: the same network and loop, trained to read six symbols (a plus, a minus, a times, a slash, a box and a small ring) from the same kind of noisy, shifted images; three hundred and sixty to train on and a hundred and twenty held out.
+
+  **Starting from a blank editor, write the module's pieces** (your own solutions from the topics are the reference; type them, don't paste them):
+
+  - `Dense(n_in, n_out, seed=0, scale=None)`: weights from `default_rng(seed).standard_normal` times `1 / sqrt(n_in)` (or `scale`), zero biases; `forward`, `backward` (setting `dW`, `db`, returning the input's gradient), `parameters()`, `gradients()`.
+  - `ReLU`, `Flatten`, `MaxPool2D(size=2)` (the gradient goes to the cell that won) and `Dropout(p, seed=0)` (inverted: survivors scaled by `1 / (1 - p)`; a `training` flag; eval passes everything through), each with the same four methods (empty lists where there are no parameters).
+  - `Sequential(layers)`: `forward`, `backward`, `parameters`, `gradients`, and `train()` / `eval()` that set `training` on every layer that has it.
+  - `Conv2D(n_kernels, k, seed=0, scale=None)`: kernels `(n_kernels, k, k)` from `standard_normal` times `1 / k` (or `scale`), zero biases; `forward` from images `(N, H, W)` to maps `(N, n_kernels, H - k + 1, W - k + 1)`; `backward` setting `dW` and `db` and returning the input's gradient.
+  - `SoftmaxCrossEntropy`: `forward(logits, labels)` as the mean negative log-probability by log-sum-exp (finite for a logit of 1,000); `backward()` as probabilities minus one-hot labels over the batch size.
+  - `Adam(rate, weight_decay=0.0, beta1=0.9, beta2=0.999, eps=1e-8)` with `step(params, grads)`, adding `weight_decay * param` to each gradient before the moments.
+  - `numeric_gradient(f, param, h=1e-6)` and `gradient_check(net, loss, X, y)`: the largest gap between backward and central differences over every parameter, **with the network put in eval mode first**.
+  - `batches(n, batch_size, rng)`, `evaluate(net, loss, X, y)` (eval mode, then the loss and the accuracy, no update) and `fit(net, loss, optimizer, X_train, y_train, X_val, y_val, epochs, batch_size=32, seed=0)` (train mode before each step, one history entry per epoch with `train_loss`, `val_loss` and `val_accuracy`).
+
+  **Then paste the data, which isn't what is being proven,** and the training script, and run it:
+
+  ```python
+  def make_images(glyphs, n_per_class, seed, size=10, max_shift=1, noise=0.2):
+      """n_per_class images per glyph: Gaussian noise, with the glyph drawn at its centre shifted by up to max_shift pixels each way; labels in font order."""
+      rng = np.random.default_rng(seed)
+      names = list(glyphs)
+      X = rng.normal(0.0, noise, size=(n_per_class * len(names), size, size))
+      y = np.repeat(np.arange(len(names)), n_per_class)
+      for image, label in zip(X, y):
+          rows = glyphs[names[label]]
+          top = (size - len(rows)) // 2 + rng.integers(-max_shift, max_shift + 1)
+          left = (size - len(rows[0])) // 2 + rng.integers(-max_shift, max_shift + 1)
+          for r, row in enumerate(rows):
+              for c, char in enumerate(row):
+                  if char == "#":
+                      image[top + r, left + c] += 1.0
+      return X, y
+
+
+  SYMBOLS = {
+      '+': ['.....', '..#..', '..#..', '#####', '..#..', '..#..', '.....'],
+      '-': ['.....', '.....', '.....', '#####', '.....', '.....', '.....'],
+      'x': ['.....', '#...#', '.#.#.', '..#..', '.#.#.', '#...#', '.....'],
+      '/': ['....#', '....#', '...#.', '..#..', '.#...', '#....', '#....'],
+      '#': ['#####', '#...#', '#...#', '#...#', '#...#', '#...#', '#####'],
+      'o': ['.....', '.....', '.###.', '#...#', '.###.', '.....', '.....'],
+  }
+  
+  
+  def make_symbols(n_per_class, seed):
+      """n_per_class noisy, shifted images of each symbol, with labels in font order."""
+      return make_images(SYMBOLS, n_per_class, seed)
+  
+  
+  X_train, y_train = make_symbols(60, seed=1)
+  X_val, y_val = make_symbols(20, seed=2)
+  loss = SoftmaxCrossEntropy()
+  print(X_train.shape, X_val.shape, np.bincount(y_val).tolist())
+  tiny = Sequential([Conv2D(2, 3, seed=1), ReLU(), MaxPool2D(2), Flatten(), Dense(32, 6, seed=2)])
+  print("gradient check:", "passes" if gradient_check(tiny, loss, X_train[:4], y_train[:4]) < 1e-6 else "fails")
+  net = Sequential([Conv2D(6, 3, seed=1), ReLU(), MaxPool2D(2), Flatten(), Dropout(0.2, seed=5), Dense(96, 6, seed=2)])
+  history = fit(net, loss, Adam(0.01, weight_decay=1e-4), X_train, y_train, X_val, y_val, epochs=20)
+  accuracy = history["val_accuracy"][-1]
+  print(f"loss {history['train_loss'][0]:.2f} -> {history['train_loss'][-1]:.2f} | held-out accuracy {accuracy:.2f} | at least 0.9: {accuracy >= 0.9} | {sum(p.size for p in net.parameters())} parameters")
+  print("evaluating twice gives the same answer:", evaluate(net, loss, X_val, y_val)[0] == evaluate(net, loss, X_val, y_val)[0])
+  names = list(SYMBOLS)
+  net.eval()
+  print("the first held-out image of each symbol reads:", " ".join(names[i] for i in net.forward(X_val[::20]).argmax(axis=1)))
+  ```
+
+  ```
+  (360, 10, 10) (120, 10, 10) [20, 20, 20, 20, 20, 20]
+  gradient check: passes
+  loss 1.39 -> 0.03 | held-out accuracy 0.97 | at least 0.9: True | 642 parameters
+  evaluating twice gives the same answer: True
+  the first held-out image of each symbol reads: + - x / # o
+  ```
+
+  The output layer has six units and the network 642 parameters. The checks compare every layer's gradient and the input gradient with central differences, test the loss and Adam's decay on known numbers, dropout's two modes and that `evaluate` leaves no weight changed, the random starts and the parameter counts, and hold the trained network to nine in ten held-out symbols, with the same seeds giving the same history. The browser allows about a minute; the reference solution trains in a few seconds.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.nn.neurons-and-layers/compose, ml.nn.training-loop/loop, ml.nn.training-loop/validation, ml.nn.convolution/conv-layer, ml.nn.regularization/dropout]
+  test_layer_gradients: [ml.nn.backward-layers/layer-backward, ml.nn.backward-layers/chain, ml.nn.convolution/conv-layer, ml.nn.convolution/shapes]
+  test_loss_and_optimizer: [ml.nn.backward-layers/loss-layers, ml.nn.regularization/decay, ml.nn.training-loop/loop]
+  test_dropout_and_modes: [ml.nn.regularization/dropout, ml.nn.training-loop/validation]
+  test_starts_and_shapes: [ml.nn.initialization-and-activations/symmetry, ml.nn.initialization-and-activations/scale, ml.nn.neurons-and-layers/count, ml.nn.convolution/parameters]
+  test_the_accuracy_bar: [ml.nn.training-loop/loop, ml.nn.training-loop/curves, ml.nn.regularization/overfitting, ml.nn.debugging-training/bug-or-hard]

@@ -1,0 +1,24 @@
+id: debug-a-script-that-will-not-learn
+stage: debug
+rev: 1
+title: "Three bugs in a training script"
+prompt: |
+  This is the digit reader, with the weights of both layer types started by one helper, `start_weights`, and the learning rate in one name, `RATE`. It should print:
+
+  ```
+  loss 1.97 -> 0.06 | held-out accuracy 0.95 | at least 0.9: True
+  evaluating twice gives the same answer: True
+  ```
+
+  It has three bugs, and each shows from the outside. Run it:
+
+  1. **The loss sits at 2.30 for twenty epochs and the accuracy at 0.10:** 2.30 is log 10, the loss of guessing evenly among ten digits, and the curve never moves. `start_weights` returns zeros, a placeholder that was never replaced: with every weight at zero, every hidden value is zero, no gradient reaches any weight, and only the output bias moves. Starting weights must be small random numbers scaled by the fan-in (`standard_normal(shape) / sqrt(fan_in)`), so that the signal neither vanishes nor explodes and no two units begin alike.
+  2. **The run now learns, but ends at 0.77 with a loss of 0.44, well short of the bar:** `RATE` is 0.1, ten times too high for Adam on this network; each step overshoots and the loss bounces instead of settling. The checklist's fix is the rate by a factor of ten: 0.01.
+  3. **The accuracy is 0.92, but evaluating the network twice gives two different answers:** `evaluate` never switches the network to eval mode, so dropout is still drawing a fresh random mask on every forward pass while the network is being measured. `evaluate` must call `net.eval()` before its forward pass; `fit` already calls `net.train()` before each step.
+
+  The checks also hold `start_weights` to a random, fan-in-scaled start, `RATE` to 0.01, and `evaluate` to leaving dropout off.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.nn.initialization-and-activations/symmetry, ml.nn.regularization/dropout, ml.nn.debugging-training/learning-rate]
+  test_the_pieces: [ml.nn.initialization-and-activations/symmetry, ml.nn.initialization-and-activations/scale, ml.nn.regularization/dropout, ml.nn.debugging-training/learning-rate, ml.nn.debugging-training/bug-or-hard]

@@ -1,0 +1,14 @@
+id: step-the-convolutional-layer
+stage: fill_in
+rev: 1
+title: "Step 2: the convolutional layer and the pool"
+prompt: |
+  `Conv2D.backward` loops over the kernel's offsets: weight `(i, j)`'s gradient is the output gradient times the input shifted by `(i, j)`, summed over images and positions, and each output gradient flows back onto the input cells it read, through weight `(i, j)`; `MaxPool2D.backward` gives each pooled cell's gradient to the cell that won its window, using the mask saved on the way forward. Replace each `...` so both checks pass and the program prints:
+
+  ```
+  (3, 4) | gradient check: passes
+  input gradient: passes
+  ```
+hints:
+  - "The shifted input is `patch`, already sliced; the weight going back is the same `self.W[None, :, i, j, None, None]` the forward pass used."
+  - "`self.mask` is True where a cell equalled its window's maximum; multiply the spread gradient by it."
