@@ -1,0 +1,20 @@
+id: predict-a-wrap
+type: predict_output
+rev: 1
+prompt: |
+  An int8 array plus 2, a uint8 array minus 1, and the same sum in plain Python. What does the program print?
+code: |
+  import numpy as np
+  
+  a = np.array([100, 126, 127], dtype=np.int8)
+  print(a + 2)
+  b = np.array([0, 255], dtype=np.uint8)
+  print(b - 1)
+  print(100 + 27 + 1)
+expected_output: |
+  [ 102 -128 -127]
+  [255 254]
+  128
+explanation: |
+  Arrays keep their dtype: 126 + 2 is 128, which an int8 can't hold, so the pattern wraps to -128, and 127 + 2 to -127; 0 - 1 on a uint8 wraps to 255. NumPy does this silently for arrays. Python's own integers have no width, so 100 + 27 + 1 is simply 128.
+skills: [fixed-width]

@@ -1,0 +1,25 @@
+id: example-what-a-byte-holds
+stage: worked_example
+rev: 1
+title: "What a byte holds"
+prompt: |
+  Numbers in three bases, integers that wrap and one that doesn't, the bits of a negative number, the size of an image batch in three dtypes, and flags packed into an integer. Press **Run**, then read how each part works.
+steps:
+  - label: "Three ways to write 37 and 255"
+    lines: "3-5"
+    note: "`bin` and `hex` turn a number into text with a `0b` or `0x` prefix, and `int(text, base)` reads it back. The second line shows what the bits mean: in `00100101` the 1s sit under the place values 32, 4 and 1."
+  - label: "Fixed width wraps; Python's int doesn't"
+    lines: "7-11"
+    note: "An int8 holds -128 to 127, so 125 + 5 and 127 + 5 don't fit: the patterns wrap round to -126 and -124, silently. A uint8 holds 0 to 255, so 255 + 1 is 0. Python's own `int` has no width: `2 ** 100` is a 31-digit number and nothing wraps."
+  - label: "What the bits of a negative number look like"
+    lines: "13-14"
+    note: "In two's complement the top bit of an int8 counts as -128, so -1 is all eight bits set and -128 is the top bit alone. Reading the same bytes as unsigned (`view(np.uint8)`, which reinterprets without converting) gives 255, 128 and 127: the patterns didn't change, only the rule for reading them."
+  - label: "Sizing a batch of images"
+    lines: "16-18"
+    note: "A thousand images of 784 pixels is 784,000 elements; the dtype says how many bytes each one takes: one as uint8 (a pixel's 0 to 255), four as float32, eight as float64. `nbytes` is the array's own count. Dividing pixels by 255 to get floats quadruples the memory."
+  - label: "Flags in an integer"
+    lines: "20-25"
+    note: "Three flags, one bit each. `|` combines them into `101`, 5; `& WRITE` tests the middle bit and finds it off; `|= WRITE` turns it on and `&= ~EXEC` turns the top bit off, leaving `011`. Permissions, options and feature switches are stored this way."
+  - label: "Packing and unpacking bytes"
+    lines: "26-27"
+    note: "Three bytes shifted into place and combined make one integer, `0xff8007`; shifting it back down by 8 and masking with `0xFF` recovers the middle byte, 128. A left shift by 10 multiplies by 1024; a right shift by 3 divides by 8."

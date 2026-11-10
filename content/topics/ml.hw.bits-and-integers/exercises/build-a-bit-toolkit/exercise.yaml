@@ -1,0 +1,30 @@
+id: build-a-bit-toolkit
+stage: build
+rev: 1
+title: "A bit toolkit"
+prompt: |
+  Starting from a blank editor, write four functions:
+
+  - `to_base(n, base)`: a non-negative integer as a string of digits in a base from 2 to 16, using the digits `0123456789abcdef`, with no leading zeros (`to_base(0, base)` is `"0"`); without `bin`, `hex` or `format`.
+  - `wraps_to(value, bits, signed)`: the value a fixed-width integer of `bits` bits ends up holding after `value` is stored in it, by wrapping: for an unsigned type the remainder on division by `2 ** bits`, and for a signed type the same remainder shifted down by `2 ** bits` when it reaches the top half.
+  - `array_bytes(shape, dtype)`: the bytes an array of that shape (a tuple) and dtype (a name such as `"float32"`) takes; `np.dtype(name).itemsize` is the bytes per element.
+  - `smallest_uint(max_value)`: the name of the smallest of `uint8`, `uint16`, `uint32`, `uint64` that holds counts from 0 to `max_value` (`np.iinfo(name).max` is each one's largest value); raise `ValueError` beyond 64 bits.
+
+  Then print:
+
+  ```python
+  print(to_base(37, 2), to_base(255, 16), to_base(255, 2), to_base(0, 2))
+  print(wraps_to(128, 8, True), wraps_to(256, 8, False), wraps_to(-1, 8, False), wraps_to(127, 8, True))
+  print(array_bytes((1000, 784), "float32"), array_bytes((1000, 784), "uint8"), array_bytes((60000, 28, 28), "float64"))
+  print(smallest_uint(200), smallest_uint(60000), smallest_uint(3_000_000_000))
+  ```
+
+  ```
+  100101 ff 11111111 0
+  -128 0 255 127
+  3136000 784000 376320000
+  uint8 uint16 uint32
+  ```
+
+  The checks compare `to_base` with Python's own conversions, `wraps_to` with what NumPy really stores, `array_bytes` with real arrays' `nbytes`, and `smallest_uint` at the boundaries.
+skills: [bases, fixed-width, sizing]

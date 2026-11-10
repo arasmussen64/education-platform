@@ -1,16 +1,82 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.hw.bits-and-integers
 kind: topic
-status: planned
-title: Bits, bytes and integers
+status: ready
+title: "Bits, bytes and integers"
 summary: "How a computer stores a whole number: binary and hexadecimal, bytes, fixed-width integers that wrap around, Python's integers that don't, and the bit operations that masks and flags are made of."
-prerequisites:
-- ml.m6.checkpoint
+prerequisites: [ml.m6.checkpoint]
+packages: [numpy]
 estimated_minutes: 45
 rev: 1
 objectives:
-- Convert between binary, decimal and hexadecimal, and read a byte.
-- "Explain what a fixed-width integer is, why an int8 wraps from 127 to -128, and why a Python int doesn't."
-- Say how many bytes a NumPy array of a given dtype and shape takes, and choose a dtype for a column of counts.
-- Use and, or, shift and masks to pack and read flags.
+  - "Convert between binary, decimal and hexadecimal, and read a byte."
+  - "Explain what a fixed-width integer is, why an int8 wraps from 127 to -128, and why a Python int doesn't."
+  - "Say how many bytes a NumPy array of a given dtype and shape takes, and choose a dtype for a column of counts."
+  - "Use and, or, shift and masks to pack and read flags."
+# Linked, never copied or embedded: NumPy's documentation is under the NumPy
+# licence (BSD-3-Clause); the Python documentation is under the PSF licence;
+# Wikipedia is CC BY-SA 4.0.
+resources:
+  - title: "NumPy user guide: Data types (the table of integer and float types, and the section on overflow errors)"
+    url: https://numpy.org/doc/stable/user/basics.types.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+  - title: "The Python documentation: Bitwise Operations on Integer Types (and, or, xor, shifts and inversion)"
+    url: https://docs.python.org/3/library/stdtypes.html#bitwise-operations-on-integer-types
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+  - title: "Wikipedia: Two's complement (the introduction and the Theory section)"
+    url: https://en.wikipedia.org/wiki/Two%27s_complement
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-what-a-byte-holds
+  - predict-three-bases
+  - mcq-why-127
+  - predict-a-wrap
+  - mcq-python-int-against-numpy-int
+  - mcq-which-dtype-for-counts
+  - parsons-pack-a-colour
+  - mcq-testing-a-flag
+  - fill-place-values
+  - write-pack-and-unpack
+prove:
+  build: build-a-bit-toolkit
+  debug: debug-a-counter-that-went-negative
+  explain:
+    prompt: |
+      A teammate's pipeline counts events per user in an int8 column and reports negative counts for the busiest users; another asks why a dataset of 60,000 grey images is 47 megabytes on disk and 376 megabytes once loaded; a third wrote `if (flags & 4) == 1:` and can't see why the branch never runs, even for dark pixels. In your own words: how a byte stores a number and how binary and hexadecimal relate to it; what a fixed-width integer is, why int8 wraps from 127 to -128 (what the top bit means), and why a Python int never does; how to size an array from its dtype and shape and choose a dtype for a column; and what the bit operations do, including why that `if` is wrong.
+    rubric:
+      - id: bases
+        required: true
+        description: "A byte is eight bits with place values 128 down to 1, 256 patterns; binary writes the bits, hexadecimal writes one digit per four bits so two digits per byte (0xFF is 255); int(s, 2), bin, hex and format convert."
+      - id: fixed-width
+        required: true
+        description: "A fixed-width integer has a set number of bits: int8 has 256 patterns, interpreted as -128 to 127 in two's complement, where the top bit counts as -128; 127 + 1 produces the pattern 10000000, which is -128, so the count wraps. Python's int grows as needed and never wraps; NumPy arrays wrap silently, so counts need a wider dtype such as int64."
+      - id: sizing
+        required: true
+        description: "Bytes are itemsize times elements: 60,000 by 28 by 28 is 47,040,000 elements, 47 MB as uint8 and 376 MB as float64 (8 bytes each); choose the smallest dtype whose range holds the column (counts to 60,000 fit uint16) and compute sums in a wider one."
+      - id: bits
+        required: true
+        description: "& keeps bits set in both, | sets, ^ flips, ~ inverts, << and >> move bits (multiply or divide by two per step); a mask like 4 picks bit 2 and keeps it in its place, so `flags & 4` is 4 when the flag is set and never 1: test it against 0 or use its truthiness (Python, unlike C, binds & tighter than ==)."
+    model_answer: |
+      A byte is eight bits, each a 0 or a 1, and reading them as place values 128, 64, 32, 16, 8, 4, 2 and 1 gives a number from 0 to 255, two hundred and fifty-six patterns in all. Binary just writes the bits out; hexadecimal writes one digit for every four bits, so a byte is exactly two hex digits and 0xFF is 11111111, which is 255. Python converts with int(s, 2), bin, hex and format. A fixed-width integer is a number stored in a set number of bits, so it has a set number of patterns: an int8 has 256. Signed types read them in two's complement, where the top bit counts as minus 128 instead of plus 128, so 01111111 is 127 and 10000000 is minus 128. Adding 1 to 127 produces the pattern 10000000, and that is minus 128: the count didn't go wrong gradually, it wrapped round, which is exactly what the busy users' negative counts are. Python's own int has no fixed width; it grows to hold whatever you compute, so 2 to the 100 is fine, and it never wraps. NumPy arrays do wrap, silently, so a column of counts needs a dtype with room, int64 or an unsigned type if counts can't be negative. Sizing an array is multiplication: the number of elements times the bytes per element, which the dtype fixes. Sixty thousand images of 28 by 28 pixels is 47,040,000 elements; as uint8, one byte each, that is 47 megabytes, which is the file; loaded as float64, eight bytes each, it is 376 megabytes. Choosing a dtype means choosing the smallest whose range holds the column, uint16 for counts up to 65,535, say, and doing sums in a wider type so they don't wrap. The bit operations work on the patterns directly: and keeps the bits set in both operands, or sets a bit, xor flips one, not inverts all of them, and the shifts move the whole pattern left or right, which multiplies or divides by two per position. A mask such as 4 is the pattern with only bit 2 set, so flags & 4 is nonzero exactly when that flag is on. The teammate's if is wrong because the mask keeps the bit where it was: flags & 4 is 4 when the flag is set and 0 when it isn't, never 1, so comparing with 1 is always false. Compare with 0, or just write if flags & 4, since any nonzero value counts as true. Python, unlike C, binds & tighter than ==, so the parentheses are for the reader, not the parser.
+review_pool:
+  - review-predict-shifts
+  - review-mcq-a-byte-in-hex
+  - review-mcq-eight-megabytes
+  - review-to-binary
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: bases
+    description: "Convert between binary, decimal and hexadecimal, and read a byte"
+  - id: fixed-width
+    description: "Say what a fixed-width integer is, why it wraps, and why a Python int doesn't"
+  - id: sizing
+    description: "Size an array from its dtype and shape, and choose a dtype for a column"
+  - id: bits
+    description: "Use and, or, xor, shifts and masks to pack and read flags"
