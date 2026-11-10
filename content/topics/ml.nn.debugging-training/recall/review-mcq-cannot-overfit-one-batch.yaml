@@ -1,0 +1,14 @@
+id: review-mcq-cannot-overfit-one-batch
+type: mcq
+rev: 1
+prompt: |
+  A network can't drive the loss on eight rows below 1.0 in 500 steps, and its gradient check fails on the second layer's weights. Where is the bug?
+choices:
+  - 'In the data: the eight rows must be mislabelled'
+  - 'In the second layer''s backward pass, which is the one thing both symptoms point at; the data and the hyperparameters are not yet in question'
+  - 'In the learning rate, since eight rows need a much smaller rate than the full set, and the gradient check is only approximate, so a failure on one layer is normal'
+  - 'In the optimizer, which must be stepping uphill'
+answer: 1
+explanation: |
+  A gradient check compares a backward gradient with central differences; a failure on one layer's weights means that layer's backward is wrong, and a network with a wrong gradient can't learn even eight rows. The data isn't in question until the code checks out, and an optimizer stepping uphill would fail the one-batch test but not the gradient check.
+skills: [bug-or-hard]

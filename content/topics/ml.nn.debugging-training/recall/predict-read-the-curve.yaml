@@ -1,0 +1,26 @@
+id: predict-read-the-curve
+type: predict_output
+rev: 1
+prompt: |
+  `read_curve` names a loss curve from its first and last value: diverging if the last is NaN or rose by half, stalled if it fell by less than a tenth, else converging. What does the program print for the four curves?
+code: |
+  import numpy as np
+  
+  
+  def read_curve(losses):
+      first, last = losses[0], losses[-1]
+      if not np.isfinite(last) or last > 1.5 * first:
+          return "diverging"
+      if last > 0.9 * first:
+          return "stalled"
+      return "converging"
+  
+  
+  print(read_curve([1.1, 0.9, 0.7, 0.5]), read_curve([1.1, 1.09, 1.08, 1.07]))
+  print(read_curve([1.1, 2.0, 7.0, 40.0]), read_curve([1.1, 0.8, 3.0, float("nan")]))
+expected_output: |
+  converging stalled
+  diverging diverging
+explanation: |
+  1.1 to 0.5 fell by more than a tenth: converging. 1.1 to 1.07 fell by less than a tenth: stalled. 1.1 to 40 rose by far more than half: diverging. A last value of NaN fails `isfinite`, so it reads diverging whatever came before: a loss that reached NaN has overflowed, which only a run that blew up does.
+skills: [learning-rate]

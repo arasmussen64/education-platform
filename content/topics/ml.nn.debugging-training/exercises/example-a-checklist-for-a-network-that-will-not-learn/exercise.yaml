@@ -1,0 +1,25 @@
+id: example-a-checklist-for-a-network-that-will-not-learn
+stage: worked_example
+rev: 1
+title: "A checklist for a network that won't learn"
+prompt: |
+  Eight checks on the three clouds of points, each failure produced on purpose: the first loss, one batch, the gradient check, three learning rates, two ways to kill ReLUs, two ways to explode the gradient and two to stop it, two data bugs, and one word per run. Press **Run**, then read how each part works.
+steps:
+  - label: "The tools"
+    lines: "143-213"
+    note: "`gradient_norm` treats all the gradients as one vector and takes its length; `clip_gradients` scales them all down by the same factor when that length passes a limit. `fit` is the training loop with two additions: it records the gradient norm at every step (before clipping) and can clip, and it runs under `errstate` so that overflow is read rather than crashed on. `dead_units` counts ReLU units that fire on no row; `overfit_one_batch` trains on a handful of rows; `standardize` applies a training-set mean and spread; `diagnose` gives a run one phrase."
+  - label: "1 to 3: the cheap checks"
+    lines: "239-247"
+    note: "With the output layer started at scale 0.01 the first loss is log 3, 1.10: the network is guessing evenly. The default scale gives 1.38, higher than guessing, a start that already has opinions. Eight rows trained alone go from 1.11 to 0.02: the code can learn. The gradient check passes: backward is right. Whatever goes wrong below is not a bug in the layers."
+  - label: "4: the learning rate"
+    lines: "249-254"
+    note: "Thirty epochs at three rates. At 0.0001 the loss moves from 1.10 to 1.03: stalled. At 0.05 it converges. At 30 it is NaN: diverging. The fix for the first two is the rate by a factor of ten, and the curve read again."
+  - label: "5: dead ReLUs"
+    lines: "256-264"
+    note: "A hidden bias of -20 makes every unit's input negative on every row, so all 16 output 0, pass no gradient back, and the loss sits at 1.10 for thirty epochs: a stall that no learning rate would cure. A rate of 10 does the same by brute force: one huge step kills 12 of 16, and that run stalls rather than diverges, reading exactly like a rate that was too low. The healthy run at 0.05 has no dead units and reaches 0.90."
+  - label: "6: exploding gradients"
+    lines: "267-282"
+    note: "Six layers started at scale 1.0 (the right scale for 32 inputs is about 0.25): the gradient norm is about 10^3 at the very first step and overflows by step 6. The He scale at 0.05 converges to 0.93. The He scale at a rate of 1.0 diverges, each step overshooting; the same run with the gradients clipped to a norm of 1 converges to 0.98, because the step can never be larger than the rate however large the gradient is."
+  - label: "7 and 8: the data, and one word each"
+    lines: "284-292"
+    note: "With the training labels shuffled apart from their rows, eight rows still memorize (0.02) but the full run goes 1.10 to 1.09 and held-out accuracy is 0.35, a third: there was no pattern to learn, and `diagnose` says stalled, the same word as a low rate. Inputs times 1000 diverge at the rate that was fine, because the first gradients are a thousand times larger; standardized with the training set's mean and spread they converge to 0.93. The last line is `diagnose` on four runs: learning, stalled, diverging, stalled."
