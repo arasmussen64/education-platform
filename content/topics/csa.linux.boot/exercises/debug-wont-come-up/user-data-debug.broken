@@ -1,0 +1,18 @@
+#cloud-config
+# The shop's web-server setup. It launched, but the instance came up only
+# half-configured and cloud-init reported errors. Three things in here are
+# wrong.
+users:
+  - name: ben
+    groups: sudo
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTheLabOnly0000000000000000000000000 ben@laptop
+packages:
+  - shop-reprot
+write_files:
+  - path: /etc/shop/report.conf
+    content: |
+      SHOP_TIER=web
+runcmd:
+  - touch /var/lib/shop-data/ready

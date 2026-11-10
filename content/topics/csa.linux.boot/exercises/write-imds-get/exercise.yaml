@@ -1,0 +1,16 @@
+id: write-imds-get
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write instance-facts"
+prompt: |
+  Write a script, `~/bin/instance-facts`, that asks the instance metadata service who this machine is and prints three lines: `instance-id: ...`, `zone: ...` and `region: ...`. Query it the session-based way (the way IMDSv2 and its equivalents require, and the way you should always write a new client): first a `PUT` to `http://169.254.169.254/latest/api/token` with a header asking for a token that lives a few minutes, then that token in an `X-aws-ec2-metadata-token` header on every `GET`.
+
+  The paths are `/latest/meta-data/instance-id`, `/latest/meta-data/placement/availability-zone` and `/latest/meta-data/placement/region`. Try `~/bin/instance-facts`; then require tokens with `lab-imds-options --tokens required` and run it again, to prove it still works when plain requests no longer do (`curl -s http://169.254.169.254/latest/meta-data/instance-id` now returns a 401). Make the script executable, and run the checks.
+hints:
+  - "Get the token into a variable: `token=$(curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 300')`. The header's number is how many seconds the token should live, up to 21600 (six hours)."
+  - "Then each value is a GET carrying the token: `curl -s -H \"X-aws-ec2-metadata-token: $token\" http://169.254.169.254/latest/meta-data/instance-id`. A helper function that takes the path saves repeating it three times."
+  - "Print the three lines in order with the labels the checks expect: `instance-id:`, `zone:`, `region:`, a space, then the value."
+skills: [metadata, imds-v2]

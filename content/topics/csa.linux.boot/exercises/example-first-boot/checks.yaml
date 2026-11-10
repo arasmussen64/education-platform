@@ -1,0 +1,31 @@
+# The checks for "A server configures itself on first boot": cloud-init
+# finished and configured the machine, and the saved facts show the setup
+# and the once-per-instance rule (one line after a reboot, two after a new
+# launch).
+checks:
+  - id: cloud-init-done
+    description: "cloud-init finished its run (status: done)."
+    command: cloud-init status
+    expect:
+      contains: "status: done"
+  - id: configured-the-machine
+    description: "First boot made ben with his key, installed shop-agent, wrote the config and set the hostname."
+    command: id ben > /dev/null && grep -q 'ssh-ed25519' /home/ben/.ssh/authorized_keys && dpkg -l shop-agent 2>/dev/null | grep -q '^ii' && grep -q SHOP_ENV=prod /etc/shop/config.env && test "$(hostname)" = shop-1 && echo "configured"
+    expect:
+      contains: configured
+  - id: facts-saved
+    description: "~/example/configured.txt holds the status, the hostname shop-1 and the instance id."
+    command: |
+      grep -q 'done' /home/learner/example/configured.txt && grep -q 'hostname: shop-1' /home/learner/example/configured.txt && grep -qE 'instance: i-[0-9a-f]+' /home/learner/example/configured.txt && echo "saved"
+    expect:
+      contains: saved
+  - id: once-per-instance
+    description: "~/example/once.txt is 2: one line from this instance's first boot, one from the instance lab-launch made, and none added by the reboot in between."
+    command: cat /home/learner/example/once.txt
+    expect:
+      equals: "2"
+  - id: runcmd-not-repeated
+    description: "first-boot.txt has one line per distinct instance id, so runcmd ran once per instance and not on the reboot."
+    command: sort -u /var/lib/shop/first-boot.txt | wc -l | tr -d ' '
+    expect:
+      equals: "2"

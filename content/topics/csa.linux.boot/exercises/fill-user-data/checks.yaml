@@ -1,0 +1,27 @@
+# The checks for "Finish the user data": no gaps left, and a launched
+# instance installed the package, wrote the file with the right value, and
+# left the readiness marker.
+checks:
+  - id: no-gaps
+    description: "The user-data file has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/user-data.yaml"
+  - id: valid-cloud-config
+    description: "The file is a valid #cloud-config document."
+    command: head -1 /home/learner/user-data.yaml | grep -q '^#cloud-config' && cloud-init schema --config-file /home/learner/user-data.yaml 2>&1
+    expect:
+      contains: "Valid"
+  - id: package-installed
+    description: "A launched instance installed shop-report."
+    command: dpkg -l shop-report 2>/dev/null | grep '^ii' | awk '{print $2}'
+    expect:
+      equals: shop-report
+  - id: file-written
+    description: "The config file is at /etc/shop/report.env with SHOP_TIER=web."
+    command: cat /etc/shop/report.env
+    expect:
+      contains: "SHOP_TIER=web"
+  - id: ready-marked
+    description: "runcmd left the readiness marker."
+    command: test -f /var/lib/shop/ready && echo "ready"
+    expect:
+      contains: ready

@@ -1,0 +1,32 @@
+id: example-first-boot
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "A server configures itself on first boot"
+prompt: |
+  This lab machine stands in for a fresh cloud instance: it booted from a plain image and cloud-init turned it into the shop's server from the user data attached at launch. The walkthrough reads what cloud-init did and how long the boot took, finds where the instructions came from, and then shows the rule that trips everyone up: most of the work happens once per instance. `lab-launch` and `lab-reboot` stand in for the cloud console's Launch and Reboot buttons. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "What cloud-init did, and whether it finished"
+    lines: "1"
+    note: "`cloud-init status --long` says whether the run finished (`status: done`) and which datasource it used: `NoCloud`, the lab's stand-in for a cloud's metadata service. `cloud-init query instance_id` prints this instance's id. A real instance shows `done` here within a minute of launch, or an error you can chase."
+  - label: "The marks it left on the machine"
+    lines: "2"
+    note: "The user data asked for a user, a package, a file and a command, and here they are: `ben` with his SSH key in `/home/ben/.ssh/authorized_keys`, the `shop-agent` package installed from the shop's repository, `/etc/shop/config.env` written, and a line in `/var/lib/shop/first-boot.txt` from `runcmd`. The hostname is `shop-1`, set from the metadata. This is a whole server's setup from one YAML document."
+  - label: "Where the instructions were"
+    lines: "3"
+    note: "The seed under `/var/lib/cloud/seed/nocloud` holds `meta-data` (identity: the instance id and hostname) and `user-data` (the `#cloud-config` document). On a real cloud these come from the metadata service instead; the shape is the same. `cloud-init query userdata` prints the user data cloud-init actually used."
+  - label: "How long the boot took, and on what"
+    lines: "4"
+    note: "`systemd-analyze` gives the total; `systemd-analyze blame` the slowest units. cloud-init is four services: `cloud-init-local`, `cloud-init`, `cloud-config`, `cloud-final`. `cloud-final` runs `runcmd` and installs packages, so it's usually the longest. `cloud-init analyze blame` breaks the time down by cloud-init's own stages."
+  - label: "A reboot of the same instance changes nothing"
+    lines: "5"
+    note: "`lab-reboot` runs cloud-init again as a reboot would. `first-boot.txt` still has one line: the per-instance modules, `runcmd` among them, see the same instance id they already configured and skip it. This is why you can reboot a configured server safely, and why `runcmd` is not where a command you need on every boot belongs (`bootcmd` is)."
+  - label: "A new instance runs it all again"
+    lines: "6"
+    note: "`lab-launch` stands in for launching a fresh instance from the same image: a new instance id, so cloud-init treats it as a first boot and runs everything again. Now `first-boot.txt` has a second line, with the new id. The image is reusable precisely because the per-instance work is tied to the instance id, not baked in."
+  - label: "Save the three facts"
+    lines: "7"
+    note: "The status, the configured hostname and the instance id into `~/example/configured.txt`; the line count of `first-boot.txt` after the reboot and after the launch into `~/example/once.txt`. Together they are the whole lesson: a server built from user data, and built once per instance."
+skills: [boot-sequence, cloud-init]

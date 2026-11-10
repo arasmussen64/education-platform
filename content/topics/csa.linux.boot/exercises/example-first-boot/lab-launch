@@ -1,0 +1,32 @@
+#!/bin/bash
+# Usage: lab-launch [USER-DATA-FILE]
+# Launches "a fresh instance from this image": a stand-in for the cloud
+# console's Launch button. A new instance gets a new instance ID, the user
+# data you attach, and a first boot in which cloud-init runs every stage.
+# The lab machine can't really reboot (it's a container), so this runs
+# cloud-init's four stages here, in the order the boot would: init --local,
+# init, modules --mode config, modules --mode final.
+set -u
+if [ "$(id -u)" -ne 0 ]; then
+  exec sudo "$0" "$@"
+fi
+seed=/var/lib/cloud/seed/nocloud
+if [ $# -ge 1 ]; then
+  cp "$1" "$seed/user-data"
+fi
+old=$(cat /etc/lab/instance-id)
+number=$((16#${old: -4} + 1))
+new=$(printf '%s%04x' "${old:0:${#old}-4}" "$number")
+echo "$new" > /etc/lab/instance-id
+printf 'instance-id: %s\nlocal-hostname: shop-1\n' "$new" > "$seed/meta-data"
+echo "Launching a fresh instance from this image: $new (the old one, $old, is gone)."
+echo "First boot: cloud-init runs its four stages. Its output follows."
+echo "----------------------------------------------------------------------"
+cloud-init clean --logs
+cloud-init init --local > /dev/null 2>&1 || true
+cloud-init init > /dev/null 2>&1 || true
+cloud-init modules --mode config > /dev/null 2>&1 || true
+cloud-init modules --mode final > /dev/null 2>&1 || true
+cat /var/log/cloud-init-output.log
+echo "----------------------------------------------------------------------"
+cloud-init status --long | head -4 || true

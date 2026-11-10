@@ -1,0 +1,14 @@
+id: fill-user-data
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the user data"
+prompt: |
+  `~/user-data.yaml` is a `#cloud-config` document for the shop's web servers, with four values missing, each marked `...`. Fill them in with `nano ~/user-data.yaml` so that a launched instance: installs the `shop-report` package; writes a file at `/etc/shop/report.env` whose one line is `SHOP_TIER=web`; and leaves a readiness marker by running `touch /var/lib/shop/ready` at the end. (The package line, the file's path, the value in its content, and the command are the four gaps.) Then launch an instance from it with `lab-launch ~/user-data.yaml`, which stands in for the cloud console's Launch button and runs cloud-init's stages. Check with `cloud-init status --long`, `dpkg -l shop-report`, `cat /etc/shop/report.env` and `ls /var/lib/shop/ready`. Then run the checks.
+hints:
+  - "`packages:` is a list of names cloud-init installs; the one gap under it is the package, `shop-report`. The repository is already on the machine, so no URL is needed."
+  - "Under `write_files`, `path:` is where the file goes (`/etc/shop/report.env`) and the `content:` block is what goes in it; the gap in the content is the value after `SHOP_TIER=`, which is `web`."
+  - "`runcmd:` is a list of commands run at the end of the boot. The gap is one command: `touch /var/lib/shop/ready`. cloud-init makes `/var/lib/shop` for you only if you create it; add `mkdir -p /var/lib/shop` before the touch, or the shop image already has it."
+skills: [cloud-init]

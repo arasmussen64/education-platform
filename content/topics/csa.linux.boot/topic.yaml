@@ -1,6 +1,6 @@
 id: csa.linux.boot
 kind: topic
-status: draft
+status: ready
 title: "Boot, cloud-init and instance metadata"
 summary: "What happens between pressing power and a ready server: firmware, bootloader, kernel, systemd; how cloud-init turns a bare image into your configured instance from user data; what the instance metadata service offers; and why its session-based form (IMDSv2 and its cousins) closes a famous hole."
 prerequisites: [csa.linux.services]
@@ -51,10 +51,14 @@ resources:
     type: reading
     use: link
     license: "LGPL-2.1-or-later (systemd documentation)"
-# Lessons and recall first (ADR-0017). The items read systemd-analyze,
-# the boot journal, user data, cloud-init's log and metadata listings with
-# the text tools of the first topic; booting a real instance comes in the labs.
+# The recall items read systemd-analyze, the boot journal, user data,
+# cloud-init's log and metadata listings with the text tools of the first
+# topic. The worked example, the fill-in, the write and both proofs are labs
+# on a machine that stands in for a fresh instance: cloud-init runs at its
+# first boot from a seed, "console" stand-ins launch and reboot it, and a
+# metadata-service stand-in answers at 169.254.169.254 (ADR-0017, ADR-0018).
 practice:
+  - example-first-boot
   - mcq-boot-order
   - boot-analyze-summary
   - boot-analyze-blame
@@ -70,7 +74,11 @@ practice:
   - mcq-imdsv2-why
   - meta-token-requests
   - mcq-other-clouds-headers
+  - fill-user-data
+  - write-imds-get
 prove:
+  build: build-close-the-hole
+  debug: debug-wont-come-up
   explain:
     prompt: |
       A new cloud VM "comes up but isn't configured": the package your user data was meant to install isn't there, and a colleague wants to know "where the VM even gets that script from". Explain, in your own words: the steps from power-on to a ready server and where cloud-init fits among them; where cloud-init finds its instructions and the two forms user data can take; why a change to the user data after the first boot changes nothing, and where you'd look to see what cloud-init did; what the instance metadata service is and what it hands out; and why the newer, session-based way of reaching it matters for security.
