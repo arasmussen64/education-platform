@@ -298,6 +298,62 @@ describe('the placement page', () => {
     })
   })
 
+  it('offers "I don\'t know this" on every question and counts it as wrong', async () => {
+    const { client } = renderPlacement()
+    await userEvent.click(
+      within(await region('Python Foundations')).getByRole('button', {
+        name: 'Start',
+      }),
+    )
+    for (let step = 0; step < 40; step++) {
+      if (screen.queryByRole('heading', { name: /where to start/ })) break
+      await screen.findByRole('radio', { name: 'right' })
+      await answer("I don't know this")
+    }
+    const result = await region('Python Foundations: where to start')
+    expect(result).toHaveTextContent('You answered 0 of 10 right.')
+    expect(result).toHaveTextContent(
+      'Start at the beginning: Programs and print.',
+    )
+
+    await waitFor(() => {
+      expect(
+        sentRows(client).filter((row) => row.type === 'placement'),
+      ).toHaveLength(1)
+    })
+    const answers = sentRows(client).filter((row) => row.type === 'answer')
+    expect(answers).toHaveLength(10)
+    expect(answers.every((row) => row.correct === false)).toBe(true)
+    // Saved as "didn't know", not as a wrong choice.
+    for (const row of answers) {
+      expect(row.data).toMatchObject({
+        choice: null,
+        choice_text: null,
+        dont_know: true,
+      })
+    }
+  })
+
+  it('offers "I don\'t know this" on the math ladder too', async () => {
+    const { client } = renderPlacement()
+    await userEvent.click(
+      within(await region('Math for machine learning')).getByRole('button', {
+        name: 'Start',
+      }),
+    )
+    await screen.findByRole('heading', { name: 'Quick check' })
+    await answer("I don't know this")
+    await waitFor(() => {
+      expect(
+        sentRows(client).filter((row) => row.type === 'answer'),
+      ).toHaveLength(1)
+    })
+    const row = sentRows(client).find((each) => each.type === 'answer')
+    expect(row?.correct).toBe(false)
+    expect(row?.data).toMatchObject({ choice: null, dont_know: true })
+    expect(row?.data).toHaveProperty('level')
+  })
+
   it('shows the last result on a card, and offers to take it again', async () => {
     renderPlacement([
       {

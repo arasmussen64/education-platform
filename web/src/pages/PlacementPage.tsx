@@ -60,7 +60,9 @@ export function PlacementPage() {
           worth of questions, ten minutes or so. It doesn't say which answers
           were right until the end, and it ticks nothing off: the topics you
           seem to know become a short list to prove, in order, with "Prove it
-          now".
+          now". Every question has an "I don't know this" answer: use it rather
+          than guess, because a lucky guess would place you past what you know
+          and cost you time later.
         </p>
       </header>
       {auth.status === 'signed-in' && <Subjects />}
@@ -667,7 +669,7 @@ function LevelProbe({
   const [results, setResults] = useState<boolean[]>([])
   const [answered, setAnswered] = useState(false)
 
-  function graded(item: McqItem, correct: boolean, choice: number) {
+  function graded(item: McqItem, correct: boolean, choice: number | null) {
     if (answered) return
     record({
       type: 'answer',
@@ -681,7 +683,9 @@ function LevelProbe({
         run,
         level: level.id,
         choice,
-        choice_text: item.choices[choice] ?? null,
+        choice_text: choice === null ? null : (item.choices[choice] ?? null),
+        // "I don't know this" is a wrong answer that was never a guess.
+        ...(choice === null ? { dont_know: true } : {}),
       },
     })
     setResults([...results, correct])

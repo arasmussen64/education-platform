@@ -3,13 +3,19 @@ import type { ParsonsItem } from '../content/types.ts'
 import { Markdown } from './Markdown.tsx'
 import { Recorded } from './Recorded.tsx'
 import { scramble, swap } from './scramble.ts'
-import { BUTTON, CODE_BOX } from './styles.ts'
+import { BUTTON, CODE_BOX, SECONDARY_BUTTON } from './styles.ts'
 
 type Props = {
   item: ParsonsItem
-  /** Called once, when the learner checks, with the program as they left it. */
-  onAnswer?: (correct: boolean, program: string[]) => void
-  /** True in the placement test (ADR-0021): no word on whether it was right. */
+  /**
+   * Called once, when the learner checks, with the program as they left it,
+   * or null for "I don't know this" (placement only).
+   */
+  onAnswer?: (correct: boolean, program: string[] | null) => void
+  /**
+   * True in the placement test (ADR-0021): no word on whether it was right,
+   * and an "I don't know this" button beside Check.
+   */
   quiet?: boolean
 }
 
@@ -53,6 +59,12 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
   function handleCheck() {
     setChecked(true)
     onAnswer?.(correct, program)
+  }
+
+  /** The placement test's way out of guessing: recorded as a wrong answer. */
+  function dontKnow() {
+    setChecked(true)
+    onAnswer?.(false, null)
   }
 
   const decoys = item.distractors.length
@@ -166,14 +178,25 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
           <Markdown>{item.explanation}</Markdown>
         </output>
       ) : (
-        <button
-          type="button"
-          onClick={handleCheck}
-          disabled={program.length === 0}
-          className={BUTTON}
-        >
-          Check
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleCheck}
+            disabled={program.length === 0}
+            className={BUTTON}
+          >
+            Check
+          </button>
+          {quiet && (
+            <button
+              type="button"
+              onClick={dontKnow}
+              className={SECONDARY_BUTTON}
+            >
+              I don't know this
+            </button>
+          )}
+        </div>
       )}
     </div>
   )

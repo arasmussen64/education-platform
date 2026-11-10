@@ -7,14 +7,21 @@ import { BUTTON, INLINE_CODE } from './styles.ts'
 
 type Props = {
   item: McqItem
-  /** Called once, when the learner checks their answer. */
-  onAnswer?: (correct: boolean, choice: number) => void
+  /**
+   * Called once, when the learner checks their answer. `choice` is the
+   * author's index, or null for "I don't know this" (placement only).
+   */
+  onAnswer?: (correct: boolean, choice: number | null) => void
   /**
    * True in the placement test (ADR-0021): the answer is taken without
-   * saying whether it was right, so the test measures instead of teaching.
+   * saying whether it was right, so the test measures instead of teaching,
+   * and "I don't know this" is offered so that nobody has to guess.
    */
   quiet?: boolean
 }
+
+/** What the learner picked: a choice's index, or the way out of guessing. */
+type Picked = number | 'unknown'
 
 /**
  * A multiple-choice question. The learner commits to an answer before seeing
@@ -25,13 +32,13 @@ type Props = {
 export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
   const promptId = useId()
   const order = useMemo(() => choiceOrder(item), [item])
-  const [choice, setChoice] = useState<number | null>(null)
+  const [choice, setChoice] = useState<Picked | null>(null)
   const [checked, setChecked] = useState(false)
 
   function handleCheck() {
     if (choice === null) return
     setChecked(true)
-    onAnswer?.(choice === item.answer, choice)
+    onAnswer?.(choice === item.answer, choice === 'unknown' ? null : choice)
   }
 
   const correct = choice === item.answer
@@ -59,6 +66,21 @@ export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
             </span>
           </label>
         ))}
+        {quiet && (
+          // The honest answer when none of the above is known (ADR-0021,
+          // amended 2026-11-10): it counts as wrong, so a guess can't place
+          // the learner past what they know.
+          <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-slate-300 px-3 py-2 text-slate-600 dark:border-slate-600 dark:text-slate-400">
+            <input
+              type="radio"
+              name={promptId}
+              checked={choice === 'unknown'}
+              disabled={checked}
+              onChange={() => setChoice('unknown')}
+            />
+            I don't know this
+          </label>
+        )}
       </div>
       {checked && quiet ? (
         <Recorded />
