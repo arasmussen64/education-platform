@@ -2,6 +2,19 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Module 8 of the ML track is outlined
+
+**Module 8, neural networks from scratch, is outlined:** seven planned topics and Checkpoint 8 in `content/tracks/ml-foundations.yaml`, a planned `topic.yaml` for each (the map shows them as coming soon), and the spec's one-line bullet turned into the usual table (`docs/specs/ml-foundations.md`, "Module 8"). The module builds on Module 4, which taught the calculus of a two-layer network, and builds networks the way libraries do: layers as objects with forward and backward passes and a `Sequential` that runs the chain rule (topics 50 and 51); starting weights and activation functions measured through depth (52); the mini-batch training loop with a validation set (53); regularization, with weight decay, dropout in its two modes and early stopping (54); a convolutional layer, gradient-checked (55); and a checklist for training that won't learn (56). The checkpoint trains a network that reads digits.
+
+**Decisions for you to review:**
+
+1. _The digits are a pixel font, not a downloaded dataset._ The browser can't fetch MNIST, scikit-learn's bundled digits would mean loading a large new package into Pyodide (and an ADR-0023 decision), so the checkpoint generates its own: the ten digits as 7-by-5 bitmaps, shifted by a pixel or two on a slightly larger canvas and noised with a seed, a few thousand images. It is a real classification problem, small enough to train in seconds in NumPy, and it needs nothing new.
+2. _Checks are gradient checks and accuracy bars, not exact numbers after many steps,_ because a training loop amplifies the last-bit differences between the browser's arithmetic and CPython's; the loss curves in worked examples will be printed rounded and asserted for their story (falling, diverging), as Module 4 did.
+3. _Module 8's first topic requires both Checkpoint 4 and Checkpoint 7,_ so the map stays linear through Module 7; the convolution and training topics lean on the vectorization and floating-point topics.
+4. _This is the next ML module written under your standing instruction;_ the cloud track's Module 2 still waits on your call about paid labs.
+
+**Next:** the module's topics, one PR each, starting with `ml.nn.neurons-and-layers`.
+
 ## 2026-11-10: Module 7's cold review, about 45 findings fixed
 
 **Two cold reviewers read all of Module 7 with the same brief** (every topic file, lesson, recall item and exercise, numbers checked by running the programs, every resource page fetched) and reported 27 and 31 findings, about 45 distinct once merged. All of them are fixed in one PR, by patching the eight generators and regenerating the topics, so the generators stay the source of truth; the whole module validates (52 exercises, 71 recall items, 245 programs). The reviewers' overall judgement: the code, counts and tests were right throughout; the prose around them had a handful of confident mistakes a beginner can't detect.

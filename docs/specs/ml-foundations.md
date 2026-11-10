@@ -154,11 +154,26 @@ Module 6 counted steps; this module asks what a step costs and why. Bits, bytes 
 
 **Checkpoint 7: make it fast** (`ml.m7.checkpoint`). Profile a slow, numerically shaky feature pipeline, find its hot loop and vectorize it, showing the gain with the doubling test and the profile; fix three numeric bugs (an int8 column that wraps, a float32 sum that drifts, a softmax that overflows to NaN); estimate the parameters, FLOPs and memory of the model the pipeline feeds; and explain floating point and why vectorized code is fast. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
 
+## Module 8: Neural networks from scratch
+
+Module 4 built a two-layer network by hand to learn the calculus; this module builds networks the way libraries do, as layers that each know their forward and backward pass, and trains them properly: starting weights that keep the signal alive, mini-batches and shuffling, a validation set, regularization, a convolutional layer for images, and a checklist for when training fails. Everything runs in the browser in NumPy with a seed; the checks gradient-check the pieces and hold a network to an accuracy bar on data it hasn't seen, rather than to exact numbers after many steps.
+
+| # | Topic | ID | Needs | You'll be able to… |
+| --- | --- | --- | --- | --- |
+| 50 | Neurons, layers and a network's shape | `ml.nn.neurons-and-layers` | `ml.m4.checkpoint`, `ml.m7.checkpoint` | write a neuron and a dense layer in NumPy; compose layers into a network with a forward pass and track shapes through it; count parameters; explain why the hidden activations are what make depth matter |
+| 51 | Layers that carry their gradient | `ml.nn.backward-layers` | `ml.nn.neurons-and-layers` | implement backward for dense and activation layers; implement MSE and softmax cross-entropy with their gradients; chain backward calls and gradient-check them; explain the chain rule at a layer boundary |
+| 52 | Starting weights and activation functions | `ml.nn.initialization-and-activations` | `ml.nn.backward-layers` | show why zero weights can't learn; measure activation and gradient scale through depth under different starting weights; choose an activation and its He or Xavier scale; explain saturation and dead ReLUs |
+| 53 | The training loop | `ml.nn.training-loop` | `ml.nn.backward-layers` | write a mini-batch training loop with shuffling; split data and evaluate on a validation set; read a loss curve; say what batch size and learning rate trade |
+| 54 | Regularization: learning what generalizes | `ml.nn.regularization` | `ml.nn.training-loop` | recognize overfitting from the two curves; implement weight decay and dropout with train and eval modes; implement early stopping; say what each regularizer assumes |
+| 55 | Convolutions: a layer that reads images | `ml.nn.convolution` | `ml.nn.backward-layers` | compute a 2-D cross-correlation and explain an edge kernel; count a conv layer's parameters against a dense layer's; implement and gradient-check a conv layer; say what pooling and stride do |
+| 56 | When training goes wrong | `ml.nn.debugging-training` | `ml.nn.training-loop`, `ml.nn.initialization-and-activations` | diagnose and fix a bad learning rate from the curve; use overfit-one-batch and the gradient check; detect dead ReLUs and exploding gradients; find a data bug from how training behaves |
+
+**Checkpoint 8: a network that reads digits** (`ml.m8.checkpoint`). Build dense and convolutional layers with their backward passes, softmax cross-entropy, and a mini-batch training loop with Adam, weight decay and dropout; gradient-check the pieces; train on the module's digit images (a pixel font for the ten digits, shifted and noised with a seed, so no dataset has to be downloaded) to the accuracy bar on a held-out set; find three bugs in a training script that won't learn; and explain backpropagation and regularization. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
+
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 7 had before they were written (all five on 2026-11-10).
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 7 had before they were written (all five on 2026-11-10) and Module 8 has (outlined 2026-11-10).
 
-- **8. Neural networks from scratch:** a neuron, a layer, a loss; backpropagation by hand and in code; training loops; regularization; a small network that reads digits.
 - **9. Transformers:** embeddings, attention, the transformer block; training a tiny language model; tokenizers; what scaling changes.
 - **10. ML systems:** data pipelines, experiment tracking, evaluation, serving, monitoring, and the engineering judgement around them.
 
