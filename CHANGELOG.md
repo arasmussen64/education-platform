@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Changed (CI)
+
+- The Labs job, most of an hour of proving every lab in Docker, now runs only when a cloud topic (`content/topics/csa.*`, where every lab lives) or the tooling changes, not for a Python topic or the web app.
+
 ### Added (Step through)
 
 - **A Step through button** beside Run in every code runner, and **Step through it** under predict-the-output questions once they're answered ([ADR-0022](docs/decisions/0022-step-through.md)). The program plays back one step at a time: the line about to run, each running call's variables, and the output so far, with First, Back, Next, Last and a slider. It reuses the last Run's input and random seed, so it shows what you just saw.
