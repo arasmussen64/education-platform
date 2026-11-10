@@ -1,0 +1,25 @@
+id: example-a-pipeline-made-fast
+stage: worked_example
+rev: 1
+title: "A pipeline made fast"
+prompt: |
+  The checkpoint's four fixes, each shown before and after on a small pipeline: the hot loop found by its call count and vectorized, an int8 column widened, a float32 running total summed in float64, a softmax kept finite; then the cost of the model the pipeline feeds. Press **Run**, then read how each part works; the checkpoint is the same fixes on your own code, with the checks counting what they cost.
+steps:
+  - label: "The hot loop, found by counting"
+    lines: "7-47"
+    note: "The loop version calls `distance_squared` once per row and centroid: 2,000 calls for 400 rows. The vectorized version makes every row-centroid difference in one broadcast, `(400, 1, 4)` against `(1, 5, 4)`, sums the squares along the last axis and takes `argmin` along the centroids: 0 calls, and the same labels. The profile is read in code, as the profiling topic does, so the counts are exact."
+  - label: "The doubling test on counts"
+    lines: "48-49"
+    note: "Doubling the rows doubles the calls: the loop is linear in the rows, and so is the array operation, since both must touch every row. Vectorizing can't change that; it changes what each row costs, the constant, by a factor of tens to hundreds, because the interpreter's per-element work is gone."
+  - label: "An int8 column that wraps"
+    lines: "51-52"
+    note: "An int8 holds -128 to 127; `clicks * 7` stays int8, so 140 wraps to -116 with no error. Widening the column to int64 first gives the real numbers. A column's dtype must hold every value an operation on it can reach, not just the values stored."
+  - label: "A running total that drifts"
+    lines: "54-58"
+    note: "A hundred thousand float32 tenths added one at a time to a float32 total come out at 0.099986 on average: once the total is in the thousands, each tenth's low bits fall off in the same direction every time. Summed as one array operation, NumPy adds pairwise, and with `dtype=np.float64` the accumulation has digits to spare: 0.100000. It is also the pipeline's second hot loop, gone."
+  - label: "A softmax that overflows"
+    lines: "60-65"
+    note: "`exp(1000)` overflows to infinity and infinity over infinity is NaN (the `errstate` only silences the warning so the result can be shown). Subtracting each row's largest logit first leaves the ratios, and so the probabilities, unchanged, and makes every exponent at most 0: finite rows that sum to 1."
+  - label: "What the model will cost"
+    lines: "67-69"
+    note: "Parameters are `in * out + out` per dense layer, 2,565 here; training costs about 6 FLOPs per parameter per example, 6.2 million for one pass over the 400 rows; and memory is four copies of the parameters (weights, gradients, two Adam moments, 16 bytes each in float32) plus one batch of activations. The time those FLOPs take on a machine is optimistic by the utilization it really reaches."

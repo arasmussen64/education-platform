@@ -1,0 +1,27 @@
+id: debug-a-shaky-pipeline
+stage: debug
+rev: 1
+title: "Three numeric bugs in a pipeline"
+prompt: |
+  This is the pipeline's numeric core on its data, and it should print:
+
+  ```
+  weekly: [140, 350, 700, 840]
+  mean loss: 0.1
+  softmax: [[0.269, 0.731], [0.269, 0.731]]
+  ```
+
+  It has three bugs, one in each function. Run it:
+
+  1. **The weekly clicks are negative:** `[-116, 94, -68, 72]`. The clicks column is an **int8**, one byte per value with a range of -128 to 127, and `clicks * 7` stays int8: 20 times 7 is 140, which wraps round to -116, silently, because array arithmetic in a fixed width wraps. Widen the column before multiplying (`astype(np.int64)`).
+  2. **The mean loss is `0.099986`, not `0.1`:** `mean_loss` adds a hundred thousand float32 tenths to a float32 running total, one at a time. Once the total is in the thousands, each tenth's low bits are dropped in the same direction every time, and the drift is visible in the fifth digit. It is also the pipeline's hot loop. Sum as one array operation (NumPy adds pairwise) and accumulate in float64 (`sum(dtype=np.float64)`).
+  3. **The first softmax row is `[nan, nan]`:** `exp(1000)` is beyond the largest float, so it overflows to infinity, and infinity over infinity is NaN. Subtract each row's largest logit before the exponential (`logits.max(axis=1, keepdims=True)`); the ratios don't change and every exponent is at most 0.
+
+  The checks also feed `weekly` an int8 127, hold `mean_loss` to a millionth on two hundred thousand float32 tenths with no Python loop over them, and give `softmax` logits of 5,000 and -5,000.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.hw.bits-and-integers/fixed-width, ml.hw.floating-point/accumulation, ml.hw.floating-point/special]
+  test_weekly_widens: [ml.hw.bits-and-integers/fixed-width, ml.hw.bits-and-integers/sizing]
+  test_mean_does_not_drift: [ml.hw.floating-point/accumulation, ml.hw.vectorization/dependence, ml.hw.profiling/decide]
+  test_softmax_stays_finite: [ml.hw.floating-point/special]
