@@ -1,33 +1,57 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.m1.checkpoint
 kind: checkpoint
-status: planned
-title: 'Checkpoint 1: the broken server'
-summary: You get a container with five planted faults.
+status: ready
+title: "Checkpoint 1: the broken server"
+summary: "Stand up a server to the runbook, and restore one that's broken five ways, pulling together the whole Linux module without weakening security."
 prerequisites:
-- csa.linux.shell
-- csa.linux.processes
-- csa.linux.permissions
-- csa.linux.services
-- csa.linux.packages
-- csa.linux.storage
-- csa.linux.memory
-- csa.linux.cpu
-- csa.linux.containers
-- csa.linux.net-tools
-- csa.linux.boot
-- csa.linux.scripting
-- csa.linux.triage
-- csa.linux.hardening
-estimated_minutes: 480
+  - csa.linux.shell
+  - csa.linux.processes
+  - csa.linux.permissions
+  - csa.linux.services
+  - csa.linux.packages
+  - csa.linux.storage
+  - csa.linux.memory
+  - csa.linux.cpu
+  - csa.linux.containers
+  - csa.linux.net-tools
+  - csa.linux.boot
+  - csa.linux.scripting
+  - csa.linux.triage
+  - csa.linux.hardening
+estimated_minutes: 120
 rev: 1
 objectives:
-- You get a container with five planted faults.
-- A full disk.
-- A service failing on a bad config.
-- A key with the wrong permissions.
-- A blocked port.
-- A runaway process.
-- 'Restore service within 45 minutes without weakening security. Turning the firewall off fails the check. A second part: a container that keeps getting killed and throttled. Find out why from its cgroup metrics and fix its limits.'
+  - "Stand up a server to a runbook: run its service, put up a default-deny firewall that keeps the ports it needs, and harden SSH, without locking yourself out."
+  - "Restore a server broken several ways at once (a full disk, a failing service, wrong key permissions, a blocked port, a runaway process), using the right tool for each."
+  - "Fix an incident without weakening security: never turn the firewall off or passwords on to make something work."
+  - "Work from the evidence, the service's journal, the socket and cgroup listings, the firewall's ruleset, not by guessing."
+prove:
+  build: build-stand-up-server
+  debug: debug-broken-server
+  explain:
+    prompt: |
+      A teammate was paged for a downed server and got it answering again by running `sudo nft flush ruleset` (turning the firewall off) and setting `PasswordAuthentication yes` (turning password logins back on). It works now, and they've closed the incident.
+
+      Explain, in your own words, what's wrong with that, and how you'd have restored the same server properly. Cover: why "it works now" isn't the bar for an incident fix; what the firewall and the SSH settings they changed were protecting against; and how you'd have found and fixed the actual causes instead, naming the evidence you'd read for a full disk, a service that won't start, a refused login, a blocked port and a runaway process.
+    rubric:
+      - id: not-weakening
+        required: true
+        description: "Restoring service by removing the protections (firewall off, passwords on) trades an outage for a bigger risk: the server is now reachable on every port and open to password guessing, which is how servers get taken over. 'It works' isn't the bar; 'it works and is still secure' is."
+      - id: what-was-protecting
+        required: true
+        description: "The default-deny firewall kept everything but the needed ports closed; turning it off exposes every listening service. Password logins off stops brute-force guessing against SSH; turning them on re-opens that door. These are baseline controls, not the cause of the outage."
+      - id: finding-causes
+        required: true
+        description: "Each fault has its own evidence and fix: df for a full disk (clear what filled it); systemctl status / journalctl for a failed service (fix its unit); the sshd logs and ~/.ssh permissions for a refused key login (chmod); nft list ruleset for a blocked port (add the rule, keep default-deny); top / pidstat for a runaway (stop it at its service)."
+      - id: method
+        required: false
+        description: "Measure, change one thing, measure again; keep the firewall and SSH hardened throughout; a fix that can't be shown to keep the baseline isn't done."
+    model_answer: |
+      Getting the server answering again isn't the same as fixing it. Turning the firewall off and passwords back on does restore service, but it trades a short outage for a much bigger problem: with the firewall flushed, every service listening on the box is now reachable from anywhere, not just the one port that was meant to be open; and with password authentication on, SSH is open to the brute-force guessing that keeps every server on the internet under constant attack. Those two settings weren't the cause of the outage, they were the baseline protecting the server, so removing them "to make it work" is how a small incident becomes a compromise. The bar for an incident fix isn't "it works," it's "it works and the server is still secure." I'd have left both in place and found the real causes, one tool each. A full disk shows up in df; I'd find what filled /srv/shop with du and clear it. A service that won't start shows up in systemctl status and journalctl -u, which would have named the bad line in its unit, probably an ExecStart pointing at the wrong binary, which I'd fix and restart. A refused key login with a good key is almost always permissions: sshd refuses a world-writable ~/.ssh, and chmod 700 fixes it (the logs say so). A blocked port is in nft list ruleset: the firewall was default-deny and never had a rule for the API's 8080, so I'd add tcp dport 8080 accept and keep policy drop, saving it to /etc/nftables.conf. And a runaway process is in top or pidstat: I'd find the one pegging the CPU and stop it at its service so it stays stopped. Five causes, five fixes, and the firewall and SSH hardened the whole way through.
+# A way through for a learner who's stuck (ADR-0012): a solved sibling in a
+# different story, the build in steps with the other parts done for them,
+# and fresh versions in other stories.
+unstuck:
+  example: example-stand-up-blog
+  steps: [step-run-the-service, step-put-up-the-firewall, step-harden-ssh, step-the-whole-runbook]
+  versions: [build-stand-up-gateway, build-stand-up-ledger]

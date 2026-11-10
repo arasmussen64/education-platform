@@ -1,0 +1,40 @@
+# The checks for "The broken server": each of the five faults fixed, and the
+# server still hardened (the firewall default-deny, passwords off).
+checks:
+  - id: disk-has-space
+    description: "The data area /srv/shop has room again."
+    command: df --output=avail /srv/shop | tail -1 | tr -d ' '
+    expect:
+      gte: 5000
+  - id: service-running
+    description: "shop-api is active again, and stays so (read twice, a second apart)."
+    command: |
+      a=$(systemctl is-active shop-api); sleep 1; b=$(systemctl is-active shop-api)
+      test "$a" = active && test "$b" = active && echo active
+    expect:
+      equals: active
+  - id: key-login-works
+    description: "ben can log in with his key (the ~/.ssh permissions are fixed)."
+    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    expect:
+      equals: "ben"
+  - id: firewall-allows-api
+    description: "The firewall now accepts the API's port 8080, and is still default-deny."
+    command: |
+      r=$(sudo nft list ruleset)
+      echo "$r" | grep -q 'tcp dport 8080 accept' && echo "$r" | grep -qE 'hook input .*policy drop' && echo "8080 open, still default-deny"
+    expect:
+      contains: "8080 open, still default-deny"
+  - id: runaway-stopped
+    description: "The runaway worker is stopped and gone."
+    command: |
+      sleep 2
+      pgrep -x shop-worker > /dev/null && echo "still running" || echo "gone"
+    expect:
+      contains: "gone"
+  - id: security-intact
+    description: "The server is still hardened: passwords off and the firewall default-deny."
+    command: |
+      sudo sshd -T | grep -iq '^passwordauthentication no' && sudo nft list ruleset | grep -qE 'hook input .*policy drop' && echo "still hardened"
+    expect:
+      contains: "still hardened"

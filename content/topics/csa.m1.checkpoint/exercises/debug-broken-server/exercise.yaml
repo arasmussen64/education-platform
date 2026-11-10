@@ -1,0 +1,28 @@
+id: debug-broken-server
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The broken server"
+prompt: |
+  It's an incident. The shop's server is down, and it's broken five ways at once. Restore it, and don't weaken security to do it (leaving the firewall open or turning passwords on fails the check). Work the module's tools; the five faults are:
+
+  1. **A full disk.** The data area `/srv/shop` is full (`df -h /srv/shop`). Something old is filling it; clear enough space that it's usable again.
+  2. **A service that won't start.** `shop-api` is `failed`; `systemctl status shop-api` and `journalctl -u shop-api` say why. Fix its unit and get it `active`.
+  3. **A login that's refused.** `ssh -i ~/keys/ben ben@localhost` fails even though the key is right; the problem is the permissions on ben's `~/.ssh` (`sshd` refuses a world-writable one). Fix them so he can log in.
+  4. **A blocked port.** The firewall is default-deny and never opened the API's port 8080 (`sudo nft list ruleset`). Add a rule for it, keeping the firewall default-deny, and save it to `/etc/nftables.conf`.
+  5. **A runaway process.** Something is pegging a CPU (`top`, `pidstat`); find it and stop it at its service, so it stays stopped (`systemctl disable --now`).
+
+  When all five are fixed and security is intact, run the checks.
+hints:
+  - "Disk: `du -sh /srv/shop/* | sort -h` finds the big file; `sudo rm` it. Service: the unit's `ExecStart` points at a binary that isn't there; `systemctl cat shop-api` shows it, fix the path, `daemon-reload`, `restart` (if systemd says the start request was repeated too quickly, `sudo systemctl reset-failed shop-api` first). Login: `sudo chmod 700 /home/ben/.ssh`."
+  - "Firewall: add `tcp dport 8080 accept` to the input chain in `/etc/nftables.conf` next to the `22` rule, then `sudo nft -f /etc/nftables.conf`. Keep `policy drop`. Runaway: `ps -eo comm,%cpu --sort=-%cpu | head` names it; `sudo systemctl disable --now` it (stopped now, and not started at boot)."
+  - "Don't fix the blocked port by flushing the firewall, and don't fix anything by turning `PasswordAuthentication` back on: the checks confirm the server is still hardened."
+test_skills:
+  disk-has-space: [csa.linux.storage/disk-full, csa.linux.triage/disk-io]
+  service-running: [csa.linux.services/systemctl, csa.linux.services/journalctl]
+  key-login-works: [csa.linux.permissions/ssh-keys, csa.linux.permissions/read-modes]
+  firewall-allows-api: [csa.linux.net-tools/firewall-path, csa.linux.hardening/firewall-min]
+  runaway-stopped: [csa.linux.triage/first-minute, csa.linux.processes/signals]
+  security-intact: [csa.linux.hardening/ssh-hardening, csa.linux.hardening/baseline]

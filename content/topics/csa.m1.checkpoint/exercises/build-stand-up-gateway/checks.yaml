@@ -1,0 +1,40 @@
+# The checks for "Stand up the gateway server": the service runs and answers,
+# the firewall is default-deny and keeps SSH and the API and persists, and
+# SSH is hardened with ben still able to log in.
+checks:
+  - id: service-running
+    description: "gateway is active and enabled to start on boot."
+    command: systemctl is-active gateway && test "$(systemctl is-enabled gateway)" = enabled && echo "active and enabled"
+    expect:
+      contains: "active and enabled"
+  - id: api-answers
+    description: "The API answers on port 9090."
+    command: |
+      for i in 1 2 3 4 5; do out=$(curl -s --max-time 2 localhost:9090); [ -n "$out" ] && break; sleep 1; done
+      echo "$out"
+    expect:
+      contains: "gateway ok"
+  - id: firewall-default-deny
+    description: "The running firewall's input policy is drop, and it accepts SSH and the API."
+    command: |
+      r=$(sudo nft list ruleset)
+      echo "$r" | grep -qE 'hook input .*policy drop' && echo "$r" | grep -q 'tcp dport 22 accept' && echo "$r" | grep -q 'tcp dport 9090 accept' && echo "default deny, 22 and 9090 kept"
+    expect:
+      contains: "default deny, 22 and 9090 kept"
+  - id: firewall-persisted
+    description: "The rules are in /etc/nftables.conf (policy drop) and nftables is enabled."
+    command: sudo nft -c -f /etc/nftables.conf && grep -q 'policy drop' /etc/nftables.conf && systemctl is-enabled nftables
+    expect:
+      equals: enabled
+  - id: ssh-hardened
+    description: "Password and root logins are off."
+    command: |
+      t=$(sudo sshd -T)
+      echo "$t" | grep -iq '^passwordauthentication no' && echo "$t" | grep -iq '^permitrootlogin no' && echo "hardened"
+    expect:
+      contains: hardened
+  - id: key-login-works
+    description: "ben can still log in with his key."
+    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    expect:
+      equals: "ben"

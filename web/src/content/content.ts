@@ -30,7 +30,11 @@ const topicFiles = import.meta.glob<Partial<Topic>>(
   { eager: true, import: 'default' },
 )
 const bundledCloudFiles = import.meta.glob<Partial<Topic>>(
-  '../../../content/topics/csa.linux.*/topic.yaml',
+  [
+    // Module 1 and its checkpoint: the cloud track's content so far.
+    '../../../content/topics/csa.linux.*/topic.yaml',
+    '../../../content/topics/csa.m1.checkpoint/topic.yaml',
+  ],
   { eager: true, import: 'default' },
 )
 
