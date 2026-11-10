@@ -138,11 +138,26 @@ Module 2 gave the learner Python; this module gives them the cost of what they w
 
 **Checkpoint 6: the algorithms behind a pipeline** (`ml.m6.checkpoint`). Build the pieces of a small data pipeline from the module's tools: deduplicate and join records with hashing, keep the top k with a heap, match near-duplicate names by edit distance, and order the pipeline's steps by topological sort, each shown by counting steps to scale as its order says; debug three bugs that each make a step quadratic or wrong (a nested-loop lookup where a set belongs, a queue popped from the front of a list, a table filled in the wrong order); explain why a dictionary lookup is constant time on average and what a topological order guarantees. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
 
+## Module 7: How computers and GPUs work
+
+Module 6 counted steps; this module asks what a step costs and why. Bits, bytes and the integers that wrap; floating point and the rounding every loss carries; the memory hierarchy and why nearby bytes are cheap; why vectorized code is fast and when a loop can't be; parallelism, Amdahl's law and what a GPU is good at; counting a model's parameters, FLOPs and bytes; and reading a profiler. Every topic is proven in code where the browser can run it: the checks count operations, bytes and calls, and timings stay in prose, because Pyodide is 32-bit and its clock and object sizes differ from CPython's.
+
+| # | Topic | ID | Needs | You'll be able to… |
+| --- | --- | --- | --- | --- |
+| 43 | Bits, bytes and integers | `ml.hw.bits-and-integers` | `ml.m6.checkpoint` | convert between binary, decimal and hexadecimal; explain why an int8 wraps from 127 to -128 and a Python int doesn't; size a NumPy array from its dtype and shape and choose a dtype for a column; pack and read flags with bit operations |
+| 44 | Floating point | `ml.hw.floating-point` | `ml.hw.bits-and-integers` | explain sign, exponent and mantissa and why 0.1 is stored approximately; compare floats with a tolerance and state machine epsilon for float32 and float64; show rounding accumulating in a sum and reduce it; say where inf and NaN come from and use log-sum-exp |
+| 45 | Memory, caches and locality | `ml.hw.memory-and-caches` | `ml.hw.bits-and-integers` | name the memory hierarchy's levels and rough costs and say what a cache line is; read a NumPy array's strides and tell a view from a copy; predict which loop order is cache-friendly and show it by counting cache lines; say why bytes moved matter as much as operations |
+| 46 | Why vectorized code is fast | `ml.hw.vectorization` | `ml.hw.memory-and-caches`, `ml.dsa.complexity` | explain what a Python loop pays per element and what SIMD adds; vectorize a loop with broadcasting and check it agrees; measure both forms with the doubling test; recognize a sequential dependence and say what to do instead |
+| 47 | Parallelism and what a GPU is good at | `ml.hw.parallelism-and-gpus` | `ml.hw.vectorization` | tell data parallelism from a sequential dependence and apply Amdahl's law; explain what a GPU is; count the operations and bytes of a matrix multiply and say why it suits a GPU; say what bandwidth limits, why batches help and what the CPU-GPU transfer costs |
+| 48 | Counting a model's cost | `ml.hw.cost-of-a-model` | `ml.hw.parallelism-and-gpus`, `ml.hw.floating-point` | count a network's parameters from its layer sizes; count the FLOPs of a forward pass and estimate the backward; compute memory for weights and activations at float32 and float16; estimate time from FLOPs and throughput and say why it is optimistic |
+| 49 | Reading a profiler | `ml.hw.profiling` | `ml.hw.vectorization` | profile with cProfile and read pstats to find the hot spot; measure memory with tracemalloc; choose what to change first from a profile and show the result; say why measuring beats guessing |
+
+**Checkpoint 7: make it fast** (`ml.m7.checkpoint`). Profile a slow, numerically shaky feature pipeline, find its hot loop and vectorize it, showing the gain with the doubling test and the profile; fix three numeric bugs (an int8 column that wraps, a float32 sum that drifts, a softmax that overflows to NaN); estimate the parameters, FLOPs and memory of the model the pipeline feeds; and explain floating point and why vectorized code is fast. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
+
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 6 had before they were written (all four on 2026-11-10).
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 6 had before they were written (all four on 2026-11-10) and Module 7 has (outlined 2026-11-10).
 
-- **7. How computers and GPUs work:** memory and caches; why vectorized code is fast; floating point; what a GPU is good at; reading a profiler.
 - **8. Neural networks from scratch:** a neuron, a layer, a loss; backpropagation by hand and in code; training loops; regularization; a small network that reads digits.
 - **9. Transformers:** embeddings, attention, the transformer block; training a tiny language model; tokenizers; what scaling changes.
 - **10. ML systems:** data pipelines, experiment tracking, evaluation, serving, monitoring, and the engineering judgement around them.
