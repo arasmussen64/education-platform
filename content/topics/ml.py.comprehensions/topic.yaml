@@ -1,0 +1,83 @@
+id: ml.py.comprehensions
+kind: topic
+status: ready
+title: "Comprehensions"
+summary: "List, dict and set comprehensions, and when a loop is clearer."
+prerequisites: [py.m5.checkpoint]
+estimated_minutes: 45
+rev: 1
+objectives:
+  - "Write list, dict and set comprehensions with conditions."
+  - "Say when a plain loop is clearer."
+  - "Avoid the nested-comprehension trap."
+resources:
+  - title: "The Python Tutorial: List Comprehensions, and Dictionaries (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/datastructures.html#list-comprehensions
+    type: reading
+    use: link
+    license: PSF License Version 2
+  - title: "Python for Everybody, chapter 10: Tuples (Dr. Chuck): the section on comprehensions, as background"
+    url: https://www.py4e.com/html3/10-tuples
+    type: reading
+    use: link
+    license: CC BY 4.0
+practice:
+  - example-loop-to-comprehension
+  - parsons-filter-and-square
+  - mcq-read-a-comprehension
+  - predict-dict-comprehension
+  - mcq-when-a-loop-is-clearer
+  - fill-keep-the-long-words
+  - write-pass-or-fail
+prove:
+  build: build-three-summaries
+  debug: debug-comprehension-mixups
+  explain:
+    prompt: |
+      A teammate rewrites every loop in the code base as a comprehension, including this one:
+
+      ```python
+      results = []
+      for row in rows:
+          if row["status"] == "ok":
+              value = parse(row["value"])
+              if value is not None:
+                  results.append(value)
+      ```
+
+      In your own words: what is a comprehension good at, and why is it often clearer than a loop? What can a loop do that a comprehension can't? Would you rewrite the loop above, and why or why not? And what goes wrong when people nest comprehensions?
+    rubric:
+      - id: good-at
+        required: true
+        description: "A comprehension builds a new list, dict or set from an existing sequence, mapping and filtering in one line that reads like a description of the result."
+      - id: loop-only
+        required: true
+        description: "A loop can do several things per item, stop early (break), keep extra state, or have side effects like printing; a comprehension can only produce one value per item."
+      - id: this-one
+        required: true
+        description: "This loop calls parse once and uses the result twice (to test it and to keep it), so a comprehension would call parse twice or need a trick; keep the loop, or at most comprehend over a helper."
+      - id: nesting
+        required: true
+        description: "Nested comprehensions put the for clauses in an order that reads backwards from the result, and become hard to read; past one level, write loops."
+      - id: naming
+        required: false
+        description: "Mentions giving the comprehension's result a good name, or that a comprehension shouldn't be used for its side effects."
+    model_answer: |
+      A comprehension makes a new list, dict or set out of an existing sequence: for each item, optionally keep it if a condition holds, and transform it. Written on one line it reads like a description of the result, "the squares of the even numbers", which is why it's often clearer than the four lines of loop that build the same thing. A loop can do more. It can do several things to each item, keep a running total or other state, stop early with break, and print or write files as it goes; a comprehension produces exactly one value per item and nothing else. The loop above is one I'd keep: it calls parse once and uses the result twice, to check it isn't None and to keep it, so a comprehension would have to call parse twice or hide the double use in a trick, and the two conditions are easier to read stacked. Nesting is where comprehensions go wrong: [x for row in grid for x in row] has its for clauses in the opposite order from how the result reads, and a second level of nesting, or a condition in the middle, becomes a puzzle. Past one level, write the loops.
+review_pool:
+  - review-predict-nested
+  - review-mcq-set-comprehension
+  - review-filter-a-dict
+  - review-mcq-nested-order
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: list-comp
+    description: "Write and read a list comprehension"
+  - id: dict-set-comp
+    description: "Write and read dict and set comprehensions"
+  - id: conditions
+    description: "Filter with an if clause inside a comprehension"
+  - id: judgement
+    description: "Say when a loop is clearer than a comprehension, and avoid the nested-comprehension trap"

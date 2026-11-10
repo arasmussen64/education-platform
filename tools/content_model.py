@@ -124,6 +124,10 @@ class Topic(Strict):
     title: Text
     summary: Text
     prerequisites: list[TopicId] = []
+    # Python packages the topic's code imports, beyond the standard library:
+    # loaded into the browser's Python on demand, and installed for CPython
+    # through uv at the same version (ADR-0023).
+    packages: list[Literal["numpy"]] = []
     estimated_minutes: Annotated[int, Field(ge=1)]
     rev: Rev
     objectives: list[Text] = Field(min_length=1)
@@ -394,6 +398,9 @@ class DiagnosticLevel(Strict):
     summary: Text
     # A link to a free refresher. Recorded like any resource (ADR-0004).
     refresh: Resource
+    # The topic that teaches this level, once it exists; the result page
+    # links it instead of the refresher when it's ready.
+    topic: TopicId | None = None
     items: list[McqItem] = Field(min_length=2)
 
     @model_validator(mode="after")

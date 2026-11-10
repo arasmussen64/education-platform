@@ -1,0 +1,29 @@
+id: review-predict-decorator-order
+type: predict_output
+rev: 1
+prompt: |
+  A decorator that prints around the call. What does the program print, in what order?
+code: |
+  def loud(func):
+      def wrapper(*args):
+          print("calling", func.__name__)
+          result = func(*args)
+          print("done")
+          return result
+
+      return wrapper
+
+
+  @loud
+  def add(a, b):
+      return a + b
+
+
+  print(add(2, 3))
+expected_output: |
+  calling add
+  done
+  5
+explanation: |
+  `@loud` makes `add` mean the wrapper. Calling `add(2, 3)` runs the wrapper: it prints `calling add`, calls the original (which returns 5 without printing), prints `done`, and returns the 5, which the outer `print` shows last. The decorator ran once, when `add` was defined; the wrapper runs on every call.
+skills: [decorators]

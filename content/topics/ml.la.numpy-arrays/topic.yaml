@@ -1,0 +1,75 @@
+id: ml.la.numpy-arrays
+kind: topic
+status: ready
+title: "NumPy arrays"
+summary: "Arrays with a shape and a dtype: indexing, slicing, elementwise arithmetic and broadcasting, and why vectorized code beats a loop."
+prerequisites: [ml.py.comprehensions, ml.math.vectors-and-matrices]
+# The first topic to need a package beyond the standard library (ADR-0023).
+packages: [numpy]
+estimated_minutes: 50
+rev: 1
+objectives:
+  - "Make arrays from lists and ranges, and read their shape and dtype."
+  - "Index and slice arrays, in one and two dimensions."
+  - "Do arithmetic on whole arrays at once, and say what broadcasting does."
+  - "Replace a loop over numbers with one array operation, and say why it's faster."
+# Linked, never copied. NumPy's documentation is published under the NumPy
+# licence (BSD-3-Clause).
+resources:
+  - title: "NumPy: the absolute basics for beginners (the NumPy developers)"
+    url: https://numpy.org/doc/stable/user/absolute_beginners.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+  - title: "NumPy user guide: Broadcasting (the NumPy developers)"
+    url: https://numpy.org/doc/stable/user/basics.broadcasting.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-arrays-and-shapes
+  - parsons-column-means
+  - mcq-shape
+  - predict-slices
+  - mcq-dtype-trap
+  - mcq-broadcasting
+  - fill-normalize
+  - write-row-totals
+prove:
+  build: build-standardize
+  debug: debug-axis-mistakes
+  explain:
+    prompt: |
+      A teammate adds up the squares of a million numbers with `total = 0` and `for v in values: total = total + v * v`, sees your `np.sum(values * values)` run a hundred times faster, and asks what's going on, and "what does broadcasting even mean". In your own words: what is an array, compared with a list? Why is the array version so much faster? What does broadcasting do when two shapes don't match, and when does it refuse? And what goes wrong if you put `2.7` into an array that was made from whole numbers?
+    rubric:
+      - id: array-vs-list
+        required: true
+        description: "An array is one block of memory holding values of a single dtype, with a shape; a list is a sequence of separate Python objects of any type."
+      - id: speed
+        required: true
+        description: "values * values and np.sum run as one compiled loop over the block, with no Python object made per number; the for loop interprets every step and boxes every value."
+      - id: broadcasting
+        required: true
+        description: "Broadcasting lines shapes up from the right and stretches a dimension of size 1 (or a missing one) to match, so a row can be added to every row of a grid; it refuses when the trailing sizes differ and neither is 1."
+      - id: dtype
+        required: false
+        description: "An array has one dtype for all its values, so 2.7 stored into an integer array is truncated to 2 without an error; make the array float first."
+    model_answer: |
+      A list is a row of pointers to separate Python objects, each with its own type and its own overhead. An array is one block of memory in which every value has the same dtype, say float64, laid out next to each other, plus a shape that says how to read the block as rows and columns. That layout is why the array version is fast: values * values is one loop written in C that runs over the block from start to end, and np.sum is another, with no Python object created or type checked per number. The for loop does all of that interpretation a million times. Broadcasting is how NumPy does arithmetic between arrays of different shapes: it lines the shapes up from the right, and where one array has size 1 or no dimension at all, it stretches that array along it without copying. So a grid of shape (3, 4) plus a row of shape (4,) adds the row to every row. If the trailing sizes differ and neither is 1, say (3, 4) against (3,), it refuses with a shape error, which is usually the moment you realise you needed a column, shape (3, 1). The dtype is also the trap: an array made from whole numbers is an integer array, and storing 2.7 into it keeps 2, with no error, because the block can only hold integers. Make it float at the start if it will ever hold a fraction.
+review_pool:
+  - review-predict-broadcast-row
+  - review-mcq-axis
+  - review-predict-arange-linspace
+  - review-double-evens
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: make
+    description: "Make arrays from lists and ranges, and read their shape and dtype"
+  - id: index
+    description: "Index and slice arrays in one and two dimensions, including with a mask"
+  - id: elementwise
+    description: "Do arithmetic on whole arrays, and say what broadcasting does"
+  - id: vectorize
+    description: "Replace a loop with an array operation, and reduce along an axis"

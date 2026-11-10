@@ -1,0 +1,27 @@
+<Intro>
+
+Every `for` loop you've written has been asking a question you never saw: "give me the next one." Lists answer it from memory; a generator answers it by computing the next value on demand, and then forgetting it. That's how Python reads a file bigger than memory, and how data pipelines in machine learning feed a model one batch at a time.
+
+The main resource is the official tutorial's **sections 9.8 to 9.10**: iterators, generators and generator expressions. About 15 minutes. Watch for:
+
+- **`iter()` and `next()`:** what `for` calls behind the scenes, and `StopIteration`, how the end is signalled.
+- **`yield`:** a function with `yield` doesn't run when you call it; it hands back a generator, which runs a step at a time, pausing at each `yield`.
+- **Generator expressions:** a comprehension in round brackets, computing one value at a time instead of building a list.
+
+The chapter from Python for Everybody is there for the file-reading picture: `for line in file` is an iterator at work: the file hands out one line per `next()`.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **What `for` calls.** `for x in things:` first calls `iter(things)` to get an iterator, then calls `next()` on it for each loop, until `next()` raises `StopIteration`. You can do it by hand: `it = iter([10, 20])`, `next(it)` is 10, `next(it)` is 20, and the third `next(it)` raises.
+- **A generator function** has `yield` where a function would have `return`. Calling it runs nothing; it returns a generator. Each `next()` runs the body until the next `yield`, hands out that value, and **pauses there**, keeping its local variables. When the body ends, `StopIteration`.
+- **Lazy means on demand.** `squares = (n * n for n in range(1000000))` builds nothing until something asks; `sum(squares)` pulls the values through one at a time. Memory stays flat however long the stream.
+- **A generator is used once.** After one pass it's exhausted: `list(g)` a second time gives `[]`. Need it twice? Call the generator function again, or keep a list if it fits.
+- **Generator expressions** are comprehensions in round brackets: `(n * n for n in numbers)`. Pass one straight to `sum`, `max`, `any`, `all`; use square brackets when you need the list itself, more than once, or by index.
+- **When to write one:** a sequence that's big, endless, or expensive to compute all at once; reading lines, batches, records from an API page by page.
+- **In machine learning:** a data loader is a generator yielding one batch at a time, so training on a terabyte of data needs only one batch of memory; `for batch in loader:` is this protocol, exactly.
+
+</Recap>

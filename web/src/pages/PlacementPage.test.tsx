@@ -123,8 +123,13 @@ describe('the placement page', () => {
 
   it('asks visitors to sign in', async () => {
     renderApp('/placement')
+    // The page loads lazily: give it the time a loaded machine may need.
     expect(
-      await screen.findByRole('heading', { name: 'Placement test' }),
+      await screen.findByRole(
+        'heading',
+        { name: 'Placement test' },
+        { timeout: 10_000 },
+      ),
     ).toBeInTheDocument()
     expect(screen.getByText(/to take the placement test/)).toBeInTheDocument()
   })
@@ -264,9 +269,11 @@ describe('the placement page', () => {
     expect(result).toHaveTextContent('From Exponents and logarithms on')
     const links = within(result).getAllByRole('link')
     expect(links).toHaveLength(MATH.levels.length - KNOWN)
+    // The fourth level's topic is written, so the result links it rather
+    // than the outside refresher.
     expect(links[0]).toHaveAttribute(
       'href',
-      MATH.levels[KNOWN]?.refresh.url ?? '',
+      `/topic/${MATH.levels[KNOWN]?.topic ?? ''}`,
     )
 
     await waitFor(() => {

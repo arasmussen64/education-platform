@@ -1,0 +1,81 @@
+id: ml.la.vectors
+kind: topic
+status: ready
+title: "Vectors: length, angle and dot product"
+summary: "Norms and unit vectors, the dot product as similarity, the angle between vectors, and projecting one onto another."
+prerequisites: [ml.la.numpy-arrays, ml.math.exponents-and-logs]
+packages: [numpy]
+estimated_minutes: 50
+rev: 1
+objectives:
+  - "Compute a vector's length and make a unit vector."
+  - "Compute a dot product and read it as a similarity."
+  - "Find the angle between two vectors, and say what a dot product of zero means."
+  - "Project one vector onto another."
+# Linked, never copied or embedded: 3Blue1Brown's videos are under the
+# standard YouTube licence; NumPy's documentation under the NumPy licence
+# (BSD-3-Clause).
+resources:
+  - title: "Essence of linear algebra, chapter 1: Vectors, what even are they? (3Blue1Brown, Grant Sanderson)"
+    url: https://www.youtube.com/watch?v=fNk_zzaMoSs
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "Essence of linear algebra, chapter 9: Dot products and duality (3Blue1Brown, Grant Sanderson)"
+    url: https://www.youtube.com/watch?v=LyGKycYT2v0
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "numpy.linalg.norm (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.linalg.norm.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-length-and-dot
+  - parsons-unit-vector
+  - mcq-dot-sign
+  - predict-dot-and-norm
+  - mcq-cosine-similarity
+  - fill-angle-between
+  - mcq-projection
+  - write-most-similar
+prove:
+  build: build-projection
+  debug: debug-similarity-report
+  explain:
+    prompt: |
+      Your recommender stores every product as a vector of numbers and finds "similar" ones with the dot product. A teammate asks: why divide the dot product by the two lengths before calling it a similarity? What does a dot product of exactly zero mean? Why should a product described with twice as many words still count as similar to its shorter description? And what does "projecting" a customer's taste vector onto a product's vector actually give you? In your own words.
+    rubric:
+      - id: dot-as-similarity
+        required: true
+        description: "The dot product adds up the products of matching entries; it's large when two vectors point the same way and have big entries in the same places."
+      - id: cosine
+        required: true
+        description: "Dividing by both lengths leaves the cosine of the angle, which depends only on direction: twice the words means twice the length but the same direction, so the same similarity."
+      - id: zero
+        required: true
+        description: "A dot product of zero means the vectors are perpendicular: nothing in common along any direction, the angle is 90 degrees."
+      - id: projection
+        required: false
+        description: "The projection is the part of one vector that lies along the other, its shadow on that line, with length (v . w) / |w|; the rest is perpendicular to it."
+    model_answer: |
+      The dot product multiplies the two vectors entry by entry and adds the results, so it's large when both have big numbers in the same places and they point roughly the same way. But it also grows with the lengths: a product with twice as many words has a vector twice as long, and its dot product with anything doubles too. Dividing by both lengths removes that: what's left is the cosine of the angle between them, 1 for the same direction, 0 for perpendicular, -1 for opposite, and it doesn't change when a vector is scaled. That's why the longer description stays just as similar to the shorter one: same direction, different length. A dot product of exactly zero means the angle is 90 degrees: the vectors are perpendicular, with nothing in common along any direction. Projecting a taste vector onto a product's vector gives the part of the taste that lies along that product, its shadow on that line: a vector pointing the product's way, with length equal to the dot product divided by the product's length. What's left after subtracting it is perpendicular to the product, the part of the taste that product says nothing about.
+review_pool:
+  - review-predict-norm-3d
+  - review-mcq-dot-formula
+  - review-mcq-unit-vector
+  - review-predict-projection
+  - review-perpendicular
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: length
+    description: "Compute a vector's length and make a unit vector"
+  - id: dot
+    description: "Compute a dot product, and read it as a similarity that length distorts and cosine fixes"
+  - id: angle
+    description: "Find the angle between two vectors, and know that a zero dot product means perpendicular"
+  - id: projection
+    description: "Project one vector onto another, and separate the perpendicular part"

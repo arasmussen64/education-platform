@@ -1,0 +1,41 @@
+id: build-fit-and-compress-sensors
+stage: build
+rev: 1
+title: "Fit and compress: three sensors"
+prompt: |
+  Starting from a blank editor, fit a plane to six readings from three sensors with the normal equations, check it against `lstsq`, then compress the same readings with PCA and say how much was kept.
+
+  **The points.** Six samples with three measurements each, as rows:
+
+  ```python
+  points = np.array([
+      [1.0, 2.0, 4.6],
+      [2.0, 1.0, 5.4],
+      [3.0, 4.0, 8.4],
+      [4.0, 2.0, 9.1],
+      [5.0, 5.0, 11.9],
+      [6.0, 3.0, 12.6],
+  ])
+  ```
+
+  **Fit a plane.** `fit_plane(points)` treats the third column as the target, the third sensor, which tracks the other two (roughly `z = 1.5x + 0.5y + 2`): it builds the design matrix (the first two columns and a column of ones), solves the normal equations `AᵀA x = Aᵀz`, and returns `[a, b, c]` for `z ≈ a x + b y + c`.
+
+  **Compress.** `compress(points, k)` runs PCA on all three columns: center, covariance with `n - 1`, `np.linalg.eigh`, components ordered by eigenvalue (largest first), scores along the top `k`, and the points rebuilt from those scores. It returns two things: every component's share of the variance (largest first), and the rebuilt points.
+
+  **Report.** `report(points)` prints four lines: the plane's coefficients rounded to 3 places; whether `np.linalg.lstsq` agrees with them (`np.allclose`); the share of variance the top two components keep, rounded to 4; and the size of the compression error with two components, `np.linalg.norm(points - rebuilt)`, rounded to 3. Then call it on the points:
+
+  ```
+  plane [1.525 0.455 2.04 ]
+  lstsq agrees True
+  variance kept 0.9998
+  compression error 0.112
+  ```
+
+  The checks call your functions with other points, including points that lie exactly on a plane.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.la.least-squares/normal, ml.la.pca/explained, ml.la.numpy-arrays/vectorize]
+  test_fit_matches_lstsq: [ml.la.least-squares/lstsq, ml.la.least-squares/design, ml.la.systems/solve]
+  test_compress: [ml.la.pca/components, ml.la.pca/project, ml.la.eigen/compute]
+  test_exact_plane: [ml.la.least-squares/meaning, ml.la.pca/covariance]

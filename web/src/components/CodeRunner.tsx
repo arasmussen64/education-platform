@@ -18,6 +18,9 @@ import { BUTTON, CODE_BOX, SECONDARY_BUTTON } from './styles.ts'
 
 type Runner = Pick<PythonRunner, 'start' | 'run' | 'check' | 'trace'>
 
+/** One shared empty list, so a re-render doesn't look like new packages. */
+const NO_PACKAGES: string[] = []
+
 type Props = {
   initialCode: string
   /** The exercise's tests (test_exercise.py). Without tests there's no Check button. */
@@ -36,6 +39,8 @@ type Props = {
   onCodeChange?: (code: string) => void
   /** How long the code may run before it's stopped. */
   timeLimitMs?: number
+  /** The topic's packages, loaded before the first run (ADR-0023). */
+  packages?: string[]
 }
 
 type Status = 'starting' | 'ready' | 'running' | 'unavailable'
@@ -91,6 +96,7 @@ export function CodeRunner({
   onTrace,
   onCodeChange,
   timeLimitMs = DEFAULT_TIME_LIMIT_MS,
+  packages = NO_PACKAGES,
 }: Props) {
   const python = runner ?? getPythonRunner()
   const [code, setCode] = useState(initialCode)
@@ -118,6 +124,7 @@ export function CodeRunner({
       stdin: toStdin(session.inputs),
       seed: session.seed,
       timeLimitMs,
+      packages,
     })
     setShown({ kind: 'run', session: { ...session, outcome } })
     setStatus('ready')
@@ -154,6 +161,7 @@ export function CodeRunner({
       stdin: toStdin(previous.inputs),
       seed: previous.seed,
       timeLimitMs,
+      packages,
     })
     setShown({ kind: 'trace', code, inputs: previous.inputs, outcome })
     setStatus('ready')
@@ -162,7 +170,10 @@ export function CodeRunner({
 
   async function handleCheck(exerciseTests: string) {
     setStatus('running')
-    const outcome = await python.check(code, exerciseTests, { timeLimitMs })
+    const outcome = await python.check(code, exerciseTests, {
+      timeLimitMs,
+      packages,
+    })
     setShown({ kind: 'check', outcome })
     setStatus('ready')
     onCheck?.(outcome, code)

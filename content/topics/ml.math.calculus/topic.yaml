@@ -1,0 +1,74 @@
+id: ml.math.calculus
+kind: topic
+status: ready
+title: "Calculus"
+summary: "The slope of a curve at a point, the power rule checked in code, and finding a minimum by going downhill."
+prerequisites: [ml.math.functions, py.while-loops]
+estimated_minutes: 50
+rev: 1
+objectives:
+  - "Estimate a function's slope at a point from two nearby values."
+  - "Check the power rule numerically."
+  - "Read the sign of the derivative as going up or going down."
+  - "Find a minimum by stepping against the slope."
+resources:
+  - title: "OpenStax Calculus Volume 1: sections 3.1 (Defining the Derivative), 3.3 (Differentiation Rules) and 4.3 (Maxima and Minima)"
+    url: https://openstax.org/details/books/calculus-volume-1
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "3Blue1Brown: Essence of calculus (Grant Sanderson), chapters 1 to 3"
+    url: https://www.3blue1brown.com/topics/calculus
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "Khan Academy: Differential calculus"
+    url: https://www.khanacademy.org/math/differential-calculus
+    type: interactive
+    use: link
+    license: CC BY-NC-SA 3.0 US (linked, not copied)
+practice:
+  - example-slope-at-a-point
+  - parsons-numeric-derivative
+  - mcq-sign-of-the-derivative
+  - predict-power-rule-check
+  - mcq-derivative-of-a-power
+  - fill-one-step-downhill
+  - write-walk-downhill
+prove:
+  build: build-find-the-minimum
+  debug: debug-the-walk-goes-wrong
+  explain:
+    prompt: |
+      A program is looking for the lowest point of a curve `loss(x)` by repeating `x = x - rate * slope`, where `slope` is the derivative of `loss` at `x`. In your own words: why does subtracting the slope move `x` towards the bottom, whichever side of the bottom it starts on? Why do the steps get smaller as it gets close, without anyone telling them to? And what goes wrong if `rate` is too large?
+    rubric:
+      - id: sign
+        required: true
+        description: "The derivative's sign says which way is uphill: positive means the curve rises to the right, so subtracting moves left, towards the bottom; negative means it falls to the right, so subtracting a negative moves right."
+      - id: shrinking
+        required: true
+        description: "Near the bottom the slope approaches zero, so rate * slope, the step, shrinks by itself."
+      - id: too-large
+        required: true
+        description: "Too large a rate overshoots the bottom, lands on the other side higher up, and can bounce further out each step instead of settling."
+      - id: ml
+        required: false
+        description: "Says this is how a model is trained: the loss is a function of its knobs, and gradient descent turns them."
+    model_answer: |
+      The derivative at x is the slope of the curve there. If it's positive the curve goes up to the right, so the bottom is to the left, and x - rate * slope makes x smaller: a step left. If it's negative the curve goes down to the right, so the bottom is to the right, and subtracting a negative number makes x bigger: a step right. Either way the step is against the slope, which is downhill. As x gets close to the bottom the curve flattens out and the slope approaches zero, so rate * slope, the size of the step, shrinks on its own; nothing has to count down. If the rate is too large, a step can jump right over the bottom and land on the other side, higher than where it started, and the next step, with an even bigger slope, jumps further still, so instead of settling the walk bounces away. This is how a model is trained: its loss is a function of its knobs, and gradient descent turns the knobs a little against the slope, over and over.
+review_pool:
+  - review-predict-slope-sign
+  - review-mcq-learning-rate
+  - review-two-steps
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: numeric-derivative
+    description: "Estimate a function's slope at a point from two nearby values"
+  - id: power-rule
+    description: "Know the derivative of a power, and check it numerically"
+  - id: sign
+    description: "Read the sign of the derivative as going up or going down"
+  - id: descent
+    description: "Find a minimum by stepping against the slope"

@@ -1,0 +1,20 @@
+import numpy as np
+
+A = np.array([[2.0, 0.0], [0.0, 1.0]])
+v = np.array([1.0, 1.0])
+print(A @ v)
+print(A @ np.array([1.0, 0.0]), A @ np.array([0.0, 1.0]))
+R = np.array([[0.0, -1.0], [1.0, 0.0]])
+print(R @ np.array([1.0, 0.0]))
+print(R @ R @ np.array([1.0, 0.0]))
+S = np.array([[1.0, 1.0], [0.0, 1.0]])
+print(S @ np.array([0.0, 1.0]))
+print((R @ S) @ v, (S @ R) @ v)
+
+I = np.eye(2)
+print(I @ v)
+print(np.linalg.inv(A))
+print(np.linalg.inv(A) @ (A @ v))
+print(round(np.linalg.det(A)))
+print(round(np.linalg.det(R)))
+print(round(np.linalg.det(S)))

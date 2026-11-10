@@ -1,0 +1,23 @@
+id: predict-order-matters
+type: predict_output
+rev: 1
+prompt: |
+  A rotation by 90 degrees and a shear, applied to the same vector in both orders. What does the program print?
+code: |
+  import numpy as np
+
+  R = np.array([[0.0, -1.0], [1.0, 0.0]])
+  S = np.array([[1.0, 1.0], [0.0, 1.0]])
+  v = np.array([1.0, 1.0])
+  print(S @ v)
+  print(R @ (S @ v))
+  print((R @ S) @ v)
+  print((S @ R) @ v)
+expected_output: |
+  [2. 1.]
+  [-1.  2.]
+  [-1.  2.]
+  [0. 1.]
+explanation: |
+  The shear slides `[1, 1]` to `[2, 1]`; rotating that by 90 degrees gives `[-1, 2]`. `(R @ S) @ v` is the same journey as one matrix: `S` first, then `R`. `S @ R` does the rotation first (`[1, 1]` goes to `[-1, 1]`) and then the shear (`[0, 1]`): a different place, because the order of transformations matters.
+skills: [compose]

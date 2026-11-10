@@ -1,0 +1,19 @@
+id: predict-missing-keys
+type: predict_output
+rev: 1
+prompt: |
+  A record with some keys missing, asked about safely. What does the program print?
+code: |
+  data = {"name": "Bo", "address": {"city": "Oslo"}}
+  print(data.get("email"))
+  print(data.get("email", "unknown"))
+  print(data["address"].get("zip", "none"))
+  print("phone" in data)
+expected_output: |
+  None
+  unknown
+  none
+  False
+explanation: |
+  `.get()` with no default gives `None` for a missing key, and with a default gives that instead; neither raises. `data["address"]` is fine because the key is there, and `.get("zip", "none")` on the inner dict is safe again. `in` asks whether a key exists. Square brackets would have raised `KeyError` for `email`, `zip` and `phone`.
+skills: [safe-walk]

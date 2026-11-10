@@ -2,6 +2,390 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Where things stand tonight
+
+**The day in one place.** The pull-request stack from the Phase 2 work (#88 to #101) and the ML track's Module 1 (#103 to #111) was merging bottom-up when the day started. Today added Module 2 (#112 to #119), Module 3 on the NumPy decision (#121 and #123 to #134), the Module 4 outline (#135), two cold reviews of the prose (#125, #136), and seven fixes merged straight to main for things that stopped the merge: a longer boot limit, job-list and journal diagnostics, the CPU lab's throttle wait, the progress test's clock, a lab the checker gives up on in the crowd being retried once alone, and the triage report's run-queue check, which the wrong `vmstat` column passed by luck on a busy runner because a container's `vmstat` reads the whole machine (#120, #122, #126, #130, #131, #137, #139). After midnight came more of the same (#140 to #145): the Labs workflow split by topic across four machines, the map and topic page tests pinned to their fixtures' day after every pull request's web check failed at once at noon UTC, the memory lab's swap line given the tolerance its available line had, and a dice test that rolls 200 times so a wrong range can't pass by luck. And cold reviews of every topic the earlier ones hadn't covered: all 36 Python Foundations topics (#141, thirty-three corrections), the ML track's Module 1 (#142, twelve, stacked on #138) and the cloud track's Module 1 (#144, thirty-two). The merge runs by itself, one CI cycle per pull request, bringing main into each branch before its checks; #98 (the placement test) and #99 (Step through) are on main, and it had reached #100 when this was last updated. The repository went public at your instruction.
+
+**Decisions made while you were away, for review** (besides the ones in the entries below):
+
+1. The Labs CI job runs as four shards by topic (#140). It was the whole wait for every lab pull request at a quarter of an hour; Actions minutes are free on a public repository, so four machines cost nothing. The check everything waits for is still named Labs.
+2. Three prose reviews ran without asking, because the two earlier ones had found twenty errors in prose no machine checks. They found seventy-seven more, all applied. The two most worth your own eye: a review question built on an error message Python no longer prints ([py.reading-errors](../content/topics/py.reading-errors/recall/review-mcq-syntax-location.yaml), rebuilt on the message it does print, and its `rev` bumped so past answers don't count), and the SSH hardening walkthroughs saying new settings were live when the running `sshd` still had the old ones (they now reload it, and every prompt says to).
+3. One exercise's starter changed rather than its prompt: _Top three and first match_ sorts descending in the starter now, so its "three bugs" are three; the fourth was unannounced.
+4. The ML Module 1 corrections sit as #142 on top of the stack rather than waiting for it to land.
+5. With #98 on main, the placement test's migration is the next production step: `npx supabase db push --dry-run` on the live project, then without, when you say so.
+
+**Decisions waiting for you,** gathered from the entries below:
+
+1. [ADR-0023](decisions/0023-packages-in-both-runtimes.md), NumPy in both runtimes, is proposed. Accept it and Module 3 stands as written; send it back and Module 3 becomes a list-based rewrite.
+2. The three backup secrets and the private backups repository ([ADR-0020](decisions/0020-automated-backups.md); the steps are in [docs/setup.md](setup.md)).
+3. `npx supabase db push` for the placement test's migration once #98 has merged ([ADR-0021](decisions/0021-placement-test.md)).
+4. What comes next: Module 4 of the ML track (calculus, outlined) or the cloud track's Module 2.
+5. The smaller calls under "Decisions for you to review" in each entry: the counting decorator in place of a timing one, fixtures explained rather than exercised, JSON Lines in Checkpoint 2, booleans not tested as bad integers, eigenvectors' signs fixed by hand, StatQuest as a resource, the retry-alone rule in the lab checker.
+
+**Where to look first:** the live site once the stack has finished (Today across both tracks, the placement test, Step through, Modules 2 and 3 on the map); then ADR-0023.
+
+## 2026-11-10: A second pair of eyes on Module 3
+
+**Eight corrections from a cold review of Module 3's prose,** the same pass that found twelve in Module 2. The reviewer checked every resource title and chapter number (all right), every multiple-choice key (all right), every debug prompt against its planted bugs (all right), and every worked example's step ranges against its program: the checkpoint's 2-D sibling was off by one throughout, the only one of eight. The rest: the PCA example claimed its rebuilt points land "within a few hundredths" when the middle two miss by about a third; the PCA recap and a review question said to reverse eigenvectors with `[::-1]`, which reverses rows, where `vectors[:, ::-1]` was meant; a dot-product explanation got 20 wrong; a sentence had lost its "0"; the eigen recap said every transition matrix settles to its eigenvalue-1 vector, which needs a regular chain (`[[0, 1], [1, 0]]` swaps forever); the least-squares recap pointed at the wrong earlier topic; and the checkpoint's model answer called a three-dimensional column space a plane. All fixed in this commit, at the top of the stack.
+
+**Decision for you to review:** the review pass stays. Two modules, twenty findings, none of which the checker could have caught.
+
+## 2026-11-10: Module 4 of the ML track is outlined
+
+**Calculus for ML has an outline:** seven planned topics and Checkpoint 4 in the track file and on the map, with the spec's prose bullet turned into a table. The derivatives of the functions every model uses (powers, exp, log, the sigmoid, ReLU), each checked numerically; partial derivatives and the gradient; gradient descent in many dimensions, fitting a plane by descent to compare with Module 3's normal equations; the chain rule; loss functions and their gradients (squared error, cross-entropy, why logs); backpropagation on a one-hidden-layer network with a gradient check; and optimizers (momentum, schedules, Adam) compared on one problem. Checkpoint 4 trains a tiny network from scratch. Prerequisites reach back into Module 1's calculus and Module 3's vectors, matrices and least squares.
+
+**Decisions for you to review:**
+
+1. _Module 4 leans on NumPy as Module 3 did,_ so it too rests on ADR-0023. Nothing in it is written yet; the outline costs nothing to change.
+2. _Backpropagation comes before optimizers,_ and loss functions before backpropagation, so the checkpoint's network is built from parts the learner has each proved on their own. The spec's prose had optimizers last too.
+3. _No automatic differentiation._ Every gradient in this module is written by hand and checked numerically, because the point is to understand what PyTorch does before using it; a later module can introduce the tool.
+
+**Next:** merge the stack; then either Module 4's first topic (on the NumPy decision) or the cloud track's Module 2, whichever the owner prefers.
+
+## 2026-11-10: Checkpoint 3 closes Module 3
+
+**`ml.m3.checkpoint`, "Checkpoint 3: fit and compress", is ready,** and with it Module 3 of the Machine Learning Foundations track: 24 topics ready across three modules, all written today's and yesterday's sessions. The build does Module 3 in one program: `fit_plane` builds the design matrix from six 3-D points and solves the normal equations, `compress` runs PCA on the same points and rebuilds them from their top two components, and `report` prints the plane, whether `lstsq` agrees, the variance kept and the compression error. The hidden tests call the functions on other points and on points exactly on a plane, where everything comes out exact, and check a property the topics never stated outright: the squared compression error with two components equals `n - 1` times the smallest eigenvalue (known-wrong: no intercept column, an uncentered covariance). The debug is the same program with three bugs that each hide the next: `np.ones(2)` where six ones were needed, `A @ A.T` where `A.T @ A` was, and a covariance of uncentered points. The explain asks why the normal equations give the fit, why the direction of most spread is an eigenvector, why the regression plane and PCA's plane differ (vertical against perpendicular gaps), and what exact planarity would change. For a stuck learner: the two jobs on the PCA topic's six 2-D points as the solved sibling, with the line's residual (0.894) and PCA's compression error (0.695) side by side; four steps that build the design matrix, the normal equations, the covariance and the shares; and two fresh versions, people's heights, ages and weights, and three sensors. Every test of the build, the debug and the versions names the Module 3 skills it checks (ADR-0012).
+
+**Where the ML track stands.** Modules 1 (math refresher), 2 (intermediate Python) and 3 (linear algebra) are ready. Modules 4 to 10 are prose in the spec. The whole of Module 3 rests on ADR-0023, NumPy in both runtimes, which is proposed and waiting for the owner.
+
+**Decisions for you to review:**
+
+1. _The checkpoint's data is "nearly planar" rather than exactly planar,_ so the plane fit and PCA have something to do; the exactly planar case is a hidden test and the explain's last question.
+2. _One property is tested that no topic stated:_ that the squared compression error equals `(n - 1)` times the discarded eigenvalue. It follows from what the topics did say (the eigenvalue is the variance along the discarded direction) and a learner whose PCA is right passes it without knowing it; it's there to catch a PCA that is almost right.
+3. _Module 3 was written in one day on a proposed decision._ If ADR-0023 is sent back, seven topics and a checkpoint become list-based rewrites. I judged the tool worth the risk because every later module needs it.
+
+**Next:** merge the stack; look at the live site once Modules 2 and 3 deploy; then Module 4 (calculus for ML) is the next outline, or the cloud track's Module 2, whichever the owner prefers.
+
+## 2026-11-10: PCA, the seventh Module 3 topic
+
+**`ml.la.pca` is ready,** the last topic before Checkpoint 3. Eigenvectors pointed at data: center, covariance, `eigh`, and the eigenvectors are the directions the cloud spreads most along. The worked example takes six points on a slant, prints their mean and covariance (checked against `np.cov`), the eigenvalues `[0.096, 5.804]`, the first component `[0.772, 0.635]` with its sign fixed, each point's score along it, the 98.4 percent of variance it keeps, and the points rebuilt from one number each. Then a Parsons covariance whose decoy skips centering, four recall questions (the first component is a direction, not a feature; a diagonal covariance's shares; why uncentered data points its first component at the mean; when PCA throws away the signal), `explained` to fill in, and `first_component` with `scores` to write. The proofs: PCA from scratch to build, `pca(X, k)` returning scores, components and shares and `reconstruct` to rebuild, with hidden tests on three-feature data that lies in a plane (two components rebuild it exactly, the third share is zero), orthonormal components, and all components rebuilding 2-D data exactly (known-wrong: no centering, ascending order); a report to debug that skips centering and takes `vectors[:, 0]` for `vectors[:, -1]`; and an explanation for a teammate with fifty correlated sensors and an overfitting model. The review pool has centered data's mean, eigenvalues 8 and 2 as shares, `eigh`'s column order, three points rebuilt from their scores, and `top_share` to write.
+
+**Decisions for you to review:**
+
+1. _StatQuest is the main resource:_ twenty minutes that draw every step of PCA on two and three features, under the standard YouTube licence like 3Blue1Brown, linked. The spec names 3Blue1Brown and OpenStax by name; this is the first outside addition, and it's the clearest PCA walkthrough there is.
+2. _Signs are fixed by hand wherever a component is printed_ (first entry positive), and the Recap says why: an eigenvector's sign is arbitrary, and the two runtimes choose differently.
+3. _Standardizing before PCA is a Recap sentence,_ not an exercise: the checkpoint's data is on one scale, and scaling is its own topic in the statistics module to come.
+
+**Next:** Checkpoint 3, fit and compress, which closes Module 3.
+
+## 2026-11-10: Eigenvalues and eigenvectors, the sixth Module 3 topic
+
+**`ml.la.eigen` is ready.** The directions a matrix only stretches. The worked example finds the eigenpairs of `[[2, 1], [1, 2]]` with `eigh`, fixes the eigenvectors' signs by hand, checks one pair, applies the matrix five times to `[1, 0]` and watches the result line up with `[1, 1]`, and ends with the 90-degree rotation's eigenvalues `i` and `-i`. Then a Parsons check whose decoy uses `*` for `@`, four recall questions (an eigenvector keeps its line; a diagonal matrix's eigenvalues in `eigvalsh`'s ascending order; after a hundred applications the eigenvalue-2 direction wins; complex eigenvalues mean rotation), power iteration to fill in, and `diagonalize` plus powers through `P Dᵏ P⁻¹` to write, checked with booleans. The proofs: a city-and-suburbs population to build, with `after_years` through `matrix_power` and `steady_state` as the eigenvector for the eigenvalue closest to 1, scaled to sum to 1, with hidden tests on another 2-by-2 and a 3-by-3 and the check `T @ s == s` (known-wrong: the transpose, no scaling); a check routine to debug that reads eigenvectors as rows and prints the same eigenvalue twice, on a triangular matrix whose eigenvectors are given, so the row bug shows; and an explanation for a colleague who glazes over at "eigen". The review pool has `eigvalsh` against the determinant, the identity's eigenvectors, what a zero eigenvalue means, and `is_eigenpair` to write.
+
+**Determinism across the two runtimes.** `eig` promises no order and the sign of an eigenvector is a free choice, and the browser's LAPACK and CPython's make different choices. So the topic prints `eigh`'s ascending values for symmetric matrices, fixes signs explicitly where a vector is shown, sorts complex values, finds "the eigenvalue closest to 1" rather than taking the first, and otherwise prints booleans from `np.allclose`. The Intro tells the learner this is a real property of the tools, not a quirk of the platform.
+
+**Decisions for you to review:**
+
+1. _`eigh` is taught alongside `eig`,_ earlier than most courses do, because symmetric matrices are what PCA needs next and because its ordered, real output is what makes the exercises checkable.
+2. _Power iteration is a fill-in, not a build:_ it's four lines and the idea is the point; the build is the steady state, which uses `eig` the way a learner will meet it in the wild.
+
+**Next:** PCA (`ml.la.pca`), what eigenvalues mean for data, and then Checkpoint 3.
+
+## 2026-11-10: Projections and least squares, the fifth Module 3 topic
+
+**`ml.la.least-squares` is ready,** and it closes a loop the track opened in Module 1: Checkpoint 1 fitted a line by two thousand steps of gradient descent, and the worked example here fits the same five points in one step, with the normal equations and with `lstsq`, then fits five noisy points (`[1.95, 1.15]`) and shows the residual's dot product with both columns is zero. Then a Parsons fit whose decoy calls `solve` on the 3-by-2 design matrix, four recall questions (the sum of squared vertical gaps is what's minimized; a projection onto the floor of 3-D space with its perpendicular leftover; why `solve` won't take five equations in two unknowns; a design matrix of 100 rows and 2 columns), the normal equations to fill in, and a plane to fit with `lstsq`. The proofs: a least-squares report to build (coefficients, residual length and R²), whose hidden tests compare with `lstsq`, check `A.T @ residual` is zero and check R² is 1 on exact data (known-wrong: R² with the ratio upside down, `solve` on the non-square matrix); a fit to debug with `A @ A.T` where `A.T @ A` was meant and the coefficients unpacked in the wrong order for the column order used; and an explanation addressed to the learner's Module 1 self: what's minimized, why the fit is a projection, where the normal equations come from, and when gradient descent is still the tool. The review pool has an exact fit through `lstsq`, the residual's perpendicularity, the shape of a design matrix, and `fit_line` to write.
+
+**Decisions for you to review:**
+
+1. _Strang's lecture 16 is the main resource_ (MIT OpenCourseWare, CC BY-NC-SA 4.0, linked). It's 45 minutes, longer than the usual, because it's the one place the projection picture and the normal equations are built together, and the explain prompt asks for exactly that.
+2. _Both the normal equations and `lstsq` are taught,_ with `lstsq` named as the one to use beyond a few columns; the normal equations are kept because they're the derivation, not because they're the tool.
+
+**Next:** Eigenvalues and eigenvectors (`ml.la.eigen`).
+
+## 2026-11-10: Systems of linear equations, the fourth Module 3 topic
+
+**`ml.la.systems` is ready.** `A x = b` asks which vector `A` sends to `b`, and the last topic says when that has one answer. The worked example solves `2x + y = 5`, `x - y = 1` with `np.linalg.solve`, checks it with `np.allclose`, does the elimination by hand with `b` as an extra column, and compares the rank of that system with the rank of `[[1, 2], [2, 4]]`. Then a Parsons solve whose decoy swaps the arguments, four recall questions (ticket prices as `A x = b` with the unknowns in a stated order; a solution multiplied back; why `solve` raises `Singular matrix` on one equation written twice; what rank 2 of 3 means for the number of solutions), `solve_2x2` by elimination to fill in, and a mixing problem to write as a system. The proofs: the parabola through three points to build, one row per point and `None` when two points share an x, with hidden tests that check the curve passes through other points and that the repeated-x case returns `None` rather than raising (known-wrong: columns in the wrong order, no singular check); elimination for any size to debug, with a slice that stops one column short and a back-substitution loop that stops one row short, each of which gives a wrong but plausible answer; and an explanation for a colleague who says "just invert the matrix". The review pool has a diagonal system, parallel lines, which row operation isn't one, and a 3-by-3 to solve.
+
+**Decisions for you to review:**
+
+1. _OpenStax for the by-hand method, 3Blue1Brown for the picture:_ the spec lists both; this is the first Module 3 topic to use OpenStax, because elimination on paper is something the videos don't drill.
+2. _The debug is a general elimination routine the learner hasn't written._ That's what a debug proof is for, and the two bugs are the two off-by-ones everyone who has written one has made.
+3. _`solve` over `inv` is taught as the habit,_ with the reason in the explain rubric rather than as a rule to memorise.
+
+**Next:** Projections and least squares (`ml.la.least-squares`), where Checkpoint 1's line fit is found in one step.
+
+## 2026-11-10: Matrices as transformations, the third Module 3 topic
+
+**`ml.la.matrices-as-maps` is ready.** A matrix is a function that moves every vector at once; the columns are where the basis vectors land, multiplication is doing one transformation after another, and the determinant is the area factor. The worked example applies a stretch, a 90-degree rotation and a shear, composes the rotation and the shear in both orders (`[-1, 2]` against `[0, 1]` for the same input), and ends with the identity, the inverse undoing the stretch, and determinants of 2, 1 and 1. Then a Parsons rotation matrix whose decoy has the minus sign on the other `sin` and rotates clockwise, four recall questions (where `[0, 1]` lands is the second column; the two orders of a rotation and a shear; a zero determinant means squashed flat and no inverse; the inverse undoes), `scaling` and `rotation` to fill in, and `transform(M, points)` to write with `points @ M.T`. The proofs: `compose(*matrices)` in the order given and `undo(M)` that returns `None` for a singular matrix, with hidden tests that check `compose(A, B, C) @ v` against `C @ (B @ (A @ v))` and `undo(M) @ M` against the identity (known-wrong: the other order, no singular check); a square rotated with `*` instead of `@` and a rotation matrix with its signs swapped to debug, where the first bug prints the wrong shape and the second the wrong direction; and an explanation for a teammate who thinks a matrix is "a grid of numbers you multiply somehow". The review pool has the identity, the meaning of `A @ B`, the determinant of a scaling as the area of the stretched square, and `apply` to write.
+
+**Pictures as text, as the outline said:** the unit square's four corners before and after, printed as rows. The videos carry the moving grid; 3Blue1Brown's chapters 3, 4 and 6 are the resources, linked.
+
+**Decisions for you to review:**
+
+1. _Determinants are printed rounded_ (`round(np.linalg.det(A))`): the floating-point determinant of a rotation is `1.0000000000000002` on some machines, and the two runtimes must agree to the character.
+2. _Rotations use `np.radians` and `np.round(..., 6)`:_ `cos(90°)` is `6e-17`, and the first thing a learner would otherwise ask is why their rotation isn't exactly zero. The recap says why.
+
+**Next:** Systems of linear equations (`ml.la.systems`).
+
+## 2026-11-10: A second pair of eyes on today's topics
+
+**Twelve corrections from a review of the prose** in the eight topics written today (Classes through NumPy arrays), by a reviewer who read every lesson, question and hint cold and ran every fill-in starter. The programs had all been proven by running them; the prose hadn't, and it had errors a learner would have met:
+
+- Five fill-ins promised "Python can't run the program at all, and shows a syntax error" until every `...` is replaced. That's true when `...` sits where a statement must be, and false when it sits where a value can: `...` is a valid expression, so those five starters ran and failed with a `TypeError` or a bare assertion instead. The sentence now says the program fails until the gaps are filled. The rule for next time: compile the starter before claiming what it does.
+- `@torch.no_grad()` decorates evaluation, not training; a training loop under it couldn't learn.
+- A worked example's step ranges pointed at the wrong lines (two others were off by one).
+- `area("2", 3)` doesn't fail when hints are ignored: it returns `"222"`, which makes the point better.
+- The Parsons decoy `count = count + 1` doesn't silently do nothing; it raises `UnboundLocalError`. And `return n` in place of `yield n` doesn't make a generator that stops early; it makes a function that isn't a generator at all.
+- A file object is an iterator, not a generator; the tutorial's lambda section is 4.9.6; the `assert` page is in the language reference; pytest also collects `*_test.py`; one JSON question had a second defensible answer; a boolean mask gives a copy, not a view; and `print` asks for `__str__` before `__repr__`.
+
+All twelve are fixed on this branch, at the top of the stack, so every pull request below it merges as written and main ends up correct; the alternative, a fix per branch, would have touched seven branches for prose.
+
+**Decisions for you to review:**
+
+1. _A cold review is now part of writing a batch of topics._ It cost one subagent run and found twelve things eight self-checks hadn't. The checker proves the code; only a reader proves the words.
+
+**Next:** Matrices as transformations, then the stack keeps merging.
+
+## 2026-11-10: Vectors, the second Module 3 topic
+
+**`ml.la.vectors` is ready.** The two questions every model keeps asking, how long is it and how much do two of them point the same way, with NumPy. The worked example measures `[3, 4]` by Pythagoras and by `np.linalg.norm`, scales it to a unit vector, dots it with `[4, 3]`, divides by the lengths to get 0.96 and an angle of about 16 degrees, and dots it with the axes to read off coordinates and get the zero that means perpendicular. Then a Parsons unit vector whose decoy divides by `len(v)`, four recall questions (a dot product of exactly zero; a length, a dot and a vector dotted with itself; the cosine similarity of `[3, 0, 3]` and `[1, 0, 1]` being 1 because length doesn't count; the projection of `[3, 4]` onto the x-axis), the angle between two vectors to fill in (with `np.clip` explained, because rounding can leave a cosine just over 1), and the most similar row to write with `rows @ query` and a norm along `axis=1`. The proofs: projection and rejection to build, which must work for a non-unit `onto` and in three dimensions, with hidden tests that check the projection lies along `onto`, the rejection is perpendicular and the two add back to `v` (known-wrong: the unit-only formula, projecting onto `v` instead); a similarity report to debug with `query @ rows` where `rows @ query` was meant and a norm over the whole matrix, where the hidden test's two-row matrix turns the first bug into a shape error; and an explanation built on a recommender: why divide by the lengths, what zero means, why a longer description stays as similar, what projecting a taste onto a product gives. The review pool has a 3-D norm, the dot-product formula, what a unit vector is, a projection onto the y-axis, and `is_perpendicular` to write.
+
+**Decisions for you to review:**
+
+1. _3Blue1Brown is the main resource,_ linked, as the spec allows: this is the one topic where a picture of a dot product beats any paragraph, and the two chapters (vectors; dot products and duality) are twenty minutes together.
+2. _`np.clip` before `arccos` is taught in the fill-in,_ not hidden: it's the kind of rounding guard a learner will otherwise meet as a mysterious `nan`.
+3. _Written on the NumPy decision before it's accepted._ If ADR-0023 is sent back, this topic and NumPy arrays become list-based rewrites; the ideas and the tests would survive, the arrays wouldn't.
+
+**Next:** Matrices as transformations (`ml.la.matrices-as-maps`), where the pictures are drawn as text.
+
+## 2026-11-10: NumPy in both runtimes, and the first Module 3 topic
+
+**A topic can now declare the packages its code imports** ([ADR-0023](decisions/0023-packages-in-both-runtimes.md), proposed): `packages: [numpy]` in `topic.yaml`. The browser's Python loads them from Pyodide's CDN on the first Run, Check or Step through of that topic, with a two-minute limit of its own instead of the program's five seconds, and keeps them for the session; a worker replaced after a time-out loads them again. Topics without packages download nothing, which is every topic but one today. CPython gets NumPy through uv, pinned to the version Pyodide ships (2.4.6), the way the Python minor version was already pinned, so the two runtimes print the same arrays. The content checker refuses code that imports a package its topic doesn't declare, so a topic can't pass on GitHub and fail in the browser; the Pyodide test loads every ready topic's packages before running its solutions, so a version mismatch would show on the pull request. In the code: a `packages` field in the content model and the web types, a `load` message in the worker's protocol, `ensurePackages` in the runner, and the packages threaded from the topic through `ExerciseView` and `PracticeItem` to the code runner and the step-through.
+
+**`ml.la.numpy-arrays` is ready,** the first topic of Module 3 and the proof the path works end to end. The worked example makes arrays, reads shapes and a dtype, slices a grid, adds a row to every row and reduces along an axis. Then a Parsons problem whose decoy is the wrong axis, three recall questions (a shape, the dtype trap where `2.7` becomes `2`, which shape broadcasts against `(3, 4)`), a `normalize` to fill in and shop totals with `argmax` to write. The proofs: `standardize(grid)` to build, one expression with `mean`, `std`, an axis and broadcasting, whose hidden tests check every column of another grid ends with mean 0 and spread 1 (known-wrong: by rows, mean only); a report with two axis mistakes to debug, the first of which is a shape error to read; and an explanation of array against list, why the array version is a hundred times faster, what broadcasting does and refuses, and the dtype trap. The review pool has a broadcast row, the axis question, `arange` against `linspace`, and the evens doubled through a mask.
+
+**One honest wrinkle:** the browser's NumPy is a 32-bit build, so a whole-number array's default dtype is `int32` there and `int64` on a laptop. The topic prints dtypes only for floats and for types it chose (`np.int8`), and the Recap says why, so the two runtimes agree and the learner isn't lied to.
+
+**Decisions for you to review:**
+
+1. _NumPy in the browser, on demand (ADR-0023, proposed)._ About ten megabytes on the first Run of a NumPy topic, from the same CDN Pyodide comes from, cached afterwards; nothing for any other topic. The alternative was Module 3 in plain Python lists. I chose the tool every ML library is built on, and kept the download away from everyone who doesn't need it. The ADR is yours to accept or send back.
+2. _One package on the list._ Adding another needs two checks: Pyodide ships it, and PyPI has the same version. Plotting is the obvious next ask and is deliberately not decided here.
+3. _CI downloads NumPy on each run_ of the Pyodide test (Node caches it within a run). If that flakes, the wheel can be cached between runs like the other dependencies.
+
+**Next:** the second Module 3 topic, vectors (length, angle, dot product, projection), once the ADR stands; the stack keeps merging bottom-up meanwhile.
+
+## 2026-11-10: Module 3 of the ML track is outlined
+
+**Linear algebra for ML has an outline:** seven planned topics and a checkpoint in the track file and on the map, with the spec's prose bullet turned into a table. NumPy arrays (shape, dtype, slicing, broadcasting, why vectorized code is fast); vectors (length, angle, dot product as similarity, projection); matrices as transformations (rotations, scalings and shears as pictures, composition, inverse, determinant); systems of equations (elimination, `np.linalg.solve`, rank); projections and least squares (the normal equations, and Checkpoint 1's line fit found in one step); eigenvalues and eigenvectors; and PCA as what eigenvalues mean for data. Checkpoint 3, fit and compress, fits a plane with the normal equations, reduces the same points with PCA, debugs a matrix program with three bugs, and explains both. Prerequisites reach back into Modules 1 and 2 (vectors and matrices as lists, comprehensions, the statistics topic, Checkpoint 1), so the map shows the path.
+
+**Decisions for you to review:**
+
+1. _Module 3 assumes NumPy in the browser._ Pyodide, the browser's Python, ships NumPy as a package the app can load on first use (around ten megabytes, cached afterwards), and CPython in CI would get it through uv. That's a decision for an ADR when the first Module 3 topic is written, not now; the alternative, pure-Python lists as in Module 1, would teach the ideas but not the tool every ML library is built on. The outline names NumPy because the spec always did.
+2. _Pictures as text._ "Linear transformations as pictures" is in the spec; the platform has no plotting. The plan is small grids and arrows drawn as text in the worked examples, and the real pictures linked from 3Blue1Brown, which the spec already lists. If a plotting canvas is wanted, that's its own decision.
+3. _Seven topics, like Modules 1 and 2:_ enough to keep each topic to one idea, not so many that the module outgrows a month.
+
+**Next:** the stack merges bottom-up; then a look at the live site once Module 2 is deployed; then either Module 3's first topic (after the NumPy decision) or the cloud track's Module 2, whichever the owner prefers.
+
+## 2026-11-10: Checkpoint 2 closes Module 2
+
+**`ml.m2.checkpoint`, "Checkpoint 2: a small data library", is ready,** and with it Module 2 of the Machine Learning Foundations track, and every topic the track has outlined so far. The build is a `Dataset` class over a JSON Lines file the program writes first: `rows()` is a generator that reads one line at a time, `column(name)` a generator of one column's values from the records that have it, `summary(name)` the count, mean, min and max (with a zero count for a column no record has), and `write_report` one line to a file. The learner also writes at least two tests of `summary`, and the hidden checks grade those tests the way Writing tests did: against a `summary` that counts every row and one that crashes on an empty column. The other hidden checks make a `Dataset` of their own file and call `next()` on `rows()`, so a class that reads eagerly or returns a list fails (known-wrong: `rows` returning a list, a mean divided by the number of rows, a correct class with tests that assert `True`). The debug is the same class with three bugs in three methods, each hiding the next: `column` without the `in` check, the mean divided by the row count, and min and max swapped in the report. The explain prompt asks what the class, the instance and the generator each are and hold in memory, why two methods can each walk the column when a generator is single-use, and what a list would make simpler and what it would break at a billion lines. For a stuck learner: a `Log` class over a plain log file as the solved sibling, with every `Dataset` method's twin; four steps that build `rows`, `column`, `summary` and the report with a test; and two fresh versions, rain gauges and game scores. Every test of the build, the debug and the versions names the Module 2 skills it checks (ADR-0012).
+
+**Where the ML track stands.** Module 1 (the math refresher, seven topics and a checkpoint that fits a line) and Module 2 (intermediate Python, seven topics and this checkpoint) are ready: 16 topics. The placement test's seven levels point at Module 1. Modules 3 and later (linear algebra, calculus, probability and statistics for ML, then the ML work itself) are prose in the spec, to be outlined like the cloud track's before they're written.
+
+**Decisions for you to review:**
+
+1. _JSON Lines rather than one JSON array._ A JSON array can't be read lazily without a streaming parser, so "iterates lazily" would have been a fiction; one object per line is what large datasets actually use, and it makes `rows()` a real generator with one line in memory.
+2. _"With tests" means the learner's tests are graded,_ not counted: the same planted-bug check as in Writing tests, with the two bugs the prompt names.
+3. _The learner's program writes its own data file,_ as the CSV topic's did, so pressing Run works in the browser without an upload; the hidden checks write a second file of their own to prove the class isn't tied to the first.
+4. _The explain's third question is a trade-off, not a fact:_ a list would genuinely make some things simpler, and the rubric rewards saying so before saying what breaks.
+
+**Next:** run the web suite on the whole Module 2 stack once it's merged; outline Module 3 in the spec so its planned topics exist on the map; then the remaining Phase 2 items in the roadmap.
+
+## 2026-11-10: JSON and nested data
+
+**`ml.py.json-and-nested-data` is ready,** the last topic before Checkpoint 2. Reading JSON is one call; the topic is about the shape of what arrives never being quite what was expected. The worked example writes a record with `dumps`, reads it back with `loads`, shows `True` and `None` becoming `true` and `null`, and goes through a file with `dump` and `load`. Then a Parsons load whose decoy calls `json.load` on a string, three recall questions (a set is the thing `dumps` can't write; `.get` with and without a default and `in` on a record with missing keys; what to do about an `age` that arrived as `"42"`), a `city_of` lookup to fill in that survives a missing address, a `None` address and an address with no city, and sensor readings to write: JSON text into `Reading` dataclasses with the value converted to a float, and back out through `asdict`. The proofs: orders to validate, returning the good ones as dataclasses and the positions of the bad ones, with "don't repair records" in the prompt and the hidden tests feeding a float quantity, a record that's a number, a missing key and a string quantity (known-wrong: a version that repairs `"5"` with `int()`, one that accepts a quantity of 0); a nested walk to debug with `json.load` on a string and square brackets on a user without orders; and an explanation built on a partner's nightly file that crashed two nights running. The review pool has five: the type map both ways, `loads` against `load`, `asdict` before `dumps`, where to validate, and the total of nested lists.
+
+**Decisions for you to review:**
+
+1. _Both resources are the official docs,_ the tutorial's JSON section and the type table, rather than a longer third-party chapter: the mechanics take ten minutes to read, and the judgement (safe walking, validating at the boundary) is in the Recap and the exercises.
+2. _Booleans aren't tested as bad integers._ In Python `True` is an int, so `isinstance(True, int)` passes a quantity of `true`; the hidden tests don't send one, because the point of the build is the boundary habit, not that corner. It's noted here for a later topic.
+3. _JSON Lines is a Recap bullet,_ not an exercise: Checkpoint 2's `Dataset` reads a `.jsonl` file one line at a time, and that's where it's built.
+
+**Next:** Checkpoint 2, a small data library (`ml.m2.checkpoint`), which closes Module 2.
+
+## 2026-11-10: Writing tests
+
+**`ml.py.writing-tests` is ready.** Every Check the learner has passed on this platform was a test someone wrote; now they write them. The worked example is `is_leap` with three tests, one per rule, and a six-line runner that finds every `test_` function and calls it, which is what pytest does and what every program in this topic ends with. Then a Parsons test whose decoy asserts with a single `=`, three recall questions (forty passing tests prove forty cases; an assert message read out of an `AssertionError`; the even-count list is the median's edge case), expected values to fill in for `clamp` and two tests for `median` to write, one that catches a median that forgets to sort and one that catches a median that only handles odd counts. The proofs: `word_count` with at least three tests to build, two tests that don't test to debug (a wrong expected value, and a test named `check_…` that is never collected), and an explanation built on two teammates, one who thinks forty green tests mean no bugs and one who won't test the empty list. The review pool has a `word_count` test that is wrong about `split()`, which names are collected, and tests at `clamp`'s boundaries.
+
+**How the tests are graded.** A test the learner writes can't be checked by comparing output: `assert True` prints `2 passed` too. So the hidden tests import the learner's program, swap the function under test for a planted bug, and run the learner's tests again; a test suite that doesn't fail on the bug doesn't pass the exercise. Each exercise says so in its prompt, and the known-wrong solutions (tests that only use sorted odd-length lists; tests that only check the middle of a range) are exactly the suites that look fine and catch nothing.
+
+**Decisions for you to review:**
+
+1. _Fixtures are explained, not exercised._ pytest doesn't run inside the browser's Python, so the programs use a plain runner loop and a helper function for shared set-up; the recap and the explain rubric cover what `@pytest.fixture` is and when it's the right tool. The spec's table says so now.
+2. _The learner's tests are graded against planted bugs._ The alternative, counting `assert`s, rewards the wrong thing. The planted bugs are the ones the prompt warns about, so a learner who reads the prompt knows what their tests must catch.
+3. _A failing test can mean the test is wrong._ The predict question and the debug exercise both have that case, because a learner who believes a red test always blames the code will "fix" working code.
+
+**Next:** JSON and nested data (`ml.py.json-and-nested-data`).
+
+## 2026-11-10: Functions as values
+
+**`ml.py.functions-as-values` is ready.** A function is a value; that one idea is behind `key=`, behind every `@decorator`, and behind plugging a loss function into a library by name. The worked example writes `apply(func, text)`, sorts with `key=len` and `key=abs`, and maps `len` over words. Then a Parsons sort by length whose decoy writes `key=len()`, three recall questions (`sorted(numbers, key=abs)` returns the originals in size order; pairs sorted and `min`'d with a lambda; which of four functions deserves a `def`), ranking scores to fill in (a lambda over a dict, `reverse=True`, `max` with the same key) and `compose(f, g)` to write, which returns a new function. The proofs: a counting decorator to build, with `*args` and a `count` kept on the wrapper, whose hidden tests decorate a two-argument function and check that two decorated functions keep separate counts (known-wrong: a shared global count, a wrapper that forgets to return the result); two wrong keys to debug; and an explanation of `len` against `len()`, when a lambda should become a `def`, and what `@timed` does to the function below it. The review pool has `filter` and `map` with lambdas, what `@timed` means, the order a decorator's prints come out in, and a sort by last letter.
+
+**Decisions for you to review:**
+
+1. _The build counts calls instead of timing them._ The spec said "a decorator that times a call", but a timing decorator's output changes every run, so no test can pin it; a counting decorator has the same shape (a wrapper, `*args`, state kept on the wrapper) and a checkable answer. The lesson and the explain prompt still use `@timed`, and the spec's table now says "counts or times calls".
+2. _Decorators are taught as `f = timed(f)`,_ with the sugar second: a learner who can read the assignment can read any decorator; one who only knows the `@` can't.
+3. _`functools.wraps` is left for later:_ the build's tests never check the wrapper's name, and the recap doesn't mention it, because one new idea per topic is the rule.
+
+**Next:** Writing tests (`ml.py.writing-tests`).
+
+## 2026-11-10: Iterators and generators
+
+**`ml.py.iterators-and-generators` is ready.** Every `for` loop asks "give me the next one"; lists answer from memory and generators compute the answer on demand, which is how a file bigger than memory gets read and how a data loader feeds a model one batch at a time. The worked example does `iter` and `next` by hand, writes a `countdown` generator, sums a generator expression and shows it empty afterwards. Then a Parsons generator whose decoy says `return`, three recall questions (a generator expression listed twice gives `[]` the second time; a generator with prints inside shows `made` before `start`; `yield` pauses and `return` ends), clean lines to fill in and a running total to write. The proofs: sliding windows to build, whose hidden tests call `next()` on the result so a returned list fails (known-wrong: an off-by-one range, a list instead of a generator); two mistakes to debug (`return` inside the generator, and a generator consumed by `list()` before `sum` and `max` get to it); and an explanation built around a teammate's log file that ran out of memory, with the single-use trap as the third question. The review pool has four: a generator expression summed twice, what `for` calls, square against round brackets, and the first squares.
+
+**Decisions for you to review:**
+
+1. _Laziness is shown, not asserted:_ the prints inside the generator in the predict question are the evidence, and the explain prompt's memory story is the reason.
+2. _The hidden tests call `next()` on the learner's result._ A generator that works but is really a list would otherwise pass an exercise about generators.
+
+**Next:** Functions as values (`ml.py.functions-as-values`).
+
+## 2026-11-10: Dataclasses and type hints
+
+**`ml.py.dataclasses-and-typing` is ready.** Most classes are records, and Python writes those from a list of fields; the same field list is documentation, and type hints are that documentation everywhere else. The worked example declares a `Book` with a default, makes two, prints them, compares two equal ones, and ends with a hinted function over a list of them. Then a Parsons `Point` whose decoy is `x = float` (an assignment, not a field), three recall questions (`double("ab")` returns `"abab"` because hints aren't checked; dataclass equality against a plain class's identity; what `values: list[float]) -> float` promises), hints to fill in on `area`, which the checks read off the function's `__annotations__`, and a `Student` record to write with an `average()` method. The proofs: order lines to build (a dataclass with a `total()` method and a hinted `order_total`; the hidden tests read the fields, compare records and check the return hint), a `Ticket` record with a missing decorator and a string default to debug, and an explanation of what `@dataclass` generates, what hints do and don't do at run time, and when a dict or a hand-written class is still the right choice.
+
+**Decisions for you to review:**
+
+1. _Hints are tested as hints:_ the checks read `__annotations__`, so an unhinted but working function doesn't pass an exercise about hints. It's the only honest way to check them without running a type checker in the browser.
+2. _No `field(default_factory=list)` exercise yet._ The recap names it; a mutable-default bug is a good debug for a later topic once the learner has met the aliasing it depends on in intermediate form.
+
+**Next:** Iterators and generators (`ml.py.iterators-and-generators`).
+
+## 2026-11-10: Classes and objects
+
+**`ml.py.classes` is ready.** A class puts data and behaviour together, and every library the learner will meet hands them objects made this way, so reading one has to be second nature before writing one is. The worked example is a bank account: `__init__` storing values on `self`, a `deposit` method, a `__repr__` that looks like the call that would recreate the object, and two instances that don't share a balance. Then a Parsons counter whose decoy is `count = count + 1` without `self.`, three recall questions (what `self` is in `ada.deposit(50)`; two jars with separate coins; `Dog` against `rex`), a rectangle's methods to fill in and a `Temperature` class to write with a `fahrenheit()` method and a `__repr__`. The proofs: an `Inventory` class to build, whose hidden tests make two inventories and check they don't share counts (the known-wrong solution with a class-level `counts = {}` does share them, which is the classic mistake); a `Player` class with two forgotten `self`s to debug, one in a method's parameters and one in `__init__`, where the second bug only shows once the first is fixed; and an explanation of class against instance, what `self` is and why callers never pass it, and what `balance = balance` would do. The recap ends with the ML shape: `model = LinearRegression()`, `model.fit(x, y)`, `model.coef_`.
+
+**Decisions for you to review:**
+
+1. _The shared-state mistake is a known-wrong solution,_ not a lesson paragraph: a class attribute where an instance attribute was meant is the bug every beginner writes once, and the hidden test that makes two inventories is how they'll meet it.
+2. _`__repr__` is taught in the first class,_ not later: an object that prints as `<__main__.Account object at 0x...>` teaches nothing while debugging.
+
+**Next:** Dataclasses and type hints (`ml.py.dataclasses-and-typing`).
+
+## 2026-11-10: Module 2 begins: comprehensions
+
+**`ml.py.comprehensions` is ready,** the first topic of intermediate Python. A comprehension is the loop the learner has written a hundred times, said as a description of the result, and most Python they'll read from now on uses it. The worked example builds the squares twice, by loop and by comprehension, then adds a condition, a dict comprehension and a set comprehension (printed through `sorted()`, because a set has no order). Then a Parsons problem whose decoy puts the `if` before the `for`, three recall questions (reading `[len(w) for w in ...]`; a dict comprehension over `.items()`; which of four jobs wants a plain loop: the one that prints), the long words to fill in and pass-or-fail to write (a conditional expression at the front of a dict comprehension). The proofs: three one-line summary functions to build (`evens`, `lengths`, `initials`; known-wrong: a list where a set was needed, odds instead of evens), two mix-ups to debug (an odd test labelled even; a dict with key and value swapped), and an explanation that asks what a loop can do that a comprehension can't, whether a real loop should be rewritten (no: it uses a computed value twice), and why nesting goes wrong. The review pool has four, one per skill, including the flattening form with its `for` clauses in loop order.
+
+**Decisions for you to review:**
+
+1. _The judgement skill is a skill,_ with its own questions: knowing when not to use a comprehension is what separates readable code from clever code, and ML code bases are full of the clever kind.
+2. _The main resource is the official tutorial,_ short and exact; the Python for Everybody chapter is listed as background only, because it uses syntax the learner hasn't met.
+
+**Next:** Classes and objects (`ml.py.classes`).
+
+## 2026-11-10: Checkpoint 1 fits a line, and the math refresher is complete
+
+**`ml.m1.checkpoint` is ready,** and with it Module 1 of the Machine Learning Foundations track: the seven math topics and a checkpoint that is, in twenty lines, linear regression by gradient descent. The build: `predict(m, b, x)`, `error(m, b, xs, ys)` (the mean of the squared misses) and `fit(xs, ys, rate, steps)`, which starts both knobs at zero and steps them against the slopes of the error until the line through five points comes out as `slope 2.0`, `intercept 1.0`. Every test names the module skills it checks (ADR-0012), so a failed test points at Calculus's descent, Functions's lines, or Probability's centre. The known-wrong solutions step uphill, forget to average the slopes (which makes the walk unstable), or type the answer in; the hidden tests try a line that slopes down. The debug is a statistics report with three bugs, one per statistic (a mean that divides by n − 1, a median of unsorted values, a spread without its square root), on an unsorted list so the median bug shows. The explanation asks why moving two knobs against their own slopes lowers the error, why the steps shrink by themselves, and what "the best line" means.
+
+**The way through** for a learner who's stuck: a solved sibling that fits a single constant to the same numbers and finds, without being told, the mean (and an error equal to the variance); four fill-in steps that each complete one part of the build with the rest already written (the error, the two slopes, one update, the loop); and two fresh versions on other stories, a cooling cup whose line slopes down and a growing child.
+
+**Numbers that had to be right.** The rate of 0.05 and 2,000 steps were chosen from the error surface's shape: the slow direction shrinks by a factor of 0.983 a step, so 2,000 steps leave nothing visible at two decimals, while the fast direction stays stable; a fit takes about two milliseconds. The steps' expected values (slopes of −50.0 and −14.0 at zero; one update to 2.5 and 0.7) were computed before they were written into tests.
+
+**Decisions for you to review:**
+
+1. _The checkpoint is linear regression,_ unnamed. The learner meets the thing before the vocabulary; Module 3 can call it by its name and show NumPy doing it in one line.
+2. _The slope formulas are given in the prompt,_ not derived. Deriving them needs the chain rule, which is Module 4's; checking them against a numeric slope is within reach and the steps invite it.
+3. _Unsorted data in the debug,_ so that the "median without sorting" bug has a visible symptom; on sorted data it hides.
+
+**Module 2, intermediate Python, is next.**
+
+## 2026-11-09: Calculus, the seventh rung: the slope, and walking downhill
+
+**`ml.math.calculus` is ready,** and with it all seven topics of the math refresher. The topic builds the derivative as something a program can print, `(f(x + h) - f(x)) / h` with a small `h`, and then uses it for the one thing machine learning uses it for: walking downhill. The worked example estimates the slope of `x ** 2` at 3 with `h = 0.1` (6.1) and `h = 0.001` (6.001) and lets the learner see the estimate settle on 6. Then a Parsons numeric derivative (the decoy multiplies by `h`), three recall questions (a negative derivative means going down; the power rule checked against the numeric slope at 5; the derivative of `x ** 3`), one step downhill to fill in (`x - rate * slope`, from both sides of the valley) and a walk downhill to write with a `while abs(slope) > 0.01` loop that counts its steps (29 from 0, 33 from 10). The proofs: `loss`, `slope_at` and `minimize` to build (known-wrong: a step uphill, `h = 1`), a 30-step walk with two bugs (the wrong sign, which sends it to minus seven hundred, and `h = 1`, which settles it at 2.5 instead of 3), and an explanation of why subtracting the slope finds the bottom from either side, why the steps shrink on their own, and what too large a rate does. The recap names the learning rate. OpenStax Calculus Volume 1 and 3Blue1Brown's _Essence of calculus_ (linked) are the resources.
+
+**Decisions for you to review:**
+
+1. _Numeric derivatives first, rules second._ A learner who can print a slope can check any rule they're told, and the power rule is introduced as something to verify, not memorize.
+2. _No functions-as-arguments yet._ `minimize` works on a fixed `loss` defined in the program, because passing a function to a function is Module 2's material; the checkpoint keeps to the same constraint.
+
+**Next:** Checkpoint 1, fit a line, which closes Module 1.
+
+## 2026-11-09: Vectors and matrices, the sixth rung
+
+**`ml.math.vectors-and-matrices` is ready.** Everything a model does is adding, scaling and multiplying lists of numbers, and the topic does each with plain Python lists and loops so that NumPy, later, is a convenience rather than a mystery. The worked example adds two vectors entry by entry (and says why Python's own `+` won't do), scales one, takes a dot product and measures a length. Then a Parsons dot product (the decoy adds instead of multiplying), three recall questions (why a 2×3 times a 3×4 is a 2×4; a vector plus three times another; the dot product of two perpendicular arrows is 0), a matrix times a vector to fill in and a `length(v)` function to write for any number of entries. The proofs: `multiply(a, b)` with three loops, whose hidden tests try a 1×3 by 3×1, a 2×3 by 3×2 and the identity (known-wrong: entry-by-entry products, rows paired with rows); the centre of some points with two bugs (the outer loop runs over the wrong length, the divisor is the wrong count); and an explanation of why the inner shapes must match, what shape comes out, and why a network layer is a matrix times a vector. The recap ends on the error the learner will meet most in ML code: shape mismatch, for exactly the reason just learned. OpenStax Precalculus 2e and 3Blue1Brown's _Essence of linear algebra_ (linked) are the resources.
+
+**Decisions for you to review:**
+
+1. _Lists and loops, not NumPy,_ for this one topic: the loops are the definitions, and the learner should have written them once before a library hides them (Module 3 brings NumPy).
+2. _The review pool has four items_ so that every one of the four skills has two questions that can come back; the content rule allows it.
+
+**Next:** Calculus (`ml.math.calculus`), the last rung, which ends with gradient descent.
+
+## 2026-11-09: Probability and statistics, the fifth rung
+
+**`ml.math.probability-and-statistics` is ready.** Statistics as what you do to a list, probability as counting what could happen, and the base-rate table as the one piece of reasoning everyone gets wrong until they've drawn it once. The worked example finds the mean and median of `[2, 4, 4, 10]` with `sum`, `len` and `sorted`, and the 10 moves one and not the other. Then a Parsons problem that counts the 36 outcomes of two dice with nested loops (the decoy divides by 12), three recall questions (which of mean 67.4 and median 35 describes five salaries; heads and a six multiply, not a six is `1 - p`; of 1,000 people, how many healthy ones test positive), the standard deviation to fill in (square, average, root) and the 1,000-people table to write. The proofs: `mean`, `median` and `spread` to build, with "median without sorting" and "divides by n - 1" as known-wrong solutions; dice odds with two bugs (a range that stops at 5, a chance never multiplied by 100); and an explanation of why a friend's positive test doesn't mean 90%: 9 sick positives against 99 healthy ones. The review pool has four, one each for the four skills. The recap ties each idea to its ML use: mean squared error, scaling data, and why a 99%-accurate classifier can be useless for a rare class. OpenStax Introductory Statistics 2e is the main resource.
+
+**Decisions for you to review:**
+
+1. _Population standard deviation (divide by n), not sample (n - 1)._ It's the definition the lesson teaches and the one NumPy uses by default; the sample version is named as a wrong answer and comes properly in Module 5.
+2. _The base-rate table is written as code, not read as a story,_ so the learner computes 9 and 99 themselves before being asked to explain them.
+
+**Next:** Vectors and matrices (`ml.math.vectors-and-matrices`).
+
+## 2026-11-09: Exponents and logarithms, the fourth rung
+
+**`ml.math.exponents-and-logs` is ready.** A power is repeated multiplication and a logarithm is "how many times?" asked backwards; the topic is built to make the product rule land, because that one rule is why machine learning adds log-probabilities instead of multiplying probabilities. The worked example takes a power, a negative exponent (one over), a root (an exponent of a half) and two logs with `math.log2` and `math.log10`. Then a Parsons loop that doubles a colony until it passes 1000 (the decoy adds 2 a day, growth by the same amount instead of the same factor), three recall questions (what `log2(32)` asks; `log10(1000) + log10(100)` against `log10(1000 * 100)`; `10 ** -2` is small, not negative), compound growth to fill in (`(1 + rate / 100) ** years`) and a half-life table to write. The proofs: `years_to_double(rate)` to build by multiplying until the amount passes double (known-wrong: simple interest), a decibel calculation with two bugs (`math.log` where `math.log10` was meant, the ratio upside down; the prompt says which symptom points at which), and an explanation that corrects a friend's "log of a product is the product of the logs" and ends with why the trick matters for ML. The recap names log-likelihood and cross-entropy as this trick with names. OpenStax Intermediate Algebra 2e chapter 10 is the main resource.
+
+**Decisions for you to review:**
+
+1. _The ML reason is in the topic, not saved for later:_ every learner who meets `log_softmax` or cross-entropy should already know why there's a log in it.
+2. _Years-to-double is built with a loop, not a log,_ though the recap shows both: at this point in the track a loop is what the learner can see working.
+
+**Next:** Probability and statistics (`ml.math.probability-and-statistics`), which needs `py.list-algorithms`.
+
+## 2026-11-09: Functions, the third rung, and a flaky lab check made solid
+
+**`ml.math.functions` is ready.** The point of the topic is that the math word and the Python word mean the same thing: a rule from input to output, and `f(x) = 2x + 1` is `def f(x): return 2 * x + 1`. The worked example evaluates it and prints a table of values with a loop (a graph is a table, drawn). Then a Parsons table of squares, three recall questions (what 2.5 and 4 mean in `2.5 * km + 4`; `square(plus_one(2))` against `plus_one(square(2))`; the slope through two points), the line through two points to fill in (rise over run, then the intercept) and a Celsius table to write, whose tests call the function directly as well as reading the table. The proofs: a delivery-cost function to build (known-wrong: no pick-up charge, slope and intercept swapped), a half-then-ten program with two bugs (`//` where `/` was meant, a loop that stops early), and an explanation of `f(3)`, what the two notations share, and why `f(g(2))` and `g(f(2))` differ. The recap ends with the sentence the whole module is heading for: a model is a function with knobs, and training means turning them until the table of outputs matches the data. It needs `py.return-values`, so the owner reaches it after Python's Module 4.
+
+**A flaky lab check, made solid.** The rerun of #86's Labs job got through 39 of 40 labs; the one it called broken was the CPU quota walkthrough, whose "throttled at least once" check (`nr_throttled >= 1`) passed its no-quota wrong fix: on that runner the service showed one throttled period with no quota set. The check now measures throttled **time**, at least half a second, which a 20% quota over three seconds gives about 2.4 of and a stray period can't. Proven locally, pushed to `feat/cpu-labs`, and cherry-picked onto every branch above it, because the stack's merge keeps a child's side of a file where the two differ and would have dropped the fix. Meanwhile the lab-checker warm-up (#102) landed on `main`: the Labs job took ten minutes instead of most of an hour.
+
+**Decisions for you to review:**
+
+1. _Throttled time, not a count._ A count of one is noise on a busy machine; half a second of throttling is a quota.
+2. _The write exercise's tests call the function and read the table,_ so a learner who prints the right table with the wrong function, or the right function with no table, hears exactly which.
+
+**Next:** Exponents and logarithms (`ml.math.exponents-and-logs`).
+
+## 2026-11-09: Algebra, the second rung of the math refresher
+
+**`ml.math.algebra` is ready.** The idea of the topic is that algebra is arithmetic with a blank in it, and that Python is where to do it because it can check the answer. The worked example solves `3x - 7 = 11` by undoing in reverse order (add 7, then divide by 3, which in Python is `(11 + 7) / 3`, parentheses and all) and ends with the line that substitutes the answer back; that check is the habit the whole topic drills. Then a Parsons problem with the "divide first" line as the decoy, three recall questions (which step to undo first; a speed formula rearranged for time and multiplied back; `2 ** 3 * 2 ** 4` is `2 ** 7`), Fahrenheit to Celsius to fill in (undo the `+ 32` first) and a savings goal to solve. The proofs: simple interest rearranged for the principal, with "forgot the percent" and "divided in the wrong order" as known-wrong solutions; a temperature conversion with two bugs (parentheses missing again, and kelvin off by 0.15); and an explanation of why a friend's `17 - 3 / 5` doesn't solve `5x - 3 = 17`. The review pool has a power-rules prediction, a rearrangement question and a two-step equation to solve in code. OpenStax Elementary Algebra 2e (CC BY 4.0) is the main resource.
+
+**Decisions for you to review:**
+
+1. _Every solving exercise prints a check line._ Substituting back is cheap, catches every undoing mistake, and is the habit that later makes the learner trust a model's loss going down rather than their own confidence.
+2. _Exponent rules are in this topic,_ as the spec says, but only the multiplying rules; logarithms and roots come in the fourth topic, where they're the point.
+
+**Next:** Functions (`ml.math.functions`), which needs `py.return-values`.
+
+## 2026-11-09: The math refresher begins: fractions, decimals and percentages
+
+**The first ML topic is ready** (`ml.math.arithmetic`, "Fractions, decimals and percentages"): the arithmetic the data work leans on, done in Python so a wrong idea shows up as a wrong number. The ladder: a recipe scaled with fractions (the worked example, which also shows why `1.6666666666666665` is right and `1.67` is what a person wants), a Parsons problem for 25% off, three recall questions (order of operations, fractions to decimals, percentage change), a tip-and-split fill-in and a fruit-punch ratio to write. The proofs: a sale receipt to build where the discount comes first and the tax applies to what's left (the two likely wrong orders are known-wrong solutions), an average-score report to debug with two bugs (a missing pair of parentheses and a percentage never multiplied by 100), and an explanation of why `price * (1 - 25 / 100)` and `price * 1 - 25 / 100` differ. A review pool of three, every skill with at least three questions that can come back. The main resource is OpenStax Prealgebra 2e (CC BY 4.0), linked by book with the chapters named; the recap carries the teaching.
+
+**Two things it needed.** Its prerequisite is `py.strings-and-input` (the Python topic that teaches the f-strings it uses), in another track, so Today's _Next up_ now says what a locked track is waiting for ("Next: Fractions, decimals and percentages, once you've learned Strings and input (Python Foundations)") instead of claiming everything is learned, with a test, and the map's cross-track reading of progress (the previous entry) has its tests now: the topic is Locked on the ML map until `py.strings-and-input` is learned, then Available.
+
+**Also today, outside the stack:** the Labs job on #86's merge commit failed with twelve `docker build` timeouts, four cold builds of the same heavy systemd layer at once on a busy runner. `labcheck test --all --jobs N` now builds the first lab of each topic on its own before the parallel run, so the layer a topic's labs share is built once, and a build may take 30 minutes instead of 15 (#102, against `main`, so the rest of the stack picks it up as `main` is merged into each). The failed job was re-run meanwhile.
+
+**Decisions for you to review:**
+
+1. _The title is "Fractions, decimals and percentages", not "Arithmetic",_ so it can't be confused with Python Foundations' Arithmetic on Today or the map; the spec's table says the same.
+2. _The worked example shows the ugly float on purpose_ (`1.6666666666666665`) before rounding it, because every learner meets one within a week and should know it isn't their bug.
+3. _The explain prompt is about one line with and without parentheses,_ which is the whole of the order of operations in a form the learner will type a hundred times.
+
+**Next:** Algebra (`ml.math.algebra`), the second rung.
+
+## 2026-11-09: The Machine Learning Foundations track takes shape
+
+Phase 2's content items, the math refresher and intermediate Python, needed a home. They're the first two modules of a third track, **Machine Learning Foundations** ([spec](specs/ml-foundations.md)): the track the vision was written for, from the math and the Python that ML is made of to neural networks from scratch and the systems that serve them. Module 1 is the placement test's seven math levels as topics, each about 45 minutes and each proven in Python (a wrong idea shows up as a wrong number); Module 2 is the intermediate Python the rest of the track is written in. Later modules are prose in the spec until Phase 3 plans them in detail.
+
+**What changed today:** the track file and sixteen `planned` outlines (seven math topics, seven Python topics, two checkpoints), hand-written from the spec rather than generated, since there are few and they become real content soon; a diagnostic level can name its topic (`topic:`), so the math ladder's result links each topic as it's written and the free refresher until then; and the map now reads the progress of prerequisites from other tracks, because `ml.math.arithmetic` builds on `py.strings-and-input` and would otherwise have stayed locked on the ML map forever. The validator accepts cross-track prerequisites as it always did.
+
+**Decisions for you to review:**
+
+1. _A third track, not more modules of Python Foundations._ Python Foundations ends where its summary says it does; the ML path is its own thing, with its own map and its own hours on Today.
+2. _Cross-track prerequisites, by name._ A learner can start the math refresher early (Fractions, decimals and percentages needs only `py.strings-and-input`) and the later topics unlock as their Python does. Phase 3's modules will do the same.
+3. _Hand-written outlines for this track._ Sixteen files, soon real; generalizing the cloud track's generator can wait until Phase 3's modules are planned in detail.
+4. _The math topics come first,_ one pull request each, because the placement test points at them today; intermediate Python follows.
+
 ## 2026-11-09: Step through, the last engineering item of Phase 2
 
 **What it does ([ADR-0022](decisions/0022-step-through.md)).** Beside Run, a **Step through** button runs the program one step at a time: the code with the current line marked, a table of variables for each running call (innermost first), the output so far, and First/Back/Next/Last with a slider. A sentence above says what's happening: "Line 7 is about to run, inside square()", "square() returns 9", "Error at line 2: ZeroDivisionError: division by zero". It reuses the last Run's typed input and random seed, so it plays back what the learner just saw. Under a predict-the-output question, **Step through it** appears once the prediction is checked, never before: predicting first is the point. The placement test's quiet questions don't offer it.

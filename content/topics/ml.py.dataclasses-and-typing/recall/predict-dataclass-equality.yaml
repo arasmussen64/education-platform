@@ -1,0 +1,28 @@
+id: predict-dataclass-equality
+type: predict_output
+rev: 1
+prompt: |
+  Two objects with the same contents, from a dataclass and from a plain class. What does the program print?
+code: |
+  from dataclasses import dataclass
+
+
+  @dataclass
+  class Point:
+      x: float
+      y: float
+
+
+  class Plain:
+      def __init__(self, x):
+          self.x = x
+
+
+  print(Point(1, 2) == Point(1, 2))
+  print(Plain(1) == Plain(1))
+expected_output: |
+  True
+  False
+explanation: |
+  `@dataclass` generates an `__eq__` that compares field by field, so two points with the same coordinates are equal: `True`. A plain class without `__eq__` compares by identity: two separate objects are never equal, however alike, so `False`.
+skills: [dataclass, runtime]

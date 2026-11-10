@@ -1,0 +1,27 @@
+<Intro>
+
+A vector is an arrow: it has a length and a direction. Module 1 built them as lists; now they're arrays, and the two questions this topic answers are the ones every model keeps asking: how long is it, and how much do two of them point the same way? The dot product answers the second, and almost everything called "similarity" in machine learning is a dot product with the lengths divided out.
+
+The main resource is **3Blue1Brown's first chapter** of *Essence of linear algebra*, ten minutes of pictures: a vector as an arrow, as a list of numbers, and why both views are right. Then **chapter 9**, on dot products, which is the one idea here that deserves a picture. Watch for:
+
+- **Length** is Pythagoras: the square root of the sum of the squares.
+- **The dot product** adds up the products of matching entries, and comes out as a single number.
+- **Why dividing by the lengths** turns a dot product into a cosine, which is the angle.
+- **Projection** as a shadow: the part of one vector that lies along another.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Length** (the norm): `np.linalg.norm(v)`, which is `np.sqrt(np.sum(v * v))`. `[3, 4]` has length 5.
+- **A unit vector** has length 1 and keeps the direction: `v / np.linalg.norm(v)`. Not `v / len(v)`: `len` counts the entries.
+- **The dot product** `v @ w` (or `np.dot`) is the sum of the products of matching entries: `[3, 4] @ [4, 3]` is 12 + 12 = 24. `v @ v` is the length squared.
+- **Reading it:** positive means the vectors point broadly the same way, negative opposite ways, and **zero means perpendicular**. With a unit axis vector it reads off a coordinate: `v @ [1, 0]` is v's first entry.
+- **Cosine similarity** divides by both lengths: `(v @ w) / (norm(v) * norm(w))`. It's the cosine of the angle between them, from 1 (same direction) to -1 (opposite), and it doesn't change when either vector is scaled. The angle itself is `np.degrees(np.arccos(cos))`; clip `cos` to `[-1, 1]` first, because rounding can leave it at 1.0000000002 and `arccos` refuses that.
+- **Projection** of `v` onto the line through `w`: `(v @ w) / (w @ w) * w`, the shadow of `v` on that line. Subtracting it from `v` leaves the part perpendicular to `w`. If `w` is a unit vector the divisor is 1, which is the only case where leaving it out works.
+- **Rows at once:** for a 2-D array of vectors, `rows @ query` is every row's dot product with `query` in one go, and `np.linalg.norm(rows, axis=1)` every row's length. That's a recommender's inner loop, with no loop.
+- **In machine learning:** word and image embeddings are vectors, and "nearest" means highest cosine; a linear model's prediction is a dot product of the features with the weights; projection is the first step of least squares, two topics from now.
+
+</Recap>

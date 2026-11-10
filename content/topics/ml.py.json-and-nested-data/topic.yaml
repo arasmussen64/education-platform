@@ -1,0 +1,70 @@
+id: ml.py.json-and-nested-data
+kind: topic
+status: ready
+title: "JSON and nested data"
+summary: "Read and write JSON, walk nested data safely, and validate what came in."
+prerequisites: [ml.py.dataclasses-and-typing, py.csv-data]
+estimated_minutes: 50
+rev: 1
+objectives:
+  - "Read and write JSON, as text and as files."
+  - "Walk nested lists and dicts without crashing on what's missing."
+  - "Turn records into dataclasses and back, and validate what came in before using it."
+resources:
+  - title: "The Python Tutorial: Saving structured data with json (section 7.2.2) (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/inputoutput.html#saving-structured-data-with-json
+    type: reading
+    use: link
+    license: PSF License Version 2
+  - title: "The Python Standard Library: json, the table of how JSON and Python types correspond (Python Software Foundation)"
+    url: https://docs.python.org/3/library/json.html#encoders-and-decoders
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-json-round-trip
+  - parsons-load-and-walk
+  - mcq-what-json-can-hold
+  - predict-missing-keys
+  - mcq-validate-first
+  - fill-safe-lookup
+  - write-readings
+prove:
+  build: build-validate-orders
+  debug: debug-nested-walk
+  explain:
+    prompt: |
+      A teammate's script reads a JSON file that a partner company sends every night. Last night it crashed with `KeyError: 'email'`; the night before, with `TypeError` on `age + 1` because `age` had arrived as `"42"`. In your own words: what does `json.loads` hand back, in Python terms, and what can and can't be in it? Why does walking nested data need `.get()` and `isinstance()` rather than square brackets everywhere? Where in the program should the checking happen, and why there rather than at every use? And what would turning each checked record into a dataclass buy the rest of the program?
+    rubric:
+      - id: shape
+        required: true
+        description: "json.loads gives dicts, lists, strings, numbers, booleans and None, nested; no sets, tuples, dates or custom objects, and object keys are always strings."
+      - id: safe-walk
+        required: true
+        description: "Square brackets raise on a missing key or an unexpected type; .get() with a default and isinstance() let the program decide what to do with data it didn't expect."
+      - id: boundary
+        required: true
+        description: "Validate once at the boundary, right after reading, rejecting or fixing bad records there, so everything after can trust the data instead of defending at every use."
+      - id: records
+        required: false
+        description: "A dataclass gives the checked record a fixed shape with named fields, so a typo is an AttributeError at once and the rest of the program knows exactly what it holds."
+    model_answer: |
+      json.loads turns JSON text into ordinary Python values: objects become dicts whose keys are always strings, arrays become lists, and the leaves are strings, numbers, True, False or None. That's the whole menu; there are no sets, tuples, dates or your own classes in JSON, so anything like that has to be rebuilt on the way in. The data is nested, and square brackets assume the shape is exactly what you expect: record["email"] raises KeyError the first night a record has no email, and record["address"]["city"] raises TypeError the night address is null. .get() with a default and isinstance() checks let the program notice and decide, instead of crashing. The checking belongs in one place, right after the file is read: a function that looks at each record, rejects or repairs the bad ones and logs them, and passes on only records with the right keys and types. Then nothing downstream has to defend itself, and when the partner changes the format there's one function to update. Turning each good record into a dataclass is the last step of that boundary: from then on it's record.age, an int, with a fixed set of fields, and a typo fails at once instead of being an empty dict somewhere later.
+review_pool:
+  - review-predict-dumps-types
+  - review-mcq-loads-or-load
+  - review-mcq-asdict
+  - review-mcq-where-to-validate
+  - review-sum-nested-lists
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: json-io
+    description: "Read and write JSON with loads, dumps, load and dump, and know how its types map to Python's"
+  - id: safe-walk
+    description: "Walk nested dicts and lists with .get, in and isinstance instead of crashing on what's missing"
+  - id: records
+    description: "Turn a dict record into a dataclass and back with asdict"
+  - id: validate
+    description: "Check data's shape once, at the boundary, before the rest of the program trusts it"

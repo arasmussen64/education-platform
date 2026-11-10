@@ -1,0 +1,22 @@
+id: example-the-direction-of-most-spread
+stage: worked_example
+rev: 1
+title: "The direction of most spread"
+prompt: |
+  Six points that lie roughly along a slanted line. This program centers them, builds the covariance matrix, takes its eigenvectors, projects the points onto the first one, and rebuilds them from that single coordinate. Press **Run**, then read how each part works.
+steps:
+  - label: "Center the data"
+    lines: "3-6"
+    note: "Subtract each column's mean, so the cloud sits at the origin. The mean is `[4.5, 3]`; everything that follows is about spread around it."
+  - label: "The covariance matrix"
+    lines: "7-9"
+    note: "`centered.T @ centered / (n - 1)`: variances on the diagonal (3.5 along x, 2.4 along y), and 2.8 off it, because the two features rise together. `np.cov` agrees."
+  - label: "Its eigenvectors are the principal components"
+    lines: "10-14"
+    note: "`eigh` gives the eigenvalues ascending, `[0.096, 5.804]`, so the first component is the **last** column. Its sign is a free choice, fixed here so the first entry is positive: `[0.772, 0.635]`, the slant the points follow."
+  - label: "Scores: the data along that direction"
+    lines: "15-16"
+    note: "Each point's coordinate along the component, from `-3.2` to `3.2`: six numbers instead of six pairs. That's the compression."
+  - label: "How much is kept, and what comes back"
+    lines: "17-19"
+    note: "The first component carries 98.4 percent of the variance. Rebuilding each point from its single score lands within a few tenths of the original (the two middle points miss by about a third): what's lost is the spread across the line."

@@ -1,0 +1,69 @@
+id: ml.py.functions-as-values
+kind: topic
+status: ready
+title: "Functions as values"
+summary: "Passing functions around: sort keys, lambda, and a decorator that counts calls."
+prerequisites: [ml.py.comprehensions]
+estimated_minutes: 50
+rev: 1
+objectives:
+  - "Pass a function to another function, and sort with a key."
+  - "Use `lambda` where it's clearer, and name the function where it isn't."
+  - "Write a decorator that wraps a function."
+resources:
+  - title: "The Python Tutorial: Lambda Expressions (section 4.9.6) and Sorting HOW TO, Key Functions (Python Software Foundation)"
+    url: https://docs.python.org/3/howto/sorting.html#key-functions
+    type: reading
+    use: link
+    license: PSF License Version 2
+  - title: "The Python Glossary: decorator (Python Software Foundation)"
+    url: https://docs.python.org/3/glossary.html#term-decorator
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-a-function-is-a-value
+  - parsons-sort-by-length
+  - mcq-what-key-does
+  - predict-sort-with-lambda
+  - mcq-lambda-or-def
+  - fill-rank-the-scores
+  - write-compose
+prove:
+  build: build-a-counting-decorator
+  debug: debug-the-wrong-key
+  explain:
+    prompt: |
+      A teammate sees `sorted(names, key=len)` and `@timed` above a function in your code and asks what's going on. In your own words: what does it mean to pass `len` without calling it, and what does `sorted` do with it? When is a `lambda` the right thing to pass, and when should the function get a name and a `def`? And what does a decorator like `@timed` actually do to the function below it?
+    rubric:
+      - id: value
+        required: true
+        description: "A function is a value: len without parentheses is the function itself, not its result, and sorted calls it on each item to get the thing to sort by."
+      - id: lambda
+        required: true
+        description: "lambda is for a one-expression function used once, right where it's passed (key=lambda p: p[1]); anything longer, reused or needing a docstring gets a def and a name."
+      - id: decorator
+        required: true
+        description: "A decorator is a function that takes the function below it and returns a replacement, usually a wrapper that does something extra (timing, counting, logging) and then calls the original; @timed means f = timed(f)."
+      - id: closure
+        required: false
+        description: "Mentions that the wrapper remembers the original function (a closure), or that *args lets it wrap functions with any parameters."
+    model_answer: |
+      In Python a function is a value like a number or a list: len is the function, len("abc") is a call that gives 3. Passing key=len hands sorted the function itself, and sorted calls it on each item to get the value to order by, so names come out shortest first. A lambda is a function with no name and one expression, written where it's used: key=lambda p: p[1] says "sort by the second thing in each pair" without a separate def. That's right when the function is tiny and used once. As soon as it needs two lines, a reuse, or a docstring, it should get a def and a name, because a name says what it does. A decorator is a function that takes a function and returns a replacement for it. @timed above def f is the same as f = timed(f): timed builds a wrapper that notes the time, calls the original f, prints how long it took and returns f's result, and that wrapper is what the name f refers to from then on. The wrapper remembers the original because it was created inside timed, and *args lets it wrap a function with any parameters.
+review_pool:
+  - review-predict-filter-and-map
+  - review-mcq-decorator-meaning
+  - review-predict-decorator-order
+  - review-sort-by-last-letter
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: pass-functions
+    description: "Pass a function to another function, and know the difference between f and f()"
+  - id: key
+    description: "Sort, min and max with a key function"
+  - id: lambda
+    description: "Use lambda where it's clearer, and name the function where it isn't"
+  - id: decorators
+    description: "Write a decorator that wraps a function"

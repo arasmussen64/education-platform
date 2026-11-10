@@ -1,0 +1,33 @@
+xs = [1, 2, 3, 4, 5]
+ys = [52, 54, 56, 58, 60]
+
+
+def predict(m, b, x):
+    return m * x + b
+
+
+def error(m, b, xs, ys):
+    total = 0
+    for i in range(len(xs)):
+        total = total + (predict(m, b, xs[i]) - ys[i]) ** 2
+    return total / len(xs)
+
+
+def fit(xs, ys, rate, steps):
+    m = 0.0
+    b = 0.0
+    for step in range(steps):
+        slope_m = 0
+        slope_b = 0
+        for i in range(len(xs)):
+            miss = predict(m, b, xs[i]) - ys[i]
+            slope_m = slope_m + 2 * miss * xs[i]
+            slope_b = slope_b + 2 * miss
+        m = m - rate * slope_m
+        b = b - rate * slope_b
+    return [m, b]
+
+
+line = fit(xs, ys, 0.05, 2000)
+print("slope", round(line[0], 2))
+print("intercept", round(line[1], 2))

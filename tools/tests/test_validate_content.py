@@ -675,3 +675,11 @@ def test_diagnostic_mistakes_are_caught(tree: Path) -> None:
         DIAGNOSTIC.replace("id: add-2", "id: count-1"),
     )
     assert_reported(tree, "item ids must all be different", run=False)
+    write(
+        tree,
+        "content/diagnostics/math.yaml",
+        DIAGNOSTIC.replace(
+            "    title: Adding\n", "    title: Adding\n    topic: t.nowhere\n"
+        ),
+    )
+    assert_reported(tree, "names a topic that doesn't exist", run=False)

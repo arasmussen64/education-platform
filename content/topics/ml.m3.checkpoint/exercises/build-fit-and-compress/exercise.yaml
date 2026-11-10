@@ -1,0 +1,41 @@
+id: build-fit-and-compress
+stage: build
+rev: 1
+title: "Fit and compress"
+prompt: |
+  Starting from a blank editor, do Module 3 in one program: fit a plane to six points with the normal equations, check it against `lstsq`, then compress the same points with PCA and say how much was kept.
+
+  **The points.** Six samples with three measurements each, as rows:
+
+  ```python
+  points = np.array([
+      [0.0, 0.0, 3.1],
+      [1.0, 0.0, 4.9],
+      [0.0, 1.0, 2.05],
+      [2.0, 3.0, 3.95],
+      [3.0, 1.0, 8.1],
+      [1.0, 2.0, 2.9],
+  ])
+  ```
+
+  **Fit a plane.** `fit_plane(points)` treats the third column as the target, roughly `z = 2x - y + 3` with a little noise: it builds the design matrix (the first two columns and a column of ones), solves the normal equations `AᵀA x = Aᵀz`, and returns `[a, b, c]` for `z ≈ a x + b y + c`.
+
+  **Compress.** `compress(points, k)` runs PCA on all three columns: center, covariance with `n - 1`, `np.linalg.eigh`, components ordered by eigenvalue (largest first), scores along the top `k`, and the points rebuilt from those scores. It returns two things: every component's share of the variance (largest first), and the rebuilt points.
+
+  **Report.** `report(points)` prints four lines: the plane's coefficients rounded to 3 places; whether `np.linalg.lstsq` agrees with them (`np.allclose`); the share of variance the top two components keep, rounded to 4; and the size of the compression error with two components, `np.linalg.norm(points - rebuilt)`, rounded to 3. Then call it on the points:
+
+  ```
+  plane [ 2.015 -1.035  3.024]
+  lstsq agrees True
+  variance kept 0.9998
+  compression error 0.079
+  ```
+
+  The checks call your functions with other points, including points that lie exactly on a plane.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.la.least-squares/normal, ml.la.pca/explained, ml.la.numpy-arrays/vectorize]
+  test_fit_matches_lstsq: [ml.la.least-squares/lstsq, ml.la.least-squares/design, ml.la.systems/solve]
+  test_compress: [ml.la.pca/components, ml.la.pca/project, ml.la.eigen/compute]
+  test_exact_plane: [ml.la.least-squares/meaning, ml.la.pca/covariance]

@@ -136,9 +136,11 @@ describe('PythonRunner', () => {
     await flush()
     workers[0].reply({ type: 'ready' })
     await flush()
-    expect(workers[0].received.map((request) => request.code)).toEqual([
-      'first',
-    ])
+    expect(
+      workers[0].received.map((request) =>
+        'code' in request ? request.code : request.type,
+      ),
+    ).toEqual(['first'])
 
     await vi.advanceTimersByTimeAsync(4000)
     workers[0].reply({
@@ -148,10 +150,11 @@ describe('PythonRunner', () => {
     })
     await expect(first).resolves.toMatchObject({ kind: 'done' })
     await flush()
-    expect(workers[0].received.map((request) => request.code)).toEqual([
-      'first',
-      'second',
-    ])
+    expect(
+      workers[0].received.map((request) =>
+        'code' in request ? request.code : request.type,
+      ),
+    ).toEqual(['first', 'second'])
 
     // The second request started at 4s, so it isn't out of time at 8s.
     await vi.advanceTimersByTimeAsync(4000)
@@ -213,6 +216,82 @@ describe('PythonRunner', () => {
     await expect(outcome).resolves.toEqual({
       kind: 'failed',
       message: 'Something broke',
+    })
+  })
+
+  describe("a topic's packages (ADR-0023)", () => {
+    const result = { output: '', error: null, waiting_for_input: false }
+
+    it('loads them once, before the first request that needs them', async () => {
+      const { runner, workers } = setup()
+      const first = runner.run('import numpy', { packages: ['numpy'] })
+      await flush()
+      workers[0].reply({ type: 'ready' })
+      await flush()
+      expect(workers[0].received).toEqual([
+        { id: 1, type: 'load', packages: ['numpy'] },
+      ])
+      workers[0].reply({ id: 1, type: 'load-result' })
+      await flush()
+      expect(workers[0].received.map((r) => r.type)).toEqual(['load', 'run'])
+      workers[0].reply({ id: workers[0].lastId, type: 'run-result', result })
+      await expect(first).resolves.toEqual({ kind: 'done', result })
+
+      // Already loaded: the next request goes straight through.
+      const second = runner.check('import numpy', 'tests', {
+        packages: ['numpy'],
+      })
+      await flush()
+      expect(workers[0].received.map((r) => r.type)).toEqual([
+        'load',
+        'run',
+        'check',
+      ])
+      const report = {
+        status: 'ok' as const,
+        message: '',
+        passed: 0,
+        total: 0,
+        results: [],
+      }
+      workers[0].reply({ id: workers[0].lastId, type: 'check-result', report })
+      await expect(second).resolves.toMatchObject({ kind: 'done' })
+    })
+
+    it('loads them again for the fresh worker after a time-out', async () => {
+      const { runner, workers } = setup()
+      const first = runner.run('x', { packages: ['numpy'], timeLimitMs: 1000 })
+      await flush()
+      workers[0].reply({ type: 'ready' })
+      await flush()
+      workers[0].reply({ id: workers[0].lastId, type: 'load-result' })
+      await flush()
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(first).resolves.toEqual({ kind: 'timeout' })
+
+      const second = runner.run('x', { packages: ['numpy'] })
+      await flush()
+      workers[1].reply({ type: 'ready' })
+      await flush()
+      expect(workers[1].received.map((r) => r.type)).toEqual(['load'])
+      workers[1].reply({ id: workers[1].lastId, type: 'load-result' })
+      await flush()
+      workers[1].reply({ id: workers[1].lastId, type: 'run-result', result })
+      await expect(second).resolves.toEqual({ kind: 'done', result })
+    })
+
+    it('reports a load that takes too long as a failure, not a time-out', async () => {
+      const { runner, workers } = setup()
+      const outcome = runner.run('x', { packages: ['numpy'] })
+      await flush()
+      workers[0].reply({ type: 'ready' })
+      await flush()
+      await vi.advanceTimersByTimeAsync(120_000)
+      await expect(outcome).resolves.toEqual({
+        kind: 'failed',
+        message:
+          'Loading numpy took too long. Check your connection and try again.',
+      })
     })
   })
 })

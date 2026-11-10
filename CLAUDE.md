@@ -4,11 +4,12 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 
 ## What this is
 
-**Switchback** (working name, may change) is an adaptive computer-science learning platform covering CS from total beginner to principal engineer. Learners can't tick topics off themselves: every topic is taught, must be *proven* by building with it, and is kept fresh with spaced review. First learning track: CS foundations → ML engineering.
+**Switchback** (working name, may change) is an adaptive computer-science learning platform covering CS from total beginner to principal engineer. Learners can't tick topics off themselves: every topic is taught, must be _proven_ by building with it, and is kept fresh with spaced review. First learning track: CS foundations → ML engineering.
 
 - Concept: [docs/vision.md](docs/vision.md)
 - Plan and current phase: [docs/roadmap.md](docs/roadmap.md)
 - v1 spec: [docs/specs/v1.md](docs/specs/v1.md), with the [data model](docs/specs/data-model.md) and the [first track](docs/specs/python-foundations.md)
+- Third track, the ML path: [Machine Learning Foundations](docs/specs/ml-foundations.md). Module 1 is the math refresher the placement test points at ([ADR-0021](docs/decisions/0021-placement-test.md)), Module 2 intermediate Python, Module 3 linear algebra in NumPy ([ADR-0023](docs/decisions/0023-packages-in-both-runtimes.md), proposed: a topic declares the packages it imports); all three are written. Modules 4 to 10 are prose in the spec.
 - Next track, specified but not built: [Cloud Solutions Architect](docs/specs/cloud-solutions-architect.md). How its cloud work is proven is [ADR-0014](docs/decisions/0014-cloud-labs.md); how its shell module is taught and proven is [ADR-0017](docs/decisions/0017-shell-in-the-browser.md). Both accepted 2026-11-09. Labs run in containers on the learner's machine through `tools/labcheck.py` ([ADR-0018](docs/decisions/0018-lab-checker-local-mode.md)).
 - Decisions (ADRs): [docs/decisions/](docs/decisions/)
 - Methods behind the features: [docs/learning-science.md](docs/learning-science.md)
@@ -25,7 +26,7 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 
 - The owner is early in their coding journey and is the platform's first learner. Building the platform is part of how they learn.
 - Explain what you're doing and why, in plain language. Define jargon the first time you use it.
-- Prefer simple, readable code over clever code: small files, clear names, comments that explain *why*.
+- Prefer simple, readable code over clever code: small files, clear names, comments that explain _why_.
 - Teach as you go. When a task would make a good exercise, offer to let the owner write it (with hints) instead of writing it yourself.
 - Keep the owner able to explain the code. Every pull request includes a short plain-language summary, and you offer an occasional explain-it-back question. These never block merging.
 - Ask before anything hard to undo or that costs money: paid services, deleting data, force-pushing, making things public.
@@ -34,14 +35,14 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 
 ## Development process
 
-- **Plan first.** Check the roadmap and relevant ADRs before non-trivial work. Significant or hard-to-reverse choices get an ADR in `docs/decisions/` (status *Proposed* until the owner accepts it).
+- **Plan first.** Check the roadmap and relevant ADRs before non-trivial work. Significant or hard-to-reverse choices get an ADR in `docs/decisions/` (status _Proposed_ until the owner accepts it).
 - **Branches.** `main` must always work. Make each change on a short-lived branch (`feat/…`, `fix/…`, `docs/…`, `chore/…`) and merge it into `main` through a pull request.
 - **Merging.** The owner gave standing permission (2026-11-05) for Claude to merge its own pull requests once CI passes. Use squash merges and delete the branch. Everything in "Ask before" above still needs the owner.
 - **Environments** ([ADR-0010](docs/decisions/0010-environments.md)). Development and tests use a local Supabase running in Docker. The single cloud Supabase project is for real learning only: never point a dev server, test or script at it. Database changes reach it only as migrations, after they've passed locally and in CI.
 - **Commits.** [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`. Small and focused.
 - **Definition of done** for every change:
   - tests added or updated, and passing (once code exists)
-  - `CHANGELOG.md` updated under *Unreleased*
+  - `CHANGELOG.md` updated under _Unreleased_
   - docs updated if behavior, setup or a decision changed
   - a `docs/devlog.md` entry for the session: what changed, what was decided, what's next
 - **Secrets never get committed.** Keys go in `.env` (gitignored); keep `.env.example` with placeholder names.

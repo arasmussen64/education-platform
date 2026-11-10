@@ -122,7 +122,18 @@ function LoadedTrackMap({ track }: { track: Track }) {
         .filter((topic) => topic !== undefined),
     [track],
   )
-  const progress = useProgress(topics)
+  // A topic may build on another track's topic (the ML track's math on
+  // Python Foundations). Its state needs that topic's progress too.
+  const withPrerequisites = useMemo(() => {
+    const own = new Set(topics.map((topic) => topic.id))
+    const borrowed = topics
+      .flatMap((topic) => topic.prerequisites)
+      .filter((id) => !own.has(id))
+      .map((id) => getTopic(id))
+      .filter((topic) => topic !== undefined)
+    return [...topics, ...borrowed]
+  }, [topics])
+  const progress = useProgress(withPrerequisites)
   // Drafts count as "still being written": the dev server can open them,
   // but the note is about what a learner can do.
   const anythingReady = topics.some((topic) => topic.status === 'ready')

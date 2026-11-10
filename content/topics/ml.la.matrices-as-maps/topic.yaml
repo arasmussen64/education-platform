@@ -1,0 +1,85 @@
+id: ml.la.matrices-as-maps
+kind: topic
+status: ready
+title: "Matrices as transformations"
+summary: "A matrix as a function on vectors: rotations, scalings and shears as pictures, composition as multiplication, the inverse and the determinant."
+prerequisites: [ml.la.vectors]
+packages: [numpy]
+estimated_minutes: 55
+rev: 1
+objectives:
+  - "Apply a matrix to a vector, and say where the grid goes from the matrix's columns."
+  - "Build rotation, scaling and shear matrices, and compose them by multiplying."
+  - "Say what the identity and the inverse do, and when there is no inverse."
+  - "Read the determinant as how much area is scaled."
+# Linked, never copied or embedded: 3Blue1Brown's videos are under the
+# standard YouTube licence; NumPy's documentation under the NumPy licence
+# (BSD-3-Clause).
+resources:
+  - title: "Essence of linear algebra, chapter 3: Linear transformations and matrices (3Blue1Brown, Grant Sanderson)"
+    url: https://www.youtube.com/watch?v=kYB8IZa5AuE
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "Essence of linear algebra, chapter 4: Matrix multiplication as composition (3Blue1Brown, Grant Sanderson)"
+    url: https://www.youtube.com/watch?v=XkY2DOUCWMU
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "Essence of linear algebra, chapter 6: The determinant (3Blue1Brown, Grant Sanderson)"
+    url: https://www.youtube.com/watch?v=Ip3X9LOh2dk
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "numpy.linalg: inv and det (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/routines.linalg.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-where-the-grid-goes
+  - parsons-rotation-matrix
+  - mcq-columns
+  - predict-order-matters
+  - mcq-determinant-zero
+  - fill-scale-and-rotate
+  - mcq-inverse
+  - write-transform-points
+prove:
+  build: build-compose-and-undo
+  debug: debug-transform-mistakes
+  explain:
+    prompt: |
+      A teammate says a matrix is "a grid of numbers you multiply somehow". Set them straight, in your own words: what does a 2-by-2 matrix do to a vector, and why do its two columns tell you everything about it? What does multiplying two matrices mean, and why is `A @ B` usually not `B @ A`? What does the determinant measure, and what does a determinant of zero tell you about undoing the transformation?
+    rubric:
+      - id: columns
+        required: true
+        description: "A matrix is a function that moves every vector; its columns are where the basis vectors [1, 0] and [0, 1] land, and every other vector follows by stretching and adding those."
+      - id: composition
+        required: true
+        description: "The product A @ B is the single matrix that does B first, then A; order matters because doing the transformations in the other order generally lands somewhere else (rotate then scale is not scale then rotate)."
+      - id: determinant
+        required: true
+        description: "The determinant is the factor by which area is scaled (negative when orientation flips); zero means the plane is squashed onto a line or a point, information is lost, and there is no inverse."
+      - id: identity-inverse
+        required: false
+        description: "The identity leaves every vector alone; the inverse undoes the matrix so inv(A) @ A is the identity."
+    model_answer: |
+      A matrix is a function: feed it a vector, get a vector back, and it moves the whole plane in a way that keeps grid lines straight and evenly spaced. You can read the function off the two columns: the first column is where [1, 0] lands and the second is where [0, 1] lands, and any vector [x, y] is x copies of the first column plus y copies of the second, so those two arrows determine everything. Multiplying two matrices builds the matrix that does one transformation after the other: A @ B does B first and then A. It isn't commutative because doing things in the other order usually ends somewhere else; rotating a square and then stretching it sideways gives a different shape from stretching it and then rotating. The determinant is the number the matrix multiplies every area by: a scaling of 2 by 3 has determinant 6, a rotation has 1, and a negative determinant means the plane was flipped over. A determinant of zero means areas become zero: the plane has been squashed onto a line or a point, different vectors now land in the same place, and there is nothing to undo it with, so the matrix has no inverse. Otherwise the inverse exists, and inv(A) @ A is the identity, the matrix that leaves every vector where it is.
+review_pool:
+  - review-predict-identity
+  - review-mcq-order
+  - review-predict-det-scale
+  - review-apply-matrix
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: apply
+    description: "Apply a matrix to a vector, and read where the grid goes from the columns"
+  - id: build
+    description: "Build rotation, scaling and shear matrices"
+  - id: compose
+    description: "Compose transformations by multiplying, in the right order"
+  - id: inverse-det
+    description: "Know what the identity, the inverse and the determinant mean, and when there is no inverse"

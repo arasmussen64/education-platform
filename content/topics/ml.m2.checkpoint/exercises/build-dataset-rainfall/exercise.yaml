@@ -1,0 +1,44 @@
+id: build-dataset-rainfall
+stage: build
+rev: 1
+title: "A small data library: rainfall"
+prompt: |
+  Starting from a blank editor, write a small data library for rain gauges and use it: a class that reads records from a file lazily, summarizes a column, writes a report, and comes with tests.
+
+  **The data.** Your program writes this file first, as `rain.jsonl`, exactly as shown: one JSON object per line (JSON Lines), with a record that lacks the `mm` key.
+
+  ```
+  {"station": "north", "mm": 3.0}
+  {"station": "south", "mm": 0.0}
+  {"station": "east"}
+  {"station": "west", "mm": 7.5}
+  ```
+
+  **The class.** Then a class `Dataset`:
+
+  - `Dataset(path)` remembers the path. Nothing is read until `rows()` is called.
+  - `rows()` is a **generator**: it opens the file and yields each line's record as a dict, one at a time, skipping blank lines.
+  - `column(name)` is a generator of that column's values, from the records that have it.
+  - `summary(name)` returns a dict with the `count`, `mean`, `min` and `max` of the column; for a column no record has, `{"count": 0, "mean": None, "min": None, "max": None}`.
+  - `write_report(name, path)` writes one line to the file at `path`, in this shape: `mm: count=3 mean=3.5 min=0.0 max=7.5`, followed by a newline.
+
+  **The tests.** Write at least two tests of `summary`, functions named `test_…` that use `rain.jsonl`: one for `mm`, and one for a column that no record has. The hidden checks run your tests against a `summary` that counts every row, and against one that crashes on an empty column; your tests must fail on both.
+
+  **Using it.** The program makes `Dataset("rain.jsonl")`, prints the number of rows, prints the summary of `mm`, writes the report to `report.txt` and prints the report file's contents, then ends with the runner from Writing tests, which calls every `test_` function and prints how many passed:
+
+  ```
+  4 rows
+  {'count': 3, 'mean': 3.5, 'min': 0.0, 'max': 7.5}
+  mm: count=3 mean=3.5 min=0.0 max=7.5
+  2 passed
+  ```
+
+  The checks also make a `Dataset` of their own file, with another column, and take records from `rows()` one at a time.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.py.classes/define, ml.py.json-and-nested-data/json-io]
+  test_rows_is_a_lazy_generator: [ml.py.iterators-and-generators/generators, ml.py.iterators-and-generators/protocol, ml.py.classes/instances]
+  test_column_and_summary: [ml.py.json-and-nested-data/safe-walk, ml.math.probability-and-statistics/center, ml.py.classes/methods]
+  test_the_report: [ml.py.classes/methods, ml.py.json-and-nested-data/json-io]
+  test_the_tests_catch_a_wrong_summary: [ml.py.writing-tests/write-tests, ml.py.writing-tests/edge-cases]

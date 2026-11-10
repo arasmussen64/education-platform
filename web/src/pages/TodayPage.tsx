@@ -14,7 +14,7 @@ import {
   topicIdsOf,
   tracks,
 } from '../content/content.ts'
-import type { Topic, TopicContent } from '../content/types.ts'
+import type { Topic, TopicContent, Track } from '../content/types.ts'
 import { addDays, type Day, dayOf } from '../days.ts'
 import {
   CORRECT_DAYS_NEEDED,
@@ -37,7 +37,7 @@ import {
 } from '../placement/describe.ts'
 import { subjectOfDiagnostic } from '../placement/history.ts'
 import { usePlacements } from '../placement/usePlacements.ts'
-import { nextUp, stateOf } from '../progress/progress.ts'
+import { nextUp, stateOf, type TopicProgress } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
 import { type DueReview, dueReviews } from '../reviews/reviews.ts'
@@ -349,17 +349,61 @@ function NextUp({
                   {next.topic.estimated_minutes} minutes
                 </span>
               </p>
-            ) : (
+            ) : learned === own.length ? (
               <p className="text-slate-600 dark:text-slate-400">
                 You've learned everything written here so far. More is on the
                 way.
               </p>
+            ) : (
+              <LockedNext
+                track={track}
+                topics={own}
+                progress={progress.progress}
+              />
             )}
           </div>
         )
       })}
       <PlacementNote progress={progress.progress} />
     </section>
+  )
+}
+
+/**
+ * A track whose open topics are all locked: what its first one is waiting
+ * for. The ML track builds on Python Foundations topics by name, so this is
+ * how it reads until those are learned.
+ */
+function LockedNext({
+  track,
+  topics,
+  progress,
+}: {
+  track: Track
+  topics: Topic[]
+  progress: Map<string, TopicProgress>
+}) {
+  const first = topics.find((topic) => stateOf(topic, progress) === 'locked')
+  if (!first) return null
+  const missing = first.prerequisites
+    .filter((id) => !progress.get(id)?.learnedAt)
+    .map((id) => getTopic(id))
+    .filter((topic) => topic !== undefined)
+    .map((topic) => {
+      const home = placeOf(topic.id)?.track
+      return home && home.id !== track.id
+        ? `${topic.title} (${home.title})`
+        : topic.title
+    })
+  return (
+    <p className="text-slate-600 dark:text-slate-400">
+      <span className="font-medium">Next:</span>{' '}
+      <Link to={`/topic/${first.id}`} className="underline">
+        {first.title}
+      </Link>
+      {missing.length > 0 && <>, once you've learned {missing.join(' and ')}</>}
+      .
+    </p>
   )
 }
 

@@ -1,0 +1,19 @@
+id: example-fit-and-compress-in-2d
+stage: worked_example
+rev: 1
+title: "Fit and compress, in two dimensions"
+prompt: |
+  The checkpoint's two jobs on the six two-dimensional points from the PCA topic: a line fitted with the normal equations, then the same points compressed to one component. Press **Run**, then read how each part works; the checkpoint is this with one more column.
+steps:
+  - label: "The design matrix and the normal equations"
+    lines: "5-7"
+    note: "One row per point: its `x` and a 1 for the intercept; the target is the `y` column. `AᵀA x = Aᵀy` is 2 by 2, and `solve` gives the slope and intercept, `[0.8, -0.6]`. With a third column the matrix is 3 by 3 and nothing else changes."
+  - label: "How wrong the line is"
+    lines: "8"
+    note: "The residual, `y - A @ coef`, measures the vertical gaps; its length is 0.894. That's the number least squares made as small as possible."
+  - label: "Center, covariance, eigenvectors"
+    lines: "10-15"
+    note: "PCA treats both columns alike: center, covariance with `n - 1`, `eigh`. The last column is the first component (sign fixed), `[0.772, 0.635]`, and its eigenvalue's share of the total is the variance kept, 98.4 percent."
+  - label: "Compress to one number per point, and rebuild"
+    lines: "16-18"
+    note: "The scores are each point's coordinate along the component; `np.outer` rebuilds the points from them. The rebuild misses by 0.695 in total: the perpendicular spread PCA threw away, smaller than the line's 0.894 because PCA minimizes perpendicular gaps, not vertical ones."

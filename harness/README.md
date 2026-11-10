@@ -35,7 +35,7 @@ The expected files are a contract. Never regenerate them just to make a failing 
 
 ## Rules
 
-- Standard library only, so it runs in Pyodide.
+- Standard library only, so it runs in Pyodide, plus the packages a topic declares with `packages:` in its `topic.yaml` (NumPy so far, [ADR-0023](../docs/decisions/0023-packages-in-both-runtimes.md)): Pyodide ships them, the app loads them on first use, and the root `pyproject.toml` pins the same version for CPython.
 - Harness file names and paths must never appear in messages the learner sees.
 - Use the Python minor version that Pyodide bundles, pinned by `requires-python` in the root `pyproject.toml`. There's deliberately no `.python-version` file: Cloudflare's build would spot it and install Python for nothing.
 - Scenarios run in a fresh Python process, not inside pytest. pytest rewrites `assert` statements in any `test_*.py` file it imports, which would change the messages.

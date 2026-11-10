@@ -84,6 +84,7 @@ status: ready # planned (an outline on the map) | draft | ready (learners see it
 title: Variables
 summary: Names that refer to values, and what assignment really does.
 prerequisites: [py.values-and-types]
+# packages: [numpy] # beyond the standard library; loaded on demand (ADR-0023)
 estimated_minutes: 35
 rev: 1
 objectives:
