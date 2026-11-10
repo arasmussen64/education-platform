@@ -477,6 +477,20 @@ describe('next up on the Today page', () => {
     ).toHaveAttribute('href', '/topic/csa.linux.shell')
   })
 
+  it('says what unlocks a track whose topics are all locked', async () => {
+    renderToday([])
+    const next = await nextUpSection()
+    const ml = trackEntry(next, /^Machine Learning Foundations/)
+    expect(ml).toHaveTextContent(
+      "Next: Fractions, decimals and percentages, once you've learned Strings and input (Python Foundations).",
+    )
+    expect(
+      within(ml).getByRole('link', {
+        name: 'Fractions, decimals and percentages',
+      }),
+    ).toHaveAttribute('href', '/topic/ml.math.arithmetic')
+  })
+
   it('continues the topic in progress, in its own track only', async () => {
     renderToday([answer('mcq-quotes', true, daysAgo(1))])
     const next = await nextUpSection()

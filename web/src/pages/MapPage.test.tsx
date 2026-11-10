@@ -154,6 +154,32 @@ describe('progress on the map', () => {
   })
 })
 
+describe('a prerequisite in another track', () => {
+  const FRACTIONS = 'Fractions, decimals and percentages'
+
+  it('locks the topic until that prerequisite is learned', async () => {
+    renderMap([], { path: '/map/ml-foundations' })
+    await waitFor(() => expect(row(FRACTIONS)).toHaveTextContent('Locked'))
+  })
+
+  it('unlocks it once the other track has learned it', async () => {
+    renderMap(
+      [
+        attempt(
+          'py.strings-and-input',
+          'build-km-to-miles',
+          'code_check',
+          true,
+        ),
+        attempt('py.strings-and-input', 'debug-shopping', 'code_check', true),
+        attempt('py.strings-and-input', 'explain', 'explain_submit', true),
+      ],
+      { path: '/map/ml-foundations' },
+    )
+    await waitFor(() => expect(row(FRACTIONS)).toHaveTextContent('Available'))
+  })
+})
+
 describe('more than one track', () => {
   beforeEach(() => {
     vi.mocked(fetchAttempts).mockReset()
