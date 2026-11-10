@@ -1,0 +1,20 @@
+id: review-predict-bincount
+type: predict_output
+rev: 1
+prompt: |
+  Six simulated counts of heads, tallied. What does the program print?
+code: |
+  import numpy as np
+  
+  heads = np.array([2, 0, 2, 1, 2, 3])
+  counts = np.bincount(heads, minlength=4)
+  print(counts)
+  print(np.round(counts / len(heads), 2))
+  print(counts.sum() == len(heads))
+expected_output: |
+  [1 1 3 1]
+  [0.17 0.17 0.5  0.17]
+  True
+explanation: |
+  `np.bincount` counts how often each value appears, from 0 up: one 0, one 1, three 2s and one 3 (`minlength=4` keeps a slot for every count up to 3 even when it's empty). Dividing by the number of draws turns the tally into an empirical PMF, which always sums to 1, and the tally itself sums to the number of draws.
+skills: [histogram]

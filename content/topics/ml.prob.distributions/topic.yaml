@@ -1,17 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.prob.distributions
 kind: topic
-status: planned
-title: Random variables and distributions
+status: ready
+title: "Random variables and distributions"
 summary: "A random variable as a number with chances attached: Bernoulli, binomial, uniform and normal, simulated with NumPy and drawn as text histograms."
-prerequisites:
-- ml.math.probability-and-statistics
-- ml.la.numpy-arrays
+prerequisites: [ml.math.probability-and-statistics, ml.la.numpy-arrays]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Name the Bernoulli, binomial, uniform and normal distributions, and say what each one models.
-- Simulate draws from each with np.random.default_rng and a seed.
-- Turn a sample into a histogram and compare it with the formula.
-- Read a probability as an area under a density, and say why a single value has probability zero.
+  - "Name the Bernoulli, binomial, uniform and normal distributions, and say what each one models."
+  - "Simulate draws from each with np.random.default_rng and a seed."
+  - "Turn a sample into a histogram and compare it with the formula."
+  - "Read a probability as an area under a density, and say why a single value has probability zero."
+# Linked, never copied or embedded: OpenStax is CC BY 4.0; StatQuest's videos
+# are under the standard YouTube licence; NumPy's documentation is under the
+# NumPy licence (BSD-3-Clause).
+resources:
+  - title: "OpenStax Introductory Statistics 2e: chapter 4 (Discrete Random Variables, sections 4.1 to 4.3), section 5.2 (The Uniform Distribution) and chapter 6 (The Normal Distribution, sections 6.1 and 6.2)"
+    url: https://openstax.org/details/books/introductory-statistics-2e
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "StatQuest: The Main Ideas behind Probability Distributions (Josh Starmer)"
+    url: https://www.youtube.com/watch?v=oI3hZJqXJuc
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "numpy.random.Generator (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/random/generator.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-four-distributions-simulated
+  - parsons-count-the-heads
+  - mcq-which-distribution
+  - predict-a-small-pmf
+  - mcq-why-a-value-has-no-probability
+  - fill-binomial-pmf
+  - write-text-histogram
+prove:
+  build: build-check-a-simulation
+  debug: debug-dice-report
+  explain:
+    prompt: |
+      A teammate has read that a model's output is "a Bernoulli random variable" and that its errors "look normal", and asks what any of that means. In your own words: what is a random variable, and what is its distribution? What do the Bernoulli, binomial, uniform and normal distributions each model, with one everyday example apiece? Why does a single exact value of a normal random variable have probability zero, and what does have a probability? And what is a seed for when you simulate?
+    rubric:
+      - id: variable
+        required: true
+        description: "A random variable is a number whose value chance decides (a flip, a count, a measurement); its distribution says which values it can take and how likely each is, as a table of probabilities for a discrete one or a density curve for a continuous one."
+      - id: four
+        required: true
+        description: "Bernoulli: one yes-or-no with chance p (one email is spam or not); binomial: the count of yeses in n independent tries with the same p (spam among 20 emails); uniform: any value in a range equally likely (a random point on a line); normal: the bell curve that sums of many small effects make (heights, measurement errors)."
+      - id: density
+        required: true
+        description: "A continuous variable has infinitely many values, so the chance of exactly one of them is zero; probability is the area under the density between two values, which is why questions about it are about ranges."
+      - id: seed
+        required: false
+        description: "A seed fixes the generator's starting point so a simulation repeats exactly, which makes a result checkable and a bug reproducible; different seeds give different samples from the same distribution."
+    model_answer: |
+      A random variable is a number that chance decides: whether one email is spam, how many of twenty are, how tall the next person through the door is. Its distribution is the list of values it can take and how likely each one is. For a variable that takes separate values, like a count, that's a table: each value with its probability, adding up to one. For a variable that can take any value in a range, like a height, it's a curve called a density, and probability is area under the curve. The four in this topic cover most of what a model meets. Bernoulli is one yes-or-no with a chance p of yes, like one email being spam. Binomial is the count of yeses in n independent tries with the same p, like how many of twenty emails are spam; its table comes from counting the ways and multiplying the chances. Uniform is any value in a range being equally likely, like a random point on a line between 0 and 1. Normal is the bell curve, the shape you get when many small independent effects add up, which is why heights and measurement errors look like it and why a model's errors often do. A single exact value of a normal variable has probability zero because there are infinitely many values and the total probability is one; what has a probability is a range, the area under the curve between two values, which is why every question about a continuous variable is about being between, below or above something. A seed fixes where the random generator starts, so running the simulation again gives exactly the same draws: that's what makes a printed result checkable and a bug repeatable. Change the seed and you get a different sample from the same distribution, which should tell the same story.
+review_pool:
+  - review-predict-bincount
+  - review-mcq-bernoulli-or-binomial
+  - review-mcq-area-not-height
+  - review-bernoulli
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: name
+    description: "Name the Bernoulli, binomial, uniform and normal distributions and what each one models"
+  - id: simulate
+    description: "Simulate draws from a distribution with a seeded generator"
+  - id: histogram
+    description: "Turn a sample into counts or a histogram and compare it with the formula"
+  - id: density
+    description: "Read probability as area under a density, and know a single value has none"
