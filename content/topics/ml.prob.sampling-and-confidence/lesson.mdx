@@ -1,0 +1,26 @@
+<Intro>
+
+Every number a model is judged by (an accuracy, a mean error, a median latency) is computed from a **sample**, and a different sample would give a different number. This topic is about how different: the spread of a statistic over repeated samples, called its **standard error**; the surprising fact that averages are nearly normal whatever the data looks like, the **central limit theorem**; the **confidence interval** that turns a standard error into a range with a promise attached; and the **bootstrap**, which gets an interval for any statistic by resampling. All of it is watched in simulation, with a deliberately lopsided population.
+
+The main resource is **3Blue1Brown's _But what is the Central Limit Theorem?_**, 30 minutes that build the bell curve out of a Galton board; OpenStax _Introductory Statistics 2e_ chapter 7 and section 8.1 have the standard error and the interval as text; and StatQuest's _Bootstrapping Main Ideas_ is ten minutes on resampling. Watch for:
+
+- **The sampling distribution:** not the data's shape, but the shape of a statistic over many samples.
+- **`σ / sqrt(n)`:** the average of `n` draws is less spread than one draw, by the square root.
+- **What "95 percent" is a property of:** the procedure, repeated.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Population and sample.** The population is everything you could have measured; the sample is what you did. A **statistic** (a mean, a median) computed from a sample is a random variable: draw a different sample and it changes. Its distribution over repeated samples is its **sampling distribution**.
+- **The worked example's population is lopsided on purpose:** exponential waiting times with mean 10, spread 10 and median 6.95, nothing like a bell. The means of 20,000 samples of size 2, 10 and 50 all average 10, and their spreads are 7.01, 3.15 and 1.41: the population's spread divided by `sqrt(n)` (7.07, 3.16, 1.41).
+- **The standard error** of a mean is that spread, `σ / sqrt(n)`. From one sample it's estimated as `sample.std(ddof=1) / sqrt(n)`: the sample's standard deviation with `n - 1` (the convention when a sample stands in for the population it came from; the last topic's `n` was the maximum-likelihood fit to the sample itself). Four times the data halves it; a less variable population shrinks it too.
+- **The central limit theorem:** the mean of `n` independent draws is approximately normal, with mean the population's mean and spread `σ / sqrt(n)`, **whatever the population's shape**, once `n` is moderately large. The histogram of means of 50 lopsided draws is a bell centred on 10. That's why the normal's numbers (1.96 for 95 percent) apply to averages of anything, including a model's 0-or-1 scores.
+- **A confidence interval** for a mean: `mean ± 1.96 * standard error`. The worked example's sample of 50 gave 10.8 with standard error 1.58, so the interval 7.7 to 13.9. The 1.96 is the normal's 95 percent width; 2.58 gives 99 percent, 1 gives 68.
+- **What 95 percent promises:** repeat the whole procedure (draw a sample, compute the interval) many times, and about 95 percent of the intervals contain the true mean. In the worked example, 2,000 repetitions covered the true mean of 10 a fraction 0.9385 of the time (a little under 0.95: the population is lopsided and 50 is not huge). It does **not** mean that 95 percent of the data lies in the interval, nor that the true value is likelier near the middle.
+- **The bootstrap** gets an interval for a statistic with no formula (a median, an F1 score, a difference between two models): resample the sample **with replacement** to the same size, recompute the statistic, repeat a couple of thousand times, and take the 2.5th and 97.5th percentiles. The sample's median was 7.71, with a bootstrap interval of  3.55 11.36. Resampling without replacement would give the same sample back every time and an interval of zero width.
+- **In machine learning:** an accuracy on 100 examples has a standard error near 0.04, so two models 2 points apart are not yet distinguishable; held-out loss curves wiggle for the same reason; and every metric a paper reports without an interval is a sample mean reported without its standard error. The evaluation topic builds on this.
+
+</Recap>

@@ -1,0 +1,23 @@
+id: build-intervals-and-coverage
+stage: build
+rev: 1
+title: "Intervals, and how often they're right"
+prompt: |
+  Starting from a blank editor, write the tools that put an honest range around a sample statistic:
+
+  - `standard_error(sample)`: the sample's standard deviation with `ddof=1` over the square root of its size, as a float.
+  - `confidence_interval(sample, z=1.96)`: the mean minus and plus `z` standard errors, as a pair of floats.
+  - `coverage(rng, draw, truth, n, trials)`: `draw(rng, n)` returns a fresh sample of size `n`; build the 95 percent interval for each of `trials` samples and return the fraction of intervals that contain `truth` (strictly inside).
+  - `bootstrap_interval(rng, sample, statistic, draws=2000)`: resample with replacement to the sample's size `draws` times, apply `statistic`, and return the 2.5th and 97.5th percentiles as a pair of floats.
+
+  Then, with `rng = np.random.default_rng(8)` and a sample of 50 exponential waits with mean 10 (`rng.exponential(10, size=50)`), print the standard error rounded to 3, the interval rounded to 2, the coverage over 2,000 fresh samples of 50 from the same population (`lambda rng, n: rng.exponential(10, size=n)`, truth 10), and the sample's median with its bootstrap interval rounded to 2:
+
+  ```
+  standard error 1.13
+  interval [ 6.17 10.59]
+  coverage 0.934
+  median 6.09 [4.08 8.12]
+  ```
+
+  The checks use samples with known standard errors, a normal population whose coverage must come out near 0.95, and a constant sample.
+skills: [standard-error, interval, clt, bootstrap]
