@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getTopic } from '../content/content.ts'
 import { STAGES } from '../content/stages.ts'
 import type { Exercise, Step } from '../content/types.ts'
 import type { LabResult } from '../labs/result.ts'
@@ -48,6 +49,8 @@ export function ExerciseView({
   allowTutor = false,
   topicId = '',
 }: Props) {
+  // The packages the topic's code imports, loaded before it runs (ADR-0023).
+  const packages = getTopic(topicId)?.packages ?? []
   if (exercise.runtime === 'lab') {
     // The tutor is off in labs for now: it has no code to look at (ADR-0018).
     return (
@@ -60,7 +63,13 @@ export function ExerciseView({
     )
   }
   if (exercise.stage === 'worked_example') {
-    return <WorkedExample exercise={exercise} onActivity={onActivity} />
+    return (
+      <WorkedExample
+        exercise={exercise}
+        onActivity={onActivity}
+        packages={packages}
+      />
+    )
   }
   return (
     <CodingExercise
@@ -69,6 +78,7 @@ export function ExerciseView({
       allowHints={allowHints}
       allowTutor={allowTutor}
       topicId={topicId}
+      packages={packages}
     />
   )
 }
@@ -77,9 +87,11 @@ export function ExerciseView({
 function WorkedExample({
   exercise,
   onActivity,
+  packages,
 }: {
   exercise: Exercise
   onActivity?: ActivityHandler
+  packages: string[]
 }) {
   return (
     <div className="space-y-3">
@@ -87,6 +99,7 @@ function WorkedExample({
       <CodeRunner
         initialCode={exercise.solution}
         timeLimitMs={exercise.time_limit_ms}
+        packages={packages}
         onRun={(outcome, code) => onActivity?.({ kind: 'run', code, outcome })}
         onTrace={(outcome, code) =>
           onActivity?.({ kind: 'trace', code, outcome })
@@ -127,12 +140,14 @@ function CodingExercise({
   allowHints,
   allowTutor,
   topicId,
+  packages,
 }: {
   exercise: Exercise
   onActivity?: ActivityHandler
   allowHints: boolean
   allowTutor: boolean
   topicId: string
+  packages: string[]
 }) {
   const stage = STAGES[exercise.stage]
   const [passed, setPassed] = useState(false)
@@ -168,6 +183,7 @@ function CodingExercise({
       <CodeRunner
         initialCode={exercise.starter}
         tests={exercise.tests}
+        packages={packages}
         hiddenTests={stage.hiddenTests}
         timeLimitMs={exercise.time_limit_ms}
         onRun={(outcome, ran) =>

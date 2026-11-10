@@ -41,6 +41,7 @@ export function fakeTopic(overrides: Partial<Topic> = {}): Topic {
     title: 'Values and types',
     summary: 'Tell ints, floats and strings apart.',
     prerequisites: ['py.programs-and-print'],
+    packages: [],
     estimated_minutes: 30,
     rev: 1,
     objectives: ['Use `type()` to check a value.'],

@@ -60,6 +60,13 @@ scope.onmessage = async (event) => {
         request.seed,
       )
       scope.postMessage({ id: request.id, type: 'trace-result', trace })
+    } else if (request.type === 'load') {
+      // The packages a topic declares (ADR-0023) come from the same CDN as
+      // Pyodide itself, once per worker; a second load is a no-op.
+      await pyodide.loadPackage(request.packages, {
+        messageCallback: () => undefined,
+      })
+      scope.postMessage({ id: request.id, type: 'load-result' })
     } else {
       const report = runChecks(pyodide, request.code, request.tests)
       scope.postMessage({ id: request.id, type: 'check-result', report })

@@ -24,6 +24,7 @@ describe('CodeRunner', () => {
       stdin: '',
       seed: expect.any(Number),
       timeLimitMs: 5000,
+      packages: [],
     })
   })
 
@@ -50,12 +51,17 @@ describe('CodeRunner', () => {
     const [first, second] = runner.run.mock.calls
     expect(first).toEqual([
       'code',
-      { stdin: '', seed: expect.any(Number), timeLimitMs: 5000 },
+      { stdin: '', seed: expect.any(Number), timeLimitMs: 5000, packages: [] },
     ])
     // The re-run uses the same seed, so random choices repeat.
     expect(second).toEqual([
       'code',
-      { stdin: 'Ada\n', seed: first[1]?.seed, timeLimitMs: 5000 },
+      {
+        stdin: 'Ada\n',
+        seed: first[1]?.seed,
+        timeLimitMs: 5000,
+        packages: [],
+      },
     ])
   })
 
@@ -177,6 +183,7 @@ describe('CodeRunner', () => {
     expect(screen.getByText(/Check failed/)).toBeInTheDocument()
     expect(runner.check).toHaveBeenCalledWith('', 'tests', {
       timeLimitMs: 5000,
+      packages: [],
     })
     // The result is reported along with the code that was checked.
     expect(onCheck).toHaveBeenCalledWith(
@@ -271,6 +278,7 @@ describe('CodeRunner', () => {
       stdin: 'Ada\n',
       seed,
       timeLimitMs: 5000,
+      packages: [],
     })
     expect(onTrace).toHaveBeenCalledWith(
       await runner.trace.mock.results[0]?.value,

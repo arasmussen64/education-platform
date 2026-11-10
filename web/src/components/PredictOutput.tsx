@@ -16,6 +16,8 @@ type Props = {
   quiet?: boolean
   /** Called when the learner steps through the code afterwards (ADR-0022). */
   onStepThrough?: (outcome: TraceOutcome) => void
+  /** The topic's packages, loaded before stepping through (ADR-0023). */
+  packages?: string[]
 }
 
 const NOTE = 'text-sm text-slate-600 dark:text-slate-300'
@@ -63,6 +65,7 @@ export function PredictOutput({
   onAnswer,
   quiet = false,
   onStepThrough,
+  packages,
 }: Props) {
   const fieldId = useId()
   const [prediction, setPrediction] = useState('')
@@ -86,6 +89,7 @@ export function PredictOutput({
     setTrace('loading')
     const outcome = await getPythonRunner().trace(item.code, {
       timeLimitMs: DEFAULT_TIME_LIMIT_MS,
+      packages,
     })
     setTrace(outcome)
     onStepThrough?.(outcome)

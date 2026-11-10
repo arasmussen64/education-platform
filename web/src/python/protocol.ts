@@ -86,10 +86,13 @@ export type WorkerRequest =
       stdin: string
       seed: number | null
     }
+  /** Load the packages a topic declares, such as numpy (ADR-0023). */
+  | { id: number; type: 'load'; packages: string[] }
 
 export type WorkerResponse =
   | { type: 'ready' }
   | { type: 'load-error'; message: string }
+  | { id: number; type: 'load-result' }
   | { id: number; type: 'run-result'; result: ProgramResult }
   | { id: number; type: 'check-result'; report: CheckReport }
   | { id: number; type: 'trace-result'; trace: TraceResult }

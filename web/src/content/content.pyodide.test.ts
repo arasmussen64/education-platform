@@ -21,6 +21,9 @@ const TOPICS = fileURLToPath(
 
 type Case = { topic: string; exercise: string; folder: string }
 
+/** The packages ready topics declare (ADR-0023), loaded once for all cases. */
+const PACKAGES = new Set<string>()
+
 function readyCases(): Case[] {
   const cases: Case[] = []
   for (const topic of readdirSync(TOPICS).sort()) {
@@ -28,8 +31,10 @@ function readyCases(): Case[] {
     if (!existsSync(topicFile)) continue
     const meta = parseYaml(readFileSync(topicFile, 'utf8')) as {
       status?: string
+      packages?: string[]
     }
     if (meta.status !== 'ready') continue
+    for (const name of meta.packages ?? []) PACKAGES.add(name)
     const exercises = join(TOPICS, topic, 'exercises')
     if (!existsSync(exercises)) continue
     for (const exercise of readdirSync(exercises).sort()) {
@@ -43,12 +48,19 @@ function readyCases(): Case[] {
 
 let pyodide: PyodideAPI
 
+const cases = readyCases()
+
 beforeAll(async () => {
   pyodide = await loadPyodide()
   installHarness(pyodide)
-}, 120_000)
-
-const cases = readyCases()
+  // In Node the packages come from the CDN on first use, then from a cache
+  // in node_modules.
+  if (PACKAGES.size > 0) {
+    await pyodide.loadPackage([...PACKAGES], {
+      messageCallback: () => undefined,
+    })
+  }
+}, 180_000)
 
 // Only the reference solutions: a known-wrong solution may loop forever on
 // purpose, and Pyodide in Node has no way to stop it. CPython proves those

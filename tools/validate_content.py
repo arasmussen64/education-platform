@@ -488,6 +488,34 @@ def check_ready_checkpoint(
             )
 
 
+IMPORTS_NUMPY = re.compile(r"^\s*(import|from)\s+numpy\b", re.MULTILINE)
+
+
+def check_packages(folder: TopicFolder, report: Report) -> None:
+    """Code that imports a package must belong to a topic that declares it in
+    packages: (ADR-0023); otherwise it works on GitHub and fails in the
+    browser, where the package is loaded only for topics that ask."""
+    declared = set(folder.topic.packages)
+    sources: list[tuple[Path, str]] = [
+        (path, path.read_text(encoding="utf-8"))
+        for path in sorted(folder.path.rglob("*.py"))
+    ]
+    for path, item in folder.items():
+        code = getattr(item, "code", None)
+        if isinstance(code, str):
+            sources.append((path, code))
+        lines = getattr(item, "lines", None)
+        if isinstance(lines, list):
+            sources.append((path, "\n".join(str(line) for line in lines)))
+    for path, source in sources:
+        if IMPORTS_NUMPY.search(source) and "numpy" not in declared:
+            report.add(
+                path,
+                "imports numpy, but topic.yaml doesn't list it under packages: "
+                "(ADR-0023), so it would fail in the browser",
+            )
+
+
 def resource_indexes(lesson_text: str) -> list[int]:
     """The N of every <Resource index={N} /> tag in a lesson."""
     return [int(n) for n in re.findall(r"<Resource\s+index=\{(\d+)\}", lesson_text)]
@@ -875,6 +903,7 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
         place = places.get(folder.topic.id)
         report.counts[folder.topic.status] += 1
         check_references(folder, report)
+        check_packages(folder, report)
         check_test_skills(folder, topics, place, report)
         if folder.topic.status == "ready":
             check_ready_topic(folder, report)
