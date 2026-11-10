@@ -1,0 +1,21 @@
+id: predict-assert-message
+type: predict_output
+rev: 1
+prompt: |
+  Two asserts, one of them wrong about what `clamp` should do. What does the program print?
+code: |
+  def clamp(value, low, high):
+      return max(low, min(value, high))
+
+
+  try:
+      assert clamp(15, 0, 10) == 10
+      assert clamp(-3, 0, 10) == 1, "below the range should give the low end"
+      print("all passed")
+  except AssertionError as error:
+      print("failed:", error)
+expected_output: |
+  failed: below the range should give the low end
+explanation: |
+  The first assert holds: 15 clamped to 0..10 is 10. The second expects 1, but clamping -3 gives the low end, 0, so the assert fails and raises `AssertionError` carrying its message. The `except` prints it. (The test was wrong, not the function: that happens, and the message is what tells you which.)
+skills: [assert]

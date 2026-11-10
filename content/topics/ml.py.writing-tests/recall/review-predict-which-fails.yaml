@@ -1,0 +1,35 @@
+id: review-predict-which-fails
+type: predict_output
+rev: 1
+prompt: |
+  Three tests of a `word_count` function, run by a loop that reports each one. Which fail, and what does the program print?
+code: |
+  def word_count(text):
+      return len(text.split())
+
+
+  def test_three_words():
+      assert word_count("a b c") == 3
+
+
+  def test_empty_text():
+      assert word_count("") == 0
+
+
+  def test_extra_spaces():
+      assert word_count("a  b") == 3
+
+
+  for name in ["test_three_words", "test_empty_text", "test_extra_spaces"]:
+      try:
+          globals()[name]()
+          print(name, "passed")
+      except AssertionError:
+          print(name, "failed")
+expected_output: |
+  test_three_words passed
+  test_empty_text passed
+  test_extra_spaces failed
+explanation: |
+  `split()` with no argument splits on any run of whitespace, so `"a  b"` is two words, not three: the third test's expectation is wrong, and it fails. The empty string splits into no words, so `0` is right. A failing test means either the function or the test is wrong; here it's the test, and the fix is to expect 2.
+skills: [assert, meaning]
