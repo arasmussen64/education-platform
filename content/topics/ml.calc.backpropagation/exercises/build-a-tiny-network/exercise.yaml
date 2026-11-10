@@ -1,0 +1,38 @@
+id: build-a-tiny-network
+stage: build
+rev: 1
+title: "A tiny network, from scratch"
+prompt: |
+  Starting from a blank editor, write a one-hidden-layer network with its training loop. The parameters live in a dict `params` with keys `"W1"` (2 by 4), `"b1"` (4), `"W2"` (4) and `"b2"` (a 0-d array, `np.array(0.0)`):
+
+  - `forward(X, params)` returns `(z1, h, p)`: `z1 = X @ W1 + b1`, `h = np.maximum(z1, 0.0)`, `p = sigmoid(h @ W2 + b2)`. Write `sigmoid` yourself.
+  - `loss(p, y)`: the mean cross-entropy, as a float.
+  - `backward(X, y, params, z1, h, p)` returns a dict of gradients with the same keys as `params`, by the chain rule from `dz2 = (p - y) / n` inward.
+  - `train(X, y, params, rate, steps)` runs `steps` steps of descent, updating every entry of `params` in place (`params[key] = params[key] - rate * grads[key]`), and returns the list of losses, one per step, measured before the step.
+  - `numeric_grad(f, W, h=1e-6)`: the central difference for every entry of `W`, as in the practice exercise.
+
+  Then, on XOR with the starting weights below, print a `check` line per parameter (`np.allclose` of your gradient against `numeric_grad` of the loss, `atol=1e-6`), train for 1000 steps at rate 0.5, and print the losses at steps 0, 100, 500 and the last, the final predictions rounded to 2 places, and the accuracy:
+
+  ```python
+  X = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]])
+  y = np.array([0.0, 1.0, 1.0, 0.0])
+  params = {
+      "W1": np.array([[0.3, 0.8, 0.3, -1.3], [0.9, 0.4, -0.5, 0.6]]),
+      "b1": np.array([0.2, 0.1, 0.1, 0.3]),
+      "W2": np.array([-0.7, -0.2, -0.5, 0.6]),
+      "b2": np.array(0.0),
+  }
+  ```
+
+  ```
+  check W1 True
+  check b1 True
+  check W2 True
+  check b2 True
+  loss 0.732 0.081 0.004 0.001
+  predictions [0. 1. 1. 0.]
+  accuracy 1.0
+  ```
+
+  The checks compare every gradient with a numeric one from other starting weights, and train from the weights above.
+skills: [forward, backward, check, train]

@@ -1,19 +1,80 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.calc.backpropagation
 kind: topic
-status: planned
-title: Backpropagation
+status: ready
+title: "Backpropagation"
 summary: "A tiny network as composed functions: the forward pass, the backward pass by the chain rule, a gradient check, and the first training loop."
-prerequisites:
-- ml.calc.chain-rule
-- ml.calc.descent-in-many-dimensions
-- ml.calc.loss-functions
-- ml.la.matrices-as-maps
+prerequisites: [ml.calc.chain-rule, ml.calc.descent-in-many-dimensions, ml.calc.loss-functions, ml.la.matrices-as-maps]
+packages: [numpy]
 estimated_minutes: 60
 rev: 1
 objectives:
-- Write a one-hidden-layer network as a forward pass of matrix products and a bend.
-- Compute every gradient with the chain rule, layer by layer, from the loss backwards.
-- Check the gradients against finite differences before trusting them.
-- Train the network with gradient descent and watch the loss fall.
+  - "Write a one-hidden-layer network as a forward pass of matrix products and a bend."
+  - "Compute every gradient with the chain rule, layer by layer, from the loss backwards."
+  - "Check the gradients against finite differences before trusting them."
+  - "Train the network with gradient descent and watch the loss fall."
+# Linked, never copied or embedded: 3Blue1Brown's videos are under the
+# standard YouTube licence; Michael Nielsen's book is CC BY-NC 3.0; NumPy's
+# documentation is under the NumPy licence (BSD-3-Clause).
+resources:
+  - title: "3Blue1Brown: Neural networks (Grant Sanderson), chapters 3 and 4: What is backpropagation really doing? and Backpropagation calculus"
+    url: https://www.3blue1brown.com/topics/neural-networks
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "Neural Networks and Deep Learning, chapter 2: How the backpropagation algorithm works (Michael Nielsen)"
+    url: https://neuralnetworksanddeeplearning.com/chap2.html
+    type: reading
+    use: link
+    license: CC BY-NC 3.0 (linked, not copied)
+  - title: "numpy.outer (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.outer.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-a-tiny-network-trained
+  - parsons-backward-pass
+  - mcq-the-first-factor
+  - predict-a-forward-pass
+  - mcq-a-dead-unit
+  - fill-the-backward-pass
+  - write-numeric-grad
+prove:
+  build: build-a-tiny-network
+  debug: debug-training-loop
+  explain:
+    prompt: |
+      A teammate has read that "backpropagation is just the chain rule" but can't see how the six lines of your backward pass follow from it. In your own words: what does the forward pass keep, and why? Walk the backward pass from `dz2 = (p - y) / n` to `dW1`: at each line, which local derivative is being multiplied in, and why does `dW2` involve `h` while `dW1` involves `X`? Why does ReLU's mask appear, and what happens to a hidden unit whose `z1` is negative for every example? And why do you check the gradients numerically before training?
+    rubric:
+      - id: forward-keeps
+        required: true
+        description: "The forward pass keeps z1, h and p (and X) because each local derivative in the backward pass is evaluated at that link's own input: ReLU's at z1, the output layer's weight gradient at h, the first layer's at X."
+      - id: chain
+        required: true
+        description: "dz2 = (p - y)/n is the loss-through-sigmoid gradient at the output score; dW2 = hᵀ dz2 because z2 = h·W2 + b2 so dz2/dW2 is h; dh = dz2 ⊗ W2 passes the gradient through the same product the other way; dz1 = dh times the ReLU mask; dW1 = Xᵀ dz1 and db1 sums dz1 over examples, because z1 = X W1 + b1."
+      - id: mask
+        required: true
+        description: "ReLU's derivative is 1 where z1 > 0 and 0 elsewhere, so the mask zeroes the gradient for inactive units; a unit that is negative for every example gets zero gradient on all its weights and never changes: a dead unit."
+      - id: check
+        required: false
+        description: "A backward pass can be wrong and still train a little or not at all; comparing each gradient with a central difference of the loss, one weight at a time, catches a wrong line before any training time is spent."
+    model_answer: |
+      The forward pass is the chain run forwards: z1 is the first layer's scores, h is z1 after the ReLU bend, p is the sigmoid of the output score, and the loss comes from p. It keeps z1, h and p because the backward pass multiplies in each link's local derivative evaluated at that link's own input, and those inputs are exactly these values. The backward pass starts at the end. dz2 equals p minus y over n, which is the gradient of the mean cross-entropy with respect to the output score, the two derivatives having cancelled as they did in the loss topic. The output score is h times W2 plus b2, so its derivative with respect to W2 is h, and dW2 is h transposed times dz2: each weight's gradient is its input times the gradient at its output, summed over examples; db2 is dz2 summed. The same product read the other way gives dh, the gradient with respect to the hidden values: each example's dz2 spread along W2, which is the outer product. Then comes ReLU, whose derivative is 1 where z1 was positive and 0 where it wasn't, so dz1 is dh with the inactive entries zeroed: that's the mask. Finally z1 is X times W1 plus b1, so dW1 is X transposed times dz1, which is why X appears where h did a layer later, and db1 is dz1 summed over the examples. A hidden unit whose z1 is negative for every example has a mask of all zeros, so dz1 is zero in its column, its weights get no gradient, and it never changes: a dead unit, which no amount of training revives. I check all of this numerically before training because a backward pass can be subtly wrong and still make the loss fall a little; nudging each weight up and down, running the forward pass, and comparing the slope with my gradient takes seconds and catches a wrong line before I spend an hour training on it.
+review_pool:
+  - review-predict-the-mask
+  - review-mcq-why-h
+  - review-mcq-where-is-the-bug
+  - review-mcq-a-dead-layer
+  - review-forward
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: forward
+    description: "Write a one-hidden-layer network as matrix products and a bend, and compute its output"
+  - id: backward
+    description: "Compute every gradient from the loss backwards by the chain rule, with the right local derivative at each line"
+  - id: check
+    description: "Check a gradient against finite differences, one weight at a time, and locate a wrong line from which checks fail"
+  - id: train
+    description: "Train the network by descent, read the loss falling, and know what a dead unit is"
