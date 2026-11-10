@@ -1,0 +1,39 @@
+id: predict-the-call-counts
+type: predict_output
+rev: 1
+prompt: |
+  The same Fibonacci function twice, once plain and once remembering its answers in a dict, each counting its calls. What does the program print?
+code: |
+  calls = 0
+  
+  
+  def fib(n):
+      global calls
+      calls += 1
+      if n < 2:
+          return n
+      return fib(n - 1) + fib(n - 2)
+  
+  
+  print(fib(10), calls)
+  calls = 0
+  memo = {}
+  
+  
+  def fib_memo(n):
+      global calls
+      calls += 1
+      if n < 2:
+          return n
+      if n not in memo:
+          memo[n] = fib_memo(n - 1) + fib_memo(n - 2)
+      return memo[n]
+  
+  
+  print(fib_memo(10), calls)
+expected_output: |
+  55 177
+  55 19
+explanation: |
+  Both give 55. The plain version makes 177 calls, because every call below the top makes two more and the small cases are reached many times; the memoized version makes 19, two per distinct value of `n` (one that computes it and one that finds it in the dict) minus one. The gap grows like `2` to the `n` against `2n`.
+skills: [overlap]
