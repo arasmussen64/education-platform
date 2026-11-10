@@ -1,16 +1,80 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.calc.chain-rule
 kind: topic
-status: planned
-title: The chain rule
-summary: Derivatives of composed functions, computed one layer at a time, which is the whole of backpropagation.
-prerequisites:
-- ml.calc.derivatives
+status: ready
+title: "The chain rule"
+summary: "Derivatives of composed functions, computed one layer at a time, which is the whole of backpropagation."
+prerequisites: [ml.calc.derivatives]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Differentiate a composition of two functions by the chain rule, by hand and in code.
-- Chain three or more functions, keeping the intermediate values.
-- Check a chained derivative numerically.
-- Say why the chain rule is what makes training a layered model possible.
+  - "Differentiate a composition of two functions by the chain rule, by hand and in code."
+  - "Chain three or more functions, keeping the intermediate values."
+  - "Check a chained derivative numerically."
+  - "Say why the chain rule is what makes training a layered model possible."
+# Linked, never copied or embedded: 3Blue1Brown's videos are under the
+# standard YouTube licence; OpenStax is CC BY 4.0; Khan Academy is
+# CC BY-NC-SA 3.0 US.
+resources:
+  - title: "3Blue1Brown: Essence of calculus (Grant Sanderson), chapter 4: Visualizing the chain rule and product rule"
+    url: https://www.3blue1brown.com/topics/calculus
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "OpenStax Calculus Volume 1: section 3.6 (The Chain Rule)"
+    url: https://openstax.org/details/books/calculus-volume-1
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Khan Academy: Differential calculus, the chain rule unit"
+    url: https://www.khanacademy.org/math/differential-calculus
+    type: interactive
+    use: link
+    license: CC BY-NC-SA 3.0 US (linked, not copied)
+practice:
+  - example-three-chains-checked
+  - parsons-chain-of-two
+  - mcq-the-rule
+  - predict-chain-of-three
+  - mcq-why-layers-can-train
+  - fill-forward-and-backward
+  - write-d-sigmoid-of-linear
+prove:
+  build: build-forward-and-backward
+  debug: debug-backward-pass
+  explain:
+    prompt: |
+      A teammate asks how a 50-layer network can compute the derivative of its loss with respect to a weight in layer 3, when the loss is 47 functions away from it. In your own words: what does the chain rule say for two functions, and for a chain of many? Why does the backward pass need the values the forward pass computed? Why run it from the loss backwards rather than from the input forwards? And how would you convince yourself that a chain-rule derivative you wrote by hand is right?
+    rubric:
+      - id: two
+        required: true
+        description: "For h(x) = f(g(x)), h'(x) = f'(g(x)) times g'(x): the outer derivative evaluated at the inner value, times the inner derivative."
+      - id: many
+        required: true
+        description: "For a chain of many, the derivative is the product of every link's local derivative, each evaluated at that link's own input; those inputs are the intermediate values, which is why the forward pass keeps them."
+      - id: backwards
+        required: true
+        description: "The loss is one number and the weights are many: multiplying from the loss end, each layer takes the gradient accumulated so far and multiplies in its own local derivative, so one backward pass gives the derivative for every weight; from the input end you'd repeat the work for each weight."
+      - id: check
+        required: false
+        description: "Compare it with a central difference of the whole chain at a few points; a gap in the sixth decimal means a link is wrong or evaluated at the wrong value."
+    model_answer: |
+      For two functions, if h is f applied after g, the derivative of h at x is the derivative of f evaluated at g(x), times the derivative of g at x. The outer slope has to be taken at the inner value, not at x, which is the mistake everyone makes once. For a chain of many functions it's the same thing repeated: the derivative of the whole chain is the product of each link's own derivative, each one evaluated at the value that link received. Those values are exactly what the forward pass computes on its way to the loss, so the forward pass stores them and the backward pass reads them; without them you'd have to recompute every link's input. The backward pass runs from the loss end because the loss is a single number while the weights are many. Starting with the derivative of the loss with respect to itself, which is 1, each layer multiplies in its own local derivative and hands the running product to the layer before it. That running product is shared by every weight further back, so one pass from the loss gives the derivative for all 50 layers' weights; going forwards from the input you would need a separate pass for each weight. To convince myself a hand-written chain-rule derivative is right, I check it numerically: nudge x up and down by a small h, run the whole chain both times, divide the difference by 2h, and compare with the formula at a few points. Agreement to six decimals means the links and the values they're evaluated at are right.
+review_pool:
+  - review-predict-chain-of-two
+  - review-mcq-which-value
+  - review-mcq-three-links
+  - review-mcq-one-pass
+  - review-chain-derivative
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: two
+    description: "Differentiate a composition of two functions by the chain rule"
+  - id: many
+    description: "Chain three or more functions with a forward pass that keeps the values and a backward pass that multiplies the local derivatives"
+  - id: check
+    description: "Check a chained derivative against a central difference of the whole chain"
+  - id: why
+    description: "Say why the chain rule makes a layered model trainable"

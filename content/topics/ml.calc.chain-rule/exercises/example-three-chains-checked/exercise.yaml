@@ -1,0 +1,22 @@
+id: example-three-chains-checked
+stage: worked_example
+rev: 1
+title: "Three chains, each checked"
+prompt: |
+  This program differentiates a chain of two, then a sigmoid of a line, then a chain of four, by the chain rule, checks each against a numeric slope, and finishes with a backward pass that multiplies the local derivatives from the output end inward. Press **Run**, then read how each part works.
+steps:
+  - label: "A chain of two"
+    lines: "12-14"
+    note: "`(3x + 1)²` is `u²` with `u = 3x + 1` inside. The outer derivative is `2u`, taken at the inner value `u = 7`, and the inner derivative is 3: `2 * 7 * 3 = 42`. The numeric slope of the whole thing agrees."
+  - label: "The sigmoid of a line"
+    lines: "16-18"
+    note: "Outer `sigmoid`, inner `2x + 1`. The sigmoid's derivative is `s * (1 - s)` at the inner value `u = 5`, times the inner derivative 2: 0.013296 either way. This is the shape of every unit in a network: a line, then a bend."
+  - label: "Four links: the forward pass"
+    lines: "20-25"
+    note: "`log(1 + exp(2x))`, link by link: `u = 2x`, `v = exp(u)`, `w = 1 + v`, `y = log(w)`. Each line is one link, and each value is kept, because the next line prints the four **local derivatives** evaluated at those values: 2, `v`, 1 and `1 / w`."
+  - label: "The product of the local derivatives"
+    lines: "26"
+    note: "The derivative of the whole chain is the product of the four: 1.964028, and the numeric slope of the whole chain agrees to six decimals."
+  - label: "The backward pass"
+    lines: "28-31"
+    note: "The same product, done the way a network does it: start at the output with `grad = 1`, multiply in `1 / w` (the last link), then 1, then `v`, then 2. Each step, `grad` is the derivative of `y` with respect to the value at that point in the chain. This loop, with matrices in place of numbers, is backpropagation."

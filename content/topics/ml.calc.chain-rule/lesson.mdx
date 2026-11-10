@@ -1,0 +1,25 @@
+<Intro>
+
+A network is functions applied one after another: multiply by weights, bend, multiply, bend, measure the loss. To train it you need the derivative of the loss with respect to a weight deep inside, and the **chain rule** is the one fact that makes that possible: the derivative of a chain is the product of the derivatives of its links. Done in order, from the loss backwards, it is backpropagation. This topic learns the rule on two functions, then three and four, and builds the forward-and-backward pattern that the next topics run on a whole network.
+
+The main resource is **3Blue1Brown's _Essence of calculus_, chapter 4**, visualizing the chain rule and product rule; 17 minutes. OpenStax _Calculus Volume 1_, section 3.6, has the rule with worked examples, and Khan Academy's chain rule unit has practice problems. Watch for:
+
+- **The nested nudge:** a small change in `x` changes the inner function a little, and that change is what the outer function sees.
+- **Where the outer derivative is evaluated:** at the inner function's value, never at `x` itself.
+- **Why it's a product**, and why a chain of many is just the same product with more factors.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **The rule.** If `y = f(g(x))`, then `dy/dx = f'(g(x)) * g'(x)`: the outer derivative **at the inner value**, times the inner derivative. For `(3x + 1)²`: inner `u = 3x + 1`, outer `u²`, so `2u * 3`; at `x = 2`, `u = 7` and the slope is 42. For `sigmoid(2x + 1)`: `s * (1 - s) * 2` with `s = sigmoid(2x + 1)`.
+- **A chain of many** is the same rule applied link by link: the derivative of the whole is the **product of the local derivatives**, each evaluated at the value its link received. For `log(1 + exp(2x))`: `u = 2x`, `v = exp(u)`, `w = 1 + v`, `y = log(w)`, with local derivatives `2`, `v`, `1`, `1 / w`, so `dy/dx = 2 * v * 1 * (1 / w)` (1.964028 at `x = 2`).
+- **The forward pass** runs the chain and keeps every intermediate value (`x, u, v, w, y`), because the backward pass needs them: each local derivative is evaluated at its own input.
+- **The backward pass** starts from `grad = 1` at the output and multiplies in the local derivatives from the output end inward: `1 / w`, then `1`, then `v`, then `2`. In code, `for df, value in zip(reversed(derivatives), reversed(values[:-1]))`. The running product is the derivative of the output with respect to each intermediate value as it passes.
+- **Check it.** Run the whole chain at `x + h` and `x - h`, take the central difference, and compare with the product. The two commonest mistakes, evaluating a link at `x` instead of at its own input and adding the local derivatives instead of multiplying, both show up in the sixth decimal.
+- **Why layers can train.** A network is a long chain, and the loss is one number. Multiplying from the loss end, each layer takes the gradient accumulated so far, multiplies in its own local derivative and passes the result back, so one backward pass gives the derivative of the loss for every weight at once. No one writes a formula for the whole network; each layer only knows itself.
+- **In machine learning:** this is backpropagation in miniature. The next topics add loss functions as the last link, then run the same forward-and-backward pattern on a network with matrices in place of numbers.
+
+</Recap>
