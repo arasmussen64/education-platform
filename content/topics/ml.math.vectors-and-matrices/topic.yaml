@@ -1,17 +1,78 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.math.vectors-and-matrices
 kind: topic
-status: planned
-title: Vectors and matrices
+status: ready
+title: "Vectors and matrices"
 summary: "Vectors as lists and matrices as lists of lists: adding, scaling, the dot product, shapes and multiplication."
-prerequisites:
-- ml.math.arithmetic
-- py.nested-data
+prerequisites: [ml.math.arithmetic, py.nested-data]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Add and scale vectors held as lists.
-- "Compute a dot product and a vector's length."
-- Hold a matrix as a list of lists, and read its shape.
-- Multiply a matrix by a vector and by a matrix with loops, checking the shapes.
+  - "Add and scale vectors held as lists."
+  - "Compute a dot product and a vector's length."
+  - "Hold a matrix as a list of lists, and read its shape."
+  - "Multiply a matrix by a vector and by a matrix with loops, checking the shapes."
+resources:
+  - title: "OpenStax Precalculus 2e: section 8.8 (Vectors) and section 9.5 (Matrices and Matrix Operations)"
+    url: https://openstax.org/details/books/precalculus-2e
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "3Blue1Brown: Essence of linear algebra (Grant Sanderson), chapters 1 to 4"
+    url: https://www.3blue1brown.com/topics/linear-algebra
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "Khan Academy: Linear algebra"
+    url: https://www.khanacademy.org/math/linear-algebra
+    type: interactive
+    use: link
+    license: CC BY-NC-SA 3.0 US (linked, not copied)
+practice:
+  - example-vectors-as-lists
+  - parsons-dot-product
+  - mcq-product-shape
+  - predict-scale-and-add
+  - mcq-perpendicular
+  - fill-matrix-times-vector
+  - write-vector-length
+prove:
+  build: build-matrix-multiply
+  debug: debug-centre-of-points
+  explain:
+    prompt: |
+      A is a 2×3 matrix and B is a 3×4 matrix. In your own words: what is each entry of the product AB made from, and why does that force the 3 in A's shape to match the 3 in B's? What shape is AB? And why does a layer of a neural network multiply a matrix by a vector: what does one entry of the result mean?
+    rubric:
+      - id: entry
+        required: true
+        description: "Each entry of AB is the dot product of a row of A and a column of B: multiply the pairs and add."
+      - id: inner-match
+        required: true
+        description: "A row of A has 3 entries and a column of B has 3, so the pairs line up; the inner numbers must match or there's nothing to pair."
+      - id: outer-shape
+        required: true
+        description: "AB has as many rows as A and as many columns as B: 2×4."
+      - id: layer
+        required: true
+        description: "A layer's weights are a matrix and its input a vector; each entry of the result is a weighted sum of the inputs, one per neuron in the next layer."
+      - id: loops
+        required: false
+        description: "Relates it to the code: three loops, over rows of A, columns of B, and the shared inner index."
+    model_answer: |
+      Each entry of AB comes from one row of A and one column of B: multiply them pair by pair and add the products, which is a dot product. A row of A has 3 entries and a column of B has 3 entries, so the pairs line up. If A had 3 columns and B had 4 rows there would be a product with nothing to pair with, which is why the inner numbers must match. The result takes the outer numbers: one entry for each row of A and each column of B, so AB is 2×4. In code that's three loops: over A's rows, over B's columns, and the shared inner index that runs the dot product. A neural-network layer is the same picture: its weights are a matrix, its input is a vector, and each entry of the result is a weighted sum of all the inputs, one entry per neuron in the next layer. The shapes must match for the same reason, which is why shape errors are the most common bug in ML code.
+review_pool:
+  - review-predict-dot-and-length
+  - review-mcq-shapes
+  - review-matrix-times-vector
+  - review-add-vectors
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: vector-ops
+    description: "Add and scale vectors held as lists"
+  - id: dot
+    description: "Compute a dot product and a vector's length"
+  - id: matrix-shape
+    description: "Read a matrix's shape, and say when two can be multiplied and what shape comes out"
+  - id: matmul
+    description: "Multiply a matrix by a vector and by a matrix with loops"
