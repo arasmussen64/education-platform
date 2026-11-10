@@ -1,0 +1,27 @@
+<Intro>
+
+Eigenvectors were the directions a matrix only stretches. Point them at data and they become the directions the data spreads most along: center the points, build the covariance matrix, and its eigenvectors are the principal components, with the eigenvalues saying how much of the spread each one carries. Keep the first few and you've compressed the data to the directions that matter.
+
+The main resource is **StatQuest's PCA step by step**, 20 minutes, which draws every step of this on two and three features. Then NumPy's `cov` page, mostly for the `rowvar=False` convention. Watch for:
+
+- **Centering first:** without it, the first "component" points at the mean, not the spread.
+- **The covariance matrix** of centered data: variances on the diagonal, how pairs move together off it.
+- **Eigenvalues as variances** along each component, and their shares as "variance explained".
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Center:** `centered = X - X.mean(axis=0)`, one feature per column, one sample per row.
+- **Covariance matrix:** `C = centered.T @ centered / (n - 1)`, the same as `np.cov(X, rowvar=False)`. Symmetric; `C[i, j]` is how features `i` and `j` move together, `C[i, i]` feature `i`'s variance.
+- **Components:** `values, vectors = np.linalg.eigh(C)`. The eigenvectors (columns of `vectors`) are the principal components, at right angles to each other; the eigenvalues are the variances along them. `eigh` lists them **ascending**, so the first component is the **last** column: `vectors[:, -1]`, or reverse the order with `[::-1]`.
+- **Signs are arbitrary.** An eigenvector and its negative are the same direction; fix a sign convention (first entry positive) before comparing or printing.
+- **Scores:** `centered @ components` gives each sample's coordinates along the kept directions. **Reconstruct** with `scores @ components.T + mean`; with all components it's exact, with fewer it's the best approximation of that rank.
+- **Variance explained:** `values / values.sum()`, largest first; the running sum says how much of the spread `k` components keep. Choose `k` where it crosses a threshold you can defend (90, 95, 99 percent) or where the shares drop to noise.
+- **Standardize first** when features have different units, or the one with the biggest numbers becomes the first component for no reason.
+- **What it throws away:** the low-variance directions, which is fine for noise and wrong when the signal you need is small. Components are mixes of features and rarely mean anything by name.
+- **In machine learning:** PCA is the standard first look at a high-dimensional dataset, a compression step before a model, and the picture behind "embeddings have a few directions that matter".
+
+</Recap>
