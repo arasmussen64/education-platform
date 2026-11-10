@@ -12,12 +12,14 @@ Run from the repository root:
     python -m uv run python tools/labcheck.py stop  csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py test  csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py test  --all --jobs 4
+    python -m uv run python tools/labcheck.py test  --all --jobs 4 --shard 0/4
 
 `start` builds the lab's image and starts its container; `check` runs the
 checks and prints the result to paste into the lab's box on the site; `stop`
 removes the container. `test` is for authors and CI: the pristine container
 must not pass, the reference solution must pass, every known-wrong fix must
-fail at least one check. `--jobs` tests several labs at once.
+fail at least one check. `--jobs` tests several labs at once; `--shard I/N`
+takes every Nth topic, which is how CI splits the run across machines.
 
 A lab whose exercise.yaml says `lab: { init: systemd }` boots systemd as PID 1
 in a privileged container, and the checker waits for the boot to finish before
@@ -61,8 +63,11 @@ CHECK_TIMEOUT_SECONDS = 30
 # several builds at once, a quarter of an hour wasn't always enough.
 BUILD_TIMEOUT_SECONDS = 1800
 APPLY_TIMEOUT_SECONDS = 300
-# systemd boots in a second or two; a slow machine gets a lot longer.
-BOOT_TIMEOUT_SECONDS = 90
+# systemd boots in a second or two. The limit is long enough for a cloud-init
+# first boot that runs apt against a broken user data, on a CI runner where
+# every lab's containers boot at once now that the shared layers are warmed
+# first. A healthy lab still boots in seconds.
+BOOT_TIMEOUT_SECONDS = 480
 
 # The learner's account inside every lab image.
 LEARNER = "learner"
@@ -252,9 +257,26 @@ def wait_for_boot(
         if state in BOOTED:
             return state
         if clock() >= deadline:
+            # Name the jobs still running, so a boot that hangs on CI says
+            # which unit it was waiting for.
+            jobs = exec_in(container, "systemctl list-jobs --no-pager", timeout=15)
+            waiting = (jobs.stdout or jobs.stderr).strip() or "(no job list)"
+            # And what each unit still starting has logged, since that's
+            # where the reason is.
+            units = [
+                line.split()[1]
+                for line in jobs.stdout.splitlines()[1:]
+                if len(line.split()) >= 4 and line.split()[1].endswith(".service")
+            ]
+            logs = ""
+            for unit in units[:3]:
+                tail = exec_in(
+                    container, f"journalctl -b -u {unit} --no-pager -n 40", timeout=15
+                )
+                logs += f"\n--- journal of {unit} ---\n{tail.stdout.strip()}"
             raise LabError(
                 f"{container} didn't finish booting in {timeout:g} s "
-                f"(systemd says: {state})"
+                f"(systemd says: {state}); jobs still running:\n{waiting}{logs}"
             )
         pause(0.5)
 
@@ -460,10 +482,22 @@ class ContractReport:
     problems: list[str]
     # What the run printed, kept so parallel runs can print each lab's whole.
     log: list[str] = field(default_factory=list)
+    # True when this is the second run, on its own, after the checker gave
+    # up on the first in the crowd.
+    retried: bool = False
 
     @property
     def ok(self) -> bool:
         return not self.problems
+
+    @property
+    def gave_up(self) -> bool:
+        """The contract wasn't tested: the checker itself stopped (a boot
+        that didn't finish, a build that ran out of time), rather than a
+        check that failed or a wrong fix that passed."""
+        return bool(self.problems) and all(
+            problem.startswith("labcheck: ") for problem in self.problems
+        )
 
 
 def test_lab(
@@ -535,6 +569,13 @@ def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
         report = test_lab(load_lab(topic_id, exercise_id), say=log.append)
     except LabError as error:
         report = ContractReport(f"{topic_id}/{exercise_id}", [f"labcheck: {error}"])
+    except subprocess.TimeoutExpired as error:
+        # A script that ran past its limit beside three other labs; alone it
+        # may not. A script that truly hangs times out again on the retry.
+        report = ContractReport(
+            f"{topic_id}/{exercise_id}",
+            [f"labcheck: timed out: {first_line(str(error))}"],
+        )
     except Exception as error:  # noqa: BLE001 - one lab's broken file mustn't end the run
         report = ContractReport(
             f"{topic_id}/{exercise_id}",
@@ -572,9 +613,32 @@ def warm_images(
             say(f"  {type(error).__name__}: {detail}")
 
 
+def shard_of(targets: list[tuple[str, str]], shard: str) -> list[tuple[str, str]]:
+    """The labs of every Nth topic, for `--shard I/N`. CI splits the run
+    across machines by topic rather than by lab, so each machine builds the
+    layer a topic's labs share only once; with about five labs a topic the
+    shares come out even enough."""
+    try:
+        index_text, count_text = shard.split("/", 1)
+        index, count = int(index_text), int(count_text)
+    except ValueError:
+        raise LabError(f"--shard wants I/N, like 0/4, not {shard!r}") from None
+    if count < 1 or not 0 <= index < count:
+        raise LabError(f"--shard {shard} is out of range: I runs from 0 to N-1")
+    topics = sorted({topic for topic, _ in targets})
+    mine = set(topics[index::count])
+    return [(topic, exercise) for topic, exercise in targets if topic in mine]
+
+
 def cmd_test(args: argparse.Namespace) -> int:
+    if args.shard and not args.all:
+        raise LabError("--shard goes with --all")
     if args.all:
         targets = find_labs()
+        if args.shard:
+            targets = shard_of(targets, args.shard)
+            topics = sorted({topic for topic, _ in targets})
+            print(f"shard {args.shard}: {len(targets)} labs in {', '.join(topics)}\n")
     elif args.topic and args.exercise:
         targets = [(args.topic, args.exercise)]
     else:
@@ -591,10 +655,24 @@ def cmd_test(args: argparse.Namespace) -> int:
             for report in pool.map(lambda t: test_quietly(*t), targets):
                 print("\n".join(report.log))
                 reports.append(report)
+        # A lab the checker gave up on in the crowd (a boot that didn't
+        # finish while every other lab's containers were booting too) gets
+        # one more run, alone. A contract failure is never retried.
+        for index, report in enumerate(reports):
+            if not report.gave_up:
+                continue
+            print(f"\nretrying {report.lab} on its own: {report.problems[0]}")
+            topic, exercise = report.lab.split("/", 1)
+            retried = test_quietly(topic, exercise)
+            retried.retried = True
+            print("\n".join(retried.log))
+            reports[index] = retried
     broken = [report for report in reports if not report.ok]
     print()
     for report in reports:
         status = "ok" if report.ok else "BROKEN"
+        if report.retried:
+            status += " (on its own, after the checker gave up in the crowd)"
         print(f"{status:6} {report.lab}")
         for problem in report.problems:
             print(f"       - {problem}")
@@ -627,6 +705,10 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=1,
         help="how many labs to test at once (CI uses 4)",
+    )
+    test.add_argument(
+        "--shard",
+        help="with --all: this machine's share of the topics, as I/N (CI: 0/4 to 3/4)",
     )
     test.set_defaults(run=cmd_test)
 
