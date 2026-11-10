@@ -135,6 +135,8 @@ export type DiagnosticLevel = {
   title: string
   summary: string
   refresh: Resource
+  /** The topic that teaches this level, once it exists. */
+  topic?: string
   items: McqItem[]
 }
 

@@ -26,9 +26,10 @@ content/
         └── wrong/*.sh               known-wrong fixes (each must fail a check)
 ```
 
-## Two tracks
+## Three tracks
 
 - **Python Foundations** (`py.*`) is written by hand, topic by topic.
+- **Machine Learning Foundations** (`ml.*`, [docs/specs/ml-foundations.md](../docs/specs/ml-foundations.md)) is written by hand too. Its topics build on Python Foundations topics by name (`prerequisites: [py.arithmetic]`), so they unlock as the learner's Python does; the map reads those topics' progress along with the track's own. Its first two modules, the math refresher and intermediate Python, are outlined as `planned` topics in `content/topics/ml.*` and written one at a time; the later modules are prose in the spec until Phase 3.
 - **Cloud Solutions Architect** (`csa.*`) is mostly an outline: a topic is `planned` until it's written, and Module 1's first topics are `draft` (lessons and recall now; the labs come when the lab checker's local mode exists, per [ADR-0017](../docs/decisions/0017-shell-in-the-browser.md)). The outlines are generated from the track's spec, [docs/specs/cloud-solutions-architect.md](../docs/specs/cloud-solutions-architect.md), by `tools/outline_cloud_track.py`. To change an outline, change the spec and run the script again (`python -m uv run python tools/outline_cloud_track.py`). Once a topic is being written, its `topic.yaml` loses the generated marker and the script leaves it alone from then on.
 
 ## A topic's life
