@@ -255,9 +255,13 @@ def wait_for_boot(
         if state in BOOTED:
             return state
         if clock() >= deadline:
+            # Name the jobs still running, so a boot that hangs on CI says
+            # which unit it was waiting for.
+            jobs = exec_in(container, "systemctl list-jobs --no-pager", timeout=15)
+            waiting = (jobs.stdout or jobs.stderr).strip() or "(no job list)"
             raise LabError(
                 f"{container} didn't finish booting in {timeout:g} s "
-                f"(systemd says: {state})"
+                f"(systemd says: {state}); jobs still running:\n{waiting}"
             )
         pause(0.5)
 
