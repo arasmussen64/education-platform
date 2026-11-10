@@ -9,7 +9,12 @@ import { fileURLToPath } from 'node:url'
 import { loadPyodide, type PyodideAPI, version } from 'pyodide'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { PYODIDE_VERSION } from './constants.ts'
-import { installHarness, runChecks, runProgram } from './session.ts'
+import {
+  installHarness,
+  runChecks,
+  runProgram,
+  traceProgram,
+} from './session.ts'
 
 const SCENARIOS = fileURLToPath(
   new URL('../../../harness/scenarios', import.meta.url),
@@ -34,9 +39,11 @@ describe('the Python harness under Pyodide', () => {
       const has = (file: string) => existsSync(join(folder, file))
 
       const expected: unknown = JSON.parse(read('expected.json'))
+      // An empty trace.txt marks a Step through scenario (ADR-0022).
+      const program = has('trace.txt') ? traceProgram : runProgram
       const actual = has('test_exercise.py')
         ? runChecks(pyodide, read('solution.py'), read('test_exercise.py'))
-        : runProgram(
+        : program(
             pyodide,
             read('solution.py'),
             has('stdin.txt') ? read('stdin.txt') : '',

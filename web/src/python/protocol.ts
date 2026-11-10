@@ -14,6 +14,41 @@ export type ProgramResult = {
   waiting_for_input: boolean
 }
 
+/** One function call that's running, in a step (harness/tracer.py). */
+export type TraceFrame = {
+  /** "program" for the program itself, else the function's name. */
+  name: string
+  line: number
+  /** Name and value (as text), in the order the names were made. */
+  vars: [string, string][]
+  /** The value being returned, on a return step. */
+  returns: string | null
+}
+
+/** One moment of a program, for the Step through button (ADR-0022). */
+export type TraceStep = {
+  line: number
+  /**
+   * "line": about to run the line. "call": a function was just called.
+   * "return": it's returning. "exception": an error was raised here.
+   */
+  event: 'line' | 'call' | 'return' | 'exception'
+  /** The calls that are running: the program first, the innermost last. */
+  frames: TraceFrame[]
+  /** How much of `output` had been printed by then. */
+  out_len: number
+}
+
+/** What the Step through button gets back (harness/tracer.py). */
+export type TraceResult = {
+  steps: TraceStep[]
+  output: string
+  error: string | null
+  waiting_for_input: boolean
+  /** True when the recording stopped at the step limit. */
+  truncated: boolean
+}
+
 export type TestOutcome = 'pass' | 'fail' | 'error'
 
 export type TestResult = {
@@ -44,10 +79,18 @@ export type WorkerRequest =
       seed: number | null
     }
   | { id: number; type: 'check'; code: string; tests: string }
+  | {
+      id: number
+      type: 'trace'
+      code: string
+      stdin: string
+      seed: number | null
+    }
 
 export type WorkerResponse =
   | { type: 'ready' }
   | { type: 'load-error'; message: string }
   | { id: number; type: 'run-result'; result: ProgramResult }
   | { id: number; type: 'check-result'; report: CheckReport }
+  | { id: number; type: 'trace-result'; trace: TraceResult }
   | { id: number; type: 'internal-error'; message: string }

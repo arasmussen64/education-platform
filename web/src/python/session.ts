@@ -1,6 +1,6 @@
 import type { PyodideAPI } from 'pyodide'
 import { HARNESS_FILES } from './harnessFiles.ts'
-import type { CheckReport, ProgramResult } from './protocol.ts'
+import type { CheckReport, ProgramResult, TraceResult } from './protocol.ts'
 
 // Runs learner code with an already-loaded Pyodide. The Web Worker uses these
 // functions, and so do the tests (in Node), so both exercise the same path.
@@ -18,7 +18,7 @@ import os, sys
 os.chdir(${JSON.stringify(WORKDIR)})
 if ${JSON.stringify(WORKDIR)} not in sys.path:
     sys.path.insert(0, ${JSON.stringify(WORKDIR)})
-import program, testrunner
+import program, testrunner, tracer
 `)
 }
 
@@ -41,6 +41,25 @@ export function runProgram(
     'import json, program; json.dumps(program.run_program(_learner_stdin, _learner_seed))',
   ) as string
   return JSON.parse(json) as ProgramResult
+}
+
+/**
+ * The Step through button (ADR-0022): run the program like Run does, but
+ * record every step, so the page can play it back.
+ */
+export function traceProgram(
+  pyodide: PyodideAPI,
+  code: string,
+  stdin: string,
+  seed: number | null,
+): TraceResult {
+  pyodide.FS.writeFile(`${WORKDIR}/solution.py`, code)
+  pyodide.globals.set('_learner_stdin', stdin)
+  pyodide.globals.set('_learner_seed', seed ?? undefined)
+  const json = pyodide.runPython(
+    'import json, tracer; json.dumps(tracer.trace_program(_learner_stdin, _learner_seed))',
+  ) as string
+  return JSON.parse(json) as TraceResult
 }
 
 /** The Check button: run the exercise's tests against the learner's code. */

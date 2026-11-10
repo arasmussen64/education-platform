@@ -5,6 +5,10 @@ import { MCQ, PARSONS, PREDICT, PREDICT_SHELL } from '../test/fakeContent.tsx'
 import { McqQuestion } from './McqQuestion.tsx'
 import { ParsonsProblem } from './ParsonsProblem.tsx'
 import { PredictOutput } from './PredictOutput.tsx'
+
+vi.mock('../python/runner.ts', () =>
+  import('../test/mockPython.ts').then((module) => module.mockRunnerModule()),
+)
 import { scramble } from './scramble.ts'
 
 const check = () =>
@@ -58,6 +62,39 @@ describe('PredictOutput', () => {
     expect(screen.getByText(/Not quite. It prints:/)).toBeInTheDocument()
     expect(screen.getByLabelText('What will it print?')).toBeDisabled()
     expect(screen.getByText(PREDICT.explanation)).toBeInTheDocument()
+  })
+})
+
+describe('PredictOutput, stepped through afterwards (ADR-0022)', () => {
+  it('offers to step through the code once the prediction is checked', async () => {
+    const { setFakeRunner } = await import('../test/mockPython.ts')
+    const { fakeRunner } = await import('../test/fakePython.ts')
+    const runner = setFakeRunner(fakeRunner())
+    const onStepThrough = vi.fn()
+    render(<PredictOutput item={PREDICT} onStepThrough={onStepThrough} />)
+    expect(
+      screen.queryByRole('button', { name: 'Step through it' }),
+    ).not.toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('What will it print?'), 'a')
+    await userEvent.click(screen.getByRole('button', { name: 'Check' }))
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Step through it' }),
+    )
+    expect(await screen.findByText('Step 1 of 4')).toBeInTheDocument()
+    expect(runner.trace).toHaveBeenCalledWith(PREDICT.code, {
+      timeLimitMs: 5000,
+    })
+    expect(onStepThrough).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers nothing in the placement test, which shows no answers', async () => {
+    render(<PredictOutput item={PREDICT} quiet />)
+    await userEvent.type(screen.getByLabelText('What will it print?'), 'a')
+    await userEvent.click(screen.getByRole('button', { name: 'Check' }))
+    expect(screen.getByText('Answer recorded.')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Step through it' }),
+    ).not.toBeInTheDocument()
   })
 })
 

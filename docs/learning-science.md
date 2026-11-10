@@ -21,14 +21,15 @@ The methods Switchback is built on, and the features they drive. Rule of thumb: 
 
 ## Programming-specific methods
 
-| Method                     | What it is                                                                                | Where it shows up                                                   |
-| -------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| **Tracing before writing** | Novices who can't trace code by hand rarely write it well; reading skill comes first      | "Predict the output" exercises early in each topic                  |
-| **Parsons problems**       | Rearrange scrambled lines into a working program; teaches structure with less mental load | Early practice steps                                                |
-| **PRIMM**                  | Predict → Run → Investigate → Modify → Make                                               | The order of the practice ladder                                    |
-| **Notional machine**       | A mental model of what the computer actually does as code runs                            | Step-through visualizations of variables, memory and the call stack |
-| **Subgoal labels**         | Worked examples whose steps are labeled by purpose transfer better                        | Worked examples show labeled steps                                  |
-| **Debugging as a skill**   | Reading and fixing unfamiliar code is a core, trainable skill                             | Debug-unfamiliar-code checks                                        |
+| Method                     | What it is                                                                                                                                       | Where it shows up                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **Tracing before writing** | Novices who can't trace code by hand rarely write it well; reading skill comes first                                                             | "Predict the output" exercises early in each topic                                                                       |
+| **Parsons problems**       | Rearrange scrambled lines into a working program; teaches structure with less mental load                                                        | Early practice steps                                                                                                     |
+| **PRIMM**                  | Predict → Run → Investigate → Modify → Make                                                                                                      | The order of the practice ladder                                                                                         |
+| **Notional machine**       | A mental model of what the computer actually does as code runs                                                                                   | Step-through visualizations of variables, memory and the call stack                                                      |
+| **Subgoal labels**         | Worked examples whose steps are labeled by purpose transfer better                                                                               | Worked examples show labeled steps                                                                                       |
+| **Debugging as a skill**   | Reading and fixing unfamiliar code is a core, trainable skill                                                                                    | Debug-unfamiliar-code checks                                                                                             |
+| **The notional machine**   | Novices need a working model of what each line does to the variables; tracing is the skill that builds it (du Boulay, 1986; Lister et al., 2004) | Predict-the-output questions, then Step through ([ADR-0022](decisions/0022-step-through.md)) to watch the machine's view |
 
 ## AI and learning
 

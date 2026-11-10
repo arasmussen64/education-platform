@@ -244,4 +244,46 @@ describe('CodeRunner', () => {
       expect(await screen.findByText(expected)).toBeInTheDocument()
     },
   )
+
+  it('steps through the code, with the input and seed of the last run', async () => {
+    const user = userEvent.setup()
+    const runner = fakeRunner()
+    runner.run
+      .mockResolvedValueOnce(printed('Name? ', true))
+      .mockResolvedValueOnce(printed('Name? Ada\nHi Ada\n'))
+    const onTrace = vi.fn()
+    render(<CodeRunner initialCode="code" runner={runner} onTrace={onTrace} />)
+
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Program input' }),
+      'Ada{Enter}',
+    )
+    await screen.findByText(/Hi Ada!?/)
+    await user.click(screen.getByRole('button', { name: 'Step through' }))
+
+    expect(
+      await screen.findByRole('heading', { name: 'Step through' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Step 1 of 4')).toBeInTheDocument()
+    const seed = runner.run.mock.calls[0]?.[1]?.seed
+    expect(runner.trace).toHaveBeenCalledWith('code', {
+      stdin: 'Ada\n',
+      seed,
+      timeLimitMs: 5000,
+    })
+    expect(onTrace).toHaveBeenCalledWith(
+      await runner.trace.mock.results[0]?.value,
+      'code',
+    )
+  })
+
+  it('says when stepping through ran out of time', async () => {
+    const runner = fakeRunner({ trace: { kind: 'timeout' } })
+    render(<CodeRunner initialCode="while True: pass" runner={runner} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Step through' }))
+    expect(
+      await screen.findByText(/ran for more than 5 seconds/),
+    ).toBeInTheDocument()
+  })
 })

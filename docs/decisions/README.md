@@ -38,3 +38,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0019](0019-today-across-tracks.md)     | Today shows every track, and counts practice hours per track             | Accepted |
 | [0020](0020-automated-backups.md)       | Nightly encrypted backups of the learning data                           | Accepted |
 | [0021](0021-placement-test.md)          | The placement test walks the map by halving, and proves nothing          | Accepted |
+| [0022](0022-step-through.md)            | Step through, a visualizer from Python's own trace hook                  | Accepted |

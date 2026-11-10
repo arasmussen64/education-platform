@@ -3,7 +3,12 @@
 import type { PyodideAPI } from 'pyodide'
 import { PYODIDE_INDEX_URL } from './constants.ts'
 import type { WorkerRequest, WorkerResponse } from './protocol.ts'
-import { installHarness, runChecks, runProgram } from './session.ts'
+import {
+  installHarness,
+  runChecks,
+  runProgram,
+  traceProgram,
+} from './session.ts'
 
 // A typed view of the worker's global scope.
 const scope = self as unknown as {
@@ -47,6 +52,14 @@ scope.onmessage = async (event) => {
         request.seed,
       )
       scope.postMessage({ id: request.id, type: 'run-result', result })
+    } else if (request.type === 'trace') {
+      const trace = traceProgram(
+        pyodide,
+        request.code,
+        request.stdin,
+        request.seed,
+      )
+      scope.postMessage({ id: request.id, type: 'trace-result', trace })
     } else {
       const report = runChecks(pyodide, request.code, request.tests)
       scope.postMessage({ id: request.id, type: 'check-result', report })
