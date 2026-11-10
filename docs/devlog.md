@@ -2,6 +2,17 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Probability and statistics, the fifth rung
+
+**`ml.math.probability-and-statistics` is ready.** Statistics as what you do to a list, probability as counting what could happen, and the base-rate table as the one piece of reasoning everyone gets wrong until they've drawn it once. The worked example finds the mean and median of `[2, 4, 4, 10]` with `sum`, `len` and `sorted`, and the 10 moves one and not the other. Then a Parsons problem that counts the 36 outcomes of two dice with nested loops (the decoy divides by 12), three recall questions (which of mean 67.4 and median 35 describes five salaries; heads and a six multiply, not a six is `1 - p`; of 1,000 people, how many healthy ones test positive), the standard deviation to fill in (square, average, root) and the 1,000-people table to write. The proofs: `mean`, `median` and `spread` to build, with "median without sorting" and "divides by n - 1" as known-wrong solutions; dice odds with two bugs (a range that stops at 5, a chance never multiplied by 100); and an explanation of why a friend's positive test doesn't mean 90%: 9 sick positives against 99 healthy ones. The review pool has four, one each for the four skills. The recap ties each idea to its ML use: mean squared error, scaling data, and why a 99%-accurate classifier can be useless for a rare class. OpenStax Introductory Statistics 2e is the main resource.
+
+**Decisions for you to review:**
+
+1. _Population standard deviation (divide by n), not sample (n - 1)._ It's the definition the lesson teaches and the one NumPy uses by default; the sample version is named as a wrong answer and comes properly in Module 5.
+2. _The base-rate table is written as code, not read as a story,_ so the learner computes 9 and 99 themselves before being asked to explain them.
+
+**Next:** Vectors and matrices (`ml.math.vectors-and-matrices`).
+
 ## 2026-11-09: Exponents and logarithms, the fourth rung
 
 **`ml.math.exponents-and-logs` is ready.** A power is repeated multiplication and a logarithm is "how many times?" asked backwards; the topic is built to make the product rule land, because that one rule is why machine learning adds log-probabilities instead of multiplying probabilities. The worked example takes a power, a negative exponent (one over), a root (an exponent of a half) and two logs with `math.log2` and `math.log10`. Then a Parsons loop that doubles a colony until it passes 1000 (the decoy adds 2 a day, growth by the same amount instead of the same factor), three recall questions (what `log2(32)` asks; `log10(1000) + log10(100)` against `log10(1000 * 100)`; `10 ** -2` is small, not negative), compound growth to fill in (`(1 + rate / 100) ** years`) and a half-life table to write. The proofs: `years_to_double(rate)` to build by multiplying until the amount passes double (known-wrong: simple interest), a decibel calculation with two bugs (`math.log` where `math.log10` was meant, the ratio upside down; the prompt says which symptom points at which), and an explanation that corrects a friend's "log of a product is the product of the logs" and ends with why the trick matters for ML. The recap names log-likelihood and cross-entropy as this trick with names. OpenStax Intermediate Algebra 2e chapter 10 is the main resource.
