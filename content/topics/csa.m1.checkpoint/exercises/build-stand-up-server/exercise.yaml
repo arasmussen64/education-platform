@@ -10,13 +10,13 @@ prompt: |
 
   1. **Run the service.** `shop-api` is installed (`/etc/systemd/system/shop-api.service`) but not running. Enable it so it starts on boot and start it now, so `systemctl is-active shop-api` is `active` and `curl -s localhost:8080` answers.
   2. **Put up the firewall.** Write `/etc/nftables.conf` with an `input` chain whose policy is `drop`, accepting loopback, established and related traffic, and new connections to SSH (`tcp dport 22`) and the API (`tcp dport 8080`). Load it, and `systemctl enable nftables` so it survives a reboot.
-  3. **Harden SSH.** A drop-in in `/etc/ssh/sshd_config.d/` turning off password and root logins (`PasswordAuthentication no`, `PermitRootLogin no`). Check it with `sudo sshd -t`, and prove you can still log in with `ssh -i ~/keys/ben ben@localhost`.
+  3. **Harden SSH.** A drop-in in `/etc/ssh/sshd_config.d/` turning off password and root logins (`PasswordAuthentication no`, `PermitRootLogin no`). Check it with `sudo sshd -t`, apply it with `sudo systemctl reload ssh` (`restart` if the service isn't running), and prove you can still log in with `ssh -i ~/keys/ben ben@localhost`.
 
   Don't take a shortcut that weakens the server: leaving the firewall off, or passwords on, fails the check. When it's all up, run the checks.
 hints:
   - "The service: `sudo systemctl enable --now shop-api` enables and starts it in one step. Confirm with `systemctl is-active shop-api` and `curl -s localhost:8080`."
   - "The firewall is the one from the hardening topic plus a rule for 8080: an `input` chain `policy drop` with `iif lo accept`, `ct state established,related accept`, `tcp dport 22 accept` and `tcp dport 8080 accept`. `sudo nft -f /etc/nftables.conf` loads it; `sudo systemctl enable nftables` keeps it."
-  - "The SSH drop-in: `printf 'PasswordAuthentication no\\nPermitRootLogin no\\n' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf`, then `sudo sshd -t`."
+  - "The SSH drop-in: `printf 'PasswordAuthentication no\\nPermitRootLogin no\\n' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf`, then `sudo sshd -t` and `sudo systemctl reload ssh`."
 test_skills:
   service-running: [csa.linux.services/systemctl, csa.linux.services/unit-files]
   api-answers: [csa.linux.services/supervision]

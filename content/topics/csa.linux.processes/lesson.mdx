@@ -1,6 +1,6 @@
 <Intro>
 
-A **process** is a program while it's running: its code, its memory, the files it has open, and a number the kernel uses to refer to it, the **PID** (process ID). Type `ps` and you see the processes your shell started; `ps -ef` or `ps aux` shows every process on the machine, with each one's PID and its **PPID**, the PID of its parent. Every process has a parent, because new processes are made from existing ones, and the whole machine is one family tree with **PID 1** at the root.
+A **process** is a program while it's running: its code, its memory, the files it has open, and a number the kernel uses to refer to it, the **PID** (process ID). Type `ps` and you see the processes in your terminal; `ps -ef` shows every process on the machine, with each one's PID and its **PPID**, the PID of its parent (`ps aux` lists them all too, but with CPU and memory columns instead of the PPID). Every process has a parent, because new processes are made from existing ones, and the whole machine is one family tree with **PID 1** at the root.
 
 **How a process is born.** When you type `grep error app.log`, the shell doesn't "load" grep into itself. It calls **fork**, which makes a copy of the shell, a child process, and in that child it calls **exec**, which throws away the copied shell program and replaces it with `grep`. Same process, new program. The parent shell then **waits** for the child to finish. This two-step dance is why a subshell `( ... )` can change a variable without affecting your shell: it's a copy. And it's why `exec some-command` in a script replaces the script, so nothing after it runs. When a process ends, it leaves an **exit status**: `0` means success, anything else means failure, and the shell stores it in `$?`. `a && b` runs `b` only if `a` succeeded; `a || b` runs `b` only if `a` failed.
 
@@ -28,7 +28,7 @@ A **process** is a program while it's running: its code, its memory, the files i
 
 <Recap>
 
-- **A process** is a running program with a PID; every one has a parent (PPID). `ps -ef` shows the tree; PID 1 is at the root.
+- **A process** is a running program with a PID; every one has a parent (PPID). `ps -ef` lists every process with its PPID, and `ps -ef --forest` draws the tree; PID 1 is at the root.
 - **fork, then exec:** the shell copies itself, and the copy replaces its program with the command. A subshell `( ... )` is a copy, so its variable changes don't come back; `exec cmd` replaces the current shell, so nothing after it runs.
 - **Exit status:** `0` means success. `$?` holds the last one. `a && b` runs `b` only on success; `a || b` only on failure. `exit 3` sets it.
 - **Signals:** `INT` (Ctrl-C), `TERM` (please stop, the default for `kill`, can be caught), `KILL` (now, can't be caught: last resort), `HUP` (terminal closed; many servers reload), `TSTP`/`STOP` pause, `CONT` resumes. `kill -l` lists them; `TERM` is 15, `KILL` is 9. `trap 'cmd' TERM` reacts in a script. `pgrep name` / `pkill name` find or signal by name; `-x` for the exact name, `-a` to see the commands.
