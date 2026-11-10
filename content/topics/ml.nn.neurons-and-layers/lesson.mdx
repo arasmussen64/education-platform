@@ -1,0 +1,25 @@
+<Intro>
+
+Module 4 built a two-layer network as four arrays and three functions, to learn the calculus. This module builds networks the way libraries do: as **layers**, each an object that knows its own weights and its own forward pass, stacked in a list. This first topic is the forward direction only: what a single neuron computes, how a layer of them is one matrix multiply, how a batch flows through a stack of layers and what shape it has at every step, how many numbers the network can learn, and why the activation function between the layers is the whole point of having more than one. The backward pass comes in the next topic, Layers that carry their gradient.
+
+The main resource is **3Blue1Brown's first neural-network video**, _But what is a neural network?_, which draws a layer of neurons reading a digit and shows the weights as a picture; about 20 minutes. Nielsen's first chapter covers the same ground in prose, from perceptrons to the architecture of a network, and Wikipedia's _Multilayer perceptron_ page is the reference for the names. Watch for:
+
+- **A neuron as a weighted sum**: every weight is a vote on one input.
+- **Layers as matrices**: why a whole layer is one multiplication.
+- **The activation function**: what it adds, and what a network without one can't do.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A neuron** takes an input vector `x`, computes `z = x @ w + b` (a **weighted sum**: each input times its own weight, plus a **bias**), and passes `z` through an **activation function** such as ReLU, `max(z, 0)`. `w[j]` is how much input `j` pushes the neuron up or down per unit; `b` is where the sum starts, the threshold a ReLU neuron must clear. Before the activation, `z = 0` is a straight line (in more dimensions, a flat boundary) through the input space: the neuron with `w = [1, 1]` and `b = -1.5` fires where `x + y > 1.5` and is silent elsewhere.
+- **A layer** is many neurons on the same input, and their weights stack into a matrix: `W` has shape `(inputs, outputs)`, one **column per neuron**, and `b` has one entry per neuron. `x @ W + b` computes every neuron at once; on a **batch** `X` of shape `(rows, inputs)`, `X @ W + b` is `(rows, outputs)`, every example through every neuron in one operation, with `b` broadcast across the rows (Why vectorized code is fast). Rows are examples, always.
+- **The shape rule.** A layer's input width must equal the previous layer's output width: `(32, 784) @ (784, 128)` is `(32, 128)`; an activation keeps the shape; `(32, 128) @ (128, 10)` is `(32, 10)`. A `W` built the wrong way round fails loudly (`matmul: ... mismatch in its core dimension`), which is the most common bug in a new network and the easiest to fix: print the shapes after every layer.
+- **Layers as objects.** `Dense(n_in, n_out)` owns `W` and `b` and has `forward(X)` and `parameters()`; `ReLU` has a `forward` and no parameters; `Sequential(layers)` runs them in order and gathers every parameter into one list. The point of the design: each piece can be tested alone, swapped, or given a `backward` (next topic) without touching the others. Weights start random, scaled by `1 / sqrt(n_in)`, and biases at zero; Starting weights and activation functions says why.
+- **Parameter count:** `in * out + out` per dense layer, nothing for activations. `[35, 16, 10]` is 35 × 16 + 16 + 16 × 10 + 10 = 746; `[784, 128, 10]` is 101,770. It is the number of knobs the network can turn, and Counting a model's cost turned it into FLOPs and bytes.
+- **Why the activation is the point.** Two dense layers with nothing between them are one dense layer in disguise: `(X @ W1 + b1) @ W2 + b2` is `X @ (W1 @ W2) + (b1 @ W2 + b2)`, and the example checks that the two give the same outputs to the last bit. A linear function of a linear function is linear, so depth without an activation buys nothing. ReLU bends the function at each hidden neuron's boundary; a stack of bends can fit curves, corners and the XOR pattern of Checkpoint 4 that no single line can. Sigmoid and tanh bend it smoothly instead, with costs the initialization topic measures.
+- **In machine learning** (names you'll meet later): `nn.Linear` is `Dense` (PyTorch stores `W` as `(out, in)` and multiplies by its transpose; the arithmetic is the same), `nn.Sequential` is `Sequential`, `model.parameters()` is the list the optimizer updates, and `model(x)` calls `forward`; a **multilayer perceptron** (MLP) is exactly this stack of dense layers and activations, and "hidden units" are the columns of a hidden layer's `W`.
+
+</Recap>

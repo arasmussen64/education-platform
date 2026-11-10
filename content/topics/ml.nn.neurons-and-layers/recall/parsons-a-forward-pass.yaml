@@ -1,0 +1,16 @@
+id: parsons-a-forward-pass
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to run a batch of four rows of ones through a two-layer network written as plain arrays (weights 0.2 and bias 0.1 in the first layer, weights -0.5 and bias 1.0 in the second, a ReLU between) and print `(4, 2) [-0.65, -0.65]`. One line is a decoy that doesn't belong.
+lines:
+  - 'import numpy as np'
+  - 'X = np.ones((4, 5))'
+  - 'h = np.maximum(X @ np.full((5, 3), 0.2) + 0.1, 0.0)'
+  - 'out = h @ np.full((3, 2), -0.5) + 1.0'
+  - 'print(out.shape, np.round(out[0], 2).tolist())'
+distractors:
+  - 'h = np.maximum(X @ np.full((3, 5), 0.2) + 0.1, 0.0)'
+explanation: |
+  The first layer's weights must be `(5, 3)` to meet a batch of width 5; each hidden value is five inputs times 0.2 plus 0.1, which is 1.1, kept by the ReLU; the second layer sums three of those times -0.5 and adds 1, which is -0.65. The decoy builds the first weights as `(3, 5)`, which can't multiply a `(4, 5)` batch.
+skills: [compose]

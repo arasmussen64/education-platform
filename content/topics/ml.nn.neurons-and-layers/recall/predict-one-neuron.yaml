@@ -1,0 +1,20 @@
+id: predict-one-neuron
+type: predict_output
+rev: 1
+prompt: |
+  One neuron with weights `[0.5, 1.0]` and bias `0.25`, on three inputs: its weighted sum and its ReLU output. What does the program print?
+code: |
+  import numpy as np
+  
+  w = np.array([0.5, 1.0])
+  b = 0.25
+  for x in (np.array([2.0, -1.0]), np.array([-2.0, 0.5]), np.array([0.0, 0.0])):
+      z = x @ w + b
+      print(round(float(z), 2), round(float(max(z, 0.0)), 2))
+expected_output: |
+  0.25 0.25
+  -0.25 0.0
+  0.25 0.25
+explanation: |
+  The sum is `0.5 * x0 + 1.0 * x1 + 0.25`: for `[2, -1]` that is 1 minus 1 plus 0.25; for `[-2, 0.5]` it is minus 1 plus 0.5 plus 0.25, which is negative, so the ReLU gives 0; for the zero input only the bias is left. The bias is what the neuron outputs when every input is zero.
+skills: [neuron]

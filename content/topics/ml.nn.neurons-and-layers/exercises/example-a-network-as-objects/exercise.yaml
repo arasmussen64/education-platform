@@ -1,0 +1,25 @@
+id: example-a-network-as-objects
+stage: worked_example
+rev: 1
+title: "A network as objects"
+prompt: |
+  One neuron by hand, a layer of three on one input and on a batch, then the module's three classes (`Dense`, `ReLU`, `Sequential`) with a batch traced through them, the parameter count, two dense layers collapsing into one, and what one neuron's boundary looks like. Press **Run**, then read how each part works.
+steps:
+  - label: "One neuron"
+    lines: "3-7"
+    note: "A neuron is a weighted sum plus a bias, `x @ w + b`, through an activation. Here the first input pushes the sum up by 0.5 per unit and the second down by 0.25 per unit; the bias starts it at 0.1. The sum is 0.1, positive, so the ReLU passes it through."
+  - label: "A layer, on one input and on a batch"
+    lines: "9-13"
+    note: "Three neurons on the same input stack their weights as the three columns of `W`, with a bias each, so `x @ W + b` is all three sums at once; the ReLU zeroes the negative one. A batch of four rows goes through the same layer as `X @ W + b`, `(4, 2) @ (2, 3)` giving `(4, 3)`, with the bias broadcast across the rows; row 0 is the single input's answer again."
+  - label: "The three classes"
+    lines: "16-53"
+    note: "`Dense` owns its `W` (shape `(inputs, outputs)`, started random and scaled by `1 / sqrt(inputs)`, which the initialization topic explains) and its `b` (zeros); `forward` is the matrix multiply plus the bias, and `parameters` hands them out. `ReLU` has a `forward` and nothing to learn. `Sequential` runs its layers in order and gathers every parameter into one list. Each piece can be tested and replaced alone."
+  - label: "Shapes and the parameter count"
+    lines: "56-64"
+    note: "A batch of 8 rows of 35 features is `(8, 35)`; after the first dense layer it is `(8, 16)`; the ReLU keeps the shape; the last layer makes it `(8, 10)`, a score per class per row. The parameters are `35 * 16 + 16` in the first layer and `16 * 10 + 10` in the second, 746 numbers to learn."
+  - label: "Two dense layers with nothing between"
+    lines: "66-69"
+    note: "Multiply the two layers out and one layer appears: weights `W1 @ W2`, bias `b1 @ W2 + b2`. The merged layer gives the same outputs as the stacked pair, so without an activation the second layer added nothing. With the ReLU between them the outputs differ: the bend is what makes depth matter."
+  - label: "A neuron is a boundary"
+    lines: "71-72"
+    note: "Before the activation a neuron's sum is zero along a line (a flat boundary, in more dimensions), here `x + y = 1.5`. The neuron fires for inputs on one side and is silent on the other: a detector for one direction in the input, which the next layer combines with others."

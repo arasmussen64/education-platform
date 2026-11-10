@@ -1,0 +1,20 @@
+id: review-predict-a-layer-by-hand
+type: predict_output
+rev: 1
+prompt: |
+  A dense layer with two neurons on three inputs, on a batch of two rows, before and after a ReLU. What does the program print?
+code: |
+  import numpy as np
+  
+  W = np.array([[1.0, -1.0], [0.0, 2.0], [0.5, 0.5]])
+  b = np.array([-0.5, 0.0])
+  X = np.array([[1.0, 1.0, 1.0], [2.0, 0.0, -2.0]])
+  z = X @ W + b
+  print(z.tolist())
+  print(np.maximum(z, 0.0).tolist(), z.shape)
+expected_output: |
+  [[1.0, 1.5], [0.5, -3.0]]
+  [[1.0, 1.5], [0.5, 0.0]] (2, 2)
+explanation: |
+  Each output is a column of `W` dotted with the row, plus that neuron's bias: for the first row, 1 + 0 + 0.5 - 0.5 and -1 + 2 + 0.5; for the second, 2 + 0 - 1 - 0.5 and -2 + 0 - 1. The ReLU zeroes the one negative value. Two rows and two neurons make a `(2, 2)` result.
+skills: [neuron]

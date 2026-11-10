@@ -1,0 +1,21 @@
+id: predict-shapes-and-counts
+type: predict_output
+rev: 1
+prompt: |
+  A batch of six rows of ones through a `[4, 8, 2]` network whose weights are all 0.1 and then all 0.5, with a ReLU between: the shapes, the first output row, the parameter shapes and their total. What does the program print?
+code: |
+  import numpy as np
+  
+  X = np.ones((6, 4))
+  W1, b1 = np.full((4, 8), 0.1), np.zeros(8)
+  W2, b2 = np.full((8, 2), 0.5), np.ones(2)
+  h = np.maximum(X @ W1 + b1, 0.0)
+  out = h @ W2 + b2
+  print(h.shape, out.shape, np.round(out[0], 2).tolist())
+  print([p.shape for p in (W1, b1, W2, b2)], sum(p.size for p in (W1, b1, W2, b2)))
+expected_output: |
+  (6, 8) (6, 2) [2.6, 2.6]
+  [(4, 8), (8,), (8, 2), (2,)] 58
+explanation: |
+  `(6, 4) @ (4, 8)` is `(6, 8)`: each hidden value is four inputs of 1 times 0.1, which is 0.4, and the ReLU keeps it. `(6, 8) @ (8, 2)` is `(6, 2)`: eight values of 0.4 times 0.5 is 1.6, plus the bias of 1, which is 2.6. The parameters are the two weight matrices and the two bias vectors, 32 + 8 + 16 + 2 = 58 numbers. (The first output is printed rounded: eight products of 0.4 and 0.5 add up to 1.6 only to within a last digit.)
+skills: [compose, count]

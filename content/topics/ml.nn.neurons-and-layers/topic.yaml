@@ -1,17 +1,81 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.nn.neurons-and-layers
 kind: topic
-status: planned
+status: ready
 title: "Neurons, layers and a network's shape"
 summary: "A neuron as a weighted sum through an activation, a layer as a matrix multiply plus a bias, a network as layers in a list: the forward pass written as objects, the shape of the data at every step, and the parameter count that falls out of the layer sizes."
-prerequisites:
-- ml.m4.checkpoint
-- ml.m7.checkpoint
+prerequisites: [ml.m4.checkpoint, ml.m7.checkpoint]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Write a neuron and a dense layer as a weighted sum plus a bias through an activation, and say what each weight means.
-- Compose layers into a network object with a forward pass, and track the shape of a batch through it.
-- "Count a network's parameters from its layer sizes."
-- Explain why a network with no activation between its layers is one linear layer in disguise.
+  - "Write a neuron and a dense layer as a weighted sum plus a bias through an activation, and say what each weight means."
+  - "Compose layers into a network object with a forward pass, and track the shape of a batch through it."
+  - "Count a network's parameters from its layer sizes."
+  - "Explain why a network with no activation between its layers is one linear layer in disguise."
+# Linked, never copied or embedded: 3Blue1Brown's videos are under the
+# standard YouTube licence; Nielsen's book is CC BY-NC 3.0; Wikipedia is
+# CC BY-SA 4.0.
+resources:
+  - title: "3Blue1Brown: Neural networks (Grant Sanderson), chapter 1: But what is a neural network?"
+    url: https://www.3blue1brown.com/topics/neural-networks
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "Neural Networks and Deep Learning, chapter 1: Using neural nets to recognize handwritten digits (Michael Nielsen), the sections on perceptrons, sigmoid neurons and the architecture of neural networks"
+    url: https://neuralnetworksanddeeplearning.com/chap1.html
+    type: reading
+    use: link
+    license: CC BY-NC 3.0 (linked, not copied)
+  - title: "Wikipedia: Multilayer perceptron (the layers, the activation function and why it is needed)"
+    url: https://en.wikipedia.org/wiki/Multilayer_perceptron
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-a-network-as-objects
+  - predict-one-neuron
+  - mcq-what-a-weight-means
+  - predict-shapes-and-counts
+  - mcq-the-shape-rule
+  - parsons-a-forward-pass
+  - mcq-why-no-activation-collapses
+  - fill-dense-layer
+  - write-sequential
+prove:
+  build: build-a-network-of-objects
+  debug: debug-a-network-that-will-not-run
+  explain:
+    prompt: |
+      A teammate is reading your network code for the first time and asks four things. "What does one number in `W` mean, and what is `b` for?" "Why is the network `Dense, ReLU, Dense` and not just `Dense, Dense`, which would be simpler?" "A batch of 32 images of 784 pixels goes into `[784, 128, 10]`: what shape is it after each layer, and how many numbers does the network learn?" "What does one hidden neuron actually do to an input?" In your own words, answer all four.
+    rubric:
+      - id: neuron
+        required: true
+        description: "W[j, k] is how much input j pushes output k, per unit of input; b[k] shifts output k's starting point, the threshold a ReLU neuron has to clear. A neuron computes a weighted sum plus its bias and passes it through the activation; before the activation it is a line (a plane) in input space, zero on one side."
+      - id: compose
+        required: true
+        description: "A batch of (32, 784) times W1 (784, 128) plus b1 is (32, 128); ReLU keeps the shape; times W2 (128, 10) plus b2 is (32, 10): rows are examples throughout, and each layer's input width must equal the previous layer's output width. Sequential runs the layers in order and gathers their parameters."
+      - id: count
+        required: true
+        description: "in times out plus out per dense layer: 784 times 128 plus 128, plus 128 times 10 plus 10, is 101,770 parameters."
+      - id: nonlinearity
+        required: true
+        description: "Two Dense layers with nothing between are one Dense layer: W1 W2 and b1 W2 + b2 give exactly the same outputs, so the depth buys nothing. ReLU bends the function between the layers, and a stack of bends can fit curves and corners a line can't; that is what the hidden layer is for."
+    model_answer: |
+      One number in `W`, say `W[j, k]`, is how much input `j` pushes output neuron `k`, for every unit of that input: a positive weight makes a bigger input raise the neuron's sum, a negative one lowers it, and zero means the neuron ignores that input. `b[k]` is the bias of neuron `k`, the value its sum starts from before any input is counted; for a ReLU neuron it sets the threshold the weighted inputs have to clear before the neuron gives anything but zero. A neuron is just that: the weighted sum of its inputs plus its bias, passed through the activation function. The network is `Dense, ReLU, Dense` because `Dense, Dense` would be one layer wearing two coats. A dense layer is a matrix multiply plus a bias, which is a linear function, and a linear function of a linear function is linear: multiplying out, two layers with weights `W1` and `W2` are one layer with weights `W1 @ W2` and bias `b1 @ W2 + b2`, and the example checked that they give exactly the same outputs. The ReLU between them bends the function, zeroing each hidden neuron on one side of its line, and a stack of such bends can fit curves and corners that no single line can; the hidden layer only earns its keep because of the activation. For the shapes: rows are examples all the way through. The batch is `(32, 784)`; times `W1`, which is `(784, 128)`, plus `b1` broadcast across the rows, it is `(32, 128)`; the ReLU doesn't change the shape; times `W2`, which is `(128, 10)`, plus `b2`, it is `(32, 10)`, one score per class per image. The rule is that each layer's input width must equal the previous layer's output width, and the usual bug is a `W` built the wrong way round, which fails loudly with a shape error. The network learns `784 * 128 + 128` numbers in the first layer and `128 * 10 + 10` in the second, 101,770 in all; the activation has nothing to learn. One hidden neuron takes the whole input, multiplies each pixel by its own weight, adds them up with its bias, and keeps the result if it is positive. Before the activation that is a weighted vote over the pixels, which is zero along a flat boundary in the 784-dimensional input space; after it, the neuron is silent on one side of that boundary and grows linearly on the other, so each hidden neuron is a detector for one direction in the input, and the next layer combines a hundred and twenty-eight such detectors.
+review_pool:
+  - review-predict-a-layer-by-hand
+  - review-mcq-parameter-count
+  - review-mcq-what-relu-adds
+  - review-sequential
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: neuron
+    description: "Write a neuron and a dense layer, and say what each weight and bias means"
+  - id: compose
+    description: "Compose layers into a network with a forward pass, and track the shape of a batch through it"
+  - id: count
+    description: "Count a network's parameters from its layer sizes"
+  - id: nonlinearity
+    description: "Explain why a network with no activation between its layers is one linear layer in disguise"

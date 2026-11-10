@@ -1,0 +1,14 @@
+id: debug-a-network-that-will-not-run
+stage: debug
+rev: 1
+title: "A network that won't run"
+prompt: |
+  A `[3, 4, 2]` network of the module's classes on a batch of two rows. It should print:
+
+  ```
+  output shape: (2, 2)
+  hidden values are never negative: True | some are zero: True
+  ```
+
+  It has two bugs. Run it: it crashes inside `forward` with a `matmul` shape error, because `Dense` builds `W` as `(n_out, n_in)`, the wrong way round for `X @ W`; a batch of shape `(rows, inputs)` needs `W` of shape `(inputs, outputs)`. Fix that, and the hidden values come out negative or zero: `ReLU` keeps the **negative** part with `np.minimum`. A ReLU keeps the positive part, `np.maximum(X, 0.0)`.
+skills: [compose, nonlinearity]
