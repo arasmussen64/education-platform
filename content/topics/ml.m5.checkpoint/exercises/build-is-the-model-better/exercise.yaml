@@ -5,7 +5,7 @@ title: "Is the model better?"
 prompt: |
   Starting from a blank editor, do Module 5 in one program: judge two classifiers on the same held-out examples and say, with the uncertainty stated, whether one is better.
 
-  **The data.** Two hundred held-out examples, 30 percent positive, with each model's score for each; a second two hundred are the validation set. The scores stand in for two trained models (A's separate the classes by 2.0, B's by 1.2, both with noise of spread 1), drawn from a seeded generator:
+  **The data.** Two hundred held-out examples, each positive with a 30 percent chance, with each model's score for each; a second two hundred are the validation set. The scores stand in for two trained models (A's separate the classes by 2.0, B's by 1.2, both with noise of spread 1), drawn from a seeded generator:
 
   ```python
   rng = np.random.default_rng(21)
@@ -26,7 +26,7 @@ prompt: |
   - `metrics(tp, fp, fn, tn)`: accuracy, precision, recall and F1 as floats.
   - `accuracy_interval(correct, z=1.96)`: the 95 percent interval for an accuracy from an array of 1s and 0s, as a pair of floats.
   - `paired_bootstrap(rng, correct_a, correct_b, draws=2000)`: the mean per-example difference and the 2.5th and 97.5th percentiles of its mean over `draws` resamples of the **differences** with replacement, as three floats.
-  - `choose_threshold(y_val, score_val)`: the threshold in `np.arange(0.0, 2.01, 0.05)` with the highest accuracy on the **validation** data (the first of any ties), as a float.
+  - `choose_threshold(y_val, score_val)`: the threshold in `np.arange(0.0, 2.01, 0.05)` with the highest accuracy on the **validation** data (the first of any ties), rounded to 2 places and returned as a float: the grid's values aren't exact, and 1.7 comes out as 1.7000000000000002 unrounded.
   - `report(rng, y, score_a, score_b, threshold_a, threshold_b)`: prints, for each model, its name, its confusion counts and its metrics rounded to 3; then `interval A` and `interval B` rounded to 3; then `A minus B` with the mean rounded to 3 and the interval rounded to 3; then a verdict line: `verdict: A is better` if the interval is entirely above zero, `verdict: B is better` if entirely below, otherwise `verdict: not established`.
 
   Then choose each model's threshold on the validation data, print them as `thresholds`, and run the report:

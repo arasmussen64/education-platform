@@ -111,6 +111,23 @@ class TopicFolder:
 
 # --- Loading -------------------------------------------------------------------
 
+# An apostrophe between letters written twice, as in don''t. Inside a
+# single-quoted YAML scalar that is how an apostrophe is spelled, but in a
+# block (|) or double-quoted scalar YAML keeps both, and the learner sees
+# don''t on the page. The pattern skips '' used as an empty Python string.
+DOUBLED_APOSTROPHE = re.compile(r"(?<=\w)''(?=[\w\s]|$)")
+
+
+def doubled_apostrophes(data: Any) -> list[str]:
+    """Every string in the loaded YAML that kept a doubled apostrophe."""
+    if isinstance(data, str):
+        return [data] if DOUBLED_APOSTROPHE.search(data) else []
+    if isinstance(data, dict):
+        return [s for value in data.values() for s in doubled_apostrophes(value)]
+    if isinstance(data, list):
+        return [s for value in data for s in doubled_apostrophes(value)]
+    return []
+
 
 def load(path: Path, shape: type[BaseModel] | TypeAdapter[Any], report: Report):
     """Read a YAML file and check its shape. Returns None if it's broken."""
@@ -119,6 +136,14 @@ def load(path: Path, shape: type[BaseModel] | TypeAdapter[Any], report: Report):
     except yaml.YAMLError as exc:
         report.add(path, f"isn't valid YAML: {exc}")
         return None
+    for text in doubled_apostrophes(data):
+        match = DOUBLED_APOSTROPHE.search(text)
+        snippet = text[max(0, match.start() - 12) : match.end() + 12] if match else text
+        report.add(
+            path,
+            f"keeps a doubled apostrophe ({snippet.strip()!r}): in a block or "
+            "double-quoted scalar '' stays as two apostrophes, so write one",
+        )
     try:
         if isinstance(shape, TypeAdapter):
             return shape.validate_python(data)

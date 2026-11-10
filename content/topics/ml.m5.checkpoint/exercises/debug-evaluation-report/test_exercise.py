@@ -12,7 +12,8 @@ def test_the_output():
 
 
 def test_thresholds_come_from_validation():
-    """choose_threshold picks from the data it is given: perfectly separated validation scores put it between the classes."""
+    """The thresholds are chosen on the validation data (the first line reads 'thresholds 1.7 1.05'), and perfectly separated validation scores put the threshold between the classes."""
+    assert run().startswith("thresholds 1.7 1.05\n")
     choose_threshold = function("choose_threshold")
     assert 0.8 <= choose_threshold(np.array([0, 0, 1, 1]), np.array([0.2, 0.8, 1.2, 1.8])) < 1.2
 
