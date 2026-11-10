@@ -1,0 +1,48 @@
+id: build-an-initialization-study
+stage: build
+rev: 1
+title: "An initialization study"
+prompt: |
+  Starting from a blank editor, write the module's classes as they stand after the last topic (`Dense` now taking `scale=None`, meaning `1 / sqrt(n_in)`, plus `ReLU`, `Tanh` and `Sigmoid` with backward, `Sequential` and `MSELoss`), the `describe` helper from the worked example (`"vanished"` under 1e-3, `"exploded"` over 1e3, `"stable"` between 0.1 and 10, `"drifting"` otherwise), and seven tools:
+
+  - `xavier_scale(n_in)`: `sqrt(1 / n_in)`, and `he_scale(n_in)`: `sqrt(2 / n_in)`, both as floats.
+  - `activation_stds(net, X)`: the standard deviation of the batch after each layer of `net`, in order.
+  - `input_gradient_std(net, X)`: run forward, push a unit-size gradient back through the network (`np.random.default_rng(1).standard_normal` in the output's shape), and return the standard deviation of the gradient that reaches the input.
+  - `dead_fraction(H)`: the share of columns of `H` that are zero for every row.
+  - `saturated_fraction(Z, threshold=4.0)`: the share of entries of `Z` beyond the threshold in size.
+  - `units_identical(W)`: whether every column of `W` is the same column.
+
+  Then print:
+
+  ```python
+  rng = np.random.default_rng(0)
+  X = rng.standard_normal((256, 100))
+
+
+  def stack(scale, activation, depth=8):
+      return Sequential([piece for i in range(depth) for piece in (Dense(100, 100, seed=i, scale=scale), activation())])
+
+
+  print(xavier_scale(100), he_scale(100), he_scale(50))
+  for name, scale, activation in (("0.01 tanh", 0.01, Tanh), ("Xavier tanh", xavier_scale(100), Tanh), ("0.1 ReLU", 0.1, ReLU), ("He ReLU", he_scale(100), ReLU)):
+      net = stack(scale, activation)
+      stds = activation_stds(net, X)
+      print(name, describe(stds[-1]), describe(input_gradient_std(net, X)))
+  layer = Dense(100, 100, seed=3, scale=he_scale(100))
+  layer.b[:] = -5.0
+  print(round(dead_fraction(ReLU().forward(layer.forward(X))), 2), round(saturated_fraction(Dense(100, 100, seed=0, scale=1.0).forward(X)), 2))
+  print(units_identical(np.zeros((3, 4))), units_identical(np.tile(np.array([[1.0], [2.0]]), (1, 5))), units_identical(Dense(3, 4, seed=1).W))
+  ```
+
+  ```
+  0.1 0.1414213562373095 0.2
+  0.01 tanh vanished vanished
+  Xavier tanh stable stable
+  0.1 ReLU drifting drifting
+  He ReLU stable stable
+  0.96 0.68
+  True True False
+  ```
+
+  The checks compare the scales with the formulas, run a six-layer stack under He and under 0.01 and read the sizes off, check the gradient's size the same way, count dead units and saturated entries on hand-made arrays, and tell copied columns from a constant matrix.
+skills: [symmetry, scale, activations, depth]

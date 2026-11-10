@@ -1,0 +1,25 @@
+id: example-signals-through-depth
+stage: worked_example
+rev: 1
+title: "Signals through depth"
+prompt: |
+  Three starts for a small network (all zeros, four copies of one unit, random), then a ten-layer stack of 100-unit layers under six starting scales with the size of the activations and of the gradient measured layer by layer, then saturation and dead ReLUs counted, and the two rules of thumb. Press **Run**, then read how each part works.
+steps:
+  - label: "The classes, with a starting scale"
+    lines: "4-114"
+    note: "`Dense` now takes a `scale` for its starting weights (1 over the square root of the inputs unless told otherwise), and `Tanh` and `Sigmoid` join `ReLU`, each with its backward. `describe` turns a size into a word, so that a vanished or exploded signal reads the same on every machine."
+  - label: "Zeros, copies and random"
+    lines: "117-139"
+    note: "Started at zero, the hidden outputs are zero and no gradient reaches the first layer, so the loss stays where the last bias alone can take it, 0.25. Started as four copies of one random unit, the units receive identical gradients and remain identical after 200 steps: the layer is one unit in disguise, and it learns exactly what one unit could, 0.028. Random weights break the symmetry and the loss falls to 0.015."
+  - label: "A ten-layer stack under six scales"
+    lines: "141-163"
+    note: "Each layer multiplies the signal's size by about the scale times the square root of its 100 inputs. At 0.01 the activations vanish by layer 10 and so does the gradient reaching the input. At 1.0 the tanh units saturate near plus or minus one while the gradient coming back explodes, since each layer's weights multiply it by about 10: too-large weights fail both ways. At Xavier's 0.1 the tanh stack keeps a usable size both ways. ReLU at 0.1 drifts down, because ReLU zeroes half of each layer's variance; at 0.3 it explodes; at He's 0.14 the activations and the gradient both stay stable."
+  - label: "Saturation, counted"
+    lines: "165-169"
+    note: "At scale 1.0 the pre-activations have a standard deviation of about 10, so most tanh outputs sit beyond 0.99 and most sigmoid inputs beyond 4, where the slopes are under 0.02: a gradient passing through is multiplied by almost nothing at every such layer."
+  - label: "Dead ReLUs, counted"
+    lines: "170-173"
+    note: "With He weights but a bias of -5, a unit's pre-activation is almost never positive, so most units never fire on any of the 256 inputs. A unit that never fires has zero gradient and can't come back: that is a dead ReLU, and this is the easiest way to make one."
+  - label: "The rules of thumb"
+    lines: "174-174"
+    note: "Xavier for tanh and sigmoid, He for ReLU, biases at zero. Frameworks apply these by default; this example is what they are protecting you from."
