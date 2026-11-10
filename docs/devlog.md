@@ -2,6 +2,21 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Counting steps and big-O, the first Module 6 topic
+
+**`ml.dsa.complexity` is ready,** and with it the module's way of proving things. The worked example asks "does this list contain a duplicate?" with a loop inside a loop and with a set, counts both ways' comparisons on 500, 1,000 and 2,000 items (124,750 → 499,500 → 1,999,000 against 500 → 1,000 → 2,000: four times more at each doubling against twice), then times both as the list doubles and prints the ratios. Then a Parsons that counts a nested loop's pairs (the decoy counts every ordered pair), four recall questions (which of four snippets is quadratic; what "four times longer when doubled" means; why NumPy summing 80 times faster is the same order with a smaller constant; whether a nightly script over 200 records is worth rewriting), a step counter to fill in, and `growth_name` to write, which reads constant, linear, quadratic or faster off the doubling ratios. The proofs: `pairs`, `has_duplicate`, `common_count` and `growth_name` to build from a blank editor; a deduplicate to debug that inserts at the front of its result and keeps `seen` as a list; and an explanation of why a hundred times the rows took an hour. The review pool has halvings as `log n`, the doubling ratio of `3n² + 100n` at three sizes, which of two versions finishes on 10 million rows, and whether two order-`n` functions can differ a hundredfold.
+
+**Counting comparisons, not clocks.** Timings differ between a browser and CI, so the hidden tests wrap the test data in a small class whose `==` and `<` count how often they are called, and assert a budget: on 3,000 distinct items a one-pass `has_duplicate` compares a few thousand times at most, a nested loop 4,498,500 times, and the budget is 60,000, which also lets a sort-based answer through. The learner's code is unchanged and never sees the wrapper; the prompt says the checks count comparisons. The worked example's two timing lines are the first output on the platform that a test accepts within a range rather than exactly (a doubling ratio between 2.5 and 6.5, a gap of at least 20 times); every other line is pinned.
+
+**Decisions for you to review:**
+
+1. _Comparison counting is the module's proof mechanism_ (above), chosen over timing (noisy, runtime-dependent) and over asking the learner to increment a counter (which changes the code being judged). It generalizes: sorting topics count `<`, hashing topics count `==` against hash collisions.
+2. _`growth_name` calls `n log n` "linear"_ and the prompt says so; a doubling test can't tell 2.2 from 2 reliably, and pretending otherwise would teach a false precision.
+3. _The main resource is Runestone's Problem Solving with Algorithms and Data Structures using Python_ (CC BY-NC-SA 4.0, linked), chapter 3; it is the clearest free treatment with runnable Python, and its non-commercial clause is fine for a link, as with the Missing Semester in the cloud track.
+4. _The first topic's prerequisite is Checkpoint 2,_ as the spec's module map draws it, so Module 6 opens only after the small data library is built.
+
+**Next:** arrays, hash tables and sets (`ml.dsa.arrays-and-hashing`).
+
 ## 2026-11-10: Module 6 of the ML track is outlined
 
 **Data structures and algorithms has an outline:** seven planned topics and Checkpoint 6 in the track file and on the map, with the spec's prose bullet turned into a table. Counting steps and big-O, with a function timed as its input doubles; arrays, hash tables and sets, and what each list, dict and set operation costs and why; stacks, queues and recursion, which neither Python Foundations nor Module 2 taught; sorting and searching, with binary search, insertion sort and merge sort written and timed; trees and heaps, with a decision tree read as a tree of questions; graphs, with breadth-first and depth-first search, Dijkstra's algorithm and topological order, the order a computation graph runs in; and dynamic programming, with memoization, the edit distance and the knapsack. Checkpoint 6 builds the algorithms behind a small data pipeline (deduplicate, join, top-k, near-duplicate matching, step ordering), each shown to scale as its order says. The first topic follows Checkpoint 2, as the spec's module map draws it.

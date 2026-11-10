@@ -1,0 +1,13 @@
+id: debug-slow-deduplicate
+stage: debug
+rev: 1
+title: "A slow deduplicate"
+prompt: |
+  `unique_in_order` should return the distinct emails in the order they first appear, and the program should print:
+
+  ```
+  1500 ['user0@example.com', 'user1@example.com'] user1499@example.com
+  ```
+
+  It has two bugs. Run it: the order is backwards, because each new email is inserted at the **front** of the result (and `insert(0, ...)` shifts every element along, a linear step inside the loop). Fix that, and the output is right but the function is quadratic: `seen` is a list, so `email not in seen` scans it from the start every time. The checks count the comparisons: with a set they stay in the thousands, with the list they reach the millions.
+skills: [count, choose]
