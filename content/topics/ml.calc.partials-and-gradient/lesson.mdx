@@ -1,0 +1,26 @@
+<Intro>
+
+A model's loss doesn't depend on one knob; it depends on thousands. The last topic's derivatives were slopes along one axis. This topic puts them together: the slope along each axis with the others held still is a **partial derivative**, the vector of all of them is the **gradient**, and the gradient is the direction in which the loss rises fastest. Training steps the other way. Every claim here is checked in code, one coordinate at a time.
+
+The main resource is **Khan Academy's multivariable calculus** unit on partial derivatives and the gradient, made by Grant Sanderson of 3Blue1Brown: the videos _Partial derivatives, introduction_, _Gradient_, _Gradient and graphs_, _Directional derivative_ and _Why the gradient is the direction of steepest ascent_; about 40 minutes. OpenStax _Calculus Volume 3_, sections 4.3 and 4.6, is the same ground as text. Watch for:
+
+- **Holding the rest fixed:** a partial derivative treats every other variable as a constant.
+- **The gradient as a vector field:** at every point, an arrow pointing uphill, longer where the hill is steeper.
+- **Contour lines:** the curves along which the function doesn't change, and the arrows cross them at right angles.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Several inputs, one output.** `f(x, y) = x² + 3y²` is a bowl over the plane, steeper in `y`. In code a point is an array `p = np.array([x, y])` and `f(p)` returns one number; a loss is this with thousands of entries in `p`.
+- **A partial derivative** is the derivative with respect to one variable while the others are held fixed: `∂f/∂x = 2x` (treat `y` as a constant), `∂f/∂y = 6y`. The curly `∂` just says "one variable of several".
+- **The gradient** stacks the partials into a vector: `∇f = [2x, 6y]`, so `[2, 6]` at `(1, 1)`. Its **direction** is the way `f` rises fastest from that point; its **length** (6.325 there) is how fast `f` rises per unit step in that direction.
+- **Checking it numerically**, one coordinate at a time: nudge entry `i` by `h` up and down, leaving the others alone, and take the central difference. In code: a `step` array of zeros with `h` in slot `i`, `(f(p + step) - f(p - step)) / (2 * h)`. Nudging every entry at once gives the sum of the partials, which is wrong.
+- **The directional derivative:** the rate of change along a **unit** direction `u` is `∇f · u`. Along the gradient's own direction it's the gradient's length; along a direction perpendicular to the gradient it's zero. Divide a direction by its length before using it, or the answer scales with the arrow you drew.
+- **Contours.** A contour line (a height line on a map) is a curve along which `f` doesn't change. Along it the rate is zero, so the gradient is **perpendicular** to the contour through the point. Descent, stepping against the gradient, crosses contours at right angles towards lower ones.
+- **Where the gradient is zero,** the surface is flat: the bottom of a bowl, the top of a hill, or a saddle. Descent stops moving there, which is what it's looking for.
+- **In machine learning:** the backward pass of a network computes exactly this, the gradient of the loss with respect to every weight, and every optimizer in the next topics is a rule for stepping against it. A numeric gradient check is the standard way to prove a hand-written one is right before training on it.
+
+</Recap>

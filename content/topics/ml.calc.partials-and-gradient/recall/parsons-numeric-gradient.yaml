@@ -1,0 +1,19 @@
+id: parsons-numeric-gradient
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to estimate the gradient of `f(x, y) = x * y` at `(2, 3)` one coordinate at a time, printing `[3. 2.]`. One line is a decoy that doesn't belong.
+lines:
+  - 'import numpy as np'
+  - 'def f(p):'
+  - '    return p[0] * p[1]'
+  - 'p = np.array([2.0, 3.0])'
+  - 'h = 1e-6'
+  - 'dx = (f(p + [h, 0]) - f(p - [h, 0])) / (2 * h)'
+  - 'dy = (f(p + [0, h]) - f(p - [0, h])) / (2 * h)'
+  - 'print(np.round([dx, dy], 6))'
+distractors:
+  - 'dy = (f(p + [h, h]) - f(p - [h, h])) / (2 * h)'
+explanation: |
+  Each partial derivative nudges **one** coordinate and leaves the other alone: `[h, 0]` for the slope in `x`, `[0, h]` for the slope in `y`. With `f = x * y`, the slope in `x` is `y = 3` and the slope in `y` is `x = 2`. The decoy nudges both at once, which measures the slope along the diagonal, `3 + 2 = 5`, not the partial derivative in `y`.
+skills: [gradient, partial]

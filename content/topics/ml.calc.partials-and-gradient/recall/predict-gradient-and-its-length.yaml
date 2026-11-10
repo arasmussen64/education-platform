@@ -1,0 +1,25 @@
+id: predict-gradient-and-its-length
+type: predict_output
+rev: 1
+prompt: |
+  `grad` is the gradient of `f(x, y) = x y + x²`. What does the program print?
+code: |
+  import numpy as np
+  
+  
+  def grad(p):
+      return np.array([p[1] + 2 * p[0], p[0]])
+  
+  
+  p = np.array([1.0, 4.0])
+  g = grad(p)
+  print(g)
+  print(round(float(np.linalg.norm(g)), 3))
+  print(np.round(g / np.linalg.norm(g), 3))
+expected_output: |
+  [6. 1.]
+  6.083
+  [0.986 0.164]
+explanation: |
+  At `(1, 4)` the partial in `x` is `y + 2x = 6` and the partial in `y` is `x = 1`, so the gradient is `[6, 1]`. Its length, `sqrt(37) = 6.083`, is how fast `f` rises per unit step in the steepest direction, and dividing by it gives that direction as a unit vector: almost all `x`, a little `y`.
+skills: [gradient, direction]
