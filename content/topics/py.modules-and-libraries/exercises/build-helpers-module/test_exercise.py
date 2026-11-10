@@ -26,14 +26,16 @@ def test_pick():
 
 
 def test_dice():
-    """dice(10, 6) is ten whole numbers from 1 to 6; dice(0, 6) is []."""
+    """dice(10, 6) is ten whole numbers 1 to 6, as are 200 more; dice(0, 6) is []."""
     dice = function("dice")
     rolls = dice(10, 6)
     assert isinstance(rolls, list) and len(rolls) == 10
-    for roll in rolls:
+    # Two hundred rolls, so a range that's off by one (0 to 6, or 1 to 5)
+    # shows itself: ten rolls missed a stray 0 one run in five.
+    for roll in rolls + dice(200, 6):
         assert isinstance(roll, int) and 1 <= roll <= 6
     assert dice(0, 6) == []
-    assert dice(3, 1) == [1, 1, 1]
+    assert dice(20, 1) == [1] * 20
 
 
 def test_docstrings():
