@@ -106,11 +106,26 @@ Module 1 estimated slopes and stepped downhill on one knob; Checkpoint 1 did it 
 
 **Checkpoint 4: train a tiny network** (`ml.m4.checkpoint`). Build a two-layer network from scratch, train it with backpropagation and an optimizer on a small dataset, and report its loss and accuracy; debug a training loop with three bugs (a chain-rule step out of order, an update with the wrong sign, a shape mistake); explain the chain rule as backpropagation and what the learning rate trades off. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
 
+## Module 5: Probability and statistics for ML
+
+Module 1 counted chances with a table of 1,000 people, and Module 4 took cross-entropy on trust. This module is the probability and statistics that make a model's numbers mean something: distributions and their expectations, Bayes' rule with base rates, maximum likelihood as where the losses come from, sampling and confidence, entropy as cross-entropy's name, and the statistics of judging a model. Every topic is proven in code, with NumPy's random generator seeded so every run agrees.
+
+| # | Topic | ID | Needs | You'll be able to… |
+| --- | --- | --- | --- | --- |
+| 29 | Random variables and distributions | `ml.prob.distributions` | `ml.math.probability-and-statistics`, `ml.la.numpy-arrays` | name the Bernoulli, binomial, uniform and normal distributions and what each models; simulate draws with a seeded generator; turn a sample into a histogram and compare it with the formula; read a probability as an area under a density |
+| 30 | Expectation and variance | `ml.prob.expectation-and-variance` | `ml.prob.distributions` | compute an expected value and a variance from a distribution's table; use linearity of expectation and the variance of an independent sum; watch sample means settle on the expectation and say what the law of large numbers promises; standardize a value and read it |
+| 31 | Bayes' rule, properly | `ml.prob.bayes` | `ml.prob.distributions` | compute a conditional probability from a joint table; apply Bayes' rule to a test result with a base rate and say why the answer surprises people; update a belief step by step as evidence arrives; build a naive Bayes classifier and say what "naive" assumes |
+| 32 | Maximum likelihood | `ml.prob.maximum-likelihood` | `ml.prob.expectation-and-variance`, `ml.calc.loss-functions` | write the likelihood of data under a model with a parameter; take the log and find the maximum by calculus and by descent; fit a coin's bias and a normal's mean and spread; say why least squares and cross-entropy are maximum-likelihood losses |
+| 33 | Sampling and confidence | `ml.prob.sampling-and-confidence` | `ml.prob.expectation-and-variance` | simulate many samples and watch their means form a normal shape; compute a standard error and say what shrinks it; build a confidence interval and say what it does and doesn't promise; bootstrap an interval for a statistic with no formula |
+| 34 | Entropy, cross-entropy and KL divergence | `ml.prob.entropy` | `ml.prob.expectation-and-variance`, `ml.calc.loss-functions` | compute the surprise of an outcome and the entropy of a distribution; compute a cross-entropy and say why it is never below the entropy; compute the KL divergence as the gap; connect Module 4's cross-entropy loss to its name |
+| 35 | Evaluating a model with statistics | `ml.prob.evaluating-models` | `ml.prob.sampling-and-confidence`, `ml.calc.loss-functions` | split data into train, validation and test and say what each is for; build a confusion matrix and compute accuracy, precision, recall and F1; put a confidence interval on an accuracy; compare two models on one test set and say whether the difference is real |
+
+**Checkpoint 5: is the model better?** (`ml.m5.checkpoint`). Judge two classifiers' predictions on a held-out set: a confusion matrix and the metrics for each, a bootstrap interval on the difference in accuracy, and a recommendation; debug an evaluation report with three bugs (a threshold chosen on the test set, precision and recall swapped, an interval built from the wrong resamples); explain Bayes' rule with a base rate and what a confidence interval does and doesn't promise. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
+
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 and 4 had before they were written (both on 2026-11-10).
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 and 4 had before they were written (both on 2026-11-10) and Module 5 has (outlined 2026-11-10).
 
-- **5. Probability and statistics for ML:** distributions; expectation and variance; Bayes' rule properly; maximum likelihood; sampling and confidence; the statistics of evaluating a model.
 - **6. Data structures and algorithms:** complexity; arrays, hashing, trees, graphs; sorting and searching; dynamic programming; the algorithms behind data pipelines.
 - **7. How computers and GPUs work:** memory and caches; why vectorized code is fast; floating point; what a GPU is good at; reading a profiler.
 - **8. Neural networks from scratch:** a neuron, a layer, a loss; backpropagation by hand and in code; training loops; regularization; a small network that reads digits.
