@@ -1,0 +1,19 @@
+id: example-fit-a-line-in-one-step
+stage: worked_example
+rev: 1
+title: "Checkpoint 1's line, in one step"
+prompt: |
+  This program fits Checkpoint 1's five points with the normal equations and with `lstsq`, then fits five noisy points and checks the leftover. Press **Run**, then read how each part works.
+steps:
+  - label: "The design matrix"
+    lines: "3-6"
+    note: "One row per point: its `x`, and a 1 that multiplies the intercept. The unknowns are `[slope, intercept]`. Five equations, two unknowns."
+  - label: "The normal equations"
+    lines: "7-8"
+    note: "`A.T @ A` is 2 by 2 and `A.T @ ys` has two entries: a square system, which `solve` handles. Slope 2, intercept 1, in one step; Checkpoint 1 took two thousand."
+  - label: "lstsq does the same"
+    lines: "9-10"
+    note: "`np.linalg.lstsq` returns a tuple; `[0]` is the fit. `A @ coef` are the fitted values, here exactly the data because the points were on the line."
+  - label: "Noisy points: the best line, and the leftover"
+    lines: "12-16"
+    note: "Now no line passes through all five. The fit is `[1.95, 1.15]`, and the residual `ys2 - A @ coef2` has zero dot product with the `x` column and with the column of ones (its sum): it's perpendicular to the plane of all lines. That's what makes it the best."

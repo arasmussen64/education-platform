@@ -1,17 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.la.least-squares
 kind: topic
-status: planned
-title: Projections and least squares
-summary: Projecting onto a line and a plane, the normal equations, and the line fit of Checkpoint 1 found in one step.
-prerequisites:
-- ml.la.systems
-- ml.m1.checkpoint
+status: ready
+title: "Projections and least squares"
+summary: "Projecting onto a line and a plane, the normal equations, and the line fit of Checkpoint 1 found in one step."
+prerequisites: [ml.la.systems, ml.m1.checkpoint]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Project a vector onto a line and onto a plane.
-- Write and solve the normal equations for a fit.
-- Fit a line and a plane with np.linalg.lstsq, and check it against gradient descent.
-- Say what least squares minimizes and why the solution is a projection.
+  - "Project a vector onto a line and onto a plane."
+  - "Write and solve the normal equations for a fit."
+  - "Fit a line and a plane with np.linalg.lstsq, and check it against gradient descent."
+  - "Say what least squares minimizes and why the solution is a projection."
+# Linked, never copied or embedded: MIT OpenCourseWare is CC BY-NC-SA 4.0;
+# Khan Academy is CC BY-NC-SA 3.0 US; NumPy's documentation is under the
+# NumPy licence (BSD-3-Clause).
+resources:
+  - title: "MIT 18.06 Linear Algebra, lecture 16: Projection matrices and least squares (Gilbert Strang, MIT OpenCourseWare)"
+    url: https://ocw.mit.edu/courses/18-06-linear-algebra-spring-2010/resources/lecture-16-projection-matrices-and-least-squares/
+    type: video
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "Khan Academy: Least squares approximation"
+    url: https://www.khanacademy.org/math/linear-algebra/alternate-bases/orthogonal-projections/v/linear-algebra-least-squares-approximation
+    type: video
+    use: link
+    license: CC BY-NC-SA 3.0 US
+  - title: "numpy.linalg.lstsq (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.linalg.lstsq.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-fit-a-line-in-one-step
+  - parsons-normal-equations
+  - mcq-what-is-minimized
+  - predict-projection-onto-plane
+  - mcq-why-not-solve
+  - fill-normal-equations
+  - write-fit-a-plane
+prove:
+  build: build-least-squares-report
+  debug: debug-fit-mistakes
+  explain:
+    prompt: |
+      Checkpoint 1 fitted a line to five points by taking two thousand small steps downhill on the error. Today you fitted the same line in one line of linear algebra. Explain to your Module 1 self, in your own words: what number does the fitted line make as small as possible? Why is the best fit a projection, and of what onto what, and what does that say about the leftover (the residual)? Where do the normal equations `AᵀA x = Aᵀb` come from? And when would you still reach for gradient descent?
+    rubric:
+      - id: minimizes
+        required: true
+        description: "The fit minimizes the sum of the squared residuals: the squared vertical gaps between each point and the line (the same mean squared error Checkpoint 1 stepped down)."
+      - id: projection
+        required: true
+        description: "The vector of all the y values is projected onto the plane spanned by the columns of A (the x column and the ones column); the fitted values are that shadow, and the residual is what's left, perpendicular to the plane."
+      - id: normal-equations
+        required: true
+        description: "Perpendicular means the residual b - Ax has zero dot product with every column of A, which written out is Aᵀ(b - Ax) = 0, which is AᵀA x = Aᵀb: a square system you can solve."
+      - id: gradient-descent
+        required: false
+        description: "Gradient descent is still the tool when the model isn't linear in its parameters, when the data is too big to form AᵀA, or when there's no closed form at all, which is most of machine learning."
+    model_answer: |
+      The fitted line makes the sum of the squared residuals as small as it can be: for each point, the gap between its y and the line's y at that x, squared, added up. That's the same error Checkpoint 1 measured and stepped down; here it's solved exactly. Think of all five y values as one vector in five dimensions, and the columns of A, the x values and the column of ones, as two directions in that space. Every possible line's predictions are a combination of those two columns, so they fill a plane. The closest point on that plane to the y vector is its shadow, the projection, and those are the fitted values. Whatever is left over, the residual, points straight out of the plane: it has zero dot product with the x column and with the ones column. Writing that down gives the normal equations: Aᵀ(b - Ax) = 0, so AᵀA x = Aᵀb, two equations in two unknowns, which solve does in one step. Gradient descent is still the right tool when the model isn't linear in its parameters, when there are millions of rows and forming AᵀA is too expensive, or when there's no formula to solve at all, which is nearly every neural network.
+review_pool:
+  - review-predict-perfect-fit
+  - review-mcq-residual-orthogonal
+  - review-mcq-overdetermined
+  - review-fit-line
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: design
+    description: "Write a fit as A x ≈ b with a design matrix, one row per data point"
+  - id: normal
+    description: "Solve the normal equations, and read the result as a projection"
+  - id: lstsq
+    description: "Fit with np.linalg.lstsq and check the result"
+  - id: meaning
+    description: "Say what least squares minimizes and why the residual is perpendicular to the columns"
