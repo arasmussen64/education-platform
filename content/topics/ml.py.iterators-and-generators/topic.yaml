@@ -1,15 +1,69 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.py.iterators-and-generators
 kind: topic
-status: planned
-title: Iterators and generators
-summary: What for really calls, and generators that produce values one at a time.
-prerequisites:
-- ml.py.comprehensions
+status: ready
+title: "Iterators and generators"
+summary: "What for really calls, and generators that produce values one at a time."
+prerequisites: [ml.py.comprehensions]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Explain what for really calls.
-- Write a generator with yield, and read a stream lazily.
-- Say why a generator can be used once.
+  - "Explain what `for` really calls."
+  - "Write a generator with `yield`, and read a stream lazily."
+  - "Say why a generator can be used once."
+resources:
+  - title: "The Python Tutorial: Iterators, Generators and Generator Expressions (sections 9.8 to 9.10) (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/classes.html#iterators
+    type: reading
+    use: link
+    license: PSF License Version 2
+  - title: "Python for Everybody, chapter 7: Files (Dr. Chuck), for how a file is read line by line"
+    url: https://www.py4e.com/html3/07-files
+    type: reading
+    use: link
+    license: CC BY 4.0
+practice:
+  - example-what-for-really-calls
+  - parsons-an-evens-generator
+  - mcq-used-once
+  - predict-lazy-order
+  - mcq-yield-and-return
+  - fill-clean-lines
+  - write-running-total
+prove:
+  build: build-sliding-windows
+  debug: debug-generator-mistakes
+  explain:
+    prompt: |
+      A teammate's program reads a huge log file into a list, then loops over it twice: once to count errors, once to find the first warning. It runs out of memory. In your own words: what does a `for` loop actually call on the thing it loops over, and how is that different from a list? What would a generator change here, and why would it use almost no memory? And what would go wrong if they replaced the list with a generator and kept the two loops as they are?
+    rubric:
+      - id: protocol
+        required: true
+        description: "for calls iter() to get an iterator, then next() on it until it raises StopIteration; a list holds every item in memory, an iterator produces them one at a time."
+      - id: generator
+        required: true
+        description: "A generator function yields one line at a time and pauses between yields, so only the current line is in memory, however big the file."
+      - id: single-use
+        required: true
+        description: "A generator is used up by one pass: the second loop would see nothing, so either loop once doing both jobs, or make a fresh generator for the second pass."
+      - id: laziness
+        required: false
+        description: "Mentions that nothing runs until the first next(), or that a generator expression (round brackets) is the one-line form."
+    model_answer: |
+      A for loop asks the thing it loops over for an iterator, with iter(), and then calls next() on that iterator again and again until it raises StopIteration. A list answers by handing out its items, but the whole list is already in memory before the loop starts; that's what ran out here. A generator is a function with yield instead of return: each next() runs it until the next yield, hands that value out, and pauses. For a log file that means reading and yielding one line at a time, so only the current line is in memory, whatever the file's size. The catch is that a generator can be walked through once. The first loop would consume every line, and the second loop would get StopIteration immediately and find nothing. So the teammate should either do both jobs in one pass over the lines, or call the generator function again to get a fresh generator for the second pass.
+review_pool:
+  - review-predict-generator-expression
+  - review-mcq-what-for-calls
+  - review-mcq-brackets
+  - review-first-squares
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: protocol
+    description: "Explain what for really calls: iter, next and StopIteration"
+  - id: generators
+    description: "Write a generator with yield, and know that it runs lazily"
+  - id: single-use
+    description: "Know that a generator is used up by one pass, and make a fresh one when needed"
+  - id: genexpr
+    description: "Read and write a generator expression, and know how it differs from a list comprehension"
