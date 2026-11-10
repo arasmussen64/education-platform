@@ -2,6 +2,18 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: JSON and nested data
+
+**`ml.py.json-and-nested-data` is ready,** the last topic before Checkpoint 2. Reading JSON is one call; the topic is about the shape of what arrives never being quite what was expected. The worked example writes a record with `dumps`, reads it back with `loads`, shows `True` and `None` becoming `true` and `null`, and goes through a file with `dump` and `load`. Then a Parsons load whose decoy calls `json.load` on a string, three recall questions (a set is the thing `dumps` can't write; `.get` with and without a default and `in` on a record with missing keys; what to do about an `age` that arrived as `"42"`), a `city_of` lookup to fill in that survives a missing address, a `None` address and an address with no city, and sensor readings to write: JSON text into `Reading` dataclasses with the value converted to a float, and back out through `asdict`. The proofs: orders to validate, returning the good ones as dataclasses and the positions of the bad ones, with "don't repair records" in the prompt and the hidden tests feeding a float quantity, a record that's a number, a missing key and a string quantity (known-wrong: a version that repairs `"5"` with `int()`, one that accepts a quantity of 0); a nested walk to debug with `json.load` on a string and square brackets on a user without orders; and an explanation built on a partner's nightly file that crashed two nights running. The review pool has five: the type map both ways, `loads` against `load`, `asdict` before `dumps`, where to validate, and the total of nested lists.
+
+**Decisions for you to review:**
+
+1. _Both resources are the official docs,_ the tutorial's JSON section and the type table, rather than a longer third-party chapter: the mechanics take ten minutes to read, and the judgement (safe walking, validating at the boundary) is in the Recap and the exercises.
+2. _Booleans aren't tested as bad integers._ In Python `True` is an int, so `isinstance(True, int)` passes a quantity of `true`; the hidden tests don't send one, because the point of the build is the boundary habit, not that corner. It's noted here for a later topic.
+3. _JSON Lines is a Recap bullet,_ not an exercise: Checkpoint 2's `Dataset` reads a `.jsonl` file one line at a time, and that's where it's built.
+
+**Next:** Checkpoint 2, a small data library (`ml.m2.checkpoint`), which closes Module 2.
+
 ## 2026-11-10: Writing tests
 
 **`ml.py.writing-tests` is ready.** Every Check the learner has passed on this platform was a test someone wrote; now they write them. The worked example is `is_leap` with three tests, one per rule, and a six-line runner that finds every `test_` function and calls it, which is what pytest does and what every program in this topic ends with. Then a Parsons test whose decoy asserts with a single `=`, three recall questions (forty passing tests prove forty cases; an assert message read out of an `AssertionError`; the even-count list is the median's edge case), expected values to fill in for `clamp` and two tests for `median` to write, one that catches a median that forgets to sort and one that catches a median that only handles odd counts. The proofs: `word_count` with at least three tests to build, two tests that don't test to debug (a wrong expected value, and a test named `check_…` that is never collected), and an explanation built on two teammates, one who thinks forty green tests mean no bugs and one who won't test the empty list. The review pool has a `word_count` test that is wrong about `split()`, which names are collected, and tests at `clamp`'s boundaries.

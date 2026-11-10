@@ -1,0 +1,21 @@
+id: review-mcq-asdict
+type: mcq
+rev: 1
+prompt: |
+  ```python
+  @dataclass
+  class Reading:
+      sensor: str
+      value: float
+  ```
+
+  You have `r = Reading("a", 1.5)` and want to write it as JSON. What works?
+choices:
+  - '`json.dumps(r)`'
+  - '`json.dumps(asdict(r))`, giving `{"sensor": "a", "value": 1.5}`'
+  - '`json.dumps(str(r))`'
+  - '`json.dumps(list(r))`'
+answer: 1
+explanation: |
+  `json.dumps` doesn't know how to write your class and raises `TypeError`. `asdict`, from `dataclasses`, turns the record into a plain dict of its fields, which JSON can hold. `str(r)` would write the repr as one string, not a JSON object with fields.
+skills: [records, json-io]

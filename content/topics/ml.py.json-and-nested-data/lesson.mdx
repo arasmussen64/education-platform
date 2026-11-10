@@ -1,0 +1,27 @@
+<Intro>
+
+Almost every piece of data that arrives from somewhere else arrives as JSON: web APIs, config files, the records a partner sends every night, the metadata beside a trained model. It's text, and Python turns it into dicts and lists with one call. The hard part isn't reading it; it's that data from somewhere else is never quite the shape you expected.
+
+The main resource is the tutorial's short section **7.2.2, Saving structured data with json**, then the **table of how JSON types map to Python types** in the `json` module's reference. About 10 minutes. Watch for:
+
+- **`dumps` and `loads`** work on strings; **`dump` and `load`** work on open files. The `s` is for string.
+- **The type table:** object → dict, array → list, `true` → `True`, `null` → `None`. Keys are always strings.
+- **What JSON can't hold:** sets, tuples (they become arrays), dates, your own classes.
+
+Then the Recap below adds what the docs don't say: how to walk nested data without crashing, and where to check it.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Four functions.** `json.dumps(value)` gives a string; `json.loads(text)` reads one. `json.dump(value, file)` and `json.load(file)` do the same with an open file. `indent=2` makes the output readable.
+- **The type map.** JSON object ↔ `dict` (keys become strings, even if they were numbers), array ↔ `list`, string ↔ `str`, number ↔ `int` or `float`, `true`/`false` ↔ `True`/`False`, `null` ↔ `None`. A set or a dataclass raises `TypeError: not JSON serializable`; convert first (`sorted(the_set)`, `asdict(record)`).
+- **Walking nested data.** `data["user"]["langs"][1]` reaches in; each bracket assumes the shape is right. For data from outside, assume it isn't: `record.get("email")` gives `None` instead of raising; `record.get("tags", [])` gives something safe to loop over; `"phone" in record` asks first; `isinstance(address, dict)` checks before reaching into it.
+- **Validate at the boundary.** Check each record once, right after reading: the keys it must have, the types they must be. Reject or repair the bad ones there, and say which. Everything after that can trust the data, so it stays simple.
+- **Records in, dataclasses out.** `Reading(r["sensor"], float(r["value"]))` turns a checked dict into a record with a fixed shape; `asdict(reading)` turns it back for `json.dumps`. A typo becomes an `AttributeError` at once instead of an empty dict somewhere later.
+- **JSON Lines.** Big datasets are often one JSON object per line (`.jsonl`), so a program can read and `json.loads` one line at a time, which is a generator's job. Checkpoint 2 builds on exactly this.
+- **In machine learning:** training data, labels, experiment configs and model cards all travel as JSON; the first function in most pipelines is the one that reads it and refuses what doesn't fit.
+
+</Recap>
