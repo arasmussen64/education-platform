@@ -1,16 +1,83 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.nn.backward-layers
 kind: topic
-status: planned
-title: Layers that carry their gradient
-summary: Each layer keeps what it needs from the forward pass and implements backward, the gradient of the loss with respect to its input and its parameters; loss layers for mean squared error and softmax cross-entropy; a Sequential that runs the chain rule for you; and a gradient check on every piece.
-prerequisites:
-- ml.nn.neurons-and-layers
+status: ready
+title: "Layers that carry their gradient"
+summary: "Each layer keeps what it needs from the forward pass and implements backward, the gradient of the loss with respect to its input and its parameters; loss layers for mean squared error and softmax cross-entropy; a Sequential that runs the chain rule for you; and a gradient check on every piece."
+prerequisites: [ml.nn.neurons-and-layers]
+packages: [numpy]
 estimated_minutes: 60
 rev: 1
 objectives:
-- Implement backward for a dense layer and for ReLU, sigmoid and tanh, caching what the forward pass needs.
-- Implement mean squared error and softmax cross-entropy as loss layers with their gradients.
-- "Chain the layers' backward calls in reverse to get every parameter's gradient, and check each against a numeric derivative."
-- Say what the chain rule does at each layer boundary and why the backward pass costs about twice the forward.
+  - "Implement backward for a dense layer and for ReLU, sigmoid and tanh, caching what the forward pass needs."
+  - "Implement mean squared error and softmax cross-entropy as loss layers with their gradients."
+  - "Chain the layers' backward calls in reverse to get every parameter's gradient, and check each against a numeric derivative."
+  - "Say what the chain rule does at each layer boundary and why the backward pass costs about twice the forward."
+# Linked, never copied or embedded: 3Blue1Brown's videos are under the
+# standard YouTube licence; Nielsen's book is CC BY-NC 3.0; Wikipedia is
+# CC BY-SA 4.0.
+resources:
+  - title: "3Blue1Brown: Neural networks (Grant Sanderson), chapters 3 and 4: What is backpropagation really doing? and Backpropagation calculus"
+    url: https://www.3blue1brown.com/topics/neural-networks
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "Neural Networks and Deep Learning, chapter 2: How the backpropagation algorithm works (Michael Nielsen), the four fundamental equations and the algorithm"
+    url: https://neuralnetworksanddeeplearning.com/chap2.html
+    type: reading
+    use: link
+    license: CC BY-NC 3.0 (linked, not copied)
+  - title: "Wikipedia: Backpropagation (the Overview and the Matrix multiplication section)"
+    url: https://en.wikipedia.org/wiki/Backpropagation
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-backward-through-a-stack
+  - predict-relu-backward
+  - mcq-what-backward-returns
+  - predict-dense-backward-shapes
+  - mcq-why-dw-sums-over-the-batch
+  - parsons-the-backward-loop
+  - mcq-why-cache-the-input
+  - mcq-the-softmax-gradient
+  - mcq-what-the-check-proves
+  - fill-dense-backward
+  - write-sigmoid-and-tanh
+prove:
+  build: build-layers-with-backward
+  debug: debug-a-gradient-that-fails-its-check
+  explain:
+    prompt: |
+      A reviewer reads your layers and asks four things. "What does a layer's `backward` take in and give back, and why does `Sequential` call them in reverse?" "Where does `dW = X.T @ grad_out` come from, and why does `forward` have to keep `X`?" "Why is the softmax cross-entropy gradient just `(p - onehot) / n`, when the loss has a log and an exp in it?" "You say the numeric check passes; what does that prove, and what doesn't it prove?" In your own words, answer all four.
+    rubric:
+      - id: layer-backward
+        required: true
+        description: "backward takes the loss's gradient with respect to the layer's output (one row per example) and returns the gradient with respect to its input, storing the gradients for its own parameters on the way; that is the chain rule applied at the layer boundary, and the reverse order is because each layer's input gradient is the next-earlier layer's output gradient. dW = X.T @ grad_out because output k of row i is sum_j X[i, j] W[j, k], so the gradient for W[j, k] is X[i, j] times grad_out[i, k], summed over the rows; the layer keeps X because backward needs it."
+      - id: loss-layers
+        required: true
+        description: "The log and the exp cancel in the derivative: the loss is minus the log of the softmax, and the softmax's own derivative with respect to a logit is p times (indicator minus p), so the gradient of the loss per example is p minus the one-hot target, divided by n for the mean. MSE's gradient is 2 (pred - target) over the number of entries."
+      - id: chain
+        required: true
+        description: "Sequential's backward hands each layer the gradient from the layer after it, in reverse, so every parameter's gradient appears without any layer knowing about the others; the numeric check compares each backward gradient with a central difference of the loss, nudging one parameter at a time."
+      - id: why
+        required: true
+        description: "A passing check proves the implementation computes the derivative of the loss the code actually implements, within rounding; it doesn't prove the loss or the architecture is right for the task, or that training will go well. The backward pass costs about twice the forward because a dense layer does one matrix multiply forward and two backward, for the input gradient and for dW."
+    model_answer: |
+      A layer's `backward` takes the gradient of the loss with respect to the layer's own output, one row per example and one column per output, and gives back the gradient with respect to the layer's input, in the shape of the input; on the way it stores the gradients for its own parameters. That is the chain rule applied at the boundary of the layer: how the loss changes with the input is how it changes with the output times how the output changes with the input. `Sequential` calls the layers in reverse because the gradient a layer needs is the one the layer after it produces; the loss supplies the first, the last layer turns it into the gradient for its input, which is the second-to-last layer's output, and so on back to the data. `dW = X.T @ grad_out` comes from writing out one output: output `k` of row `i` is the sum over `j` of `X[i, j] * W[j, k]` plus `b[k]`, so the derivative of that output with respect to `W[j, k]` is `X[i, j]`, and by the chain rule the loss's gradient for `W[j, k]` is `X[i, j] * grad_out[i, k]`, summed over every row of the batch because every example used the same weight. Written for all `j` and `k` at once that sum is exactly `X.T @ grad_out`, and the bias gradient is the column sums of `grad_out` for the same reason. `forward` has to keep `X` because `backward` runs later and needs it; the layer carries its own memory. The softmax gradient is simple because the log and the exp undo each other. The loss for one example is minus the log of the softmax probability of the true class; the derivative of a log-softmax entry with respect to logit `k` is the indicator that `k` is the true class minus `p[k]`, so the derivative of the loss is `p[k]` minus the indicator, which over the batch is `p - onehot`, and dividing by `n` is the derivative of the mean. The example checks it numerically and the gap is under a millionth. What the numeric check proves is that my `backward` computes the derivative of the loss my code actually computes, to within rounding, nudging one parameter at a time and comparing the slope of the loss with the stored gradient; a wrong transpose, a dropped factor of two or a ReLU mask taken from the wrong array all show up as a gap of order one. What it doesn't prove is that the loss, the architecture or the learning rate are right for the task, that training will converge, or that the gradients are large enough to learn from; the check is about the implementation matching the math, not about the math being a good idea. The cost is about twice the forward pass because a dense layer does one matrix multiply forward and two backward, one for the gradient of its input and one for `dW`, each the same size as the forward one.
+review_pool:
+  - review-predict-the-softmax-gradient
+  - review-mcq-why-reverse
+  - review-mcq-twice-the-forward
+  - review-relu-with-backward
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: layer-backward
+    description: "Implement backward for a dense layer and for activation layers, caching what the forward pass needs"
+  - id: loss-layers
+    description: "Implement mean squared error and softmax cross-entropy as loss layers with their gradients"
+  - id: chain
+    description: "Chain the layers' backward calls in reverse and check every gradient numerically"
+  - id: why
+    description: "Say what the chain rule does at a layer boundary, what the numeric check proves, and why backward costs about twice forward"

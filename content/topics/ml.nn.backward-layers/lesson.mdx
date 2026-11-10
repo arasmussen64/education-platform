@@ -1,0 +1,26 @@
+<Intro>
+
+Module 4 derived backpropagation for one small network, with every gradient written out by hand. This topic packages it so that it never has to be written out again: each layer gets a `backward` that turns the gradient at its output into the gradient at its input and stores the gradients for its own parameters, a loss becomes a layer with a `backward` of its own, and `Sequential` runs the chain rule by calling the layers in reverse. The price of the convenience is discipline: every `backward` is checked against a numeric derivative before it is trusted, and the topic ends with the first training steps taken by the new machinery.
+
+The main resource is **3Blue1Brown's chapters 3 and 4** on backpropagation, the intuition and then the calculus, about 25 minutes together. Nielsen's chapter 2 states the same thing as four equations and an algorithm, which is what the classes below implement, and Wikipedia's _Backpropagation_ page has the matrix form. Watch for:
+
+- **The gradient at a layer's output** becoming the gradient at its input: the chain rule as a hand-off.
+- **Summing over the batch**: why a weight's gradient adds up contributions from every example.
+- **The four equations**: error at the output, error passed back, bias gradient, weight gradient.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **The contract.** `forward(X)` computes the layer's output and remembers whatever `backward` will need. `backward(grad_out)` takes the loss's gradient with respect to the layer's output (one row per example, one column per output), stores the gradients for the layer's own parameters, and returns the gradient with respect to the layer's input, in the input's shape. `parameters()` and `gradients()` line up one to one, which is all an optimizer needs.
+- **Dense.** Output `k` of row `i` is `sum_j X[i, j] * W[j, k] + b[k]`. So `dW = X.T @ grad_out` (each weight's gradient is its input times the gradient at its output, **summed over the batch**, because every example used the same weight), `db = grad_out.sum(axis=0)`, and the gradient for the input is `grad_out @ W.T`. The layer keeps `X` in `forward` because `backward` needs it. One matrix multiply forward, two backward: that is why **backward costs about twice the forward**.
+- **Activations.** ReLU keeps the mask `X > 0` and returns `grad_out * mask`: the gradient passes where the unit was active and is zero where it wasn't. Sigmoid keeps its output and returns `grad_out * out * (1 - out)`; tanh returns `grad_out * (1 - out ** 2)`. Each is the derivative from Module 4, applied elementwise to the incoming gradient.
+- **Loss layers.** `MSELoss.forward(pred, target)` is the mean of the squared differences over every entry; its `backward()` is `2 * (pred - target) / size`. `SoftmaxCrossEntropy.forward(logits, labels)` computes log-softmax through the shift and log-sum-exp from Floating point, so logits of 1,000 stay finite, and returns the mean negative log probability of the true class; its `backward()` is `(p - onehot) / n`: the log and the exp cancel in the derivative, which is why the gradient is so simple.
+- **Sequential.** `backward(grad)` calls each layer's `backward` **in reverse**, feeding each the gradient the layer after it returned, so every parameter's gradient appears without any layer knowing about the others; `gradients()` gathers them in the same order as `parameters()`. The loss layer's `backward()` supplies the first gradient.
+- **The gradient check** nudges one parameter entry at a time by `h = 1e-6`, up and down, recomputes the loss, and compares `(up - down) / 2h` with the stored gradient; over a whole network the worst gap should be under about `1e-6` in float64. It proves that `backward` computes the derivative of the loss the code actually implements. It doesn't prove that the loss or the architecture is right for the task, that training will work, or that the gradients are big enough to learn from. Run it once per new layer and whenever a loss curve looks wrong (When training goes wrong).
+- **A training step** with the new pieces: `loss.forward(net.forward(X), y)`, `net.backward(loss.backward())`, then `param -= rate * grad` for each parameter and gradient pair. Sixty such steps on the example's five rows bring the loss down steadily; The training loop makes this a function with batches, epochs and a validation set.
+- **In machine learning** (names you'll meet later): `loss.backward()` in PyTorch does what `Sequential.backward` does here, by recording the forward pass as a graph (**autograd**) instead of asking each layer; `.grad` on a parameter is `dW`; `torch.autograd.gradcheck` is the numeric check; and the reason frameworks default to float32 but check gradients in float64 is the rounding this topic's `h` has to live with.
+
+</Recap>

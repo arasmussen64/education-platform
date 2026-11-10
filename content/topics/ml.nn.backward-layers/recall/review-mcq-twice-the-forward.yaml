@@ -1,0 +1,14 @@
+id: review-mcq-twice-the-forward
+type: mcq
+rev: 1
+prompt: |
+  Why does the backward pass cost about twice the forward pass?
+choices:
+  - 'Because backward runs in Python and forward in NumPy'
+  - 'Because a dense layer does one matrix multiply forward and two backward, for the input gradient and for `dW`, each the size of the forward one'
+  - 'Because backward has to repeat the forward pass before it can start, since the activations were not kept, so it does the forward work again and then its own'
+  - 'Because the gradients are computed in float64 and the forward pass in float32'
+answer: 1
+explanation: |
+  Forward is `X @ W`; backward is `grad_out @ W.T` for the input gradient and `X.T @ grad_out` for the weight gradient, the same shapes of multiply twice over. Nothing is recomputed, since each layer cached what it needs, and the precision is the same. This is the 2 and 4 FLOPs per parameter that Counting a model's cost added up to 6 per training step.
+skills: [why]

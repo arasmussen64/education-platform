@@ -1,0 +1,28 @@
+id: example-backward-through-a-stack
+stage: worked_example
+rev: 1
+title: "Backward through a stack"
+prompt: |
+  The module's classes with `backward` added, a loss layer for mean squared error and one for softmax cross-entropy, a numeric gradient check over every parameter, the formula behind `dW` confirmed on one entry, and sixty training steps taken with the new pieces. Press **Run**, then read how each part works.
+steps:
+  - label: "Dense, with a memory"
+    lines: "4-28"
+    note: "`forward` keeps `X`. `backward` takes the loss's gradient with respect to the output, `grad_out`, and computes three things from the chain rule: `dW = X.T @ grad_out` (each weight's input times the gradient at its output, summed over the batch), `db = grad_out.sum(axis=0)`, and the gradient to hand to the layer before, `grad_out @ W.T`. `gradients()` lines up with `parameters()`."
+  - label: "ReLU, and the backward chain"
+    lines: "31-68"
+    note: "ReLU keeps the mask of where the input was positive and lets the gradient through only there. `Sequential.backward` walks the layers in reverse, feeding each the gradient the layer after it returned, so every parameter's gradient appears without any layer knowing about the others."
+  - label: "Two losses as layers"
+    lines: "71-95"
+    note: "Mean squared error's backward is `2 * (pred - target) / size`. Softmax cross-entropy shifts the logits and uses log-sum-exp (Floating point), so a logit of 1,000 stays finite; its backward is `(p - onehot) / n`, because the log and the exp cancel in the derivative."
+  - label: "The gradient check"
+    lines: "98-120"
+    note: "`numeric_gradient` nudges one parameter entry at a time by a millionth, up and down, and takes the slope of the loss; `gradient_check` does it for every parameter of a network and reports the worst gap against the stored gradient. In float64 a correct backward lands under about 1e-6; a wrong transpose or a missing factor lands near 1."
+  - label: "A stack checked, and dW explained on one entry"
+    lines: "123-135"
+    note: "On five rows, the loss, the gradient shapes (one per parameter, matching) and the gradient for the input itself; the check passes for every parameter. `dW[0, 0]` is confirmed as the sum over the batch of input 0 times the gradient at output 0, which is what `X.T @ grad_out` computes for every entry at once; the two backward multiplies are the same size as the forward one, which is why backward costs about twice forward."
+  - label: "Softmax cross-entropy, checked"
+    lines: "137-143"
+    note: "Two rows of three logits: the probabilities, the loss, and the gradient `(p - onehot) / 2`, negative at each true class and positive elsewhere, confirmed against the numeric derivative. A row with logits of 1,000 and 1,001 gives the same loss as 0 and 1 would, 0.3133, instead of NaN."
+  - label: "Sixty steps with the new pieces"
+    lines: "145-151"
+    note: "Forward, loss, backward, then `param -= 0.1 * grad` for every parameter and gradient pair: the loss falls steadily. The training loop topic turns these lines into a function with batches, epochs and a validation set."

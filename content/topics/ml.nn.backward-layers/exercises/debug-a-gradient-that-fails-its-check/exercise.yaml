@@ -1,0 +1,13 @@
+id: debug-a-gradient-that-fails-its-check
+stage: debug
+rev: 1
+title: "A gradient that fails its check"
+prompt: |
+  The module's classes on three rows, with the gradient check. The program should print:
+
+  ```
+  gradient shapes match the parameters: True | worst gap: under 1e-6
+  ```
+
+  It has two bugs. Run it: it crashes inside the gradient check with a broadcasting error, because `Dense.backward` computes `dW` as `grad_out.T @ X`, which has the shape of `W` **transposed**; the weight gradient is `X.T @ grad_out`, one entry per entry of `W`. Fix that, and the worst gap is "too big": `ReLU.backward` takes its mask from the sign of the **gradient** coming back instead of from the input it saw in `forward`. The gradient passes where the input was positive, which is what `self.mask` recorded.
+skills: [layer-backward, chain]

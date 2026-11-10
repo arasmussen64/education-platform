@@ -1,0 +1,14 @@
+id: mcq-the-softmax-gradient
+type: mcq
+rev: 1
+prompt: |
+  The softmax cross-entropy loss has a log and an exp in it, yet its gradient with respect to the logits is `(p - onehot) / n`. Why so simple?
+choices:
+  - 'Because the loss is approximated by its first-order Taylor expansion around the current logits, which drops the log and the exp and leaves a linear term'
+  - 'Because NumPy simplifies the expression symbolically before computing it'
+  - 'Because the log and the exp cancel in the derivative: d(log-softmax_k)/d(logit_j) is `(j == k) - p[j]`, so each example''s gradient is `p - onehot`'
+  - 'Because the gradient is defined that way by convention, and the loss is chosen to match'
+answer: 2
+explanation: |
+  Write the loss for one example as `log(sum(exp(logits))) - logits[label]`; the derivative of the first term with respect to logit `j` is `exp(logits[j]) / sum(exp(logits))`, which is `p[j]`, and the second term contributes `-1` at the true class. No approximation, no symbolic algebra: the exponential's derivative is itself and the log's derivative divides it away. The numeric check in the worked example confirms it to a millionth.
+skills: [loss-layers]

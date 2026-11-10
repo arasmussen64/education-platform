@@ -1,0 +1,22 @@
+id: predict-dense-backward-shapes
+type: predict_output
+rev: 1
+prompt: |
+  A dense layer's three backward products on a batch of four rows of ones, with weights of ones and a gradient that is a one-hot per row. What does the program print?
+code: |
+  import numpy as np
+  
+  X = np.ones((4, 3))
+  W = np.ones((3, 2))
+  grad_out = np.array([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]])
+  dW = X.T @ grad_out
+  db = grad_out.sum(axis=0)
+  grad_in = grad_out @ W.T
+  print(dW.shape, db.shape, grad_in.shape)
+  print(dW.tolist(), db.tolist(), grad_in[0].tolist())
+expected_output: |
+  (3, 2) (2,) (4, 3)
+  [[2.0, 2.0], [2.0, 2.0], [2.0, 2.0]] [2.0, 2.0] [1.0, 1.0, 1.0]
+explanation: |
+  `X.T @ grad_out` is `(3, 4) @ (4, 2)`, the shape of `W`: each entry sums input times gradient over the four rows, and with inputs of 1 and two rows pointing at each output, every entry is 2. `db` sums the gradient down the rows, 2 per output. `grad_out @ W.T` is `(4, 2) @ (2, 3)`, the shape of `X`: the first row's single 1 picks up the first column of `W` transposed, all ones.
+skills: [layer-backward]

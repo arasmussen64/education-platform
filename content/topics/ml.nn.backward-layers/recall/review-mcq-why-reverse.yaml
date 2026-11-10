@@ -1,0 +1,14 @@
+id: review-mcq-why-reverse
+type: mcq
+rev: 1
+prompt: |
+  Why does `Sequential.backward` loop over the layers in reverse?
+choices:
+  - 'Because the last layer''s parameters are the most important and should be updated first, before the earlier layers see the gradient'
+  - 'Because reversing the list makes the matrix multiplies cheaper'
+  - 'It doesn''t have to; forward order works too, as long as every layer is visited'
+  - 'Because each layer''s backward needs the gradient at its output, which the layer after it returns; the loss supplies the first'
+answer: 3
+explanation: |
+  The chain rule hands gradients backwards: the gradient at a layer's output is the gradient at the next layer's input, which that next layer computes. Starting from the loss and walking to the data is the only order in which every layer has what it needs when its turn comes. Forward order would give the first layer a gradient shaped for the last and fail, as the Parsons decoy does. Nothing is updated during backward; that is the optimizer's job afterwards.
+skills: [chain]

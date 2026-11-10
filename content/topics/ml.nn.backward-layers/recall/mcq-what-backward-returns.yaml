@@ -1,0 +1,14 @@
+id: mcq-what-backward-returns
+type: mcq
+rev: 1
+prompt: |
+  A layer's `backward(grad_out)` is called with the loss's gradient with respect to the layer's output. What does it return, and what does it store?
+choices:
+  - 'It returns the updated weights and stores the learning rate'
+  - 'It returns the loss value for this layer and stores the gradient with respect to the output, for the optimizer to read later'
+  - 'It returns `grad_out` unchanged and stores a copy; only the loss layer computes gradients'
+  - 'The gradient with respect to the layer''s input, in the input''s shape; it stores its own parameters'' gradients'
+answer: 3
+explanation: |
+  The chain rule at a layer boundary: how the loss changes with the input is how it changes with the output times how the output changes with the input. The layer computes that and hands it to the layer before it, which is why Sequential calls backward in reverse; its own parameter gradients it keeps for the optimizer. Layers never see the learning rate or update themselves, and no layer but the loss has a loss value.
+skills: [layer-backward]
