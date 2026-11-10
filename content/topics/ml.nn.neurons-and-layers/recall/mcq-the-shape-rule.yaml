@@ -1,0 +1,14 @@
+id: mcq-the-shape-rule
+type: mcq
+rev: 1
+prompt: |
+  A batch `X` has shape `(32, 784)`. Which `W1` and `W2` make `relu(X @ W1 + b1) @ W2 + b2` a `(32, 10)` output, and why does the other way round fail?
+choices:
+  - '`W1` of shape `(128, 784)` and `W2` of shape `(10, 128)`: the output size always comes first in a weight matrix, and NumPy transposes it for you when the batch arrives'
+  - '`W1` of shape `(32, 128)` and `W2` of shape `(32, 10)`: the batch size must appear in every weight matrix'
+  - 'Any shapes with the right number of elements: NumPy reshapes the weights to fit the batch'
+  - '`W1` of shape `(784, 128)` and `W2` of shape `(128, 10)`: each layer''s input width must equal the previous output width, and `(128, 784)` would put 128 against 784'
+answer: 3
+explanation: |
+  Matrix multiplication needs the inner sizes to agree: `(32, 784) @ (784, 128)` is `(32, 128)`, and then `(32, 128) @ (128, 10)` is `(32, 10)`. The batch size never appears in the weights, which is what lets the same network run on a batch of 1 or of 10,000, and NumPy never reshapes silently; a wrong width is a loud `matmul` error. Libraries that store weights as `(out, in)` multiply by the transpose, the same arithmetic.
+skills: [compose]

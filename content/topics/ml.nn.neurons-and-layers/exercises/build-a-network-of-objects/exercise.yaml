@@ -1,0 +1,37 @@
+id: build-a-network-of-objects
+stage: build
+rev: 1
+title: "A network of objects"
+prompt: |
+  Starting from a blank editor, write the module's three classes and two helpers:
+
+  - `Dense(n_in, n_out, seed=0)`: `W` of shape `(n_in, n_out)` drawn from `np.random.default_rng(seed).standard_normal` and divided by `sqrt(n_in)`, `b` of zeros; `forward(X)` is `X @ W + b`; `parameters()` returns `[W, b]`.
+  - `ReLU()`: `forward(X)` keeps the positive part of every value; `parameters()` returns `[]`.
+  - `Sequential(layers)`: `forward(X)` runs the layers in order; `parameters()` gathers every layer's parameters into one list, in order.
+  - `count_parameters(net)`: how many numbers the network learns.
+  - `shapes_through(net, X)`: the shape of the batch after each layer, as a list of tuples.
+
+  Then print:
+
+  ```python
+  net = Sequential([Dense(35, 16, seed=1), ReLU(), Dense(16, 10, seed=2)])
+  X = np.random.default_rng(0).standard_normal((8, 35))
+  print(shapes_through(net, X), count_parameters(net))
+  hand = Dense(2, 3)
+  hand.W, hand.b = np.array([[0.5, -1.0, 0.2], [-0.25, 0.5, 0.4]]), np.array([0.1, -0.3, -0.5])
+  tiny = Sequential([hand, ReLU()])
+  print(np.round(tiny.forward(np.array([[1.0, 2.0], [-1.0, 1.0]])), 2).tolist())
+  first, second = Dense(35, 16, seed=1), Dense(16, 10, seed=2)
+  merged = Dense(35, 10)
+  merged.W, merged.b = first.W @ second.W, first.b @ second.W + second.b
+  print(np.allclose(Sequential([first, second]).forward(X), merged.forward(X)), np.allclose(net.forward(X), merged.forward(X)))
+  ```
+
+  ```
+  [(8, 16), (8, 16), (8, 10)] 746
+  [[0.1, 0.0, 0.5], [0.0, 1.2, 0.0]]
+  True False
+  ```
+
+  The checks run a hand-set layer against the arithmetic, feed ReLU negatives and positives, compare `Sequential` with the layers called one by one, count a `[7, 5, 3]` network by hand, check that two layers with the same seed start identical and that the starting scale is about `1 / sqrt(n_in)`, and trace the shapes of a four-layer stack.
+skills: [neuron, compose, count, nonlinearity]
