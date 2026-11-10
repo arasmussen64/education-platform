@@ -1,0 +1,35 @@
+id: build-an-evaluation-report
+stage: build
+rev: 1
+title: "An evaluation report"
+prompt: |
+  Starting from a blank editor, write the tools an honest evaluation needs:
+
+  - `confusion(y, pred)`: the counts `(tp, fp, fn, tn)` as plain ints, from arrays of true labels and predictions (1s and 0s).
+  - `metrics(tp, fp, fn, tn)`: accuracy, precision, recall and F1, as a tuple of floats.
+  - `accuracy_interval(correct, z=1.96)`: the 95 percent interval for an accuracy from an array of 1s and 0s, as a pair of floats.
+  - `paired_bootstrap(rng, correct_a, correct_b, draws=2000)`: the mean of the per-example differences `correct_a - correct_b`, and the 2.5th and 97.5th percentiles of that mean over `draws` resamples **of the differences** with replacement, as three floats.
+
+  Then, with the data below (two models' scores on 200 held-out examples, generated from a seeded generator), print each model's confusion counts and metrics rounded to 3, the interval for A's accuracy, and the paired comparison, rounded to 3:
+
+  ```python
+  rng = np.random.default_rng(12)
+  n = 200
+  y = (rng.random(n) < 0.3).astype(int)
+  score_a = y * 2.0 + rng.normal(0, 1, size=n)
+  score_b = y * 1.2 + rng.normal(0, 1, size=n)
+  y_val = (rng.random(n) < 0.3).astype(int)
+  score_a_val = y_val * 2.0 + rng.normal(0, 1, size=n)
+  pred_a = (score_a > 1.0).astype(int)
+  pred_b = (score_b > 0.6).astype(int)
+  ```
+
+  ```
+  A (61, 21, 13, 105) [0.83  0.744 0.824 0.782]
+  B (53, 31, 21, 95) [0.74  0.631 0.716 0.671]
+  interval for A [0.778 0.882]
+  A minus B [0.09  0.015 0.165]
+  ```
+
+  The checks use confusion matrices with known metrics, an accuracy with a known interval, and two identical models whose difference must come out as exactly zero.
+skills: [metrics, interval, compare]

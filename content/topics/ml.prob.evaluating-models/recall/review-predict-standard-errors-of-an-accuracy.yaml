@@ -1,0 +1,18 @@
+id: review-predict-standard-errors-of-an-accuracy
+type: predict_output
+rev: 1
+prompt: |
+  The standard error of an accuracy of 0.9 at three test-set sizes, and the half-width of its 95 percent interval. What does the program print?
+code: |
+  import numpy as np
+  
+  for n in (50, 200, 800):
+      se = np.sqrt(0.9 * 0.1 / n)
+      print(n, round(float(se), 3), round(float(1.96 * se), 3))
+expected_output: |
+  50 0.042 0.083
+  200 0.021 0.042
+  800 0.011 0.021
+explanation: |
+  An accuracy is a mean of zeros and ones, with standard error `sqrt(p(1 - p) / n)`. On 50 examples an accuracy of 0.9 is really "somewhere between 0.82 and 0.98"; it takes 800 examples to pin it within two points. Quadrupling the test set halves the width each time.
+skills: [interval]
