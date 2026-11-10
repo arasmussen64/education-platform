@@ -1,6 +1,7 @@
 """The lab checker's pure parts: expectations, discovery and the result. Its
 contract runs need Docker, which CI's Labs job provides; pytest stays quick."""
 
+import argparse
 import subprocess
 from pathlib import Path
 
@@ -225,3 +226,70 @@ def test_warming_reports_a_failed_build_and_goes_on(monkeypatch) -> None:
     labcheck.warm_images([("t.a", "x"), ("t.b", "y")], say=said.append)
     assert sum("warming" in line for line in said) == 2
     assert "  LabError: docker build failed: no space left" in said
+
+
+def test_a_lab_the_checker_gave_up_on_is_retried_alone(monkeypatch, capsys) -> None:
+    calls: list[str] = []
+
+    def fake_quietly(topic: str, exercise: str) -> labcheck.ContractReport:
+        name = f"{topic}/{exercise}"
+        calls.append(name)
+        if name == "t/boots-slowly" and calls.count(name) == 1:
+            return labcheck.ContractReport(
+                name,
+                ["labcheck: lab-t-boots-slowly-test didn't finish booting in 480 s"],
+            )
+        if name == "t/really-broken":
+            return labcheck.ContractReport(
+                name, ["after solution.sh, a-check fails: exit status 1, wanted 0"]
+            )
+        return labcheck.ContractReport(name, [])
+
+    monkeypatch.setattr(
+        labcheck,
+        "find_labs",
+        lambda: [("t", "boots-slowly"), ("t", "really-broken"), ("t", "fine")],
+    )
+    monkeypatch.setattr(labcheck, "warm_images", lambda targets, say=print: None)
+    monkeypatch.setattr(labcheck, "test_quietly", fake_quietly)
+
+    exit_code = labcheck.cmd_test(
+        argparse.Namespace(all=True, jobs=2, topic=None, exercise=None, shard=None)
+    )
+
+    out = capsys.readouterr().out
+    # The one the checker gave up on ran again, alone; the contract failure didn't.
+    assert calls.count("t/boots-slowly") == 2
+    assert calls.count("t/really-broken") == 1
+    assert "retrying t/boots-slowly on its own" in out
+    retried_line = (
+        "ok (on its own, after the checker gave up in the crowd) t/boots-slowly"
+    )
+    assert retried_line in out
+    assert "BROKEN t/really-broken" in out
+    assert exit_code == 1
+
+
+def test_a_timeout_while_proving_counts_as_the_checker_giving_up(monkeypatch) -> None:
+    def slow(topic: str, exercise: str):
+        raise subprocess.TimeoutExpired(["docker", "exec", "lab", "bash"], 300)
+
+    monkeypatch.setattr(labcheck, "load_lab", slow)
+    report = labcheck.test_quietly("t", "slow")
+    assert report.gave_up
+    assert report.problems[0].startswith("labcheck: timed out:")
+
+
+def test_shards_split_the_topics_and_cover_every_lab() -> None:
+    targets = [(f"t{i}", f"lab{j}") for i in range(5) for j in range(2)]
+    shards = [labcheck.shard_of(targets, f"{i}/4") for i in range(4)]
+    # Every lab lands in exactly one shard, whole topics at a time.
+    assert sorted(sum(shards, [])) == sorted(targets)
+    assert shards[0] == [("t0", "lab0"), ("t0", "lab1"), ("t4", "lab0"), ("t4", "lab1")]
+    assert shards[3] == [("t3", "lab0"), ("t3", "lab1")]
+
+
+def test_a_shard_that_isnt_i_of_n_is_refused() -> None:
+    for bad in ("4/4", "-1/4", "half", "1/0"):
+        with pytest.raises(LabError):
+            labcheck.shard_of([("t", "lab")], bad)
