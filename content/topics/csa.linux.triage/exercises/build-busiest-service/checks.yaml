@@ -1,0 +1,20 @@
+# The checks for "Build busiest-service": the busiest is the worker, all
+# three services are listed, and the worker's measured CPU is real.
+checks:
+  - id: busiest-is-the-worker
+    description: "The busiest line names shop-worker."
+    command: /home/learner/bin/busiest-service | grep '^busiest:'
+    expect:
+      contains: "shop-worker"
+  - id: lists-all-three
+    description: "All three services are measured and listed."
+    command: |
+      out=$(/home/learner/bin/busiest-service)
+      echo "$out" | grep -q 'shop-api' && echo "$out" | grep -q 'shop-db' && echo "$out" | grep -q 'shop-worker' && echo "all three"
+    expect:
+      contains: "all three"
+  - id: worker-used-cpu
+    description: "The worker's measured CPU for the second is a real amount, not zero (it spins)."
+    command: /home/learner/bin/busiest-service | awk '/shop-worker:/ {print $2}'
+    expect:
+      gte: 100

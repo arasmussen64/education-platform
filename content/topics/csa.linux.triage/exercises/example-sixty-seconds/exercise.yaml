@@ -1,0 +1,35 @@
+id: example-sixty-seconds
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The server is slow: the first minute"
+prompt: |
+  "The server is slow." That's the whole ticket. This machine is that server. The walkthrough runs the first-minute checklist from the lesson in order, reads what each command says, and ends with a verdict: which resource is the bottleneck, and which process is behind it, written down with the evidence. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "Load, and is it getting worse"
+    lines: "1"
+    note: "`uptime` ends with the 1-, 5- and 15-minute load averages. Read against `nproc` (the CPU count): a 1-minute figure above the 5- and 15-minute ones means the load is rising now. This machine has work queued."
+  - label: "The kernel's recent complaints"
+    lines: "2"
+    note: "`dmesg -T | tail` shows the kernel's last messages with human timestamps: an OOM kill, a disk timeout, a dropped-packet counter. Nothing alarming here, which rules out the decisive 'errors' part of USE and sends you to utilisation and saturation."
+  - label: "A second of the whole machine"
+    lines: "3"
+    note: "`vmstat 1` prints once a second. `r` is the run queue (tasks wanting a CPU); `us`/`sy` user and kernel CPU, `id` idle, `wa` waiting on disk; `si`/`so` swapping. Here `us` is high and `r` is at least one: the CPU is doing real work and something is usually runnable."
+  - label: "Per CPU, to find a single-threaded limit"
+    lines: "4"
+    note: "`mpstat -P ALL 1` splits it by CPU. One CPU near 100% busy while the others are idle is a single-threaded program at its ceiling, which the machine-wide average hides. That's the shape here."
+  - label: "Which process"
+    lines: "5"
+    note: "`pidstat 1` attributes the CPU to processes, second by second, and `ps -eo pid,comm,%cpu --sort=-%cpu` sorts them. `shop-worker` is at the top, using a whole CPU: the culprit for the CPU bottleneck."
+  - label: "The disks"
+    lines: "6"
+    note: "`iostat -xz 1` shows each disk busy (`%util`), the average wait (`await`, ms) and the queue (`aqu-sz`). `pidstat -d 1` shows which process writes: `shop-logger` is writing steadily, but the disk isn't saturated, so it's a side-show, not the bottleneck. Noticing that is the point: you check every resource, not just the first."
+  - label: "Memory"
+    lines: "7"
+    note: "`free -m` and the `available` column: there's memory to spare, and `si`/`so` in `vmstat` were zero, so memory isn't it. Another resource ruled out."
+  - label: "The verdict, written down"
+    lines: "8"
+    note: "The bottleneck is CPU, saturated by `shop-worker`; disk and memory are fine. Saved to `~/triage/verdict.txt` with the evidence, because the next question is always 'did the fix work?', and you'll compare against this."
+skills: [use-method, first-minute, disk-io]

@@ -1,6 +1,6 @@
 id: csa.linux.triage
 kind: topic
-status: draft
+status: ready
 title: "Performance triage"
 summary: "When a server is slow, find out why in minutes instead of guessing: the USE method (utilisation, saturation, errors, for every resource), the sixty-second checklist, and reading vmstat, iostat, pidstat, sar, strace and perf to see where the time goes."
 prerequisites: [csa.linux.memory, csa.linux.cpu, csa.linux.storage, csa.linux.net-tools]
@@ -47,10 +47,16 @@ resources:
     type: reading
     use: link
     license: "Linux man-pages project (free documentation; linked, not copied)"
-# Lessons and recall first (ADR-0017). The items read dmesg, vmstat, iostat,
-# pidstat, strace -c, perf report and sar output with the text tools of the
-# first topic; the labs provide a slow server to triage for real.
+# The recall items read dmesg, vmstat, iostat, pidstat, strace -c, perf
+# report and sar output with the text tools of the first topic. The worked
+# example, the fill-in, the write and both proofs are labs on a slow server
+# with real load: a CPU-pegging worker to find with the checklist, and a
+# runaway burning a CPU in failing system calls to catch with strace. The
+# labs lean on the signals that are reliable in a container (per-process and
+# per-cgroup CPU, strace); disks and the network are in the lesson and the
+# recall (ADR-0017, ADR-0018).
 practice:
+  - example-sixty-seconds
   - mcq-use-method
   - mcq-saturation-vs-utilization
   - mcq-first-minute-order
@@ -66,7 +72,11 @@ practice:
   - tri-sar-dev
   - tri-sar-retrans
   - mcq-retransmits
+  - fill-triage-report
+  - write-cpu-culprit
 prove:
+  build: build-busiest-service
+  debug: debug-syscall-storm
   explain:
     prompt: |
       A teammate says a server "is slow" and has already started changing settings at random. Explain, in your own words, how you'd find the cause instead: what the USE method asks of every resource and why saturation matters more than utilisation; which commands you'd run in the first minute and what each one tells you; how you'd recognise a saturated disk in `iostat`, a saturated network interface or retransmits in `sar`, and a single hot CPU that an average hides; and how you'd decide between `perf` and `strace` once you know which process is the problem.
