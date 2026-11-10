@@ -1,18 +1,76 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.la.pca
 kind: topic
-status: planned
+status: ready
 title: "PCA: what eigenvalues mean for data"
-summary: Center data, form the covariance matrix, take its eigenvectors as principal components, and project to fewer dimensions.
-prerequisites:
-- ml.la.eigen
-- ml.la.least-squares
-- ml.math.probability-and-statistics
+summary: "Center data, form the covariance matrix, take its eigenvectors as principal components, and project to fewer dimensions."
+prerequisites: [ml.la.eigen, ml.la.least-squares, ml.math.probability-and-statistics]
+packages: [numpy]
 estimated_minutes: 60
 rev: 1
 objectives:
-- Center a dataset and compute its covariance matrix.
-- "Find the principal components as the covariance matrix's eigenvectors."
-- Project data onto the top components and read the variance explained.
-- Say when PCA helps and what it throws away.
+  - "Center a dataset and compute its covariance matrix."
+  - "Find the principal components as the covariance matrix's eigenvectors."
+  - "Project data onto the top components and read the variance explained."
+  - "Say when PCA helps and what it throws away."
+# Linked, never copied or embedded: StatQuest's videos are under the standard
+# YouTube licence; NumPy's documentation under the NumPy licence
+# (BSD-3-Clause).
+resources:
+  - title: "StatQuest: Principal Component Analysis (PCA), Step-by-Step (Josh Starmer)"
+    url: https://www.youtube.com/watch?v=FgakZw6K1QQ
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "numpy.cov (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.cov.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-the-direction-of-most-spread
+  - parsons-covariance
+  - mcq-what-pca-finds
+  - predict-explained-share
+  - mcq-why-center
+  - fill-explained-variance
+  - mcq-when-pca-helps
+  - write-first-component
+prove:
+  build: build-pca
+  debug: debug-pca-mistakes
+  explain:
+    prompt: |
+      A teammate has fifty correlated sensor readings per sample and a model that overfits. They've heard PCA might help. In your own words: what does the covariance matrix hold, and why are its eigenvectors the directions the data spreads most along? What does projecting onto the top few components keep, and what does it throw away? How would you read "variance explained" to choose how many components to keep? And when is PCA the wrong tool?
+    rubric:
+      - id: covariance
+        required: true
+        description: "After centering, the covariance matrix holds each feature's variance on the diagonal and how pairs move together off it; its eigenvectors are the directions along which the centered data's spread is largest, at right angles to each other, with the eigenvalues as the variances along them."
+      - id: projection
+        required: true
+        description: "Projecting onto the top k components keeps the coordinates along the k directions of most spread and discards the rest; the discarded part is the reconstruction error, small when the data nearly lies in a k-dimensional subspace."
+      - id: explained
+        required: true
+        description: "Each eigenvalue over the total is that component's share of the variance; keep components until the running total is high enough (say 90 to 99 percent) or the shares drop to noise."
+      - id: limits
+        required: false
+        description: "PCA is wrong when the useful signal has small variance, when the data isn't numeric and centred-scale meaningful, when features aren't on comparable scales (standardize first), or when the components must be interpretable."
+    model_answer: |
+      Center the readings first, so every feature has mean zero. The covariance matrix then holds, on its diagonal, how much each sensor varies, and off the diagonal, how much each pair moves together. It's symmetric, so its eigenvectors are at right angles and its eigenvalues are real, and along each eigenvector the data's variance is exactly that eigenvalue. The eigenvector with the largest eigenvalue is therefore the single direction the cloud spreads most along, the next one is the direction of most spread at right angles to it, and so on: the principal components. Projecting each sample onto the top k components keeps its coordinates along those k directions and throws away the coordinates along the rest. What's thrown away is the reconstruction error, and it's small when the fifty readings mostly move together, which correlated sensors do. Variance explained is each eigenvalue divided by their total: read the running sum and keep components until it reaches something like 95 percent, or until the remaining shares are the size of noise. PCA is the wrong tool when the signal you care about is a small-variance direction, when the features are on different scales and you haven't standardized them, when the data isn't numbers you can average, or when you need the components to mean something a person can name.
+review_pool:
+  - review-predict-centered-mean
+  - review-mcq-explained-ratio
+  - review-mcq-component-order
+  - review-predict-reconstruct
+  - review-top-share
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: covariance
+    description: "Center data and compute its covariance matrix"
+  - id: components
+    description: "Take the principal components from the covariance matrix's eigenvectors, in order of eigenvalue"
+  - id: project
+    description: "Project data onto the top components and reconstruct it"
+  - id: explained
+    description: "Read the variance explained, choose how many components to keep, and say what PCA throws away"

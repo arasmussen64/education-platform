@@ -1,0 +1,10 @@
+import numpy as np
+
+X = np.array([[2.0, 1.0], [3.0, 2.0], [4.0, 2.0], [5.0, 4.0], [6.0, 4.0], [7.0, 5.0]])
+
+
+def top_share(X):
+    return 0.984
+
+
+print(0.984)

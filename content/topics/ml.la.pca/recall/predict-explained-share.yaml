@@ -1,0 +1,20 @@
+id: predict-explained-share
+type: predict_output
+rev: 1
+prompt: |
+  The eigenvalues of the rectangle's covariance matrix, and the share of the spread the first component explains. What does the program print?
+code: |
+  import numpy as np
+
+  X = np.array([[0.0, 0.0], [2.0, 0.0], [0.0, 1.0], [2.0, 1.0]])
+  centered = X - X.mean(axis=0)
+  C = centered.T @ centered / (len(X) - 1)
+  values = np.linalg.eigvalsh(C)
+  print(np.round(values, 4))
+  print(round(float(values[-1] / values.sum()), 3))
+expected_output: |
+  [0.3333 1.3333]
+  0.8
+explanation: |
+  The covariance matrix is diagonal, so its eigenvalues are the two variances, listed ascending by `eigvalsh`: a third along y, four thirds along x. The first component (the larger, `values[-1]`) carries 4/3 of a total 5/3: 80 percent of the spread.
+skills: [explained]
