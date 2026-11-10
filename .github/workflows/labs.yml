@@ -1,0 +1,35 @@
+# Proves every lab's contract in Docker (ADR-0018), on pull requests that
+# touch the labs or the checker. It's the slowest job (most of an hour), so
+# it doesn't run for a change to the web app, the docs, or a Python topic:
+# every lab lives under a cloud topic (csa.*). The pristine container must not pass,
+# the solution must, every known-wrong fix must not.
+name: Labs
+
+on:
+  pull_request:
+    paths:
+      - "content/topics/csa.*/**"
+      - "tools/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/labs.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: labs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  labs:
+    name: Labs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv only publishes exact version tags (no floating "v10").
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Install Python and dependencies
+        run: uv sync --locked
+      - name: Prove every lab's contract in Docker
+        run: uv run python tools/labcheck.py test --all --jobs 4
