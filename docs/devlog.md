@@ -2,6 +2,18 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Expectation and variance, the second Module 5 topic
+
+**`ml.prob.expectation-and-variance` is ready.** A table boiled down to two numbers, and the rules they obey. The worked example takes a fair die's expected value (3.5), variance (2.9167) and standard deviation (1.708) from its table, checks them against a hundred thousand rolls (3.499 and 2.921), watches the running mean settle (3.0 after ten rolls, 3.61 after a hundred, 3.51, 3.498, 3.499), sets the total of two independent dice (variance 5.858) beside one die doubled (11.683) to show that variances add only for independent things and scale by the square, and standardizes five heights. Then a Parsons lottery ticket whose decoy averages 100 and 0 as if equally likely, four recall questions (a game with expected profit -1; a table scaled by 3 and shifted by 2, whose variance scales by 9; why ten heads don't make tails due; a z-score of 1.5 against 0.5), `expectation` and `variance` to fill in (the known-wrong forgets to square, and weighted distances from the mean sum to zero), and `standardize` to write. The proofs: `moments`, `sum_of_independent`, `running_means` and `standardize` to build, whose hidden tests use a Bernoulli, a binomial table and `[2, 4, 6]` (known-wrong: absolute distances, standard deviations added, a cumulative sum divided by the full length); a spread report to debug whose variance prints 0.0 because the distances aren't squared and whose standard deviation is the variance halved; and an explanation for a teammate who expects exactly 50 heads and thinks averaging two sensors doubles the noise. The review pool has a Bernoulli's moments at three values of `p`, two dice against one doubled, which of two test scores is better, and an expected value from memory.
+
+**Decisions for you to review:**
+
+1. _"Two dice against one die doubled" is the module's picture of independence._ It is the smallest example where the same mean hides different random variables, and it is the fact behind every claim later in the module that averaging shrinks noise.
+2. _The standard error is previewed, not named,_ as "the mean of `n` copies has variance `Var / n`"; the sampling topic names it and does the central limit theorem.
+3. _Every numeric claim in the lesson comes from the program's output_ (the running means, the two sample variances), per the rule from Module 4's review.
+
+**Next:** Bayes' rule, properly (`ml.prob.bayes`).
+
 ## 2026-11-10: Random variables and distributions, the first Module 5 topic
 
 **Module 5 began,** with the choice between it and the cloud track's Module 2 still yours: I took the module that was outlined, reviewed and next on the ML path, and nothing on the cloud track was touched. Before writing a word, the one risk particular to this module was settled: every topic simulates with NumPy's random generator, and a browser that drew different numbers from the same seed would fail every exercise's pinned output. The web app's Pyodide-in-Node test harness ran the same seeded snippet as CPython: the same NumPy release (2.4.6) and identical draws for `random`, `normal`, `integers`, `binomial`, `uniform`, `choice`, `permutation` and the mean of ten thousand normals, and Python's own `random` module too. So the module uses `np.random.default_rng(seed)` as written, and the generators pin outputs from CPython as before.
