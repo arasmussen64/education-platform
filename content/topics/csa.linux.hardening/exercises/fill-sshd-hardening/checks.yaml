@@ -1,0 +1,30 @@
+# The checks for "Finish the SSH hardening": no gaps, a valid config, the
+# four settings in force, and ben can still log in.
+checks:
+  - id: no-gaps
+    description: "The drop-in has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /etc/ssh/sshd_config.d/90-hardening.conf"
+  - id: config-valid
+    description: "sshd -t accepts the configuration."
+    command: sudo sshd -t && echo "valid"
+    expect:
+      contains: "valid"
+  - id: passwords-and-root-off
+    description: "Password and root logins are off in the effective config."
+    command: |
+      t=$(sudo sshd -T)
+      echo "$t" | grep -iq '^passwordauthentication no' && echo "$t" | grep -iq '^permitrootlogin no' && echo "both off"
+    expect:
+      contains: "both off"
+  - id: group-and-tries
+    description: "Only ssh-users may log in, with a try limit of 3."
+    command: |
+      t=$(sudo sshd -T)
+      echo "$t" | grep -iq '^allowgroups ssh-users' && echo "$t" | grep -iq '^maxauthtries 3' && echo "set"
+    expect:
+      contains: "set"
+  - id: key-login-works
+    description: "ben can still log in with his key."
+    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    expect:
+      equals: "ben"

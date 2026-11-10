@@ -1,6 +1,6 @@
 id: csa.linux.hardening
 kind: topic
-status: draft
+status: ready
 title: "Hardening"
 summary: "Apply a security baseline to a server, then prove it: SSH with keys only and no root login, a default-deny firewall, fewer services, least privilege, automatic security updates, and a benchmark scan (CIS, OpenSCAP, Lynis) before and after to show the difference."
 prerequisites: [csa.linux.permissions, csa.linux.services, csa.linux.packages, csa.linux.net-tools]
@@ -57,11 +57,16 @@ resources:
     type: reading
     use: link
     license: "US government work (public domain); linked"
-# Lessons and recall first (ADR-0017). The items read sshd configuration,
-# socket listings, firewall status, sudoers and scan reports with the text
-# tools of the first topic; hardening a real machine comes in the labs and
-# the checkpoint, where turning the firewall off fails the check.
+# The recall items read sshd configuration, socket listings, firewall
+# status, sudoers and scan reports with the text tools of the first topic.
+# The worked example, the fill-in, the write and both proofs are labs that
+# harden a real machine and prove it without locking anyone out: SSH keys
+# only, a default-deny firewall, the open ports audited, and a lock-out to
+# undo. Benchmark scanners (CIS, OpenSCAP, Lynis) are in the lesson and the
+# recall; the labs prove the baseline with their own checks, which is the
+# same scan-before-and-after idea (ADR-0017, ADR-0018).
 practice:
+  - example-harden-ssh
   - mcq-baseline-contents
   - hard-listening-audit
   - mcq-remove-services
@@ -78,7 +83,11 @@ practice:
   - hard-lynis-before-after
   - hard-oscap-failures
   - mcq-prove-with-scan
+  - fill-sshd-hardening
+  - write-exposed-ports
 prove:
+  build: build-harden-the-server
+  debug: debug-locked-out
   explain:
     prompt: |
       You're handed a freshly installed Ubuntu server that will face the internet, and a week to make it defensible. Explain, in your own words: what your baseline would contain and why each item matters; the SSH changes you'd make and how you'd make them without locking yourself out; how you'd set the firewall and what the cloud's security group adds; how you'd find and remove what the server doesn't need; and how you'd prove the result with a benchmark scan, including what you'd do with a finding you can't fix.

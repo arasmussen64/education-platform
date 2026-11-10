@@ -1,0 +1,31 @@
+# The checks for "Harden SSH without locking yourself out": the effective
+# config has passwords and root login off with the group and try limit set,
+# ben can still log in with his key, and the proof is saved.
+checks:
+  - id: passwords-off
+    description: "sshd's effective config has password authentication off."
+    command: sudo sshd -T | grep -i '^passwordauthentication'
+    expect:
+      matches: "(?i)^passwordauthentication no"
+  - id: root-login-off
+    description: "Root login is off."
+    command: sudo sshd -T | grep -i '^permitrootlogin'
+    expect:
+      matches: "(?i)^permitrootlogin no"
+  - id: group-and-tries
+    description: "Only ssh-users may log in, and the try limit is 3."
+    command: |
+      t=$(sudo sshd -T)
+      echo "$t" | grep -iq '^allowgroups ssh-users' && echo "$t" | grep -iq '^maxauthtries 3' && echo "group and tries set"
+    expect:
+      contains: "group and tries set"
+  - id: key-login-still-works
+    description: "ben can still log in with his key."
+    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    expect:
+      equals: "ben"
+  - id: proof-saved
+    description: "~/baseline/ssh.txt shows passwords off, and login.txt shows a successful login."
+    command: grep -iq 'passwordauthentication no' /home/learner/baseline/ssh.txt && grep -qx 'ben' /home/learner/baseline/login.txt && echo "proof saved"
+    expect:
+      contains: "proof saved"

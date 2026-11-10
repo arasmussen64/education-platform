@@ -2,6 +2,29 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Hardening goes ready, and Module 1 is complete
+
+The fourteenth cloud topic, and with it every topic in Module 1 is `ready`. The only piece left in the module is its checkpoint, the "broken server" with five planted faults.
+
+Hardening is the module's capstone topic because it uses all of it: SSH (permissions), the firewall (networking), services and packages. The labs harden a real server and prove it, and the design problem was proving without locking anyone out, the same problem the lesson warns about. Each lab sets up `ben` in an `ssh-users` group with his key in `~/keys/ben`, so a real `ssh -i ~/keys/ben ben@localhost` is the test, run before and after every change.
+
+**What a container made me design around:**
+
+- _SSH is socket-activated_ on Ubuntu 24.04 (`ssh.socket`, not `ssh.service`), so a config change applies to each new connection with no reload, and `sshd -T`/`sshd -t` need `/run/sshd`, which I create at boot with a tmpfiles rule.
+- _A same-host SSH test goes over loopback,_ so a firewall that blocks port 22 can't be felt from the same machine (the net-tools labs needed a separate network namespace to prove a firewall from outside). So the build lab verifies the firewall by reading its ruleset, and the debug lab's three faults are all in sshd, where a same-host login does feel them.
+- _`ufw` doesn't behave in a container,_ so the firewall is nftables, which the networking topic already proved works. The lesson still teaches `ufw` as the friendly front-end.
+- _Benchmark scanners_ (CIS, OpenSCAP, Lynis) are heavy and non-deterministic; they stay in the lesson and recall, and the labs prove the baseline with their own checks, which is the same scan-before-and-after idea.
+
+**The five labs:** `example-harden-ssh` (the drop-in, with the key proved first and last), `fill-sshd-hardening` (the four values), `write-exposed-ports` (an audit that tells an open door from a loopback-only one), `build-harden-the-server` (the whole baseline: SSH, a default-deny firewall that keeps and persists SSH, a stray debug service closed), `debug-locked-out` (three sshd faults, fixed without the shortcut of turning passwords back on). The anti-pattern the whole track warns about, turning a protection off to make something work, is a known-wrong fix in two labs. Twenty-four checks, seventeen known-wrong fixes; all five green on the first full run.
+
+**Decisions for you to review:**
+
+1. _nftables, not ufw,_ for the lab firewall. ufw is the lesson's recommended tool but doesn't run cleanly in the container; nftables is what's underneath it and what the labs can prove.
+2. _The baseline is proved by the labs' own checks, not a scanner._ A real CIS/OpenSCAP scan in a container is slow and its score isn't reproducible; the hand-rolled audit (`exposed-ports`) and the checks teach the same method.
+3. _Benchmark scanning stays conceptual._ It's the one part of the topic the labs don't exercise directly, for the reasons above; the lesson and recall carry it.
+
+**Module 1 is done.** Fourteen topics, each with a lesson, recall items, and five labs that a container proves. Next is the module checkpoint (`csa.m1.checkpoint`), a broken server with five faults across the module's topics, which needs the checkpoint rules from ADR-0012 (unstuck steps, a skills map per fault).
+
 ## 2026-11-09: Performance triage goes ready, and what a container will and won't show
 
 The thirteenth ready cloud topic, and the one where the lab environment pushed back hardest. Performance signals are noisy, and a container hides some of them: a single spinner on an eight-core host is not system-wide saturation, `iostat` shows the host's disks not the container's load, and `perf` needs kernel tooling a container doesn't have. So the labs are built on the signals that _are_ reliable and deterministic inside a container, and the fragile ones stay in the lesson and the recall.

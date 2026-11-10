@@ -1,0 +1,32 @@
+id: example-harden-ssh
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Harden SSH without locking yourself out"
+prompt: |
+  The fastest win in a server's security baseline is SSH: turn off password logins and root logins, and only the right people with the right keys can get in. The walkthrough reads the current settings, applies the hardened ones in a drop-in, checks the config before anything restarts, and proves you can still log in, in that order, which is the order that doesn't lock you out. You log in as `ben`, whose key is in `~/keys/ben`. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "What SSH allows right now"
+    lines: "1"
+    note: "`sudo sshd -T` prints the *effective* configuration, lowercased, every setting in force including anything an included file changed. `grep` pulls out the three that matter: `passwordauthentication yes`, `permitrootlogin without-password`, `maxauthtries 6`. This is a server that still accepts password guesses."
+  - label: "Prove your key works before you change anything"
+    lines: "2"
+    note: "`ssh -i ~/keys/ben ben@localhost` logs in with the key and runs `whoami`. Do this *first*: you're about to turn off passwords, so you must know the key already works. It does, printing `ben`."
+  - label: "Write the hardened settings in a drop-in"
+    lines: "3"
+    note: "A file in `/etc/ssh/sshd_config.d/` overrides the defaults without editing the main file. `PasswordAuthentication no` ends password guessing; `PermitRootLogin no` stops direct root login; `AllowGroups ssh-users` means only members of that group may connect; `MaxAuthTries 3` cuts off repeated attempts."
+  - label: "Check the config before touching the service"
+    lines: "4"
+    note: "`sudo sshd -t` parses the configuration and says nothing if it's valid, or points at the line if it isn't. Running this *before* reloading is the habit that saves you from a typo that stops SSH starting. It's silent here: the config is good."
+  - label: "The settings are now in force"
+    lines: "5"
+    note: "`sudo sshd -T` again: `passwordauthentication no`, `permitrootlogin no`, `allowgroups ssh-users`, `maxauthtries 3`. Because SSH here is socket-activated, each new connection starts a fresh `sshd` that reads this, so the change is already live; on a server with a long-running `sshd` you'd `sudo systemctl reload ssh` and keep your old session open while testing a new one."
+  - label: "Prove you can still get in"
+    lines: "6"
+    note: "`ssh -i ~/keys/ben ben@localhost` once more: still `ben`. Passwords are off, root is off, and the right key still works. This is the test you never skip."
+  - label: "Save the proof"
+    lines: "7"
+    note: "The four hardened settings from `sshd -T`, and the successful login, saved to `~/baseline/`. A baseline you can show is a baseline that holds; this is your before-and-after evidence."
+skills: [ssh-hardening, baseline]

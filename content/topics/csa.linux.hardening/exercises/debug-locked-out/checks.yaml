@@ -1,0 +1,29 @@
+# The checks for "Hardened, and locked out": the config is valid, ben can
+# log in with his key, and the server stayed hardened (passwords off, the
+# right group, keys on).
+checks:
+  - id: config-valid
+    description: "sshd -t accepts the configuration (the bad number is fixed)."
+    command: sudo sshd -t && echo "valid"
+    expect:
+      contains: "valid"
+  - id: group-allows-ben
+    description: "AllowGroups is ssh-users, the group ben is in."
+    command: sudo sshd -T | grep -i '^allowgroups'
+    expect:
+      matches: "(?i)^allowgroups ssh-users"
+  - id: pubkey-on
+    description: "Key authentication is on again."
+    command: sudo sshd -T | grep -i '^pubkeyauthentication'
+    expect:
+      matches: "(?i)^pubkeyauthentication yes"
+  - id: still-hardened
+    description: "Passwords are still off: the lock-out wasn't fixed by weakening the server."
+    command: sudo sshd -T | grep -i '^passwordauthentication'
+    expect:
+      matches: "(?i)^passwordauthentication no"
+  - id: ben-can-log-in
+    description: "ben can log in with his key."
+    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    expect:
+      equals: "ben"

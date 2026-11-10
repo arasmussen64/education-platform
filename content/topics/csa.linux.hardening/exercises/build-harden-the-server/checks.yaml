@@ -1,0 +1,34 @@
+# The checks for "Apply the baseline": SSH hardened, a default-deny firewall
+# that keeps SSH and survives a reboot, the debug door closed, and ben can
+# still log in.
+checks:
+  - id: ssh-hardened
+    description: "Password and root logins are off."
+    command: |
+      t=$(sudo sshd -T)
+      echo "$t" | grep -iq '^passwordauthentication no' && echo "$t" | grep -iq '^permitrootlogin no' && echo "hardened"
+    expect:
+      contains: "hardened"
+  - id: firewall-default-deny
+    description: "The running firewall's input policy is drop, and it accepts SSH."
+    command: |
+      r=$(sudo nft list ruleset)
+      echo "$r" | grep -qE 'hook input .*policy drop' && echo "$r" | grep -q 'tcp dport 22 accept' && echo "default deny, ssh kept"
+    expect:
+      contains: "default deny, ssh kept"
+  - id: firewall-persisted
+    description: "The rules are in /etc/nftables.conf (with policy drop) and nftables is enabled."
+    command: sudo nft -c -f /etc/nftables.conf && grep -q 'policy drop' /etc/nftables.conf && systemctl is-enabled nftables
+    expect:
+      equals: "enabled"
+  - id: debug-door-closed
+    description: "Nothing is listening on port 9000 any more."
+    command: |
+      sudo ss -ltn | grep -qE ':9000 ' && echo "still open" || echo "closed"
+    expect:
+      contains: "closed"
+  - id: key-login-works
+    description: "ben can still log in with his key, through the firewall."
+    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    expect:
+      equals: "ben"
