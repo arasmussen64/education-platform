@@ -1,0 +1,14 @@
+id: mcq-the-signs-of-exploding-gradients
+type: mcq
+rev: 1
+prompt: |
+  The gradient norm recorded at each step reads 0.9, 1.1, 3, 40, 2,000, then inf and NaN. What is happening, what causes it, and what fixes it?
+choices:
+  - 'The learning rate is too low and the gradients are piling up; raise the rate'
+  - 'Exploding gradients: each step overshoots and makes the next gradient larger until the numbers overflow; a start too big or a rate too high causes it; He starts, a lower rate or clipping fix it'
+  - 'Dead ReLUs: the units are dying one by one and the gradient that each dead unit would have received is being added onto the survivors, which is what makes the norm grow; a leaky ReLU, which keeps every unit alive, fixes it'
+  - 'Normal: the gradient norm always grows as the network learns, and NaN just means it has finished learning'
+answer: 1
+explanation: |
+  A norm that grows step over step is the signature: the weights grow, the activations grow, the gradients grow, and float64 runs out of room. Through several layers a starting scale that is too large does it from the first step, and a rate that is too high does it after a few. Fix the start, lower the rate, or clip the norm so the step is bounded whatever the gradient does. Dead units give zero, not infinity, and a healthy norm shrinks as the loss falls.
+skills: [dead-and-exploding]

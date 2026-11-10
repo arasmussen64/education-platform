@@ -1,0 +1,51 @@
+id: build-the-diagnostics
+stage: build
+rev: 1
+title: "The diagnostics"
+prompt: |
+  Starting from a blank editor, paste the module's `Dense`, `ReLU`, `Sequential`, `SoftmaxCrossEntropy`, `SGD`, `numeric_gradient`, `gradient_check`, `make_blobs`, `batches`, `evaluate`, `read_curve` and `split` as they stand, then write:
+
+  - `gradient_norm(grads)`: the length of the gradients taken together, as a float.
+  - `clip_gradients(grads, max_norm)`: all scaled down by one factor to norm `max_norm` when above it; `grads` itself otherwise.
+  - `fit(net, loss, optimizer, X_train, y_train, X_val, y_val, epochs, batch_size=32, seed=0, max_norm=None)`: the training loop (shuffled batches from `batches`, one `optimizer.step` per batch), whose history (`train_loss`, `val_loss`, `val_accuracy` from `evaluate`) starts with the values **before any training** and adds one entry per epoch, and also holds `grad_norms`, the norm at every step **before** any clipping; with `max_norm` the step uses the clipped gradients. Run the loop under `np.errstate(all="ignore")` so a run that overflows is recorded, not crashed.
+  - `dead_units(net, X)`: a forward pass, then the number of ReLU units whose mask is `False` on every row, over all ReLU layers.
+  - `overfit_one_batch(net, loss, X, y, steps=500, rate=0.1)`: train on exactly these rows, all of them every step, with `SGD(rate)`; return the loss before and after.
+  - `standardize(X, mean, std)`: `(X - mean) / std`.
+  - `diagnose(history, n_classes)`: `read_curve` of the training loss if it isn't `"converging"`; else `"at chance"` if the last validation accuracy is below `1 / n_classes + 0.1`; else `"learning"`.
+
+  Then print:
+
+  ```python
+  X, y = make_blobs(100, seed=0)
+  X_train, y_train, X_val, y_val = split(X, y, seed=0)
+  loss = SoftmaxCrossEntropy()
+
+
+  def small_net():
+      return Sequential([Dense(2, 16, seed=1), ReLU(), Dense(16, 3, seed=2, scale=0.01)])
+
+
+  first, last = overfit_one_batch(small_net(), loss, X_train[:8], y_train[:8])
+  print(round(first, 2), round(last, 2), last < 0.1)
+  runs = [fit(small_net(), loss, SGD(rate), X_train, y_train, X_val, y_val, epochs=30) for rate in (0.05, 0.0001, 30.0)]
+  print(" | ".join(diagnose(history, 3) for history in runs), len(runs[0]["grad_norms"]))
+  silenced = small_net()
+  silenced.layers[0].b[:] = -20.0
+  fit(silenced, loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=30)
+  print(dead_units(silenced, X_train), dead_units(small_net(), X_train))
+  print([round(float(v), 2) for v in clip_gradients([np.array([3.0, 4.0])], 1.0)[0]], gradient_norm([np.array([3.0, 4.0]), np.array([12.0])]))
+  mean, std = X_train.mean(axis=0), X_train.std(axis=0)
+  Z = standardize(X_train, mean, std)
+  print(bool(np.abs(Z.mean(axis=0)).max() < 1e-12), Z.std(axis=0).round(6).tolist())
+  ```
+
+  ```
+  1.11 0.02 True
+  learning | stalled | diverging 240
+  16 0
+  [0.6, 0.8] 13.0
+  True [1.0, 1.0]
+  ```
+
+  The checks test the norm and the clipping on random gradients, that `fit` starts its history before training, records one norm per step before clipping and that clipping bounds the step, `diagnose` on hand-made histories, `dead_units` and `overfit_one_batch` on small cases, `standardize` with the training set's numbers, and that the same seeds give the same history.
+skills: [learning-rate, bug-or-hard, dead-and-exploding, data-bugs]

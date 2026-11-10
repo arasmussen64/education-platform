@@ -1,0 +1,14 @@
+id: mcq-too-high-or-too-low
+type: mcq
+rev: 1
+prompt: |
+  Run A's loss goes 1.10 to 1.08 in 30 epochs. Run B's loss is NaN by epoch 2. Run C's loss goes 1.10 to 1.07 and 12 of its 16 hidden units are dead. What is wrong in each?
+choices:
+  - 'A: the rate is too low; B: too high; C: too high as well, since one big step killed the units, though the curve looks like A''s'
+  - 'A and C: the rate is too low, since both stalled; B: the data is unscaled'
+  - 'A: the rate is too high; B: the rate is too low, since the loss overflowed before it had a chance to fall; C: the network is too small for the data, since a bigger one would keep more units alive'
+  - 'All three need more epochs, since none of them has converged yet'
+answer: 0
+explanation: |
+  A stalled curve is the usual sign of a rate too low, and NaN of a rate too high. C stalled too, but its dead units give it away: a rate that is too high can push the hidden biases so far negative in one step that the units output zero everywhere and stop learning, after which the loss sits still. Raising C's rate would make it worse, which is why the dead count comes before the rate.
+skills: [learning-rate, dead-and-exploding]

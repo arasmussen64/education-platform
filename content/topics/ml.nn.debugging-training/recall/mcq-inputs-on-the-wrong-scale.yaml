@@ -1,0 +1,14 @@
+id: mcq-inputs-on-the-wrong-scale
+type: mcq
+rev: 1
+prompt: |
+  The same network and rate that converged on inputs around 1 diverges on the same data multiplied by 1,000. Why, and what is the fix?
+choices:
+  - 'Big numbers overflow NumPy''s integers; use float64'
+  - 'A dense layer''s gradient is its input times the output gradient, so inputs a thousand times larger give gradients a thousand times larger and the first steps are enormous; standardize each column with the training set''s mean and spread'
+  - 'The network needs more hidden units to represent large numbers'
+  - 'The loss function can''t handle large logits, since the exponentials inside softmax overflow for anything above a few hundred, so the only option is to switch the loss to mean squared error, which has no exponential in it and so never overflows, and to keep the rate'
+answer: 1
+explanation: |
+  `dW = X.T @ grad_out`: scale X by 1,000 and dW scales with it, so a rate that was right is now a thousand times too high. Standardizing (subtract the mean, divide by the spread, both measured on the training rows) puts every column near 1. The validation set must get the training set's numbers, not its own, so the two are on the same footing. The arrays are already float64, and the loss is fine.
+skills: [data-bugs]

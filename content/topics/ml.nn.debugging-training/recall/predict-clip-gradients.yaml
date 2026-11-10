@@ -1,0 +1,25 @@
+id: predict-clip-gradients
+type: predict_output
+rev: 1
+prompt: |
+  `clip_gradients` scales all the gradients down by one factor when their combined norm passes `max_norm`, and leaves them alone otherwise. What does the program print?
+code: |
+  import numpy as np
+  
+  
+  def clip_gradients(grads, max_norm):
+      norm = float(np.sqrt(sum(float((grad ** 2).sum()) for grad in grads)))
+      if norm > max_norm:
+          return [grad * (max_norm / norm) for grad in grads]
+      return grads
+  
+  
+  grads = [np.array([3.0, 0.0]), np.array([[0.0, 4.0]])]
+  print([grad.tolist() for grad in clip_gradients(grads, 2.5)])
+  print([grad.tolist() for grad in clip_gradients(grads, 10.0)])
+expected_output: |
+  [[1.5, 0.0], [[0.0, 2.0]]]
+  [[3.0, 0.0], [[0.0, 4.0]]]
+explanation: |
+  Together the gradients are the vector (3, 0, 0, 4), with norm 5. Clipping to 2.5 multiplies every entry by a half (2.5 over 5), so the direction is unchanged and the norm is now 2.5. Clipping to 10 changes nothing, since 5 is under the limit: clipping only ever shrinks.
+skills: [dead-and-exploding]

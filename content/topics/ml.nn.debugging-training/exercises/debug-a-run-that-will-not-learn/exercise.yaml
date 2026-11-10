@@ -1,0 +1,14 @@
+id: debug-a-run-that-will-not-learn
+stage: debug
+rev: 1
+title: "A run that won't learn"
+prompt: |
+  A training script with the module's loop and this topic's tools. It should print:
+
+  ```
+  loss 1.10 -> 0.17: learning | validation accuracy 0.90
+  one batch of 8 overfits: True | dead units after training: 0 of 16
+  ```
+
+  It has two bugs. Run it: the loss is NaN by the end, diverging, and every hidden unit is dead: `rate` is 50, a thousand times the 0.05 that converges. Fix that, and the run reads **stalled**, from 1.10 to 1.0-something, with validation accuracy 0.38, chance; yet one batch still overfits and no units are dead, so the code can learn and the rate is known good. The data is what's left: `split` shuffles `X` and `y` with two different permutations, so the labels no longer belong to their rows; one permutation, applied to both, keeps them together.
+skills: [learning-rate, data-bugs]

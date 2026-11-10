@@ -1,0 +1,14 @@
+id: review-mcq-which-fix
+type: mcq
+rev: 1
+prompt: |
+  Match the symptom to the first thing to try: (a) the loss is NaN at step 3 with inputs in the thousands; (b) the loss sits at 1.10 and all hidden units are dead; (c) the gradient norm grows a hundredfold a step with a good starting scale.
+choices:
+  - '(a) standardize the inputs; (b) restart with zero biases and He-scaled weights at a lower rate; (c) lower the rate or clip the norm'
+  - '(a) lower the rate; (b) raise the rate; (c) add more layers'
+  - '(a) use mean squared error, which has no exponential to overflow; (b) add dropout, so the dead units are dropped anyway; (c) raise the rate, since a growing norm means the network is finally learning something'
+  - '(a), (b) and (c): train for more epochs'
+answer: 0
+explanation: |
+  Inputs on the wrong scale make the gradients enormous, so the fix is the scale, not the rate. Dead units can't recover, so the run restarts with a start that doesn't kill them and steps that won't. A norm growing step over step with a good start is a rate too high: lower it, or bound the step by clipping. None of the three is cured by patience.
+skills: [learning-rate, data-bugs]

@@ -1,0 +1,14 @@
+id: mcq-labels-that-do-not-match
+type: mcq
+rev: 1
+prompt: |
+  A run's gradient check passes, eight rows overfit to a loss of 0.02, the rate is one that converged last week, and yet 30 epochs go 1.10 to 1.09 with validation accuracy 0.35. What happened?
+choices:
+  - 'The validation set is too small'
+  - 'The labels don''t match their rows: inputs and labels were shuffled apart, so there is no pattern; eight rows can be memorized, the full set can''t, and held-out accuracy is chance'
+  - 'The network is too small for the data, since the loss moved a little but not enough to matter; add a hidden layer, double its width, and train for ten times as many epochs before deciding anything'
+  - 'The learning rate is too low after all'
+answer: 1
+explanation: |
+  Everything in the code checks out and the rate is known good, so the data is what is left. With random labels the network can memorize a handful of rows, which is why the one-batch test passes, but across 240 rows there is nothing consistent to fit, so the loss barely moves and the held-out accuracy is a third for three classes. The classic cause is a shuffle applied to X and not to y.
+skills: [data-bugs]

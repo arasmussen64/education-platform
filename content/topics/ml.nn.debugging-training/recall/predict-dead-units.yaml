@@ -1,0 +1,18 @@
+id: predict-dead-units
+type: predict_output
+rev: 1
+prompt: |
+  Three rows of pre-activations for four hidden units. A unit is dead if its pre-activation is not positive on any row. What does the program print?
+code: |
+  import numpy as np
+  
+  pre_activations = np.array([[-1.0, 2.0, -3.0, 0.5], [-2.0, 0.0, -1.0, -0.5], [-0.5, 1.0, -2.0, 1.5]])
+  mask = pre_activations > 0
+  print(mask.any(axis=0).tolist())
+  print(int((~mask.any(axis=0)).sum()), int((~mask.any(axis=1)).sum()))
+expected_output: |
+  [False, True, False, True]
+  2 1
+explanation: |
+  `mask.any(axis=0)` asks, column by column, whether any row is positive: units 1 and 3 fire somewhere, units 0 and 2 never do, so two are dead. Along `axis=1` the question is per row: the second row has no positive entry (0.0 is not above zero), so one row gets nothing through the layer.
+skills: [dead-and-exploding]
