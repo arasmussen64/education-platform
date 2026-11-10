@@ -454,6 +454,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Process: Claude merges its own pull requests once CI passes, under standing permission from the owner.
 - Roadmap: the "prove it" checks, topic states and gating move from Phase 2 into Phase 1.
 
+### Fixed (content)
+
+- The helpers-module build's dice test rolls 200 times, not 10: its known-wrong range (0 to 6) passed ten rolls one run in five, and stopped a merge when it did.
+- **Thirty-three corrections from a cold review of every Python Foundations topic**, the prose the checker can't prove, read by three reviewers who ran every doubtful claim under Python 3.14. The largest: a review question built on an error message Python no longer prints for the mistakes its answer named (rebuilt on the message it does print, `'(' was never closed`, pointing at the line where the bracket was opened); two worked examples whose highlighted line ranges had drifted from their solutions; a note about `lambda` moved to the clip it describes; the tracebacks in the error-reading topic now carry the caret lines 3.14 draws; the debug exercise _Top three and first match_ sorts descending in its starter, so its three bugs are three; and first-use jargon is now defined where it appears (off-by-one error, flag, mutually exclusive, `str(...)`, `len(...)`). Plus smaller slips: `**` groups right to left, `round` doesn't pad zeros, which topic returns to shared inner lists, which line a note points at.
+
 ### Fixed (tests)
 
 - The progress tests ask what state a topic is in at the end of their fixtures' day instead of at the real time of the run; four days after that day, a topic proved in the fixtures became "fading" (its first review had come due) and one test failed on every branch.
