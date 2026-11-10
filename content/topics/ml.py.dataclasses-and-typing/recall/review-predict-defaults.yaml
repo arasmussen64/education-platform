@@ -1,0 +1,24 @@
+id: review-predict-defaults
+type: predict_output
+rev: 1
+prompt: |
+  A dataclass with two defaults, used two ways. What does the program print?
+code: |
+  from dataclasses import dataclass
+
+
+  @dataclass
+  class Config:
+      name: str
+      retries: int = 3
+      verbose: bool = False
+
+
+  print(Config("job"))
+  print(Config("job", verbose=True))
+expected_output: |
+  Config(name='job', retries=3, verbose=False)
+  Config(name='job', retries=3, verbose=True)
+explanation: |
+  The generated `__init__` takes the fields in order, with the defaults filled in when a caller leaves them out. The second call names `verbose` so it can skip `retries`, which keeps its default of 3. The `__repr__` prints every field, defaults included.
+skills: [dataclass]
