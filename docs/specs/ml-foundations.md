@@ -170,11 +170,26 @@ Module 4 built a two-layer network by hand to learn the calculus; this module bu
 
 **Checkpoint 8: a network that reads digits** (`ml.m8.checkpoint`). Build dense and convolutional layers with their backward passes, softmax cross-entropy, and a mini-batch training loop with Adam, weight decay and dropout; gradient-check the pieces; train on the module's digit images (a pixel font for the ten digits, shifted and noised with a seed, so no dataset has to be downloaded) to the accuracy bar on a held-out set; find three bugs in a training script that won't learn; and explain backpropagation and regularization. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
 
+## Module 9: Transformers
+
+Module 8 built networks as layers that read images; this module builds the layer that reads sequences, attention, assembles the transformer block around it, and trains a tiny language model on a corpus generated in code, so nothing is downloaded and no licence has to be cleared. Everything runs in the browser in NumPy with a seed; the checks gradient-check attention and the block, hold a model to a held-out loss bar rather than to exact numbers after many steps, and check tokenizers by their round trip.
+
+| # | Topic | ID | Needs | You'll be able to… |
+| --- | --- | --- | --- | --- |
+| 57 | Tokens, embeddings and positions | `ml.tf.tokens-and-embeddings` | `ml.m8.checkpoint` | encode text as tokens and back; implement an embedding layer with its scatter-add gradient; add learned positions; train and sample a bigram model |
+| 58 | Attention from scratch | `ml.tf.attention` | `ml.tf.tokens-and-embeddings` | compute scaled dot-product attention by hand; apply the causal mask; implement attention as a gradient-checked layer; read attention weights |
+| 59 | Heads, residuals and the transformer block | `ml.tf.transformer-block` | `ml.tf.attention` | implement multi-head attention, residual connections and layer norm with their gradients; assemble a gradient-checked transformer block; count its parameters |
+| 60 | Training a tiny language model | `ml.tf.language-model` | `ml.tf.transformer-block` | cut a corpus into windows and shifted targets; compute the loss over a sequence; train a two-block transformer to a held-out loss bar; sample with a temperature |
+| 61 | Tokenizers: byte-pair encoding | `ml.tf.tokenizers` | `ml.tf.tokens-and-embeddings` | perform byte-pair merges by hand; implement a tokenizer that learns, encodes and decodes; measure vocabulary size against sequence length; say why the tokenizer is part of the model |
+| 62 | Generating and judging text | `ml.tf.generation-and-evaluation` | `ml.tf.language-model` | implement greedy, temperature, top-k and nucleus decoding; explain repetition; compute and read perplexity; compare two models on held-out text |
+| 63 | What scaling changes | `ml.tf.scaling` | `ml.tf.language-model`, `ml.hw.cost-of-a-model` | count a transformer's parameters and FLOPs; estimate the key-value cache; implement warmup and cosine decay; run a mini scaling study |
+
+**Checkpoint 9: a tiny transformer that writes** (`ml.m9.checkpoint`). Build the tokenizer, the embedding with positions, multi-head causal attention, the transformer block and the loss over a sequence; gradient-check the pieces; train on the module's corpus to the held-out loss bar and generate from the model with a temperature; find three bugs in a model that writes nonsense (a missing causal mask, a softmax over the wrong axis, positions never added); and explain attention and why the mask matters. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
+
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 8 had before they were written (all six on 2026-11-10).
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 8 had before they were written (all six on 2026-11-10) and Module 9 has (outlined 2026-11-10).
 
-- **9. Transformers:** embeddings, attention, the transformer block; training a tiny language model; tokenizers; what scaling changes.
 - **10. ML systems:** data pipelines, experiment tracking, evaluation, serving, monitoring, and the engineering judgement around them.
 
 ## Resources and licences
