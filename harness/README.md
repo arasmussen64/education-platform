@@ -7,26 +7,27 @@ The small layer of Python that runs a learner's code and an exercise's tests. Th
 
 ## Files
 
-| File | What it does |
-|---|---|
-| `checks.py` | What exercise tests use. `run(stdin)` runs the learner's program and returns what it printed. `run_with(values)` does the same with some names starting at other values, so a test can check the code works with its names rather than with retyped values. `function(name)` loads the learner's function of that name (failing with a plain "Define a function called ..." when it's missing, swallowing anything the file prints while loading), and `printed(f, *args)` returns what a call prints, for testing functions that print. |
-| `program.py` | The Run button. Runs the program the way a terminal would, showing prompts and typed input, and returns the output plus a trimmed traceback. When the program wants more input than it was given, it stops and reports `waiting_for_input`, so the app can ask the learner and run it again. `seed` keeps random choices the same across those re-runs. |
-| `testrunner.py` | The Check button. Finds the `test_…` functions in `test_exercise.py`, runs them, and reports each one as pass, fail or error. |
-| `errors.py` | Turns errors into messages that only mention the learner's own file. |
-| `cli.py` | Runs one folder through the harness and prints the report as JSON. The content validator and the scenario tests use it, in a fresh Python process. It isn't bundled into the web app. |
+| File            | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checks.py`     | What exercise tests use. `run(stdin)` runs the learner's program and returns what it printed. `run_with(values)` does the same with some names starting at other values, so a test can check the code works with its names rather than with retyped values. `function(name)` loads the learner's function of that name (failing with a plain "Define a function called ..." when it's missing, swallowing anything the file prints while loading), and `printed(f, *args)` returns what a call prints, for testing functions that print. |
+| `program.py`    | The Run button. Runs the program the way a terminal would, showing prompts and typed input, and returns the output plus a trimmed traceback. When the program wants more input than it was given, it stops and reports `waiting_for_input`, so the app can ask the learner and run it again. `seed` keeps random choices the same across those re-runs.                                                                                                                                                                                  |
+| `testrunner.py` | The Check button. Finds the `test_…` functions in `test_exercise.py`, runs them, and reports each one as pass, fail or error.                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tracer.py`     | The Step through button ([ADR-0022](../docs/decisions/0022-step-through.md)). Runs the program exactly as `program.py` does, under Python's trace hook, and records a step for each line about to run, each call, each return and each error: the running calls with their variables as short text, and how much output had been printed. 300 steps at most; values cut at 60 characters.                                                                                                                                                |
+| `errors.py`     | Turns errors into messages that only mention the learner's own file.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `cli.py`        | Runs one folder through the harness and prints the report as JSON. The content validator and the scenario tests use it, in a fresh Python process. It isn't bundled into the web app.                                                                                                                                                                                                                                                                                                                                                    |
 
 The learner's code is always `solution.py` in the working folder, and the tests are always `test_exercise.py`.
 
 ## Scenarios
 
-Each folder in `scenarios/` is a small case: a `solution.py`, then either tests (`test_exercise.py`) or, for a Run, optional input (`stdin.txt`) and random seed (`seed.txt`), plus an `expected.json`. Both runtimes must produce exactly the expected report:
+Each folder in `scenarios/` is a small case: a `solution.py`, then either tests (`test_exercise.py`) or, for a Run, optional input (`stdin.txt`) and random seed (`seed.txt`), plus an `expected.json`. An empty `trace.txt` makes it a Step through instead of a Run, and the expected report is then every recorded step. Both runtimes must produce exactly the expected report:
 
 - **CPython:** `python -m uv run pytest`, run from the repository root.
 - **Pyodide:** `npm test`, run in `web/` (`src/python/session.pyodide.test.ts`). The same run also checks every ready exercise's reference solution in Pyodide (`src/content/content.pyodide.test.ts`).
 
 To add a scenario:
 
-1. Create the folder with its `solution.py`, plus `test_exercise.py` or (optionally) `stdin.txt` and `seed.txt`.
+1. Create the folder with its `solution.py`, plus `test_exercise.py`, or (optionally) `stdin.txt` and `seed.txt`, or an empty `trace.txt` for a Step through.
 2. Run `python -m uv run python harness/tests/update_expected.py`.
 3. Read the new `expected.json` before committing.
 

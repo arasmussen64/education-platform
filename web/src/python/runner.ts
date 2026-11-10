@@ -2,6 +2,7 @@ import { DEFAULT_TIME_LIMIT_MS } from './constants.ts'
 import type {
   CheckReport,
   ProgramResult,
+  TraceResult,
   WorkerRequest,
   WorkerResponse,
 } from './protocol.ts'
@@ -13,6 +14,12 @@ export type RunOutcome =
 
 export type CheckOutcome =
   | { kind: 'done'; report: CheckReport }
+  | { kind: 'timeout' }
+  | { kind: 'failed'; message: string }
+
+/** What Step through gives back (ADR-0022). */
+export type TraceOutcome =
+  | { kind: 'done'; trace: TraceResult }
   | { kind: 'timeout' }
   | { kind: 'failed'; message: string }
 
@@ -52,6 +59,7 @@ const createBrowserWorker: CreateWorker = () =>
 type RequestBody =
   | { type: 'run'; code: string; stdin: string; seed: number | null }
   | { type: 'check'; code: string; tests: string }
+  | { type: 'trace'; code: string; stdin: string; seed: number | null }
 
 type Reply =
   | { kind: 'done'; message: WorkerResponse }
@@ -107,6 +115,26 @@ export class PythonRunner {
     if (reply.kind !== 'done') return reply
     if (reply.message.type === 'run-result') {
       return { kind: 'done', result: reply.message.result }
+    }
+    return { kind: 'failed', message: unexpected(reply.message) }
+  }
+
+  /** Runs the program, recording every step (the Step through button). */
+  async trace(
+    code: string,
+    {
+      stdin = '',
+      seed = null,
+      timeLimitMs = DEFAULT_TIME_LIMIT_MS,
+    }: RunOptions = {},
+  ): Promise<TraceOutcome> {
+    const reply = await this.send(
+      { type: 'trace', code, stdin, seed },
+      timeLimitMs,
+    )
+    if (reply.kind !== 'done') return reply
+    if (reply.message.type === 'trace-result') {
+      return { kind: 'done', trace: reply.message.trace }
     }
     return { kind: 'failed', message: unexpected(reply.message) }
   }

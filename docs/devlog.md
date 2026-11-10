@@ -2,6 +2,21 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Step through, the last engineering item of Phase 2
+
+**What it does ([ADR-0022](decisions/0022-step-through.md)).** Beside Run, a **Step through** button runs the program one step at a time: the code with the current line marked, a table of variables for each running call (innermost first), the output so far, and First/Back/Next/Last with a slider. A sentence above says what's happening: "Line 7 is about to run, inside square()", "square() returns 9", "Error at line 2: ZeroDivisionError: division by zero". It reuses the last Run's typed input and random seed, so it plays back what the learner just saw. Under a predict-the-output question, **Step through it** appears once the prediction is checked, never before: predicting first is the point. The placement test's quiet questions don't offer it.
+
+**How.** The recorder is `harness/tracer.py`, twelve dozen lines on Python's own `sys.settrace`, running the program exactly as the Run button does (same input, seed and error trimming), recording only the learner's frames. 300 steps at most, then the program runs on unrecorded; values are cut at 60 characters; functions and classes are named rather than repr'd. It's a third kind of harness scenario (an empty `trace.txt` marks the folder), so CPython and Pyodide must agree step for step: two scenarios, a loop with a function call and an error inside a call, pass in both. The worker protocol, runner, test fakes and event payload each gained a `trace` branch; a Step through is a `code_run` event marked `stepped`. The player is one component with its own tests; the runner and the predict item have tests for the button.
+
+**Decisions for you to review:**
+
+1. _Our own recorder, not Python Tutor in a frame._ It runs the learner's exact code with their input and seed, it's testable, and the steps are ours to build on (a "predict the next value" question later).
+2. _300 steps, 60 characters._ Enough to see the shape of any short program; Run still shows everything. The caps are two constants in `tracer.py`.
+3. _Step through is offered only after a prediction._ Watching first would turn retrieval practice into a video.
+4. _No new event type._ A Step through is a Run that was watched, so it's a `code_run` with `stepped: true`.
+
+**Phase 2's engineering items are now all built:** Parsons problems, the living map, the practice-hours tracker, Today across tracks, backups, the placement test and Step through. What's left is content: intermediate Python, and the math refresher the placement test points at.
+
 ## 2026-11-09: The placement test, the third Phase 2 item
 
 **What it does ([ADR-0021](decisions/0021-placement-test.md)).** At `/placement`, a learner picks a track or the math ladder. For a track, the test takes the open topics they haven't learned, in order, and probes the middle one with up to three of its own review questions (multiple choice, predict the output, Parsons, predict the shell: whatever the pool has, with at least one that isn't multiple choice). Two right passes the topic and everything before it; two wrong fails it and everything after; the next probe is the middle of what's left. Thirty topics take at most five probes, so ten to fifteen questions. The questions say only "Answer recorded": the test measures, it doesn't teach, and it keeps the review questions unspoiled. The result names where the knowledge seems to run out and lists the topics before it to prove, in order, through each topic's own "Prove it now". It marks nothing learned (ADR-0002 is untouched).

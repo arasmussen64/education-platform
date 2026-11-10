@@ -2,8 +2,8 @@
 
 A scenario folder holds solution.py and either test_exercise.py (a Check)
 or, for a Run, optionally stdin.txt (the input typed so far) and seed.txt
-(the random seed). expected.json holds the report both CPython and Pyodide
-must produce.
+(the random seed); an empty trace.txt makes it a Step through instead of a
+Run. expected.json holds the report both CPython and Pyodide must produce.
 
 Each scenario runs in a fresh, isolated Python process (harness/cli.py),
 like the browser and the content validator do. That matters: inside pytest,
@@ -40,7 +40,7 @@ def run_scenario(folder: Path) -> dict[str, Any]:
         if (work / "test_exercise.py").exists():
             command = ["check", workdir]
         else:
-            command = ["run", workdir]
+            command = ["trace" if (work / "trace.txt").exists() else "run", workdir]
             if (work / "stdin.txt").exists():
                 command += ["--stdin", (work / "stdin.txt").read_text("utf-8")]
             if (work / "seed.txt").exists():

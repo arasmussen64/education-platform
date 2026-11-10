@@ -10,11 +10,13 @@ import {
   getPythonRunner,
   type PythonRunner,
   type RunOutcome,
+  type TraceOutcome,
 } from '../python/runner.ts'
 import { CodeEditor } from './CodeEditor.tsx'
-import { BUTTON, CODE_BOX } from './styles.ts'
+import { StepThrough } from './StepThrough.tsx'
+import { BUTTON, CODE_BOX, SECONDARY_BUTTON } from './styles.ts'
 
-type Runner = Pick<PythonRunner, 'start' | 'run' | 'check'>
+type Runner = Pick<PythonRunner, 'start' | 'run' | 'check' | 'trace'>
 
 type Props = {
   initialCode: string
@@ -28,6 +30,8 @@ type Props = {
   onRun?: (outcome: RunOutcome, code: string) => void
   /** Called with every Check result and the code that was checked. */
   onCheck?: (outcome: CheckOutcome, code: string) => void
+  /** Called after each press of Step through, with the code and its trace (ADR-0022). */
+  onTrace?: (outcome: TraceOutcome, code: string) => void
   /** Called as the learner types, with the code as it is now. */
   onCodeChange?: (code: string) => void
   /** How long the code may run before it's stopped. */
@@ -53,6 +57,8 @@ type Shown =
   | { kind: 'nothing' }
   | { kind: 'run'; session: RunSession }
   | { kind: 'check'; outcome: CheckOutcome }
+  /** A Step through: the code as traced, and the input it was given. */
+  | { kind: 'trace'; code: string; inputs: string[]; outcome: TraceOutcome }
 
 function newSeed(): number {
   return Math.floor(Math.random() * 2 ** 31)
@@ -82,6 +88,7 @@ export function CodeRunner({
   runner,
   onRun,
   onCheck,
+  onTrace,
   onCodeChange,
   timeLimitMs = DEFAULT_TIME_LIMIT_MS,
 }: Props) {
@@ -130,6 +137,29 @@ export function CodeRunner({
     return runSession({ ...session, inputs: [...session.inputs, line] })
   }
 
+  /**
+   * Step through (ADR-0022): the same run, recorded. It gets the input and
+   * random seed of the last Run, if there was one, so it plays back what the
+   * learner just saw.
+   */
+  async function handleStepThrough() {
+    const previous =
+      shown.kind === 'run'
+        ? { inputs: shown.session.inputs, seed: shown.session.seed }
+        : shown.kind === 'trace'
+          ? { inputs: shown.inputs, seed: newSeed() }
+          : { inputs: [], seed: newSeed() }
+    setStatus('running')
+    const outcome = await python.trace(code, {
+      stdin: toStdin(previous.inputs),
+      seed: previous.seed,
+      timeLimitMs,
+    })
+    setShown({ kind: 'trace', code, inputs: previous.inputs, outcome })
+    setStatus('ready')
+    onTrace?.(outcome, code)
+  }
+
   async function handleCheck(exerciseTests: string) {
     setStatus('running')
     const outcome = await python.check(code, exerciseTests, { timeLimitMs })
@@ -172,6 +202,15 @@ export function CodeRunner({
             Check
           </button>
         )}
+        <button
+          type="button"
+          onClick={handleStepThrough}
+          disabled={busy}
+          className={SECONDARY_BUTTON}
+          title="Run the program one line at a time, watching the variables"
+        >
+          Step through
+        </button>
         {/* <output> is announced by screen readers when its text changes. */}
         <output className="text-sm text-slate-500 dark:text-slate-400">
           {STATUS_TEXT[status]}
@@ -190,6 +229,13 @@ export function CodeRunner({
           <CheckResult
             outcome={shown.outcome}
             hidden={hiddenTests}
+            timeLimitMs={timeLimitMs}
+          />
+        )}
+        {shown.kind === 'trace' && (
+          <TraceView
+            code={shown.code}
+            outcome={shown.outcome}
             timeLimitMs={timeLimitMs}
           />
         )}
@@ -312,6 +358,29 @@ function InputLine({
       className="inline-block min-w-48 rounded border border-slate-500 bg-slate-800 px-1 text-slate-100 outline-none focus:border-lime-400"
     />
   )
+}
+
+/** The Step through button's result: the player, or what went wrong. */
+export function TraceView({
+  code,
+  outcome,
+  timeLimitMs,
+}: {
+  code: string
+  outcome: TraceOutcome
+  timeLimitMs: number
+}) {
+  if (outcome.kind === 'timeout') {
+    return <Notice tone="warning">{timeoutMessage(timeLimitMs)}</Notice>
+  }
+  if (outcome.kind === 'failed') {
+    return (
+      <Notice tone="error">
+        Something went wrong stepping through: {outcome.message}
+      </Notice>
+    )
+  }
+  return <StepThrough code={code} trace={outcome.trace} />
 }
 
 function CheckResult({

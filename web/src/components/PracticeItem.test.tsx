@@ -9,6 +9,13 @@ import { fakeContent, fakeLab, PARSONS } from '../test/fakeContent.tsx'
 import { recordingEventLog } from '../test/fakeEvents.ts'
 import { PracticeItem } from './PracticeItem.tsx'
 
+// Worked examples hold a code runner: use the fake Python and plain-textbox
+// editor instead of Pyodide and CodeMirror.
+vi.mock('../python/runner.ts', () =>
+  import('../test/mockPython.ts').then((module) => module.mockRunnerModule()),
+)
+vi.mock('./CodeEditor.tsx', () => import('../test/FakeCodeEditor.tsx'))
+
 describe('a Parsons problem as a practice item', () => {
   it('has its own heading, and saves the program as an answer', async () => {
     const base = fakeContent()
@@ -116,6 +123,44 @@ describe('a lab as a proof item', () => {
           total: 2,
           failing: ['failed-count'],
         },
+      }),
+    ])
+  })
+})
+
+describe('a worked example, stepped through (ADR-0022)', () => {
+  it('saves the Step through as a run, marked as stepped', async () => {
+    const { setFakeRunner } = await import('../test/mockPython.ts')
+    setFakeRunner()
+    const content = fakeContent()
+    const { log, events } = recordingEventLog()
+    render(
+      <AuthProvider auth={fakeAuth(null)}>
+        <EventLogContext value={log}>
+          <MemoryRouter>
+            <PracticeItem
+              itemId="example-hello"
+              content={content}
+              context="practice"
+            />
+          </MemoryRouter>
+        </EventLogContext>
+      </AuthProvider>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Step through' }))
+    expect(await screen.findByText('Step 1 of 4')).toBeInTheDocument()
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'code_run',
+        topic_id: content.topic.id,
+        item_id: 'example-hello',
+        context: 'practice',
+        data: expect.objectContaining({
+          outcome: 'done',
+          stepped: true,
+          steps: 4,
+          truncated: false,
+        }),
       }),
     ])
   })
