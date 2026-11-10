@@ -1,0 +1,14 @@
+id: mcq-which-queue
+type: mcq
+rev: 1
+prompt: |
+  A crawler keeps the pages still to visit in a Python list and takes the next one with `pages.pop(0)`. There are a hundred thousand pages. What is the right change?
+choices:
+  - 'Use `pages.pop()` instead, which is one step; the order pages are visited in doesn''t matter'
+  - 'Keep the list but reverse it once, then `pop()` from the end, which is one step and keeps the order'
+  - 'Use `collections.deque` with `popleft()`: one step per pop, and first in, first out'
+  - 'Use a dict from page to its position, and delete the lowest position each time'
+answer: 2
+explanation: |
+  A queue needs a cheap front, and a deque gives it: `popleft()` is one step. `pop(0)` on a list shifts every remaining page, a hundred thousand moves per pop. Reversing once and popping from the end works until the first new page is added, which belongs at the back and would then come out first. `pop()` without reversing changes the order to last in, first out.
+skills: [stack-queue]

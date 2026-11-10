@@ -1,0 +1,14 @@
+id: mcq-no-base-case
+type: mcq
+rev: 1
+prompt: |
+  `def total(items): return items[0] + total(items[1:])` works on `[1, 2, 3]`? What actually happens, and what is missing?
+choices:
+  - 'It returns 6; Python stops recursing on its own when the slice becomes empty, as a loop would'
+  - 'It raises `IndexError`: there is no base case that returns without calling again'
+  - 'It returns 6 but slowly, because each call copies the rest of the list'
+  - 'It raises `RecursionError` immediately, because a function may not call itself without a decorator'
+answer: 1
+explanation: |
+  The calls go `[1, 2, 3]`, `[2, 3]`, `[3]`, `[]`, and on the empty list `items[0]` fails. A base case, `if not items: return 0`, is what stops the chain; without one a function that keeps calling itself runs until the stack's limit, about a thousand frames, and Python raises `RecursionError`. (The copying is real and makes this version quadratic, but it isn't what breaks it.)
+skills: [recursion]
