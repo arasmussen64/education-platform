@@ -1,0 +1,14 @@
+id: mcq-what-the-loop-pays
+type: mcq
+rev: 1
+prompt: |
+  `for x in xs: total += x * w` over a million floats takes about a second; `xs * w` on the same data takes a few milliseconds. Where does the second go?
+choices:
+  - 'Into the interpreter: per element it decodes bytecode, looks up names, checks types, unboxes floats and allocates a result'
+  - 'Into the multiplications: a Python float multiply is slower than a NumPy one because NumPy drops to lower precision for speed on big arrays'
+  - 'Into memory: the loop reads each float from RAM one at a time, while NumPy keeps the whole array in the processor''s registers'
+  - 'Into the garbage collector, which pauses the loop every few thousand iterations to scan the heap for reference cycles'
+answer: 0
+explanation: |
+  The arithmetic is the same and the precision is the same; what differs is everything around it. For each element the interpreter runs several bytecode instructions, resolves the names, checks the operand types to pick the right operation, unpacks the floats from their objects, allocates a new object for the product and another for the sum. NumPy does the checks once and runs a C loop. The memory traffic is the same either way, and the garbage collector is not involved in freeing floats.
+skills: [interpreter-cost]

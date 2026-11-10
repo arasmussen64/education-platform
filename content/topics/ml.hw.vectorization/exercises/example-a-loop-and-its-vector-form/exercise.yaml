@@ -1,0 +1,19 @@
+id: example-a-loop-and-its-vector-form
+stage: worked_example
+rev: 1
+title: "A loop and its vector form"
+prompt: |
+  A weighted sum of every row, as a Python loop and as `X @ w`; the stretched weights and what the interpreter is asked to do; the doubling test on both; and a moving average that has to stay a loop. Press **Run**, then read how each part works. The three timing lines are measured on your machine and will differ from anyone else's.
+steps:
+  - label: "The loop and its vector form agree"
+    lines: "10-25"
+    note: "`predict_loop` visits 2,000 rows and 8 elements each, 16,000 steps the interpreter runs one at a time. `X @ w` is the same arithmetic as one operation. The first thing to do after vectorizing anything is to check the two agree with `np.allclose`, because the usual mistake, a wrong axis, fails silently."
+  - label: "Broadcasting, and what the interpreter is asked"
+    lines: "27-29"
+    note: "`X * w` works because broadcasting stretches the `(8,)` vector to `(2000, 8)` without copying it: the stretched view has a stride of 0 down its first axis, so every row reads the same 64 bytes. The loop asks the interpreter for 16,000 multiplications and 16,000 additions, each one decoded, type-checked, unpacked and allocated separately; `X @ w` asks once and the rest happens in C."
+  - label: "The doubling test on both"
+    lines: "32-48"
+    note: "Each form is timed at 2,000 rows and at 4,000 (the fast one over 200 repeats, because a single call is below the clock's resolution). Both ratios land near 2: both are linear in the rows, the same order. The vectorized form is tens to hundreds of times faster at either size: a smaller constant. That is all vectorizing can do, and it is a lot."
+  - label: "A loop that has to stay a loop"
+    lines: "51-63"
+    note: "Each row's smoothed state depends on the previous row's, so no single array operation produces all 2,000 rows at once. The loop stays, but only over the dependent axis: each step updates all 8 columns as one vector operation, 2,000 operations instead of 16,000. When the dependence has a library form, as a running total does in `np.cumsum`, use that: the loop runs in C."

@@ -1,0 +1,14 @@
+id: mcq-a-loop-over-batches
+type: mcq
+rev: 1
+prompt: |
+  A training loop runs 100 batches; each iteration does a few NumPy operations on a `(10000, 64)` batch. Is this loop a problem of the kind this topic is about?
+choices:
+  - 'Yes: any Python `for` over data pays the interpreter''s per-element cost, so the batches should be stacked into one array and done at once'
+  - 'Yes, unless the loop uses `np.vectorize` on the update, which removes the interpreter overhead from the iterations'
+  - 'No: the interpreter''s cost is paid per Python-level operation, a few hundred here, each doing 640,000 elements of work in C'
+  - 'No, because NumPy caches the result of the first batch and reuses it for the others, so only the first iteration costs anything'
+answer: 2
+explanation: |
+  The overhead is per operation the interpreter dispatches, not per element the data contains. A hundred iterations of a handful of array operations is a few hundred dispatches, each buying hundreds of thousands of elements of C-loop work; the overhead is lost in the noise. The problem loop is the one that dispatches once per element. `np.vectorize` is itself a per-element Python loop, and NumPy caches nothing between calls.
+skills: [interpreter-cost]

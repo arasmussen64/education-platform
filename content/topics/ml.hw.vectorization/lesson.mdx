@@ -1,0 +1,26 @@
+<Intro>
+
+The last topic showed where bytes sit; this one is about what each operation on them costs, and why the same arithmetic can take a minute in a Python loop and a few milliseconds as array operations. The interpreter pays a price for every element it touches, a NumPy operation pays it once, and the processor can multiply several numbers in one instruction if the data is laid out for it. The topic ends with the loops that can't be vectorized, where each step needs the last, and what to do with them.
+
+The main resource is **NumPy's user guide page on broadcasting**: the rules that let a `(8,)` vector act on every row of a `(2000, 8)` matrix without a loop or a copy; about 15 minutes. The ufunc basics page lists the element-wise functions and their `accumulate` method, and Wikipedia's _Single instruction, multiple data_ page is the one-paragraph version of SIMD. Watch for:
+
+- **The broadcasting rules**: line the shapes up from the right; a 1 or a missing axis stretches.
+- **`ufunc.accumulate`** and `np.cumsum`: a running loop, run in C.
+- **What SIMD needs**: the same operation on many values that sit together.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **What a loop pays per element.** For `total += x * weight`, the interpreter fetches and decodes several bytecode instructions, looks up `x` and `weight`, checks both types to choose the right `*`, unpacks the floats from the objects that hold them, multiplies, allocates a new float object for the result, and then does it all again for `+=`: a few hundred nanoseconds. A NumPy operation checks types and shapes once and runs a loop written in C over the raw bytes: a few nanoseconds per element. The cost is **per Python-level operation**, not per element; a loop over a hundred batches that each do one array operation is fine, and `np.vectorize` is a Python loop in disguise.
+- **SIMD** (single instruction, multiple data): the processor has registers wide enough for 4 or 8 float64s and instructions that add or multiply all of them at once. NumPy's C loops use them when the data is contiguous and all one dtype, which is what the strides topic was about; a Python loop never can, because each element is a separate object.
+- **Broadcasting is a loop you don't write.** Shapes are lined up from the right; an axis of length 1, or a missing axis, is stretched to match. `X * w` with shapes `(2000, 8)` and `(8,)` applies `w` to every row; `X - X.mean(axis=0)` centres every column. The stretched array is a view with a **stride of 0** on the stretched axis: `np.broadcast_to(w, X.shape).strides` is `(0, 8)`. Nothing is copied. A shape that doesn't line up fails loudly (`operands could not be broadcast together`); a shape that lines up the wrong way succeeds silently, so check with `np.allclose` against the loop you replaced.
+- **The doubling test, on both forms.** Time each at `n` and `2n` rows: both ratios come out near 2, so both are linear in `n`, the same order. The vectorized form is tens to hundreds of times faster at every size (the number varies by machine, and the browser's clock is coarse). Vectorizing never changes the order, because every element must still be touched; it changes the **constant**, how much each element costs.
+- **Masks instead of `if`.** `np.where(x > 0, x, 0.0)` is a ReLU with no loop; `(x > 0).sum()` counts; `x[x > 0]` selects. A condition becomes a boolean array and the choice becomes one operation.
+- **Fewer passes.** `(X * w).sum(axis=1)` makes a `(2000, 8)` intermediate and reads it back; `X @ w` does it in one pass with no intermediate. For big arrays the bytes moved are the cost, as the last topic showed; `out=` arguments and in-place operators keep the intermediates down.
+- **A sequential dependence** is a step that needs the result of the step before: an exponential moving average, `state = alpha * x[t] + (1 - alpha) * state`, or a running state in a simulation. No single array operation gives every step at once. In order: a library function that runs the dependence in C (`np.cumsum`, `np.cumprod`, `np.maximum.accumulate`, `ufunc.accumulate`); otherwise loop over the dependent axis only and vectorize across the other (2,000 vector operations over 8 columns, not 16,000 scalar ones); otherwise compiled code (Numba, Cython, or a C extension), which the next topics don't need.
+- **In machine learning** (names you'll meet later): a per-example Python loop is the most common performance bug in a training script; frameworks are vectorized across the batch axis for exactly these reasons; `torch.vmap` and `jax.vmap` write the batch loop for you; and a recurrent network is a sequential dependence over time with the batch vectorized, which is why it trains slower than a model that can look at the whole sequence at once.
+
+</Recap>
