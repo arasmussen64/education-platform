@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Where things stand tonight
+
+**The day in one place.** The pull-request stack from the Phase 2 work (#88 to #101) and the ML track's Module 1 (#103 to #111) was merging bottom-up when the day started. Today added Module 2 (#112 to #119), Module 3 on the NumPy decision (#121 and #123 to #134), the Module 4 outline (#135), two cold reviews of the prose (#125, #136), and six fixes merged straight to main for things that stopped the merge: a longer boot limit, job-list and journal diagnostics, the CPU lab's throttle wait, the progress test's clock, and a lab the checker gives up on in the crowd being retried once alone (#120, #122, #126, #130, #131, #137). The merge runs by itself, one CI cycle per pull request, bringing main into each branch before its checks; it had reached #94 when this was written. The repository went public at your instruction.
+
+**Decisions waiting for you,** gathered from the entries below:
+
+1. [ADR-0023](decisions/0023-packages-in-both-runtimes.md), NumPy in both runtimes, is proposed. Accept it and Module 3 stands as written; send it back and Module 3 becomes a list-based rewrite.
+2. The three backup secrets and the private backups repository ([ADR-0020](decisions/0020-automated-backups.md); the steps are in [docs/setup.md](setup.md)).
+3. `npx supabase db push` for the placement test's migration once #98 has merged ([ADR-0021](decisions/0021-placement-test.md)).
+4. What comes next: Module 4 of the ML track (calculus, outlined) or the cloud track's Module 2.
+5. The smaller calls under "Decisions for you to review" in each entry: the counting decorator in place of a timing one, fixtures explained rather than exercised, JSON Lines in Checkpoint 2, booleans not tested as bad integers, eigenvectors' signs fixed by hand, StatQuest as a resource, the retry-alone rule in the lab checker.
+
+**Where to look first:** the live site once the stack has finished (Today across both tracks, the placement test, Step through, Modules 2 and 3 on the map); then ADR-0023.
+
 ## 2026-11-10: A second pair of eyes on Module 3
 
 **Eight corrections from a cold review of Module 3's prose,** the same pass that found twelve in Module 2. The reviewer checked every resource title and chapter number (all right), every multiple-choice key (all right), every debug prompt against its planted bugs (all right), and every worked example's step ranges against its program: the checkpoint's 2-D sibling was off by one throughout, the only one of eight. The rest: the PCA example claimed its rebuilt points land "within a few hundredths" when the middle two miss by about a third; the PCA recap and a review question said to reverse eigenvectors with `[::-1]`, which reverses rows, where `vectors[:, ::-1]` was meant; a dot-product explanation got 20 wrong; a sentence had lost its "0"; the eigen recap said every transition matrix settles to its eigenvalue-1 vector, which needs a regular chain (`[[0, 1], [1, 0]]` swaps forever); the least-squares recap pointed at the wrong earlier topic; and the checkpoint's model answer called a three-dimensional column space a plane. All fixed in this commit, at the top of the stack.
