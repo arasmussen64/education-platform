@@ -2,6 +2,22 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Checkpoint 1 fits a line, and the math refresher is complete
+
+**`ml.m1.checkpoint` is ready,** and with it Module 1 of the Machine Learning Foundations track: the seven math topics and a checkpoint that is, in twenty lines, linear regression by gradient descent. The build: `predict(m, b, x)`, `error(m, b, xs, ys)` (the mean of the squared misses) and `fit(xs, ys, rate, steps)`, which starts both knobs at zero and steps them against the slopes of the error until the line through five points comes out as `slope 2.0`, `intercept 1.0`. Every test names the module skills it checks (ADR-0012), so a failed test points at Calculus's descent, Functions's lines, or Probability's centre. The known-wrong solutions step uphill, forget to average the slopes (which makes the walk unstable), or type the answer in; the hidden tests try a line that slopes down. The debug is a statistics report with three bugs, one per statistic (a mean that divides by n − 1, a median of unsorted values, a spread without its square root), on an unsorted list so the median bug shows. The explanation asks why moving two knobs against their own slopes lowers the error, why the steps shrink by themselves, and what "the best line" means.
+
+**The way through** for a learner who's stuck: a solved sibling that fits a single constant to the same numbers and finds, without being told, the mean (and an error equal to the variance); four fill-in steps that each complete one part of the build with the rest already written (the error, the two slopes, one update, the loop); and two fresh versions on other stories, a cooling cup whose line slopes down and a growing child.
+
+**Numbers that had to be right.** The rate of 0.05 and 2,000 steps were chosen from the error surface's shape: the slow direction shrinks by a factor of 0.983 a step, so 2,000 steps leave nothing visible at two decimals, while the fast direction stays stable; a fit takes about two milliseconds. The steps' expected values (slopes of −50.0 and −14.0 at zero; one update to 2.5 and 0.7) were computed before they were written into tests.
+
+**Decisions for you to review:**
+
+1. _The checkpoint is linear regression,_ unnamed. The learner meets the thing before the vocabulary; Module 3 can call it by its name and show NumPy doing it in one line.
+2. _The slope formulas are given in the prompt,_ not derived. Deriving them needs the chain rule, which is Module 4's; checking them against a numeric slope is within reach and the steps invite it.
+3. _Unsorted data in the debug,_ so that the "median without sorting" bug has a visible symptom; on sorted data it hides.
+
+**Module 2, intermediate Python, is next.**
+
 ## 2026-11-09: Calculus, the seventh rung: the slope, and walking downhill
 
 **`ml.math.calculus` is ready,** and with it all seven topics of the math refresher. The topic builds the derivative as something a program can print, `(f(x + h) - f(x)) / h` with a small `h`, and then uses it for the one thing machine learning uses it for: walking downhill. The worked example estimates the slope of `x ** 2` at 3 with `h = 0.1` (6.1) and `h = 0.001` (6.001) and lets the learner see the estimate settle on 6. Then a Parsons numeric derivative (the decoy multiplies by `h`), three recall questions (a negative derivative means going down; the power rule checked against the numeric slope at 5; the derivative of `x ** 3`), one step downhill to fill in (`x - rate * slope`, from both sides of the valley) and a walk downhill to write with a `while abs(slope) > 0.01` loop that counts its steps (29 from 0, 33 from 10). The proofs: `loss`, `slope_at` and `minimize` to build (known-wrong: a step uphill, `h = 1`), a 30-step walk with two bugs (the wrong sign, which sends it to minus seven hundred, and `h = 1`, which settles it at 2.5 instead of 3), and an explanation of why subtracting the slope finds the bottom from either side, why the steps shrink on their own, and what too large a rate does. The recap names the learning rate. OpenStax Calculus Volume 1 and 3Blue1Brown's _Essence of calculus_ (linked) are the resources.

@@ -1,18 +1,43 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.m1.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 1: fit a line"
-summary: Find the line that fits some points best by stepping downhill on the error.
-prerequisites:
-- ml.math.exponents-and-logs
-- ml.math.probability-and-statistics
-- ml.math.vectors-and-matrices
-- ml.math.calculus
+summary: "Find the line that fits some points best by stepping downhill on the error."
+prerequisites: [ml.math.exponents-and-logs, ml.math.probability-and-statistics, ml.math.vectors-and-matrices, ml.math.calculus]
 estimated_minutes: 90
 rev: 1
 objectives:
-- Fit a slope and an intercept to points by gradient descent, and print both rounded.
-- "Find and fix the mistakes in a statistics report: its mean, median and spread."
-- Explain why stepping against the derivative finds the bottom of a valley.
+  - "Write a model as a function with knobs: a line with a slope and an intercept."
+  - "Measure how wrong it is with a mean of squared errors."
+  - "Turn the knobs against the slope of the error until it stops improving."
+  - "Find and fix the mistakes in a statistics report: its mean, median and spread."
+  - "Explain why stepping against the derivative finds the bottom of a valley."
+prove:
+  build: build-fit-a-line
+  debug: debug-statistics-report
+  explain:
+    prompt: |
+      Your line-fitting program has two knobs, the slope `m` and the intercept `b`, and an error that depends on both. Each step it does `m = m - rate * slope_m` and `b = b - rate * slope_b`, where `slope_m` is how fast the error changes when `m` moves and `slope_b` the same for `b`.
+
+      In your own words: why does each of those two lines lower the error? Why do the steps get smaller as the line gets close to the best one, without anyone telling them to? And what is the program really doing when it has finished: what does "the best line" mean here?
+    rubric:
+      - id: against-the-slope
+        required: true
+        description: "Each knob moves against its own slope: if the error rises as m increases, m is lowered, and if it falls, m is raised; the same for b, so every step lowers the error."
+      - id: shrinking
+        required: true
+        description: "Near the best line the error is nearly flat, so the slopes approach zero and rate * slope, the step, shrinks by itself."
+      - id: meaning
+        required: true
+        description: "The best line is the one with the smallest mean squared error: the m and b at the bottom of the error valley, where both slopes are zero."
+      - id: two-knobs
+        required: false
+        description: "Notes that with two knobs the valley is a surface and the two slopes together point downhill; or names this as training, with rate the learning rate."
+    model_answer: |
+      The error is a function of two knobs, m and b, so it's a valley-shaped surface rather than a curve. slope_m is how the error changes when m alone moves a little. If it's positive, the error goes up as m goes up, so lowering m lowers the error, and m - rate * slope_m does exactly that; if it's negative, subtracting a negative raises m, which is again the downhill direction. The line for b does the same for the other knob, so each step moves both knobs against their own slopes, which is downhill on the surface. As the line gets close to the best one the surface flattens out: both slopes approach zero, so rate times the slope, the size of each step, shrinks on its own. When the program stops, the slopes are nearly zero, which means it's at the bottom: the m and b for which the mean of the squared errors is as small as it can be. That's what "the best line" means here, and this is what training a model is, with rate the learning rate and many more knobs.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-fit-a-constant
+  steps: [step-the-error, step-the-slopes, step-one-update, step-the-loop]
+  versions: [build-fit-cooling, build-fit-heights]
