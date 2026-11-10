@@ -2,6 +2,17 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Vectors and matrices, the sixth rung
+
+**`ml.math.vectors-and-matrices` is ready.** Everything a model does is adding, scaling and multiplying lists of numbers, and the topic does each with plain Python lists and loops so that NumPy, later, is a convenience rather than a mystery. The worked example adds two vectors entry by entry (and says why Python's own `+` won't do), scales one, takes a dot product and measures a length. Then a Parsons dot product (the decoy adds instead of multiplying), three recall questions (why a 2×3 times a 3×4 is a 2×4; a vector plus three times another; the dot product of two perpendicular arrows is 0), a matrix times a vector to fill in and a `length(v)` function to write for any number of entries. The proofs: `multiply(a, b)` with three loops, whose hidden tests try a 1×3 by 3×1, a 2×3 by 3×2 and the identity (known-wrong: entry-by-entry products, rows paired with rows); the centre of some points with two bugs (the outer loop runs over the wrong length, the divisor is the wrong count); and an explanation of why the inner shapes must match, what shape comes out, and why a network layer is a matrix times a vector. The recap ends on the error the learner will meet most in ML code: shape mismatch, for exactly the reason just learned. OpenStax Precalculus 2e and 3Blue1Brown's _Essence of linear algebra_ (linked) are the resources.
+
+**Decisions for you to review:**
+
+1. _Lists and loops, not NumPy,_ for this one topic: the loops are the definitions, and the learner should have written them once before a library hides them (Module 3 brings NumPy).
+2. _The review pool has four items_ so that every one of the four skills has two questions that can come back; the content rule allows it.
+
+**Next:** Calculus (`ml.math.calculus`), the last rung, which ends with gradient descent.
+
 ## 2026-11-09: Probability and statistics, the fifth rung
 
 **`ml.math.probability-and-statistics` is ready.** Statistics as what you do to a list, probability as counting what could happen, and the base-rate table as the one piece of reasoning everyone gets wrong until they've drawn it once. The worked example finds the mean and median of `[2, 4, 4, 10]` with `sum`, `len` and `sorted`, and the 10 moves one and not the other. Then a Parsons problem that counts the 36 outcomes of two dice with nested loops (the decoy divides by 12), three recall questions (which of mean 67.4 and median 35 describes five salaries; heads and a six multiply, not a six is `1 - p`; of 1,000 people, how many healthy ones test positive), the standard deviation to fill in (square, average, root) and the 1,000-people table to write. The proofs: `mean`, `median` and `spread` to build, with "median without sorting" and "divides by n - 1" as known-wrong solutions; dice odds with two bugs (a range that stops at 5, a chance never multiplied by 100); and an explanation of why a friend's positive test doesn't mean 90%: 9 sick positives against 99 healthy ones. The review pool has four, one each for the four skills. The recap ties each idea to its ML use: mean squared error, scaling data, and why a 99%-accurate classifier can be useless for a rare class. OpenStax Introductory Statistics 2e is the main resource.
