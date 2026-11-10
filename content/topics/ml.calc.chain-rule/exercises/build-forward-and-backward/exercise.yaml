@@ -1,0 +1,20 @@
+id: build-forward-and-backward
+stage: build
+rev: 1
+title: "A forward pass and a backward pass"
+prompt: |
+  Starting from a blank editor, write the pattern a network's training runs on, for a chain of one-input functions:
+
+  - `forward(functions, x)`: applies the functions in order, each to the previous result, and returns the list of **all** the values, starting with `x` itself (so it has one more entry than `functions`).
+  - `backward(derivatives, values)`: given the links' derivative functions (in the same order as the links) and the values from `forward`, returns the derivative of the whole chain with respect to `x`: the product of each link's derivative **evaluated at the value that link received**, multiplied from the output end inward.
+  - `chain_derivative(functions, derivatives, x)`: the two together.
+  - `numeric(functions, x, h=1e-6)`: the central difference of the whole chain, for checking.
+
+  Then, for the chain `log(1 + exp(2x))` as four links (`2x`, `exp`, `1 + v`, `log`), print its derivative at `x = 2.0` rounded to 6 places and whether `numeric` agrees within `1e-6`:
+
+  ```
+  1.964028 True
+  ```
+
+  The checks run other chains, including ones where evaluating a link at the wrong value gives a wrong answer.
+skills: [many, check, two]
