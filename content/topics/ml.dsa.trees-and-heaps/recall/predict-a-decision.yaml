@@ -1,0 +1,22 @@
+id: predict-a-decision
+type: predict_output
+rev: 1
+prompt: |
+  A decision tree as nested tuples: a question is `(feature, threshold, if_greater, if_not)`, asked as "is the record's feature greater than the threshold?", and a string is an answer. What does the program print for the two records?
+code: |
+  tree = ("age", 30, ("income", 50, "A", "B"), "C")
+  
+  
+  def decide(tree, record):
+      while isinstance(tree, tuple):
+          feature, threshold, if_greater, if_not = tree
+          tree = if_greater if record[feature] > threshold else if_not
+      return tree
+  
+  
+  print(decide(tree, {"age": 45, "income": 20}), decide(tree, {"age": 30, "income": 90}))
+expected_output: |
+  B C
+explanation: |
+  The first record's age, 45, is greater than 30, so the walk takes the `if_greater` branch, the income question; 20 is not greater than 50, so the answer is `B`. The second record's age is exactly 30, which is not greater than 30, so it goes straight to the leaf `C` in one question. Each prediction follows one path, and a tie goes to the "not greater" side.
+skills: [decision-tree]

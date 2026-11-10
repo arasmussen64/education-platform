@@ -1,0 +1,31 @@
+id: example-trees-three-ways
+stage: worked_example
+rev: 1
+title: "Trees, three ways"
+prompt: |
+  A tree of nodes walked two ways, a binary search tree built in two orders, a heap keeping the top five of a stream, and a decision tree that classifies flowers. Press **Run**, then read how each part works.
+steps:
+  - label: "A tree of nodes"
+    lines: "6-12"
+    note: "A node is a value and a list of children. The tree has a root with three children; `a` has two leaves, `b` is a leaf, and `c` has a child with a child. Depth 4."
+  - label: "Depth-first, by recursion"
+    lines: "15-20"
+    note: "Visit the node, then each child's entire subtree before the next child: root, a, a1, a2, b, c, c1, c1x. The recursion is the last topic's; the call stack remembers which child comes next."
+  - label: "Breadth-first, by queue"
+    lines: "23-31"
+    note: "Take a node from the front of a queue, record it, and put its children at the back: the root, then all of level two (a, b, c), then level three (a1, a2, c1), then c1x. The queue is what makes it level by level."
+  - label: "Depth, and the three prints"
+    lines: "34-40"
+    note: "Depth is 1 plus the deepest child, with `default=0` so a leaf is 1. The two orders differ exactly where a node has grandchildren."
+  - label: "A binary search tree"
+    lines: "43-70"
+    note: "Each node has a left and a right child. `bst_insert` walks down, left for smaller and right for larger, until the side it wants is empty, and hangs the new node there; `bst_search` walks the same way and counts its comparisons. Both are loops, not recursion, so a deep chain can't hit the recursion limit."
+  - label: "Shuffled against sorted"
+    lines: "73-84"
+    note: "The same thousand values inserted in a shuffled order and in sorted order. Finding 999 takes 14 comparisons in the first tree, about `log2` of a thousand, and 1,000 in the second: sorted input hangs every node under the last, and the tree is a chain. The structure is the same; the shape decides the cost."
+  - label: "Top five of a stream, with a heap"
+    lines: "86-95"
+    note: "Ten thousand random numbers arrive one at a time. Each is pushed onto a min-heap; when the heap holds six, the smallest is popped, so the heap always holds the five largest seen. The heap list itself reads [999740, 999848, 999742, 999864, 999873]: smallest first, the rest not sorted, which is all a heap promises. `heapq.nlargest` on the whole stream agrees."
+  - label: "A decision tree"
+    lines: "97-111"
+    note: "A question is a tuple: a feature, a threshold, the subtree if the feature is greater, and the subtree if not; a leaf is the answer. `decide` walks from the root to a leaf, counting questions: a short petal is setosa after one question, the others take two. The cost is the depth, however many nodes the tree has."
