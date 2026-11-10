@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (content: probability and statistics for ML begins)
+
+- **Random variables and distributions** (`ml.prob.distributions`) goes ready, the first topic of the ML track's Module 5: ten Bernoulli flips, a binomial's empirical table against its formula, a uniform draw that is never exactly 0.25, and a normal's 68-95-99.7 rule, all from one seeded generator, as the worked example; a Parsons thousand flips (the decoy's coin always lands heads), four recall questions (which distribution models a count of spam, a small binomial table by formula, why an exact height has probability zero, Bernoulli against binomial), the binomial's formula to fill in and a text histogram to write; a simulation checker to build (empirical PMF, largest gap from the formula, the fractions within one, two and three spreads), a dice report to debug whose die can't roll a six and whose formula charges the wrong rolls, and an explanation of random variables, the four distributions, density and seeds; a review pool of four. Pyodide's NumPy is the same release as CPython's and its seeded generator gives the same draws, checked before the topic was written.
+
 ### Changed (multiple-choice questions)
 
 - The app shows a multiple-choice item's choices in a repeatable shuffled order, seeded from the item's id, so an answer's position never gives it away: authors tend to write the right answer first, and every answer in the ML track's Module 4 sat at position 0 before its review (71 of the repository's 319 still do). The same item looks the same every time it comes back, and recorded answers still use the author's index, so the event log is unchanged. `choiceOrder` in `web/src/components/scramble.ts`, with tests.
