@@ -1,17 +1,78 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.prob.entropy
 kind: topic
-status: planned
-title: Entropy, cross-entropy and KL divergence
-summary: Surprise, the entropy of a distribution, cross-entropy as the average surprise under the wrong model, and the gap between the two.
-prerequisites:
-- ml.prob.expectation-and-variance
-- ml.calc.loss-functions
+status: ready
+title: "Entropy, cross-entropy and KL divergence"
+summary: "Surprise, the entropy of a distribution, cross-entropy as the average surprise under the wrong model, and the gap between the two."
+prerequisites: [ml.prob.expectation-and-variance, ml.calc.loss-functions]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Compute the surprise of an outcome and the entropy of a distribution, in bits and in nats.
-- Compute the cross-entropy between two distributions, and say why it is never below the entropy.
-- Compute the KL divergence and read it as the gap between the two.
-- "Connect Module 4's cross-entropy loss to its name, and say what a model minimizes when it minimizes it."
+  - "Compute the surprise of an outcome and the entropy of a distribution, in bits and in nats."
+  - "Compute the cross-entropy between two distributions, and say why it is never below the entropy."
+  - "Compute the KL divergence and read it as the gap between the two."
+  - "Connect Module 4's cross-entropy loss to its name, and say what a model minimizes when it minimizes it."
+# Linked, never copied or embedded: 3Blue1Brown's and StatQuest's videos are
+# under the standard YouTube licence; Wikipedia is CC BY-SA 4.0.
+resources:
+  - title: "3Blue1Brown: Solving Wordle using information theory (Grant Sanderson), the first half, on bits of information"
+    url: https://www.3blue1brown.com/lessons/wordle
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "StatQuest: Entropy (for data science) Clearly Explained!!! (Josh Starmer)"
+    url: https://www.youtube.com/watch?v=YtebGVx-Fxw
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "Wikipedia: Entropy (information theory), the Introduction and Definition sections"
+    url: https://en.wikipedia.org/wiki/Entropy_(information_theory)
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-bits-of-surprise
+  - parsons-entropy-of-a-coin
+  - mcq-the-most-uncertain
+  - predict-surprise-in-bits
+  - mcq-never-below-the-entropy
+  - fill-kl-divergence
+  - write-the-loss-by-its-name
+prove:
+  build: build-entropy-toolkit
+  debug: debug-bits-report
+  explain:
+    prompt: |
+      A teammate asks why the classification loss is called "cross-entropy" and what entropy has to do with it. In your own words: what is the surprise of an outcome, and the entropy of a distribution, in bits? What is the cross-entropy between the truth and a model's belief, and why is it never below the entropy? What is the KL divergence? And why does minimizing the cross-entropy loss over a dataset amount to making the model's probabilities match the data's?
+    rubric:
+      - id: surprise
+        required: true
+        description: "The surprise of an outcome with probability p is -log2 p bits (a certain event surprises by 0 bits, a 1-in-8 event by 3); entropy is the expected surprise of a distribution, the average number of bits its outcomes carry, largest when every outcome is equally likely."
+      - id: cross-entropy
+        required: true
+        description: "Cross-entropy H(P, Q) is the expected surprise when outcomes come from P but you measure surprise by your belief Q: -Σ p log2 q. Measuring with the wrong belief can only add surprise, so it is at least the entropy, with equality only when Q is P."
+      - id: kl
+        required: true
+        description: "The KL divergence is the gap, H(P, Q) minus H(P): the extra bits your wrong belief costs on average, zero only when the belief is right, and not symmetric."
+      - id: loss
+        required: true
+        description: "For a labelled example the truth puts all its probability on the true class, so the cross-entropy is -log of the model's probability for that class; averaged over the data it is Module 4's loss. The data's entropy is fixed, so minimizing the cross-entropy minimizes the KL divergence from the data to the model: it pushes the model's probabilities towards the data's, which is also maximum likelihood."
+    model_answer: |
+      Start with one outcome. If it had probability p, its surprise is minus the log of p, and with log base 2 the unit is bits: a certain event carries no surprise, a fair coin's result carries one bit, a one-in-eight event carries three. The entropy of a distribution is its expected surprise, the average bits per outcome, and it is largest when every outcome is equally likely, since then nothing is predictable. Cross-entropy brings in a second distribution. Outcomes really come from P, but you measure your surprise with your belief Q, so you average minus log q under p. If your belief is right, that is just the entropy; if it is wrong, you are surprised more often than you need to be, so the cross-entropy is never below the entropy, and equals it only when Q is P. The KL divergence is the gap between them: the extra bits per outcome your wrong belief costs you, zero only when you are right, and not symmetric, because being too confident and being too hedged cost differently. Now the loss. For one labelled example, the truth is a distribution with all its probability on the true class, so the cross-entropy between the truth and the model's probabilities collapses to minus the log of the probability the model gave the true class. Average that over a dataset and you have exactly the loss from Module 4, which is why it carries the name. Since the data's own entropy is fixed, driving the cross-entropy down is the same as driving down the KL divergence from the data to the model: it pushes the model's probabilities towards the data's frequencies. That is also what maximum likelihood does, as the last topic showed; the same training step has three names.
+review_pool:
+  - review-predict-three-entropies
+  - review-mcq-bits-and-nats
+  - review-mcq-which-direction
+  - review-entropy
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: surprise
+    description: "Compute the surprise of an outcome and the entropy of a distribution, in bits or nats"
+  - id: cross-entropy
+    description: "Compute the cross-entropy between a truth and a belief, and say why it is never below the entropy"
+  - id: kl
+    description: "Compute the KL divergence as the gap, and know it is not symmetric"
+  - id: loss
+    description: "Connect the cross-entropy loss to its name, and say what minimizing it makes the model's probabilities do"

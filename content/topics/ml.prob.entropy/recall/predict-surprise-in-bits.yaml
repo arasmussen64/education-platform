@@ -1,0 +1,20 @@
+id: predict-surprise-in-bits
+type: predict_output
+rev: 1
+prompt: |
+  Three surprises and one entropy, in bits. What does the program print?
+code: |
+  import numpy as np
+  
+  for p in (0.5, 0.25, 0.125):
+      print(p, -np.log2(p))
+  probs = np.array([0.25, 0.25, 0.25, 0.25])
+  print(-(probs * np.log2(probs)).sum())
+expected_output: |
+  0.5 1.0
+  0.25 2.0
+  0.125 3.0
+  2.0
+explanation: |
+  Each halving of the probability adds one bit: a half is 1 bit, a quarter 2, an eighth 3. Four equally likely outcomes each carry 2 bits and each has probability a quarter, so the entropy, the average surprise, is 2 bits: the number of yes-or-no questions needed to find out which one happened.
+skills: [surprise]
