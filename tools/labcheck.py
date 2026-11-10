@@ -62,7 +62,10 @@ CHECK_TIMEOUT_SECONDS = 30
 BUILD_TIMEOUT_SECONDS = 1800
 APPLY_TIMEOUT_SECONDS = 300
 # systemd boots in a second or two; a slow machine gets a lot longer.
-BOOT_TIMEOUT_SECONDS = 90
+# Long enough for a cloud-init first boot that runs apt against a broken
+# user data, on a CI runner where every lab's containers boot at once now
+# that the shared layers are warmed first. A healthy lab boots in seconds.
+BOOT_TIMEOUT_SECONDS = 240
 
 # The learner's account inside every lab image.
 LEARNER = "learner"
