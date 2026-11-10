@@ -1,17 +1,40 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.m5.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 5: is the model better?"
 summary: "Two classifiers' predictions on a held-out set, judged with a confusion matrix, the metrics, bootstrap intervals and a decision."
-prerequisites:
-- ml.prob.bayes
-- ml.prob.maximum-likelihood
-- ml.prob.evaluating-models
+prerequisites: [ml.prob.bayes, ml.prob.maximum-likelihood, ml.prob.evaluating-models]
 estimated_minutes: 120
+packages: [numpy]
 rev: 1
 objectives:
-- "Evaluate two models' predictions on a held-out set with a confusion matrix, precision, recall and a bootstrap interval on the difference, and recommend one."
-- "Find and fix three bugs in an evaluation report: a threshold chosen on the test set, precision and recall swapped, and an interval built from the wrong resamples."
-- "Explain Bayes' rule with a base rate, and what a confidence interval does and doesn't promise."
+  - "Evaluate two models' predictions on a held-out set with a confusion matrix, precision, recall and a bootstrap interval on the difference, and recommend one."
+  - "Find and fix three bugs in an evaluation report: a threshold chosen on the test set, precision and recall swapped, and an interval built from the wrong resamples."
+  - "Explain Bayes' rule with a base rate, and what a confidence interval does and doesn't promise."
+prove:
+  build: build-is-the-model-better
+  debug: debug-evaluation-report
+  explain:
+    prompt: |
+      Your checkpoint report says model A's accuracy is about 0.83 with an interval of roughly 0.78 to 0.88, and that A beats B by about 0.09 with an interval that stays above zero. A stakeholder asks three things. First: "the test for the rare condition this model screens for is 95 percent accurate, so a positive means the person almost certainly has it, right?" Second: "does your interval mean there's a 95 percent chance the true accuracy is inside it?" Third: "why not just compare the two accuracies?" In your own words, answer all three: Bayes' rule with a base rate for the first, what a confidence interval promises and doesn't for the second, and why the comparison was paired, and what "not established" would have meant, for the third.
+    rubric:
+      - id: bayes
+        required: true
+        description: "Walks a base rate through: with a rare condition (say 1 in 100), a 95 percent hit rate and a few percent of false alarms among the many healthy, the false positives outnumber the true ones, so a positive person's chance of having it is a small fraction, not 95 percent; P(positive given sick) is not P(sick given positive), and the prior decides."
+      - id: interval
+        required: true
+        description: "The 95 percent is a property of the procedure: over many repeated test sets and intervals, about 95 percent of the intervals would contain the true accuracy. It is not a statement that 95 percent of examples are inside, nor that the true value is likelier near the middle; the sample's own accuracy is always exactly in the middle."
+      - id: paired
+        required: true
+        description: "Both models were scored on the same examples, so the hard examples are hard for both; differencing per example and bootstrapping the mean difference removes that shared noise and asks only where the models disagree. Comparing two separate intervals would be weaker, and overlapping intervals wouldn't prove the models equal. 'Not established' would mean the difference's interval included zero: the data can't tell, and the answer is more test data, not a coin flip."
+      - id: recommendation
+        required: false
+        description: "A recommendation follows the interval, not the naming or the raw gap: A, here, because the interval excludes zero; and with 'not established' the honest recommendation is to keep the simpler or cheaper model until more data decides."
+    model_answer: |
+      For the first question, the 95 percent is the chance of a positive test given that someone has the condition, and that is the wrong way round for the stakeholder's question. Suppose one person in a hundred has it and the test wrongly flags five percent of the healthy. In a hundred thousand people, a thousand have it and about 950 test positive; ninety-nine thousand don't, and about 4,950 of them test positive anyway. A positive person is one of about 5,900, of whom 950 have the condition: roughly sixteen percent, not ninety-five. The base rate decides, because the healthy group is so much larger that its small error rate outweighs the sick group's high hit rate. That is Bayes' rule: prior times likelihood, divided by the total chance of a positive from both groups. For the second, the 95 percent describes the procedure, not this one interval. If we drew many test sets of two hundred and built an interval from each, about ninety-five in a hundred of those intervals would contain the model's true accuracy. It doesn't mean ninety-five percent of the examples fall inside the range, and it doesn't make the true value likelier near the middle; our measured 0.83 is always exactly in the middle, because we built the interval around it. For the third, both models were scored on the same two hundred examples, and the hard examples are hard for both, so a lot of the wobble in the two accuracies is shared. Taking A's correctness minus B's on each example and bootstrapping the mean of those differences removes the shared wobble and asks only about the examples where the models disagree, which is a sharper test than comparing two separate intervals, and two overlapping intervals wouldn't have proved the models equal anyway. The verdict follows that interval: it stays above zero, so A is better by more than chance explains. Had it included zero, "not established" would have meant the data can't tell the models apart, and the right next step would be more test data, keeping the simpler or cheaper model meanwhile.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-one-model-against-the-baseline
+  steps: [step-confusion-counts, step-four-metrics, step-interval-on-an-accuracy, step-paired-bootstrap]
+  versions: [build-is-the-model-better-close, build-is-the-model-better-reversed]

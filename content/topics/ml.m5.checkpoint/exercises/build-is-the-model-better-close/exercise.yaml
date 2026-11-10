@@ -1,0 +1,60 @@
+id: build-is-the-model-better-close
+stage: build
+rev: 1
+title: "Is the model better? Two close models"
+prompt: |
+  Starting from a blank editor, judge two classifiers that are close on the same held-out examples, and say whether the data can tell them apart.
+
+  **The data.** Two hundred held-out examples, 30 percent positive, with each model's score for each; a second two hundred are the validation set. The scores stand in for two trained models (A's separate the classes by 1.5, B's by 1.4, both with noise of spread 1), drawn from a seeded generator:
+
+  ```python
+  rng = np.random.default_rng(22)
+  n = 200
+  y = (rng.random(n) < 0.3).astype(int)
+  score_a = y * 1.5 + rng.normal(0, 1, size=n)
+  score_b = y * 1.4 + rng.normal(0, 1, size=n)
+  y_val = (rng.random(n) < 0.3).astype(int)
+  score_a_val = y_val * 1.5 + rng.normal(0, 1, size=n)
+  score_b_val = y_val * 1.4 + rng.normal(0, 1, size=n)
+  ```
+
+  The two models are close; the report has to be honest about what two hundred examples can and can't establish.
+
+  **Write:**
+
+  - `confusion(y, pred)`: the counts `(tp, fp, fn, tn)` as plain ints.
+  - `metrics(tp, fp, fn, tn)`: accuracy, precision, recall and F1 as floats.
+  - `accuracy_interval(correct, z=1.96)`: the 95 percent interval for an accuracy from an array of 1s and 0s, as a pair of floats.
+  - `paired_bootstrap(rng, correct_a, correct_b, draws=2000)`: the mean per-example difference and the 2.5th and 97.5th percentiles of its mean over `draws` resamples of the **differences** with replacement, as three floats.
+  - `choose_threshold(y_val, score_val)`: the threshold in `np.arange(0.0, 2.01, 0.05)` with the highest accuracy on the **validation** data (the first of any ties), as a float.
+  - `report(rng, y, score_a, score_b, threshold_a, threshold_b)`: prints, for each model, its name, its confusion counts and its metrics rounded to 3; then `interval A` and `interval B` rounded to 3; then `A minus B` with the mean rounded to 3 and the interval rounded to 3; then a verdict line: `verdict: A is better` if the interval is entirely above zero, `verdict: B is better` if entirely below, otherwise `verdict: not established`.
+
+  Then choose each model's threshold on the validation data, print them as `thresholds`, and run the report:
+
+  ```python
+  threshold_a = choose_threshold(y_val, score_a_val)
+  threshold_b = choose_threshold(y_val, score_b_val)
+  print("thresholds", threshold_a, threshold_b)
+  report(rng, y, score_a, score_b, threshold_a, threshold_b)
+  ```
+
+  ```
+  thresholds 1.55 0.65
+  A (26, 9, 34, 131) [0.785 0.743 0.433 0.547]
+  B (44, 38, 16, 102) [0.73  0.537 0.733 0.62 ]
+  interval A [0.728 0.842]
+  interval B [0.668 0.792]
+  A minus B 0.055 [-0.03  0.14]
+  verdict: not established
+  ```
+
+  The checks call your functions on hand-made labels with known answers, on two identical models, and on a model that is right wherever the other is wrong.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.prob.evaluating-models/metrics, ml.prob.evaluating-models/compare, ml.prob.evaluating-models/splits]
+  test_confusion_and_metrics: [ml.prob.evaluating-models/metrics, ml.prob.bayes/conditional]
+  test_accuracy_interval: [ml.prob.evaluating-models/interval, ml.prob.sampling-and-confidence/standard-error, ml.prob.sampling-and-confidence/clt]
+  test_paired_bootstrap: [ml.prob.evaluating-models/compare, ml.prob.sampling-and-confidence/bootstrap]
+  test_choose_threshold: [ml.prob.evaluating-models/splits]
+  test_the_verdict: [ml.prob.evaluating-models/compare, ml.prob.sampling-and-confidence/interval]
