@@ -1,0 +1,20 @@
+id: build-steady-state
+stage: build
+rev: 1
+title: "Where it settles"
+prompt: |
+  Each year 10% of a city's people move to the suburbs and 20% of the suburbs' people move to the city. As a matrix acting on `[city, suburbs]`, that's `T = [[0.9, 0.2], [0.1, 0.8]]`: each column sums to 1, and next year's populations are `T @ this_year`. Starting from a blank editor, write:
+
+  - `after_years(T, start, years)`: the populations after that many years (`np.linalg.matrix_power` helps).
+  - `steady_state(T)`: the split the populations settle into whatever they started from. It's the eigenvector of `T` with eigenvalue 1, scaled so its entries sum to 1. Find that eigenvector by looking for the eigenvalue **closest to 1** among `np.linalg.eig`'s results (never assume it comes first), take the real part, and scale.
+
+  Then print, for `T` and a start of 1000 people in the city and none in the suburbs:
+
+  ```
+  [900. 100.]
+  [676.1 323.9]
+  [0.667 0.333]
+  ```
+
+  (After one year, rounded to 1 place; after ten; and the steady state, rounded to 3.) The checks use other transition matrices, including a 3-by-3, and confirm `T @ steady == steady`.
+skills: [diagonalize, powers, compute]

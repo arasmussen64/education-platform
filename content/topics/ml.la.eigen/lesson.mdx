@@ -1,0 +1,27 @@
+<Intro>
+
+A matrix moves the grid, and most arrows get turned as well as stretched. A few don't: they stay on their own line and are only stretched, and those special directions, with their stretch factors, tell you almost everything about what the matrix does when it's applied again and again. They're the eigenvectors and eigenvalues, and they're what PCA, Markov chains, Google's PageRank and the stability of every training loop are made of.
+
+The main resource is **3Blue1Brown's chapter 14**, eigenvectors and eigenvalues: 17 minutes, and the picture you need. Watch for:
+
+- **An eigenvector stays on its line;** the eigenvalue is how much it's stretched (negative means flipped).
+- **Rotations have no real eigenvectors,** and the algebra says so with complex numbers.
+- **In the eigenvector basis the matrix is diagonal:** just stretching.
+
+Two notes about the code: `np.linalg.eigh` is for symmetric matrices and returns its eigenvalues in ascending order; `np.linalg.eig` works for any square matrix and returns them in no promised order, with eigenvectors scaled to length 1 whose signs can differ between machines. The exercises are written so that neither bites.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **The definition.** `v` is an eigenvector of `A` with eigenvalue `λ` when `A @ v == λ * v` (allowing rounding: `np.allclose`): the matrix stretches `v` by `λ` and doesn't turn it. Any multiple of `v` is an eigenvector too; NumPy returns them with length 1.
+- **Finding them.** `np.linalg.eig(A)` returns `(values, vectors)`, with the eigenvectors as the **columns** of `vectors`: `vectors[:, i]` goes with `values[i]`. For a symmetric matrix use `np.linalg.eigh`: real values in ascending order, eigenvectors at right angles to each other. `eigvals` and `eigvalsh` give the values alone.
+- **Repeated application.** Write a vector as a mix of eigenvectors; each application multiplies each part by its eigenvalue. The part with the largest `|λ|` wins, so `A @ A @ ... @ x` lines up with that eigenvector and grows (or shrinks) by `λ` per step. **Power iteration** (apply, renormalize, repeat) finds the top eigenvector that way; `x @ A @ x` for a unit `x` is then the eigenvalue.
+- **Complex eigenvalues** of a real matrix mean rotation: no real direction survives. The 90-degree rotation has eigenvalues `i` and `-i`.
+- **Diagonalizing.** `A = P @ D @ inv(P)` with the eigenvectors in `P`'s columns and the eigenvalues on `D`'s diagonal. Powers become `P @ D**k @ inv(P)`; the determinant is the product of the eigenvalues; a zero eigenvalue means a squashed direction and no inverse.
+- **Steady states.** A transition matrix (columns summing to 1) has eigenvalue 1; its eigenvector, scaled to sum to 1, is where the system settles whatever it started from.
+- **In machine learning:** PCA, next topic, is the eigenvectors of a covariance matrix; the eigenvalues of a Hessian decide how fast gradient descent can step; PageRank is the top eigenvector of the web's link matrix.
+
+</Recap>

@@ -1,16 +1,75 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.la.eigen
 kind: topic
-status: planned
-title: Eigenvalues and eigenvectors
-summary: The directions a matrix only stretches, found with np.linalg.eig, and what they say about repeated transformations.
-prerequisites:
-- ml.la.matrices-as-maps
+status: ready
+title: "Eigenvalues and eigenvectors"
+summary: "The directions a matrix only stretches, found with np.linalg.eig, and what they say about repeated transformations."
+prerequisites: [ml.la.matrices-as-maps]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Say what an eigenvector and its eigenvalue are, and check a pair by multiplying.
-- Find them with np.linalg.eig, and read complex ones as rotation.
-- Predict what applying a matrix many times does from its eigenvalues.
-- Diagonalize a matrix and say what that buys.
+  - "Say what an eigenvector and its eigenvalue are, and check a pair by multiplying."
+  - "Find them with np.linalg.eig, and read complex ones as rotation."
+  - "Predict what applying a matrix many times does from its eigenvalues."
+  - "Diagonalize a matrix and say what that buys."
+# Linked, never copied or embedded: 3Blue1Brown's videos are under the
+# standard YouTube licence; NumPy's documentation under the NumPy licence
+# (BSD-3-Clause).
+resources:
+  - title: "Essence of linear algebra, chapter 14: Eigenvectors and eigenvalues (3Blue1Brown, Grant Sanderson)"
+    url: https://www.youtube.com/watch?v=PFDu9oVAE-g
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "numpy.linalg.eig and eigh (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.linalg.eig.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-stretch-directions
+  - parsons-check-an-eigenpair
+  - mcq-what-an-eigenvector-is
+  - predict-diagonal-eigen
+  - mcq-powers
+  - fill-power-iteration
+  - mcq-complex-means-rotation
+  - write-diagonalize
+prove:
+  build: build-steady-state
+  debug: debug-eigen-check
+  explain:
+    prompt: |
+      A colleague hears "eigen" and glazes over. In your own words, using the picture of a matrix moving the grid: what is an eigenvector, and what is its eigenvalue? What happens when you apply the same matrix over and over to a vector, and why does the largest eigenvalue end up in charge? What does it mean when a real 2-by-2 matrix has complex eigenvalues? And what does writing a matrix as `P D P⁻¹` buy you?
+    rubric:
+      - id: definition
+        required: true
+        description: "An eigenvector is a direction the matrix only stretches or flips, never turns; the eigenvalue is the stretch factor, negative for a flip, so A v = λ v."
+      - id: powers
+        required: true
+        description: "Any vector is a mix of eigenvectors; each application multiplies each part by its eigenvalue, so after many steps the part with the largest |λ| dominates and the vector lines up with that eigenvector, growing or shrinking by that factor each step."
+      - id: complex
+        required: true
+        description: "Complex eigenvalues of a real 2-by-2 matrix mean no real direction is kept: the matrix rotates (possibly while scaling), like the 90-degree rotation whose eigenvalues are i and -i."
+      - id: diagonalize
+        required: false
+        description: "P holds the eigenvectors and D the eigenvalues; in the eigenvector basis the matrix is just stretching, so powers are P Dᵏ P⁻¹, cheap to compute and easy to reason about."
+    model_answer: |
+      When a matrix moves the grid, most vectors get turned as well as stretched. An eigenvector is one that doesn't turn: the matrix only stretches it, or flips it, so it ends up on the same line it started on. The eigenvalue is how much: A v = λ v, with λ = 2 meaning doubled and λ = -1 meaning flipped. Apply the matrix over and over and the eigenvectors explain what happens. Any starting vector is a mix of them, each application multiplies each part by its own eigenvalue, so after many steps the part with the biggest eigenvalue has grown the most and the vector points almost exactly along that eigenvector, growing or shrinking by that factor each time; that's why power iteration finds it. If a real 2-by-2 matrix has complex eigenvalues, no real direction is kept at all: the matrix turns everything, like the 90-degree rotation, whose eigenvalues are i and -i. Writing A as P D P⁻¹ means: change into the eigenvector basis (P⁻¹), where the matrix is just the stretches D, then change back (P). Powers become P Dᵏ P⁻¹, which is k-th powers of numbers instead of k matrix multiplications, and it makes the long-run behaviour readable straight off the diagonal.
+review_pool:
+  - review-predict-eigvalsh
+  - review-mcq-identity-eigen
+  - review-mcq-determinant-and-eigen
+  - review-check-pair
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: define
+    description: "Say what an eigenpair is, and check one by multiplying"
+  - id: compute
+    description: "Find eigenvalues and eigenvectors with eig and eigh, and read complex ones as rotation"
+  - id: powers
+    description: "Predict repeated application from the eigenvalues, and find the top eigenvector by power iteration"
+  - id: diagonalize
+    description: "Diagonalize a matrix as P D P⁻¹ and use it for powers and steady states"
