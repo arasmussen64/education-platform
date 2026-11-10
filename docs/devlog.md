@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Checkpoint 1 goes ready, and Module 1 is done end to end
+
+The module's checkpoint, and the first lab-based one, so ADR-0012's shape had to be translated from Python programs to containers. The translation that worked: the **build** is a runbook with three parts (run the service, a default-deny firewall that keeps SSH and the API, harden SSH, with the key login as the proof); the **debug** is the spec's broken server, five faults at once; the **solved sibling** is the same runbook on a different server, as a walkthrough; each of the four **steps** is the build with the _other_ parts already done in the image, so the learner completes one part with hints, and the last step is the whole build from an outline; and the two **fresh versions** are the build in other stories (a gateway, a ledger). Every build and debug check names the module skills it tests, so a miss brings the right topic's practice back to Today. Nine labs, fifty-five checks, twenty-six known-wrong fixes.
+
+**The five faults, and the tool each teaches:** a data area filled by an old file (`df`, `du`; a tmpfs filled at boot, so nothing is left on the real disk and no loop device needs tearing down); a unit whose `ExecStart` names a binary that isn't there (`systemctl status`, `journalctl -u`, 203/EXEC); a world-writable `~/.ssh` that makes `sshd` refuse a good key (`chmod 700`); a default-deny firewall that never opened the API's port (`nft list ruleset`, add the rule, keep `policy drop`, persist); and a worker pegging a CPU (`ps`/`pidstat`, `systemctl disable --now`). A sixth check confirms the server is still hardened afterwards, because the lesson's point is that an incident fix that turns protections off isn't a fix.
+
+**What the contract caught, three things worth remembering:**
+
+1. _`systemctl mask` fails on a unit that lives as a real file in `/etc/systemd/system`_ ("already exists"), so a wrong fix ending in `mask` was reported broken rather than wrong. The runaway is stopped with `disable --now`, which is the accurate command anyway: `Restart=always` never revives an explicitly stopped unit. The triage debug (#92) uses `mask` the same way; it's harmless there (its `stop` does the work and the checks read the right state), noted as a follow-up to change.
+2. _A broken unit with `Restart=on-failure` flaps:_ fail, restart, fail, a millisecond of "active" after each "Started", until systemd's start limit trips and it sits failed. That made the repair's `restart` get refused ("start request repeated too quickly") and once let an unrepaired wrong fix catch a lucky `active`. The broken unit now has no `Restart=` (it fails once and stays failed, which is the realistic symptom and reads cleanly in `status`), the service check reads `is-active` twice a second apart, and the hint mentions `reset-failed`.
+3. _A check that looked for "enabled" in `systemctl is-enabled`'s output would have accepted "disabled",_ which contains it. Exact match now. The same lesson as the triage fill lab: a check any wrong answer can satisfy isn't a check.
+
+**Decisions for you to review:**
+
+1. _The build is three parts, not four._ An earlier design also mounted a data disk, but that would have put loop devices and teardown into nine images; storage is proved in the debug's full-disk fault instead (a tmpfs, no teardown), and the build's three parts map cleanly onto three steps plus the outline.
+2. _The wrong fixes are omissions and mistakes, not scripted shortcuts._ The lesson forbids turning the firewall off or passwords on to make something work, and the checks confirm the server stays hardened; but the known-wrong scripts don't themselves perform those shortcuts (a draft that did was also what tripped a safety classifier mid-session, which settled it). An omission (a port left out, a part skipped, a fault left unfixed) fails the same checks.
+3. _The checkpoint's images reuse the hardening topic's SSH setup_ (ben, `ssh-users`, a key in `~/keys`, `/run/sshd` at boot) through a `tail-common` of their own, so every checkpoint lab can prove a real login.
+
+**Module 1 is complete:** fourteen topics and the checkpoint, seventy-nine labs in all, every one proving its contract in a container, verified locally end to end (CI is still waiting on GitHub's minutes; PRs #85 to #94 are stacked in order). **Next:** merge the stack when CI returns, then Module 2 of the cloud track, or the Phase 2 adaptivity work, whichever you'd rather see first.
+
 ## 2026-11-09: Hardening goes ready, and Module 1 is complete
 
 The fourteenth cloud topic, and with it every topic in Module 1 is `ready`. The only piece left in the module is its checkpoint, the "broken server" with five planted faults.

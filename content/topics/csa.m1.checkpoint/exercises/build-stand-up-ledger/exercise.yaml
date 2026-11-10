@@ -1,0 +1,22 @@
+id: build-stand-up-ledger
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Stand up the ledger"
+prompt: |
+  A fresh version of the checkpoint's build, in a different story. A new server for the accounts ledger: the `ledger` service is installed (`/etc/systemd/system/ledger.service`, listening on port 7000) but not running, there's no firewall, and SSH still takes passwords. Bring it up to the runbook, from a blank slate and with no hints:
+
+  1. **Run the service.** Enable `ledger` so it starts on boot and start it now, so `systemctl is-active ledger` is `active` and `curl -s localhost:7000` answers.
+  2. **Put up the firewall.** `/etc/nftables.conf` with an `input` chain whose policy is `drop`, accepting loopback, established and related traffic, SSH (`tcp dport 22`) and the ledger (`tcp dport 7000`). Load it and `systemctl enable nftables`.
+  3. **Harden SSH.** A drop-in with `PasswordAuthentication no` and `PermitRootLogin no`, checked with `sudo sshd -t`, and `ssh -i ~/keys/ben ben@localhost` still working.
+
+  No shortcuts that weaken the server. When it's all up, run the checks.
+test_skills:
+  service-running: [csa.linux.services/systemctl, csa.linux.services/unit-files]
+  api-answers: [csa.linux.services/supervision]
+  firewall-default-deny: [csa.linux.net-tools/firewall-path, csa.linux.hardening/firewall-min]
+  firewall-persisted: [csa.linux.hardening/firewall-min]
+  ssh-hardened: [csa.linux.hardening/ssh-hardening]
+  key-login-works: [csa.linux.permissions/ssh-keys]

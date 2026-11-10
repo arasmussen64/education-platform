@@ -1,0 +1,13 @@
+id: step-put-up-the-firewall
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Step 2 of the runbook: put up the firewall"
+prompt: |
+  The checkpoint's build, with two of its three parts already done for you: `shop-api` is enabled and running, and SSH is hardened. One part is left: there's no firewall. Write `/etc/nftables.conf` with an `input` chain whose policy is `drop`, accepting loopback, established and related traffic, and new connections to SSH (`tcp dport 22`) and the API (`tcp dport 8080`); load it, and `systemctl enable nftables` so it survives a reboot. Prove `ssh -i ~/keys/ben ben@localhost` still works through it. Then run the checks, which test the whole server.
+hints:
+  - "The file: `table inet filter { chain input { type filter hook input priority filter; policy drop; iif lo accept; ct state established,related accept; tcp dport 22 accept; tcp dport 8080 accept; } chain forward { type filter hook forward priority filter; policy drop; } chain output { type filter hook output priority filter; policy accept; } }`, with `flush ruleset` above it."
+  - "`sudo nft -c -f /etc/nftables.conf` checks it; `sudo nft -f /etc/nftables.conf` loads it; `sudo nft list ruleset` reads it back; `sudo systemctl enable nftables` keeps it."
+  - "`iif lo accept` is why your own `ssh` to `localhost` keeps working: loopback traffic is accepted before the policy applies."
