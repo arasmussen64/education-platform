@@ -61,8 +61,11 @@ CHECK_TIMEOUT_SECONDS = 30
 # several builds at once, a quarter of an hour wasn't always enough.
 BUILD_TIMEOUT_SECONDS = 1800
 APPLY_TIMEOUT_SECONDS = 300
-# systemd boots in a second or two; a slow machine gets a lot longer.
-BOOT_TIMEOUT_SECONDS = 90
+# systemd boots in a second or two. The limit is long enough for a cloud-init
+# first boot that runs apt against a broken user data, on a CI runner where
+# every lab's containers boot at once now that the shared layers are warmed
+# first. A healthy lab still boots in seconds.
+BOOT_TIMEOUT_SECONDS = 480
 
 # The learner's account inside every lab image.
 LEARNER = "learner"
@@ -252,9 +255,26 @@ def wait_for_boot(
         if state in BOOTED:
             return state
         if clock() >= deadline:
+            # Name the jobs still running, so a boot that hangs on CI says
+            # which unit it was waiting for.
+            jobs = exec_in(container, "systemctl list-jobs --no-pager", timeout=15)
+            waiting = (jobs.stdout or jobs.stderr).strip() or "(no job list)"
+            # And what each unit still starting has logged, since that's
+            # where the reason is.
+            units = [
+                line.split()[1]
+                for line in jobs.stdout.splitlines()[1:]
+                if len(line.split()) >= 4 and line.split()[1].endswith(".service")
+            ]
+            logs = ""
+            for unit in units[:3]:
+                tail = exec_in(
+                    container, f"journalctl -b -u {unit} --no-pager -n 40", timeout=15
+                )
+                logs += f"\n--- journal of {unit} ---\n{tail.stdout.strip()}"
             raise LabError(
                 f"{container} didn't finish booting in {timeout:g} s "
-                f"(systemd says: {state})"
+                f"(systemd says: {state}); jobs still running:\n{waiting}{logs}"
             )
         pause(0.5)
 
