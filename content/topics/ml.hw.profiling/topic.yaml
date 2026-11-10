@@ -1,16 +1,81 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.hw.profiling
 kind: topic
-status: planned
-title: Reading a profiler
+status: ready
+title: "Reading a profiler"
 summary: "Finding where a program spends its time and memory: cProfile and pstats for calls and time, tracemalloc for allocations, the doubling test for growth, and the discipline of measuring before optimizing."
-prerequisites:
-- ml.hw.vectorization
+prerequisites: [ml.hw.vectorization]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Profile a program with cProfile, read the call counts and cumulative times in pstats, and find the hot spot.
-- Measure peak memory and the biggest allocations with tracemalloc.
-- Decide from a profile what to change first, change it, and show the profile after.
-- "Say why measuring beats guessing, and what a profiler's overhead does to small numbers."
+  - "Profile a program with cProfile, read the call counts and cumulative times in pstats, and find the hot spot."
+  - "Measure peak memory and the biggest allocations with tracemalloc."
+  - "Decide from a profile what to change first, change it, and show the profile after."
+  - "Say why measuring beats guessing, and what a profiler's overhead does to small numbers."
+# Linked, never copied or embedded: the Python documentation is under the PSF
+# licence; Wikipedia is CC BY-SA 4.0.
+resources:
+  - title: "The Python standard library: The Python Profilers (cProfile, and reading a pstats table: ncalls, tottime, cumtime)"
+    url: https://docs.python.org/3.14/library/profile.html
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+  - title: "The Python standard library: tracemalloc (get_traced_memory for current and peak bytes, and snapshots for where they were allocated)"
+    url: https://docs.python.org/3/library/tracemalloc.html
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+  - title: "Wikipedia: Profiling (computer programming) (what profilers measure and the kinds there are)"
+    url: https://en.wikipedia.org/wiki/Profiling_(computer_programming)
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-profile-a-nearest-neighbour-search
+  - predict-call-counts
+  - mcq-reading-the-columns
+  - parsons-peak-memory
+  - mcq-current-and-peak
+  - predict-the-doubling-test-by-counting
+  - mcq-what-to-change-first
+  - mcq-the-profiler-overhead
+  - fill-calls-to
+  - write-hot-spots
+prove:
+  build: build-a-profiling-toolkit
+  debug: debug-a-profile-that-lied
+  explain:
+    prompt: |
+      A teammate spent a day making a function faster and the program is no quicker; another ran a tiny helper under cProfile, saw it take a tenth of a second across a million calls, and wants to rewrite it in C; a third's training script grows to several gigabytes and they don't know where. In your own words: how you profile a program with cProfile, what the columns of a pstats table mean and which one you sort by to find the hot spot; how tracemalloc finds peak memory and where it was allocated; how you decide from a profile what to change first and how you show the change worked; and why measuring beats guessing, with what the profiler's own overhead does to the numbers for small functions.
+    rubric:
+      - id: cprofile
+        required: true
+        description: "Run the code under cProfile.Profile (or cProfile.run) and read the table with pstats: ncalls is how often a function ran, tottime its own time excluding callees, cumtime its time including callees. Sort by cumtime to see where the time goes, by tottime to find the function doing the work; the hot spot is usually one function with a huge call count or a huge own time."
+      - id: tracemalloc
+        required: true
+        description: "tracemalloc.start() then get_traced_memory() gives the current and the peak bytes allocated since the start; a snapshot's statistics by line show which lines allocated the most. Peak is the number that decides whether a run fits."
+      - id: decide
+        required: true
+        description: "Change the thing the profile points at, usually the one function that holds most of the time, by removing calls (vectorizing, caching, a better algorithm) rather than shaving each call; then profile again and show the calls gone or the share dropped, with the answers unchanged. The doubling test on counts shows the order."
+      - id: measure
+        required: true
+        description: "Guesses about where time goes are usually wrong, and the hot spot is usually one place. cProfile adds a fixed cost to every call, so tiny functions called millions of times look far worse under the profiler than they are; read shares, not absolute times, and confirm with a timing outside the profiler before rewriting."
+    model_answer: |
+      To profile, I run the program under cProfile, either cProfile.run on a statement or a Profile object enabled around the code, and read the result with pstats. Each row of the table is one function. ncalls is how many times it ran, tottime is the time spent in its own body with the time of the functions it called taken out, cumtime is its time including everything it called, and percall is each of those divided by the calls. Sorting by cumtime shows where the time goes from the top down, which usually leads from main to one function; sorting by tottime shows which function's own body is doing the work. The hot spot is nearly always one row with a huge call count or a huge own time, and the first teammate's day was probably spent on a function that wasn't it; the profile would have shown that in a minute, and it is why the rule is to measure first. For memory, tracemalloc.start() begins tracing allocations, get_traced_memory() returns the bytes currently allocated and the peak since the start, and take_snapshot().statistics('lineno') lists the lines that allocated the most. Peak is the number that decides whether a run fits in memory. The third teammate should wrap the training step in it and read the top lines: the usual answers are a list that is never cleared, activations kept past the step, or a copy of the data made every iteration. Deciding what to change first means taking the row the profile points at and removing its calls rather than speeding each one up: a function called a hundred thousand times is replaced by one array operation, a repeated computation is cached, a quadratic loop gets a better algorithm. Then I profile again and show the evidence: the function's calls gone or its share dropped, and the answers unchanged. The doubling test on counts, calls at n and at 2n, says whether the loop is linear or quadratic, which tells me whether a bigger input will be fine or four times worse. Measuring beats guessing because the guess is usually wrong and the profile is cheap; it also keeps the fix honest, since the same profile run afterwards either shows the improvement or doesn't. The one thing to know about the profiler is that it adds a fixed cost to every function call, so a tiny function called a million times looks far slower under cProfile than it is in the real program. The second teammate's tenth of a second is mostly the profiler's own overhead; the right reading is the function's share of the whole, and the right next step is a timing without the profiler, which will probably show nothing worth rewriting.
+review_pool:
+  - review-mcq-why-measure
+  - review-mcq-after-the-fix
+  - review-predict-nested-calls
+  - review-calls-to-from-memory
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: cprofile
+    description: "Profile with cProfile and read a pstats table: calls, own time, cumulative time, the hot spot"
+  - id: tracemalloc
+    description: "Measure peak memory and the biggest allocations with tracemalloc"
+  - id: decide
+    description: "Decide from a profile what to change first, and show the profile after"
+  - id: measure
+    description: "Say why measuring beats guessing, and what the profiler's overhead does to small numbers"

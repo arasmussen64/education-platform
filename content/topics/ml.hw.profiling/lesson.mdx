@@ -1,0 +1,25 @@
+<Intro>
+
+Everything in this module so far says what things cost in principle. This topic is about finding out what a particular program costs in fact, which is nearly always different from what its author thinks. A **profiler** runs the program and records, for every function, how often it was called and how long it took; a memory tracer records what was allocated and where. Reading those two tables is the skill, and the discipline that goes with it is simple: **measure before you optimize, and measure again after**.
+
+The main resource is **the Python standard library's page on the profilers**: how to run cProfile and how to read the table that pstats prints, column by column; about 20 minutes. The tracemalloc page covers current and peak memory and the snapshot that says which lines allocated the most, and Wikipedia's _Profiling_ article says what kinds of profiler exist. Watch for:
+
+- **`ncalls`, `tottime`, `cumtime`**: calls, own time, and time including callees.
+- **`sort_stats`**: by cumulative time to see where the time goes, by own time to see who does the work.
+- **`get_traced_memory`**: the current and the peak.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Running cProfile.** `cProfile.run("main()")` prints a table; for a piece of code, make a `cProfile.Profile()`, `enable()` it, run, `disable()` it, and read it with `pstats.Stats`. The table has a row per function: `ncalls` (how many times it ran), `tottime` (time in its own body, callees excluded), `percall`, `cumtime` (time including everything it called), and the file and line. The same numbers are in `Stats.stats`, a dictionary from `(file, line, name)` to `(primitive calls, calls, own time, cumulative time, callers)`, which is how the worked example reads them in code; built-in functions are filed under `'~'`.
+- **Finding the hot spot.** Sort by `cumtime` and read from the top: the time flows from the entry point down to one or two functions that hold most of it. Sort by `tottime` to see whose body is doing the work. In the worked example `nearest` holds all the cumulative time and `distance_squared`, called 30,000 times, holds most of the own time: the hot spot is the call count, not the function's body.
+- **Counts are exact, times are not.** Two runs of the same program give the same `ncalls` and different times; the browser's clock is coarse and the machine is shared. So the proofs in this topic read call counts and shares, and the **doubling test on counts** replaces the one on times: doubling both inputs took `distance_squared` from 30,000 calls to 120,000, four times, so the loop is quadratic.
+- **tracemalloc.** `tracemalloc.start()` begins tracing every allocation; `get_traced_memory()` returns `(current, peak)` in bytes, where peak is the high-water mark since the start, the number that decides whether a run fits; `take_snapshot().statistics("lineno")` lists the lines that allocated the most, which is where the gigabytes went. A list of 100,000 Python floats is several times the bytes of the same numbers in a NumPy array, because every float is an object with a header and the list holds a pointer to each (the exact bytes differ between a 64-bit machine and the browser's 32-bit one).
+- **Deciding what to change.** Change what the profile points at, and prefer removing calls to speeding up each one: 30,000 calls to a small function become one array operation, a repeated computation gets cached, a quadratic loop gets a better algorithm (Module 6). Then **profile again and show the evidence**: the calls gone (`distance_squared`: 0), the share dropped, and the answers unchanged. A fix that can't be shown in the second profile didn't happen.
+- **Why measure.** Guesses about where time goes are usually wrong, and the hot spot is usually one place; a profile takes a minute and settles it. The profiler has a cost of its own: cProfile adds a fixed overhead to every function call, so a tiny function called a million times looks far worse under the profiler than in the real program. Read shares, not absolute times, and confirm anything surprising with a timing outside the profiler (`time.perf_counter` around the call, or `timeit`) before rewriting it.
+- **In machine learning** (names you'll meet later): the PyTorch profiler and NVIDIA's Nsight do the same job for GPU kernels, showing which ones hold the time and whether the GPU is waiting on the CPU; a training script's first profile usually shows the data loader or a per-example Python loop, not the model; peak memory from the framework's allocator (`torch.cuda.max_memory_allocated`) is tracemalloc's peak for the GPU; and "the step got faster" is a claim that needs a before and an after.
+
+</Recap>

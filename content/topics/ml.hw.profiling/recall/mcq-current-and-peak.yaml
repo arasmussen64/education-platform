@@ -1,0 +1,14 @@
+id: mcq-current-and-peak
+type: mcq
+rev: 1
+prompt: |
+  `tracemalloc.get_traced_memory()` returns two numbers. What are they, and which one says whether a run will fit in memory?
+choices:
+  - 'The bytes allocated by Python and the bytes allocated by NumPy; their sum decides'
+  - 'The memory of the current function and of its caller; the caller''s decides'
+  - 'The bytes allocated right now, and the most allocated at any moment since tracing began; the peak decides'
+  - 'The bytes allocated and the bytes freed since tracing started; their difference decides, since what was freed is available again'
+answer: 2
+explanation: |
+  Current is what is allocated at the moment of the call; peak is the high-water mark, which may have been reached by something already freed. A run that frees its big arrays before the end can show a small current and a huge peak, and it is the peak that has to fit. Python and NumPy allocations are both traced, and there is no separate count of frees.
+skills: [tracemalloc]
