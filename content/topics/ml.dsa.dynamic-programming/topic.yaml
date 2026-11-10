@@ -1,17 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.dsa.dynamic-programming
 kind: topic
-status: planned
-title: Dynamic programming
+status: ready
+title: "Dynamic programming"
 summary: "Problems whose answer is built from the answers to smaller versions: memoization with a dict and with lru_cache, tables filled bottom-up, and three classics, Fibonacci, the edit distance between two strings, and the knapsack."
-prerequisites:
-- ml.dsa.stacks-queues-recursion
-- ml.dsa.arrays-and-hashing
+prerequisites: [ml.dsa.stacks-queues-recursion, ml.dsa.arrays-and-hashing]
 estimated_minutes: 60
 rev: 1
 objectives:
-- Spot overlapping subproblems, and say why plain recursion repeats work exponentially.
-- Memoize a recursive function with a dict and with functools.lru_cache, and count the calls saved.
-- Fill a table bottom-up for the edit distance between two strings, and read the edits back out of it.
-- Solve the knapsack problem with a table, and say what makes a problem a dynamic-programming problem.
+  - "Spot overlapping subproblems, and say why plain recursion repeats work exponentially."
+  - "Memoize a recursive function with a dict and with functools.lru_cache, and count the calls saved."
+  - "Fill a table bottom-up for the edit distance between two strings, and read the edits back out of it."
+  - "Solve the knapsack problem with a table, and say what makes a problem a dynamic-programming problem."
+# Linked, never copied or embedded: the Runestone book is CC BY-NC-SA 4.0;
+# the Python documentation is under the PSF licence; Wikipedia is CC BY-SA 4.0.
+resources:
+  - title: "Problem Solving with Algorithms and Data Structures using Python (Brad Miller and David Ranum), section 5.12: Dynamic Programming (the coin-change problem, from plain recursion to a table)"
+    url: https://runestone.academy/ns/books/published/pythonds3/Recursion/DynamicProgramming.html
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "The Python documentation: functools.lru_cache, memoization as a decorator"
+    url: https://docs.python.org/3/library/functools.html#functools.lru_cache
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+  - title: "Wikipedia: Levenshtein distance (the Definition and Example sections)"
+    url: https://en.wikipedia.org/wiki/Levenshtein_distance
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-fibonacci-edits-and-a-knapsack
+  - predict-the-call-counts
+  - mcq-why-exponential
+  - parsons-a-memo-dict
+  - mcq-what-lru-cache-needs
+  - mcq-one-cell-of-the-table
+  - mcq-what-makes-it-dynamic-programming
+  - fill-paths-through-a-grid
+  - write-fewest-coins
+prove:
+  build: build-three-tables
+  debug: debug-an-edit-distance
+  explain:
+    prompt: |
+      A teammate's function that scores every way of aligning two gene sequences takes seconds on short ones and never finishes on long ones; another wants to pick the subset of experiments that fits a compute budget and plans to "take the most valuable ones first". In your own words: what overlapping subproblems are and why plain recursion on them is exponential; what memoization is, what lru_cache does and needs, and why a bottom-up table is sometimes better; how the edit-distance table is built and read back; and what makes a problem suitable for dynamic programming rather than for a greedy choice.
+    rubric:
+      - id: overlap
+        required: true
+        description: "The recursion reaches the same smaller cases many times (Fibonacci's fib(n-2) is computed twice, its sub-cases four times), so the call tree grows like 2 to the n; the number of distinct subproblems is only n (or n times m)."
+      - id: memo
+        required: true
+        description: "Memoization stores each subproblem's answer the first time (a dict keyed by the arguments, or functools.lru_cache(maxsize=None), whose arguments must be hashable), so each is computed once; bottom-up fills a table from the smallest cases in a loop, avoids the recursion limit, and often keeps only the last row."
+      - id: edit-distance
+        required: true
+        description: "table[i][j] is the distance between the first i characters of one string and the first j of the other: the first row and column count inserts and deletes, each cell is the minimum of delete (up + 1), insert (left + 1) and substitute or match (diagonal + 1 or + 0); the corner is the answer, and walking back along the choices lists the edits."
+      - id: knapsack
+        required: true
+        description: "Dynamic programming needs optimal substructure (the best answer is built from best answers to smaller versions) and overlapping subproblems; greedy by value fails the 0/1 knapsack because taking the most valuable item can block a better combination, and the table over items and capacity finds the best combination."
+    model_answer: |
+      Overlapping subproblems are what happens when a recursive solution reaches the same smaller case many times. Fibonacci is the simplest example: fib(n) calls fib(n-1) and fib(n-2), fib(n-1) calls fib(n-2) again, and so on down, so the call tree roughly doubles at every level and the work grows like two to the n, even though there are only n different numbers to compute. The alignment function has the same shape: the best alignment of two prefixes is asked for over and over from different branches, so it is exponential in the length of the sequences. Memoization is the fix that keeps the recursion: store each answer the first time it is computed, in a dict keyed by the arguments, and return the stored answer after that, so each subproblem is computed once and the exponential tree collapses to a number of calls proportional to the number of subproblems. functools.lru_cache does that with a decorator; it needs the arguments to be hashable, because they are the dict keys, and maxsize=None so nothing is thrown away. A bottom-up table does the same without recursion: fill the smallest cases first in a loop and build up, which avoids the recursion limit on long inputs and often needs only the previous row, so it uses less memory too. The edit-distance table has a row for each prefix of the first string and a column for each prefix of the second. The first row and column are just lengths, because turning a prefix into nothing takes that many deletes and nothing into a prefix that many inserts. Every other cell is the smallest of three options: the cell above plus one (delete a character), the cell to the left plus one (insert one), or the diagonal cell plus one for a substitution, or plus nothing if the two characters already match. The bottom-right corner is the distance, and walking back from it, choosing at each cell the neighbour that produced it, lists the actual edits. A problem suits dynamic programming when it has optimal substructure, meaning the best answer is built from best answers to smaller versions, and overlapping subproblems, meaning those smaller versions recur. Picking experiments to fit a budget is the knapsack problem, and taking the most valuable ones first is a greedy choice that can fail: the most valuable experiment can use up budget that two cheaper ones would have spent better. The table over experiments and budget considers, for each experiment, both taking it and leaving it, and finds the best combination, which greedy never checks.
+review_pool:
+  - review-predict-a-small-table
+  - review-mcq-top-down-or-bottom-up
+  - review-mcq-greedy-fails
+  - review-climb-stairs
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: overlap
+    description: "Spot overlapping subproblems, and say why plain recursion on them is exponential"
+  - id: memo
+    description: "Memoize with a dict and with lru_cache, and fill a table bottom-up"
+  - id: edit-distance
+    description: "Build the edit-distance table and read the edits back out of it"
+  - id: knapsack
+    description: "Solve the knapsack with a table, and say what makes a problem dynamic programming rather than greedy"

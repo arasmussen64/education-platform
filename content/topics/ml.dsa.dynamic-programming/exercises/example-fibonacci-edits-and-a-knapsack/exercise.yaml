@@ -1,0 +1,34 @@
+id: example-fibonacci-edits-and-a-knapsack
+stage: worked_example
+rev: 1
+title: "Fibonacci, edits and a knapsack"
+prompt: |
+  A plain recursive Fibonacci counted against three ways of removing its waste, then two tables: the edit distance from kitten to sitting with its edits read back, and the best gear for a 9-kilo pack against the greedy choice. Press **Run**, then read how each part works.
+steps:
+  - label: "Plain recursion, counted"
+    lines: "3-15"
+    note: "The definition as a function: `fib(n)` is `fib(n - 1)` plus `fib(n - 2)`. Every call below the top makes two more, and the small cases are reached again and again: 242,785 calls for the 25th number. The same function on 40 would take a minute."
+  - label: "Memoization with a dict"
+    lines: "17-32"
+    note: "Before computing, look in the dict; after computing, store. Each value of `n` is computed once and found once more: 49 calls. The recursion is unchanged; only the repeats are gone."
+  - label: "lru_cache: the same, as a decorator"
+    lines: "35-43"
+    note: "The standard library's memoizer wraps the function: 26 misses (one per value, computed) and 23 hits (found). `maxsize=None` keeps everything; the arguments must be hashable, because they are the keys."
+  - label: "Bottom-up, with two variables"
+    lines: "46-54"
+    note: "Start from the smallest cases and build up in a loop, keeping only the last two values. No recursion, so no limit, and no table beyond two numbers: the 90th Fibonacci number in ninety steps."
+  - label: "The edit-distance table"
+    lines: "57-68"
+    note: "`table[i][j]` is the distance between the first `i` characters of `a` and the first `j` of `b`. The first row and column are lengths; each other cell is the cheapest of delete (above plus 1), insert (left plus 1) and substitute or match (diagonal plus 1, or plus 0 when the characters are the same). The corner is the answer."
+  - label: "Reading the edits back"
+    lines: "71-87"
+    note: "From the corner, step to whichever neighbour produced the cell's value, recording an edit when it cost one, until the top-left. The steps come out backwards and are reversed."
+  - label: "Kitten to sitting"
+    lines: "90-94"
+    note: "Distance 3, and the table's seven rows: the corner reads 3. Walking back: substitute k with s, substitute e with i, insert g. Spell-checkers, fuzzy joins and word error rate all score strings this way."
+  - label: "The knapsack table"
+    lines: "97-112"
+    note: "`best[i][room]` is the best value from the first `i` items with `room` capacity: leave item `i` (the row above) or take it (the row above with its weight removed, plus its value). Walking back from the corner finds which items were taken: wherever the value changed from the row above, the item is in the pack."
+  - label: "Table against greedy"
+    lines: "115-122"
+    note: "Stove, water and book weigh 9 and are worth 150. Taking the most valuable item first gives water and tent, also 9 kilos, worth 130: the greedy choice of the tent blocks the better combination. That is why the knapsack needs the table."
