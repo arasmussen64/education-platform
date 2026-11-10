@@ -2,6 +2,12 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: A second pair of eyes on Module 3
+
+**Eight corrections from a cold review of Module 3's prose,** the same pass that found twelve in Module 2. The reviewer checked every resource title and chapter number (all right), every multiple-choice key (all right), every debug prompt against its planted bugs (all right), and every worked example's step ranges against its program: the checkpoint's 2-D sibling was off by one throughout, the only one of eight. The rest: the PCA example claimed its rebuilt points land "within a few hundredths" when the middle two miss by about a third; the PCA recap and a review question said to reverse eigenvectors with `[::-1]`, which reverses rows, where `vectors[:, ::-1]` was meant; a dot-product explanation got 20 wrong; a sentence had lost its "0"; the eigen recap said every transition matrix settles to its eigenvalue-1 vector, which needs a regular chain (`[[0, 1], [1, 0]]` swaps forever); the least-squares recap pointed at the wrong earlier topic; and the checkpoint's model answer called a three-dimensional column space a plane. All fixed in this commit, at the top of the stack.
+
+**Decision for you to review:** the review pass stays. Two modules, twenty findings, none of which the checker could have caught.
+
 ## 2026-11-10: Module 4 of the ML track is outlined
 
 **Calculus for ML has an outline:** seven planned topics and Checkpoint 4 in the track file and on the map, with the spec's prose bullet turned into a table. The derivatives of the functions every model uses (powers, exp, log, the sigmoid, ReLU), each checked numerically; partial derivatives and the gradient; gradient descent in many dimensions, fitting a plane by descent to compare with Module 3's normal equations; the chain rule; loss functions and their gradients (squared error, cross-entropy, why logs); backpropagation on a one-hidden-layer network with a gradient check; and optimizers (momentum, schedules, Adam) compared on one problem. Checkpoint 4 trains a tiny network from scratch. Prerequisites reach back into Module 1's calculus and Module 3's vectors, matrices and least squares.
