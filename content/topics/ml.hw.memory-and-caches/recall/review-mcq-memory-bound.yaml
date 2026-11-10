@@ -2,13 +2,13 @@ id: review-mcq-memory-bound
 type: mcq
 rev: 1
 prompt: |
-  A function multiplies every element of an array by 2 and is memory-bound. Which change would make it faster?
+  A function multiplies every element of a large float64 array by 2 and is memory-bound. Which change would make it faster?
 choices:
   - 'A faster processor, since the multiplications are the work'
-  - 'Doing the multiplication in float64 instead of float32, so each step handles more bits'
-  - 'Writing the result in place rather than into a new array, so half as many bytes move'
-  - 'Splitting the array into two halves and multiplying each half twice'
+  - 'Letting NumPy use every core of the processor for the multiply, so the arithmetic is shared out'
+  - 'Storing the array as float32 instead of float64, so half as many bytes move'
+  - 'Reading the array once beforehand to warm the cache, so the multiply finds it there'
 answer: 2
 explanation: |
-  Memory-bound means the time is the bytes moved divided by the bandwidth; the processor is waiting, so a faster one changes nothing. float64 doubles the bytes and halves the speed. In place removes the write to a second block and halves the traffic. Doing the work twice is twice the traffic.
+  Memory-bound means the time is the bytes moved divided by the bandwidth; the processor is waiting, so a faster one changes nothing, and more cores only share arithmetic that wasn't the bottleneck while competing for the same bandwidth. float32 halves the bytes and so about halves the time, if its 7 digits are enough for the values. An array far bigger than the cache can't be warmed: the first pass evicts itself, and it is one more pass over the same bytes. (Writing the result in place saves a second block and the peak memory, but the array is still read and written once.)
 skills: [bytes-moved]

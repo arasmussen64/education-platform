@@ -16,7 +16,7 @@ steps:
     note: "In two's complement the top bit of an int8 counts as -128, so -1 is all eight bits set and -128 is the top bit alone. Reading the same bytes as unsigned (`view(np.uint8)`, which reinterprets without converting) gives 255, 128 and 127: the patterns didn't change, only the rule for reading them."
   - label: "Sizing a batch of images"
     lines: "16-18"
-    note: "A thousand images of 784 pixels is 784,000 elements; the dtype says how many bytes each one takes: one as uint8 (a pixel's 0 to 255), four as float32, eight as float64. `nbytes` is the array's own count. Dividing pixels by 255 to get floats quadruples the memory."
+    note: "A thousand images of 784 pixels is 784,000 elements; the dtype says how many bytes each one takes: one as uint8 (a pixel's 0 to 255), four as float32, eight as float64. `nbytes` is the array's own count. Dividing pixels by 255 gives float64, NumPy's default float, eight times the memory; converting to float32 first makes it four."
   - label: "Flags in an integer"
     lines: "20-25"
     note: "Three flags, one bit each. `|` combines them into `101`, 5; `& WRITE` tests the middle bit and finds it off; `|= WRITE` turns it on and `&= ~EXEC` turns the top bit off, leaving `011`. Permissions, options and feature switches are stored this way."

@@ -2,16 +2,16 @@ id: parsons-peak-memory
 type: parsons
 rev: 1
 prompt: |
-  Put the lines in order to measure the memory a list of ten thousand floats takes with tracemalloc and print `True`. One line is a decoy that doesn't belong.
+  Put the lines in order to measure the memory a list of ten thousand floats takes with tracemalloc and print `False True`: tracing has stopped, and the peak is at least the current, which is above zero. One line is a decoy that doesn't belong.
 lines:
   - 'import tracemalloc'
   - 'tracemalloc.start()'
   - 'numbers = [float(i) for i in range(10_000)]'
   - 'current, peak = tracemalloc.get_traced_memory()'
   - 'tracemalloc.stop()'
-  - 'print(peak >= current > 0)'
+  - 'print(tracemalloc.is_tracing(), peak >= current > 0)'
 distractors:
   - 'current, peak = tracemalloc.get_tracemalloc_memory()'
 explanation: |
-  Tracing has to start before the allocation and the numbers have to be read before it stops. `get_traced_memory` returns the bytes allocated right now and the peak since the start, so the peak is at least the current and both are above zero while the list is alive. The decoy, `get_tracemalloc_memory`, returns the memory the tracer itself is using, a single number that can't be unpacked into two.
+  Tracing has to start before the allocation and the numbers have to be read before it stops. `get_traced_memory` returns the bytes allocated right now and the peak since the start, so the peak is at least the current and both are above zero while the list is alive; `is_tracing` is `False` only once `stop` has run, which is why the print comes last. The decoy, `get_tracemalloc_memory`, returns the memory the tracer itself is using, a single number that can't be unpacked into two.
 skills: [tracemalloc]

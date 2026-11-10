@@ -10,5 +10,5 @@ prompt: |
   scores: [-11.25  -6.75  -2.25   2.25   6.75  11.25]
   ```
 
-  It has two bugs. Run it: it crashes with `operands could not be broadcast together with shapes (6,3) (3,1)`, because the weights are reshaped into a `(3, 1)` column and lined up from the right against `(6, 3)` the 3 matches the 3 but the 1 then has to stretch to 6 rows of weights that don't exist; one weight per column is a `(3,)` vector. Fix that, and the column sums come out `[-6. 0. 6.]`: `center` subtracts the single grand mean from everything instead of each column's own mean. The mean needs an axis.
+  It has two bugs. Run it: it crashes with `operands could not be broadcast together with shapes (6,3) (3,1)`, because the weights are reshaped into a `(3, 1)` column. Lined up from the right against `(6, 3)`, the column's 1 would stretch to match the 3 columns, but its 3 then has to match the 6 rows and can't; one weight per column is a `(3,)` vector. Fix that, and the column sums come out `[-6. 0. 6.]`: `center` subtracts the single grand mean from everything instead of each column's own mean. The mean needs an axis.
 skills: [broadcasting]

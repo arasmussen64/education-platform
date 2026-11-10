@@ -11,18 +11,18 @@ def test_the_output():
 
 
 def test_another_profile():
-    """A function that loops 50,000 times outranks one that loops 1,000 times, and the built-ins stay out of the list."""
+    """A function that loops a million times outranks one that loops 50,000 times, and the built-ins stay out of the list."""
     hot_spots = function("hot_spots")
 
     def alpha():
         total = 0
-        for i in range(50_000):
+        for i in range(1_000_000):
             total += i
         return total
 
     def beta():
         total = 0
-        for i in range(1_000):
+        for i in range(50_000):
             total += i
         return total
 

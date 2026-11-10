@@ -19,7 +19,7 @@ steps:
     note: "Added one at a time, the rounded tenths land at `0.9999999999999999`. Python's built-in `sum` has compensated for the rounding as it goes since version 3.12 and gets 1.0; `math.fsum` keeps the exact sum and rounds once, 1.0; and a single multiplication `0.1 * 10` also rounds to exactly 1.0. A plain running total is what drifts."
   - label: "A hundred thousand tenths in float32"
     lines: "25-29"
-    note: "Added one at a time in float32, the total comes to 9,998.56 instead of 10,000: once the total is in the thousands, each tenth's low bits are dropped, always downwards or always upwards, a hundred thousand times. `np.sum` adds pairwise, so partners stay the same size, and gets 10,000.0."
+    note: "Added one at a time in float32, the total comes to 9,998.56 instead of 10,000: once the total is in the thousands, each tenth's low bits are dropped, always downwards or always upwards, a hundred thousand times. `np.sum` adds pairwise, so partners stay the same size, and gets 10,000.001: a thousandth off, where the running total was a unit and a half off."
   - label: "Infinity, NaN, and a softmax that overflows"
     lines: "31-35"
     note: "Past the largest float the result is `inf`; `inf - inf` is `nan`; and `nan` isn't equal to anything, itself included. A naive softmax of `[1000, 1001]` computes `exp(1000)`, which overflows, and divides infinity by infinity: `[nan nan]`. (The `errstate` block only silences the warnings so the result can be shown.)"

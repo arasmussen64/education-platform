@@ -2,7 +2,7 @@ id: mcq-why-batches-help
 type: mcq
 rev: 1
 prompt: |
-  A layer multiplies its input by a `(1024, 1024)` weight matrix. Why does a batch of 256 examples run far more than 256 times faster on a GPU than one example at a time?
+  A layer multiplies its input by a `(1024, 1024)` weight matrix. Why does a batch of 256 examples take only a few times as long as a single example on a GPU, instead of 256 times?
 choices:
   - 'Because the weights are read once per batch, so 256 rows of arithmetic share one fetch and the step crosses the ridge'
   - 'Because the GPU has exactly 256 cores, so a batch of 256 uses all of them and one example uses one'
@@ -10,5 +10,5 @@ choices:
   - 'Because batching rounds the inputs to float16, which halves the arithmetic'
 answer: 0
 explanation: |
-  With one example, the whole 4-megabyte weight matrix is fetched to do one row's worth of multiplications: about half a FLOP per byte, far below the ridge, so the step waits on memory. With 256 rows the same fetch serves 256 rows of arithmetic, about 64 FLOPs per byte, above the ridge, and the arithmetic units are busy. The core count is in the thousands, nothing is cached between steps, and precision is a separate choice.
+  With one example, the whole 4-megabyte weight matrix is fetched to do one row's worth of multiplications: about half a FLOP per byte, far below the ridge, so the step waits on memory. With 256 rows the same fetch serves 256 rows of arithmetic, about 85 FLOPs per byte, above the ridge, and the arithmetic units are busy. The core count is in the thousands, nothing is cached between steps, and precision is a separate choice.
 skills: [bandwidth]

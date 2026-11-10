@@ -37,7 +37,7 @@ def watched(a, dtype=np.float64):
 
 def test_the_output():
     """Prints the six lines."""
-    assert run() == '[[-1.069, -1.069], [-0.535, -0.535], [0.0, 0.0], [1.604, 1.604]] True\n[0, 0, 0, 1]\n[140, 350, 700, 840]\n0.1\n[[0.269, 0.731], [0.269, 0.731]]\n(2565, 6156000, 54480)\n'
+    assert run() == '[[-1.069, -1.069], [-0.535, -0.535], [0.0, 0.0], [1.604, 1.604]] True\n[0, 0, 0, 1]\n8 0 16\n[140, 350, 700, 840]\n0.1\n[[0.269, 0.731], [0.269, 0.731]]\n(2565, 6156000, 54480)\n'
 
 
 def test_standardize():
@@ -98,3 +98,25 @@ def test_model_cost():
     model_cost = function("model_cost")
     assert tuple(model_cost([4, 3, 2], 10, 2, 2)) == (23, 1380, 23 * 8 + 2 * 9 * 2)
     assert tuple(model_cost([5, 1], 1, 1, 4)) == (6, 36, 6 * 16 + 6 * 4)
+
+
+def test_calls_to():
+    """Counts 12 calls to a leaf through two levels of functions, 3 to the middle one, and 0 to a function that never runs."""
+    calls_to = function("calls_to")
+
+    def leaf():
+        return 1
+
+    def inner():
+        total = 0
+        for _ in range(4):
+            total += leaf()
+        return total
+
+    def outer(n):
+        total = 0
+        for _ in range(n):
+            total += inner()
+        return total
+
+    assert calls_to(outer, "leaf", 3) == 12 and calls_to(outer, "inner", 3) == 3 and calls_to(outer, "never", 3) == 0

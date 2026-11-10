@@ -5,10 +5,10 @@ prompt: |
   `grid` is a `(1000, 1000)` float64 array. Compare `grid = grid + 1` with `grid += 1` in terms of memory.
 choices:
   - 'They are identical; Python rewrites the first into the second before NumPy sees either of them'
-  - '`grid + 1` reads 8 MB and writes 8 MB into a new block; `grid += 1` writes the 8 MB in place: half the traffic and no new block'
+  - '`grid + 1` fills a second 8 MB block; `grid += 1` reads and writes the same block: no new block, half the peak memory'
   - '`grid += 1` is slower, because in-place operations have to lock the array while they run'
   - '`grid + 1` is faster, because a fresh block is laid out contiguously and the old one may have been fragmented by earlier writes into it'
 answer: 1
 explanation: |
-  `grid + 1` allocates a second 8-megabyte block, reads every element of the first and writes every element of the second; `grid += 1` reads and writes the same block. For a memory-bound operation the bytes moved are the cost, so the in-place form is about twice as cheap and keeps the peak memory at one copy. Python doesn't rewrite one into the other; NumPy implements `+=` as an in-place operation.
+  `grid + 1` allocates a second 8-megabyte block, reads every element of the first and writes every element of the second; `grid += 1` reads and writes the same block. Both forms read 8 MB and write 8 MB, so the bytes moved are about the same; what the in-place form saves is allocating and first touching a second block, which costs page faults and a read of each fresh line, and it keeps the peak memory at one copy instead of two. Python doesn't rewrite one into the other; NumPy implements `+=` as an in-place operation.
 skills: [bytes-moved]

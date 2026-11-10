@@ -7,7 +7,7 @@ prompt: |
 steps:
   - label: "The hot loop, found by counting"
     lines: "7-47"
-    note: "The loop version calls `distance_squared` once per row and centroid: 2,000 calls for 400 rows. The vectorized version makes every row-centroid difference in one broadcast, `(400, 1, 4)` against `(1, 5, 4)`, sums the squares along the last axis and takes `argmin` along the centroids: 0 calls, and the same labels. The profile is read in code, as the profiling topic does, so the counts are exact."
+    note: "The loop version calls `distance_squared` once per row and centroid (a reference point, the centre of a cluster): 2,000 calls for 400 rows. The vectorized version makes every row-centroid difference in one broadcast, `(400, 1, 4)` against `(1, 5, 4)`, sums the squares along the last axis and takes `argmin` along the centroids: 0 calls, and the same labels. The profile is read in code, as Reading a profiler does, so the counts are exact."
   - label: "The doubling test on counts"
     lines: "48-49"
     note: "Doubling the rows doubles the calls: the loop is linear in the rows, and so is the array operation, since both must touch every row. Vectorizing can't change that; it changes what each row costs, the constant, by a factor of tens to hundreds, because the interpreter's per-element work is gone."
