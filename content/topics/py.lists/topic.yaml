@@ -38,7 +38,7 @@ prove:
   debug: debug-list
   explain:
     prompt: |
-      A friend writes this and gets `TypeError: 'NoneType' object is not subscriptable` on the last line:
+      A friend writes this and gets `TypeError: object of type 'NoneType' has no len()` on the last line:
 
       ```python
       names = ["Ada", "Bob"]
@@ -61,7 +61,7 @@ prove:
         required: true
         description: "Positions run from 0 to len(names) - 1, so len(names) is one past the end; the last item is names[-1] or names[len(names) - 1]."
     model_answer: |
-      append changes the list it's called on: it adds the item to the end, in place. It doesn't give the list back; it returns None. So names = names.append("Cy") first adds Cy to the list and then throws the list away by making names refer to None, and the next line tries to index into None. The fix is to drop the assignment: names.append("Cy") on its own. After that, names has three items at positions 0, 1 and 2, so names[len(names)] asks for position 3, which doesn't exist and raises an IndexError. The last item is names[-1], or names[len(names) - 1].
+      append changes the list it's called on: it adds the item to the end, in place. It doesn't give the list back; it returns None. So names = names.append("Cy") first adds Cy to the list and then throws the list away by making names refer to None, and the next line asks for len(None), which fails before it can even index. The fix is to drop the assignment: names.append("Cy") on its own. After that, names has three items at positions 0, 1 and 2, so names[len(names)] asks for position 3, which doesn't exist and raises an IndexError. The last item is names[-1], or names[len(names) - 1].
 review_pool:
   - review-predict-change
   - review-mcq-last-item

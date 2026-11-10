@@ -1,5 +1,7 @@
-# Wrong: the run queue reads vmstat's second column (b, blocked, which is 0)
-# instead of the first (r, runnable).
+# Wrong: the run queue reads vmstat's second column (b, blocked) instead of
+# the first (r, runnable). On a quiet laptop b is 0, but a container's vmstat
+# reads the whole machine, so on a busy CI runner it was 1 or more and this
+# passed once; the check now hands the script a vmstat whose b is 3.
 cat > ~/bin/triage-report <<'INNER'
 #!/bin/bash
 echo "cpus: $(nproc)"
