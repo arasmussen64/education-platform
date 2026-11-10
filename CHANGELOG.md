@@ -450,7 +450,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Process: Claude merges its own pull requests once CI passes, under standing permission from the owner.
 - Roadmap: the "prove it" checks, topic states and gating move from Phase 2 into Phase 1.
 
+### Fixed (tests)
+
+- The progress tests ask what state a topic is in at the end of their fixtures' day instead of at the real time of the run; four days after that day, a topic proved in the fixtures became "fading" (its first review had come due) and one test failed on every branch.
+
 ### Fixed (lab checker)
 
 - `labcheck test --all --jobs N` builds the first lab of each topic on its own before the parallel run, so the heavy first layer a topic's labs share is built once instead of four times at once; and a build may take up to 30 minutes instead of 15. On a busy CI runner, twelve builds had run out of time.
 - The memory report lab's check of the available line allows the few megabytes by which two readings of MemAvailable a moment apart differ on a busy machine; it had failed on CI once for exactly that.
+- A lab may take up to four minutes to finish booting instead of 90 seconds. With the shared layers warmed first, every lab's containers boot at the same time, and the cloud-init lab whose first boot runs apt against a broken user data had twice run past 90 seconds on CI while the rest of the run competed for the runner.
+- The CPU lab that shares the CPU gives the throttled service up to ten seconds to show a rising throttle count, instead of one; on a busy CI runner the spinner had gone a whole second without being scheduled, so nothing had climbed.
+- When a lab doesn't finish booting in time, the checker now lists the systemd jobs that were still running, so a boot that hangs on CI says which unit it was waiting for.
+- A lab may take up to eight minutes to finish booting, and when it doesn't, the error also carries the last forty journal lines of each unit still starting. The cloud-init debug lab sat in `cloud-final.service` past four minutes on CI with nothing to say why.
+- In a parallel run (`labcheck test --all --jobs N`), a lab the checker gave up on in the crowd (a boot that didn't finish, a build or an apply script that ran out of time) is retried once on its own, after the others; a check that fails or a wrong fix that passes is never retried. Four CI runs today were lost to one lab that boots in seconds alone and hangs beside three others.
+- The triage report lab's run-queue check hands the learner's script a `vmstat` with fixed numbers (r 7, b 3) instead of trusting the real one, which reads the whole machine rather than the container: on a busy CI runner the blocked column was 1 or more, and the known-wrong fix that prints it passed the check by luck once, stopping the merge of #98.
