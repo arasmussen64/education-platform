@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The repository goes public, the stack starts merging, and Today shows both tracks
+
+**Your four decisions, carried out.** The repository is public (a scan of the tree and the whole history first: no `.env` ever committed, no key material; the one "service role" hit is the Edge Function reading an environment variable's name). GitHub Actions minutes came back with it; the failed runs for the CI diet (#87), the bottom of the stack (#85) and its top (#95) were re-run, the CI diet's CI job is already green, and the merges go in order as each run passes, each next branch rebased onto the new `main` and force-pushed to its own pull-request branch with `--force-with-lease` (never `main`), because a squash-merged parent can't be merged under its child without rebasing. Phase 2 starts with the two things you named.
+
+**Today across tracks ([ADR-0019](decisions/0019-today-across-tracks.md)).** _Next up_ now has one entry per track: the track's name, how many of its open topics are learned, and its topic in progress or next Available, so a learner on two tracks sees where they stand on both. _Practice hours_ keeps one sentence for the total and then gives each track its own time and its own milestone ladder, since the 10,000 hours are about mastering one domain; time on a topic outside every track shows as "Other" only when there is some. Reviews and mistakes to revisit already drew on every bundled track, so they're unchanged. The grouping is a pure function (`practiceTimeByTrack`) that takes a "track of this topic" function, so it stays free of content imports.
+
+**Decisions for you to review:**
+
+1. _Each track has its own milestone ladder,_ rather than one ladder with a per-track footnote. "100 hours" for 90 in Python and 10 in cloud would say the wrong thing; the total stays visible as a sentence.
+2. _The track entries don't disappear when a track is finished or empty;_ they say so, so the learner still sees the track is there.
+3. _A learned count counts every learned state_ (learned, mastered, fading, relearning, passed), the same reading as ADR-0002: a failed review doesn't un-learn a topic.
+
+**Next in Phase 2,** in the order I'd take them: automated data backups (small, and the event log is the platform's most valuable data); then the placement test with its math diagnostic; then the step-through code visualizer; content (intermediate Python, the math refresher) last, since it's the kind of work the owner can steer topic by topic.
+
 ## 2026-11-09: Where we stopped: Module 1 is complete, and the stack waits for CI
 
 **Done this run.** Module 1 of the Cloud Solutions Architect track is complete: fourteen topics and the checkpoint, each with a lesson, recall items and labs that a container proves (seventy-nine labs, three hundred and fourteen exercises in the whole content tree, fifty-one topics ready). Everything was verified locally with the commands CI runs: the validator (no problems), the web suite (700 tests), lint, types and formatting, every topic's labs as they were written, the full seventy-lab run once the shared base settled, and the nine checkpoint labs. One small follow-up is in this same pull request: the triage debug stopped its runaway with `systemctl stop` then `mask`, and `mask` silently fails on a unit that lives as a real file under `/etc/systemd/system`; it's `systemctl disable --now` now, re-proved.

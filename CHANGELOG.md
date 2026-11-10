@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Today across tracks)
+
+- **Today shows where you stand on every track, and counts your practice hours per track** ([ADR-0019](docs/decisions/0019-today-across-tracks.md), the owner's ask). _Next up_ has one entry per track: its name, how many of its topics are learned, and the topic in progress or next Available. _Practice hours_ keeps one sentence for the total, then gives each track its own time and its own milestone ladder on the way to 10,000 hours, since the hours are about mastering one domain; time on a topic outside every track shows as "Other" only when there is some. Reviews and mistakes to revisit already drew on every track.
+
 ### Added (labs on your own machine)
 
 - **The lab checker's local mode** ([ADR-0018](docs/decisions/0018-lab-checker-local-mode.md)): `tools/labcheck.py` builds a lab's container from its folder in `content/`, starts it, runs the lab's checks inside it with `docker exec`, and prints a small result to paste into the site. A lab is an exercise with `runtime: lab`: a `Dockerfile` for the scenario, `checks.yaml` for what must be true when it's done, `solution.sh` for the reference fix and `wrong/*.sh` for fixes that must fail. `labcheck test` proves that contract against real containers, and a new Labs job in CI does so for every lab on every pull request. The validator checks a lab's structure, and `--labs` runs the contract locally.
