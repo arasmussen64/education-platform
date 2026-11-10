@@ -1,0 +1,14 @@
+id: mcq-six-per-parameter
+type: mcq
+rev: 1
+prompt: |
+  Why is a training step about 6 FLOPs per parameter per example, when the forward pass is 2?
+choices:
+  - 'Because the optimizer does 4 FLOPs per parameter to update the weights'
+  - 'Because the backward pass is two matrix multiplies per layer, for the input gradient and the weight gradient, each the size of the forward one'
+  - 'Because the loss is computed three times per step: once to check the batch, once to average it over the examples, and once more to report it to the log'
+  - 'Because the gradients are computed in float64, which costs twice as much per operation'
+answer: 1
+explanation: |
+  The forward pass is one matrix multiply per layer, a multiply and an add per weight. Going backward, each layer needs the gradient with respect to its inputs, to pass to the layer before, and with respect to its weights, to update them; each is a matrix multiply of the same size, so the backward pass is about 4 per parameter and the step about 6. The optimizer's update is one or two operations per parameter, nothing beside the batch's matrix multiplies, and the precision doesn't change the count.
+skills: [flops]

@@ -1,0 +1,15 @@
+id: parsons-training-flops
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to estimate how long ten epochs of 60,000 examples through the 235,146-parameter network take on a 10 TFLOP/s GPU at 30 percent utilization, and print `0.28` seconds. One line is a decoy that doesn't belong.
+lines:
+  - 'params, examples, epochs = 235_146, 60_000, 10'
+  - 'flops = 6 * params * examples * epochs'
+  - 'seconds = flops / (10e12 * 0.3)'
+  - 'print(round(seconds, 2))'
+distractors:
+  - 'flops = 2 * params * examples * epochs'
+explanation: |
+  A training step is about 6 FLOPs per parameter per example, forward and backward together; the decoy counts only the forward pass. The machine sustains its peak times the utilization, 3 TFLOP/s here, and the FLOPs over that is 0.28 seconds.
+skills: [flops, time]

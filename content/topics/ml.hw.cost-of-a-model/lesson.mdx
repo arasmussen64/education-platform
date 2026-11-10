@@ -1,0 +1,27 @@
+<Intro>
+
+Before a model is trained, three numbers say whether it can be: how many **parameters** it has, how many **FLOPs** a training step costs, and how many **bytes** it needs. All three come from the layer sizes with arithmetic you can do on paper, and from them follows an estimate of time on a given machine, which is always optimistic in ways this topic names. The network here is a small one (784 inputs, two hidden layers, 10 outputs) so that every count can be checked by hand; the same counting, done on a transformer, is how the cost of a large language model is estimated.
+
+The main resource is **Wikipedia's _Neural scaling law_ page**, in particular its section on compute, where the rule that training costs about 6 FLOPs per parameter per token comes from; about 15 minutes. The _Mixed-precision arithmetic_ page says what is kept in float32 and what runs in float16. The Chinchilla paper's Appendix F is the layer-by-layer count for a transformer, for when you want to see the rule derived. Watch for:
+
+- **6 × N × D**: parameters times tokens, times six.
+- **The master copy**: why mixed precision keeps float32 weights.
+- **Utilization**: the fraction of a GPU's peak that a real training loop reaches.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Parameters.** A dense layer from `i` inputs to `o` outputs has `i * o` weights and `o` biases. Sum over the layers: `[784, 256, 128, 10]` is 200,960 + 32,896 + 1,290 = **235,146**. Width costs more than depth: doubling a hidden layer's width quadruples the weights that touch it on both sides, while adding a layer adds one more block.
+- **FLOPs of a forward pass.** A multiply and an add for each weight, for each example: `2 * i * o` per layer, about **2 FLOPs per parameter**. The biases and activation functions are a rounding error beside the matrix multiplies. For a batch, multiply by the batch size.
+- **The backward pass** computes, for each layer, a gradient with respect to its inputs (to pass further back) and one with respect to its weights (to update them): two matrix multiplies of the same size as the forward one, so about **twice the forward**. A training step is therefore about **6 FLOPs per parameter per example**, and a whole run is `6 * N * D`, parameters times examples (or tokens) seen: 7 billion parameters on a trillion tokens is 4.2 × 10²² FLOPs.
+- **Bytes for weights.** Parameters times bytes per value: 4 in float32, 2 in float16 or bfloat16. The small network is 940,584 bytes in float32. A billion parameters is 4 GB, or 2 GB in float16, to run.
+- **Bytes for training.** Adam keeps the weights, the gradients and two moment estimates: four copies, **16 bytes per parameter** in float32. A billion parameters is 16 GB of state before any activations. Mixed precision keeps a float32 master copy of the weights and the moments and adds float16 copies of the weights and gradients: 2 + 2 + 4 + 4 + 4, still about 16. The state is not where mixed precision saves memory.
+- **Activations** are every layer's output for the current batch, kept for the backward pass: `sum(layers)` values per example, times the batch, times the bytes. They scale with the batch (and, in a transformer, with the sequence length) while the state does not, so at large batches they dominate, and they are what float16 halves. The fixes when they don't fit: a smaller batch, recomputing activations in the backward pass, or sharding across GPUs.
+- **What mixed precision trades.** Matrix multiplies and activations in float16 or bfloat16, master weights and optimizer in float32. Gains: half the activation memory, half the memory traffic on memory-bound steps, and a much higher matrix-multiply rate on tensor cores, often a step two to three times faster. Cost: float16's range is narrow (largest value 65,504, smallest normal about 6 × 10⁻⁵), so small gradients flush to zero unless the loss is scaled up before the backward pass and the gradients scaled back down; bfloat16 keeps float32's range with only 8 bits of mantissa, which is why it is the usual choice when the hardware has it.
+- **Time** is FLOPs over the rate the machine sustains, which is its peak times a **utilization**: one epoch of 60,000 examples through the small network is 8.5 × 10¹⁰ FLOPs, 8.5 ms at the full 10 TFLOP/s of the round-number GPU and 28 ms at 30 percent. The estimate at peak is optimistic because the memory-bound steps don't use the arithmetic units, small matrix multiplies don't fill the GPU, data must be loaded and moved across the bus, Python runs between the kernels, and on several GPUs the gradients must be exchanged; 30 to 50 percent is a good run. The 7-billion-parameter model is 133 years on one such GPU and about four months on a thousand at 40 percent, which is why those runs happen on clusters.
+- **In machine learning** (names you'll meet later): **model FLOPs utilization** (MFU) is the fraction above, reported for large runs; **scaling laws** relate loss to parameters and tokens under a compute budget, and the Chinchilla result is that the two should grow together; **parameter-efficient fine-tuning** (LoRA and friends) trains a small fraction of the parameters so that the 16 bytes of state are paid only for those; and a model card's "7B" is this topic's N.
+
+</Recap>

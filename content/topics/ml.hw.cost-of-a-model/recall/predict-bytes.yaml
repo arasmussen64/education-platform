@@ -1,0 +1,18 @@
+id: predict-bytes
+type: predict_output
+rev: 1
+prompt: |
+  The bytes of a million parameters as weights in float32 and float16, as full training state in float32 and in mixed precision, and the activations of a batch. What does the program print?
+code: |
+  params = 1_000_000
+  print(params * 4, params * 2)
+  print(params * (4 + 4 + 4 + 4), params * (2 + 2 + 4 + 4 + 4))
+  batch, activations_per_example = 32, 5_000
+  print(batch * activations_per_example * 4, batch * activations_per_example * 2)
+expected_output: |
+  4000000 2000000
+  16000000 16000000
+  640000 320000
+explanation: |
+  Weights alone are 4 bytes per parameter in float32 and 2 in float16. Training with Adam keeps four float32 copies, 16 bytes per parameter; mixed precision keeps float16 weights and gradients beside float32 master weights and two moments, 2 plus 2 plus 4 plus 4 plus 4, also 16. The activations of a batch are batch times values per example times bytes, and those do halve in float16.
+skills: [memory]

@@ -1,0 +1,19 @@
+id: example-the-cost-of-a-network
+stage: worked_example
+rev: 1
+title: "The cost of a network"
+prompt: |
+  A small network's parameters, the FLOPs of its forward and backward passes for one example and a batch, its bytes as weights, as training state and as activations at two precisions, and the time of an epoch and of a much larger run on a GPU of round numbers. Press **Run**, then read how each part works.
+steps:
+  - label: "Parameters and the forward pass"
+    lines: "1-16"
+    note: "Each dense layer is `in * out` weights and `out` biases: 200,960 plus 32,896 plus 1,290 is 235,146. The forward pass multiplies and adds once per weight for each example, so it is 2 FLOPs per parameter, 469,504 here; the biases and the activation functions aren't worth counting beside the matrix multiplies."
+  - label: "The backward pass, and a batch"
+    lines: "17-20"
+    note: "Going backward, each layer needs a gradient for its inputs and one for its weights, two matrix multiplies the size of the forward one: about twice the forward. A training step is therefore about 6 FLOPs per parameter per example, 1,408,512 here, and a batch of 64 is 64 times that."
+  - label: "Bytes: weights, activations, state"
+    lines: "22-25"
+    note: "Weights are parameters times bytes per value: 940,584 in float32, half in float16. Activations are every layer's output kept for the backward pass, per example, so a batch of 64 is 64 times 1,178 values; they halve in float16. Training state with Adam is four copies of the parameters, 16 bytes each in float32, and mixed precision's float32 master copy keeps that at 16: it saves on activations and speed, not on state."
+  - label: "Time, and why the estimate is optimistic"
+    lines: "27-32"
+    note: "An epoch is 6 times the parameters times the examples: 8.5 × 10¹⁰ FLOPs, 8.5 ms at the round-number GPU's full 10 TFLOP/s and 28 ms at a realistic 30 percent, since memory-bound steps, small matrix multiplies, data loading and Python glue all leave the arithmetic units idle. The same arithmetic for a 7-billion-parameter model on a trillion tokens is 4.2 × 10²² FLOPs: 133 years on that GPU, four months on a thousand of them."
