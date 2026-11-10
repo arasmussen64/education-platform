@@ -1,0 +1,19 @@
+id: parsons-early-stopping
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to walk a list of validation losses, remember the best epoch, stop three epochs after it, and print `3 6` (the best epoch and the one that stopped). One line is a decoy that doesn't belong.
+lines:
+  - 'val_losses = [0.9, 0.7, 0.6, 0.62, 0.61, 0.65, 0.7]'
+  - 'best_epoch, best = 1, val_losses[0]'
+  - 'for epoch, value in enumerate(val_losses, start=1):'
+  - '    if value < best:'
+  - '        best, best_epoch = value, epoch'
+  - '    elif epoch - best_epoch >= 3:'
+  - '        break'
+  - 'print(best_epoch, epoch)'
+distractors:
+  - '    if value <= best:'
+explanation: |
+  The best starts as the first loss; each epoch either beats it and becomes the new best, or counts against the patience, and the loop breaks at the third epoch past the best. The decoy treats an equal loss as an improvement, which would reset the patience on a flat curve and never stop.
+skills: [early-stopping]

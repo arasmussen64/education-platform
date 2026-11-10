@@ -1,0 +1,6 @@
+from checks import run
+
+
+def test_the_walkthrough():
+    """Prints the plain run's curve and the five reports."""
+    assert run() == '60 training points, 300 held out, a network of two hidden layers of 64, 300 epochs of Adam:\nepoch   1 | train 1.524 | validation 1.483 ###############\nepoch  10 | train 0.456 | validation 0.541 #####\nepoch  28 | train 0.344 | validation 0.478 #####\nepoch  50 | train 0.266 | validation 0.524 #####\nepoch 100 | train 0.150 | validation 0.749 #######\nepoch 200 | train 0.074 | validation 1.419 ##############\nepoch 300 | train 0.028 | validation 2.115 #####################\nplain: train loss 0.028 | validation loss lowest 0.478 at epoch 28, 2.115 at the end: overfitting | validation accuracy 0.84\nweight decay 0.03: train loss 0.295 | validation loss lowest 0.385 at epoch 158, 0.386 at the end: holding | validation accuracy 0.86\ndropout 0.5: train loss 0.216 | validation loss lowest 0.443 at epoch 135, 0.571 at the end: drifting up | validation accuracy 0.85\nearly stopping, patience 20: stopped at epoch 48, kept the weights of epoch 28: validation loss 0.478, accuracy 0.79\ntwenty times the data: train loss 0.372 | validation loss lowest 0.390 at epoch 67, 0.398 at the end: holding | validation accuracy 0.86\n'

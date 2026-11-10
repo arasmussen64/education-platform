@@ -1,0 +1,14 @@
+id: mcq-why-dropout-scales
+type: mcq
+rev: 1
+prompt: |
+  Inverted dropout multiplies the values it keeps by `1 / (1 - p)`. Why?
+choices:
+  - 'So each activation''s expected value is unchanged and the network needs no correction at evaluation, when nothing is dropped'
+  - 'To make the kept values larger than the dropped ones, so the next layer can tell which units survived this step and which were dropped, and route its gradient to the survivors'
+  - 'Because the gradient would otherwise be zero for the kept values'
+  - 'To keep the weights from growing, like weight decay'
+answer: 0
+explanation: |
+  If half the values are zeroed and the rest left alone, the layer's output is about half its usual size during training and full size at evaluation, and the next layer sees two different scales. Doubling the survivors keeps the training-time average equal to the evaluation-time value, so the same weights work in both modes. The dropped values carry no gradient either way, and the weights are untouched.
+skills: [dropout]

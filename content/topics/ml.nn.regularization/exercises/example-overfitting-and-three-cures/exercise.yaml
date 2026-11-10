@@ -1,0 +1,25 @@
+id: example-overfitting-and-three-cures
+stage: worked_example
+rev: 1
+title: "Overfitting, and three cures"
+prompt: |
+  Sixty noisy points, a network of two hidden layers of 64, and 300 epochs of Adam: the validation loss turns upwards while the training loss keeps falling. Then the same run with weight decay, with dropout, with early stopping, and with twenty times the data. Press **Run**, then read how each part works.
+steps:
+  - label: "Dropout, two modes, and decay in the optimizer"
+    lines: "44-135"
+    note: "`Dropout` keeps a mask of which values survived and the scaling `1 / (1 - p)`; in eval mode it passes everything through and its backward does too. `Sequential.train()` and `eval()` flip the mode of every layer that has one. `Adam` adds `weight_decay * param` to each gradient before anything else: the pull towards zero."
+  - label: "fit with early stopping, and reading the curve"
+    lines: "138-186"
+    note: "`fit` trains full-batch (sixty rows is one batch), switching to train mode before the step and eval mode before measuring; it remembers the epoch with the lowest validation loss and a copy of the weights from it, and with a `patience` it stops once that many epochs have passed without a new low and restores the copy. `read_fit` names what the validation loss did after its low: more than doubled is overfitting, up by a tenth is drifting, else holding."
+  - label: "The plain run"
+    lines: "189-215"
+    note: "Twenty noisy points per class to train on and a hundred per class held out, from clouds that overlap. The training loss falls all the way to 0.028; the validation loss falls to 0.478 at epoch 28 and then climbs to 2.115, the bars lengthening again: the network is fitting the noise in its sixty points."
+  - label: "Weight decay and dropout"
+    lines: "216-217"
+    note: "With decay 0.03 the validation loss ends at 0.386, holding near its low, because weights that only fit noise are pulled back towards zero. With dropout 0.5 on both hidden layers it ends at 0.571: the rise is shrunk, not abolished, and the training loss stays higher, since the network trains thinned."
+  - label: "Early stopping"
+    lines: "218-219"
+    note: "The plain run again, with a patience of 20: training stops at epoch 48, twenty epochs after the low at epoch 28, and the weights from epoch 28 are restored, so the network is left at its best validation loss instead of its worst. Its accuracy there, 0.79, is lower than the plain run's 0.84 at epoch 300: the loss rose because the points still missed were missed ever more confidently, each costing a large log-loss, not because more were missed. Loss, which moves smoothly, is what early stopping watches; accuracy moves in steps of one row."
+  - label: "Twenty times the data"
+    lines: "220-221"
+    note: "Four hundred points per class and the same network for the same 300 epochs: the validation loss ends at 0.398. Structure repeats across new rows and noise doesn't, so there is less noise to fit; more data is the regularizer that needs no assumption."

@@ -1,0 +1,14 @@
+id: review-mcq-dropout-at-eval
+type: mcq
+rev: 1
+prompt: |
+  A network with dropout gives a different validation loss every time it is evaluated, and a worse one than expected. What is the most likely cause?
+choices:
+  - 'The validation set is being reshuffled between evaluations, and the loss is computed on whichever rows come first, so the rows measured differ each time'
+  - 'Dropout is still on: the network was never switched to eval mode, so each evaluation runs a randomly thinned network with extra noise'
+  - 'Weight decay is too strong, which makes the outputs random'
+  - 'The learning rate is too high for a dropout network'
+answer: 1
+explanation: |
+  In training mode dropout draws a fresh mask on every forward pass, so two evaluations differ and both are noisier than the full network. `eval()` turns the dropping off; `fit` and `evaluate` must call it before measuring, and `train()` before each training step. Evaluation itself doesn't shuffle, and neither decay nor the rate makes a fixed network give two different answers.
+skills: [dropout]

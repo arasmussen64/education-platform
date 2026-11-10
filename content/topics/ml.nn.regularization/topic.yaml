@@ -1,16 +1,82 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.nn.regularization
 kind: topic
-status: planned
+status: ready
 title: "Regularization: learning what generalizes"
-summary: Overfitting seen as training loss falling while validation loss rises; weight decay; dropout with its train and eval modes; early stopping; and more data as the regularizer that always works.
-prerequisites:
-- ml.nn.training-loop
+summary: "Overfitting seen as training loss falling while validation loss rises; weight decay; dropout with its train and eval modes; early stopping; and more data as the regularizer that always works."
+prerequisites: [ml.nn.training-loop]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Produce and recognize overfitting from the training and validation curves.
-- Implement weight decay as a term in the gradient, and inverted dropout as a layer with train and eval modes.
-- Implement early stopping on validation loss with patience.
-- Say what each regularizer assumes about the data and when it hurts.
+  - "Produce and recognize overfitting from the training and validation curves."
+  - "Implement weight decay as a term in the gradient, and inverted dropout as a layer with train and eval modes."
+  - "Implement early stopping on validation loss with patience."
+  - "Say what each regularizer assumes about the data and when it hurts."
+# Linked, never copied or embedded: Wikipedia is CC BY-SA 4.0.
+resources:
+  - title: "Wikipedia: Overfitting (what it is, the picture of a model that fits the noise, and the Machine learning section)"
+    url: https://en.wikipedia.org/wiki/Overfitting
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Wikipedia: Dropout (neural networks) (the idea, the scaling at training time, and why nothing changes at test time)"
+    url: https://en.wikipedia.org/wiki/Dilution_(neural_networks)
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Wikipedia: Early stopping (the Validation-based early stopping section: patience, and keeping the best weights)"
+    url: https://en.wikipedia.org/wiki/Early_stopping
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-overfitting-and-three-cures
+  - mcq-reading-the-two-curves
+  - predict-a-decay-step
+  - mcq-what-weight-decay-assumes
+  - predict-inverted-dropout
+  - mcq-why-dropout-scales
+  - predict-early-stopping
+  - parsons-early-stopping
+  - mcq-why-patience
+  - mcq-when-regularizers-hurt
+  - fill-dropout
+  - write-early-stopping
+prove:
+  build: build-the-regularizers
+  debug: debug-a-regularizer-that-backfired
+  explain:
+    prompt: |
+      Three teammates. The first has a model at 100 percent training accuracy and 70 percent on held-out data and wants to train it longer. The second added dropout and saw the validation loss get worse, then found that their evaluation code never switches the network to eval mode. The third asks whether early stopping is cheating, since it looks at the validation set. In your own words: how to recognize overfitting from the two curves and what it means; what weight decay and dropout each change in training, what each assumes about a good model, and when each hurts; why dropout must be off at evaluation and what inverted dropout's scaling is for; and what early stopping does, why it has a patience, and whether it is cheating.
+    rubric:
+      - id: overfitting
+        required: true
+        description: "Training loss keeps falling while validation loss reaches a low and rises: the network is fitting the noise of the training rows, which a held-out set doesn't share. Training longer makes it worse; the fixes are regularization, stopping at the low, or more data, which is the one that always works because the noise doesn't repeat."
+      - id: decay
+        required: true
+        description: "Weight decay adds decay times the weight to every gradient, a steady pull towards zero, so large weights have to earn their keep; it assumes a good model is a smooth one with small weights, and it hurts when the data needs sharp features or the network is already too small (underfitting)."
+      - id: dropout
+        required: true
+        description: "Dropout zeroes each hidden value with probability p during training and scales the survivors by 1 / (1 - p), so no unit can rely on another and the expected activation is unchanged; at evaluation it passes everything through. Left on at evaluation it adds noise and the predictions get worse, which was the second teammate's bug. It assumes redundancy helps and hurts small networks and small p-sensitive layers."
+      - id: early-stopping
+        required: true
+        description: "Early stopping watches the validation loss and stops once it hasn't improved for patience epochs, restoring the weights from the best epoch; the patience skips over the ordinary wobble of a curve. It uses the validation set to choose when to stop, which is what the validation set is for, so it is not cheating; the final test set, touched once, is what must stay unseen."
+    model_answer: |
+      Overfitting shows in the gap between the two curves. The training loss keeps falling, because the network has enough weights to fit every training row, noise included, while the validation loss falls to a low point and then rises, because the noise it memorized doesn't repeat in rows it hasn't seen. A model at 100 percent on training and 70 percent on held-out data is already there, and training longer only deepens the fit to the noise; the first teammate should stop earlier, regularize, or get more data. More data is the regularizer that always works, because noise doesn't repeat but structure does: the example's run on twenty times the data kept its validation loss near its low where the small run's tripled. Weight decay adds decay times the weight itself to every gradient, so each step shrinks every weight a little towards zero and a weight is only kept large if the data keeps pushing it back; it assumes that a good model is a smooth one with small weights, which is usually true, and it hurts when the data really needs sharp boundaries or the network is already too small to fit the training set, where it makes underfitting worse. Dropout zeroes each hidden value with probability p during every training step, a different random set each time, and scales the survivors by one over one minus p, so that no unit can depend on a particular other unit being there and the network learns redundant, spread-out features; the scaling keeps the expected value of each activation what it would have been, which is why nothing has to change at evaluation. At evaluation dropout is switched off and every unit passes through; the second teammate left it on, so their validation predictions were made by a randomly thinned network with extra noise, which is why they got worse, and evaluating twice gave two different answers. Dropout assumes redundancy helps, which it does in wide layers; it hurts small layers, where losing half the units is losing half the model, and it slows training, which is why it is paired with more epochs. Early stopping watches the validation loss after every epoch, remembers the weights of the best epoch, and stops once the loss hasn't improved for a set number of epochs, the patience, then restores the best weights. The patience exists because a validation curve wobbles from epoch to epoch and a single bad epoch shouldn't end the run; twenty epochs of no improvement is a trend. It isn't cheating: choosing when to stop is a decision about training, and the validation set is the set we keep aside for exactly such decisions, which is why it was separated from the training rows in the first place. What must stay unseen is the final test set, used once at the very end, because every decision made with the validation set makes its score a little optimistic, and that is the number we don't want to fool ourselves with.
+review_pool:
+  - review-predict-decay-shrinks
+  - review-mcq-dropout-at-eval
+  - review-mcq-more-data
+  - review-early-stopping
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: overfitting
+    description: "Produce and recognize overfitting from the training and validation curves, and say what it means"
+  - id: decay
+    description: "Implement weight decay as a term in the gradient, and say what it assumes and when it hurts"
+  - id: dropout
+    description: "Implement inverted dropout with train and eval modes, and say why the scaling and the switch matter"
+  - id: early-stopping
+    description: "Implement early stopping on validation loss with patience, restoring the best weights"

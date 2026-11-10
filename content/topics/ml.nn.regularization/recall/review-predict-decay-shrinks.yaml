@@ -1,0 +1,21 @@
+id: review-predict-decay-shrinks
+type: predict_output
+rev: 1
+prompt: |
+  Weights of 1 under a learning rate of 0.1 with no data gradient: ten steps without decay, ten with decay 0.1, and a hundred with decay 0.1. What does the program print?
+code: |
+  import numpy as np
+  
+  W = np.full(4, 1.0)
+  for epochs, decay in ((10, 0.0), (10, 0.1), (100, 0.1)):
+      w = W.copy()
+      for _ in range(epochs):
+          w = w - 0.1 * (0.0 + decay * w)
+      print(epochs, decay, round(float(w[0]), 4))
+expected_output: |
+  10 0.0 1.0
+  10 0.1 0.9044
+  100 0.1 0.366
+explanation: |
+  Without decay nothing moves. With decay each step multiplies the weight by 1 minus 0.1 times 0.1, which is 0.99: ten steps leave 0.904 and a hundred leave 0.366. A weight the data doesn't defend fades away at a rate set by the learning rate times the decay.
+skills: [decay]
