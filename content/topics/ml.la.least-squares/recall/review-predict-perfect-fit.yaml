@@ -1,0 +1,20 @@
+id: review-predict-perfect-fit
+type: predict_output
+rev: 1
+prompt: |
+  `lstsq` on points that lie exactly on a line. What does the program print?
+code: |
+  import numpy as np
+
+  xs = np.array([1.0, 2.0, 3.0])
+  ys = np.array([3.0, 5.0, 7.0])
+  A = np.column_stack([xs, np.ones(3)])
+  fit = np.linalg.lstsq(A, ys)[0]
+  print(np.round(fit, 6))
+  print(np.allclose(A @ fit, ys))
+expected_output: |
+  [2. 1.]
+  True
+explanation: |
+  The points are on `y = 2x + 1`, so the best fit is exact: slope 2, intercept 1, and the fitted values equal the data. `lstsq` returns a tuple; `[0]` is the coefficients. Rounding hides the last-decimal noise a solver leaves.
+skills: [lstsq]

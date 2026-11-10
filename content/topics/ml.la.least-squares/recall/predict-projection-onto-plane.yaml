@@ -1,0 +1,22 @@
+id: predict-projection-onto-plane
+type: predict_output
+rev: 1
+prompt: |
+  `b` is projected onto the plane spanned by the two columns of `A` (the x and y axes of 3-D space), using the normal equations. What does the program print?
+code: |
+  import numpy as np
+
+  A = np.array([[1.0, 0.0], [0.0, 1.0], [0.0, 0.0]])
+  b = np.array([1.0, 2.0, 3.0])
+  x = np.linalg.solve(A.T @ A, A.T @ b)
+  p = A @ x
+  print(p)
+  print(b - p)
+  print((b - p) @ A)
+expected_output: |
+  [1. 2. 0.]
+  [0. 0. 3.]
+  [0. 0.]
+explanation: |
+  The columns of `A` span the floor, the x-y plane. The shadow of `b` on the floor keeps its x and y and drops its height: `[1, 2, 0]`. What's left, `[0, 0, 3]`, points straight up, perpendicular to both columns, so its dot product with each is 0. That perpendicularity is exactly what the normal equations enforce.
+skills: [normal]

@@ -1,0 +1,26 @@
+<Intro>
+
+Checkpoint 1 found the best line through five points by stepping downhill on the error two thousand times. This topic finds it in one step, and shows why there was a step to take: the best fit is a projection, the shadow of the data onto the plane of all possible lines, and the leftover is perpendicular to that plane.
+
+The main resource is **Strang's lecture 16** from MIT's 18.06, projection matrices and least squares, which builds the normal equations from the picture; 45 minutes, and the clearest hour on the subject. Khan Academy's shorter video covers the same ground if time is short. Watch for:
+
+- **The design matrix:** one row per data point, one column per unknown, with a column of ones for the intercept.
+- **Why `solve` won't do:** more equations than unknowns, usually no exact answer.
+- **The residual is perpendicular to every column**, and that sentence is the normal equations.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A fit as `A x ≈ b`.** For a line `y = m x + c` through points `(xᵢ, yᵢ)`: `A = np.column_stack([xs, np.ones(n)])`, unknowns `x = [m, c]`, `b = ys`. One row per point; more rows than unknowns, so usually no exact solution.
+- **The normal equations.** The best `x` makes the residual `b - A x` perpendicular to every column of `A`: `Aᵀ(b - A x) = 0`, so `AᵀA x = Aᵀb`. That's a square system: `np.linalg.solve(A.T @ A, A.T @ b)`.
+- **It's a projection.** `A x` is the shadow of `b` on the plane spanned by `A`'s columns; the residual is the part of `b` sticking out of that plane. Projecting onto a line (last topic) is the one-column case.
+- **`np.linalg.lstsq(A, b)`** does the same fit more carefully, and returns `(coefficients, residual_sum_of_squares, rank, singular_values)`; take `[0]`. Prefer it to the normal equations for anything beyond a few columns.
+- **What's minimized:** the sum of squared residuals, the same mean squared error Checkpoint 1 stepped down. For the five noisy points, `[1.95, 1.15]` is where 2000 steps of gradient descent were heading.
+- **Checking a fit:** `A @ coef` are the fitted values; `b - A @ coef` the residuals; `A.T @ residual` should be zeros (rounding aside); `R² = 1 - SS_res / SS_tot` says how much of the spread the fit explains.
+- **A plane** is the same code with two feature columns and a column of ones: `np.column_stack([X, np.ones(n)])`.
+- **In machine learning:** this is linear regression, solved exactly. Everything that isn't linear in its parameters, which is nearly every network, goes back to gradient descent; the picture of a projection and a perpendicular residual stays.
+
+</Recap>
