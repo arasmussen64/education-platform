@@ -1,0 +1,15 @@
+id: parsons-a-stable-softmax
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to compute the softmax of two large logits without overflowing, and print `[0.26894142 0.73105858]`. One line is a decoy that doesn't belong.
+lines:
+  - 'import numpy as np'
+  - 'logits = np.array([1000.0, 1001.0])'
+  - 'shifted = np.exp(logits - logits.max())'
+  - 'print(shifted / shifted.sum())'
+distractors:
+  - 'shifted = np.exp(logits)'
+explanation: |
+  Subtracting the largest logit leaves the differences, and so the ratios, unchanged, and makes every exponent at most 0, so every `exp` is at most 1. The decoy exponentiates the raw logits: `exp(1000)` overflows to infinity, and infinity over infinity is `nan`.
+skills: [special]

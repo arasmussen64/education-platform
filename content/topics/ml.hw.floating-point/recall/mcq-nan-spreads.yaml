@@ -1,0 +1,14 @@
+id: mcq-nan-spreads
+type: mcq
+rev: 1
+prompt: |
+  A training run prints a loss of `nan` from step 300 onwards. What is true of `nan`, and what should you look for?
+choices:
+  - '`nan` means the loss is too small to print; lower the learning rate and the numbers will come back into the printable range'
+  - '`nan` spreads to everything computed from it and equals nothing, even itself; find the first operation that made one'
+  - '`nan` compares equal to itself, so `loss == float(''nan'')` finds the bad step and the batch that caused it'
+  - '`nan` is NumPy''s marker for a missing batch and can be skipped, as a missing value in a column would be'
+answer: 1
+explanation: |
+  Once a `nan` enters, every sum, product and gradient downstream is `nan`, so the loss stays `nan` for good; the useful question is where the first one came from. `nan == nan` is `False` by design, so use `np.isnan` to catch it. The usual sources are an exponential past float range, `log(0)` and `0 / 0`, which the next steps of this topic guard against.
+skills: [special]

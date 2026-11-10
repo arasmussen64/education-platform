@@ -1,16 +1,82 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.hw.floating-point
 kind: topic
-status: planned
-title: Floating point
+status: ready
+title: "Floating point"
 summary: "How a computer stores a fraction: sign, exponent and mantissa; why 0.1 + 0.2 isn't 0.3; float32 against float64; machine epsilon, rounding that accumulates, overflow to infinity, NaN, and the log-sum-exp trick that keeps a loss finite."
-prerequisites:
-- ml.hw.bits-and-integers
+prerequisites: [ml.hw.bits-and-integers]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Explain how a float stores a number as sign, exponent and mantissa, and why most decimals are stored approximately.
-- Compare two floats safely with a tolerance, and say what machine epsilon is for float32 and float64.
-- Show rounding error accumulating in a long sum, and reduce it with pairwise or compensated summation.
-- Say where infinity and NaN come from, and keep a softmax or a log-likelihood finite with log-sum-exp.
+  - "Explain how a float stores a number as sign, exponent and mantissa, and why most decimals are stored approximately."
+  - "Compare two floats safely with a tolerance, and say what machine epsilon is for float32 and float64."
+  - "Show rounding error accumulating in a long sum, and reduce it with pairwise or compensated summation."
+  - "Say where infinity and NaN come from, and keep a softmax or a log-likelihood finite with log-sum-exp."
+# Linked, never copied or embedded: the Python documentation is under the PSF
+# licence; Wikipedia is CC BY-SA 4.0.
+resources:
+  - title: "The Python tutorial, chapter 15: Floating-Point Arithmetic: Issues and Limitations"
+    url: https://docs.python.org/3/tutorial/floatingpoint.html
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+  - title: "Wikipedia: Single-precision floating-point format (the IEEE 754 layout and the examples)"
+    url: https://en.wikipedia.org/wiki/Single-precision_floating-point_format
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Wikipedia: Kahan summation algorithm (the algorithm and the worked example)"
+    url: https://en.wikipedia.org/wiki/Kahan_summation_algorithm
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-what-a-float-holds
+  - predict-a-tenth
+  - mcq-why-a-tenth-is-not-exact
+  - mcq-seven-digits
+  - mcq-comparing-floats
+  - predict-ten-tenths
+  - mcq-nan-spreads
+  - parsons-a-stable-softmax
+  - fill-decode-a-float32
+  - write-kahan-sum
+prove:
+  build: build-a-float-toolkit
+  debug: debug-a-loss-that-went-nan
+  explain:
+    prompt: |
+      A teammate's test asserts that a model's probabilities sum to exactly 1.0 and fails one time in five; another's training loss became NaN at the first large logit; a third keeps a running total of a million float32 losses and gets a mean that is visibly wrong. In your own words: how a float stores a number and why 0.1 can't be stored exactly; what machine epsilon is and how to compare floats; why a long sum drifts in float32 and what pairwise or compensated summation does about it; and where infinity and NaN come from and how log-sum-exp keeps a softmax finite.
+    rubric:
+      - id: representation
+        required: true
+        description: "A float is a sign, an exponent and a mantissa: a binary fraction times a power of two. Only fractions whose denominator is a power of two are exact (0.5, 0.25); 0.1 repeats in binary and is rounded to the nearest representable value, so 0.1 + 0.2 lands a last-digit away from 0.3. float32 keeps 24 bits of mantissa (about 7 decimal digits), float64 53 (about 16)."
+      - id: epsilon
+        required: true
+        description: "Machine epsilon is the gap between 1 and the next float: about 1.2e-7 for float32 and 2.2e-16 for float64. Equality tests on computed floats fail by last-digit rounding; compare with a tolerance, math.isclose or np.isclose, relative for large values and absolute near zero."
+      - id: accumulation
+        required: true
+        description: "Each addition rounds to the current magnitude, so adding small values to a large running total loses their low digits and the error grows with the count; summing in float64, pairwise summation (np.sum), math.fsum, or Kahan's carried-error sum keeps the result right."
+      - id: special
+        required: true
+        description: "Overflow past the largest float gives inf, inf minus inf and 0 times inf give NaN, and NaN poisons everything it touches and is never equal to anything, itself included. exp of a large logit overflows; subtracting the maximum before exp (log-sum-exp) leaves the ratios unchanged and every term at most 1."
+    model_answer: |
+      A float stores a number in three parts: a sign bit, an exponent, and a mantissa that holds the significant digits in binary. The value is the mantissa times two to the exponent, so a float is a binary fraction scaled by a power of two. That is why only fractions whose denominator is a power of two come out exact: 0.5 and 0.25 do, but 0.1 is a repeating fraction in binary the way a third is in decimal, and it is rounded to the nearest pattern that fits. A float32 keeps 24 bits of mantissa, about seven decimal digits; a float64 keeps 53, about sixteen. So 0.1 + 0.2 is computed on two already-rounded numbers and lands a last digit away from the rounded 0.3, and the teammate's test for an exact sum of 1.0 fails whenever the rounding errors of the probabilities don't happen to cancel. Machine epsilon is the gap between 1 and the next representable number, about 1.2 times ten to the minus seven in float32 and 2.2 times ten to the minus sixteen in float64; it is the size of a single rounding step at magnitude one. The right test is a tolerance: math.isclose or np.isclose, with a relative tolerance for numbers of ordinary size and an absolute one near zero, where a relative tolerance shrinks to nothing. The running total drifts because every addition is rounded to the precision of the current total: once the total is large, a small loss's low digits fall off the end, and the loss repeats a million times in the same direction. Adding a hundred thousand tenths in float32 one at a time comes out well off ten thousand. The fixes are to accumulate in float64, to add pairwise so that partners are always of similar size, which is what np.sum does, to use math.fsum, which is exact, or to use Kahan's method, which keeps the rounding error of each step and feeds it back into the next. Infinity appears when a result is larger than the largest float, about 1.8 times ten to the 308 in float64 and 3.4 times ten to the 38 in float32; exp of 1000 overflows in either. NaN, not a number, appears when the arithmetic has no answer, such as infinity minus infinity or zero times infinity, and it spreads: anything computed from a NaN is NaN, and NaN is not equal to anything, not even itself. The loss went NaN because the softmax divided an overflowed infinity by an overflowed infinity. The log-sum-exp trick subtracts the largest logit from all of them before exponentiating, which leaves the ratios, and so the probabilities, unchanged while making every exponent at most zero and every term at most one, and adds the maximum back in the log.
+review_pool:
+  - review-predict-inf-and-nan
+  - review-predict-epsilon
+  - review-mcq-summing-a-million
+  - review-mcq-why-subtract-the-max
+  - review-stable-softmax
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: representation
+    description: "Explain sign, exponent and mantissa, and why most decimals are stored approximately"
+  - id: epsilon
+    description: "Compare floats with a tolerance, and say what machine epsilon is for float32 and float64"
+  - id: accumulation
+    description: "Show rounding accumulating in a long sum, and reduce it"
+  - id: special
+    description: "Say where inf and NaN come from, and keep a softmax or a log-likelihood finite with log-sum-exp"

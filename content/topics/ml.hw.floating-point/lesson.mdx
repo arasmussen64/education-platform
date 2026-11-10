@@ -1,0 +1,25 @@
+<Intro>
+
+Every weight, activation and loss in a model is a **float**, and floats are approximations with rules. `0.1 + 0.2` is not `0.3`; a float32 can't tell 16,777,216 from 16,777,217; a million small additions drift; `exp(1000)` is infinity and infinity divided by infinity is a value that poisons everything it touches. This topic opens a float up (sign, exponent, mantissa), measures how much precision each kind has, watches rounding accumulate and fixes it, and ends with the one trick every loss function relies on: **log-sum-exp**.
+
+The main resource is **the Python tutorial's chapter on floating-point arithmetic**, which walks through why 0.1 is stored approximately and what to do about it; about 20 minutes. Wikipedia's _Single-precision floating-point format_ has the bit layout, and its _Kahan summation algorithm_ page has the carried-error sum. Watch for:
+
+- **Binary fractions**: which decimals come out exact and which repeat.
+- **`repr` and rounding**: what Python shows you and what is stored.
+- **`math.fsum`**: the exact sum, and what a plain running total loses.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A float is sign, exponent and mantissa.** A float32 spends 1 bit on the sign, 8 on an **exponent** (stored with 127 added, so `01111011`, 123, means `2**-4`) and 23 on the **mantissa**, the binary digits after a leading 1. The value is `(1 + mantissa / 2**23) * 2**(exponent - 127)`, with the sign. `0.1` is `0 01111011 10011001100110011001101`, which is `0.10000000149011612`: a binary fraction times a power of two, rounded to the nearest pattern. Only fractions with a power-of-two denominator are exact (`0.5`, `0.25`, `0.75`); `0.1` repeats in binary as a third does in decimal. So `0.1 + 0.2` is `0.30000000000000004`, and `0.1` printed to 20 places is `0.10000000000000000555`.
+- **Precision.** float32 keeps 24 significant bits, about 7 decimal digits; float64 keeps 53, about 16. **Machine epsilon** is the gap between 1 and the next float: `1.19e-07` for float32 and `2.22e-16` for float64. Past `2**24` a float32 can't hold every integer: `16777216 + 1` stays `16777216`. That is why counts live in integers and why float32 models keep their sums and their optimizer state in float64 or in **mixed precision**.
+- **Compare with a tolerance.** `0.1 + 0.2 == 0.3` is `False`; `math.isclose(0.1 + 0.2, 0.3)` and `np.isclose` are `True`. Use a relative tolerance for numbers of ordinary size and an absolute one near zero, where any relative tolerance shrinks to nothing. A test that asserts probabilities sum to exactly `1.0` fails by rounding.
+- **Rounding accumulates.** Each addition rounds to the precision of the running total, so small values added to a large total lose their low digits, in the same direction, every time: a hundred thousand tenths added one at a time in float32 come to 9,998.56, not 10,000; ten tenths added one at a time in float64 come to `0.9999999999999999`. Fixes: accumulate in float64; `np.sum`, which adds **pairwise** so partners stay the same size (the same hundred thousand tenths come to 10,000.0); `math.fsum`, which is exact, and Python's built-in `sum`, which has compensated for rounding since 3.12; or **Kahan summation**, which keeps each step's rounding error and feeds it into the next.
+- **Infinity and NaN.** A result beyond the largest float (`1.8e308` in float64, `3.4e38` in float32) **overflows** to `inf`; `inf - inf`, `0 * inf` and `inf / inf` are `nan`, not a number, which spreads through every calculation it enters and is not equal to anything, itself included (`np.isnan` finds it; `==` never does). A mean with one `nan` in it is `nan`; the question is always where the first one came from.
+- **Log-sum-exp.** `exp(1000)` overflows, so a naive softmax of `[1000, 1001]` is `inf / inf`, `nan`. Subtract the largest value first: `exp([0, 1])` is finite, the ratios are unchanged, and the probabilities are `[0.269, 0.731]`. For a log of a sum of exponentials, add the maximum back: `log(sum(exp(x))) = m + log(sum(exp(x - m)))`, `1001.313` here. Every cross-entropy and every log-likelihood in a library does this.
+- **In machine learning** (names you'll meet later): a loss that becomes `nan` is almost always an overflowed exponential, a log of zero or a division by zero, found by tracing the first `nan` back; **mixed precision** trains in float16 or bfloat16 with float32 accumulation for exactly the reasons above; `allclose` with a stated tolerance is how two implementations are checked against each other; and gradient clipping and learning-rate warm-up exist partly to keep numbers inside float range.
+
+</Recap>

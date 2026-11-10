@@ -1,0 +1,20 @@
+id: review-predict-epsilon
+type: predict_output
+rev: 1
+prompt: |
+  Machine epsilon added to 1, whole and halved, in float64 and in float32; then the gap between `0.1 + 0.2` and `0.3` against four epsilons. What does the program print?
+code: |
+  import numpy as np
+  
+  eps64 = np.finfo(np.float64).eps
+  print(1.0 + eps64 > 1.0, 1.0 + eps64 / 2 > 1.0)
+  eps32 = np.float32(np.finfo(np.float32).eps)
+  print(bool(np.float32(1) + eps32 > 1), bool(np.float32(1) + eps32 / 2 > 1))
+  print(abs((0.1 + 0.2) - 0.3) < 4 * eps64)
+expected_output: |
+  True False
+  True False
+  True
+explanation: |
+  Epsilon is the gap between 1 and the next float, so adding it moves past 1; adding half of it lands exactly between two floats and rounds back to 1, in either width. The gap between `0.1 + 0.2` and `0.3` is a fraction of an epsilon, which is why a tolerance of a few epsilons, or `math.isclose`, calls them equal.
+skills: [epsilon]

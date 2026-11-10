@@ -1,0 +1,14 @@
+id: mcq-comparing-floats
+type: mcq
+rev: 1
+prompt: |
+  A test asserts `sum(probabilities) == 1.0` and fails one run in five. What is the right fix?
+choices:
+  - 'Compare with a tolerance, `math.isclose` or `np.isclose`: a sum of rounded floats lands a few last digits from 1'
+  - 'Round the probabilities to 2 decimal places before summing, so the small rounding errors disappear before the test'
+  - 'Use float32, whose rounding is coarser and therefore more forgiving of small errors'
+  - 'Sort the probabilities before summing, so the result is deterministic from run to run'
+answer: 0
+explanation: |
+  Each probability is rounded to the nearest float, and their sum carries those roundings, so it lands within a few machine epsilons of 1 and is exactly 1 only by luck. A tolerance is the honest test. Rounding to 2 places would pass sums that are genuinely wrong; float32 makes the errors larger; sorting changes which digits are lost but not whether some are.
+skills: [epsilon]

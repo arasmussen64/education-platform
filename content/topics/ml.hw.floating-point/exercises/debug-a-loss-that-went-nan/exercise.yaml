@@ -1,0 +1,14 @@
+id: debug-a-loss-that-went-nan
+stage: debug
+rev: 1
+title: "A loss that went wrong"
+prompt: |
+  The program computes the cross-entropy of three examples from their logits and checks that each softmax sums to 1. It should print:
+
+  ```
+  losses: [0.417, 0.4076, 1.0986] mean: 0.6411
+  probabilities sum to 1: True
+  ```
+
+  It has two bugs. Run it: it crashes with `OverflowError: math range error`, because the softmax exponentiates the raw logits and `exp(1000)` is beyond the largest float; subtract the largest logit from all of them first, which leaves the probabilities unchanged. Fix that, and the check prints `False`: it asks for the probabilities to sum to exactly `1.0`, and a sum of rounded floats lands a few last digits away. Compare with a tolerance, `math.isclose`.
+skills: [special, epsilon]

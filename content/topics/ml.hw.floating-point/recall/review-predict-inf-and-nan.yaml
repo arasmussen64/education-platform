@@ -1,0 +1,19 @@
+id: review-predict-inf-and-nan
+type: predict_output
+rev: 1
+prompt: |
+  Arithmetic at the edge of the float range. What does the program print?
+code: |
+  big = 1e308
+  print(big * 10, -big * 10, big * 10 > big)
+  inf = float("inf")
+  print(inf - inf, inf * 0, 1 / inf)
+  nan = float("nan")
+  print(nan == nan, nan != nan, max(1.0, nan))
+expected_output: |
+  inf -inf True
+  nan nan 0.0
+  False True 1.0
+explanation: |
+  `1e308 * 10` is past the largest float64, so it overflows to `inf`, and `inf` is greater than any finite number. Infinity minus infinity and zero times infinity have no answer, so they are `nan`; one over infinity is 0. `nan` is not equal to anything, even itself, so `nan == nan` is `False` and `nan != nan` is `True`; `max` compares with `<`, and every comparison with `nan` is `False`, so it keeps its first argument.
+skills: [special]
