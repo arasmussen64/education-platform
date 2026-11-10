@@ -108,7 +108,7 @@ Module 1 estimated slopes and stepped downhill on one knob; Checkpoint 1 did it 
 
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 and 4 have.
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 and 4 had before they were written (both on 2026-11-10).
 
 - **5. Probability and statistics for ML:** distributions; expectation and variance; Bayes' rule properly; maximum likelihood; sampling and confidence; the statistics of evaluating a model.
 - **6. Data structures and algorithms:** complexity; arrays, hashing, trees, graphs; sorting and searching; dynamic programming; the algorithms behind data pipelines.

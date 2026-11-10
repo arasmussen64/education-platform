@@ -1,0 +1,19 @@
+id: example-xor-with-momentum
+stage: worked_example
+rev: 1
+title: "XOR again, with momentum"
+prompt: |
+  The checkpoint's program on the backpropagation topic's four XOR points, with momentum in place of plain descent. Press **Run**, then read how each part works; the checkpoint is this with sixteen points and a report.
+steps:
+  - label: "The network and the loss"
+    lines: "4-17"
+    note: "`forward` keeps `z1`, `h` and `p` for the backward pass. `loss` clips `p` away from 0 and 1 before the logs, so a confident prediction can't make the loss infinite; the backpropagation topic's version didn't, and the checkpoint's does."
+  - label: "The backward pass, as a dict"
+    lines: "20-24"
+    note: "The same four lines as the backpropagation topic, returning the gradients under the same keys as the parameters, so a loop over `params` can update every one."
+  - label: "Momentum"
+    lines: "27-37"
+    note: "One velocity per parameter, all starting at zero. Each step: forward, loss, backward, then for every key `v = beta * v + grad` and `param = param - rate * v`. With `beta = 0` this is plain descent; with 0.9, gradients that agree step after step build speed."
+  - label: "Training, and the report"
+    lines: "48-52"
+    note: "Five hundred steps at rate 0.1. The loss falls from 0.732 to 0.001, the accuracy is 1.0 and the classes are XOR's `[0, 1, 1, 0]`. The backpropagation topic needed a thousand steps of plain descent at rate 0.5 for the same result."
