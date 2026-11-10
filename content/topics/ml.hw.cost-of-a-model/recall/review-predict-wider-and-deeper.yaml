@@ -1,0 +1,17 @@
+id: review-predict-wider-and-deeper
+type: predict_output
+rev: 1
+prompt: |
+  The parameters of a network, of the same network with its hidden layer doubled in width, and of the same network with a second hidden layer of the same width. What does the program print?
+code: |
+  def parameter_count(layers):
+      return sum(i * o + o for i, o in zip(layers, layers[1:]))
+  
+  
+  narrow, wide, deep = [100, 100, 10], [100, 200, 10], [100, 100, 100, 10]
+  print(parameter_count(narrow), parameter_count(wide), parameter_count(deep))
+expected_output: |
+  11110 22210 21210
+explanation: |
+  The narrow network is 100 times 100 plus 100, then 100 times 10 plus 10: 11,110. Doubling the hidden width doubles both layers that touch it: 20,200 plus 2,010. Adding a second hidden layer of 100 adds one more 100-by-100 block, 10,100, so deeper here costs almost the same as wider; widening a layer that sits between two wide layers would cost far more, since both of its blocks grow.
+skills: [parameters]

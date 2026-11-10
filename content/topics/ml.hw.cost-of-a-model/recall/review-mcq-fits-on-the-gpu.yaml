@@ -1,0 +1,14 @@
+id: review-mcq-fits-on-the-gpu
+type: mcq
+rev: 1
+prompt: |
+  Can a network of a billion parameters be trained on a GPU with 24 GB of memory? Can it run?
+choices:
+  - 'Neither: a billion parameters is 4 GB in float32, and a GPU needs ten times the weights free to run anything'
+  - 'It runs (2 GB in float16); training with Adam needs 16 GB of state before activations, so only with a tiny batch, a lighter optimizer, recomputation or sharding'
+  - 'Both easily: the weights are 4 GB, which leaves 20 GB for everything else'
+  - 'It trains but can''t run, because inference needs the activations of the whole dataset at once, while training only ever needs one batch of them and the four copies of the weights'
+answer: 1
+explanation: |
+  Running needs the weights and one example's activations: 2 or 4 GB, which fits with room to spare. Training with Adam keeps four copies of the parameters, 16 GB, and then needs the activations of a batch, so 24 GB is too tight for a useful batch unless the state is shrunk (an 8-bit optimizer, fewer trained parameters), the activations are recomputed instead of stored, or the state is spread over several GPUs.
+skills: [memory]

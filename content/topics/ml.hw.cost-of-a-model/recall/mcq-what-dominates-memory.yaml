@@ -1,0 +1,14 @@
+id: mcq-what-dominates-memory
+type: mcq
+rev: 1
+prompt: |
+  A training run fits in GPU memory at a batch of 32 and runs out at 64. Which part of the memory grew?
+choices:
+  - 'The weights: a bigger batch needs more of them'
+  - 'The optimizer state, which keeps a copy of the moments for every example in the batch'
+  - 'The gradients, which are computed separately for every example in the batch and only averaged at the end of the step, so a bigger batch keeps more of them'
+  - 'The activations: every layer''s output is kept per example for the backward pass, so they scale with the batch; the weights and state don''t'
+answer: 3
+explanation: |
+  The weights, the gradients and the optimizer moments are one copy each, whatever the batch; they are a fixed cost. The activations are kept per example, so doubling the batch doubles them, and at large batches they are most of the memory. A smaller batch, recomputing activations during the backward pass, or float16 activations are the usual ways back under the limit.
+skills: [memory]

@@ -1,0 +1,22 @@
+id: predict-parameters-and-flops
+type: predict_output
+rev: 1
+prompt: |
+  The parameters and forward FLOPs of a tiny network, then of a single 100-by-100 layer with its training FLOPs per example. What does the program print?
+code: |
+  def parameter_count(layers):
+      return sum(i * o + o for i, o in zip(layers, layers[1:]))
+  
+  
+  def forward_flops(layers):
+      return sum(2 * i * o for i, o in zip(layers, layers[1:]))
+  
+  
+  print(parameter_count([4, 3, 2]), forward_flops([4, 3, 2]))
+  print(parameter_count([100, 100]), forward_flops([100, 100]), 6 * parameter_count([100, 100]))
+expected_output: |
+  23 36
+  10100 20000 60600
+explanation: |
+  `[4, 3, 2]` is two layers: 4 times 3 plus 3, then 3 times 2 plus 2, 15 plus 8 parameters; the forward pass is 2 FLOPs per weight, 2 times (12 plus 6). The single layer has 10,000 weights and 100 biases, a forward pass of 20,000 FLOPs, and a training step of about 6 per parameter.
+skills: [parameters, flops]

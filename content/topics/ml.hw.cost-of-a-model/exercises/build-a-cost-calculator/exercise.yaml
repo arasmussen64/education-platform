@@ -1,0 +1,32 @@
+id: build-a-cost-calculator
+stage: build
+rev: 1
+title: "A cost calculator"
+prompt: |
+  Starting from a blank editor, write five functions:
+
+  - `parameter_count(layers)`: weights and biases of every dense layer, for a network given as a list of layer sizes.
+  - `forward_flops(layers)`: a multiply and an add per weight, for one example.
+  - `training_flops(layers, examples)`: forward plus a backward pass of twice the forward, for every example.
+  - `training_bytes(params, batch, activations_per_example, itemsize)`: four copies of the parameters (weights, gradients, two Adam moments) plus one batch of activations, all at `itemsize` bytes per value.
+  - `training_seconds(flops, flop_rate, utilization)`: the FLOPs over the rate the machine really sustains, its peak times the utilization.
+
+  Then print:
+
+  ```python
+  LAYERS = [784, 256, 128, 10]
+  print(parameter_count(LAYERS), forward_flops(LAYERS), training_flops(LAYERS, 60_000))
+  print(training_bytes(parameter_count(LAYERS), 64, sum(LAYERS), 4), training_bytes(10**9, 8, 2 * 10**6, 2))
+  print(round(training_seconds(training_flops(LAYERS, 60_000), 10e12, 1.0), 4), round(training_seconds(training_flops(LAYERS, 60_000), 10e12, 0.3), 4))
+  print(round(training_seconds(6 * 7e9 * 1e12, 1000 * 10e12, 0.4) / 86400, 1))
+  ```
+
+  ```
+  235146 469504 84510720000
+  4063904 8032000000
+  0.0085 0.0282
+  121.5
+  ```
+
+  The checks count tiny networks by hand, including one with a single layer and one with none, compare the FLOPs at two batch sizes, test the bytes at a batch of 0 and at both precisions, and check that halving the utilization doubles the time.
+skills: [parameters, flops, memory, time]

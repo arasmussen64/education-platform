@@ -1,0 +1,14 @@
+id: mcq-why-the-estimate-is-optimistic
+type: mcq
+rev: 1
+prompt: |
+  A run of 4.2 × 10²² FLOPs on a 10 TFLOP/s GPU is estimated at 133 years from the peak rate. In which direction is the estimate wrong, and why?
+choices:
+  - 'Too long: the peak rate is a minimum, and a well-written training loop exceeds it'
+  - 'Too long: the estimate counts the backward pass, which the GPU does for free alongside the forward'
+  - 'About right: the peak rate is what a GPU delivers on matrix multiplies, which are all a training step does once the data is on the device, so the only correction is the time to load it'
+  - 'Too short: a loop sustains perhaps 30 to 50 percent of peak, because of memory-bound steps, small multiplies, data loading, Python glue and gradient exchange'
+answer: 3
+explanation: |
+  The spec-sheet rate assumes every arithmetic unit is busy every cycle. A real step has elementwise work that waits on memory, matrix multiplies too small to fill the chip, batches to load and move, Python glue, and on a cluster the averaging of gradients; the fraction of peak that survives all that is the utilization, and 30 to 50 percent is a good run. The backward pass costs twice the forward and is in the count; nothing is free.
+skills: [time]

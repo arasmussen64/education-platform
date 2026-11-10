@@ -1,17 +1,80 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.hw.cost-of-a-model
 kind: topic
-status: planned
+status: ready
 title: "Counting a model's cost"
 summary: "Parameters, FLOPs and bytes: counting a network's weights, the operations of a forward and backward pass, memory for weights and activations at float32 and float16, and an estimate of time from a GPU's throughput."
-prerequisites:
-- ml.hw.parallelism-and-gpus
-- ml.hw.floating-point
+prerequisites: [ml.hw.parallelism-and-gpus, ml.hw.floating-point]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Count the parameters of a network from its layer sizes.
-- Count the FLOPs of a forward pass and estimate the backward pass, for one example and for a batch.
-- Compute the memory for weights and activations at float32 and float16, and say what mixed precision trades.
-- "Estimate training time from FLOPs and a GPU's throughput, and say why the estimate is optimistic."
+  - "Count the parameters of a network from its layer sizes."
+  - "Count the FLOPs of a forward pass and estimate the backward pass, for one example and for a batch."
+  - "Compute the memory for weights and activations at float32 and float16, and say what mixed precision trades."
+  - "Estimate training time from FLOPs and a GPU's throughput, and say why the estimate is optimistic."
+# Linked, never copied or embedded: Wikipedia is CC BY-SA 4.0; the paper is
+# on arXiv under its non-exclusive distribution licence.
+resources:
+  - title: "Wikipedia: Neural scaling law (the section on compute, where training FLOPs are about 6 times parameters times tokens)"
+    url: https://en.wikipedia.org/wiki/Neural_scaling_law
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Wikipedia: Mixed-precision arithmetic (what is kept in float32 and what is done in float16, and why)"
+    url: https://en.wikipedia.org/wiki/Mixed-precision_arithmetic
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Hoffmann et al. 2022, Training Compute-Optimal Large Language Models, Appendix F (how the FLOPs of a transformer are counted, layer by layer)"
+    url: https://arxiv.org/abs/2203.15556
+    type: reading
+    use: link
+    license: "arXiv non-exclusive distribution licence (linked, not copied)"
+practice:
+  - example-the-cost-of-a-network
+  - predict-parameters-and-flops
+  - mcq-six-per-parameter
+  - parsons-training-flops
+  - predict-bytes
+  - mcq-what-dominates-memory
+  - mcq-what-mixed-precision-trades
+  - mcq-why-the-estimate-is-optimistic
+  - fill-training-bytes
+  - write-count-a-network
+prove:
+  build: build-a-cost-calculator
+  debug: debug-a-count-and-an-estimate
+  explain:
+    prompt: |
+      A teammate estimated that a model would train in an hour on their laptop and it took a day; another asks whether a network of a billion parameters can be trained on a GPU with 24 gigabytes of memory, or at least run; a third asks what switching to mixed precision would give them. In your own words: how you count a network's parameters from its layer sizes and the FLOPs of its forward and backward passes, and the rule of thumb for a training step; how much memory the weights, the gradients, the optimizer state and the activations take at float32 and float16, and what mixed precision changes; and how to estimate training time from FLOPs and a GPU's throughput, and why the first teammate's estimate was a day out.
+    rubric:
+      - id: parameters
+        required: true
+        description: "A dense layer from i inputs to o outputs has i times o weights and o biases; the network's parameters are the sum over its layers. For [784, 256, 128, 10] that is 235,146."
+      - id: flops
+        required: true
+        description: "A forward pass is a multiply and an add per weight per example, about 2 FLOPs per parameter; the backward pass is about twice the forward (a gradient for the inputs and one for the weights), so a training step is about 6 FLOPs per parameter per example, times the batch, times the examples seen."
+      - id: memory
+        required: true
+        description: "Weights are parameters times bytes per value (4 in float32, 2 in float16); training with Adam keeps weights, gradients and two moments, 16 bytes per parameter in float32, and mixed precision keeps a float32 master copy so the state stays about 16; activations scale with the batch and are halved by float16. A billion parameters is 2 GB to run in float16 and 16 GB of state to train before any activations."
+      - id: time
+        required: true
+        description: "Time is FLOPs over the rate the machine sustains, which is its peak times a utilization of perhaps 30 to 50 percent, because of memory-bound steps, small matrix multiplies, data loading, Python overhead and communication; a peak-rate estimate is optimistic by that factor and more, and a laptop CPU is far below a GPU's rate to begin with."
+    model_answer: |
+      A dense layer from i inputs to o outputs has i times o weights and o biases, so a network's parameter count is the sum of i times o plus o over its layers: the [784, 256, 128, 10] network is 200,960 plus 32,896 plus 1,290, which is 235,146. The forward pass does a multiply and an add for every weight for every example, so it is about 2 FLOPs per parameter; the biases and the activation functions are a rounding error beside the matrix multiplies. The backward pass computes a gradient with respect to the inputs of each layer and one with respect to its weights, each another matrix multiply of the same size, so it is about twice the forward. That gives the rule of thumb: a training step costs about 6 FLOPs per parameter per example, and a whole run costs 6 times the parameters times the number of examples, or tokens, seen. Memory is parameters times bytes per value, 4 in float32 and 2 in float16, for the weights alone. Training with Adam keeps four copies, the weights, the gradients and the two moment estimates, 16 bytes per parameter in float32, and on top of that the activations of every layer for the current batch, which scale with the batch size and are the part that halves when the batch is computed in float16. So the billion-parameter network is 2 gigabytes to run in float16, which fits, and 16 gigabytes of training state before a single activation, which with a useful batch does not fit in 24 gigabytes without tricks such as a smaller optimizer, sharding the state across GPUs or recomputing activations. Mixed precision runs the matrix multiplies and stores the activations in float16 or bfloat16 while keeping a float32 master copy of the weights and the optimizer moments, so the state stays about 16 bytes per parameter; what it buys is halved activation memory, halved memory traffic for the memory-bound steps, and a much higher matrix-multiply rate on the tensor cores, which the third teammate would feel as a step that is two to three times faster. The price is float16's narrow range, which needs loss scaling to keep small gradients from flushing to zero, or bfloat16, which keeps float32's range with fewer digits. Time is FLOPs divided by the rate the machine really sustains. The peak number on the spec sheet assumes every unit is busy every cycle; in practice a training loop reaches perhaps 30 to 50 percent of it, because the elementwise steps are memory-bound, the matrix multiplies are sometimes small, the data has to be loaded and moved, Python glue runs between the kernels and, on several GPUs, gradients have to be exchanged. The first teammate most likely divided by the peak rate of a GPU-class number on a laptop CPU that sustains far less, and ignored utilization on top; an hour at peak becoming a day is a factor of 24, which is a few times for utilization multiplied by a few times for the hardware.
+review_pool:
+  - review-mcq-fits-on-the-gpu
+  - review-mcq-twice-the-tokens
+  - review-predict-wider-and-deeper
+  - review-count-from-memory
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: parameters
+    description: "Count a network's parameters from its layer sizes"
+  - id: flops
+    description: "Count the FLOPs of a forward pass and estimate the backward, per example and per batch"
+  - id: memory
+    description: "Compute the memory for weights, state and activations at float32 and float16, and say what mixed precision trades"
+  - id: time
+    description: "Estimate training time from FLOPs and throughput, and say why the estimate is optimistic"

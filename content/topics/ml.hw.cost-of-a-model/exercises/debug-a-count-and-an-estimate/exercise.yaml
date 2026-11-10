@@ -1,0 +1,14 @@
+id: debug-a-count-and-an-estimate
+stage: debug
+rev: 1
+title: "A count and an estimate"
+prompt: |
+  `parameter_count` should count the small network's weights and biases, and `training_seconds` should estimate an epoch on a 10 TFLOP/s GPU at 30 percent utilization. The program should print:
+
+  ```
+  parameters: 235,146
+  one epoch at 30 percent of 10 TFLOP/s: 28.2 ms
+  ```
+
+  It has two bugs. Run it: the count is `234,752`, 394 short, because the biases are left out; each layer has `out` of them on top of its `in * out` weights. And the epoch comes out at `2.5 ms` instead of `28.2`: the utilization is **multiplied** in, making the machine faster, when it should scale the peak rate **down**; the time is the FLOPs over peak times utilization.
+skills: [parameters, time]
