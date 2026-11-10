@@ -1,0 +1,22 @@
+id: example-rows-columns-and-cache-lines
+stage: worked_example
+rev: 1
+title: "Rows, columns and cache lines"
+prompt: |
+  A small array's strides and where its elements sit, two ways of taking part of it that share memory and one that doesn't, a simulated cache walked by rows and by columns, and the bytes a large array's operations move. Press **Run**, then read how each part works.
+steps:
+  - label: "Strides: where each element sits"
+    lines: "5-7"
+    note: "A `(3, 4)` float64 array is one block of 96 bytes with strides `(32, 8)`: step 8 bytes along a row, 32 down a column. Element `[1, 2]` sits at `32 + 16 = 48`, and row 1 is bytes 32 to 63. The transpose swaps the strides to `(8, 32)` without moving a byte, which is why it is no longer contiguous."
+  - label: "A view and a copy"
+    lines: "9-13"
+    note: "Every other column is a view: the same block with strides `(32, 16)`, so `shares_memory` is `True` and writing 100 through it changes `a[0, 0]`. The boolean mask picks scattered elements that no stride can describe, so NumPy copies them, and `shares_memory` is `False`."
+  - label: "A cache you can count"
+    lines: "16-34"
+    note: "A model of a cache: `lines_in_cache` slots, each holding one 64-byte line of 8 float64s, least recently used evicted first (`OrderedDict` keeps the order). Walking the matrix by rows or by columns, every element's line is looked up; a miss costs a fetch and may evict the oldest line."
+  - label: "By rows and by columns"
+    lines: "37-38"
+    note: "By rows, each line is fetched once and all eight of its floats are used before the next line: 65,536 floats over 8 is 8,192 misses. By columns, each element is a row apart from the last, a different line every time, and with only 64 lines of cache for 256 rows the line is evicted before its neighbours come round: 65,536 misses, every element. Same arithmetic, eight times the traffic."
+  - label: "Bytes moved"
+    lines: "40-44"
+    note: "A thousand by a thousand float64s is 8,000,000 bytes. `grid + 1` reads all of them and writes 8,000,000 more into a fresh block; `grid += 1` writes back into the same block. For an operation this simple, the bytes are the cost."

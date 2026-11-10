@@ -1,0 +1,23 @@
+id: predict-view-or-copy
+type: predict_output
+rev: 1
+prompt: |
+  Four ways of taking part of an array, tested for shared memory, then written through. What does the program print?
+code: |
+  import numpy as np
+  
+  a = np.arange(6, dtype=np.int32).reshape(2, 3)
+  rows = a[1:]
+  flipped = a.T
+  chosen = a[a % 2 == 0]
+  fresh = a.copy()
+  print(np.shares_memory(a, rows), np.shares_memory(a, flipped), np.shares_memory(a, chosen), np.shares_memory(a, fresh))
+  rows[0, 0] = 99
+  chosen[0] = 77
+  print(a[1, 0], a[0, 0])
+expected_output: |
+  True True False False
+  99 0
+explanation: |
+  A slice and a transpose are views: the same bytes with a different start or strides, so they share memory and writing 99 into `rows` changes `a[1, 0]`. A boolean mask picks elements that aren't evenly spaced, so NumPy copies them, and `copy()` copies by definition; writing 77 into `chosen` leaves `a[0, 0]` at 0.
+skills: [layout]

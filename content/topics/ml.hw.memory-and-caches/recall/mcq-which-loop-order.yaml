@@ -1,0 +1,14 @@
+id: mcq-which-loop-order
+type: mcq
+rev: 1
+prompt: |
+  A `(10000, 10000)` float64 matrix in C order is summed twice by hand-written loops: once row by row, once column by column. Which is faster, and why?
+choices:
+  - 'Column by column, because a column is one dimension and the processor handles one dimension at a time, loading it into the registers as a unit before it starts adding them up'
+  - 'Neither; the same 100 million additions are done either way, and additions are what take the time'
+  - 'Row by row: a row''s elements are neighbours, so every cache line fetched is used in full; a column''s are a whole row apart, so each fetch is mostly wasted'
+  - 'Column by column, because NumPy stores arrays column by column underneath, whatever the shape says'
+answer: 2
+explanation: |
+  In C order the last axis is contiguous: stepping along a row moves 8 bytes, stepping down a column moves a whole row, 80,000 bytes. The additions are the same; the memory traffic is not. Walking rows uses all eight floats of each 64-byte line; walking columns fetches a line for one float, and with ten thousand rows the cache can't hold them all until the next column comes round, so nearly every element is a miss.
+skills: [locality]

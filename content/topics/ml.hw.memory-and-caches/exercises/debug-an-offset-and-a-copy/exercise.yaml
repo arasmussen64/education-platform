@@ -1,0 +1,14 @@
+id: debug-an-offset-and-a-copy
+stage: debug
+rev: 1
+title: "An offset and a copy"
+prompt: |
+  `byte_offset` should say where an element of a C-order array sits, and `clear_top_row` should zero the first row of an array in place. The program should print:
+
+  ```
+  48 == 48
+  [0. 0. 0. 0.] 4.0
+  ```
+
+  It has two bugs. Run it: the offset of `[1, 2]` comes out as 40 against NumPy's 48, because the row is multiplied by the number of **rows** instead of the number of **columns**: stepping down one row skips a whole row of `cols` items. Fix that, and the first row is still `[0. 1. 2. 3.]` after clearing: `clear_top_row` zeroes a **copy** of the row, so `a` never sees it; a slice `a[0]` is a view, and writing through the view is what changes `a`.
+skills: [layout]

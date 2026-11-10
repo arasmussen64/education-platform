@@ -1,0 +1,36 @@
+id: review-predict-cache-misses
+type: predict_output
+rev: 1
+prompt: |
+  The cache simulator from the worked example on a 16 by 16 float64 matrix (8 floats per line): rows through a 2-line cache, columns through a 2-line cache, and columns through a 16-line cache. What does the program print?
+code: |
+  from collections import OrderedDict
+  
+  
+  def misses(shape, order, lines_in_cache, floats_per_line=8):
+      """Cache misses when a float64 matrix is walked in row or column order through a small least-recently-used cache."""
+      rows, cols = shape
+      if order == "rows":
+          visits = ((r, c) for r in range(rows) for c in range(cols))
+      else:
+          visits = ((r, c) for c in range(cols) for r in range(rows))
+      cache = OrderedDict()
+      count = 0
+      for r, c in visits:
+          line = (r, c // floats_per_line)
+          if line in cache:
+              cache.move_to_end(line)
+          else:
+              count += 1
+              cache[line] = True
+              if len(cache) > lines_in_cache:
+                  cache.popitem(last=False)
+      return count
+  
+  
+  print(misses((16, 16), "rows", 2), misses((16, 16), "columns", 2), misses((16, 16), "columns", 16))
+expected_output: |
+  32 256 32
+explanation: |
+  By rows, each line is fetched once and its eight floats used in turn: 256 floats over 8 is 32 misses, whatever the cache size. By columns with only 2 lines, every element is in a different line from the last and the line is gone before its neighbours are wanted: 256 misses. With 16 lines the cache holds one line per row, so a column's lines stay until the next seven columns have used them: 32 again. Locality is about the cache being big enough for the pattern.
+skills: [locality]

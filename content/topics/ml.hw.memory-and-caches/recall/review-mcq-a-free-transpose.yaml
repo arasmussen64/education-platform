@@ -1,0 +1,14 @@
+id: review-mcq-a-free-transpose
+type: mcq
+rev: 1
+prompt: |
+  `a.T` on a large array returns instantly, but a routine that is handed `a.T` runs slowly. What happened?
+choices:
+  - '`a.T` copies the whole array in the background on a separate thread, and the routine has to wait for the copy to finish before it can start, which on a large array takes most of the time'
+  - 'Transposing a NumPy array is not allowed on large arrays, so the routine falls back to a Python loop over the elements'
+  - 'The routine is slow for every input of that size; the transpose is a coincidence'
+  - '`a.T` only swaps the strides: free to make, but the routine now walks memory a row at a time and misses the cache; `np.ascontiguousarray` copies once into the order it wants'
+answer: 3
+explanation: |
+  Transposing swaps the strides and nothing else, which is why it is free and why the result isn't contiguous: the routine's inner loop now steps a whole row at a time and fetches a cache line per element. Copying into a contiguous block costs one pass over the bytes and makes every later pass walk in sequence; it is worth it when the routine will walk the array more than once.
+skills: [layout]

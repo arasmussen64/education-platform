@@ -1,0 +1,28 @@
+id: build-a-layout-toolkit
+stage: build
+rev: 1
+title: "A layout toolkit"
+prompt: |
+  Starting from a blank editor, write four functions:
+
+  - `c_strides(shape, itemsize)`: the byte strides of a C-order array of that shape and item size.
+  - `byte_offset(shape, itemsize, index)`: how many bytes from the start of such an array the element at `index` (a tuple) sits.
+  - `misses(shape, order, lines_in_cache, floats_per_line=8)`: the cache simulator: a float64 matrix walked by `"rows"` or `"columns"` through a least-recently-used cache of that many lines, counting misses.
+  - `traffic(shape, dtype, reads, writes)`: the bytes an operation moves if it reads the whole array `reads` times and writes it `writes` times (`np.dtype(dtype).itemsize` is the bytes per element).
+
+  Then print:
+
+  ```python
+  print(c_strides((3, 4), 8), byte_offset((3, 4), 8, (1, 2)), byte_offset((2, 3, 4), 2, (1, 2, 3)))
+  print(misses((256, 256), "rows", 64), misses((256, 256), "columns", 64))
+  print(traffic((1000, 1000), "float64", 1, 0), traffic((1000, 1000), "float64", 1, 1), traffic((1000, 1000), "float32", 1, 1))
+  ```
+
+  ```
+  (32, 8) 48 46
+  8192 65536
+  8000000 16000000 8000000
+  ```
+
+  The checks compare the strides and offsets with real NumPy arrays, test the cache at the size where one line per row is the difference between a hit and a miss, and check the traffic for three dtypes.
+skills: [layout, locality, bytes-moved]
