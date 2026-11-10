@@ -567,6 +567,13 @@ def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
         report = test_lab(load_lab(topic_id, exercise_id), say=log.append)
     except LabError as error:
         report = ContractReport(f"{topic_id}/{exercise_id}", [f"labcheck: {error}"])
+    except subprocess.TimeoutExpired as error:
+        # A script that ran past its limit beside three other labs; alone it
+        # may not. A script that truly hangs times out again on the retry.
+        report = ContractReport(
+            f"{topic_id}/{exercise_id}",
+            [f"labcheck: timed out: {first_line(str(error))}"],
+        )
     except Exception as error:  # noqa: BLE001 - one lab's broken file mustn't end the run
         report = ContractReport(
             f"{topic_id}/{exercise_id}",

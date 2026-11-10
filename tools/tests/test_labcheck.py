@@ -268,3 +268,13 @@ def test_a_lab_the_checker_gave_up_on_is_retried_alone(monkeypatch, capsys) -> N
     assert retried_line in out
     assert "BROKEN t/really-broken" in out
     assert exit_code == 1
+
+
+def test_a_timeout_while_proving_counts_as_the_checker_giving_up(monkeypatch) -> None:
+    def slow(topic: str, exercise: str):
+        raise subprocess.TimeoutExpired(["docker", "exec", "lab", "bash"], 300)
+
+    monkeypatch.setattr(labcheck, "load_lab", slow)
+    report = labcheck.test_quietly("t", "slow")
+    assert report.gave_up
+    assert report.problems[0].startswith("labcheck: timed out:")
