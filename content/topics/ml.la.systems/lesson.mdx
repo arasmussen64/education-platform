@@ -1,0 +1,25 @@
+<Intro>
+
+Two unknowns, two facts about them: that's a system of equations, and you solved them in Module 1 by undoing one step at a time. Written as a matrix, a system is `A x = b`, which asks "which vector does `A` send to `b`?", and the whole of the last topic applies: if `A` squashes nothing, there's exactly one answer, and NumPy finds it in one call.
+
+The main resource is **OpenStax's section 4.1** on solving systems with two variables, for the by-hand methods; read as far as elimination, about 20 minutes. Then **3Blue1Brown's chapter 7**, which is where one solution, none and infinitely many become pictures. Watch for:
+
+- **One row per equation:** the matrix holds the coefficients, the vector the right-hand sides.
+- **Elimination:** adding a multiple of one equation to another doesn't change the answer, and it zeroes things out.
+- **When `A` squashes the plane**, some `b`s are unreachable and others are reached from a whole line of inputs.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A system as `A x = b`.** Each equation is a row: `2x + y = 5` and `x - y = 1` become `A = [[2, 1], [1, -1]]`, `b = [5, 1]`, unknowns `x = [x, y]`. Keep the unknowns in the same order in every row.
+- **`np.linalg.solve(A, b)`** gives `x`. Always check: `A @ x` should be `b`, and `np.allclose(A @ x, b)` says so despite rounding. Order matters: `solve(A, b)`, never `solve(b, A)`.
+- **Elimination by hand.** Put `b` alongside `A` as an extra column; subtract a multiple of one row from another to make a zero; when a row has one unknown left, read it off and substitute back. Each step keeps the solution set the same, which is the whole trick.
+- **Rank** (`np.linalg.matrix_rank(A)`) counts the independent equations. Rank equal to the number of unknowns: exactly one solution. Lower: the columns don't fill the space, and `b` is either unreachable (no solution) or reachable from infinitely many `x` (a line or plane of them). `solve` raises `LinAlgError: Singular matrix` on such an `A`; `[[1, 2], [2, 4]]` is the classic, one equation written twice.
+- **`solve`, not `inv`.** `inv(A) @ b` gives the same answer when it exists, but costs more, rounds worse near singular, and fails outright at singular. `solve` does elimination directly.
+- **Many right-hand sides at once:** `solve(A, B)` with `B` a matrix solves one system per column.
+- **In machine learning:** least squares, next topic, is a system of equations in disguise; so is every "find the weights that make these equations hold" problem, and the rank tells you when the data can't pin the weights down.
+
+</Recap>

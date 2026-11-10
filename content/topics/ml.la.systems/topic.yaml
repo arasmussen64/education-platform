@@ -1,17 +1,80 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.la.systems
 kind: topic
-status: planned
-title: Systems of linear equations
+status: ready
+title: "Systems of linear equations"
 summary: "Ax = b: elimination by hand on a small system, np.linalg.solve on a large one, and when there is no solution or many."
-prerequisites:
-- ml.la.matrices-as-maps
-- ml.math.algebra
+prerequisites: [ml.la.matrices-as-maps, ml.math.algebra]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Write a system of equations as Ax = b.
-- Solve a small system by elimination, by hand and in code.
-- Solve a large one with np.linalg.solve, and check the answer.
-- Say, from the rank, when a system has no solution or infinitely many.
+  - "Write a system of equations as Ax = b."
+  - "Solve a small system by elimination, by hand and in code."
+  - "Solve a large one with np.linalg.solve, and check the answer."
+  - "Say, from the rank, when a system has no solution or infinitely many."
+# Linked, never copied or embedded: OpenStax is CC BY 4.0; 3Blue1Brown's
+# videos are under the standard YouTube licence; NumPy's documentation under
+# the NumPy licence (BSD-3-Clause).
+resources:
+  - title: "Intermediate Algebra 2e, section 4.1: Solve Systems of Linear Equations with Two Variables (OpenStax, Rice University)"
+    url: https://openstax.org/books/intermediate-algebra-2e/pages/4-1-solve-systems-of-linear-equations-with-two-variables
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Essence of linear algebra, chapter 7: Inverse matrices, column space and null space (3Blue1Brown, Grant Sanderson)"
+    url: https://www.youtube.com/watch?v=uQhTuRlWMxw
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "numpy.linalg.solve (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.linalg.solve.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-two-equations
+  - parsons-solve
+  - mcq-write-the-system
+  - predict-check-the-answer
+  - mcq-singular-error
+  - fill-elimination-step
+  - mcq-rank-meaning
+  - write-mix
+prove:
+  build: build-parabola-through
+  debug: debug-gaussian-elimination
+  explain:
+    prompt: |
+      A colleague's reaction to any system of equations is "just invert the matrix". In your own words: what question does `A x = b` ask about the transformation `A`? What decides whether there is exactly one answer, none, or infinitely many, and what has rank got to do with it? Why does elimination work: why can you add a multiple of one row to another without changing the answer? And why do people reach for `np.linalg.solve` rather than `inv(A) @ b`?
+    rubric:
+      - id: question
+        required: true
+        description: "A x = b asks which input vector x the transformation A sends to b; solving is running the transformation backwards."
+      - id: rank
+        required: true
+        description: "Full rank (as many independent equations as unknowns) gives exactly one answer; a lower rank means the columns don't fill the space, so b is either unreachable (no solution) or reachable in infinitely many ways."
+      - id: elimination
+        required: true
+        description: "A row operation rewrites the equations into equivalent ones: adding a multiple of one true equation to another keeps both true and loses nothing, so the solution set is unchanged while the system gets triangular and easy."
+      - id: solve-vs-inv
+        required: false
+        description: "solve does elimination directly, which is faster and more accurate than forming the inverse, and it works the same when b is many columns; inv may not exist and rounds badly when A is nearly singular."
+    model_answer: |
+      A x = b asks: which vector x does the transformation A send to b? Solving it is running A backwards from the output to the input. Whether that has one answer depends on whether A loses information. If the columns of A are independent, the rank equals the number of unknowns, A squashes nothing, and every b comes from exactly one x. If the rank is lower, say two equations that are really the same one, the columns don't fill the space: a b outside what they reach has no solution, and a b inside is reached from a whole line of x's, infinitely many. Elimination works because each step replaces an equation with an equivalent one: if two equations are true, then one of them plus three times the other is also true, and you can get the original back by subtracting, so no information is gained or lost. Doing that until the system is triangular makes the last unknown read off directly and the rest follow by substitution. np.linalg.solve does exactly that elimination, with care about rounding; inv(A) @ b first builds the whole inverse, which costs more, rounds worse when A is nearly singular, and doesn't exist at all when it is. The inverse is a good idea to think with and a poor one to compute with.
+review_pool:
+  - review-predict-solve-check
+  - review-mcq-how-many-solutions
+  - review-mcq-row-operations
+  - review-solve-3x3
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: write-system
+    description: "Write a described problem as A x = b, one row per equation"
+  - id: eliminate
+    description: "Solve a small system by elimination, by hand and in code"
+  - id: solve
+    description: "Solve with np.linalg.solve and check the answer"
+  - id: rank
+    description: "Say from the rank whether there is one solution, none or infinitely many"
