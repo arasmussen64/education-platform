@@ -1,17 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.calc.partials-and-gradient
 kind: topic
-status: planned
-title: Partial derivatives and the gradient
-summary: Functions of several variables, partial derivatives by holding the rest fixed, and the gradient as the vector that points uphill fastest.
-prerequisites:
-- ml.calc.derivatives
-- ml.la.vectors
+status: ready
+title: "Partial derivatives and the gradient"
+summary: "Functions of several variables, partial derivatives by holding the rest fixed, and the gradient as the vector that points uphill fastest."
+prerequisites: [ml.calc.derivatives, ml.la.vectors]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Take a partial derivative by holding the other variables fixed.
-- Assemble the gradient as a vector, and check it against finite differences.
-- Say why the gradient points in the direction of steepest ascent, and what its length means.
-- "Read a contour picture: the gradient is perpendicular to the contours."
+  - "Take a partial derivative by holding the other variables fixed."
+  - "Assemble the gradient as a vector, and check it against finite differences."
+  - "Say why the gradient points in the direction of steepest ascent, and what its length means."
+  - "Read a contour picture: the gradient is perpendicular to the contours."
+# Linked, never copied or embedded: Khan Academy is CC BY-NC-SA 3.0 US;
+# OpenStax is CC BY 4.0; NumPy's documentation is under the NumPy licence
+# (BSD-3-Clause).
+resources:
+  - title: "Khan Academy: Multivariable calculus, partial derivatives and the gradient (Grant Sanderson)"
+    url: https://www.khanacademy.org/math/multivariable-calculus/multivariable-derivatives
+    type: video
+    use: link
+    license: CC BY-NC-SA 3.0 US (linked, not copied)
+  - title: "OpenStax Calculus Volume 3: sections 4.3 (Partial Derivatives) and 4.6 (Directional Derivatives and the Gradient)"
+    url: https://openstax.org/details/books/calculus-volume-3
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "numpy.zeros (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.zeros.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-gradient-of-a-bowl
+  - parsons-numeric-gradient
+  - mcq-what-a-partial-holds-fixed
+  - predict-gradient-and-its-length
+  - mcq-gradient-and-contours
+  - fill-numeric-gradient
+  - write-steepest-ascent
+prove:
+  build: build-gradient-check
+  debug: debug-gradient-routine
+  explain:
+    prompt: |
+      A model's loss depends on two weights, and your training code computes `grad = [dL/dw1, dL/dw2]` and steps against it. A teammate asks what that vector is. In your own words: what is a partial derivative, and what is held fixed while you take it? Why does the gradient point in the direction the loss rises fastest, and what does its length tell you? Why is it perpendicular to the loss's contour lines (the curves along which the loss doesn't change)? And what is the first thing you'd do if you suspected a hand-written gradient was wrong?
+    rubric:
+      - id: partial
+        required: true
+        description: "A partial derivative is the ordinary derivative with respect to one variable while every other variable is held fixed at its current value; the gradient is the vector of all of them."
+      - id: steepest
+        required: true
+        description: "The rate of change along a unit direction u is the dot product grad . u, which is largest when u points along the gradient; so the gradient is the uphill direction and its length is that largest rate (how steep the steepest way is)."
+      - id: contours
+        required: true
+        description: "Along a contour the function doesn't change, so grad . u = 0 for a direction u along the contour: the gradient is perpendicular to it (and descent, which steps against the gradient, crosses contours at right angles)."
+      - id: check
+        required: false
+        description: "Compare it with finite differences: nudge one weight at a time by a small h, both ways, and divide; a gap in the sixth decimal means the formula is wrong."
+    model_answer: |
+      With two weights, the loss is a surface over the plane of weights, and a partial derivative is its slope in one of the two directions: change w1 a little while w2 stays exactly where it is, and see how fast the loss moves; then the same for w2 with w1 fixed. The gradient is those two slopes stacked into a vector. To see why it points uphill fastest, ask how fast the loss changes if you walk in some unit direction u. The answer is the dot product of the gradient with u, and a dot product with a unit vector is largest when the vector points the same way as the gradient. So the gradient is the direction of steepest rise, and its length is that steepest rate: how much the loss changes per unit step in that direction. A contour line is a curve along which the loss doesn't change at all, so walking along it gives a rate of zero, which means the dot product of the gradient with that direction is zero: the gradient is perpendicular to the contour. Descent steps against the gradient, so it crosses contours at right angles, straight towards lower ones. If I thought a hand-written gradient was wrong, I'd check it numerically before anything else: nudge one weight at a time by a small h, up and down, divide the change in loss by 2h, and compare each entry with the formula. Anything beyond the sixth decimal is a bug in the formula, not in the training.
+review_pool:
+  - review-predict-partials
+  - review-mcq-zero-gradient
+  - review-mcq-steepest-descent
+  - review-numeric-gradient
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: partial
+    description: "Take a partial derivative by holding the other variables fixed"
+  - id: gradient
+    description: "Assemble the gradient and check it against finite differences, one coordinate at a time"
+  - id: direction
+    description: "Read the gradient as the steepest-ascent direction and its length as the rate"
+  - id: contours
+    description: "Use the directional derivative, and know the gradient is perpendicular to the contours"

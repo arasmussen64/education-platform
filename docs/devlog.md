@@ -2,6 +2,18 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Partial derivatives and the gradient, the second Module 4 topic
+
+**`ml.calc.partials-and-gradient` is ready.** The slope of a function of several inputs, one axis at a time. The worked example takes the gradient of the bowl `x² + 3y²` by rule (`[2x, 6y]`), checks it at `(1, 1)` with a numeric gradient that nudges one coordinate at a time, finds the steepest direction (`[0.316, 0.949]`) and the rate along it (6.325), shows the rate along the contour direction `[-6, 2]` is zero, and walks a hundredth each way (`f` rises 0.0635 uphill and 0.0001 along the contour). Then a Parsons numeric gradient whose decoy nudges both coordinates at once, four recall questions (a partial with `y` held fixed; a gradient's length and unit direction; a hillside whose gradient points east; which unit direction lowers the loss fastest), a numeric gradient to fill in, and `steepest_ascent` with `directional_derivative` to write. The proofs: a gradient check to build (the numeric gradient, the largest gap over points and coordinates, the steepest direction), whose hidden tests hand it a formula wrong by exactly 0.5 in one slot at one point and expect 0.5 back (known-wrong: every coordinate nudged at once, the forward difference, the mean gap, a "unit" vector divided by its sum); a routine to debug whose `step` array is made once outside the loop, so the second partial comes out 8 instead of 6, and whose directional derivative never scales the direction to length 1; and an explanation of what `grad` is, for a teammate reading training code. The review pool has the partials of `x² y`, what a zero gradient means, the steepest-descent unit direction, and a numeric gradient to write from memory.
+
+**Decisions for you to review:**
+
+1. _Khan Academy's multivariable unit is the main resource,_ Grant Sanderson's own videos there: 3Blue1Brown has no series on functions of several variables. After StatQuest, it's the second outside resource beyond the spec's list; the licence is CC BY-NC-SA 3.0 US and it's linked, not copied.
+2. _The numeric gradient uses a fresh `step` array per coordinate_ rather than nudging `p` in place. The in-place version also works; the array version is the one whose natural mistake (one `step` for the whole loop) teaches something, so the debug is built on it.
+3. _A direction is scaled to length 1 inside `directional_derivative`,_ so a learner's arrow can have any length; the write exercise and the debug both turn on that.
+
+**Next:** Gradient descent in many dimensions (`ml.calc.descent-in-many-dimensions`), where a plane is fitted by descent and compared with Module 3's normal equations.
+
 ## 2026-11-10: Derivatives, the first Module 4 topic
 
 **The stack landed, and Module 4 began.** The chain merged #103 to #142 by itself, one CI cycle each, and #144 followed once a CHANGELOG conflict with the dice fix was resolved by hand (both lines kept). Main now carries the whole ML track through Module 3, and the live site shows it. With every item on Phase 2's list built, the next piece of work was the choice left open last night: Module 4 of the ML track (calculus, outlined) or the cloud track's Module 2. I took Module 4: the owner's twelve-month milestone is ML, the outline was already written and reviewed, and calculus is the first thing on Phase 3's content list. The roadmap now marks Phase 2 built and Phase 3's content begun, and CLAUDE.md says so.

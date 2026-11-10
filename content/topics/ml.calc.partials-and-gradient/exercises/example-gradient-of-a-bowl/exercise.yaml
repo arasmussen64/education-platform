@@ -1,0 +1,25 @@
+id: example-gradient-of-a-bowl
+stage: worked_example
+rev: 1
+title: "The gradient of a bowl"
+prompt: |
+  This program takes the gradient of `f(x, y) = x² + 3y²` by rule, checks it one coordinate at a time, and then walks a little uphill and a little along the contour. Press **Run**, then read how each part works.
+steps:
+  - label: "A bowl and its two partials"
+    lines: "4-11"
+    note: "`f` takes a point as an array and returns one number: a bowl over the plane, three times steeper in `y`. The partial in `x` treats `y` as a constant: `2x`. The partial in `y` treats `x` as a constant: `6y`. `gradient` stacks the two into a vector."
+  - label: "The numeric check, one coordinate at a time"
+    lines: "14-20"
+    note: "For each slot `i`, `step` is all zeros except `h` in that slot, so `p + step` nudges one coordinate and leaves the rest alone. The central difference of the last topic then gives that one partial. Nudging every coordinate at once would give the sum of the partials, which is wrong."
+  - label: "Rule against check"
+    lines: "23-27"
+    note: "At `(1, 1)` the rule says `[2, 6]`, the numeric gradient agrees to six decimals, and `np.allclose` says so in one word."
+  - label: "The steepest direction and the rate"
+    lines: "29-30"
+    note: "Dividing the gradient by its length gives a unit vector, the direction in which `f` rises fastest from `(1, 1)`: `[0.316, 0.949]`, mostly `y`, because the bowl is steeper that way. The length, 6.325, is the rate of rise per unit step in that direction."
+  - label: "Along the contour"
+    lines: "31-32"
+    note: "`[-6, 2]` is perpendicular to `[2, 6]` (their dot product is 0), so it points along the contour, the curve where `f` stays the same. The rate of change in a unit direction is the dot product with the gradient: 6.325 straight uphill, 0 along the contour."
+  - label: "Walking a little each way"
+    lines: "33"
+    note: "A step of 0.01 uphill raises `f` by 0.0635, close to `0.01 * 6.325`; the same step along the contour raises it by 0.0001, nearly nothing (the contour curves a little, so it isn't exactly zero). That's what the two dot products predicted."
