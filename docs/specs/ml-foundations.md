@@ -172,7 +172,7 @@ Module 4 built a two-layer network by hand to learn the calculus; this module bu
 
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 7 had before they were written (all five on 2026-11-10) and Module 8 has (outlined 2026-11-10).
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 8 had before they were written (all six on 2026-11-10).
 
 - **9. Transformers:** embeddings, attention, the transformer block; training a tiny language model; tokenizers; what scaling changes.
 - **10. ML systems:** data pipelines, experiment tracking, evaluation, serving, monitoring, and the engineering judgement around them.

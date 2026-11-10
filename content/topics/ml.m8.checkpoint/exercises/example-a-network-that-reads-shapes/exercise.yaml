@@ -1,0 +1,22 @@
+id: example-a-network-that-reads-shapes
+stage: worked_example
+rev: 1
+title: "A network that reads shapes"
+prompt: |
+  The checkpoint's whole pipeline on a smaller font: four shapes drawn into noisy 10-by-10 images at a random shift, a convolutional network with dropout, Adam with weight decay, a gradient check, twenty epochs, and the held-out accuracy. Press **Run**, then read how each part works; the checkpoint is the same pipeline on the ten digits, with the checks holding your network to the bar.
+steps:
+  - label: "The layers, each with forward, backward, parameters and gradients"
+    lines: "4-140"
+    note: "`Dense`, `ReLU`, `Dropout` (with its `training` flag), `Sequential` (with `train()` and `eval()` to flip every flag), `Conv2D` (one feature map per kernel, forward and backward looping over the kernel's offsets), as the module built them. Each layer stores on the way forward what backward needs: the input, the mask, the winner."
+  - label: "Pooling, flattening, the loss and Adam"
+    lines: "143-216"
+    note: "`MaxPool2D` keeps each window's maximum and routes the gradient to it; `Flatten` turns maps into rows and the gradient back; `SoftmaxCrossEntropy` is the log-sum-exp loss with `probs - onehot` over the batch as its gradient; `Adam` adds `weight_decay * param` to each gradient first, the pull towards zero."
+  - label: "The gradient check, batches, evaluation and the loop"
+    lines: "219-274"
+    note: "`gradient_check` puts the network in eval mode first, because dropout in training mode draws a new mask on every forward pass and the function being differentiated would change between the two nudged evaluations. `evaluate` is eval mode, a forward pass and the loss, no update. `fit` switches to train mode before each step and records the losses and the held-out accuracy after each epoch."
+  - label: "A font, drawn into noisy, shifted images"
+    lines: "277-304"
+    note: "`make_images` draws Gaussian noise for every image, then adds 1.0 to each `#` pixel of the glyph, placed at the centre of the 10-by-10 image and shifted by up to one pixel each way; the shifts come from the same seeded generator as the noise, so the data is the same on every run. Four shapes here, a bar, a post, a cross and a box; the checkpoint's font is the ten digits."
+  - label: "Data, gradient check, training, the double evaluation, and what it reads"
+    lines: "307-320"
+    note: "Sixty training images per shape and twenty held out. A tiny two-kernel network passes the gradient check on four images. The real network, six kernels, a pool, dropout of 0.2 and a dense layer, trains for twenty epochs of Adam at 0.01 with weight decay 0.0001 and reads 0.99 of the held-out images; evaluating it twice gives the same number, because dropout is off; and the first held-out image of each shape reads as itself."
