@@ -122,11 +122,26 @@ Module 1 counted chances with a table of 1,000 people, and Module 4 took cross-e
 
 **Checkpoint 5: is the model better?** (`ml.m5.checkpoint`). Judge two classifiers' predictions on a held-out set: a confusion matrix and the metrics for each, a bootstrap interval on the difference in accuracy, and a recommendation; debug an evaluation report with three bugs (a threshold chosen on the test set, precision and recall swapped, an interval built from the wrong resamples); explain Bayes' rule with a base rate and what a confidence interval does and doesn't promise. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
 
+## Module 6: Data structures and algorithms
+
+Module 2 gave the learner Python; this module gives them the cost of what they write. Counting steps and timing as the input doubles; the structures Python hands over (lists, dicts, sets, deques, heaps) and what each costs; recursion; sorting and searching; trees, and graphs including the computation graph that backpropagation walks; dynamic programming; and a checkpoint that builds the algorithms behind a data pipeline. Every topic is proven in code. Timings appear in the worked examples, read as ratios; the checks count steps, because a browser and CI don't share a clock.
+
+| # | Topic | ID | Needs | You'll be able to… |
+| --- | --- | --- | --- | --- |
+| 36 | Counting steps and big-O | `ml.dsa.complexity` | `ml.m2.checkpoint` | count a function's operations and name its order of growth; time a function as its input doubles and read the growth; predict which of two approaches scales and say when the slower one is fine; say what vectorizing with NumPy changes and what it doesn't |
+| 37 | Arrays, hash tables and sets | `ml.dsa.arrays-and-hashing` | `ml.dsa.complexity` | say what each list operation costs and why; explain how a hash table finds a key and why dict and set lookups are constant time on average; replace a quadratic search with a dict or a set and measure it; count, deduplicate, group and join with dictionaries |
+| 38 | Stacks, queues and recursion | `ml.dsa.stacks-queues-recursion` | `ml.dsa.arrays-and-hashing` | use a list as a stack and a deque as a queue, and say why popping from the front of a list is slow; solve bracket matching and undo with a stack; write and trace a recursive function and turn it into a loop with an explicit stack; say what a linked list is and where the idea appears |
+| 39 | Sorting and searching | `ml.dsa.sorting-and-searching` | `ml.dsa.stacks-queues-recursion` | write binary search and say why it takes log n steps; write insertion sort and merge sort and time n² against n log n; sort by one or several keys and say why a stable sort matters; order one array by another with argsort and search a sorted list with bisect |
+| 40 | Trees and heaps | `ml.dsa.trees-and-heaps` | `ml.dsa.stacks-queues-recursion` | build and traverse a tree depth-first and breadth-first; insert into and search a binary search tree and say when it degrades; keep the top k of a stream with a heap; read a decision tree as a tree of questions |
+| 41 | Graphs | `ml.dsa.graphs` | `ml.dsa.trees-and-heaps` | represent a graph as adjacency lists; find reachability and shortest paths in hops with breadth-first search and detect a cycle with depth-first search; find the cheapest path with Dijkstra's algorithm; order a directed acyclic graph topologically and say why computation graphs and pipelines need it |
+| 42 | Dynamic programming | `ml.dsa.dynamic-programming` | `ml.dsa.stacks-queues-recursion`, `ml.dsa.arrays-and-hashing` | spot overlapping subproblems and say why plain recursion repeats work; memoize with a dict and with lru_cache and count the calls saved; compute the edit distance between two strings bottom-up and read the edits back; solve the knapsack with a table and say what makes a problem dynamic programming |
+
+**Checkpoint 6: the algorithms behind a pipeline** (`ml.m6.checkpoint`). Build the pieces of a small data pipeline from the module's tools: deduplicate and join records with hashing, keep the top k with a heap, match near-duplicate names by edit distance, and order the pipeline's steps by topological sort, each shown by counting steps to scale as its order says; debug three bugs that each make a step quadratic or wrong (a nested-loop lookup where a set belongs, a queue popped from the front of a list, a table filled in the wrong order); explain why a dictionary lookup is constant time on average and what a topological order guarantees. The way through for a stuck learner, as in the earlier checkpoints: a solved sibling, steps, fresh versions.
+
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 5 had before they were written (all three on 2026-11-10).
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 5 had before they were written (all three on 2026-11-10) and Module 6 has (outlined 2026-11-10).
 
-- **6. Data structures and algorithms:** complexity; arrays, hashing, trees, graphs; sorting and searching; dynamic programming; the algorithms behind data pipelines.
 - **7. How computers and GPUs work:** memory and caches; why vectorized code is fast; floating point; what a GPU is good at; reading a profiler.
 - **8. Neural networks from scratch:** a neuron, a layer, a loss; backpropagation by hand and in code; training loops; regularization; a small network that reads digits.
 - **9. Transformers:** embeddings, attention, the transformer block; training a tiny language model; tokenizers; what scaling changes.
