@@ -1,0 +1,102 @@
+# Nightly backup of the learning data (ADR-0020): a data dump of the real
+# database, encrypted on the runner before anything leaves it, committed to a
+# private backups repository.
+#
+# It needs three secrets, set in this repository's Settings > Secrets and
+# variables > Actions (docs/setup.md, "Back up your learning data", says how
+# to get each):
+#   SUPABASE_DB_URL      the project's "Session pooler" connection string
+#   BACKUP_PASSPHRASE    a long random passphrase; the dumps are unreadable without it
+#   BACKUPS_REPO_TOKEN   a fine-grained token that can write to the private
+#                        backups repository named below, and nothing else
+# Without them the run says which are missing and stops green, so a schedule
+# that's waiting for setup isn't a red X every morning.
+#
+# The restore path is rehearsed on every pull request by CI's database job
+# (tools/backup_restore_check.sh).
+
+name: Backup
+
+on:
+  schedule:
+    - cron: '17 3 * * *' # 03:17 UTC, daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  BACKUPS_REPO: arasmussen64/education-platform-backups
+
+jobs:
+  backup:
+    name: Dump, encrypt, keep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the secrets are set
+        id: secrets
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          TOKEN: ${{ secrets.BACKUPS_REPO_TOKEN }}
+        run: |
+          missing=""
+          [ -n "$DB_URL" ] || missing="$missing SUPABASE_DB_URL"
+          [ -n "$PASSPHRASE" ] || missing="$missing BACKUP_PASSPHRASE"
+          [ -n "$TOKEN" ] || missing="$missing BACKUPS_REPO_TOKEN"
+          if [ -n "$missing" ]; then
+            echo "::notice::No backup taken: these secrets aren't set yet:$missing. See docs/setup.md, 'Back up your learning data'."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.secrets.outputs.ready == 'true'
+      - uses: actions/setup-node@v7
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install the Supabase CLI
+        if: steps.secrets.outputs.ready == 'true'
+        run: npm ci
+
+      - name: Dump the data
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          stamp=$(date -u +%Y-%m-%d)
+          echo "stamp=$stamp" >> "$GITHUB_ENV"
+          # Data only: the schema comes from the migrations (ADR-0010). The
+          # auth schema keeps the learner's id, so the events stay theirs.
+          npx supabase db dump --remote="$SUPABASE_DB_URL" --data-only --schema public,auth --use-copy -f "$stamp.sql"
+          # The real project always has events in it.
+          grep -q '"public"."events"' "$stamp.sql" || { echo "::error::The dump has no events data. Wrong database?"; exit 1; }
+          echo "dumped $(wc -c < "$stamp.sql") bytes"
+
+      - name: Encrypt it, and shred the plain file
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --symmetric --cipher-algo AES256 \
+            --pinentry-mode loopback --passphrase-fd 0 -o "$stamp.sql.gpg" "$stamp.sql"
+          shred -u "$stamp.sql"
+
+      - name: Commit it to the private backups repository
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          BACKUPS_REPO_TOKEN: ${{ secrets.BACKUPS_REPO_TOKEN }}
+        run: |
+          git clone --quiet --depth 1 "https://x-access-token:${BACKUPS_REPO_TOKEN}@github.com/${BACKUPS_REPO}.git" backups
+          mkdir -p backups/dumps
+          mv "$stamp.sql.gpg" backups/dumps/
+          cd backups
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dumps
+          git commit --quiet -m "backup $stamp"
+          git push --quiet

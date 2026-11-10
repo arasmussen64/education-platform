@@ -36,3 +36,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0017](0017-shell-in-the-browser.md)    | Teaching and proving the shell                                           | Accepted |
 | [0018](0018-lab-checker-local-mode.md)  | The lab checker's local mode                                             | Accepted |
 | [0019](0019-today-across-tracks.md)     | Today shows every track, and counts practice hours per track             | Accepted |
+| [0020](0020-automated-backups.md)       | Nightly encrypted backups of the learning data                           | Accepted |
