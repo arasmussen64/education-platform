@@ -1,6 +1,6 @@
 def top_three(scores):
     """Return the three highest scores, highest first."""
-    ordered = scores.sort()
+    ordered = scores.sort(reverse=True)
     return ordered[:2]
 
 
