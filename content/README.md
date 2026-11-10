@@ -87,7 +87,7 @@ Tests that point at the right skill (see Checkpoint 1's builds):
 - **Value tests** read the numbers whatever their format, and check them against the program's own earlier lines. Then one wrong number fails one test, not every test after it.
 - **Inputs with decimals** go only in the test that reads them. Then `int()` where `float()` is needed fails only that test, not the arithmetic tests.
 - **One test checks the format** (two decimal places), and **one the layout**: the words and spaces, with every number replaced.
-- **Add a known-wrong answer for each likely mistake**, and check that it fails only the test for that mistake. Copy each wrong answer and the tests into an empty folder, then run `harness/cli.py check` (see below).
+- **Add a known-wrong answer for each likely mistake**, and check that it fails only the test for that mistake. When the function is random, the test must sample enough times that the mistake can't hide: ten dice rolls let a 0-to-6 range through one run in five; two hundred never do. Copy each wrong answer and the tests into an empty folder, then run `harness/cli.py check` (see below).
 
 Tips for tests: give each test a one-line docstring, which is what the learner sees, and give `assert` a message when the default wouldn't be clear. See [harness/README.md](../harness/README.md).
 
