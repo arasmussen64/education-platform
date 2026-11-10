@@ -1,0 +1,33 @@
+# The checks for "Finish the network report": each of the script's lines
+# against the same question answered directly.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/net-report"
+  - id: address-line
+    description: "The address line is eth1's address, 10.0.9.1."
+    command: /home/learner/bin/net-report | grep '^address on eth1:'
+    expect:
+      equals: "address on eth1: 10.0.9.1"
+  - id: gateway-line
+    description: "The gateway line is the default route's gateway."
+    command: |
+      truth=$(ip route | awk '/^default/ {print $3}')
+      test "$(/home/learner/bin/net-report | grep '^default gateway:')" = "default gateway: $truth" && echo "gateway matches"
+    expect:
+      contains: matches
+  - id: ports-line
+    description: "The ports line lists every listening TCP port once, in order: 22 53 5432 8080."
+    command: /home/learner/bin/net-report | grep '^listening tcp ports:'
+    expect:
+      equals: "listening tcp ports: 22 53 5432 8080"
+  - id: resolves-line
+    description: "The name line is what shop.internal resolves to, and nothing else."
+    command: /home/learner/bin/net-report | grep '^shop.internal resolves to:'
+    expect:
+      equals: "shop.internal resolves to: 10.0.9.1"
+  - id: answers-line
+    description: "The API line is the HTTP status code, 200."
+    command: /home/learner/bin/net-report | grep '^shop-api answers:'
+    expect:
+      equals: "shop-api answers: 200"

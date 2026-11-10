@@ -1,0 +1,12 @@
+id: debug-not-from-the-office
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "It works on the server, not from the office"
+prompt: |
+  "The shop's API doesn't work from the office," says the ticket, "but it works when you curl it on the server." It does: `curl -sI http://127.0.0.1:8080/` on the lab machine answers `200 OK`, and `from-office curl -s -m 5 http://shop.internal:8080/` gets nothing. Three things are wrong, one at each layer the lesson tests in turn: the address the office is given for `shop.internal` isn't this server's; the firewall, loaded at boot from `/etc/nftables.conf`, lets the API's *old* port through; and the API itself listens where the office can never reach it.
+
+  Find them with the tools, not by guessing: `from-office dig +short shop.internal` against `ip -br addr`; `from-office nc -zv -w 3 10.0.9.1 8080` while `sudo tcpdump -nn -i eth1 port 8080` runs in the background, to tell dropped from refused; `sudo ss -ltnp` for where the API listens. The shop's names are served by `dnsmasq` from `/etc/dnsmasq.d/shop.conf` (`sudo systemctl restart dnsmasq` after a change); the firewall's file is loaded with `sudo nft -f /etc/nftables.conf`; the API's unit is `shop-api.service` (`systemctl cat shop-api`; fix it with a drop-in, `sudo systemctl edit shop-api`, or in the unit file, then `sudo systemctl daemon-reload` and a restart). The firewall must stay a firewall: policy `drop`, the database still unreachable from the office, and the fix in the file, not just in the running rules. Fix all three, confirm that `from-office curl -s http://shop.internal:8080/` answers, and run the checks.
+skills: [test-tools, sockets-ss, firewall-path, tcpdump]

@@ -1,0 +1,19 @@
+#!/usr/bin/python3
+"""shop-db: the shop's database (stand-in). Listens on 127.0.0.1:5432, for
+this machine only, greets each connection and closes it, as a server that
+behaves should."""
+
+import socket
+
+server = socket.socket()
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(("127.0.0.1", 5432))
+server.listen(16)
+print("shop-db listening on 127.0.0.1:5432", flush=True)
+while True:
+    connection, _ = server.accept()
+    try:
+        connection.sendall(b"shop-db ready\n")
+    except OSError:
+        pass
+    connection.close()

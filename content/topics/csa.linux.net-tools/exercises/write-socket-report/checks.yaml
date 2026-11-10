@@ -1,0 +1,39 @@
+# The checks for "Write socket-report": the states with their counts, most
+# first and without the header; the CLOSE-WAIT count against the truth; and
+# the exit status here, where the cache leaks, and in the office, where
+# nothing does.
+checks:
+  - id: states-listed
+    description: "One line per state, the count first, most first, with LISTEN and CLOSE-WAIT among them."
+    command: |
+      out=$(/home/learner/bin/socket-report)
+      counts=$(echo "$out" | awk 'NF == 2 && $1 ~ /^[0-9]+$/ && $2 ~ /^[A-Z]/ {print $1}')
+      test -n "$counts" && test "$counts" = "$(echo "$counts" | sort -rn)" && echo "$out" | grep -qE '^ *[0-9]+ LISTEN$' && echo "$out" | grep -qE '^ *[0-9]+ CLOSE-WAIT$' && echo "states in order"
+    expect:
+      contains: in order
+  - id: no-header
+    description: "ss's header line isn't counted as a state."
+    command: /home/learner/bin/socket-report || true
+    expect:
+      not_contains: State
+  - id: close-wait-line
+    description: "The close-wait line is the number of CLOSE-WAIT sockets, as ss counts them."
+    command: |
+      out=$(/home/learner/bin/socket-report)
+      truth=$(ss -Htan state close-wait | wc -l)
+      script=$(echo "$out" | awk -F': ' '/^close-wait:/ {print $2}')
+      test -n "$script" && test "$script" = "$truth" && test "$truth" -ge 25 && echo "close-wait $script, as ss says"
+    expect:
+      contains: as ss says
+  - id: leak-flagged
+    description: "Here, where the cache holds thirty connections open, the script exits with status 1."
+    command: /home/learner/bin/socket-report > /dev/null; echo $?
+    expect:
+      equals: "1"
+  - id: healthy-is-fine
+    description: "In the office, where nothing leaks, it reports close-wait 0 and exits with status 0."
+    command: |
+      out=$(ip netns exec office /home/learner/bin/socket-report); status=$?
+      echo "$out" | grep -q '^close-wait: 0$' && echo "status $status"
+    expect:
+      equals: "status 0"

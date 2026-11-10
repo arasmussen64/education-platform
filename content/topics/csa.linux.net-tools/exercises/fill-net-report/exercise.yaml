@@ -1,0 +1,14 @@
+id: fill-net-report
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the network report"
+prompt: |
+  In the lab, `~/bin/net-report` is meant to say where the server is on the network and what it offers, in five lines: its address on `eth1` (the office side), its default gateway, the TCP ports it's listening on, what the shop's name resolves to, and the HTTP status the shop's API answers with. Five of its lines have `...` where a value belongs. Fill them in with `nano ~/bin/net-report`, then run `~/bin/net-report` and compare with `ip -br addr`, `ip route`, `ss -ltn`, `dig shop.internal` and `curl -I http://shop.internal:8080/`. Then run the checks.
+hints:
+  - "`ip -4 -br addr show eth1` prints one line: the interface, its state, its address with its prefix (`10.0.9.1/24`). Count the fields to find the address; `cut -d/ -f1` drops the prefix."
+  - "The default route is the line of `ip route` that starts with the word `default`: `awk '/^default/ ...'`."
+  - "`ss -ltn` is listening, TCP, numeric; the script's `awk` then takes the port from the end of the local address. `dig +short NAME` prints just the answer, and `curl -s -o /dev/null -w '%{http_code}' URL` prints just the status code (`-o /dev/null` throws the page away, `-w` writes the one value asked for)."
+skills: [ip-and-routes, sockets-ss, test-tools]

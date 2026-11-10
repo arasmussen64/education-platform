@@ -1,0 +1,32 @@
+id: example-whats-listening
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "What is this server offering?"
+prompt: |
+  You've just been handed the shop's server. On the far side of its second interface, `eth1`, is the office network, and `from-office COMMAND` runs a command as if from a laptop there (it's a network namespace, the mechanism containers use; the lesson's last section explains it). The walkthrough reads the server's addresses and routes, finds what it's listening on, tests it from the office one layer at a time, name, port, protocol, and then watches the packets themselves. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "The interfaces and their addresses"
+    lines: "1"
+    note: "`ip -br addr` (brief) gives one line per interface: its name, its state and its addresses. `lo` is loopback, `127.0.0.1`, the machine talking to itself. `eth0` is the cloud side, with the address the lab gave it. `eth1` is `10.0.9.1/24`: the office network, `10.0.9.0` to `10.0.9.255`, with this server at `.1`."
+  - label: "Where packets go"
+    lines: "2"
+    note: "Each line is a route. `default via ... dev eth0` is the default gateway: anything not matched by a more specific line goes to that router through `eth0`. `10.0.9.0/24 dev eth1` says the office network is directly on `eth1`, no gateway needed. The kernel picks the most specific matching line for every packet."
+  - label: "What's listening, and who"
+    lines: "3"
+    note: "`ss -ltnp`: listening TCP sockets, numeric, with the process. SSH on `0.0.0.0:22` (every address); the shop's API, `shop-api`, on `0.0.0.0:8080`; the database, `shop-db`, on `127.0.0.1:5432` only, so it's reachable from this machine and nowhere else, which is right for a database; and `dnsmasq`, the shop's name server, on loopback and on the office side. The process column needs `sudo`: a process is shown only to a user allowed to see it, and these services run as other users."
+  - label: "Test from the office, one layer at a time"
+    lines: "4"
+    note: "Name first: `dig +short www.shop.internal` answers with a `CNAME` (the name is an alias for `shop.internal`) and then the address, `10.0.9.1`. Then the port: `nc -zv` asks only whether a TCP port answers; 8080 succeeds, 5432 is refused, because the database listens on `127.0.0.1` and never sees a packet from outside. Then the protocol: `curl -sI` asks for just the HTTP headers and gets `200 OK`. `traceroute -n` shows the path is one hop: the office is plugged straight into `eth1`."
+  - label: "The truth on the wire: a handshake"
+    lines: "5"
+    note: "`tcpdump` on `eth1`, with `-nn` (no name lookups) and a filter so only port 8080 is captured, stopping after three packets (`-c 3`); the `&` runs it in the background while the office connects, `wait` waits for it to finish. The three packets are the TCP handshake: `[S]` from the office (SYN), `[S.]` back from the server (SYN-ACK), `[.]` from the office (ACK). Only then does any data flow."
+  - label: "A refused connection on the wire"
+    lines: "6"
+    note: "The same capture for port 5432. The office's `[S]` is answered by `[R.]`, a reset: the kernel saying nothing is listening on that address and port. That's what *refused* looks like. A *dropped* connection, by a firewall or a cloud security group, looks different: the `[S]` is sent again and again and nothing ever comes back."
+  - label: "Write down what you found"
+    lines: "7"
+    note: "The default gateway (the third word of the `default` line), the listening table, and what the name resolves to, each in a file under `~/example`. Three facts that explain a server: where its packets go, what it offers, and what it's called."
+skills: [ip-and-routes, sockets-ss, test-tools, tcpdump]
