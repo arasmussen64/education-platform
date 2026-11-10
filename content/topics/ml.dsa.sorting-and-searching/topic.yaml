@@ -1,16 +1,82 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.dsa.sorting-and-searching
 kind: topic
-status: planned
-title: Sorting and searching
-summary: "Binary search on sorted data, insertion sort and merge sort written and timed, why n log n is the floor for sorting by comparisons, Python's sorted with keys, and NumPy's argsort."
-prerequisites:
-- ml.dsa.stacks-queues-recursion
+status: ready
+title: "Sorting and searching"
+summary: "Binary search on sorted data, insertion sort and merge sort written and counted, why n log n is the floor for sorting by comparisons, Python's sorted with keys, and NumPy's argsort."
+prerequisites: [ml.dsa.stacks-queues-recursion]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Write binary search, and say why it needs sorted data and takes log n steps.
-- Write insertion sort and merge sort, and time them to see n² against n log n.
-- "Sort by a key and by several keys with sorted, and say why Python's sort being stable matters."
-- Use np.argsort to order one array by another, and bisect to search a sorted list.
+  - "Write binary search, and say why it needs sorted data and takes log n steps."
+  - "Write insertion sort and merge sort, and count their comparisons to see n² against n log n."
+  - "Sort by a key and by several keys with sorted, and say why Python's sort being stable matters."
+  - "Use np.argsort to order one array by another, and bisect to search a sorted list."
+# Linked, never copied or embedded: the Runestone book is CC BY-NC-SA 4.0;
+# the Python documentation is under the PSF licence; NumPy's documentation
+# is under the NumPy licence (BSD-3-Clause).
+resources:
+  - title: "Problem Solving with Algorithms and Data Structures using Python (Brad Miller and David Ranum), chapter 6: Sorting and Searching, sections 6.3 and 6.4 (sequential and binary search), 6.9 (insertion sort) and 6.11 (merge sort)"
+    url: https://runestone.academy/ns/books/published/pythonds3/SortSearch/toctree.html
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "The Python documentation: Sorting Techniques (key functions, sort stability, reverse)"
+    url: https://docs.python.org/3/howto/sorting.html
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+  - title: "numpy.argsort (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.argsort.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-search-and-sort-counted
+  - predict-a-binary-search
+  - mcq-why-sorted-first
+  - mcq-a-million-items
+  - parsons-sort-by-score
+  - predict-a-stable-sort
+  - mcq-what-stable-buys
+  - mcq-what-argsort-returns
+  - fill-merge-two-sorted-lists
+  - write-binary-search
+prove:
+  build: build-sort-and-search
+  debug: debug-a-search-that-misses
+  explain:
+    prompt: |
+      A teammate looks up each of 50,000 customer ids in a list of 2 million records with a scan, and sorts a leaderboard by score with a sort they wrote themselves, which sometimes shuffles customers who have equal scores. In your own words: how does binary search find an item in a sorted list, how many steps does it take on 2 million items, and what must be true of the data first? Why does merge sort take about n log n comparisons where insertion sort takes about n², and when is insertion sort the better choice anyway? What does it mean that Python's sort is stable, and why does that fix the leaderboard? And how would you decide between sorting the records once and searching, and putting them in a dict?
+    rubric:
+      - id: binary-search
+        required: true
+        description: "Look at the middle element, keep the half that can hold the target, repeat: each step halves the candidates, so about log2 n steps, 21 for 2 million; the list must be sorted and support indexing."
+      - id: sorts
+        required: true
+        description: "Merge sort splits in halves (log n levels) and merges each level in n steps, so n log n; insertion sort shifts each item past the larger ones, about n²/4 on random data; insertion sort wins on small or nearly sorted input, where it makes about n comparisons."
+      - id: keys
+        required: true
+        description: "Stable means items with equal keys keep their original order, so sorting by score keeps the earlier customer first among ties and sorting in passes (or by a tuple key) gives a multi-key order; Python's sorted is stable and takes a key function."
+      - id: choose
+        required: true
+        description: "Sorting once costs n log n and each search log n: 50,000 searches of 2 million is about 44 million steps after a 42-million-step sort, against a dict's one pass to build and one step per lookup; the dict wins for exact lookups, the sorted list for ranges, neighbours and order."
+    model_answer: |
+      Binary search works on a sorted list by looking at the middle element: if it is the target, done; if it is smaller, the target can only be in the right half; otherwise only in the left half. Each step halves the candidates, so on 2 million items it takes about 21 steps, where a scan takes up to 2 million. The data must be sorted first, and it must be something you can index into directly, like a list or an array, not a chain you have to walk. Merge sort is about n log n because it splits the list in half repeatedly, which takes log n levels, and at each level merges pairs of sorted halves in one pass over all n items. Insertion sort grows a sorted front and shifts each new item left past the items larger than it, which on random data is about a quarter of n squared comparisons. But on data that is already nearly sorted each item stops almost at once, so insertion sort makes about n comparisons, and for small lists its simplicity beats merge sort's overhead; Python's own sort uses it for short runs. Stable means that items whose keys compare equal keep the order they had before the sort. The leaderboard shuffles tied customers because the hand-written sort isn't stable; Python's sorted is, so sorting by score keeps the earlier customer first among ties, and sorting by several keys can be done with a tuple key or in passes from the least important key to the most. For the lookups, sorting the records once costs about n log n, around 42 million steps for 2 million records, and then each of the 50,000 searches costs about 21 steps, under a million more. A dict costs one pass to build and one step per lookup. For exact-match lookups the dict is simpler and faster; the sorted list earns its keep when I also need ranges, nearest neighbours, or the records in order.
+review_pool:
+  - review-predict-bisect
+  - review-mcq-sort-once-or-dict
+  - review-mcq-the-merge-step
+  - review-binary-search
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: binary-search
+    description: "Write binary search, and say why it needs sorted data and takes log n steps"
+  - id: sorts
+    description: "Write insertion sort and merge sort, and count n² against n log n"
+  - id: keys
+    description: "Sort by one or several keys with sorted, and say why stability matters"
+  - id: numpy-sort
+    description: "Order one array by another with argsort, and search a sorted list with bisect"

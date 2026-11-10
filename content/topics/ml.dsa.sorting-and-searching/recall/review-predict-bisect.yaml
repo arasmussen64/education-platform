@@ -1,0 +1,19 @@
+id: review-predict-bisect
+type: predict_output
+rev: 1
+prompt: |
+  Grade boundaries at 60, 70, 80 and 90, and `bisect.bisect_right` for four scores. What does the program print?
+code: |
+  import bisect
+  
+  grades = [60, 70, 80, 90]
+  for score in (59, 60, 85, 100):
+      print(score, bisect.bisect_right(grades, score))
+expected_output: |
+  59 0
+  60 1
+  85 3
+  100 4
+explanation: |
+  `bisect_right` returns the index where the score would be inserted to keep the list sorted, after any equal boundary: 59 goes before 60 (index 0), 60 goes after the 60 (index 1), 85 after 80 (index 3), 100 at the end (index 4). That index is how many boundaries the score has reached, which makes it the grade band, found by binary search.
+skills: [numpy-sort]

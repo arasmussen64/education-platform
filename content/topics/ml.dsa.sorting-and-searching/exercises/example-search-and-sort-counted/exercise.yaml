@@ -1,0 +1,34 @@
+id: example-search-and-sort-counted
+stage: worked_example
+rev: 1
+title: "Search and sort, counted"
+prompt: |
+  Two searches and two sorts with their comparisons counted, then what Python and NumPy give you. Press **Run**, then read how each part works.
+steps:
+  - label: "Binary search"
+    lines: "7-19"
+    note: "`lo` and `hi` bracket the indices that could still hold the target. Each loop looks at the middle one: a match returns; a smaller value means the target can only be to the right, so `lo` moves past the middle; a larger one moves `hi` before it. The list must be sorted for that reasoning to hold."
+  - label: "A scan, for comparison"
+    lines: "22-27"
+    note: "The plain search looks at every item until it finds the target. Both functions count their comparisons in the one-element list they are handed."
+  - label: "A million even numbers"
+    lines: "30-35"
+    note: "Finding the last value and ruling out an odd one: the scan makes 2,000,000 comparisons for the two searches, binary search 40. Twenty-odd steps for a million items is `log2` at work: a million is about 2 to the 20."
+  - label: "Insertion sort"
+    lines: "38-51"
+    note: "The front of the list is kept sorted. Each next item is shifted left past every larger item and dropped where it belongs; the `while` stops at the first item that isn't larger, which on sorted input is immediately."
+  - label: "Merge sort"
+    lines: "54-73"
+    note: "Split in half, sort each half by calling the same function (the last topic's recursion), then merge: keep a finger in each sorted half, compare the two items under the fingers, and take the smaller. The merge is one pass over the items; the splitting goes `log2 n` levels deep."
+  - label: "Counting the sorts"
+    lines: "76-87"
+    note: "On 1,000 shuffled items, insertion sort makes 250,099 comparisons and merge sort 8,705; on 2,000, 1,020,332 and 19,362: doubling multiplied insertion by 4.1 (quadratic) and merge by 2.2 (`n log n`, a bit more than double). On 2,000 items already in order, insertion sort makes just 1,999 comparisons, one per item."
+  - label: "sorted, keys and stability"
+    lines: "89-91"
+    note: "Sorting by city keeps each city's records in the order they came: Oslo's 30 before Oslo's 8, because Python's sort is stable. A tuple key sorts by city and then, within a city, by `-total`, so the larger total comes first. The key function runs once per record."
+  - label: "bisect: binary search from the library"
+    lines: "93-95"
+    note: "`bisect_right` finds, by binary search, the index where the score would be inserted after any equal boundary, which is the number of boundaries it has reached: 49 reaches none, 65 reaches two, 95 all four. Banding, bucketing and \"which threshold\" questions are this one call."
+  - label: "argsort: order one array by another"
+    lines: "97-100"
+    note: "`np.argsort(-scores)` gives the indices that would sort the scores from high to low: 1 (93), 3 (93), 0 (71), 2 (58); `kind=\"stable\"` keeps bob before dee on their tie. Indexing `names` with those indices lists the names in score order. Top-k predictions and rankings are read off a score vector exactly like this."
