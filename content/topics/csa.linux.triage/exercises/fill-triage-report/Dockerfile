@@ -34,11 +34,15 @@ RUN apt-get update \
           /etc/systemd/system/sysstat.service.wants/sysstat-summary.timer
 
 # A CPU-bound worker running at boot, so the report has a clear busiest
-# process, and the report with its gaps.
+# process; the report with its gaps; and a vmstat with fixed numbers, which
+# the run-queue check puts first in the script's PATH (a container's vmstat
+# reads the whole machine, so on a busy host the real one can't tell the
+# right column from a lucky wrong one).
 COPY spin /usr/local/bin/shop-worker
 COPY shop-worker.service /etc/systemd/system/shop-worker.service
 COPY triage-report.starter /home/learner/bin/triage-report
-RUN chmod 755 /usr/local/bin/shop-worker /home/learner/bin/triage-report \
+COPY fixed-vmstat /usr/local/lib/lab-check/vmstat
+RUN chmod 755 /usr/local/bin/shop-worker /home/learner/bin/triage-report /usr/local/lib/lab-check/vmstat \
  && chown -R learner:learner /home/learner/bin \
  && mkdir -p /etc/systemd/system/multi-user.target.wants \
  && ln -s /etc/systemd/system/shop-worker.service /etc/systemd/system/multi-user.target.wants/shop-worker.service
