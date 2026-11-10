@@ -2,6 +2,25 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: A second pair of eyes on today's topics
+
+**Twelve corrections from a review of the prose** in the eight topics written today (Classes through NumPy arrays), by a reviewer who read every lesson, question and hint cold and ran every fill-in starter. The programs had all been proven by running them; the prose hadn't, and it had errors a learner would have met:
+
+- Five fill-ins promised "Python can't run the program at all, and shows a syntax error" until every `...` is replaced. That's true when `...` sits where a statement must be, and false when it sits where a value can: `...` is a valid expression, so those five starters ran and failed with a `TypeError` or a bare assertion instead. The sentence now says the program fails until the gaps are filled. The rule for next time: compile the starter before claiming what it does.
+- `@torch.no_grad()` decorates evaluation, not training; a training loop under it couldn't learn.
+- A worked example's step ranges pointed at the wrong lines (two others were off by one).
+- `area("2", 3)` doesn't fail when hints are ignored: it returns `"222"`, which makes the point better.
+- The Parsons decoy `count = count + 1` doesn't silently do nothing; it raises `UnboundLocalError`. And `return n` in place of `yield n` doesn't make a generator that stops early; it makes a function that isn't a generator at all.
+- A file object is an iterator, not a generator; the tutorial's lambda section is 4.9.6; the `assert` page is in the language reference; pytest also collects `*_test.py`; one JSON question had a second defensible answer; a boolean mask gives a copy, not a view; and `print` asks for `__str__` before `__repr__`.
+
+All twelve are fixed on this branch, at the top of the stack, so every pull request below it merges as written and main ends up correct; the alternative, a fix per branch, would have touched seven branches for prose.
+
+**Decisions for you to review:**
+
+1. _A cold review is now part of writing a batch of topics._ It cost one subagent run and found twelve things eight self-checks hadn't. The checker proves the code; only a reader proves the words.
+
+**Next:** Matrices as transformations, then the stack keeps merging.
+
 ## 2026-11-10: Vectors, the second Module 3 topic
 
 **`ml.la.vectors` is ready.** The two questions every model keeps asking, how long is it and how much do two of them point the same way, with NumPy. The worked example measures `[3, 4]` by Pythagoras and by `np.linalg.norm`, scales it to a unit vector, dots it with `[4, 3]`, divides by the lengths to get 0.96 and an angle of about 16 degrees, and dots it with the axes to read off coordinates and get the zero that means perpendicular. Then a Parsons unit vector whose decoy divides by `len(v)`, four recall questions (a dot product of exactly zero; a length, a dot and a vector dotted with itself; the cosine similarity of `[3, 0, 3]` and `[1, 0, 1]` being 1 because length doesn't count; the projection of `[3, 4]` onto the x-axis), the angle between two vectors to fill in (with `np.clip` explained, because rounding can leave a cosine just over 1), and the most similar row to write with `rows @ query` and a norm along `axis=1`. The proofs: projection and rejection to build, which must work for a non-unit `onto` and in three dimensions, with hidden tests that check the projection lies along `onto`, the rejection is perpendicular and the two add back to `v` (known-wrong: the unit-only formula, projecting onto `v` instead); a similarity report to debug with `query @ rows` where `rows @ query` was meant and a norm over the whole matrix, where the hidden test's two-row matrix turns the first bug into a shape error; and an explanation built on a recommender: why divide by the lengths, what zero means, why a longer description stays as similar, what projecting a taste onto a product gives. The review pool has a 3-D norm, the dot-product formula, what a unit vector is, a projection onto the y-axis, and `is_perpendicular` to write.
