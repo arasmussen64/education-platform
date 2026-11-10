@@ -412,3 +412,14 @@ describe('checkpoint tests (ADR-0012)', () => {
     ])
   })
 })
+
+describe('placement answers', () => {
+  it('open no follow-up and count as no miss (ADR-0021)', () => {
+    const miss: Attempt = {
+      ...attempt('mcq-commas', false, '2026-11-06'),
+      context: 'placement',
+    }
+    expect(openFollowUps([miss], skillsOf)).toEqual([])
+    expect(topicsWithMisses([miss])).toEqual([])
+  })
+})

@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The placement test, the third Phase 2 item
+
+**What it does ([ADR-0021](decisions/0021-placement-test.md)).** At `/placement`, a learner picks a track or the math ladder. For a track, the test takes the open topics they haven't learned, in order, and probes the middle one with up to three of its own review questions (multiple choice, predict the output, Parsons, predict the shell: whatever the pool has, with at least one that isn't multiple choice). Two right passes the topic and everything before it; two wrong fails it and everything after; the next probe is the middle of what's left. Thirty topics take at most five probes, so ten to fifteen questions. The questions say only "Answer recorded": the test measures, it doesn't teach, and it keeps the review questions unspoiled. The result names where the knowledge seems to run out and lists the topics before it to prove, in order, through each topic's own "Prove it now". It marks nothing learned (ADR-0002 is untouched).
+
+**The math diagnostic** is a new, small kind of content, `content/diagnostics/math.yaml`: seven levels from arithmetic to the first ideas of calculus, three original multiple-choice questions each with distractors made from the common mistakes, and a free refresher to point at per level (Khan Academy, linked, with the license recorded). The test walks the ladder the same way; the result says how far up is solid and where to refresh. The validator checks diagnostics, and the tool tests cover a good one and three broken ones.
+
+**Under the hood.** Answers given during a placement are `answer` events with the context `placement` and the run's id; a finished run is one `placement` event with what it found. A migration (`20261109220000_placement_events.sql`) widens the event table's `type` and `context` checks, with a database test. Progress derivation and the follow-ups skip placement answers, so an unopened topic can't turn "in progress" and a placement miss can't open a follow-up; practice time counts them. The walk is a pure module with its own tests (`web/src/placement/placement.ts`); the page is tested end to end with fake topic content (every probe passes, every probe fails, the frontier in the middle, the math ladder with a known frontier, stopping, the card's last result) and the Today page shows the latest result per subject in a line. 737 web tests, 47 tool tests, 4 database test files, all green.
+
+**Waiting on you:** the migration has to reach the live project before a placement taken there can be saved: after this merges, `npx supabase db push --remote --dry-run`, then without `--dry-run`. Until then the outbox keeps placement events on the device and reports them as refused.
+
+**Decisions for you to review:**
+
+1. _Halving along the track's order_ rather than walking the prerequisite graph properly. Our tracks are near-chains, so "what you know is a prefix" is a good approximation and far simpler to explain; the ADR says where to revisit if a track branches a lot.
+2. _Ties and topics with nothing to ask get the benefit of the doubt._ A generous estimate costs a failed proof (and a lesson); a stingy one costs a lesson on something familiar. The first is cheaper and self-correcting.
+3. _Multiple choice for the math diagnostic,_ with distractors from the common mistakes, rather than a new numeric-answer item type. Numeric answers can come with the math content itself.
+4. _No feedback during the test,_ not even at the end per question: only the counts and the plan. The explanations in the math items are written for a future refresher.
+5. _Placement time counts as practice time._ It's effortful retrieval; a ten-minute test is noise against 10,000 hours either way.
+
+**Next in Phase 2:** the step-through code visualizer, then content (intermediate Python, the math refresher).
+
 ## 2026-11-09: Nightly backups, the second Phase 2 item
 
 The learner's history has lived in one Supabase project with no backup but the manual export ([ADR-0010](decisions/0010-environments.md) said as much, and asked for this in Phase 2). Now a scheduled workflow takes an encrypted data dump every night ([ADR-0020](decisions/0020-automated-backups.md)): the pinned Supabase CLI dumps the real project's data over its session-pooler connection (data only, `public` and `auth`, so the learner keeps their id on restore and the events stay theirs), the dump is AES-256 encrypted on the runner and the plain file shredded, and the encrypted file is committed to a private `education-platform-backups` repository, one a night, for good. The repository being public since this morning is what makes the workflow free, and what makes "nothing readable ever leaves the runner" the first rule.

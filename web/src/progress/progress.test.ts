@@ -320,3 +320,14 @@ describe('nextUp', () => {
     expect(next(events)).toBeNull()
   })
 })
+
+describe('placement answers', () => {
+  it("don't start a topic: they place, they don't practise (ADR-0021)", () => {
+    const progress = progressOf(TOPICS, [
+      { ...answer(FIRST, 'mcq-print', false), context: 'placement' },
+      { ...answer(FIRST, 'mcq-print', true, 10), context: 'placement' },
+    ])
+    expect(stateOf(FIRST, progress)).toBe('available')
+    expect(progress.get(FIRST.id)?.started).toBe(false)
+  })
+})

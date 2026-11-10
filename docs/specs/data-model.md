@@ -15,6 +15,8 @@ content/
 ├── tracks/
 │   ├── python-foundations.yaml
 │   └── cloud-solutions-architect.yaml   generated from its spec by tools/outline_cloud_track.py
+├── diagnostics/
+│   └── math.yaml                 a ladder the placement test walks (ADR-0021)
 └── topics/
     └── py.variables/
         ├── topic.yaml
@@ -44,11 +46,18 @@ content/
 id: python-foundations
 title: Python Foundations
 summary: From your first line of code to small, real programs you can build from a blank file.
-order: 1                        # where the track comes in the app, lowest first; each track has its own
+order: 1 # where the track comes in the app, lowest first; each track has its own
 modules:
   - id: py.m1
     title: First programs
-    topics: [py.programs-and-print, py.values-and-types, py.variables, py.arithmetic, py.strings-and-input]
+    topics:
+      [
+        py.programs-and-print,
+        py.values-and-types,
+        py.variables,
+        py.arithmetic,
+        py.strings-and-input,
+      ]
     checkpoint: py.m1.checkpoint
   # ...modules 2-6
 ```
@@ -56,11 +65,11 @@ modules:
 A module may also name a **capstone**: a bigger checkpoint that ends a stage. It comes after the module's own checkpoint and builds on every module before it, so a ready capstone needs every earlier topic ready:
 
 ```yaml
-  - id: csa.m15
-    title: Observability and operations
-    topics: [csa.ops.telemetry, ...]
-    checkpoint: csa.m15.checkpoint
-    capstone: csa.capstone-1    # kind: checkpoint, like any checkpoint
+- id: csa.m15
+  title: Observability and operations
+  topics: [csa.ops.telemetry, ...]
+  checkpoint: csa.m15.checkpoint
+  capstone: csa.capstone-1 # kind: checkpoint, like any checkpoint
 ```
 
 The app shows the first track at `/map` and the others at `/map/<track id>`.
@@ -70,8 +79,8 @@ The app shows the first track at `/map` and the others at `/map/<track id>`.
 ```yaml
 # content/topics/py.variables/topic.yaml
 id: py.variables
-kind: topic                     # topic | checkpoint
-status: ready                   # planned (an outline on the map) | draft | ready (learners see it)
+kind: topic # topic | checkpoint
+status: ready # planned (an outline on the map) | draft | ready (learners see it)
 title: Variables
 summary: Names that refer to values, and what assignment really does.
 prerequisites: [py.values-and-types]
@@ -81,15 +90,22 @@ objectives:
   - Explain assignment using the "names refer to values" model.
   - Trace a sequence of assignments and predict each variable's value.
   - Swap the values of two variables.
-resources:                      # the first is the main one, shown in the lesson
+resources: # the first is the main one, shown in the lesson
   - title: "CS50P Lecture 0: Functions, Variables"
     url: https://www.youtube.com/watch?v=VIDEO_ID
-    type: video                 # video | reading | interactive
-    use: embed                  # embed | link
-    start: 1234                 # seconds; videos only
+    type: video # video | reading | interactive
+    use: embed # embed | link
+    start: 1234 # seconds; videos only
     end: 1890
     license: CC BY-NC-SA 4.0
-practice: [example-boxes-vs-labels, reassign-mcq, trace-three-assignments, fill-swap, write-rotate-three]
+practice:
+  [
+    example-boxes-vs-labels,
+    reassign-mcq,
+    trace-three-assignments,
+    fill-swap,
+    write-rotate-three,
+  ]
 prove:
   build: build-swap-and-print
   debug: debug-lost-value
@@ -110,26 +126,26 @@ prove:
     model_answer: >
       (used only by the grader; never shown to the learner)
 review_pool: [reassign-mcq-2, trace-swap, review-swap-variant]
-skills:                         # what the topic teaches (ADR-0011)
+skills: # what the topic teaches (ADR-0011)
   - id: assignment
     description: "Explain assignment as names referring to values"
   - id: swap
     description: "Swap two values using a third name"
 ```
 
-**Skills.** Every recall item and exercise lists the skills it mainly tests (`skills: [assignment]`); worked examples may leave it out. A missed question comes back later as a *different* question on the same skill ([ADR-0011](../decisions/0011-mistakes-come-back.md)). So in a ready topic, every skill needs at least 2 **follow-up candidates**: recall items, or fill-in, write and `review_code` exercises. Build and debug exercises name their skills too, but they're proof checks and never come back as follow-ups.
+**Skills.** Every recall item and exercise lists the skills it mainly tests (`skills: [assignment]`); worked examples may leave it out. A missed question comes back later as a _different_ question on the same skill ([ADR-0011](../decisions/0011-mistakes-come-back.md)). So in a ready topic, every skill needs at least 2 **follow-up candidates**: recall items, or fill-in, write and `review_code` exercises. Build and debug exercises name their skills too, but they're proof checks and never come back as follow-ups.
 
 **Checkpoints** have no lesson, practice ladder, review pool or skills of their own. Instead, their tests name skills from the module's topics, and they have a way through for a learner who's stuck ([ADR-0012](../decisions/0012-checkpoint-support.md)):
 
 ```yaml
 # content/topics/py.m1.checkpoint/topic.yaml (after the proof checks)
 unstuck:
-  example: example-shop-receipt           # a solved sibling: a worked example in a different story
-  steps: [step-read, step-work, step-print, step-outline]  # the build in 3 or 4 fill-in steps, with hints
-  versions: [build-split-bill, build-electricity]          # at least 2 fresh versions of the build
+  example: example-shop-receipt # a solved sibling: a worked example in a different story
+  steps: [step-read, step-work, step-print, step-outline] # the build in 3 or 4 fill-in steps, with hints
+  versions: [build-split-bill, build-electricity] # at least 2 fresh versions of the build
 
 # content/topics/py.m1.checkpoint/exercises/build-receipt/exercise.yaml (and every version, and the debug)
-test_skills:                              # every test, by name: the skills it checks, as topic/skill
+test_skills: # every test, by name: the skills it checks, as topic/skill
   test_subtotal: [py.strings-and-input/input-text, py.strings-and-input/convert]
   test_tip: [py.arithmetic/precedence, py.arithmetic/operators]
   test_two_decimals: [py.strings-and-input/fstrings]
@@ -139,10 +155,10 @@ A checkpoint's tests may name skills of its own module's topics and of earlier m
 
 ### Recall items
 
-```yaml
+````yaml
 # content/topics/py.variables/recall/reassign-mcq.yaml
 id: reassign-mcq
-type: mcq                       # mcq | predict_output | parsons | predict_shell
+type: mcq # mcq | predict_output | parsons | predict_shell
 rev: 1
 prompt: |
   After this code runs, what is the value of `b`?
@@ -150,12 +166,14 @@ prompt: |
   a = 3
   b = a
   a = 5
-  ```
+````
+
 choices: ["3", "5", "It's an error"]
 answer: 0
 explanation: "`b = a` makes `b` refer to 3. Pointing `a` at 5 afterwards doesn't affect `b`."
-skills: [assignment]            # declared in topic.yaml
-```
+skills: [assignment] # declared in topic.yaml
+
+````
 
 A `predict_output` item has `code` and `expected_output` instead of `choices` and `answer`. The validator runs the code and checks that the output matches exactly.
 
@@ -163,19 +181,50 @@ A `parsons` item ([ADR-0016](../decisions/0016-parsons-problems.md)) has `lines`
 
 A `predict_shell` item ([ADR-0017](../decisions/0017-shell-in-the-browser.md)) is the same question for the command line. It has `files`, a few small text files by path (a plain name, or a path like `logs/app.log`; never absolute, never `..`; 4,000 characters in all at most), `command`, one line of bash or a few, and `expected_output`. The browser runs nothing: the page shows the files and the command and asks what it prints. The validator runs the command in real bash (Linux in CI, Git Bash on Windows) in a temporary folder holding just those files, with `LC_ALL=C`, an empty `HOME` and nothing on stdin, and checks that stdout is exactly `expected_output` and that stderr is empty. So an item must behave the same on both (no `jq` or `rev`, which Git Bash lacks; nothing that prints dates, sizes, user names or the folder's path), and an error it wants to show is redirected with `2>&1`.
 
+### Diagnostics
+
+A diagnostic ([ADR-0021](../decisions/0021-placement-test.md)) is a ladder the placement test walks the way it walks a track: a few questions from the middle level, and the answers rule out half of what's left. There's one so far, `math`, for the math the machine-learning track leans on.
+
+```yaml
+# content/diagnostics/math.yaml
+id: math                        # must match the file name
+title: Math for machine learning
+summary: Where your math is solid and where to refresh it before the machine-learning track.
+levels:                         # easiest first; at least 2
+  - id: arithmetic
+    title: Arithmetic, fractions and percentages
+    summary: Fractions, decimals, percentages, negative numbers and the order of operations.
+    refresh:                    # a free refresher, as a link; recorded like any resource (ADR-0004)
+      title: "Khan Academy: Arithmetic"
+      url: https://www.khanacademy.org/math/arithmetic
+      type: interactive
+      use: link
+      license: CC BY-NC-SA 3.0 US (linked, not copied)
+    items:                      # multiple-choice items, at least 2, no skills (there's no topic to relearn)
+      - id: arithmetic-fractions
+        type: mcq
+        rev: 1
+        prompt: What is 3/4 + 1/8?
+        choices: ["4/12", "7/8", "5/8", "1/2"]
+        answer: 1
+        explanation: "..."
+````
+
+Item ids are unique across the whole diagnostic. The choices are shown in the order written, so vary where the answer sits. Events about a diagnostic use `diagnostic.<id>` as their `topic_id`.
+
 ### Exercises
 
 ```yaml
 # content/topics/py.variables/exercises/fill-swap/exercise.yaml
 id: fill-swap
-stage: fill_in        # worked_example | fill_in | write | build | debug | review_code
+stage: fill_in # worked_example | fill_in | write | build | debug | review_code
 # runtime: python     # python (the default) | lab, a container on the learner's machine (below)
 rev: 1
 title: Swap two values
 prompt: |
   Finish the program so it swaps `x` and `y`, then prints them.
 time_limit_ms: 5000
-hints:                # written by the author; the tutor uses them as a guide
+hints: # written by the author; the tutor uses them as a guide
   - What happens to the original value of x when you assign to x?
   - You need somewhere to keep one value safe.
 # steps:              # worked_example only: [{label, lines: "1-2", note}], labeled by purpose
@@ -183,14 +232,14 @@ hints:                # written by the author; the tutor uses them as a guide
 
 How each stage behaves:
 
-| Stage | Starter code | Tests shown | Tutor |
-|---|---|---|---|
-| `worked_example` | none: `solution.py` is shown, with its labeled steps | yes | on |
-| `fill_in` | the solution with gaps (`...`); must fail | yes | on |
-| `write` | empty, or a function signature | yes | on |
-| `build` | empty | descriptions only | off |
-| `debug` | buggy code; must fail | yes | off |
-| `review_code` | empty, or a function signature | descriptions only | off |
+| Stage            | Starter code                                         | Tests shown       | Tutor |
+| ---------------- | ---------------------------------------------------- | ----------------- | ----- |
+| `worked_example` | none: `solution.py` is shown, with its labeled steps | yes               | on    |
+| `fill_in`        | the solution with gaps (`...`); must fail            | yes               | on    |
+| `write`          | empty, or a function signature                       | yes               | on    |
+| `build`          | empty                                                | descriptions only | off   |
+| `debug`          | buggy code; must fail                                | yes               | off   |
+| `review_code`    | empty, or a function signature                       | descriptions only | off   |
 
 ### Labs
 
@@ -198,9 +247,9 @@ An exercise with `runtime: lab` ([ADR-0018](../decisions/0018-lab-checker-local-
 
 ```yaml
 checks:
-  - id: failed-count            # unique; what test_skills names in a checkpoint lab
+  - id: failed-count # unique; what test_skills names in a checkpoint lab
     description: "failed-count.txt holds the number of 5xx requests."
-    command: |                  # run inside the container as root; read-only
+    command: | # run inside the container as root; read-only
       [ "$(cat /home/learner/report/failed-count.txt)" = "$(awk '$3 ~ /^5/' /var/log/shop/access.log | wc -l)" ]
     # expect:                   # optional; without it, exit status 0 passes
     #   equals: "36"            # or contains, not_contains, matches, exit, lt, lte, gt, gte
@@ -225,7 +274,7 @@ def test_swaps():
 The `checks` module lives in [`harness/`](../../harness/), which the browser and CI share, so tests behave the same everywhere:
 
 - `run(stdin="")` runs the learner's program as a script, feeding it `stdin`, and returns what it printed. Prompts passed to `input()` are left out, so tests don't break over prompt wording. If the program wants more input than it was given, it gets an `EOFError`.
-- `run_with({"x": "left", "y": "right"})` runs the program as if those names started with other values. It replaces each name's first assignment, like `x = 3`. Use it to check that code really works with its names, so retyping the expected values can't pass: for example, that a swap swaps *any* two values. If a starting line is missing, the check fails with "Keep the line that gives x its starting value."
+- `run_with({"x": "left", "y": "right"})` runs the program as if those names started with other values. It replaces each name's first assignment, like `x = 3`. Use it to check that code really works with its names, so retyping the expected values can't pass: for example, that a swap swaps _any_ two values. If a starting line is missing, the check fails with "Keep the line that gives x its starting value."
 - Function exercises import from the learner's code: `from solution import rotate`. They must not read input or print at the top level.
 - Give `assert` a message when the default would be unclear: `assert got == 4, f"double(2) should be 4, but it returned {got}"`. Without one, the learner sees the failing `assert` line.
 
@@ -236,15 +285,11 @@ In CI, the validator copies the reference solution (and then each wrong solution
 `lesson.mdx` holds the AI-written intro and recap around the main resource. They're written ahead of time and reviewed like any other content.
 
 ```mdx
-<Intro>
-What to watch for: ...
-</Intro>
+<Intro>What to watch for: ...</Intro>
 
 <Resource index={0} />
 
-<Recap>
-- ...
-</Recap>
+<Recap>- ...</Recap>
 ```
 
 ## Learner data (Postgres)
@@ -253,46 +298,48 @@ Every table has row-level security: a learner can only read and write their own 
 
 ### `profiles`
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, primary key | same as `auth.users.id` |
-| `display_name` | text | |
-| `allowed` | boolean | default false; gates AI use while sign-ups are closed |
-| `settings` | jsonb | e.g. the daily review limit |
-| `created_at` | timestamptz | |
+| Column         | Type              | Notes                                                 |
+| -------------- | ----------------- | ----------------------------------------------------- |
+| `id`           | uuid, primary key | same as `auth.users.id`                               |
+| `display_name` | text              |                                                       |
+| `allowed`      | boolean           | default false; gates AI use while sign-ups are closed |
+| `settings`     | jsonb             | e.g. the daily review limit                           |
+| `created_at`   | timestamptz       |                                                       |
 
 ### `events` (append-only)
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid, primary key | created in the browser, so a retried upload can't duplicate it |
-| `user_id` | uuid | |
-| `type` | text | see the event types below |
-| `topic_id` | text | |
-| `item_id` | text, nullable | the item's ID within its topic |
-| `context` | text | `learn`, `practice`, `prove` or `review` |
-| `correct` | boolean, nullable | for graded events |
-| `duration_ms` | integer, nullable | |
-| `hints_used` | integer | default 0 |
-| `item_rev` | integer, nullable | the item's `rev` when it was answered |
-| `content_build` | text | the git commit the content was built from |
-| `session_id` | uuid | groups one study session |
-| `occurred_at` | timestamptz | browser time |
-| `received_at` | timestamptz | server time, default `now()` |
-| `data` | jsonb | details for that event type, at most 16 KB |
+| Column          | Type              | Notes                                                                                                                                                  |
+| --------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `id`            | uuid, primary key | created in the browser, so a retried upload can't duplicate it                                                                                         |
+| `user_id`       | uuid              |                                                                                                                                                        |
+| `type`          | text              | see the event types below                                                                                                                              |
+| `topic_id`      | text              |                                                                                                                                                        |
+| `item_id`       | text, nullable    | the item's ID within its topic                                                                                                                         |
+| `context`       | text              | `learn`, `practice`, `prove`, `review`, or `placement` for an answer given during the placement test ([ADR-0021](../decisions/0021-placement-test.md)) |
+| `correct`       | boolean, nullable | for graded events                                                                                                                                      |
+| `duration_ms`   | integer, nullable |                                                                                                                                                        |
+| `hints_used`    | integer           | default 0                                                                                                                                              |
+| `item_rev`      | integer, nullable | the item's `rev` when it was answered                                                                                                                  |
+| `content_build` | text              | the git commit the content was built from                                                                                                              |
+| `session_id`    | uuid              | groups one study session                                                                                                                               |
+| `occurred_at`   | timestamptz       | browser time                                                                                                                                           |
+| `received_at`   | timestamptz       | server time, default `now()`                                                                                                                           |
+| `data`          | jsonb             | details for that event type, at most 16 KB                                                                                                             |
 
 Policies allow **insert** and **select** only. There is no update or delete policy.
 
-| Event type | When | `data` holds |
-|---|---|---|
-| `lesson_view` | a topic's lesson is opened | `resource`: the main resource's URL |
-| `answer` | a multiple-choice, predict-the-output or Parsons item is answered | `choice` and `choice_text`, or `prediction`, or `program` (the lines in the order the learner left them) |
-| `code_run` | the learner presses Run | `code`; `outcome` (`done`, `timeout` or `failed`); `output`, `error` and `waiting_for_input` (or `message`) |
-| `code_check` | tests are run | `code`; `outcome`; `status`; `passed` and `total`; `failing` (test names); `message` if the tests couldn't run |
-| `explain_submit` | an explanation is sent to be checked (item `explain`) | the text and `status`; when graded, the `verdict`, each rubric item's result, the `questions`, `ai_call_id` and `model`. `correct` is set only when graded ([ADR-0013](../decisions/0013-explain-grading.md)) |
-| `hint` | a hint is shown | `level` (how many hints of that source so far); `source` (`author` for a written hint, `tutor` for one from the AI tutor). For the tutor ([ADR-0015](../decisions/0015-hint-only-tutor.md)): `rung` (`nudge`, `concept`, `specific` or `step`), `replaced` (whether the proxy swapped Claude's reply for a safer hint), the learner's `question`, `ai_call_id` and `model` |
-| `review` | a review session's items have all had a first attempt (item `review`) | `rating` (`good`, `hard` or `again`) and `items`: each item's ID and whether its first attempt was correct. `correct` is whether the rating was Good ([ADR-0009](../decisions/0009-reviews.md)) |
-| `review` | a topic's review session ends | item IDs; results; the rating |
+| Event type                    | When                                                                                               | `data` holds                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lesson_view`                 | a topic's lesson is opened                                                                         | `resource`: the main resource's URL                                                                                                                                                                                                                                                                                                                                        |
+| `answer`                      | a multiple-choice, predict-the-output or Parsons item is answered                                  | `choice` and `choice_text`, or `prediction`, or `program` (the lines in the order the learner left them)                                                                                                                                                                                                                                                                   |
+| `code_run`                    | the learner presses Run                                                                            | `code`; `outcome` (`done`, `timeout` or `failed`); `output`, `error` and `waiting_for_input` (or `message`)                                                                                                                                                                                                                                                                |
+| `code_check`                  | tests are run                                                                                      | `code`; `outcome`; `status`; `passed` and `total`; `failing` (test names); `message` if the tests couldn't run                                                                                                                                                                                                                                                             |
+| `explain_submit`              | an explanation is sent to be checked (item `explain`)                                              | the text and `status`; when graded, the `verdict`, each rubric item's result, the `questions`, `ai_call_id` and `model`. `correct` is set only when graded ([ADR-0013](../decisions/0013-explain-grading.md))                                                                                                                                                              |
+| `hint`                        | a hint is shown                                                                                    | `level` (how many hints of that source so far); `source` (`author` for a written hint, `tutor` for one from the AI tutor). For the tutor ([ADR-0015](../decisions/0015-hint-only-tutor.md)): `rung` (`nudge`, `concept`, `specific` or `step`), `replaced` (whether the proxy swapped Claude's reply for a safer hint), the learner's `question`, `ai_call_id` and `model` |
+| `review`                      | a review session's items have all had a first attempt (item `review`)                              | `rating` (`good`, `hard` or `again`) and `items`: each item's ID and whether its first attempt was correct. `correct` is whether the rating was Good ([ADR-0009](../decisions/0009-reviews.md))                                                                                                                                                                            |
+| `review`                      | a topic's review session ends                                                                      | item IDs; results; the rating                                                                                                                                                                                                                                                                                                                                              |
+| `answer`, context `placement` | a question is answered during the placement test ([ADR-0021](../decisions/0021-placement-test.md)) | the usual answer data, plus `run`, the run's id; for a diagnostic, `level` too. `topic_id` is the probed topic, or `diagnostic.<id>`                                                                                                                                                                                                                                       |
+| `placement`                   | a placement run ends (item `placement`, context `placement`)                                       | `run`; `kind` (`track` or `diagnostic`); `known`, the topics or levels in order that count as known; `next`, where to start, or null; `asked`, `correct`; `probes`, each topic or level probed with its questions and results. `topic_id` is the track's id or `diagnostic.<id>`; `correct` is null                                                                        |
 
 How the browser fills in the other columns:
 
@@ -308,15 +355,15 @@ Code and output are cut to 6,000 and 2,000 characters, so every event fits the 1
 
 One row per learner and topic. It can be deleted and rebuilt from `events` at any time.
 
-| Column | Notes |
-|---|---|
-| `user_id`, `topic_id` | primary key |
-| `build_passed_at`, `debug_passed_at`, `explain_passed_at` | first pass of each proof check |
-| `learned_at` | when the last of the three passed |
-| `mastered_at` | the first time it became Mastered |
-| `last_review_at`, `last_review_rating` | |
-| `card` | jsonb: the FSRS card (due date, stability, difficulty, reps, lapses, state, last review) |
-| `updated_at` | |
+| Column                                                    | Notes                                                                                    |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `user_id`, `topic_id`                                     | primary key                                                                              |
+| `build_passed_at`, `debug_passed_at`, `explain_passed_at` | first pass of each proof check                                                           |
+| `learned_at`                                              | when the last of the three passed                                                        |
+| `mastered_at`                                             | the first time it became Mastered                                                        |
+| `last_review_at`, `last_review_rating`                    |                                                                                          |
+| `card`                                                    | jsonb: the FSRS card (due date, stability, difficulty, reps, lapses, state, last review) |
+| `updated_at`                                              |                                                                                          |
 
 ### `ai_calls` (append-only)
 
@@ -385,6 +432,7 @@ Learners insert and read their own reports, and nothing else: `status` isn't in 
 Pure functions in `web/src/progress/progress.ts` compute progress from the topic outlines and the learner's graded events. `progressOf` finds when each proof check first passed, and `stateOf` gives a topic's state.
 
 - A proof check passes with a passing Check of the topic's build or debug, or with an `explain_submit` event whose `correct` is true. A pass on any of a checkpoint's fresh versions counts as its build.
+- Answers in the `placement` context are skipped: the placement test asks about topics the learner hasn't opened, and its answers must not make a topic In progress ([ADR-0021](../decisions/0021-placement-test.md)). The follow-ups skip them too.
 - The result doesn't depend on the order of the events, so an event that arrives late, say from another device's outbox, changes only what it adds. Tests check this; it's what lets the app update progress as events arrive instead of rebuilding it.
 - The app recalculates progress from the history each visit, like the follow-ups. The `topic_progress` cache comes when that gets slow.
 

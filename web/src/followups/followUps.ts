@@ -6,6 +6,7 @@
 import { STAGES } from '../content/stages.ts'
 import type { TopicContent } from '../content/types.ts'
 import { addDays, type Day, dayOf } from '../days.ts'
+import type { EventContext } from '../events/types.ts'
 
 /**
  * One graded attempt: an answer to a question, a Check of some code, a
@@ -38,6 +39,12 @@ export type Attempt = {
   failing?: string[]
   /** For a review session: how it was rated (ADR-0009). */
   rating?: 'again' | 'hard' | 'good'
+  /**
+   * Where it happened, when known. An answer given during the placement
+   * test isn't practice: it never opens a follow-up or starts a topic
+   * (ADR-0021).
+   */
+  context?: EventContext
 }
 
 /** A skill the learner missed and is relearning. */
@@ -92,6 +99,9 @@ type ItemDay = {
  * Check passed that day, and as a miss only if none did.
  */
 function itemDays(attempts: Attempt[]): ItemDay[] {
+  // Answers given during the placement test are about topics the learner
+  // hasn't studied: they place, they don't open follow-ups (ADR-0021).
+  attempts = attempts.filter((attempt) => attempt.context !== 'placement')
   const byKey = new Map<string, ItemDay>()
   for (const attempt of attempts) {
     const day = dayOf(attempt.occurred_at)

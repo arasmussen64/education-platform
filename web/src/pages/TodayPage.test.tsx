@@ -4,9 +4,11 @@ import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { getTopic } from '../content/content.ts'
+import { dayOf } from '../days.ts'
 import { EventsProvider } from '../events/EventsProvider.tsx'
 import type { Attempt } from '../followups/followUps.ts'
 import { fetchAttempts } from '../followups/history.ts'
+import { fetchPlacements, type PlacementRecord } from '../placement/history.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { fakeEventsClient } from '../test/fakeEvents.ts'
 import { allPassed, fakeRunner, oneFailed } from '../test/fakePython.ts'
@@ -18,6 +20,10 @@ import { TodayPage } from './TodayPage.tsx'
 vi.mock('../followups/history.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../followups/history.ts')>()),
   fetchAttempts: vi.fn(),
+}))
+vi.mock('../placement/history.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../placement/history.ts')>()),
+  fetchPlacements: vi.fn(),
 }))
 vi.mock('../python/runner.ts', () =>
   import('../test/mockPython.ts').then((module) => module.mockRunnerModule()),
@@ -55,7 +61,14 @@ function check(item: string, passed: boolean, when: string): Attempt {
   return { ...answer(item, passed, when), type: 'code_check' }
 }
 
-function renderToday(history: Attempt[] | Error, { signedIn = true } = {}) {
+function renderToday(
+  history: Attempt[] | Error,
+  {
+    signedIn = true,
+    placements = [] as PlacementRecord[],
+  }: { signedIn?: boolean; placements?: PlacementRecord[] } = {},
+) {
+  vi.mocked(fetchPlacements).mockResolvedValue(placements)
   if (history instanceof Error) {
     // The page reads the history twice (mistakes to revisit, then next up);
     // the first read fails.
@@ -407,6 +420,44 @@ describe('next up on the Today page', () => {
     if (!entry) throw new Error('a track entry wraps its heading')
     return entry
   }
+
+  it('offers the placement test until one has been taken', async () => {
+    renderToday([])
+    const next = await nextUpSection()
+    expect(
+      await within(next).findByRole('link', {
+        name: 'Take the placement test',
+      }),
+    ).toHaveAttribute('href', '/placement')
+  })
+
+  it('says where the placement test said to start', async () => {
+    const at = daysAgo(1)
+    renderToday([], {
+      placements: [
+        {
+          id: 'p1',
+          run: 'r1',
+          subject: 'python-foundations',
+          kind: 'track',
+          at,
+          known: ['py.programs-and-print'],
+          next: 'py.values-and-types',
+          asked: 4,
+          correct: 3,
+        },
+      ],
+    })
+    const next = await nextUpSection()
+    expect(
+      await within(next).findByText(
+        `Python Foundations. Placement on ${dayOf(at)}: start at Values and types, with 1 topic to prove first.`,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(next).getByRole('link', { name: 'Placement test' }),
+    ).toHaveAttribute('href', '/placement')
+  })
 
   it('starts each track with its first topic when nothing has been started', async () => {
     renderToday([])
