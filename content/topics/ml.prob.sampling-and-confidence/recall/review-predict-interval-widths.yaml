@@ -1,0 +1,20 @@
+id: review-predict-interval-widths
+type: predict_output
+rev: 1
+prompt: |
+  The width of an interval at three confidence levels, then a standard error after quadrupling the sample. What does the program print?
+code: |
+  import numpy as np
+  
+  se = 2.0
+  for z in (1.0, 1.96, 2.58):
+      print(z, round(2 * z * se, 2))
+  print(round(1.96 * 2.0 / np.sqrt(4), 2))
+expected_output: |
+  1.0 4.0
+  1.96 7.84
+  2.58 10.32
+  1.96
+explanation: |
+  An interval runs `z` standard errors each side of the mean, so its width is `2 * z * se`: 1 standard error each way is the normal''s 68 percent, 1.96 is 95 percent and 2.58 is 99 percent; more confidence costs width. The last line halves the standard error by quadrupling the sample.
+skills: [interval, standard-error]

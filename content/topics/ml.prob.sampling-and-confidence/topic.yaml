@@ -1,16 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.prob.sampling-and-confidence
 kind: topic
-status: planned
-title: Sampling and confidence
-summary: The sampling distribution of a mean, the standard error, the central limit theorem seen by simulation, confidence intervals, and the bootstrap.
-prerequisites:
-- ml.prob.expectation-and-variance
+status: ready
+title: "Sampling and confidence"
+summary: "The sampling distribution of a mean, the standard error, the central limit theorem seen by simulation, confidence intervals, and the bootstrap."
+prerequisites: [ml.prob.expectation-and-variance]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Simulate many samples and watch their means form a normal shape, whatever the population looks like.
-- Compute a standard error, and say what shrinks it.
-- "Build a confidence interval for a mean, and say what it does and doesn't promise."
-- Bootstrap an interval for a statistic that has no formula.
+  - "Simulate many samples and watch their means form a normal shape, whatever the population looks like."
+  - "Compute a standard error, and say what shrinks it."
+  - "Build a confidence interval for a mean, and say what it does and doesn't promise."
+  - "Bootstrap an interval for a statistic that has no formula."
+# Linked, never copied or embedded: 3Blue1Brown's and StatQuest's videos are
+# under the standard YouTube licence; OpenStax is CC BY 4.0.
+resources:
+  - title: "3Blue1Brown: Probability (Grant Sanderson), the lesson But what is the Central Limit Theorem?"
+    url: https://www.3blue1brown.com/topics/probability
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "OpenStax Introductory Statistics 2e: chapter 7 (The Central Limit Theorem, sections 7.1 and 7.2) and section 8.1 (A Single Population Mean Using the Normal Distribution)"
+    url: https://openstax.org/details/books/introductory-statistics-2e
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "StatQuest: Bootstrapping Main Ideas!!! (Josh Starmer)"
+    url: https://www.youtube.com/watch?v=Xz0x-8-cgaQ
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+practice:
+  - example-the-means-of-many-samples
+  - parsons-an-interval-from-a-sample
+  - mcq-what-shrinks-the-standard-error
+  - predict-standard-errors
+  - mcq-what-ninety-five-percent-promises
+  - mcq-why-a-normal-for-an-average
+  - fill-standard-error-and-interval
+  - write-bootstrap-interval
+prove:
+  build: build-intervals-and-coverage
+  debug: debug-an-interval-that-is-too-narrow
+  explain:
+    prompt: |
+      A teammate measured a model's accuracy at 0.84 on 100 held-out examples and reports "84 percent accurate". In your own words: why is that number uncertain, and what is its standard error? What interval would you put around it, and what does "95 percent confidence" promise, and not promise? Why does the central limit theorem let you use a normal for the average even though each example scores a 0 or a 1? And when would you reach for the bootstrap instead?
+    rubric:
+      - id: standard-error
+        required: true
+        description: "The 0.84 is one sample's mean; another 100 examples would give a different one. Its spread over repeated samples is the standard error, the population spread over root n: for a proportion, sqrt(0.84 * 0.16 / 100), about 0.037; four times the data would halve it."
+      - id: interval
+        required: true
+        description: "About 0.84 plus or minus 1.96 standard errors, roughly 0.77 to 0.91. Ninety-five percent confidence means the procedure (sample, compute the interval) captures the true accuracy in about 95 of 100 repetitions; it doesn't mean 95 percent of examples are inside, or that this one interval has a 95 percent chance in any simple sense, or that the true value is near the middle."
+      - id: clt
+        required: true
+        description: "The average of many independent draws is approximately normal whatever each draw's distribution, with mean the population mean and spread sigma over root n; each 0-or-1 score is far from normal, but the mean of 100 of them is close enough, which is why the normal's 1.96 applies."
+      - id: bootstrap
+        required: false
+        description: "When the statistic has no standard-error formula (a median, an F1 score, the difference between two models): resample the data with replacement many times, recompute the statistic each time, and take the middle 95 percent of the results."
+    model_answer: |
+      The 0.84 is the mean of one sample of 100 scores, and a different 100 examples would give a different mean, so the number carries uncertainty from the sampling itself. How much it would vary across repeated samples is its standard error: the population spread divided by the square root of the sample size. For a proportion the spread is the square root of p times one minus p, so the standard error is the square root of 0.84 times 0.16 over 100, about 0.037. Four hundred examples would halve it; the square root is why more data helps slowly. The 95 percent interval is the estimate plus or minus 1.96 standard errors, about 0.77 to 0.91. What 95 percent confidence promises is about the procedure: if you took many samples of 100 and built an interval from each, about 95 of every 100 intervals would contain the model's true accuracy. It doesn't say 95 percent of the examples fall in the interval, and it doesn't make the true value likelier near the middle than near the edges. The central limit theorem is what lets me use a normal at all. Each example scores a 0 or a 1, nothing like a bell curve, but the average of a hundred independent scores is close to normal with mean equal to the true accuracy and spread equal to the standard error, and that's where the 1.96 comes from. When the statistic has no standard-error formula, a median, an F1 score, or the difference in accuracy between two models on the same examples, I'd bootstrap: resample the hundred examples with replacement a couple of thousand times, recompute the statistic each time, and take the 2.5th and 97.5th percentiles of the results as the interval.
+review_pool:
+  - review-predict-interval-widths
+  - review-mcq-what-becomes-normal
+  - review-mcq-with-replacement
+  - review-standard-error
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: clt
+    description: "Simulate the sampling distribution of a mean and say what the central limit theorem promises"
+  - id: standard-error
+    description: "Compute a standard error and say what shrinks it"
+  - id: interval
+    description: "Build a confidence interval for a mean and say what 95 percent confidence does and doesn't promise"
+  - id: bootstrap
+    description: "Bootstrap an interval for a statistic that has no formula"

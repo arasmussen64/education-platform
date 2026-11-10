@@ -1,0 +1,25 @@
+id: example-the-means-of-many-samples
+stage: worked_example
+rev: 1
+title: "The means of many samples"
+prompt: |
+  This program draws from a lopsided population, watches the means of many samples turn into a bell with a spread that shrinks like one over the square root of the sample size, builds a confidence interval and checks how often the procedure covers the truth, and bootstraps an interval for a median. Press **Run**, then read how each part works.
+steps:
+  - label: "A lopsided population"
+    lines: "3-5"
+    note: "Exponential waiting times: mean 10, spread 10, and a median of 6.95, well below the mean because a few waits are very long. Nothing about it is normal."
+  - label: "Means of samples of 2, 10 and 50"
+    lines: "7-9"
+    note: "Twenty thousand samples of each size, and the mean of each. The means average 10 whatever the size, but their spread falls: 7.01, 3.15, 1.41, matching `10 / sqrt(n)` (7.07, 3.16, 1.41). That spread is the **standard error** of the mean."
+  - label: "The central limit theorem, drawn"
+    lines: "11-14"
+    note: "A histogram of the means of 50 draws: a bell centred on 10, from a population that was anything but. Averages of enough independent draws are approximately normal whatever the draws look like."
+  - label: "One sample, one interval"
+    lines: "16-19"
+    note: "Fifty waits, mean 10.8. The standard error is estimated from the sample itself, its standard deviation (with `ddof=1`, dividing by `n - 1`) over `sqrt(50)`: 1.58. The 95 percent interval is 1.96 standard errors each side: 7.7 to 13.9, which here contains the true 10."
+  - label: "What 95 percent means"
+    lines: "21-26"
+    note: "Repeat the whole procedure 2,000 times and count how often the interval contains the true mean: 0.9385. A little under 0.95, because the population is lopsided and 50 is not huge, but that fraction is what the confidence level is a claim about: the procedure, not any one interval."
+  - label: "A bootstrap interval for the median"
+    lines: "28-29"
+    note: "There's no simple standard-error formula for a median, so resample the 50 waits **with replacement** 2,000 times, take each resample's median, and read off the 2.5th and 97.5th percentiles: 7.71 with an interval of  3.55 11.36. The same recipe gives an interval for any statistic you can compute."
