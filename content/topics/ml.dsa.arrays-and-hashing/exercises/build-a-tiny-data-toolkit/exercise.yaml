@@ -1,0 +1,33 @@
+id: build-a-tiny-data-toolkit
+stage: build
+rev: 1
+title: "A tiny data toolkit"
+prompt: |
+  Starting from a blank editor, write four functions, each in one pass with a dict or a set, never a loop inside a loop over the data:
+
+  - `count_frequencies(items)`: a dict from each value to how many times it appears.
+  - `dedupe(items)`: the distinct values as a list, first appearance first.
+  - `group_by(records, field)`: a dict from each value of `field` to the list of records (dicts) that have it.
+  - `join(left, right, field)`: every left record merged with every right record that has the same value of `field` (`{**left_record, **right_record}`, so the right record's fields win), in the order of the left records: index the right side with `group_by`, then scan the left side once.
+
+  Then print:
+
+  ```python
+  words = "the cat sat on the mat the end".split()
+  print(count_frequencies(words))
+  print(dedupe(words))
+  people = [{"id": 1, "name": "Ada"}, {"id": 2, "name": "Grace"}, {"id": 3, "name": "Linus"}]
+  orders = [{"id": 2, "item": "lamp"}, {"id": 1, "item": "book"}, {"id": 2, "item": "pen"}, {"id": 9, "item": "cup"}]
+  print(sorted(group_by(orders, "id")))
+  print(join(people, orders, "id"))
+  ```
+
+  ```
+  {'the': 3, 'cat': 1, 'sat': 1, 'on': 1, 'mat': 1, 'end': 1}
+  ['the', 'cat', 'sat', 'on', 'mat', 'end']
+  [1, 2, 9]
+  [{'id': 1, 'name': 'Ada', 'item': 'book'}, {'id': 2, 'name': 'Grace', 'item': 'lamp'}, {'id': 2, 'name': 'Grace', 'item': 'pen'}]
+  ```
+
+  The checks count how many times your code compares two keys. On 3,000 items, a one-pass count or dedupe compares a few thousand times; `items.count(x)` for each item, or a list for `seen`, compares millions of times and fails. The same for a join that scans the right side for every left record.
+skills: [patterns, replace]

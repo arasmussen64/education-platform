@@ -1,0 +1,26 @@
+id: predict-a-list-shift
+type: predict_output
+rev: 1
+prompt: |
+  What `list.insert(0, value)` has to do, written out: make room at the end, then move every element along by one. What does the program print?
+code: |
+  def insert_at_front(items, value):
+      """What list.insert(0, value) has to do: make room, then shift everything along."""
+      items.append(None)
+      moves = 0
+      for i in range(len(items) - 1, 0, -1):
+          items[i] = items[i - 1]
+          moves += 1
+      items[0] = value
+      return moves
+  
+  
+  items = [10, 20, 30]
+  print(insert_at_front(items, 5), items)
+  print(insert_at_front(items, 1), items)
+expected_output: |
+  3 [5, 10, 20, 30]
+  4 [1, 5, 10, 20, 30]
+explanation: |
+  Three items have to move for the first insert and four for the second: inserting at the front costs one move per existing element, which is why `insert(0, ...)` and `pop(0)` are linear and `append` and `pop()` are not. The list is an array; there is no free slot at the front.
+skills: [list-costs]

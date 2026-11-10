@@ -1,0 +1,14 @@
+id: review-mcq-which-structure
+type: mcq
+rev: 1
+prompt: |
+  A pipeline step keeps the ids it has already processed in a list and checks `if id in done` before each record. It is quadratic. What is the smallest fix?
+choices:
+  - 'Make `done` a set; the check becomes a constant-time lookup and the loop one pass'
+  - 'Sort `done` after every append so the check can use binary search'
+  - 'Keep the list but check `done[-1000:]`, since recent ids are the likely repeats'
+  - 'Replace the check with `done.count(id) == 0`, which is a built-in and therefore fast'
+answer: 0
+explanation: |
+  The scan is the problem, so replace the structure that scans. A set keeps the same `in` syntax and makes the test constant time on average. Sorting after every append costs `n log n` per record; checking only the recent ids changes the answer; and `count` is the same scan written differently.
+skills: [replace]

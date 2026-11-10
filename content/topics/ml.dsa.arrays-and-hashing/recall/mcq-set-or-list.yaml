@@ -1,0 +1,14 @@
+id: mcq-set-or-list
+type: mcq
+rev: 1
+prompt: |
+  You have 10,000 customer ids and must check each against a list of a million blocked ids. Which plan is right, and why?
+choices:
+  - 'Loop over the blocked list for each id; a million steps is nothing for a computer, and it only runs once'
+  - 'Sort both lists first, then compare them from the front; sorting makes everything after it fast'
+  - 'Put the blocked ids in a set once, then test each id with `in`: one step per test'
+  - 'Convert both to NumPy arrays and compare them with `==`, which vectorizes the whole comparison'
+answer: 2
+explanation: |
+  Ten thousand scans of a million is ten billion comparisons; a set makes the million-element build once and then each test is a constant-time lookup, about a million steps in all. Sorting would work too but costs `n log n` for no gain here, and NumPy's `==` compares positions, not membership.
+skills: [replace]
