@@ -1,0 +1,14 @@
+id: debug-a-loop-that-does-not-learn
+stage: debug
+rev: 1
+title: "A loop that doesn't learn"
+prompt: |
+  The module's loop on the three blobs for 20 epochs. It should print:
+
+  ```
+  training loss: 0.446 -> 0.187 | converging
+  validation accuracy after 20 epochs: 0.9 | better than guessing a third: True
+  ```
+
+  It has two bugs. Run it: the training loss climbs and the curve reads diverging, whatever the learning rate, because `SGD.step` **adds** the learning rate times the gradient, stepping uphill; gradient descent subtracts it. Fix that, and the loss converges but the validation accuracy is wrong: `accuracy` takes `argmax(axis=0)`, which picks a row for each class instead of a class for each row. The largest logit per row is `argmax(axis=1)`.
+skills: [loop, validation]

@@ -1,0 +1,35 @@
+id: build-fit
+stage: build
+rev: 1
+title: "fit"
+prompt: |
+  Starting from a blank editor, paste the module's classes as they stand (`Dense` with its `scale`, `ReLU`, `Sequential`, `SoftmaxCrossEntropy`, `SGD` and `Adam` from the worked example), then write the loop:
+
+  - `make_blobs(n_per_class=100, seed=0)`: 100 points around each of the centres `(0, 0)`, `(3, 3)` and `(-3, 3)` plus standard-normal noise from `np.random.default_rng(seed)`, drawn centre by centre, with labels 0, 1, 2; returns `(X, y)`.
+  - `split(X, y, train_fraction=0.8, seed=0)`: one seeded permutation, cut at `int(train_fraction * n)`; returns `(X_train, y_train, X_val, y_val)`.
+  - `batches(n, batch_size, rng)`: yields index arrays covering `0..n-1` once in a fresh random order, `batch_size` at a time, the last short.
+  - `accuracy(logits, labels)` and `evaluate(net, loss, X, y)` as in the write exercise.
+  - `fit(net, loss, optimizer, X_train, y_train, X_val, y_val, epochs, batch_size, seed=0)`: for each epoch, for each batch from `batches` (one generator for the whole run, seeded), one step: forward, loss, backward, `optimizer.step(net.parameters(), net.gradients())`; after each epoch, append the training loss, the validation loss and the validation accuracy to a history dictionary with those three keys (`train_loss`, `val_loss`, `val_accuracy`); return the history.
+  - `read_curve(losses)`: `"diverging"` if the last loss is not finite or more than 1.5 times the first, `"stalled"` if it fell by less than a tenth, else `"converging"`.
+
+  Then print:
+
+  ```python
+  X, y = make_blobs()
+  X_train, y_train, X_val, y_val = split(X, y)
+  net = Sequential([Dense(2, 16, seed=0, scale=np.sqrt(2 / 2)), ReLU(), Dense(16, 3, seed=1)])
+  loss = SoftmaxCrossEntropy()
+  history = fit(net, loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=30, batch_size=32)
+  print(len(X_train), len(X_val), [len(history[key]) for key in ("train_loss", "val_loss", "val_accuracy")])
+  print(round(history["train_loss"][0], 3), round(history["train_loss"][-1], 3), round(history["val_accuracy"][-1], 2), read_curve(history["train_loss"]))
+  print([len(index) for index in batches(10, 4, np.random.default_rng(0))], accuracy(np.array([[2.0, 1.0], [0.0, 1.0], [3.0, 1.0]]), np.array([0, 1, 1])))
+  ```
+
+  ```
+  240 60 [30, 30, 30]
+  0.446 0.151 0.92 converging
+  [4, 4, 2] 0.6666666666666666
+  ```
+
+  The checks cover every index once per epoch with a different order the next epoch, keep the split disjoint and complete, evaluate without changing the weights, hold the trained network to at least 85 percent validation accuracy, confirm that a run with a different seed differs and one with the same seed repeats, and read three hand-made curves.
+skills: [loop, validation, curves, batch]

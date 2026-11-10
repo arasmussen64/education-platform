@@ -1,0 +1,19 @@
+id: predict-a-split
+type: predict_output
+rev: 1
+prompt: |
+  Fifty rows split 80/20 by a seeded shuffle: the sizes, how many indices the two parts share, and whether together they cover every row. What does the program print?
+code: |
+  import numpy as np
+  
+  order = np.random.default_rng(0).permutation(50)
+  cut = int(0.8 * 50)
+  train, val = order[:cut], order[cut:]
+  print(len(train), len(val), len(set(train.tolist()) & set(val.tolist())))
+  print(sorted(train.tolist() + val.tolist()) == list(range(50)))
+expected_output: |
+  40 10 0
+  True
+explanation: |
+  The permutation is every index once in a random order; cutting it at 40 gives 40 training indices and 10 validation ones with nothing in common, and together they are all 50. That is what makes the validation rows honest: none of them is trained on.
+skills: [validation]

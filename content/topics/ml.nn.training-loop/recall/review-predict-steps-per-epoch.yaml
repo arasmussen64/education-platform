@@ -1,0 +1,18 @@
+id: review-predict-steps-per-epoch
+type: predict_output
+rev: 1
+prompt: |
+  Steps per epoch and steps in 10 epochs for 1,000 training rows at four batch sizes. What does the program print?
+code: |
+  n_train = 1000
+  for batch_size in (1, 32, 250, 1000):
+      steps_per_epoch = -(-n_train // batch_size)
+      print(batch_size, steps_per_epoch, steps_per_epoch * 10)
+expected_output: |
+  1 1000 10000
+  32 32 320
+  250 4 40
+  1000 1 10
+explanation: |
+  Steps per epoch is the rows divided by the batch size, rounded up for a short last batch: a batch of 1 is one step per row, 32 gives 32 (the last batch has 8 rows), 250 gives 4, and the whole set gives 1. Ten epochs multiply each by ten; the batch size decides how many updates a pass over the data buys.
+skills: [batch]
