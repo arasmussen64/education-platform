@@ -6,6 +6,7 @@ import {
   allChecksPassed,
   type CheckOutcome,
   type RunOutcome,
+  type TraceOutcome,
 } from '../python/runner.ts'
 import { TutorBox, type TutorHintGiven } from '../tutor/TutorBox.tsx'
 import { CodeRunner } from './CodeRunner.tsx'
@@ -16,6 +17,8 @@ import { Markdown } from './Markdown.tsx'
 /** Something the learner did in an exercise, reported so it can be saved. */
 export type ExerciseActivity =
   | { kind: 'run'; code: string; outcome: RunOutcome }
+  /** The learner stepped through the code (ADR-0022). */
+  | { kind: 'trace'; code: string; outcome: TraceOutcome }
   | { kind: 'check'; code: string; outcome: CheckOutcome; hintsUsed: number }
   /** A written hint was opened. `hintsUsed` counts written and tutor hints. */
   | { kind: 'hint'; hintsUsed: number }
@@ -85,6 +88,9 @@ function WorkedExample({
         initialCode={exercise.solution}
         timeLimitMs={exercise.time_limit_ms}
         onRun={(outcome, code) => onActivity?.({ kind: 'run', code, outcome })}
+        onTrace={(outcome, code) =>
+          onActivity?.({ kind: 'trace', code, outcome })
+        }
       />
       <h4 className="font-semibold">How it works</h4>
       <ol className="space-y-3">
@@ -166,6 +172,9 @@ function CodingExercise({
         timeLimitMs={exercise.time_limit_ms}
         onRun={(outcome, ran) =>
           onActivity?.({ kind: 'run', code: ran, outcome })
+        }
+        onTrace={(outcome, ran) =>
+          onActivity?.({ kind: 'trace', code: ran, outcome })
         }
         onCheck={handleCheck}
         onCodeChange={setCode}

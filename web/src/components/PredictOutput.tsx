@@ -1,9 +1,12 @@
 import { useId, useState } from 'react'
 import { normalizeOutput } from '../content/answers.ts'
 import type { PredictOutputItem, PredictShellItem } from '../content/types.ts'
+import { DEFAULT_TIME_LIMIT_MS } from '../python/constants.ts'
+import { getPythonRunner, type TraceOutcome } from '../python/runner.ts'
+import { TraceView } from './CodeRunner.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Recorded } from './Recorded.tsx'
-import { BUTTON, CODE_BOX, TEXT_INPUT } from './styles.ts'
+import { BUTTON, CODE_BOX, SECONDARY_BUTTON, TEXT_INPUT } from './styles.ts'
 
 type Props = {
   item: PredictOutputItem | PredictShellItem
@@ -11,6 +14,8 @@ type Props = {
   onAnswer?: (correct: boolean, prediction: string) => void
   /** True in the placement test (ADR-0021): no word on whether it was right. */
   quiet?: boolean
+  /** Called when the learner steps through the code afterwards (ADR-0022). */
+  onStepThrough?: (outcome: TraceOutcome) => void
 }
 
 const NOTE = 'text-sm text-slate-600 dark:text-slate-300'
@@ -53,10 +58,18 @@ function ShellScene({ item }: { item: PredictShellItem }) {
  * (docs/learning-science.md), so learners predict first, then compare. The
  * same question works for a Python program and for a shell command.
  */
-export function PredictOutput({ item, onAnswer, quiet = false }: Props) {
+export function PredictOutput({
+  item,
+  onAnswer,
+  quiet = false,
+  onStepThrough,
+}: Props) {
   const fieldId = useId()
   const [prediction, setPrediction] = useState('')
   const [checked, setChecked] = useState(false)
+  const [trace, setTrace] = useState<TraceOutcome | 'loading' | null>(null)
+  // Only a Python item can be stepped through; a shell item runs nowhere.
+  const pythonCode = item.type === 'predict_output' ? item.code : null
   const correct =
     normalizeOutput(prediction) === normalizeOutput(item.expected_output)
   const lines = item.expected_output.split('\n').length
@@ -64,6 +77,18 @@ export function PredictOutput({ item, onAnswer, quiet = false }: Props) {
   function handleCheck() {
     setChecked(true)
     onAnswer?.(correct, prediction)
+  }
+
+  // After predicting (never before: predicting first is the point), the
+  // learner can watch the program do it, line by line (ADR-0022).
+  async function stepThrough() {
+    if (item.type !== 'predict_output') return
+    setTrace('loading')
+    const outcome = await getPythonRunner().trace(item.code, {
+      timeLimitMs: DEFAULT_TIME_LIMIT_MS,
+    })
+    setTrace(outcome)
+    onStepThrough?.(outcome)
   }
 
   return (
@@ -104,6 +129,27 @@ export function PredictOutput({ item, onAnswer, quiet = false }: Props) {
           </p>
           {!correct && <pre className={CODE_BOX}>{item.expected_output}</pre>}
           <Markdown>{item.explanation}</Markdown>
+          {pythonCode !== null && trace === null && (
+            <button
+              type="button"
+              onClick={stepThrough}
+              className={SECONDARY_BUTTON}
+            >
+              Step through it
+            </button>
+          )}
+          {trace === 'loading' && (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Starting Python…
+            </p>
+          )}
+          {pythonCode !== null && trace !== null && trace !== 'loading' && (
+            <TraceView
+              code={pythonCode}
+              outcome={trace}
+              timeLimitMs={DEFAULT_TIME_LIMIT_MS}
+            />
+          )}
         </output>
       ) : (
         <button type="button" onClick={handleCheck} className={BUTTON}>

@@ -7,6 +7,7 @@ import {
   MAX_CODE_CHARS,
   MAX_TEXT_CHARS,
   runEventData,
+  traceEventData,
 } from '../events/payloads.ts'
 import type { EventContext, EventData } from '../events/types.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
@@ -218,6 +219,13 @@ export function PracticeItem({
           ...about,
           type: 'code_run',
           data: runEventData(activity.code, activity.outcome),
+        })
+      } else if (activity.kind === 'trace') {
+        // Stepping through is a run that was watched (ADR-0022).
+        record({
+          ...about,
+          type: 'code_run',
+          data: traceEventData(activity.code, activity.outcome),
         })
       } else if (activity.kind === 'lab') {
         // A lab's result is a Check of the learner's work, like a Python

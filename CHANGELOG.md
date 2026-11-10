@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (Step through)
+
+- **A Step through button** beside Run in every code runner, and **Step through it** under predict-the-output questions once they're answered ([ADR-0022](docs/decisions/0022-step-through.md)). The program plays back one step at a time: the line about to run, each running call's variables, and the output so far, with First, Back, Next, Last and a slider. It reuses the last Run's input and random seed, so it shows what you just saw.
+- Under the hood: `harness/tracer.py` records the run under Python's own trace hook, in the browser and in CI alike, with two new scenarios both runtimes must match; 300 steps at most, values cut at 60 characters. A Step through is saved as a `code_run` event marked `stepped`.
+
 ### Added (the placement test)
 
 - **A placement test** at `/placement` ([ADR-0021](docs/decisions/0021-placement-test.md)), offered from Today until one is taken, and from every track's map. It walks a track's unlearned topics by halving: a few of the middle topic's own review questions, and each answer rules out half of what's left, so thirty topics take about five topics' worth of questions. It says nothing about right or wrong until the end, and ticks nothing off: the result is where to start, and the topics before it to prove in order with "Prove it now".
@@ -447,7 +452,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Fixed (content)
 
-- **Thirty-two corrections from a cold review of the cloud track's Module 1**, by two reviewers who ran every doubtful claim in a throwaway Ubuntu 24.04 container. The largest: the SSH hardening walkthroughs said the socket-activated `sshd` reads new settings on every connection, but Ubuntu's `ssh.socket` starts one long-running daemon at the first login, so the example and the checkpoint's walkthrough now reload it before proving the login, and every prompt that hardens SSH says to; a build's output format that its check depends on is now stated; `ps aux` has no PPID column; only root may `chown`; `dig +short` shows no record types; a reset to a SYN prints as `[R.]`; `TIME-WAIT` lasts a minute; plain `reject` sends an ICMP unreachable; Ubuntu 24.04 keeps its package sources in `ubuntu.sources`; `systemctl list-units` needs `--plain` before `awk`; the fair scheduler's rule has been EEVDF since kernel 6.6; and hypervisor, VM, WSL, Kubernetes, pod, node, capabilities, seccomp, ARP, NAT, DNAT and symbolic link are defined where they first appear.
+- **Thirty-three corrections from a cold review of every Python Foundations topic**, the prose the checker can't prove, read by three reviewers who ran every doubtful claim under Python 3.14. The largest: a review question built on an error message Python no longer prints for the mistakes its answer named (rebuilt on the message it does print, `'(' was never closed`, pointing at the line where the bracket was opened); two worked examples whose highlighted line ranges had drifted from their solutions; a note about `lambda` moved to the clip it describes; the tracebacks in the error-reading topic now carry the caret lines 3.14 draws; the debug exercise _Top three and first match_ sorts descending in its starter, so its three bugs are three; and first-use jargon is now defined where it appears (off-by-one error, flag, mutually exclusive, `str(...)`, `len(...)`). Plus smaller slips: `**` groups right to left, `round` doesn't pad zeros, which topic returns to shared inner lists, which line a note points at.
 
 ### Fixed (tests)
 

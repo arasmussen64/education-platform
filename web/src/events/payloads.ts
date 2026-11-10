@@ -1,7 +1,11 @@
 // The `data` saved with code events (docs/specs/data-model.md, event types).
 // Long code and output are cut short, so every event fits the database's
 // 16 KB limit.
-import type { CheckOutcome, RunOutcome } from '../python/runner.ts'
+import type {
+  CheckOutcome,
+  RunOutcome,
+  TraceOutcome,
+} from '../python/runner.ts'
 import type { EventData } from './types.ts'
 
 export const MAX_CODE_CHARS = 6_000
@@ -26,6 +30,27 @@ export function runEventData(code: string, outcome: RunOutcome): EventData {
     data.output = clip(output, MAX_TEXT_CHARS)
     data.error = error === null ? null : clip(error, MAX_TEXT_CHARS)
     data.waiting_for_input = waiting_for_input
+  }
+  return data
+}
+
+/** A press of Step through (ADR-0022): a run, plus how far it was recorded. */
+export function traceEventData(code: string, outcome: TraceOutcome): EventData {
+  const data: EventData = {
+    code: clip(code, MAX_CODE_CHARS),
+    outcome: outcome.kind,
+    stepped: true,
+  }
+  if (outcome.kind === 'failed') {
+    data.message = clip(outcome.message, MAX_TEXT_CHARS)
+  }
+  if (outcome.kind === 'done') {
+    const { output, error, waiting_for_input, steps, truncated } = outcome.trace
+    data.output = clip(output, MAX_TEXT_CHARS)
+    data.error = error === null ? null : clip(error, MAX_TEXT_CHARS)
+    data.waiting_for_input = waiting_for_input
+    data.steps = steps.length
+    data.truncated = truncated
   }
   return data
 }

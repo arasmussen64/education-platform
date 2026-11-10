@@ -6,6 +6,9 @@
     python harness/cli.py run FOLDER [--stdin TEXT] [--seed N]
         Run FOLDER/solution.py like the Run button.
 
+    python harness/cli.py trace FOLDER [--stdin TEXT] [--seed N]
+        Run it like the Step through button, recording every step.
+
 FOLDER becomes the working directory, as in the browser. The content
 validator and the scenario tests call this in a fresh Python process, so
 they run exactly what the browser runs. (Not bundled into the web app.)
@@ -31,6 +34,10 @@ def main(argv: list[str] | None = None) -> None:
     run.add_argument("folder")
     run.add_argument("--stdin", default="", help="input typed so far")
     run.add_argument("--seed", type=int, default=None, help="random seed")
+    trace = commands.add_parser("trace", help="run the program, recording each step")
+    trace.add_argument("folder")
+    trace.add_argument("--stdin", default="", help="input typed so far")
+    trace.add_argument("--seed", type=int, default=None, help="random seed")
     args = parser.parse_args(argv)
 
     os.chdir(args.folder)
@@ -38,9 +45,12 @@ def main(argv: list[str] | None = None) -> None:
     # Imported here, after the paths are set, exactly like the browser does.
     import program
     import testrunner
+    import tracer
 
     if args.command == "check":
         report = testrunner.run_tests()
+    elif args.command == "trace":
+        report = tracer.trace_program(args.stdin, args.seed)
     else:
         report = program.run_program(args.stdin, args.seed)
     print(json.dumps(report))
