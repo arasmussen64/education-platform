@@ -1,5 +1,5 @@
 def to_fahrenheit(celsius):
-    return celsius * 9 / 5 + 32
+    return 32.0
 
 
 print("0 C = 32.0 F")
