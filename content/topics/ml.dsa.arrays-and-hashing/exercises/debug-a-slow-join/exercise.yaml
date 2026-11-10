@@ -1,0 +1,14 @@
+id: debug-a-slow-join
+stage: debug
+rev: 1
+title: "A slow join"
+prompt: |
+  `join` should merge every left record with every right record that shares its `id`, and the program should print the small join and the size of a bigger one:
+
+  ```
+  [{'id': 1, 'name': 'Ada', 'item': 'book'}, {'id': 2, 'name': 'Grace', 'item': 'lamp'}, {'id': 2, 'name': 'Grace', 'item': 'pen'}]
+  2000
+  ```
+
+  It has two bugs, and the program prints the right answer anyway. The first makes `group_by` wrong: a new record **replaces** the group for its key instead of being appended, so an index built with it would lose `lamp` and half the bigger join. The second hides the first: `join` never uses the index, and scans every right record for every left record, a loop inside a loop. Fix both: append in `group_by`, then index the right side with it and look each left key up. The checks count the comparisons, and fail the scan.
+skills: [patterns, replace]

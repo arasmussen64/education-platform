@@ -1,16 +1,80 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.dsa.arrays-and-hashing
 kind: topic
-status: planned
-title: Arrays, hash tables and sets
+status: ready
+title: "Arrays, hash tables and sets"
 summary: "What a list, a dict and a set cost per operation and why: contiguous arrays, amortized appends, hash functions and buckets; and the patterns they make fast: counting, deduplicating, grouping and joining."
-prerequisites:
-- ml.dsa.complexity
+prerequisites: [ml.dsa.complexity]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Say what indexing, appending, inserting at the front and searching a list cost, and why an array makes them so.
-- Explain how a hash table turns a key into a bucket, what a collision is, and why dict and set lookups are constant time on average.
-- Replace a nested-loop search with a dict or a set, and measure the difference.
-- Count frequencies, deduplicate, group by key and join two tables with dictionaries.
+  - "Say what indexing, appending, inserting at the front and searching a list cost, and why an array makes them so."
+  - "Explain how a hash table turns a key into a bucket, what a collision is, and why dict and set lookups are constant time on average."
+  - "Replace a nested-loop search with a dict or a set, and measure the difference."
+  - "Count frequencies, deduplicate, group by key and join two tables with dictionaries."
+# Linked, never copied or embedded: the Runestone book is CC BY-NC-SA 4.0;
+# Open Data Structures is CC BY 2.5; the Python documentation is under the
+# PSF licence.
+resources:
+  - title: "Problem Solving with Algorithms and Data Structures using Python (Brad Miller and David Ranum), section 6.5: Hashing (hash functions, collisions, load factor), and sections 3.6 and 3.7 on the performance of lists and dictionaries"
+    url: https://runestone.academy/ns/books/published/pythonds3/SortSearch/Hashing.html
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "Open Data Structures in Python (Pat Morin), chapter 5: Hash Tables, the introduction and section 5.1"
+    url: https://opendatastructures.org/ods-python/5_Hash_Tables.html
+    type: reading
+    use: link
+    license: CC BY 2.5
+  - title: "The Python tutorial, chapter 5: Data Structures (lists as stacks and queues, sets, dictionaries)"
+    url: https://docs.python.org/3/tutorial/datastructures.html
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+practice:
+  - example-a-hash-table-by-hand
+  - parsons-count-words
+  - predict-a-list-shift
+  - mcq-why-pop-zero-is-slow
+  - mcq-what-a-collision-is
+  - mcq-a-bad-hash
+  - mcq-set-or-list
+  - fill-group-by-key
+  - write-two-sum
+prove:
+  build: build-a-tiny-data-toolkit
+  debug: debug-a-slow-join
+  explain:
+    prompt: |
+      A teammate's pipeline builds its vocabulary with `if word not in vocab: vocab.append(word)` where `vocab` is a list, and joins two tables with a loop inside a loop. It is fine on 10,000 rows and hopeless on a million. In your own words: what is a hash table, and how does a dict find a key without scanning? What does "constant time on average" depend on, and what is a collision? Why are a list's `in` and `insert(0, ...)` linear while `append` isn't? And how would you rewrite both pieces, and check the rewrite with the doubling test?
+    rubric:
+      - id: hashing
+        required: true
+        description: "A hash function turns the key into a number; that number modulo the bucket count picks a bucket; the lookup compares only the few keys in that bucket. Two keys in one bucket is a collision; the table grows (and re-places every key) to keep buckets short."
+      - id: average
+        required: true
+        description: "Constant time on average depends on the hash spreading keys across buckets; a bad hash (or an adversary) puts everything in one bucket and the lookup becomes a list scan. Keys must be hashable, so unchangeable: strings, numbers, tuples."
+      - id: list-costs
+        required: true
+        description: "A list is a contiguous array: an index is one step; `in` scans from the front; `insert(0, ...)` and `pop(0)` shift every element; `append` is constant on average because the list keeps spare room and grows in jumps (amortized)."
+      - id: rewrite
+        required: true
+        description: "Keep a set beside the vocabulary list (or build the vocabulary as a dict word to index); index one table by key in a dict of lists and scan the other once (a hash join). Check by doubling the rows: the rewrite's time doubles, the old version's quadruples."
+    model_answer: |
+      A hash table is the structure behind Python's dict and set. It keeps a list of buckets, and a hash function turns each key into a number; that number taken modulo the number of buckets says which bucket the key lives in. To find a key, the table computes its bucket and compares the key only with the few keys stored there, instead of scanning everything. Two keys that land in the same bucket are a collision, which is normal and harmless as long as it stays rare: when the table gets about two-thirds full it doubles its buckets and re-places every key, so the buckets stay short. That is what "constant time on average" depends on: a hash function that spreads keys evenly and a table that grows. With a bad hash that sends every key to the same bucket, the lookup degenerates into a scan of a list, which is why the honest claim is "on average". Keys must also be hashable, which in practice means unchangeable, like strings, numbers and tuples; a list can't be a key because its contents, and so its hash, could change after it was filed. A list is different: it is one contiguous block of references, so reading item i is a single step, but `in` has to look at the items one by one from the front, and inserting or popping at index 0 has to shift every other element along by one. `append` is cheap because the list keeps spare room at the end and, when it runs out, grows in a jump, so most appends are instant and the occasional copy is paid for by the many; that is what amortized constant time means. For the vocabulary I would keep a set of the words seen beside the list, or build the vocabulary directly as a dict from word to index, so the membership test is a hash lookup instead of a scan. For the join I would index one table by the join key in a dict of lists, then make one pass over the other table looking each key up, a hash join. To check, I would double the number of rows and time both versions: the rewrite should take about twice as long, the old versions about four times.
+review_pool:
+  - review-predict-bucket-index
+  - review-mcq-why-on-average
+  - review-mcq-which-structure
+  - review-count-words
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: list-costs
+    description: "Say what each list operation costs and why a contiguous array makes it so"
+  - id: hashing
+    description: "Explain how a hash table finds a key, what a collision is, and why lookups are constant time on average"
+  - id: replace
+    description: "Replace a nested-loop search with a dict or a set, and measure the difference"
+  - id: patterns
+    description: "Count, deduplicate, group and join with dictionaries"

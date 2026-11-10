@@ -1,0 +1,19 @@
+id: review-predict-bucket-index
+type: predict_output
+rev: 1
+prompt: |
+  A tiny hash function adds up the character codes (`c` is 99, `a` is 97, `t` is 116, `d` is 100, `o` is 111, `g` is 103), and the table has 8 buckets. What does the program print?
+code: |
+  def tiny_hash(key):
+      return sum(ord(ch) for ch in key)
+  
+  
+  for key in ("cat", "act", "dog"):
+      print(key, tiny_hash(key), tiny_hash(key) % 8)
+expected_output: |
+  cat 312 0
+  act 312 0
+  dog 314 2
+explanation: |
+  Adding codes ignores their order, so `cat` and `act` hash to the same 312 and collide in bucket 0; `dog` is 314, bucket 2. A real hash function mixes in the position of each character (the worked example multiplies by 31 before adding each one) so that anagrams usually land apart. The modulo turns any hash into a bucket index.
+skills: [hashing]

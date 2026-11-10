@@ -1,0 +1,31 @@
+id: example-a-hash-table-by-hand
+stage: worked_example
+rev: 1
+title: "A hash table by hand"
+prompt: |
+  A dict built from a list of buckets and a hash function you can read, counted against a list scan, and then given a bad hash function. Press **Run**, then read how each part works.
+steps:
+  - label: "A hash function you can read"
+    lines: "1-6"
+    note: "A hash function turns a key into a number. This one walks the characters, multiplying the running value by 31 and adding each character's code, wrapping at `2**32` so the number stays bounded. Same key, same number, every time; different keys, usually different numbers. Python's built-in `hash` does the same job faster."
+  - label: "Buckets, and which one a key goes to"
+    lines: "9-19"
+    note: "The table starts with four empty buckets, each a list of `(key, value)` pairs. `bucket_for` takes the hash modulo the number of buckets: that is the whole trick. Nothing is searched; the key's own number says where it lives."
+  - label: "Looking a key up"
+    lines: "21-26"
+    note: "Go to the key's bucket and compare it with the few keys there, counting each comparison. If the buckets are short, that is a handful of steps however many keys the table holds."
+  - label: "Storing a key, and growing"
+    lines: "28-44"
+    note: "`put` replaces the value if the key is already in its bucket, else appends the pair. When the table passes two-thirds full it doubles its buckets and re-places every key, because the modulo changes: that is what keeps buckets short as the table grows. Python's dict does the same."
+  - label: "A good hash: about one comparison per lookup"
+    lines: "47-55"
+    note: "A thousand names stored, then looked up: 2,048 buckets after growing, the longest holding 3, and 1,414 comparisons for 1,000 lookups, about 1.4 each. That is constant time on average: the count doesn't depend on how many keys the table holds."
+  - label: "A bad hash: a list in disguise"
+    lines: "57-63"
+    note: "The same table with `len` as its hash function: every name is five to seven characters long, so all thousand land in three buckets, the longest holding 900. The same 1,000 lookups cost 409,600 comparisons, 289 times as many. The structure is identical; only the spread of the keys changed, and that is what \"on average\" depends on."
+  - label: "The list scan, for comparison"
+    lines: "16-71"
+    note: "Finding each name in a plain list by scanning from the front: 500,500 comparisons, about `n² / 2`, the last topic's quadratic. The good hash table did the same work in 1,414."
+  - label: "Python's dict agrees"
+    lines: "73-74"
+    note: "A real dict built from the same names returns the same values as the hand-made table for every key. The built-in one is the same idea with a faster hash and open addressing instead of bucket lists, which the resource describes."
