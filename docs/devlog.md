@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Where things stand tonight
+
+**The day in one place.** The pull-request stack from the Phase 2 work (#88 to #101) and the ML track's Module 1 (#103 to #111) was merging bottom-up when the day started. Today added Module 2 (#112 to #119), Module 3 on the NumPy decision (#121 and #123 to #134), the Module 4 outline (#135), two cold reviews of the prose (#125, #136), and seven fixes merged straight to main for things that stopped the merge: a longer boot limit, job-list and journal diagnostics, the CPU lab's throttle wait, the progress test's clock, a lab the checker gives up on in the crowd being retried once alone, and the triage report's run-queue check, which the wrong `vmstat` column passed by luck on a busy runner because a container's `vmstat` reads the whole machine (#120, #122, #126, #130, #131, #137, #139). After midnight came more of the same (#140 to #145): the Labs workflow split by topic across four machines, the map and topic page tests pinned to their fixtures' day after every pull request's web check failed at once at noon UTC, the memory lab's swap line given the tolerance its available line had, and a dice test that rolls 200 times so a wrong range can't pass by luck. And cold reviews of every topic the earlier ones hadn't covered: all 36 Python Foundations topics (#141, thirty-three corrections), the ML track's Module 1 (#142, twelve, stacked on #138) and the cloud track's Module 1 (#144, thirty-two). The merge runs by itself, one CI cycle per pull request, bringing main into each branch before its checks; #98 (the placement test) and #99 (Step through) are on main, and it had reached #100 when this was last updated. The repository went public at your instruction.
+
+**Decisions made while you were away, for review** (besides the ones in the entries below):
+
+1. The Labs CI job runs as four shards by topic (#140). It was the whole wait for every lab pull request at a quarter of an hour; Actions minutes are free on a public repository, so four machines cost nothing. The check everything waits for is still named Labs.
+2. Three prose reviews ran without asking, because the two earlier ones had found twenty errors in prose no machine checks. They found seventy-seven more, all applied. The two most worth your own eye: a review question built on an error message Python no longer prints ([py.reading-errors](../content/topics/py.reading-errors/recall/review-mcq-syntax-location.yaml), rebuilt on the message it does print, and its `rev` bumped so past answers don't count), and the SSH hardening walkthroughs saying new settings were live when the running `sshd` still had the old ones (they now reload it, and every prompt says to).
+3. One exercise's starter changed rather than its prompt: _Top three and first match_ sorts descending in the starter now, so its "three bugs" are three; the fourth was unannounced.
+4. The ML Module 1 corrections sit as #142 on top of the stack rather than waiting for it to land.
+5. With #98 on main, the placement test's migration is the next production step: `npx supabase db push --dry-run` on the live project, then without, when you say so.
+
+**Decisions waiting for you,** gathered from the entries below:
+
+1. [ADR-0023](decisions/0023-packages-in-both-runtimes.md), NumPy in both runtimes, is proposed. Accept it and Module 3 stands as written; send it back and Module 3 becomes a list-based rewrite.
+2. The three backup secrets and the private backups repository ([ADR-0020](decisions/0020-automated-backups.md); the steps are in [docs/setup.md](setup.md)).
+3. `npx supabase db push` for the placement test's migration once #98 has merged ([ADR-0021](decisions/0021-placement-test.md)).
+4. What comes next: Module 4 of the ML track (calculus, outlined) or the cloud track's Module 2.
+5. The smaller calls under "Decisions for you to review" in each entry: the counting decorator in place of a timing one, fixtures explained rather than exercised, JSON Lines in Checkpoint 2, booleans not tested as bad integers, eigenvectors' signs fixed by hand, StatQuest as a resource, the retry-alone rule in the lab checker.
+
+**Where to look first:** the live site once the stack has finished (Today across both tracks, the placement test, Step through, Modules 2 and 3 on the map); then ADR-0023.
+
 ## 2026-11-10: A second pair of eyes on Module 3
 
 **Eight corrections from a cold review of Module 3's prose,** the same pass that found twelve in Module 2. The reviewer checked every resource title and chapter number (all right), every multiple-choice key (all right), every debug prompt against its planted bugs (all right), and every worked example's step ranges against its program: the checkpoint's 2-D sibling was off by one throughout, the only one of eight. The rest: the PCA example claimed its rebuilt points land "within a few hundredths" when the middle two miss by about a third; the PCA recap and a review question said to reverse eigenvectors with `[::-1]`, which reverses rows, where `vectors[:, ::-1]` was meant; a dot-product explanation got 20 wrong; a sentence had lost its "0"; the eigen recap said every transition matrix settles to its eigenvalue-1 vector, which needs a regular chain (`[[0, 1], [1, 0]]` swaps forever); the least-squares recap pointed at the wrong earlier topic; and the checkpoint's model answer called a three-dimensional column space a plane. All fixed in this commit, at the top of the stack.
