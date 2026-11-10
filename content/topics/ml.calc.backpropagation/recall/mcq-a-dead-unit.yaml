@@ -1,0 +1,14 @@
+id: mcq-a-dead-unit
+type: mcq
+rev: 1
+prompt: |
+  During training, hidden unit 3''s score `z1[:, 3]` is negative for every example in the data. What happens to the gradient of its incoming weights, `W1[:, 3]`, and to the unit?
+choices:
+  - 'The mask `z1 > 0` is 0 for that unit on every example, so `dz1[:, 3]` is all zeros, `dW1[:, 3]` is zero, and the unit never changes again: it''s dead'
+  - 'The gradient is large and negative, so the unit recovers on the next step'
+  - 'The gradient is the same as the other units'', since `dW1 = X.T @ dz1` doesn''t depend on `z1`'
+  - 'Only `b1[3]` stops changing; the weights keep learning'
+answer: 0
+explanation: |
+  ReLU''s derivative is 0 on the left of the bend. If the unit is off for every example, every entry of its column of the mask is 0, so no gradient reaches `W1[:, 3]` or `b1[3]`, and nothing can push its scores back above zero. That''s a dead unit, and the usual causes are a learning rate too large or an unlucky start.
+skills: [train, backward]

@@ -1,0 +1,28 @@
+id: example-a-tiny-network-trained
+stage: worked_example
+rev: 1
+title: "A tiny network, checked and trained"
+prompt: |
+  This program builds a network with two inputs, four hidden ReLU units and one sigmoid output, runs the forward and backward passes, checks one gradient numerically, and trains it to learn XOR. Press **Run**, then read how each part works.
+steps:
+  - label: "The data and the starting weights"
+    lines: "8-13"
+    note: "Four examples: XOR is 1 when exactly one input is 1. No single straight line separates the ones from the zeros, which is why a hidden layer is needed. The weights are small hand-picked numbers; in practice they're small and random."
+  - label: "The forward pass"
+    lines: "16-20"
+    note: "`z1` is every example's four hidden scores at once (4 by 4), `h` bends them with ReLU, and the output score `h @ W2 + b2` goes through the sigmoid. The function returns `z1` and `h` as well as `p`, because the backward pass needs them."
+  - label: "The loss"
+    lines: "23-24"
+    note: "The mean cross-entropy from the last topic. At the start it's 0.732, about `log 2`: the network is guessing."
+  - label: "The backward pass"
+    lines: "27-35"
+    note: "The chain rule, one line per link, from the loss inward. `dz2 = (p - y) / n` is the loss-through-sigmoid gradient. `dW2 = h.T @ dz2` because the output score is `h @ W2`: a weight's gradient is its input times the gradient at its output. `dh` spreads `dz2` back along `W2`. `dz1` applies ReLU's mask. `dW1 = X.T @ dz1` is the first layer's version of the same rule, with `X` as the input."
+  - label: "The shapes"
+    lines: "38-41"
+    note: "Each gradient has the shape of its parameter: `dW1` is 2 by 4, `db1` and `dW2` have four entries. A shape error here means a wrong product or a missing transpose."
+  - label: "The gradient check"
+    lines: "43-51"
+    note: "For each of the eight entries of `W1`: nudge it by a millionth each way, run the whole forward pass and the loss, and divide. `np.allclose` against `dW1` prints `True`. This is done once, before training, every time a backward pass is written."
+  - label: "Training"
+    lines: "53-63"
+    note: "The descent loop: forward, backward, step every parameter against its gradient at rate 0.5. The loss falls from 0.732 past 0.081 at step 100 to 0.001 at the end, the four predictions round to `[0, 1, 1, 0]`, and the accuracy is 1.0. The network has learned XOR."

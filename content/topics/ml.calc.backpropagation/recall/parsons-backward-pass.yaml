@@ -1,0 +1,28 @@
+id: parsons-backward-pass
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to run a forward pass through a two-unit hidden layer (no biases) and then the backward pass down to `dW1`, printing:
+
+  ```
+  [[0.409 0.   ]
+   [0.159 0.25 ]]
+  ```
+
+  One line is a decoy that doesn't belong.
+lines:
+  - 'import numpy as np'
+  - 'X, y, W1, W2 = np.array([[0.0, 1.0], [1.0, 1.0]]), np.array([1.0, 0.0]), np.array([[1.0, -1.0], [0.5, 0.5]]), np.array([1.0, -1.0])'
+  - 'z1 = X @ W1'
+  - 'h = np.maximum(z1, 0.0)'
+  - 'p = 1 / (1 + np.exp(-(h @ W2)))'
+  - 'dz2 = (p - y) / 2'
+  - 'dh = np.outer(dz2, W2)'
+  - 'dz1 = dh * (z1 > 0)'
+  - 'dW1 = X.T @ dz1'
+  - 'print(np.round(dW1, 3))'
+distractors:
+  - 'dz1 = dh * h'
+explanation: |
+  Forward: `z1`, then `h`, then `p`. Backward, from the loss inward: `dz2` is `(p - y) / n`; `dh` spreads it along `W2`; `dz1` applies ReLU's derivative, the **mask** `z1 > 0`; `dW1` is the input transposed times `dz1`. The decoy multiplies by `h`, ReLU's value, instead of its derivative; the derivative of `max(z, 0)` is 1 or 0, never `z`.
+skills: [backward]

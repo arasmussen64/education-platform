@@ -1,0 +1,14 @@
+id: review-mcq-why-h
+type: mcq
+rev: 1
+prompt: |
+  In the backward pass, `dW2 = h.T @ dz2`. Why `h`?
+choices:
+  - 'Because `z2 = h @ W2 + b2`: the derivative of the output score with respect to `W2` is `h`, so each weight''s gradient is its input times the gradient at its output, summed over the examples'
+  - 'Because `h` is the largest array available, which makes the gradient more accurate'
+  - 'Because ReLU''s derivative is `h`'
+  - 'It should be `X`; `h` is a bug'
+answer: 0
+explanation: |
+  A weight multiplies its input; nudge the weight and the score moves by the input times the nudge. So the gradient of the loss with respect to the weight is the input (`h` for the output layer, `X` for the first layer) times the gradient arriving at the score, added over examples, which is what the transposed product does.
+skills: [backward]

@@ -1,0 +1,14 @@
+id: mcq-the-first-factor
+type: mcq
+rev: 1
+prompt: |
+  The backward pass begins with `dz2 = (p - y) / n`. Why does it start there, and why that formula?
+choices:
+  - 'It''s the gradient of the mean cross-entropy with respect to the output score, the last link of the chain; every other gradient is built from it by multiplying in local derivatives from the output inward'
+  - 'It''s the gradient with respect to the first layer''s weights, which is where training starts'
+  - 'It''s the loss itself, which the backward pass then divides among the layers'
+  - 'Any starting value works; `p - y` is a convention'
+answer: 0
+explanation: |
+  The chain rule multiplies from the output end, so the first factor is the derivative of the loss with respect to the thing nearest it, the output score `z2`. For cross-entropy through a sigmoid that derivative is `p - y` per example (the log and the sigmoid cancel), and the `1 / n` is the mean. From there each line multiplies in one more link.
+skills: [backward]

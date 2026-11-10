@@ -1,0 +1,25 @@
+id: predict-a-forward-pass
+type: predict_output
+rev: 1
+prompt: |
+  One example through a two-unit hidden layer. What does the program print?
+code: |
+  import numpy as np
+  
+  X = np.array([[1.0, 2.0]])
+  W1 = np.array([[1.0, -1.0], [0.0, 1.0]])
+  b1 = np.array([0.0, -1.0])
+  W2 = np.array([2.0, -1.0])
+  z1 = X @ W1 + b1
+  h = np.maximum(z1, 0.0)
+  z2 = h @ W2 + 0.5
+  print(z1)
+  print(h)
+  print(z2)
+expected_output: |
+  [[1. 0.]]
+  [[1. 0.]]
+  [2.5]
+explanation: |
+  `X @ W1` is `[1*1 + 2*0, 1*(-1) + 2*1] = [1, 1]`; adding `b1` gives `z1 = [1, 0]`. ReLU leaves `[1, 0]` as it is (nothing is negative). The output score is `1*2 + 0*(-1) + 0.5 = 2.5`. The second hidden unit sits exactly at the bend, where the mask would make its gradient 0.
+skills: [forward]
