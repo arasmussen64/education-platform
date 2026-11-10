@@ -1,0 +1,20 @@
+id: build-validate-orders
+stage: build
+rev: 1
+title: "Validate the orders"
+prompt: |
+  Orders arrive as JSON text: a list of records that **should** each have an `id` (an int), an `item` (a non-empty string) and a `qty` (an int greater than 0). Some won't. Starting from a blank editor, write a dataclass `Order` with those three fields, and a function `load_orders(text)` that returns two things: a list of `Order`s for the records that follow the rules, and a list of the **positions** (0, 1, 2, ...) of the records that don't. A record that isn't a dict, lacks a key, or has a value of the wrong type is bad. Don't repair records: `"5"` is not a quantity, even if `int("5")` would be.
+
+  Then print the result for this text:
+
+  ```python
+  text = '[{"id": 1, "item": "pen", "qty": 2}, {"id": 2, "item": "", "qty": 1}, {"id": 3, "item": "ink", "qty": "5"}, {"id": 4, "item": "pad", "qty": 0}]'
+  ```
+
+  ```
+  [Order(id=1, item='pen', qty=2)]
+  [1, 2, 3]
+  ```
+
+  The checks call `load_orders` with other records too: all good, missing keys, a float quantity, a record that's a number.
+skills: [validate, records, json-io]
