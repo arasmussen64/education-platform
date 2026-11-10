@@ -2,6 +2,19 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Matrices as transformations, the third Module 3 topic
+
+**`ml.la.matrices-as-maps` is ready.** A matrix is a function that moves every vector at once; the columns are where the basis vectors land, multiplication is doing one transformation after another, and the determinant is the area factor. The worked example applies a stretch, a 90-degree rotation and a shear, composes the rotation and the shear in both orders (`[-1, 2]` against `[0, 1]` for the same input), and ends with the identity, the inverse undoing the stretch, and determinants of 2, 1 and 1. Then a Parsons rotation matrix whose decoy has the minus sign on the other `sin` and rotates clockwise, four recall questions (where `[0, 1]` lands is the second column; the two orders of a rotation and a shear; a zero determinant means squashed flat and no inverse; the inverse undoes), `scaling` and `rotation` to fill in, and `transform(M, points)` to write with `points @ M.T`. The proofs: `compose(*matrices)` in the order given and `undo(M)` that returns `None` for a singular matrix, with hidden tests that check `compose(A, B, C) @ v` against `C @ (B @ (A @ v))` and `undo(M) @ M` against the identity (known-wrong: the other order, no singular check); a square rotated with `*` instead of `@` and a rotation matrix with its signs swapped to debug, where the first bug prints the wrong shape and the second the wrong direction; and an explanation for a teammate who thinks a matrix is "a grid of numbers you multiply somehow". The review pool has the identity, the meaning of `A @ B`, the determinant of a scaling as the area of the stretched square, and `apply` to write.
+
+**Pictures as text, as the outline said:** the unit square's four corners before and after, printed as rows. The videos carry the moving grid; 3Blue1Brown's chapters 3, 4 and 6 are the resources, linked.
+
+**Decisions for you to review:**
+
+1. _Determinants are printed rounded_ (`round(np.linalg.det(A))`): the floating-point determinant of a rotation is `1.0000000000000002` on some machines, and the two runtimes must agree to the character.
+2. _Rotations use `np.radians` and `np.round(..., 6)`:_ `cos(90°)` is `6e-17`, and the first thing a learner would otherwise ask is why their rotation isn't exactly zero. The recap says why.
+
+**Next:** Systems of linear equations (`ml.la.systems`).
+
 ## 2026-11-10: A second pair of eyes on today's topics
 
 **Twelve corrections from a review of the prose** in the eight topics written today (Classes through NumPy arrays), by a reviewer who read every lesson, question and hint cold and ran every fill-in starter. The programs had all been proven by running them; the prose hadn't, and it had errors a learner would have met:

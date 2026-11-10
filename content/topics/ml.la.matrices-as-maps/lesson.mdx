@@ -1,0 +1,28 @@
+<Intro>
+
+Module 1 multiplied a matrix by a vector with loops and checked the shapes. This topic is about what that multiplication **means**: a matrix is a function that moves every vector in the plane at once, keeping the grid straight and evenly spaced. Rotations, stretches and shears are matrices, doing one after another is multiplying them, and the determinant is how much area they scale.
+
+The main resource is **3Blue1Brown's chapter 3** of *Essence of linear algebra*, linear transformations and matrices: ten minutes of the grid moving. Then **chapter 4**, matrix multiplication as composition, and **chapter 6**, the determinant. About 35 minutes of video; worth every one. Watch for:
+
+- **The columns** of a matrix are where `[1, 0]` and `[0, 1]` land. Everything else follows.
+- **Multiplication is composition:** `A @ B` does `B` first, then `A`.
+- **The determinant** is the area-scaling factor, and zero means squashed flat.
+
+In the code, pictures are coordinates: the four corners of the unit square, before and after. Print them and sketch them on paper if the video's grid isn't in your head yet.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A matrix is a function on vectors:** `A @ v`. Its **columns** are where the basis vectors land: `A @ [1, 0]` is the first column, `A @ [0, 1]` the second, and `A @ [x, y]` is `x` times the first plus `y` times the second.
+- **The standard ones.** Scaling: `[[sx, 0], [0, sy]]`. Rotation by θ, anticlockwise: `[[cos θ, -sin θ], [sin θ, cos θ]]` (with θ in radians: `np.radians(90)`). Shear: `[[1, k], [0, 1]]` slides each row sideways by `k` times its height. `np.eye(2)` is the identity, which moves nothing.
+- **Composition is multiplication.** `(A @ B) @ v` equals `A @ (B @ v)`: `B` acts first. **Order matters:** rotate-then-scale and scale-then-rotate are different matrices, so `A @ B` is usually not `B @ A`.
+- **Many points at once:** with points as rows of an `(n, 2)` array, `points @ M.T` transforms them all; no loop.
+- **The inverse** `np.linalg.inv(A)` undoes `A`: `inv(A) @ A` is the identity. It exists only when the determinant isn't zero; otherwise `inv` raises `LinAlgError: Singular matrix`.
+- **The determinant** `np.linalg.det(A)` is the factor by which `A` scales area: 6 for a scaling by 2 and 3, 1 for a rotation, 1 for a shear (it slants the square but keeps its area). Negative means the plane was flipped. **Zero means squashed** onto a line or a point: different vectors land in the same place, and nothing can undo that.
+- **Rotations aren't exact.** `cos(90°)` comes out as `6e-17` rather than `0`, and a tiny negative rounds to `-0.`; the exercises print `np.round(v, 6) + 0.0`, which rounds the noise away and turns a `-0.` into a plain `0.`.
+- **In machine learning:** a layer of a neural network is a matrix applied to a vector (then a bend); an image rotated or flipped for training is this topic's matrices applied to pixel coordinates; PCA, three topics from now, is a rotation chosen to line the data up with the axes.
+
+</Recap>
