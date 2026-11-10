@@ -2,16 +2,32 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: The math refresher begins: fractions, decimals and percentages
+
+**The first ML topic is ready** (`ml.math.arithmetic`, "Fractions, decimals and percentages"): the arithmetic the data work leans on, done in Python so a wrong idea shows up as a wrong number. The ladder: a recipe scaled with fractions (the worked example, which also shows why `1.6666666666666665` is right and `1.67` is what a person wants), a Parsons problem for 25% off, three recall questions (order of operations, fractions to decimals, percentage change), a tip-and-split fill-in and a fruit-punch ratio to write. The proofs: a sale receipt to build where the discount comes first and the tax applies to what's left (the two likely wrong orders are known-wrong solutions), an average-score report to debug with two bugs (a missing pair of parentheses and a percentage never multiplied by 100), and an explanation of why `price * (1 - 25 / 100)` and `price * 1 - 25 / 100` differ. A review pool of three, every skill with at least three questions that can come back. The main resource is OpenStax Prealgebra 2e (CC BY 4.0), linked by book with the chapters named; the recap carries the teaching.
+
+**Two things it needed.** Its prerequisite is `py.strings-and-input` (the Python topic that teaches the f-strings it uses), in another track, so Today's _Next up_ now says what a locked track is waiting for ("Next: Fractions, decimals and percentages, once you've learned Strings and input (Python Foundations)") instead of claiming everything is learned, with a test, and the map's cross-track reading of progress (the previous entry) has its tests now: the topic is Locked on the ML map until `py.strings-and-input` is learned, then Available.
+
+**Also today, outside the stack:** the Labs job on #86's merge commit failed with twelve `docker build` timeouts, four cold builds of the same heavy systemd layer at once on a busy runner. `labcheck test --all --jobs N` now builds the first lab of each topic on its own before the parallel run, so the layer a topic's labs share is built once, and a build may take 30 minutes instead of 15 (#102, against `main`, so the rest of the stack picks it up as `main` is merged into each). The failed job was re-run meanwhile.
+
+**Decisions for you to review:**
+
+1. _The title is "Fractions, decimals and percentages", not "Arithmetic",_ so it can't be confused with Python Foundations' Arithmetic on Today or the map; the spec's table says the same.
+2. _The worked example shows the ugly float on purpose_ (`1.6666666666666665`) before rounding it, because every learner meets one within a week and should know it isn't their bug.
+3. _The explain prompt is about one line with and without parentheses,_ which is the whole of the order of operations in a form the learner will type a hundred times.
+
+**Next:** Algebra (`ml.math.algebra`), the second rung.
+
 ## 2026-11-09: The Machine Learning Foundations track takes shape
 
 Phase 2's content items, the math refresher and intermediate Python, needed a home. They're the first two modules of a third track, **Machine Learning Foundations** ([spec](specs/ml-foundations.md)): the track the vision was written for, from the math and the Python that ML is made of to neural networks from scratch and the systems that serve them. Module 1 is the placement test's seven math levels as topics, each about 45 minutes and each proven in Python (a wrong idea shows up as a wrong number); Module 2 is the intermediate Python the rest of the track is written in. Later modules are prose in the spec until Phase 3 plans them in detail.
 
-**What changed today:** the track file and sixteen `planned` outlines (seven math topics, seven Python topics, two checkpoints), hand-written from the spec rather than generated, since there are few and they become real content soon; a diagnostic level can name its topic (`topic:`), so the math ladder's result links each topic as it's written and the free refresher until then; and the map now reads the progress of prerequisites from other tracks, because `ml.math.arithmetic` builds on `py.arithmetic` and would otherwise have stayed locked on the ML map forever. The validator accepts cross-track prerequisites as it always did.
+**What changed today:** the track file and sixteen `planned` outlines (seven math topics, seven Python topics, two checkpoints), hand-written from the spec rather than generated, since there are few and they become real content soon; a diagnostic level can name its topic (`topic:`), so the math ladder's result links each topic as it's written and the free refresher until then; and the map now reads the progress of prerequisites from other tracks, because `ml.math.arithmetic` builds on `py.strings-and-input` and would otherwise have stayed locked on the ML map forever. The validator accepts cross-track prerequisites as it always did.
 
 **Decisions for you to review:**
 
 1. _A third track, not more modules of Python Foundations._ Python Foundations ends where its summary says it does; the ML path is its own thing, with its own map and its own hours on Today.
-2. _Cross-track prerequisites, by name._ A learner can start the math refresher early (Arithmetic needs only `py.arithmetic`) and the later topics unlock as their Python does. Phase 3's modules will do the same.
+2. _Cross-track prerequisites, by name._ A learner can start the math refresher early (Fractions, decimals and percentages needs only `py.strings-and-input`) and the later topics unlock as their Python does. Phase 3's modules will do the same.
 3. _Hand-written outlines for this track._ Sixteen files, soon real; generalizing the cloud track's generator can wait until Phase 3's modules are planned in detail.
 4. _The math topics come first,_ one pull request each, because the placement test points at them today; intermediate Python follows.
 

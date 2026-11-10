@@ -6,9 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (content: the math refresher begins)
+
+- **Fractions, decimals and percentages** (`ml.math.arithmetic`), the first topic of the Machine Learning Foundations track, goes ready: a recipe scaled with fractions as its worked example, a Parsons problem, three recall questions, a tip-and-split fill-in and a fruit-punch ratio to write; a sale receipt to build (the discount first, the tax on what's left), an average-score report to debug (two bugs: a missing pair of parentheses and a percentage never multiplied by 100), and an explanation of why `price * (1 - 25 / 100)` and `price * 1 - 25 / 100` differ; a review pool of three. It needs `py.strings-and-input`, the Python topic that teaches the f-strings it uses, which the ML map and Today now read from the Python track.
+- Today's _Next up_ says what unlocks a track whose open topics are all locked ("Next: Fractions, decimals and percentages, once you've learned Arithmetic (Python Foundations)"), instead of claiming everything is learned.
+
 ### Added (the Machine Learning Foundations track)
 
-- **A third track, Machine Learning Foundations** ([spec](docs/specs/ml-foundations.md)): the math and the Python that machine learning is made of, every topic proven in code. Its first two modules are outlined on the map: Module 1, the math refresher (the placement test's seven levels as topics, which the math diagnostic now points at as they're written), and Module 2, intermediate Python. Its topics build on Python Foundations topics by name, and the map reads those topics' progress along with the track's own, so a topic that needs `py.arithmetic` unlocks when that's learned.
+- **A third track, Machine Learning Foundations** ([spec](docs/specs/ml-foundations.md)): the math and the Python that machine learning is made of, every topic proven in code. Its first two modules are outlined on the map: Module 1, the math refresher (the placement test's seven levels as topics, which the math diagnostic now points at as they're written), and Module 2, intermediate Python. Its topics build on Python Foundations topics by name, and the map reads those topics' progress along with the track's own, so a topic that needs `py.strings-and-input` unlocks when that's learned.
 - A diagnostic's level may name the topic that teaches it (`topic:`), checked by the validator; the placement result links the topic once it's ready, and the free refresher until then.
 
 ### Changed (CI)
