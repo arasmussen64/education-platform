@@ -2,6 +2,17 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Exponents and logarithms, the fourth rung
+
+**`ml.math.exponents-and-logs` is ready.** A power is repeated multiplication and a logarithm is "how many times?" asked backwards; the topic is built to make the product rule land, because that one rule is why machine learning adds log-probabilities instead of multiplying probabilities. The worked example takes a power, a negative exponent (one over), a root (an exponent of a half) and two logs with `math.log2` and `math.log10`. Then a Parsons loop that doubles a colony until it passes 1000 (the decoy adds 2 a day, growth by the same amount instead of the same factor), three recall questions (what `log2(32)` asks; `log10(1000) + log10(100)` against `log10(1000 * 100)`; `10 ** -2` is small, not negative), compound growth to fill in (`(1 + rate / 100) ** years`) and a half-life table to write. The proofs: `years_to_double(rate)` to build by multiplying until the amount passes double (known-wrong: simple interest), a decibel calculation with two bugs (`math.log` where `math.log10` was meant, the ratio upside down; the prompt says which symptom points at which), and an explanation that corrects a friend's "log of a product is the product of the logs" and ends with why the trick matters for ML. The recap names log-likelihood and cross-entropy as this trick with names. OpenStax Intermediate Algebra 2e chapter 10 is the main resource.
+
+**Decisions for you to review:**
+
+1. _The ML reason is in the topic, not saved for later:_ every learner who meets `log_softmax` or cross-entropy should already know why there's a log in it.
+2. _Years-to-double is built with a loop, not a log,_ though the recap shows both: at this point in the track a loop is what the learner can see working.
+
+**Next:** Probability and statistics (`ml.math.probability-and-statistics`), which needs `py.list-algorithms`.
+
 ## 2026-11-09: Functions, the third rung, and a flaky lab check made solid
 
 **`ml.math.functions` is ready.** The point of the topic is that the math word and the Python word mean the same thing: a rule from input to output, and `f(x) = 2x + 1` is `def f(x): return 2 * x + 1`. The worked example evaluates it and prints a table of values with a loop (a graph is a table, drawn). Then a Parsons table of squares, three recall questions (what 2.5 and 4 mean in `2.5 * km + 4`; `square(plus_one(2))` against `plus_one(square(2))`; the slope through two points), the line through two points to fill in (rise over run, then the intercept) and a Celsius table to write, whose tests call the function directly as well as reading the table. The proofs: a delivery-cost function to build (known-wrong: no pick-up charge, slope and intercept swapped), a half-then-ten program with two bugs (`//` where `/` was meant, a loop that stops early), and an explanation of `f(3)`, what the two notations share, and why `f(g(2))` and `g(f(2))` differ. The recap ends with the sentence the whole module is heading for: a model is a function with knobs, and training means turning them until the table of outputs matches the data. It needs `py.return-values`, so the owner reaches it after Python's Module 4.
