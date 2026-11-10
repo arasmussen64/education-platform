@@ -1,0 +1,24 @@
+id: write-speedup-and-roofline
+stage: write
+rev: 1
+title: "Amdahl and the roofline"
+prompt: |
+  Write `speedup(parallel_fraction, workers)`, Amdahl's law (1 over the serial fraction plus the parallel fraction divided by the workers), and `roofline_seconds(flops, bytes_moved, flop_rate, bandwidth)`, the time a machine needs for the arithmetic or for the bytes, whichever is longer, since it overlaps the two. Then print:
+
+  ```python
+  print(round(speedup(0.9, 8), 2), round(speedup(0.9, 10**6), 2))
+  print(round(roofline_seconds(2 * 1024**3, 3 * 1024**2 * 4, 10e12, 500e9) * 1e6, 1))
+  print(round(roofline_seconds(1_000_000, 12_000_000, 10e12, 500e9) * 1e6, 1))
+  ```
+
+  ```
+  4.71 10.0
+  214.7
+  24.0
+  ```
+
+  The first roofline line is a 1024-cube matrix multiply in float32 on a 10 TFLOP/s, 500 GB/s machine, in microseconds; the second is a vector add of a million float32.
+hints:
+  - "The serial fraction is `1 - parallel_fraction`; the speed-up is 1 over the time that remains."
+  - "The two times are `flops / flop_rate` and `bytes_moved / bandwidth`; `max` picks the longer."
+skills: [amdahl, intensity]

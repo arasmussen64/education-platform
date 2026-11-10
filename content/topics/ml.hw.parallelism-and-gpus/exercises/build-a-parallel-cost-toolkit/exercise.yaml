@@ -1,0 +1,33 @@
+id: build-a-parallel-cost-toolkit
+stage: build
+rev: 1
+title: "A parallel cost toolkit"
+prompt: |
+  Starting from a blank editor, write five functions:
+
+  - `amdahl(parallel_fraction, workers)`: the speed-up Amdahl's law allows.
+  - `matmul_cost(m, k, n, itemsize)`: the tuple `(FLOPs, bytes)` of `(m, k) @ (k, n)`: a multiply and an add per term of each output; both inputs read and the output written, `itemsize` bytes per element.
+  - `intensity(flops, bytes_moved)`: FLOPs per byte.
+  - `roofline_seconds(flops, bytes_moved, flop_rate, bandwidth)`: the longer of the arithmetic time and the memory time.
+  - `transfer_seconds(total_bytes, pieces, bandwidth, latency)`: the time to move `total_bytes` across a bus in that many pieces: the bytes at the bandwidth, plus a fixed latency per piece.
+
+  Then print:
+
+  ```python
+  print(round(amdahl(0.9, 8), 2), round(amdahl(0.9, 10**9), 2), round(amdahl(0.99, 64), 1))
+  print(matmul_cost(1024, 1024, 1024, 4), round(intensity(*matmul_cost(1024, 1024, 1024, 4)), 1))
+  print(round(intensity(*matmul_cost(1, 1024, 1024, 4)), 2), round(intensity(*matmul_cost(512, 1024, 1024, 4)), 1))
+  print(round(roofline_seconds(*matmul_cost(1024, 1024, 1024, 4), 10e12, 500e9) * 1e6, 1), round(roofline_seconds(1_000_000, 12_000_000, 10e12, 500e9) * 1e6, 1))
+  print(round(transfer_seconds(10**9, 1, 25e9, 10e-6), 3), round(transfer_seconds(10**9, 10**6, 25e9, 10e-6), 2))
+  ```
+
+  ```
+  4.71 10.0 39.3
+  (2147483648, 12582912) 170.7
+  0.5 128.0
+  214.7 24.0
+  0.04 10.04
+  ```
+
+  The checks try the limits of Amdahl's law, compare the matrix multiply counts with a hand count on small shapes, test the roofline on both sides of the ridge, and move the same bytes in one piece and in many.
+skills: [amdahl, intensity, bandwidth]

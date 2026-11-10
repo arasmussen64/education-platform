@@ -1,0 +1,14 @@
+id: review-mcq-memory-bound-step
+type: mcq
+rev: 1
+prompt: |
+  An elementwise step (normalize, then activate, then scale) is memory-bound on the GPU. Which change speeds it up?
+choices:
+  - 'A GPU with twice the FLOP rate and the same memory bandwidth'
+  - 'Running the three operations in three separate streams at the same time'
+  - 'Switching the arithmetic from float32 to float64, so that each operation does more work for every byte it fetches'
+  - 'Fusing the three into one pass, so the array is read and written once instead of three times'
+answer: 3
+explanation: |
+  Below the ridge the time is bytes over bandwidth, so the fixes are fewer bytes or more bandwidth. Three passes read and write the array three times; one fused pass does it once, a third of the traffic. More FLOP rate changes nothing a memory-bound step can feel, three streams compete for the same bandwidth, and float64 doubles the bytes. Halving the precision to float16 would help, for the same reason fusing does.
+skills: [bandwidth]

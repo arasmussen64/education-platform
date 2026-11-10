@@ -1,0 +1,14 @@
+id: mcq-the-transfer
+type: mcq
+rev: 1
+prompt: |
+  A training step takes 2 ms of GPU time but the loop runs at 30 ms per step. The loop copies each batch to the GPU inside the step and copies the loss back. What is the likely cause, and the fix?
+choices:
+  - 'The GPU is too slow for the model; a bigger GPU is needed'
+  - 'Python''s garbage collector runs between steps; disable it during training'
+  - 'The model''s weights are copied to the GPU on every step, which is what the 28 ms are; load the model once at the start and the step will take its 2 ms'
+  - 'The copies across the bus, each paying bytes at bus speed plus a fixed latency; keep the data on the device and read results back rarely'
+answer: 3
+explanation: |
+  The step itself is fast; the time is in moving data. A batch across the bus costs its bytes at the bus bandwidth and a fixed latency for every transfer, and a loss copied back forces the loop to wait for the GPU before it continues. Loading the whole dataset to the device once, or at least prefetching the next batch while the current one runs, and reading the loss back every hundred steps, removes most of it. The weights are already on the device; a faster GPU would make the 2 ms smaller and leave the 28.
+skills: [bandwidth]

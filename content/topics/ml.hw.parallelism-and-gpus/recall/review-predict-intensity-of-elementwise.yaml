@@ -1,0 +1,21 @@
+id: review-predict-intensity-of-elementwise
+type: predict_output
+rev: 1
+prompt: |
+  The FLOPs per byte of three operations on a million float32 values (an add reads two arrays and writes one; a scale in place reads one and writes one; a dot product reads two and does a multiply and an add per element), and the ridge of a machine. What does the program print?
+code: |
+  n, itemsize = 1_000_000, 4
+  add = (n, 3 * n * itemsize)
+  scale_in_place = (n, 2 * n * itemsize)
+  dot = (2 * n, 2 * n * itemsize)
+  for name, (flops, bytes_moved) in (("add", add), ("scale in place", scale_in_place), ("dot", dot)):
+      print(name, round(flops / bytes_moved, 3))
+  print("ridge of a 10 TFLOP/s, 500 GB/s machine:", 10e12 / 500e9)
+expected_output: |
+  add 0.083
+  scale in place 0.125
+  dot 0.25
+  ridge of a 10 TFLOP/s, 500 GB/s machine: 20.0
+explanation: |
+  Elementwise work does about one operation per element however the bytes are counted: the add is 1 FLOP per 12 bytes, the in-place scale 1 per 8, the dot product 2 per 8. All three are far below the ridge of 20, so on that machine they are memory-bound and its FLOP rate never matters to them; only the bytes do.
+skills: [intensity]

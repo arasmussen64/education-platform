@@ -1,16 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.hw.parallelism-and-gpus
 kind: topic
-status: planned
-title: Parallelism and what a GPU is good at
+status: ready
+title: "Parallelism and what a GPU is good at"
 summary: "Cores and threads, work that splits and work that doesn't, Amdahl's law computed, a GPU as thousands of simple cores doing the same operation on different data, memory bandwidth as the usual limit, and why a matrix multiply is the operation GPUs were built for."
-prerequisites:
-- ml.hw.vectorization
+prerequisites: [ml.hw.vectorization]
 estimated_minutes: 50
 rev: 1
 objectives:
-- "Tell data parallelism from a sequential dependence, and compute the speed-up Amdahl's law allows."
-- "Explain what a GPU is: many simple cores running the same instruction on different data, with its own memory."
-- Count the operations and the bytes of a matrix multiply, and say why its arithmetic intensity suits a GPU.
-- Say what memory bandwidth limits, why batches help, and what moving data between CPU and GPU costs.
+  - "Tell data parallelism from a sequential dependence, and compute the speed-up Amdahl's law allows."
+  - "Explain what a GPU is: many simple cores running the same instruction on different data, with its own memory."
+  - "Count the operations and the bytes of a matrix multiply, and say why its arithmetic intensity suits a GPU."
+  - "Say what memory bandwidth limits, why batches help, and what moving data between CPU and GPU costs."
+# Linked, never copied or embedded: Wikipedia is CC BY-SA 4.0.
+resources:
+  - title: "Wikipedia: Amdahl's law (the formula, the derivation and the graph of speed-up against workers)"
+    url: https://en.wikipedia.org/wiki/Amdahl%27s_law
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Wikipedia: Graphics processing unit (the Computational functions and GPU forms sections: what the hardware is and how it differs from a CPU)"
+    url: https://en.wikipedia.org/wiki/Graphics_processing_unit
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Wikipedia: Roofline model (arithmetic intensity, the ridge point, and compute-bound against memory-bound)"
+    url: https://en.wikipedia.org/wiki/Roofline_model
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-amdahl-and-a-matrix-multiply
+  - predict-amdahl
+  - parsons-amdahl
+  - mcq-what-a-gpu-is
+  - mcq-which-work-suits-a-gpu
+  - predict-matmul-counts
+  - fill-arithmetic-intensity
+  - mcq-why-batches-help
+  - mcq-the-transfer
+  - write-speedup-and-roofline
+prove:
+  build: build-a-parallel-cost-toolkit
+  debug: debug-a-speed-up-and-a-count
+  explain:
+    prompt: |
+      A teammate plans to run a data pipeline on a 64-core machine and expects it to be 64 times faster; another asks how a GPU can be faster than a CPU when its clock is slower; a third moved a model to the GPU, feeds it one example at a time, and finds it slower than the CPU was. In your own words: what work splits across workers and what doesn't, and what Amdahl's law says the first teammate will get if a tenth of the pipeline is serial; what a GPU is and what kind of work it is built for; how to count the operations and bytes of a matrix multiply and why its arithmetic intensity suits a GPU while an elementwise operation's doesn't; and why the third teammate's batch size and data transfers make the GPU slow.
+    rubric:
+      - id: amdahl
+        required: true
+        description: "Independent items split across workers (data parallelism); a chain where each step needs the last doesn't. Amdahl: speed-up is 1 over (serial fraction plus parallel fraction over workers), so with a tenth serial, 64 workers give about 8.8 times and no number of workers gives more than 10; the serial part (loading, Python glue, waiting) is what to shrink."
+      - id: gpu
+        required: true
+        description: "A GPU is thousands of simple cores grouped to run the same instruction on different data at once, with a slower clock, little ability to branch independently, and its own memory with very high bandwidth. It is built for one operation over huge arrays, not for branchy or sequential or small work."
+      - id: intensity
+        required: true
+        description: "(m, k) @ (k, n) is 2mkn FLOPs and (mk + kn + mn) times the item size in bytes, so a 1024-cube in float32 is about 171 FLOPs per byte: the arithmetic grows as the cube and the bytes as the square. An elementwise add is one FLOP per 12 bytes. A machine's ridge is its FLOP rate over its bandwidth (20 for 10 TFLOP/s and 500 GB/s); above it compute-bound, below it memory-bound."
+      - id: bandwidth
+        required: true
+        description: "Below the ridge the GPU waits on memory however fast its arithmetic. A batch of 1 against a weight matrix is about 0.5 FLOPs per byte, memory-bound; a batch of 512 is 128, because the weights are read once per batch. Moving data across the bus costs the bytes at tens of gigabytes per second plus a fixed latency per transfer, so data moves once and stays on the device; per-example transfers are seconds of latency."
+    model_answer: |
+      Work splits across workers when its pieces don't depend on each other: a million independent rows on eight workers is 125,000 each. A chain where every step needs the result of the step before doesn't split; eight workers still take a million steps. Amdahl's law says what the splitting is worth: if a fraction p of the time is parallel and the rest serial, the speed-up on w workers is 1 over (1 minus p, plus p over w). With a tenth of the pipeline serial, 64 cores give 1 over (0.1 plus 0.9 over 64), about 8.8 times, and no number of cores gives more than 10, because the serial tenth is still there. So the first teammate gets nine times, not sixty-four, and the way to more is to shrink the serial part, which is usually data loading, Python glue between the parallel parts, and waiting for everyone to finish. A GPU is thousands of simple cores arranged in groups that run the same instruction on different data at the same time, each slower than a CPU core and far worse at branching, with its own memory whose bandwidth is many times a CPU's. That is why its clock doesn't matter: it is built to do one operation across a huge array, which is exactly what a vectorized step or a matrix multiply is, and it is bad at anything branchy, sequential or small. To count a matrix multiply, (m, k) times (k, n) does m times n outputs, each a sum of k products, so 2 m k n floating-point operations, and it reads both inputs and writes the output once, (m k plus k n plus m n) elements times the bytes per element. A 1024 by 1024 by 1024 multiply in float32 is about 2.1 billion FLOPs over 12.6 megabytes, about 171 FLOPs per byte, and the ratio grows with the size, since the arithmetic goes as the cube and the bytes as the square. Adding two vectors is one FLOP per 12 bytes, forever. A machine has a FLOP rate and a bandwidth, and their ratio, the ridge, is the intensity at which it is equally limited by both: 20 FLOPs per byte for a GPU of 10 TFLOP/s and 500 GB/s. The multiply sits far above the ridge, compute-bound, so the GPU's arithmetic is what counts; the add sits far below, memory-bound, so the GPU waits on memory and its arithmetic rate is irrelevant. The third teammate's problem is on the wrong side of the ridge. With one example at a time, the layer is a vector times a weight matrix, about half a FLOP per byte, because the whole weight matrix is read for one row's worth of arithmetic; at a batch of 512 the same weights are read once for 512 rows, 128 FLOPs per byte, and the GPU is busy. And each example that is moved to the GPU separately pays a fixed latency per transfer on top of the bytes: a million small transfers is seconds of latency for a gigabyte that would move in 40 milliseconds in one piece. Move the data once, keep it on the device, and batch.
+review_pool:
+  - review-mcq-serial-fraction
+  - review-predict-intensity-of-elementwise
+  - review-mcq-memory-bound-step
+  - review-amdahl
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: amdahl
+    description: "Tell data parallelism from a sequential dependence, and compute the speed-up Amdahl's law allows"
+  - id: gpu
+    description: "Explain what a GPU is and what work it is built for"
+  - id: intensity
+    description: "Count the FLOPs and bytes of a matrix multiply, and read its arithmetic intensity against a machine's ridge"
+  - id: bandwidth
+    description: "Say what bandwidth limits, why batches help, and what moving data across the bus costs"

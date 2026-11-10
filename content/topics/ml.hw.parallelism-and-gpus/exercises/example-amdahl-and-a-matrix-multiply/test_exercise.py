@@ -1,0 +1,6 @@
+from checks import run
+
+
+def test_the_walkthrough():
+    """Prints Amdahl's table, the split, the two counts, the roofline, the batch sizes and the transfer."""
+    assert run() == '50% parallel: 2 workers 1.3x 8 workers 1.8x 64 workers 2.0x 1000 workers 2.0x | limit 2x\n90% parallel: 2 workers 1.8x 8 workers 4.7x 64 workers 8.8x 1000 workers 9.9x | limit 10x\n99% parallel: 2 workers 2.0x 8 workers 7.5x 64 workers 39.3x 1000 workers 91.0x | limit 100x\n1,000,000 independent items on 8 workers: 125,000 steps each | a chain of 1,000,000 dependent steps on 8 workers: 1,000,000 steps\n1024 x 1024 @ 1024 x 1024 in float32: 2,147,483,648 FLOPs, 12,582,912 bytes, 171 FLOPs per byte\nadding two vectors of a million float32: 1,000,000 FLOPs, 12,000,000 bytes, 0.08 FLOPs per byte\na GPU of round numbers, 10 TFLOP/s and 500 GB/s, does 20 FLOPs per byte it fetches: above that compute-bound, below it memory-bound\nthe matrix multiply: 214.7 us of arithmetic, 25.2 us of memory traffic, so it is compute-bound\nthe vector add: 0.1 us of arithmetic, 24.0 us of memory traffic, so it is memory-bound\nFLOPs per byte of (batch, 1024) @ (1024, 1024), the weights read once per batch: batch 1: 0.5 batch 8: 3.9 batch 64: 28.4 batch 512: 128.0\nmoving a 1 GB dataset to the GPU once: 40 ms | as a million 1 KB pieces: 10 s, almost all of it the fixed cost per transfer\n'

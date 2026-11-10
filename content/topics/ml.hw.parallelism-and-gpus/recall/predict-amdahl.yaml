@@ -1,0 +1,18 @@
+id: predict-amdahl
+type: predict_output
+rev: 1
+prompt: |
+  Amdahl's law for half-parallel work on 2 and on 1,000 workers, then 95 percent parallel on 20 and fully parallel on 20. What does the program print?
+code: |
+  def speedup(parallel_fraction, workers):
+      return 1 / ((1 - parallel_fraction) + parallel_fraction / workers)
+  
+  
+  print(round(speedup(0.5, 2), 2), round(speedup(0.5, 1000), 2))
+  print(round(speedup(0.95, 20), 2), round(speedup(1.0, 20), 2))
+expected_output: |
+  1.33 2.0
+  10.26 20.0
+explanation: |
+  Half parallel: 2 workers give 1 over (0.5 plus 0.25), 1.33; a thousand workers give 1 over (0.5 plus 0.0005), which rounds to 2, the limit of 1 over the serial half. 95 percent parallel on 20 is 1 over (0.05 plus 0.0475), 10.26, about half of what 20 workers would give with no serial part at all; fully parallel work is the only case where the speed-up equals the worker count.
+skills: [amdahl]
