@@ -2,6 +2,17 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Algebra, the second rung of the math refresher
+
+**`ml.math.algebra` is ready.** The idea of the topic is that algebra is arithmetic with a blank in it, and that Python is where to do it because it can check the answer. The worked example solves `3x - 7 = 11` by undoing in reverse order (add 7, then divide by 3, which in Python is `(11 + 7) / 3`, parentheses and all) and ends with the line that substitutes the answer back; that check is the habit the whole topic drills. Then a Parsons problem with the "divide first" line as the decoy, three recall questions (which step to undo first; a speed formula rearranged for time and multiplied back; `2 ** 3 * 2 ** 4` is `2 ** 7`), Fahrenheit to Celsius to fill in (undo the `+ 32` first) and a savings goal to solve. The proofs: simple interest rearranged for the principal, with "forgot the percent" and "divided in the wrong order" as known-wrong solutions; a temperature conversion with two bugs (parentheses missing again, and kelvin off by 0.15); and an explanation of why a friend's `17 - 3 / 5` doesn't solve `5x - 3 = 17`. The review pool has a power-rules prediction, a rearrangement question and a two-step equation to solve in code. OpenStax Elementary Algebra 2e (CC BY 4.0) is the main resource.
+
+**Decisions for you to review:**
+
+1. _Every solving exercise prints a check line._ Substituting back is cheap, catches every undoing mistake, and is the habit that later makes the learner trust a model's loss going down rather than their own confidence.
+2. _Exponent rules are in this topic,_ as the spec says, but only the multiplying rules; logarithms and roots come in the fourth topic, where they're the point.
+
+**Next:** Functions (`ml.math.functions`), which needs `py.return-values`.
+
 ## 2026-11-09: The math refresher begins: fractions, decimals and percentages
 
 **The first ML topic is ready** (`ml.math.arithmetic`, "Fractions, decimals and percentages"): the arithmetic the data work leans on, done in Python so a wrong idea shows up as a wrong number. The ladder: a recipe scaled with fractions (the worked example, which also shows why `1.6666666666666665` is right and `1.67` is what a person wants), a Parsons problem for 25% off, three recall questions (order of operations, fractions to decimals, percentage change), a tip-and-split fill-in and a fruit-punch ratio to write. The proofs: a sale receipt to build where the discount comes first and the tax applies to what's left (the two likely wrong orders are known-wrong solutions), an average-score report to debug with two bugs (a missing pair of parentheses and a percentage never multiplied by 100), and an explanation of why `price * (1 - 25 / 100)` and `price * 1 - 25 / 100` differ. A review pool of three, every skill with at least three questions that can come back. The main resource is OpenStax Prealgebra 2e (CC BY 4.0), linked by book with the chapters named; the recap carries the teaching.
