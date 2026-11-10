@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the placement test)
+
+- **A placement test** at `/placement` ([ADR-0021](docs/decisions/0021-placement-test.md)), offered from Today until one is taken, and from every track's map. It walks a track's unlearned topics by halving: a few of the middle topic's own review questions, and each answer rules out half of what's left, so thirty topics take about five topics' worth of questions. It says nothing about right or wrong until the end, and ticks nothing off: the result is where to start, and the topics before it to prove in order with "Prove it now".
+- **A math diagnostic**, the first _diagnostic_ (`content/diagnostics/math.yaml`): seven levels from arithmetic to the first ideas of calculus, three original questions each, walked the same way. Its result says how far up the ladder is solid and where to refresh, with a free refresher for each level, until the platform's own math refresher exists. The validator checks diagnostics like any content.
+- Under the hood: answers given during a placement carry the context `placement` and a finished run is one `placement` event (a migration widens the event table's checks); progress and the follow-ups skip placement answers; the question components gain a quiet mode; Today shows each subject's latest placement in a line.
+
 ### Added (automated backups)
 
 - **A nightly encrypted backup of the learning data** ([ADR-0020](docs/decisions/0020-automated-backups.md)). A scheduled workflow dumps the real database's data (the `public` and `auth` schemas; the schema itself comes from the migrations), encrypts it with AES-256 on the runner, shreds the plain file, and commits the encrypted dump to a private backups repository, one file a night. Until the owner adds the three secrets it needs (the session-pooler database URL, the passphrase, a token for the backups repository; `docs/setup.md` says how) it says which are missing and stops green. Every pull request's CI rehearses the restore on the throwaway local database with `tools/backup_restore_check.sh`: a learner and an event in, dumped, encrypted and decrypted, the database reset, the dump restored, the rows back.
@@ -442,6 +448,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed (tests)
 
 - The progress tests ask what state a topic is in at the end of their fixtures' day instead of at the real time of the run; four days after that day, a topic proved in the fixtures became "fading" (its first review had come due) and one test failed on every branch.
+- The map and topic page tests run at the end of their fixtures' day too (only `Date` is faked, so the timers the page tests wait on stay real). Four days after that day, at noon UTC, the topic they prove became due for review, "Learned" turned into "Fading", and every pull request's web check failed at once.
 
 ### Changed (CI)
 

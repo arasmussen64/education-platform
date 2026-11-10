@@ -7,6 +7,7 @@ Everything learners see: tracks, topics, lessons and exercises, as plain files i
 ```text
 content/
 ├── tracks/<track-id>.yaml           modules, and which topics are in each; one file per track
+├── diagnostics/<id>.yaml            a ladder the placement test walks, e.g. math (ADR-0021)
 └── topics/<topic-id>/
     ├── topic.yaml                   metadata, prerequisites, resources, which items to use
     ├── lesson.mdx                   the AI-written intro and recap around the main resource
@@ -108,6 +109,15 @@ Tips for questions:
 - Choices, prompts and explanations are Markdown, so code goes in backticks: `` `print("Hi")` ``.
 - Write explanations that say why the answer is right, and why the tempting wrong one is wrong.
 - Quote error messages exactly as Python 3.14 prints them. Run the code through the harness to see them.
+
+## Writing a diagnostic
+
+A diagnostic ([ADR-0021](../docs/decisions/0021-placement-test.md)) is what the placement test walks when there's no track to walk yet: a ladder of levels, easiest first, each with a few original multiple-choice questions and a link to a free refresher. The shape is in the [data model](../docs/specs/data-model.md#diagnostics); `math.yaml` is the example.
+
+- Three questions a level, each answerable in a minute without working on paper, each with distractors made from the common mistakes (adding the tops and bottoms of fractions; forgetting the chain rule). The test asks until two agree, so the third is a tie-breaker.
+- The choices are shown in the order written, so vary where the right answer sits.
+- The explanation is written for the result page of a future refresher, not for the test: the test shows nothing until the end.
+- Levels are ordered so that being solid at one implies being solid at the ones before. The test depends on it: passing a level counts the levels below as known.
 
 ## Checking
 

@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import type { ParsonsItem } from '../content/types.ts'
 import { Markdown } from './Markdown.tsx'
+import { Recorded } from './Recorded.tsx'
 import { scramble, swap } from './scramble.ts'
 import { BUTTON, CODE_BOX } from './styles.ts'
 
@@ -8,6 +9,8 @@ type Props = {
   item: ParsonsItem
   /** Called once, when the learner checks, with the program as they left it. */
   onAnswer?: (correct: boolean, program: string[]) => void
+  /** True in the placement test (ADR-0021): no word on whether it was right. */
+  quiet?: boolean
 }
 
 const SMALL_BUTTON =
@@ -18,7 +21,7 @@ const SMALL_BUTTON =
  * sometimes with a decoy. The learner builds the program with Add, Up,
  * Down and Remove, which work with a keyboard and on a phone, then checks.
  */
-export function ParsonsProblem({ item, onAnswer }: Props) {
+export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
   const id = useId()
   const [tray, setTray] = useState(() => scramble(item))
   const [program, setProgram] = useState<string[]>([])
@@ -144,7 +147,9 @@ export function ParsonsProblem({ item, onAnswer }: Props) {
           )}
         </section>
       </div>
-      {checked ? (
+      {checked && quiet ? (
+        <Recorded />
+      ) : checked ? (
         <output className="block space-y-2 rounded-md bg-slate-100 p-3 dark:bg-slate-800">
           <p className="font-medium">
             {correct ? (

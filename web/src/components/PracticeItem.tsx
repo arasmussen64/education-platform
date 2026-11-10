@@ -26,8 +26,13 @@ type Props = {
   /** The item's ID, as listed in topic.yaml. */
   itemId: string
   content: TopicContent
-  /** Whether this is practice or a proof check; saved with each answer. */
-  context: Extract<EventContext, 'practice' | 'prove' | 'review'>
+  /**
+   * Whether this is practice, a proof check, a review or the placement
+   * test; saved with each answer.
+   */
+  context: Extract<EventContext, 'practice' | 'prove' | 'review' | 'placement'>
+  /** Saved in the data of every event this item records, e.g. a placement run's id. */
+  eventData?: EventData
   /** Shown above the heading, e.g. "Practice 2 of 5". */
   position?: string
   /** Where the learner stands on it, from their saved answers, if known. */
@@ -54,13 +59,15 @@ type Handlers = {
   onActivity: (activity: ExerciseActivity) => void
   allowHints: boolean
   allowTutor: boolean
+  /** Take answers without saying whether they were right (the placement test). */
+  quiet: boolean
 }
 
 /** The heading and body for an item, whichever kind it is. */
 function describe(
   itemId: string,
   content: TopicContent,
-  { onAnswer, onActivity, allowHints, allowTutor }: Handlers,
+  { onAnswer, onActivity, allowHints, allowTutor, quiet }: Handlers,
 ): { heading: string; body: ReactNode } | null {
   const recall = content.recall[itemId]
   if (recall?.type === 'mcq') {
@@ -69,6 +76,7 @@ function describe(
       body: (
         <McqQuestion
           item={recall}
+          quiet={quiet}
           onAnswer={(correct, choice) =>
             onAnswer(correct, {
               choice,
@@ -85,6 +93,7 @@ function describe(
       body: (
         <PredictOutput
           item={recall}
+          quiet={quiet}
           onAnswer={(correct, prediction) =>
             onAnswer(correct, {
               prediction: clip(prediction, MAX_TEXT_CHARS),
@@ -100,6 +109,7 @@ function describe(
       body: (
         <ParsonsProblem
           item={recall}
+          quiet={quiet}
           onAnswer={(correct, program) =>
             onAnswer(correct, {
               program: clip(program.join('\n'), MAX_CODE_CHARS),
@@ -135,6 +145,7 @@ export function PracticeItem({
   itemId,
   content,
   context,
+  eventData,
   position,
   status,
   collapsed = false,
@@ -142,7 +153,12 @@ export function PracticeItem({
   onCheck,
   onGraded,
 }: Props) {
-  const record = useRecordEvent()
+  const recordEvent = useRecordEvent()
+  // Every event this item records carries the extra data, if any.
+  const record: typeof recordEvent = (event) =>
+    recordEvent(
+      eventData ? { ...event, data: { ...eventData, ...event.data } } : event,
+    )
   const timer = useAttemptTimer()
   const [shown, setShown] = useState(false)
   const rev = (content.recall[itemId] ?? content.exercises[itemId])?.rev
@@ -154,8 +170,12 @@ export function PracticeItem({
   }
 
   const item = describe(itemId, content, {
-    // No hints in reviews: they stand in for the tutor, which is off there.
-    allowHints: context !== 'review',
+    // No hints in reviews, which stand in for the tutor, which is off there;
+    // none in the placement test either, which measures.
+    allowHints: context !== 'review' && context !== 'placement',
+    // The placement test takes answers without a word on whether they were
+    // right (ADR-0021).
+    quiet: context === 'placement',
     // The tutor is on in practice only (ADR-0015): never in proof checks
     // or reviews.
     allowTutor: context === 'practice',

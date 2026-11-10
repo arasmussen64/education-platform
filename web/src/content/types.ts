@@ -126,6 +126,26 @@ export type PredictShellItem = {
   skills: string[]
 }
 
+/**
+ * One rung of a diagnostic's ladder (ADR-0021): a few multiple-choice
+ * questions, and where to refresh the level until the platform teaches it.
+ */
+export type DiagnosticLevel = {
+  id: string
+  title: string
+  summary: string
+  refresh: Resource
+  items: McqItem[]
+}
+
+/** A ladder of levels the placement test walks like a track, e.g. math. */
+export type Diagnostic = {
+  id: string
+  title: string
+  summary: string
+  levels: DiagnosticLevel[]
+}
+
 export type RecallItem =
   McqItem | PredictOutputItem | ParsonsItem | PredictShellItem
 

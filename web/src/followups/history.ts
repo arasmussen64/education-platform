@@ -1,4 +1,4 @@
-import type { EventRow } from '../events/types.ts'
+import type { EventContext, EventRow } from '../events/types.ts'
 import { getSupabase } from '../supabase/client.ts'
 import type { Attempt } from './followUps.ts'
 
@@ -14,6 +14,7 @@ type Row = {
   correct: boolean | null
   occurred_at: string
   duration_ms?: number | null
+  context?: string
   /** A Check's status: "ok" when its tests ran. */
   status?: unknown
   /** The names of a Check's tests that didn't pass. */
@@ -28,6 +29,18 @@ function isTextList(value: unknown): value is string[] {
 
 function isRating(value: unknown): value is 'again' | 'hard' | 'good' {
   return value === 'again' || value === 'hard' || value === 'good'
+}
+
+const CONTEXTS: readonly string[] = [
+  'learn',
+  'practice',
+  'prove',
+  'review',
+  'placement',
+] satisfies EventContext[]
+
+function isContext(value: unknown): value is EventContext {
+  return typeof value === 'string' && CONTEXTS.includes(value)
 }
 
 /** The event types that count as graded attempts. */
@@ -58,6 +71,7 @@ export function toAttempt(row: Row): Attempt | null {
     occurred_at: new Date(row.occurred_at).toISOString(),
   }
   if (typeof row.duration_ms === 'number') attempt.duration_ms = row.duration_ms
+  if (isContext(row.context)) attempt.context = row.context
   if (row.type === 'review' && isRating(row.rating)) {
     attempt.rating = row.rating
   }
@@ -111,7 +125,7 @@ export async function fetchAttempts(topicId?: string): Promise<Attempt[]> {
     let query = getSupabase()
       .from('events')
       .select(
-        'id, type, topic_id, item_id, correct, occurred_at, duration_ms, status:data->>status, failing:data->failing, rating:data->>rating',
+        'id, type, topic_id, item_id, correct, occurred_at, duration_ms, context, status:data->>status, failing:data->failing, rating:data->>rating',
       )
       .in('type', [...ATTEMPT_TYPES])
       .not('correct', 'is', null)

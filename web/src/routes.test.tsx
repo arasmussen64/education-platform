@@ -53,6 +53,19 @@ describe('app routes', () => {
     expect(screen.getByText(/to see what to revisit today/)).toBeInTheDocument()
   })
 
+  it('shows the placement test at /placement', async () => {
+    renderAt('/placement')
+    expect(
+      await screen.findByRole(
+        'heading',
+        { name: 'Placement test' },
+        { timeout: 10_000 },
+      ),
+    ).toBeInTheDocument()
+    // Signed out, so it can't place anyone yet.
+    expect(screen.getByText(/to take the placement test/)).toBeInTheDocument()
+  })
+
   it('shows the topic map at /map, with every module', () => {
     renderAt('/map')
     expect(
