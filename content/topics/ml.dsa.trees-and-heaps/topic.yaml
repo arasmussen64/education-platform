@@ -1,16 +1,81 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.dsa.trees-and-heaps
 kind: topic
-status: planned
-title: Trees and heaps
+status: ready
+title: "Trees and heaps"
 summary: "Trees as nested nodes: traversals, binary search trees and what unbalances them, heaps and heapq for top-k and priority queues, and a decision tree as the tree a model can be."
-prerequisites:
-- ml.dsa.stacks-queues-recursion
+prerequisites: [ml.dsa.stacks-queues-recursion]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Build a tree from nodes with children, and traverse it depth-first and breadth-first.
-- Insert into and search a binary search tree, and say why its cost is log n when balanced and n when not.
-- "Keep the top k of a stream with a heap, and say what heapq guarantees and what it doesn't."
-- Read a small decision tree as a tree of questions, and say why its depth is its cost.
+  - "Build a tree from nodes with children, and traverse it depth-first and breadth-first."
+  - "Insert into and search a binary search tree, and say why its cost is log n when balanced and n when not."
+  - "Keep the top k of a stream with a heap, and say what heapq guarantees and what it doesn't."
+  - "Read a small decision tree as a tree of questions, and say why its depth is its cost."
+# Linked, never copied or embedded: the Runestone book is CC BY-NC-SA 4.0;
+# the Python documentation is under the PSF licence; Open Data Structures is
+# CC BY 2.5.
+resources:
+  - title: "Problem Solving with Algorithms and Data Structures using Python (Brad Miller and David Ranum), chapter 7: Trees and Tree Algorithms, sections 7.2 and 7.3 (examples and vocabulary), 7.6 (traversals), 7.9 and 7.10 (binary heaps) and 7.13 (search tree implementation)"
+    url: https://runestone.academy/ns/books/published/pythonds3/Trees/toctree.html
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "The Python documentation: heapq, the heap queue algorithm (the theory section explains the invariant)"
+    url: https://docs.python.org/3/library/heapq.html
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+  - title: "Open Data Structures in Python (Pat Morin), chapter 6: Binary Trees, sections 6.1 and 6.2 (binary trees and binary search trees)"
+    url: https://opendatastructures.org/ods-python/6_Binary_Trees.html
+    type: reading
+    use: link
+    license: CC BY 2.5
+practice:
+  - example-trees-three-ways
+  - predict-a-walk
+  - parsons-level-by-level
+  - mcq-a-tree-that-became-a-chain
+  - mcq-what-a-heap-promises
+  - mcq-top-k-of-a-stream
+  - mcq-the-cost-of-a-prediction
+  - predict-a-decision
+  - fill-search-a-tree
+  - write-size-and-depth
+prove:
+  build: build-a-search-tree-and-a-heap
+  debug: debug-top-k
+  explain:
+    prompt: |
+      A teammate stores a million sorted customer ids in a binary search tree "so lookups are logarithmic", and finds them slower than a list scan; another keeps the 10 best scores of a day's million predictions by sorting the whole list every time; a third asks why a decision tree with 10,000 nodes predicts in a few steps. In your own words: what a tree is and the two ways to walk one; how a binary search tree finds a value and why inserting sorted data ruins it; how a heap keeps the top k of a stream cheaply and what the heap's list does and doesn't promise; and why a decision tree's prediction cost is its depth.
+    rubric:
+      - id: traverse
+        required: true
+        description: "A tree is nodes with children, one root, no cycles; depth-first visits a node then each child's whole subtree (recursion or an explicit stack), breadth-first visits level by level with a queue."
+      - id: bst
+        required: true
+        description: "A binary search tree keeps smaller values left and larger right, so a search compares and goes one way, about log n steps when the tree is balanced; inserting already-sorted values hangs each new node under the last, a chain of depth n, and the search becomes a scan. Shuffle first, or use a self-balancing tree."
+      - id: heap
+        required: true
+        description: "A min-heap of size k: push each value, pop the smallest when the heap exceeds k; what remains is the k largest, at about log k per element. heapq promises that heap[0] is the smallest and that push and pop keep that; it does not keep the list sorted."
+      - id: decision-tree
+        required: true
+        description: "A decision tree is a tree of questions about the features; a prediction follows one path from the root to a leaf, so its cost is the depth (a few dozen questions at most), not the number of nodes."
+    model_answer: |
+      A tree is a set of nodes where one is the root and every other node has exactly one parent, so there are no cycles; a node's children are its subtrees. There are two natural ways to walk one. Depth-first visits a node and then each child's entire subtree before moving to the next child, which is a recursive function or a loop with an explicit stack. Breadth-first visits the root, then all of its children, then all of theirs, level by level, which is a loop with a queue. A binary search tree is a tree in which every node's left subtree holds smaller values and its right subtree larger ones, so finding a value is a walk from the root: compare, go left or right, repeat. If the tree is balanced, each step halves what is left and the walk takes about log n comparisons, twenty for a million. The teammate's tree was built by inserting ids that were already sorted, so each new id was larger than everything before it and hung off the right of the previous node: the tree is a chain a million nodes deep, and the search walks the whole chain, which is a scan with the overhead of following references. Shuffling the ids before inserting fixes it, and a self-balancing tree fixes it for good. For the top ten, a heap keeps the ten best as the stream goes by: push each score onto a min-heap, and when the heap holds eleven, pop the smallest. Each push and pop costs about log 10 comparisons, so a million scores cost a few million steps instead of a full sort each time. heapq promises that the first element of the list is always the smallest and that heappush and heappop keep that true; it does not promise that the rest of the list is in order, so the result has to be sorted at the end, which is cheap for ten items. A decision tree predicts by asking one question at the root, going to the yes or no child, and asking again until it reaches a leaf, so a prediction visits one path, whose length is the tree's depth. Ten thousand nodes can be a tree only a dozen levels deep, and a dozen questions is the cost; the size of the tree only matters for memory and for training.
+review_pool:
+  - review-predict-heap-pops
+  - review-mcq-which-walk
+  - review-mcq-a-million-in-a-balanced-tree
+  - review-count-leaves
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: traverse
+    description: "Build a tree from nodes with children, and walk it depth-first and breadth-first"
+  - id: bst
+    description: "Insert into and search a binary search tree, and say what balances and unbalances it"
+  - id: heap
+    description: "Keep the top k of a stream with a heap, and say what heapq promises"
+  - id: decision-tree
+    description: "Read a decision tree as a tree of questions, and say why its depth is its cost"

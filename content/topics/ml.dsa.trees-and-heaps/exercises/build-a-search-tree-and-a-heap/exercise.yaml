@@ -1,0 +1,32 @@
+id: build-a-search-tree-and-a-heap
+stage: build
+rev: 1
+title: "A search tree and a heap"
+prompt: |
+  Starting from a blank editor, write a `Node` class with `value`, `left` and `right`, and four functions:
+
+  - `bst_insert(root, value)`: insert into a binary search tree (smaller left, larger or equal right) by **walking down with a loop**, not by recursion, and return the root (a new node when `root` is `None`).
+  - `bst_contains(root, value)`: whether the value is in the tree, by the same walk.
+  - `top_k(values, k)`: the `k` largest values, largest first, using a heap that never holds more than `k` values (`heapq`).
+  - `decide(tree, record)`: the leaf a decision tree reaches for a record; a question is a tuple `(feature, threshold, if_greater, if_not)`, taken as `record[feature] > threshold`, and a leaf is a string.
+
+  Then print:
+
+  ```python
+  root = None
+  for value in (50, 30, 70, 20, 40, 60, 80):
+      root = bst_insert(root, value)
+  print(bst_contains(root, 60), bst_contains(root, 65))
+  print(top_k([5, 1, 8, 3, 9, 2, 8], 3))
+  tree = ("petal_length", 2.5, ("petal_width", 1.7, "virginica", "versicolor"), "setosa")
+  print(decide(tree, {"petal_length": 4.7, "petal_width": 1.4}), decide(tree, {"petal_length": 1.0, "petal_width": 0.1}))
+  ```
+
+  ```
+  True False
+  [9, 8, 8]
+  versicolor setosa
+  ```
+
+  The checks insert 3,000 values in sorted order (a chain that recursion can't walk), count the comparisons of a search in a shuffled tree (fewer than 100), and count the comparisons `top_k` makes on 20,000 values (fewer than 170,180; sorting them all makes about 260,375).
+skills: [bst, heap, decision-tree]

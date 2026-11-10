@@ -1,0 +1,22 @@
+id: predict-a-walk
+type: predict_output
+rev: 1
+prompt: |
+  A tree of dicts, walked by a recursive function that records each node before its children. What does the program print?
+code: |
+  tree = {"v": 1, "kids": [{"v": 2, "kids": [{"v": 4, "kids": []}]}, {"v": 3, "kids": []}]}
+  
+  
+  def walk(node, seen):
+      seen.append(node["v"])
+      for kid in node["kids"]:
+          walk(kid, seen)
+      return seen
+  
+  
+  print(walk(tree, []))
+expected_output: |
+  [1, 2, 4, 3]
+explanation: |
+  Depth-first: the root (1), then its first child's whole subtree (2, then 2's child 4), and only then the second child (3). A breadth-first walk would give `[1, 2, 3, 4]`, level by level.
+skills: [traverse]

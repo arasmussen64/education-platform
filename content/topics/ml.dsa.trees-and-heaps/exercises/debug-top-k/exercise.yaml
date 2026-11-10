@@ -1,0 +1,14 @@
+id: debug-top-k
+stage: debug
+rev: 1
+title: "Top k, wrongly"
+prompt: |
+  `top_k(values, k)` should return the `k` largest readings, largest first, using a heap that never holds more than `k` values. The program should print:
+
+  ```
+  [95, 95, 88]
+  [95] [95, 95, 88, 66, 50, 41, 23, 12, 7, 3]
+  ```
+
+  It has two bugs. Run it: the top three come out as `[3, 7, 12]`, because when the heap grows past `k` the program removes the **last element of the list** with `heap.pop()`, not the smallest; a heap's smallest is `heap[0]`, and only `heapq.heappop` removes it and repairs the heap. Fix that, and the right values appear in the wrong order, `[88, 95, 95]`: the heap list is not sorted, so the result must be sorted before it is returned.
+skills: [heap]

@@ -1,0 +1,14 @@
+id: mcq-top-k-of-a-stream
+type: mcq
+rev: 1
+prompt: |
+  Ten million predictions arrive one at a time and the ten highest scores are wanted. Why does the recommended method use a min-heap of size ten, rather than a max-heap or a sort?
+choices:
+  - 'Because a min-heap is faster to build than a max-heap in Python'
+  - 'Because the ten highest scores are the ten smallest negative scores, and `heapq` only handles minima'
+  - 'Because sorting ten million values is impossible within Python''s memory limits; a heap is the only structure that scales past a million values'
+  - 'A min-heap of ten holds the ten best and evicts its smallest in `log 10` steps when a better score arrives; a sort costs `n log n`'
+answer: 3
+explanation: |
+  The question for each new score is "is it better than the worst of my current ten?", and the worst of ten is exactly what a min-heap of ten keeps at `heap[0]`. Pushing a score and popping the smallest costs about `log 10` comparisons, so the whole stream costs `n log k`, with ten values in memory, where a sort costs `n log n` and all of them. A max-heap would answer the wrong question cheaply. Sorting isn't impossible, just unnecessary.
+skills: [heap]
