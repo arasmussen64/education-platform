@@ -47,6 +47,16 @@ export const routes: RouteObject[] = [
               return { Component: TopicPage }
             },
           },
+          {
+            // The placement test shows practice questions, so it loads only
+            // when visited, like Today.
+            path: 'placement',
+            lazy: async () => {
+              const { PlacementPage } =
+                await import('./pages/PlacementPage.tsx')
+              return { Component: PlacementPage }
+            },
+          },
           { path: 'sign-in', element: <SignInPage /> },
           { path: 'account', element: <AccountPage /> },
           {

@@ -5,6 +5,7 @@ import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
 import { BUTTON, INLINE_CODE } from '../components/styles.ts'
 import {
+  diagnostics,
   getTopic,
   getTrack,
   isOpen,
@@ -30,6 +31,12 @@ import {
   practiceTime,
   practiceTimeByTrack,
 } from '../progress/practiceTime.ts'
+import {
+  describeDiagnosticRecord,
+  describeTrackRecord,
+} from '../placement/describe.ts'
+import { subjectOfDiagnostic } from '../placement/history.ts'
+import { usePlacements } from '../placement/usePlacements.ts'
 import { nextUp, stateOf } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
@@ -351,7 +358,58 @@ function NextUp({
           </div>
         )
       })}
+      <PlacementNote progress={progress.progress} />
     </section>
+  )
+}
+
+/**
+ * Where the placement test said to start (ADR-0021), or the offer to take
+ * it: it's how a learner who knows some of this skips to the right place.
+ */
+function PlacementNote({
+  progress,
+}: {
+  progress: Map<string, { learnedAt: string | null }>
+}) {
+  const placements = usePlacements()
+  if (placements.status !== 'ready') return null
+  const learned = (topicId: string) => Boolean(progress.get(topicId)?.learnedAt)
+  const notes = [
+    ...tracks().map((track) => {
+      const record = placements.latest.get(track.id)
+      return record && `${track.title}. ${describeTrackRecord(record, learned)}`
+    }),
+    ...diagnostics().map((diagnostic) => {
+      const record = placements.latest.get(subjectOfDiagnostic(diagnostic.id))
+      return (
+        record &&
+        `${diagnostic.title}. ${describeDiagnosticRecord(record, diagnostic)}`
+      )
+    }),
+  ].filter((note) => note !== undefined)
+  if (notes.length === 0) {
+    return (
+      <p className="text-sm text-slate-600 dark:text-slate-400">
+        New here, or know some of this already?{' '}
+        <Link to="/placement" className="underline">
+          Take the placement test
+        </Link>
+        : it finds where to start.
+      </p>
+    )
+  }
+  return (
+    <div className="space-y-1 text-sm text-slate-600 dark:text-slate-400">
+      {notes.map((note) => (
+        <p key={note}>{note}</p>
+      ))}
+      <p>
+        <Link to="/placement" className="underline">
+          Placement test
+        </Link>
+      </p>
+    </div>
   )
 }
 

@@ -596,3 +596,82 @@ def test_topics_and_checkpoints_keep_to_their_own_fields(checkpoint: Path) -> No
         "only checkpoints have unstuck",
         run=False,
     )
+
+
+DIAGNOSTIC = """id: math
+title: Math
+summary: Where your math stops.
+levels:
+  - id: counting
+    title: Counting
+    summary: Counting things.
+    refresh:
+      title: Counting, refreshed
+      url: https://example.com/counting
+      type: reading
+      use: link
+      license: CC BY 4.0
+    items:
+      - id: count-1
+        type: mcq
+        rev: 1
+        prompt: "2 + 2?"
+        choices: ["3", "4"]
+        answer: 1
+        explanation: Four.
+      - id: count-2
+        type: mcq
+        rev: 1
+        prompt: "3 + 3?"
+        choices: ["6", "9"]
+        answer: 0
+        explanation: Six.
+  - id: adding
+    title: Adding
+    summary: Adding things.
+    refresh:
+      title: Adding, refreshed
+      url: https://example.com/adding
+      type: reading
+      use: link
+      license: CC BY 4.0
+    items:
+      - id: add-1
+        type: mcq
+        rev: 1
+        prompt: "10 + 5?"
+        choices: ["15", "50"]
+        answer: 0
+        explanation: Fifteen.
+      - id: add-2
+        type: mcq
+        rev: 1
+        prompt: "7 + 8?"
+        choices: ["14", "15"]
+        answer: 1
+        explanation: Fifteen.
+"""
+
+
+def test_a_diagnostic_is_checked(tree: Path) -> None:
+    write(tree, "content/diagnostics/math.yaml", DIAGNOSTIC)
+    report = validate(tree, run=False)
+    assert report.problems == []
+    assert report.counts["diagnostics"] == 1
+
+
+def test_diagnostic_mistakes_are_caught(tree: Path) -> None:
+    write(tree, "content/diagnostics/maths.yaml", DIAGNOSTIC)
+    assert_reported(tree, "doesn't match the file name", run=False)
+    write(
+        tree,
+        "content/diagnostics/math.yaml",
+        DIAGNOSTIC.replace("answer: 1\n", "answer: 5\n", 1),
+    )
+    assert_reported(tree, "answer must be the index", run=False)
+    write(
+        tree,
+        "content/diagnostics/math.yaml",
+        DIAGNOSTIC.replace("id: add-2", "id: count-1"),
+    )
+    assert_reported(tree, "item ids must all be different", run=False)
