@@ -38,6 +38,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added (the Machine Learning Foundations track)
 
+- Module 3, Linear algebra for ML, is outlined: seven planned topics (NumPy arrays through PCA) and Checkpoint 3, fit and compress, on the map with their prerequisites, so the track shows what comes after intermediate Python. Modules 4 and later stay prose in the spec.
 - **A third track, Machine Learning Foundations** ([spec](docs/specs/ml-foundations.md)): the math and the Python that machine learning is made of, every topic proven in code. Its first two modules are outlined on the map: Module 1, the math refresher (the placement test's seven levels as topics, which the math diagnostic now points at as they're written), and Module 2, intermediate Python. Its topics build on Python Foundations topics by name, and the map reads those topics' progress along with the track's own, so a topic that needs `py.strings-and-input` unlocks when that's learned.
 - A diagnostic's level may name the topic that teaches it (`topic:`), checked by the validator; the placement result links the topic once it's ready, and the free refresher until then.
 
