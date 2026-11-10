@@ -1,0 +1,14 @@
+id: mcq-dead-relus
+type: mcq
+rev: 1
+prompt: |
+  What is a dead ReLU, how does it happen, and why doesn't training fix it?
+choices:
+  - 'A unit whose weights have shrunk to exactly zero through weight decay; it outputs zero until decay is turned off, after which the gradient brings it back within a few steps, so it is harmless in practice'
+  - 'A unit that fires for every input, so it carries no information; a smaller learning rate fixes it'
+  - 'A unit whose output is NaN after an overflow; restarting the training fixes it'
+  - 'A unit whose pre-activation is negative for every input: it outputs 0 and, ReLU''s gradient being 0 there, its weights get no gradient; a big negative bias or a large step causes it'
+answer: 3
+explanation: |
+  On the negative side a ReLU is flat, so a unit that is negative for the whole dataset sends no gradient to its own weights and can't move. Biases that start negative put units there from the start; a learning-rate step large enough to throw a unit's weights across the boundary does it mid-training. Units that always fire are the opposite problem and still have a gradient; zeros from decay and NaNs are different failures.
+skills: [activations]

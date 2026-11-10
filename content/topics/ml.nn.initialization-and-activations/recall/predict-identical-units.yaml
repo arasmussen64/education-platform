@@ -1,0 +1,22 @@
+id: predict-identical-units
+type: predict_output
+rev: 1
+prompt: |
+  Two hidden units with the same weights, one input, a gradient of 1 at the output: the hidden values, the weight gradient, and whether the two units are still identical after a step. What does the program print?
+code: |
+  import numpy as np
+  
+  x = np.array([[1.0, 2.0]])
+  W1 = np.array([[0.5, 0.5], [0.2, 0.2]])
+  W2 = np.array([[1.0], [1.0]])
+  h = np.maximum(x @ W1, 0.0)
+  grad_h = np.ones((1, 1)) @ W2.T * (h > 0)
+  dW1 = x.T @ grad_h
+  print(h.tolist(), dW1.tolist())
+  print(bool(np.allclose(dW1[:, 0], dW1[:, 1])), bool(np.allclose((W1 - 0.1 * dW1)[:, 0], (W1 - 0.1 * dW1)[:, 1])))
+expected_output: |
+  [[0.9, 0.9]] [[1.0, 1.0], [2.0, 2.0]]
+  True True
+explanation: |
+  Both units compute 0.5 + 0.4 = 0.9, both are active, and both receive the same gradient (1 through the output weights of 1), so their weight gradients are the same column: input 1 gives 1 and input 2 gives 2 for each. Identical weights, identical gradients, identical steps: after the update the columns still match, and they will after every update.
+skills: [symmetry]

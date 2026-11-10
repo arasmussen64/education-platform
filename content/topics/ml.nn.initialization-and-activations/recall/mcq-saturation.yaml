@@ -1,0 +1,14 @@
+id: mcq-saturation
+type: mcq
+rev: 1
+prompt: |
+  A sigmoid layer's inputs are mostly beyond 4 in size. What does that do to training?
+choices:
+  - 'Nothing: a sigmoid always outputs between 0 and 1, so its layer is safe at any input size, and large inputs just make the outputs more decisive, which helps'
+  - 'The outputs overflow to infinity, as the exponential does'
+  - 'Its outputs sit near 0 or 1 where the slope is under 0.02, so the gradient through it is multiplied by nearly nothing and earlier layers stop learning'
+  - 'The layer learns faster, because large inputs mean confident outputs'
+answer: 2
+explanation: |
+  The sigmoid's slope is `out * (1 - out)`, at most 0.25 at an input of 0 and under 0.02 beyond 4. A gradient coming back through a saturated unit is multiplied by that slope, and through several such layers by their product, which is why deep sigmoid networks had vanishing gradients. The output is bounded, so nothing overflows; it is the gradient, not the output, that is lost.
+skills: [activations]

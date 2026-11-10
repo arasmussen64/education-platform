@@ -1,0 +1,14 @@
+id: debug-a-network-that-will-not-learn
+stage: debug
+rev: 1
+title: "A network that won't learn"
+prompt: |
+  A `[3, 8, 1]` ReLU network trained for 300 steps on six rows. It should print:
+
+  ```
+  loss 1.139 -> 0.001 | the loss fell by at least half: True
+  hidden units identical: False | dead hidden units: 0 of 8
+  ```
+
+  It has two bugs, both in how the hidden layer starts. Run it: the loss doesn't fall by half and the hidden units are identical, because the hidden layer's weights start at **zero** (`scale=0.0`), so every unit is a copy of every other and no gradient reaches them; start them random at He's scale, `sqrt(2 / 3)` for 3 inputs. Fix that, and all 8 hidden units are **dead**: their biases start at -5, so no unit's pre-activation is ever positive and no gradient ever reaches their weights. Biases start at 0.
+skills: [symmetry, activations]

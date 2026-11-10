@@ -1,0 +1,14 @@
+id: review-mcq-why-depth-amplifies
+type: mcq
+rev: 1
+prompt: |
+  Why do frameworks apply the Xavier or He rule by default, when a two-layer network trains fine with almost any starting scale?
+choices:
+  - 'Because the rules make the first training step land exactly at the minimum'
+  - 'Because the rules are required for the gradient check to pass'
+  - 'Because the per-layer factor on the signal''s size compounds with depth: a scale harmless twice is fatal twelve times; the rules keep the factor near 1'
+  - 'Because random weights of any other scale would make training non-reproducible, and the rules fix the scale so that two runs with the same seed agree exactly'
+answer: 2
+explanation: |
+  A factor of 0.7 per layer leaves half the signal after two layers and about a hundredth after twelve, and the gradient coming back shrinks by the same product. Setting the factor to 1 at every layer, 1 over the square root of the inputs for tanh and the square root of 2 over the inputs for ReLU, is what lets a deep network start in a state where every layer has a signal and a gradient of sensible size. The gradient check and reproducibility don't depend on the scale.
+skills: [depth]

@@ -1,0 +1,17 @@
+id: parsons-he-init
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to start a ReLU layer's weights by He's rule, run a batch of standard-normal inputs through it, and print the standard deviation of the activations (about 0.8 to 0.9, the signal kept alive). One line is a decoy that doesn't belong.
+lines:
+  - 'import numpy as np'
+  - 'rng = np.random.default_rng(0)'
+  - 'X = rng.standard_normal((64, 100))'
+  - 'W = rng.standard_normal((X.shape[1], 100)) * np.sqrt(2 / X.shape[1])'
+  - 'h = np.maximum(X @ W, 0.0)'
+  - 'print(round(float(h.std()), 1))'
+distractors:
+  - 'W = rng.standard_normal((X.shape[1], 100)) * 0.01'
+explanation: |
+  The generator comes first, the batch draws from it, the weights are shaped by the batch's width and scaled by the square root of 2 over that width, and the ReLU output's spread is read off. The decoy scales the weights by 0.01, a tenth of He's 0.14 for 100 inputs, which would shrink the signal by ten at every layer.
+skills: [scale]

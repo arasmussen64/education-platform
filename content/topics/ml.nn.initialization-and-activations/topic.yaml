@@ -1,16 +1,82 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.nn.initialization-and-activations
 kind: topic
-status: planned
-title: Starting weights and activation functions
+status: ready
+title: "Starting weights and activation functions"
 summary: "Why a network started at zero can't learn, why weights that are too big or too small kill a deep network's signal, the Xavier and He rules that keep it alive, and what sigmoid, tanh and ReLU each do to the gradient flowing back."
-prerequisites:
-- ml.nn.backward-layers
+prerequisites: [ml.nn.backward-layers]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Show that zero or identical starting weights keep every neuron in a layer identical forever, and say why.
-- Measure how the size of activations and gradients changes layer by layer under too-small, too-large and Xavier or He starting weights.
-- Choose an activation function and its starting scale, and say what saturation and dead ReLUs are.
-- Explain why these choices matter more as a network gets deeper.
+  - "Show that zero or identical starting weights keep every neuron in a layer identical forever, and say why."
+  - "Measure how the size of activations and gradients changes layer by layer under too-small, too-large and Xavier or He starting weights."
+  - "Choose an activation function and its starting scale, and say what saturation and dead ReLUs are."
+  - "Explain why these choices matter more as a network gets deeper."
+# Linked, never copied or embedded: Wikipedia is CC BY-SA 4.0; the paper is
+# in the PMLR proceedings, linked.
+resources:
+  - title: "Wikipedia: Weight initialization (the Constant initialization, Random initialization, Glorot initialization and He initialization sections)"
+    url: https://en.wikipedia.org/wiki/Weight_initialization
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Wikipedia: Vanishing gradient problem (why a product of small slopes through many layers goes to zero)"
+    url: https://en.wikipedia.org/wiki/Vanishing_gradient_problem
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Glorot and Bengio 2010, Understanding the difficulty of training deep feedforward neural networks (the paper behind Xavier initialization; sections 2 and 4)"
+    url: https://proceedings.mlr.press/v9/glorot10a.html
+    type: reading
+    use: link
+    license: "PMLR proceedings, copyright the authors (linked, not copied)"
+practice:
+  - example-signals-through-depth
+  - predict-identical-units
+  - mcq-why-zeros-fail
+  - predict-scale-through-depth
+  - mcq-he-versus-xavier
+  - parsons-he-init
+  - mcq-saturation
+  - mcq-dead-relus
+  - mcq-deeper-is-harsher
+  - fill-he-and-xavier
+  - write-dead-and-saturated
+prove:
+  build: build-an-initialization-study
+  debug: debug-a-network-that-will-not-learn
+  explain:
+    prompt: |
+      Three teammates bring you networks that won't train. The first started every weight at zero "to be neutral" and gets the same output for every input. The second trains fine with two hidden layers but not with twelve, in tanh: the loss barely moves. The third uses ReLU with He weights but set every bias to -5 "so that units start quiet", and most hidden units never fire. In your own words: why zero (or copied) starting weights can never be told apart by training; what happens to the size of the activations and of the gradient as they pass through many layers when the weights are too small, too large, or scaled by the Xavier or He rule, and why depth makes it worse; what saturation does to a tanh or sigmoid layer's gradient; and what a dead ReLU is and how biases and learning rates make them.
+    rubric:
+      - id: symmetry
+        required: true
+        description: "Units with identical weights compute identical outputs, receive identical gradients and take identical steps, so they stay identical forever; the layer is one unit in disguise. All zeros is the extreme case: nothing moves at all except the last bias. Random starting weights break the symmetry."
+      - id: scale
+        required: true
+        description: "Each layer multiplies the signal's size by about scale times sqrt(n_in): below 1 the activations shrink toward zero and the gradients with them, above 1 they grow until the activation saturates or the numbers explode; the Xavier rule 1 / sqrt(n_in) keeps the product at 1 for tanh, and the He rule sqrt(2 / n_in) does the same for ReLU, which zeroes half the variance. Depth compounds the per-layer factor: 0.7 to the twelfth is 0.014."
+      - id: activations
+        required: true
+        description: "A saturated tanh or sigmoid unit has a slope near zero (a sigmoid's slope is at most 0.25 and under 0.02 past |z| = 4), so the gradient through it is multiplied by nearly nothing at every such layer; a ReLU unit whose pre-activation is negative for every input gives zero output and zero gradient, so nothing can revive it; a large negative bias or a large learning-rate step makes them."
+      - id: depth
+        required: true
+        description: "Two layers multiply the signal and the gradient by the per-layer factor twice and survive almost any choice; twelve layers multiply it twelve times, so a factor of 0.7 or 1.4 per layer becomes 0.01 or 50, which is why the deeper network needs the right scale and activation where the shallow one didn't."
+    model_answer: |
+      Zero starting weights can't be told apart by training because training only ever changes a weight in proportion to its gradient, and two units with the same weights have the same gradient. With everything at zero the hidden units all output zero, the ReLU masks are all off, and the gradient that reaches the hidden weights is zero, so nothing moves except the last layer's bias; the network can only learn the average target, which is why the first teammate sees the same output for every input. The same is true of any copied start: four units with the same weights compute the same thing, receive the same gradient and take the same step, forever, so the layer is one unit wearing four coats. The fix is random starting weights, which make the units different so that the gradients can tell them apart; the worked example shows the all-zero and the four-copies networks stuck at the same loss while the random one learns. The second teammate's problem is scale. A dense layer multiplies the size of its input by about the weight scale times the square root of the number of inputs, and the activation then shrinks it a little more; whatever that per-layer factor is, a deep network applies it once per layer. At a scale of 0.01 with a hundred inputs the factor is 0.1 and after ten layers the activations are a billion times smaller, the gradient coming back is multiplied by the same small factors, and the loss barely moves. At a scale of 1 the factor is 10, the tanh units are driven to plus or minus one, where their slope is almost nothing, and yet the gradient coming back grows, because each layer's weights multiply it by ten; too-large weights fail both ways at once, and a ReLU stack at a scale of 0.3 simply explodes. The Xavier rule sets the scale to one over the square root of the number of inputs, so the factor is about one and the signal keeps its size through tanh layers, and the He rule uses the square root of two over the number of inputs for ReLU, because ReLU zeroes half of every layer's variance and the two puts it back. Two layers survive almost any scale because the factor is applied only twice; twelve layers raise it to the twelfth power, 0.7 becomes 0.014 and 1.4 becomes 57, which is why the deeper network needs the rule the shallow one got away without. Saturation is what a tanh or sigmoid does to the gradient when its input is large: a sigmoid's slope is at most a quarter, and past an input of four it is under 0.02, so the gradient through a saturated layer is multiplied by nearly nothing, and through several such layers it vanishes however good the weights are. A dead ReLU is a unit whose pre-activation is negative for every input, so its output is zero and, because the ReLU's gradient is zero on that side, its weights get no gradient and nothing can bring it back. The third teammate made them on purpose: with a bias of minus five and inputs of size about one, the pre-activations are almost never positive, so the units never fire and never learn. Biases should start at zero; the other common cause is a learning-rate step so large that it throws a unit's weights into the negative region for every input, which is one reason a too-high learning rate kills a ReLU network rather than just making it noisy.
+review_pool:
+  - review-predict-xavier-rule
+  - review-mcq-all-the-same-but-not-zero
+  - review-mcq-why-depth-amplifies
+  - review-start-weights
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: symmetry
+    description: "Show why zero or identical starting weights keep a layer's units identical forever"
+  - id: scale
+    description: "Measure the signal and the gradient through depth under different starting scales, and apply the Xavier and He rules"
+  - id: activations
+    description: "Say what saturation and dead ReLUs are, how they arise, and what they do to the gradient"
+  - id: depth
+    description: "Explain why starting scale and activation matter more as a network gets deeper"

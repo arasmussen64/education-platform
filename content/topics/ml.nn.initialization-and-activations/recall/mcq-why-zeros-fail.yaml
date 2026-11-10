@@ -1,0 +1,14 @@
+id: mcq-why-zeros-fail
+type: mcq
+rev: 1
+prompt: |
+  Why can't a network whose weights all start at zero learn anything but the average target?
+choices:
+  - 'Because zero weights make the loss exactly zero, so there is nothing to learn'
+  - 'Because NumPy''s random generator is seeded by the weights and zero is not a valid seed, so the first layer never gets random values and the forward pass repeats itself'
+  - 'Because every hidden unit is identical and stays so: same outputs, same gradients, same steps; at zero no gradient even reaches the first layer'
+  - 'Because the ReLU of zero is undefined, so the forward pass raises an error'
+answer: 2
+explanation: |
+  Training changes each weight by its own gradient, and units with the same weights have the same gradient, so they can never become different. At zero it is worse still: the hidden outputs are all zero, the ReLU masks are off, and the gradient for the first layer is zero, so only the last bias moves. The loss is not zero, the forward pass runs fine, and seeds have nothing to do with it.
+skills: [symmetry]

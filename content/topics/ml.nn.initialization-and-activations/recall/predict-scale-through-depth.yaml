@@ -1,0 +1,19 @@
+id: predict-scale-through-depth
+type: predict_output
+rev: 1
+prompt: |
+  The rule of thumb for the size of a signal through dense layers: each layer multiplies it by the weight scale times the square root of the number of inputs. Five layers of 100 inputs, at three scales. What does the program print?
+code: |
+  n_in = 100
+  for scale in (0.05, 0.1, 0.2):
+      std = 1.0
+      for layer in range(5):
+          std = std * scale * n_in ** 0.5
+      print(scale, round(std, 5))
+expected_output: |
+  0.05 0.03125
+  0.1 1.0
+  0.2 32.0
+explanation: |
+  With 100 inputs the square root is 10, so the per-layer factor is 0.5, 1 or 2. Five layers of 0.5 is 1/32; five of 1 is 1; five of 2 is 32. The scale that makes the factor exactly 1 is 1 over the square root of the inputs, which is the Xavier rule.
+skills: [scale]
