@@ -1,0 +1,34 @@
+# The checks for "Write instance-facts": the three facts are right, and the
+# client still works once the metadata service requires session tokens,
+# which only a token-based client does.
+checks:
+  - id: instance-id-line
+    description: "The instance-id line matches what the metadata service reports."
+    command: |
+      truth=$(curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' | { read t; curl -s -H "X-aws-ec2-metadata-token: $t" http://169.254.169.254/latest/meta-data/instance-id; })
+      test "$(/home/learner/bin/instance-facts | awk '/^instance-id:/ {print $2}')" = "$truth" && echo "instance-id matches"
+    expect:
+      contains: matches
+  - id: zone-and-region
+    description: "The zone and region lines are the metadata's placement."
+    command: /home/learner/bin/instance-facts
+    expect:
+      matches: "(?s)zone: eu-west-1a.*region: eu-west-1"
+  - id: uses-a-token
+    description: "With the metadata service set to require tokens, the client still works: it must be sending one."
+    command: |
+      lab-imds-options --tokens required > /dev/null
+      out=$(/home/learner/bin/instance-facts)
+      lab-imds-options --tokens optional > /dev/null
+      echo "$out" | grep -qE '^instance-id: i-[0-9a-f]+' && echo "works with tokens required"
+    expect:
+      contains: works with tokens required
+  - id: plain-get-would-fail
+    description: "A plain GET really is refused when tokens are required, so the previous check proves something."
+    command: |
+      lab-imds-options --tokens required > /dev/null
+      code=$(curl -s -o /dev/null -w '%{http_code}' http://169.254.169.254/latest/meta-data/instance-id)
+      lab-imds-options --tokens optional > /dev/null
+      echo "$code"
+    expect:
+      equals: "401"

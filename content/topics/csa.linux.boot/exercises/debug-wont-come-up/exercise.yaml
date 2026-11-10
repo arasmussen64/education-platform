@@ -1,0 +1,20 @@
+id: debug-wont-come-up
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The instance came up half-configured"
+prompt: |
+  A new web server "launched but isn't set up right", and cloud-init shows trouble: `cloud-init status --long` reports an error. The report tool isn't installed, its config isn't where the app expects it, and a readiness marker other systems wait for was never created. The user data that was meant to do all three is in `~/user-data.yaml` (it's also what this instance booted from). Three things in it are wrong:
+
+  - the package it installs is misspelled, so `apt` can't find it;
+  - the config file is written to `/etc/shop/report.conf`, but the app reads `/etc/shop/report.env`;
+  - the `runcmd` writes its marker into `/var/lib/shop-data/`, a directory that doesn't exist, so the command fails.
+
+  Find them in the evidence, not by guessing: read `/var/log/cloud-init-output.log` (the apt error and the failed command are there) and `cloud-init status --long`, and compare the user data against what the app needs. Fix all three in `~/user-data.yaml` with `nano`, then launch a fresh instance from it with `lab-launch ~/user-data.yaml` (editing and rebooting the same instance won't re-run the per-instance steps). Confirm `cloud-init status` is `done` with no errors, `dpkg -l shop-report` shows it installed, `/etc/shop/report.env` exists and `/var/lib/shop/ready` is there. Then run the checks.
+hints:
+  - "cloud-init installs packages by the names under `packages:`; a misspelled name is passed straight to apt, which fails. The right name is `shop-report`."
+  - "`write_files:` writes exactly the `path:` you give. The app reads `/etc/shop/report.env`, so that's the path it needs."
+  - "`runcmd` runs in order and a failing command is reported. `touch` can't create a file in a directory that doesn't exist; write the marker to `/var/lib/shop/ready` (the shop image has `/var/lib/shop`), or `mkdir -p` the directory first."
+skills: [cloud-init, boot-sequence]

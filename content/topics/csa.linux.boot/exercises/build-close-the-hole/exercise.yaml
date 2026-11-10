@@ -1,0 +1,21 @@
+id: build-close-the-hole
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Require session tokens for the metadata service"
+prompt: |
+  This instance's metadata service still answers plain requests (the old IMDSv1 behaviour). That's the setting behind a well-known class of cloud breach: a program on the instance that can be made to fetch a URL of someone else's choosing can be pointed at the metadata service and made to hand back the instance's temporary credentials, because a plain `GET` is all it takes. The defence, covered in the lesson, is to require a session: a client has to `PUT` for a short-lived token first, then send it on every `GET`, which a tricked fetch of a single URL can't do. Your job is to turn that on and keep the shop's own client working.
+
+  Two things:
+
+  1. **Require tokens.** `lab-imds-options --tokens required` stands in for the cloud console (on AWS, `aws ec2 modify-instance-metadata-options --http-tokens required`). After it, a plain `curl http://169.254.169.254/latest/meta-data/instance-id` must return `401`.
+  2. **Fix the client that breaks.** The shop's `/usr/local/bin/region-tag` reads the instance's region with a plain `GET`, so requiring tokens breaks it. Edit it (`sudo nano /usr/local/bin/region-tag`) to get a token first and send it on the request, so `region-tag` still prints `region: eu-west-1`.
+
+  Check with a plain `curl` (expect `401`), then `region-tag` (expect the region). Then run the checks.
+hints:
+  - "The token request is a PUT with a time-to-live header: `curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 300'`. Capture it in a variable."
+  - "Then the GET carries the token: `curl -s -H \"X-aws-ec2-metadata-token: $token\" http://169.254.169.254/latest/meta-data/placement/region`."
+  - "Leave the metadata service set to tokens-required; the point of the lab is that the hole stays closed and the legitimate client still works through it."
+skills: [imds-v2, metadata]

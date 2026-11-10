@@ -2,6 +2,36 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Boot, cloud-init and instance metadata goes ready
+
+The eleventh ready cloud topic, and the one where the lab machine stops pretending to be a server and starts pretending to be a cloud instance. cloud-init is installed in the shared base and really runs at the container's first boot, reading a NoCloud seed under `/var/lib/cloud/seed/nocloud` that stands in for what a cloud's metadata service hands over. A probe confirmed the whole chain works in the container: cloud-init configures a user, a package (from the shop's offline repository), a file and a `runcmd`; `cloud-init status`, `query` and `analyze` all work; and a small Python metadata service answers at `169.254.169.254` in both protocols.
+
+Three scripts stand in for the cloud console, since a container can't really reboot: `lab-launch [user-data]` runs cloud-init's four stages with a new instance id (a fresh instance: everything runs), `lab-reboot` runs them with the same id (the per-instance modules skip), and `lab-imds-options --tokens required|optional` sets whether the metadata service still answers plain requests.
+
+**The five labs:**
+
+- **`example-first-boot`**: what cloud-init did, where the instructions were, `systemd-analyze`, and the once-per-instance rule shown directly, a reboot adds no line to `runcmd`'s output, a launch does.
+- **`fill-user-data`**: finish a `#cloud-config`, the package, the file's path, a value, a `runcmd` command, then `lab-launch` it.
+- **`write-imds-get`**: a metadata client that gets a session token first and sends it, proved by a check that flips the service to tokens-required and runs the client again.
+- **`build-close-the-hole`**: require session tokens (the IMDSv2 defence) and update the shop's one metadata client so it keeps working, so a plain GET is refused and the legitimate client still reads its region. Framed around the configuration and the client, with the reason in prose and no request-forgery demonstration.
+- **`debug-wont-come-up`**: a server that came up half-configured, three faults in the user data (a misspelled package, a config at the wrong path, a `runcmd` writing into a directory that doesn't exist), read from `/var/log/cloud-init-output.log` and fixed, then launched fresh (editing and rebooting wouldn't re-run the per-instance steps, which the topic just taught).
+
+Twenty-three checks, sixteen known-wrong fixes.
+
+**Three things the contract shaped:**
+
+1. _A 46-second boot became 5._ cloud-init's final stage was stalling on `sudo`/name lookups because the hostname it sets wasn't in `/etc/hosts`; `cloud.sh` adds it at boot, as a cloud image's hosts file has it. (Worth knowing for CI: the boot labs run cloud-init at container start, so each boots in ~15-20s; the 90-second boot timeout holds, but it's the first topic where that number matters.)
+2. _The console stand-ins must always exit 0._ With `set -e -o pipefail`, `lab-launch` exited non-zero when cloud-init ended in error, so a `wrong/*.sh` that launches a still-broken config was reported _broken_ rather than _wrong_. A console button doesn't fail because the instance did; the result is for `cloud-init status` to report.
+3. _cloud-init disables itself in a container._ `ds-identify.cfg` with `policy: enabled` is what lets it run; without it the lab machine looks too much like the container it is.
+
+**Decisions for you to review:**
+
+1. _cloud-init in the shared base_ (about 6 MB of Python), used only by this topic so far. It's the natural place, since the base is where a systemd lab's common layer lives.
+2. _The metadata-security lab is a hardening lab, not an attack lab._ It builds the defence (require tokens, fix the client) and explains the risk in words. I kept out a working link-preview/SSRF service even as scenery; a safety classifier flagged an earlier draft of exactly that file, which confirmed the call.
+3. _A metadata service written in Python_ (`lab-imds`), rather than a few static files, so it can speak the token protocol and return fresh-looking temporary credentials. It reads its tokens-required setting per request, so the console stand-in only writes a file.
+
+**Next:** Shell scripting, the twelfth topic, scripts that stop safely on errors and are safe to run twice.
+
 ## 2026-11-09: Networking from the host goes ready, with an office on the far side of eth1
 
 The tenth ready cloud topic. The problem with networking labs in one container is that "from another machine" is the whole point, so the lab machine gets one: at boot, `network.sh` makes a network namespace called `office` and joins it to the machine with a veth pair, `eth1` on the server (10.0.9.1) and `eth0` in the office (10.0.9.2). `from-office COMMAND` is `sudo ip netns exec office COMMAND`: a connection that really arrives on `eth1`, so a firewall can be proved from outside, `tcpdump -i eth1` sees the packets, and a service bound to `127.0.0.1` really is unreachable. The machine also runs its own name server (dnsmasq, answering for `shop.internal` and forwarding the rest) and asks it, which took unmounting the `resolv.conf` Docker mounts into the container; the office asks it too, through a per-namespace `resolv.conf`. The shop's services are small Python programs under their own names: `shop-api` on 8080, `shop-db` on `127.0.0.1:5432`, `office-monitor` in the office at 9100 (a unit with `NetworkNamespacePath=`), and a leaking `shop-cache` for the write lab.

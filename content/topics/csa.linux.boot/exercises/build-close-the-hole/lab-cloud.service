@@ -1,0 +1,16 @@
+# The cloud around the lab machine (see /usr/local/lib/lab/cloud.sh): the
+# metadata address on loopback and the instance's identity, before
+# cloud-init's first stage runs. Part of the lab's scenery.
+[Unit]
+Description=The lab's cloud: the metadata address and the instance's identity
+DefaultDependencies=no
+After=local-fs.target
+Before=cloud-init-local.service network-pre.target multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/lab/cloud.sh
+
+[Install]
+WantedBy=multi-user.target

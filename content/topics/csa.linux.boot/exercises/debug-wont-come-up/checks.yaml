@@ -1,0 +1,29 @@
+# The checks for "The instance came up half-configured": after a fresh
+# launch from the fixed user data, cloud-init finished cleanly and all three
+# things it was meant to do are done.
+checks:
+  - id: cloud-init-clean
+    description: "cloud-init finished without errors (status: done, not error or degraded)."
+    command: cloud-init status
+    expect:
+      equals: "status: done"
+  - id: package-installed
+    description: "shop-report is installed: the package name is spelled right now."
+    command: dpkg -l shop-report 2>/dev/null | grep '^ii' | awk '{print $2}'
+    expect:
+      equals: shop-report
+  - id: config-at-right-path
+    description: "The config is at /etc/shop/report.env, where the app reads it."
+    command: cat /etc/shop/report.env
+    expect:
+      contains: "SHOP_TIER=web"
+  - id: marker-created
+    description: "runcmd created the readiness marker in a directory that exists."
+    command: test -f /var/lib/shop/ready && echo "ready"
+    expect:
+      contains: ready
+  - id: no-stale-wrong-path
+    description: "The config isn't left at the old wrong path only."
+    command: test -f /etc/shop/report.env && echo "env present"
+    expect:
+      contains: env present

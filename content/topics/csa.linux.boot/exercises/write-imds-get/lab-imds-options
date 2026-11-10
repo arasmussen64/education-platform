@@ -1,0 +1,25 @@
+#!/bin/bash
+# Usage: lab-imds-options [--tokens required|optional]
+# The instance's metadata options: a stand-in for the cloud console (on
+# AWS, `aws ec2 modify-instance-metadata-options --http-tokens required`).
+# With no argument it shows the current setting.
+set -euo pipefail
+conf=/etc/lab/imds.conf
+case "${1:-}" in
+  "")
+    echo "metadata service options for $(cat /etc/lab/instance-id):"
+    sed 's/^/  /' "$conf"
+    ;;
+  --tokens)
+    case "${2:-}" in
+      required|optional) ;;
+      *) echo "usage: lab-imds-options --tokens required|optional" >&2; exit 2 ;;
+    esac
+    printf 'tokens=%s\n' "$2" | sudo tee "$conf" > /dev/null
+    echo "tokens=$2: plain GETs are $([ "$2" = required ] && echo "refused with 401" || echo "still answered")."
+    ;;
+  *)
+    echo "usage: lab-imds-options [--tokens required|optional]" >&2
+    exit 2
+    ;;
+esac

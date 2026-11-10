@@ -1,0 +1,23 @@
+#!/bin/bash
+# Usage: lab-reboot
+# Reboots "the same instance": a stand-in for the cloud console's Reboot
+# button. The lab machine can't really reboot (it's a container), so this
+# runs cloud-init's four stages again as a boot would, with the same
+# instance ID, which is exactly the case where cloud-init skips its
+# once-per-instance work.
+#
+# Like the console's Reboot button, it always returns cleanly.
+set -u
+if [ "$(id -u)" -ne 0 ]; then
+  exec sudo "$0" "$@"
+fi
+echo "Rebooting the same instance, $(cat /etc/lab/instance-id). cloud-init's output follows."
+echo "----------------------------------------------------------------------"
+: > /var/log/cloud-init-output.log
+cloud-init init --local > /dev/null 2>&1 || true
+cloud-init init > /dev/null 2>&1 || true
+cloud-init modules --mode config > /dev/null 2>&1 || true
+cloud-init modules --mode final > /dev/null 2>&1 || true
+cat /var/log/cloud-init-output.log
+echo "----------------------------------------------------------------------"
+cloud-init status --long | head -4 || true

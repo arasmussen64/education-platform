@@ -1,0 +1,24 @@
+# The checks for "Require session tokens for the metadata service": plain
+# requests are refused, the setting is required, and the shop's client still
+# reads the region because it now sends a token.
+checks:
+  - id: plain-get-refused
+    description: "A plain GET to the metadata service is refused with 401."
+    command: curl -s -o /dev/null -w '%{http_code}' http://169.254.169.254/latest/meta-data/instance-id
+    expect:
+      equals: "401"
+  - id: setting-is-required
+    description: "The metadata options are set to require tokens."
+    command: lab-imds-options
+    expect:
+      contains: "tokens=required"
+  - id: client-still-works
+    description: "region-tag still prints the region, so it sends a token."
+    command: region-tag
+    expect:
+      equals: "region: eu-west-1"
+  - id: client-sends-token
+    description: "region-tag asks for a token (it isn't just reading a plain GET that happens to be cached)."
+    command: grep -q 'api/token' /usr/local/bin/region-tag && echo "requests a token"
+    expect:
+      contains: requests a token
