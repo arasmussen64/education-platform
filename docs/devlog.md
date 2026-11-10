@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Module 7 of the ML track is outlined
+
+**How computers and GPUs work has an outline:** seven planned topics and Checkpoint 7 in the track file and on the map, with the spec's prose bullet turned into a table. Bits, bytes and integers (binary and hex, the fixed-width integers that wrap and the Python ones that don't, sizing an array from its dtype, bit masks); floating point (sign, exponent and mantissa, 0.1 + 0.2, machine epsilon, rounding that accumulates, inf and NaN, log-sum-exp); memory, caches and locality (the hierarchy, cache lines, how NumPy lays an array out, strides, views against copies, loop order); why vectorized code is fast (what the interpreter pays per element, SIMD, broadcasting as a loop you don't write, the doubling test on both forms, the sequential dependence that can't be vectorized); parallelism and what a GPU is good at (Amdahl's law computed, many simple cores on the same instruction, the matrix multiply's arithmetic intensity, bandwidth and batches); counting a model's cost (parameters, FLOPs, bytes at float32 and float16, time from throughput); and reading a profiler (cProfile and pstats, tracemalloc, measure before optimizing). Checkpoint 7 profiles and repairs a slow, numerically shaky feature pipeline and estimates the cost of the model it feeds. The first topic follows Checkpoint 6, as the spec's module map draws it.
+
+**What the browser can prove.** Before outlining I probed Pyodide in Node: `cProfile`, `pstats` and `tracemalloc` are present, NumPy's float32 and int8 behave exactly as in CPython (0.1 as float32, machine epsilon, 127 + 1 wrapping to -128), but Pyodide is 32-bit, so `sys.getsizeof` and `sys.maxsize` differ from CPython's and can never be pinned. The outline says so: the checks will count operations, bytes (from dtypes and shapes) and calls, and timings stay in prose, as Module 6 settled.
+
+**Decisions for you to review:**
+
+1. _Outlined before your choice between this module and the cloud track's Module 2,_ because an outline is cheap, reversible and shows on the map, and the roadmap's Phase 3 lists "how computers and GPUs work" next after data structures and algorithms. Writing it is a separate decision; the entry that starts it will say so.
+2. _Seven topics from a five-item bullet:_ bits and integers were added as the floor floating point stands on, and counting a model's cost as the place the GPU topic's arithmetic pays off (parameters, FLOPs, bytes, time), which every ML engineer is asked for and which needs only arithmetic the browser can check.
+3. _The checkpoint repairs rather than builds:_ "make it fast" profiles an existing pipeline and fixes it, because this module's skills are diagnostic; its build still ends with an estimate the checks can verify to the digit.
+
+**Next:** your call on whether to write it; if the standing instruction to keep building holds, the first topic, bits, bytes and integers.
+
 ## 2026-11-10: Module 6's cold review, 50 findings fixed
 
 **Two cold reviewers read all eight Module 6 topics** (every file, every number checked against the running code, every resource page fetched), the same brief as Modules 4 and 5, and found 50 problems the validator can't see. All are fixed in one pull request, 46 files.
