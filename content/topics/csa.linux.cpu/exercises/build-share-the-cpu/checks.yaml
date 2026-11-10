@@ -8,10 +8,16 @@ checks:
       equals: "250ms 25000 100000"
   - id: report-throttled
     description: "shop-report's throttled periods keep climbing."
+    # On a busy machine the spinner can go a second without being scheduled
+    # at all, so nothing climbs; give it up to ten seconds to show a rise.
     command: |
       first=$(awk '/^nr_throttled/ {print $2}' /sys/fs/cgroup/system.slice/shop-report.service/cpu.stat)
-      sleep 1
-      second=$(awk '/^nr_throttled/ {print $2}' /sys/fs/cgroup/system.slice/shop-report.service/cpu.stat)
+      second=$first
+      for attempt in 1 2 3 4 5 6 7 8 9 10; do
+        sleep 1
+        second=$(awk '/^nr_throttled/ {print $2}' /sys/fs/cgroup/system.slice/shop-report.service/cpu.stat)
+        test "$second" -gt "$first" && break
+      done
       test "$second" -gt "$first" && echo "rising from $first to $second"
     expect:
       contains: rising
