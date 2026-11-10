@@ -269,9 +269,11 @@ describe('the placement page', () => {
     expect(result).toHaveTextContent('From Exponents and logarithms on')
     const links = within(result).getAllByRole('link')
     expect(links).toHaveLength(MATH.levels.length - KNOWN)
+    // The fourth level's topic is written, so the result links it rather
+    // than the outside refresher.
     expect(links[0]).toHaveAttribute(
       'href',
-      MATH.levels[KNOWN]?.refresh.url ?? '',
+      `/topic/${MATH.levels[KNOWN]?.topic ?? ''}`,
     )
 
     await waitFor(() => {
