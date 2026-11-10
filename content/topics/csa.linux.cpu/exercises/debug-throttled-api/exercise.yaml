@@ -1,0 +1,12 @@
+id: debug-throttled-api
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The API that can't get a CPU"
+prompt: |
+  The shop's API answers slowly on the lab machine, although the machine is nearly idle, and someone's answer was to "give it a higher priority", which changed nothing. `systemctl cat shop-api` shows a unit with three CPU settings, and all three are mistakes: one caps the service far below what a service that must answer quickly can live with, one gives it the lowest scheduling priority there is, and one gives it the smallest possible share when CPUs are contended.
+
+  The witnesses: `cpu.stat`'s `nr_throttled` under `/sys/fs/cgroup/system.slice/shop-api.service/` climbing every second, `ps -o pid,ni,comm -p PID` for the running process (its `MainPID` from `systemctl show`), and `cpu.weight` in the same cgroup folder. Fix all three (a drop-in with `sudo systemctl edit shop-api`, or the unit file itself), reload, restart, and confirm the throttling has stopped. Then run the checks.
+skills: [throttling, scheduler, cgroups-v2]

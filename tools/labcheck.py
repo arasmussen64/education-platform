@@ -519,6 +519,11 @@ def test_lab(
     return ContractReport(lab.name, problems)
 
 
+def first_line(text: str) -> str:
+    """The first line of an error's message, or nothing."""
+    return text.splitlines()[0] if text else ""
+
+
 def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
     """One lab's contract run with its output kept, for running several at once.
 
@@ -530,6 +535,11 @@ def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
         report = test_lab(load_lab(topic_id, exercise_id), say=log.append)
     except LabError as error:
         report = ContractReport(f"{topic_id}/{exercise_id}", [f"labcheck: {error}"])
+    except Exception as error:  # noqa: BLE001 - one lab's broken file mustn't end the run
+        report = ContractReport(
+            f"{topic_id}/{exercise_id}",
+            [f"{type(error).__name__}: {first_line(str(error))}"],
+        )
     report.log = log
     return report
 

@@ -1,0 +1,18 @@
+# The checks for "Give a program a fifth of a CPU": the spinner ran as a
+# unit, was throttled, and is gone.
+checks:
+  - id: ran-as-unit
+    description: "spin ran as a service called spin (its journal says so)."
+    command: journalctl -u spin --no-pager -o cat | grep -c 'Started spin.service'
+    expect:
+      gte: 1
+  - id: throttled-recorded
+    description: "~/example/throttled.txt shows the group spent at least half a second throttled."
+    # Time, not a count: a stray throttled period turned up with no quota set
+    # on a busy CI machine; a 20% quota over three seconds gives about 2.4 s.
+    command: awk '/^throttled_usec/ {print $2}' /home/learner/example/throttled.txt
+    expect:
+      gte: 500000
+  - id: spinner-stopped
+    description: "No spin is running any more."
+    command: "! pgrep -x spin > /dev/null"

@@ -1,0 +1,30 @@
+# The checks for "Write cpu-cap": the cap takes effect in systemd, in the
+# kernel and in top, and a second run replaces it.
+checks:
+  - id: caps-at-30
+    description: "After cpu-cap shop-worker 30, systemd shows a quota of 300ms per second and cpu.max reads 30000 100000."
+    command: |
+      runuser -u learner -- /home/learner/bin/cpu-cap shop-worker 30 > /dev/null
+      sleep 1
+      echo "$(systemctl show shop-worker -p CPUQuotaPerSecUSec --value) $(cat /sys/fs/cgroup/system.slice/shop-worker.service/cpu.max)"
+    expect:
+      equals: "300ms 30000 100000"
+  - id: worker-still-runs
+    description: "The worker is still running afterwards."
+    command: systemctl is-active shop-worker
+    expect:
+      equals: active
+  - id: top-agrees
+    description: "top shows the worker at no more than about a third of a CPU."
+    # top's second sample measures the interval; -p keeps it to the worker.
+    command: top -b -n 2 -d 2 -p "$(systemctl show shop-worker -p MainPID --value)" | tail -n 1 | awk '{print $9}'
+    expect:
+      lte: 40
+  - id: replaces-the-cap
+    description: "cpu-cap shop-worker 60 replaces the cap: 600ms, 60000 100000, and still one drop-in file."
+    command: |
+      runuser -u learner -- /home/learner/bin/cpu-cap shop-worker 60 > /dev/null
+      sleep 1
+      echo "$(systemctl show shop-worker -p CPUQuotaPerSecUSec --value) $(cat /sys/fs/cgroup/system.slice/shop-worker.service/cpu.max) $(ls /etc/systemd/system/shop-worker.service.d/ | wc -l)"
+    expect:
+      equals: "600ms 60000 100000 1"

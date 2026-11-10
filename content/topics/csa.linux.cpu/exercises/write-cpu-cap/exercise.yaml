@@ -1,0 +1,16 @@
+id: write-cpu-cap
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write cpu-cap"
+prompt: |
+  Write a script, `~/bin/cpu-cap SERVICE PERCENT`, that caps a running service at PERCENT of one CPU, the way a container's CPU limit does, without editing its unit file: it writes a drop-in for the service with `CPUQuota=PERCENT%`, tells systemd to reload, restarts the service, and then prints the resulting `cpu.max` line from the service's cgroup. Running it again with a different number must replace the cap, not add a second one.
+
+  The shop's worker, `shop-worker`, is running at boot with no cap and burning a whole CPU. Try `~/bin/cpu-cap shop-worker 30`, watch `top`, then `~/bin/cpu-cap shop-worker 60`. Make the script executable, and run the checks.
+hints:
+  - "A drop-in is a file `/etc/systemd/system/SERVICE.service.d/override.conf` with `[Service]` on the first line and the setting on the next; `sudo mkdir -p` the folder, then write the file with `printf '[Service]\\nCPUQuota=%s%%\\n' \"$percent\" | sudo tee FILE > /dev/null` (`%%` is how printf writes a percent sign)."
+  - "After writing: `sudo systemctl daemon-reload`, then `sudo systemctl restart \"$service\"`."
+  - "The kernel's view: `cat /sys/fs/cgroup/system.slice/$service.service/cpu.max`, which reads `30000 100000` for 30%."
+skills: [cgroups-v2, throttling]

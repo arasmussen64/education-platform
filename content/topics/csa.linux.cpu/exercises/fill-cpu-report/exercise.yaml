@@ -1,0 +1,14 @@
+id: fill-cpu-report
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the CPU report"
+prompt: |
+  In the lab, `~/bin/cpu-report SERVICE` is meant to say how the machine's CPUs are doing and whether a service is being throttled, in four lines: the number of CPUs, the load average, the busiest process, and how many periods the named service's cgroup has been throttled in. Four of its lines have `...` where a value belongs. Fill them in with `nano ~/bin/cpu-report`, then try `~/bin/cpu-report shop-worker`: the shop's worker runs at boot under a quota of 25%, so it is being throttled right now. Compare with `nproc`, `uptime`, `top` and the worker's `cpu.stat`. Then run the checks.
+hints:
+  - "`nproc` prints the number of CPUs. `/proc/loadavg` starts with the three load averages, so `awk '{print $1, $2, $3}'` is the load line."
+  - "`ps -eo comm,%cpu --sort=-%cpu` lists processes busiest first; the second line of output is the top one."
+  - "A service's cgroup files live under `/sys/fs/cgroup/system.slice/NAME.service/`; `cpu.stat`'s `nr_throttled` line is the count."
+skills: [load-average, throttling, cgroups-v2]

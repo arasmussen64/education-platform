@@ -1,0 +1,32 @@
+id: example-quota-a-spinner
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Give a program a fifth of a CPU"
+prompt: |
+  The lab machine has `spin`, a program that keeps one CPU completely busy for as long as it runs. The walkthrough reads the machine's CPUs and load, watches `spin` take a whole CPU, then runs it as a service with a quota of 20% of one CPU and watches the kernel throttle it. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "How many CPUs, how busy"
+    lines: "1"
+    note: "`nproc` is the number of CPUs. `uptime` ends with the load average: the average number of tasks running or waiting for a CPU (or a disk) over the last 1, 5 and 15 minutes. Read it against `nproc`: a load of 8 on 8 CPUs is full; 8 on 2 is a queue."
+  - label: "A spinner takes a whole CPU"
+    lines: "2"
+    note: "`spin &` starts it in the background. `top -b -n 1` prints one screen and exits. The `%Cpu(s)` line splits time into `us` (programs), `sy` (the kernel), `id` (idle), `wa` (disk wait) and `st` (steal, taken by the hypervisor); `spin` sits at the top with about 100% of one CPU. Then it's stopped."
+  - label: "The same spinner under a quota"
+    lines: "3"
+    note: "`systemd-run` runs it as a service called `spin`. `CPUQuota=20%` is a hard cap of a fifth of one CPU, enforced even when the machine is idle."
+  - label: "What the quota is in the kernel's terms"
+    lines: "4"
+    note: "`cpu.max` holds two numbers: the microseconds the group may run in each period, and the period. `20000 100000` is 20 ms of every 100 ms: 20%. Half a CPU would be `50000 100000`; two CPUs `200000 100000`; `max` means no quota."
+  - label: "Watch it"
+    lines: "5"
+    note: "`top` now shows `spin` at about 20%. It wants a whole CPU; it gets a fifth."
+  - label: "Count the throttling"
+    lines: "6"
+    note: "`cpu.stat` counts `nr_periods` (100 ms periods so far), `nr_throttled` (periods in which the group was stopped for using up its quota) and `throttled_usec` (how long it spent stopped). Nearly every period: this program always wants more than it's allowed, and that's what a throttled container looks like from inside."
+  - label: "Save it and stop the spinner"
+    lines: "7"
+    note: "The throttling lines go in a file, and `systemctl stop spin` ends the service; a transient unit that stopped cleanly disappears by itself."
+skills: [scheduler, cgroups-v2, throttling]

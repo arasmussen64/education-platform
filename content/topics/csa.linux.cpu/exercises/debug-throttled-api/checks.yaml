@@ -1,0 +1,38 @@
+# The checks for "The API that can't get a CPU": it runs, its quota is gone
+# or generous, it isn't throttled any more, its nice value is normal and its
+# weight is at least the default.
+checks:
+  - id: api-running
+    description: "shop-api is running."
+    command: systemctl is-active shop-api
+    expect:
+      equals: active
+  - id: quota-sane
+    description: "shop-api has no quota, or at least half a CPU."
+    command: |
+      v=$(systemctl show shop-api -p CPUQuotaPerSecUSec --value)
+      case "$v" in
+        infinity) echo 1000000 ;;
+        *ms) echo "${v%ms}" ;;
+        *s) echo $(( ${v%s} * 1000 )) ;;
+        *) echo "$v" ;;
+      esac
+    expect:
+      gte: 500
+  - id: not-throttled
+    description: "Its throttled-period count has stopped climbing."
+    command: |
+      first=$(awk '/^nr_throttled/ {print $2}' /sys/fs/cgroup/system.slice/shop-api.service/cpu.stat)
+      sleep 2
+      second=$(awk '/^nr_throttled/ {print $2}' /sys/fs/cgroup/system.slice/shop-api.service/cpu.stat)
+      test "$first" = "$second"
+  - id: nice-normal
+    description: "Its process runs at nice 0 or better."
+    command: ps -o ni= -p "$(systemctl show shop-api -p MainPID --value)" | tr -d ' '
+    expect:
+      lte: 0
+  - id: weight-fair
+    description: "Its cgroup's cpu.weight is at least 100, the default."
+    command: cat /sys/fs/cgroup/system.slice/shop-api.service/cpu.weight
+    expect:
+      gte: 100
