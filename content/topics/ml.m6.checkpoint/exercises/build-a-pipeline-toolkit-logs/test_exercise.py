@@ -89,7 +89,7 @@ def test_the_output():
 
 
 def test_dedupe_scales():
-    """3,000 records with 1,500 distinct keys dedupe to 1,500, first-seen first, within 30,000 comparisons (a list for seen makes about 2 million)."""
+    """3,000 records with 1,500 distinct keys dedupe to 1,500, first-seen first, within 30,000 comparisons (a list for seen makes 2,250,000)."""
     dedupe = function("dedupe")
     records = [{"key": key, "n": i} for i, key in enumerate(tracked(i % 1500 for i in range(3000)))]
     Tracked.compared = 0

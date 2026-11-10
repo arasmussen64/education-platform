@@ -34,7 +34,7 @@ def test_the_output():
 
 
 def test_scales():
-    """On 3,000 values with 1,500 distinct, the function compares fewer than 30,000 times (a list makes about 2 million) and keeps the first-seen order."""
+    """On 3,000 values with 1,500 distinct, the function compares fewer than 30,000 times (a list makes about 2.25 million) and keeps the first-seen order."""
     unique_in_order = function("unique_in_order")
     values = tracked([i % 1500 for i in range(3000)])
     Tracked.compared = 0

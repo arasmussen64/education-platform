@@ -52,7 +52,7 @@ def test_dedupe_scales():
 
 
 def test_join_scales():
-    """Joining 2,000 left records with 2,000 right records on a key, each key matching twice, gives 2,000 rows after fewer than 60,000 comparisons."""
+    """Joining 1,000 left records with 2,000 right records on a key, each key matching twice, gives 2,000 rows after fewer than 60,000 comparisons."""
     join = function("join")
     left = [{"id": key} for key in tracked(range(1000))]
     right = [{"id": key, "n": i} for i, key in enumerate(tracked([i % 1000 for i in range(2000)]))]

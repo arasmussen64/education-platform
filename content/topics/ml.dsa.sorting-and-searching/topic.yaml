@@ -16,7 +16,7 @@ objectives:
 # the Python documentation is under the PSF licence; NumPy's documentation
 # is under the NumPy licence (BSD-3-Clause).
 resources:
-  - title: "Problem Solving with Algorithms and Data Structures using Python (Brad Miller and David Ranum), chapter 6: Sorting and Searching, sections 6.3 and 6.4 (sequential and binary search), 6.9 (insertion sort) and 6.11 (merge sort)"
+  - title: "Problem Solving with Algorithms and Data Structures using Python (Brad Miller and David Ranum), chapter 5: Searching and Sorting, sections 5.3 and 5.4 (sequential and binary search), 5.9 (insertion sort) and 5.11 (merge sort)"
     url: https://runestone.academy/ns/books/published/pythonds3/SortSearch/toctree.html
     type: reading
     use: link
@@ -60,7 +60,7 @@ prove:
         description: "Stable means items with equal keys keep their original order, so sorting by score keeps the earlier customer first among ties and sorting in passes (or by a tuple key) gives a multi-key order; Python's sorted is stable and takes a key function."
       - id: choose
         required: true
-        description: "Sorting once costs n log n and each search log n: 50,000 searches of 2 million is about 44 million steps after a 42-million-step sort, against a dict's one pass to build and one step per lookup; the dict wins for exact lookups, the sorted list for ranges, neighbours and order."
+        description: "Sorting once costs n log n and each search log n: 50,000 searches of 2 million is about a million steps (21 each) after a 42-million-step sort, against a dict's one pass to build and one step per lookup; the dict wins for exact lookups, the sorted list for ranges, neighbours and order."
     model_answer: |
       Binary search works on a sorted list by looking at the middle element: if it is the target, done; if it is smaller, the target can only be in the right half; otherwise only in the left half. Each step halves the candidates, so on 2 million items it takes about 21 steps, where a scan takes up to 2 million. The data must be sorted first, and it must be something you can index into directly, like a list or an array, not a chain you have to walk. Merge sort is about n log n because it splits the list in half repeatedly, which takes log n levels, and at each level merges pairs of sorted halves in one pass over all n items. Insertion sort grows a sorted front and shifts each new item left past the items larger than it, which on random data is about a quarter of n squared comparisons. But on data that is already nearly sorted each item stops almost at once, so insertion sort makes about n comparisons, and for small lists its simplicity beats merge sort's overhead; Python's own sort uses it for short runs. Stable means that items whose keys compare equal keep the order they had before the sort. The leaderboard shuffles tied customers because the hand-written sort isn't stable; Python's sorted is, so sorting by score keeps the earlier customer first among ties, and sorting by several keys can be done with a tuple key or in passes from the least important key to the most. For the lookups, sorting the records once costs about n log n, around 42 million steps for 2 million records, and then each of the 50,000 searches costs about 21 steps, under a million more. A dict costs one pass to build and one step per lookup. For exact-match lookups the dict is simpler and faster; the sorted list earns its keep when I also need ranges, nearest neighbours, or the records in order.
 review_pool:
