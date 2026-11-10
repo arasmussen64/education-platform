@@ -1,0 +1,37 @@
+# The checks for "Write backup-logs": ShellCheck clean; the archive holds
+# every log including the one with a space; two runs leave one archive; and
+# a missing source is an honest exit 2.
+checks:
+  - id: shellcheck-clean
+    description: "ShellCheck finds nothing to complain about."
+    command: shellcheck /home/learner/bin/backup-logs && echo "clean"
+    expect:
+      contains: clean
+  - id: archive-has-the-logs
+    description: "The archive holds the logs, including the one whose name has a space."
+    command: tar -tzf /home/learner/backups/shop-logs.tgz
+    expect:
+      contains: "error report.log"
+  - id: idempotent-one-file
+    description: "However many times it runs, ~/backups holds one archive."
+    command: |
+      runuser -u learner -- /home/learner/bin/backup-logs > /dev/null
+      runuser -u learner -- /home/learner/bin/backup-logs > /dev/null
+      ls /home/learner/backups | wc -l | tr -d ' '
+    expect:
+      equals: "1"
+  - id: missing-source-exits-2
+    description: "Asked to back up a directory that doesn't exist, it writes to stderr and exits 2."
+    command: |
+      out=$(/home/learner/bin/backup-logs /no/such/dir 2>&1 >/dev/null); code=$?
+      test "$code" = 2 && test -n "$out" && echo "exit 2 with a message"
+    expect:
+      contains: "exit 2"
+  - id: cleans-up-temp
+    description: "No leftover temp directories from the backup runs: the trap removed them."
+    command: |
+      runuser -u learner -- /home/learner/bin/backup-logs > /dev/null
+      found=$(find /tmp -maxdepth 1 -type d -name 'tmp.*' 2>/dev/null | wc -l)
+      test "$found" -eq 0 && echo "no leftovers"
+    expect:
+      contains: "no leftovers"

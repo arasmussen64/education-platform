@@ -1,0 +1,18 @@
+id: debug-fragile-script
+stage: debug
+runtime: lab
+rev: 1
+title: "Fix the fragile script"
+prompt: |
+  `~/bin/archive-logs` tars up the shop's logs, and it's fragile three ways:
+
+  - **It fails the second time it runs.** It makes its working folder with `mkdir` (no `-p`), which errors if the folder is already there.
+  - **It drops a log whose name has a space.** It lists files with an unquoted `$(ls ...)`, so `error report.log` is split into two names that don't exist.
+  - **It stays quiet when the logs are missing.** With nothing checking, a missing source just makes an empty archive and the script reports success.
+
+  Fix all three in `~/bin/archive-logs` with `nano`: add strict mode and quote the variables, use `mkdir -p` and a quoted glob (`"$src"/*`) instead of `$(ls)`, and guard the source so the script writes to standard error and exits `2` when the directory isn't there. Run `shellcheck ~/bin/archive-logs` until it's quiet, run the script twice to confirm it's clean the second time, check `tar -tzf ~/archive/logs.tgz` includes the spaced file, and try `~/bin/archive-logs; echo $?` after `sudo mv /var/log/shop /tmp/shop` (move it back with `sudo mv /tmp/shop /var/log/shop`). Then run the checks.
+hints:
+  - "Start with `#!/usr/bin/env bash` and `set -euo pipefail`, and quote every `$src`, `$dest` and `$f`. ShellCheck will point at each unquoted one (SC2086) and at the `$(ls)` (SC2045)."
+  - "Replace the loop with a single quoted copy that handles spaces: `mkdir -p \"$dest/logs\"` then `cp -r \"$src\"/* \"$dest/logs/\"`. A quoted glob keeps each filename whole."
+  - "Guard the source near the top: `[[ -d \"$src\" ]] || { echo \"no logs at $src\" >&2; exit 2; }`."
+skills: [strict-mode, quoting-vars, idempotent, tooling]

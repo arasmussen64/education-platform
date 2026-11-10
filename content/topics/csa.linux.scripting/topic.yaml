@@ -1,6 +1,6 @@
 id: csa.linux.scripting
 kind: topic
-status: draft
+status: ready
 title: "Shell scripting"
 summary: "Turn commands into scripts you can trust: strict mode (set -euo pipefail) and its one trap, quoting that survives spaces, functions and \"$@\", a trap for cleanup, honest exit codes, and steps that are safe to run twice."
 prerequisites: [csa.linux.shell, csa.linux.processes]
@@ -42,10 +42,13 @@ resources:
     type: reading
     use: link
     license: "GNU Bash manual (GPL-3.0-or-later); linked, not copied"
-# Lessons and recall first (ADR-0017). Every shell item here runs in real
-# bash, because bash itself is the subject; writing and running whole scripts
-# comes in the labs.
+# Every recall item here runs in real bash, because bash itself is the
+# subject. The worked example, the fill-in, the write and both proofs are
+# labs where whole scripts are written and run in a container (a plain one,
+# no systemd): a deploy, a backup, and a fragile script to repair
+# (ADR-0017, ADR-0018).
 practice:
+  - example-make-it-safe
   - mcq-strict-mode-line
   - scr-set-e
   - scr-set-u
@@ -63,7 +66,11 @@ practice:
   - scr-check-before
   - mcq-shellcheck
   - mcq-when-not-bash
+  - fill-strict-deploy
+  - write-backup-logs
 prove:
+  build: build-safe-deploy
+  debug: debug-fragile-script
   explain:
     prompt: |
       A colleague's deployment script "mostly works": sometimes it carries on after a failed step and deploys half a release, a file name with a space once broke it, and running it a second time after a failure breaks things. Explain, in your own words: what `set -e`, `set -u` and `set -o pipefail` each catch, and the common case where `set -e` does not stop the script; why variables are quoted and what `"$@"` is for; how a trap on `EXIT` makes cleanup reliable and why a script should exit with a meaningful status; and what it means for a script to be safe to run twice, with two or three concrete ways to make its steps idempotent.

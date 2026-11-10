@@ -1,0 +1,27 @@
+# The checks for "Finish the deploy script": no gaps, ShellCheck clean, the
+# release is in place through the current symlink, and the temp dir is
+# cleaned up by a trap.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/deploy"
+  - id: shellcheck-clean
+    description: "ShellCheck finds nothing to complain about."
+    command: shellcheck /home/learner/bin/deploy && echo "clean"
+    expect:
+      contains: clean
+  - id: deployed
+    description: "current points at the release and the app's file is readable through it."
+    command: cat /home/learner/app/current/app.txt
+    expect:
+      contains: "shop app"
+  - id: current-is-a-symlink
+    description: "current is a symlink to releases/1.4.0, not a copy (so ln -sfn was used)."
+    command: readlink /home/learner/app/current
+    expect:
+      equals: "releases/1.4.0"
+  - id: cleans-up
+    description: "The script removes its temp directory on exit with a trap."
+    command: grep -E "trap .*rm -rf .*tmp.* EXIT" /home/learner/bin/deploy > /dev/null && echo "has a cleanup trap"
+    expect:
+      contains: trap

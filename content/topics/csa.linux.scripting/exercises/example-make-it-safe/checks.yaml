@@ -1,0 +1,19 @@
+# The checks for "The habits that make a script safe": the idempotent file
+# has one line however many times the loop ran, and the saved notes record
+# that and the set -u result.
+checks:
+  - id: idempotent-one-line
+    description: "~/example/runs.txt has exactly one line: the append ran twice and wrote once."
+    command: wc -l < /home/learner/example/runs.txt | tr -d ' '
+    expect:
+      equals: "1"
+  - id: notes-saved
+    description: "~/example/notes.txt records that the idempotent file has one line."
+    command: grep '^idempotent-lines:' /home/learner/example/notes.txt
+    expect:
+      equals: "idempotent-lines: 1"
+  - id: set-u-recorded
+    description: "~/example/notes.txt records that set -u stops the script."
+    command: grep '^set-u-stops:' /home/learner/example/notes.txt
+    expect:
+      contains: "yes"

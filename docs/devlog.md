@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Shell scripting goes ready, the first plain labs
+
+The twelfth ready cloud topic, and a change of lab shape. Every cloud lab so far boots systemd in a privileged container; shell scripting doesn't need that, so these are the track's first **plain labs**, the same kind the first topic (Shell essentials) used: a light Ubuntu image with ShellCheck, `CMD ["sleep", "infinity"]`, and the learner's work done through `docker exec`. They build and run much faster than the systemd labs, with no boot to wait for.
+
+**The five labs:**
+
+- **`example-make-it-safe`**: the five habits from the lesson as before-and-afters, `set -u` catching a typo, `pipefail` catching a broken pipe, quoting surviving a space, a trap cleaning up after a deliberate failure, and an idempotent append run twice that writes once.
+- **`fill-strict-deploy`**: finish a deploy script, the shebang interpreter, the third strict-mode setting, the cleanup trap, and the quoted copy destination.
+- **`write-backup-logs`**: a backup that builds in a temp dir it always cleans up, keeps a log name with a space, writes one archive of a fixed name (so a second run replaces rather than piles up), and exits 2 with a message when its source is missing.
+- **`build-safe-deploy`**: a release manager, honest exit 2 with no version, strict mode, a trap, an atomic `ln -sfn` swap of `current`, and pruning to the three newest releases.
+- **`debug-fragile-script`**: a script fragile three classic ways, it fails the second run (`mkdir` without `-p`), drops a filename with a space (`$(ls)` word-splitting), and stays silent when the source is missing (no guard), fixed until ShellCheck is quiet and a second run is clean.
+
+**ShellCheck is a check in three of the five labs**, so the lesson's "run it on every script" is something the contract enforces, not just advises. The quoting bug in the debug lab is one ShellCheck flags (SC2086, SC2045), so a learner who runs it is led straight to the fix. Twenty-two checks, seventeen known-wrong fixes; all five green on the first full run.
+
+**One web test needed updating:** the map page's "more than one track" test asserted Module 1 had "a ready topic and the rest drafts" and looked for at least three Draft badges. Module 1 is now twelve topics ready and two draft, and will be zero draft once it's finished, so the brittle draft count is gone; the test still checks that the track renders with its ready topics and three capstones.
+
+**Decisions for you to review:**
+
+1. _Plain labs for scripting._ No systemd, because bash is the subject; the checker already supports it (it's how Shell essentials works). It keeps these labs fast and their images small.
+2. _ShellCheck in the lab, not just the lesson._ Installing it in the image and grading with it makes the tooling habit real. It's the one new package these labs need.
+3. _The deploy appears in two labs_ (a fill-in and a fuller build). The repetition is deliberate: the fill-in is about the strict-mode and trap mechanics, the build adds the exit code, the atomic swap and pruning, which are the parts that make a deploy safe to run on a real server.
+
+**Next:** Performance triage, the thirteenth topic, finding why a server is slow with the USE method and the tools that show where the time goes.
+
 ## 2026-11-09: Boot, cloud-init and instance metadata goes ready
 
 The eleventh ready cloud topic, and the one where the lab machine stops pretending to be a server and starts pretending to be a cloud instance. cloud-init is installed in the shared base and really runs at the container's first boot, reading a NoCloud seed under `/var/lib/cloud/seed/nocloud` that stands in for what a cloud's metadata service hands over. A probe confirmed the whole chain works in the container: cloud-init configures a user, a package (from the shop's offline repository), a file and a `runcmd`; `cloud-init status`, `query` and `analyze` all work; and a small Python metadata service answers at `169.254.169.254` in both protocols.
