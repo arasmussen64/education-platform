@@ -6,8 +6,7 @@ pid=$(systemctl show -p MainPID --value shop-tailer)
 echo "shop-tailer MainPID: $pid"
 sudo timeout 3 strace -c -f -p "$pid" 2>/tmp/strace.txt || true
 grep -E 'openat|open|calls' /tmp/strace.txt | head -5 || true
-sudo systemctl stop shop-tailer
-sudo systemctl mask shop-tailer
+sudo systemctl disable --now shop-tailer
 mkdir -p ~/triage
 printf 'culprit: shop-tailer\ncause: a busy loop of failing openat calls on a missing queue path\n' > ~/triage/finding.txt
 echo "shop-tailer is now: $(systemctl is-active shop-tailer 2>/dev/null; true)"
