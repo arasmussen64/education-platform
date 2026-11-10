@@ -2,6 +2,19 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Functions, the third rung, and a flaky lab check made solid
+
+**`ml.math.functions` is ready.** The point of the topic is that the math word and the Python word mean the same thing: a rule from input to output, and `f(x) = 2x + 1` is `def f(x): return 2 * x + 1`. The worked example evaluates it and prints a table of values with a loop (a graph is a table, drawn). Then a Parsons table of squares, three recall questions (what 2.5 and 4 mean in `2.5 * km + 4`; `square(plus_one(2))` against `plus_one(square(2))`; the slope through two points), the line through two points to fill in (rise over run, then the intercept) and a Celsius table to write, whose tests call the function directly as well as reading the table. The proofs: a delivery-cost function to build (known-wrong: no pick-up charge, slope and intercept swapped), a half-then-ten program with two bugs (`//` where `/` was meant, a loop that stops early), and an explanation of `f(3)`, what the two notations share, and why `f(g(2))` and `g(f(2))` differ. The recap ends with the sentence the whole module is heading for: a model is a function with knobs, and training means turning them until the table of outputs matches the data. It needs `py.return-values`, so the owner reaches it after Python's Module 4.
+
+**A flaky lab check, made solid.** The rerun of #86's Labs job got through 39 of 40 labs; the one it called broken was the CPU quota walkthrough, whose "throttled at least once" check (`nr_throttled >= 1`) passed its no-quota wrong fix: on that runner the service showed one throttled period with no quota set. The check now measures throttled **time**, at least half a second, which a 20% quota over three seconds gives about 2.4 of and a stray period can't. Proven locally, pushed to `feat/cpu-labs`, and cherry-picked onto every branch above it, because the stack's merge keeps a child's side of a file where the two differ and would have dropped the fix. Meanwhile the lab-checker warm-up (#102) landed on `main`: the Labs job took ten minutes instead of most of an hour.
+
+**Decisions for you to review:**
+
+1. _Throttled time, not a count._ A count of one is noise on a busy machine; half a second of throttling is a quota.
+2. _The write exercise's tests call the function and read the table,_ so a learner who prints the right table with the wrong function, or the right function with no table, hears exactly which.
+
+**Next:** Exponents and logarithms (`ml.math.exponents-and-logs`).
+
 ## 2026-11-09: Algebra, the second rung of the math refresher
 
 **`ml.math.algebra` is ready.** The idea of the topic is that algebra is arithmetic with a blank in it, and that Python is where to do it because it can check the answer. The worked example solves `3x - 7 = 11` by undoing in reverse order (add 7, then divide by 3, which in Python is `(11 + 7) / 3`, parentheses and all) and ends with the line that substitutes the answer back; that check is the habit the whole topic drills. Then a Parsons problem with the "divide first" line as the decoy, three recall questions (which step to undo first; a speed formula rearranged for time and multiplied back; `2 ** 3 * 2 ** 4` is `2 ** 7`), Fahrenheit to Celsius to fill in (undo the `+ 32` first) and a savings goal to solve. The proofs: simple interest rearranged for the principal, with "forgot the percent" and "divided in the wrong order" as known-wrong solutions; a temperature conversion with two bugs (parentheses missing again, and kelvin off by 0.15); and an explanation of why a friend's `17 - 3 / 5` doesn't solve `5x - 3 = 17`. The review pool has a power-rules prediction, a rearrangement question and a two-step equation to solve in code. OpenStax Elementary Algebra 2e (CC BY 4.0) is the main resource.
