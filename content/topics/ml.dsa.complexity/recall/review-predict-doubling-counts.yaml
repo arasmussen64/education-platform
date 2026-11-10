@@ -1,0 +1,19 @@
+id: review-predict-doubling-counts
+type: predict_output
+rev: 1
+prompt: |
+  A function's step count is `3n² + 100n`. The program prints the count at three sizes and the ratio when `n` doubles. What does it print?
+code: |
+  def steps(n):
+      return 3 * n * n + 100 * n
+  
+  
+  for n in (10, 100, 1000):
+      print(n, steps(n), round(steps(2 * n) / steps(n), 2))
+expected_output: |
+  10 1300 2.46
+  100 40000 3.5
+  1000 3100000 3.94
+explanation: |
+  At `n = 10` the linear term dominates (1,000 of the 1,300), so doubling only multiplies by 2.46. By `n = 1000` the `n²` term is 30 times the other, and the ratio is 3.94, nearly the 4 of pure `n²`. That is what big-O means by dropping the smaller terms: they fade as `n` grows, and the ratio tends to the order's own.
+skills: [doubling]
