@@ -394,6 +394,9 @@ class DiagnosticLevel(Strict):
     summary: Text
     # A link to a free refresher. Recorded like any resource (ADR-0004).
     refresh: Resource
+    # The topic that teaches this level, once it exists; the result page
+    # links it instead of the refresher when it's ready.
+    topic: TopicId | None = None
     items: list[McqItem] = Field(min_length=2)
 
     @model_validator(mode="after")

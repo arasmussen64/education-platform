@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (the Machine Learning Foundations track)
+
+- **A third track, Machine Learning Foundations** ([spec](docs/specs/ml-foundations.md)): the math and the Python that machine learning is made of, every topic proven in code. Its first two modules are outlined on the map: Module 1, the math refresher (the placement test's seven levels as topics, which the math diagnostic now points at as they're written), and Module 2, intermediate Python. Its topics build on Python Foundations topics by name, and the map reads those topics' progress along with the track's own, so a topic that needs `py.arithmetic` unlocks when that's learned.
+- A diagnostic's level may name the topic that teaches it (`topic:`), checked by the validator; the placement result links the topic once it's ready, and the free refresher until then.
+
 ### Changed (CI)
 
 - The Labs job, most of an hour of proving every lab in Docker, now runs only when a cloud topic (`content/topics/csa.*`, where every lab lives) or the tooling changes, not for a Python topic or the web app.

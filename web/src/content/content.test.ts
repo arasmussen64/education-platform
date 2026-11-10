@@ -31,6 +31,7 @@ describe('the content the app loads', () => {
     expect(tracks().map((track) => track.id)).toEqual([
       'python-foundations',
       'cloud-solutions-architect',
+      'ml-foundations',
     ])
     for (const id of everyTopicId) {
       expect(getTopic(id), id).toBeDefined()

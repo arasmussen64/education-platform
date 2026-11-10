@@ -821,7 +821,9 @@ def check_predict_shell(path: Path, item: PredictShellItem, report: Report) -> N
 # --- Putting it together ---------------------------------------------------------
 
 
-def check_diagnostics(content: Path, report: Report) -> None:
+def check_diagnostics(
+    content: Path, topics: dict[str, TopicFolder], report: Report
+) -> None:
     """The diagnostics the placement test walks (ADR-0021): each file's shape,
     and that its id matches its file name, like a topic's folder."""
     for path in sorted((content / "diagnostics").glob("*.yaml")):
@@ -834,6 +836,13 @@ def check_diagnostics(content: Path, report: Report) -> None:
                 path,
                 f"id {diagnostic.id!r} doesn't match the file name {path.stem!r}",
             )
+        for level in diagnostic.levels:
+            if level.topic is not None and level.topic not in topics:
+                report.add(
+                    path,
+                    f"level {level.id!r} names a topic that doesn't exist: "
+                    f"{level.topic!r}",
+                )
 
 
 def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
@@ -886,7 +895,7 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
                 report.counts["labs"] += 1
             check_exercise(exercise_folder, exercise, report, run, labs)
 
-    check_diagnostics(content, report)
+    check_diagnostics(content, topics, report)
     report.counts["topics"] = len(topics)
     return report
 

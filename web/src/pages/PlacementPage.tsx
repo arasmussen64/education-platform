@@ -775,23 +775,33 @@ function DiagnosticResult({
               <>Start from the bottom of the ladder: from </>
             )}
             <strong>{toRefresh[0]?.title}</strong> on, a refresher before the
-            machine-learning track will pay for itself. The platform's own math
-            refresher is on the roadmap; until then, these are free:
+            machine-learning track will pay for itself. Each level is a topic of
+            the Machine Learning Foundations track as it's written; until then,
+            a free refresher:
           </p>
           <ul className="list-disc space-y-1 pl-6">
-            {toRefresh.map((level) => (
-              <li key={level.id}>
-                <strong>{level.title}</strong>: {level.summary}{' '}
-                <a
-                  href={level.refresh.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline"
-                >
-                  {level.refresh.title}
-                </a>
-              </li>
-            ))}
+            {toRefresh.map((level) => {
+              const topic = level.topic ? getTopic(level.topic) : undefined
+              return (
+                <li key={level.id}>
+                  <strong>{level.title}</strong>: {level.summary}{' '}
+                  {topic && isOpen(topic) ? (
+                    <Link to={`/topic/${topic.id}`} className="underline">
+                      {topic.title}, on this platform
+                    </Link>
+                  ) : (
+                    <a
+                      href={level.refresh.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline"
+                    >
+                      {level.refresh.title}
+                    </a>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         </>
       )}
