@@ -1,0 +1,27 @@
+id: review-predict-dijkstra-settles
+type: predict_output
+rev: 1
+prompt: |
+  Dijkstra's algorithm on four nodes, printing each node as it is settled. What does the program print?
+code: |
+  import heapq
+  
+  graph = {"A": {"B": 1, "C": 4}, "B": {"C": 2}, "C": {"D": 1}, "D": {}}
+  heap = [(0, "A")]
+  settled = []
+  while heap:
+      cost, node = heapq.heappop(heap)
+      if node in settled:
+          continue
+      settled.append(node)
+      print("settled", node, "at", cost)
+      for neighbour, weight in graph[node].items():
+          heapq.heappush(heap, (cost + weight, neighbour))
+expected_output: |
+  settled A at 0
+  settled B at 1
+  settled C at 3
+  settled D at 4
+explanation: |
+  A is settled at 0 and pushes B at 1 and C at 4. B pops next and pushes C at 3, which beats the direct 4: the heap now holds both entries, pops the 3 first, settles C at 3, and skips the stale 4 when it surfaces. D is reached from C at 4. The closest unsettled node always comes out first.
+skills: [dijkstra]
