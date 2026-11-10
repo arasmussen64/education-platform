@@ -1,0 +1,14 @@
+id: debug-a-regularizer-that-backfired
+stage: debug
+rev: 1
+title: "Two regularizers that backfired"
+prompt: |
+  A one-hidden-layer network with dropout, trained with Adam and weight decay for 200 epochs. It should print:
+
+  ```
+  validation loss at the end: 0.387 | evaluating twice gives the same answer: True
+  the first layer's weights shrank under decay: True | validation accuracy: 0.85
+  ```
+
+  It has two bugs. Run it: evaluating the same network twice gives two different validation losses, because `evaluate` never switches the network to **eval mode**, so dropout is still drawing masks while the network is being measured; `evaluate` must call `net.eval()` before its forward pass (and `fit` already calls `net.train()` before each step). Fix that, and the first layer's weights have **grown** under decay instead of shrinking: `Adam.step` subtracts `weight_decay * param` from the gradient, pushing weights outwards. Weight decay adds it, a pull towards zero.
+skills: [dropout, decay]

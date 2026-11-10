@@ -1,0 +1,19 @@
+id: predict-inverted-dropout
+type: predict_output
+rev: 1
+prompt: |
+  Inverted dropout by hand: a row of four values, a keep mask that drops two of them, and the scaling by `1 / (1 - p)` with `p = 0.5`; then another mask. What does the program print?
+code: |
+  import numpy as np
+  
+  X = np.array([[2.0, 4.0, 6.0, 8.0]])
+  keep = np.array([[1, 0, 1, 0]])
+  p = 0.5
+  print((X * keep / (1 - p)).tolist(), float(X.sum()), float((X * keep / (1 - p)).sum()))
+  print((X * np.array([[1, 1, 0, 1]]) / (1 - p)).sum(), X.tolist())
+expected_output: |
+  [[4.0, 0.0, 12.0, 0.0]] 20.0 16.0
+  28.0 [[2.0, 4.0, 6.0, 8.0]]
+explanation: |
+  The dropped values become 0 and the survivors are doubled, so a mask that happens to keep the two smaller values sums to 16 and one that keeps three sums to 28, against the original 20: each mask's sum is off, but the average over many masks is the original, which is what the scaling is for. The input itself is never changed.
+skills: [dropout]

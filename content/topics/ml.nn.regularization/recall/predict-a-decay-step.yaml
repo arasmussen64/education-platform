@@ -1,0 +1,21 @@
+id: predict-a-decay-step
+type: predict_output
+rev: 1
+prompt: |
+  Three steps of weight decay with no other gradient: each step subtracts the learning rate times the decay times the weight itself. What does the program print?
+code: |
+  import numpy as np
+  
+  W = np.array([2.0, -1.0, 0.5])
+  grad = np.array([0.0, 0.0, 0.0])
+  rate, decay = 0.1, 0.5
+  for step in range(3):
+      W = W - rate * (grad + decay * W)
+      print(np.round(W, 4).tolist())
+expected_output: |
+  [1.9, -0.95, 0.475]
+  [1.805, -0.9025, 0.4512]
+  [1.7148, -0.8574, 0.4287]
+explanation: |
+  With the data's gradient at zero, the only pull is the decay's: each step multiplies every weight by `1 - rate * decay`, here 0.95, towards zero from either side. Signs are kept, and the weights shrink by five percent a step however large they are; a weight is kept large only if the data keeps pushing it back out.
+skills: [decay]
