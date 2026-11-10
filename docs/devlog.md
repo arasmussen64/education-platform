@@ -2,6 +2,29 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Networking from the host goes ready, with an office on the far side of eth1
+
+The tenth ready cloud topic. The problem with networking labs in one container is that "from another machine" is the whole point, so the lab machine gets one: at boot, `network.sh` makes a network namespace called `office` and joins it to the machine with a veth pair, `eth1` on the server (10.0.9.1) and `eth0` in the office (10.0.9.2). `from-office COMMAND` is `sudo ip netns exec office COMMAND`: a connection that really arrives on `eth1`, so a firewall can be proved from outside, `tcpdump -i eth1` sees the packets, and a service bound to `127.0.0.1` really is unreachable. The machine also runs its own name server (dnsmasq, answering for `shop.internal` and forwarding the rest) and asks it, which took unmounting the `resolv.conf` Docker mounts into the container; the office asks it too, through a per-namespace `resolv.conf`. The shop's services are small Python programs under their own names: `shop-api` on 8080, `shop-db` on `127.0.0.1:5432`, `office-monitor` in the office at 9100 (a unit with `NetworkNamespacePath=`), and a leaking `shop-cache` for the write lab.
+
+**The five labs:**
+
+- **`example-whats-listening`** (worked example): `ip -br addr`, `ip route`, `sudo ss -ltnp`; from the office, `dig` (a CNAME, then the address), `nc -zv` (8080 answers, 5432 is refused), `curl -sI`, `traceroute`; then `tcpdump` on `eth1` catching a three-way handshake and, for 5432, a SYN answered by a reset.
+- **`fill-net-report`** (fill-in): the address field of `ip -br addr`, the `default` route, `ss -ltn`, `dig +short`, `%{http_code}`.
+- **`write-socket-report`** (write): `ss -tan` states counted with `uniq -c`, the `CLOSE-WAIT` count as the verdict (exit 1 over 20). The cache holds thirty connections the web tier closed at boot; the office, a healthy machine, is where the exit-0 path is proved.
+- **`build-shop-firewall`** (build): nftables `input` policy `drop`, `iif lo accept`, `ct state established,related accept`, 22, 8080 and UDP 53 from the office, everything else dropped rather than refused, the rules in `/etc/nftables.conf` and `nftables.service` enabled. The office's DNS turned out to be a requirement the first draft forgot: the office resolves names on this server, so a firewall without UDP 53 breaks every test by name.
+- **`debug-not-from-the-office`** (debug): a stale DNS record (10.0.9.5), a firewall rule for the API's old port (8000), and the API bound to `127.0.0.1`; fixed in order with `dig`, `tcpdump` (dropped, then refused) and `ss`. The firewall must stay a firewall and the fix must be in the file, which two of the five known-wrong fixes get wrong.
+
+Twenty-seven checks, twenty-two known-wrong fixes, all five labs keeping their contract at the first run except a YAML slip (a check's command held `: ` in a plain scalar; it's a block scalar now). Two checks tell _dropped_ from _refused_ by timing `nc -z -w 2`: a reset comes back in milliseconds, a drop takes the whole timeout.
+
+**Decisions for you to review:**
+
+1. _The network tools and dnsmasq go in the shared base image_ (iproute2, ping, dig, tcpdump, nc, nftables, conntrack, traceroute, dnsmasq; about 15 MB). dnsmasq is switched off there and enabled only by this topic's labs, so no other lab grows a listening port.
+2. _The office is a network namespace, not a second container._ ADR-0018's checker runs one container per lab; a namespace gives "another machine" with no change to the checker, and it's the mechanism containers use, so it teaches the lesson's last section by being used.
+3. _The build lab requires DNS from the office._ It makes the firewall six rules instead of five, but it's how a real host firewall fails: a port nobody thought of as a service.
+4. _The debug lab's firewall fault is a wrong port, not a missing rule,_ because the realistic story (the API moved) leaves a rule that looks right at a glance.
+
+**Next:** Boot, cloud-init and instance metadata. A probe is checking whether cloud-init itself runs in the lab container from a NoCloud seed, and whether a metadata-service stand-in can answer at 169.254.169.254.
+
 ## 2026-11-09: How containers work goes ready, with no Docker in the lab
 
 The ninth ready cloud topic, and the payoff of the previous two: the labs build a container from `unshare`, `chroot`, cgroup files and overlayfs, around a root filesystem made from busybox at image build (one binary that behaves as `sh`, `ls`, `ps` and so on by the name it's called by). A probe showed everything works in the lab's privileged container: pid, uts, mount and ipc namespaces, a cgroup made with `mkdir`, and an overlay mount, as long as the writable layer sits on a tmpfs, since the container's own root is already an overlay and overlayfs refuses an upper directory on another overlay.

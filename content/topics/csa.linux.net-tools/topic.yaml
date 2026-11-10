@@ -1,6 +1,6 @@
 id: csa.linux.net-tools
 kind: topic
-status: draft
+status: ready
 title: "Networking from the host"
 summary: "Find out what a server is listening on and where its packets go: ip and ss, curl, dig, nc and traceroute, tcpdump for the truth on the wire, the TCP states and ephemeral ports, and the path a packet takes through nftables, connection tracking and a container's network namespace."
 prerequisites: [csa.linux.shell]
@@ -47,10 +47,14 @@ resources:
     type: reading
     use: link
     license: "IETF Trust Legal Provisions; linked, not copied"
-# Lessons and recall first (ADR-0017). The browser has no network stack to
-# inspect, so the items read ip, ss, dig, curl, tcpdump and nft output with
-# the text tools of the first topic; the labs provide the real interfaces.
+# The browser has no network stack to inspect, so the recall items read ip,
+# ss, dig, curl, tcpdump and nft output with the text tools of the first
+# topic. The worked example, the fill-in, the write and both proofs are labs
+# on a server with an "office" on the far side of its second interface (a
+# network namespace), its own name server, and a firewall to build and to
+# fix (ADR-0017, ADR-0018).
 practice:
+  - example-whats-listening
   - net-ip-addr-up
   - net-ip-route-default
   - mcq-bind-localhost
@@ -68,7 +72,11 @@ practice:
   - mcq-nft-hooks
   - mcq-conntrack
   - mcq-netns-veth
+  - fill-net-report
+  - write-socket-report
 prove:
+  build: build-shop-firewall
+  debug: debug-not-from-the-office
   explain:
     prompt: |
       A new web app on a server "doesn't work from the office", though it works when you `curl` it on the server itself. Explain, in your own words, how you'd narrow that down from the host: how you'd check what the server is listening on and on which addresses, and why `127.0.0.1` would explain everything; how you'd check the routes and the default gateway, and test name resolution, the TCP port and the HTTP response from another machine; what you'd capture with `tcpdump` and how a completed handshake looks different from a refused or a silently dropped connection; and how you'd read the firewall's rules and default policy, including why connection tracking means you don't need a rule for the replies.

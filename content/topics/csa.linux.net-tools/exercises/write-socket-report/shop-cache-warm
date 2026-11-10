@@ -1,0 +1,20 @@
+#!/usr/bin/python3
+"""shop-cache-warm: the shop's web tier warming the cache at boot
+(stand-in): thirty connections to the cache, each closed properly by this
+side. Part of the lab's scenery."""
+
+import socket
+import time
+
+for attempt in range(20):  # the cache may still be starting
+    try:
+        socket.create_connection(("127.0.0.1", 6380), timeout=1).close()
+        break
+    except OSError:
+        time.sleep(0.5)
+
+for i in range(30):
+    connection = socket.create_connection(("127.0.0.1", 6380), timeout=2)
+    connection.sendall(b"GET item-%d\n" % i)
+    connection.close()
+print("cache warmed: 30 connections made and closed", flush=True)

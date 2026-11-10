@@ -1,0 +1,29 @@
+# The checks for "What is this server offering?": the gateway, the listening
+# table with its processes, the name's answer, and two captures: a handshake
+# and a refusal.
+checks:
+  - id: gateway-recorded
+    description: "~/example/gateway.txt holds the default gateway's address."
+    command: test "$(cat /home/learner/example/gateway.txt)" = "$(ip route | awk '/^default/ {print $3}')" && cat /home/learner/example/gateway.txt
+    expect:
+      matches: "^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$"
+  - id: listening-recorded
+    description: "~/example/listening.txt is the listening table, with the process behind port 8080 named (ss shows other users' processes only with sudo)."
+    command: grep -E '0\.0\.0\.0:8080 .*shop-api' /home/learner/example/listening.txt > /dev/null && grep -E '127\.0\.0\.1:5432 ' /home/learner/example/listening.txt > /dev/null && echo "8080 is shop-api, 5432 on loopback"
+    expect:
+      contains: shop-api
+  - id: name-recorded
+    description: "~/example/names.txt is dig's answer for www.shop.internal: the alias, then the address."
+    command: paste -sd' ' /home/learner/example/names.txt
+    expect:
+      equals: "shop.internal. 10.0.9.1"
+  - id: handshake-captured
+    description: "~/example/handshake.txt holds a three-way handshake: a SYN, a SYN-ACK and an ACK on port 8080."
+    command: grep -q 'Flags \[S\],' /home/learner/example/handshake.txt && grep -q 'Flags \[S\.\],' /home/learner/example/handshake.txt && grep -q 'Flags \[\.\],' /home/learner/example/handshake.txt && grep -c '\.8080' /home/learner/example/handshake.txt
+    expect:
+      gte: 3
+  - id: refusal-captured
+    description: "~/example/refused.txt holds a SYN to port 5432 answered by a reset."
+    command: grep -q 'Flags \[S\],' /home/learner/example/refused.txt && grep -q 'Flags \[R' /home/learner/example/refused.txt && echo "refused with a reset"
+    expect:
+      contains: reset

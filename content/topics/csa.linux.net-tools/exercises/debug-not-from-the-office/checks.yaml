@@ -1,0 +1,34 @@
+# The checks for "It works on the server, not from the office": the name,
+# the firewall (open for the API, still a firewall, fixed in its file), where
+# the API listens, and the request from the office that started it all.
+checks:
+  - id: name-right
+    description: "From the office, shop.internal resolves to this server, 10.0.9.1."
+    command: ip netns exec office dig +short +time=2 +tries=1 shop.internal
+    expect:
+      equals: "10.0.9.1"
+  - id: api-port-open
+    description: "The firewall accepts the API's port, 8080, in the running rules and in /etc/nftables.conf."
+    command: nft list ruleset | grep -q 8080 && nft -c -f /etc/nftables.conf && grep -q 8080 /etc/nftables.conf && echo "8080 accepted, and in the file"
+    expect:
+      contains: in the file
+  - id: still-a-firewall
+    description: "The input policy is still drop, and the database port still gets no answer from the office."
+    command: |
+      nft list ruleset | grep -qE 'hook input .*policy drop' || { echo "policy is not drop"; exit 1; }
+      start=$(date +%s%N)
+      ip netns exec office nc -z -w 2 10.0.9.1 5432 && exit 1
+      ms=$(( ($(date +%s%N) - start) / 1000000 ))
+      test "$ms" -ge 1500 && echo "5432 dropped"
+    expect:
+      equals: "5432 dropped"
+  - id: api-listens-for-the-office
+    description: "The API listens on every address (or on the office side), not on 127.0.0.1 alone."
+    command: ss -Hltn sport = :8080 | awk '{print $4}'
+    expect:
+      matches: "^(0\\.0\\.0\\.0|10\\.0\\.9\\.1|\\*|\\[::\\]):8080$"
+  - id: works-from-office
+    description: "From the office, http://shop.internal:8080/ answers with the API's page."
+    command: ip netns exec office curl -s -m 5 http://shop.internal:8080/
+    expect:
+      contains: shop api ok

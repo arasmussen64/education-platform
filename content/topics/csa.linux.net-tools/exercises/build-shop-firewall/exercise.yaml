@@ -1,0 +1,18 @@
+id: build-shop-firewall
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Build the shop server's firewall"
+prompt: |
+  Build the shop server's host firewall with nftables, prove it from the office, and make it survive a reboot. The server has none yet: `sudo nft list ruleset` prints the empty default, and `/etc/nftables.conf` holds the same empty ruleset, which `nftables.service` would load at boot if it were enabled. The rules:
+
+  1. **The `input` chain's policy is `drop`:** whatever no rule accepts is dropped silently, with no reset, the way a cloud security group drops.
+  2. **The machine may talk to itself:** traffic arriving on `lo` is accepted. The API reaches its database on `127.0.0.1:5432`, and this machine asks its own name server.
+  3. **Replies to connections this machine made are accepted by connection tracking**, `ct state established,related accept`, so it can still reach the office's monitoring endpoint, `monitor.office.internal:9100`, with no rule for the replies.
+  4. **From the office, only three things are reachable:** SSH (TCP 22), the shop's API (TCP 8080) and the shop's name server (UDP 53, since the office resolves its names here). The database port, 5432, and everything else are dropped.
+  5. **The rules live in `/etc/nftables.conf`, and `nftables.service` is enabled**, so they're loaded at boot.
+
+  Edit the file with `sudo nano /etc/nftables.conf`, load it with `sudo nft -f /etc/nftables.conf`, then prove it: `from-office nc -zv shop.internal 8080`; `from-office nc -zv -w 3 shop.internal 5432`, which should time out rather than be refused (watch it with `sudo tcpdump -nn -i eth1 port 5432` in the background: SYNs, and nothing back); `nc -zv 127.0.0.1 5432`; `nc -zv monitor.office.internal 9100`. Then enable the service, and run the checks.
+skills: [firewall-path, test-tools]

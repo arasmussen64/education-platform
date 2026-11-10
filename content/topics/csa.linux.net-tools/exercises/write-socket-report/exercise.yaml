@@ -1,0 +1,16 @@
+id: write-socket-report
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write socket-report"
+prompt: |
+  Write a script, `~/bin/socket-report`, that says what state this machine's TCP connections are in. It prints one line per state with how many sockets are in it, the count first and then the state's name as `ss` prints it (the format `uniq -c` gives, like `     31 CLOSE-WAIT`), most first; then a line `close-wait: N` with the number of sockets in `CLOSE-WAIT`; and it exits with status 1 when that number is over 20, which means a program isn't closing connections it was handed, and 0 otherwise.
+
+  The shop's cache, `shop-cache`, listens on port 6380 and has exactly that bug: the web tier connected to it thirty times at boot and closed each connection, and the cache never closed its side. Try `~/bin/socket-report; echo $?`, then `sudo ss -tanp state close-wait` to see who holds them. Then try it from the office, a healthy machine: `from-office ~/bin/socket-report; echo $?`. Make the script executable, and run the checks.
+hints:
+  - "`ss -tan` lists every TCP socket, one per line, with its state in the first column and a header line on top. Skip the header (`awk 'NR > 1 {print $1}'`), then `sort | uniq -c | sort -rn` counts the states, most first."
+  - "`ss -tan state close-wait` lists only that state (and drops the State column, so there's still one header line to skip): `ss -Htan state close-wait | wc -l` is the count (`-H` leaves the header out)."
+  - "Then the verdict: `if [ \"$count\" -gt 20 ]; then exit 1; fi`. A script that ends without an `exit` returns the status of its last command, which is 0 here."
+skills: [sockets-ss]
