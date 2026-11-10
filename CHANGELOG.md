@@ -443,6 +443,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - The progress tests ask what state a topic is in at the end of their fixtures' day instead of at the real time of the run; four days after that day, a topic proved in the fixtures became "fading" (its first review had come due) and one test failed on every branch.
 
+### Changed (CI)
+
+- The Labs workflow splits the labs by topic across four machines (`labcheck test --all --shard I/4`, every fourth topic each) instead of running all eighty on one, which took a quarter of an hour and was the whole wait for every lab pull request; a last job still named Labs passes only when every share did, so nothing that waits for "Labs" changes. Actions minutes are free for a public repository, so four machines cost nothing more.
+
 ### Fixed (lab checker)
 
 - `labcheck test --all --jobs N` builds the first lab of each topic on its own before the parallel run, so the heavy first layer a topic's labs share is built once instead of four times at once; and a build may take up to 30 minutes instead of 15. On a busy CI runner, twelve builds had run out of time.
