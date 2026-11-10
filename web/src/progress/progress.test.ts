@@ -59,8 +59,10 @@ function proved(topic: Topic, hour = 9): GradedEvent[] {
 const progressIn = (events: GradedEvent[], topic: Topic) =>
   progressOf(TOPICS, events).get(topic.id)
 
+// Asked at the end of the fixtures' day, not now: a topic proved on that day
+// has a review due a few days later, and these tests aren't about reviews.
 const stateIn = (events: GradedEvent[], topic: Topic) =>
-  stateOf(topic, progressOf(TOPICS, events))
+  stateOf(topic, progressOf(TOPICS, events), at(23))
 
 describe('progressOf', () => {
   it('notes when each proof check first passed', () => {

@@ -1,23 +1,23 @@
 id: review-mcq-syntax-location
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A program stops with this message before anything is printed:
 
   ```
-    File "solution.py", line 2
-      name = input("Name? ")
-      ^^^^
-  SyntaxError: invalid syntax. Perhaps you forgot a comma?
+    File "solution.py", line 1
+      print("Name:"
+           ^
+  SyntaxError: '(' was never closed
   ```
 
-  Line 2 looks fine. Where is the mistake most likely to be?
+  Line 2 of the program is `name = input("Name? ")`, and it looks fine. What should you do?
 choices:
-  - 'Nowhere: Python is wrong, run it again'
-  - 'In the file''s name'
-  - 'At the end of line 1, such as a missing closing bracket or quote'
-  - 'On the last line of the program'
-answer: 2
+  - 'Add the missing `)` at the end of line 1'
+  - 'Delete line 2, because that is where Python stopped reading'
+  - 'Put a comma after `"Name:"`'
+  - 'Run it again: Python sometimes misreads a line'
+answer: 0
 explanation: |
-  A `SyntaxError` is reported where Python first *noticed* something wrong, which is often the line after the real mistake. If line 1 ends with a bracket or quote that was never closed, Python keeps reading onto line 2 and gives up there. Check the line before the one named.
+  Python read past the end of line 1 looking for the `)` that closes the `(`, never found it, and gave up. For a bracket or quote that is never closed, the message names the line where it was *opened*, with a `^` under the bracket, however far below you were typing. Go to that line and close it. Nothing ran, because a `SyntaxError` is found before the first line runs.
 skills: [read-traceback]
