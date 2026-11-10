@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: A second pair of eyes on Module 4
+
+**Thirty-eight findings from two cold reviews of Module 4,** every one applied, plus a third pass they prompted. The reviewers read all 372 files, ran every program, every Parsons ordering, every debug stage and every quoted number, and found nothing wrong in an answer key, an expected output or a line of code; what they found was in the prose around it, which is what the checker can't see. The ones worth your own eye:
+
+- _The decaying rate was demonstrating the opposite of its point._ The optimizers worked example halved plain descent's rate every 20 steps from the edge of stability and reported the loss settling at 20.0, as if that were progress; measured further out, the run had frozen with `x` stranded at 4.47 because the rate had been halved to nothing, and a smaller fixed rate finished far lower. It now halves every 100 steps (loss 0.24 at step 200 against 100.03 fixed), and the Recap and the step note say that decaying too fast strands a run and that how fast to decay is a knob. The generator now asserts both halves of that story.
+- _ReLU's corner, described wrongly._ Yesterday's note that a unit sitting exactly at the bend makes "the numeric slope half the analytic one" had it backwards: the mask `z1 > 0` counts the unit as off, so the analytic gradient gets nothing from that example, while the nudge upwards switches the unit on, so the numeric slope reports half the on-side slope. The Recap now says so.
+- _A debug whose second bug nearly learns._ With the backpropagation debug's transpose fixed and the mask still `h`, the network reaches all four XOR classes with a loss of 0.005 instead of 0.001; the prompt said the predictions stay wrong. It now says the run seems to learn and why the gap is small.
+- _A question whose number didn't produce its symptom._ The dead-layer review question said a rate of 50 leaves the loss at 0.69; at 50 the output bias overshoots and the loss wanders between 3 and 10. At 5 every unit dies and the loss sits at 0.693, so the question says 5.
+- _Every answer was in position 0 and was the longest option,_ in all 31 multiple-choice items of the module (and the web app shows choices in file order). The answers now sit at varied positions, the dozen longest correct choices are trimmed with their reasoning kept in the explanations, and two explanations that named "the first choice" and "the second choice" now name the choices by content. The rest of the repository has the same habit (71 of 319 answers at 0, 198 at 1), which is a pass for another day, and a shuffle in the web app would end it for good.
+- _"A gap in the sixth decimal"_ meant "a gap bigger than a millionth" but reads as "a tiny gap in the seventh place"; the planted mistakes are off by factors of ten. Replaced everywhere it steered the AI grader, and the central difference's accuracy is now stated as nine or ten decimals rather than "about six".
+- Smaller: ten doubled apostrophes inside block scalars that rendered literally; a line range pointing past the end of a file (the validator checks Parsons lines, not worked-example ranges); "the step in `y` is -1.4 times the old value" where it is the new `y` that is; the XOR-on-a-grid data named as XOR when its classes are swapped; and a dozen terms defined where first used (unit, hidden, bias, XOR, held-out, regularize, one-hot, classes, finite difference, saddle, converged, the `∇` symbol).
+
+**Decisions for you to review:**
+
+1. _Answer positions were rotated by hand in this module only._ A shuffle in the web app's multiple-choice component would fix every topic at once and stop the habit recurring; it's a small change and I'd make it next unless you'd rather keep file order.
+2. _The Khan Academy chain-rule resource keeps the course link_ with the unit named in the title, because neither reviewer nor I could confirm the unit's own address from here.
+3. _The review pass stays:_ four modules, nearly a hundred findings, none the checker could have caught.
+
+**Next:** whichever of Module 5 and the cloud track's Module 2 you prefer; the multiple-choice shuffle if you agree.
+
 ## 2026-11-10: Module 5 of the ML track is outlined
 
 **Probability and statistics for ML has an outline:** seven planned topics and Checkpoint 5 in the track file and on the map, with the spec's prose bullet turned into a table. Random variables and the four distributions every model leans on, simulated with a seeded generator; expectation and variance with the law of large numbers watched; Bayes' rule with base rates, belief updated as evidence arrives, and a naive Bayes spam filter; maximum likelihood, with least squares and cross-entropy shown to be it in disguise; sampling, the standard error, the central limit theorem by simulation, confidence intervals and the bootstrap; entropy, cross-entropy and KL divergence, which give Module 4's loss its name; and evaluating a model with statistics, from splits and leakage to the confusion matrix, intervals on an accuracy and a fair comparison of two models. Checkpoint 5 judges two classifiers on a held-out set and says which is better and how sure it is. Prerequisites reach back to Module 1's probability, Module 3's arrays and Module 4's loss functions.

@@ -26,7 +26,7 @@ resources:
     type: reading
     use: link
     license: CC BY 4.0
-  - title: "Khan Academy: Differential calculus, the chain rule unit"
+  - title: "Khan Academy: Differential calculus, the unit Derivatives: chain rule and other advanced topics"
     url: https://www.khanacademy.org/math/differential-calculus
     type: interactive
     use: link
@@ -57,7 +57,7 @@ prove:
         description: "The loss is one number and the weights are many: multiplying from the loss end, each layer takes the gradient accumulated so far and multiplies in its own local derivative, so one backward pass gives the derivative for every weight; from the input end you'd repeat the work for each weight."
       - id: check
         required: false
-        description: "Compare it with a central difference of the whole chain at a few points; a gap in the sixth decimal means a link is wrong or evaluated at the wrong value."
+        description: "Compare it with a central difference of the whole chain at a few points; a gap bigger than a millionth means a link is wrong or evaluated at the wrong value."
     model_answer: |
       For two functions, if h is f applied after g, the derivative of h at x is the derivative of f evaluated at g(x), times the derivative of g at x. The outer slope has to be taken at the inner value, not at x, which is the mistake everyone makes once. For a chain of many functions it's the same thing repeated: the derivative of the whole chain is the product of each link's own derivative, each one evaluated at the value that link received. Those values are exactly what the forward pass computes on its way to the loss, so the forward pass stores them and the backward pass reads them; without them you'd have to recompute every link's input. The backward pass runs from the loss end because the loss is a single number while the weights are many. Starting with the derivative of the loss with respect to itself, which is 1, each layer multiplies in its own local derivative and hands the running product to the layer before it. That running product is shared by every weight further back, so one pass from the loss gives the derivative for all 50 layers' weights; going forwards from the input you would need a separate pass for each weight. To convince myself a hand-written chain-rule derivative is right, I check it numerically: nudge x up and down by a small h, run the whole chain both times, divide the difference by 2h, and compare with the formula at a few points. Agreement to six decimals means the links and the values they're evaluated at are right.
 review_pool:

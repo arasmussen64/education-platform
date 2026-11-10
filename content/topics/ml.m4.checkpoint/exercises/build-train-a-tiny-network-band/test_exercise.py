@@ -66,7 +66,7 @@ def test_every_gradient_from_other_weights():
 
 
 def test_the_momentum_update():
-    """Two steps of train match two heavy-ball steps computed from the program's own backward pass."""
+    """Two steps of train match two momentum steps computed from the program's own backward pass."""
     forward = function("forward")
     backward = function("backward")
     train = function("train")
