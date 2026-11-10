@@ -6,6 +6,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ## [Unreleased]
 
+### Added (content: calculus for ML begins)
+
+- **Derivatives of the functions ML uses** (`ml.calc.derivatives`) goes ready, the first topic of the ML track's Module 4: a power, `exp`, `log`, the sigmoid and ReLU each checked against a central difference, then the sigmoid's and ReLU's derivatives on a whole array, as the worked example; a Parsons sigmoid check (the decoy multiplies by `1 + s`), four recall questions (a saturated sigmoid, ReLU's derivative on an array, the rules for `exp` and `log`, the direction and speed a derivative gives descent), a table of checked rules to fill in and `d_sigmoid` to write for arrays; a derivative checker to build (five functions, their derivatives and `max_error`, with hidden tests that try a rule wrong on purpose), a report to debug whose `h` is too small and whose sigmoid rule uses `1 - x`, and an explanation of why sigmoid layers stall and ReLU helped; a review pool of four.
+
 ### Added (NumPy in both runtimes)
 
 - A topic may declare the Python packages its code imports (`packages: [numpy]` in `topic.yaml`, [ADR-0023](docs/decisions/0023-packages-in-both-runtimes.md), proposed). The browser's Python loads them from Pyodide's CDN on the first Run, Check or Step through of that topic, with its own two-minute limit, and keeps them for the session; topics without packages download nothing. CPython gets the same NumPy version through uv, pinned to the one Pyodide ships, so both runtimes agree. The content checker refuses code that imports a package its topic doesn't declare, and the Pyodide test loads every ready topic's packages before running its solutions.

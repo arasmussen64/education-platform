@@ -1,0 +1,27 @@
+<Intro>
+
+Module 1 estimated a slope by nudging the input, and walked downhill against it. Training a model is that, millions of knobs at a time, and the slopes come from a handful of functions every model is built from: powers, the exponential, the logarithm, the sigmoid and ReLU. This topic learns each one's derivative as a rule, checks every rule in code with a better slope estimate than Module 1's, and reads what each derivative's shape means for learning.
+
+The main resource is **3Blue1Brown's _Essence of calculus_**, chapter 3 (derivative formulas through geometry) and chapter 5 (what's so special about e); about 35 minutes. OpenStax _Calculus Volume 1_, sections 3.3 and 3.9, has the same rules as text. Watch for:
+
+- **The power rule as a picture:** nudging the side of a square by `dx` adds two thin strips, which is where `2x` comes from.
+- **Why e:** it's the base whose exponential is its own derivative. Every other base drags a constant along.
+- **A rule is a claim.** Each one here is checked against a numeric slope before it's used.
+
+The chain rule, how these pieces combine, is two topics away. Here each function is on its own.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A better slope estimate.** Module 1 used `(f(x + h) - f(x)) / h`. The **central difference** `(f(x + h) - f(x - h)) / (2 * h)` steps both ways and is far more accurate: its error shrinks with `h²`, not `h`. With `h = 1e-6` it agrees with the exact derivative to about six decimals, which is the standard every check in this module holds to. Smaller is not better: at `h = 1e-12` the two function values are so close that rounding noise swamps their difference.
+- **The rules.** `x ** n` has derivative `n * x ** (n - 1)`. `np.exp(x)` is its own derivative. `np.log(x)` has derivative `1 / x` (for `x > 0`). A constant times a function multiplies the derivative by that constant; the derivative of a sum is the sum of the derivatives.
+- **The sigmoid** `σ(x) = 1 / (1 + np.exp(-x))` squashes any number into the range 0 to 1, which is how a model turns a score into a probability. Its derivative is `σ(x) * (1 - σ(x))`: 0.25 at zero, 0.105 at 2, 0.0066 at 5, 0.000045 at 10. Far from zero it is **saturated**: nearly flat, so a change in input barely changes the output, and almost no slope passes back through it. A saturated unit has, in effect, stopped learning.
+- **ReLU** (the rectified linear unit) is `np.maximum(x, 0.0)`: zero on the left, the input itself on the right. Its derivative is 0 for `x < 0` and 1 for `x > 0`, `np.where(x > 0, 1.0, 0.0)`; at exactly 0 there's a corner, and training uses 0 there by convention. An active ReLU passes the slope through at full strength, which is why it replaced the sigmoid inside networks.
+- **Whole arrays at once.** Every formula above takes an array and returns one: `sigmoid(xs) * (1 - sigmoid(xs))` is the derivative at every entry. That's how a layer of a thousand units is handled in one line.
+- **Reading a derivative.** The **sign** is the direction: positive means the output rises as the input grows, so descent steps the other way. The **size** is the speed: how much the output moves per unit of input, and so how far a descent step goes. **Zero** means flat: the bottom of a valley, the top of a hill, or a ReLU that's off.
+- **In machine learning:** a loss is built from these pieces, and training multiplies their derivatives together (the gradient next, then the chain rule). One saturated sigmoid contributes a factor like 0.0066, and everything behind it learns 150 times slower.
+
+</Recap>
