@@ -1,17 +1,39 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.m6.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 6: the algorithms behind a pipeline"
 summary: "A small data pipeline built from the module's tools: deduplicate and join records with hashing, keep the top k with a heap, match near-duplicate names by edit distance, and order the pipeline's steps by topological sort, each at the right cost."
-prerequisites:
-- ml.dsa.arrays-and-hashing
-- ml.dsa.graphs
-- ml.dsa.dynamic-programming
+prerequisites: [ml.dsa.arrays-and-hashing, ml.dsa.graphs, ml.dsa.dynamic-programming]
 estimated_minutes: 120
 rev: 1
 objectives:
-- Build the pieces of a small data pipeline (deduplicate, join, top-k, near-duplicate matching, step ordering) and show by counting steps that each scales as its order of growth says.
-- "Find and fix three bugs that each make a step quadratic or wrong: a nested-loop lookup where a set belongs, a queue popped from the front of a list, and a table filled in the wrong order."
-- Explain why a dictionary lookup is constant time on average, and what a topological order guarantees.
+  - "Build the pieces of a small data pipeline (deduplicate, join, top-k, near-duplicate matching, step ordering) and show by counting steps that each scales as its order of growth says."
+  - "Find and fix three bugs that each make a step quadratic or wrong: a nested-loop lookup where a set belongs, a queue popped from the wrong end, and a table filled in the wrong order."
+  - "Explain why a dictionary lookup is constant time on average, and what a topological order guarantees."
+prove:
+  build: build-a-pipeline-toolkit
+  debug: debug-a-slow-pipeline
+  explain:
+    prompt: |
+      Your pipeline toolkit is in code review. The reviewer asks three things. First: "`record[key] not in seen` is one line either way; why is it fast when `seen` is a set and slow when it is a list, and what does 'constant time on average' actually depend on?" Second: "what does `schedule`'s order guarantee, how does it find it, and what happens if two steps depend on each other?" Third: "give me the order of growth of each of the five pieces, and tell me how you would check one of them by experiment." In your own words, answer all three.
+    rubric:
+      - id: hashing
+        required: true
+        description: "A set is a hash table: the key's hash picks a bucket and only the few keys there are compared, so a lookup costs about the same however many keys there are; a list's `in` scans from the front, so a lookup inside a loop makes the whole thing quadratic. 'On average' depends on the hash spreading keys across buckets and the table growing; a bad hash piles keys into one bucket and the lookup becomes a scan. Keys must be hashable."
+      - id: topo
+        required: true
+        description: "A topological order lists the steps so that every step comes after everything it depends on; Kahn's algorithm counts each step's outstanding dependencies, starts with those that have none, and releases a step when its count reaches zero, taking ready steps from a queue in the order they became ready. Steps left over mean a cycle, which no order can satisfy, so it is an error."
+      - id: orders
+        required: true
+        description: "dedupe and the hash join are linear in the records (one pass, constant-time lookups); top-k is n log k; closest_name is the number of names times the product of the two lengths (the table); schedule is steps plus dependencies. A list for seen or a nested-loop join would be quadratic."
+      - id: doubling
+        required: true
+        description: "Double the input and measure again, counting steps or timing the best of a few runs: linear doubles, n log n a little more than doubles, quadratic quadruples; repeat the doubling to confirm."
+    model_answer: |
+      The line is the same but the structure underneath it isn't. A set is a hash table: it turns the key into a number, uses that number to pick a bucket, and compares the key only with the handful of keys in that bucket, so a lookup costs about the same whether the set holds ten keys or a million. A list has no such shortcut; `in` compares the key with the elements one by one from the front, so a lookup costs as many steps as there are elements, and a lookup inside a loop over the records makes the whole dedupe quadratic. The phrase "constant time on average" is honest about what it depends on: the hash function has to spread keys across the buckets, and the table has to grow as keys arrive so the buckets stay short. With a bad hash that sends every key to the same bucket, the set is a list in disguise. That is also why keys must be hashable, which in practice means unchangeable, like strings, numbers and tuples. The schedule's order guarantees that every step appears after every step it depends on, so running the steps in that order never reaches a step whose inputs don't exist yet. It finds the order by counting, for each step, how many of its dependencies are still outstanding, starting with the steps that have none, and whenever a step runs, reducing the counts of the steps that depend on it and queueing any that reach zero. Because ready steps wait in a queue, they run in the order they became ready. If two steps depend on each other, neither count ever reaches zero, so they are left over when the queue runs dry, and the function raises an error, because no order can satisfy a cycle. As for growth: dedupe is linear in the number of records, one pass with a constant-time set lookup per record; the join is linear in the two sides together, one pass to index the right side and one pass over the left with a constant-time lookup each; top-k is n log k, a push and a pop on a heap of at most k entries per record; closest name is the number of candidate names times the product of the two string lengths, because each edit-distance table has one cell per pair of prefixes; and the schedule is linear in the steps plus the dependencies, since each dependency is counted once and decremented once. To check one by experiment I would double its input and measure again, counting comparisons if I can instrument it or timing the best of a few runs if not: a linear piece should take about twice as long, top-k a little more than twice, and anything that quadruples has a scan hiding in it.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-a-pipeline-by-hand
+  steps: [step-dedupe, step-top-k, step-join, step-schedule]
+  versions: [build-a-pipeline-toolkit-logs, build-a-pipeline-toolkit-catalog]

@@ -1,0 +1,57 @@
+id: build-a-pipeline-toolkit
+stage: build
+rev: 1
+title: "The algorithms behind a pipeline"
+prompt: |
+  Starting from a blank editor, build the pieces a small data pipeline is made of, each with the structure that makes it fast: a set, a heap, a dict, a table and a queue.
+
+  **Write five functions**, each at the right order of growth:
+
+  - `dedupe(records, key)`: the first record for each value of the `key` field, in order; one pass with a set.
+  - `top_k(records, field, k)`: the `k` records with the largest `field` value, largest first, through a heap that never holds more than `k` entries; ties keep the earlier record first.
+  - `join(left, right, key)`: every left record merged with every right record that has the same `key` value (`{**left_record, **right_record}`), in left order; index the right side in a dict first (a hash join).
+  - `closest_name(query, names)`: the name with the smallest edit distance to `query`, and that distance, as a tuple; ties keep the first name. You will need `edit_distance(a, b)` by the table.
+  - `schedule(steps)`: `steps` maps each step to the list of steps it depends on; return an order that runs every step after its dependencies, taking ready steps in the order they became ready (a queue), and raise `ValueError` if the steps form a cycle.
+
+  **Then run them on a week of shop events, some logged twice, and the users they belong to:**
+
+  ```python
+  events = [
+      {"id": 7, "user": "ann", "spend": 40},
+      {"id": 3, "user": "bob", "spend": 15},
+      {"id": 7, "user": "ann", "spend": 40},
+      {"id": 9, "user": "cy", "spend": 70},
+      {"id": 3, "user": "bob", "spend": 15},
+      {"id": 12, "user": "dee", "spend": 70},
+      {"id": 15, "user": "ann", "spend": 5},
+  ]
+  users = [{"user": "ann", "city": "Oslo"}, {"user": "bob", "city": "Lima"}, {"user": "cy", "city": "Pune"}]
+  unique = dedupe(events, "id")
+  print(len(events), "events,", len(unique), "distinct")
+  print([event["id"] for event in top_k(unique, "spend", 3)])
+  print([(row["id"], row["city"]) for row in join(unique, users, "user")])
+  print(closest_name("Pnue", ["Oslo", "Lima", "Pune"]))
+  steps = {"load": [], "clean": ["load"], "features": ["clean", "join"], "join": ["load"], "train": ["features"], "report": ["train", "clean"]}
+  print(schedule(steps))
+  ```
+
+  ```
+  7 events, 5 distinct
+  [9, 12, 7]
+  [(7, 'Oslo'), (3, 'Lima'), (9, 'Pune'), (15, 'Oslo')]
+  ('Pune', 2)
+  ['load', 'clean', 'join', 'features', 'train', 'report']
+  ```
+
+  Seven events with two duplicates leave five; the top three by spend put the two 70s first with the earlier one ahead; the join drops dee, who has no user record; `Pnue` is two edits from `Pune`; and the pipeline runs load, then clean and join as they become ready, then features, train and report.
+
+  The checks count how often your code compares two keys or values: 3,000 records to dedupe within 30,000 comparisons, the top 5 of 20,000 within 170,151, a join of 1,000 with 2,000 within 60,000; a chain of 300 steps to schedule, a diamond and a cycle; and names at known distances.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.dsa.arrays-and-hashing/patterns, ml.dsa.graphs/topo, ml.dsa.dynamic-programming/edit-distance]
+  test_dedupe_scales: [ml.dsa.arrays-and-hashing/replace, ml.dsa.complexity/choose]
+  test_top_k_scales: [ml.dsa.trees-and-heaps/heap, ml.dsa.complexity/choose]
+  test_join_scales: [ml.dsa.arrays-and-hashing/patterns, ml.dsa.arrays-and-hashing/hashing]
+  test_closest_name: [ml.dsa.dynamic-programming/edit-distance]
+  test_schedule: [ml.dsa.graphs/topo, ml.dsa.stacks-queues-recursion/stack-queue]

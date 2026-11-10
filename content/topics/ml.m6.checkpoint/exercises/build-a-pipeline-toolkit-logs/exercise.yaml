@@ -1,0 +1,58 @@
+id: build-a-pipeline-toolkit-logs
+stage: build
+rev: 1
+title: "The algorithms behind a pipeline: request logs"
+prompt: |
+  Starting from a blank editor, build the same five pieces for a different pipeline: request logs with retried lines, the slowest requests, the teams that own each service, a misspelled service name, and a deployment's steps.
+
+  **Write five functions**, each at the right order of growth:
+
+  - `dedupe(records, key)`: the first record for each value of the `key` field, in order; one pass with a set.
+  - `top_k(records, field, k)`: the `k` records with the largest `field` value, largest first, through a heap that never holds more than `k` entries; ties keep the earlier record first.
+  - `join(left, right, key)`: every left record merged with every right record that has the same `key` value (`{**left_record, **right_record}`), in left order; index the right side in a dict first (a hash join).
+  - `closest_name(query, names)`: the name with the smallest edit distance to `query`, and that distance, as a tuple; ties keep the first name. You will need `edit_distance(a, b)` by the table.
+  - `schedule(steps)`: `steps` maps each step to the list of steps it depends on; return an order that runs every step after its dependencies, taking ready steps in the order they became ready (a queue), and raise `ValueError` if the steps form a cycle.
+
+  **Then run them on a morning of request logs, some lines written twice by retries, and the teams that own each service:**
+
+  ```python
+  requests = [
+      {"request": "r1", "service": "search", "ms": 120},
+      {"request": "r2", "service": "payment", "ms": 480},
+      {"request": "r1", "service": "search", "ms": 120},
+      {"request": "r3", "service": "auth", "ms": 95},
+      {"request": "r4", "service": "payment", "ms": 480},
+      {"request": "r2", "service": "payment", "ms": 480},
+      {"request": "r5", "service": "search", "ms": 210},
+      {"request": "r6", "service": "billing", "ms": 30},
+  ]
+  services = [{"service": "search", "team": "discovery"}, {"service": "payment", "team": "money"}, {"service": "auth", "team": "identity"}]
+  unique = dedupe(requests, "request")
+  print(len(requests), "lines,", len(unique), "requests")
+  print([row["request"] for row in top_k(unique, "ms", 3)])
+  print([(row["request"], row["team"]) for row in join(unique, services, "service")])
+  print(closest_name("paymnet", ["search", "payment", "auth"]))
+  steps = {"build": [], "test": ["build"], "scan": ["build"], "stage": ["test", "scan"], "smoke": ["stage"], "release": ["smoke", "scan"]}
+  print(schedule(steps))
+  ```
+
+  ```
+  8 lines, 6 requests
+  ['r2', 'r4', 'r5']
+  [('r1', 'discovery'), ('r2', 'money'), ('r3', 'identity'), ('r4', 'money'), ('r5', 'discovery')]
+  ('payment', 2)
+  ['build', 'test', 'scan', 'stage', 'smoke', 'release']
+  ```
+
+  Eight lines with two retries leave six requests; the top three by milliseconds put the two 480s first with the earlier ahead; the join drops billing, which no team owns; `paymnet` is two edits from `payment`; and the deployment builds, then tests and scans, then stages, smokes and releases.
+
+  The checks count how often your code compares two keys or values: 3,000 records to dedupe within 30,000 comparisons, the top 5 of 20,000 within 170,151, a join of 1,000 with 2,000 within 60,000; a chain of 300 steps to schedule, a diamond and a cycle; and names at known distances.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.dsa.arrays-and-hashing/patterns, ml.dsa.graphs/topo, ml.dsa.dynamic-programming/edit-distance]
+  test_dedupe_scales: [ml.dsa.arrays-and-hashing/replace, ml.dsa.complexity/choose]
+  test_top_k_scales: [ml.dsa.trees-and-heaps/heap, ml.dsa.complexity/choose]
+  test_join_scales: [ml.dsa.arrays-and-hashing/patterns, ml.dsa.arrays-and-hashing/hashing]
+  test_closest_name: [ml.dsa.dynamic-programming/edit-distance]
+  test_schedule: [ml.dsa.graphs/topo, ml.dsa.stacks-queues-recursion/stack-queue]
