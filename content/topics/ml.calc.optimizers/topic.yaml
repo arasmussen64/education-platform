@@ -1,17 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.calc.optimizers
 kind: topic
-status: planned
-title: Optimizers beyond plain gradient descent
-summary: Momentum, learning-rate schedules and Adam, each in a few lines, compared on the same problem.
-prerequisites:
-- ml.calc.descent-in-many-dimensions
-- ml.calc.backpropagation
+status: ready
+title: "Optimizers beyond plain gradient descent"
+summary: "Momentum, learning-rate schedules and Adam, each in a few lines, compared on the same problem."
+prerequisites: [ml.calc.descent-in-many-dimensions, ml.calc.backpropagation]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Add momentum to gradient descent and say what it does on a long narrow valley.
-- Decay the learning rate on a schedule, and say when that helps.
-- Write Adam in a few lines and compare it with plain descent on the same function.
-- Choose an optimizer and learning rate from a loss curve, and say why.
+  - "Add momentum to gradient descent and say what it does on a long narrow valley."
+  - "Decay the learning rate on a schedule, and say when that helps."
+  - "Write Adam in a few lines and compare it with plain descent on the same function."
+  - "Choose an optimizer and learning rate from a loss curve, and say why."
+# Linked, never copied or embedded: Distill is CC BY 4.0; arXiv papers are
+# linked under arXiv's licence; NumPy's documentation is under the NumPy
+# licence (BSD-3-Clause).
+resources:
+  - title: "Why Momentum Really Works (Gabriel Goh, Distill, 2017)"
+    url: https://distill.pub/2017/momentum/
+    type: interactive
+    use: link
+    license: CC BY 4.0
+  - title: "Adam: A Method for Stochastic Optimization (Diederik Kingma and Jimmy Ba, 2014), the algorithm on page 2"
+    url: https://arxiv.org/abs/1412.6980
+    type: reading
+    use: link
+    license: arXiv non-exclusive licence (linked, not copied)
+  - title: "numpy.sqrt (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.sqrt.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-three-optimizers-on-a-valley
+  - parsons-momentum-update
+  - mcq-momentum-in-a-valley
+  - predict-two-momentum-steps
+  - mcq-when-to-decay
+  - fill-adam
+  - write-step-decay
+prove:
+  build: build-momentum-and-adam
+  debug: debug-adam
+  explain:
+    prompt: |
+      A teammate shows you three runs of the same model. With plain gradient descent at a fixed rate the loss falls quickly, then bounces around 0.3 for the rest of the run. With momentum it reaches 0.3 in a third of the steps, then bounces too. With Adam it reaches 0.2 quickly and bounces there. In your own words: what does momentum change about the step, and why does that help in a long narrow valley? What does Adam adapt, and why is its very first step the same size whatever the gradient? Why decay the learning rate during a run, and which symptom in these curves calls for it? And what would you run next?
+    rubric:
+      - id: momentum
+        required: true
+        description: "Momentum keeps a velocity, v = beta * v + gradient, and steps along it; gradients that point the same way step after step (along the valley) add up into speed, while gradients that flip sign (across the valley) cancel, so the zigzag shrinks and the slow direction speeds up."
+      - id: adam
+        required: true
+        description: "Adam keeps a running mean of the gradient (momentum) and a running mean of its square, and divides one by the root of the other, so each coordinate's step is about the rate times the sign of its gradient at first (the two bias corrections make the first step exactly that), and steep coordinates don't dominate flat ones."
+      - id: decay
+        required: true
+        description: "A rate large enough to cross the landscape fast is too large to settle at the bottom, so the loss bounces at a floor; shrinking the rate on a schedule (halving every so often, or smoothly) lets the run start fast and finish precise. Bouncing at a floor after a fast fall is the symptom."
+      - id: next
+        required: false
+        description: "Keep momentum or Adam for speed and add a decay schedule (or lower the rate once the bounce starts), then compare the held-out loss, not just the training curve."
+    model_answer: |
+      Plain descent steps by the gradient at the current point and forgets everything before. Momentum keeps a velocity: each step the gradient is added to it, scaled by a factor like 0.9 of the previous velocity, and the step follows the velocity. In a long narrow valley the gradient across the valley flips sign every step, so those contributions cancel out of the velocity and the zigzag shrinks, while the gradient along the valley points the same way every step, so it accumulates and the slow direction speeds up: that's why it reached the floor three times faster. Adam adapts the step to each coordinate. It keeps a running average of the gradient, like momentum, and a running average of the gradient squared, and it steps by the first divided by the square root of the second, so a coordinate with big gradients gets a proportionally smaller step and a coordinate with tiny gradients a larger one. Both averages start at zero and are corrected for that, which is why on the first step the ratio is exactly the gradient over its own size: a step of exactly the rate in each coordinate, whatever the gradient was. All three runs bounce at a floor for the same reason: a rate big enough to cross the landscape quickly is too big to settle into the bottom, so the last steps overshoot back and forth. The symptom is a fast fall and then a noisy flat line, and the fix is a schedule: shrink the rate as the run goes on, halving it every so many steps or decaying it smoothly, so the run starts fast and finishes precise. Next I'd rerun momentum or Adam with a decay schedule, watch the floor drop, and compare the held-out loss, since the training curve alone doesn't say which model is better.
+review_pool:
+  - review-predict-a-schedule
+  - review-mcq-what-adam-divides-by
+  - review-mcq-choose-from-the-curve
+  - review-momentum-step
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: momentum
+    description: "Add momentum to descent and say what it does in a long narrow valley"
+  - id: schedule
+    description: "Decay the learning rate on a schedule and say when that helps"
+  - id: adam
+    description: "Write Adam in a few lines and say what it adapts"
+  - id: choose
+    description: "Choose an optimizer and learning rate from a loss curve"
