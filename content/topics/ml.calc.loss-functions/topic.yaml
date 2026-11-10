@@ -1,17 +1,79 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.calc.loss-functions
 kind: topic
-status: planned
-title: Loss functions and their gradients
-summary: Squared error, cross-entropy with the sigmoid and the softmax, why logs appear, and the gradient of each loss.
-prerequisites:
-- ml.calc.derivatives
-- ml.math.probability-and-statistics
+status: ready
+title: "Loss functions and their gradients"
+summary: "Squared error, cross-entropy with the sigmoid and the softmax, why logs appear, and the gradient of each loss."
+prerequisites: [ml.calc.derivatives, ml.math.probability-and-statistics]
+packages: [numpy]
 estimated_minutes: 55
 rev: 1
 objectives:
-- Compute mean squared error and cross-entropy for predictions and targets.
-- Say why a probability model uses log loss rather than squared error.
-- Differentiate each loss with respect to the prediction.
-- Read a loss curve and say whether training is working.
+  - "Compute mean squared error and cross-entropy for predictions and targets."
+  - "Say why a probability model uses log loss rather than squared error."
+  - "Differentiate each loss with respect to the prediction."
+  - "Read a loss curve and say whether training is working."
+# Linked, never copied or embedded: Michael Nielsen's book is CC BY-NC 3.0;
+# 3Blue1Brown's videos are under the standard YouTube licence; NumPy's
+# documentation is under the NumPy licence (BSD-3-Clause).
+resources:
+  - title: "Neural Networks and Deep Learning, chapter 3, the section The cross-entropy cost function (Michael Nielsen)"
+    url: https://neuralnetworksanddeeplearning.com/chap3.html#the_cross-entropy_cost_function
+    type: reading
+    use: link
+    license: CC BY-NC 3.0 (linked, not copied)
+  - title: "3Blue1Brown: Neural networks (Grant Sanderson), chapter 2: Gradient descent, how neural networks learn (the cost function)"
+    url: https://www.3blue1brown.com/topics/neural-networks
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not copied)
+  - title: "numpy.clip (the NumPy developers)"
+    url: https://numpy.org/doc/stable/reference/generated/numpy.clip.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+practice:
+  - example-two-losses-and-their-gradients
+  - parsons-cross-entropy
+  - mcq-why-log-loss
+  - predict-mse-and-its-gradient
+  - mcq-reading-two-curves
+  - fill-cross-entropy
+  - write-softmax
+prove:
+  build: build-loss-functions
+  debug: debug-loss-report
+  explain:
+    prompt: |
+      A teammate is training a spam filter, whose output is the probability that a message is spam, with mean squared error, "because it worked for the house-price model". The loss falls slowly, and the model's confident mistakes never seem to get corrected. In your own words: what does squared error measure, and when is it the right loss? What does cross-entropy measure, and why do logs appear in it? What is the gradient of cross-entropy with respect to the sigmoid's input score, and why does that explain the stuck confident mistakes? And how would you read the training and held-out loss curves to tell whether the fixed model is learning?
+    rubric:
+      - id: mse
+        required: true
+        description: "Mean squared error is the average squared miss between prediction and target; it's the loss for predicting numbers (regression), where a miss of 2 should cost four times a miss of 1."
+      - id: cross-entropy
+        required: true
+        description: "Cross-entropy is minus the log of the probability the model gave the right answer, averaged; the log turns the product of independent probabilities into a sum, and it punishes confident wrong answers hard (minus log 0.01 is 4.6, where squared error would say about 1)."
+      - id: gradient
+        required: true
+        description: "With a sigmoid output and cross-entropy, the gradient of the loss with respect to the score is p - y (per example): the log's derivative 1/p and the sigmoid's p(1 - p) cancel, so a confident wrong answer gets a large gradient; with squared error the sigmoid's derivative p(1 - p) stays in and is nearly zero exactly when p is near 0 or 1, so confident mistakes barely move."
+      - id: curves
+        required: false
+        description: "Both curves falling means learning; training falling while held-out rises means overfitting (stop early or regularize); a two-class cross-entropy stuck near 0.693, which is log 2, means the model is doing no better than guessing a half."
+    model_answer: |
+      Mean squared error is the average of the squared gaps between what the model predicted and the true value. It's the right loss when the target is a number, like a price, because a miss of 2 should cost four times a miss of 1 and the gradient, 2 times the miss over n, pulls harder the further off you are. A spam filter predicts a probability, and the loss for that is cross-entropy: for each message, minus the log of the probability the model gave to the right answer, averaged over the messages. The log is there because the probability of getting a whole set of independent messages right is a product, and a log turns that product into a sum you can average and differentiate; it also makes confidence expensive in the right way, since minus log of 0.01 is about 4.6 while squared error would charge about 1 for the same confident mistake. The gradient explains the stuck mistakes. With a sigmoid turning a score into p, the derivative of cross-entropy with respect to the score comes out to p minus y: the log's 1 over p and the sigmoid's p times 1 minus p cancel. A message the model calls 99 percent spam that isn't gets a gradient of 0.99, a hard shove. With squared error the sigmoid's derivative p times 1 minus p stays in the product, and it is nearly zero when p is near 0 or 1, which is precisely when the model is confidently wrong, so those examples barely move. For the curves: if the training loss and the loss on held-out messages both fall, it's learning; if training keeps falling while held-out turns up, it's memorizing the training set and should stop early or be regularized; and a two-class cross-entropy sitting at 0.69, which is log 2, means it's doing no better than guessing a half for everything.
+review_pool:
+  - review-predict-cost-of-confidence
+  - review-mcq-p-minus-y
+  - review-mcq-stuck-at-log-two
+  - review-mse
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: mse
+    description: "Compute mean squared error and its gradient"
+  - id: cross-entropy
+    description: "Compute cross-entropy for sigmoid and softmax outputs, and say why the logs are there"
+  - id: gradient
+    description: "Differentiate a loss with respect to the prediction or the score, and know the sigmoid-cross-entropy gradient is p - y"
+  - id: curves
+    description: "Read training and held-out loss curves and say whether training is working"
