@@ -2,13 +2,13 @@ id: review-mcq-a-dead-layer
 type: mcq
 rev: 1
 prompt: |
-  You raise the learning rate from 0.5 to 50. After a few steps the loss sits at 0.69 and stays there, and every hidden unit's `z1` is negative for every example. What happened?
+  You raise the learning rate from 0.5 to 5. After a few steps the loss sits at 0.69 and stays there, and every hidden unit's `z1` is negative for every example. What happened?
 choices:
-  - 'The huge steps pushed every hidden unit''s scores below zero; all the masks are zero, so no gradient reaches `W1` or `b1`, and the output can only learn a constant, which is guessing (`log 2` is 0.693)'
   - 'The network has converged; 0.69 is the floor for XOR'
   - 'Nothing is wrong with the units; the learning rate just needs to be larger still'
   - 'The gradient check must have been wrong'
-answer: 0
+  - 'The big steps pushed every hidden unit''s scores below zero, so the masks are all zero and nothing behind them can learn'
+answer: 3
 explanation: |
-  A dead unit is one whose ReLU is off for every example, and a rate of 50 can kill the whole layer in one step. With every mask zero, `dz1` is zero, the first layer never changes, and the only thing still learning is `b2`, which settles at the loss of guessing a half. XOR's floor is near zero, as the worked example showed at rate 0.5.
+  A dead unit is one whose ReLU is off for every example, and a rate of 5 is enough to kill the whole layer within a few steps. With every mask zero, `dz1` is zero, the first layer never changes, and the only thing still learning is `b2`, which settles at the loss of guessing a half. XOR's floor is near zero, as the worked example showed at rate 0.5.
 skills: [train]

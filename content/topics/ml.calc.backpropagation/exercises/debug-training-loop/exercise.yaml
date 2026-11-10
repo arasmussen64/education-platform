@@ -11,5 +11,5 @@ prompt: |
   predictions [0. 1. 1. 0.]
   ```
 
-  It has two bugs, both in `backward`. Run it: the first is a shape error at `dW1`, because `X @ dz1` multiplies a 4-by-2 matrix by a 4-by-4 one; the first layer's weight gradient is the input **transposed** times `dz1`, like `h.T @ dz2` a layer later. Fix that and it runs, but the loss doesn't reach the floor and the predictions stay wrong: `dz1` multiplies by `h`, ReLU's **value**, where it should multiply by ReLU's **derivative**, the mask `z1 > 0`.
+  It has two bugs, both in `backward`. Run it: the first is a shape error at `dW1`, because `X @ dz1` multiplies a 4-by-2 matrix by a 4-by-4 one; the first layer's weight gradient is the input **transposed** times `dz1`, like `h.T @ dz2` a layer later. Fix that and it runs, and even seems to learn: the loss ends at 0.005 instead of 0.001 and the first prediction prints as 0.01 instead of 0. It gets that close because `h` and the mask agree wherever a unit is off and differ only in size where it is on. The remaining bug: `dz1` multiplies by `h`, ReLU's **value**, where it should multiply by ReLU's **derivative**, the mask `z1 > 0`.
 skills: [backward, train]

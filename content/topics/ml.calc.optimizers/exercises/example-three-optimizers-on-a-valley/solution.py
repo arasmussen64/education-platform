@@ -25,7 +25,7 @@ def momentum(p, rate, beta, steps):
 
 def plain_decayed(p, rate, steps):
     for step in range(steps):
-        p = p - rate * 0.5 ** (step // 20) * grad(p)
+        p = p - rate * 0.5 ** (step // 100) * grad(p)
     return p
 
 

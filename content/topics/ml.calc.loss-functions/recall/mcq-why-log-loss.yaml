@@ -4,11 +4,11 @@ rev: 1
 prompt: |
   A model outputs a probability through a sigmoid. Why train it with cross-entropy rather than mean squared error?
 choices:
-  - 'Confident wrong answers cost a lot (`-log 0.01` is 4.6 where squared error says about 1), and the gradient with respect to the score is `p - y`, which stays large when the model is confidently wrong; under squared error the sigmoid''s derivative multiplies in and vanishes exactly then'
   - 'Cross-entropy is always a smaller number, so training finishes sooner'
+  - 'Its gradient with respect to the score is `p - y`, which stays large when the model is confidently wrong; under squared error the sigmoid''s derivative multiplies in and vanishes exactly then'
   - 'Squared error can''t be computed for numbers between 0 and 1'
   - 'Cross-entropy has no gradient, so it can''t overshoot'
-answer: 0
+answer: 1
 explanation: |
-  Both losses can be computed; the difference is in the gradient. With cross-entropy the log's `1/p` cancels the sigmoid's `p(1 - p)`, leaving `p - y`: a model that says 0.99 for a true 0 gets a shove of 0.99. With squared error the `p(1 - p)` stays and is nearly 0 when `p` is near 0 or 1, so the most wrong examples move the least. That's Nielsen's learning slowdown.
+  Both losses can be computed; the difference is in the gradient. With cross-entropy the log's `1/p` cancels the sigmoid's `p(1 - p)`, leaving `p - y`: a model that says 0.99 for a true 0 gets a shove of 0.99. With squared error the `p(1 - p)` stays and is nearly 0 when `p` is near 0 or 1, so the most wrong examples move the least. That's Nielsen's learning slowdown. Confident wrong answers also cost far more under cross-entropy: `-log 0.01` is 4.6, where squared error says about 1.
 skills: [cross-entropy, gradient]

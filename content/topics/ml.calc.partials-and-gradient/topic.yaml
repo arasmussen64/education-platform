@@ -9,7 +9,7 @@ estimated_minutes: 50
 rev: 1
 objectives:
   - "Take a partial derivative by holding the other variables fixed."
-  - "Assemble the gradient as a vector, and check it against finite differences."
+  - "Assemble the gradient as a vector, and check it against a numeric gradient, one coordinate at a time."
   - "Say why the gradient points in the direction of steepest ascent, and what its length means."
   - "Read a contour picture: the gradient is perpendicular to the contours."
 # Linked, never copied or embedded: Khan Academy is CC BY-NC-SA 3.0 US;
@@ -57,9 +57,9 @@ prove:
         description: "Along a contour the function doesn't change, so grad . u = 0 for a direction u along the contour: the gradient is perpendicular to it (and descent, which steps against the gradient, crosses contours at right angles)."
       - id: check
         required: false
-        description: "Compare it with finite differences: nudge one weight at a time by a small h, both ways, and divide; a gap in the sixth decimal means the formula is wrong."
+        description: "Compare it with a numeric gradient: nudge one weight at a time by a small h, both ways, and divide (a finite difference); a gap bigger than a millionth means the formula is wrong."
     model_answer: |
-      With two weights, the loss is a surface over the plane of weights, and a partial derivative is its slope in one of the two directions: change w1 a little while w2 stays exactly where it is, and see how fast the loss moves; then the same for w2 with w1 fixed. The gradient is those two slopes stacked into a vector. To see why it points uphill fastest, ask how fast the loss changes if you walk in some unit direction u. The answer is the dot product of the gradient with u, and a dot product with a unit vector is largest when the vector points the same way as the gradient. So the gradient is the direction of steepest rise, and its length is that steepest rate: how much the loss changes per unit step in that direction. A contour line is a curve along which the loss doesn't change at all, so walking along it gives a rate of zero, which means the dot product of the gradient with that direction is zero: the gradient is perpendicular to the contour. Descent steps against the gradient, so it crosses contours at right angles, straight towards lower ones. If I thought a hand-written gradient was wrong, I'd check it numerically before anything else: nudge one weight at a time by a small h, up and down, divide the change in loss by 2h, and compare each entry with the formula. Anything beyond the sixth decimal is a bug in the formula, not in the training.
+      With two weights, the loss is a surface over the plane of weights, and a partial derivative is its slope in one of the two directions: change w1 a little while w2 stays exactly where it is, and see how fast the loss moves; then the same for w2 with w1 fixed. The gradient is those two slopes stacked into a vector. To see why it points uphill fastest, ask how fast the loss changes if you walk in some unit direction u. The answer is the dot product of the gradient with u, and a dot product with a unit vector is largest when the vector points the same way as the gradient. So the gradient is the direction of steepest rise, and its length is that steepest rate: how much the loss changes per unit step in that direction. A contour line is a curve along which the loss doesn't change at all, so walking along it gives a rate of zero, which means the dot product of the gradient with that direction is zero: the gradient is perpendicular to the contour. Descent steps against the gradient, so it crosses contours at right angles, straight towards lower ones. If I thought a hand-written gradient was wrong, I'd check it numerically before anything else: nudge one weight at a time by a small h, up and down, divide the change in loss by 2h, and compare each entry with the formula. A gap bigger than a millionth is a bug in the formula, not in the training.
 review_pool:
   - review-predict-partials
   - review-mcq-zero-gradient
@@ -72,7 +72,7 @@ skills:
   - id: partial
     description: "Take a partial derivative by holding the other variables fixed"
   - id: gradient
-    description: "Assemble the gradient and check it against finite differences, one coordinate at a time"
+    description: "Assemble the gradient and check it against a numeric gradient, one coordinate at a time"
   - id: direction
     description: "Read the gradient as the steepest-ascent direction and its length as the rate"
   - id: contours
