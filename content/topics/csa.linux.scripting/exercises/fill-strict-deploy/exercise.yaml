@@ -1,0 +1,12 @@
+id: fill-strict-deploy
+stage: fill_in
+runtime: lab
+rev: 1
+title: "Finish the deploy script"
+prompt: |
+  `~/bin/deploy VERSION` copies the app's source into `~/app/releases/VERSION` and points `~/app/current` at it, building in a temp directory it cleans up afterwards. Four pieces are missing, each marked `...`: the interpreter on the shebang line, the third strict-mode setting, the trap that removes the temp directory, and the destination the source is copied to. Fill them in with `nano ~/bin/deploy`, then run `deploy 1.4.0`, check `ls -l ~/app/current` and `cat ~/app/current/app.txt`, and run it again to confirm it doesn't break the second time. Finally run `shellcheck ~/bin/deploy` (it should say nothing). Then run the checks.
+hints:
+  - "The shebang should run bash: `#!/usr/bin/env bash`. The third strict-mode setting, after `-e` and `-u`, is `pipefail`, so the line is `set -euo pipefail`."
+  - "The trap removes the temp directory on exit: `trap 'rm -rf \"$tmp\"' EXIT`. Quote `$tmp`, as everywhere."
+  - "The source is copied into the temp directory before it's placed: `cp -r \"$app/src\" \"$tmp/build\"`. The next line copies `\"$tmp/build/.\"` into the release, so the destination here is `\"$tmp/build\"`."
+skills: [strict-mode, traps-cleanup, quoting-vars, idempotent]

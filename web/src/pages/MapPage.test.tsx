@@ -196,11 +196,11 @@ describe('more than one track', () => {
         name: 'Module 1: Linux and the command line',
       }),
     ).toBeInTheDocument()
-    // Module 1 has a ready topic (Shell essentials) and the rest of it is
-    // drafts, so the track is no longer "an outline so far".
+    // Module 1 has many ready topics now (and a couple still in draft), so
+    // the track is no longer "an outline so far". The exact draft count
+    // keeps changing as the module fills in, so we don't pin it here.
     expect(screen.queryByText(/an outline so far/)).not.toBeInTheDocument()
     expect(screen.getAllByText(/Ready/).length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText(/Draft/).length).toBeGreaterThanOrEqual(3)
     expect(screen.getAllByRole('heading', { name: 'Capstone' })).toHaveLength(3)
     expect(
       screen.getByRole('link', {

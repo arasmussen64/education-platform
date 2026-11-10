@@ -1,0 +1,33 @@
+# The checks for "Fix the fragile script": ShellCheck clean, a clean second
+# run, the spaced log in the archive, and an honest exit 2 when the logs
+# aren't there.
+checks:
+  - id: shellcheck-clean
+    description: "ShellCheck finds nothing to complain about (the quoting is fixed)."
+    command: shellcheck /home/learner/bin/archive-logs && echo "clean"
+    expect:
+      contains: clean
+  - id: runs-twice-clean
+    description: "The second run produces no error on standard error and exits 0 (mkdir -p)."
+    command: |
+      runuser -u learner -- /home/learner/bin/archive-logs > /dev/null 2>&1
+      err=$(runuser -u learner -- /home/learner/bin/archive-logs 2>&1 >/dev/null); code=$?
+      test "$code" = 0 && test -z "$err" && echo "clean second run"
+    expect:
+      contains: "clean second run"
+  - id: keeps-the-spaced-log
+    description: "The archive holds the log whose name has a space."
+    command: |
+      runuser -u learner -- /home/learner/bin/archive-logs > /dev/null
+      tar -tzf /home/learner/archive/logs.tgz
+    expect:
+      contains: "error report.log"
+  - id: missing-source-exits-2
+    description: "With the logs moved away, the script writes to stderr and exits 2."
+    command: |
+      mv /var/log/shop /tmp/shop-away
+      out=$(runuser -u learner -- /home/learner/bin/archive-logs 2>&1 >/dev/null); code=$?
+      mv /tmp/shop-away /var/log/shop
+      test "$code" = 2 && test -n "$out" && echo "exit 2 with a message"
+    expect:
+      contains: "exit 2"

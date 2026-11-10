@@ -1,0 +1,33 @@
+# The checks for "Build a safe deploy script": no version is an honest exit
+# 2, ShellCheck is clean, current points at the newest release, only three
+# releases are kept, and the oldest are gone.
+checks:
+  - id: no-version-exits-2
+    description: "Run with no version, it writes to stderr and exits 2."
+    command: |
+      out=$(/home/learner/bin/deploy 2>&1 >/dev/null); code=$?
+      test "$code" = 2 && test -n "$out" && echo "exit 2 with a message"
+    expect:
+      contains: "exit 2"
+  - id: shellcheck-clean
+    description: "ShellCheck finds nothing to complain about."
+    command: shellcheck /home/learner/bin/deploy && echo "clean"
+    expect:
+      contains: clean
+  - id: current-points-to-newest
+    description: "current is a symlink to the newest release deployed, 1.4."
+    command: readlink /home/learner/app/current
+    expect:
+      equals: "releases/1.4"
+  - id: readable-through-current
+    description: "The app's file is readable through current."
+    command: cat /home/learner/app/current/app.txt
+    expect:
+      contains: "shop app"
+  - id: keeps-three-releases
+    description: "Only the three newest release directories are kept; the older ones were pruned."
+    command: |
+      n=$(find /home/learner/app/releases -mindepth 1 -maxdepth 1 -type d | wc -l)
+      test "$n" -eq 3 && ! test -e /home/learner/app/releases/1.0 && ! test -e /home/learner/app/releases/1.1 && echo "three kept, oldest gone"
+    expect:
+      contains: "three kept"

@@ -1,0 +1,30 @@
+id: example-make-it-safe
+stage: worked_example
+runtime: lab
+rev: 1
+title: "The habits that make a script safe"
+prompt: |
+  Bash was built to keep going whatever happens, which is handy at a prompt and dangerous in a script. The walkthrough shows the five habits from the lesson, each as a tiny before-and-after you can see the effect of: strict mode catching a typo, `pipefail` catching a broken pipe, quoting surviving a space, a trap cleaning up after a failure, and an idempotent step that's safe to run twice. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "set -u turns a typo into an error, not a disaster"
+    lines: "1"
+    note: "The variable is `BUILD_DIR`, but the command reads `BUILD_DRI`. With `set -u`, that unset name is an error and the subshell stops before the dangerous line, with a non-zero status. This is the setting that stops a misspelled path becoming `rm -rf /`."
+  - label: "...without it, the typo is an empty string"
+    lines: "2"
+    note: "The same line without `set -u`: `${BUILD_DRI}` expands to nothing, so the message is about `/` and a real `rm -rf` there would have run. Bash said nothing. That's the default you're turning off."
+  - label: "pipefail makes a broken pipeline fail"
+    lines: "3"
+    note: "`cat` of a missing file fails, but `wc -l` after it succeeds, so by default the pipeline 'succeeds' with exit 0. `set -o pipefail` makes the pipeline take the failure, so a broken first stage isn't hidden."
+  - label: "quote the variable, survive the space"
+    lines: "4"
+    note: "`$name` unquoted is split at spaces, so a file called `my report.txt` becomes two arguments and the test is nonsense. `\"$name\"` is one argument. Quote every variable; it costs nothing and prevents a whole class of bug."
+  - label: "a trap cleans up however the script ends"
+    lines: "5"
+    note: "The script makes a temp directory, sets a `trap ... EXIT` to remove it, then fails on purpose. The trap still runs, so the temp directory is gone: cleanup you can trust whether the script finishes, fails under `set -e`, or is interrupted."
+  - label: "an idempotent append: run twice, write once"
+    lines: "6"
+    note: "`grep -qxF \"$line\" file || echo \"$line\" >> file` adds the line only if it's not already there. Run the loop twice and the file still has one line. A plain `>>` would have two. This is what makes a script safe to run again after it half-failed."
+  - label: "save the proof"
+    lines: "7"
+    note: "The idempotent file has one line, and the trap's temp directory is gone: two facts saved to `~/example/notes.txt` that the checks read back."
+skills: [strict-mode, quoting-vars, traps-cleanup, idempotent]
