@@ -1,0 +1,25 @@
+<Intro>
+
+Plain gradient descent works, and on the loss surfaces real models have it is slow: long narrow valleys make it zigzag across the steep direction while it crawls along the flat one, and one learning rate has to serve every weight. The optimizers in every training script are small changes to the update line that fix those two problems. This topic writes three of them, momentum, a learning-rate schedule and Adam, in a few lines each, and compares them on one valley, so the names in a training script become things the learner has built.
+
+The main resource is **Distill's _Why Momentum Really Works_**, an interactive article whose pictures of a valley you can drag are the best explanation of momentum there is; about 30 minutes. The Adam paper's page 2 has the algorithm in eight lines, the same eight you'll write. Watch for:
+
+- **The condition number:** how much steeper the steep direction is than the flat one, which is what makes a valley long and narrow.
+- **Velocity:** gradients that agree add up; gradients that flip cancel.
+- **Why the first Adam step is always the rate.**
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **The valley.** `x² + 100y²` is a hundred times steeper in `y` than in `x`. Plain descent needs a rate below `2 / 200 = 0.01` to stay stable in `y`, and at a safe rate like 0.005 `x` shrinks by only 1 percent a step: it crawls along the valley. From `(10, 1)` the loss after 100 steps is still 13.398, and after 200 it is 1.7951. At 0.015 the `y` step is `-2` times the old value and the loss after 10 steps is 104857654.4.
+- **Momentum** keeps a velocity: `v = beta * v + grad(p)`, then `p = p - rate * v`, with `beta` usually 0.9. Gradients that point the same way step after step (along the valley) accumulate into speed, up to `1 / (1 - beta)` = 10 times the plain step; gradients that flip sign (across the valley) cancel. Same rate, same start: the loss after 100 steps is 0.0009.
+- **A schedule** shrinks the rate as the run goes on: **step decay** `rate * factor ** (step // every)` (halve it every so many steps), or a smooth decay. A rate big enough to move fast can be too big to settle: at exactly 0.01 the `y` step is `-1` times the old value, so `y` bounces between `1` and `-1` forever and the loss sits at a floor of 100 (100.0309 after 200 steps); the same run with the rate halved every 20 steps settles and keeps falling (20.0042). Start fast, finish precise.
+- **Adam** keeps two running averages per coordinate, of the gradient (`m`, with `beta1 = 0.9`) and of its square (`s`, with `beta2 = 0.999`), corrects both for starting at zero (`m / (1 - beta1 ** t)`, `s / (1 - beta2 ** t)`), and steps by `rate * m_hat / (sqrt(s_hat) + eps)`. Dividing by the gradient's typical size makes each coordinate's step about `rate` times the sign of its gradient at first: steep coordinates don't dominate flat ones, and the very first step is exactly `rate` in every coordinate (`[9.7, 0.7]` from `(10, 1)` at 0.3, though the gradient was `[20, 200]`). On the valley at rate 0.3, thirty times plain descent's ceiling, the loss after 100 steps is 0.0029 and after 200 it is 0.0.
+- **Reading the curves.** Falling fast then flat near zero: done. Falling fast then bouncing at a floor: the rate is too big to settle; decay it. Falling slowly and steadily: the rate is too small, or the valley is narrow; try momentum or Adam. Climbing: too large for any of them; cut it.
+- **Choosing.** Adam with its default `0.9, 0.999` and a rate of `1e-3` is the usual first try for a network; momentum with decay often ends lower once tuned; plain descent is the baseline you compare them with. The learning rate matters more than the choice among them.
+- **In machine learning:** `torch.optim.SGD(momentum=0.9)`, `torch.optim.Adam` and the schedulers are these lines; the checkpoint trains last topic's network with one of them.
+
+</Recap>

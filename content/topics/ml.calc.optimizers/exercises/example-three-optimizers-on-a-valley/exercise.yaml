@@ -1,0 +1,31 @@
+id: example-three-optimizers-on-a-valley
+stage: worked_example
+rev: 1
+title: "Three optimizers on one valley"
+prompt: |
+  This program runs plain descent, momentum, a decaying rate and Adam on the valley `x² + 100y²` from the same start, and prints the loss each reaches after 10, 50, 100 and 200 steps, three points of a zigzag, a rate that diverges, a rate that bounces forever until it's decayed, and Adam's first step. Press **Run**, then read how each part works.
+steps:
+  - label: "The valley"
+    lines: "4-9"
+    note: "`x² + 100y²` is a hundred times steeper in `y` than in `x`: a long narrow valley running along the `x` axis, with gradient `[2x, 200y]`. The ratio of the two steepnesses, 100, is what makes plain descent struggle: the steep direction sets the largest safe rate, `2 / 200 = 0.01`, and at that rate the flat direction barely moves."
+  - label: "Plain descent and momentum"
+    lines: "12-23"
+    note: "Plain descent is the loop from the descent topic. Momentum adds one line: a velocity `v` that keeps `beta` of its old value and adds the gradient, and the step follows `v` instead of the gradient. Along the valley the gradients agree and pile up in `v`; across it they alternate and cancel."
+  - label: "A decaying rate, and Adam"
+    lines: "32-42"
+    note: "`plain_decayed` (just above) halves the rate every 20 steps: `0.5 ** (step // 20)`. Adam keeps two running averages per coordinate, `m` of the gradient and `s` of its square; both start at zero, so both are divided by `1 - beta ** t` to correct for that; the step is `m_hat` over the square root of `s_hat`, so each coordinate's step is scaled by its own typical gradient size."
+  - label: "Crawling against running"
+    lines: "46-48"
+    note: "Same start, same safe rate of 0.005. Plain descent kills `y` at once but shrinks `x` by one percent a step: its loss is still 13.398 after 100 steps and 1.7951 after 200. Momentum's velocity along the valley builds up to ten times the plain step, and its loss after 100 steps is 0.0009."
+  - label: "The zigzag"
+    lines: "49"
+    note: "Three points of plain descent at 0.009, just under the ceiling: `y` flips sign every step (`-0.8`, `0.64`, `-0.512`) while `x` creeps from 10 to 9.5. That's the picture: bouncing between the walls, crawling along the floor."
+  - label: "Too large a rate"
+    lines: "50"
+    note: "At 0.015 the `y` step multiplies the old value by `1 - 0.015 * 200 = -2`: each step lands twice as far up the far wall, and after ten steps the loss is 104857654.4. The steep direction sets the ceiling, and that ceiling is what momentum and Adam work around."
+  - label: "Bouncing at a floor, and a schedule"
+    lines: "51-52"
+    note: "At exactly 0.01 the `y` step multiplies by `-1`: `y` bounces between 1 and -1 forever and the loss can never drop below 100 (100.0309 after 200 steps). Halving the rate every 20 steps lets `y` settle and the run keep falling (20.0042). A rate that's right for the start can be wrong for the end; a schedule serves both."
+  - label: "Adam"
+    lines: "53-54"
+    note: "Adam at rate 0.3, thirty times plain descent's ceiling, is safe because it divides each coordinate's step by that coordinate's gradient size: its first step is exactly 0.3 in both coordinates, `[9.7, 0.7]`, though the gradient was `[20, 200]`. Its loss is 0.0029 after 100 steps and 0.0 after 200."
