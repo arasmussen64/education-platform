@@ -57,7 +57,9 @@ CHECKER_VERSION = "1"
 
 # A check's command gets this long; a lab shouldn't need more.
 CHECK_TIMEOUT_SECONDS = 30
-BUILD_TIMEOUT_SECONDS = 900
+# A systemd lab's first layer installs a lot; on a busy CI runner, with
+# several builds at once, a quarter of an hour wasn't always enough.
+BUILD_TIMEOUT_SECONDS = 1800
 APPLY_TIMEOUT_SECONDS = 300
 # systemd boots in a second or two; a slow machine gets a lot longer.
 BOOT_TIMEOUT_SECONDS = 90
@@ -532,6 +534,34 @@ def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
     return report
 
 
+def first_of_each_topic(targets: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The first lab of every topic, in order: one build each warms the layer
+    the topic's labs share."""
+    seen: set[str] = set()
+    firsts: list[tuple[str, str]] = []
+    for topic, exercise in targets:
+        if topic not in seen:
+            seen.add(topic)
+            firsts.append((topic, exercise))
+    return firsts
+
+
+def warm_images(
+    targets: list[tuple[str, str]], say: Callable[[str], None] = print
+) -> None:
+    """Builds the first lab of each topic, one at a time, before a parallel
+    run. A topic's labs share their heavy first layer, so after one build
+    the rest come from the cache; built four at once from cold, they each
+    install the same packages and can run past the build timeout."""
+    for topic, exercise in first_of_each_topic(targets):
+        say(f"warming {topic} with {exercise}...")
+        try:
+            build_image(load_lab(topic, exercise))
+        except Exception as error:  # noqa: BLE001 - the parallel run reports it
+            detail = str(error).splitlines()[0] if str(error) else ""
+            say(f"  {type(error).__name__}: {detail}")
+
+
 def cmd_test(args: argparse.Namespace) -> int:
     if args.all:
         targets = find_labs()
@@ -545,6 +575,7 @@ def cmd_test(args: argparse.Namespace) -> int:
     else:
         # Docker runs the containers side by side; each lab's output is
         # printed whole when it finishes, so the runs don't interleave.
+        warm_images(targets)
         reports = []
         with ThreadPoolExecutor(max_workers=jobs) as pool:
             for report in pool.map(lambda t: test_quietly(*t), targets):
