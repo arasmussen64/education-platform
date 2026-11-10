@@ -1,16 +1,85 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.nn.convolution
 kind: topic
-status: planned
+status: ready
 title: "Convolutions: a layer that reads images"
-summary: A 2-D cross-correlation by hand, a kernel as a feature detector, padding and stride, why a convolutional layer has far fewer parameters than a dense one on an image, pooling, and the forward and backward pass of a small convolutional layer checked numerically.
-prerequisites:
-- ml.nn.backward-layers
+summary: "A 2-D cross-correlation by hand, a kernel as a feature detector, padding and stride, why a convolutional layer has far fewer parameters than a dense one on an image, pooling, and the forward and backward pass of a single-channel convolutional layer checked numerically."
+prerequisites: [ml.nn.backward-layers]
+packages: [numpy]
 estimated_minutes: 60
 rev: 1
 objectives:
-- Compute a 2-D cross-correlation by hand and in code, and say what an edge-detecting kernel does.
-- Count the parameters of a convolutional layer against a dense layer on the same image, and say where the saving comes from.
-- Implement the forward and backward pass of a single-channel convolutional layer and gradient-check it.
-- Say what pooling and stride do to the shape and to what the network can see.
+  - "Compute a 2-D cross-correlation by hand and in code, and say what an edge-detecting kernel does."
+  - "Count the parameters of a convolutional layer against a dense layer on the same image, and say where the saving comes from."
+  - "Implement the forward and backward pass of a single-channel convolutional layer and gradient-check it."
+  - "Say what padding, stride and pooling do to the shape and to what the network can see."
+# Linked, never copied or embedded: Wikipedia is CC BY-SA 4.0; the video is
+# under YouTube's standard licence.
+resources:
+  - title: "3Blue1Brown: But what is a convolution? (the sliding window, image kernels from the 8-minute mark, and why blurring and edge detection are the same operation with different numbers)"
+    url: https://www.youtube.com/watch?v=KuXjwB4LzSA
+    type: video
+    use: link
+    license: Standard YouTube licence (linked, not embedded)
+  - title: "Wikipedia: Kernel (image processing) (the table of kernels with their pictures, and the Convolution section)"
+    url: https://en.wikipedia.org/wiki/Kernel_(image_processing)
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Wikipedia: Convolutional neural network (the Architecture section: convolutional layers, pooling, receptive field, shared weights)"
+    url: https://en.wikipedia.org/wiki/Convolutional_neural_network
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-a-layer-that-reads-images
+  - predict-a-cross-correlation
+  - mcq-what-an-edge-kernel-does
+  - parsons-correlate
+  - predict-shapes
+  - mcq-padding
+  - predict-parameter-counts
+  - mcq-where-the-saving-comes-from
+  - predict-a-conv-forward
+  - mcq-the-backward-pass
+  - predict-max-pooling
+  - mcq-what-pooling-and-stride-do
+  - fill-correlate2d
+  - write-max-pool
+prove:
+  build: build-a-convolutional-layer
+  debug: debug-a-layer-that-fails-its-gradient-check
+  explain:
+    prompt: |
+      A teammate has used a library's `Conv2d` for a year without looking inside. They ask: what does the layer actually compute, and why does the kernel `[[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]]` light up at vertical edges? Why does a convolutional layer have so few parameters next to a dense layer on the same image, and what does it give up for that? How does the gradient get back to a kernel's nine numbers when each is used at every position? And what do pooling and stride do to a network, and why would anyone throw resolution away? Answer in your own words.
+    rubric:
+      - id: cross-correlation
+        required: true
+        description: "The layer slides a small kernel over the image and at each position takes the sum of the kernel times the patch under it (a cross-correlation, what libraries call a convolution); a kernel is a pattern, and the output is large where the patch looks like it. The vertical-edge kernel subtracts the left column from the right, so it is zero on flat regions and horizontal edges, positive where the image brightens to the right and negative where it darkens."
+      - id: parameters
+        required: true
+        description: "The same k-by-k weights are used at every position (weight sharing) and each output cell reads only its patch (locality), so the count is kernels times k squared plus biases, independent of the image's size, while a dense layer needs a weight per input pixel per output. It gives up weights that differ by position, which is the right trade when a feature looks the same wherever it appears."
+      - id: backward
+        required: true
+        description: "Each kernel weight's gradient is the sum, over every position it was used at, of the output gradient there times the input pixel it multiplied: a cross-correlation of the input with the output gradient. The gradient for the input spreads each output cell's gradient back over its patch through the kernel's weights, and the gradient check (central differences) confirms both."
+      - id: shapes
+        required: true
+        description: "Padding keeps the output the same size and lets edge pixels be seen as often as the middle; stride skips positions and shrinks the output; max pooling keeps the strongest response in each window and halves the map. Shrinking makes each later cell see a larger region of the original, gives a little tolerance to shifts, and costs exact position and compute, which is the point: later layers want what is there more than exactly where."
+    model_answer: |
+      A convolutional layer slides a small grid of numbers, the kernel, over the image, and at every position multiplies the kernel by the patch of pixels under it and adds up the products: one number per position, so the output is another image, a little smaller. (Strictly this is a cross-correlation; a true convolution flips the kernel first, and since the kernel is learned the flip makes no difference, so libraries call it a convolution.) The kernel is a pattern, and the output says how much each patch looks like the pattern. The vertical-edge kernel has -1 down its left column, 0 in the middle and +1 down the right, so at each position it subtracts what is to the left from what is to the right. On a flat region the two cancel and the output is zero; on a horizontal edge the left and right columns are the same, so it is zero again; only where the image changes from left to right does it respond, positive if it brightens to the right and negative if it darkens, which is why it lights up at vertical edges and tells you which way they face. The parameters are so few because the same nine numbers are reused at every position, instead of a separate weight for each pair of input and output pixel: eight 3-by-3 kernels on a 28-by-28 image are 80 parameters where a dense layer to the same output size is 615,440, and the convolution's count does not grow with the image at all. That reuse is a bet that a feature looks the same wherever it appears, and it also means each output reads only its own patch, so a single layer cannot relate pixels far apart; what the layer gives up is position-specific weights, which for images are rarely wanted. The gradient reaches a shared weight by adding up: the weight at kernel position (i, j) multiplied the pixel offset by (i, j) at every output position, so its gradient is the sum over all positions of the output gradient there times that pixel, which is itself a cross-correlation of the input with the output gradient. The gradient for the input runs the other way: each output cell's gradient is spread back over the patch it read, scaled by the kernel's weights, and a cell that several outputs read gets their contributions added. A numeric gradient check, nudging each weight up and down and watching the loss, confirms both against the code. Pooling keeps the largest value in each 2-by-2 window and halves the map; stride makes the kernel skip positions and shrinks the map too; padding with a border of zeros does the opposite and keeps the size. Throwing resolution away buys three things: each cell of the next layer now sees a larger region of the original image, so patterns bigger than the kernel can be detected; a response survives a shift of a pixel, since the maximum of a window does not care where in the window it sat; and the computation shrinks. The cost is exact position, which later layers rarely need: they want to know a feature is there more than exactly where.
+review_pool:
+  - review-predict-an-edge
+  - review-mcq-parameters
+  - review-mcq-pool-backward
+  - review-correlate2d
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: cross-correlation
+    description: "Compute a 2-D cross-correlation by hand and in code, and say what an edge kernel does"
+  - id: parameters
+    description: "Count a convolutional layer's parameters against a dense layer's, and say where the saving comes from"
+  - id: conv-layer
+    description: "Implement the forward and backward pass of a single-channel convolutional layer and gradient-check it"
+  - id: shapes
+    description: "Say what padding, stride and pooling do to the shape and to what the network can see"

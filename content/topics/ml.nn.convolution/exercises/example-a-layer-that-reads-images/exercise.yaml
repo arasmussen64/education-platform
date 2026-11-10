@@ -1,0 +1,31 @@
+id: example-a-layer-that-reads-images
+stage: worked_example
+rev: 1
+title: "A layer that reads images"
+prompt: |
+  A kernel slid over a vertical edge, the parameter count against a dense layer, a convolutional layer with its backward pass checked against the sliding sum, against a shift and numerically, max pooling with its gradient, and a small network that learns to tell a horizontal bar from a vertical one. Press **Run**, then read how each part works.
+steps:
+  - label: "The sliding sum"
+    lines: "111-123"
+    note: "`correlate2d` pads the image with zeros if asked, works out how many positions the kernel fits in each direction, and at each position multiplies the kernel by the patch under it and adds up. That sum is what every library calls a convolution."
+  - label: "The layer and its backward pass"
+    lines: "126-168"
+    note: "Rather than loop over every output position, `forward` loops over the kernel's k-by-k offsets: the input shifted by (i, j) times weight (i, j), added into every output cell at once, one feature map per kernel. `backward` loops over the same offsets: weight (i, j)'s gradient sums the output gradient times the shifted input over every position, and each output gradient flows back onto the cells it read, through weight (i, j)."
+  - label: "Pooling and flattening"
+    lines: "171-210"
+    note: "`MaxPool2D` reshapes each map into 2-by-2 windows and keeps each window's maximum, remembering which cell won; `backward` gives the gradient to that cell and zero to the rest. `Flatten` turns maps into rows so a `Dense` layer can follow, and reshapes the gradient back."
+  - label: "An edge and two kernels"
+    lines: "231-238"
+    note: "The image is 0 on the left and 1 on the right. The vertical-edge kernel (-1 down its left column, +1 down its right) gives 3 at the two positions that straddle the edge and 0 elsewhere; its transpose, which compares rows, gives 0 everywhere, because every row is the same. Valid output is 6 - 3 + 1 = 4 wide; padding by 1 keeps 6; a stride of 2 halves it."
+  - label: "Parameters"
+    lines: "241-243"
+    note: "A dense layer from 784 pixels to 784 outputs is 784 squared weights plus 784 biases. Eight 3-by-3 kernels are 72 weights and 8 biases, whatever the image's size: the kernels are reused at every position and each output reads one patch."
+  - label: "The layer, checked three ways"
+    lines: "246-260"
+    note: "Kernel 1's map for image 2 equals `correlate2d` of that image with that kernel plus its bias. A bar two rows lower gives the same feature map two rows lower. And with the layer inside a small network (convolution, ReLU, pool, flatten, dense), both gradient checks pass: every parameter's gradient and the gradient handed back for the input agree with central differences."
+  - label: "Pooling a 4-by-4"
+    lines: "263-266"
+    note: "The four 2-by-2 windows have maxima 4, 8, 12 and 16. A gradient of 1 per pooled cell goes back to exactly those four cells; the other twelve get 0, because nudging them would not have changed the output."
+  - label: "Learning the bars"
+    lines: "269-280"
+    note: "A hundred noisy 8-by-8 images, half with a horizontal bar and half with a vertical one, at random positions. Four kernels, a pool and a dense layer, 114 parameters in all, trained by 300 steps of plain gradient descent on the whole batch, go from a loss of 0.89 to 0.03 and classify 96% of a hundred held-out images: the kernels have learned the bars, wherever they are."

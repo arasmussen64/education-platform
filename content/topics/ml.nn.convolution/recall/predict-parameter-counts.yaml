@@ -1,0 +1,22 @@
+id: predict-parameter-counts
+type: predict_output
+rev: 1
+prompt: |
+  A convolutional layer has one k-by-k kernel and one bias per output map; a dense layer has a weight per input per output and a bias per output. What does the program print?
+code: |
+  def conv_parameters(n_kernels, k):
+      return n_kernels * k * k + n_kernels
+  
+  
+  def dense_parameters(n_in, n_out):
+      return n_in * n_out + n_out
+  
+  
+  print(conv_parameters(16, 5), conv_parameters(32, 3))
+  print(dense_parameters(32 * 32, 10), dense_parameters(16 * 14 * 14, 10))
+expected_output: |
+  416 320
+  10250 31370
+explanation: |
+  Sixteen 5-by-5 kernels are 400 weights and 16 biases; thirty-two 3-by-3 kernels are 288 and 32. The dense layers are far bigger: 1,024 inputs to 10 outputs is 10,250, and the 16 maps of 14-by-14 that a small network flattens are 3,136 inputs, 31,370 parameters into 10 outputs. The dense layer at the end is where a small network's parameters live.
+skills: [parameters]

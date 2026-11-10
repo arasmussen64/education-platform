@@ -1,0 +1,20 @@
+id: predict-a-cross-correlation
+type: predict_output
+rev: 1
+prompt: |
+  A 3-by-3 image and a 2-by-2 kernel, slid over it with two loops: at each of the four positions, the sum of the kernel times the patch under it. What does the program print?
+code: |
+  import numpy as np
+  
+  image = np.array([[1.0, 2.0, 0.0], [0.0, 1.0, 3.0], [2.0, 0.0, 1.0]])
+  kernel = np.array([[1.0, 2.0], [0.0, -1.0]])
+  out = np.zeros((2, 2))
+  for y in range(2):
+      for x in range(2):
+          out[y, x] = (image[y:y + 2, x:x + 2] * kernel).sum()
+  print(out.tolist())
+expected_output: |
+  [[4.0, -1.0], [2.0, 6.0]]
+explanation: |
+  Top-left patch [[1, 2], [0, 1]]: 1 + 4 + 0 - 1 = 4. Top-right [[2, 0], [1, 3]]: 2 + 0 + 0 - 3 = -1. Bottom-left [[0, 1], [2, 0]]: 0 + 2 + 0 - 0 = 2. Bottom-right [[1, 3], [0, 1]]: 1 + 6 + 0 - 1 = 6. A 3-wide image and a 2-wide kernel give 3 - 2 + 1 = 2 positions each way.
+skills: [cross-correlation]

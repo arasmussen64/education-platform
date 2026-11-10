@@ -1,0 +1,14 @@
+id: review-mcq-pool-backward
+type: mcq
+rev: 1
+prompt: |
+  Max pooling has no parameters. In the backward pass, where does a pooled cell's gradient go?
+choices:
+  - 'To the one input cell that was its window''s maximum; the others get zero, since they didn''t affect the output'
+  - 'Spread equally over the window''s four cells, since each of them was a candidate for the maximum and should learn to be the one that wins next time'
+  - 'To all four cells, scaled by their values'
+  - 'Nowhere: a layer with no parameters has nothing to learn, so it stops the gradient'
+answer: 0
+explanation: |
+  The output was the maximum, so nudging any other cell of the window (by less than the gap) changes nothing: their derivative is zero. The winner's derivative is one, so it receives the whole gradient. The layer has no parameters of its own, but the gradient must still pass through it to reach the convolution underneath.
+skills: [shapes]

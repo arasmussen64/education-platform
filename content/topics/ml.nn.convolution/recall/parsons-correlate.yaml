@@ -1,0 +1,18 @@
+id: parsons-correlate
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to slide a 2-by-2 kernel over a 3-by-3 image and print the 2-by-2 output `[[4.0, 6.0], [10.0, 12.0]]`. One line is a decoy that doesn't belong.
+lines:
+  - 'import numpy as np'
+  - 'image, kernel = np.arange(9.0).reshape(3, 3), np.array([[0.0, 1.0], [1.0, 0.0]])'
+  - 'out = np.zeros((image.shape[0] - 1, image.shape[1] - 1))'
+  - 'for y in range(out.shape[0]):'
+  - '    for x in range(out.shape[1]):'
+  - '        out[y, x] = (image[y:y + 2, x:x + 2] * kernel).sum()'
+  - 'print(out.tolist())'
+distractors:
+  - '        out[y, x] = (image[x:x + 2, y:y + 2] * kernel).sum()'
+explanation: |
+  The output's size comes from the image's, so the image and kernel come first, then the empty output, then the two loops over output positions with the multiply-and-sum inside, then the print. The decoy swaps y and x in the slice, which transposes the image: on this image the result would be [[4.0, 10.0], [6.0, 12.0]].
+skills: [cross-correlation]

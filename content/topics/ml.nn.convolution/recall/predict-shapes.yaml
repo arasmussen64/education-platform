@@ -1,0 +1,19 @@
+id: predict-shapes
+type: predict_output
+rev: 1
+prompt: |
+  `output_size` gives the height (or width) of a convolution's output from the input size, the kernel size, the padding and the stride. What does the program print?
+code: |
+  def output_size(n, k, padding=0, stride=1):
+      """The height (or width) of the output when a k-wide kernel slides over n pixels."""
+      return (n + 2 * padding - k) // stride + 1
+  
+  
+  print(output_size(28, 3), output_size(28, 3, padding=1), output_size(28, 5, padding=2))
+  print(output_size(28, 3, stride=2), output_size(32, 2, stride=2))
+expected_output: |
+  26 28 28
+  13 16
+explanation: |
+  A 3-wide kernel over 28 pixels fits in 26 places; padding by 1 adds two pixels and brings it back to 28, as padding by 2 does for a 5-wide kernel. A stride of 2 takes every other position: (28 - 3) // 2 + 1 = 13, and a 2-wide kernel with stride 2 over 32 pixels tiles it exactly, 16 times.
+skills: [shapes]
