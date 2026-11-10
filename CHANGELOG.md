@@ -495,6 +495,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Process: Claude merges its own pull requests once CI passes, under standing permission from the owner.
 - Roadmap: the "prove it" checks, topic states and gating move from Phase 2 into Phase 1.
 
+### Fixed (content)
+
+- The helpers-module build's dice test rolls 200 times, not 10: its known-wrong range (0 to 6) passed ten rolls one run in five, and stopped a merge when it did.
+- **Thirty-three corrections from a cold review of every Python Foundations topic**, the prose the checker can't prove, read by three reviewers who ran every doubtful claim under Python 3.14. The largest: a review question built on an error message Python no longer prints for the mistakes its answer named (rebuilt on the message it does print, `'(' was never closed`, pointing at the line where the bracket was opened); two worked examples whose highlighted line ranges had drifted from their solutions; a note about `lambda` moved to the clip it describes; the tracebacks in the error-reading topic now carry the caret lines 3.14 draws; the debug exercise _Top three and first match_ sorts descending in its starter, so its three bugs are three; and first-use jargon is now defined where it appears (off-by-one error, flag, mutually exclusive, `str(...)`, `len(...)`). Plus smaller slips: `**` groups right to left, `round` doesn't pad zeros, which topic returns to shared inner lists, which line a note points at.
+
+### Fixed (tests)
+
+- The progress tests ask what state a topic is in at the end of their fixtures' day instead of at the real time of the run; four days after that day, a topic proved in the fixtures became "fading" (its first review had come due) and one test failed on every branch.
+- The map and topic page tests run at the end of their fixtures' day too (only `Date` is faked, so the timers the page tests wait on stay real). Four days after that day, at noon UTC, the topic they prove became due for review, "Learned" turned into "Fading", and every pull request's web check failed at once.
+
+### Changed (CI)
+
+- The Labs workflow splits the labs by topic across four machines (`labcheck test --all --shard I/4`, every fourth topic each) instead of running all eighty on one, which took a quarter of an hour and was the whole wait for every lab pull request; a last job still named Labs passes only when every share did, so nothing that waits for "Labs" changes. Actions minutes are free for a public repository, so four machines cost nothing more.
+
 ### Fixed (lab checker)
 
 - `labcheck test --all --jobs N` builds the first lab of each topic on its own before the parallel run, so the heavy first layer a topic's labs share is built once instead of four times at once; and a build may take up to 30 minutes instead of 15. On a busy CI runner, twelve builds had run out of time.
+- The memory report lab's check of the available line allows the few megabytes by which two readings of MemAvailable a moment apart differ on a busy machine; it had failed on CI once for exactly that.
+- A lab may take up to four minutes to finish booting instead of 90 seconds. With the shared layers warmed first, every lab's containers boot at the same time, and the cloud-init lab whose first boot runs apt against a broken user data had twice run past 90 seconds on CI while the rest of the run competed for the runner.
+- The CPU lab that shares the CPU gives the throttled service up to ten seconds to show a rising throttle count, instead of one; on a busy CI runner the spinner had gone a whole second without being scheduled, so nothing had climbed.
+- When a lab doesn't finish booting in time, the checker now lists the systemd jobs that were still running, so a boot that hangs on CI says which unit it was waiting for.
+- A lab may take up to eight minutes to finish booting, and when it doesn't, the error also carries the last forty journal lines of each unit still starting. The cloud-init debug lab sat in `cloud-final.service` past four minutes on CI with nothing to say why.
+- In a parallel run (`labcheck test --all --jobs N`), a lab the checker gave up on in the crowd (a boot that didn't finish, a build or an apply script that ran out of time) is retried once on its own, after the others; a check that fails or a wrong fix that passes is never retried. Four CI runs today were lost to one lab that boots in seconds alone and hangs beside three others.
+- The triage report lab's run-queue check hands the learner's script a `vmstat` with fixed numbers (r 7, b 3) instead of trusting the real one, which reads the whole machine rather than the container: on a busy CI runner the blocked column was 1 or more, and the known-wrong fix that prints it passed the check by luck once, stopping the merge of #98.
+- The memory report lab's swap line is compared with the checker's own reading to within 64 MB, as its available line already was: both read the whole machine a moment apart, and on a CI runner where a neighbouring lab was filling memory the swap in use moved between the two readings. The swap total, the likely mistake, still fails.
