@@ -1,0 +1,18 @@
+id: review-predict-a-sequence
+type: predict_output
+rev: 1
+prompt: |
+  The likelihood and log-likelihood of the flips `1, 1, 0, 1` at two biases. What does the program print?
+code: |
+  import numpy as np
+  
+  flips = np.array([1, 1, 0, 1])
+  for p in (0.5, 0.75):
+      likelihood = np.prod(np.where(flips == 1, p, 1 - p))
+      print(p, round(float(likelihood), 4), round(float(np.log(likelihood)), 4))
+expected_output: |
+  0.5 0.0625 -2.7726
+  0.75 0.1055 -2.2493
+explanation: |
+  At `p = 0.5` every flip has probability 0.5, so the sequence has `0.5**4 = 0.0625`. At `p = 0.75` the three heads have 0.75 each and the tail 0.25: `0.75**3 * 0.25 = 0.1055`, larger, as it should be for the bias that matches the fraction of heads. The logs are negative numbers that keep the same order.
+skills: [likelihood]
