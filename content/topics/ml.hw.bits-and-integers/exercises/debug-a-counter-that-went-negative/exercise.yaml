@@ -1,0 +1,14 @@
+id: debug-a-counter-that-went-negative
+stage: debug
+rev: 1
+title: "A counter that went negative"
+prompt: |
+  The program counts how often each pixel value appears in 320 pixels, then counts the pixels whose `FLAG_DARK` bit is set. It should print:
+
+  ```
+  counts of 3 and 200: 160 120
+  dark pixels: 160
+  ```
+
+  It has two bugs. Run it: the count for value 3 is -96, because the histogram is an **int8** array, which holds at most 127; the 160 increments wrapped round. Counts need room: `int64`. Fix that, and the dark-pixel count is 0, because the test compares the masked value with 1: `f & FLAG_DARK` keeps the bit in its own place, so it is 4 when the flag is set, never 1. Test it against 0, `(f & FLAG_DARK) != 0`, or just `if f & FLAG_DARK`.
+skills: [fixed-width, bits]

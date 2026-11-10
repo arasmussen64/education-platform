@@ -1,0 +1,24 @@
+<Intro>
+
+Every number a model touches is stored in a fixed handful of **bits**, and the handful decides what can go wrong: a counter that turns negative, a dataset that is eight times bigger in memory than on disk, a flag test that never fires. This topic is the whole number's half of that story: how a **byte** holds a value, why a **fixed-width integer** wraps around, why Python's own `int` doesn't, how to size an array before you load it, and the bit operations that masks and flags are made of. The next topic does the same for fractions.
+
+The main resource is **NumPy's user guide page on data types**: the table of integer and float types with their ranges, and the short section on overflow; about 15 minutes. The Python documentation's section on bitwise operations is the reference for `&`, `|`, `^`, `~` and the shifts, and Wikipedia's _Two's complement_ explains the top bit. Watch for:
+
+- **The ranges**: int8 is -128 to 127, uint8 is 0 to 255, and so on up to 64 bits.
+- **Overflow**: what NumPy does when a result doesn't fit.
+- **The top bit** counts as negative in a signed type.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Bits and bytes.** A **bit** is a 0 or a 1; a **byte** is eight of them, with place values 128, 64, 32, 16, 8, 4, 2, 1, so it holds 0 to 255, 256 patterns. **Binary** writes the bits (`0b100101` is 37: 32 + 4 + 1); **hexadecimal** writes one digit per four bits, so a byte is two hex digits and `0xFF` is 255. `bin`, `hex`, `int(text, 2)` and `f"{n:08b}"` convert.
+- **Fixed-width integers.** A NumPy `int8` has 8 bits, so 256 patterns, read in **two's complement**: the top bit counts as -128, so `01111111` is 127, `10000000` is -128 and `11111111` is -1. Arithmetic that leaves the range **wraps**: on int8, 127 + 1 is -128, and on uint8 (0 to 255), 255 + 1 is 0. The worked example's `[120, 125, 127] + 5` comes out `[125, -126, -124]`. NumPy arrays wrap **silently**; NumPy scalars warn; storing an out-of-range number into an array raises. Python's own `int` has no fixed width and grows as needed (`2 ** 100` is fine), at the cost of speed. The default integer dtype of a NumPy array depends on the platform (64-bit CPython uses int64; the browser's Python is 32-bit), so name a dtype whenever it matters.
+- **Sizing an array** is multiplication: elements times bytes per element (`np.dtype(name).itemsize`; `array.nbytes` for a real array). A thousand images of 784 pixels is 784,000 bytes as uint8, 3,136,000 as float32 and 6,272,000 as float64. Choose the smallest dtype whose **range** holds the column (counts to 65,535 fit uint16; a byte holds a pixel), and do sums in a wider type (`dtype=np.int64`) so they don't wrap.
+- **Bit operations** work on the patterns: `&` keeps the bits set in both (`0b1010 & 0b0110` is `0b0010`), `|` sets (`0b1110`), `^` flips where they differ (`0b1100`), `~` inverts every bit, `<<` and `>>` move the pattern left or right, which multiplies or divides by two per step (`1 << 10` is 1024, `1024 >> 3` is 128). `n & 1` tests the lowest bit (odd or even). A **mask** is a pattern with the bits you care about set: with `READ, WRITE, EXEC = 1, 2, 4`, `perms & WRITE` is nonzero when writing is allowed, `perms |= WRITE` grants it, `perms &= ~EXEC` revokes running. Packing three bytes into one int is shifts and ors, unpacking is shifts and masks: `(packed >> 8) & 0xFF` is the middle byte.
+- **A mask keeps the bit in place:** `flags & 4` is 4 when the flag is set and 0 when it isn't, never 1, so test it against 0 (`(flags & 4) != 0`) or use its truthiness (`if flags & 4:`), never `== 1` or `== True`. Python, unlike C, binds `&` tighter than `==`, so `flags & 4 == 0` means `(flags & 4) == 0`; the parentheses are for the reader.
+- **In machine learning** (names you'll meet later): an image dataset is uint8 on disk and becomes float32 the moment you divide by 255, four times the memory; a token counter in int32 wraps at about 2.1 billion; **quantization** stores weights as int8 to cut memory and bandwidth, which is this topic applied to a model; and attention masks are arrays of 0s and 1s doing the job of a bitmask.
+
+</Recap>

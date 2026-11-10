@@ -1,0 +1,14 @@
+id: mcq-testing-a-flag
+type: mcq
+rev: 1
+prompt: |
+  `FLAG_DARK = 4`. A loop with `if (flags & FLAG_DARK) == 1:` never takes the branch, even for pixels where the flag is on. Why?
+choices:
+  - 'Because `==` binds tighter than `&` in Python, so the test is really `flags & (FLAG_DARK == 1)`, which is always 0'
+  - 'Because the mask keeps the bit in place: `flags & 4` is 4 when set, never 1; test against 0 or use truthiness'
+  - 'Because `&` on NumPy values returns an array rather than a plain number, and an array is never equal to 1'
+  - 'Because the flag value 4 is not a power of two and masks must be'
+answer: 1
+explanation: |
+  `flags & 4` keeps only bit 2, in its own place, so the result is 4 when the flag is on and 0 when it is off; it is never 1, and the branch never runs. Compare with 0, or write `if flags & FLAG_DARK:`, since any nonzero value is true. The precedence story is C's, not Python's: Python binds `&` tighter than `==`, so even without parentheses the test would have been `(flags & 4) == 1`.
+skills: [bits]

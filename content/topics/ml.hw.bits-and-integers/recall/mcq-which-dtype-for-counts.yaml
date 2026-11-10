@@ -1,0 +1,14 @@
+id: mcq-which-dtype-for-counts
+type: mcq
+rev: 1
+prompt: |
+  A column holds the number of events per user, between 0 and about 50,000. Which dtype should it have, and why not the others?
+choices:
+  - '`int8`, the smallest, so the column takes the least memory'
+  - '`float32`, because counts may need to be averaged later and a float column saves the conversion when the time comes'
+  - '`uint16`: 0 to 65,535 in two bytes; int8 wraps at 127, and float32 costs four bytes and isn''t exact for big counts'
+  - '`int64`, always, since memory is cheap and nothing else is safe'
+answer: 2
+explanation: |
+  The right dtype is the smallest whose range holds the column: counts are non-negative and stay under 65,535, so uint16 fits in two bytes. int8 would wrap at 127, which is the negative-count bug. float32 would spend twice the memory and loses exactness above 16,777,216. int64 is safe but four times the size of uint16; it is the right choice for the sums, not the stored column.
+skills: [sizing]
