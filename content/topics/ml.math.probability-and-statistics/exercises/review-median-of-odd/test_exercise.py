@@ -7,5 +7,5 @@ def test_three_values():
 
 
 def test_five_values():
-    """Prints 5 for [3, 9, 1, 7, 5], the middle once sorted."""
-    assert run_with({"values": [3, 9, 1, 7, 5]}) == "5\n"
+    """Prints 3 for [3, 9, 1, 7, 2], the middle once sorted."""
+    assert run_with({"values": [3, 9, 1, 7, 2]}) == "3\n"
