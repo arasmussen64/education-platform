@@ -254,7 +254,7 @@ def test_a_lab_the_checker_gave_up_on_is_retried_alone(monkeypatch, capsys) -> N
     monkeypatch.setattr(labcheck, "test_quietly", fake_quietly)
 
     exit_code = labcheck.cmd_test(
-        argparse.Namespace(all=True, jobs=2, topic=None, exercise=None)
+        argparse.Namespace(all=True, jobs=2, topic=None, exercise=None, shard=None)
     )
 
     out = capsys.readouterr().out
@@ -278,3 +278,18 @@ def test_a_timeout_while_proving_counts_as_the_checker_giving_up(monkeypatch) ->
     report = labcheck.test_quietly("t", "slow")
     assert report.gave_up
     assert report.problems[0].startswith("labcheck: timed out:")
+
+
+def test_shards_split_the_topics_and_cover_every_lab() -> None:
+    targets = [(f"t{i}", f"lab{j}") for i in range(5) for j in range(2)]
+    shards = [labcheck.shard_of(targets, f"{i}/4") for i in range(4)]
+    # Every lab lands in exactly one shard, whole topics at a time.
+    assert sorted(sum(shards, [])) == sorted(targets)
+    assert shards[0] == [("t0", "lab0"), ("t0", "lab1"), ("t4", "lab0"), ("t4", "lab1")]
+    assert shards[3] == [("t3", "lab0"), ("t3", "lab1")]
+
+
+def test_a_shard_that_isnt_i_of_n_is_refused() -> None:
+    for bad in ("4/4", "-1/4", "half", "1/0"):
+        with pytest.raises(LabError):
+            labcheck.shard_of([("t", "lab")], bad)

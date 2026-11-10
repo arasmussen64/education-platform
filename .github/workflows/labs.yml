@@ -1,13 +1,18 @@
 # Proves every lab's contract in Docker (ADR-0018), on pull requests that
-# touch the labs or the checker. It's the slowest job, so it doesn't run for
-# a change to the web app or the docs. The pristine container must not pass,
-# the solution must, every known-wrong fix must not.
+# touch the labs or the checker. It's the slowest check (a quarter of an
+# hour for eighty labs on one machine), so the labs are split by topic
+# across four machines, each warming the layer its topics share once; and
+# it doesn't run for a change to the web app, the docs, or a Python topic:
+# every lab lives under a cloud topic (csa.*). The pristine container must
+# not pass, the solution must, every known-wrong fix must not. The last job,
+# "Labs", is the one check everything else waits for; it passes only when
+# every share did.
 name: Labs
 
 on:
   pull_request:
     paths:
-      - "content/topics/**"
+      - "content/topics/csa.*/**"
       - "tools/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -21,14 +26,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  labs:
-    name: Labs
+  share:
+    name: Labs (share ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Change the N in --shard below with this list.
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       # setup-uv only publishes exact version tags (no floating "v10").
       - uses: astral-sh/setup-uv@v10.3.3
       - name: Install Python and dependencies
         run: uv sync --locked
-      - name: Prove every lab's contract in Docker
-        run: uv run python tools/labcheck.py test --all --jobs 4
+      - name: Prove this share of the labs' contracts in Docker
+        run: uv run python tools/labcheck.py test --all --jobs 4 --shard ${{ matrix.shard }}/4
+
+  labs:
+    name: Labs
+    needs: share
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every share must have passed
+        run: |
+          echo "the shares finished with: ${{ needs.share.result }}"
+          test "${{ needs.share.result }}" = "success"

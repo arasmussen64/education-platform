@@ -12,12 +12,14 @@ Run from the repository root:
     python -m uv run python tools/labcheck.py stop  csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py test  csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py test  --all --jobs 4
+    python -m uv run python tools/labcheck.py test  --all --jobs 4 --shard 0/4
 
 `start` builds the lab's image and starts its container; `check` runs the
 checks and prints the result to paste into the lab's box on the site; `stop`
 removes the container. `test` is for authors and CI: the pristine container
 must not pass, the reference solution must pass, every known-wrong fix must
-fail at least one check. `--jobs` tests several labs at once.
+fail at least one check. `--jobs` tests several labs at once; `--shard I/N`
+takes every Nth topic, which is how CI splits the run across machines.
 
 A lab whose exercise.yaml says `lab: { init: systemd }` boots systemd as PID 1
 in a privileged container, and the checker waits for the boot to finish before
@@ -611,9 +613,32 @@ def warm_images(
             say(f"  {type(error).__name__}: {detail}")
 
 
+def shard_of(targets: list[tuple[str, str]], shard: str) -> list[tuple[str, str]]:
+    """The labs of every Nth topic, for `--shard I/N`. CI splits the run
+    across machines by topic rather than by lab, so each machine builds the
+    layer a topic's labs share only once; with about five labs a topic the
+    shares come out even enough."""
+    try:
+        index_text, count_text = shard.split("/", 1)
+        index, count = int(index_text), int(count_text)
+    except ValueError:
+        raise LabError(f"--shard wants I/N, like 0/4, not {shard!r}") from None
+    if count < 1 or not 0 <= index < count:
+        raise LabError(f"--shard {shard} is out of range: I runs from 0 to N-1")
+    topics = sorted({topic for topic, _ in targets})
+    mine = set(topics[index::count])
+    return [(topic, exercise) for topic, exercise in targets if topic in mine]
+
+
 def cmd_test(args: argparse.Namespace) -> int:
+    if args.shard and not args.all:
+        raise LabError("--shard goes with --all")
     if args.all:
         targets = find_labs()
+        if args.shard:
+            targets = shard_of(targets, args.shard)
+            topics = sorted({topic for topic, _ in targets})
+            print(f"shard {args.shard}: {len(targets)} labs in {', '.join(topics)}\n")
     elif args.topic and args.exercise:
         targets = [(args.topic, args.exercise)]
     else:
@@ -680,6 +705,10 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=1,
         help="how many labs to test at once (CI uses 4)",
+    )
+    test.add_argument(
+        "--shard",
+        help="with --all: this machine's share of the topics, as I/N (CI: 0/4 to 3/4)",
     )
     test.set_defaults(run=cmd_test)
 
