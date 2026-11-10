@@ -1,0 +1,24 @@
+<Intro>
+
+A processor can add two numbers in a nanosecond and wait a hundred of them for the numbers to arrive. Where a value sits, and what sits next to it, decides more about speed than the arithmetic does. This topic is the ladder of memory from registers to disk, the **cache line** that makes nearby bytes almost free, how NumPy lays an array out so that one loop order walks memory in sequence and the other jumps across it, which indexing operations share memory and which copy, and why the simplest operations are bounded by **bytes moved** rather than by the processor.
+
+The main resource is **NumPy's user guide page on copies and views**, which says exactly which operations return a view of the same memory and which make a copy, with `base` and `shares_memory` to check; about 15 minutes. The ndarray reference's section on internal memory layout has strides and C against Fortran order, and Wikipedia's _CPU cache_ article has the hierarchy and the line. Watch for:
+
+- **`base`** and `np.shares_memory`: how to tell a view from a copy.
+- **Basic indexing views, advanced indexing copies**: the rule in one line.
+- **Cache misses** and why a miss costs a hundred hits.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **The memory hierarchy.** **Registers** hold the few values being operated on. **Caches** (L1, L2, L3) are small, fast copies of recently used memory: tens of kilobytes about a nanosecond away, up to tens of megabytes a dozen or two away. **RAM** is gigabytes at roughly a hundred nanoseconds; **SSD** around a hundred microseconds; disk and network, milliseconds. Each step down is roughly ten times slower and far larger (the numbers are approximate and vary by machine; the shape of the ladder doesn't). Memory moves between RAM and the caches in **cache lines**, 64 bytes on common processors: reading one float64 brings its seven neighbours along.
+- **How NumPy stores an array:** one flat block of bytes plus a **shape** and **strides**, the bytes to step along each axis. In the default **C order** (row-major) the last axis is contiguous: a `(3, 4)` float64 array has strides `(32, 8)`, and element `[i, j]` sits at `32 * i + 8 * j` bytes from the start; row 1 occupies bytes 32 to 63. `a.T` is the same block with strides swapped to `(8, 32)`: a **view**, free to make, but no longer **contiguous** (`a.flags["C_CONTIGUOUS"]` is `False`).
+- **View or copy.** Slices and transposes are views: `a[:, ::2]` is the same block with strides `(32, 16)`, `np.shares_memory` is `True`, and writing through it changes `a`. Boolean and integer indexing (`a[a > 5]`, `a[[0, 2]]`) can't be described by strides, so they **copy**, and writing into the copy changes nothing else. `np.ascontiguousarray(a)` copies into a fresh contiguous block when a routine needs one.
+- **Locality.** In C order a row's elements are neighbours and a column's are a whole row apart. Walking a matrix **by rows** uses every byte of each cache line; walking it **by columns** fetches a line for one element and, if the cache holds fewer lines than there are rows, evicts it before its neighbours are needed. The worked example's cache simulation (64 lines, least recently used) walks a 256 by 256 float64 matrix: 8,192 misses by rows, once per line; 65,536 by columns, once per element. Same arithmetic, eight times the memory traffic. `a.sum(axis=1)` walks rows; `a.sum(axis=0)` is written by NumPy to walk rows too, so prefer the library's reductions to your own loops.
+- **Bytes moved.** A `(1000, 1000)` float64 array is 8,000,000 bytes. `grid.sum()` reads 8 MB; `grid + 1` reads 8 MB and writes 8 MB into a new block; `grid += 1` writes in place. For such operations the processor does one or two steps per byte, so **memory bandwidth** (gigabytes per second between RAM and the processor) bounds the speed: they are **memory-bound**, and doubling the data doubles the time whatever the processor. Operations with many steps per byte, a matrix multiply above all, are **compute-bound**; the next topics are about them.
+- **In machine learning** (names you'll meet later): a batch's layout (channels first or last) is chosen so the hot loop walks contiguous memory; PyTorch's `.contiguous()` is `ascontiguousarray`; a GPU has its own hierarchy (registers, shared memory, device memory) with the same shape; and most of a training step's time outside the matrix multiplies is memory-bound, which is why fusing operations, which moves the bytes once instead of three times, is a speed-up in its own right.
+
+</Recap>

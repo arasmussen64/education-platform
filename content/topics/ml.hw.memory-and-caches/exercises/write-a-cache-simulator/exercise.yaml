@@ -1,0 +1,24 @@
+id: write-a-cache-simulator
+stage: write
+rev: 1
+title: "A cache you can count"
+prompt: |
+  Write `misses(shape, order, lines_in_cache, floats_per_line=8)`: walk a float64 matrix of that shape element by element, by `"rows"` (all of row 0, then row 1, ...) or by `"columns"`, through a cache that holds `lines_in_cache` cache lines and evicts the least recently used; an element's line is `(row, column // floats_per_line)`; count the misses. `collections.OrderedDict` keeps insertion order, `move_to_end` marks a line as just used, and `popitem(last=False)` drops the oldest. Then print:
+
+  ```python
+  for order in ("rows", "columns"):
+      print(order, misses((128, 128), order, 32))
+  print(misses((8, 8), "columns", 8))
+  ```
+
+  ```
+  rows 2048
+  columns 16384
+  8
+  ```
+
+  By rows, every line is used fully: 128 × 128 / 8. By columns with 32 lines for 128 rows, every element misses. With a cache big enough for one line per row, columns cost no more than rows.
+hints:
+  - "On a hit, move the line to the end so it counts as recently used; on a miss, add it and, if the cache is now too big, pop the oldest from the front."
+  - "The two visiting orders differ only in which loop is outer."
+skills: [locality]

@@ -1,16 +1,81 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.hw.memory-and-caches
 kind: topic
-status: planned
-title: Memory, caches and locality
-summary: The memory hierarchy from registers to disk, why touching nearby bytes is cheap and far-apart bytes dear, how NumPy lays an array out in memory (row-major order, strides, views against copies), and why looping over the wrong axis is slow.
-prerequisites:
-- ml.hw.bits-and-integers
+status: ready
+title: "Memory, caches and locality"
+summary: "The memory hierarchy from registers to disk, why touching nearby bytes is cheap and far-apart bytes dear, how NumPy lays an array out in memory (row-major order, strides, views against copies), and why looping over the wrong axis is slow."
+prerequisites: [ml.hw.bits-and-integers]
+packages: [numpy]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Name the levels of the memory hierarchy and the rough cost of each, and say what a cache line is.
-- Explain how NumPy stores a 2-D array in memory, read strides, and tell a view from a copy.
-- Predict which loop order over a matrix touches memory in sequence, and show the difference by counting cache lines.
-- "Say why a model's weights and activations are measured in bytes moved, not only in operations."
+  - "Name the levels of the memory hierarchy and the rough cost of each, and say what a cache line is."
+  - "Explain how NumPy stores a 2-D array in memory, read strides, and tell a view from a copy."
+  - "Predict which loop order over a matrix touches memory in sequence, and show the difference by counting cache lines."
+  - "Say why a model's weights and activations are measured in bytes moved, not only in operations."
+# Linked, never copied or embedded: NumPy's documentation is under the NumPy
+# licence (BSD-3-Clause); Wikipedia is CC BY-SA 4.0.
+resources:
+  - title: "NumPy user guide: Copies and views (views, the base, indexing that copies, and how to tell them apart)"
+    url: https://numpy.org/doc/stable/user/basics.copies.html
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+  - title: "NumPy reference: the ndarray, section Internal memory layout of an ndarray (one block of bytes, strides, C and Fortran order)"
+    url: https://numpy.org/doc/stable/reference/arrays.ndarray.html#internal-memory-layout-of-an-ndarray
+    type: reading
+    use: link
+    license: BSD-3-Clause (NumPy documentation)
+  - title: "Wikipedia: CPU cache (the Overview, and the sections on cache entries and cache misses)"
+    url: https://en.wikipedia.org/wiki/CPU_cache
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+practice:
+  - example-rows-columns-and-cache-lines
+  - mcq-what-a-cache-line-is
+  - mcq-the-latency-ladder
+  - predict-strides
+  - predict-view-or-copy
+  - parsons-write-through-a-view
+  - mcq-which-loop-order
+  - mcq-bytes-moved
+  - fill-strides-by-hand
+  - write-a-cache-simulator
+prove:
+  build: build-a-layout-toolkit
+  debug: debug-an-offset-and-a-copy
+  explain:
+    prompt: |
+      A teammate's feature code sums a big matrix column by column and is eight times slower than the same sum row by row; another "fixed" an array by writing into a slice of it and found the original unchanged, then found it changed the next time; a third asks why doubling a model's batch size didn't double its speed on a memory-bound step. In your own words: the levels of the memory hierarchy and roughly what each costs, and what a cache line is; how NumPy stores an array in memory, what strides are, and what makes an indexing operation a view or a copy; why the loop order mattered and how you would show it; and why bytes moved, not only operations, decide how fast a step runs.
+    rubric:
+      - id: hierarchy
+        required: true
+        description: "Registers, then caches (L1, L2, L3; kilobytes to megabytes, a few nanoseconds), then RAM (gigabytes, about a hundred nanoseconds), then SSD and disk (microseconds to milliseconds): each level roughly ten times slower and far larger. Memory moves in cache lines of 64 bytes, so reading one float64 brings its seven neighbours into the cache."
+      - id: layout
+        required: true
+        description: "An array is one block of bytes plus a shape and strides, the bytes to step along each axis; in C order the last axis is contiguous and element [i, j] sits at i times stride0 plus j times stride1. Slices and transposes are views (same block, different strides; np.shares_memory is True; writing through them changes the base); boolean and integer indexing copy."
+      - id: locality
+        required: true
+        description: "In C order a row's elements are neighbours and a column's are a whole row apart, so walking by rows uses every byte of each cache line and walking by columns fetches a line for one element and evicts it before its neighbours are needed; a cache simulation shows the miss count multiplied by the floats per line (8 for float64)."
+      - id: bytes-moved
+        required: true
+        description: "Simple operations (sum, add, copy) do one or two operations per byte, so memory bandwidth, not arithmetic, bounds their speed: memory-bound. Doubling the batch doubles the bytes to move, so such a step takes twice as long; only operations with many arithmetic steps per byte (matrix multiplies) gain from more compute."
+    model_answer: |
+      Memory is a ladder. At the top are the registers, the few values the processor is operating on right now. Below them are the caches, small fast copies of recently used memory: L1 is tens of kilobytes and about a nanosecond away, L2 a few hundred kilobytes and a few nanoseconds, L3 megabytes and ten or twenty nanoseconds. Below the caches is RAM, gigabytes, about a hundred nanoseconds away, and below that solid-state storage at around a hundred microseconds and spinning disk at milliseconds. Each step down is roughly ten times slower and far larger. Memory moves between RAM and the caches in cache lines of 64 bytes, so reading one eight-byte float brings its seven neighbours along, which is free if the code wants them next and wasted if it doesn't. A NumPy array is one flat block of bytes plus a shape and strides, where a stride is the number of bytes to step to the next element along an axis. In the default C order the last axis is contiguous: a 3 by 4 float64 array has strides of 32 and 8, and element [i, j] sits at 32 i plus 8 j bytes from the start. Transposing swaps the strides without touching the bytes, and slicing just changes the starting point and the strides, so both are views: they share memory with the original, np.shares_memory says so, and writing through them changes the original. Boolean and integer indexing can't be expressed with strides, so they copy, and writing into the copy changes nothing else. My second teammate was writing into a copy one time and a view the next; checking shares_memory would have told them which. The loop order mattered because of the lines: summing by rows walks the contiguous axis, so every byte of each 64-byte line fetched is used; summing by columns jumps a whole row at a time, fetches a line for one element and, with a cache smaller than the number of rows, evicts it before its neighbours are needed, so almost every element is a miss. A simulation of a small least-recently-used cache shows it: walking a 256 by 256 float64 matrix by rows through a 64-line cache misses 8,192 times, once per line, and by columns 65,536 times, once per element, eight times the memory traffic for the same arithmetic. That is also the answer about the batch size. A step like a sum, an add or a copy does one or two operations per byte, so its speed is bounded by how fast bytes can be moved, the memory bandwidth, not by how fast the processor can add. Doubling the batch doubles the bytes, so a memory-bound step takes twice as long. Only operations that do many arithmetic steps per byte they load, matrix multiplies above all, can use more compute instead, which is why they are the ones that get faster with a bigger batch or a bigger GPU.
+review_pool:
+  - review-predict-cache-misses
+  - review-mcq-a-free-transpose
+  - review-mcq-memory-bound
+  - review-strides
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: hierarchy
+    description: "Name the memory hierarchy's levels and rough costs, and say what a cache line is"
+  - id: layout
+    description: "Read an array's strides, and tell a view from a copy"
+  - id: locality
+    description: "Predict which loop order is cache-friendly, and show it by counting cache lines"
+  - id: bytes-moved
+    description: "Say why bytes moved bound a simple operation's speed"

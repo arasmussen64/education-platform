@@ -1,0 +1,16 @@
+id: parsons-write-through-a-view
+type: parsons
+rev: 1
+prompt: |
+  Put the lines in order to set the whole first row of a zero matrix to 7 by writing through a view of it, and print `7.0 True`. One line is a decoy that doesn't belong.
+lines:
+  - 'import numpy as np'
+  - 'a = np.zeros((3, 4), dtype=np.float64)'
+  - 'top_row = a[0]'
+  - 'top_row[:] = 7'
+  - 'print(a[0, 0], np.shares_memory(a, top_row))'
+distractors:
+  - 'top_row = a[0].copy()'
+explanation: |
+  `a[0]` is a view of the first row: the same bytes, so `top_row[:] = 7` writes into `a` and `shares_memory` is `True`. The decoy takes a copy, so the 7s land in a separate block and `a[0, 0]` stays 0.
+skills: [layout]

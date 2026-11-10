@@ -1,0 +1,19 @@
+id: predict-strides
+type: predict_output
+rev: 1
+prompt: |
+  The strides of a `(4, 5)` float32 array, its transpose, two slices of it, and a three-dimensional int16 array. What does the program print?
+code: |
+  import numpy as np
+  
+  a = np.zeros((4, 5), dtype=np.float32)
+  print(a.strides, a.T.strides)
+  print(a[::2].strides, a[:, 1:3].strides)
+  print(np.zeros((2, 3, 4), dtype=np.int16).strides)
+expected_output: |
+  (20, 4) (4, 20)
+  (40, 4) (20, 4)
+  (24, 8, 2)
+explanation: |
+  A float32 is 4 bytes, so stepping along a row is 4 bytes and stepping down a column is a whole row, 20. The transpose swaps the two. Taking every other row doubles the row stride to 40 and leaves the column stride alone; a column slice changes only where the view starts. For the int16 array, the last axis steps 2 bytes, the middle axis a row of 4 items (8), and the first axis a plane of 3 rows (24).
+skills: [layout]

@@ -1,0 +1,14 @@
+id: mcq-what-a-cache-line-is
+type: mcq
+rev: 1
+prompt: |
+  Reading a single float64 from RAM takes about a hundred nanoseconds; reading the float next to it right afterwards takes about one. Why?
+choices:
+  - 'Because the processor predicts the next address and fetches it in advance, which works for any access pattern, however scattered'
+  - 'Because RAM is faster for the second access of any value, as the capacitors holding it are already charged from the first read'
+  - 'Because NumPy keeps a copy of the last row it read in a Python list and serves the neighbour from there'
+  - 'Because memory moves in 64-byte cache lines: the first read brought the whole line, neighbour included, into the cache'
+answer: 3
+explanation: |
+  RAM and the caches exchange fixed-size lines, 64 bytes on common processors, never single values. The first read paid the RAM latency and copied the line, eight float64s, into the cache; the neighbour was already there. Prefetching exists but needs a pattern to predict; the line is why even a single miss helps its neighbours.
+skills: [hierarchy]
