@@ -8,6 +8,6 @@ def test_from_zero():
 
 
 def test_from_ten():
-    """From x = 10 it also ends at 3.0."""
+    """From x = 10, further away, thirty steps end at 3.01."""
     printed = run_with({"x": 10})
-    assert printed == "3.0\n", f"From x = 10 it should print 3.0. It printed:\n{printed}"
+    assert printed == "3.01\n", f"From x = 10 it should print 3.01. It printed:\n{printed}"
