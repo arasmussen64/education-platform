@@ -1,0 +1,20 @@
+id: write-max-pool
+stage: write
+rev: 1
+title: "Max pooling, forward and back"
+prompt: |
+  Write two functions for a batch of images `X` of shape `(n, h, w)`:
+
+  - `max_pool(X, size=2)`: pool over `size`-by-`size` windows and return the pooled array, shape `(n, h // size, w // size)`, and a boolean mask of the reshaped windows, shape `(n, h // size, size, w // size, size)`, that is `True` where a cell equals its window's maximum.
+  - `max_pool_backward(mask, grad_out)`: send each pooled cell's gradient, `grad_out` of shape `(n, h // size, w // size)`, back to the cell that won its window, zero everywhere else, as an array of the original shape `(n, h, w)`.
+
+  Reshaping to `(n, h // size, size, w // size, size)` groups each window's rows and columns together. The program prints:
+
+  ```
+  [[7.0, 8.0], [6.0, 9.0]]
+  [[0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 2.0], [0.0, 0.0, 4.0, 0.0], [3.0, 0.0, 0.0, 0.0]]
+  ```
+hints:
+  - "`windows.max(axis=(2, 4))` takes the maximum inside each window; compare `windows` with the pooled array (with `None` axes inserted) to find the winners."
+  - "`mask * grad_out[:, :, None, :, None]` puts each window's gradient on its winner; reshape back to `(n, h, w)`."
+skills: [shapes]

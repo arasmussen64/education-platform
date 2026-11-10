@@ -1,0 +1,46 @@
+id: build-a-convolutional-layer
+stage: build
+rev: 1
+title: "A convolutional layer"
+prompt: |
+  Starting from a blank editor, paste the module's `Dense`, `ReLU`, `Sequential`, `SoftmaxCrossEntropy`, `numeric_gradient` and `gradient_check` as they stand, then write:
+
+  - `correlate2d(image, kernel, padding=0, stride=1)`: the sliding sum over one image, with zero padding and a stride.
+  - `Conv2D(n_kernels, k, seed=0)`: kernels `W` of shape `(n_kernels, k, k)` drawn from `default_rng(seed).standard_normal` and divided by `k`, a bias `b` of zeros per kernel; `forward(X)` takes images `(N, H, W)` to maps `(N, n_kernels, H - k + 1, W - k + 1)`, kernel `q`'s map being `correlate2d(image, W[q]) + b[q]` for each image; `backward(grad_out)` sets `dW` and `db` and returns the gradient for `X`; `parameters()` and `gradients()` as in `Dense`.
+  - `MaxPool2D(size=2)`: keeps each window's maximum over maps `(N, C, H, W)`; `backward` sends each gradient to the cell that won.
+  - `Flatten`: maps to rows and back.
+  - `input_gradient_check(net, loss, X, y)`: the largest gap between the gradient `net.backward` returns for `X` and the numeric one.
+  - `make_bars(n, seed)`: `n` images of `rng.normal(0.0, 0.3, size=(n, 8, 8))` with `rng = default_rng(seed)`, labels `np.repeat([0, 1], n // 2)`; for each image in order, draw `at = rng.integers(1, 7)` and add 1.0 to row `at` for label 0 or column `at` for label 1.
+
+  Then print:
+
+  ```python
+  image = np.zeros((6, 6))
+  image[:, 3:] = 1.0
+  vertical = np.array([[-1.0, 0.0, 1.0], [-1.0, 0.0, 1.0], [-1.0, 0.0, 1.0]])
+  print(correlate2d(image, vertical)[0].tolist(), correlate2d(image, vertical, padding=1).shape, correlate2d(image, vertical, stride=2).shape)
+  rng = np.random.default_rng(0)
+  images = rng.standard_normal((5, 8, 8))
+  labels = rng.integers(0, 3, size=5)
+  net = Sequential([Conv2D(4, 3, seed=1), ReLU(), MaxPool2D(2), Flatten(), Dense(36, 3, seed=2)])
+  loss = SoftmaxCrossEntropy()
+  print(net.forward(images).shape, gradient_check(net, loss, images, labels) < 1e-6, input_gradient_check(net, loss, images, labels) < 1e-6, sum(p.size for p in net.parameters()))
+  X_train, y_train = make_bars(100, seed=1)
+  X_test, y_test = make_bars(100, seed=2)
+  net = Sequential([Conv2D(4, 3, seed=1), ReLU(), MaxPool2D(2), Flatten(), Dense(36, 2, seed=2)])
+  for step in range(300):
+      loss.forward(net.forward(X_train), y_train)
+      net.backward(loss.backward())
+      for param, grad in zip(net.parameters(), net.gradients()):
+          param -= 0.1 * grad
+  print(round(float((net.forward(X_test).argmax(axis=1) == y_test).mean()), 2))
+  ```
+
+  ```
+  [0.0, 3.0, 3.0, 0.0] (6, 6) (2, 2)
+  (5, 3) True True 151
+  0.96
+  ```
+
+  The checks test the sliding sum by hand with padding and stride, the layer's forward against `correlate2d`, its three gradients against central differences, pooling's forward and backward, the flatten round trip, the parameter count, and that the trained network reads nine in ten held-out bars.
+skills: [cross-correlation, parameters, conv-layer, shapes]

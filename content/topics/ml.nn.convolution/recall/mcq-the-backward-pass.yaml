@@ -1,0 +1,14 @@
+id: mcq-the-backward-pass
+type: mcq
+rev: 1
+prompt: |
+  A 3-by-3 kernel's weight W[0, 0] is used at every output position. What is its gradient, and how does the gradient reach the input?
+choices:
+  - 'The output gradient at the one position where W[0, 0] mattered most, since a weight can only have one gradient'
+  - 'The sum over every output position of the output gradient there times the input pixel W[0, 0] met: a correlation of the input with the output gradient; each output gradient is spread back onto its 3-by-3 patch through the kernel''s weights'
+  - 'The average of the output gradients, since the weight was shared equally among the positions and each position should count the same; the input gradient is the output gradient copied to every pixel of the patch, with no weights involved, because the weights belong to the kernel and not to the input'
+  - 'Zero, because the weight is shared and the contributions from different positions cancel'
+answer: 1
+explanation: |
+  A shared weight has one gradient that adds up every place it was used, as a Dense weight's gradient adds up every row of the batch. For offset (0, 0) that is the output gradient at each position times the pixel at that position, which is a cross-correlation. Going back, an input cell was read by up to nine output positions, each through a different weight, and its gradient is the sum of those. Nothing is averaged and nothing cancels.
+skills: [conv-layer]

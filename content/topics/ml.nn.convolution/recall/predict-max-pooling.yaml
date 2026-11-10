@@ -1,0 +1,19 @@
+id: predict-max-pooling
+type: predict_output
+rev: 1
+prompt: |
+  Max pooling a 4-by-4 with 2-by-2 windows by reshaping into windows and taking the maximum, then counting the cells that equal their window's maximum: the cells a gradient would go back to. What does the program print?
+code: |
+  import numpy as np
+  
+  X = np.array([[2.0, 7.0, 1.0, 0.0], [4.0, 3.0, 5.0, 8.0], [0.0, 1.0, 9.0, 2.0], [6.0, 0.0, 3.0, 3.0]])
+  windows = X.reshape(2, 2, 2, 2)
+  pooled = windows.max(axis=(1, 3))
+  print(pooled.tolist())
+  print(int((windows == pooled[:, None, :, None]).sum()))
+expected_output: |
+  [[7.0, 8.0], [6.0, 9.0]]
+  4
+explanation: |
+  The reshape groups the rows in pairs and the columns in pairs, so each window is a 2-by-2 block: the top-left block [[2, 7], [4, 3]] has maximum 7, then 8, 6 and 9. Exactly one cell per window matches its maximum here, so four cells would receive gradient and the other twelve none.
+skills: [shapes]

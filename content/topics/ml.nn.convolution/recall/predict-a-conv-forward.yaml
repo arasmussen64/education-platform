@@ -1,0 +1,20 @@
+id: predict-a-conv-forward
+type: predict_output
+rev: 1
+prompt: |
+  `Conv2D.forward` written out for one 3-by-3 image and two 2-by-2 kernels: a loop over the kernel's four offsets, each adding the image shifted by that offset times one weight. What does the program print?
+code: |
+  import numpy as np
+  
+  X = np.array([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]])
+  W = np.array([[[1.0, 0.0], [0.0, 1.0]], [[0.0, 1.0], [0.0, 0.0]]])
+  out = np.zeros((1, 2, 2, 2))
+  for i in range(2):
+      for j in range(2):
+          out += X[:, i:i + 2, j:j + 2][:, None] * W[None, :, i, j, None, None]
+  print(out.shape, out[0, 0].tolist(), out[0, 1].tolist())
+expected_output: |
+  (1, 2, 2, 2) [[6.0, 8.0], [12.0, 14.0]] [[2.0, 3.0], [5.0, 6.0]]
+explanation: |
+  The output is one image, two maps, 2-by-2 each. Kernel 0 has 1s on its diagonal, so each output cell is the pixel under the top-left plus the pixel under the bottom-right: 1 + 5, 2 + 6, 4 + 8, 5 + 9. Kernel 1 has a single 1 at offset (0, 1), so its map is the image shifted left by one: the pixel to the right of each position.
+skills: [conv-layer]

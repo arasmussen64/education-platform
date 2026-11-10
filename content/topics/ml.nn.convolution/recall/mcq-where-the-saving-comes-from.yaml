@@ -1,0 +1,14 @@
+id: mcq-where-the-saving-comes-from
+type: mcq
+rev: 1
+prompt: |
+  A dense layer from a 28-by-28 image to a 28-by-28 output has 615,440 parameters; eight 3-by-3 kernels have 80. Where does the saving come from, and what does it give up?
+choices:
+  - 'The same nine weights are used at every position (sharing) and each output reads only a 3-by-3 patch (locality); it gives up weights that differ by position, fine when a feature looks the same wherever it is'
+  - 'The kernels are smaller than the image, so the layer reads only the pixels under the kernel''s first placement and gives up the rest of the image; the saving comes from the pixels that are never read, which is fine when the subject is in the top-left corner'
+  - 'Convolutions are linear and dense layers aren''t, so the convolution needs fewer numbers'
+  - 'The eight kernels share one bias, which is where most of the saving is'
+answer: 0
+explanation: |
+  The dense layer has a separate weight for every pair of input pixel and output pixel. The convolution has nine weights per kernel, reused at all 676 positions, and each output looks at its own patch rather than the whole image. Every pixel is read, by every position whose patch covers it. Both layers are linear, and the biases are eight numbers either way.
+skills: [parameters]

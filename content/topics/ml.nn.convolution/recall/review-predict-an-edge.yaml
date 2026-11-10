@@ -1,0 +1,20 @@
+id: review-predict-an-edge
+type: predict_output
+rev: 1
+prompt: |
+  A 4-by-4 image that is dark on the left and bright on the right, and a 2-by-2 kernel that subtracts each left pixel from its right neighbour. What does the program print?
+code: |
+  import numpy as np
+  
+  image = np.array([[0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 1.0, 1.0]])
+  kernel = np.array([[-1.0, 1.0], [-1.0, 1.0]])
+  out = np.zeros((3, 3))
+  for y in range(3):
+      for x in range(3):
+          out[y, x] = (image[y:y + 2, x:x + 2] * kernel).sum()
+  print(out[0].tolist(), out.shape)
+expected_output: |
+  [0.0, 2.0, 0.0] (3, 3)
+explanation: |
+  A 2-wide kernel over 4 pixels gives 3 positions each way. In row 0, the first patch is all zeros and the last all ones, and both give 0 (the kernel's entries cancel on a flat patch); the middle patch straddles the edge, 1 - 0 in each of its two rows, so 2. The edge shows up as a column of 2s.
+skills: [cross-correlation]
