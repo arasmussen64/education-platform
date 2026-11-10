@@ -2,6 +2,14 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Multiple-choice answers no longer sit where they were written
+
+**The web app now shuffles a multiple-choice item's choices,** in a repeatable order seeded from the item's id, the way it already scrambles a Parsons problem's lines. The Module 4 review found every one of the module's 31 answers at position 0 (and the repository has 71 of 319 there, 198 at position 1); rotating them by hand fixed one module, and a shuffle in the one component that renders choices fixes every topic, the placement test's math ladder included, and stops the habit mattering again. `choice` in the recorded event is still the author's index, so nothing about the log or the follow-up logic changed; `choice_text` was already recorded beside it. Four tests cover the order (a permutation, stable per item, an answer written first lands in every position across items, a single choice is left alone), and the existing component tests pass unchanged because they click choices by their text.
+
+**Decision for you to review:** this was the one follow-up I said I'd make unless you'd rather keep file order. It's a small, reversible change in one component, and it serves the learner directly, so I made it without waiting. The data model doc no longer tells authors to vary where the answer sits.
+
+**Next:** whichever of Module 5 and the cloud track's Module 2 you prefer.
+
 ## 2026-11-10: A second pair of eyes on Module 4
 
 **Thirty-eight findings from two cold reviews of Module 4,** every one applied, plus a third pass they prompted. The reviewers read all 372 files, ran every program, every Parsons ordering, every debug stage and every quoted number, and found nothing wrong in an answer key, an expected output or a line of code; what they found was in the prose around it, which is what the checker can't see. The ones worth your own eye:

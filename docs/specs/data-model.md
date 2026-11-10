@@ -211,7 +211,7 @@ levels:                         # easiest first; at least 2
         explanation: "..."
 ````
 
-Item ids are unique across the whole diagnostic. The choices are shown in the order written, so vary where the answer sits. Events about a diagnostic use `diagnostic.<id>` as their `topic_id`.
+Item ids are unique across the whole diagnostic. As with every multiple-choice item, the app shows the choices in a repeatable shuffled order seeded from the item's id, so where the answer sits in the file doesn't matter; `choice` in the event is still the author's index. Events about a diagnostic use `diagnostic.<id>` as their `topic_id`.
 
 ### Exercises
 

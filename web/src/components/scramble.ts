@@ -1,7 +1,8 @@
-import type { ParsonsItem } from '../content/types.ts'
+import type { McqItem, ParsonsItem } from '../content/types.ts'
 
-// How a Parsons problem's lines get mixed up (ADR-0016). Kept apart from the
-// component so the component file exports only a component.
+// How a Parsons problem's lines get mixed up (ADR-0016), and the order a
+// multiple-choice item's choices are shown in. Kept apart from the components
+// so the component files export only components.
 
 /**
  * A small repeatable random-number generator, seeded from text, so an item
@@ -24,13 +25,29 @@ function seededRandom(seed: string): () => number {
 }
 
 /** Swaps two entries of a list, in place. */
-export function swap(list: string[], i: number, j: number): void {
+export function swap<T>(list: T[], i: number, j: number): void {
   const a = list[i]
   const b = list[j]
   if (a !== undefined && b !== undefined) {
     list[i] = b
     list[j] = a
   }
+}
+
+/**
+ * The order to show a multiple-choice item's choices in, as the author's
+ * indexes. Authors tend to write the right answer first and longest, so
+ * showing the choices as written gives it away; a shuffle seeded from the
+ * item's id puts it anywhere, and the same item looks the same every time it
+ * comes back. Answers are still recorded by the author's index.
+ */
+export function choiceOrder(item: McqItem): number[] {
+  const order = item.choices.map((_, index) => index)
+  const random = seededRandom(`${item.id}/choices`)
+  for (let i = order.length - 1; i > 0; i--) {
+    swap(order, i, Math.floor(random() * (i + 1)))
+  }
+  return order
 }
 
 /** The lines and decoys, mixed up, and never already in the right order. */
