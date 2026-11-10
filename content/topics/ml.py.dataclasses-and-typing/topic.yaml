@@ -1,15 +1,81 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.py.dataclasses-and-typing
 kind: topic
-status: planned
-title: Dataclasses and type hints
-summary: Records with @dataclass, and type hints that a checker can read.
-prerequisites:
-- ml.py.classes
+status: ready
+title: "Dataclasses and type hints"
+summary: "Records with @dataclass, and type hints that a checker can read."
+prerequisites: [ml.py.classes]
 estimated_minutes: 45
 rev: 1
 objectives:
-- Declare a record with @dataclass.
-- "Annotate parameters and return values, and read a checker's error."
-- "Say what type hints do and don't do when the program runs."
+  - "Declare a record with `@dataclass`."
+  - "Annotate parameters and return values, and read a checker's error."
+  - "Say what type hints do and don't do when the program runs."
+resources:
+  - title: "The Python Standard Library: dataclasses (Python Software Foundation), the opening example and the section on default values"
+    url: https://docs.python.org/3/library/dataclasses.html
+    type: reading
+    use: link
+    license: PSF License Version 2
+  - title: "The Python Standard Library: typing, the opening (Python Software Foundation)"
+    url: https://docs.python.org/3/library/typing.html
+    type: reading
+    use: link
+    license: PSF License Version 2
+practice:
+  - example-a-record-as-a-dataclass
+  - parsons-declare-a-point
+  - mcq-what-hints-do
+  - predict-dataclass-equality
+  - mcq-read-a-signature
+  - fill-annotate-area
+  - write-student-record
+prove:
+  build: build-order-lines
+  debug: debug-record-gone-wrong
+  explain:
+    prompt: |
+      A teammate asks why your code has this instead of a plain class or a dict:
+
+      ```python
+      @dataclass
+      class Reading:
+          sensor: str
+          value: float
+          unit: str = "C"
+
+      def average(readings: list[Reading]) -> float:
+          ...
+      ```
+
+      In your own words: what does `@dataclass` write for you that you'd otherwise type by hand? What do the hints like `value: float` and `-> float` do when the program runs, and what are they for if not that? And when would you still reach for a dict, or for a hand-written class?
+    rubric:
+      - id: generated
+        required: true
+        description: "@dataclass generates __init__ (one parameter per field, in order, with the defaults), a readable __repr__ and an __eq__ that compares field by field."
+      - id: runtime
+        required: true
+        description: "Hints change nothing when the program runs: Python doesn't check them, and Reading('a', 'not a number') is accepted. They're for readers and for tools (checkers and editors) that catch mistakes before running."
+      - id: when-dict
+        required: true
+        description: "A dict suits data whose keys aren't known in advance or that came in as JSON; a dataclass suits a record with fixed named fields; a hand-written class suits behaviour that needs its own __init__ or state that changes in complicated ways."
+      - id: defaults
+        required: false
+        description: "Mentions that fields with defaults must come after fields without, or that a mutable default like a list needs field(default_factory=list)."
+    model_answer: |
+      @dataclass looks at the field declarations and writes the boring methods for me: an __init__ that takes sensor, value and unit in that order with unit defaulting to "C"; a __repr__ that prints Reading(sensor='t1', value=21.5, unit='C'); and an __eq__ that says two readings are equal when all their fields are. That's twenty lines I don't write and can't get wrong. The hints, value: float and -> float, do nothing when the program runs: Python doesn't check them, so Reading("t1", "warm") is accepted and only fails later, if at all. They're documentation that tools can read: a type checker or an editor flags the mistake before the program runs, and a reader knows what average expects and returns without reading its body. I'd still use a dict for data whose keys I don't know in advance or that arrived as JSON and will be sent back as JSON, and a hand-written class when the object has real behaviour: an __init__ that does work, or state that changes in ways the generated methods wouldn't fit.
+review_pool:
+  - review-predict-defaults
+  - review-mcq-return-none
+  - review-temperature-record
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: dataclass
+    description: "Declare a record with @dataclass, with defaults in the right place"
+  - id: hints
+    description: "Annotate parameters and return values, and read a signature's hints"
+  - id: runtime
+    description: "Say what type hints do and don't do when the program runs"
+  - id: record-methods
+    description: "Give a dataclass a method that uses its fields"
