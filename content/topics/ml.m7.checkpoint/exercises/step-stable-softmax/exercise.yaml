@@ -1,0 +1,13 @@
+id: step-stable-softmax
+stage: fill_in
+rev: 1
+title: "Step 4: keep the softmax finite"
+prompt: |
+  `exp(1000)` overflows, so the softmax of a row with a logit of 1,000 comes out NaN unless something is subtracted from every logit first. Replace the `...` with each row's largest logit, kept as a column so that it broadcasts across the row, so the program prints:
+
+  ```
+  [[0.269, 0.731], [0.269, 0.731]]
+  ```
+hints:
+  - "`logits.max(axis=1, keepdims=True)` is one maximum per row, shaped `(rows, 1)`, which broadcasts across each row."
+  - "Subtracting the same number from every logit in a row leaves the ratios of the exponentials unchanged, so the probabilities are the same; only the overflow goes."

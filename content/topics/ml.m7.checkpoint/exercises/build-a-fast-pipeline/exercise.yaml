@@ -1,0 +1,53 @@
+id: build-a-fast-pipeline
+stage: build
+rev: 1
+title: "Make it fast"
+prompt: |
+  Starting from a blank editor, build the pieces of a feature pipeline the way this module says to: vectorized where the work is independent, in a dtype that holds the numbers, summed so that rounding doesn't pile up, and with its softmax kept finite; then count what the model it feeds will cost.
+
+  **Write six functions**, none with a Python loop over the data:
+
+  - `standardize(X)`: each column minus its mean, divided by its standard deviation; a column with no spread becomes zeros rather than NaN.
+  - `nearest_centroid(X, centroids)`: a list with the index of the nearest centroid for every row of `X`, by squared distance, the first on a tie; broadcasting, not a loop over rows.
+  - `weekly(clicks)`: seven times the daily clicks, in an integer type wide enough to hold them whatever dtype the column arrived in (an int8 column must not wrap).
+  - `mean_loss(losses)`: the mean as a float, summed as one array operation and accumulated in float64, so a hundred thousand float32 values don't drift.
+  - `softmax(logits)`: the row-wise softmax of a 2-D array, with each row's largest logit subtracted before the exponential so that a logit of 1,000 doesn't overflow to NaN.
+  - `model_cost(layers, examples, batch, itemsize)`: the tuple `(parameters, training FLOPs, bytes)` of a dense network: `in * out + out` per layer; 6 FLOPs per parameter per example; four copies of the parameters (weights, gradients, two Adam moments) plus one batch of activations (`sum(layers)` values per example), all at `itemsize` bytes.
+
+  **Then run them on four rows of two features, their centroids, a week of clicks, a hundred thousand losses, two rows of logits and the model's layers:**
+
+  ```python
+  
+  
+  X = np.array([[1.0, 10.0], [2.0, 20.0], [3.0, 30.0], [6.0, 60.0]])
+  Z = standardize(X)
+  print(np.round(Z, 3).tolist(), bool(np.allclose(Z.mean(axis=0), 0)))
+  print(nearest_centroid(Z, np.array([[-1.0, -1.0], [1.5, 1.5]])))
+  print(weekly(np.array([20, 50, 100, 120], dtype=np.int8)).tolist())
+  print(round(mean_loss(np.full(100_000, 0.1, dtype=np.float32)), 6))
+  print(np.round(softmax(np.array([[1000.0, 1001.0], [1.0, 2.0]])), 3).tolist())
+  print(model_cost([4, 64, 32, 5], 400, 32, 4))
+  ```
+
+  ```
+  [[-1.069, -1.069], [-0.535, -0.535], [0.0, 0.0], [1.604, 1.604]] True
+  [0, 0, 0, 1]
+  [140, 350, 700, 840]
+  0.1
+  [[0.269, 0.731], [0.269, 0.731]]
+  (2565, 6156000, 54480)
+  ```
+
+  Both columns standardize to the same values, since one is ten times the other; three rows sit nearer the first centroid; an int8 column of 20, 50, 100 and 120 clicks gives 140, 350, 700 and 840 instead of wrapping; a hundred thousand tenths average to 0.1; a logit of 1,000 gives the same probabilities as a logit of 1, since only the difference matters; and the four-layer model is 2,565 parameters.
+
+  The checks hand `standardize`, `nearest_centroid`, `mean_loss` and `softmax` an array that counts Python-level iteration and single-element reads and expect none; compare `nearest_centroid` with a plain loop on random rows; feed `weekly` an int8 127 and a uint8 255; hold `mean_loss` to a millionth on a hundred thousand float32 tenths; give `softmax` logits of 5,000 and -5,000; and count a tiny network by hand.
+# Every test names the module skills it checks (ADR-0012), so a failed test
+# says which topics to revisit.
+test_skills:
+  test_the_output: [ml.hw.vectorization/broadcasting, ml.hw.floating-point/special, ml.hw.cost-of-a-model/parameters]
+  test_standardize: [ml.hw.vectorization/broadcasting, ml.hw.vectorization/interpreter-cost]
+  test_nearest_centroid: [ml.hw.vectorization/broadcasting, ml.hw.vectorization/interpreter-cost, ml.hw.profiling/decide]
+  test_weekly: [ml.hw.bits-and-integers/fixed-width, ml.hw.bits-and-integers/sizing]
+  test_mean_loss: [ml.hw.floating-point/accumulation, ml.hw.vectorization/dependence]
+  test_softmax: [ml.hw.floating-point/special, ml.hw.vectorization/broadcasting]
+  test_model_cost: [ml.hw.cost-of-a-model/parameters, ml.hw.cost-of-a-model/flops, ml.hw.cost-of-a-model/memory]

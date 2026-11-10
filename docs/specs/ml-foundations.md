@@ -156,7 +156,7 @@ Module 6 counted steps; this module asks what a step costs and why. Bits, bytes 
 
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 6 had before they were written (all four on 2026-11-10) and Module 7 has (outlined 2026-11-10).
+Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 7 had before they were written (all five on 2026-11-10).
 
 - **8. Neural networks from scratch:** a neuron, a layer, a loss; backpropagation by hand and in code; training loops; regularization; a small network that reads digits.
 - **9. Transformers:** embeddings, attention, the transformer block; training a tiny language model; tokenizers; what scaling changes.

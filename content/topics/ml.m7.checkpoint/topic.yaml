@@ -1,17 +1,40 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.m7.checkpoint
 kind: checkpoint
-status: planned
+status: ready
 title: "Checkpoint 7: make it fast"
 summary: "A slow, numerically shaky feature pipeline: profile it, vectorize the hot loop, fix the integer overflow and the float drift, keep a softmax finite, and estimate the cost of the model it feeds."
-prerequisites:
-- ml.hw.floating-point
-- ml.hw.cost-of-a-model
-- ml.hw.profiling
+prerequisites: [ml.hw.floating-point, ml.hw.cost-of-a-model, ml.hw.profiling]
+packages: [numpy]
 estimated_minutes: 120
 rev: 1
 objectives:
-- Profile a slow pipeline, find its hot loop and vectorize it, and show the gain with the doubling test and the profile.
-- "Find and fix three numeric bugs: an int8 column that wraps, a float32 sum that drifts, and a softmax that overflows to NaN."
-- Estimate the parameters, FLOPs and memory of the model the pipeline feeds, and explain floating point and why vectorized code is fast.
+  - "Profile a slow pipeline, find its hot loop and vectorize it, and show the gain with the doubling test and the profile."
+  - "Find and fix three numeric bugs: an int8 column that wraps, a float32 sum that drifts, and a softmax that overflows to NaN."
+  - "Estimate the parameters, FLOPs and memory of the model the pipeline feeds, and explain floating point and why vectorized code is fast."
+prove:
+  build: build-a-fast-pipeline
+  debug: debug-a-shaky-pipeline
+  explain:
+    prompt: |
+      Your fast pipeline is in code review. The reviewer asks four things. First: "the loop and the vectorized `nearest_centroid` give the same labels, and the doubling test says both are linear in the rows, so where does the hundred-fold difference come from, and how did the profile show it?" Second: "why did a float32 running total of a hundred thousand losses come out wrong, why is `0.1 + 0.2` not `0.3`, and what exactly went wrong in the softmax that printed NaN?" Third: "what did the int8 column do to the weekly clicks, and how do you choose a dtype for a column?" Fourth: "how did you estimate the model's parameters, FLOPs and memory, and why is the time you get from them optimistic?" In your own words, answer all four.
+    rubric:
+      - id: vectorized
+        required: true
+        description: "Both forms touch every row, so both are linear and the doubling test gives 2 for each; the difference is the constant: the loop pays the interpreter per element (bytecode, name lookups, type checks, boxing, a call per pair), the array operation pays once and runs a C loop, with SIMD where the data is contiguous. The profile showed it as 2,000 calls to the per-pair function before and 0 after, with the same labels."
+      - id: floats
+        required: true
+        description: "A float is sign, exponent and mantissa, a binary fraction times a power of two, so 0.1 is stored rounded and 0.1 + 0.2 lands a last digit from 0.3; compare with a tolerance. A float32 keeps about 7 digits, so once a running total is large, each small addition loses its low digits in the same direction and the drift accumulates: sum pairwise or accumulate in float64. exp(1000) overflows to inf and inf over inf is NaN; subtracting the row's maximum first leaves the ratios unchanged and every exponent at most 0."
+      - id: integers
+        required: true
+        description: "An int8 holds -128 to 127 and wraps on overflow, so 20 times 7 is 140, which wraps to -116, silently for an array. Choose a dtype from the range the values can reach after every operation on them, not just the values stored: widen with astype before arithmetic, or store the column as int32 or int64; the saving of a narrow dtype is memory and bandwidth, which matters only for big columns."
+      - id: cost
+        required: true
+        description: "Parameters are in times out plus out per dense layer; training costs about 6 FLOPs per parameter per example (2 forward, 4 backward); memory is four copies of the parameters for Adam (16 bytes each in float32) plus the activations of a batch. Time is FLOPs over the rate the machine sustains, and the peak rate is optimistic because of memory-bound steps, small matrix multiplies, data loading and Python between kernels; 30 to 50 percent of peak is a good run."
+    model_answer: |
+      The labels are the same because the arithmetic is the same: every row's squared distance to every centroid, and the smallest one wins. The doubling test says both forms are linear because both have to touch every row; doubling the rows doubles the calls in the loop and doubles the array operation's work, and no rewrite changes that. What changes is what each row costs. The loop asks the interpreter for one call per row and centroid, two thousand for four hundred rows, and for each one the interpreter decodes bytecode, looks up names, checks types, unpacks the numbers from their objects and allocates new ones; the array operation does its checks once and runs a loop written in C over contiguous bytes, several elements per instruction where the processor has SIMD. Same order, a constant tens to hundreds of times smaller. The profile showed it as counts, which are exact where times are not: two thousand calls to the per-pair function before, zero after, and the labels equal on the same input. The float trouble has one cause. A float is a sign, an exponent and a mantissa, a binary fraction times a power of two, so only fractions with a power-of-two denominator are exact; 0.1 is stored rounded, 0.2 too, and their sum lands a last digit away from the rounded 0.3, which is why floats are compared with a tolerance. A float32 keeps about seven digits, so once the running total of losses reached the thousands, each tenth added to it lost its low digits, always in the same direction, a hundred thousand times, and the mean came out at 0.09999 instead of 0.1. Summing as one array operation fixed it twice over: NumPy adds pairwise, so partners stay the same size, and the sum was accumulated in float64, which has digits to spare. The softmax went NaN because exp of a logit of a thousand is beyond the largest float, so it overflowed to infinity, and infinity divided by infinity is not a number. Subtracting the row's largest logit before the exponential changes nothing in the result, since the common factor cancels in the ratio, and makes every exponent at most zero, so every term is at most one. The int8 column held each day's clicks in one byte, which runs from -128 to 127, and multiplying by seven pushed 20 to 140, which wrapped around to -116, with no error, because array arithmetic in a fixed width wraps silently. The dtype of a column has to hold not the values stored but every value an operation on them can reach; widening with astype to int64 before the multiplication fixed it, and storing the column as int32 or int64 in the first place would have cost a few more bytes per row, which only matters for columns of millions. For the model, I counted in times out plus out for each dense layer, 2,565 parameters for the four layers; training costs about six FLOPs per parameter per example, two for the forward pass and four for the backward, so 6.2 million FLOPs for one pass over the 400 rows; and memory is four copies of the parameters for Adam, weights, gradients and two moments at four bytes each, plus the activations of a batch. Dividing FLOPs by a GPU's peak rate gives a time that is too hopeful, because a real step reaches perhaps a third to a half of peak: the elementwise work is memory-bound, the matrix multiplies of a small model don't fill the chip, the data has to be loaded and moved, and Python runs between the kernels.
+# For a learner who's stuck on the build (ADR-0012): a solved sibling, the
+# build in steps with hints, then fresh versions.
+unstuck:
+  example: example-a-pipeline-made-fast
+  steps: [step-vectorize-nearest, step-widen-the-column, step-sum-in-float64, step-stable-softmax]
+  versions: [build-a-fast-pipeline-sensors, build-a-fast-pipeline-tickets]
