@@ -1,15 +1,83 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.py.classes
 kind: topic
-status: planned
-title: Classes and objects
-summary: Define a class with attributes and methods, and explain self.
-prerequisites:
-- py.m6.checkpoint
+status: ready
+title: "Classes and objects"
+summary: "Define a class with attributes and methods, and explain self."
+prerequisites: [py.m6.checkpoint]
 estimated_minutes: 60
 rev: 1
 objectives:
-- Define a class with __init__, attributes and methods.
-- Explain self, and tell a class from an instance.
-- Give a class a readable __repr__.
+  - "Define a class with `__init__`, attributes and methods."
+  - "Explain `self`, and tell a class from an instance."
+  - "Give a class a readable `__repr__`."
+resources:
+  - title: "The Python Tutorial: Classes, sections 9.3 (A First Look at Classes) and 9.4 (Random Remarks) (Python Software Foundation)"
+    url: https://docs.python.org/3/tutorial/classes.html#a-first-look-at-classes
+    type: reading
+    use: link
+    license: PSF License Version 2
+  - title: "Python for Everybody, chapter 14: Object-oriented programming (Dr. Chuck)"
+    url: https://www.py4e.com/html3/14-objects
+    type: reading
+    use: link
+    license: CC BY 4.0
+practice:
+  - example-a-class-is-a-blueprint
+  - parsons-a-counter
+  - mcq-what-self-is
+  - predict-two-instances
+  - mcq-class-or-instance
+  - fill-rectangle-methods
+  - write-temperature
+prove:
+  build: build-inventory
+  debug: debug-forgotten-self
+  explain:
+    prompt: |
+      A friend reads this and asks three questions:
+
+      ```python
+      class Account:
+          def __init__(self, owner, balance):
+              self.owner = owner
+              self.balance = balance
+
+          def deposit(self, amount):
+              self.balance = self.balance + amount
+
+      ada = Account("Ada", 100)
+      ada.deposit(50)
+      ```
+
+      In your own words: what is the difference between `Account` and `ada`? What is `self`, and why does `deposit` have it as a parameter when `ada.deposit(50)` passes only one thing? And what would go wrong if `__init__` said `balance = balance` instead of `self.balance = balance`?
+    rubric:
+      - id: class-vs-instance
+        required: true
+        description: "Account is the class, the blueprint; ada is an instance, one object made from it, with its own owner and balance."
+      - id: self
+        required: true
+        description: "self is the instance a method was called on: ada.deposit(50) is Account.deposit(ada, 50), so Python fills self in with ada."
+      - id: attributes
+        required: true
+        description: "self.balance = balance stores the value on the object so other methods can see it; a plain balance = balance makes a local variable that vanishes when __init__ ends, and deposit would fail with no balance attribute."
+      - id: repr
+        required: false
+        description: "Mentions that each instance keeps its own state (a second account is unaffected by ada's deposit), or that __repr__ makes an object print readably."
+    model_answer: |
+      Account is the class: the blueprint that says every account has an owner and a balance and knows how to deposit. ada is an instance: one actual account made from the blueprint, with its own owner "Ada" and its own balance; a second Account would have its own, and ada's deposit wouldn't touch it. self is the instance the method was called on. When you write ada.deposit(50), Python turns it into Account.deposit(ada, 50): ada goes into self, 50 into amount. That's why every method lists self first and callers never pass it. Inside __init__, self.balance = balance stores the value on the object, where deposit can find it later as self.balance. A plain balance = balance would just make a local variable that disappears when __init__ returns, so the object would have no balance attribute and ada.deposit(50) would fail with an AttributeError.
+review_pool:
+  - review-predict-method-changes-state
+  - review-mcq-when-init-runs
+  - review-point-class
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: define
+    description: "Define a class with __init__ and attributes"
+  - id: methods
+    description: "Write methods that use self to read and change the object's attributes"
+  - id: instances
+    description: "Tell a class from an instance, and know that each instance keeps its own state"
+  - id: repr
+    description: "Give a class a readable __repr__"
