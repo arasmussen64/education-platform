@@ -1,6 +1,6 @@
 id: csa.linux.containers
 kind: topic
-status: draft
+status: ready
 title: "How containers work"
 summary: "A container is a process on the host's kernel with its own view of the system: namespaces for isolation, cgroups for limits, and a root filesystem assembled from image layers by overlayfs. Why that makes it fast and dense, and why it is not a virtual machine."
 prerequisites: [csa.linux.cpu, csa.linux.memory]
@@ -40,10 +40,13 @@ resources:
     type: reading
     use: link
     license: GPL-2.0
-# Lessons and recall first (ADR-0017). The items read Dockerfiles, mount
-# tables, process listings and cgroup files with the text tools of the first
-# topic; building a container by hand with unshare comes in the labs.
+# The recall items read Dockerfiles, mount tables, process listings and
+# cgroup files with the text tools of the first topic. The worked example,
+# the fill-in, the write and both proofs are labs that build a container
+# from its parts, unshare, chroot, cgroups and overlayfs, with no Docker in
+# the lab machine (ADR-0017, ADR-0018).
 practice:
+  - example-container-by-hand
   - mcq-container-is-a-process
   - ctr-pid-namespace
   - mcq-namespaces-which
@@ -58,7 +61,11 @@ practice:
   - mcq-volumes
   - mcq-container-vs-vm
   - mcq-runtime-chain
+  - fill-run-in-box
+  - write-layers
 prove:
+  build: build-box
+  debug: debug-leaky-box
   explain:
     prompt: |
       A colleague says "a container is just a lightweight VM". Explain, in your own words, what a container really is: what namespaces do and which ones matter; what cgroups add; how an image is built from layers and what overlayfs does with them when a container runs; where a container's writes go and what happens to them when the container is removed; and the real differences from a virtual machine, including what root inside a container means for security.

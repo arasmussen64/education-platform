@@ -1,0 +1,32 @@
+id: example-container-by-hand
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "A container from its parts"
+prompt: |
+  No Docker on the lab machine: just the pieces a container is made of. In `/srv/box/rootfs` there's a root filesystem of one program, busybox, which behaves as `sh`, `ls`, `ps` and so on depending on the name it's called by. The walkthrough puts a process into its own namespaces with that folder as its root, watches it see a machine of its own, then puts a limit on it with a cgroup. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "Look at the root filesystem"
+    lines: "1"
+    note: "A container's root filesystem is just a folder. This one has `bin`, `proc`, `tmp` and `etc`, and every command in `bin` is a link to busybox. An image is a folder like this, built up in layers."
+  - label: "Start a process in its own world"
+    lines: "2"
+    note: "`unshare` creates namespaces: `--pid` (own process numbers), `--uts` (own hostname), `--mount` (own mounts), `--ipc`; `--fork` makes the new process a child, which a pid namespace needs. `chroot` makes `/srv/box/rootfs` its `/`. Inside, `/proc` has to be mounted for `ps` to work; then `hostname box` names the inside, and `ps` shows PID 1 is the shell: a machine of its own, as far as it can tell."
+  - label: "Outside, nothing changed"
+    lines: "3"
+    note: "The host's hostname is still `lab`, and `ps -ef` on the host would have shown the box's shell among its own processes, under some ordinary PID. A container is a process the host can see."
+  - label: "A cgroup with a limit"
+    lines: "4"
+    note: "A cgroup is a folder under `/sys/fs/cgroup`; making one is `mkdir`. Writing `20` to its `pids.max` says that the processes in it may number twenty at most, together. This is what `--pids-limit` does."
+  - label: "Run the box inside the cgroup"
+    lines: "5"
+    note: "A process joins a cgroup by having its PID written to `cgroup.procs`; its children are in it too. So: a root shell puts itself in the group, then becomes the box (`exec unshare ...`). Inside, `forkstorm` tries to start thirty sleeps, announcing each. Around the twentieth the kernel refuses (`can't fork`), and the shell, which can't go on without forking, stops there: a fork bomb in a container ends the same way."
+  - label: "See the limit count the refusals"
+    lines: "6"
+    note: "`pids.events` says how many times the limit was hit (`max`). It's the number a container runtime would show you for a fork bomb that went nowhere."
+  - label: "Save what the box saw"
+    lines: "7"
+    note: "The same box again, with its output redirected into a file on the host (the redirection belongs to your shell, outside). The file shows the inside's hostname and its process list with PID 1."
+skills: [namespaces, cgroups-limits]

@@ -1,0 +1,12 @@
+id: debug-leaky-box
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The container that leaks"
+prompt: |
+  Someone wrote `~/bin/box NAME COMMAND...`, a container runtime made by hand like the lesson's, and it misbehaves in three ways. After `~/bin/box demo hostname` the lab machine itself is called `demo` (check with `hostname`; `sudo hostname lab` puts it back). `~/bin/box demo ps` fails with `can't fork: Cannot allocate memory`. And the box's cgroup, `/sys/fs/cgroup/box-demo`, which is meant to hold the box to 20 processes, never has anything in it, so `~/bin/box demo forkstorm` starts all thirty processes it tries to, where the limit should have stopped it around the twentieth.
+
+  Three mistakes, each in the one long line that starts the container: a namespace that isn't created, a flag that `unshare --pid` can't do without, and a step that comes too late to ever run. Read the script with `cat ~/bin/box`, fix all three with `nano`, and run the checks.
+skills: [namespaces, cgroups-limits]

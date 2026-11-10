@@ -1,0 +1,24 @@
+# The checks for "A container from its parts": the box saw its own PID 1
+# and hostname, the host kept its name, and the pids limit was set and hit.
+checks:
+  - id: own-pid-numbers
+    description: "~/example/inside.txt shows PID 1 inside is the box's shell."
+    command: grep -E '^ *1 .*sh' /home/learner/example/inside.txt
+  - id: own-hostname
+    description: "~/example/inside.txt shows the hostname inside is box."
+    command: grep -x box /home/learner/example/inside.txt
+  - id: host-unchanged
+    description: "The lab machine is still called lab."
+    command: hostname
+    expect:
+      equals: lab
+  - id: pids-limit
+    description: "The cgroup box exists with pids.max 20."
+    command: cat /sys/fs/cgroup/box/pids.max
+    expect:
+      equals: "20"
+  - id: limit-hit
+    description: "pids.events shows the limit was hit at least once."
+    command: awk '/^max/ {print $2}' /sys/fs/cgroup/box/pids.events
+    expect:
+      gte: 1
