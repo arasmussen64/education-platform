@@ -1,16 +1,81 @@
-# A planned outline for the Machine Learning Foundations track
-# (docs/specs/ml-foundations.md). It becomes real content when written.
 id: ml.dsa.stacks-queues-recursion
 kind: topic
-status: planned
-title: Stacks, queues and recursion
+status: ready
+title: "Stacks, queues and recursion"
 summary: "Last-in-first-out and first-in-first-out as structures: a stack on a list, a queue on a deque, why popping from the front of a list is slow, and recursion as a stack the interpreter keeps for you."
-prerequisites:
-- ml.dsa.arrays-and-hashing
+prerequisites: [ml.dsa.arrays-and-hashing]
 estimated_minutes: 50
 rev: 1
 objectives:
-- Use a list as a stack and a deque as a queue, and say why list.pop(0) is the wrong queue.
-- Match brackets, evaluate postfix arithmetic and undo actions with a stack.
-- Write a recursive function, trace its call stack, and turn it into a loop with an explicit stack.
-- Say what a linked list is, why Python rarely needs one, and where the idea still appears.
+  - "Use a list as a stack and a deque as a queue, and say why list.pop(0) is the wrong queue."
+  - "Match brackets, evaluate postfix arithmetic and undo actions with a stack."
+  - "Write a recursive function, trace its call stack, and turn it into a loop with an explicit stack."
+  - "Say what a linked list is, why Python rarely needs one, and where the idea still appears."
+# Linked, never copied or embedded: the Runestone book is CC BY-NC-SA 4.0;
+# the Python documentation is under the PSF licence.
+resources:
+  - title: "Problem Solving with Algorithms and Data Structures using Python (Brad Miller and David Ranum), chapter 4: Basic Data Structures, the sections on stacks (4.3 to 4.5, with balanced parentheses), queues (4.10 to 4.12) and linked lists (4.20 and 4.21)"
+    url: https://runestone.academy/ns/books/published/pythonds3/BasicDS/toctree.html
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "Problem Solving with Algorithms and Data Structures using Python, chapter 5: Recursion, sections 5.2 to 5.6 (the sum of a list, the three laws of recursion, stack frames)"
+    url: https://runestone.academy/ns/books/published/pythonds3/Recursion/toctree.html
+    type: reading
+    use: link
+    license: CC BY-NC-SA 4.0
+  - title: "The Python documentation: collections.deque, a list-like container with fast appends and pops on either end"
+    url: https://docs.python.org/3/library/collections.html#collections.deque
+    type: reading
+    use: link
+    license: "PSF licence (linked, not copied)"
+practice:
+  - example-brackets-a-queue-and-a-nest
+  - parsons-a-queue-of-tasks
+  - predict-a-stack-trace
+  - mcq-which-queue
+  - mcq-undo
+  - predict-recursion-order
+  - mcq-no-base-case
+  - mcq-when-a-linked-list
+  - fill-balanced-brackets
+  - write-flatten
+prove:
+  build: build-stacks-and-nests
+  debug: debug-a-job-queue
+  explain:
+    prompt: |
+      A teammate has written a crawler that keeps its to-do list of pages in a Python list and takes the next one with `pop(0)`, and a function that walks a nested configuration by calling itself, which crashes with `RecursionError` on one customer's file. In your own words: what a stack and a queue are, which Python structure to use for each and why `pop(0)` on a list is the wrong queue; what happens in memory when a function calls itself, what the base case is for, and why there is a depth limit; and how you would rewrite the recursive walk as a loop with a stack of your own, and what that changes.
+    rubric:
+      - id: stack-queue
+        required: true
+        description: "A stack is last in, first out (a list with append and pop()); a queue is first in, first out (collections.deque with append and popleft()). A list's pop(0) shifts every remaining element, so a queue on a list costs a step per element per pop."
+      - id: recursion
+        required: true
+        description: "Each call gets its own frame (its locals and where to return to) pushed on the call stack and popped when it returns; the base case is the call that doesn't recurse, so the stack stops growing; Python caps the depth at about 1,000 frames and raises RecursionError beyond it."
+      - id: explicit-stack
+        required: true
+        description: "Push the starting work on a list; loop: pop an item, handle it, push its sub-work (reversed, to keep order); the stack you manage replaces the interpreter's and has no depth limit beyond memory, at the cost of writing the bookkeeping yourself."
+      - id: stack-uses
+        required: false
+        description: "Stacks fit anything nested or reversible: matching brackets, undo, evaluating postfix, walking a nest; queues fit anything in arrival order: tasks, breadth-first search."
+    model_answer: |
+      A stack is a pile where the last thing put on is the first thing taken off, and a queue is a line where the first thing in is the first thing out. In Python a stack is just a list used with append and pop(), both of which work at the end of the list and take one step. A queue wants collections.deque, with append at the back and popleft at the front, again one step each. A list with pop(0) looks like a queue but isn't a good one: a list is an array, so removing the first element leaves a gap and every remaining element shifts down one place, which is a step per element per pop; the crawler's to-do list of a hundred thousand pages would move a hundred thousand elements for each page it takes. When a function calls itself, nothing magical happens: each call gets its own frame, a record of its local variables and of where to return to, and the frames are pushed on the call stack as calls begin and popped as they return, so the innermost call finishes first. The base case is the call that doesn't call again; without it the stack grows until Python's limit, about a thousand frames, and raises RecursionError, which is what the deep configuration file hit. To rewrite the walk as a loop, I would keep my own stack, a list: push the root, then loop while the stack isn't empty, popping an item, handling it, and pushing its children (in reverse, so they come off in the original order). That replaces the interpreter's stack with one in ordinary memory, so depth is limited only by memory, and it makes the bookkeeping explicit, which is a little more code and a little less elegance for a walk that can't crash on a deep file.
+review_pool:
+  - review-predict-postfix
+  - review-mcq-call-stack
+  - review-mcq-stack-or-queue
+  - review-mcq-walk-the-chain
+  - review-max-depth
+# What this topic teaches. Each question names the skills it tests, so a
+# missed question can come back as a different one on the same skill
+# (ADR-0011).
+skills:
+  - id: stack-queue
+    description: "Use a list as a stack and a deque as a queue, and say why list.pop(0) is the wrong queue"
+  - id: stack-uses
+    description: "Match brackets, evaluate postfix and undo with a stack"
+  - id: recursion
+    description: "Write a recursive function, trace its call stack, and turn it into a loop with an explicit stack"
+  - id: linked
+    description: "Say what a linked list is, why Python rarely needs one, and where the idea appears"

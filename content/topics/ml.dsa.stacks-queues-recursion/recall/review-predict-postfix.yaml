@@ -1,0 +1,24 @@
+id: review-predict-postfix
+type: predict_output
+rev: 1
+prompt: |
+  Postfix arithmetic evaluated with a stack, printing the stack after each token of `3 4 + 2 *`. What does the program print?
+code: |
+  stack = []
+  for token in "3 4 + 2 *".split():
+      if token in {"+", "*"}:
+          b = stack.pop()
+          a = stack.pop()
+          stack.append(a + b if token == "+" else a * b)
+      else:
+          stack.append(int(token))
+      print(stack)
+expected_output: |
+  [3]
+  [3, 4]
+  [7]
+  [7, 2]
+  [14]
+explanation: |
+  Numbers push; an operator pops two numbers, the later-pushed one second, and pushes the result. `3 4 +` leaves 7, `2` pushes, and `*` turns `[7, 2]` into `[14]`. Postfix needs no parentheses because the stack remembers what is waiting.
+skills: [stack-uses]

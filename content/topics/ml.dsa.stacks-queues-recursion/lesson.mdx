@@ -1,0 +1,24 @@
+<Intro>
+
+Two shapes of "what's next": a **stack**, where the last thing in is the first thing out, and a **queue**, where the first thing in is the first thing out. Python gives you the first for free (a list) and the second almost for free (`collections.deque`), and the difference between them is the difference between matching brackets and running tasks in order. The third idea is **recursion**, a function that calls itself, which is a stack the interpreter keeps for you; the worked example shows that stack growing and shrinking, and then replaces it with one you manage.
+
+The main resource is **_Problem Solving with Algorithms and Data Structures using Python_, chapter 4** (stacks, balanced parentheses, queues, and the two sections on linked lists) and **chapter 5** (recursion, up to stack frames); about 40 minutes, with runnable code. The `deque` documentation is the reference. Watch for:
+
+- **Push and pop** are both at the end of a list; a queue needs the front too.
+- **The three laws of recursion**: a base case, a step towards it, and a call to itself.
+- **A stack frame** is what each call owns.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A stack** is last in, first out: a list with `append` to push and `pop()` to pop, both one step. Anything nested or reversible is a stack problem: matching brackets (push each opener, pop on each closer and check it pairs), **undo** (push each action, pop to undo), evaluating **postfix** arithmetic (`3 4 + 2 *`: push numbers, an operator pops two and pushes the result), and walking a nest.
+- **A queue** is first in, first out: `collections.deque` with `append` at the back and `popleft()` at the front, both one step. A list with `pop(0)` looks like a queue but shifts every remaining element each time: the worked example's 2,000 pops moved 1,999,000 elements on a list and took 2,000 steps on a deque. Anything in arrival order is a queue problem: tasks, messages, and breadth-first search in the graphs topic.
+- **Recursion** is a function that calls itself on a smaller input, with a **base case** that doesn't. Each call gets its own **frame** (its local variables and where to return to) on the **call stack**, pushed when the call starts and popped when it returns, so the innermost call finishes first: the example's `countdown(2)` prints start 2, start 1, start 0, then end 0, end 1, end 2. Python caps the stack at about 1,000 frames and raises `RecursionError` beyond it (both the browser and CI do), so recursion suits nested data a few hundred levels deep, not a list of a million items.
+- **Recursion to a loop with an explicit stack:** push the starting work; while the stack isn't empty, pop an item, handle it, and push its sub-work (reversed, so it comes off in order). The stack you manage replaces the one the interpreter managed and has no depth limit beyond memory: the example flattens 5,000 nested levels that way, where the recursive version raises `RecursionError`.
+- **A linked list** is a chain of **nodes**, each holding a value and a reference to the next. Inserting or removing at a node you already hold is one step, with no shifting; but reaching the k-th node takes k steps, and every node is a separate object. Python rarely needs one: a list wins for almost everything, and `deque` is built from linked blocks so it gets fast ends without the per-node cost. The idea comes back in trees and graphs, where every node holds references to its neighbours.
+- **In machine learning:** backpropagation through a deep computation graph is done with an explicit stack or a reverse topological order rather than recursion, for exactly the depth reason (Module 4's backprop walked the layers in a loop); a pipeline's work queue is a deque; and tokenizers and parsers keep a stack for nesting.
+
+</Recap>

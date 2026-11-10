@@ -1,0 +1,28 @@
+id: example-brackets-a-queue-and-a-nest
+stage: worked_example
+rev: 1
+title: "Brackets, a queue and a nest"
+prompt: |
+  A stack that checks brackets, a queue on a list against a deque, a recursive countdown that shows its frames, and a nest flattened by recursion and by a stack you manage. Press **Run**, then read how each part works.
+steps:
+  - label: "Matching brackets with a stack"
+    lines: "4-18"
+    note: "Each opener is pushed; each closer pops the latest opener and checks it is the matching kind. A closer with nothing to pop, a mismatched pair, or openers left over at the end all mean unbalanced. Last in, first out is exactly what nesting needs: the most recent opener is the one a closer must match."
+  - label: "A queue on a list, with the shifting written out"
+    lines: "21-37"
+    note: "`pop(0)` on a list has to do this: take the first element, then move every other element one place towards the front. The class counts the moves. A real list does the moving in fast compiled code, but it still does all of it."
+  - label: "Two thousand pops"
+    lines: "40-50"
+    note: "Two thousand tasks queued, then taken in order. The list moved 1,999,000 elements, about `n² / 2`; the deque's `popleft()` took one step each, 2,000 in all. A deque keeps its items in linked blocks so that both ends are cheap."
+  - label: "A recursive countdown, with its frames"
+    lines: "53-60"
+    note: "Each call prints on the way in, calls the next, and prints on the way out; the indentation is the depth of the call stack. The three `start` lines are three frames pushed; `end 0` is the base case returning; the `end` lines are the frames popped, innermost first."
+  - label: "Flattening a nest by recursion"
+    lines: "63-71"
+    note: "A list inside the list is flattened by the same function, a call for each level of nesting. The three laws: a base case (an item that isn't a list is appended), a step towards it (each call handles one level), and a call to itself."
+  - label: "The same, with a stack you manage"
+    lines: "74-88"
+    note: "The work still to do lives in an explicit stack: push the items in reverse (so the first comes off first), pop one, and either keep it or push its contents. Same answer as the recursive version, with the interpreter's call stack replaced by a list."
+  - label: "Five thousand levels deep"
+    lines: "90-98"
+    note: "A nest 5,000 levels deep. The explicit stack flattens it; the recursive version needs 5,000 frames at once and Python stops it at about a thousand with `RecursionError`, in the browser and in CI alike. Recursion is the clearer code; the loop is the one that can't be crashed by depth."
