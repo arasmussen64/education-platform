@@ -2,6 +2,31 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: Memory and the OOM killer goes ready, and the kernel does the killing
+
+The seventh ready cloud topic. The first probe of the day had shown that a `systemd-run -p MemoryMax=64M` unit really gets OOM-killed in these containers, and that's the spine of all five labs: the kernel's own behaviour, not a description of it.
+
+**The five labs**, around `memhog` (takes N MB, really touches them, holds them a few seconds) and `leaky` (grows 32 MB a second to a cap):
+
+- **`example-limit-a-hog`** (worked example): `free -m`, the same lines from `/proc/meminfo`, `vmstat 1 3`, then `systemd-run --unit=hog -p MemoryMax=64M -p MemorySwapMax=0 memhog 200`: `Result=oom-kill`, `ExecMainStatus=9`, and the kernel's line in `journalctl -k`, `Memory cgroup out of memory: Killed process … (memhog) … anon-rss:… oom_score_adj:0`, which is the lesson's line word for word.
+- **`fill-memory-report`** (fill-in): `MemAvailable`, swap used, the top process by RSS (a service holds 150 MB on purpose), and the kernel's `Killed process` lines counted.
+- **`write-limited-run`** (write): `limited-run NAME LIMIT COMMAND...`: `systemd-run --wait --collect`, the `Finished with result:` line parsed, exit 137 when killed.
+- **`build-contain-the-leak`** (build): find the leaking service, read its cgroup's `memory.peak` before touching anything, cap it at 128 MB with no swap through a drop-in, watch the kernel kill it and systemd restart it, and give the database `OOMScoreAdjust=-900`. Six checks.
+- **`debug-oomkilled`** (debug): three services, three memory mistakes: `MemoryMax=32M` under a 100 MB working set, `MemoryMax=512` (bytes), and `OOMScoreAdjust=1000` on the database.
+
+**What the contract caught, two things:**
+
+1. _A service under a limit that keeps being killed has no stable cgroup:_ each restart recreates it and `memory.peak` starts again, and in the two-second restart gap the directory doesn't exist at all, so a solution that read the peak last failed at random. The peak is read first, while the leak is still unchecked, which is also the right order on a real server.
+2. _`systemctl is-active` exits non-zero for `activating`,_ which is the state a restarting service is in for a good part of every cycle. The check accepts the word and ignores the status.
+
+**Decisions for you to review:**
+
+1. _Services keep restarting under their limit rather than being stopped._ The build asks for the leak to be contained, not the indexer switched off; the lesson's point is that the limit does the containing. A learner who stops the service fails a check that says so.
+2. _`OOMScoreAdjust=-900` for the database,_ checked as "-500 or lower", so -1000 (never kill) passes too.
+3. _No swap in the labs' limits (`MemorySwapMax=0`),_ so the kill is prompt and deterministic; the lesson's "some swap is fine" stands for the machine, not for a leaking service's cgroup.
+
+**Next:** CPU scheduling and cgroups, with `CPUQuota=` and `cpu.stat`'s throttling counters, which the same probe showed working.
+
 ## 2026-11-09: Disks and filesystems goes ready, with real disks in the lab
 
 The sixth ready cloud topic, and the one I expected to be hardest, since a container has no disks. It turns out a privileged container can attach a file as a block device (a loop device), format it, mount it, grow it, and even run LVM on it, so the labs use real `mkfs`, `mount`, `fstab`, `df`, `lsof` and `resize2fs` on disks the image brings along.

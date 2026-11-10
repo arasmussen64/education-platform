@@ -1,0 +1,12 @@
+id: debug-oomkilled
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Killed, again and again"
+prompt: |
+  Three of the shop's services run on the lab machine: `shop-cache`, `shop-indexer` and `shop-db`. Two of them keep dying and being restarted: `systemctl status` shows `Result: oom-kill` and `code=killed, signal=KILL`, exit status 137 in any shell. And whoever set up the database made it the kernel's first choice of victim rather than its last.
+
+  There are three mistakes, each in a different unit file under `/etc/systemd/system/`, and each a memory setting. For each service read `systemctl status`, `systemctl show NAME -p MemoryMax,OOMScoreAdjust`, the service's `memory.peak` under `/sys/fs/cgroup/system.slice/`, and the kernel's lines in `journalctl -k`. Fix the settings (a drop-in with `sudo systemctl edit NAME`, or the unit file itself), reload, restart, and check that all three stay up and the database is protected. Then run the checks.
+skills: [container-memory, oom-killer]

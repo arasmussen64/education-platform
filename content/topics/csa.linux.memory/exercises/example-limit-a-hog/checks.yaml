@@ -1,0 +1,23 @@
+# The checks for "Read the memory, then run out of it on purpose": the hog
+# was killed by the OOM killer, by signal 9, and the two files were saved.
+checks:
+  - id: hog-killed
+    description: "The hog service ended with Result=oom-kill."
+    command: systemctl show hog -p Result --value
+    expect:
+      equals: oom-kill
+  - id: signal-9
+    description: "Its main process was killed by signal 9 (SIGKILL, exit status 137 in a shell)."
+    command: systemctl show hog -p ExecMainStatus --value
+    expect:
+      equals: "9"
+  - id: result-saved
+    description: "~/example/result.txt says oom-kill."
+    command: cat /home/learner/example/result.txt
+    expect:
+      equals: oom-kill
+  - id: available-saved
+    description: "~/example/available.txt holds the MemAvailable line from /proc/meminfo."
+    command: cat /home/learner/example/available.txt
+    expect:
+      matches: "^MemAvailable:\\s+[0-9]+ kB$"

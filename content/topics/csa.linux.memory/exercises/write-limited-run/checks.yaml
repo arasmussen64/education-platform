@@ -1,0 +1,21 @@
+# The checks for "Write limited-run": a command that doesn't fit its limit,
+# one that does, and the unit's name in the journal.
+checks:
+  - id: killed-at-limit
+    description: "limited-run small 32M memhog 100 1 reports the kill and exits 137."
+    command: |
+      out=$(runuser -u learner -- /home/learner/bin/limited-run small 32M memhog 100 1 2>/dev/null)
+      status=$?
+      test "$status" -eq 137 && test "$out" = "small: killed: out of memory at 32M"
+  - id: fits-and-finishes
+    description: "limited-run big 256M memhog 50 1 reports finished and exits 0."
+    command: |
+      out=$(runuser -u learner -- /home/learner/bin/limited-run big 256M memhog 50 1 2>/dev/null)
+      status=$?
+      test "$status" -eq 0 && test "$out" = "big: finished"
+  - id: named-unit
+    description: "The journal shows the runs under their own names, small and big."
+    command: |
+      journalctl --no-pager -o cat -u small -u big | grep -c -E 'Started (small|big)\.service'
+    expect:
+      gte: 2

@@ -1,0 +1,41 @@
+# The checks for "Contain the leak": the limit and the swap setting, the
+# kill and the restart, the database's protection, and the report.
+checks:
+  - id: limit-set
+    description: "shop-indexer has MemoryMax=128M."
+    command: systemctl show shop-indexer -p MemoryMax --value
+    expect:
+      equals: "134217728"
+  - id: swap-off
+    description: "shop-indexer has MemorySwapMax=0."
+    command: systemctl show shop-indexer -p MemorySwapMax --value
+    expect:
+      equals: "0"
+  - id: killed-at-limit
+    description: "The kernel has killed the indexer at its limit at least once (its journal says so)."
+    command: |
+      for _ in $(seq 1 20); do
+        n=$(journalctl -u shop-indexer --no-pager 2>/dev/null | grep -c -i 'oom')
+        [ "$n" -ge 1 ] && break
+        sleep 1
+      done
+      echo "$n"
+    expect:
+      gte: 1
+  - id: still-supervised
+    description: "shop-indexer is still running (or being restarted), not stopped."
+    # is-active exits non-zero for "activating", which is a fine answer here.
+    command: systemctl is-active shop-indexer || true
+    expect:
+      matches: "^(active|activating)$"
+  - id: db-protected
+    description: "The running shop-db process has oom_score_adj of -500 or lower."
+    command: cat "/proc/$(systemctl show shop-db -p MainPID --value)/oom_score_adj"
+    expect:
+      lte: -500
+  - id: peak-reported
+    description: "~/report/peak.txt holds the indexer's peak memory in bytes, read while it was still leaking: well above 20 MB."
+    command: cat /home/learner/report/peak.txt
+    expect:
+      matches: "^[0-9]+$"
+      gte: 20000000
