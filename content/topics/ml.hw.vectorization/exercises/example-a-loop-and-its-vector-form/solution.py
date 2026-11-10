@@ -41,7 +41,7 @@ def ratio(a, b):
 
 
 double = np.vstack([X, X])
-loop_small, loop_double = seconds(predict_loop, X, w), seconds(predict_loop, double, w)
+loop_small, loop_double = seconds(predict_loop, X, w, repeats=5), seconds(predict_loop, double, w, repeats=5)
 fast_small, fast_double = seconds(predict_vectorized, X, w, repeats=200), seconds(predict_vectorized, double, w, repeats=200)
 print(f"loop: {loop_small * 1000:.1f} ms for 2,000 rows, {loop_double * 1000:.1f} ms for 4,000; ratio {ratio(loop_double, loop_small)}")
 print(f"X @ w: {fast_small * 1000:.3f} ms for 2,000 rows, {fast_double * 1000:.3f} ms for 4,000; ratio {ratio(fast_double, fast_small)}")

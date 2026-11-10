@@ -1,3 +1,6 @@
+import cProfile
+import pstats
+
 import numpy as np
 
 
@@ -40,10 +43,38 @@ def model_cost(layers, examples, batch, itemsize):
     return params, flops, bytes_needed
 
 
+def calls_to(function, name, *args):
+    """How many times the function called name runs while function(*args) runs, read from a cProfile table: the hot loop, found by its call count."""
+    profiler = cProfile.Profile()
+    profiler.enable()
+    function(*args)
+    profiler.disable()
+    return sum(row[1] for (file, line, func), row in pstats.Stats(profiler).stats.items() if func == name)
+
+
+def distance_squared(a, b):
+    return float(((a - b) ** 2).sum())
+
+
+def nearest_centroid_loop(X, centroids):
+    """The pipeline's hot loop as first written: every row against every centroid, one call each."""
+    labels = []
+    for row in X:
+        best, best_d = -1, float("inf")
+        for j, c in enumerate(centroids):
+            d = distance_squared(row, c)
+            if d < best_d:
+                best, best_d = j, d
+        labels.append(best)
+    return labels
+
+
 X = np.array([[1.0, 10.0], [2.0, 20.0], [3.0, 30.0], [6.0, 60.0]])
+centroids = np.array([[-1.0, -1.0], [1.5, 1.5]])
 Z = standardize(X)
 print(np.round(Z, 3).tolist(), bool(np.allclose(Z.mean(axis=0), 0)))
-print(nearest_centroid(Z, np.array([[-1.0, -1.0], [1.5, 1.5]])))
+print(nearest_centroid(Z, centroids))
+print(calls_to(nearest_centroid_loop, "distance_squared", Z, centroids), calls_to(nearest_centroid, "distance_squared", Z, centroids), calls_to(nearest_centroid_loop, "distance_squared", np.vstack([Z, Z]), centroids))
 print(weekly(np.array([20, 50, 100, 120], dtype=np.int8)).tolist())
 print(round(mean_loss(np.full(100_000, 0.1, dtype=np.float32)), 6))
 print(np.round(softmax(np.array([[1000.0, 1001.0], [1.0, 2.0]])), 3).tolist())

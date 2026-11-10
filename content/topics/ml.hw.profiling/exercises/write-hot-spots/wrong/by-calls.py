@@ -4,14 +4,14 @@ import pstats
 
 def heavy():
     total = 0
-    for i in range(100_000):
+    for i in range(1_000_000):
         total += i * i
     return total
 
 
 def light():
     total = 0
-    for i in range(10):
+    for i in range(100):
         total += i
     return total
 

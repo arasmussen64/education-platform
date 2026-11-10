@@ -3,26 +3,46 @@ stage: build
 rev: 1
 title: "Make it fast: support tickets"
 prompt: |
-  Starting from a blank editor, build the same six pieces for a different pipeline: support tickets described by their word count and the number of replies, a column of tickets per day, fifty thousand losses, two rows of logits, and a three-layer model.
+  Starting from a blank editor, build the same six pieces for a different pipeline: support tickets described by their word count and the number of replies, a column of tickets per day, fifty thousand losses, two rows of logits, and a smaller model.
 
-  **Write six functions**, none with a Python loop over the data:
+  **Write seven functions**; none of the pipeline's own pieces may loop over the data in Python:
 
   - `standardize(X)`: each column minus its mean, divided by its standard deviation; a column with no spread becomes zeros rather than NaN.
-  - `nearest_centroid(X, centroids)`: a list with the index of the nearest centroid for every row of `X`, by squared distance, the first on a tie; broadcasting, not a loop over rows.
+  - `nearest_centroid(X, centroids)`: a list with the index of the nearest centroid (a reference point, the centre of a cluster) for every row of `X`, by squared distance, the first on a tie; broadcasting, not a loop over rows.
   - `weekly(clicks)`: seven times the daily clicks, in an integer type wide enough to hold them whatever dtype the column arrived in (an int8 column must not wrap).
   - `mean_loss(losses)`: the mean as a float, summed as one array operation and accumulated in float64, so a hundred thousand float32 values don't drift.
   - `softmax(logits)`: the row-wise softmax of a 2-D array, with each row's largest logit subtracted before the exponential so that a logit of 1,000 doesn't overflow to NaN.
   - `model_cost(layers, examples, batch, itemsize)`: the tuple `(parameters, training FLOPs, bytes)` of a dense network: `in * out + out` per layer; 6 FLOPs per parameter per example; four copies of the parameters (weights, gradients, two Adam moments) plus one batch of activations (`sum(layers)` values per example), all at `itemsize` bytes.
+  - `calls_to(function, name, *args)`: how many times the function called `name` runs while `function(*args)` runs, counted with `cProfile` as Reading a profiler did: the way to find the hot loop by its call count, and to prove that the vectorized version makes none.
 
-  **Then run them on six tickets, their centroids, the tickets-per-day column, the losses, the logits and the model's layers:**
+  **Then paste the pipeline's slow first version of the nearest-centroid step, the hot loop you are replacing, and the data, and print:**
 
   ```python
+  import numpy as np
+  
+  def distance_squared(a, b):
+      return float(((a - b) ** 2).sum())
+  
+  
+  def nearest_centroid_loop(X, centroids):
+      """The pipeline's hot loop as first written: every row against every centroid, one call each."""
+      labels = []
+      for row in X:
+          best, best_d = -1, float("inf")
+          for j, c in enumerate(centroids):
+              d = distance_squared(row, c)
+              if d < best_d:
+                  best, best_d = j, d
+          labels.append(best)
+      return labels
   
   
   X = np.array([[5.0, 1.0], [7.0, 2.0], [60.0, 9.0], [55.0, 8.0], [6.0, 1.0], [58.0, 9.0]])
+  centroids = np.array([[-0.8, -0.8], [0.9, 0.9]])
   Z = standardize(X)
   print(np.round(Z, 3).tolist(), bool(np.allclose(Z.mean(axis=0), 0)))
-  print(nearest_centroid(Z, np.array([[-0.8, -0.8], [0.9, 0.9]])))
+  print(nearest_centroid(Z, centroids))
+  print(calls_to(nearest_centroid_loop, "distance_squared", Z, centroids), calls_to(nearest_centroid, "distance_squared", Z, centroids), calls_to(nearest_centroid_loop, "distance_squared", np.vstack([Z, Z]), centroids))
   print(weekly(np.array([10, 30, 90, 127], dtype=np.int8)).tolist())
   print(round(mean_loss(np.full(50_000, 0.3, dtype=np.float32)), 6))
   print(np.round(softmax(np.array([[-1500.0, -1499.0], [0.0, 0.0]])), 3).tolist())
@@ -32,22 +52,24 @@ prompt: |
   ```
   [[-1.037, -1.082], [-0.96, -0.812], [1.088, 1.082], [0.895, 0.812], [-0.998, -1.082], [1.011, 1.082]] True
   [0, 0, 1, 1, 0, 1]
+  12 0 24
   [70, 210, 630, 889]
   0.3
   [[0.269, 0.731], [0.5, 0.5]]
   (228, 820800, 2432)
   ```
 
-  The three short tickets sit nearer the first centroid and the three long ones nearer the second; an int8 column of 10, 30, 90 and 127 tickets gives 70, 210, 630 and 889 instead of wrapping; fifty thousand values of 0.3 average to 0.3; logits of -1,500 and -1,499 give the same probabilities as 0 and 1, and two equal logits give a half each; and the three-layer model is 228 parameters.
+  The three short tickets sit nearer the first centroid and the three long ones nearer the second; the slow version calls `distance_squared` 12 times for 6 tickets and 2 centroids, the vectorized one 0 times, and doubling the tickets doubles the calls to 24; an int8 column of 10, 30, 90 and 127 tickets gives 70, 210, 630 and 889 instead of wrapping; fifty thousand values of 0.3 average to 0.3; logits of -1,500 and -1,499 give the same probabilities as 0 and 1, and two equal logits give a half each; and the network with layer sizes `[2, 32, 4]`, two dense layers, is 228 parameters.
 
-  The checks hand `standardize`, `nearest_centroid`, `mean_loss` and `softmax` an array that counts Python-level iteration and single-element reads and expect none; compare `nearest_centroid` with a plain loop on random rows; feed `weekly` an int8 127 and a uint8 255; hold `mean_loss` to a millionth on a hundred thousand float32 tenths; give `softmax` logits of 5,000 and -5,000; and count a tiny network by hand.
+  The checks hand `standardize`, `nearest_centroid`, `mean_loss` and `softmax` an array that counts Python-level iteration and single-element reads and expect none; compare `nearest_centroid` with a plain loop on random rows; feed `weekly` an int8 127 and a uint8 255; hold `mean_loss` to a millionth on a hundred thousand float32 tenths; give `softmax` logits of 5,000 and -5,000; count a tiny network by hand; and check the calls `calls_to` reports through two levels of functions.
 # Every test names the module skills it checks (ADR-0012), so a failed test
 # says which topics to revisit.
 test_skills:
-  test_the_output: [ml.hw.vectorization/broadcasting, ml.hw.floating-point/special, ml.hw.cost-of-a-model/parameters]
+  test_the_output: [ml.hw.vectorization/broadcasting, ml.hw.floating-point/special, ml.hw.cost-of-a-model/parameters, ml.hw.profiling/cprofile]
   test_standardize: [ml.hw.vectorization/broadcasting, ml.hw.vectorization/interpreter-cost]
   test_nearest_centroid: [ml.hw.vectorization/broadcasting, ml.hw.vectorization/interpreter-cost, ml.hw.profiling/decide]
   test_weekly: [ml.hw.bits-and-integers/fixed-width, ml.hw.bits-and-integers/sizing]
   test_mean_loss: [ml.hw.floating-point/accumulation, ml.hw.vectorization/dependence]
   test_softmax: [ml.hw.floating-point/special, ml.hw.vectorization/broadcasting]
   test_model_cost: [ml.hw.cost-of-a-model/parameters, ml.hw.cost-of-a-model/flops, ml.hw.cost-of-a-model/memory]
+  test_calls_to: [ml.hw.profiling/cprofile, ml.hw.profiling/decide, ml.hw.vectorization/doubling-test]

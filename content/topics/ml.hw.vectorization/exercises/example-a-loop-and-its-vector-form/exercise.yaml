@@ -13,7 +13,7 @@ steps:
     note: "`X * w` works because broadcasting stretches the `(8,)` vector to `(2000, 8)` without copying it: the stretched view has a stride of 0 down its first axis, so every row reads the same 64 bytes. The loop asks the interpreter for 16,000 multiplications and 16,000 additions, each one decoded, type-checked, unpacked and allocated separately; `X @ w` asks once and the rest happens in C."
   - label: "The doubling test on both"
     lines: "32-48"
-    note: "Each form is timed at 2,000 rows and at 4,000 (the fast one over 200 repeats, because a single call is below the clock's resolution). Both ratios land near 2: both are linear in the rows, the same order. The vectorized form is tens to hundreds of times faster at either size: a smaller constant. That is all vectorizing can do, and it is a lot."
+    note: "Each form is timed at 2,000 rows and at 4,000, over repeats (5 for the loop, 200 for the fast one, whose single call is below the clock's resolution). Both ratios should land near 2, since both forms are linear in the rows, the same order; one run on a shared machine can land anywhere from about 1.2 to 2.5, so run it a few times and read the trend. The vectorized form is tens to hundreds of times faster at either size: a smaller constant. That is all vectorizing can do, and it is a lot."
   - label: "A loop that has to stay a loop"
     lines: "51-63"
     note: "Each row's smoothed state depends on the previous row's, so no single array operation produces all 2,000 rows at once. The loop stays, but only over the dependent axis: each step updates all 8 columns as one vector operation, 2,000 operations instead of 16,000. When the dependence has a library form, as a running total does in `np.cumsum`, use that: the loop runs in C."
