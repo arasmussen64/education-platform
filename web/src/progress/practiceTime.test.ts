@@ -7,6 +7,7 @@ import {
   MAX_ATTEMPT_MS,
   nextMilestone,
   practiceTime,
+  practiceTimeByTrack,
 } from './practiceTime.ts'
 
 const NOW = '2026-11-09T12:00:00.000Z'
@@ -65,6 +66,64 @@ describe('practice time', () => {
       totalMs: 0,
       recentMs: 0,
       attempts: 0,
+    })
+  })
+})
+
+describe('practice time per track', () => {
+  const trackOf = (topicId: string) =>
+    topicId.startsWith('py.')
+      ? 'python'
+      : topicId.startsWith('csa.')
+        ? 'cloud'
+        : undefined
+  const on = (topic_id: string, minutes: number, daysAgo = 0): Attempt => ({
+    ...attempt(minutes * MINUTE, daysAgo),
+    topic_id,
+  })
+
+  it('groups each attempt under the track that holds its topic', () => {
+    const split = practiceTimeByTrack(
+      [
+        on('py.variables', 10),
+        on('csa.linux.shell', 20, 8),
+        on('py.loops', 5, 9),
+        on('csa.linux.services', 2),
+      ],
+      NOW,
+      ['python', 'cloud'],
+      trackOf,
+    )
+    expect(split.tracks).toEqual([
+      {
+        trackId: 'python',
+        time: { totalMs: 15 * MINUTE, recentMs: 10 * MINUTE, attempts: 2 },
+      },
+      {
+        trackId: 'cloud',
+        time: { totalMs: 22 * MINUTE, recentMs: 2 * MINUTE, attempts: 2 },
+      },
+    ])
+    expect(split.other).toEqual({ totalMs: 0, recentMs: 0, attempts: 0 })
+  })
+
+  it('keeps a track with no attempts, at zero, and puts strays under other', () => {
+    const split = practiceTimeByTrack(
+      [on('gone.topic', 7), on('py.variables', 3)],
+      NOW,
+      ['python', 'cloud'],
+      trackOf,
+    )
+    expect(
+      split.tracks.map((each) => [each.trackId, each.time.totalMs]),
+    ).toEqual([
+      ['python', 3 * MINUTE],
+      ['cloud', 0],
+    ])
+    expect(split.other).toEqual({
+      totalMs: 7 * MINUTE,
+      recentMs: 7 * MINUTE,
+      attempts: 1,
     })
   })
 })

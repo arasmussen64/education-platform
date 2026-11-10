@@ -6,8 +6,10 @@ import { PracticeItem } from '../components/PracticeItem.tsx'
 import { BUTTON, INLINE_CODE } from '../components/styles.ts'
 import {
   getTopic,
+  getTrack,
   isOpen,
   loadTopicContent,
+  placeOf,
   topicIdsOf,
   tracks,
 } from '../content/content.ts'
@@ -24,9 +26,11 @@ import {
   formatDuration,
   formatHours,
   nextMilestone,
+  type PracticeTime,
   practiceTime,
+  practiceTimeByTrack,
 } from '../progress/practiceTime.ts'
-import { nextUp } from '../progress/progress.ts'
+import { nextUp, stateOf } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
 import { type DueReview, dueReviews } from '../reviews/reviews.ts'
@@ -93,7 +97,9 @@ function Plan() {
 /**
  * Deliberate practice so far, on the way to 10,000 hours (the owner's idea;
  * roadmap, Phase 2). Only time spent on answers, Checks and reviews counts,
- * not time with the site open: see progress/practiceTime.ts.
+ * not time with the site open: see progress/practiceTime.ts. The total is
+ * one sentence; the milestones are per track, because the 10,000 hours are
+ * about mastering one domain (ADR-0019).
  */
 function PracticeHours({
   progress,
@@ -103,19 +109,24 @@ function PracticeHours({
   now: string
 }) {
   if (progress.status !== 'ready') return null
-  const time = practiceTime(progress.attempts, now)
-  const milestone = nextMilestone(time.totalMs)
+  const all = practiceTime(progress.attempts, now)
+  const split = practiceTimeByTrack(
+    progress.attempts,
+    now,
+    tracks().map((track) => track.id),
+    (topicId) => placeOf(topicId)?.track.id,
+  )
   const recent =
-    time.recentMs === 0
+    all.recentMs === 0
       ? 'none of it in the last 7 days'
-      : `${formatDuration(time.recentMs)} of it in the last 7 days`
+      : `${formatDuration(all.recentMs)} of it in the last 7 days`
 
   return (
-    <section aria-labelledby="practice-hours" className="space-y-2">
+    <section aria-labelledby="practice-hours" className="space-y-3">
       <h2 id="practice-hours" className="text-xl font-semibold">
         Practice hours
       </h2>
-      {time.attempts === 0 ? (
+      {all.attempts === 0 ? (
         <p className="text-slate-600 dark:text-slate-400">
           Nothing counted yet. Every answer, Check and review you finish adds
           its time here.
@@ -123,33 +134,63 @@ function PracticeHours({
       ) : (
         <>
           <p>
-            <span className="font-medium">{formatDuration(time.totalMs)}</span>{' '}
-            of deliberate practice so far, {recent}.
+            <span className="font-medium">{formatDuration(all.totalMs)}</span>{' '}
+            of deliberate practice so far, {recent}. Counting the time spent on
+            answers, Checks and reviews, not time with the site open.
           </p>
-          {milestone ? (
-            <>
-              <progress
-                className="h-2 w-full"
-                max={milestone.hours * 60}
-                value={Math.floor(time.totalMs / 60_000)}
-                aria-label={`Progress toward ${formatHours(milestone.hours)}`}
-              />
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Next milestone: {formatHours(milestone.hours)} (
-                {formatDuration(milestone.remainingMs)} to go). Counting the
-                time spent on answers, Checks and reviews, not time with the
-                site open.
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Past {formatHours(10000)}. The milestones stop here; the practice
-              doesn't have to.
-            </p>
+          {split.tracks.map(({ trackId, time }) => (
+            <TrackHours
+              key={trackId}
+              title={getTrack(trackId)?.title ?? trackId}
+              time={time}
+            />
+          ))}
+          {split.other.attempts > 0 && (
+            <TrackHours title="Other" time={split.other} />
           )}
         </>
       )}
     </section>
+  )
+}
+
+/** One track's practice time and its own next milestone (ADR-0019). */
+function TrackHours({ title, time }: { title: string; time: PracticeTime }) {
+  const milestone = nextMilestone(time.totalMs)
+  const summary =
+    time.attempts === 0
+      ? 'nothing counted yet'
+      : `${formatDuration(time.totalMs)} so far, ${
+          time.recentMs === 0 ? 'none' : formatDuration(time.recentMs)
+        } in the last 7 days`
+  return (
+    <div className="space-y-1">
+      <h3 className="font-semibold">
+        {title}
+        <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
+          {summary}
+        </span>
+      </h3>
+      {milestone ? (
+        <>
+          <progress
+            className="h-2 w-full"
+            max={milestone.hours * 60}
+            value={Math.floor(time.totalMs / 60_000)}
+            aria-label={`${title}: progress toward ${formatHours(milestone.hours)}`}
+          />
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Next milestone: {formatHours(milestone.hours)} (
+            {formatDuration(milestone.remainingMs)} to go).
+          </p>
+        </>
+      ) : (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Past {formatHours(10000)}. The milestones stop here; the practice
+          doesn't have to.
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -234,7 +275,20 @@ function Reviews({
   )
 }
 
-/** The topic to work on: the one in progress, or the next Available (F12). */
+/** The states in which a topic has been learned (ADR-0002), for the count. */
+const LEARNED_STATES = new Set([
+  'learned',
+  'mastered',
+  'fading',
+  'relearning',
+  'passed',
+])
+
+/**
+ * The topic to work on in each track (F12, ADR-0019): the one in progress,
+ * or the next Available, with how far along the track is, so a learner on
+ * two tracks sees where they stand on both.
+ */
 function NextUp({
   topics,
   progress,
@@ -243,33 +297,60 @@ function NextUp({
   progress: ProgressState
 }) {
   if (progress.status !== 'ready') return null
-  const next = nextUp(topics.filter(isOpen), progress.progress)
+  const open = new Set(topics.filter(isOpen).map((topic) => topic.id))
 
   return (
-    <section aria-labelledby="next-up" className="space-y-2">
+    <section aria-labelledby="next-up" className="space-y-4">
       <h2 id="next-up" className="text-xl font-semibold">
         Next up
       </h2>
-      {next ? (
-        <p>
-          <span className="font-medium">
-            {next.state === 'in-progress' ? 'Continue' : 'Start'}:
-          </span>{' '}
-          <Link to={`/topic/${next.topic.id}`} className="underline">
-            {next.topic.title}
-          </Link>
-          {' · '}
-          {next.topic.summary}
-          <span className="text-sm text-slate-500 dark:text-slate-400">
-            {' · about '}
-            {next.topic.estimated_minutes} minutes
-          </span>
-        </p>
-      ) : (
-        <p className="text-slate-600 dark:text-slate-400">
-          You've learned everything that's written so far. More is on the way.
-        </p>
-      )}
+      {tracks().map((track) => {
+        const own = topicIdsOf(track)
+          .map((id) => getTopic(id))
+          .filter(
+            (topic): topic is Topic =>
+              topic !== undefined && open.has(topic.id),
+          )
+        const learned = own.filter((topic) =>
+          LEARNED_STATES.has(stateOf(topic, progress.progress)),
+        ).length
+        const next = nextUp(own, progress.progress)
+        return (
+          <div key={track.id} className="space-y-1">
+            <h3 className="font-semibold">
+              {track.title}
+              <span className="ml-2 text-sm font-normal text-slate-500 dark:text-slate-400">
+                {learned} of {own.length} learned
+              </span>
+            </h3>
+            {own.length === 0 ? (
+              <p className="text-slate-600 dark:text-slate-400">
+                Nothing written here yet.
+              </p>
+            ) : next ? (
+              <p>
+                <span className="font-medium">
+                  {next.state === 'in-progress' ? 'Continue' : 'Start'}:
+                </span>{' '}
+                <Link to={`/topic/${next.topic.id}`} className="underline">
+                  {next.topic.title}
+                </Link>
+                {' · '}
+                {next.topic.summary}
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                  {' · about '}
+                  {next.topic.estimated_minutes} minutes
+                </span>
+              </p>
+            ) : (
+              <p className="text-slate-600 dark:text-slate-400">
+                You've learned everything written here so far. More is on the
+                way.
+              </p>
+            )}
+          </div>
+        )
+      })}
     </section>
   )
 }

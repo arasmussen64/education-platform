@@ -53,6 +53,43 @@ export function practiceTime(attempts: Attempt[], now: string): PracticeTime {
   return { totalMs, recentMs, attempts: counted }
 }
 
+/** Practice time on each track, keyed by track id (ADR-0019). */
+export type PracticeTimeByTrack = {
+  /** Tracks in the order given, each with the time on its topics. */
+  tracks: { trackId: string; time: PracticeTime }[]
+  /** Time on topics that belong to no listed track, if any. */
+  other: PracticeTime
+}
+
+/**
+ * The practice time in these attempts, per track, as of `now`: each attempt
+ * counts toward the track that holds its topic (`trackOf`), or toward
+ * `other` when no track does. `trackIds` sets the order, and a track with no
+ * attempts still appears, with zeros, so the page can show its ladder.
+ */
+export function practiceTimeByTrack(
+  attempts: Attempt[],
+  now: string,
+  trackIds: string[],
+  trackOf: (topicId: string) => string | undefined,
+): PracticeTimeByTrack {
+  const byTrack = new Map<string, Attempt[]>(trackIds.map((id) => [id, []]))
+  const other: Attempt[] = []
+  for (const attempt of attempts) {
+    const trackId = trackOf(attempt.topic_id)
+    const bucket = trackId === undefined ? undefined : byTrack.get(trackId)
+    if (bucket) bucket.push(attempt)
+    else other.push(attempt)
+  }
+  return {
+    tracks: trackIds.map((trackId) => ({
+      trackId,
+      time: practiceTime(byTrack.get(trackId) ?? [], now),
+    })),
+    other: practiceTime(other, now),
+  }
+}
+
 /**
  * The next milestone to reach, and how far off it is; null past the last.
  * The gap is counted from the whole minutes the page shows for the total, so

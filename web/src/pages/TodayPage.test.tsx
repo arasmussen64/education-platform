@@ -144,10 +144,10 @@ describe('the Today page', () => {
     ).toBeInTheDocument()
   })
 
-  it('adds up practice time, capped per attempt, toward the next milestone', async () => {
+  it('adds up practice time, capped per attempt, with a milestone per track', async () => {
     renderToday([
-      // Ninety seconds, ninety seconds, and three hours with the page left
-      // open, which counts as the 30-minute cap.
+      // Python: ninety seconds, ninety seconds, and three hours with the page
+      // left open, which counts as the 30-minute cap. Cloud: five minutes.
       { ...answer('mcq-print', true, daysAgo(1)), duration_ms: 90_000 },
       { ...check('fill-greeting', true, daysAgo(2)), duration_ms: 90_000 },
       {
@@ -155,19 +155,61 @@ describe('the Today page', () => {
         duration_ms: 3 * 60 * 60_000,
       },
       answer('review-mcq-commas', true, daysAgo(3)),
+      {
+        ...answer('mcq-shell', true, daysAgo(1)),
+        topic_id: 'csa.linux.shell',
+        duration_ms: 5 * 60_000,
+      },
     ])
     const hours = await screen.findByRole('region', { name: 'Practice hours' })
+    // The total, in one sentence.
     expect(hours).toHaveTextContent(
-      '33 minutes of deliberate practice so far, 3 minutes of it in the last 7 days.',
+      '38 minutes of deliberate practice so far, 8 minutes of it in the last 7 days.',
     )
-    expect(hours).toHaveTextContent(
-      'Next milestone: 1 hour (27 minutes to go).',
+    // Then each track on its own ladder (ADR-0019).
+    const python = within(hours).getByRole('heading', {
+      name: /^Python Foundations/,
+    })
+    expect(python).toHaveTextContent(
+      'Python Foundations33 minutes so far, 3 minutes in the last 7 days',
     )
     expect(
       within(hours).getByRole('progressbar', {
-        name: 'Progress toward 1 hour',
+        name: 'Python Foundations: progress toward 1 hour',
       }),
     ).toHaveAttribute('value', '33')
+    expect(
+      within(hours).getByRole('progressbar', {
+        name: 'Cloud Solutions Architect: progress toward 1 hour',
+      }),
+    ).toHaveAttribute('value', '5')
+    expect(hours).toHaveTextContent(
+      'Next milestone: 1 hour (27 minutes to go).',
+    )
+    expect(hours).toHaveTextContent(
+      'Next milestone: 1 hour (55 minutes to go).',
+    )
+    // Nothing is on a topic outside the tracks, so no "Other" ladder.
+    expect(
+      within(hours).queryByRole('heading', { name: /^Other/ }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows a track with no practice yet, at zero, beside the one with some', async () => {
+    renderToday([
+      { ...answer('mcq-print', true, daysAgo(1)), duration_ms: 90_000 },
+    ])
+    const hours = await screen.findByRole('region', { name: 'Practice hours' })
+    expect(
+      within(hours).getByRole('heading', {
+        name: /^Cloud Solutions Architect/,
+      }),
+    ).toHaveTextContent('nothing counted yet')
+    expect(
+      within(hours).getByRole('progressbar', {
+        name: 'Cloud Solutions Architect: progress toward 1 hour',
+      }),
+    ).toHaveAttribute('value', '0')
   })
 
   it('says when no practice time has been counted yet', async () => {
@@ -358,36 +400,64 @@ describe('next up on the Today page', () => {
   const PRINT = getTopic('py.programs-and-print')!
   const nextUpSection = () => screen.findByRole('region', { name: 'Next up' })
 
-  it('starts with the first topic when nothing has been started', async () => {
+  /** The entry for one track, by the heading that names it (ADR-0019). */
+  function trackEntry(section: HTMLElement, title: RegExp) {
+    const heading = within(section).getByRole('heading', { name: title })
+    const entry = heading.parentElement
+    if (!entry) throw new Error('a track entry wraps its heading')
+    return entry
+  }
+
+  it('starts each track with its first topic when nothing has been started', async () => {
     renderToday([])
     const next = await nextUpSection()
-    expect(next).toHaveTextContent('Start:')
+    const python = trackEntry(next, /^Python Foundations/)
+    expect(python).toHaveTextContent('0 of')
+    expect(python).toHaveTextContent('Start:')
     expect(
-      within(next).getByRole('link', { name: 'Programs and print' }),
+      within(python).getByRole('link', { name: 'Programs and print' }),
     ).toHaveAttribute('href', '/topic/py.programs-and-print')
-    expect(next).toHaveTextContent(`about ${PRINT.estimated_minutes} minutes`)
+    expect(python).toHaveTextContent(`about ${PRINT.estimated_minutes} minutes`)
+    const cloud = trackEntry(next, /^Cloud Solutions Architect/)
+    expect(cloud).toHaveTextContent('0 of')
+    expect(cloud).toHaveTextContent('Start:')
+    expect(
+      within(cloud).getByRole('link', { name: 'Shell essentials' }),
+    ).toHaveAttribute('href', '/topic/csa.linux.shell')
   })
 
-  it('continues the topic in progress', async () => {
+  it('continues the topic in progress, in its own track only', async () => {
     renderToday([answer('mcq-quotes', true, daysAgo(1))])
     const next = await nextUpSection()
-    expect(next).toHaveTextContent('Continue:')
+    const python = trackEntry(next, /^Python Foundations/)
+    expect(python).toHaveTextContent('Continue:')
     expect(
-      within(next).getByRole('link', { name: 'Programs and print' }),
+      within(python).getByRole('link', { name: 'Programs and print' }),
+    ).toBeInTheDocument()
+    const cloud = trackEntry(next, /^Cloud Solutions Architect/)
+    expect(cloud).toHaveTextContent('Start:')
+    expect(
+      within(cloud).getByRole('link', { name: 'Shell essentials' }),
     ).toBeInTheDocument()
   })
 
-  it('moves on once a topic is learned', async () => {
+  it('moves a track on once one of its topics is learned, and counts it', async () => {
     renderToday([
       check(PRINT.prove.build ?? '', true, daysAgo(1)),
       check(PRINT.prove.debug ?? '', true, daysAgo(1)),
       { ...answer('explain', true, daysAgo(1)), type: 'explain_submit' },
     ])
     const next = await nextUpSection()
-    expect(next).toHaveTextContent('Start:')
+    const python = trackEntry(next, /^Python Foundations/)
+    expect(python).toHaveTextContent('1 of')
+    expect(python).toHaveTextContent('Start:')
     expect(
-      within(next).getByRole('link', { name: 'Values and types' }),
+      within(python).getByRole('link', { name: 'Values and types' }),
     ).toBeInTheDocument()
+    // The other track is untouched by it.
+    expect(trackEntry(next, /^Cloud Solutions Architect/)).toHaveTextContent(
+      '0 of',
+    )
   })
 
   it('is absent for signed-out visitors', () => {
