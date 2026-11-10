@@ -6,9 +6,13 @@ checks:
     command: "! grep -q '\\.\\.\\.' /home/learner/bin/memory-report"
   - id: available-line
     description: "The available line is MemAvailable in MB."
+    # The script and this check read MemAvailable a moment apart, and on a
+    # busy machine the two readings differ by a few MB, so allow a little.
+    # MemFree, the likely mistake, is hundreds of MB off.
     command: |
       kb=$(grep '^MemAvailable:' /proc/meminfo | awk '{print $2}')
-      test "$(runuser -u learner -- /home/learner/bin/memory-report | grep '^available:')" = "available: $((kb / 1024)) MB"
+      reported=$(runuser -u learner -- /home/learner/bin/memory-report | sed -n 's/^available: \([0-9][0-9]*\) MB$/\1/p')
+      test -n "$reported" && test $((reported - kb / 1024)) -le 64 && test $((kb / 1024 - reported)) -le 64
   - id: swap-line
     description: "The swap line is the swap in use, in MB."
     command: |
