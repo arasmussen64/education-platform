@@ -480,10 +480,22 @@ class ContractReport:
     problems: list[str]
     # What the run printed, kept so parallel runs can print each lab's whole.
     log: list[str] = field(default_factory=list)
+    # True when this is the second run, on its own, after the checker gave
+    # up on the first in the crowd.
+    retried: bool = False
 
     @property
     def ok(self) -> bool:
         return not self.problems
+
+    @property
+    def gave_up(self) -> bool:
+        """The contract wasn't tested: the checker itself stopped (a boot
+        that didn't finish, a build that ran out of time), rather than a
+        check that failed or a wrong fix that passed."""
+        return bool(self.problems) and all(
+            problem.startswith("labcheck: ") for problem in self.problems
+        )
 
 
 def test_lab(
@@ -611,10 +623,24 @@ def cmd_test(args: argparse.Namespace) -> int:
             for report in pool.map(lambda t: test_quietly(*t), targets):
                 print("\n".join(report.log))
                 reports.append(report)
+        # A lab the checker gave up on in the crowd (a boot that didn't
+        # finish while every other lab's containers were booting too) gets
+        # one more run, alone. A contract failure is never retried.
+        for index, report in enumerate(reports):
+            if not report.gave_up:
+                continue
+            print(f"\nretrying {report.lab} on its own: {report.problems[0]}")
+            topic, exercise = report.lab.split("/", 1)
+            retried = test_quietly(topic, exercise)
+            retried.retried = True
+            print("\n".join(retried.log))
+            reports[index] = retried
     broken = [report for report in reports if not report.ok]
     print()
     for report in reports:
         status = "ok" if report.ok else "BROKEN"
+        if report.retried:
+            status += " (on its own, after the checker gave up in the crowd)"
         print(f"{status:6} {report.lab}")
         for problem in report.problems:
             print(f"       - {problem}")
