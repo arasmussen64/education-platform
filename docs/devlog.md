@@ -2,6 +2,17 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: Module 2 begins: comprehensions
+
+**`ml.py.comprehensions` is ready,** the first topic of intermediate Python. A comprehension is the loop the learner has written a hundred times, said as a description of the result, and most Python they'll read from now on uses it. The worked example builds the squares twice, by loop and by comprehension, then adds a condition, a dict comprehension and a set comprehension (printed through `sorted()`, because a set has no order). Then a Parsons problem whose decoy puts the `if` before the `for`, three recall questions (reading `[len(w) for w in ...]`; a dict comprehension over `.items()`; which of four jobs wants a plain loop: the one that prints), the long words to fill in and pass-or-fail to write (a conditional expression at the front of a dict comprehension). The proofs: three one-line summary functions to build (`evens`, `lengths`, `initials`; known-wrong: a list where a set was needed, odds instead of evens), two mix-ups to debug (an odd test labelled even; a dict with key and value swapped), and an explanation that asks what a loop can do that a comprehension can't, whether a real loop should be rewritten (no: it uses a computed value twice), and why nesting goes wrong. The review pool has four, one per skill, including the flattening form with its `for` clauses in loop order.
+
+**Decisions for you to review:**
+
+1. _The judgement skill is a skill,_ with its own questions: knowing when not to use a comprehension is what separates readable code from clever code, and ML code bases are full of the clever kind.
+2. _The main resource is the official tutorial,_ short and exact; the Python for Everybody chapter is listed as background only, because it uses syntax the learner hasn't met.
+
+**Next:** Classes and objects (`ml.py.classes`).
+
 ## 2026-11-10: Checkpoint 1 fits a line, and the math refresher is complete
 
 **`ml.m1.checkpoint` is ready,** and with it Module 1 of the Machine Learning Foundations track: the seven math topics and a checkpoint that is, in twenty lines, linear regression by gradient descent. The build: `predict(m, b, x)`, `error(m, b, xs, ys)` (the mean of the squared misses) and `fit(xs, ys, rate, steps)`, which starts both knobs at zero and steps them against the slopes of the error until the line through five points comes out as `slope 2.0`, `intercept 1.0`. Every test names the module skills it checks (ADR-0012), so a failed test points at Calculus's descent, Functions's lines, or Probability's centre. The known-wrong solutions step uphill, forget to average the slopes (which makes the walk unstable), or type the answer in; the hidden tests try a line that slopes down. The debug is a statistics report with three bugs, one per statistic (a mean that divides by n − 1, a median of unsorted values, a spread without its square root), on an unsorted list so the median bug shows. The explanation asks why moving two knobs against their own slopes lowers the error, why the steps shrink by themselves, and what "the best line" means.
