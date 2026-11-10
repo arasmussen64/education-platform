@@ -2,6 +2,34 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-09: How containers work goes ready, with no Docker in the lab
+
+The ninth ready cloud topic, and the payoff of the previous two: the labs build a container from `unshare`, `chroot`, cgroup files and overlayfs, around a root filesystem made from busybox at image build (one binary that behaves as `sh`, `ls`, `ps` and so on by the name it's called by). A probe showed everything works in the lab's privileged container: pid, uts, mount and ipc namespaces, a cgroup made with `mkdir`, and an overlay mount, as long as the writable layer sits on a tmpfs, since the container's own root is already an overlay and overlayfs refuses an upper directory on another overlay.
+
+**The five labs:**
+
+- **`example-container-by-hand`** (worked example): `unshare --pid --fork --uts --mount --ipc chroot rootfs /bin/sh`, `/proc` mounted inside, `hostname box`, PID 1 is the shell; the host unchanged; a cgroup with `pids.max` 20 that a fork storm runs into, `pids.events` counting the refusals.
+- **`fill-run-in-box`** (fill-in): the three words a hand-made container can't do without: `--fork`, `proc`, and the hostname.
+- **`write-layers`** (write): an overlay of image layers given bottom to top (so the lower list is reversed), writable layer on a tmpfs, the top layer's file winning, copy-up leaving the layers untouched.
+- **`build-box`** (build): a thirty-line runtime: an overlay root thrown away afterwards, namespaces, a cgroup with pids and memory limits joined before the `exec`, and cleanup. Five checks, including one that runs a box in the background and inspects its cgroup from outside.
+- **`debug-leaky-box`** (debug): no `--uts` (the lab machine gets renamed), `--pid` without `--fork` (`can't fork: Cannot allocate memory`), and a cgroup join written after the `exec`, which therefore never runs.
+
+**What the contract caught, five things, two of them container facts worth teaching:**
+
+1. _PID 1 of a namespace ignores signals it has no handler for._ A check sent `TERM` to the box's `sleep` and it didn't die; only `KILL` from outside does. That's why `docker stop` sends `TERM` and then `KILL`, and why images run `tini` as PID 1; the lesson now says so.
+2. _busybox's shell dies outright when a fork is refused,_ so a fork storm that counted afterwards never got to count. It announces each attempt instead, and the last line it managed is the count.
+3. _A Docker build may not make device files_ (`mknod` fails), and background jobs need `/dev/null`; a oneshot unit makes the two device files at boot, when the container is privileged.
+4. _`pkill -f` matched the check's own command line_ again (`sleep 30` appeared in it); the pattern is anchored, `^sleep 30$`.
+5. _Files written through Python on Windows came out with CRLF line endings,_ and bash in the image read `set -euo pipefail\r`. Every scratch file is normalised to LF and the content tree checked; the assembled Dockerfiles and scripts in the repository are LF.
+
+**Decisions for you to review:**
+
+1. _busybox-static in the shared base,_ about a megabyte, so every systemd lab image can make a root filesystem; only this topic uses it so far.
+2. _The build's cgroup check inspects a box from outside while it runs,_ which means a background box and a `KILL` at the end. It's the honest way to prove the limits apply to the right processes.
+3. _The debug's third bug, a join after `exec`,_ is subtle for a beginner, but the prompt names its symptom (an empty `cgroup.procs`) and `exec` was taught in Processes and signals.
+
+**Next:** Networking from the host, with a small web server and a port already in use to find.
+
 ## 2026-11-09: CPU scheduling and cgroups goes ready, and GitHub runs out of minutes
 
 The eighth ready cloud topic, built on the same cgroup machinery as the memory labs: `systemd-run -p CPUQuota=20%` on a spinner gives `cpu.max` of `20000 100000`, `top` shows it at 20%, and `cpu.stat` counts a throttled period for nearly every period, which the probe had shown this morning.

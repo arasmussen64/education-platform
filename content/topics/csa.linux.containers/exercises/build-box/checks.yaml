@@ -1,0 +1,37 @@
+# The checks for "Build a container runtime in thirty lines": the box's
+# view, its writes, its limits, and the cleanup.
+checks:
+  - id: own-hostname
+    description: "box demo hostname prints demo, and the lab machine is still lab."
+    command: echo "$(runuser -u learner -- /home/learner/bin/box demo hostname) $(hostname)"
+    expect:
+      equals: "demo lab"
+  - id: own-pid-numbers
+    description: "box demo ps shows PID 1 and only the box's own processes."
+    command: |
+      out=$(runuser -u learner -- /home/learner/bin/box demo ps 2>&1)
+      echo "$out" | grep -qE '^ *1 ' && test "$(echo "$out" | wc -l)" -le 4 && echo "pid 1, $(echo "$out" | wc -l) lines"
+    expect:
+      contains: pid 1
+  - id: writes-vanish
+    description: "A file written inside is there while the box runs and gone afterwards, and never in the image folder."
+    command: |
+      out=$(runuser -u learner -- /home/learner/bin/box demo sh -c 'echo hi > /hello.txt; cat /hello.txt')
+      test "$out" = hi && ! test -e /srv/box/rootfs/hello.txt && ! findmnt -n /run/box/demo/root > /dev/null 2>&1
+  - id: limits-applied
+    description: "While a box runs, its cgroup has pids.max 50, memory.max 64M, and the box's processes in it."
+    command: |
+      runuser -u learner -- /home/learner/bin/box limits sleep 30 > /dev/null 2>&1 &
+      sleep 3
+      cg=/sys/fs/cgroup/box-limits
+      echo "$(cat $cg/pids.max) $(cat $cg/memory.max) $(wc -l < $cg/cgroup.procs | tr -d ' ')"
+    expect:
+      matches: "^50 67108864 [1-9][0-9]*$"
+  - id: cleaned-up
+    description: "Once the box's command ends, its cgroup and its mounts are gone."
+    command: |
+      # PID 1 of a namespace ignores signals it has no handler for, so only
+      # KILL from outside ends the box's sleep (which is why docker stop
+      # ends with KILL too).
+      pkill -9 -f '^sleep 30$' 2>/dev/null; sleep 3
+      ! test -d /sys/fs/cgroup/box-limits && ! findmnt -n /run/box/limits > /dev/null 2>&1 && ! findmnt -n /run/box/limits/root > /dev/null 2>&1

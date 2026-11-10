@@ -1,0 +1,20 @@
+# The checks for "The container that leaks": the box has its own hostname
+# and leaves the machine's alone, its shell can start processes, and its
+# pids limit holds.
+checks:
+  - id: own-hostname
+    description: "box demo hostname prints demo, and the lab machine is still lab."
+    command: echo "$(runuser -u learner -- /home/learner/bin/box demo hostname 2>/dev/null) $(hostname)"
+    expect:
+      equals: "demo lab"
+  - id: can-fork
+    description: "box demo ps works and shows PID 1."
+    command: runuser -u learner -- /home/learner/bin/box demo ps 2>&1
+    expect:
+      matches: "(?m)^ *1 "
+      not_contains: "can't fork"
+  - id: limit-holds
+    description: "box demo forkstorm is stopped by the pids limit around its twentieth process, not allowed all thirty: the box is in its cgroup."
+    command: runuser -u learner -- /home/learner/bin/box demo forkstorm 2>/dev/null | grep -c '^starting process'
+    expect:
+      lte: 22

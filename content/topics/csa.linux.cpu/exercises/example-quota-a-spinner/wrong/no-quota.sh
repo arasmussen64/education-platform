@@ -2,4 +2,4 @@
 # never throttled.
 sudo systemd-run --unit=spin spin
 sleep 3
-mkdir -p ~/example && grep throttled /sys/fs/cgroup/system.slice/spin.service/cpu.stat > ~/example/throttled.txt && sudo systemctl stop spin
+mkdir -p ~/example && (grep throttled /sys/fs/cgroup/system.slice/spin.service/cpu.stat > ~/example/throttled.txt || true) && sudo systemctl stop spin

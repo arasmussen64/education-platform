@@ -1,0 +1,16 @@
+id: write-layers
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write layers"
+prompt: |
+  An image is a stack of read-only layers, and a running container sees them merged under a writable layer of its own. The lab has three layers of a small "image" as plain folders: `/srv/layers/base`, `/srv/layers/deps` and `/srv/layers/app`, in that order from bottom to top. Write a script, `~/bin/layers MOUNTPOINT LAYER...`, that mounts an overlay filesystem at MOUNTPOINT from the layers given bottom to top, with a fresh writable layer on a tmpfs of its own, and then prints `mount`'s line for it.
+
+  Try `~/bin/layers /mnt/app /srv/layers/base /srv/layers/deps /srv/layers/app`, then look: `ls -R /mnt/app`, `cat /mnt/app/etc/version` (the top layer's wins), write a file into `/mnt/app` and show that none of the three folders changed. `sudo umount /mnt/app` when you're done looking. Make the script executable, and run the checks.
+hints:
+  - "overlayfs takes `lowerdir=` as a list from the TOP layer down, separated by colons: for layers given bottom to top you reverse them. In bash: `lower=\"\"; for layer in \"$@\"; do lower=\"$layer${lower:+:$lower}\"; done` builds `app:deps:base`."
+  - "The writable layer can't live on this machine's own root filesystem (overlayfs refuses an upperdir on another overlay), so make a tmpfs for it: `sudo mkdir -p /run/layers/NAME && sudo mount -t tmpfs tmpfs /run/layers/NAME && sudo mkdir -p /run/layers/NAME/upper /run/layers/NAME/work`. A name made from the mount point (`$(basename \"$mount\")`) keeps two stacks apart."
+  - "The mount: `sudo mount -t overlay overlay -o lowerdir=$lower,upperdir=.../upper,workdir=.../work \"$mount\"`, then `mount | grep \" $mount \"` shows the line."
+skills: [layers-overlay]

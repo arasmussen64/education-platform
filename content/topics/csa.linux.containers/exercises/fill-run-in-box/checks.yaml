@@ -1,0 +1,28 @@
+# The checks for "Finish run-in-box": the box has its own hostname, its own
+# process numbers and its own root, and the host is untouched.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/run-in-box"
+  - id: own-hostname
+    description: "run-in-box hostname prints box."
+    command: runuser -u learner -- /home/learner/bin/run-in-box hostname
+    expect:
+      equals: box
+  - id: own-pid-numbers
+    description: "run-in-box ps shows PID 1 and only the box's own processes."
+    command: |
+      out=$(runuser -u learner -- /home/learner/bin/run-in-box ps 2>&1)
+      echo "$out" | grep -qE '^ *1 ' && test "$(echo "$out" | wc -l)" -le 4 && echo "pid 1, $(echo "$out" | wc -l) lines"
+    expect:
+      contains: pid 1
+  - id: own-root
+    description: "run-in-box ls / shows the busybox root, with no home folder."
+    command: runuser -u learner -- /home/learner/bin/run-in-box ls / | tr '\n' ' '
+    expect:
+      matches: "^(bin|dev|etc|proc|root|tmp| )+$"
+  - id: host-unchanged
+    description: "The lab machine is still called lab."
+    command: hostname
+    expect:
+      equals: lab

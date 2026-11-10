@@ -1,0 +1,14 @@
+id: fill-run-in-box
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish run-in-box"
+prompt: |
+  In the lab, `~/bin/run-in-box COMMAND...` is meant to run a command inside a container made by hand: its own process numbers, its own hostname (`box`) and its own mounts, with the busybox root filesystem in `/srv/box/rootfs` as its `/`. Three of its lines have `...` where a word belongs. Fill them in with `nano ~/bin/run-in-box`, then try `~/bin/run-in-box hostname`, `~/bin/run-in-box ps` and `~/bin/run-in-box ls /`, and check with `hostname` that the lab machine itself wasn't renamed. Then run the checks.
+hints:
+  - "`unshare --pid` needs `--fork`: the new process numbers apply to the children of the process that called `unshare`, so `unshare` has to fork a child to run the command. Without it the shell inside can't start anything (`can't fork`)."
+  - "`ps` reads the process list from `/proc`, which in a new mount namespace is empty until you mount it: `mount -t proc proc /proc`. The filesystem type is `proc`."
+  - "The hostname inside is set with `hostname box`, which only renames the inside because the box has its own uts namespace."
+skills: [namespaces]

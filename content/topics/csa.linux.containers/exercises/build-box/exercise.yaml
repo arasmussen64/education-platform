@@ -1,0 +1,17 @@
+id: build-box
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Build a container runtime in thirty lines"
+prompt: |
+  Build `~/bin/box NAME COMMAND...`, a tiny container runtime, from the pieces the lesson describes. It runs COMMAND in a container called NAME that has:
+
+  1. **Its own root filesystem, writable, thrown away afterwards:** an overlay of `/srv/box/rootfs` (the read-only image) under a fresh writable layer on a tmpfs of its own, mounted at `/run/box/NAME/root`, with the container chrooted into it.
+  2. **Its own namespaces:** process numbers (PID 1 inside), hostname (NAME), mounts and IPC, with `/proc` mounted inside so `ps` works.
+  3. **A cgroup of its own**, `/sys/fs/cgroup/box-NAME`, with `pids.max` 50 and `memory.max` 64M, which the container's processes are in.
+  4. **Cleanup:** when COMMAND ends, the overlay and the tmpfs are unmounted and the cgroup removed, so nothing the container wrote survives and nothing is left behind.
+
+  Try `~/bin/box demo hostname`, `~/bin/box demo ps`, `~/bin/box demo sh -c 'echo hi > /hello.txt; ls /'` and then look for `hello.txt` in `/srv/box/rootfs` (it must not be there). Make the script executable, and run the checks.
+skills: [namespaces, cgroups-limits, layers-overlay]

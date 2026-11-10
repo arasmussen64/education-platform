@@ -1,0 +1,33 @@
+# The checks for "Write layers": the merged view has every layer's files
+# with the top layer winning, writes land in the upper layer only, and the
+# layers themselves never change.
+checks:
+  - id: merged-view
+    description: "After layers /mnt/app base deps app, the merged view has files from all three layers."
+    command: |
+      findmnt -n /mnt/app > /dev/null 2>&1 || runuser -u learner -- /home/learner/bin/layers /mnt/app /srv/layers/base /srv/layers/deps /srv/layers/app > /dev/null
+      ls /mnt/app/app | tr '\n' ' '
+    expect:
+      equals: "README lib.txt main.sh"
+  - id: top-layer-wins
+    description: "etc/version in the merged view comes from the top layer: 2."
+    command: cat /mnt/app/etc/version
+    expect:
+      equals: "2"
+  - id: is-an-overlay
+    description: "/mnt/app is an overlay mount whose lowerdir lists app, then deps, then base."
+    command: findmnt -n -o FSTYPE,OPTIONS /mnt/app
+    expect:
+      matches: "^overlay .*lowerdir=/srv/layers/app:/srv/layers/deps:/srv/layers/base"
+  - id: writes-stay-on-top
+    description: "A file written into the merged view doesn't appear in any layer folder."
+    command: |
+      echo hello > /mnt/app/hello.txt
+      test -f /mnt/app/hello.txt && ! test -e /srv/layers/base/hello.txt && ! test -e /srv/layers/deps/hello.txt && ! test -e /srv/layers/app/hello.txt
+  - id: copy-up
+    description: "Changing etc/version in the merged view leaves the app layer's copy at 2."
+    command: |
+      echo 3 > /mnt/app/etc/version
+      echo "$(cat /mnt/app/etc/version) $(cat /srv/layers/app/etc/version)"
+    expect:
+      equals: "3 2"
