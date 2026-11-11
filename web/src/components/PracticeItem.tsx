@@ -334,11 +334,15 @@ export function PracticeItem({
       ) : (
         item.body
       )}
-      {/* <output> is announced by screen readers when its text changes. */}
-      <output className="block text-sm text-slate-600 dark:text-slate-400">
-        {checkNotRun &&
-          "That Check couldn't run, so it doesn't count for or against you. Press Check to try again."}
-      </output>
+      {/* Only when needed, so cards keep their spacing. The code runner has
+          already shown (and announced) what went wrong; this says what it
+          means for the learner. */}
+      {checkNotRun && (
+        <output className="block text-sm text-slate-600 dark:text-slate-400">
+          That Check couldn't run, so it doesn't count for or against you. Press
+          Check to try again.
+        </output>
+      )}
       <ReportProblem
         about={{ topicId: content.topic.id, itemId, itemRev: rev }}
       />
