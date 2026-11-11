@@ -42,7 +42,8 @@ FEWEST_ITEMS = 4
 # Where the baseline lives, from the repository root.
 BASELINE = Path("tools") / "mcq_length_baseline.yaml"
 # Entries that start like this are never tolerated: the cloud track's items
-# were all rewritten on 2026-11-10, so it has nothing old to excuse.
+# were all rewritten when the rules arrived (after the 2026-11-10 audit), so
+# it has nothing old to excuse.
 NEVER_LISTED = ("csa.",)
 WRITE_COMMAND = "python -m uv run python tools/validate_content.py --write-mcq-baseline"
 
@@ -114,6 +115,7 @@ def diagnostic_key(diagnostic_id: str, item_id: str) -> str:
 
 
 def may_be_listed(key: str) -> bool:
+    """Whether the baseline may name this item or topic at all."""
     return not key.startswith(NEVER_LISTED)
 
 

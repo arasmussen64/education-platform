@@ -999,3 +999,13 @@ def test_the_baseline_command_writes_the_list_and_then_only_shrinks_it(
         .endswith("items: []\ntopics: []\n")
     )
     assert_reported(tree, "recall/mcq-new.yaml: the right answer is", run=False)
+
+
+def test_the_baseline_command_leaves_a_file_it_cannot_read_alone(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    broken = "items: t.hello/mcq-print\n"
+    write(tree, BASELINE, broken)
+    assert main(["--root", str(tree), "--write-mcq-baseline"]) == 1
+    assert f"{BASELINE}: items must be a list of names" in capsys.readouterr().out
+    assert (tree / BASELINE).read_text(encoding="utf-8") == broken
