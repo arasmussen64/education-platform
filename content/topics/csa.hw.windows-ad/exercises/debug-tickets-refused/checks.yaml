@@ -1,5 +1,7 @@
 # The checks for "The report that gets no tickets". The descriptions say what
-# must be true at the end, never what was wrong. The report is run the way
+# must be true at the end, never what was wrong, and so do the sentences a
+# failing check prints: the lab page lists the descriptions before the
+# learner starts, and a learner may run the checks first. The report is run the way
 # its service runs it, as root, for a group its service names and for one
 # the prompt never mentions, and compared with what dc1 itself says.
 # A check that finds something wrong prints what it found, which fails the
@@ -19,29 +21,43 @@ checks:
       echo right
     expect:
       equals: right
-  - id: reverse-lookups
-    description: "Asked through lab's own resolver, 10.0.9.10 has the name dc1.ad.shop.test."
-    command: dig +short +time=2 +tries=1 -x 10.0.9.10
-    expect:
-      equals: "dc1.ad.shop.test."
+  # The keytab must be the file the report was handed (its checksum, saved
+  # by the story) and must still get a ticket, which a disabled account
+  # can't. svc-report's state isn't named here: it is one of the faults.
   - id: account-and-keytab
-    description: "svc-report is enabled, and the keytab the report was given is the same file as before and still gets it a ticket."
+    description: "The keytab the report was given is the same file as before, and it still gets svc-report a ticket."
     command: |
-      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
-      uac=$(dc samba-tool user show svc-report --attributes=userAccountControl 2>/dev/null | awk '/^userAccountControl:/ {print $2}')
-      [ -n "$uac" ] || { echo "dc1 has no svc-report"; exit 0; }
-      [ $((uac & 2)) -eq 0 ] || { echo "svc-report is disabled"; exit 0; }
       [ "$(sha256sum /etc/svc-report.keytab 2>/dev/null | cut -d' ' -f1)" = "$(cat /var/lib/lab/keytab.sha256)" ] || { echo "/etc/svc-report.keytab isn't the keytab the report was given"; exit 0; }
       KRB5CCNAME=FILE:/tmp/check-svc-cc kinit -k -t /etc/svc-report.keytab svc-report@AD.SHOP.TEST > /dev/null 2>&1 || { echo "the keytab gets svc-report no ticket"; exit 0; }
       KRB5CCNAME=FILE:/tmp/check-svc-cc kdestroy -q
       echo right
     expect:
       equals: right
+  # The site's resolver is dnsmasq on lab itself (127.0.0.1). Asked for a
+  # zone's own SOA record, it passes on dc1's answer only when it forwards
+  # that zone to dc1, so this also proves that 10.0.9.10's name comes from
+  # dc1. A record for dc1 typed into the resolver (host-record=, ptr-record=)
+  # answers dc1's name but leaves the zone unforwarded; so does pointing
+  # /etc/resolv.conf at dc1, which the next boot undoes; and so does
+  # ldapsearch -N, which only stops the report asking for the name. Neither
+  # the description nor what it prints names a zone, so that it gives no
+  # fault away.
   - id: found-through-dns
-    description: "lab finds dc1 through DNS alone: its hosts file names only lab, and its Kerberos settings name no server."
+    description: "lab finds dc1 through DNS alone, as every member of a domain should, with nothing about dc1 typed in by hand: not into a hosts file, a name server's own records, or a Kerberos configuration."
     command: |
       if grep -Eq '(^|[[:space:]])(10\.0\.9\.10|dc1(\.ad\.shop\.test)?)([[:space:]]|$)' /etc/hosts; then echo "lab's hosts file names dc1"; exit 0; fi
       if grep -Eqi '^[[:space:]]*(kdc|admin_server|kpasswd_server)[[:space:]]*=' /etc/krb5.conf; then echo "lab's Kerberos settings name a server"; exit 0; fi
+      for zone in ad.shop.test 9.0.10.in-addr.arpa; do
+        for _ in $(seq 1 5); do
+          soa=$(dig +short +time=2 +tries=1 @127.0.0.1 "$zone" SOA)
+          [ -n "$soa" ] && break
+          sleep 1
+        done
+        case "$soa" in
+          "dc1.ad.shop.test. "*) ;;
+          *) echo "lab doesn't find everything about dc1 through DNS alone"; exit 0 ;;
+        esac
+      done
       echo "through DNS"
     expect:
       equals: "through DNS"
