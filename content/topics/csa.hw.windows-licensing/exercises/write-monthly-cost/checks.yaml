@@ -5,9 +5,15 @@
 # Assurance are drawn at random each time (bash's RANDOM), around a shape
 # every rule shows in: a Windows server with Software Assurance and one
 # without, a SQL Server Standard on 2 vCPUs without Software Assurance (the
-# minimum of 4), and a SQL Server Enterprise with it. Its saving is always
-# more than $4,900, and the shop estate's is $3,623.72, so numbers typed into
-# the script fail it (wrong/typed-in.sh). Each line may be off by 10 cents,
+# minimum of 4), and a SQL Server Enterprise with it. Two SQL Servers have
+# one licence with Software Assurance and the other without (Windows with it
+# and SQL Server without, and the other way round), so a script that reads
+# one column for both licences fails, which the shop estate, where the two
+# columns agree on every SQL Server, can't show (wrong/one-column-for-both.sh).
+# The second of them has 8 or 16 vCPUs, so its SQL Server licence (at least
+# $0.80 an hour) can never cancel the first one's ($0.40) in a wrong total.
+# Its saving is always more than $5,600, and the shop estate's is $3,623.72,
+# so numbers typed into the script fail it (wrong/typed-in.sh). Each line may be off by 10 cents,
 # for rounding along the way; 720 hours instead of 730 is off by dollars.
 # And Module 1's scripting habit: a usage line and a failing exit status when
 # no estate is given.
@@ -63,8 +69,8 @@ checks:
         row u-web-2 "$(pick '2 4')" windows none no no d
         row u-app-1 "$(pick '8 16')" windows none "$(pick 'yes no')" no d
         row u-app-2 "$(pick '16 32')" windows none "$(pick 'yes no')" no d
-        row u-db-1 2 windows standard "$(pick 'yes no')" no d
-        row u-db-2 "$(pick '4 8')" windows "$(pick 'standard enterprise')" "$(pick 'yes no')" "$(pick 'yes no')" e
+        row u-db-1 2 windows standard yes no d
+        row u-db-2 "$(pick '8 16')" windows "$(pick 'standard enterprise')" no yes e
         row u-db-3 "$(pick '16 32')" windows enterprise yes yes e
         row u-cache-1 "$(pick '4 8')" linux none no no d
         row u-cache-2 "$(pick '2 16')" linux none no no d
