@@ -1,6 +1,7 @@
 # The checks for "Harden SSH without locking yourself out": the effective
 # config has passwords and root login off with the group and try limit set,
-# ben can still log in with his key, and the proof is saved.
+# the server that is running has them too, ben can still log in with his
+# key, and the proof is saved.
 checks:
   - id: passwords-off
     description: "sshd's effective config has password authentication off."
@@ -15,10 +16,45 @@ checks:
   - id: group-and-tries
     description: "Only ssh-users may log in, and the try limit is 3."
     command: |
-      t=$(sudo sshd -T)
-      echo "$t" | grep -iq '^allowgroups ssh-users' && echo "$t" | grep -iq '^maxauthtries 3' && echo "group and tries set"
+      settings=$(sshd -T 2>&1)
+      allowed=$(echo "$settings" | grep -i '^allowgroups ' | paste -sd' ')
+      [ "$allowed" = "allowgroups ssh-users" ] || { echo "the groups allowed to log in are not ssh-users alone"; exit 0; }
+      echo "$settings" | grep -iqx 'maxauthtries 3' || { echo "the try limit is not 3"; exit 0; }
+      echo "group and tries set"
     expect:
-      contains: "group and tries set"
+      equals: "group and tries set"
+  - id: running-server-refuses-passwords
+    description: "The SSH server that is running no longer offers password login: asked without a key, it names publickey as the only way in."
+    # sshd -T reads the files. This asks the running server itself, which
+    # keeps the settings it read when it started until it is reloaded. A
+    # client that brings no key and may not ask for a password is turned
+    # away with the list of ways in the server still offers.
+    command: |
+      answer=$(ssh -o BatchMode=yes -o PubkeyAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ben@localhost true 2>&1)
+      case "$answer" in
+        *"Permission denied ("*)
+          offered=$(echo "$answer" | sed -n 's/.*Permission denied (\([^)]*\)).*/\1/p')
+          echo "${offered:-nothing}"
+          ;;
+        *) echo "no answer from the SSH server" ;;
+      esac
+    expect:
+      equals: "publickey"
+  - id: settings-loaded
+    description: "The running SSH service has read its settings as they are now: it was reloaded or restarted after the last change to the files under /etc/ssh."
+    # The service's last change of state (a start, a reload, a restart)
+    # against the newest change under /etc/ssh. A service that isn't running
+    # yet reads the files when the next connection starts it.
+    command: |
+      if ! systemctl is-active --quiet ssh; then
+        echo "up to date"
+        exit 0
+      fi
+      loaded=$(date -d "$(systemctl show ssh -p StateChangeTimestamp --value --timestamp=us)" +%s.%6N)
+      changed=$(find /etc/ssh/sshd_config /etc/ssh/sshd_config.d -printf '%T@\n' | sort -n | tail -1)
+      awk -v loaded="$loaded" -v changed="$changed" 'BEGIN { if (loaded + 0 >= changed + 0) print "up to date"; else print "the files changed after ssh last read them" }'
+    expect:
+      equals: "up to date"
   - id: key-login-still-works
     description: "ben can still log in with his key."
     command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
