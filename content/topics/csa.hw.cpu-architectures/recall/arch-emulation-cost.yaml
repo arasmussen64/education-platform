@@ -1,0 +1,22 @@
+id: arch-emulation-cost
+type: predict_shell
+rev: 1
+prompt: |
+  Four kinds of work, each built twice from the same C source: once for this x86-64 machine and run directly, once for 64-bit Arm and run under the emulator `qemu-aarch64-static`. `times.txt` holds the seconds each took: the work, the time run directly, the time emulated. (Measured in this topic's lab on the owner's PC, 2026-11-11.) The command divides one by the other, and `%.1f` prints the result rounded to one decimal place. What does it print?
+files:
+  times.txt: |
+    count 0.159 0.515
+    crc 0.148 0.238
+    copy 0.125 0.203
+    brighten 0.096 0.821
+command: awk '{printf "%s %.1f times\n", $1, $3 / $2}' times.txt
+expected_output: |
+  count 3.2 times
+  crc 1.6 times
+  copy 1.6 times
+  brighten 8.6 times
+explanation: |
+  Each line is the emulated time over the direct time: how many times slower the emulator was. From under twice as slow to more than eight times, depending on the work. `copy` spends its time waiting for memory, which is just as slow either way, so the emulator's extra work hardly shows. `brighten` is a loop the compiler turned into vector instructions (many numbers at once), and the emulator has to imitate each of those with many ordinary ones. Other programs fare worse still: a shell loop run by an Arm build of bash under emulation took 33 times as long (timed by the topic's designer on the same PC, 2026-11-10).
+
+  So an emulator is a way to *check* that an Arm program runs, never a way to *run* a service on the wrong machine. And a build that runs its compiler under emulation, as a two-architecture image build does by default on Docker Desktop, takes several times as long as a native one.
+skills: [instruction-sets]

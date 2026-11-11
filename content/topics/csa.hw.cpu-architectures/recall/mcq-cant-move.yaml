@@ -1,0 +1,28 @@
+id: mcq-cant-move
+type: mcq
+rev: 1
+# Facts, read 2026-11-11: AWS, "Graviton processors only support Linux
+# operating systems" (docs.aws.amazon.com/ec2/latest/instancetypes/
+# ec2-nitro-instances.html); Azure's Cobalt 100 guest list ends at
+# "Windows 11 Client", with no Windows Server (learn.microsoft.com/en-us/
+# azure/virtual-machines/sizes/cobalt-overview); Google's OS details page
+# lists only Linux images for Arm and says Windows client images aren't
+# supported on Arm instances; mcr.microsoft.com/mssql/server:2022-latest
+# has no index and is amd64 only. Arm images of the three Linuxes, read
+# 2026-11-11 by the topic's reviewer: Cobalt 100's guest list (Ubuntu
+# 20.04+, Debian 11+, RHEL 8.6+), Google's OS details page (debian-12-arm64,
+# rhel-9-arm64), and the OS list in AWS's Graviton guide (os.md: Ubuntu
+# 24.04, Debian 12, Red Hat Enterprise Linux 8.2 or later).
+prompt: |
+  The shop runs four tiers. Which one has to stay on x86-64 for now, on whichever of the three big clouds it runs?
+choices:
+  - "The SQL Server database on Windows Server"
+  - "The nginx web servers on Ubuntu 24.04 LTS"
+  - "The PostgreSQL 16 database on Debian 12"
+  - "The Python API on Red Hat Enterprise Linux 9"
+answer: 0
+explanation: |
+  Two things hold it on x86-64, and either would be enough. The Arm instance types run Linux: AWS says its Graviton types run Linux only, Azure's Cobalt types run Linux and Windows 11, the desktop edition, and Google's Arm images are all Linux; none of them offers Windows Server on Arm today (November 2026). And Microsoft's SQL Server container image is built for `amd64` only. So that tier waits for its vendors.
+
+  The other three move. nginx and PostgreSQL publish `arm64` builds of their images, and Ubuntu, Debian and Red Hat Enterprise Linux are all built for Arm, with Arm images on all three clouds. A Python API is source code run by an interpreter that exists for Arm; its only risk is a package with a compiled part inside, which needs an `arm64` build of that package.
+skills: [rebuild-inventory, arm-families]

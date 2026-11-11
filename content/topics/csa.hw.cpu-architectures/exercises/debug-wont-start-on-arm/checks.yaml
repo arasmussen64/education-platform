@@ -1,0 +1,44 @@
+# The checks for "The release that won't start on Arm": the released
+# program is for 64-bit Arm, statically linked, and passes its self-test on
+# the fleet's oldest CPU (Neoverse N1, run under the emulator, as the prompt
+# says to test it); the recipe itself builds such a release from nothing;
+# and the source is as it was. The recipe check copies the release folder
+# to a scratch folder, empties its build and bin folders and runs build.sh
+# there, so a program fixed by hand beside a recipe that still builds the
+# old one fails it.
+checks:
+  - id: released-for-arm
+    description: "/srv/release/bin/shop-resize is a program for 64-bit Arm."
+    command: file -b /srv/release/bin/shop-resize
+    expect:
+      contains: "ARM aarch64"
+  - id: released-static
+    description: "It is statically linked, so it needs nothing installed beside it."
+    command: file -b /srv/release/bin/shop-resize
+    # -static-pie is statically linked too; file calls it static-pie.
+    expect:
+      matches: "statically linked|static-pie linked"
+  - id: runs-on-the-oldest
+    description: "On a Neoverse N1, the fleet's oldest Arm CPU, it passes its self-test."
+    command: |
+      test "$(qemu-aarch64-static -cpu neoverse-n1 /srv/release/bin/shop-resize --selftest 2>&1)" = "$(cat /usr/local/share/lab/selftest.txt)" && echo "passes"
+    expect:
+      equals: passes
+  - id: recipe-builds-it
+    description: "Run from scratch, /srv/release/build.sh builds a release that passes the same test."
+    command: |
+      scratch=$(mktemp -d)
+      cp -r /srv/release "$scratch/release"
+      rm -rf "$scratch/release/build" "$scratch/release/bin"
+      chown -R learner:learner "$scratch"
+      runuser -u learner -- "$scratch/release/build.sh" > /dev/null 2>&1
+      result=$(qemu-aarch64-static -cpu neoverse-n1 "$scratch/release/bin/shop-resize" --selftest 2>&1)
+      rm -rf "$scratch"
+      test "$result" = "$(cat /usr/local/share/lab/selftest.txt)" && echo "passes"
+    expect:
+      equals: passes
+  - id: source-untouched
+    description: "The program's source, /srv/release/src/shop-resize.c, is as it was."
+    command: cd /srv/release/src && sha256sum -c --quiet /usr/local/share/lab/src.sha256 && echo "unchanged"
+    expect:
+      equals: unchanged

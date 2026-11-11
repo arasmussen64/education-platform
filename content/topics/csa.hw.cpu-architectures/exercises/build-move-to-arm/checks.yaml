@@ -1,0 +1,68 @@
+# The checks for "Move the shop to Arm". The audit is compared with the
+# same question answered by /usr/local/libexec/lab/audit-truth, in the
+# shop's tree and in a second one the prompt doesn't name; the plan and the
+# images list with the same rules worked out here; the builds by what file
+# says and by running each one, under the emulator, as the oldest CPU in
+# the fleet (Neoverse N1, which has no SVE). Lines may come in any order.
+# The right answers come from /srv/shop as it stands, so the last check
+# proves nothing in it was changed, added or removed (wrong fix
+# installed-over-the-shop.sh shows why).
+checks:
+  - id: audit-shop
+    description: "arm-audit /srv/shop lists exactly the files there that can't run on 64-bit Arm as they are."
+    command: |
+      diff <(runuser -u learner -- /home/learner/bin/arm-audit /srv/shop | LC_ALL=C sort) <(/usr/local/libexec/lab/audit-truth /srv/shop) > /dev/null && echo "same"
+    expect:
+      equals: same
+  - id: audit-another-tree
+    description: "arm-audit is right for another tree too, with another mix of files in it."
+    command: |
+      diff <(runuser -u learner -- /home/learner/bin/arm-audit /usr/local/share/lab/depot | LC_ALL=C sort) <(/usr/local/libexec/lab/audit-truth /usr/local/share/lab/depot) > /dev/null && echo "same"
+    expect:
+      equals: same
+  - id: plan
+    description: "~/report/plan.txt has a line for each of those files in /srv/shop: rebuild when its source is in /srv/shop/src, vendor when it isn't."
+    command: |
+      truth=$(/usr/local/libexec/lab/audit-truth /srv/shop | while read -r path; do
+        if [ -f "/srv/shop/src/$(basename "$path").c" ]; then echo "$path rebuild"; else echo "$path vendor"; fi
+      done)
+      diff <(LC_ALL=C sort /home/learner/report/plan.txt) <(printf '%s\n' "$truth" | LC_ALL=C sort) > /dev/null && echo "same"
+    expect:
+      equals: same
+  - id: images
+    description: "~/report/images.txt has a line for each image in /srv/shop/images/images.txt: multi when its saved index offers linux/arm64, x86-only when it doesn't."
+    command: |
+      truth=$(while read -r image file; do
+        if grep -Eq '"architecture": *"arm64"' "/srv/shop/images/$file"; then echo "$image multi"; else echo "$image x86-only"; fi
+      done < /srv/shop/images/images.txt)
+      diff <(LC_ALL=C sort /home/learner/report/images.txt) <(printf '%s\n' "$truth" | LC_ALL=C sort) > /dev/null && echo "same"
+    expect:
+      equals: same
+  - id: api-built
+    description: "~/out/shop-api is a statically linked program for 64-bit Arm."
+    command: file -b /home/learner/out/shop-api
+    expect:
+      matches: "ARM aarch64.*(statically linked|static-pie linked)"
+  - id: thumb-built
+    description: "~/out/shop-thumb is a statically linked program for 64-bit Arm."
+    command: file -b /home/learner/out/shop-thumb
+    expect:
+      matches: "ARM aarch64.*(statically linked|static-pie linked)"
+  - id: api-runs-on-the-oldest
+    description: "On a Neoverse N1, the fleet's oldest Arm CPU, ~/out/shop-api passes its self-test."
+    command: |
+      test "$(qemu-aarch64-static -cpu neoverse-n1 /home/learner/out/shop-api --selftest 2>&1)" = "$(cat /usr/local/share/lab/expected/shop-api.txt)" && echo "passes"
+    expect:
+      equals: passes
+  - id: thumb-runs-on-the-oldest
+    description: "On a Neoverse N1, ~/out/shop-thumb passes its self-test."
+    command: |
+      test "$(qemu-aarch64-static -cpu neoverse-n1 /home/learner/out/shop-thumb --selftest 2>&1)" = "$(cat /usr/local/share/lab/expected/shop-thumb.txt)" && echo "passes"
+    expect:
+      equals: passes
+  - id: shop-untouched
+    description: "Everything in /srv/shop is as it was: no file changed, added or removed."
+    command: |
+      cd /srv/shop && diff <(find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) /usr/local/share/lab/shop.sha256 > /dev/null && echo "unchanged"
+    expect:
+      equals: unchanged

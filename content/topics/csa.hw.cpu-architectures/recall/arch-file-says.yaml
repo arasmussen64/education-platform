@@ -1,0 +1,25 @@
+id: arch-file-says
+type: predict_shell
+rev: 1
+prompt: |
+  `files.txt` is what `file *` printed for a folder of the shop's tools: each line is a file's name, a colon, and what `file` found inside it. (Captured in this topic's lab on 2026-11-11.) The command counts the lines that mention `x86-64`, then lists the files that are built for 64-bit Arm. What does it print?
+files:
+  files.txt: |
+    README.txt:        ASCII text
+    backup.sh:         Bourne-Again shell script, ASCII text executable
+    labels.jar:        Zip archive data, at least v1.0 to extract, compression method=store
+    libcrc.so:         ELF 64-bit LSB shared object, x86-64, version 1 (SYSV), dynamically linked, BuildID[sha1]=d0bb5dfe558014ce164d34df2034402173953d4e, not stripped
+    shop-api:          ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=da21cd8ac17c40cff1c3eccc2be0db3d8fe7dcb1, for GNU/Linux 3.2.0, not stripped
+    shop-api-arm64:    ELF 64-bit LSB executable, ARM aarch64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=39f7d3e0a4b5a3b69b871a53ca494a9986423dd1, for GNU/Linux 3.7.0, not stripped
+    thumb-x86_64:      ELF 64-bit LSB executable, ARM aarch64, version 1 (GNU/Linux), statically linked, BuildID[sha1]=39f7d3e0a4b5a3b69b871a53ca494a9986423dd1, for GNU/Linux 3.7.0, not stripped
+command: |
+  grep -c 'x86-64' files.txt; grep 'ARM aarch64' files.txt | cut -d: -f1
+expected_output: |
+  2
+  shop-api-arm64
+  thumb-x86_64
+explanation: |
+  Two lines say `x86-64`: the library `libcrc.so` and the program `shop-api`. Two files are built for Arm, and one of them is `thumb-x86_64`: its name says x86 (with an underscore, so `grep 'x86-64'` doesn't even match it), and what's inside is 64-bit Arm machine code. Names are written by people and can be wrong; `file` reads the file's own header.
+
+  Every Linux program and library is an **ELF** file, and `file` names the architecture after the first comma. The rest is detail you'll meet again: `dynamically linked` means the program loads the C library from the machine when it starts (`interpreter` names the loader that does it), and `statically linked` that it carries everything inside. `pie executable` is about where in memory a program can be placed, which doesn't matter here. The script, the text file and the archive aren't machine code at all, so `file` names no architecture for them.
+skills: [read-arch]

@@ -1,16 +1,239 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.hw.cpu-architectures
 kind: topic
-status: planned
-title: CPU architectures
-summary: Compare x86 and Arm (Graviton, Ampere, Cobalt, Axion).
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+status: ready
+title: "CPU architectures"
+summary: "What a CPU runs, and why a program built for one architecture won't start on another; x86-64 and 64-bit Arm, and the Arm chips the three clouds rent out (Graviton, Cobalt, Axion, Ampere); what has to be rebuilt to move a service to Arm; and what the move really saves, from price lists."
+# Module 2 keeps Module 1's checkpoint as its gate through Hypervisors
+# (docs/plans/cloud-module-2/MODULE-2-BRIEF.md, section 2). The lesson also
+# leans on Module 1's processes and memory topics (exit status 128 plus a
+# signal), packages (dpkg), containers (images and tags), scripting and
+# shell (find, grep, awk, case in a script), all inside that gate.
+prerequisites: [csa.hw.hypervisors]
+estimated_minutes: 290
 rev: 1
 objectives:
-- Compare x86 and Arm (Graviton, Ampere, Cobalt, Axion).
-- Explain instruction sets.
-- Say what Arm saves, from price lists, and what has to be rebuilt to get it.
+  - "Say what an instruction set is, and why a compiled program runs on one architecture only while a script or bytecode moves as it is."
+  - "Read the architecture of a machine, a program file and a container image: `uname -m`, `dpkg --print-architecture`, `file`, and an image's index."
+  - "Tell the two failures apart, the wrong architecture (`Exec format error`) and the right one with a missing feature (`Illegal instruction`), and build for the oldest CPU in a fleet."
+  - "Sort a deployment's parts into runs as it is, rebuild, get it from the vendor, and can't move yet."
+  - "Name the Arm families on AWS, Azure and Google Cloud, read an instance type's name, and say what runs on them."
+  - "Work out what Arm saves from price lists (the percentage, a fleet's month and the months to pay back the work), and say what has to be measured before promising it."
+# Linked or embedded, never copied. Each resource was opened on 2026-11-11
+# and its licence read where it is stated: the two Crash Course videos on
+# YouTube (CrashCourse's channel; embedding allowed, no licence stated
+# beyond YouTube's own); AWS's Graviton guide on GitHub (its LICENSE-SUMMARY:
+# documentation CC BY-SA 4.0, sample code MIT-0); Docker's documentation
+# (the docker/docs repository: Apache-2.0); Red Hat's blog (copyright Red
+# Hat); Google Cloud's documentation (its footer: CC BY 4.0, code Apache
+# 2.0; page last updated 2026-11-10); Microsoft Learn (the MicrosoftDocs
+# repositories: CC BY 4.0); AWS's product and documentation pages
+# (copyright Amazon Web Services); the OCI image specification (Apache-2.0);
+# Arm Learning Paths (its repository's README says all site content is
+# CC BY 4.0, while its LICENSE file is CC BY-SA 4.0; re-read 2026-11-11).
+resources:
+  - title: "Instructions & Programs: Crash Course Computer Science #8 (CrashCourse, 10 minutes): a tiny CPU runs a program, one instruction at a time"
+    url: https://www.youtube.com/watch?v=zltgXvg6r3k
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "The Central Processing Unit (CPU): Crash Course Computer Science #7 (CrashCourse, 12 minutes): the CPU that the main video programs, built from its parts"
+    url: https://www.youtube.com/watch?v=FZGugFqdr60
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "Considerations when transitioning workloads to AWS Graviton based Amazon EC2 instances (AWS Graviton Technical Guide, about 14 minutes): the inventory, part by part"
+    url: https://github.com/aws/aws-graviton-getting-started/blob/main/transition-guide.md
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Multi-platform builds (Docker documentation): read as far as the strategies, emulation, native nodes and cross-compiling"
+    url: https://docs.docker.com/build/building/multi-platform/
+    type: reading
+    use: link
+    license: "Apache-2.0 (Docker documentation)"
+  - title: "Building Red Hat Enterprise Linux 9 for the x86-64-v2 microarchitecture level, by Florian Weimer (Red Hat Developer, 5 minutes): feature levels, and why newer instructions don't run on older CPUs"
+    url: https://developers.redhat.com/blog/2021/01/05/building-red-hat-enterprise-linux-9-for-the-x86-64-v2-microarchitecture-level
+    type: reading
+    use: link
+    license: "Copyright Red Hat; linked, not copied"
+  - title: "Arm VMs on Compute Engine (Google Cloud documentation, 5 minutes): C4A and N4A on Axion, T2A on Ampere Altra"
+    url: https://docs.cloud.google.com/compute/docs/instances/arm-on-compute
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Azure Cobalt processor-based Virtual Machines (Microsoft Learn, 2 minutes): Cobalt 100's series and the systems it runs"
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/cobalt-overview
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "AWS Graviton Processor (AWS's product page, 3 minutes): its claims, to be read as claims"
+    url: https://aws.amazon.com/ec2/graviton/
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "AWS Graviton Technical Guide: the table of Graviton generations, with each one's Arm core and features (3 minutes)"
+    url: https://github.com/aws/aws-graviton-getting-started
+    type: reading
+    use: link
+    license: CC BY-SA 4.0 (linked, not copied)
+  - title: "Azure VM sizes naming conventions (Microsoft Learn, 3 minutes): what each letter in a size's name means"
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/vm-naming-conventions
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Amazon EC2 instance type naming conventions (AWS documentation, 2 minutes): series, generation, options and size"
+    url: https://docs.aws.amazon.com/ec2/latest/instancetypes/instance-type-names.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "OCI Image Index Specification (Open Container Initiative): an image index and its platform fields"
+    url: https://github.com/opencontainers/image-spec/blob/main/image-index.md
+    type: reading
+    use: link
+    license: Apache-2.0
+  - title: "Migrate applications to Arm servers (Arm Learning Paths, 15 minutes, optional): the same move from Arm's side, language by language"
+    url: https://learn.arm.com/learning-paths/servers-and-cloud-computing/migration/
+    type: reading
+    use: link
+    license: "CC BY 4.0 by its repository's README (its LICENSE file says CC BY-SA 4.0); linked, not copied"
+# Facts the lesson and the items rest on, each read on 2026-11-11:
+# - Graviton2 Neoverse N1 (no SVE), Graviton3 V1 (SVE), Graviton4 V2 (SVE2),
+#   Graviton5 V3 (M9g): github.com/aws/aws-graviton-getting-started, README.
+# - "Every vCPU on a Graviton processor maps to a physical core" and no SMT;
+#   interpreted and JIT languages run as they are, C, C++ and Go must be
+#   built for arm64: the transition guide.
+# - Graviton instances "cost up to 20% less" than comparable x86 ones, and
+#   M6g "up to 40% better price performance over M5": aws.amazon.com/ec2/
+#   graviton/ and aws.amazon.com/ec2/instance-types/m6g/.
+# - "Graviton processors only support Linux operating systems":
+#   docs.aws.amazon.com/ec2/latest/instancetypes/ec2-nitro-instances.html.
+# - AWS name letters: g Graviton, a AMD, i Intel: docs.aws.amazon.com/ec2/
+#   latest/instancetypes/instance-type-names.html. Default threads per core:
+#   m7i.large 2, m7g.large and m7a.large 1: docs.aws.amazon.com/AWSEC2/
+#   latest/UserGuide/cpu-options-supported-instances-values.html.
+# - Cobalt 100: Neoverse N2, 3.4 GHz, a physical core per vCPU, guests up to
+#   Windows 11 Client and no Windows Server (page updated 2025-07-03):
+#   learn.microsoft.com/en-us/azure/virtual-machines/sizes/cobalt-overview.
+#   Azure name letters a AMD, p Arm, s premium SSD: vm-naming-conventions
+#   (updated 2026-02-26). Azure's next Arm series, Dpsv7, is in the price
+#   list (D2ps_v7 $0.114, Linux and Windows meters) but has no documentation
+#   page yet (404) and is in preview, so nothing here names it.
+# - Google: C4A on Axion (Neoverse V2), N4A on Axion (Neoverse N3), T2A on
+#   Ampere Altra, a vCPU a whole core with no SMT: docs.cloud.google.com/
+#   compute/docs/instances/arm-on-compute and general-purpose-machines. N4A
+#   generally available since 2026-01-27: cloud.google.com/blog/products/
+#   compute/axion-based-n4a-vms-now-in-preview (its update note). Windows
+#   client images aren't supported on N4A, C4A or T2A, and the Arm images
+#   listed are all Linux: docs.cloud.google.com/compute/docs/images/os-details.
+# - x86-64-v2, v3 (AVX2), v4 (AVX-512); "Programs that use newer CPU
+#   instructions might not run on older CPUs": the Red Hat post (updated
+#   2024-02-05).
+# - Docker Desktop builds under emulation with no setup; on Docker Engine
+#   "official BuildKit releases bundle QEMU user-mode emulators, so in most
+#   cases you don't need to install QEMU manually", and where they don't
+#   work, tonistiigi/binfmt installs them: the Docker page above (re-read
+#   by the topic's reviewer on 2026-11-11).
+# - The SQL Server image mcr.microsoft.com/mssql/server:2022-latest has no
+#   index and is amd64 only, and Docker 29.8.2 answers a linux/arm64 run with
+#   "was found but does not provide the specified platform (linux/arm64)":
+#   read from the registry and run on the owner's PC.
+# - On the owner's PC (Docker Desktop, Docker 29.8.2) an arm64 program
+#   started directly in a lab container failed with "cannot execute binary
+#   file: Exec format error", exit status 126; earlier the designer saw one
+#   run, through an emulator registered with the kernel. No check depends
+#   on which.
+# Prices (on-demand, Linux, US dollars an hour), read 2026-11-11: AWS from
+# the price file behind https://aws.amazon.com/ec2/pricing/on-demand/ for US
+# East (N. Virginia), published 2026-11-10T17:38:52Z; Azure from
+# https://prices.azure.com/api/retail/prices for East US; Google from
+# https://cloud.google.com/products/compute/pricing/general-purpose for Iowa
+# (us-central1). The write lab's 2026-11.csv holds every one used.
+#
+# The quick questions read uname, dpkg, file, unzip and image indexes with
+# the text tools of Shell essentials, and the sums are estimate questions
+# (ADR-0024) and awk. Every lab is a plain lab on an x86-64 machine with a
+# cross-compiler for Arm and QEMU's emulator for one Arm program, so a
+# program built for Arm is tested by naming the emulator, the same on
+# every machine (ADR-0017, ADR-0018). No checked docker buildx lab before
+# Module 6 (the Module 2 plan).
+practice:
+  - example-one-program-two-machines
+  - mcq-what-is-an-instruction-set
+  - arch-two-names
+  - arch-file-says
+  - mcq-script-or-binary
+  - arch-emulation-cost
+  - mcq-works-on-my-laptop
+  - mcq-which-error
+  - arch-signal-four
+  - mcq-illegal-instruction
+  - arch-index-platforms
+  - mcq-image-wont-start
+  - mcq-read-the-name
+  - mcq-which-generation
+  - arch-saving-percent
+  - arch-fleet-month
+  - arch-fleet-saving
+  - arch-pay-back
+  - mcq-not-cheaper
+  - arch-jar-native
+  - mcq-what-rebuilds
+  - mcq-cant-move
+  - fill-what-arch
+  - write-arm-saving
+prove:
+  build: build-move-to-arm
+  debug: debug-wont-start-on-arm
+  explain:
+    prompt: |
+      Your manager has read that Arm instances are 40% cheaper and wants the whole estate moved next quarter: a Go API, a Python service that uses packages with compiled parts, a Java application, a monitoring agent bought from a vendor, and a SQL Server database on Windows Server. Explain, in your own words: what an instruction set is and why a program built for x86-64 won't start on Arm, with the two error messages you'd expect to meet and what each means; which of the five parts run unchanged, which must be rebuilt, which need something from a vendor and which can't move yet; what the Arm families are called on AWS, Azure and Google Cloud and what a vCPU is on them; and what the saving really is at list price, what you'd measure before promising it, and how you'd roll the move out.
+    rubric:
+      - id: instruction-set
+        required: true
+        description: "A CPU family understands one set of instructions; a compiled program holds those instructions as machine code, so an x86-64 binary fails on Arm with Exec format error before it starts; interpreted programs and bytecode move if their interpreter or runtime exists for Arm."
+      - id: inventory
+        required: true
+        description: "Go: rebuild for arm64. Python: the code runs as it is, the packages' compiled parts need arm64 builds. Java: bytecode runs on an Arm JVM unless a jar carries a native library. The vendor's agent: only the vendor can supply an arm64 build. SQL Server on Windows Server: stays on x86-64 for now (no Windows Server on the clouds' Arm types, and an amd64-only image)."
+      - id: families
+        required: true
+        description: "Graviton on AWS (a g after the generation, like m8g), Cobalt (and Ampere Altra) on Azure (a p in the size, like D4ps_v6), Axion and Ampere Altra on Google Cloud (C4A, N4A, T2A); a vCPU there is a whole physical core, where on most Intel types it is one of a core's two hyperthreads."
+      - id: money
+        required: true
+        description: "At list price and equal size, Arm is typically 15 to 30% below the same generation's Intel type (7 to 31% across the three clouds on the day this was written), not 40%: that figure is a claim about price performance; and Arm isn't always cheaper (an older or cost-optimised x86 type can list below it). Measure throughput or requests per dollar on the real workload under load, and count the cost of the work against the monthly saving."
+      - id: feature-level
+        required: false
+        description: "The second error, Illegal instruction (signal 4, exit status 132): a build that uses instructions an older chip of the same architecture lacks, like SVE on Graviton2; build for the oldest CPU in the fleet."
+      - id: rollout
+        required: false
+        description: "Start with stateless parts built from open source; run x86 and Arm side by side, move a few servers first and compare; build images for both architectures so either kind of machine can run them."
+    model_answer: |
+      A CPU carries out one small operation at a time, and the list of operations a family of CPUs understands, each written as a number, is its instruction set. Intel and AMD chips use x86-64, also called amd64; Arm chips use 64-bit Arm, also called aarch64 or arm64. A compiled program like the Go API is machine code for one of them, translated from its source ahead of time, so the x86-64 build won't start on an Arm server: the kernel reads the file's header and refuses with "Exec format error". The second message to expect is "Illegal instruction", exit status 132, which means the architecture is right but the program uses an instruction this particular chip doesn't have, such as SVE vectors built in for Graviton3 and run on a Graviton2. The answer to that is to build for the oldest CPU in the fleet. Scripts and bytecode are different: they're read by an interpreter or a runtime, and they move as long as an Arm build of that exists.
+
+      So, part by part. The Go API must be rebuilt for arm64, which for Go is the same build with another target. The Python service's own code runs as it is on an Arm Python, but its packages with compiled parts need their arm64 builds, which for popular packages usually exist. The Java application's bytecode runs on an Arm Java runtime, unless one of its jars carries a native library, which then needs an arm64 version. The vendor's monitoring agent is machine code we don't have the source of, so only the vendor can give us an arm64 build; until they do, those servers stay. The SQL Server database can't move yet: the clouds' Arm types run Linux (Azure also runs Windows 11 on Cobalt, the desktop edition), none offers Windows Server on Arm, and Microsoft's SQL Server image is amd64 only.
+
+      The Arm chips are Graviton on AWS, named with a g after the generation, like m8g; Cobalt 100 on Azure, and Ampere Altra there too, named with a p in the size, like D4ps_v6; and Axion and Ampere Altra on Google Cloud, the C4A, N4A and T2A series. On all of them a vCPU is a whole physical core, while on most Intel types a vCPU is one of a core's two hyperthreads, so two vCPUs of each aren't the same hardware.
+
+      The money: at list price, the same size on Arm is usually 15 to 30% cheaper than the same generation of Intel; AWS's own page says up to 20%. The 40% is a claim about price performance, work done per dollar, and it may or may not hold for our services. It isn't always cheaper either: Google's cost-optimised x86 type lists below its Arm ones. Before promising anything I'd run each service on both under real load and compare requests per second per dollar, and put the engineering time against the monthly saving to see how long it takes to pay back. Then I'd move the stateless open-source parts first, a few servers at a time beside the x86 ones, with images built for both architectures, and widen it once the numbers agree.
+review_pool:
+  - arch-two-names
+  - arch-file-says
+  - mcq-what-is-an-instruction-set
+  - mcq-works-on-my-laptop
+  - arch-signal-four
+  - mcq-what-rebuilds
+  - mcq-cant-move
+  - mcq-read-the-name
+  - mcq-which-generation
+  - arch-saving-percent
+  - arch-fleet-month
+skills:
+  - id: read-arch
+    description: "Read the architecture of a machine (`uname -m`, `dpkg --print-architecture`), of a file (`file`, and what's inside an archive) and of an image (the platforms in its index); know that amd64 is x86-64 and aarch64 is arm64"
+  - id: instruction-sets
+    description: "What an instruction set is; why a binary runs on one architecture (`Exec format error`); what an emulator does and costs; feature levels within one architecture and `Illegal instruction`; building for the oldest CPU"
+  - id: rebuild-inventory
+    description: "Sort a deployment into runs as it is, rebuild, vendor and can't move: scripts and bytecode, compiled programs, native extensions and libraries inside archives, images, agents, licensed software"
+  - id: arm-families
+    description: "The Arm families on AWS, Azure and Google Cloud and their generations; reading an instance type's name; what runs on them"
+  - id: price-performance
+    description: "Percent saved at equal size, a fleet's monthly saving and the months to pay back the work, from dated price lists; why price per vCPU isn't price per unit of work; when Arm isn't the cheaper choice"

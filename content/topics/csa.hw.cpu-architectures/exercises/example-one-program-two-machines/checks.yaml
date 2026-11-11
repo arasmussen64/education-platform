@@ -1,0 +1,51 @@
+# The checks for "One program, two machines": the lab's machine is x86-64;
+# hello and count are built for it and for 64-bit Arm; the Arm hello runs
+# under the emulator; and ~/example/arch.txt says what uname and file say.
+#
+# No check starts an Arm program directly. Whether that works depends on
+# the machine Docker runs on: if its kernel has been told to hand Arm
+# programs to an emulator it runs, and if not it fails with "Exec format
+# error" (it failed on the owner's PC on 2026-11-11). Naming the emulator
+# behaves the same everywhere.
+checks:
+  - id: x86-machine
+    description: "The lab's machine is x86-64, the kind this lab is written for."
+    command: uname -m
+    expect:
+      equals: x86_64
+  - id: hello-for-this-machine
+    description: "~/hello is built for x86-64 and says hello from x86_64."
+    command: |
+      file -b /home/learner/hello | grep -q 'x86-64' && /home/learner/hello
+    expect:
+      equals: "hello from x86_64"
+  - id: hello-cross-built
+    description: "~/hello-arm64 is a statically linked program for 64-bit Arm."
+    command: file -b /home/learner/hello-arm64
+    expect:
+      matches: "ARM aarch64.*statically linked"
+  - id: hello-runs-emulated
+    description: "Under the Arm emulator, ~/hello-arm64 says hello from aarch64."
+    command: qemu-aarch64-static /home/learner/hello-arm64
+    expect:
+      equals: "hello from aarch64"
+  - id: count-both-ways
+    description: "~/count is built for x86-64 and ~/count-arm64 for 64-bit Arm."
+    command: |
+      file -b /home/learner/count | grep -q 'x86-64' && file -b /home/learner/count-arm64 | grep -q 'ARM aarch64' && echo "both built"
+    expect:
+      equals: "both built"
+  - id: arch-file
+    description: "~/example/arch.txt holds four lines: this machine's architecture, then what file says each hello is built for, then what the library inside crc.jar is built for."
+    # The truth is worked out here the same way, from the programs on disk,
+    # so a file typed without building fails the checks above instead.
+    command: |
+      truth=$(
+        uname -m
+        file -b /home/learner/hello | awk -F', ' '{print $2}'
+        file -b /home/learner/hello-arm64 | awk -F', ' '{print $2}'
+        unzip -p /home/learner/lib/crc.jar native/libcrc.so | file -b - | awk -F', ' '{print $2}'
+      )
+      test "$(cat /home/learner/example/arch.txt)" = "$truth" && echo "matches"
+    expect:
+      equals: matches

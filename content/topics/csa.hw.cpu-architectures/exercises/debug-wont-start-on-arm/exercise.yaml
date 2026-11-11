@@ -1,0 +1,12 @@
+id: debug-wont-start-on-arm
+stage: debug
+runtime: lab
+rev: 1
+title: "The release that won't start on Arm"
+prompt: |
+  `shop-resize` is the shop's photo resizer, and it has to run on the fleet's 64-bit Arm servers. The oldest of those have Neoverse N1 cores, and the servers have nothing installed but the program itself. A release is made by running `/srv/release/build.sh` on this x86-64 build machine, which puts the program to ship in `/srv/release/bin/shop-resize`; releases are always made that way, never by hand.
+
+  Test the release as the oldest servers would run it, through the emulator: `qemu-aarch64-static -cpu neoverse-n1 /srv/release/bin/shop-resize --selftest`. A working program prints one line, `shop-resize selftest: ...` with a checksum. This one doesn't run.
+
+  There are three faults. Put them right, so that running `build.sh` makes a release that passes that test, and run it. Don't change the program's source, `/srv/release/src/shop-resize.c`. Then run the checks.
+skills: [instruction-sets, read-arch]

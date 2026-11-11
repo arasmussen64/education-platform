@@ -1,0 +1,16 @@
+id: mcq-script-or-binary
+type: mcq
+rev: 1
+prompt: |
+  Four of the shop's tools are moving to Arm servers that have the same Ubuntu, with bash installed. Which one moves across unchanged, with no rebuild?
+choices:
+  - "The Bash deployment script, because it is text, and the bash on the Arm server reads it and runs it"
+  - "The C log shipper, because the C language is the same on every CPU that has a C compiler for it"
+  - "The Go metrics exporter, because Go programs carry their own runtime with them inside the one file"
+  - "The Rust image tool, because Rust compiles to a format that the kernel adapts to whatever CPU it has"
+answer: 0
+explanation: |
+  A script is **source code**: text that an **interpreter** (here `bash`) reads and carries out each time it runs. The interpreter is the compiled program, and the Arm server has its own Arm build of `bash`, so the script needs nothing. The same holds for Python and Ruby scripts, as long as everything they import is also plain source.
+
+  C, Go and Rust are **compiled** languages: the compiler turns the source into one CPU family's machine code, ahead of time. The C *source* would move unchanged, but the program built from it is x86-64. Go does carry its runtime inside the file, and that runtime is x86-64 machine code too. And no kernel adapts a program to its CPU: an x86-64 file on an Arm server fails with `Exec format error`. All three must be built again for `arm64`, which for most code means running the same build with another target.
+skills: [instruction-sets, rebuild-inventory]

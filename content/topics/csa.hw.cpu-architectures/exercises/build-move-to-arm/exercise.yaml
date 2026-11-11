@@ -1,0 +1,15 @@
+id: build-move-to-arm
+stage: build
+runtime: lab
+rev: 1
+title: "Move the shop to Arm"
+prompt: |
+  The shop wants its service on 64-bit Arm servers. The oldest Arm machines in its fleet have Neoverse N1 cores, the cores of Graviton2. Everything the service is made of is under `/srv/shop/`, as its x86-64 servers run it today.
+
+  1. Write `~/bin/arm-audit DIR`, which prints the path of every file under `DIR` that can't run on a 64-bit Arm server as it is, one a line: every program or library built for another architecture, and every Java archive (`.jar`) holding a library built for another architecture. Decide from what is inside each file, never from its name.
+  2. For `/srv/shop`, save `~/report/plan.txt` with a line for each file `arm-audit` finds there: its path, a space, then `rebuild` if the shop has its source (a file of the same name with `.c` on the end, in `/srv/shop/src`), or `vendor` if it doesn't.
+  3. Save `~/report/images.txt` with a line for each image listed in `/srv/shop/images/images.txt`: the image's name, a space, then `multi` if its saved index offers `linux/arm64`, or `x86-only` if it doesn't. `/srv/shop/images/README.txt` says what the files are.
+  4. Build the shop's two programs from `/srv/shop/src` for 64-bit Arm, into `~/out/shop-api` and `~/out/shop-thumb`, statically linked, so that they run on the fleet's oldest Arm machines with nothing else installed. Each has a `--selftest` that prints one line, the same on every machine it runs on correctly. Don't change anything in `/srv/shop`.
+
+  The checks also run `arm-audit` on another folder, with other files in it.
+skills: [read-arch, rebuild-inventory, instruction-sets]

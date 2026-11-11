@@ -1,0 +1,38 @@
+# The checks for "Finish what-arch": no gaps left, and the script's line for
+# every file in two folders agrees with what file itself says, worked out
+# here the same way. The second folder isn't named in the prompt, so a
+# script that only prints the answers for the first can't pass; it holds an
+# x86-64 program named like an Arm one, and a gzip archive whose description
+# mentions x86-64 although it is no program.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/what-arch"
+  - id: samples-right
+    description: "For every file in /srv/samples, what-arch prints the file and the architecture file reports for it, or not-a-program."
+    command: |
+      truth=$(for path in /srv/samples/*; do
+        case "$(file -b "$path")" in
+          ELF*x86-64*) arch=x86-64 ;;
+          ELF*aarch64*) arch=aarch64 ;;
+          *) arch=not-a-program ;;
+        esac
+        echo "$path $arch"
+      done)
+      test "$(runuser -u learner -- /home/learner/bin/what-arch /srv/samples/*)" = "$truth" && echo "all right"
+    expect:
+      equals: "all right"
+  - id: other-folder-right
+    description: "It is right for another folder too, with other files in it."
+    command: |
+      truth=$(for path in /usr/local/share/lab/more/*; do
+        case "$(file -b "$path")" in
+          ELF*x86-64*) arch=x86-64 ;;
+          ELF*aarch64*) arch=aarch64 ;;
+          *) arch=not-a-program ;;
+        esac
+        echo "$path $arch"
+      done)
+      test "$(runuser -u learner -- /home/learner/bin/what-arch /usr/local/share/lab/more/*)" = "$truth" && echo "all right"
+    expect:
+      equals: "all right"

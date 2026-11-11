@@ -1,0 +1,64 @@
+id: arch-index-platforms
+type: predict_shell
+rev: 1
+prompt: |
+  `index.json` is the index that the name `ubuntu:24.04` points at on Docker Hub: the list of images, one per platform, that a runtime chooses from. It was read on 2026-11-11 with `docker buildx imagetools inspect --raw ubuntu:24.04`, trimmed to four of its twelve entries and laid out one field a line (the registry stores it on one line). The command picks out each entry's architecture and drops one kind. What does it print?
+files:
+  index.json: |
+    {
+      "schemaVersion": 2,
+      "mediaType": "application/vnd.oci.image.index.v1+json",
+      "manifests": [
+        {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:78d4744ead1f5b19b04d0df558ab182a5300903900755e515b2ca4d10eb2044d",
+          "size": 424,
+          "platform": {
+            "architecture": "amd64",
+            "os": "linux"
+          }
+        },
+        {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:025de21ae8661cf72ff6890413696fe04c845871033ce01d76880e37c8161100",
+          "size": 562,
+          "platform": {
+            "architecture": "unknown",
+            "os": "unknown"
+          },
+          "annotations": {
+            "vnd.docker.reference.type": "attestation-manifest"
+          }
+        },
+        {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:19cad59657037cffa0ac9a48107019b768900ff1071140965827513ac866bd5e",
+          "size": 424,
+          "platform": {
+            "architecture": "arm64",
+            "os": "linux",
+            "variant": "v8"
+          }
+        },
+        {
+          "mediaType": "application/vnd.oci.image.manifest.v1+json",
+          "digest": "sha256:3ee66ec22bcfcbca0e04d66c8b72ee755f7d24f71d4d2b34239dd5ee610d950f",
+          "size": 424,
+          "platform": {
+            "architecture": "s390x",
+            "os": "linux"
+          }
+        }
+      ]
+    }
+command: |
+  grep -o '"architecture": *"[a-z0-9]*"' index.json | grep -v unknown | cut -d'"' -f4
+expected_output: |
+  amd64
+  arm64
+  s390x
+explanation: |
+  `grep -o` prints only the part of each line that matches: `"architecture": "amd64"` and so on. The ` *` after the colon allows any number of spaces, none included, so the same command works on the registry's one-line form. `grep -v unknown` drops the entry whose platform is `unknown/unknown`, and `cut` keeps the fourth piece between double quotes: the name.
+
+  So this one tag offers x86-64, 64-bit Arm (with its `variant`, `v8`) and IBM's s390x mainframes, among others: pull `ubuntu:24.04` on an Arm server and the runtime picks the `arm64` image itself. The `unknown` entries aren't platforms: each is an **attestation**, a signed record of how the image beside it was built, which no machine runs. An image whose index has no `arm64` entry can't run on Arm, and an image with no index at all was built for one architecture only.
+skills: [read-arch]

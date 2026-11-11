@@ -1,0 +1,19 @@
+id: arch-signal-four
+type: predict_shell
+rev: 1
+prompt: |
+  A program was compiled for this x86-64 machine with `-march=x86-64-v3`, which lets the compiler use the AVX2 vector instructions. It was then run under the x86-64 emulator, which can pretend to be an older or newer CPU, as four CPU models, oldest first: `qemu64` (a basic x86-64), `Nehalem` (Intel, 2008), `Haswell` (Intel, 2013, the first Intel CPU with AVX2) and `max` (everything the emulator can imitate). `runs.txt` holds each model and the exit status the program ended with. (Run in this topic's lab on 2026-11-11.) What does the command print?
+files:
+  runs.txt: |
+    qemu64 132
+    Nehalem 132
+    Haswell 0
+    max 0
+command: awk '$2 == 132 {n++} END {print n " of " NR " died with signal " 132 - 128}' runs.txt
+expected_output: |
+  2 of 4 died with signal 4
+explanation: |
+  Two runs ended with status 132, and a status above 128 means the process was killed by a signal: 132 is 128 plus 4, and signal 4 is `SIGILL`, an **illegal instruction**. You read 137 the same way in the memory topic: 128 plus 9, `SIGKILL`. On the two older models the program reached an AVX2 instruction those CPUs don't have, and the CPU refused it. The emulator reports it as `qemu: uncaught target signal 4 (Illegal instruction)`; on a real machine, bash says `Illegal instruction`.
+
+  It's the same architecture throughout, x86-64, so this isn't the wrong-architecture failure, which stops a program before it starts. The program starts, runs until it meets the first instruction the CPU lacks, and dies there. x86-64-v2, v3 and v4 are steps of newer instructions within one architecture. The rule for a fleet: build for the oldest CPU you run on.
+skills: [instruction-sets]

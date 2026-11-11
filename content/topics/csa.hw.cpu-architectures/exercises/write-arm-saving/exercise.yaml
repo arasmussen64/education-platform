@@ -1,0 +1,26 @@
+id: write-arm-saving
+stage: write
+runtime: lab
+rev: 1
+title: "Write arm-saving"
+prompt: |
+  Write a script, `~/bin/arm-saving`, that works out what moving a group of machines from an x86 instance type to an Arm one saves, at list prices. It's called as `arm-saving CSV X86_TYPE ARM_TYPE COUNT`: a price file, the two types' names as the file writes them, and how many machines.
+
+  The price file is `/srv/prices/2026-11.csv`, read from the three clouds on 2026-11-11 (its README, beside it, says how). Lines starting with `#` are notes. Then comes a header line, `cloud,type,arch,vcpus,usd_per_hour`, and one line a type: for example `aws,m7i.large,x86-64,2,0.1008`, an hour of `m7i.large` for $0.1008.
+
+  It prints exactly three lines, with the decimals shown:
+
+  ```
+  per hour: 0.0192
+  percent: 19.0
+  per month for 40: 560.64
+  ```
+
+  That's `arm-saving /srv/prices/2026-11.csv m7i.large m7g.large 40`: one machine saves $0.0192 an hour; that's 19.0% of the x86 price (the percentage is always of the x86 price, what you pay now); and 40 machines save $560.64 a month, counting a month as 730 hours. When the Arm type costs more, all three numbers come out negative, and that's the honest answer: don't hide the sign.
+
+  Try it on a few pairs from the file, including `e2-standard-2` to `n4a-standard-2` on Google Cloud. Make it executable, and run the checks, which also give it a price file the prompt doesn't name.
+hints:
+  - "Read the four arguments into named variables first (`csv=\"$1\"` and so on). Then find each type's price: `awk -F, -v t=\"$x86\" '$2 == t {print $5}' \"$csv\"` splits each line at the commas and prints the fifth field of the line whose second field is the type. Note lines and the header don't match a type, so they're skipped by themselves."
+  - "bash can only do whole numbers, so do the sums in awk, which handles decimals: `awk -v x=\"$x86_price\" -v a=\"$arm_price\" -v n=\"$count\" 'BEGIN { ... }'`. Inside, `x - a` is the hourly saving, `(x - a) * 100 / x` the percentage, and `(x - a) * 730 * n` the month."
+  - "`printf \"per hour: %.4f\\n\", hour` prints a number with four decimals; `%.1f` gives one and `%.2f` two. `printf \"per month for %d: %.2f\\n\", n, month` puts the count in the label."
+skills: [price-performance]

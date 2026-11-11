@@ -1,0 +1,16 @@
+id: mcq-what-is-an-instruction-set
+type: mcq
+rev: 1
+prompt: |
+  A developer builds a Go program on an Intel laptop and copies it to an AWS Graviton server. Both run Ubuntu 24.04, but the server won't start it: `cannot execute binary file: Exec format error`. Why?
+choices:
+  - "The file holds x86-64 machine code, and the Graviton CPU only understands the 64-bit Arm instruction set"
+  - "The two machines have different versions of the C library, and the program was linked to the laptop's"
+  - "The copy dropped the file's execute permission, and Linux reports a missing permission as a format error"
+  - "Graviton servers only start programs signed by AWS, and an unsigned program is turned away at the door"
+answer: 0
+explanation: |
+  A CPU understands one **instruction set**: the list of small operations it can do, each written as a number. Go is a compiled language: the compiler translated the program, ahead of time, into the instructions of the CPU it was told to target, here the laptop's x86-64. The Graviton server's CPU speaks 64-bit Arm. The kernel reads the file's header, sees the wrong architecture, and refuses: `Exec format error`. The fix is to build it again for `arm64` (for Go, `GOARCH=arm64 go build`).
+
+  The other stories have messages of their own. A missing execute permission gives `Permission denied`. A missing or mismatched library gives an error naming that library, after the kernel has accepted the program (and Go programs usually carry what they need inside). And no cloud requires programs to be signed before Linux will run them.
+skills: [instruction-sets]
