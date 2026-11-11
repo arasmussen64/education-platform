@@ -8,18 +8,28 @@ Run from the repository root:
 
     python -m uv run python tools/labcheck.py list
     python -m uv run python tools/labcheck.py start csa.linux.shell build-log-report
+    python -m uv run python tools/labcheck.py shell csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py check csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py stop  csa.linux.shell build-log-report
+    python -m uv run python tools/labcheck.py status
+    python -m uv run python tools/labcheck.py stop  --all
     python -m uv run python tools/labcheck.py test  csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py test  --all --jobs 4
     python -m uv run python tools/labcheck.py test  --all --jobs 4 --shard 0/4
 
-`start` builds the lab's image and starts its container; `check` runs the
-checks and prints the result to paste into the lab's box on the site; `stop`
-removes the container. `test` is for authors and CI: the pristine container
-must not pass, the reference solution must pass, every known-wrong fix must
-fail at least one check. `--jobs` tests several labs at once; `--shard I/N`
-takes every Nth topic, which is how CI splits the run across machines.
+`start` builds the lab's image and starts its container. Run again, it keeps
+the work: a running lab is left alone, and a stopped one (after a restart of
+Docker or the computer) is started again as it was. `start --fresh` is the
+only way to throw the work away and begin again. `shell` opens a shell in the
+lab as the learner; `check` runs the checks and prints the result to paste
+into the lab's box on the site; `stop` removes the container and the work in
+it. `status` lists every lab container this tool started, and `stop --all`
+removes the ones `start` made.
+
+`test` is for authors and CI: the pristine container must not pass, the
+reference solution must pass, every known-wrong fix must fail at least one
+check. `--jobs` tests several labs at once; `--shard I/N` takes every Nth
+topic, which is how CI splits the run across machines.
 
 A lab whose exercise.yaml says `lab: { init: systemd }` boots systemd as PID 1
 in a privileged container, and the checker waits for the boot to finish before
@@ -35,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -72,6 +83,16 @@ BOOT_TIMEOUT_SECONDS = 480
 # The learner's account inside every lab image.
 LEARNER = "learner"
 HOME = f"/home/{LEARNER}"
+
+# Every container this tool starts carries these two labels, so `status` and
+# `stop --all` can find them all and can't touch anything else on the machine.
+# The first names the lab ("topic/exercise"); the second says who started it:
+# "learner" for `start`, "test" for a contract run's throwaway container.
+LABEL_LAB = "labcheck.lab"
+LABEL_ROLE = "labcheck.role"
+
+# How every command is run, for the lines this tool tells the learner to type.
+RUN = "python -m uv run python tools/labcheck.py"
 
 
 class LabError(Exception):
@@ -147,6 +168,25 @@ def docker_command() -> str:
     return found
 
 
+# What the docker command says, in one version or another, when the engine
+# behind it isn't running: the usual state of things just after the computer
+# starts, before Docker Desktop has finished starting.
+ENGINE_DOWN_SAYS = (
+    "failed to connect to the docker api",
+    "cannot connect to the docker daemon",
+    "error during connect",
+    "docker daemon is not running",
+)
+ENGINE_DOWN = (
+    "Docker isn't answering. Start Docker Desktop, wait until it says the "
+    "engine is running, and run the same command again."
+)
+
+
+def engine_is_down(message: str) -> bool:
+    return any(says in message.lower() for says in ENGINE_DOWN_SAYS)
+
+
 def docker(
     *args: str, timeout: int = CHECK_TIMEOUT_SECONDS, check: bool = True
 ) -> subprocess.CompletedProcess[str]:
@@ -161,6 +201,8 @@ def docker(
     )
     if check and completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip()
+        if engine_is_down(detail):
+            raise LabError(ENGINE_DOWN)
         raise LabError(f"docker {args[0]} failed: {detail}")
     return completed
 
@@ -185,6 +227,40 @@ def is_running(name: str) -> bool:
     return found.returncode == 0 and found.stdout.strip() == "true"
 
 
+@dataclass(frozen=True)
+class Found:
+    """A lab's container, as Docker has it."""
+
+    # "running", or one of the ways of not running: "exited" (it stopped,
+    # as every container does when Docker or the computer restarts),
+    # "paused" (the pause button in Docker Desktop), "created", "dead".
+    status: str
+    # The image it was started from: "lab-<topic>-<exercise>:r<rev>".
+    image: str
+
+
+def find_container(name: str) -> Found | None:
+    """The container of that name, or None when there isn't one."""
+    found = docker(
+        "container",
+        "inspect",
+        "-f",
+        "{{.State.Status}}|{{.Config.Image}}",
+        name,
+        timeout=30,
+        check=False,
+    )
+    if found.returncode != 0:
+        detail = found.stderr.strip() or found.stdout.strip()
+        if "no such container" in detail.lower():
+            return None
+        if engine_is_down(detail):
+            raise LabError(ENGINE_DOWN)
+        raise LabError(f"docker couldn't say whether {name} exists: {detail}")
+    status, _, image = found.stdout.strip().partition("|")
+    return Found(status, image)
+
+
 def remove_container(name: str) -> None:
     """Removes a lab's container, after its teardown script if it has one."""
     if is_running(name):
@@ -200,9 +276,107 @@ def remove_container(name: str) -> None:
     docker("rm", "-f", name, check=False)
 
 
-def run_arguments(lab: Lab, name: str) -> list[str]:
+# A lab's disks are image files under this folder in its container, attached
+# to Docker's machine as loop devices by the lab's own boot script (the
+# storage labs' disks.sh is the pattern, in content/README.md).
+LAB_DISKS = "/var/lib/lab/"
+
+# Lets go of lab disks nobody can be using any more. A container that goes
+# away without its teardown script (removed from the Docker Desktop window,
+# or stopped by a restart) leaves its loop devices attached to Docker's
+# machine, and a later lab can then pick up the dead lab's disk instead of
+# its own. This runs in a helper container that can see the whole machine.
+#
+# A disk is let go of only when the filesystem its image file is on isn't
+# mounted anywhere on the machine: that filesystem was a container's own, so
+# the container is gone or stopped, and nothing can reach the file again. A
+# running lab's disks never qualify, whatever the container is called.
+# $1 is "detach"; anything else only reports. Prints "stale DEVICE FILE" for
+# each disk it let go of, "in-use DEVICE FILE" for each it left alone.
+STALE_DISKS = (
+    """
+# Two things must hold, or nothing below can be trusted. This container must
+# see every process on Docker's machine (then this shell isn't process 1),
+# and a file must report the device of the filesystem it is on (true when
+# all of an image's layers are on one disk, as Docker keeps them).
+[ "$$" != 1 ] || { echo "abort: no view of the machine's processes"; exit 0; }
+mine=$(awk '$5 == "/" { print $3 }' /proc/self/mountinfo | tail -1)
+[ -n "$mine" ] && [ "$mine" = "$(stat -c '%Hd:%Ld' /usr/bin/env)" ] \\
+  || { echo "abort: files don't report their filesystem's device"; exit 0; }
+for backing in /sys/block/loop*/loop/backing_file; do
+  [ -e "$backing" ] || continue
+  name=${backing#/sys/block/}
+  name=${name%%/*}
+  dev=/dev/$name
+  case "$(cat "$backing" 2>/dev/null)" in LAB_DISKS*) ;; *) continue ;; esac
+  [ -e "$dev" ] || mknod "$dev" b 7 "${name#loop}" 2>/dev/null || continue
+  # Hold the device open while deciding. As long as it is held, the kernel
+  # won't detach it, so it can't be handed to another lab between the look
+  # and the letting go (tried on Docker Desktop, 2026-11-11).
+  { exec 9< "$dev"; } 2>/dev/null || continue
+  file=$(cat "$backing" 2>/dev/null)
+  on=$(losetup -n -O BACK-MAJ:MIN "$dev" 2>/dev/null | tr -d ' ')
+  case "$file" in
+    LAB_DISKS*)
+      if [ -n "$on" ]; then
+        # Is the filesystem that file is on still mounted anywhere?
+        if awk '{ print $3 }' /proc/[0-9]*/mountinfo 2>/dev/null | grep -qxF "$on"; then
+          echo "in-use $dev $file"
+        else
+          [ "$1" = detach ] && losetup -d "$dev"
+          echo "stale $dev $file"
+        fi
+      fi
+      ;;
+  esac
+  exec 9<&-
+done
+exit 0
+"""
+).replace("LAB_DISKS", LAB_DISKS)
+
+
+def has_disks(lab: Lab) -> bool:
+    """Whether the lab attaches things to Docker's machine: such a lab ships
+    a teardown script that lets go of them."""
+    return (lab.folder / "teardown.sh").exists()
+
+
+def detach_stale_disks(lab: Lab) -> list[str]:
+    """Lets go of the disks dead labs left attached; returns their devices.
+
+    Best effort: if the helper can't run, or can't be sure, nothing is
+    touched and nothing is reported.
+    """
+    try:
+        done = docker(
+            "run",
+            "--rm",
+            "--privileged",
+            # The helper has to see every process on Docker's machine.
+            "--pid=host",
+            lab.image,
+            "bash",
+            "-c",
+            STALE_DISKS,
+            "stale-disks",
+            "detach",
+            timeout=120,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return []
+    return [
+        line.split()[1]
+        for line in done.stdout.splitlines()
+        if line.startswith("stale ") and len(line.split()) >= 2
+    ]
+
+
+def run_arguments(lab: Lab, name: str, role: str = "learner") -> list[str]:
     """The `docker run` arguments for a lab's container."""
     args = ["run", "-d", "--name", name, "--hostname", "lab"]
+    args += ["--label", f"{LABEL_LAB}={lab.name}", "--label", f"{LABEL_ROLE}={role}"]
     if lab.init == "systemd":
         # systemd has to be PID 1, own a writable cgroup tree and have /run as
         # a tmpfs. A private cgroup namespace gives it a tree of its own, so
@@ -225,13 +399,38 @@ def run_arguments(lab: Lab, name: str) -> list[str]:
 
 
 def start_container(lab: Lab, name: str | None = None) -> str:
-    """Starts a fresh container for the lab, booted if it boots; returns its name."""
+    """Starts a fresh container for the lab, booted if it boots; returns its name.
+
+    Whatever container had that name is removed first, with the work in it:
+    `start` only comes here when there is none, or when asked with --fresh.
+    A name of its own means a contract run's throwaway container.
+    """
+    role = "test" if name else "learner"
     name = name or lab.container
     remove_container(name)
-    docker(*run_arguments(lab, name), timeout=120)
+    docker(*run_arguments(lab, name, role), timeout=120)
     if lab.init == "systemd":
         wait_for_boot(name)
     return name
+
+
+def restart_container(lab: Lab, found: Found) -> None:
+    """Starts a lab's stopped container again, keeping everything in it.
+
+    A container keeps its files when it stops, so this is a reboot of the
+    lab's server, not a new one. Tried on all 79 labs with their solutions
+    applied and the container killed (2026-11-10): every one booted again,
+    77 within seven seconds and two storage labs after a minute and a half
+    (systemd waits that long for a disk named in fstab), and 67 still passed
+    every check. The other 12 had lost only what a reboot loses: a process
+    started by hand, a mount, a control group, files on a tmpfs.
+    """
+    if found.status == "paused":
+        docker("unpause", lab.container, timeout=60)
+        return
+    docker("start", lab.container, timeout=120)
+    if lab.init == "systemd":
+        wait_for_boot(lab.container)
 
 
 # What `systemctl is-system-running` says once boot is over: everything is up,
@@ -413,6 +612,105 @@ def print_results(
         say(line)
 
 
+# --- The learner's shell ----------------------------------------------------------
+
+# What standard input can be, as far as opening a shell goes.
+CONSOLE = "console"  # a real terminal: Docker can give a prompt through it
+GIT_BASH_WINDOW = "git-bash-window"  # Git Bash's own window, with no console
+NOT_A_TERMINAL = "not-a-terminal"  # a pipe or a file: commands sent in
+
+
+def is_git_bash_pipe(pipe_name: str) -> bool:
+    r"""Whether a Windows pipe of that name is Git Bash's terminal window.
+
+    Git Bash's window (mintty) isn't a Windows console. To a Windows program
+    such as docker, what the learner types there arrives through a pipe that
+    Git Bash names like "\msys-1888ae32e00d56aa-pty0-from-master". Recent
+    versions of Git for Windows put a real console behind the window, and
+    then there is no such pipe.
+    """
+    name = pipe_name.lower()
+    return ("msys-" in name or "cygwin-" in name) and "-pty" in name
+
+
+def windows_input_kind(handle: int) -> str:
+    """What a Windows file handle is: see terminal_kind."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetConsoleMode.argtypes = [wintypes.HANDLE, wintypes.LPDWORD]
+    kernel32.GetConsoleMode.restype = wintypes.BOOL
+    kernel32.GetFileInformationByHandleEx.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+    ]
+    kernel32.GetFileInformationByHandleEx.restype = wintypes.BOOL
+    # A console is the only thing that has a console mode. This is the test
+    # Docker itself applies; isatty() isn't enough, since it is also true of
+    # the "nul" device.
+    mode = wintypes.DWORD()
+    if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+        return CONSOLE
+    # Otherwise ask for the handle's name: FileNameInfo (2) fills in a length
+    # in bytes, then the name as UTF-16.
+    buffer = ctypes.create_string_buffer(4 + 2 * 1024)
+    if kernel32.GetFileInformationByHandleEx(handle, 2, buffer, len(buffer)):
+        length = int.from_bytes(buffer.raw[:4], "little")
+        name = buffer.raw[4 : 4 + length].decode("utf-16-le", errors="replace")
+        if is_git_bash_pipe(name):
+            return GIT_BASH_WINDOW
+    return NOT_A_TERMINAL
+
+
+def terminal_kind(stream: object) -> str:
+    """What a stream (standard input) is: CONSOLE, GIT_BASH_WINDOW or
+    NOT_A_TERMINAL. An interactive shell needs the first."""
+    try:
+        descriptor = stream.fileno()  # type: ignore[attr-defined]
+    except AttributeError, OSError, ValueError:
+        return NOT_A_TERMINAL
+    if os.name != "nt":
+        return CONSOLE if os.isatty(descriptor) else NOT_A_TERMINAL
+    import msvcrt
+
+    try:
+        return windows_input_kind(msvcrt.get_osfhandle(descriptor))
+    except OSError:
+        return NOT_A_TERMINAL
+
+
+def shell_arguments(container: str, interactive: bool) -> list[str]:
+    """The `docker exec` arguments that open bash in a lab as the learner.
+
+    Python hands these to docker as a list, one argument each, so no shell
+    in between gets to rewrite them. That matters in Git Bash, which turns
+    an argument like /home/learner into C:/Program Files/Git/home/learner
+    on its way to a Windows program, and docker then refuses the path.
+    """
+    # -i keeps standard input open; -t asks for a terminal in the container,
+    # which is what gives a prompt, and only works from a real terminal.
+    flags = ["-it"] if interactive else ["-i"]
+    return ["exec", *flags, "-u", LEARNER, "-w", HOME, container, "bash"]
+
+
+def run_attached(*args: str) -> int:
+    """Runs docker joined to this terminal, until it ends; returns its exit status."""
+    # Docker Desktop ends an interactive command with a "What's next" tip
+    # about another of its products; this setting keeps that off the screen.
+    quiet = {**os.environ, "DOCKER_CLI_HINTS": "false"}
+    try:
+        return subprocess.run(
+            [docker_command(), *args], check=False, env=quiet
+        ).returncode
+    except KeyboardInterrupt:
+        # Ctrl+C normally goes to the program in the lab's shell. If it
+        # reached us instead, the shell is over.
+        return 130
+
+
 # --- Commands ---------------------------------------------------------------------
 
 
@@ -426,32 +724,171 @@ def cmd_list(_: argparse.Namespace) -> int:
     return 0
 
 
+def command(verb: str, lab: Lab) -> str:
+    """The line that runs one of this tool's commands on a lab."""
+    return f"{RUN} {verb} {lab.topic_id} {lab.exercise.id}"
+
+
+def revision_changed(lab: Lab, found: Found) -> str:
+    """What to say when a lab's container was started from another revision."""
+    return (
+        f"{lab.name} has changed since you started it: your container is from "
+        f"{found.image}, and the lab is now {lab.image}. The checks are for the "
+        "new version, so the old container can't be checked against them. "
+        "Begin the lab again (this removes the old container and the work in "
+        f"it) with:\n\n    {command('start --fresh', lab)}"
+    )
+
+
+def print_next_steps(lab: Lab) -> None:
+    print("Open a shell in it with:\n")
+    print(f"    {command('shell', lab)}\n")
+    print("When you think you're done, run the checks with:\n")
+    print(f"    {command('check', lab)}\n")
+    print("When you've finished with the lab, stop it with:\n")
+    print(f"    {command('stop', lab)}\n")
+
+
+def clear_stale_disks(lab: Lab) -> None:
+    """Before a lab with disks boots: lets go of the disks that labs no
+    longer running left attached, and says so."""
+    if not has_disks(lab):
+        return
+    freed = detach_stale_disks(lab)
+    if freed:
+        print(
+            f"Let go of {len(freed)} disk(s) that a lab no longer running had "
+            "left attached to Docker's machine."
+        )
+
+
 def cmd_start(args: argparse.Namespace) -> int:
     lab = load_lab(args.topic, args.exercise)
-    print(f"Building {lab.image} (the first time takes a minute)...")
-    build_image(lab)
-    start_container(lab)
-    print(f"\n{lab.exercise.title}: the container is running.\n")
-    print("Open a shell in it with:\n")
-    print(f"    docker exec -it -u {LEARNER} -w {HOME} {lab.container} bash\n")
-    print("When you think you're done, run the checks with:\n")
-    print(
-        "    python -m uv run python tools/labcheck.py check "
-        f"{lab.topic_id} {lab.exercise.id}\n"
-    )
+    found = find_container(lab.container)
+    if found is None or args.fresh:
+        print(f"Building {lab.image} (the first time takes a minute)...")
+        build_image(lab)
+        if found is not None:
+            # Only now, with the new image built: a build that fails leaves
+            # the old container, and the work in it, where they were.
+            print(f"Removing {lab.container} and the work in it, as --fresh asks.")
+            remove_container(lab.container)
+        # After the old container has gone, so its disks count as stale even
+        # when it couldn't run its teardown script: a paused container can't
+        # run anything, and it would leave two of each disk for the new one.
+        clear_stale_disks(lab)
+        try:
+            start_container(lab)
+        except LabError, subprocess.TimeoutExpired, KeyboardInterrupt:
+            # A new lab that didn't come up has no work in it. Leave nothing
+            # behind, or the next `start` would find it and call it running.
+            remove_container(lab.container)
+            raise
+        print(f"\n{lab.exercise.title}: the lab is running, as new.\n")
+        print_next_steps(lab)
+        return 0
+    if found.image != lab.image:
+        raise LabError(revision_changed(lab, found))
+    if found.status == "running":
+        print(f"{lab.exercise.title}: the lab is already running, with your work")
+        print("in it. Nothing was changed.\n")
+    else:
+        was = "paused" if found.status == "paused" else "stopped"
+        print(f"{lab.name} was {was}. Starting it again, with your work in it...")
+        if was == "stopped" and has_disks(lab):
+            print("(A lab with disks takes a minute or two to boot again.)")
+            # Its own disks from before it stopped are among the stale ones:
+            # the boot attaches them afresh, and two of each would confuse it.
+            clear_stale_disks(lab)
+        try:
+            restart_container(lab, found)
+        except LabError as error:
+            raise LabError(
+                f"{error}\n\nThe lab didn't come back. If trying once more "
+                "doesn't help, begin it again (this removes the container and "
+                f"the work in it) with:\n\n    {command('start --fresh', lab)}"
+            ) from None
+        print(f"\n{lab.exercise.title}: the lab is running again.\n")
+        if was == "stopped":
+            # A stopped container is a server that was switched off: what was
+            # on its disk is still there, what was only in memory is not.
+            print("It came back the way a server comes back from a reboot: the")
+            print("files and settings in it are as you left them.")
+            if has_disks(lab):
+                print("Whatever was only running, or only mounted, when it stopped")
+                print("may need doing again (sudo mount -a mounts the disks again).")
+            else:
+                # Only the storage labs have taught mounting by then.
+                print("Whatever was only running when it stopped, such as a")
+                print("program you had started by hand, may need starting again.")
+            print("Run the checks to see where you stand.\n")
+    print_next_steps(lab)
+    print("To throw the work away and begin the lab again:\n")
+    print(f"    {command('start --fresh', lab)}\n")
     return 0
+
+
+def running_container(lab: Lab) -> None:
+    """Makes sure the lab's container is there, current and running; says
+    what to do when it isn't. Nothing it advises removes the learner's work."""
+    found = find_container(lab.container)
+    if found is None:
+        raise LabError(
+            f"{lab.name} hasn't been started. Start it with:\n\n"
+            f"    {command('start', lab)}"
+        )
+    if found.image != lab.image:
+        raise LabError(revision_changed(lab, found))
+    if found.status != "running":
+        if found.status == "paused":
+            was, why = "paused", "the pause button in Docker Desktop does that"
+        else:
+            was, why = (
+                "stopped",
+                "Docker Desktop or the computer was restarted, perhaps",
+            )
+        raise LabError(
+            f"{lab.name} is {was}: its container is still there, with your "
+            f"work in it, but it isn't running ({why}). Start it again, which "
+            f"keeps the work, with:\n\n    {command('start', lab)}"
+        )
+
+
+# What `shell` says from Git Bash's own window when no console is behind it.
+NO_CONSOLE = """this window can't hold the lab's shell.
+
+Git Bash's own window isn't a Windows console, and Docker needs one to give
+you a prompt inside the lab. Open PowerShell or Windows Terminal instead, go
+to the repository folder with cd, and run the same command there:
+
+    {shell}
+
+Nothing is wrong with the lab: it is still running, with your work in it."""
+
+
+def cmd_shell(args: argparse.Namespace) -> int:
+    lab = load_lab(args.topic, args.exercise)
+    running_container(lab)
+    kind = terminal_kind(sys.stdin)
+    if kind == GIT_BASH_WINDOW:
+        raise LabError(NO_CONSOLE.format(shell=command("shell", lab)))
+    if kind == NOT_A_TERMINAL:
+        # Commands sent in on standard input (a pipe or a file): run them
+        # and say nothing else, so the output is only theirs.
+        return run_attached(*shell_arguments(lab.container, interactive=False))
+    print(f"{lab.exercise.title}: you're in the lab now, as the user {LEARNER}.")
+    print("Type exit when you want to come back to your own terminal.\n", flush=True)
+    status = run_attached(*shell_arguments(lab.container, interactive=True))
+    print("\nYou're back in your own terminal. The lab is still running.")
+    print(f"  Run its checks:  {command('check', lab)}")
+    print(f"  Go back in:      {command('shell', lab)}")
+    print(f"  Stop it:         {command('stop', lab)}")
+    return status
 
 
 def cmd_check(args: argparse.Namespace) -> int:
     lab = load_lab(args.topic, args.exercise)
-    running = docker(
-        "ps", "-q", "--filter", f"name=^{lab.container}$", timeout=30
-    ).stdout.strip()
-    if not running:
-        raise LabError(
-            f"{lab.container} isn't running. Start it with: "
-            f"labcheck.py start {lab.topic_id} {lab.exercise.id}"
-        )
+    running_container(lab)
     results = run_checks(lab, lab.container)
     print(f"{lab.exercise.title}\n")
     print_results(results, show_detail=True)
@@ -466,13 +903,107 @@ def cmd_check(args: argparse.Namespace) -> int:
             json.dumps(result, indent=2) + "\n", encoding="utf-8"
         )
         print(f"\nSaved to {args.json}")
+    # A lab left running keeps using the computer (some are busy on purpose).
+    print("\nThe lab is still running, with your work in it.")
+    print(f"  Go back in:  {command('shell', lab)}")
+    print(f"  Stop it when you've finished with it:  {command('stop', lab)}")
     return 0 if passed == len(results) else 1
 
 
+@dataclass(frozen=True)
+class Started:
+    """A container this tool started, as `docker ps` lists it."""
+
+    name: str
+    # "running", "exited", "paused", "created"...
+    state: str
+    # "topic/exercise"
+    lab: str
+    # "learner" or "test"
+    role: str
+
+
+def started_containers() -> list[Started]:
+    """Every container on this machine that carries this tool's labels."""
+    listed = docker(
+        "ps",
+        "-a",
+        "--filter",
+        f"label={LABEL_LAB}",
+        "--format",
+        "{{.Names}}|{{.State}}|"
+        f'{{{{.Label "{LABEL_LAB}"}}}}|{{{{.Label "{LABEL_ROLE}"}}}}',
+        timeout=30,
+    )
+    found = []
+    for line in listed.stdout.splitlines():
+        parts = line.strip().split("|")
+        if len(parts) == 4:
+            found.append(Started(*parts))
+    return sorted(found, key=lambda started: (started.role, started.lab))
+
+
+# Docker's words for a container's state, in the words this tool uses.
+STATE_WORDS = {"running": "running", "exited": "stopped", "paused": "paused"}
+
+
+def cmd_status(_: argparse.Namespace) -> int:
+    started = started_containers()
+    if not started:
+        print("No lab is running or stopped on this machine: nothing to stop.")
+        return 0
+    print("The labs on this machine:\n")
+    for one in started:
+        state = STATE_WORDS.get(one.state, one.state)
+        whose = "" if one.role == "learner" else "   (a test run's)"
+        print(f"  {state:8} {one.lab.replace('/', ' ')}{whose}")
+    print(f"\nGo into a running one:  {RUN} shell <topic> <exercise>")
+    print(f"Start a stopped one:    {RUN} start <topic> <exercise>")
+    print(f"Stop one:               {RUN} stop <topic> <exercise>")
+    print(f"Stop them all:          {RUN} stop --all")
+    if any(one.role != "learner" for one in started):
+        print(f"...and the test runs':  {RUN} stop --all --tests")
+    print("\nStarting a stopped lab keeps the work in it. Stopping a lab removes")
+    print("its container and the work in it.")
+    return 0
+
+
 def cmd_stop(args: argparse.Namespace) -> int:
+    if args.all:
+        if args.topic or args.exercise:
+            raise LabError("stop --all takes no lab name: it stops every lab")
+        return stop_all(include_tests=args.tests)
+    if not (args.topic and args.exercise):
+        raise LabError("stop needs a topic and an exercise, or --all")
     lab = load_lab(args.topic, args.exercise)
+    found = find_container(lab.container)
+    if found is None:
+        print(f"{lab.name} isn't started: there is nothing to stop.")
+        return 0
     remove_container(lab.container)
-    print(f"Removed {lab.container}.")
+    if found.status != "running":
+        # A lab that had already stopped couldn't run its teardown script.
+        clear_stale_disks(lab)
+    print(f"Stopped {lab.name}: its container, and the work in it, are removed.")
+    return 0
+
+
+def stop_all(include_tests: bool) -> int:
+    """Removes every container `start` made, and with --tests what `test` left."""
+    started = started_containers()
+    mine = [one for one in started if include_tests or one.role == "learner"]
+    for one in mine:
+        remove_container(one.name)
+        print(f"Stopped {one.lab}: its container, and the work in it, are removed.")
+    if not mine:
+        print("No lab is running or stopped on this machine: nothing to stop.")
+    left = len(started) - len(mine)
+    if left:
+        print(
+            f"\n{left} container(s) of a test run are still here. A test removes "
+            "its own when it ends; if one was cut short, remove what it left "
+            f"with:\n\n    {RUN} stop --all --tests"
+        )
     return 0
 
 
@@ -685,17 +1216,40 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("list", help="name every lab").set_defaults(run=cmd_list)
+    sub.add_parser(
+        "status", help="list the lab containers this tool started"
+    ).set_defaults(run=cmd_status)
     for name, run, text in (
-        ("start", cmd_start, "build a lab's image and start its container"),
+        ("start", cmd_start, "start a lab, or carry on with it: the work is kept"),
+        ("shell", cmd_shell, "open a shell in a running lab, as the learner"),
         ("check", cmd_check, "run a lab's checks and print the result to paste"),
-        ("stop", cmd_stop, "remove a lab's container"),
     ):
-        command = sub.add_parser(name, help=text)
-        command.add_argument("topic")
-        command.add_argument("exercise")
+        one = sub.add_parser(name, help=text)
+        one.add_argument("topic")
+        one.add_argument("exercise")
+        if name == "start":
+            one.add_argument(
+                "--fresh",
+                action="store_true",
+                help="begin again: remove the lab's container and the work in it",
+            )
         if name == "check":
-            command.add_argument("--json", help="also save the result to this file")
-        command.set_defaults(run=run)
+            one.add_argument("--json", help="also save the result to this file")
+        one.set_defaults(run=run)
+    stop = sub.add_parser(
+        "stop", help="remove a lab's container and the work in it, or --all of them"
+    )
+    stop.add_argument("topic", nargs="?")
+    stop.add_argument("exercise", nargs="?")
+    stop.add_argument(
+        "--all", action="store_true", help="every lab that `start` started"
+    )
+    stop.add_argument(
+        "--tests",
+        action="store_true",
+        help="with --all: also what an interrupted `test` run left behind",
+    )
+    stop.set_defaults(run=cmd_stop)
     test = sub.add_parser("test", help="prove a lab's contract (authors and CI)")
     test.add_argument("topic", nargs="?")
     test.add_argument("exercise", nargs="?")
@@ -718,6 +1272,19 @@ def main(argv: list[str] | None = None) -> int:
     except LabError as error:
         print(f"labcheck: {error}", file=sys.stderr)
         return 2
+    except subprocess.TimeoutExpired as error:
+        # Docker took longer than this tool waits for it. Say so, rather
+        # than end in a page of Python's own error report.
+        print(
+            f"labcheck: Docker didn't answer within {error.timeout:g} seconds. "
+            "The computer may be busy, or Docker Desktop still starting. "
+            "Wait a moment and run the same command again.",
+            file=sys.stderr,
+        )
+        return 2
+    except KeyboardInterrupt:
+        print("\nlabcheck: stopped, because Ctrl+C was pressed.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

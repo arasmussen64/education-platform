@@ -1,11 +1,12 @@
-import { useId, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import { STAGES } from '../content/stages.ts'
 import type { Exercise, Step } from '../content/types.ts'
+import { runsPrivileged } from '../labs/options.ts'
 import { type LabResult, parseLabResult } from '../labs/result.ts'
 import type { ExerciseActivity } from './ExerciseView.tsx'
 import { Hints, ReferenceSolution } from './exerciseParts.tsx'
 import { Markdown } from './Markdown.tsx'
-import { BUTTON, CODE_BOX, TEXT_INPUT } from './styles.ts'
+import { BUTTON, CODE_BOX, INLINE_CODE, TEXT_INPUT } from './styles.ts'
 
 type Props = {
   exercise: Exercise
@@ -47,12 +48,13 @@ export function LabExercise({
   return (
     <div className="space-y-3">
       <Markdown>{exercise.prompt}</Markdown>
-      <LabCommands topicId={topicId} exerciseId={exercise.id} />
+      <LabCommands topicId={topicId} exercise={exercise} />
       {isExample && <Walkthrough exercise={exercise} />}
       <Checks exercise={exercise} result={result} />
       <ResultBox
         lab={`${topicId}/${exercise.id}`}
         rev={exercise.rev}
+        checkIds={exercise.checks.map((check) => check.id)}
         onResult={handleResult}
       />
       {stage.hints && allowHints && !passed && exercise.hints.length > 0 && (
@@ -67,29 +69,115 @@ export function LabExercise({
   )
 }
 
-/** The three commands, with this lab's name filled in. */
+/** How every command of the lab checker is run (tools/labcheck.py). */
+const RUN = 'python -m uv run python tools/labcheck.py'
+
+/**
+ * A box for a command to copy. The commands are long, so a line wraps
+ * rather than scrolling out of sight; copying it still gives one line.
+ */
+const COMMAND = `${CODE_BOX} break-words whitespace-pre-wrap`
+
+/**
+ * How to run the lab: the checker's commands in the order they're needed,
+ * with this lab's name filled in, and what the lab's container may touch.
+ */
 function LabCommands({
   topicId,
-  exerciseId,
+  exercise,
 }: {
   topicId: string
-  exerciseId: string
+  exercise: Exercise
 }) {
-  const run = `python -m uv run python tools/labcheck.py`
+  const lab = `${topicId} ${exercise.id}`
   return (
-    <div className="space-y-2">
+    <div className={`space-y-3 ${INLINE_CODE}`}>
       <p className={NOTE}>
-        This lab runs in a container on your own computer. In a terminal, in the
-        repository folder, with Docker Desktop running:
+        This lab runs in a container: a small Linux system of its own that
+        Docker runs on your computer. Type these commands in a terminal (on
+        Windows, PowerShell or Windows Terminal), in the repository folder, with
+        Docker Desktop running.
       </p>
-      <pre className={CODE_BOX}>
-        {`${run} start ${topicId} ${exerciseId}\n`}
-        {`# It prints the command that opens a shell inside the lab. Do the work there, then:\n`}
-        {`${run} check ${topicId} ${exerciseId}\n`}
-        {`# Copy the result line it prints into the box below. When you're done:\n`}
-        {`${run} stop ${topicId} ${exerciseId}`}
+      <ol className="list-decimal space-y-3 pl-6">
+        <CommandStep label="Start the lab." command={`${RUN} start ${lab}`}>
+          Running this again keeps your work: a lab that is running is left as
+          it is, and a lab that stopped when Docker or your computer restarted
+          is started again with your files as you left them.
+        </CommandStep>
+        <CommandStep
+          label="Open a shell inside the lab, and do the work there."
+          command={`${RUN} shell ${lab}`}
+        >
+          Type <code>exit</code> to come back to your own terminal. The lab
+          keeps running.
+        </CommandStep>
+        <CommandStep
+          label="Run the checks, as often as you like."
+          command={`${RUN} check ${lab}`}
+        >
+          Copy the result line it prints, the one that starts with{' '}
+          <code>{'{"lab"'}</code>, into the box below.
+        </CommandStep>
+        <CommandStep
+          label="Stop the lab when you have finished with it."
+          command={`${RUN} stop ${lab}`}
+        >
+          This removes the container and the work in it, so record your result
+          first.
+        </CommandStep>
+      </ol>
+      <p className={NOTE}>
+        To throw your work away and begin the lab again, add{' '}
+        <code>--fresh</code> to the start command:
+      </p>
+      <pre className={COMMAND}>{`${RUN} start --fresh ${lab}`}</pre>
+      <p className={NOTE}>
+        Not sure what is still running? The first of these lists the labs on
+        your computer, and the second stops them all:
+      </p>
+      <pre className={COMMAND}>
+        {`${RUN} status\n`}
+        {`${RUN} stop --all`}
       </pre>
+      <p className={NOTE}>
+        {runsPrivileged(exercise) ? (
+          <>
+            This lab&apos;s container is privileged: so that it can boot like a
+            real server, Docker lets it reach the disks and settings of the
+            machine Docker runs on, not only its own files. (With Docker
+            Desktop, that machine is a small Linux system that Docker Desktop
+            keeps running inside your computer.) Inside it, change only what the
+            lab asks for. Stop it with the stop command, not from the Docker
+            Desktop window: the stop command also cleans up anything the lab set
+            up on that machine.
+          </>
+        ) : (
+          <>
+            This lab&apos;s container is an ordinary one: nothing you do inside
+            it can change files on the rest of your computer.
+          </>
+        )}
+      </p>
     </div>
+  )
+}
+
+/** One step: what it's for, the command to type, and a note about it. */
+function CommandStep({
+  label,
+  command,
+  children,
+}: {
+  label: string
+  command: string
+  children: ReactNode
+}) {
+  return (
+    <li className="space-y-1">
+      <p className="font-medium">{label}</p>
+      <pre className={COMMAND}>{command}</pre>
+      <p className={NOTE}>{children}</p>
+    </li>
   )
 }
 
@@ -176,10 +264,13 @@ function Checks({
 function ResultBox({
   lab,
   rev,
+  checkIds,
   onResult,
 }: {
   lab: string
   rev: number
+  /** The lab's own checks: a result must name exactly these to count. */
+  checkIds: string[]
   onResult: (result: LabResult) => void
 }) {
   const fieldId = useId()
@@ -187,7 +278,7 @@ function ResultBox({
   const [error, setError] = useState<string | null>(null)
 
   function record() {
-    const parsed = parseLabResult(text, lab, rev)
+    const parsed = parseLabResult(text, lab, rev, checkIds)
     if ('error' in parsed) {
       setError(parsed.error)
       return
