@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { eventRow } from '../test/fakeEvents.ts'
-import { createOutbox } from './outbox.ts'
+import { createOutbox, memoryStore } from './outbox.ts'
 
 const ADA = '11111111-1111-1111-1111-111111111111'
 const BOB = '33333333-3333-3333-3333-333333333333'
@@ -166,7 +166,11 @@ describe('the outbox', () => {
     expect(createOutbox().pending(ADA)).toEqual([])
   })
 
-  it("doesn't crash when storage is full or switched off", () => {
+  it('says an event is kept once it is in storage', () => {
+    expect(createOutbox().add(eventRow({ id: 'kept' }))).toBe(true)
+  })
+
+  it("says so, and doesn't crash, when storage is full or switched off", () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const broken = {
       getItem: () => {
@@ -177,7 +181,28 @@ describe('the outbox', () => {
       },
     } as unknown as Storage
     const outbox = createOutbox(broken)
-    expect(() => outbox.add(eventRow())).not.toThrow()
+    // False, so the event log keeps the event somewhere else (eventLog.ts).
+    expect(outbox.add(eventRow())).toBe(false)
     expect(outbox.pending(ADA)).toEqual([])
+  })
+})
+
+describe('an outbox in memory', () => {
+  it('keeps and forgets events like one in storage, and touches no storage', () => {
+    const outbox = createOutbox(memoryStore())
+    expect(outbox.add(eventRow({ id: 'e1' }))).toBe(true)
+    outbox.add(eventRow({ id: 'e2' }))
+    outbox.refuse(eventRow({ id: 'bad' }), '400 : bad', NOON)
+    outbox.remove(['e1'])
+
+    expect(ids(outbox.pending(ADA))).toEqual(['e2'])
+    expect(outbox.refused(ADA).map(({ event }) => event.id)).toEqual(['bad'])
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('is its own: two never share events', () => {
+    const first = createOutbox(memoryStore())
+    first.add(eventRow({ id: 'e1' }))
+    expect(createOutbox(memoryStore()).pending(ADA)).toEqual([])
   })
 })

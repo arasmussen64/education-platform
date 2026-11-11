@@ -13,6 +13,11 @@ import type { EventRow } from './types.ts'
 // Several tabs can share it, so every change reads the latest copy and writes
 // it straight back, with no waiting in between: one tab never overwrites
 // another's events with an old copy.
+//
+// The browser can refuse to store anything (its storage is full, or site
+// data is switched off). Then add() says so, and the event log keeps the
+// event in a second outbox that lives in memory (memoryStore, below) and
+// sends it from there.
 
 const OUTBOX_KEY = 'learner-events-outbox-v1'
 // The key says "rejected", this file's first word for "refused". It stays,
@@ -38,8 +43,25 @@ type StoredRefusal = Partial<RefusedEvent>
 
 export type Outbox = ReturnType<typeof createOutbox>
 
-/** `storage` is for tests; the app uses the browser's localStorage. */
-export function createOutbox(storage?: Storage) {
+/** The two parts of localStorage the outbox uses. */
+export type KeyValueStore = Pick<Storage, 'getItem' | 'setItem'>
+
+/**
+ * A store that lives in memory and is gone when the page closes: for events
+ * the browser's own storage wouldn't take.
+ */
+export function memoryStore(): KeyValueStore {
+  const items = new Map<string, string>()
+  return {
+    getItem: (key) => items.get(key) ?? null,
+    setItem: (key, value) => {
+      items.set(key, value)
+    },
+  }
+}
+
+/** `storage` is for tests and memoryStore; the app uses localStorage. */
+export function createOutbox(storage?: KeyValueStore) {
   // Looked up on each use, inside try: with storage switched off, even
   // reading window.localStorage throws.
   const store = () => storage ?? window.localStorage
@@ -88,8 +110,12 @@ export function createOutbox(storage?: Storage) {
     pending,
     remove,
 
-    add(event: EventRow): void {
-      write(OUTBOX_KEY, [...read<EventRow>(OUTBOX_KEY), event])
+    /**
+     * Keeps an event until it's sent. False when storage wouldn't take it:
+     * then the event isn't here, and the caller must keep it some other way.
+     */
+    add(event: EventRow): boolean {
+      return write(OUTBOX_KEY, [...read<EventRow>(OUTBOX_KEY), event])
     },
 
     count(userId: string): number {
