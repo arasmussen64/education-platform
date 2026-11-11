@@ -67,10 +67,21 @@ checks:
     expect:
       equals: in
   - id: carol-logs-in
-    description: "So does carol, the group's other member."
+    description: "So does carol, another member of the group."
     command: |
       result=$(sshpass -p 'Carol-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l carol@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/carol@ad.shop.test" ]; then echo "carol logged in, into $PWD"; elif ! klist -s; then echo "carol logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
       echo "${result:-carol could not log in over SSH}"
+    expect:
+      equals: in
+  # dana is in linux-admins too (dc-seed.sh), and the prompt doesn't name
+  # her. Permitting alice and carol by name, or making their two home
+  # directories by hand, passes the two checks above and fails this one,
+  # as it would fail whoever joins the group next month.
+  - id: whole-group-logs-in
+    description: "Whoever else is in linux-admins logs in the same way, into a home directory made at their first login: lab lets in the group, not a list of the people in it."
+    command: |
+      result=$(sshpass -p 'Dana-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l dana@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/dana@ad.shop.test" ]; then echo "dana, another member of linux-admins, logged in, into $PWD"; elif ! klist -s; then echo "dana, another member of linux-admins, logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
+      echo "${result:-dana, another member of linux-admins, could not log in over SSH}"
     expect:
       equals: in
   - id: bob-kept-out
@@ -91,13 +102,20 @@ checks:
   # A setting made only for this boot passes every check above until the
   # next reboot: a drop-in or an environment file under /run (what
   # systemctl edit --runtime writes), or systemctl set-environment, which
-  # hands a variable to every service until the machine restarts.
-  # wrong/runtime-only.sh proves it is caught.
+  # hands a variable to every service until the machine restarts. So does a
+  # server started by hand with its settings on its command line, outside
+  # its service (a docker exec shell's processes sit in /init.scope).
+  # wrong/runtime-only.sh and wrong/hand-run-resolver.sh prove both are
+  # caught.
   - id: fixes-last
-    description: "It all lasts past a reboot: the site's resolver and SSSD start at boot, and nothing in their settings or SSH's was added only until the next boot."
+    description: "It all lasts past a reboot: the site's resolver and SSSD run as their services and start at boot, and nothing in their settings or SSH's was added only until the next boot."
     command: |
       for unit in dnsmasq sssd; do
         [ "$(systemctl is-enabled "$unit" 2>/dev/null)" = enabled ] || { echo "$unit won't start at the next boot"; exit 0; }
+        [ "$(systemctl is-active "$unit" 2>/dev/null)" = active ] || { echo "$unit isn't running as its service"; exit 0; }
+        for pid in $(pgrep -x "$unit"); do
+          grep -q "/$unit\.service\$" "/proc/$pid/cgroup" 2>/dev/null || { echo "a $unit started by hand, outside its service, is running: the next boot won't start it"; exit 0; }
+        done
       done
       runtime=$(systemctl show dnsmasq ssh ssh.socket sssd -p FragmentPath -p DropInPaths -p EnvironmentFiles --value | tr ' ' '\n' | grep '^/run/' | grep -v '^/run/systemd/generator' | tr '\n' ' ')
       [ -z "$runtime" ] || { echo "settings that last only until the next boot: $runtime"; exit 0; }
