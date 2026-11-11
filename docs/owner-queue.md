@@ -65,7 +65,21 @@ Made under your message of 2026-11-11. Say the word to overturn any of them.
 - **2026-11-11, checkpoint time targets are stated, not timed.** You hold yourself to them.
 - **2026-11-11, "Arm saves 20 to 40%" becomes "what Arm saves, from price lists".** AWS's own page now says "up to 20% less".
 
-The whole plan is in [plans/cloud-module-2](plans/cloud-module-2/README.md).
+Module 2's whole plan is in [plans/cloud-module-2](plans/cloud-module-2/README.md).
+
+The learning engine's rules, fixed after the audit (#210 to #215):
+
+- **2026-11-11, when the Mastered star comes.** A topic could be Mastered right after a failed review, because the week was counted from Learned, and open follow-ups didn't hold the star back though ADR-0011 said they should. **Decided:** a review rated Again starts the week over, and a topic isn't Mastered while one of its skills is being relearned. **Why:** "survives a delayed review" should mean a week survived. **The cost:** some stars turn back to Learned until a good review a week on, or until the follow-up closes ([ADR-0002](decisions/0002-mastery-and-gating.md), amended).
+- **2026-11-11, what relearns a mistake.** A follow-up could be closed by answering the missed question again on three days in a row, or by a lab walkthrough. **Decided:** a right day counts only on or after its due day, keeping the 1, 3 and 7 day gaps, and on a different question (the missed one only if the skill has no other); worked examples count for nothing either way. **Why:** fresh questions at growing gaps are what make relearning stick. **The cost:** some follow-ups you'd closed come back on Today ([ADR-0011](decisions/0011-mistakes-come-back.md), amended).
+- **2026-11-11, a checkpoint's steps and its build.** A checkpoint's steps show most of the build's own program. **Decided:** once you open them, passing the main build no longer counts; a fresh version (the same skills in another story) proves it. A build passed before you opened them still counts, and so does everything passed before 2026-11-11. **Why:** the build shows you can write it from a blank editor. **The cost:** opening the steps out of curiosity means proving the build on a fresh version ([ADR-0012](decisions/0012-checkpoint-support.md), amended).
+- **2026-11-11, placement ties pass,** one right and one wrong out of two, as [ADR-0021](decisions/0021-placement-test.md) always said. It affects the 11 topics with only two questions. **The cost:** on those, one lucky guess can place you past a topic until its own proof catches it.
+- **2026-11-11, the review scheduler is FSRS-4.5 exactly.** It pulled difficulty toward the wrong value, so reviews came a little late. **Decided:** FSRS-4.5's own formulas and limits, checked against the reference Python package. **Why:** reviews at the 90% recall target are what keep a topic remembered. **The cost:** some intervals get a few days shorter ([ADR-0009](decisions/0009-reviews.md), amended).
+- **2026-11-11, a review left half-way still counts.** Your first answers since a topic fell due carry into the next visit and rate it. **Why:** a wrong answer at review time is the sign a topic is fading. **The cost:** you can't restart a review you started badly.
+- **2026-11-11, "20 reviews a day" is a calendar day,** not a page load. **The cost:** after a long break, catching up takes more days.
+- **2026-11-11, a Check that couldn't run isn't an answer.** When Python didn't start, a package didn't download or an exercise's tests couldn't load, it's saved with no verdict and counts nowhere; code past its time limit still counts as wrong ([ADR-0008](decisions/0008-event-log.md), amended).
+- **2026-11-11, your own day on every event.** Every event now records your calendar day and time zone, and follow-ups count in it, wherever your history is read ([ADR-0008](decisions/0008-event-log.md), amended).
+- **2026-11-11, drafts of what you type.** Code and explanations are kept on this device until the item passes, with a Start over button. Reviews, the placement test and worked examples keep none, because they measure what you remember. Drafts are per device, not per account.
+- **2026-11-11, a question's `rev` keeps your past answers.** Bumping a question's revision doesn't discard what you answered before (the devlog once said otherwise).
 
 ## Parked by you
 
