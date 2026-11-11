@@ -38,10 +38,10 @@ checks:
     expect:
       equals: "driver=virtio_net"
   - id: disk-paravirtual
-    description: "The guest sees the shop's 96 MiB disk as a virtio block device (vda, on virtio_blk)."
+    description: "The guest sees the shop's 32 MiB disk as a virtio block device (vda, on virtio_blk)."
     timeout: 10
     command: |
-      grep -c -E '^disk: vd[a-z]+ driver=virtio_blk size_mb=96$' /var/tmp/labcheck/report.txt
+      grep -c -E '^disk: vd[a-z]+ driver=virtio_blk size_mb=32$' /var/tmp/labcheck/report.txt
     expect:
       equals: "1"
   - id: data-private
@@ -54,11 +54,11 @@ checks:
     expect:
       equals: private
   - id: data-intact
-    description: "The shop's data is still on its disk, where it was: the same 96 MiB image with the same orders on it."
+    description: "The shop's data is still on its disk, where it was: the same 32 MiB image with the same orders on it."
     timeout: 10
     command: |
       f=/srv/shop-vm/shop-disk.img
-      [ "$(stat -c %s "$f")" = 100663296 ] && [ "$(head -c 4096 "$f" | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/share/lab/shop-data.sha256)" ] && echo intact
+      [ "$(stat -c %s "$f")" = 33554432 ] && [ "$(head -c 4096 "$f" | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/share/lab/shop-data.sha256)" ] && echo intact
     expect:
       equals: intact
   - id: guest-untouched

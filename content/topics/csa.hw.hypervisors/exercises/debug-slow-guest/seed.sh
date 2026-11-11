@@ -1,6 +1,6 @@
 #!/bin/bash
 # The scenery for "The slow guest": the shop's VM launcher and its settings,
-# the shop's data on a 96 MiB raw disk image, a second account (intern) to
+# the shop's data on a 32 MiB raw disk image, a second account (intern) to
 # test who can read it, and the fingerprints the checks compare against.
 # The four faults, for the author: the launcher reads VCPUS where the
 # settings file sets CPUS, so it falls back to one CPU; the settings name the
@@ -15,7 +15,7 @@ cp /usr/local/lib/lab/shop-vm /home/learner/bin/shop-vm
 chmod 755 /home/learner/bin/shop-vm
 
 disk=/srv/shop-vm/shop-disk.img
-qemu-img create -q -f raw "$disk" 96M
+qemu-img create -q -f raw "$disk" 32M
 {
   echo "SHOPDB orders"
   for i in $(seq 1 40); do

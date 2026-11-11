@@ -11,7 +11,7 @@ echo "=== guest report"
 echo "cpus: 2"
 echo "memory_kb: 984204"
 echo "nic: eth0 driver=virtio_net"
-echo "disk: vda driver=virtio_blk size_mb=96"
+echo "disk: vda driver=virtio_blk size_mb=32"
 echo "=== end"
 /bin/busybox poweroff -f
 INIT

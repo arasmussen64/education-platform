@@ -10,7 +10,7 @@ hypervisor_flag: 1
 dmi_vendor: QEMU
 nic: eth0 driver=virtio_net
 disk: sr0 driver=sr size_mb=0
-disk: vda driver=virtio_blk size_mb=96
+disk: vda driver=virtio_blk size_mb=32
 virtio_devices: 2
 === end
 LOG
