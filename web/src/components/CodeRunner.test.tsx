@@ -1,7 +1,15 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
-import { fakeRunner, printed, report } from '../test/fakePython.ts'
+import type { ComponentProps } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { loadDraft, saveDraft } from '../drafts/drafts.ts'
+import {
+  allPassed,
+  fakeRunner,
+  oneFailed,
+  printed,
+  report,
+} from '../test/fakePython.ts'
 import { CodeRunner } from './CodeRunner.tsx'
 
 vi.mock('./CodeEditor.tsx', () => import('../test/FakeCodeEditor.tsx'))
@@ -293,5 +301,164 @@ describe('CodeRunner', () => {
     expect(
       await screen.findByText(/ran for more than 5 seconds/),
     ).toBeInTheDocument()
+  })
+})
+
+describe('CodeRunner drafts', () => {
+  const WHERE = { topicId: 'py.loops', itemId: 'fill-sum', rev: 1 }
+  const STARTER = 'total = 0'
+
+  beforeEach(() => {
+    // Drafts note when they were saved; pinned, so no test reads the clock.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-11T12:00:00.000Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  function renderRunner(
+    props: Partial<ComponentProps<typeof CodeRunner>> = {},
+  ) {
+    return render(
+      <CodeRunner
+        initialCode={STARTER}
+        draft={WHERE}
+        tests="tests"
+        runner={fakeRunner()}
+        {...props}
+      />,
+    )
+  }
+  const editor = () => screen.getByLabelText('Python code')
+  const startOver = () => screen.queryByRole('button', { name: 'Start over' })
+  const restoredNote = () => screen.queryByText(/your code from last time/)
+
+  it('keeps the code typed so far when the editor comes back', async () => {
+    const user = userEvent.setup()
+    const first = renderRunner()
+    await user.type(editor(), '\nfor n in nums:')
+    // A link, "Prove it now" or "Hide the steps" takes the editor away.
+    first.unmount()
+
+    renderRunner()
+    expect(editor()).toHaveValue('total = 0\nfor n in nums:')
+    expect(restoredNote()).toBeInTheDocument()
+  })
+
+  it('runs the restored code, and tells the parent it is the code now', async () => {
+    saveDraft(WHERE, 'total = 0\nprint(total)')
+    const runner = fakeRunner()
+    const onCodeChange = vi.fn()
+    renderRunner({ runner, onCodeChange })
+    // The tutor reads the code through onCodeChange.
+    expect(onCodeChange).toHaveBeenCalledWith('total = 0\nprint(total)')
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }))
+    expect(runner.run.mock.calls[0]?.[0]).toBe('total = 0\nprint(total)')
+  })
+
+  it('starts from the starter next time, once the checks pass', async () => {
+    const user = userEvent.setup()
+    const first = renderRunner({
+      runner: fakeRunner({ check: allPassed('Sums the numbers') }),
+    })
+    await user.type(editor(), '\nfor n in nums:')
+    await user.click(screen.getByRole('button', { name: 'Check' }))
+    await screen.findByText('The check passed!')
+    first.unmount()
+
+    expect(loadDraft(WHERE)).toBeNull()
+    renderRunner()
+    expect(editor()).toHaveValue(STARTER)
+    expect(restoredNote()).not.toBeInTheDocument()
+  })
+
+  it('keeps the draft after a Check that fails', async () => {
+    const user = userEvent.setup()
+    const first = renderRunner({
+      runner: fakeRunner({ check: oneFailed('Sums the numbers') }),
+    })
+    await user.type(editor(), '\nfor n in nums:')
+    await user.click(screen.getByRole('button', { name: 'Check' }))
+    await screen.findByText("The check didn't pass yet.")
+    first.unmount()
+
+    renderRunner()
+    expect(editor()).toHaveValue('total = 0\nfor n in nums:')
+  })
+
+  it('starts over from the starter, after asking first', async () => {
+    const user = userEvent.setup()
+    saveDraft(WHERE, 'total = 0\nfor n in nums:')
+    const onCodeChange = vi.fn()
+    const first = renderRunner({ onCodeChange })
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+    // Saying no leaves everything as it was.
+    await user.click(startOver()!)
+    expect(confirm).toHaveBeenCalledTimes(1)
+    // It goes back to the starter, not to the draft this visit began with.
+    expect(confirm).toHaveBeenCalledWith(
+      expect.stringContaining('back to the starting code'),
+    )
+    expect(editor()).toHaveValue('total = 0\nfor n in nums:')
+
+    confirm.mockReturnValue(true)
+    await user.click(startOver()!)
+    expect(editor()).toHaveValue(STARTER)
+    // The button has gone, so the cursor goes to the fresh editor.
+    expect(editor()).toHaveFocus()
+    expect(onCodeChange).toHaveBeenLastCalledWith(STARTER)
+    expect(startOver()).not.toBeInTheDocument()
+    expect(restoredNote()).not.toBeInTheDocument()
+    first.unmount()
+
+    // And it stays started over.
+    renderRunner()
+    expect(editor()).toHaveValue(STARTER)
+  })
+
+  it('only offers Start over once the code has changed', async () => {
+    renderRunner({ draft: undefined })
+    expect(startOver()).not.toBeInTheDocument()
+    await userEvent.type(editor(), '!')
+    expect(startOver()).toBeInTheDocument()
+  })
+
+  it('shows the new starter when the item has changed since the draft (a new rev)', () => {
+    saveDraft(WHERE, 'written for the old version')
+    renderRunner({ initialCode: 'count = 0', draft: { ...WHERE, rev: 2 } })
+    expect(editor()).toHaveValue('count = 0')
+    expect(restoredNote()).not.toBeInTheDocument()
+  })
+
+  it('works without drafts when the browser blocks storage', async () => {
+    const blocked = () => {
+      throw new DOMException('The operation is insecure.', 'SecurityError')
+    }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(blocked)
+    const user = userEvent.setup()
+    const runner = fakeRunner()
+    const first = renderRunner({ runner })
+    await user.type(editor(), '\nprint(total)')
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+    expect(runner.run.mock.calls[0]?.[0]).toBe('total = 0\nprint(total)')
+    first.unmount()
+    // It tried to save, and carried on when the browser said no.
+    expect(setItem).toHaveBeenCalled()
+
+    renderRunner()
+    expect(editor()).toHaveValue(STARTER)
+  })
+
+  it('keeps nothing when it is given nowhere to keep it', async () => {
+    const first = renderRunner({ draft: undefined })
+    await userEvent.type(editor(), '\nfor n in nums:')
+    first.unmount()
+    expect(localStorage.length).toBe(0)
   })
 })

@@ -177,11 +177,20 @@ function CodingExercise({
   }
 
   const helpOffered = stage.hints && !passed
+  // The learner's draft is kept in practice and proof checks, where losing
+  // work hurts. Reviews and the placement test (the places without hints)
+  // measure what the learner remembers, so they always start from the
+  // starter, never from code typed on an earlier visit.
+  const draft =
+    allowHints && topicId !== ''
+      ? { topicId, itemId: exercise.id, rev: exercise.rev }
+      : undefined
   return (
     <div className="space-y-3">
       <Markdown>{exercise.prompt}</Markdown>
       <CodeRunner
         initialCode={exercise.starter}
+        draft={draft}
         tests={exercise.tests}
         packages={packages}
         hiddenTests={stage.hiddenTests}
