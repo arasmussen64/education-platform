@@ -1,0 +1,69 @@
+# The checks for "Lay out the domain and its policies". They ask dc1's own
+# tools, inside its namespaces the way on-dc does, and name GPOs by their
+# display names, never by GUID: GUIDs are new every time the lab is made.
+# Which GPOs reach a person is worked out by Samba from the layout the
+# learner made, so no answer can be typed in; the last check reads the
+# baseline's links, because a second link straight onto Contractors would
+# give frank the same list without anything being enforced.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence, not an exit status.
+checks:
+  - id: folders-and-people
+    description: "The folders are Staff, at the top of the domain, with Engineering and Contractors inside it; alice is in Engineering, bob in Staff itself, frank in Contractors, and carol still in CN=Users."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      ous=$(dc samba-tool ou list --full-dn 2>/dev/null)
+      for ou in 'OU=Staff' 'OU=Engineering,OU=Staff' 'OU=Contractors,OU=Staff'; do
+        echo "$ous" | grep -qix "$ou,DC=ad,DC=shop,DC=test" || { echo "there's no folder $ou,DC=ad,DC=shop,DC=test"; exit 0; }
+      done
+      for pair in 'alice OU=Engineering,OU=Staff' 'bob OU=Staff' 'frank OU=Contractors,OU=Staff' 'carol CN=Users'; do
+        set -- $pair
+        dc samba-tool user show "$1" --attributes=dn 2>/dev/null | grep -qix "dn: CN=[^,]*,$2,DC=ad,DC=shop,DC=test" || { echo "$1 isn't in $2"; exit 0; }
+      done
+      echo "laid out"
+    expect:
+      equals: "laid out"
+  - id: alice-gets
+    description: "alice gets Engineering tools, Lock screen, Security baseline and the Default Domain Policy, and nothing else."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool gpo list alice 2>/dev/null | sed -n 's/^ *\(.*\) {[^}]*}$/\1/p' | tr 'A-Z' 'a-z' | sort | paste -sd, -
+    expect:
+      equals: "default domain policy,engineering tools,lock screen,security baseline"
+  - id: bob-gets
+    description: "bob gets Lock screen, Security baseline and the Default Domain Policy, and nothing else."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool gpo list bob 2>/dev/null | sed -n 's/^ *\(.*\) {[^}]*}$/\1/p' | tr 'A-Z' 'a-z' | sort | paste -sd, -
+    expect:
+      equals: "default domain policy,lock screen,security baseline"
+  - id: carol-gets
+    description: "carol gets Security baseline and the Default Domain Policy, and nothing else."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool gpo list carol 2>/dev/null | sed -n 's/^ *\(.*\) {[^}]*}$/\1/p' | tr 'A-Z' 'a-z' | sort | paste -sd, -
+    expect:
+      equals: "default domain policy,security baseline"
+  - id: frank-gets
+    description: "frank gets Contractor limits and Security baseline, and nothing else: not Lock screen, and not the Default Domain Policy."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool gpo list frank 2>/dev/null | sed -n 's/^ *\(.*\) {[^}]*}$/\1/p' | tr 'A-Z' 'a-z' | sort | paste -sd, -
+    expect:
+      equals: "contractor limits,security baseline"
+  - id: baseline-enforced
+    description: "Security baseline is linked once, to the whole domain, and that link is enforced, so no folder can block it."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool gpo getlink 'DC=ad,DC=shop,DC=test' 2>/dev/null \
+        | awk '/^ *Name *:/ {sub(/^ *Name *: */, ""); name = tolower($0)} /^ *Options *:/ {sub(/^ *Options *: */, ""); print name "|" $0}' \
+        | grep -qx 'security baseline|.*GPLINK_OPT_ENFORCE.*' || { echo "Security baseline isn't linked to the domain with an enforced link"; exit 0; }
+      links=0
+      for guid in $(dc samba-tool gpo listall 2>/dev/null | awk '/^GPO / {g = $3} tolower($0) ~ /^display name *: security baseline$/ {print g}'); do
+        n=$(dc samba-tool gpo listcontainers "$guid" 2>/dev/null | grep -c 'DN:')
+        links=$((links + n))
+      done
+      [ "$links" -eq 1 ] || { echo "Security baseline is linked $links times"; exit 0; }
+      echo enforced
+    expect:
+      equals: enforced
