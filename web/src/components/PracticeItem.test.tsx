@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import type { CheckOutcome } from '../python/runner.ts'
@@ -219,6 +219,30 @@ describe('a Check of an exercise', () => {
     expect(onGraded).toHaveBeenCalledTimes(1)
     expect(screen.queryByText(NOT_RUN)).not.toBeInTheDocument()
     expect(events.map((event) => event.correct)).toEqual([undefined, true])
+  })
+
+  it("adds the time before a Check that couldn't run to the next one", async () => {
+    // The attempt timer reads Date.now: pin it, and move it by hand.
+    let clock = 1_000
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => clock)
+    onTestFinished(() => now.mockRestore())
+    const { events, onGraded, check } = await renderExercise(
+      { kind: 'failed', message: 'Python stopped unexpectedly.' },
+      allPassed('Greets'),
+    )
+    // The learner starts on the item...
+    await userEvent.click(screen.getByRole('heading', { name: /hello/i }))
+    // ...presses Check two seconds later, and it can't run...
+    clock = 3_000
+    await check()
+    expect(await screen.findByText(NOT_RUN)).toBeInTheDocument()
+    // ...then four seconds after that, it runs and passes.
+    clock = 7_000
+    await check()
+    await vi.waitFor(() => expect(onGraded).toHaveBeenCalledWith(true))
+
+    // All six seconds belong to the one real attempt.
+    expect(events.map((event) => event.duration_ms)).toEqual([null, 6_000])
   })
 
   it.each<[string, CheckOutcome]>([
