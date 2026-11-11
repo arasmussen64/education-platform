@@ -1,14 +1,19 @@
 id: debug-a-run-that-will-not-learn
 stage: debug
-rev: 1
+rev: 2
 title: "A run that won't learn"
 prompt: |
-  A training script with the module's loop and this topic's tools. It should print:
+  A training script with the module's loop and this topic's tools. It should repeat the run that read `learning` in this topic's build (the same blobs, split, network and training for 30 epochs), then try the one-batch test and count the dead units. It should print:
 
   ```
   loss 1.10 -> 0.17: learning | validation accuracy 0.90
   one batch of 8 overfits: True | dead units after training: 0 of 16
   ```
 
-  It has two bugs. Run it: the loss is NaN by the end, diverging, and the dead count reads 16 of 16 only because the weights have overflowed to NaN (NaN is not greater than zero): `rate` is 50, a thousand times the 0.05 that converges. Fix that, and the run reads **stalled**, from 1.10 to 1.0-something, with validation accuracy 0.38, chance; yet one batch still overfits and no units are dead, so the code can learn and the rate is known good. The data is what's left: `split` shuffles `X` and `y` with two different permutations, so the labels no longer belong to their rows; one permutation, applied to both, keeps them together.
+  Instead the loss ends as `nan` and the run reads `diverging`, one batch doesn't overfit, and all 16 units read dead. It has two bugs, and the second shows only once the first is fixed. Work through the module's checklist in order, change one thing at a time, and run it after each change.
+hints:
+  - "Start where the checklist starts: the first loss, then the curve. A loss that ends as `nan` and reads `diverging` says the steps are far too big. What rate does the script train at, and which rate gave the build its `learning` run?"
+  - "Train at the build's rate, 0.05. The 16 dead units were only a sign of the NaN: NaN is never greater than zero, so every unit's mask reads off."
+  - "Now the run reads `stalled`, at chance, yet one batch overfits and no unit is dead, so the network and the rate can learn. What's left is the data: after `split`, does each label still belong to its row?"
+  - "`split` shuffles `X` and `y` with two different permutations. Draw one, `order = rng.permutation(len(X))`, and index both with it."
 skills: [learning-rate, data-bugs]

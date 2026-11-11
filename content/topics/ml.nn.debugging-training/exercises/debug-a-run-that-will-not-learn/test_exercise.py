@@ -12,7 +12,7 @@ def test_the_output():
 
 
 def test_the_pieces():
-    """split keeps every label with its row, and a fresh network overfits eight rows at the script's rate."""
+    """split keeps every label with its row, shuffles the rows and holds out a fifth of them."""
     split = function("split")
     X = np.arange(20.0).reshape(10, 2)
     y = np.arange(10)
