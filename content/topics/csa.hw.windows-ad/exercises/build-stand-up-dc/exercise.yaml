@@ -1,0 +1,22 @@
+id: build-stand-up-dc
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Stand up the shop's domain controller"
+prompt: |
+  The shop's warehouse is getting a directory of its own. Two machines are ready: `dc1` (10.0.9.10), which has Samba's domain-controller software installed and nothing configured, and this server, `lab`. `on-dc COMMAND` runs a command on dc1, and dc1's service is `dc1.service` here on `lab` (`sudo systemctl ... dc1`). The site's ordinary resolver runs on `lab`, answers for the site's own names (`intranet.shop.internal`) and forwards everything else to the internet's DNS.
+
+  Make dc1 the domain controller of a new domain, and make `lab` able to use it:
+
+  1. **The domain** is `ad.shop.test`, short name `SHOP`, with dc1 as its domain controller and its DNS server. Anything dc1 can't answer itself it forwards to the site's resolver, 10.0.9.1. The domain administrator's password is `Shop-Admin-1`. dc1's service is running, and starts again after a reboot.
+  2. **dc1's address has a name:** asked for 10.0.9.10, the domain's DNS answers `dc1.ad.shop.test`.
+  3. **The password rules for the whole domain:** at least 14 characters, and an account locks after 8 wrong passwords.
+  4. **The people:** an organisational unit `Warehouse` holds two users, `gita` (password `Gita-Pass-123456`) and `hugo` (`Hugo-Pass-123456`), and a group `stock-team` with gita in it and nobody else.
+  5. **`lab` finds the domain through the resolver it already uses:** the domain's SRV records, and the name of dc1's address, both answer there, and the site's own names still resolve. Nothing about dc1 is typed into a hosts file or a Kerberos configuration.
+  6. **From `lab`, a person signed in with Kerberos can search the directory** at `dc1.ad.shop.test` without giving a password again.
+  7. **dc1 keeps refusing passwords sent over unencrypted LDAP,** as it does out of the box.
+
+  Then run the checks.
+skills: [directory-structure, dc-discovery, kerberos-tickets]
