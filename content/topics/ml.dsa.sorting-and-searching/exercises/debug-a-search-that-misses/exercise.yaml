@@ -1,9 +1,9 @@
 id: debug-a-search-that-misses
 stage: debug
-rev: 1
+rev: 2
 title: "A search that misses"
 prompt: |
-  Ten sensor readings are sorted, and four targets are searched for by binary search. The program should print:
+  Ten sensor readings are sorted, and four targets are searched for by binary search: the program prints the sorted readings, then each target's index in them, or -1 when it isn't there. It should print:
 
   ```
   [2, 7, 11, 19, 30, 41, 56, 64, 73, 88]
@@ -13,5 +13,10 @@ prompt: |
   50 at index -1
   ```
 
-  It has two bugs. Run it: 2 is reported at index 4 and 30 is not found at all, because the search runs on the **unsorted** `readings`; binary search only works on `ordered`. Fix that, and 2 and 88 are still missed: the loop stops as soon as `lo == hi`, with one candidate left unchecked. It must run while `lo <= hi`.
+  Instead the sorted list is right, but 2 is reported at index 4, 30 isn't found, and 88 is reported at index 7. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which search other lists.
+hints:
+  - "Binary search only works on a sorted list. Which list does the loop at the bottom search?"
+  - "Search `ordered`, not `readings`."
+  - "With the right list, trace a one-element list, `[5]`, by hand: `lo` and `hi` both start at 0. Does the loop run at all?"
+  - "When `lo == hi` there's still one candidate left to check, so the loop must run while `lo <= hi`."
 skills: [binary-search]
