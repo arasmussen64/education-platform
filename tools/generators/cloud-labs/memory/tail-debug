@@ -1,0 +1,9 @@
+
+# Three services with three memory mistakes between them, all running at boot.
+COPY leaky shop-cache /usr/local/bin/
+COPY shop-cache.service shop-indexer.service shop-db.service /etc/systemd/system/
+RUN chmod 755 /usr/local/bin/leaky /usr/local/bin/shop-cache \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && for unit in shop-cache shop-indexer shop-db; do ln -s /etc/systemd/system/$unit.service /etc/systemd/system/multi-user.target.wants/$unit.service; done
+
+CMD ["/sbin/init"]

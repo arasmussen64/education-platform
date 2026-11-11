@@ -4,11 +4,14 @@ import { displayName } from '../auth/authContext.ts'
 import { useAuth } from '../auth/useAuth.ts'
 import { BUTTON, PROSE } from '../components/styles.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
+import { couldNotSave, keptAndRetried } from '../events/refusedText.ts'
+import { useEventLogStatus } from '../events/useEvents.ts'
 import { downloadJson } from '../export/download.ts'
 import { collectExport, exportFileName } from '../export/exportData.ts'
 
-// The learner's own page: who's signed in, and a copy of everything they've
-// done here ("Export my data", v1 spec, F16).
+// The learner's own page: who's signed in, whether any of their work is
+// still only on this device, and a copy of everything they've done here
+// ("Export my data", v1 spec, F16).
 export function AccountPage() {
   const auth = useAuth()
   return (
@@ -29,8 +32,44 @@ export function AccountPage() {
           to see your account and download your data.
         </p>
       )}
-      {auth.status === 'signed-in' && <ExportData userId={auth.user.id} />}
+      {auth.status === 'signed-in' && (
+        <>
+          <NotSavedYet />
+          <ExportData userId={auth.user.id} />
+        </>
+      )}
     </section>
+  )
+}
+
+/**
+ * Says how many of the learner's events the server has refused, and what
+ * that means for them. Nothing shows when there are none, which is the
+ * normal case. <output> is always on the page, so screen readers announce
+ * the text when it appears.
+ */
+function NotSavedYet() {
+  const { refused } = useEventLogStatus()
+  return (
+    <output className="block">
+      {refused > 0 && (
+        <span className="block space-y-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+          <span className="block font-medium">
+            {couldNotSave(refused)}. {keptAndRetried(refused)}
+          </span>
+          {/* "This work" reads the same for one event or many. */}
+          <span className="block">
+            It isn't anything you did: the site refused this work when your
+            browser tried to save it. Your browser tries again when you use the
+            site, at most once every 12 hours, so there's nothing you need to
+            do. Until it's saved, this work exists only in this browser: your
+            progress may not count it, it won't show on another device, and
+            clearing this browser's site data would erase it. "Download my data"
+            below includes it.
+          </span>
+        </span>
+      )}
+    </output>
   )
 }
 
@@ -38,7 +77,13 @@ type ExportState =
   | { status: 'idle' }
   | { status: 'working' }
   | { status: 'failed' }
-  | { status: 'done'; fileName: string; events: number; notOnServer: number }
+  | {
+      status: 'done'
+      fileName: string
+      events: number
+      notOnServer: number
+      refused: number
+    }
 
 function ExportData({ userId }: { userId: string }) {
   const log = useContext(EventLogContext)
@@ -47,7 +92,7 @@ function ExportData({ userId }: { userId: string }) {
   async function download() {
     setState({ status: 'working' })
     try {
-      const data = await collectExport(userId, () => log.getPendingRows())
+      const data = await collectExport(userId, log)
       const fileName = exportFileName()
       downloadJson(fileName, data)
       setState({
@@ -56,6 +101,7 @@ function ExportData({ userId }: { userId: string }) {
         events: data.events.length,
         notOnServer: data.events.filter((event) => event.received_at === null)
           .length,
+        refused: data.refused_events.length,
       })
     } catch (error) {
       console.error('Exporting data failed', error)
@@ -107,9 +153,19 @@ function message(state: ExportState): string {
         state.events === 0
           ? 'your data, with no events yet'
           : `${state.events.toLocaleString('en-US')} ${state.events === 1 ? 'event' : 'events'}`
-      return `Downloaded ${what}, as ${state.fileName}.${unsavedNote(state.events, state.notOnServer)}`
+      return `Downloaded ${what}, as ${state.fileName}.${unsavedNote(state.events, state.notOnServer)}${refusedNote(state.refused)}`
     }
   }
+}
+
+/** Says the file also lists the events the server refused, if there are any. */
+function refusedNote(refused: number): string {
+  if (refused === 0) return ''
+  const these =
+    refused === 1
+      ? "the 1 that couldn't be saved yet"
+      : `the ${refused.toLocaleString('en-US')} that couldn't be saved yet`
+  return ` The file also lists ${these}, separately.`
 }
 
 /** Says how many events came from this browser's outbox, if any did. */

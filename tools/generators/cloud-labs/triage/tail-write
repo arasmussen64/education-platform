@@ -1,0 +1,11 @@
+
+# A CPU-bound worker running at boot, so there's a clear busiest process,
+# and an empty ~/bin.
+COPY spin /usr/local/bin/shop-worker
+COPY shop-worker.service /etc/systemd/system/shop-worker.service
+RUN chmod 755 /usr/local/bin/shop-worker \
+ && mkdir -p /home/learner/bin /etc/systemd/system/multi-user.target.wants \
+ && chown learner:learner /home/learner/bin \
+ && ln -s /etc/systemd/system/shop-worker.service /etc/systemd/system/multi-user.target.wants/shop-worker.service
+
+CMD ["/sbin/init"]

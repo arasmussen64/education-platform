@@ -1,0 +1,13 @@
+#!/bin/bash
+# The lab's stand-in for the cloud console's "modify volume": makes the disk
+# called NAME bigger. Usage: sudo lab-grow NAME SIZE   (for example 300M)
+# The server then sees a bigger disk, and its filesystem still has to be
+# told to use the space, exactly as after enlarging a volume in the cloud.
+set -euo pipefail
+name="$1"
+size="$2"
+image="/var/lib/lab/$name.img"
+[ -e "$image" ] || { echo "no disk called $name" >&2; exit 1; }
+truncate -s "$size" "$image"
+losetup -c "$(readlink -f "/dev/lab/$name")"
+echo "The volume $name is now $size. The filesystem on it doesn't know yet."

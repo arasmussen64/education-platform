@@ -1,5 +1,7 @@
 import { APP_NAME } from '../config.ts'
 import { dayOf } from '../days.ts'
+import type { EventLog } from '../events/eventLog.ts'
+import type { RefusedEvent } from '../events/outbox.ts'
 import type { EventRow } from '../events/types.ts'
 import { getSupabase } from '../supabase/client.ts'
 import type { Tables } from '../supabase/database.types.ts'
@@ -30,6 +32,21 @@ export type ExportedEvent = Omit<SavedEvent, 'received_at'> & {
   received_at: string | null
 }
 
+/**
+ * An event the server refused, in the file. It's kept apart from `events`
+ * because it isn't part of the saved history: it exists only in the browser
+ * that made the file, which keeps trying to save it.
+ */
+export type ExportedRefusedEvent = {
+  /** What the server said the last time the event was tried. */
+  reason: string
+  last_tried_at: string
+  /** How many times the server has refused it. */
+  attempts: number
+  /** The event itself, exactly as it was sent. */
+  event: EventRow
+}
+
 export type DataExport = {
   format: number
   exported_at: string
@@ -39,21 +56,30 @@ export type DataExport = {
   profile: Tables<'profiles'> | null
   /** Every event, oldest first. */
   events: ExportedEvent[]
+  /** Events the server refused, which only this browser holds. */
+  refused_events: ExportedRefusedEvent[]
 }
 
 /**
- * Gathers everything the signed-in learner has done. `readPending` returns
- * the events still waiting in this browser's outbox.
+ * The learner's events that only this browser has: the ones waiting in its
+ * outbox, and the ones the server refused. The event log supplies both.
  */
+export type ThisBrowsersEvents = Pick<
+  EventLog,
+  'getPendingRows' | 'getRefusedEvents'
+>
+
+/** Gathers everything the signed-in learner has done. */
 export async function collectExport(
   userId: string,
-  readPending: () => EventRow[],
+  browser: ThisBrowsersEvents,
   now = Date.now(),
 ): Promise<DataExport> {
-  // The outbox first, then the server. An event sent in between is on the
+  // This browser first, then the server. An event sent in between is on the
   // server by the time we ask, and an event sent later is still in our copy
   // of the outbox. Either way, none can fall through the gap.
-  const pending = readPending()
+  const pending = browser.getPendingRows()
+  const refused = browser.getRefusedEvents()
   const [profile, saved] = await Promise.all([
     fetchProfile(userId),
     fetchEvents(userId),
@@ -65,7 +91,28 @@ export async function collectExport(
     user_id: userId,
     profile,
     events: mergeEvents(saved, pending),
+    refused_events: stillRefused(refused, saved),
   }
+}
+
+/**
+ * The refused events for the file. One that the server has after all (it was
+ * accepted on another try while we were reading) is left out here, because
+ * it's already in `events`.
+ */
+function stillRefused(
+  refused: RefusedEvent[],
+  saved: SavedEvent[],
+): ExportedRefusedEvent[] {
+  const onServer = new Set(saved.map((event) => event.id))
+  return refused
+    .filter(({ event }) => !onServer.has(event.id))
+    .map(({ event, reason, at, attempts }) => ({
+      reason,
+      last_tried_at: at,
+      attempts,
+      event,
+    }))
 }
 
 async function fetchProfile(userId: string) {

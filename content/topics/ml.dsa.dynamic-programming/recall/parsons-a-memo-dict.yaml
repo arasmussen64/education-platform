@@ -1,19 +1,18 @@
 id: parsons-a-memo-dict
 type: parsons
-rev: 1
+rev: 2
 prompt: |
-  Put the lines in order to define a memoized Fibonacci and print `fib(50)`, `12586269025`. One line is a decoy that doesn't belong.
+  Put the lines in order to define a memoized Fibonacci that is handed the dict it stores its answers in, and print `fib(50, {})`, `12586269025`. One line is a decoy that doesn't belong.
 lines:
-  - 'memo = {}'
-  - 'def fib(n):'
+  - 'def fib(n, memo):'
   - '    if n < 2:'
   - '        return n'
   - '    if n not in memo:'
-  - '        memo[n] = fib(n - 1) + fib(n - 2)'
+  - '        memo[n] = fib(n - 1, memo) + fib(n - 2, memo)'
   - '    return memo[n]'
-  - 'print(fib(50))'
+  - 'print(fib(50, {}))'
 distractors:
   - '    if n in memo:'
 explanation: |
-  The base case comes first; then, if the answer isn't stored yet, compute it from the two smaller answers and store it; then return the stored answer. The decoy's `if n in memo:` guards the computation the wrong way round: it would only compute answers that are already stored, and `return memo[n]` would raise `KeyError` on the first value that isn't, which is `fib(50)` itself. Without the dict, `fib(50)` would make about 40 billion calls.
+  The base case comes first; then, if the answer isn't stored yet, compute it from the two smaller answers and store it; then return the stored answer. The call starts with an empty dict, and every call below it is handed the same one, so an answer stored by one call is found by all the others. The decoy's `if n in memo:` guards the computation the wrong way round: it would only compute answers that are already stored, and `return memo[n]` would raise `KeyError` on the first value that isn't, which is `fib(50)` itself. Without the dict, `fib(50)` would make about 40 billion calls.
 skills: [memo]

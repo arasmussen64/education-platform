@@ -1,5 +1,5 @@
-import type { Outbox } from './outbox.ts'
-import { type EventsClient, syncOutbox } from './sync.ts'
+import type { Outbox, RefusedEvent } from './outbox.ts'
+import { type EventsClient, retryRefused, syncOutbox } from './sync.ts'
 import type { EventRow, NewEvent } from './types.ts'
 
 export type EventLogStatus = {
@@ -7,6 +7,11 @@ export type EventLogStatus = {
   pending: number
   /** True while sending. */
   syncing: boolean
+  /**
+   * Events the server refused, kept on this device and tried again later.
+   * They aren't part of `pending`.
+   */
+  refused: number
 }
 
 /** Records learner events and gets them to the server (v1 spec, F6). */
@@ -34,6 +39,12 @@ export type EventLog = {
    * export adds these, because the server doesn't have them yet.
    */
   getPendingRows(): EventRow[]
+  /**
+   * The signed-in learner's events that the server refused, each with the
+   * reason, the time it was last tried and how often. Read fresh each time.
+   * The data export lists them, and the account page counts them.
+   */
+  getRefusedEvents(): RefusedEvent[]
   /** Cancels any scheduled retry. */
   stop(): void
 }
@@ -73,7 +84,7 @@ export function createEventLog({
   let syncAgain = false
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let retryDelay = FIRST_RETRY_MS
-  let status: EventLogStatus = { pending: 0, syncing: false }
+  let status: EventLogStatus = { pending: 0, syncing: false, refused: 0 }
   let localRows: EventRow[] = []
   const listeners = new Set<() => void>()
 
@@ -83,8 +94,15 @@ export function createEventLog({
 
   function updateStatus() {
     const pending = userId ? outbox.count(userId) : 0
-    if (pending === status.pending && syncing === status.syncing) return
-    status = { pending, syncing }
+    const refused = userId ? outbox.refused(userId).length : 0
+    if (
+      pending === status.pending &&
+      syncing === status.syncing &&
+      refused === status.refused
+    ) {
+      return
+    }
+    status = { pending, syncing, refused }
     notify()
   }
 
@@ -123,6 +141,22 @@ export function createEventLog({
     clearTimeout(retryTimer)
     retryTimer = setTimeout(() => void log.sync(), retryDelay)
     retryDelay = Math.min(retryDelay * 2, LONGEST_RETRY_MS)
+  }
+
+  /**
+   * Gives the learner's refused events another try (see retryRefused). It
+   * comes after a save that went through, and whatever happens here leaves
+   * that save finished: no retry timer is started for it. The events wait
+   * for the next save instead.
+   */
+  async function retryRefusedEvents(user: string): Promise<void> {
+    try {
+      // Stops if the sign-in changes partway through, as it can when the
+      // learner signs out here or in another tab.
+      await retryRefused(outbox, client(), user, now(), () => userId === user)
+    } catch (error) {
+      console.error('Retrying refused events failed', error)
+    }
   }
 
   const log: EventLog = {
@@ -171,11 +205,14 @@ export function createEventLog({
 
       let result: 'done' | 'retry-later'
       try {
-        result = await syncOutbox(outbox, client(), user)
+        result = await syncOutbox(outbox, client(), user, now())
       } catch (error) {
         console.error('Saving progress failed', error)
         result = 'retry-later'
       }
+      // Still `syncing` here, so two retries can never run at once. Only for
+      // whoever is signed in now: the server takes events from nobody else.
+      if (result === 'done' && userId === user) await retryRefusedEvents(user)
 
       syncing = false
       if (result === 'done') {
@@ -202,6 +239,8 @@ export function createEventLog({
     getLocalRows: () => localRows,
 
     getPendingRows: () => (userId ? outbox.pending(userId) : []),
+
+    getRefusedEvents: () => (userId ? outbox.refused(userId) : []),
 
     stop() {
       clearTimeout(retryTimer)

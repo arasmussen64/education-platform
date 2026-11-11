@@ -552,6 +552,224 @@ describe('a checkpoint page', () => {
       }),
     )
   })
+
+  // The explain prompt can walk through code much like the build's, so a
+  // checkpoint keeps it out of sight until the build has passed (ADR-0012,
+  // amended 2026-11-10).
+  describe('its explain check', () => {
+    const PROMPT = 'How does your receipt program work?'
+    const CLOSED = 'Explain it back opens once your build passes.'
+
+    const explainCard = () =>
+      screen.getByRole('region', { name: 'Explain it back' })
+
+    /** Nothing of the explain check but its heading and why it's closed. */
+    function expectClosed() {
+      expect(explainCard()).toHaveTextContent(CLOSED)
+      expect(document.body).not.toHaveTextContent(PROMPT)
+      expect(screen.queryByLabelText('Your explanation')).toBeNull()
+    }
+
+    function expectOpen() {
+      expect(explainCard()).toHaveTextContent(PROMPT)
+      expect(explainCard()).not.toHaveTextContent(CLOSED)
+      expect(screen.getByLabelText('Your explanation')).toBeInTheDocument()
+    }
+
+    /**
+     * Renders the fake checkpoint with a real event log, so a Check passed
+     * on the page counts toward its progress straight away.
+     */
+    function renderSavingCheckpoint() {
+      const content = fakeCheckpointContent()
+      render(
+        <AuthProvider auth={fakeAuth(fakeUser())}>
+          <EventsProvider client={fakeEventsClient()}>
+            <MemoryRouter>
+              <TopicView
+                topic={content.topic}
+                content={content}
+                loadAttempts={vi.fn((_topicId: string) =>
+                  Promise.resolve(unlocked(content.topic)),
+                )}
+              />
+            </MemoryRouter>
+          </EventsProvider>
+        </AuthProvider>,
+      )
+    }
+
+    /** Waits until the learner's progress has loaded. */
+    const progressLoaded = () =>
+      screen.findByRole('list', { name: 'Your proof so far:' })
+
+    it('stays closed, prompt and all, until the build passes on the page', async () => {
+      const runner = setFakeRunner(
+        fakeRunner({ check: oneFailed('Adds it all up') }),
+      )
+      renderSavingCheckpoint()
+      await progressLoaded()
+      expectClosed()
+
+      // A failing Check doesn't open it.
+      await checkTheBuild()
+      expectClosed()
+
+      // A passing one does, with no reload.
+      runner.check.mockResolvedValue(allPassed('Adds it all up'))
+      await checkTheBuild()
+      await vi.waitFor(expectOpen)
+    })
+
+    it('opens when a fresh version passes on the page, as that counts as the build', async () => {
+      setFakeRunner(fakeRunner({ check: allPassed('Splits it') }))
+      renderSavingCheckpoint()
+      await progressLoaded()
+      expectClosed()
+
+      await openTheSteps()
+      const version = await within(wayThrough()).findByRole('region', {
+        name: 'Build: Split the bill',
+      })
+      await userEvent.click(
+        within(version).getByRole('button', { name: 'Check' }),
+      )
+      await vi.waitFor(expectOpen)
+    })
+
+    it.each([
+      ['the build', 'build-receipt'],
+      ['a fresh version', 'build-fuel'],
+    ])(
+      'is open from the start once %s passed on an earlier visit',
+      async (_which, item) => {
+        renderCheckpoint({ history: [passedCheck(item, 'py.m1.checkpoint')] })
+        await progressLoaded()
+        expectOpen()
+      },
+    )
+
+    it("doesn't open for the debug or the steps, only the build", async () => {
+      renderCheckpoint({
+        history: [
+          passedCheck('debug-tickets', 'py.m1.checkpoint'),
+          passedCheck('step-print', 'py.m1.checkpoint'),
+        ],
+      })
+      await progressLoaded()
+      expectClosed()
+    })
+
+    it("keeps what's typed once it's open, and can then be passed", async () => {
+      vi.mocked(gradeExplanation).mockResolvedValue({
+        status: 'graded',
+        grading: {
+          verdict: 'pass',
+          rubric: [{ id: 'parts', met: true }],
+          questions: [],
+        },
+        ai_call_id: 'call-1',
+        model: 'claude-haiku-5-5',
+      })
+      setFakeRunner(fakeRunner({ check: allPassed('Adds it all up') }))
+      renderSavingCheckpoint()
+      await progressLoaded()
+      await checkTheBuild()
+      await vi.waitFor(expectOpen)
+
+      const typed = 'It reads the prices, adds them up, then prints.'
+      await userEvent.type(screen.getByLabelText('Your explanation'), typed)
+
+      // Another Check changes the progress again. The open check must stay
+      // the same one, not start over with an empty box.
+      const debug = screen.getByRole('region', {
+        name: 'Debug: Cinema tickets',
+      })
+      await userEvent.click(
+        within(debug).getByRole('button', { name: 'Check' }),
+      )
+      await vi.waitFor(async () =>
+        expect(await progressLoaded()).toHaveTextContent(/Debug: passed on/),
+      )
+      expect(screen.getByLabelText('Your explanation')).toHaveValue(typed)
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Check my explanation' }),
+      )
+      await vi.waitFor(async () =>
+        expect(await progressLoaded()).toHaveTextContent(/Explain: passed on/),
+      )
+      // All three have passed, so the checkpoint has.
+      expect(screen.getByTestId('topic-state')).toHaveTextContent('Passed')
+      expectOpen()
+    })
+
+    it('stays closed while the progress is loading, and says so', () => {
+      const content = fakeCheckpointContent()
+      renderTopic(content.topic, content, {
+        // Never answers.
+        loadAttempts: vi.fn(
+          (_topicId: string) => new Promise<Attempt[]>(() => {}),
+        ),
+      })
+      expectClosed()
+      expect(explainCard()).toHaveTextContent('Checking whether it has…')
+    })
+
+    it("stays closed when the progress can't load, and opens after a retry", async () => {
+      const content = fakeCheckpointContent()
+      // Every read fails until the connection is "back". (More than the
+      // progress reads the history, so failing only the first read wouldn't
+      // do.)
+      let offline = true
+      const loadAttempts = vi.fn((_topicId: string) =>
+        offline
+          ? Promise.reject<Attempt[]>(new Error('Failed to fetch'))
+          : Promise.resolve([
+              ...unlocked(content.topic),
+              passedCheck('build-receipt', 'py.m1.checkpoint'),
+            ]),
+      )
+      renderTopic(content.topic, content, { loadAttempts })
+
+      await vi.waitFor(() =>
+        expect(explainCard()).toHaveTextContent(
+          "Your progress here couldn't load, so the page can't tell whether it has.",
+        ),
+      )
+      expectClosed()
+
+      offline = false
+      await userEvent.click(
+        within(explainCard()).getByRole('button', { name: 'Try again' }),
+      )
+      await vi.waitFor(expectOpen)
+    })
+
+    it('stays closed for a signed-out visitor, whose build is never saved', async () => {
+      setFakeRunner(fakeRunner({ check: allPassed('Adds it all up') }))
+      renderCheckpoint({ signedIn: false })
+      expectClosed()
+      expect(
+        within(explainCard()).getByRole('link', { name: 'Sign in' }),
+      ).toHaveAttribute('href', '/sign-in')
+
+      await checkTheBuild()
+      expectClosed()
+    })
+
+    it('leaves a regular topic alone: its prompt shows from the start', async () => {
+      renderTopic()
+      const prompt = 'Why is "5" different from 5?'
+      // While the progress is still loading...
+      expect(explainCard()).toHaveTextContent(prompt)
+      // ...and once it's known that nothing has passed yet.
+      expect(await progressLoaded()).toHaveTextContent('Build: not passed yet')
+      expect(explainCard()).toHaveTextContent(prompt)
+      expect(document.body).not.toHaveTextContent(CLOSED)
+      expect(screen.getByLabelText('Your explanation')).toBeInTheDocument()
+    })
+  })
 })
 
 describe('your progress on a topic page', () => {

@@ -1,0 +1,10 @@
+
+# The runaway script, its log folder, and the unit that leaves it running.
+COPY runaway.sh /srv/tools/runaway.sh
+COPY stray-job.service /etc/systemd/system/stray-job.service
+RUN chmod 755 /srv/tools/runaway.sh \
+ && mkdir -p /var/log/shop && chown learner:learner /var/log/shop \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/stray-job.service /etc/systemd/system/multi-user.target.wants/stray-job.service
+
+CMD ["/sbin/init"]

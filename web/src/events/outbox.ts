@@ -4,15 +4,37 @@ import type { EventRow } from './types.ts'
 // them (v1 spec, F6), so closing the tab or losing the connection loses
 // nothing. It lives in the browser's localStorage.
 //
+// It holds two lists. The first is events waiting to be sent. The second is
+// events the server refused: they're moved there so one bad event can't hold
+// up the others, and they're tried again later (see retryRefused in
+// sync.ts). Nothing is ever dropped from the second list except an event the
+// server has since accepted.
+//
 // Several tabs can share it, so every change reads the latest copy and writes
 // it straight back, with no waiting in between: one tab never overwrites
 // another's events with an old copy.
 
 const OUTBOX_KEY = 'learner-events-outbox-v1'
-const REJECTED_KEY = 'learner-events-rejected-v1'
+// The key says "rejected", this file's first word for "refused". It stays,
+// because browsers already hold events under it.
+const REFUSED_KEY = 'learner-events-rejected-v1'
 
-/** An event the server refused, kept on the device for investigation. */
-export type RejectedEvent = { event: EventRow; reason: string; at: string }
+/** An event the server refused, kept on the device to be tried again. */
+export type RefusedEvent = {
+  event: EventRow
+  /** What the server said the last time it was tried. */
+  reason: string
+  /** When it was last tried, as an ISO 8601 time. */
+  at: string
+  /** How many times the server has refused it. */
+  attempts: number
+}
+
+/**
+ * A refused event as it sits in storage. Ones saved before retries existed
+ * have no `attempts`, and a damaged entry could lack anything.
+ */
+type StoredRefusal = Partial<RefusedEvent>
 
 export type Outbox = ReturnType<typeof createOutbox>
 
@@ -59,6 +81,9 @@ export function createOutbox(storage?: Storage) {
     )
   }
 
+  /** The refused list exactly as stored: every learner's, damaged or not. */
+  const storedRefusals = () => read<StoredRefusal | null>(REFUSED_KEY)
+
   return {
     pending,
     remove,
@@ -71,20 +96,63 @@ export function createOutbox(storage?: Storage) {
       return pending(userId).length
     },
 
-    /** Moves an event the server refused out of the way of the others. */
-    reject(event: EventRow, reason: string): void {
-      const rejected: RejectedEvent = {
+    /**
+     * Records that the server refused an event, and moves it out of the way
+     * of the others. Refused before: its entry gets the new reason and time,
+     * and one more attempt.
+     */
+    refuse(event: EventRow, reason: string, now = Date.now()): void {
+      const all = storedRefusals()
+      const earlier = all.find((entry) => entry?.event?.id === event.id)
+      const refusal: RefusedEvent = {
         event,
         reason,
-        at: new Date().toISOString(),
+        at: new Date(now).toISOString(),
+        attempts: (earlier ? (earlier.attempts ?? 1) : 0) + 1,
       }
-      if (write(REJECTED_KEY, [...read(REJECTED_KEY), rejected])) {
-        remove([event.id])
-      }
+      // In place, so the list keeps its order and every other entry. A
+      // second copy of this same event goes: before retries existed, two
+      // tabs refused at the same moment could each add one, and a copy left
+      // with its old time would be sent again on every save.
+      const updated = earlier
+        ? all.flatMap((entry) => {
+            if (entry === earlier) return [refusal]
+            return entry?.event?.id === event.id ? [] : [entry]
+          })
+        : [...all, refusal]
+      // Only leaves the outbox once it's safely on the refused list.
+      if (write(REFUSED_KEY, updated)) remove([event.id])
     },
 
-    rejected(): RejectedEvent[] {
-      return read<RejectedEvent>(REJECTED_KEY)
+    /**
+     * One learner's refused events, in the order they were first refused.
+     * Each event is listed once, even if storage holds two copies of it.
+     */
+    refused(userId: string): RefusedEvent[] {
+      const listed = new Set<string>()
+      return storedRefusals().flatMap((entry) => {
+        if (!entry?.event) return []
+        const { event } = entry
+        if (event.user_id !== userId || listed.has(event.id)) return []
+        listed.add(event.id)
+        return [
+          {
+            event,
+            reason: entry.reason ?? '',
+            at: entry.at ?? '',
+            attempts: entry.attempts ?? 1,
+          },
+        ]
+      })
+    },
+
+    /** Forgets a refused event the server has now accepted. */
+    forgetRefused(id: string): void {
+      const all = storedRefusals()
+      const others = all.filter((entry) => entry?.event?.id !== id)
+      // Skipping the write when nothing matched keeps a tab holding an old
+      // copy from touching the list at all.
+      if (others.length < all.length) write(REFUSED_KEY, others)
     },
   }
 }

@@ -37,4 +37,7 @@ def test_count_by():
 def test_program():
     """Running the program writes sales.csv and prints the three summary lines."""
     assert run() == "Rows: 4\nTotal amount: 170.5\nBy region: {'north': 2, 'south': 2}\n"
-    assert Path("sales.csv").read_text(encoding="utf-8") == CSV
+    # Compared line by line, not character by character, so a file whose last
+    # row has no line break after it still passes: the prompt shows the rows
+    # and says nothing about how the file ends.
+    assert Path("sales.csv").read_text(encoding="utf-8").splitlines() == CSV.splitlines()

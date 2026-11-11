@@ -85,7 +85,7 @@ Some topics within a module can be done in either order. That gives the Today pa
 | 1 | Programs and print | `py.programs-and-print` | write and run a program that prints; read your first error | CS50P Lecture 0 |
 | 2 | Values and types | `py.values-and-types` | tell ints, floats and strings apart; check a value's type | CS50P Lecture 0 |
 | 3 | Variables | `py.variables` | explain assignment as names referring to values; trace and swap | CS50P Lecture 0, Python Tutor |
-| 4 | Arithmetic | `py.arithmetic` | use `+ - * / // % **` correctly, including precedence | CS50P Lecture 0 |
+| 4 | Arithmetic | `py.arithmetic` | use `+ - * / // % **` correctly, including precedence | _Python for Everybody_, chapter 2 |
 | 5 | Strings and input | `py.strings-and-input` | read input, convert types, format output with f-strings | CS50P Lecture 0 |
 
 **Checkpoint 1: receipt calculator** (`py.m1.checkpoint`). Read prices and a tip percentage, then print a formatted receipt.
@@ -121,7 +121,7 @@ Some topics within a module can be done in either order. That gives the Today pa
 | 16 | Defining functions | `py.defining-functions` | write functions with parameters and call them | CS50P Lecture 0 |
 | 17 | Return values | `py.return-values` | tell `return` from `print`; understand `None` | CS50P Lecture 0 |
 | 18 | Scope and the call stack | `py.scope-and-call-stack` | tell local from global; trace calls on the stack | Python Tutor, CS50P Lecture 9 |
-| 19 | Decomposition | `py.decomposition` | break a problem into small functions; write docstrings | AI-written lesson |
+| 19 | Decomposition | `py.decomposition` | break a problem into small functions; write docstrings | Python tutorial: "Documentation Strings", AI-written lesson |
 | 20 | Testing with assert | `py.testing-with-assert` | test your own functions, including edge cases | CS50P Lecture 5 |
 
 **Checkpoint 4: password checker** (`py.m4.checkpoint`). Built from small functions, each with tests.
@@ -132,7 +132,7 @@ Some topics within a module can be done in either order. That gives the Today pa
 |---|---|---|---|---|
 | 21 | Lists | `py.lists` | create, index, change and grow lists | CS50P Lecture 2 |
 | 22 | List algorithms | `py.list-algorithms` | filter, transform, search, sort and slice lists | Python tutorial: "More on Lists" |
-| 23 | References and mutation | `py.references-and-mutation` | predict aliasing; copy lists; spot functions that change their arguments | Ned Batchelder, "Facts and Myths about Python Names and Values" (PyCon 2015) |
+| 23 | References and mutation | `py.references-and-mutation` | predict aliasing; copy lists; spot functions that change their arguments | Python Tutor; Ned Batchelder, "Facts and Myths about Python Names and Values" (the article, and the PyCon 2015 talk) |
 | 24 | Dictionaries | `py.dictionaries` | look up, update and loop over dicts; count things with one | CS50P Lecture 2 |
 | 25 | Nested data | `py.nested-data` | work with lists of lists (grids, matrices) and lists of dicts (records) | CS50P Lecture 2, AI-written lesson |
 
@@ -159,8 +159,10 @@ Some topics within a module can be done in either order. That gives the Today pa
 
 ## Before authoring
 
-- Find exact timestamps for each CS50P segment, and confirm the videos allow embedding.
-- Confirm the license and access of every non-CS50P resource.
+These were the to-dos before any topic was written. Both were worked through topic by topic as the track was built (Phase 1):
+
+- Find exact timestamps for each CS50P segment, and confirm the videos allow embedding. _Done: each embedded segment has its `start` and `end` in the topic's `topic.yaml`._
+- Confirm the license and access of every non-CS50P resource. _Done: each resource's `license` is recorded in its `topic.yaml`. One record was corrected on 2026-11-10, in the fixes that followed that day's audit: the chapters of_ Python for Everybody _are CC BY-NC-SA 3.0 by the book's own copyright page, not CC BY 4.0, which is what the site's footer says and what was first recorded._
 
 ## What comes next
 

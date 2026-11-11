@@ -52,3 +52,13 @@ Every checkpoint gets four additions. The content checker won't mark a checkpoin
 - Every test of a checkpoint's builds and debug names its skills, in `test_skills` in its exercise.yaml. Each Check already saves which tests failed, so this needs no new data.
 - The Today page also loads checkpoints from the learner's history, and the topics their tests name.
 - Milestone B's progress tracking must count a pass on any version as passing the checkpoint's build.
+
+## Amendment (2026-11-10): the explain check opens after the build
+
+On a checkpoint page, the explain check stays closed until the checkpoint's build has passed. Until then the page shows its heading and one line, "Explain it back opens once your build passes", and nothing of its prompt.
+
+- **Why.** The page used to show all three proof checks together, and a checkpoint's explain prompt often says "here's a working program" and then asks how it works. An audit on 2026-11-10 found that in Python Checkpoints 2 to 6 that program overlaps the build's own reference solution: Checkpoint 2's prompt is the solution minus five lines. An honest learner scrolling the page saw most of the answer while doing the "blank editor" build. That is a hint inside the checkpoint, which this ADR rejected (see Alternatives considered), and it made a saved "build passed" mean less than it says.
+- **What counts as passed.** The same rule as the rest of the page and `web/src/progress/progress.ts`: a passing Check of the main build or of any fresh version, on any day. A Check passed during the visit opens the explain check straight away, with no reload.
+- **When the page can't tell.** While the learner's progress is loading, or if it couldn't load, the explain check stays closed and says why (with "Try again" in the second case). It also stays closed for a signed-out visitor: nothing they do is saved, so the page never learns that their build passed, and an explanation can't be checked without signing in anyway.
+- **What doesn't change.** Regular topics still show all three checks at once; this is only for checkpoints, where the overlap was found. The debug stays open from the start on a checkpoint too. Progress is still worked out the same way from the saved events, so an explanation that passed before this change still counts.
+- **Alternative considered: rewriting the five prompts around a different program.** That fixes today's checkpoints but leaves the next one free to repeat the mistake. Hiding the prompt holds whatever the prompt says, and needs no content change. Prompts that lean less on the build's own code would still be better content, and can follow.

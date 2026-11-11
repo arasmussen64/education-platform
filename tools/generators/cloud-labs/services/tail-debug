@@ -1,0 +1,9 @@
+
+# The API, and the broken unit, installed and enabled so it fails at boot.
+COPY server.py /srv/shop-api/server.py
+COPY shop-api.service.starter /etc/systemd/system/shop-api.service
+RUN chmod 755 /srv/shop-api/server.py \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/shop-api.service /etc/systemd/system/multi-user.target.wants/shop-api.service
+
+CMD ["/sbin/init"]

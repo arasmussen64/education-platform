@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { Markdown } from '../components/Markdown.tsx'
@@ -121,6 +121,26 @@ export function ExplainCheck({
       <ReportProblem
         about={{ topicId: topic.id, itemId: 'explain', itemRev: topic.rev }}
       />
+    </section>
+  )
+}
+
+/**
+ * What a checkpoint shows in place of its explain check until the build has
+ * passed (ADR-0012, amended 2026-11-10): the same card and heading, so the
+ * learner still sees there's a third check, and `children` say when it
+ * opens. The prompt isn't here at all, because it can give part of the build
+ * away.
+ */
+export function ExplainClosed({ children }: { children: ReactNode }) {
+  return (
+    <section aria-labelledby="explain" className={CARD}>
+      <h3 id="explain" className="text-lg font-semibold">
+        Explain it back
+      </h3>
+      <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+        {children}
+      </div>
     </section>
   )
 }

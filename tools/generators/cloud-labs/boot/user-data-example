@@ -1,0 +1,19 @@
+#cloud-config
+# The shop's first-boot instructions for its servers.
+users:
+  - name: ben
+    gecos: Ben, the shop's on-call engineer
+    groups: sudo
+    shell: /bin/bash
+    ssh_authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForTheLabOnly0000000000000000000000000 ben@laptop
+packages:
+  - shop-agent
+write_files:
+  - path: /etc/shop/config.env
+    content: |
+      SHOP_ENV=prod
+      SHOP_REGION=eu-west-1
+runcmd:
+  - mkdir -p /var/lib/shop
+  - echo "configured $(cloud-init query instance_id)" >> /var/lib/shop/first-boot.txt

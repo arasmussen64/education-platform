@@ -1,0 +1,21 @@
+
+# The server in a hurry: three people, the shop's files as root left them,
+# a stand-in API service, Ben's key pair (made here, for this lab only), and
+# no deploy group yet.
+COPY shop-api.service /etc/systemd/system/shop-api.service
+RUN groupadd developers \
+ && useradd -m -s /bin/bash -G developers ada \
+ && useradd -m -s /bin/bash ben \
+ && useradd -m -s /bin/bash carol \
+ && mkdir -p /srv/shop/secrets /srv/keys /home/learner/keys \
+ && printf '#!/bin/bash\necho "deploying the shop..."\n' > /srv/shop/deploy.sh \
+ && echo 'sk_test_0000_not_a_real_key' > /srv/shop/secrets/api-key \
+ && chmod 644 /srv/shop/deploy.sh /srv/shop/secrets/api-key \
+ && chmod 755 /srv/shop/secrets \
+ && ssh-keygen -q -t ed25519 -N '' -C ben@laptop -f /home/learner/keys/ben \
+ && cp /home/learner/keys/ben.pub /srv/keys/ben.pub \
+ && chown -R learner:learner /home/learner/keys \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/shop-api.service /etc/systemd/system/multi-user.target.wants/shop-api.service
+
+CMD ["/sbin/init"]

@@ -1,4 +1,5 @@
 import re
+import sys
 
 import numpy as np
 
@@ -6,12 +7,30 @@ from checks import function, run
 
 # Hidden tests: the learner sees each docstring and whether it passed, but
 # not the failure messages (v1 spec, F7). Everything is fetched from one
-# import of the solution, so the classes compare equal across the tests and
-# the training at the top of the file runs once per test.
+# load of the solution, so the classes compare equal across the tests and
+# the training at the bottom of the file runs once per Check.
+
+
+def from_solution(name):
+    """The learner's function or class called name, from one load of their file.
+
+    function() runs solution.py from the top on every call, and the program
+    at the bottom of that file is slow. So the first call here loads the file
+    and every later call reuses that copy: the program runs once per Check
+    instead of once per test, which keeps the Check inside the browser's
+    time limit. The harness forgets the copy before each Check, so no test
+    sees an old version of the file.
+    """
+    loaded = sys.modules.get("solution")
+    if loaded is None:
+        return function(name)
+    found = getattr(loaded, name, None)
+    assert callable(found), f"Define a function called {name}."
+    return found
 
 
 def module():
-    fit = function("fit")
+    fit = from_solution("fit")
     return fit.__globals__
 
 

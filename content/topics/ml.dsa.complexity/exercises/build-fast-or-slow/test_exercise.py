@@ -17,6 +17,11 @@ class Tracked:
 
     def __eq__(self, other):
         Tracked.compared += 1
+        # A solution may compare an item with something that isn't an item,
+        # such as `previous = None` before a loop over sorted items. That is
+        # simply "not equal"; without this line it crashed the hidden test.
+        if not isinstance(other, Tracked):
+            return NotImplemented
         return self.value == other.value
 
     def __lt__(self, other):

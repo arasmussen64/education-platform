@@ -23,7 +23,10 @@ vi.mock('../export/download.ts', () => ({ downloadJson: vi.fn() }))
 const ADA = fakeUser()
 
 /** A finished export holding these events. */
-function exported(events: DataExport['events']): DataExport {
+function exported(
+  events: DataExport['events'],
+  refusedEvents: DataExport['refused_events'] = [],
+): DataExport {
   return {
     format: 1,
     exported_at: '2026-11-07T09:15:00.000Z',
@@ -31,6 +34,23 @@ function exported(events: DataExport['events']): DataExport {
     user_id: ADA.id,
     profile: null,
     events,
+    refused_events: refusedEvents,
+  }
+}
+
+/** An event log on a device holding this many refused events. */
+function logWithRefused(count: number): EventLog {
+  const refused = Array.from({ length: count }, (_, index) => ({
+    event: eventRow({ id: `refused-${index}` }),
+    reason: '400 23514: violates check constraint',
+    at: '2026-11-10T08:30:00.000Z',
+    attempts: 1,
+  }))
+  const status = { pending: 0, syncing: false, refused: count }
+  return {
+    ...recordingEventLog().log,
+    getStatus: () => status,
+    getRefusedEvents: () => refused,
   }
 }
 
@@ -76,11 +96,15 @@ describe('the account page', () => {
   it("downloads the learner's data as a file, and says how much", async () => {
     const data = exported([savedEvent('a'), savedEvent('b')])
     vi.mocked(collectExport).mockResolvedValue(data)
-    renderAccount()
+    const log = recordingEventLog().log
+    renderAccount({ log })
     expect(screen.getByText('Signed in as ada.')).toBeInTheDocument()
+    // Nothing was refused, so there's no warning.
+    expect(screen.queryByText(/couldn't be saved/)).not.toBeInTheDocument()
 
     await userEvent.click(downloadButton())
-    expect(collectExport).toHaveBeenCalledWith(ADA.id, expect.any(Function))
+    // The event log supplies what only this browser holds.
+    expect(collectExport).toHaveBeenCalledWith(ADA.id, log)
     expect(downloadJson).toHaveBeenCalledWith('learning-data.json', data)
     expect(
       await screen.findByText('Downloaded 2 events, as learning-data.json.'),
@@ -91,10 +115,12 @@ describe('the account page', () => {
     const waiting = [eventRow({ id: 'not-sent-yet' })]
     const log = { ...recordingEventLog().log, getPendingRows: () => waiting }
     // Like the real thing: whatever the outbox holds has no received_at.
-    vi.mocked(collectExport).mockImplementation(async (_userId, readPending) =>
+    vi.mocked(collectExport).mockImplementation(async (_userId, browser) =>
       exported([
         savedEvent('a'),
-        ...readPending().map((event) => ({ ...event, received_at: null })),
+        ...browser
+          .getPendingRows()
+          .map((event) => ({ ...event, received_at: null })),
       ]),
     )
     renderAccount({ log })
@@ -103,6 +129,47 @@ describe('the account page', () => {
     expect(
       await screen.findByText(
         "Downloaded 2 events, as learning-data.json. 1 of them wasn't saved to your account yet, so it came from this browser.",
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('says how much work the server has refused, and that the download includes it', async () => {
+    // Like the real thing: the refused events go under their own key.
+    vi.mocked(collectExport).mockImplementation(async (_userId, browser) =>
+      exported(
+        [savedEvent('a')],
+        browser.getRefusedEvents().map(({ event, reason, at, attempts }) => ({
+          reason,
+          last_tried_at: at,
+          attempts,
+          event,
+        })),
+      ),
+    )
+    renderAccount({ log: logWithRefused(3) })
+    expect(
+      screen.getByText(
+        "3 pieces of your work couldn't be saved yet. They're kept on this device and will be tried again.",
+      ),
+    ).toBeInTheDocument()
+    // What it means for the learner, and that the file has the work.
+    expect(screen.getByText(/at most once every 12 hours/)).toHaveTextContent(
+      '"Download my data" below includes it.',
+    )
+
+    await userEvent.click(downloadButton())
+    expect(
+      await screen.findByText(
+        "Downloaded 1 event, as learning-data.json. The file also lists the 3 that couldn't be saved yet, separately.",
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('says it about a single piece of work in the singular', () => {
+    renderAccount({ log: logWithRefused(1) })
+    expect(
+      screen.getByText(
+        "1 piece of your work couldn't be saved yet. It's kept on this device and will be tried again.",
       ),
     ).toBeInTheDocument()
   })

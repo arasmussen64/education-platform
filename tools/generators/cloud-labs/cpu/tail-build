@@ -1,0 +1,11 @@
+
+# Two busy services (the spinner under two names), both running at boot.
+COPY spin /usr/local/bin/shop-api
+COPY spin /usr/local/bin/shop-report
+COPY shop-api.service shop-report.service /etc/systemd/system/
+RUN chmod 755 /usr/local/bin/shop-api /usr/local/bin/shop-report \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/shop-api.service /etc/systemd/system/multi-user.target.wants/shop-api.service \
+ && ln -s /etc/systemd/system/shop-report.service /etc/systemd/system/multi-user.target.wants/shop-report.service
+
+CMD ["/sbin/init"]

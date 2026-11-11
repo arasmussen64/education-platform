@@ -39,3 +39,7 @@
 ## Amendment (2026-11-10): "I don't know this"
 
 Every placement question offers an "I don't know this" answer beside its choices: a last option on a multiple-choice question, a button beside Check on a prediction or a Parsons problem. It counts as a wrong answer for the probe and is saved as one, with `dont_know: true` and a null `choice`, `prediction` or `program` in the answer's data, so that a learner who doesn't know needn't guess. A lucky guess would place them past what they know, and the proofs would catch it later at a cost of time; the honest answer places them right the first time. The option exists only in the placement test: in practice and reviews a wrong guess is followed by the explanation, which is the point there. The owner asked for this on 2026-11-10.
+
+## Amendment (2026-11-10): refused placement events are tried again
+
+The first consequence above says the outbox "reports them as refused". At the time it reported nothing and never re-sent them. Since 2026-11-10 the header and the account page say how many events are waiting, and the browser tries them again at most every 12 hours until the server accepts them, so placements recorded before the migration arrived are saved once it has ([ADR-0008](0008-event-log.md), amendment of the same date).

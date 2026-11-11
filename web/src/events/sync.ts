@@ -24,11 +24,13 @@ const BATCH_SIZE = 50
  * server ignores an ID it already has.
  *
  * Returns 'retry-later' if the connection or server failed partway through.
+ * `now` is the time to note on anything the server refuses.
  */
 export async function syncOutbox(
   outbox: Outbox,
   client: EventsClient,
   userId: string,
+  now = Date.now(),
 ): Promise<'done' | 'retry-later'> {
   // IDs already sent in this run. If the outbox couldn't forget them (its
   // storage failing), this stops the loop from sending them forever.
@@ -58,9 +60,76 @@ export async function syncOutbox(
       } else if (single.retryLater) {
         return 'retry-later'
       } else {
+        // Not lost: it moves to the refused list, and retryRefused (below)
+        // tries it again later.
         console.error('The server refused an event', single.message, event)
-        outbox.reject(event, single.message)
+        outbox.refuse(event, single.message, now)
       }
     }
   }
+}
+
+/**
+ * How long a refused event waits before it's tried again. Long enough that
+ * an event the server will never take costs a couple of requests a day, and
+ * short enough that events refused only because the app was ahead of the
+ * database (a migration that hadn't been applied yet) are saved within a day
+ * of the fix.
+ */
+export const RETRY_REFUSED_AFTER_MS = 12 * 60 * 60 * 1000
+
+/** True once a refused event has waited long enough for another try. */
+function isDueForRetry(lastTriedAt: string, now: number): boolean {
+  const lastTried = Date.parse(lastTriedAt)
+  // A time that can't be read counts as long ago: better one request too
+  // many than an event that's never tried again. So does a time more than
+  // 12 hours in the future, which only a wrong clock can have written:
+  // otherwise the event would wait until the real date caught up.
+  return (
+    Number.isNaN(lastTried) ||
+    Math.abs(now - lastTried) > RETRY_REFUSED_AFTER_MS
+  )
+}
+
+/**
+ * Gives one learner's refused events another chance: each one last tried
+ * more than 12 hours ago is sent again, on its own, so one that's refused
+ * again can't hold up the others.
+ *
+ * - Accepted: it leaves the refused list. It's on the server now.
+ * - Refused again: it stays, with the new reason and time, and one more
+ *   attempt counted.
+ * - A passing problem (no connection, a busy server): stop, and leave the
+ *   rest exactly as they were for next time.
+ *
+ * Nothing is ever dropped, and another learner's events are never sent.
+ *
+ * `stillSignedIn` is asked before each event. Once it says no (the learner
+ * signed out, or someone else signed in, partway through), the rest wait:
+ * sent under another sign-in they would only be refused, and wait 12 hours
+ * more for it.
+ */
+export async function retryRefused(
+  outbox: Outbox,
+  client: EventsClient,
+  userId: string,
+  now = Date.now(),
+  stillSignedIn: () => boolean = () => true,
+): Promise<'done' | 'retry-later'> {
+  const due = outbox
+    .refused(userId)
+    .filter((refusal) => isDueForRetry(refusal.at, now))
+
+  for (const { event } of due) {
+    if (!stillSignedIn()) return 'retry-later'
+    const result = await client.send([event])
+    if (result.ok) {
+      outbox.forgetRefused(event.id)
+    } else if (result.retryLater) {
+      return 'retry-later'
+    } else {
+      outbox.refuse(event, result.message, now)
+    }
+  }
+  return 'done'
 }
