@@ -182,6 +182,23 @@ describe('openFollowUps', () => {
     })
   })
 
+  it('still needs the one question left when two of three were missed', () => {
+    // A missed question counts only when every question on the skill was
+    // missed; here fill-commas is still fresh.
+    const missedTwo = [
+      attempt('mcq-commas', false, '2026-11-06'),
+      attempt('predict-commas', false, '2026-11-06'),
+    ]
+    const again = attempt('mcq-commas', true, '2026-11-07')
+    expect(openFollowUps([...missedTwo, again], itemsOf)[0]?.correctOn).toEqual(
+      [],
+    )
+    const fresh = attempt('fill-commas', true, '2026-11-07')
+    expect(openFollowUps([...missedTwo, fresh], itemsOf)[0]?.correctOn).toEqual(
+      ['2026-11-07'],
+    )
+  })
+
   it('learns nothing from a worked example, right or wrong', () => {
     // A worked example shows its answer as it goes (ADR-0011, amended
     // 2026-11-11). A lab walkthrough is Checked like any other exercise.

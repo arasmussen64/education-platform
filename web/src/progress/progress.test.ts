@@ -298,6 +298,23 @@ describe('reviews and the states after Learned', () => {
     )
   })
 
+  it('counts the week from the most recent of several failed reviews', () => {
+    const twice = [
+      ...proved(FIRST),
+      review(FIRST, 'again', 4),
+      review(FIRST, 'good', 6),
+      review(FIRST, 'good', 12),
+      review(FIRST, 'again', 30),
+      review(FIRST, 'good', 32),
+      review(FIRST, 'good', 36),
+    ]
+    // The Good on day 36 is a week after the first failure, not the second.
+    expect(stateAt(twice, FIRST, 36)).toBe('learned')
+    expect(stateAt([...twice, review(FIRST, 'good', 37)], FIRST, 37)).toBe(
+      'mastered',
+    )
+  })
+
   it("doesn't restart the wait after a Hard review, which isn't a failure", () => {
     // Hard is some right, some wrong (ADR-0009); only Again is a failed
     // review. The wrong item opens a follow-up, which holds Mastered back
