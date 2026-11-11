@@ -53,7 +53,7 @@ Still open: until a refused event is saved it exists in one browser only, so cle
 
 Decided under the owner's delegation of 2026-11-11 and recorded in [docs/owner-queue.md](../owner-queue.md) under "Decided for you".
 
-What happened before: when the browser wouldn't let the page write to `localStorage` (it was full, or site data was switched off), a new event never reached the outbox. The page still counted it, so a passed proof showed as passed, but the event was never sent, the header said nothing was waiting, and it was gone on the next reload. An audit on 2026-11-11 found this.
+What happened before: when the browser wouldn't let the page write to `localStorage` (it was full, or site data was switched off), a new event never reached the outbox. The page still counted it, so a passed proof showed as passed, but the event was never sent, the header said nothing was waiting, and it was gone on the next reload. The audit of 2026-11-10 found this.
 
 What is true now:
 
@@ -70,18 +70,18 @@ The decision says progress is derived from events by one pure function. One part
 What is true now:
 
 - **Every event recorded from 2026-11-11 has two more fields in its `data`:** `local_day`, the learner's calendar day when it happened (like `"2026-11-06"`), and `utc_offset_minutes`, how many minutes their clock was ahead of UTC (`-480` in Los Angeles in winter, `330` in India).
-- **An event's day is the one it recorded,** on any device in any zone (`dayOf` in `web/src/days.ts`). A recorded day that can't be right (it isn't the UTC day or one either side of it) is ignored.
+- **An event's day is the one it recorded,** on any device in any zone (`dayOf` in `web/src/days.ts`, given the event rather than only its time). A recorded day that can't be right (it isn't the UTC day or one either side of it) is ignored. When this amendment was written, the follow-ups code still gave `dayOf` only an event's time, so follow-up days use the recorded day only once it passes the event itself.
 - **Older events have neither field and keep the old rule:** their day is the day on the viewing device's clock. Nothing stored is changed.
 
 ## Amendment (2026-11-11): a Check that couldn't run is saved with no verdict
 
 Decided under the owner's delegation of 2026-11-11 and recorded in [docs/owner-queue.md](../owner-queue.md) under "Decided for you".
 
-A Check is saved as a graded attempt, so a wrong one opens a follow-up and lowers a review's rating. Before, a Check that never ran was saved as wrong: Python didn't start, a package didn't download, the worker crashed, or the exercise's own tests couldn't load. Those say nothing about the learner, and in an append-only log a false miss stays.
+A Check is saved as a graded attempt, so a wrong one opens a follow-up and lowers a review's rating. Before, a Check that never ran was saved as wrong: Python didn't start, a package didn't download, the worker crashed, the exercise's own tests couldn't load, or the exercise had no tests. Those say nothing about the learner, and in an append-only log a false miss stays.
 
 What is true now:
 
 - **Such a Check is saved with `correct` left empty,** the way an explanation that couldn't be graded already is. Its `data` still says what happened (`outcome: "failed"` and the message), so the log keeps the full story. The rule is `checkCorrect` in `web/src/events/checkGrade.ts`.
 - **It counts nowhere:** not as a miss, not as an attempt in a review, not as a failed try at a checkpoint's build, and its time carries on to the next real attempt. The learner is told it doesn't count and can press Check again.
 - **Code that runs past its time limit still counts as wrong.** That is almost always a loop that never ends, which is the learner's own result.
-- **Checks saved as wrong before 2026-11-11 for these reasons still count as wrong,** for now. They can be told apart (`data.outcome` is `"failed"`, or `data.status` is `"error"` with a message starting "The tests couldn't be loaded."), so the code that turns events into attempts can skip them later without changing a stored row.
+- **Checks saved as wrong before 2026-11-11 for these reasons still count as wrong,** for now. They can be told apart (`data.outcome` is `"failed"`, or `data.status` is `"error"` with a message starting "The tests couldn't be loaded.", or `data.status` is `"ok"` with `data.total` 0), so the code that turns events into attempts can skip them later without changing a stored row. `savedCheckCouldNotRun` in the same file applies the same rule to saved data.
