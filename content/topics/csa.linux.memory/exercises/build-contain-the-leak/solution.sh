@@ -7,7 +7,12 @@ ps -eo pid,comm,rss --sort=-rss | head -n 4
 pid=$(ps -eo pid --sort=-rss | sed -n 2p | tr -d ' ')
 systemctl status "$pid" --no-pager | head -n 12
 cat /sys/fs/cgroup/system.slice/shop-indexer.service/memory.current
-mkdir -p ~/report && cat /sys/fs/cgroup/system.slice/shop-indexer.service/memory.peak | tee ~/report/peak.txt
+# A person reading this has watched for a while, and the peak is hundreds
+# of MB. This script runs seconds after boot, so it waits until the leak has
+# passed 128 MB: no run under the limit can reach a peak like that.
+peak=/sys/fs/cgroup/system.slice/shop-indexer.service/memory.peak
+for _ in $(seq 1 30); do [ "$(cat "$peak")" -gt 150000000 ] && break; sleep 1; done
+mkdir -p ~/report && cat "$peak" | tee ~/report/peak.txt
 
 # 2. A hard limit and no swap, as a drop-in. (In the lab you'd write it with
 #    sudo systemctl edit shop-indexer; here the file is written directly.)

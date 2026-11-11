@@ -34,13 +34,26 @@ checks:
     expect:
       matches: "^(active|activating)$"
   - id: db-protected
-    description: "The running shop-db process has an oom_score_adj of -500 or lower."
-    command: cat "/proc/$(systemctl show shop-db -p MainPID --value)/oom_score_adj"
+    description: "shop-db's oom_score_adj is -500 or lower, in its unit and in the running process, so a restart keeps it."
+    # The running process alone can be changed on the spot (writing to
+    # /proc/PID/oom_score_adj) while the unit says nothing, and the next
+    # restart puts it back to 0. So the larger of the two has to be low
+    # enough; wrong/db-only-at-runtime.sh proves it. Unset is 0.
+    command: |
+      unit=$(systemctl show shop-db -p OOMScoreAdjust --value); unit=${unit:-0}
+      running=$(cat "/proc/$(systemctl show shop-db -p MainPID --value)/oom_score_adj")
+      if [ "$unit" -gt "$running" ]; then echo "$unit"; else echo "$running"; fi
     expect:
       lte: -500
   - id: peak-reported
-    description: "~/report/peak.txt holds the leaking service's peak memory in bytes, read before it had a limit: well above 20 MB."
+    description: "~/report/peak.txt holds the leaking service's peak memory in bytes, read before it had a limit, so more than the 128 MB the limit allows."
+    # Restarting the service gives it a new cgroup whose memory.peak starts
+    # again from nothing, and under a 128 MB limit (134217728 bytes) it can
+    # never go higher. A peak read after the limit was 37 MB (Docker
+    # Desktop, 2026-11-11), which a bound of 20 MB let through; above the
+    # limit, it proves the peak was read first. wrong/peak-read-after-limit.sh
+    # proves it is caught.
     command: cat /home/learner/report/peak.txt
     expect:
       matches: "^[0-9]+$"
-      gte: 20000000
+      gt: 134217728
