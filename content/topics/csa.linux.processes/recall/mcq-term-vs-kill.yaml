@@ -1,14 +1,14 @@
 id: mcq-term-vs-kill
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A database process is misbehaving and you need to stop it. Why send `kill PID` (that is, `TERM`) before `kill -9 PID`?
 choices:
-  - "`TERM` is faster than `KILL`"
-  - "`TERM` lets the program catch the signal and finish writing and closing cleanly; `KILL` ends it at once and can't be caught, so it may leave corrupt files and locks"
-  - "`KILL` only works as root"
-  - "`TERM` kills the children too; `KILL` only kills the parent"
-answer: 1
+  - "`TERM` also stops the process's children; `KILL` ends only the parent and leaves them running"
+  - "`KILL` only works when it is sent by root; `TERM` can be sent by the user who owns the process"
+  - "`TERM` can be caught, so the program can finish its writes and exit cleanly; `KILL` cannot be"
+  - "`TERM` is carried out by the kernel at once; `KILL` waits until the program is ready to read it"
+answer: 2
 explanation: |
-  `TERM` is a request the program can handle: flush its files, close connections, remove its lock file, then exit. `KILL` is carried out by the kernel without the program's involvement, so whatever it was in the middle of stays half-done. The order is: `TERM`, wait a little, then `KILL` only if it didn't stop. Neither signal is sent to children automatically, and both work on any process you own.
+  `TERM` is a request the program can handle: flush its files, close its connections, remove its lock file, then exit. `KILL` is carried out by the kernel without the program's involvement, so whatever it was in the middle of stays half-done, which for a database can mean corrupt files and stale locks. That's the reverse of "`TERM` at once, `KILL` when the program is ready". The order is: `TERM`, wait a little, then `KILL` only if it didn't stop. Neither signal is passed on to a process's children automatically, and you can send both to any process you own, without being root.
 skills: [signals]
