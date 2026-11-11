@@ -1,0 +1,38 @@
+id: arch-pay-back
+type: estimate
+rev: 1
+# Prices: AWS's on-demand price file for US East (N. Virginia), Linux, the
+# one https://aws.amazon.com/ec2/pricing/on-demand/ loads (published
+# 2026-11-10T17:38:52Z), read 2026-11-11.
+prompt: |
+  The shop's image service runs on 60 AWS `c7i.large` instances (Intel, 2 vCPUs, 4 GiB) around the clock. Moving it to `c7g.large` (Graviton3, the same size) will take about $9,000 of engineering work: rebuilding, testing and rolling out. On-demand list prices for Linux in US East (N. Virginia), read on 2026-11-11:
+
+  ```
+  c7i.large    0.08925 dollars an hour
+  c7g.large    0.0725  dollars an hour
+  ```
+
+  Counting a month as 730 hours, after how many whole months has the saving paid for the work? Exactly.
+unit: months
+answer: 13
+tolerance: { absolute: 0 }
+given: { intel: 0.08925, arm: 0.0725, instances: 60, hours: 730, work: 9000 }
+working: ceil(work / ((intel - arm) * hours * instances))
+mistakes:
+  - id: rounded-down
+    value: 12
+    working: floor(work / ((intel - arm) * hours * instances))
+    why: After 12 months the saving is 12 × 733.65 = 8,803.80 dollars, still short of 9,000. It has paid for itself during the 13th month.
+  - id: one-instance
+    value: 737
+    working: ceil(work / ((intel - arm) * hours))
+    why: That's the saving of one instance a month. All 60 move, so the fleet saves 60 times as much.
+  - id: in-years
+    value: 1.02
+    working: work / ((intel - arm) * hours * instances * 12)
+    why: That's in years. The question asks for months.
+explanation: |
+  Each instance saves 0.08925 minus 0.0725 = 0.01675 dollars an hour; times 730 hours and 60 instances, the fleet saves 733.65 dollars a month. 9,000 ÷ 733.65 = 12.3, so the work has paid for itself during the 13th month. A pay-back of about a year is a reason to do it, if the Arm instances really carry the same load; a pay-back longer than the time you'd keep the service running is a reason not to.
+skills: [price-performance]
+prices_as_of: 2026-11-11
+prices_source: https://aws.amazon.com/ec2/pricing/on-demand/

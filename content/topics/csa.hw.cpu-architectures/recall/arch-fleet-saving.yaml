@@ -1,0 +1,41 @@
+id: arch-fleet-saving
+type: estimate
+rev: 1
+# Prices: Google Cloud's general-purpose price page, the tables it shows by
+# default, for Iowa (us-central1), on-demand, read 2026-11-11.
+prompt: |
+  A team runs 25 `n4-standard-2` VMs on Google Cloud (Intel, 2 vCPUs and 8 GiB each) around the clock. The same size on Axion, Google's Arm chip, is `n4a-standard-2`. On-demand list prices for Linux in Iowa (us-central1), read on 2026-11-11:
+
+  ```
+  n4-standard-2     0.0907 dollars an hour
+  n4a-standard-2    0.077  dollars an hour
+  ```
+
+  Counting a month as 730 hours, how much would the 25 VMs save in a month on Axion? Within 5%.
+unit: dollars a month
+answer: 250.03
+tolerance: { percent: 5 }
+given: { intel: 0.0907, arm: 0.077, vms: 25, vcpus: 2, hours: 730 }
+working: (intel - arm) * hours * vms
+mistakes:
+  - id: one-vm
+    value: 10
+    working: (intel - arm) * hours
+    why: That's one VM's saving in a month. There are 25 of them.
+  - id: one-day
+    value: 8.22
+    working: (intel - arm) * 24 * vms
+    why: That's one day of the 25 VMs. A month is 730 hours.
+  - id: per-vcpu
+    value: 125.01
+    working: (intel - arm) / vcpus * hours * vms
+    why: The price is for the whole VM, both vCPUs together, so there's nothing to divide.
+  - id: whole-bill
+    value: 1655.28
+    working: intel * hours * vms
+    why: That's what the 25 Intel VMs cost in a month today. The saving is the difference between the two prices.
+explanation: |
+  0.0907 minus 0.077 = 0.0137 dollars an hour for each VM; times 730 hours is 10.00 dollars a month, and times 25 VMs, 250.03 dollars. That's 15% of today's bill of about 1,655 dollars. A 5% margin is enough to round along the way: 0.0137 × 730 ≈ 10, and 10 × 25 = 250.
+skills: [price-performance]
+prices_as_of: 2026-11-11
+prices_source: https://cloud.google.com/products/compute/pricing/general-purpose

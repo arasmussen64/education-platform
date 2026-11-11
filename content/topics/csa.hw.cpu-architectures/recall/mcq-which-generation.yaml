@@ -1,0 +1,16 @@
+id: mcq-which-generation
+type: mcq
+rev: 1
+prompt: |
+  A video encoder is built with SVE switched on, so every CPU it runs on must have SVE. Of AWS's general-purpose Arm families M6g, M7g and M8g, which can run it?
+choices:
+  - "M7g and M8g, on Graviton3 and Graviton4; M6g's Graviton2 has no SVE"
+  - "M6g, M7g and M8g, since every Graviton has the same instructions"
+  - "Only M6g, since SVE came with Graviton2 and later chips dropped it"
+  - "None of them, since SVE is an x86 feature that Arm chips don't have"
+answer: 0
+explanation: |
+  AWS's Graviton guide lists each generation's core and features: Graviton2 (M6g, C6g, R6g, T4g) is Neoverse N1 with no SVE; Graviton3 (M7g, C7g, R7g) is Neoverse V1 with SVE; Graviton4 (M8g, C8g, R8g) is Neoverse V2 with SVE2, which includes SVE; Graviton5 (M9g) is Neoverse V3. So the encoder runs on M7g and M8g (and on the newest family, M9g, whose cores have SVE too), and dies with `Illegal instruction` on M6g.
+
+  All of them are the same architecture, 64-bit Arm, but not the same set of instructions: each generation adds some, as x86-64-v2, v3 and v4 do on the x86 side. SVE (Scalable Vector Extension) is Arm's own; x86's vector instructions are called AVX. A program meant for a whole fleet is built for its oldest member, or the fleet is kept to one generation.
+skills: [arm-families, instruction-sets]

@@ -1,0 +1,16 @@
+id: mcq-what-rebuilds
+type: mcq
+rev: 1
+prompt: |
+  A service is a Go program, two Bash scripts, a `.jar` of Java bytecode with no compiled library inside, and a monitoring agent bought from a vendor as an x86-64 program. It's moving to Arm servers with bash and an Arm build of the Java runtime installed. What does each part need?
+choices:
+  - "Rebuild the Go program, ask the vendor for an arm64 agent, and move the scripts and the jar as they are"
+  - "Rebuild the Go program and the jar, ask the vendor for an arm64 agent, and move the scripts as they are"
+  - "Rebuild the Go program, the scripts and the agent, and move the jar as it is, since Java runs anywhere"
+  - "Move all four as they are, since the Arm servers run the same Ubuntu with the same packages installed"
+answer: 0
+explanation: |
+  Sort each part by what it holds. **Machine code you have the source of** (the Go program): rebuild it for `arm64`. **Text an interpreter reads** (the Bash scripts): it moves as it is, since the Arm server's `bash` is an Arm build. **Bytecode** (the jar's class files): instructions for the Java runtime rather than a CPU, so it runs on any machine with a Java runtime of its own architecture, unless the jar carries a compiled library inside, which this one doesn't. **Machine code you don't have the source of** (the vendor's **agent**, a program installed on every server to report on it): only the vendor can build it for `arm64`, and if they don't, that server can't move yet.
+
+  There's nothing to rebuild in a jar of bytecode, and nothing to build in a script. And the same Ubuntu on both machines doesn't change what's inside an x86-64 file.
+skills: [rebuild-inventory]

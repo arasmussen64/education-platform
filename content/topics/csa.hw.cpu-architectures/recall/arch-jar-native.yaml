@@ -1,0 +1,33 @@
+id: arch-jar-native
+type: predict_shell
+rev: 1
+prompt: |
+  The shop's payment service ships `payments.jar`, a Java archive. `listing.txt` is what `unzip -l payments.jar` printed (captured in this topic's lab on 2026-11-11): the size, date, time and name of each file inside. The command counts the class files (compiled Java bytecode) and lists the compiled libraries. What does it print?
+files:
+  listing.txt: |
+    Archive:  payments.jar
+      Length      Date    Time    Name
+    ---------  ---------- -----   ----
+            0  2026-11-11 09:00   META-INF/
+           52  2026-11-11 09:00   META-INF/MANIFEST.MF
+            0  2026-11-11 09:00   com/
+            0  2026-11-11 09:00   com/shop/
+            0  2026-11-11 09:00   com/shop/pay/
+           10  2026-11-11 09:00   com/shop/pay/Refund.class
+            8  2026-11-11 09:00   com/shop/pay/Card.class
+            0  2026-11-11 09:00   native/
+            0  2026-11-11 09:00   native/linux-x86_64/
+        15144  2026-11-11 09:00   native/linux-x86_64/libpaypack.so
+        15112  2026-11-11 09:00   native/linux-x86_64/libpaycrypt.so
+    ---------                     -------
+        30326                     11 files
+command: grep -c '\.class$' listing.txt; grep '\.so$' listing.txt | awk '{print $4}'
+expected_output: |
+  2
+  native/linux-x86_64/libpaypack.so
+  native/linux-x86_64/libpaycrypt.so
+explanation: |
+  Two class files, and two `.so` files: **shared libraries**, compiled machine code that the Java program loads to do part of its work faster or to reach something outside Java. The class files are bytecode, which an Arm Java runtime runs as happily as an x86 one. The libraries are another matter: their folder says `linux-x86_64`, and if that's true, this jar won't work on Arm as it is, even though most of it would.
+
+  A folder name is a claim, like a file name. To be sure, ask `file` about what's inside without unpacking: `unzip -p payments.jar native/linux-x86_64/libpaycrypt.so | file -b -` (in the lab it said `ELF 64-bit LSB shared object, x86-64`). The fix is an arm64 build of the library, from whoever makes it, often in a newer version of the same jar that carries both.
+skills: [rebuild-inventory]

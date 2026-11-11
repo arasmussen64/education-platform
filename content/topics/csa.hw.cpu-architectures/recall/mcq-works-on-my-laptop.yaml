@@ -1,0 +1,16 @@
+id: mcq-works-on-my-laptop
+type: mcq
+rev: 1
+prompt: |
+  A pipeline builds the shop's container image for both `amd64` and `arm64`, compiling inside each. It works on a developer's laptop with Docker Desktop. On the CI machine, a plain Linux server with Docker installed, the `arm64` half fails with `exec format error`. What's the difference between the two?
+choices:
+  - "Docker Desktop comes with an emulator for Arm programs, and the CI machine has none until one is installed"
+  - "The CI machine's Docker is too old to build for arm64, which needs a newer release than its x86 builds"
+  - "The base image isn't stored in the CI machine's region, so its arm64 layers arrive empty and can't run"
+  - "The registry refused the arm64 layers the CI machine sent, so the build carried on with half an image"
+answer: 0
+explanation: |
+  Building the `arm64` half means running Arm programs (the Arm image's shell, its compiler) on an x86-64 machine. Docker Desktop builds under emulation without any setup, using the QEMU emulator it carries (Docker's "Multi-platform builds" page says so). A plain Linux machine has no emulator until someone installs one, so the kernel refuses the first Arm program with `exec format error`, the wrong-architecture message.
+
+  Three ways out, all in Docker's guide: install the emulator in the pipeline (`docker run --privileged --rm tonistiigi/binfmt --install all`, slow but simple); build each half on a machine of its own architecture; or cross-compile, so only x86-64 programs run during the build. None of the other stories would print this message: an old Docker, a missing layer or a refused push each fail with an error that says so, before anything runs.
+skills: [instruction-sets]

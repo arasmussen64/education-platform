@@ -1,0 +1,22 @@
+id: mcq-which-error
+type: mcq
+rev: 1
+prompt: |
+  A program built for 64-bit Arm is tested on an x86-64 machine with `qemu-aarch64-static ./tool`, and the emulator answers:
+
+  ```
+  qemu-aarch64-static: Could not open '/lib/ld-linux-aarch64.so.1': No such file or directory
+  ```
+
+  What is wrong with how it was built?
+choices:
+  - "It was linked dynamically, so it needs the Arm loader and C library, and this machine has neither of them"
+  - "It was built for x86-64 by mistake, so the Arm emulator can't make sense of the machine code inside it"
+  - "It uses SVE instructions, which the emulator's CPU model doesn't have, so the program stopped at the first"
+  - "It was copied without its execute permission, so the emulator couldn't open the file that it was given"
+answer: 0
+explanation: |
+  A **dynamically linked** program doesn't carry the C library inside it. When it starts, a small program called the **loader** (here `/lib/ld-linux-aarch64.so.1`) finds the library on the machine and joins the two up. An Arm server with an Arm Linux has both; an x86-64 machine has x86-64 ones, and a bare server with nothing installed may have none. Linking it **statically** (`-static`) puts what it needs inside the file, so it starts anywhere with its architecture.
+
+  The emulator has a different message for each of the other stories. An x86-64 program: `Invalid ELF image for this architecture`. An instruction the CPU model lacks: `uncaught target signal 4 (Illegal instruction)`, after the program has started (and the emulator's default model, `max`, has SVE). A file it can't open names that file, not a loader. Knowing which message means what tells you which of the three things to fix.
+skills: [instruction-sets, read-arch]

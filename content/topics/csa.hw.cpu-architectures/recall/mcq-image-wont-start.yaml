@@ -1,0 +1,22 @@
+id: mcq-image-wont-start
+type: mcq
+rev: 1
+prompt: |
+  The shop wants its SQL Server database in a container on an Arm machine. Asked to run Microsoft's image as Arm, Docker answers (Docker 29.8.2, 2026-11-11):
+
+  ```
+  docker: Error response from daemon: image with reference mcr.microsoft.com/mssql/server:2022-latest was found but does not provide the specified platform (linux/arm64)
+  ```
+
+  What does it mean?
+choices:
+  - "The image exists, but it was built for amd64 only, so there's nothing in it that an Arm machine can run"
+  - "The image exists, but only an administrator may run it, so the command must be run again with sudo"
+  - "The image exists, but the disk is too full to unpack it, so Docker stopped before starting the container"
+  - "The image exists, but it needs a privileged container, so the command must be run again with --privileged"
+answer: 0
+explanation: |
+  An image is built for one **platform**: an operating system and an architecture, written like `linux/arm64`. A tag can point at an **index** listing several, one per platform, and the runtime picks its own. This tag points at a single image, for `linux/amd64` (read from its registry on 2026-11-11: it has no index at all), so there's no `linux/arm64` image to give.
+
+  No permission, flag or free space changes what's inside an image. The fixes are an `arm64` build from whoever makes the image, here Microsoft, or keeping that workload on x86-64 machines. That's why a database like this one is the part of an estate that stays on x86 for now.
+skills: [read-arch, rebuild-inventory]

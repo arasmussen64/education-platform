@@ -1,0 +1,18 @@
+id: arch-fleet-month
+type: predict_shell
+rev: 1
+prompt: |
+  `prices.txt` holds two AWS on-demand list prices for Linux in US East (N. Virginia), read on 2026-11-11 from AWS's price file: `m7i.large` (Intel, 2 vCPUs, 8 GiB) at $0.1008 an hour and `m7g.large` (Graviton3, 2 vCPUs, 8 GiB) at $0.0816. They're written in millionths of a dollar, so the arithmetic stays in whole numbers. The command works out what moving 40 of them from Intel to Graviton saves in a month of 730 hours. What does it print?
+files:
+  prices.txt: |
+    m7i.large 100800
+    m7g.large 81600
+command: |
+  awk '{p[$1] = $2} END {printf "$%d a month\n", (p["m7i.large"] - p["m7g.large"]) * 730 * 40 / 1000000}' prices.txt
+expected_output: |
+  $560 a month
+explanation: |
+  awk stores each price under its type's name, then at the end does the sum: 100,800 minus 81,600 is 19,200 millionths, $0.0192 an hour for one instance; times 730 hours, times 40 instances, is 560,640,000 millionths, $560.64. `%d` prints the whole dollars only: `$560`. (The `$` inside the quotes is plain text to `printf`; only `$1` and `$2` outside them are fields.)
+
+  A month is counted as 730 hours by convention: 365 days times 24 hours, divided by 12. $560 a month is what the price list promises at the same size. Whether the shop sees it depends on two things the list can't tell you: whether the Arm instances do the same work (measure requests a second on your own service), and what the move costs to make.
+skills: [price-performance]

@@ -1,0 +1,24 @@
+id: mcq-cant-move
+type: mcq
+rev: 1
+# Facts, read 2026-11-11: AWS, "Graviton processors only support Linux
+# operating systems" (docs.aws.amazon.com/ec2/latest/instancetypes/
+# ec2-nitro-instances.html); Azure's Cobalt 100 guest list ends at
+# "Windows 11 Client", with no Windows Server (learn.microsoft.com/en-us/
+# azure/virtual-machines/sizes/cobalt-overview); Google's OS details page
+# lists only Linux images for Arm and says Windows client images aren't
+# supported on Arm instances; mcr.microsoft.com/mssql/server:2022-latest
+# has no index and is amd64 only.
+prompt: |
+  The shop runs four tiers. Which one has to stay on x86-64 for now, on whichever of the three big clouds it runs?
+choices:
+  - "The SQL Server database on Windows Server"
+  - "The nginx web servers on Ubuntu 24.04 LTS"
+  - "The PostgreSQL 16 database on Debian 13"
+  - "The Python API on Amazon Linux 2023 images"
+answer: 0
+explanation: |
+  Two things hold it on x86-64, and either would be enough. The Arm instance types run Linux: AWS says its Graviton types run Linux only, Azure's Cobalt types run Linux and Windows 11, the desktop edition, and Google's Arm images are all Linux; none of them offers Windows Server on Arm today (November 2026). And Microsoft's SQL Server container image is built for `amd64` only. So that tier waits for its vendors.
+
+  The other three move. nginx and PostgreSQL publish `arm64` builds of their images, and Debian and Ubuntu are built for Arm. A Python API is source code run by an interpreter that exists for Arm; its only risk is a package with a compiled part inside, which needs an `arm64` build of that package. Amazon Linux 2023 has Arm images of its own.
+skills: [rebuild-inventory, arm-families]

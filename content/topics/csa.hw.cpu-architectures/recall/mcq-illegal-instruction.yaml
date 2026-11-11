@@ -1,0 +1,16 @@
+id: mcq-illegal-instruction
+type: mcq
+rev: 1
+prompt: |
+  A service is compiled on a Graviton3 build server with `-mcpu=native`, which tells the compiler to use everything the build machine's CPU has. It runs well there. On every one of the fleet's Graviton2 nodes it dies straight away with `Illegal instruction`, exit status 132. What happened?
+choices:
+  - "It uses vector instructions Graviton3 has and Graviton2 lacks, so it must be built for the older chip"
+  - "Graviton2 is a different architecture from Graviton3, so the service must be cross-compiled for it"
+  - "The Graviton2 nodes have less memory, and the kernel stopped the service when it reached their limit"
+  - "The file was damaged on its way to the nodes, and the CPU came to bytes that aren't an instruction"
+answer: 0
+explanation: |
+  Both chips are 64-bit Arm, so the file is accepted and starts. But an architecture grows: newer chips add instructions. Graviton3 (Neoverse V1 cores) has **SVE**, Arm's wide vector instructions; Graviton2 (Neoverse N1) doesn't. Told to use everything the build machine has, the compiler used SVE, and the first SVE instruction on a Graviton2 is one its CPU can't do: signal 4, `SIGILL`, exit status 128 + 4 = 132. The fix is to build for the oldest CPU in the fleet: no `-mcpu=native`, or a target the oldest chip meets (`-mcpu=neoverse-n1`).
+
+  A memory kill is signal 9, exit 137, and memory-sized, not chip-sized. A wrong architecture never starts at all (`Exec format error`). And a damaged file would fail on the Graviton3 too, not on every node of one generation.
+skills: [instruction-sets, rebuild-inventory]
