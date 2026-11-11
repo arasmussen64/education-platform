@@ -124,12 +124,14 @@ export function chooseReviewItems(
 }
 
 /**
- * The first answer to each review item given in a review session since the
- * card fell due, oldest first, as item ID → correct. A session left
+ * The first answer to each review item given in the review context since
+ * the card fell due, oldest first, as item ID → correct. A session left
  * half-way (to re-read the lesson, say) saved no rating, so these answers
  * carry into the next session and still rate the card (ADR-0009, amended
- * 2026-11-11). Answers from practice don't count, nor do older answers
- * saved without a context.
+ * 2026-11-11). The Today page's mistakes-to-revisit questions are saved in
+ * the review context too, so an answer to one of those counts as well when
+ * the item is in the review pool. Answers from practice don't count, nor
+ * do older answers saved without a context.
  */
 export function earlierAnswers(
   content: TopicContent,
@@ -165,11 +167,35 @@ export type ReviewPlan = {
 }
 
 /**
+ * Which earlier answers a session keeps: the first ones, up to the
+ * session's size, but always with a code or predict-the-output item among
+ * them or room left for one (ADR-0009). Without this, two quick checks
+ * answered earlier could rate a session on their own.
+ */
+function carriedAnswers(
+  content: TopicContent,
+  earlier: [string, boolean][],
+  count: number,
+): [string, boolean][] {
+  const isCode = ([id]: [string, boolean]) => isCodeOrPredict(content, id)
+  const first = earlier.slice(0, count)
+  const poolHasCode = askablePool(content).some((id) =>
+    isCodeOrPredict(content, id),
+  )
+  if (!poolHasCode || first.some(isCode)) return first
+  // None of the first answers is code or a prediction. Keep one place for
+  // one: a code or prediction answered later, if there is one (asking it
+  // again would only test its explanation), or else one asked now.
+  const laterCode = earlier.find(isCode)
+  return [...first.slice(0, count - 1), ...(laterCode ? [laterCode] : [])]
+}
+
+/**
  * A topic's review session, picking up where an unfinished one stopped:
  * the items answered since the card fell due stay in it with their first
- * answers (up to the session's size), and the rest are chosen as usual.
- * When the earlier answers already fill the session, it is complete as
- * soon as it starts.
+ * answers (up to the session's size, keeping room for a code or predict
+ * item), and the rest are chosen as usual. When the earlier answers
+ * already fill the session, it is complete as soon as it starts.
  */
 export function planReview(
   content: TopicContent,
@@ -178,7 +204,7 @@ export function planReview(
   count = ITEMS_PER_REVIEW,
 ): ReviewPlan {
   const earlier = card ? [...earlierAnswers(content, card, attempts)] : []
-  const answered = new Map(earlier.slice(0, count))
+  const answered = new Map(carriedAnswers(content, earlier, count))
   const items = chooseReviewItems(content, attempts, count, [
     ...answered.keys(),
   ])

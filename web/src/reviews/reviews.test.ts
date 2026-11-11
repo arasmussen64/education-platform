@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Attempt } from '../followups/followUps.ts'
 import { progressOf } from '../progress/progress.ts'
-import { fakeContent, fakeTopic } from '../test/fakeContent.tsx'
+import { fakeContent, fakeTopic, MCQ } from '../test/fakeContent.tsx'
 import { replayCard } from './fsrs.ts'
 import {
   chooseReviewItems,
@@ -308,6 +308,57 @@ describe('picking up a review left half-way', () => {
       ['mcq-print', false],
       ['write-hello', true],
     ])
+  })
+
+  describe('when the earlier answers are all quick checks', () => {
+    // Two quick checks and a prediction. Quick checks answered in the
+    // review context can come from the Today page's mistakes to revisit,
+    // not only from a review session.
+    const base = fakeContent(
+      fakeTopic({
+        prerequisites: [],
+        review_pool: ['mcq-print', 'mcq-two', 'predict-print'],
+      }),
+    )
+    const two = {
+      ...base,
+      recall: { ...base.recall, 'mcq-two': { ...MCQ, id: 'mcq-two' } },
+    }
+
+    it('keeps the first and asks a code or predict item, so two quick checks never rate it alone', () => {
+      const plan = planReview(two, card, [
+        answer('mcq-print', true, later(10)),
+        answer('mcq-two', true, later(20)),
+      ])
+      expect(plan.items).toEqual(['mcq-print', 'predict-print'])
+      expect([...plan.answered]).toEqual([['mcq-print', true]])
+    })
+
+    it('uses a prediction answered after them rather than asking it again', () => {
+      const plan = planReview(two, card, [
+        answer('mcq-print', false, later(10)),
+        answer('mcq-two', true, later(20)),
+        answer('predict-print', true, later(30)),
+      ])
+      expect(plan.items).toEqual(['mcq-print', 'predict-print'])
+      expect([...plan.answered]).toEqual([
+        ['mcq-print', false],
+        ['predict-print', true],
+      ])
+    })
+
+    it('keeps both when the pool has no code or predict item to ask', () => {
+      const quickOnly = {
+        ...two,
+        topic: { ...two.topic, review_pool: ['mcq-print', 'mcq-two'] },
+      }
+      const plan = planReview(quickOnly, card, [
+        answer('mcq-print', true, later(10)),
+        answer('mcq-two', false, later(20)),
+      ])
+      expect(plan.items).toEqual(['mcq-print', 'mcq-two'])
+      expect(plan.answered.size).toBe(2)
+    })
   })
 
   it('starts fresh when nothing was answered since it fell due, or there is no card', () => {
