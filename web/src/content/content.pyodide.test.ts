@@ -135,7 +135,11 @@ afterAll(() => {
       `${seconds(timing.ms).padStart(6)} of ${seconds(timing.limitMs).padStart(6)}  ` +
       `${timing.button.padEnd(5)}  ${timing.name}`,
   )
-  console.log(['The ten times closest to their limits:', ...lines].join('\n'))
+  // Written straight to the output: Vitest didn't show a console.log from
+  // here in a run where every test passed.
+  process.stdout.write(
+    ['', 'The ten times closest to their limits:', ...lines, ''].join('\n'),
+  )
 })
 
 // Only the reference solutions: a known-wrong solution may loop forever on
