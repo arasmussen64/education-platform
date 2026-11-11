@@ -10,7 +10,7 @@ def test_the_output():
 
 
 def test_squares_is_a_generator():
-    """squares yields one square at a time."""
+    """squares(3) gives its squares one at a time to next(): 1, then 4, then 9."""
     squares = function("squares")
     g = squares(3)
     assert next(g) == 1
