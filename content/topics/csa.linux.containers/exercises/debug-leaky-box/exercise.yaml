@@ -3,10 +3,19 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "The container that leaks"
 prompt: |
-  Someone wrote `~/bin/box NAME COMMAND...`, a container runtime made by hand like the lesson's, and it misbehaves in three ways. After `~/bin/box demo hostname` the lab machine itself is called `demo` (check with `hostname`; `sudo hostname lab` puts it back). `~/bin/box demo ps` fails with `can't fork: Cannot allocate memory`. And the box's cgroup, `/sys/fs/cgroup/box-demo`, which is meant to hold the box to 20 processes, never has anything in it, so `~/bin/box demo forkstorm` starts all thirty processes it tries to, where the limit should have stopped it around the twentieth.
+  Someone wrote `~/bin/box NAME COMMAND...`, a container runtime made by hand like the lesson's. It's meant to run COMMAND in a box of its own: a throwaway copy of the root filesystem in `/srv/box/rootfs`, a hostname of its own (NAME), process numbers of its own (COMMAND is PID 1 and sees only the box's processes), mounts of its own, and a cgroup, `/sys/fs/cgroup/box-NAME`, that holds it to 20 processes.
 
-  Three mistakes, each in the one long line that starts the container: a namespace that isn't created, a flag that `unshare --pid` can't do without, and a step that comes too late to ever run. Read the script with `cat ~/bin/box`, fix all three with `nano`, and run the checks.
+  Three commands show whether it does: `~/bin/box demo hostname` should print `demo` and leave the lab machine's own name (`hostname`) as `lab`; `~/bin/box demo ps` should list `ps` as PID 1 and nothing from the lab machine; and `~/bin/box demo forkstorm`, a program that tries to start thirty processes, should be stopped by the limit around the twentieth. Right now all three fail at once with `sh: line 0: can't fork: Cannot allocate memory`.
+
+  There are three mistakes, and fixing one uncovers the next, so run all three commands again after each fix. Read the script with `cat ~/bin/box` and fix it with `nano ~/bin/box`. If a box renames the lab machine on the way, `sudo hostname lab` puts its name back (until you do, sudo warns that it can't resolve the new name).
+
+  Fix the runtime, not the symptoms: the checks run boxes of their own, with names and programs you haven't seen, and look at the lab machine while a box is running. When the three commands behave, run the checks.
+hints:
+  - "Each symptom is a part of the box that isn't really its own: its name, its process numbers, its cgroup. The lesson's runtime gets the first two from flags to `unshare` and the third by writing the box's process ID to `cgroup.procs`. Compare the script's `unshare` line with that."
+  - "`unshare` makes only the namespaces it's asked for. Without `--uts` the box shares the machine's hostname, so `hostname demo` inside renames the machine."
+  - "`unshare --pid` needs `--fork`. The new process numbers apply only to the children of the process that called `unshare`, so without `--fork` the shell itself isn't in the new namespace, and it can't start anything (`can't fork`)."
+  - "`exec` replaces the shell with the program it runs, so nothing after an `exec` in the same command ever runs. The step that writes the box's process ID to `$cgroup/cgroup.procs` comes after `exec unshare ...`: move it in front, joined with `&&`, so the box starts inside its cgroup."
 skills: [namespaces, cgroups-limits]

@@ -8,7 +8,7 @@ estimated_minutes: 100
 rev: 1
 objectives:
   - "List what a server security baseline contains and why each item is there: updates, minimal packages, SSH keys only and no root login, a default-deny firewall, least-privilege users and services, file permissions, time sync, logging."
-  - "Harden SSH: `PasswordAuthentication no`, `PermitRootLogin no`, allowed groups, and `sshd -T` and `sshd -t` to see and test the effective configuration without locking yourself out."
+  - "Harden SSH: `PasswordAuthentication no`, `PermitRootLogin no`, allowed groups, and `sshd -t` and `sshd -T` to test the files and see what they add up to without locking yourself out, then a reload so the running server uses them."
   - "Set a default-deny inbound firewall with only the needed ports, with the cloud's security group as the outer layer."
   - "Audit what a server exposes and remove what it doesn't need: `ss -ltnp` as the checklist, uninstalling and disabling services."
   - "Explain what a CIS Benchmark is (Levels 1 and 2), run a scan with OpenSCAP or Lynis, and prove the baseline with a before-and-after comparison, documenting exceptions."
@@ -97,7 +97,7 @@ prove:
         description: "Updates applied and automatic security updates on; only needed packages and services; SSH keys only and no root login; a default-deny firewall with the needed ports; people log in as themselves and use sudo, services run as their own users; sane permissions on secrets; time sync; logs kept and shipped; a baseline is applied once and then audited."
       - id: ssh
         required: true
-        description: "In sshd_config: PasswordAuthentication no, PermitRootLogin no, an AllowGroups or AllowUsers list, a low MaxAuthTries; check with sshd -t before restarting, keep the current session open while testing a new one, and read the effective settings with sshd -T; keys are already in place first."
+        description: "In sshd_config: PasswordAuthentication no, PermitRootLogin no, an AllowGroups or AllowUsers list, a low MaxAuthTries; check with sshd -t before restarting, keep the current session open while testing a new one, read what the files add up to with sshd -T, and reload so the running server uses them; keys are already in place first."
       - id: firewall
         required: true
         description: "Default deny inbound, allow established, loopback, SSH and the service's ports (ufw or nftables); allow outbound; the cloud security group is the same rule set at the network edge, and both are set because either alone can be misconfigured."
