@@ -1,0 +1,33 @@
+id: example-one-program-two-machines
+stage: worked_example
+runtime: lab
+rev: 1
+title: "One program, two machines"
+prompt: |
+  The lab machine has two small C programs in `~/src`: `hello.c`, which says what kind of machine it's running on, and `count.c`, which counts to 200 million and says how long that took. There's also `~/lib/crc.jar`, a Java library with a compiled part inside. The walkthrough reads this machine's architecture, builds `hello` for this machine and for 64-bit Arm, runs the Arm one under an emulator, times the emulator, looks inside the archive, and saves what it found. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "What this machine is"
+    lines: "1"
+    note: "`uname -m` names the machine's architecture the way the kernel does: `x86_64`. `dpkg --print-architecture` names it the way Debian and Ubuntu packages do: `amd64`. One architecture, two names. On an Arm server the pair would be `aarch64` and `arm64`."
+  - label: "Build a program for this machine"
+    lines: "2"
+    note: "`gcc` is the compiler: it reads the source code and writes the machine code of the CPU it was installed for. `file` reads the new file's first bytes: an ELF file (a Linux program) for x86-64, dynamically linked, which means it loads the C library from the machine when it starts. Then the program runs."
+  - label: "Build the same source for Arm"
+    lines: "3"
+    note: "`aarch64-linux-gnu-gcc` is a cross-compiler: it runs here and writes 64-bit Arm machine code. `-static` puts the C library inside the program, so it needs nothing from the machine it runs on. `file` now says `ARM aarch64` and `statically linked`. Same source, another instruction set."
+  - label: "Start the Arm program directly"
+    lines: "4"
+    note: "Two things can happen, and both are normal. Usually the kernel reads the file's header, sees Arm machine code, and refuses: bash prints `cannot execute binary file: Exec format error` and the exit status is 126 (it did this on the PC this lab was written on, on 2026-11-11). On a machine whose kernel has been told to hand Arm programs to an emulator, it runs instead. Nothing in this lab depends on which."
+  - label: "Run it under the emulator"
+    lines: "5"
+    note: "`qemu-aarch64-static` is an emulator for one program: it reads the Arm instructions one block at a time and does the same work with x86-64 instructions. Naming it works the same on every machine. The program asks the kernel what it is running on, and the emulator answers for the machine it imitates: `hello from aarch64`."
+  - label: "What the emulator costs"
+    lines: "6"
+    note: "The same counting program, built both ways: once run directly, once through the emulator. Read the two times: the emulated one is several times slower (about three times on the PC this was written on). How much slower depends on the work; the lesson has more numbers."
+  - label: "Look inside an archive"
+    lines: "7"
+    note: "A `.jar` is a zip archive. `unzip -l` lists what's inside without unpacking it: a class file (Java bytecode, which runs on any CPU) and `native/libcrc.so`, a compiled library. `unzip -p` writes one file from the archive to its output, and `file -b -` reads from its input (`-` means standard input, `-b` leaves out the name). The library is x86-64, so this archive won't run on Arm as it is, though the Java around it would."
+  - label: "Save what you found"
+    lines: "8-13"
+    note: "Four lines: this machine's architecture, then the architecture `file` reports for each `hello` and for the library inside the jar. `awk -F', '` splits `file`'s description at each comma and space, and the second field is the architecture."
+skills: [read-arch, instruction-sets]
