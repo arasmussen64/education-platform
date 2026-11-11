@@ -1,11 +1,13 @@
 /// <reference types="vitest/config" />
 import { execSync } from 'node:child_process'
+import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import mdx from '@mdx-js/rollup'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, normalizePath, type Plugin } from 'vite'
 import { parse as parseYaml } from 'yaml'
+import { limiter } from './src/tooling/limiter.ts'
 import { APP_NAME } from './src/config.ts'
 
 // Adds the product name as the page <title>, so the name only ever has to be
@@ -29,6 +31,43 @@ function contentYaml(): Plugin {
       return {
         code: `export default ${JSON.stringify(parseYaml(source))}`,
         map: null,
+      }
+    },
+  }
+}
+
+// The app imports every exercise's starter, solution and tests, and the
+// Python harness, as text (`?raw`): about 1,800 files. Vite's own loader opens
+// them all at the same moment while building. Cloudflare's build machine only
+// lets one program hold so many files open at once, and on 2026-11-11 the
+// content grew past that: the live site's build failed with "EMFILE: too many
+// open files". This reads the same files a few at a time instead. What ends
+// up in the app is the same.
+//
+// Build only. The dev server and the tests read a file when a page asks for
+// it, so they never open thousands together.
+function rawFilesAFewAtATime(): Plugin {
+  const aFewAtATime = limiter(32)
+  const folders = ['../content/', '../harness/'].map((folder) =>
+    normalizePath(fileURLToPath(new URL(folder, import.meta.url))),
+  )
+  return {
+    name: 'raw-files-a-few-at-a-time',
+    apply: 'build',
+    // Before Vite's own loader, which would otherwise take these files.
+    enforce: 'pre',
+    async load(id) {
+      const [file, query = ''] = id.split('?')
+      const isRaw = /(^|&)raw(&|$)/.test(query)
+      if (!isRaw || !folders.some((folder) => file.startsWith(folder))) {
+        return null
+      }
+      const text = await aFewAtATime(() => readFile(file, 'utf-8'))
+      return {
+        code: `export default ${JSON.stringify(text)}`,
+        map: { mappings: '' },
+        // The file is Python or shell, but what this returns is JavaScript.
+        moduleType: 'js',
       }
     },
   }
@@ -76,6 +115,7 @@ export default defineConfig({
     react({ include: /\.(mdx|js|jsx|ts|tsx)$/ }),
     tailwindcss(),
     contentYaml(),
+    rawFilesAFewAtATime(),
     watchOutsideFolders(),
     appTitle(),
   ],

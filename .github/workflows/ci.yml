@@ -45,7 +45,13 @@ jobs:
       - name: Test
         run: npm test
       - name: Build
-        run: npm run build
+        # Cloudflare's build machine lets one program hold far fewer files
+        # open at once than GitHub's does. Building under a low limit here
+        # makes this job fail the way the live deploy did on 2026-11-11
+        # ("EMFILE: too many open files"), before a merge instead of after.
+        run: |
+          ulimit -n 1024
+          npm run build
 
   harness:
     name: Python harness
