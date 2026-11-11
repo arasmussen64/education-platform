@@ -29,16 +29,30 @@ checks:
     expect:
       equals: "22 and 7000 answer"
   - id: firewall-default-deny
-    description: "From the office, a port the server isn't meant to serve gets no answer."
+    description: "From the office, ports the server isn't meant to serve get no answer."
     command: |
-      # A listener of the check's own, on a port nobody asked for. If the
-      # office can reach it, the firewall is keeping nothing out.
-      timeout 15 nc -4 -l 9999 > /dev/null 2>&1 &
+      # Listeners of the check's own, on ports nobody asked for: the web's
+      # two, a database's and two more. If the office can reach any of them,
+      # the firewall lets in more than the server serves, whether it is off,
+      # wide open or opened "for later".
+      ports="80 443 3306 8081 9999"
+      listeners=""
+      for port in $ports; do
+        timeout 20 nc -4 -l "$port" > /dev/null 2>&1 &
+        listeners="$listeners $!"
+      done
       sleep 0.5
-      if ! ss -Hltn sport = :9999 | grep -q .; then echo "the check couldn't listen on port 9999"
-      elif ip netns exec office nc -z -w 2 10.0.9.1 9999 2> /dev/null; then echo "port 9999 is reachable from the office"
-      else echo "closed"; fi
-      kill $! 2> /dev/null
+      missing=$(for port in $ports; do ss -Hltn sport = ":$port" | grep -q . || echo "$port"; done)
+      # Every port at once, so a firewall that drops them all takes 2
+      # seconds rather than 10.
+      reachable=$({ for port in $ports; do (ip netns exec office nc -z -w 2 10.0.9.1 "$port" 2> /dev/null && echo "$port") & done; wait; } | sort -n)
+      if [ -n "$missing" ]; then result="the check couldn't listen on port $(echo $missing)"
+      elif [ -n "$reachable" ]; then result="reachable from the office on ports nobody asked for: $(echo $reachable)"
+      else result="closed"; fi
+      # A listener the office reached has gone already, so kill's own
+      # complaint is no news.
+      kill $listeners 2> /dev/null
+      echo "$result"
     expect:
       equals: "closed"
   - id: firewall-persisted
