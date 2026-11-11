@@ -3,10 +3,21 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "It works on the server, not from the office"
 prompt: |
-  "The shop's API doesn't work from the office," says the ticket, "but it works when you curl it on the server." It does: `curl -sI http://127.0.0.1:8080/` on the lab machine answers `200 OK`, and `from-office curl -s -m 5 http://shop.internal:8080/` gets nothing. Three things are wrong, one at each layer the lesson tests in turn: the address the office is given for `shop.internal` isn't this server's; the firewall, loaded at boot from `/etc/nftables.conf`, lets the API's *old* port through; and the API itself listens where the office can never reach it.
+  "The shop's API doesn't work from the office," says the ticket, "but it works when you curl it on the server." Both halves are true. On the lab machine, `curl -s http://127.0.0.1:8080/` prints `shop api ok`. From the office, `from-office curl -s -m 5 http://shop.internal:8080/` prints nothing.
 
-  Find them with the tools, not by guessing: `from-office dig +short shop.internal` against `ip -br addr`; `from-office nc -zv -w 3 10.0.9.1 8080` while `sudo tcpdump -nn -i eth1 port 8080` runs in the background, to tell dropped from refused; `sudo ss -ltnp` for where the API listens. The shop's names are served by `dnsmasq` from `/etc/dnsmasq.d/shop.conf` (`sudo systemctl restart dnsmasq` after a change); the firewall's file is loaded with `sudo nft -f /etc/nftables.conf`; the API's unit is `shop-api.service` (`systemctl cat shop-api`; fix it with a drop-in, `sudo systemctl edit shop-api`, or in the unit file, then `sudo systemctl daemon-reload` and a restart). The firewall must stay a firewall: policy `drop`, the database still unreachable from the office, and the fix in the file, not just in the running rules. Fix all three, confirm that `from-office curl -s http://shop.internal:8080/` answers, and run the checks.
+  How it is meant to work. The office's laptops are on the network on the far side of this server's `eth1`, where the server's address is `10.0.9.1`; `from-office COMMAND` runs a command as if from one of them. They look names up at this server, which runs the shop's name server, `dnsmasq`: it reads the files in `/etc/dnsmasq.d/` when it starts. The API is the service `shop-api`, and its port is 8080. The firewall is nftables, loaded at boot from `/etc/nftables.conf`. From the office it should let in SSH (TCP port 22), the API (TCP port 8080) and name lookups (UDP port 53), and nothing else: the database, `shop-db` on port 5432, is for this machine alone.
+
+  Three separate things are wrong. Fixing one may only change what the office sees, so test again after each fix, the way the lesson does: one layer at a time (name, port, protocol), with `tcpdump` on `eth1` when you need to tell a dropped connection from a refused one.
+
+  Two rules for the repair. The firewall stays a firewall: its input policy stays `drop`, and from the office every port except those three still gets no answer at all. And every fix must still be there after a reboot: it lives in the files that are read at boot, the running system matches those files, and what answers on port 8080 is still the `shop-api` service that systemd starts, not a program started by hand.
+
+  You're done when `from-office curl -s http://shop.internal:8080/` prints `shop api ok`. Then run the checks.
+hints:
+  - "Name first: compare `from-office dig +short shop.internal` with `ip -br addr show eth1`. Is the address the office is given one this server has?"
+  - "Then the port, by address, so that the name can't confuse the test: `from-office nc -zv -w 3 10.0.9.1 8080`, while `sudo tcpdump -nn -i eth1 port 8080` runs in a second shell. SYNs with nothing coming back mean dropped: read `sudo nft list ruleset` against the three ports the office needs. A reset (`[R.]`) means the packet got in and nothing was listening on that address: read `sudo ss -ltnp`."
+  - "The name is a `host-record=` line in `/etc/dnsmasq.d/shop.conf`; after the edit, `sudo systemctl restart dnsmasq`. The firewall's TCP ports are a set in `/etc/nftables.conf`: put the API's port in place of the one nothing uses (adding beside it would leave a port open that the office has no use for), then `sudo nft -f /etc/nftables.conf`."
+  - "The API listens on the address in `BIND`, which its unit sets: `systemctl cat shop-api`. Override it with a drop-in: `sudo systemctl edit shop-api`, a `[Service]` section with `Environment=BIND=0.0.0.0`, then `sudo systemctl restart shop-api` and `sudo ss -ltnp` to see where it listens now. Starting a second copy by hand would work until the next reboot."
 skills: [test-tools, sockets-ss, firewall-path, tcpdump]
