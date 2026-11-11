@@ -6,7 +6,9 @@
 # kernel: the script must install that one too, and must not ask for a
 # reboot. A script that names last night's packages, or prints "reboot
 # needed" whatever happened, fails it. Fixes typed at the prompt (a hold set
-# by hand, an apt update run by hand) are undone by the first check.
+# by hand, a pin file in /etc/apt/preferences.d, an apt update run by hand)
+# are undone by the first check: the image has no pin files, so a fresh
+# night has none either.
 checks:
   - id: fresh-night
     description: "On a fresh night (old versions, no package list yet), the script runs through without an error."
@@ -14,6 +16,7 @@ checks:
     command: |
       /usr/local/lib/lab/next-night.sh withdraw
       held=$(apt-mark showhold); [ -n "$held" ] && apt-mark unhold $held > /dev/null
+      rm -f /etc/apt/preferences.d/*
       apt-get update -qq 2>/dev/null
       apt-get install -y -qq --allow-downgrades shop-agent=1.0 linux-image-shop=6.8.0-1 shop-report=2.0 shop-theme=1.0 > /dev/null 2>&1
       rm -rf /var/lib/apt/lists/*
