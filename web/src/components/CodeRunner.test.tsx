@@ -398,6 +398,10 @@ describe('CodeRunner drafts', () => {
     // Saying no leaves everything as it was.
     await user.click(startOver()!)
     expect(confirm).toHaveBeenCalledTimes(1)
+    // It goes back to the starter, not to the draft this visit began with.
+    expect(confirm).toHaveBeenCalledWith(
+      expect.stringContaining('back to the starting code'),
+    )
     expect(editor()).toHaveValue('total = 0\nfor n in nums:')
 
     confirm.mockReturnValue(true)

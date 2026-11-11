@@ -89,8 +89,10 @@ const STATUS_TEXT: Record<Status, string> = {
   unavailable: "Python couldn't start. Check your connection, then try again.",
 }
 
+// Not "the code it started with": after a draft is brought back, the editor
+// started this visit with the draft, and Start over goes back further.
 const START_OVER_QUESTION =
-  'Start over? Your changes will be lost, and the editor will show the code it started with.'
+  'Start over? Your changes will be lost, and the editor will go back to the starting code.'
 
 function timeoutMessage(timeLimitMs: number): string {
   const seconds = timeLimitMs / 1000
