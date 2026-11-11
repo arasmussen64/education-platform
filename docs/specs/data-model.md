@@ -145,7 +145,7 @@ unstuck:
   steps: [step-read, step-work, step-print, step-outline] # the build in 3 or 4 fill-in steps, with hints
   versions: [build-split-bill, build-electricity] # at least 2 fresh versions of the build
 
-# content/topics/csa.m2.checkpoint/topic.yaml: a checkpoint with further parts (ADR-0012, amended 2026-11-11)
+# a checkpoint with further parts (ADR-0012, amended 2026-11-11): Checkpoint 2 as its plan has it, not yet written
 prove:
   build: build-the-right-machine # part 1
   debug: debug-slow-vms # part 2
