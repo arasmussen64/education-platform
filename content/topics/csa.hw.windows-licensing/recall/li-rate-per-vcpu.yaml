@@ -1,0 +1,29 @@
+id: li-rate-per-vcpu
+type: estimate
+rev: 1
+prompt: |
+  | Azure `Standard_D8s_v5` (8 vCPUs, 32 GiB), East US, pay-as-you-go, read 2026-11-11 | Per hour |
+  | --- | --- |
+  | Linux | $0.384 |
+  | Windows | $0.752 |
+
+  What does the Windows Server licence cost per vCPU per hour on this size? Within $0.001.
+unit: US dollars per vCPU-hour
+answer: 0.046
+tolerance: { absolute: 0.001 }
+given: { vcpus: 8, linux: 0.384, windows: 0.752 }
+working: (windows - linux) / vcpus
+mistakes:
+  - id: whole-vm
+    value: 0.368
+    working: windows - linux
+    why: That is the licence for the whole VM, all 8 vCPUs. Divide by 8 for one vCPU.
+  - id: whole-price-over-vcpus
+    value: 0.094
+    working: windows / vcpus
+    why: That divides the whole Windows price, machine included, by the vCPUs. Take the Linux price off first; what is left is the licence.
+explanation: |
+  The licence is the Windows price minus the Linux price, $0.368 an hour, spread over 8 vCPUs: $0.046 a vCPU-hour. It is the same rate AWS and Google Cloud charged for Windows Server on the day these prices were read, and the same as Microsoft's own pay-as-you-go price for Windows Server outside Azure. A rate that agrees across three clouds is still a price, though, and prices move: work it out from the day's two rows rather than remembering it as a rule.
+skills: [licence-included]
+prices_as_of: 2026-11-11
+prices_source: https://azure.microsoft.com/en-us/pricing/details/virtual-machines/windows/

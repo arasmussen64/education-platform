@@ -1,0 +1,32 @@
+id: rev-dh-break-even-azure
+type: estimate
+rev: 1
+prompt: |
+  A company has enough Windows Server Datacenter core licences, with Software Assurance, for the 96 physical cores of one Azure Dsv6-Type1 dedicated host and no more, so on that host its Windows VMs cost nothing but the host.
+
+  | Azure, East US, pay-as-you-go, read 2026-11-11 | Per hour |
+  | --- | --- |
+  | A Dsv6-Type1 dedicated host, which holds at most 25 `Standard_D8s_v6` | $10.645 |
+  | One `Standard_D8s_v6` on shared hardware, Linux | $0.403 |
+  | One `Standard_D8s_v6` on shared hardware, Windows | $0.771 |
+
+  Compared with Windows VMs bought with the licence included, from how many VMs of this size is the host cheaper? Exactly.
+unit: VMs
+answer: 14
+tolerance: { absolute: 0 }
+given: { host: 10.645, linux: 0.403, windows: 0.771 }
+working: floor(host / windows) + 1
+mistakes:
+  - id: rounded-down
+    value: 13
+    working: floor(host / windows)
+    why: 13 VMs with Windows included cost $10.02 an hour, still less than the host. The 14th passes it.
+  - id: linux-price
+    value: 27
+    working: floor(host / linux) + 1
+    why: That compares the host with Linux VMs, and no host of 25 could reach it. These VMs run Windows and would pay its licence.
+explanation: |
+  $10.645 ÷ $0.771 = 13.8, so 13 VMs ($10.02) are still cheaper with Windows included and 14 ($10.79) are not: from 14 VMs, a little over half full, the host wins. The licences tell the same story: through Azure Hybrid Benefit, 14 VMs of 8 vCPUs would take 112 core licences; the host takes 96, for as many VMs as it holds.
+skills: [dedicated-hosts]
+prices_as_of: 2026-11-11
+prices_source: https://azure.microsoft.com/en-us/pricing/details/virtual-machines/windows/

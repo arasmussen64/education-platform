@@ -1,0 +1,29 @@
+id: ahb-saving-year
+type: estimate
+rev: 1
+prompt: |
+  | Azure `Standard_D4s_v5` (4 vCPUs, 16 GiB), East US, pay-as-you-go, read 2026-11-11 | Per hour |
+  | --- | --- |
+  | Linux | $0.192 |
+  | Windows | $0.376 |
+
+  A company runs 10 of these as Windows Server VMs all year, 8,760 hours, and owns Windows Server core licences with Software Assurance to cover them with Azure Hybrid Benefit. What does the benefit save in the year? Within 2%.
+unit: US dollars a year
+answer: 16118.40
+tolerance: { percent: 2 }
+given: { linux: 0.192, windows: 0.376, vms: 10, hours: 8760 }
+working: vms * (windows - linux) * hours
+mistakes:
+  - id: one-vm
+    value: 1611.84
+    working: (windows - linux) * hours
+    why: That is one VM's saving. There are 10 of them.
+  - id: whole-windows-price
+    value: 32937.60
+    working: vms * windows * hours
+    why: That is the whole Windows price for the year. With the benefit the VMs still run, at the Linux price; only the licence part is saved.
+explanation: |
+  With Azure Hybrid Benefit a Windows VM costs the Linux price, so each VM saves $0.376 − $0.192 = $0.184 an hour. 10 VMs × $0.184 × 8,760 hours = $16,118.40 a year. The licences aren't free, though: 10 VMs of 4 vCPUs take 80 core licences (8 each, the minimum), and their Software Assurance has its own yearly price, which Microsoft doesn't publish and a reseller quotes. The benefit pays when that is less than the $16,118.40.
+skills: [bring-your-own, licence-included]
+prices_as_of: 2026-11-11
+prices_source: https://azure.microsoft.com/en-us/pricing/details/virtual-machines/windows/

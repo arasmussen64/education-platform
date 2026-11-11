@@ -1,0 +1,29 @@
+id: dh-ten-percent
+type: estimate
+rev: 1
+prompt: |
+  | AWS, US East (N. Virginia), on-demand, read 2026-11-11 | Per hour |
+  | --- | --- |
+  | An M7i Dedicated Host, which holds at most 48 `m7i.xlarge` | $10.644 |
+  | One `m7i.xlarge` on shared hardware, Linux | $0.2016 |
+
+  How many percent more does the whole host cost than 48 `m7i.xlarge` instances on shared hardware? Within half a percentage point.
+unit: "% more"
+answer: 10.0
+tolerance: { absolute: 0.5 }
+given: { host: 10.644, capacity: 48, instance: 0.2016 }
+working: (host / (capacity * instance) - 1) * 100
+mistakes:
+  - id: the-ratio
+    value: 110.0
+    working: host / (capacity * instance) * 100
+    why: That is the host as a percentage of the instances. "How many percent more" is that minus 100.
+  - id: over-the-host
+    value: 9.1
+    working: (host - capacity * instance) / host * 100
+    why: That divides the difference by the host's price. "More than the instances" divides it by what the instances cost.
+explanation: |
+  48 instances cost 48 × $0.2016 = $9.6768 an hour. The host is $10.644, $0.9672 more, which is 10.0% of $9.6768. So a host full to the last slot costs a tenth more than the same capacity on shared hardware; a host half full costs more than twice as much per VM. In the prices read for this topic the premium came to 10% on AWS's M6i and M7i hosts and Azure's Dasv5 host too, but only Google Cloud states it as a rule ("a sole-tenancy premium, which is 10%"), so for AWS and Azure it is an observation: work it out again from the day's prices.
+skills: [dedicated-hosts]
+prices_as_of: 2026-11-11
+prices_source: https://aws.amazon.com/ec2/dedicated-hosts/pricing/

@@ -1,0 +1,25 @@
+id: count-windows-server
+type: estimate
+rev: 1
+prompt: |
+  A small office runs Windows Server Standard on a physical server of its own, in its own building. The server has 1 processor with 4 cores. How many Windows Server core licences does the server need? Exactly.
+unit: core licences
+answer: 16
+tolerance: { absolute: 0 }
+given: { processors: 1, cores: 4 }
+# The two minimums the learner must know (Product Terms, Windows Server,
+# "a minimum of 8 Licenses per Physical Processor and a minimum of 16
+# Licenses per Server", read 2026-11-11) are written into the working.
+working: max(16, processors * max(8, cores))
+mistakes:
+  - id: one-per-core
+    value: 4
+    working: cores
+    why: That is one licence a core with no minimum. A physical server needs at least 8 a processor and at least 16 in all.
+  - id: processor-minimum-only
+    value: 8
+    working: processors * max(8, cores)
+    why: That applies the minimum of 8 a processor, but not the minimum of 16 for the whole server, which is what binds here.
+explanation: |
+  On a server you license yourself, every physical core needs a licence, with two minimums on top: 8 for each processor and 16 for the server. This one has 4 cores, raised to 8 for its one processor, and then to 16 for the server. That is why Microsoft's own price list quotes Windows Server per 16 core licences: it is the least any server needs.
+skills: [core-counting]

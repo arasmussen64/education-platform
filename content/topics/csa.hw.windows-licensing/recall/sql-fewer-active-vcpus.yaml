@@ -1,0 +1,31 @@
+id: sql-fewer-active-vcpus
+type: estimate
+rev: 1
+prompt: |
+  A SQL Server Enterprise database needs 64 GiB of memory but little CPU.
+
+  | AWS `r7i.2xlarge` (8 vCPUs, 64 GiB), US East (N. Virginia), on-demand, read 2026-11-11 | Per hour |
+  | --- | --- |
+  | Linux | $0.5292 |
+  | Windows Server and SQL Server Enterprise, licence included | $3.8972 |
+
+  The two licences together cost $0.421 a vCPU-hour, and AWS lets you run this instance with only some of its vCPUs switched on, keeping all its memory, and pay the licences only on those. How much does running it with 4 vCPUs switched on save in a month? Use 730 hours a month. Within 2%.
+unit: US dollars a month
+answer: 1229.32
+tolerance: { percent: 2 }
+given: { vcpus: 8, licensed: 3.8972, rate: 0.421, active: 4, hours: 730 }
+working: (vcpus - active) * rate * hours
+mistakes:
+  - id: half-the-bill
+    value: 1422.48
+    working: licensed / 2 * hours
+    why: That halves the whole bill, machine included. The machine keeps all its memory and costs the same; only the licences on the switched-off vCPUs go.
+  - id: one-vcpu
+    value: 307.33
+    working: rate * hours
+    why: That is one vCPU's licences. Four vCPUs are switched off.
+explanation: |
+  First check the table: $0.5292 + 8 × $0.421 = $3.8972, so the licences are $3.368 of the $3.8972. Switching 4 of the 8 vCPUs off saves 4 × $0.421 × 730 = $1,229.32 a month; the machine, still $0.5292 an hour with all 64 GiB, doesn't change. AWS calls this "Optimize CPUs". SQL Server's minimum of 4 core licences a VM still holds, so 4 is as far down as it is worth going. On any cloud, the cheapest SQL Server core is the one you don't license.
+skills: [sql-editions, licence-included]
+prices_as_of: 2026-11-11
+prices_source: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/optimize-cpu.html

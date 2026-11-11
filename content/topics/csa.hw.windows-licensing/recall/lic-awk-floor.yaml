@@ -1,0 +1,22 @@
+id: lic-awk-floor
+type: predict_shell
+rev: 1
+prompt: |
+  `vms.csv` lists five Azure VMs that will use Azure Hybrid Benefit for Windows Server, with their vCPUs. `tail -n +2` drops the heading line. The `awk` program has three rules, which it runs in order on every line: the first sets `n` to the line's vCPUs, the second raises `n` to 8 when it is below 8, and the third adds `n` to a running total, which `END` prints. What is printed?
+files:
+  vms.csv: |
+    vm,vcpus
+    web-1,2
+    web-2,4
+    app-1,8
+    db-1,16
+    rpt-1,32
+command: |
+  tail -n +2 vms.csv | awk -F, '{n = $2} n < 8 {n = 8} {total += n} END {print total}'
+expected_output: |
+  72
+explanation: |
+  The three rules turn each VM's vCPUs into the core licences Azure Hybrid Benefit needs for it: one a vCPU, but never fewer than 8. web-1 (2) and web-2 (4) are raised to 8, app-1 is exactly 8, and db-1 and rpt-1 keep their 16 and 32. 8 + 8 + 8 + 16 + 32 = 72. Without the second rule the total would be 62, the vCPUs alone.
+
+  This is a minimum written in `awk` with nothing but what Shell essentials taught: a rule with no condition runs on every line, a rule with a condition only where it holds, and because they run in order, the second can change what the first set before the third adds it up.
+skills: [core-counting]

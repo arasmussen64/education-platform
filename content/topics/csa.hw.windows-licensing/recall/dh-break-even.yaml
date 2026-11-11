@@ -1,0 +1,36 @@
+id: dh-break-even
+type: estimate
+rev: 1
+prompt: |
+  A company owns Windows Server 2019 Datacenter licences bought in 2018, enough to license all 96 physical cores of one AWS M7i Dedicated Host, so on that host its Windows VMs cost nothing but the host. Off the host, on shared instances, it must take Windows licence included.
+
+  | AWS, US East (N. Virginia), on-demand, read 2026-11-11 | Per hour |
+  | --- | --- |
+  | An M7i Dedicated Host, which holds at most 48 `m7i.xlarge` | $10.644 |
+  | One `m7i.xlarge` on shared hardware, Linux | $0.2016 |
+  | One `m7i.xlarge` on shared hardware, Windows licence included | $0.3856 |
+
+  From how many Windows VMs of this size is the host cheaper than licence-included instances? Exactly.
+unit: VMs
+answer: 28
+tolerance: { absolute: 0 }
+given: { host: 10.644, capacity: 48, linux: 0.2016, windows: 0.3856 }
+working: floor(host / windows) + 1
+mistakes:
+  - id: rounded-down
+    value: 27
+    working: floor(host / windows)
+    why: 27 instances cost $10.41 an hour, still less than the host. It takes the 28th to pass it.
+  - id: linux-price
+    value: 53
+    working: floor(host / linux) + 1
+    why: That compares the host with Linux instances. These VMs run Windows, and on shared instances they pay its licence.
+  - id: full-host
+    value: 48
+    working: capacity
+    why: 48 is when the host is full. It is already cheaper well before that.
+explanation: |
+  The host costs $10.644 an hour however many VMs it runs; each licence-included instance costs $0.3856. $10.644 ÷ $0.3856 = 27.6, so 27 instances ($10.41) are still cheaper and 28 ($10.80) are not: from 28 VMs, the host wins. That is 58% full. Two things make the host possible at all: the licences are old enough to be brought to AWS (bought before 1 October 2019, for a version released before then), and AWS requires them to cover every physical core of the host, 96 here, not the VMs' vCPUs. With Datacenter on all 96, the host may run as many Windows VMs as fit.
+skills: [dedicated-hosts]
+prices_as_of: 2026-11-11
+prices_source: https://aws.amazon.com/ec2/dedicated-hosts/pricing/

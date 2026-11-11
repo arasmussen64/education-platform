@@ -1,0 +1,31 @@
+id: rev-sql-memory
+type: estimate
+rev: 1
+prompt: |
+  A SQL Server Standard database needs 32 GiB of memory and 3 vCPUs. Two AWS sizes have the memory:
+
+  | AWS, US East (N. Virginia), on-demand, read 2026-11-11 | vCPUs | Memory | Windows and SQL Server Standard, per hour |
+  | --- | --- | --- | --- |
+  | `m7i.2xlarge` (general purpose) | 8 | 32 GiB | $1.7312 |
+  | `r7i.xlarge` (memory optimised) | 4 | 32 GiB | $0.9286 |
+
+  How much does a month on the `r7i.xlarge` save? Use 730 hours a month. Within 2%.
+unit: US dollars a month
+answer: 585.90
+tolerance: { percent: 2 }
+given: { general: 1.7312, memory: 0.9286, hours: 730 }
+working: (general - memory) * hours
+mistakes:
+  - id: an-hour
+    value: 0.80
+    working: general - memory
+    why: That is the saving in an hour. A month is 730 of them.
+  - id: a-year
+    value: 7030.78
+    working: (general - memory) * 8760
+    why: That is a year, 8,760 hours. The question asks for a month.
+explanation: |
+  $1.7312 − $0.9286 = $0.8026 an hour, $585.90 a month, 46% of the bigger bill. Most of the saving is licence: the general-purpose size brings 8 vCPUs to get its 32 GiB, and Windows and SQL Server Standard charge $0.166 on each. Size a database by its memory and choose the family that gives that memory with the fewest vCPUs (but never under SQL Server's 4).
+skills: [sql-editions]
+prices_as_of: 2026-11-11
+prices_source: https://aws.amazon.com/ec2/pricing/on-demand/

@@ -1,0 +1,38 @@
+id: standard-or-datacenter
+type: estimate
+rev: 1
+prompt: |
+  A company owns a physical server with 32 cores (2 processors of 16) and will run Windows Server VMs on it. Licensing every core once costs:
+
+  | Windows Server 2025, Microsoft's list price, read 2026-11-11 | Price |
+  | --- | --- |
+  | Standard, for 16 core licences | $1,176 |
+  | Datacenter, for 16 core licences | $6,771 |
+
+  Datacenter covers any number of VMs on the server. Standard covers 2 VMs each time every core of the server is licensed, and you may license the cores again for 2 more. From how many VMs is Datacenter the cheaper choice? Exactly.
+unit: VMs
+answer: 11
+tolerance: { absolute: 0 }
+given: { cores: 32, standard: 1176, datacenter: 6771, pack: 16, vms_per_set: 2 }
+# Both editions are priced per 16 cores, so the server's 32 cores cost two
+# packs of either; the ratio of the two prices says how many full sets of
+# Standard fit under the Datacenter price.
+working: vms_per_set * floor((cores / pack * datacenter) / (cores / pack * standard)) + 1
+mistakes:
+  - id: price-ratio-only
+    value: 6
+    working: ceil(datacenter / standard)
+    why: That is how many sets of Standard cost more than Datacenter. Each set of Standard covers 2 VMs, so count VMs, not sets.
+  - id: last-standard-count
+    value: 10
+    working: vms_per_set * floor(datacenter / standard)
+    why: At 10 VMs, Standard (5 sets) is still the cheaper choice. Datacenter wins from the VM that needs a sixth set.
+  - id: sixth-set-full
+    value: 12
+    working: vms_per_set * ceil(datacenter / standard)
+    why: 12 is where the sixth set of Standard is full, but you must buy that set for the 11th VM already.
+explanation: |
+  Datacenter for 32 cores is 2 × $6,771 = $13,542. One set of Standard for every core is 2 × $1,176 = $2,352 and covers 2 VMs. 5 sets (10 VMs) cost $11,760, still less than Datacenter; the 11th VM needs a sixth set, and 6 sets cost $14,112, more than Datacenter. So from 11 VMs, Datacenter is cheaper, and it stays the same price however many VMs you add. The same sum, with the cloud's numbers, decides whether a dedicated host full of VMs should be licensed with Datacenter.
+skills: [core-counting]
+prices_as_of: 2026-11-11
+prices_source: https://www.microsoft.com/en-us/windows-server/pricing

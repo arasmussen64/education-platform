@@ -1,0 +1,26 @@
+id: rev-count-stacked
+type: estimate
+rev: 1
+prompt: |
+  A company's own physical server has 2 processors of 10 cores each. It will run 6 Windows Server VMs on it, licensed with Windows Server Standard, which covers 2 VMs each time every core of the server is licensed. How many Windows Server Standard core licences does the server need? Exactly.
+unit: core licences
+answer: 60
+tolerance: { absolute: 0 }
+given: { processors: 2, cores: 10, vms: 6, vms_per_set: 2 }
+working: ceil(vms / vms_per_set) * max(16, processors * max(8, cores))
+mistakes:
+  - id: one-set
+    value: 20
+    working: max(16, processors * max(8, cores))
+    why: That licenses every core once, which covers 2 VMs. 6 VMs need every core licensed three times.
+  - id: server-minimum
+    value: 48
+    working: ceil(vms / vms_per_set) * 16
+    why: That uses the 16-licence minimum for each set. This server has 20 cores, more than the minimum, so a set is 20.
+  - id: a-set-per-vm
+    value: 120
+    working: vms * max(16, processors * max(8, cores))
+    why: That licenses every core once for each VM. Each set of Standard covers 2 VMs, not 1.
+explanation: |
+  Licensing every core once takes 20 core licences (2 processors × 10 cores, above both minimums of 8 a processor and 16 a server), and covers 2 VMs. 6 VMs need three such sets: 3 × 20 = 60. Datacenter would cover any number of VMs with one set of 20, so with enough VMs it becomes the cheaper edition.
+skills: [core-counting]

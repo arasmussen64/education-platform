@@ -1,0 +1,25 @@
+id: count-sql-packs
+type: estimate
+rev: 1
+prompt: |
+  A company licenses SQL Server by VM, with Software Assurance, on three VMs of 2, 4 and 6 vCPUs. SQL Server core licences are sold in packs of 2. How many packs must it buy? Exactly.
+unit: 2-core packs
+answer: 7
+tolerance: { absolute: 0 }
+given: { small: 2, medium: 4, large: 6, pack: 2 }
+# 4 is SQL Server's per-VM minimum (Product Terms, SQL Server; Microsoft's
+# SQL Server licensing guidance, "a minimum of four licenses per virtual
+# OSE", read 2026-11-11), which the learner must know.
+working: (max(4, small) + max(4, medium) + max(4, large)) / pack
+mistakes:
+  - id: no-minimum
+    value: 6
+    working: (small + medium + large) / pack
+    why: That counts the vCPUs. SQL Server needs at least 4 core licences a VM, so the 2-vCPU VM takes 4.
+  - id: licences-not-packs
+    value: 14
+    working: max(4, small) + max(4, medium) + max(4, large)
+    why: 14 is the number of core licences. They come two to a pack, so that is 7 packs.
+explanation: |
+  Licensed by VM, SQL Server needs one core licence for each vCPU, and at least 4 a VM: 4 + 4 + 6 = 14 core licences. Sold two to a pack, that is 7 packs. The minimum is 4 for SQL Server, not 8 as for Windows Server; mixing the two up is the commonest slip in a licence count.
+skills: [core-counting]

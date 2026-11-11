@@ -1,0 +1,39 @@
+#!/bin/bash
+# Usage: make-quote INVENTORY
+# Prints a month's quote for moving an inventory to Azure (East US,
+# pay-as-you-go), one line a charge and the total. The prices are in the
+# inventory; ~/quote/README.txt says what its columns mean.
+inventory="$1"
+echo "Quote for $(basename "$inventory"): Azure, East US, 730 hours a month"
+
+tail -n +2 "$inventory" | awk -F, '
+  BEGIN { hours = 730; rate["standard"] = 0.10; rate["enterprise"] = 0.375 }
+
+  # The machine: every VM on shared hardware pays its Linux price.
+  $2 == "vm" { line("compute", $1, $8 * hours) }
+
+  # Windows Server: VMs using Azure Hybrid Benefit pay nothing more than the
+  # machine; the others pay for the licence as well.
+  $2 == "vm" && $4 == "windows" {
+    benefit = ($4 == "windows")
+    line("windows", $1, benefit ? 0 : ($9 - $8) * hours)
+  }
+
+  # SQL Server: brought with Software Assurance, or licence included by the vCPU.
+  $5 != "none" && $2 != "host" {
+    line("sql", $1, $7 == "yes" ? 0 : rate[$5] * $3 * hours)
+  }
+
+  # The dedicated host: we pay for the slots our VMs take on it.
+  $2 == "host" { host = $1; host_price = $8; slots = $10 }
+  $2 == "hosted" { used++ }
+
+  END {
+    if (host != "") line("host", host, host_price * used / slots * hours)
+    printf "%-8s %-12s %10.2f\n", "total", "", total
+  }
+
+  function line(kind, name, amount) {
+    printf "%-8s %-12s %10.2f\n", kind, name, amount
+    total += amount
+  }'

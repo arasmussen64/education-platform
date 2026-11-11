@@ -1,0 +1,29 @@
+id: li-windows-month
+type: estimate
+rev: 1
+prompt: |
+  | AWS `m7i.xlarge` (4 vCPUs, 16 GiB), US East (N. Virginia), on-demand, read 2026-11-11 | Per hour |
+  | --- | --- |
+  | Linux | $0.2016 |
+  | Windows Server, licence included | $0.3856 |
+
+  The hardware is the same in both rows. What does the Windows Server licence add to this instance's bill in a month? Use 730 hours a month. Within 2%.
+unit: US dollars a month
+answer: 134.32
+tolerance: { percent: 2 }
+given: { linux: 0.2016, windows: 0.3856, hours: 730 }
+working: (windows - linux) * hours
+mistakes:
+  - id: whole-windows-price
+    value: 281.49
+    working: windows * hours
+    why: That is the whole Windows instance for a month, machine and licence. The machine alone is the Linux price; the licence is the difference.
+  - id: one-vcpu
+    value: 33.58
+    working: (windows - linux) / 4 * hours
+    why: That is one vCPU's share. The licence is charged on all 4 of this instance's vCPUs.
+explanation: |
+  The licence is the difference between the two prices: $0.3856 − $0.2016 = $0.184 an hour, which is 4 vCPUs × $0.046. Over 730 hours that is $134.32 a month, nearly as much again as the $147.17 the machine itself costs. AWS publishes the $0.046 a vCPU-hour on its "Optimize CPUs" page, and reading it off two rows of a price list, as here, is how to check it for any size.
+skills: [licence-included]
+prices_as_of: 2026-11-11
+prices_source: https://aws.amazon.com/ec2/pricing/on-demand/

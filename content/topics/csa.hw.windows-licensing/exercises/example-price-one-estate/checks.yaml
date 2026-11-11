@@ -1,0 +1,85 @@
+# The checks for "Price one estate": each line of ~/example/answer.txt
+# against the same sum worked out by the check over the shop's estate, so no
+# check holds a number of its own; and the estate and README as the lab laid
+# them down (the learner has sudo, and a changed price would change every
+# truth with it). Money may be off by up to 10 cents, for rounding along
+# the way.
+checks:
+  - id: answer-saved
+    description: "~/example/answer.txt has the five lines: windows-licences, sql-licences, licence-included, with-hybrid-benefit and saving."
+    command: |
+      f=/home/learner/example/answer.txt
+      [ -f "$f" ] || { echo "no ~/example/answer.txt"; exit 0; }
+      for k in windows-licences sql-licences licence-included with-hybrid-benefit saving; do
+        grep -q "^$k *=" "$f" || { echo "no $k line"; exit 0; }
+      done
+      echo saved
+    expect:
+      equals: saved
+  - id: windows-licences-right
+    description: "windows-licences is the number of Windows Server core licences the shop must set aside for Azure Hybrid Benefit."
+    command: |
+      a=$(grep -m1 '^windows-licences *=' /home/learner/example/answer.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(tail -n +2 /srv/licensing/shop-estate.csv | awk -F, '$3 == "windows" && $5 == "yes" {n = $2; if (n < 8) n = 8; s += n} END {print s + 0}')
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: sql-licences-right
+    description: "sql-licences is the number of SQL Server core licences the shop must set aside for Azure Hybrid Benefit."
+    command: |
+      a=$(grep -m1 '^sql-licences *=' /home/learner/example/answer.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(tail -n +2 /srv/licensing/shop-estate.csv | awk -F, '$4 != "none" && $6 == "yes" {n = $2; if (n < 4) n = 4; s += n} END {print s + 0}')
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: licence-included-right
+    description: "licence-included is what the seven servers cost in a 730-hour month with every licence included, to within 10 cents."
+    command: |
+      a=$(grep -m1 '^licence-included *=' /home/learner/example/answer.txt | cut -d= -f2- | tr -d ' \r$,')
+      t=$(tail -n +2 /srv/licensing/shop-estate.csv | awk -F, '{
+        n = $2; if (n < 4) n = 4
+        h = $8
+        if ($4 == "standard") h += 0.10 * n
+        if ($4 == "enterprise") h += 0.375 * n
+        s += h
+      } END {printf "%.4f", s * 730}')
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.10 && d >= -0.10) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: with-benefit-right
+    description: "with-hybrid-benefit is what they cost in a 730-hour month with Azure Hybrid Benefit wherever the licences allow it, to within 10 cents."
+    command: |
+      a=$(grep -m1 '^with-hybrid-benefit *=' /home/learner/example/answer.txt | cut -d= -f2- | tr -d ' \r$,')
+      t=$(tail -n +2 /srv/licensing/shop-estate.csv | awk -F, '{
+        n = $2; if (n < 4) n = 4
+        h = ($3 == "windows" && $5 == "yes") ? $7 : $8
+        if ($4 == "standard" && $6 != "yes") h += 0.10 * n
+        if ($4 == "enterprise" && $6 != "yes") h += 0.375 * n
+        s += h
+      } END {printf "%.4f", s * 730}')
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.10 && d >= -0.10) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: saving-right
+    description: "saving is the difference between the two months, to within 10 cents."
+    command: |
+      a=$(grep -m1 '^saving *=' /home/learner/example/answer.txt | cut -d= -f2- | tr -d ' \r$,')
+      t=$(tail -n +2 /srv/licensing/shop-estate.csv | awk -F, '{
+        n = $2; if (n < 4) n = 4
+        h = $8
+        if ($4 == "standard") h += 0.10 * n
+        if ($4 == "enterprise") h += 0.375 * n
+        b = ($3 == "windows" && $5 == "yes") ? $7 : $8
+        if ($4 == "standard" && $6 != "yes") b += 0.10 * n
+        if ($4 == "enterprise" && $6 != "yes") b += 0.375 * n
+        s += h - b
+      } END {printf "%.4f", s * 730}')
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.10 && d >= -0.10) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: data-untouched
+    description: "The estate and the README in /srv/licensing are as the lab laid them down."
+    command: |
+      cd /srv/licensing && sha256sum --quiet -c /usr/local/lib/lab/data.sha256 > /dev/null 2>&1 && echo untouched || echo changed
+    expect:
+      equals: untouched

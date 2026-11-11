@@ -1,0 +1,96 @@
+# The checks for "Price the estate": one check for each answer in
+# ~/report/estate.txt, so a failure points at one skill, each working out
+# its own truth from the files in /srv/licensing rather than holding a
+# number; and one that those files are as the lab laid them down (the
+# learner has sudo, and a changed price would change the truth with it).
+#
+# The estate is built so that each rule moves a number: on Azure, two
+# Windows servers under 8 vCPUs with Software Assurance, one without it, a
+# 2-vCPU SQL Server Standard and a 16-vCPU Enterprise with it, and a SQL
+# Server without it; on AWS, six Windows servers whose Software Assurance
+# can't carry Windows Server to shared instances, two SQL Servers whose
+# Software Assurance does carry them (License Mobility), and one without.
+# The 1% on the totals is tighter than every wrong rule's effect: no
+# minimums moves the licence-included month 1.2%, a 744-hour month 1.9%,
+# a 720-hour one 1.4%, and the rest far more.
+checks:
+  - id: report-complete
+    description: "~/report/estate.txt has a value for each of the six keys."
+    command: |
+      f=/home/learner/report/estate.txt
+      [ -f "$f" ] || { echo "no ~/report/estate.txt"; exit 0; }
+      for k in azure_windows_licences sql_licences monthly_licence_included monthly_best host_break_even_vms host_cheaper; do
+        v=$(grep -m1 "^$k *=" "$f" | cut -d= -f2- | tr -d ' \r')
+        [ -n "$v" ] || { echo "no value for $k"; exit 0; }
+      done
+      echo complete
+    expect:
+      equals: complete
+  - id: azure-windows-licences
+    description: "azure_windows_licences is the number of Windows Server core licences Fenwick must set aside for Azure Hybrid Benefit."
+    command: |
+      a=$(grep -m1 '^azure_windows_licences *=' /home/learner/report/estate.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(tail -n +2 /srv/licensing/estate.csv | awk -F, '$2 == "azure" && $4 == "windows" && $6 == "yes" {n = $3; if (n < 8) n = 8; s += n} END {print s + 0}')
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: sql-licences
+    description: "sql_licences is the number of SQL Server core licences Fenwick brings under Software Assurance, on both clouds."
+    command: |
+      a=$(grep -m1 '^sql_licences *=' /home/learner/report/estate.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(tail -n +2 /srv/licensing/estate.csv | awk -F, '$5 != "none" && $7 == "yes" {n = $3; if (n < 4) n = 4; s += n} END {print s + 0}')
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: licence-included-total
+    description: "monthly_licence_included is what the 14 servers cost in a month with every licence included, to within 1%."
+    command: |
+      a=$(grep -m1 '^monthly_licence_included *=' /home/learner/report/estate.txt | cut -d= -f2- | tr -d ' \r$,')
+      t=$(awk -F, 'FNR == NR {rate[$1 "," $2] = $3; next} FNR > 1 {
+        n = $3; if (n < 4) n = 4
+        h = ($4 == "windows") ? $11 : $10
+        if ($5 != "none") h += rate[$2 "," $5] * n
+        s += h
+      } END {printf "%.4f", s * 730}' /srv/licensing/sql-rates.csv /srv/licensing/estate.csv)
+      awk -v a="$a" -v t="$t" 'BEGIN {if (a ~ /^[0-9]+(\.[0-9]+)?$/ && a >= t * 0.99 && a <= t * 1.01) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: best-total
+    description: "monthly_best is what the 14 servers cost in a month on shared hardware, each on the cheapest option Fenwick's licences allow, to within 1%."
+    command: |
+      a=$(grep -m1 '^monthly_best *=' /home/learner/report/estate.txt | cut -d= -f2- | tr -d ' \r$,')
+      t=$(awk -F, 'FNR == NR {rate[$1 "," $2] = $3; next} FNR > 1 {
+        n = $3; if (n < 4) n = 4
+        # Windows Server moves only to Azure, and only with Software Assurance.
+        h = ($4 == "windows" && !($2 == "azure" && $6 == "yes")) ? $11 : $10
+        # SQL Server moves to either cloud with Software Assurance.
+        if ($5 != "none" && $7 != "yes") h += rate[$2 "," $5] * n
+        s += h
+      } END {printf "%.4f", s * 730}' /srv/licensing/sql-rates.csv /srv/licensing/estate.csv)
+      awk -v a="$a" -v t="$t" 'BEGIN {if (a ~ /^[0-9]+(\.[0-9]+)?$/ && a >= t * 0.99 && a <= t * 1.01) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: break-even
+    description: "host_break_even_vms is the fewest AWS Windows VMs for which the host costs less than licence included."
+    command: |
+      a=$(grep -m1 '^host_break_even_vms *=' /home/learner/report/estate.txt | cut -d= -f2- | tr -d ' \r')
+      host=$(grep '^price_hourly=' /srv/licensing/host.txt | cut -d= -f2)
+      t=$(tail -n +2 /srv/licensing/estate.csv | awk -F, -v host="$host" '$2 == "aws" && $4 == "windows" {w = $11} END {print int(host / w) + 1}')
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: host-verdict
+    description: "host_cheaper says whether, for Fenwick's six AWS servers, the host costs less than licence included."
+    command: |
+      a=$(grep -m1 '^host_cheaper *=' /home/learner/report/estate.txt | cut -d= -f2- | tr -d ' \r' | tr 'A-Z' 'a-z')
+      host=$(grep '^price_hourly=' /srv/licensing/host.txt | cut -d= -f2)
+      t=$(tail -n +2 /srv/licensing/estate.csv | awk -F, -v host="$host" '$2 == "aws" && $4 == "windows" {s += $11} END {print (host < s) ? "yes" : "no"}')
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: data-untouched
+    description: "The files in /srv/licensing are as the lab laid them down."
+    command: |
+      cd /srv/licensing && sha256sum --quiet -c /usr/local/lib/lab/data.sha256 > /dev/null 2>&1 && [ "$(ls | wc -l)" = 4 ] && echo untouched || echo changed
+    expect:
+      equals: untouched
