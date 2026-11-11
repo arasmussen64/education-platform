@@ -21,6 +21,10 @@ export function itemStates(attempts: Attempt[]): Map<string, ItemState> {
   const states = new Map<string, ItemState>()
   for (const attempt of attempts) {
     if (attempt.type !== 'answer' && attempt.type !== 'code_check') continue
+    // The placement test asks review questions of topics the learner may not
+    // have opened yet. Its answers say where to start, not that a practice
+    // question is done (ADR-0021), so they leave the ladder as it was.
+    if (attempt.context === 'placement') continue
     const key = itemKey(attempt.topic_id, attempt.item_id)
     if (attempt.correct) states.set(key, 'done')
     else if (!states.has(key)) states.set(key, 'tried')
