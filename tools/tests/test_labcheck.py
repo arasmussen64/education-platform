@@ -10,8 +10,9 @@ from pathlib import Path
 
 import labcheck
 import pytest
-from content_fixture import write
-from content_model import Expect
+import yaml
+from content_fixture import make_valid_tree, write
+from content_model import Expect, LabCheck, LabChecks
 from labcheck import (
     CHECKER_VERSION,
     CheckResult,
@@ -23,6 +24,8 @@ from labcheck import (
     run_arguments,
     wait_for_boot,
 )
+from pydantic import ValidationError
+from validate_content import validate
 
 LAB_YAML = """id: lab-hello
 stage: build
@@ -1128,3 +1131,91 @@ def test_a_contract_run_never_runs_the_stale_disk_helper(
     labcheck.start_container(lab, f"{NAME}-test")
     # CI and other test runs share one Docker: only `start` clears disks.
     assert not any("--pid=host" in call for call in docker.calls)
+
+
+# --- A check's own time limit (ADR-0018, amended 2026-11-11) ------------------------
+
+# The lab above with a third check that has to boot something slow.
+SLOW_CHECKS = (
+    CHECKS
+    + """  - id: guest-boots
+    description: The guest boots and reports two CPUs.
+    command: ~/bin/shop-vm | grep -qx cpus=2
+    timeout: 120
+"""
+)
+
+
+def checks_from(text: str) -> list[LabCheck]:
+    return LabChecks.model_validate(yaml.safe_load(text)).checks
+
+
+def one_check() -> dict[str, object]:
+    """A check as YAML gives it, before any timeout."""
+    return {"id": "guest-boots", "description": "It boots.", "command": "true"}
+
+
+def test_a_check_has_thirty_seconds_unless_it_asks_for_more() -> None:
+    assert [check.timeout for check in checks_from(SLOW_CHECKS)] == [30, 30, 120]
+    assert labcheck.CHECK_TIMEOUT_SECONDS == 30
+    for allowed in (1, 300):
+        check = {**one_check(), "timeout": allowed}
+        assert (
+            LabChecks.model_validate({"checks": [check]}).checks[0].timeout == allowed
+        )
+
+
+def test_a_timeout_is_whole_seconds_from_1_to_300_and_says_so() -> None:
+    # YAML reads 2.5 and 30.0 as numbers with a fraction, "30" as text and
+    # yes as true; none of them is read as some number of seconds.
+    for wrong in (0, 301, -5, 2.5, 30.0, "30", True, None):
+        check = {**one_check(), "timeout": wrong}
+        with pytest.raises(ValidationError) as caught:
+            LabChecks.model_validate({"checks": [check]})
+        message = caught.value.errors()[0]["msg"]
+        assert (
+            "guest-boots: timeout is a whole number of seconds from 1 to 300, "
+            "such as timeout: 120 (a check without one gets 30); "
+            f"{wrong!r} isn't"
+        ) in message
+
+
+def test_a_labs_checks_may_take_ten_minutes_in_all() -> None:
+    def lab_of(*timeouts: int | None) -> dict[str, object]:
+        checks = []
+        for number, seconds in enumerate(timeouts):
+            check = {**one_check(), "id": f"check-{number}"}
+            if seconds is not None:
+                check["timeout"] = seconds
+            checks.append(check)
+        return {"checks": checks}
+
+    LabChecks.model_validate(lab_of(300, 270, None))  # 600 seconds: allowed
+    # A check without a timeout counts its 30 seconds.
+    with pytest.raises(ValidationError, match="add up to 630 seconds, over the 600"):
+        LabChecks.model_validate(lab_of(300, 270, None, None))
+    # Twenty-one checks of 30 seconds each are too many as well.
+    with pytest.raises(ValidationError, match="Lower the slow checks' timeout"):
+        LabChecks.model_validate(lab_of(*[None] * 21))
+
+
+def test_the_validator_tells_the_author_what_a_timeout_must_be(tmp_path: Path) -> None:
+    tree = make_valid_tree(tmp_path)
+    folder = "content/topics/t.hello/exercises/lab-report"
+    write(
+        tree,
+        f"{folder}/exercise.yaml",
+        "id: lab-report\nstage: write\nruntime: lab\nrev: 1\n"
+        "title: A report\nprompt: Make a report.\nskills: [print-text]\n",
+    )
+    write(tree, f"{folder}/Dockerfile", "FROM ubuntu:24.04\n")
+    write(tree, f"{folder}/solution.sh", "echo done > ~/report.txt\n")
+    write(tree, f"{folder}/checks.yaml", SLOW_CHECKS)
+    assert validate(tree, run=False).problems == []
+
+    write(tree, f"{folder}/checks.yaml", SLOW_CHECKS.replace("120", "2.5"))
+    assert validate(tree, run=False).problems == [
+        f"{folder}/checks.yaml: checks.2: Value error, guest-boots: timeout is a "
+        "whole number of seconds from 1 to 300, such as timeout: 120 (a check "
+        "without one gets 30); 2.5 isn't"
+    ]
