@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { dayAtOffset, utcOffsetMinutes } from '../days.ts'
 import { eventRow, fakeEventsClient } from '../test/fakeEvents.ts'
 import { createEventLog, FIRST_RETRY_MS, SESSION_IDLE_MS } from './eventLog.ts'
 import { createOutbox, type KeyValueStore } from './outbox.ts'
@@ -72,6 +73,8 @@ function fullStorage(): KeyValueStore {
 function setup(client = fakeEventsClient(), storage?: KeyValueStore) {
   let time = Date.parse('2026-11-06T12:00:00.000Z')
   let lastId = 0
+  // The device's clock starts 7 hours behind UTC, as in Denver in winter.
+  let offset = -7 * 60
   const outbox = createOutbox(storage)
   const log = createEventLog({
     outbox,
@@ -79,6 +82,7 @@ function setup(client = fakeEventsClient(), storage?: KeyValueStore) {
     contentBuild: 'abc123',
     now: () => time,
     newId: () => `id-${++lastId}`,
+    utcOffset: () => offset,
   })
   return {
     log,
@@ -87,6 +91,10 @@ function setup(client = fakeEventsClient(), storage?: KeyValueStore) {
     /** Moves the fake clock forward. */
     wait(ms: number) {
       time += ms
+    },
+    /** Sets the device's clock to another time zone, `minutes` ahead of UTC. */
+    moveDevice(minutes: number) {
+      offset = minutes
     },
   }
 }
@@ -117,9 +125,86 @@ describe('the event log', () => {
         content_build: 'abc123',
         session_id: 'id-1',
         occurred_at: '2026-11-06T12:00:00.000Z',
-        data: { choice: 0 },
+        data: { choice: 0, local_day: '2026-11-06', utc_offset_minutes: -420 },
       },
     ])
+  })
+
+  it("records the learner's own day and time zone with every event", () => {
+    const { log, outbox, wait, moveDevice } = setup(fakeEventsClient(OFFLINE))
+    log.setUser(ADA)
+    // 22:30 on 6 November in Los Angeles (UTC-8), which is the 7th in UTC.
+    moveDevice(-8 * 60)
+    wait(18.5 * 60 * 60 * 1000)
+    log.record(ANSWER)
+    log.record({
+      type: 'lesson_view',
+      topic_id: 'py.variables',
+      context: 'learn',
+    })
+
+    const rows = outbox.pending(ADA)
+    expect(rows.map((row) => row.occurred_at)).toEqual([
+      '2026-11-07T06:30:00.000Z',
+      '2026-11-07T06:30:00.000Z',
+    ])
+    expect(rows.map((row) => row.data)).toEqual([
+      // The page's own data is kept, beside the day and zone.
+      { choice: 0, local_day: '2026-11-06', utc_offset_minutes: -480 },
+      { local_day: '2026-11-06', utc_offset_minutes: -480 },
+    ])
+    log.stop()
+  })
+
+  it('records the zone each event happened in when the device changes zone', () => {
+    const { log, outbox, wait, moveDevice } = setup(fakeEventsClient(OFFLINE))
+    log.setUser(ADA)
+    // 23:30 on the 6th in New York (UTC-5)...
+    moveDevice(-5 * 60)
+    wait(16.5 * 60 * 60 * 1000)
+    log.record(ANSWER)
+    // ...and an hour later the device is in Tokyo (UTC+9): 14:30 on the 7th.
+    moveDevice(9 * 60)
+    wait(60 * 60 * 1000)
+    log.record(ANSWER)
+
+    expect(outbox.pending(ADA).map((row) => row.data)).toEqual([
+      { choice: 0, local_day: '2026-11-06', utc_offset_minutes: -300 },
+      { choice: 0, local_day: '2026-11-07', utc_offset_minutes: 540 },
+    ])
+    log.stop()
+  })
+
+  it("reads the zone from the device's own clock unless a test says otherwise", () => {
+    const time = Date.parse('2026-11-07T06:30:00.000Z')
+    const outbox = createOutbox()
+    const log = createEventLog({
+      outbox,
+      client: () => fakeEventsClient(OFFLINE),
+      contentBuild: 'abc123',
+      now: () => time,
+    })
+    log.setUser(ADA)
+    log.record(ANSWER)
+
+    const offset = utcOffsetMinutes(time)
+    expect(outbox.pending(ADA)[0]?.data).toEqual({
+      choice: 0,
+      local_day: dayAtOffset(time, offset),
+      utc_offset_minutes: offset,
+    })
+    log.stop()
+  })
+
+  it('records the day and zone of events from while sign-in was loading', () => {
+    const { log, outbox } = setup(fakeEventsClient(OFFLINE))
+    log.record(ANSWER)
+    log.setUser(ADA)
+    expect(outbox.pending(ADA)[0]?.data).toMatchObject({
+      local_day: '2026-11-06',
+      utc_offset_minutes: -420,
+    })
+    log.stop()
   })
 
   it('fills in every column, so all rows in a batch have the same shape', () => {

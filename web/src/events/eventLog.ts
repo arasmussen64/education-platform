@@ -1,3 +1,4 @@
+import { dayAtOffset, utcOffsetMinutes } from '../days.ts'
 import {
   createOutbox,
   memoryStore,
@@ -77,9 +78,11 @@ type Options = {
   client: () => EventsClient
   /** The git commit the app and content were built from. */
   contentBuild: string
-  /** Tests pass fakes for the clock and the ID generator. */
+  /** Tests pass fakes for the clock, the ID generator and the time zone. */
   now?: () => number
   newId?: () => string
+  /** How many minutes the device's clock is ahead of UTC at a time. */
+  utcOffset?: (time: number) => number
 }
 
 export function createEventLog({
@@ -88,6 +91,7 @@ export function createEventLog({
   contentBuild,
   now = Date.now,
   newId = () => crypto.randomUUID(),
+  utcOffset = utcOffsetMinutes,
 }: Options): EventLog {
   let userId: string | null | undefined = undefined
   let session = { id: newId(), lastActivity: now() }
@@ -157,6 +161,7 @@ export function createEventLog({
   /** Every column, filled in, so each row in a batch has the same shape. */
   function toRow(event: NewEvent): Omit<EventRow, 'user_id'> {
     const time = now()
+    const offset = utcOffset(time)
     return {
       id: newId(),
       type: event.type,
@@ -173,7 +178,14 @@ export function createEventLog({
       content_build: contentBuild,
       session_id: sessionId(time),
       occurred_at: new Date(time).toISOString(),
-      data: event.data ?? {},
+      data: {
+        ...event.data,
+        // The learner's own day and time zone, since 2026-11-11 (ADR-0008).
+        // occurred_at is in UTC, so without these an event's day would be
+        // the day on whichever device shows it (see days.ts).
+        local_day: dayAtOffset(time, offset),
+        utc_offset_minutes: offset,
+      },
     }
   }
 
