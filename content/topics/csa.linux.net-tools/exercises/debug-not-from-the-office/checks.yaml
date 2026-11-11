@@ -32,15 +32,18 @@ checks:
     expect:
       equals: "the service answers"
   - id: still-a-firewall
-    description: "The firewall is still a firewall: its input policy is drop, and from the office the ports the office has no use for (the database's, and others the checker tries) get no answer at all."
+    description: "The firewall is still a firewall: its input policy is drop, SSH still answers from the office, and from the office the ports the office has no use for (the database's, and others the checker tries) get no answer at all."
     # A dropped connection gets nothing back for the whole timeout; one the
     # firewall lets in is answered within milliseconds, by the program
     # listening or by the kernel's reset. So an accept-everything rule, or a
     # port left open that nothing uses, shows up as a quick answer. What is
     # printed on a failure repeats the rule and doesn't name the port: this
-    # is a debug, and finding which one is the learner's work.
+    # is a debug, and finding which one is the learner's work. SSH is
+    # tried first, because a firewall rewritten in a hurry for the API alone
+    # locks the office's administrators out.
     command: |
       nft list ruleset | grep -qE 'hook input .*policy drop' || { echo "the input chain's policy is not drop"; exit 0; }
+      ip netns exec office nc -z -w 3 10.0.9.1 22 || { echo "from the office, SSH gets no answer"; exit 0; }
       for port in 5432 8000 9999; do
         start=$(date +%s%N)
         ip netns exec office nc -z -w 2 10.0.9.1 $port
