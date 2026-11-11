@@ -21,7 +21,18 @@ checks:
       equals: "7"
   - id: busiest-is-the-worker
     description: "The busiest process is the shop's worker."
-    command: /home/learner/bin/triage-report | grep '^busiest:'
+    # ps works out %CPU as CPU time over lifetime, so on a busy machine a
+    # process born a few milliseconds ago (ps itself) can show 100% for an
+    # instant and sit above the worker (seen in the CPU report lab,
+    # 2026-11-11). So the check takes the first of up to five runs that
+    # names the worker; a script that sorts the wrong way never does.
+    command: |
+      for _ in 1 2 3 4 5; do
+        line=$(/home/learner/bin/triage-report | grep '^busiest:')
+        case "$line" in *shop-worker*) break ;; esac
+        sleep 1
+      done
+      echo "$line"
     expect:
       contains: "shop-worker"
   - id: busiest-cpu-is-a-high-percentage
