@@ -490,6 +490,19 @@ def test_check_on_a_stopped_lab_says_how_to_start_it_again_with_the_work(
     assert "--fresh" not in err
 
 
+def test_check_on_a_paused_lab_names_the_pause_button_not_a_restart(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("paused", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("check", "t.hello", "lab-hello") == 2
+    err = capsys.readouterr().err
+    assert "is paused: its container is still there" in err
+    assert "the pause button in Docker Desktop does that" in err
+    assert "was restarted" not in err
+    assert f"{RUN} start t.hello lab-hello" in err
+
+
 def test_check_on_a_lab_never_started_says_so(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:

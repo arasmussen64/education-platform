@@ -823,12 +823,17 @@ def running_container(lab: Lab) -> None:
     if found.image != lab.image:
         raise LabError(revision_changed(lab, found))
     if found.status != "running":
-        was = "paused" if found.status == "paused" else "stopped"
+        if found.status == "paused":
+            was, why = "paused", "the pause button in Docker Desktop does that"
+        else:
+            was, why = (
+                "stopped",
+                "Docker Desktop or the computer was restarted, perhaps",
+            )
         raise LabError(
             f"{lab.name} is {was}: its container is still there, with your "
-            "work in it, but it isn't running (Docker Desktop or the computer "
-            "was restarted, perhaps). Start it again, which keeps the work, "
-            f"with:\n\n    {command('start', lab)}"
+            f"work in it, but it isn't running ({why}). Start it again, which "
+            f"keeps the work, with:\n\n    {command('start', lab)}"
         )
 
 
