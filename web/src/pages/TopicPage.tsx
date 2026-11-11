@@ -17,14 +17,14 @@ import {
 } from '../checkpoints/Unstuck.tsx'
 import { SUGGEST_STEPS_AFTER } from '../checkpoints/versions.ts'
 import { getTopic, placeOf, tracks } from '../content/content.ts'
-import type { Topic, TopicContent } from '../content/types.ts'
+import type { Explain, Topic, TopicContent } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
 import { PracticeItem } from '../components/PracticeItem.tsx'
 import { CARD, PROSE, SECONDARY_BUTTON } from '../components/styles.ts'
 import { type LadderItem, TopicOutline } from '../components/TopicOutline.tsx'
 import { useRecordEvent } from '../events/useEvents.ts'
-import { ExplainCheck } from '../explain/ExplainCheck.tsx'
+import { ExplainCheck, ExplainClosed } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
 import { recallPlace } from '../place/placeMemory.ts'
 import {
@@ -350,6 +350,7 @@ function CheckpointView({
         content={content}
         progress={progress}
         intro="Three checks show you can use everything in this module on your own: build a program from a blank editor, fix code with several bugs, and explain how it works. No hints here. If you get stuck on the build, there's a way through it below."
+        explainWaitsForBuild
         onBuildCheck={(passed) => {
           if (passed) setBuildPassed(true)
           else setFailedChecks((count) => count + 1)
@@ -661,12 +662,18 @@ const TOPIC_PROOF_INTRO =
 function ProveIt({
   content,
   intro = TOPIC_PROOF_INTRO,
+  explainWaitsForBuild = false,
   onBuildCheck,
   afterBuild,
   progress,
 }: {
   content: TopicContent
   intro?: string
+  /**
+   * On a checkpoint: keep the explain check closed until the build has
+   * passed (see ExplainAfterBuild). A regular topic shows all three at once.
+   */
+  explainWaitsForBuild?: boolean
   /** Called after each Check of the build, with whether it passed. */
   onBuildCheck?: (passed: boolean) => void
   /** Shown right after the build. */
@@ -704,11 +711,92 @@ function ProveIt({
           id={provePlace('explain')}
           {...{ [PLACE_ATTRIBUTE]: provePlace('explain') }}
         >
-          <ExplainCheck topic={content.topic} explain={explain} />
+          {explainWaitsForBuild ? (
+            <ExplainAfterBuild
+              topic={content.topic}
+              explain={explain}
+              progress={progress}
+            />
+          ) : (
+            <ExplainCheck topic={content.topic} explain={explain} />
+          )}
         </div>
       )}
     </section>
   )
+}
+
+/**
+ * A checkpoint's explain check, which opens only once the build has passed
+ * (ADR-0012, amended 2026-11-10). Its prompt often walks through a working
+ * program much like the one the build asks for, so showing it any sooner
+ * would hand over part of the "blank editor" answer.
+ *
+ * "Passed" is what the proof list above says: the main build or any fresh
+ * version, on any day. A Check passed during this visit counts straight
+ * away, because the progress includes it. Until the page knows, the check
+ * stays closed and says why.
+ */
+function ExplainAfterBuild({
+  topic,
+  explain,
+  progress,
+}: {
+  topic: Topic
+  explain: Explain
+  progress: ProgressState
+}) {
+  switch (progress.status) {
+    case 'ready':
+      if (progress.progress.get(topic.id)?.passed.build) {
+        return <ExplainCheck topic={topic} explain={explain} />
+      }
+      return (
+        <ExplainClosed>
+          <p>Explain it back opens once your build passes.</p>
+        </ExplainClosed>
+      )
+    case 'loading':
+      return (
+        <ExplainClosed>
+          <p>
+            Explain it back opens once your build passes. Checking whether it
+            has…
+          </p>
+        </ExplainClosed>
+      )
+    case 'failed':
+      return (
+        <ExplainClosed>
+          <p>
+            Explain it back opens once your build passes. Your progress here
+            couldn't load, so the page can't tell whether it has.
+          </p>
+          <button
+            type="button"
+            onClick={progress.retry}
+            className={SECONDARY_BUTTON}
+          >
+            Try again
+          </button>
+        </ExplainClosed>
+      )
+    case 'signed-out':
+      // Nothing a signed-out visitor does is saved, so the page never
+      // learns that their build passed. They couldn't have an explanation
+      // checked anyway.
+      return (
+        <ExplainClosed>
+          <p>
+            Explain it back opens once your build passes.{' '}
+            <Link to="/sign-in" className="underline">
+              Sign in
+            </Link>{' '}
+            first, so the page can save your build and tell when it has.
+          </p>
+        </ExplainClosed>
+      )
+  }
 }
 
 const PROOF_NAMES: Record<Proof, string> = {
