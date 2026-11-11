@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
@@ -30,20 +30,20 @@ const graded = (
 /** Renders the check with a fake grader; `signedIn` is true unless said. */
 function renderCheck(
   outcome: GradeOutcome | Promise<GradeOutcome>,
-  { signedIn = true } = {},
+  { signedIn = true, topic = TOPIC } = {},
 ) {
   const grade = vi.fn<GradeExplanation>(() => Promise.resolve(outcome))
   const { log, events } = recordingEventLog()
-  render(
+  const { unmount } = render(
     <AuthProvider auth={fakeAuth(signedIn ? fakeUser() : null)}>
       <EventLogContext value={log}>
         <MemoryRouter>
-          <ExplainCheck topic={TOPIC} explain={EXPLAIN} grade={grade} />
+          <ExplainCheck topic={topic} explain={EXPLAIN} grade={grade} />
         </MemoryRouter>
       </EventLogContext>
     </AuthProvider>,
   )
-  return { grade, events }
+  return { grade, events, unmount }
 }
 
 const box = () => screen.getByLabelText('Your explanation')
@@ -134,6 +134,75 @@ describe('the explain-it-back check', () => {
     expect(screen.getByText('Checking your explanation…')).toBeInTheDocument()
     expect(checkButton()).toBeDisabled()
     expect(grade).toHaveBeenCalledTimes(1)
+  })
+
+  describe('drafts', () => {
+    beforeEach(() => {
+      // Drafts note when they were saved; pinned, so no test reads the clock.
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-11-11T12:00:00.000Z'))
+    })
+    afterEach(() => {
+      vi.useRealTimers()
+      vi.restoreAllMocks()
+    })
+    const restoredNote = () =>
+      screen.queryByText(/your explanation from last time/)
+
+    it('keeps what was written when the page comes back', async () => {
+      const first = renderCheck(graded('pass'))
+      await userEvent.type(box(), 'Text and numbers')
+      first.unmount()
+
+      renderCheck(graded('pass'))
+      expect(box()).toHaveValue('Text and numbers')
+      expect(restoredNote()).toBeInTheDocument()
+    })
+
+    it('keeps it after "needs work", to improve on', async () => {
+      const first = renderCheck(graded('needs_work', ['Why?']))
+      await explain('They look the same.')
+      await screen.findByText(/Needs work/)
+      first.unmount()
+
+      renderCheck(graded('pass'))
+      expect(box()).toHaveValue('They look the same.')
+    })
+
+    it('starts empty next time, once it passes', async () => {
+      const first = renderCheck(graded('pass'))
+      await explain('"5" is text and 5 is a number.')
+      await screen.findByText(/Passed/)
+      first.unmount()
+
+      renderCheck(graded('pass'))
+      expect(box()).toHaveValue('')
+      expect(restoredNote()).not.toBeInTheDocument()
+    })
+
+    it("doesn't bring back an explanation written for an older version of the topic", async () => {
+      const first = renderCheck(graded('pass'))
+      await userEvent.type(box(), 'Written for version 1')
+      first.unmount()
+
+      renderCheck(graded('pass'), { topic: { ...TOPIC, rev: 2 } })
+      expect(box()).toHaveValue('')
+    })
+
+    it('works without drafts when the browser blocks storage', async () => {
+      const blocked = () => {
+        throw new DOMException('The operation is insecure.', 'SecurityError')
+      }
+      vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
+      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
+      const first = renderCheck(graded('pass'))
+      await explain('Types differ.')
+      expect(await screen.findByText(/Passed/)).toBeInTheDocument()
+      first.unmount()
+
+      renderCheck(graded('pass'))
+      expect(box()).toHaveValue('')
+    })
   })
 
   it('asks a signed-out visitor to sign in instead', () => {

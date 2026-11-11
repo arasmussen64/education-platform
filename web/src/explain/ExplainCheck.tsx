@@ -5,6 +5,7 @@ import { Markdown } from '../components/Markdown.tsx'
 import { BUTTON, CARD, TEXT_INPUT } from '../components/styles.ts'
 import { useAttemptTimer } from '../components/useAttemptTimer.ts'
 import type { Explain, Topic } from '../content/types.ts'
+import { useDraft } from '../drafts/useDraft.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
 import {
@@ -37,7 +38,13 @@ export function ExplainCheck({
   const record = useRecordEvent()
   const timer = useAttemptTimer()
   const boxId = useId()
-  const [text, setText] = useState('')
+  // What the learner writes is kept on this device until it passes, so
+  // leaving the page doesn't lose it (see drafts.ts).
+  const draft = useDraft(
+    { topicId: topic.id, itemId: 'explain', rev: topic.rev },
+    '',
+  )
+  const [text, setText] = useState(draft.initial)
   const [state, setState] = useState<State>({ status: 'idle' })
   const working = state.status === 'working'
 
@@ -46,6 +53,9 @@ export function ExplainCheck({
     setState({ status: 'working' })
     const outcome = await grade(topic.id, explain, explanation)
     const graded = outcome.status === 'graded' ? outcome : null
+    // Passed: the draft has done its job. Anything else (needs work, or
+    // not graded yet) keeps it, to improve or send again.
+    if (graded?.grading.verdict === 'pass') draft.finish()
     record({
       type: 'explain_submit',
       topic_id: topic.id,
@@ -93,7 +103,10 @@ export function ExplainCheck({
             <textarea
               id={boxId}
               value={text}
-              onChange={(event) => setText(event.target.value)}
+              onChange={(event) => {
+                setText(event.target.value)
+                draft.save(event.target.value)
+              }}
               onFocus={timer.start}
               maxLength={MAX_EXPLANATION_CHARS}
               rows={6}
@@ -101,6 +114,8 @@ export function ExplainCheck({
               className={TEXT_INPUT}
             />
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {draft.restored &&
+                'This is your explanation from last time, kept on this device. '}
               A few sentences, in your own words, as if teaching a friend.
             </p>
           </div>
