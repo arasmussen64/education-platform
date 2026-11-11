@@ -42,11 +42,44 @@ The two stray files were erased from `main`'s history on 2026-11-10, but GitHub 
 - **Recommendation:** not worth the effort. Neither file held a key or a password, and no branch contains them any more.
 - **Holds up:** nothing.
 
+### 5. Optional: Module 2's runs in your clouds (about $1.45 in all)
+
+Module 2 is complete without them: every topic is proven locally, for free. These make parts of it real.
+
+- **(a) A budget alert on your Azure subscription.** Free. It e-mails you when spending passes a set amount, so a forgotten lab shows up as an e-mail rather than a bill. The steps are in the Active Directory lab's runbook, in [plans/cloud-module-2](plans/cloud-module-2/MODULE-2-BRIEF.md) section 7.
+- **(b) One sitting of the Azure Active Directory lab.** About $0.60 and three hours: real Windows Server, guardrails first, everything deleted at the end. Your run records the answers the checker's tests replay, and lets the lab count as a proof.
+- **(c) Capture runs for more genuine examples.** A free-tier Google `e2-micro`, and about $0.85 of Azure.
+- **Recommendation:** (a) and (b) when you have an evening; (c) only if you'd like the examples to be real rather than constructed.
+- **Holds up:** only the Azure lab's place among the proofs.
+
 ## Decided for you
 
 Made under your message of 2026-11-11. Say the word to overturn any of them.
 
-- **2026-11-11, debug exercises that name their bugs.** About 70 debug exercises (Python Modules 4 to 6, ML Module 3 onward, half of cloud Module 1) told the learner each bug and often the fix, which makes "debug unfamiliar code" ([ADR-0002](decisions/0002-mastery-and-gating.md)) closer to following instructions. **Decided:** rewrite them all so a prompt gives what the program should do, the symptom and how many bugs there are, with the specifics moved into hints. Order: cloud Module 1 first, then Python, then ML. **Why:** finding the bug is the skill being proven, and effort spent finding it is what makes it stick. **The cost:** the hard modules get harder, with the tutor off during proofs; the hints are still there outside a proof.
+- **2026-11-11, debug exercises that name their bugs.** About 70 debug exercises (Python Modules 4 to 6, ML Module 3 onward, half of cloud Module 1) told the learner each bug and often the fix, which makes "debug unfamiliar code" ([ADR-0002](decisions/0002-mastery-and-gating.md)) closer to following instructions. **Decided:** rewrite them all so a prompt gives what the program should do, the symptom and how many bugs there are, with the specifics moved into hints. Order: cloud Module 1 first, then Python, then ML. **Why:** finding the bug is the skill being proven, and effort spent finding it is what makes it stick. **The cost:** the hard modules get harder, with the tutor off during proofs; the specifics are kept as hints in the content, but the app shows no hints on a debug exercise, since every debug is a proof. Each rewritten debug was checked to be findable from its symptom and its Check messages alone.
+- **2026-11-11, Module 2 has eight topics, not six.** "Cores, memory and noisy neighbours" is split into it and "Memory tiers and disks"; "Windows Server and Active Directory" into "Active Directory: domains, names and tickets" and "Joining machines, Group Policy and Entra ID". Why: shorter topics reach their proofs and first reviews sooner, and every proof tests what its topic just practised.
+- **2026-11-11, Module 2 is proven locally, for free.** Its Active Directory topics use a Samba domain controller in the lab's container. A real Windows Server lab in Azure (about $0.60 a three-hour sitting) is an optional extra, outside the proofs until you've run it once.
+- **2026-11-11, a new question type: estimate.** A typed number checked within a tolerance, for quick calculations (sizing, cost, memory). Why: producing a number is remembered better than picking one, and it needs no Python before Module 6. (being built as ADR-0024, proposed.)
+- **2026-11-11, a checkpoint can have more than two parts,** so Checkpoint 2 can hold all three the spec asks for. (being built as an amendment to ADR-0012.)
+- **2026-11-11, right-sizing is taught in Module 2** (a new skill in "Cores, memory and noisy neighbours"), because Checkpoint 2 needs it and nothing taught it.
+- **2026-11-11, checkpoint time targets are stated, not timed.** You hold yourself to them.
+- **2026-11-11, "Arm saves 20 to 40%" becomes "what Arm saves, from price lists".** AWS's own page now says "up to 20% less".
+
+Module 2's whole plan is in [plans/cloud-module-2](plans/cloud-module-2/README.md).
+
+The learning engine's rules, fixed after the audit (#210 to #215):
+
+- **2026-11-11, when the Mastered star comes.** A topic could be Mastered right after a failed review, because the week was counted from Learned, and open follow-ups didn't hold the star back though ADR-0011 said they should. **Decided:** a review rated Again starts the week over, and a topic isn't Mastered while one of its skills is being relearned. **Why:** "survives a delayed review" should mean a week survived. **The cost:** some stars turn back to Learned until a good review a week on, or until the follow-up closes ([ADR-0002](decisions/0002-mastery-and-gating.md), amended).
+- **2026-11-11, what relearns a mistake.** A follow-up could be closed by answering the missed question again on three days in a row, or by a lab walkthrough. **Decided:** a right day counts only on or after its due day, keeping the 1, 3 and 7 day gaps, and on a different question (the missed one only if the skill has no other); worked examples count for nothing either way. **Why:** fresh questions at growing gaps are what make relearning stick. **The cost:** some follow-ups you'd closed come back on Today ([ADR-0011](decisions/0011-mistakes-come-back.md), amended).
+- **2026-11-11, a checkpoint's steps and its build.** A checkpoint's steps show most of the build's own program. **Decided:** once you open them, passing the main build no longer counts; a fresh version (the same skills in another story) proves it. A build passed before you opened them still counts, and so does everything passed before 2026-11-11. **Why:** the build shows you can write it from a blank editor. **The cost:** opening the steps out of curiosity means proving the build on a fresh version ([ADR-0012](decisions/0012-checkpoint-support.md), amended).
+- **2026-11-11, placement ties pass,** one right and one wrong out of two, as [ADR-0021](decisions/0021-placement-test.md) always said. It affects the 11 topics with only two questions. **The cost:** on those, one lucky guess can place you past a topic until its own proof catches it.
+- **2026-11-11, the review scheduler is FSRS-4.5 exactly.** It pulled difficulty toward the wrong value, so reviews came a little late. **Decided:** FSRS-4.5's own formulas and limits, checked against the reference Python package. **Why:** reviews at the 90% recall target are what keep a topic remembered. **The cost:** some intervals get a few days shorter ([ADR-0009](decisions/0009-reviews.md), amended).
+- **2026-11-11, a review left half-way still counts.** Your first answers since a topic fell due carry into the next visit and rate it. **Why:** a wrong answer at review time is the sign a topic is fading. **The cost:** you can't restart a review you started badly.
+- **2026-11-11, "20 reviews a day" is a calendar day,** not a page load. **The cost:** after a long break, catching up takes more days.
+- **2026-11-11, a Check that couldn't run isn't an answer.** When Python didn't start, a package didn't download or an exercise's tests couldn't load, it's saved with no verdict and counts nowhere; code past its time limit still counts as wrong ([ADR-0008](decisions/0008-event-log.md), amended).
+- **2026-11-11, your own day on every event.** Every event now records your calendar day and time zone, and follow-ups count in it, wherever your history is read ([ADR-0008](decisions/0008-event-log.md), amended).
+- **2026-11-11, drafts of what you type.** Code and explanations are kept on this device until the item passes, with a Start over button. Reviews, the placement test and worked examples keep none, because they measure what you remember. Drafts are per device, not per account.
+- **2026-11-11, a question's `rev` keeps your past answers.** Bumping a question's revision doesn't discard what you answered before (the devlog once said otherwise).
 
 ## Parked by you
 

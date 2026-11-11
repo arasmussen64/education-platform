@@ -1,0 +1,51 @@
+# The checks for "Nobody from the domain can log in". The descriptions say
+# what must be true at the end, never what was wrong.
+checks:
+  - id: finds-the-dc
+    description: "Asked through lab's own resolver, the domain's SRV record names dc1."
+    command: dig +short +time=2 +tries=1 _ldap._tcp.ad.shop.test SRV
+    expect:
+      contains: "389 dc1.ad.shop.test."
+  - id: machine-trusted
+    description: "lab can prove who it is to the domain with its own key."
+    command: |
+      KRB5CCNAME=FILE:/tmp/check-machine-cc kinit -k 'LAB$@AD.SHOP.TEST' 2>&1 || exit 1
+      kdestroy -q -c FILE:/tmp/check-machine-cc
+      echo trusted
+    expect:
+      equals: trusted
+  - id: alice-logs-in
+    description: "alice logs in over SSH with her domain password, into her home directory, holding a Kerberos ticket."
+    command: |
+      sshpass -p 'Alice-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l alice@ad.shop.test 127.0.0.1 'test "$PWD" = "/home/alice@ad.shop.test" && klist -s && echo in'
+    expect:
+      equals: in
+  - id: carol-logs-in
+    description: "So does carol."
+    command: |
+      sshpass -p 'Carol-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l carol@ad.shop.test 127.0.0.1 'test "$PWD" = "/home/carol@ad.shop.test" && klist -s && echo in'
+    expect:
+      equals: in
+  - id: bob-kept-out
+    description: "bob's password is right, and lab's own access rule for domain accounts still refuses him, whatever service he comes in by."
+    command: |
+      echo 'Bob-Pass-1' | KRB5CCNAME=FILE:/tmp/check-bob-cc kinit bob@AD.SHOP.TEST > /dev/null 2>&1 || { echo "bob can't get a ticket at all"; exit 1; }
+      kdestroy -q -c FILE:/tmp/check-bob-cc
+      sssctl user-checks bob@ad.shop.test -a acct -s login 2>&1 | grep -q 'pam_acct_mgmt: Permission denied' || { echo "the access rule lets bob in"; exit 1; }
+      if sshpass -p 'Bob-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l bob@ad.shop.test 127.0.0.1 true 2>/dev/null; then echo "bob got in over SSH"; exit 1; fi
+      echo refused
+    expect:
+      equals: refused
+  - id: ssh-still-restricted
+    description: "SSH is still limited to named groups: ben, a local account in none of them, is refused, and learner still gets in."
+    command: |
+      if sshpass -p 'Ben-Local-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l ben 127.0.0.1 true 2>/dev/null; then echo "ben got in"; exit 1; fi
+      sshd -T 2>/dev/null | grep -i '^allowgroups' | grep -qw 'ssh-users' || { echo "ssh-users is no longer an allowed group"; exit 1; }
+      echo restricted
+    expect:
+      equals: restricted
+  - id: dc-still-strict
+    description: "dc1 still refuses a password sent over an unencrypted LDAP connection."
+    command: ldapsearch -x -o nettimeout=5 -H ldap://10.0.9.10 -D 'alice@ad.shop.test' -w 'Alice-Pass-1' -b 'DC=ad,DC=shop,DC=test' -s base dn 2>&1 | head -n 2
+    expect:
+      contains: "Strong(er) authentication required"

@@ -1,0 +1,17 @@
+# dc1's Samba service: an Active Directory domain controller once a domain has
+# been provisioned. dc1 has no init system of its own in this lab, so its
+# service is managed from here.
+[Unit]
+Description=dc1: Samba as an Active Directory domain controller
+After=lab-network.service dnsmasq.service
+Requires=lab-network.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+LimitNOFILE=16384
+TimeoutStartSec=300
+ExecStart=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/sbin/samba --foreground --no-process-group
+
+[Install]
+WantedBy=multi-user.target

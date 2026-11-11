@@ -1,0 +1,13 @@
+#!/bin/sh
+mount -t proc proc /proc; mount -t sysfs sys /sys; mount -t devtmpfs dev /dev 2>/dev/null
+t0=$(awk '{print $1}' /proc/uptime)
+i=0; while [ $i -lt 300000 ]; do i=$((i+1)); done
+t1=$(awk '{print $1}' /proc/uptime)
+echo "=== guest report"
+echo "boot_seconds: $t0"
+echo "loop_seconds: $(awk "BEGIN {print $t1 - $t0}")"
+echo "cpus: $(grep -c ^processor /proc/cpuinfo)"
+echo "cpu_model: $(awk -F': ' '/^model name/ {print $2; exit}' /proc/cpuinfo)"
+echo "=== end"
+sleep 8
+poweroff -f
