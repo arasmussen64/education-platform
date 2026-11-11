@@ -6,20 +6,34 @@ from checks import function, run
 # not the failure messages (v1 spec, F7).
 
 
+def lines_of(path):
+    """The file's lines, without their line breaks.
+
+    Files are compared line by line, not character by character. A file
+    whose last line has no line break after it holds the same notes, so on
+    its own that isn't a mistake, and a hidden test shouldn't fail for it.
+    """
+    return Path(path).read_text(encoding="utf-8").splitlines()
+
+
 def test_save_lines():
     """save_lines writes one line each and replaces old contents."""
     save_lines = function("save_lines")
     save_lines("s.txt", ["a", "b"])
-    assert Path("s.txt").read_text(encoding="utf-8") == "a\nb\n"
+    assert lines_of("s.txt") == ["a", "b"]
     save_lines("s.txt", ["only"])
-    assert Path("s.txt").read_text(encoding="utf-8") == "only\n"
+    assert lines_of("s.txt") == ["only"]
 
 
 def test_append_line():
-    """append_line adds to the end and keeps what was there."""
+    """append_line adds each new line to the end, on a line of its own, and keeps what was there."""
+    # Two appends, not one: a missing line break after the first new line
+    # only shows when the second one lands on the same line ("twothree").
     Path("ap.txt").write_text("one\n", encoding="utf-8")
-    function("append_line")("ap.txt", "two")
-    assert Path("ap.txt").read_text(encoding="utf-8") == "one\ntwo\n"
+    append_line = function("append_line")
+    append_line("ap.txt", "two")
+    append_line("ap.txt", "three")
+    assert lines_of("ap.txt") == ["one", "two", "three"]
 
 
 def test_load_lines():

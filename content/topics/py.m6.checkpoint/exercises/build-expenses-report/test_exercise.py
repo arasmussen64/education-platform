@@ -27,6 +27,16 @@ def count_asserts():
     return sum(1 for line in source.splitlines() if line.strip().startswith("assert "))
 
 
+def lines_of(path):
+    """The file's lines, without their line breaks.
+
+    Files are compared line by line, not character by character, so a report
+    whose last line has no line break after it still passes: the spec says
+    "one per line" and nothing about how the file ends.
+    """
+    return Path(path).read_text(encoding="utf-8").splitlines()
+
+
 def test_read_rows():
     """read_rows gives one dictionary per data row, with the header as keys and every value text."""
     Path("rr.csv").write_text("date,category,cost\n2026-02-01,food,12.20\n2026-02-03,rent,\n", encoding="utf-8")
@@ -76,7 +86,7 @@ def test_write_report():
     write_report = function("write_report")
     write_report("wr.txt", ["old"])
     write_report("wr.txt", ["a: 1.00", "Rows: 1"])
-    assert Path("wr.txt").read_text(encoding="utf-8") == "a: 1.00\nRows: 1\n"
+    assert lines_of("wr.txt") == ["a: 1.00", "Rows: 1"]
 
 
 def test_leaves_data_alone():
@@ -125,4 +135,4 @@ def test_tests():
 def test_program():
     """Run directly, the file prints the tests' message and the report, and writes expenses.txt."""
     assert run() == "expenses: all checks passed\n" + REPORT
-    assert Path("expenses.txt").read_text(encoding="utf-8") == REPORT
+    assert lines_of("expenses.txt") == REPORT.splitlines()
