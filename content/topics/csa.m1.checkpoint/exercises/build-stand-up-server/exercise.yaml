@@ -3,23 +3,26 @@ stage: build
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Stand up the shop's server"
 prompt: |
-  A fresh server has arrived and the shop's API needs to go live on it. Starting from nothing set up, bring it up to the runbook, which pulls together the whole module:
+  A fresh server has arrived, and the shop's API has to go live on it. Nothing is set up yet: the `shop-api` service is installed but not running, there is no firewall, and SSH still accepts passwords. Bring the server up to the shop's runbook, its written standard for a new server. There are no steps to follow here, only what must be true when you finish:
 
-  1. **Run the service.** `shop-api` is installed (`/etc/systemd/system/shop-api.service`) but not running. Enable it so it starts on boot and start it now, so `systemctl is-active shop-api` is `active` and `curl -s localhost:8080` answers.
-  2. **Put up the firewall.** Write `/etc/nftables.conf` with an `input` chain whose policy is `drop`, accepting loopback, established and related traffic, and new connections to SSH (`tcp dport 22`) and the API (`tcp dport 8080`). Load it, and `systemctl enable nftables` so it survives a reboot.
-  3. **Harden SSH.** A drop-in in `/etc/ssh/sshd_config.d/` turning off password and root logins (`PasswordAuthentication no`, `PermitRootLogin no`). Check it with `sudo sshd -t`, apply it with `sudo systemctl reload ssh` (`restart` if the service isn't running), and prove you can still log in with `ssh -i ~/keys/ben ben@localhost`.
+  1. **The service runs.** `shop-api` is running now, starts by itself after a reboot, and answers on port 8080.
+  2. **The firewall lets in only what the server serves.** From another machine, SSH (port 22) and the API (port 8080) answer and nothing else does. The firewall is nftables, and the same rules come back after a reboot: they are saved in `/etc/nftables.conf`, and the `nftables` service is enabled.
+  3. **SSH is hardened.** The SSH server that is running refuses password logins and root logins, and Ben, who deploys the shop's code, can still log in with his key: `ssh -i ~/keys/ben ben@localhost` (a copy of his private key is in your `~/keys`, so you can test as him).
 
-  Don't take a shortcut that weakens the server: leaving the firewall off, or passwords on, fails the check. When it's all up, run the checks.
+  To test from another machine, use `from-office`: it runs a command on a second machine on the office network, where this server's address is `10.0.9.1`. For example, `from-office curl -s http://10.0.9.1:8080/`.
+
+  No shortcut that leaves the server weaker counts: with the firewall off, or passwords still accepted, the checks fail. When all three are true, run the checks.
 hints:
   - "The service: `sudo systemctl enable --now shop-api` enables and starts it in one step. Confirm with `systemctl is-active shop-api` and `curl -s localhost:8080`."
-  - "The firewall is the one from the hardening topic plus a rule for 8080: an `input` chain `policy drop` with `iif lo accept`, `ct state established,related accept`, `tcp dport 22 accept` and `tcp dport 8080 accept`. `sudo nft -f /etc/nftables.conf` loads it; `sudo systemctl enable nftables` keeps it."
-  - "The SSH drop-in: `printf 'PasswordAuthentication no\\nPermitRootLogin no\\n' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf`, then `sudo sshd -t` and `sudo systemctl reload ssh`."
+  - "The firewall is the one from the hardening topic plus a rule for 8080: an `input` chain `policy drop` with `iif lo accept`, `ct state established,related accept`, `tcp dport 22 accept` and `tcp dport 8080 accept`, written to `/etc/nftables.conf`. `sudo nft -f /etc/nftables.conf` loads it; `sudo systemctl enable nftables` keeps it. `from-office curl -s http://10.0.9.1:8080/` tests it from outside."
+  - "The SSH drop-in: `printf 'PasswordAuthentication no\\nPermitRootLogin no\\n' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf`, then `sudo sshd -t`. A server that is already running keeps its old settings until `sudo systemctl reload ssh` (`restart` if the service isn't running)."
 test_skills:
   service-running: [csa.linux.services/systemctl, csa.linux.services/unit-files]
   api-answers: [csa.linux.services/supervision]
+  reachable-from-outside: [csa.linux.hardening/firewall-min, csa.linux.net-tools/test-tools]
   firewall-default-deny: [csa.linux.net-tools/firewall-path, csa.linux.hardening/firewall-min]
   firewall-persisted: [csa.linux.hardening/firewall-min]
   ssh-hardened: [csa.linux.hardening/ssh-hardening]
