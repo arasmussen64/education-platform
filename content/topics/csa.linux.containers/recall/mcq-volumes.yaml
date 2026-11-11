@@ -6,11 +6,13 @@ prompt: |
 choices:
   - "The data was in the old image's layers, which the new image replaced; the old image should have been kept"
   - "The data was only in memory, because a container's root filesystem is read-only; it needed a larger `--memory`"
-  - "The data was in the container's writable layer, deleted with it; its directory should have been a volume"
+  - "The data belonged to the container you removed, so the new one started empty; it needed a named volume"
   - "The data is in the upper layer, kept under the old container's name; the new one needed the same `--name`"
 answer: 2
 explanation: |
-  Every write a container makes goes to its upper layer, and the upper layer is part of the container, not the image. Remove the container and the layer is deleted; the next container starts from a clean one, whatever it is called. The data directory should have been a volume or a bind mount (`-v pgdata:/var/lib/postgresql/data`): a directory managed outside the layers, mounted into the container at a path, which persists until you delete it on purpose. Any stateful service in a container needs one, and the official database images document the path to mount.
+  Without a volume you name, a container's data belongs to that one container, and a new container starts with none of it. In an image you built yourself, the database's writes go to the container's upper layer, the writable part that belongs to the container, not the image, and removing the container deletes it. The official `postgres` image declares its data directory a volume, so Docker gives each container an *anonymous* one there (a volume with a long random name). `docker rm` leaves that behind, and `docker volume ls` may still list it, but nothing connects it to the new container, which gets a fresh, empty one.
 
-  The image never held the data: its layers are read-only and a running container can't change them, so keeping the old image would bring nothing back. And the container's root filesystem is writable, through that upper layer, which is how the database could run for a month.
+  Either way the fix is a volume with a name, or a bind mount (a host directory): `-v pgdata:/var/lib/postgresql/data` for the official image up to version 17, `-v pgdata:/var/lib/postgresql` from version 18. Every container started with it mounts the same data, which persists until you delete it on purpose. Any stateful service in a container needs one.
+
+  The image never held the data: its layers are read-only and a running container can't change them, so keeping the old image would bring nothing back. The container's root filesystem is writable, through that upper layer, so the data was never only in memory. And a container's name is only a label: a new container with the old name still starts from a clean upper layer.
 skills: [layers-overlay]
