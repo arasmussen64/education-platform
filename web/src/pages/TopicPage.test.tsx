@@ -901,6 +901,23 @@ describe('a checkpoint page', () => {
       expect(explainCard()).toHaveTextContent(PROMPT)
     })
 
+    it('keeps a build passed on this visit before the steps were opened', async () => {
+      setFakeRunner(fakeRunner({ check: allPassed('Adds it all up') }))
+      renderSavingCheckpoint()
+      await progressLoaded()
+      await checkTheBuild()
+      await vi.waitFor(async () =>
+        expect(await progressLoaded()).toHaveTextContent(/Build: passed on/),
+      )
+
+      // Five minutes later, curious, the learner opens the steps.
+      vi.setSystemTime(new Date('2026-11-11T12:05:00.000Z'))
+      await openTheSteps()
+      expect(await progressLoaded()).toHaveTextContent(/Build: passed on/)
+      expect(notice()).not.toBeInTheDocument()
+      expect(explainCard()).toHaveTextContent(PROMPT)
+    })
+
     it('remembers the steps were opened on an earlier visit', async () => {
       setFakeRunner(fakeRunner({ check: oneFailed('Adds it all up') }))
       openedBefore('2026-11-05T12:00:00.000Z')
