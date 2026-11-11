@@ -1,0 +1,48 @@
+# The checks for "Read the slice": the core counts and the sibling pair are
+# saved and match the machines' own trees, the squeeze was seen and its
+# count saved, the spinners are gone, and the cache is let go: no throttle,
+# no pin, and its process free to run on any CPU again.
+#
+# The squeeze is checked through the file the learner saved, not through the
+# cache's memory.events, which a restart of the service or the lab sets back
+# to 0 (the plan's restart rule, MODULE-2-BRIEF 3.5).
+checks:
+  - id: cores-counted
+    description: "~/example/cores.txt has the physical cores of web-1, arm-1 and db-1, one machine a line."
+    command: |
+      truth=$(for m in web-1 arm-1 db-1; do
+        echo "$m $(lscpu --sysroot /srv/machines/$m -p=CORE,SOCKET | grep -v '^#' | sort -u | wc -l)"
+      done)
+      [ "$(cat /home/learner/example/cores.txt)" = "$truth" ] && echo saved
+    expect:
+      equals: saved
+  - id: siblings-found
+    description: "~/example/siblings.txt names the two CPUs of db-1 that are the two threads of its first core."
+    command: |
+      truth=$(lscpu --sysroot /srv/machines/db-1 -p=CPU,CORE,SOCKET | grep -v '^#' | awk -F, '$2 == 0 && $3 == 0 {print $1}' | paste -sd' ')
+      [ "$(cat /home/learner/example/siblings.txt)" = "$truth" ] && echo saved
+    expect:
+      equals: saved
+  - id: squeeze-saved
+    description: "~/example/squeeze.txt holds the number of times the kernel throttled shop-cache during the squeeze (more than 0)."
+    command: cat /home/learner/example/squeeze.txt
+    expect:
+      matches: "^[1-9][0-9]*$"
+  - id: spinners-stopped
+    description: "No spin is running any more."
+    command: "! pgrep -x spin > /dev/null"
+  - id: cache-let-go
+    description: "shop-cache is running with no memory throttle and no CPU list, and its process may run on any of the machine's CPUs again."
+    # An empty AllowedCPUs= takes the setting away in systemd but leaves a
+    # running process on the CPUs it was given (tried on Docker Desktop,
+    # 2026-11-11), so the process's own list is read too: it must be every
+    # CPU the machine has online.
+    command: |
+      pid=$(systemctl show shop-cache -p MainPID --value)
+      echo "$(systemctl is-active shop-cache)" \
+        "$(systemctl show shop-cache -p MemoryHigh --value)" \
+        "[$(systemctl show shop-cache -p AllowedCPUs --value)]" \
+        "$(awk '/^Cpus_allowed_list/ {print $2}' /proc/$pid/status)" \
+        "$(cat /sys/devices/system/cpu/online)"
+    expect:
+      matches: "^active infinity \\[\\] (\\S+) \\1$"

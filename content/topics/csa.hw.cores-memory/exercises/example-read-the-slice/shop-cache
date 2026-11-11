@@ -1,0 +1,39 @@
+#!/usr/bin/python3
+"""shop-cache [MB] [PASSES]: the shop's in-memory cache (a stand-in).
+
+It holds MB megabytes (150 if not told) and reads every page of them PASSES
+times a second (0: as often as it can). On every pass it also rebuilds a
+small part of itself: 4 MB taken fresh from the kernel and handed back, as a
+cache does when its entries expire. That keeps asking the kernel for memory,
+which is what a memory throttle slows down, with swap or without. Once a
+second or so it logs how many passes it made.
+"""
+
+import mmap
+import sys
+import time
+
+PAGE = 4096
+size_mb = int(sys.argv[1]) if len(sys.argv) > 1 else 150
+per_second = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+
+data = bytearray(size_mb * 1024 * 1024)
+data[::PAGE] = b"\1" * len(range(0, len(data), PAGE))
+
+passes = 0
+since = time.monotonic()
+while True:
+    started = time.monotonic()
+    sum(data[::PAGE])  # reads one byte of every page, so every page is touched
+    fresh = mmap.mmap(-1, 4 * 1024 * 1024)
+    fresh[::PAGE] = b"\1" * len(range(0, len(fresh), PAGE))
+    fresh.close()
+    passes += 1
+    now = time.monotonic()
+    if now - since >= 1:
+        word = "pass" if passes == 1 else "passes"
+        print(f"{passes} {word} in the last {now - since:.1f} s", flush=True)
+        passes = 0
+        since = now
+    if per_second:
+        time.sleep(max(0, 1 / per_second - (now - started)))
