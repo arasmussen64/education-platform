@@ -58,6 +58,17 @@ describe('EstimateQuestion', () => {
     expect(screen.getAllByText(/These prices were read/)).toHaveLength(1)
   })
 
+  it('reads only the day of a date that has a time after it', () => {
+    render(
+      <EstimateQuestion
+        item={{ ...ESTIMATE, prices_as_of: '2026-11-10T09:30:00' }}
+      />,
+    )
+    expect(
+      screen.getByText(/These prices were read on November 10, 2026/),
+    ).toBeVisible()
+  })
+
   it('is right within the tolerance, and says how close it was', async () => {
     const onAnswer = vi.fn()
     render(<EstimateQuestion item={ESTIMATE} onAnswer={onAnswer} />)

@@ -44,9 +44,13 @@ const NOTE = 'text-sm text-slate-600 dark:text-slate-300'
 const NUMBER_BOX =
   'w-40 rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 aria-invalid:border-red-600 dark:border-slate-700'
 
-/** The day prices were read, as a person says it: November 10, 2026. */
+/**
+ * The day prices were read, as a person says it: November 10, 2026. Only
+ * the YYYY-MM-DD at the start is read, in case a time follows it.
+ */
 function dayOf(isoDate: string): string {
-  return new Date(`${isoDate}T12:00:00Z`).toLocaleDateString('en-US', {
+  const day = isoDate.slice(0, 10)
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',

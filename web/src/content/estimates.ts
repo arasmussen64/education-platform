@@ -48,7 +48,8 @@ export function readNumber(typed: string, unit: string): Reading {
   const digits = text.slice(front.length)
   if (!PLAIN_NUMBER.test(digits)) return { ok: false, message: NOT_A_NUMBER }
   const number = Number(digits.replaceAll(',', ''))
-  // Four hundred digits are too many for the computer's numbers.
+  // A number of more than about 300 digits is too big for JavaScript, which
+  // reads it as Infinity.
   if (!Number.isFinite(number)) return { ok: false, message: NOT_A_NUMBER }
   return { ok: true, number: sign === '' || sign === '+' ? number : -number }
 }
