@@ -102,6 +102,17 @@ describe('withinTolerance', () => {
     expect(withinTolerance(27.6, withinATenth)).toBe(true)
     expect(withinTolerance(27.39, withinATenth)).toBe(false)
   })
+
+  it('stays exact for a big exact answer', () => {
+    const bytes: EstimateItem = {
+      ...exact,
+      answer: 17_179_869_184,
+      unit: 'bytes',
+    }
+    expect(withinTolerance(17_179_869_184, bytes)).toBe(true)
+    expect(withinTolerance(17_179_869_183, bytes)).toBe(false)
+    expect(withinTolerance(17_179_869_170, bytes)).toBe(false)
+  })
 })
 
 describe('acceptedRange and relativeError', () => {

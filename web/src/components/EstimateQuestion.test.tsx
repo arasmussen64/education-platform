@@ -44,6 +44,8 @@ describe('EstimateQuestion', () => {
     expect(screen.getByText(/What do the two cost in a month/)).toBeVisible()
     expect(box()).toHaveAccessibleDescription('dollars a month')
     expect(screen.getByRole('button', { name: 'Check' })).toBeDisabled()
+    // A phone's decimal keypad may offer only a comma, which isn't read.
+    expect(box()).toHaveAttribute('inputmode', 'text')
   })
 
   it("says when the prices were read, and where today's are", () => {

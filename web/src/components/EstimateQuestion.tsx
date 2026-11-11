@@ -174,7 +174,10 @@ export function EstimateQuestion({ item, onAnswer, quiet = false }: Props) {
           <input
             id={fieldId}
             type="text"
-            inputMode="decimal"
+            // The full keyboard, not a phone's decimal keypad: that pad shows
+            // the decimal mark of the phone's region, a comma in much of
+            // Europe, so 27.5 couldn't be typed, and it may have no minus.
+            inputMode="text"
             autoComplete="off"
             spellCheck={false}
             value={typed}
@@ -246,7 +249,8 @@ function Feedback({
         )}{' '}
         The answer is {withUnit(formatNumber(item.answer), item.unit)}.
       </p>
-      {far && <p>{far}</p>}
+      {/* A long typed number breaks across lines rather than off the screen. */}
+      {far && <p className="wrap-anywhere">{far}</p>}
       {mistake && (
         <div className="rounded-md border-l-4 border-amber-500 bg-white px-3 py-2 dark:bg-slate-900">
           <p className="text-sm font-medium">A common slip</p>

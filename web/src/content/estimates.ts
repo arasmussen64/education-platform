@@ -67,14 +67,23 @@ export function allowance(item: EstimateItem): number {
  * the computer's binary numbers: 27.4 - 27.5 is -0.10000000000000142, which
  * would put 27.4 just outside "within 0.1 of 27.5". The validator works the
  * edges out exactly, so a number on the edge is accepted by both.
+ *
+ * The slack is a millionth of a millionth of the numbers compared: a
+ * thousand times the computer's rounding, and far less than any difference
+ * a learner types. A fixed share of a billionth would be too much for big
+ * exact answers: 17,179,869,184 bytes (16 GiB) would take anything within
+ * 17 of it.
  */
-function slack(around: number): number {
-  return 1e-9 * Math.max(1, Math.abs(around))
+function slack(a: number, b: number): number {
+  return 1e-12 * Math.max(Math.abs(a), Math.abs(b))
 }
 
 /** Whether a number counts as right: inside the tolerance, edges included. */
 export function withinTolerance(number: number, item: EstimateItem): boolean {
-  return Math.abs(number - item.answer) <= allowance(item) + slack(item.answer)
+  return (
+    Math.abs(number - item.answer) <=
+    allowance(item) + slack(number, item.answer)
+  )
 }
 
 /** The lowest and highest numbers that count as right. */
@@ -106,7 +115,8 @@ export function matchingMistake(
   for (const mistake of mistakes) {
     const gap = Math.abs(number - mistake.value)
     const near =
-      gap <= MISTAKE_MATCH * Math.abs(mistake.value) + slack(mistake.value)
+      gap <=
+      MISTAKE_MATCH * Math.abs(mistake.value) + slack(number, mistake.value)
     if (near && (!nearest || gap < Math.abs(number - nearest.value))) {
       nearest = mistake
     }
