@@ -1,0 +1,16 @@
+id: step-size-from-the-metrics
+stage: fill_in
+runtime: lab
+rev: 1
+title: "Step 1 of the review: size from the metrics"
+prompt: |
+  The checkpoint's build, with most of the sheet already done for you: in `~/sizing/answers.csv`, the rows for w2 to w5 are filled in. Two things are left: w1's row, and the saving on the last line.
+
+  w1 is `orders-api`. Its brief is `/srv/sizing/workloads/w1/brief.txt`, its week is `/srv/sizing/workloads/w1/metrics.csv`, and `/srv/sizing/README.txt` gives the sizing policy and how a month is costed. Work out the vCPUs and the memory w1 needs, find the cheapest size in `/srv/sizing/prices.csv` that has them on the cloud and the architecture its brief allows, and write its row: the size, as `prices.csv` names it, and a month of it. Then the saving: what the five workloads cost a month today, on the machines they run on now, minus what your five rows add up to.
+
+  Edit the sheet with `nano ~/sizing/answers.csv`. The checks test the whole sheet, the rows done for you included.
+hints:
+  - "`metric-summary /srv/sizing/workloads/w1/metrics.csv` prints the 95th percentile of cpu_pct and the largest mem_gib. The CPU figure is a share of all the vCPUs of the machine w1 runs on now, an `n4-standard-8`: `grep n4-standard-8 /srv/sizing/prices.csv` shows how many that is."
+  - "The policy: the vCPUs needed are the 95th percentile ÷ 100 × the vCPUs it runs on now ÷ 0.6, and the memory needed is the peak ÷ 0.8. Not the average: the busy hours are what the size must carry."
+  - "The brief says what w1 runs. A program compiled only for x86 can't run on an Arm size, however much cheaper it is. `awk -F, 'NR > 1 && $2 == \"gcp\" && $6 == \"x86\" && $7 >= VCPUS && $8 >= GIB && $12 == \"\" {print $13 * 730, $4}' /srv/sizing/prices.csv | sort -n` lists what fits, cheapest first, with a month's price (put your two numbers in place of VCPUS and GIB)."
+  - "The saving: today's machines are named in each brief's Runs now line; cost each one as its own row would be costed (w2 with both of its licences, w4 for its 180 hours), add them up, and take away the total of your five rows."

@@ -1,0 +1,16 @@
+id: step-arm-and-gpu
+stage: fill_in
+runtime: lab
+rev: 1
+title: "Step 3 of the review: Arm and a GPU"
+prompt: |
+  The checkpoint's build, with some of the sheet already done for you: in `~/sizing/answers.csv`, the rows for w1, w2 and w5 are filled in. Three things are left: the rows for w3 and w4, and the saving on the last line.
+
+  w3 is `thumbnailer`, which its team wants on Arm; w4 is `caption-model`, a nightly job on a GPU. Their briefs and weeks are in `/srv/sizing/workloads/w3/` and `/srv/sizing/workloads/w4/`, and `/srv/sizing/README.txt` gives the sizing policy and how a month is costed. For each, find the cheapest size in `/srv/sizing/prices.csv` that meets the policy and its brief, and write its row: the size, as `prices.csv` names it, and a month of it, for the hours it runs. Then the saving: what the five workloads cost a month today, on the machines they run on now, minus what your five rows add up to.
+
+  Edit the sheet with `nano ~/sizing/answers.csv`. The checks test the whole sheet, the rows done for you included.
+hints:
+  - "w3's brief says what is in it: a program built in the shop's own pipeline, which already builds an image for Arm. Nothing in it is tied to x86, so its row is an Arm size (arch `arm` in prices.csv) with the vCPUs and memory the policy asks for."
+  - "w4 needs three things: vCPUs and memory, as every workload does, and GPU memory: the largest gpu_mem_gib at most 90% of the card's. Use the gpu_mem_gib column, which is in GiB on every cloud; the providers state the same cards in different units."
+  - "A card's speed doesn't matter if the model doesn't fit in its memory. Among the cards that hold it, on any cloud, the cheapest wins."
+  - "w4 runs 180 hours a month, not 730: the VM is started for the job and stopped after it. Its row is the hourly price × 180, and so is today's cost of its A100 in the saving."

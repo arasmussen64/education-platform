@@ -1,0 +1,16 @@
+id: step-count-the-licence
+stage: fill_in
+runtime: lab
+rev: 1
+title: "Step 2 of the review: count the licences"
+prompt: |
+  The checkpoint's build, with most of the sheet already done for you: in `~/sizing/answers.csv`, the rows for w1, w3, w4 and w5 are filled in. Two things are left: w2's row, and the saving on the last line.
+
+  w2 is `ledger-db`, a SQL Server Standard database on Windows Server. Its brief is `/srv/sizing/workloads/w2/brief.txt`, its week is `/srv/sizing/workloads/w2/metrics.csv`, and `/srv/sizing/README.txt` gives the sizing policy and how a month is costed, licences included. Find the cheapest size in `/srv/sizing/prices.csv` that meets the policy on the cloud its brief allows, and write its row: the size, as `prices.csv` names it, and a month of it with both of its licences. Then the saving: what the five workloads cost a month today, on the machines they run on now, minus what your five rows add up to.
+
+  Edit the sheet with `nano ~/sizing/answers.csv`. The checks test the whole sheet, the rows done for you included.
+hints:
+  - "A database is sized on memory as well as CPU: the policy wants the largest mem_gib to be at most 80% of the new size's memory. `metric-summary /srv/sizing/workloads/w2/metrics.csv` gives both numbers, and the size w2 runs on now has 16 vCPUs."
+  - "A size with the vCPUs but too little memory doesn't fit, however cheap. Azure's memory-optimised sizes (kind `memory` in prices.csv) have more memory for each vCPU than the general ones."
+  - "A month of w2: (windows_hourly + $0.10 × the size's vCPUs, or × 4 if it has fewer) × 730. Fewer vCPUs means fewer SQL Server licences to pay for, which is most of the saving."
+  - "`awk -F, 'NR > 1 && $2 == \"azure\" && $7 >= VCPUS && $8 >= GIB && $14 != \"\" {print ($14 + 0.10 * ($7 < 4 ? 4 : $7)) * 730, $4}' /srv/sizing/prices.csv | sort -n` lists what fits, cheapest first (put your two numbers in place of VCPUS and GIB)."
