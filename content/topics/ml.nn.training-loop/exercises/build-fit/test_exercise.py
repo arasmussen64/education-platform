@@ -1,9 +1,29 @@
+import sys
+
 import numpy as np
 
 from checks import function, run
 
 # Hidden tests: the learner sees each docstring and whether it passed, but
 # not the failure messages (v1 spec, F7).
+
+
+def from_solution(name):
+    """The learner's function or class called name, from one load of their file.
+
+    function() runs solution.py from the top on every call, and the program
+    at the bottom of that file is slow. So the first call here loads the file
+    and every later call reuses that copy: the program runs once per Check
+    instead of once per test, which keeps the Check inside the browser's
+    time limit. The harness forgets the copy before each Check, so no test
+    sees an old version of the file.
+    """
+    loaded = sys.modules.get("solution")
+    if loaded is None:
+        return function(name)
+    found = getattr(loaded, name, None)
+    assert callable(found), f"Define a function called {name}."
+    return found
 
 
 def test_the_output():
@@ -13,9 +33,9 @@ def test_the_output():
 
 def test_batches_and_split():
     """Batches cover every index once and reshuffle between epochs; the split is disjoint, complete and seeded."""
-    batches = function("batches")
-    split = function("split")
-    make_blobs = function("make_blobs")
+    batches = from_solution("batches")
+    split = from_solution("split")
+    make_blobs = from_solution("make_blobs")
     rng = np.random.default_rng(2)
     one, two = list(batches(23, 5, rng)), list(batches(23, 5, rng))
     assert [len(index) for index in one] == [5, 5, 5, 5, 3] and sorted(np.concatenate(one).tolist()) == list(range(23))
@@ -32,12 +52,12 @@ def test_batches_and_split():
 
 def test_evaluate_does_not_train():
     """evaluate returns the loss and the accuracy and leaves every weight exactly as it was."""
-    Dense = function("Dense")
-    ReLU = function("ReLU")
-    Sequential = function("Sequential")
-    SoftmaxCrossEntropy = function("SoftmaxCrossEntropy")
-    evaluate = function("evaluate")
-    make_blobs = function("make_blobs")
+    Dense = from_solution("Dense")
+    ReLU = from_solution("ReLU")
+    Sequential = from_solution("Sequential")
+    SoftmaxCrossEntropy = from_solution("SoftmaxCrossEntropy")
+    evaluate = from_solution("evaluate")
+    make_blobs = from_solution("make_blobs")
     X, y = make_blobs(20, seed=1)
     net = Sequential([Dense(2, 8, seed=1), ReLU(), Dense(8, 3, seed=2)])
     before = [p.copy() for p in net.parameters()]
@@ -48,14 +68,14 @@ def test_evaluate_does_not_train():
 
 def test_fit_learns_and_repeats():
     """fit reaches 85 percent validation accuracy within 30 epochs, repeats exactly with the same seed, and differs with another."""
-    Dense = function("Dense")
-    ReLU = function("ReLU")
-    Sequential = function("Sequential")
-    SoftmaxCrossEntropy = function("SoftmaxCrossEntropy")
-    SGD = function("SGD")
-    fit = function("fit")
-    make_blobs = function("make_blobs")
-    split = function("split")
+    Dense = from_solution("Dense")
+    ReLU = from_solution("ReLU")
+    Sequential = from_solution("Sequential")
+    SoftmaxCrossEntropy = from_solution("SoftmaxCrossEntropy")
+    SGD = from_solution("SGD")
+    fit = from_solution("fit")
+    make_blobs = from_solution("make_blobs")
+    split = from_solution("split")
     X, y = make_blobs(80, seed=7)
     X_train, y_train, X_val, y_val = split(X, y, seed=7)
 
@@ -72,7 +92,7 @@ def test_fit_learns_and_repeats():
 
 def test_read_curve():
     """A falling curve converges, a flat one stalls, a rising or NaN one diverges."""
-    read_curve = function("read_curve")
+    read_curve = from_solution("read_curve")
     assert read_curve([1.1, 0.8, 0.5, 0.3]) == "converging"
     assert read_curve([1.10, 1.09, 1.09, 1.08]) == "stalled"
     assert read_curve([1.1, 1.3, 2.0, 7.4]) == "diverging" and read_curve([1.1, 2.0, float("nan")]) == "diverging"

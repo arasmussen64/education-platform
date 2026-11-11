@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 
 from checks import function, run
@@ -6,9 +8,27 @@ from checks import function, run
 # not the failure messages (v1 spec, F7).
 
 
+def from_solution(name):
+    """The learner's function or class called name, from one load of their file.
+
+    function() runs solution.py from the top on every call, and the program
+    at the bottom of that file is slow. So the first call here loads the file
+    and every later call reuses that copy: the program runs once per Check
+    instead of once per test, which keeps the Check inside the browser's
+    time limit. The harness forgets the copy before each Check, so no test
+    sees an old version of the file.
+    """
+    loaded = sys.modules.get("solution")
+    if loaded is None:
+        return function(name)
+    found = getattr(loaded, name, None)
+    assert callable(found), f"Define a function called {name}."
+    return found
+
+
 def module():
-    """Everything from one import of the solution, so its training runs once per test."""
-    return function("fit").__globals__
+    """Everything the solution defines, from the one load from_solution keeps."""
+    return from_solution("fit").__globals__
 
 
 def small_net(m):
@@ -59,7 +79,7 @@ def test_fit_records_and_clips():
 
 def test_diagnose():
     """Diverging, stalled, at chance and learning, from hand-made histories."""
-    diagnose = function("diagnose")
+    diagnose = from_solution("diagnose")
     assert diagnose({"train_loss": [1.1, 0.5, float("nan")], "val_accuracy": [0.3, 0.3, 0.3]}, 3) == "diverging"
     assert diagnose({"train_loss": [1.1, 1.05, 1.0], "val_accuracy": [0.3, 0.3, 0.3]}, 3) == "stalled"
     assert diagnose({"train_loss": [1.1, 0.8, 0.5], "val_accuracy": [0.3, 0.3, 0.4]}, 3) == "at chance"
@@ -70,7 +90,7 @@ def test_diagnose():
 def test_dead_and_overfit():
     """Three silenced units count as three; eight rows overfit to below a tenth and the network is left trained."""
     # One import for everything here, so the ReLU class dead_units looks for is the one the network was built with.
-    dead_units = function("dead_units")
+    dead_units = from_solution("dead_units")
     overfit_one_batch, SoftmaxCrossEntropy, Dense, ReLU, Sequential, make_blobs, split = (dead_units.__globals__[name] for name in ("overfit_one_batch", "SoftmaxCrossEntropy", "Dense", "ReLU", "Sequential", "make_blobs", "split"))
 
     def net():
@@ -89,7 +109,7 @@ def test_dead_and_overfit():
 
 def test_standardize():
     """Columns to mean 0 and spread 1 with the training set's numbers; the validation set gets the same numbers."""
-    standardize = function("standardize")
+    standardize = from_solution("standardize")
     rng = np.random.default_rng(5)
     X_train = rng.normal(100.0, 20.0, size=(50, 2)) * np.array([1.0, 1000.0])
     X_val = rng.normal(100.0, 20.0, size=(10, 2)) * np.array([1.0, 1000.0])
