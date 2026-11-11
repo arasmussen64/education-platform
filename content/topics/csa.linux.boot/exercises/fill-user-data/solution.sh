@@ -1,5 +1,6 @@
 # The finished user data. In the lab you'd fill the four gaps with nano;
-# here it's written in one go, then launched.
+# here it's written in one go, then launched. The four values: the package,
+# the file's path, the value in its content, and the one command.
 cat > ~/user-data.yaml <<'EOF'
 #cloud-config
 users:
@@ -15,7 +16,6 @@ write_files:
     content: |
       SHOP_TIER=web
 runcmd:
-  - mkdir -p /var/lib/shop
   - touch /var/lib/shop/ready
 EOF
 lab-launch ~/user-data.yaml
