@@ -1,8 +1,9 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
+import { loadDraft, saveDraft } from '../drafts/drafts.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { fakeExercise } from '../test/fakeContent.tsx'
 import {
@@ -270,5 +271,71 @@ describe('the tutor in an exercise', () => {
     expect(
       screen.queryByRole('region', { name: 'Tutor' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('sees the code brought back from last time', async () => {
+    setFakeRunner()
+    const where = { topicId: 'py.values-and-types', itemId: 'write', rev: 1 }
+    // Saved at a fixed time (0), so the test never reads the clock.
+    saveDraft(where, 'x', undefined, 0)
+    vi.mocked(askTutor).mockResolvedValue({ status: 'unavailable' })
+    renderInPractice()
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the tutor' }))
+    expect(askTutor).toHaveBeenLastCalledWith(
+      expect.objectContaining({ code: 'x' }),
+    )
+  })
+})
+
+describe('drafts in an exercise', () => {
+  const TOPIC_ID = 'py.loops'
+  const WRITE = fakeExercise({ id: 'write', stage: 'write', starter: 's = 0' })
+
+  beforeEach(() => {
+    // Drafts note when they were saved; pinned, so no test reads the clock.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-11T12:00:00.000Z'))
+    setFakeRunner()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /** Types in the exercise, leaves it, and comes back. */
+  async function typeLeaveAndReturn(props: { allowHints?: boolean }) {
+    const first = render(
+      <ExerciseView exercise={WRITE} topicId={TOPIC_ID} {...props} />,
+    )
+    await userEvent.type(screen.getByLabelText('Python code'), '\nfor n in x:')
+    first.unmount()
+    render(<ExerciseView exercise={WRITE} topicId={TOPIC_ID} {...props} />)
+    return screen.getByLabelText('Python code')
+  }
+
+  it('keeps a draft in practice and proof checks', async () => {
+    expect(await typeLeaveAndReturn({})).toHaveValue('s = 0\nfor n in x:')
+  })
+
+  it('keeps none in reviews or the placement test, which start from the starter', async () => {
+    // A draft left in practice isn't brought into a review, either.
+    saveDraft({ topicId: TOPIC_ID, itemId: 'write', rev: 1 }, 'from practice')
+    expect(await typeLeaveAndReturn({ allowHints: false })).toHaveValue('s = 0')
+    expect(loadDraft({ topicId: TOPIC_ID, itemId: 'write', rev: 1 })).toBe(
+      'from practice',
+    )
+  })
+
+  it('keeps none for a worked example, which is there to study as written', async () => {
+    const example = fakeExercise({
+      id: 'example',
+      stage: 'worked_example',
+      solution: 'print("Ada")',
+    })
+    const first = render(<ExerciseView exercise={example} topicId={TOPIC_ID} />)
+    await userEvent.type(screen.getByLabelText('Python code'), '!')
+    first.unmount()
+    render(<ExerciseView exercise={example} topicId={TOPIC_ID} />)
+    expect(screen.getByLabelText('Python code')).toHaveValue('print("Ada")')
+    expect(localStorage.length).toBe(0)
   })
 })

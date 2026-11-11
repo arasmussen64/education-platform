@@ -1,4 +1,6 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import type { DraftKey } from '../drafts/drafts.ts'
+import { useDraft } from '../drafts/useDraft.ts'
 import { DEFAULT_TIME_LIMIT_MS } from '../python/constants.ts'
 import type {
   CheckReport,
@@ -6,6 +8,7 @@ import type {
   TestResult,
 } from '../python/protocol.ts'
 import {
+  allChecksPassed,
   type CheckOutcome,
   getPythonRunner,
   type PythonRunner,
@@ -22,7 +25,13 @@ type Runner = Pick<PythonRunner, 'start' | 'run' | 'check' | 'trace'>
 const NO_PACKAGES: string[] = []
 
 type Props = {
+  /** The starter: the code the editor shows when there's no draft. */
   initialCode: string
+  /**
+   * Where to keep the learner's draft on this device, so leaving and coming
+   * back doesn't lose what they typed. Without it, nothing is kept.
+   */
+  draft?: DraftKey
   /** The exercise's tests (test_exercise.py). Without tests there's no Check button. */
   tests?: string
   /** Hidden tests show what they check, but not why they failed (v1 spec, F4). */
@@ -80,6 +89,9 @@ const STATUS_TEXT: Record<Status, string> = {
   unavailable: "Python couldn't start. Check your connection, then try again.",
 }
 
+const START_OVER_QUESTION =
+  'Start over? Your changes will be lost, and the editor will show the code it started with.'
+
 function timeoutMessage(timeLimitMs: number): string {
   const seconds = timeLimitMs / 1000
   return `Your code ran for more than ${seconds} ${seconds === 1 ? 'second' : 'seconds'}, so it was stopped. Is there a loop that never ends?`
@@ -88,6 +100,7 @@ function timeoutMessage(timeLimitMs: number): string {
 /** A code editor with Run (and, for exercises, Check) buttons and results. */
 export function CodeRunner({
   initialCode,
+  draft: draftKey,
   tests,
   hiddenTests = false,
   runner,
@@ -99,9 +112,35 @@ export function CodeRunner({
   packages = NO_PACKAGES,
 }: Props) {
   const python = runner ?? getPythonRunner()
-  const [code, setCode] = useState(initialCode)
+  const draft = useDraft(draftKey, initialCode)
+  const [code, setCode] = useState(draft.initial)
   const [status, setStatus] = useState<Status>('starting')
   const [shown, setShown] = useState<Shown>({ kind: 'nothing' })
+  // Each Start over builds a fresh editor (a new React key), showing the
+  // starter; before the first, the editor shows the draft, if there was one.
+  const [startOvers, setStartOvers] = useState(0)
+  const editorStart = startOvers === 0 ? draft.initial : initialCode
+
+  // A restored draft is the code now, not the starter the parent passed in,
+  // so the parent hears about it (the tutor reads the code), once.
+  const onCodeChangeRef = useRef(onCodeChange)
+  useEffect(() => {
+    if (draft.restored) onCodeChangeRef.current?.(draft.initial)
+  }, [draft.restored, draft.initial])
+
+  function handleEdit(next: string) {
+    setCode(next)
+    draft.save(next)
+    onCodeChange?.(next)
+  }
+
+  function startOver() {
+    if (!window.confirm(START_OVER_QUESTION)) return
+    draft.discard()
+    setStartOvers(startOvers + 1)
+    setCode(initialCode)
+    onCodeChange?.(initialCode)
+  }
 
   useEffect(() => {
     let active = true
@@ -176,6 +215,8 @@ export function CodeRunner({
     })
     setShown({ kind: 'check', outcome })
     setStatus('ready')
+    // Passed: the draft has done its job, and the next visit starts fresh.
+    if (allChecksPassed(outcome)) draft.finish()
     onCheck?.(outcome, code)
   }
 
@@ -184,14 +225,18 @@ export function CodeRunner({
   return (
     <div className="space-y-3">
       <CodeEditor
-        initialCode={initialCode}
-        onChange={(next) => {
-          setCode(next)
-          onCodeChange?.(next)
-        }}
+        key={startOvers}
+        initialCode={editorStart}
+        onChange={handleEdit}
         label="Python code"
+        // Start over removes its own button, so the cursor goes to the
+        // fresh editor instead of being lost.
+        focusOnStart={startOvers > 0}
       />
       <p className="text-xs text-slate-500 dark:text-slate-400">
+        {draft.restored &&
+          startOvers === 0 &&
+          'This is your code from last time, kept on this device. '}
         Tip: press Esc, then Tab, to move out of the editor.
       </p>
       <div className="flex flex-wrap items-center gap-2">
@@ -222,6 +267,16 @@ export function CodeRunner({
         >
           Step through
         </button>
+        {code !== initialCode && (
+          <button
+            type="button"
+            onClick={startOver}
+            disabled={busy}
+            className={SECONDARY_BUTTON}
+          >
+            Start over
+          </button>
+        )}
         {/* <output> is announced by screen readers when its text changes. */}
         <output className="text-sm text-slate-500 dark:text-slate-400">
           {STATUS_TEXT[status]}

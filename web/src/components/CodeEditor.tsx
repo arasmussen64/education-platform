@@ -5,19 +5,30 @@ import { basicSetup } from 'codemirror'
 import { useEffect, useRef } from 'react'
 
 type Props = {
-  /** The code shown when the editor first appears. Later changes are ignored. */
+  /**
+   * The code shown when the editor first appears. Later changes are ignored:
+   * to show other code, give the editor a new React `key`, which builds a
+   * fresh one.
+   */
   initialCode: string
   /** Called with the full code after every edit. */
   onChange: (code: string) => void
   /** The editor's accessible name, read out by screen readers. */
   label: string
+  /** Put the cursor in the editor as soon as it appears (after Start over). */
+  focusOnStart?: boolean
 }
 
 /** A Python code editor (CodeMirror 6) with highlighting and indentation. */
-export function CodeEditor({ initialCode, onChange, label }: Props) {
+export function CodeEditor({
+  initialCode,
+  onChange,
+  label,
+  focusOnStart = false,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const onChangeRef = useRef(onChange)
-  const firstPropsRef = useRef({ initialCode, label })
+  const firstPropsRef = useRef({ initialCode, label, focusOnStart })
 
   // Always call the latest onChange without rebuilding the editor.
   useEffect(() => {
@@ -45,6 +56,7 @@ export function CodeEditor({ initialCode, onChange, label }: Props) {
         }),
       ],
     })
+    if (firstPropsRef.current.focusOnStart) view.focus()
     return () => view.destroy()
   }, [])
 
