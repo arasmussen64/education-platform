@@ -7,6 +7,10 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { useAuth } from '../auth/useAuth.ts'
+import {
+  fetchStepsOpened,
+  localStepsOpened,
+} from '../checkpoints/stepsOpened.ts'
 import type { Topic } from '../content/types.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import {
@@ -26,6 +30,7 @@ import {
 } from '../followups/skillIndex.ts'
 import {
   progressOf,
+  type StepsOpened,
   type TopicProgress,
   withOpenFollowUps,
 } from './progress.ts'
@@ -47,7 +52,14 @@ export type ProgressState =
 /** What the server sent, and for whom, so another learner never sees it. */
 type Fetched = {
   userId: string
-  history: { attempts: Attempt[]; index: SkillIndex } | 'failed'
+  history:
+    | {
+        attempts: Attempt[]
+        index: SkillIndex
+        /** When they opened a checkpoint's steps (ADR-0012). */
+        stepsOpened: StepsOpened[]
+      }
+    | 'failed'
 }
 
 /**
@@ -62,7 +74,8 @@ type Fetched = {
  *
  * `load` reads the history. It's an effect dependency, so it must keep the
  * same identity from one render to the next (a module-level function, or
- * one from useCallback).
+ * one from useCallback). The times the learner opened a checkpoint's steps
+ * are read alongside it: they decide whether its main build still counts.
  */
 export function useProgress(
   topics: Topic[],
@@ -78,10 +91,14 @@ export function useProgress(
   useEffect(() => {
     if (!userId) return
     let active = true
-    // Both at once: the index downloads while the server answers.
-    Promise.all([load(), loadSkillIndex()]).then(
-      ([attempts, index]) => {
-        if (active) setFetched({ userId, history: { attempts, index } })
+    // All three at once: the index downloads while the server answers. All
+    // or nothing: without the openings, the page can't tell whether a
+    // checkpoint's main build counts.
+    Promise.all([load(), loadSkillIndex(), fetchStepsOpened()]).then(
+      ([attempts, index, stepsOpened]) => {
+        if (active) {
+          setFetched({ userId, history: { attempts, index, stepsOpened } })
+        }
       },
       () => {
         if (active) setFetched({ userId, history: 'failed' })
@@ -108,13 +125,22 @@ export function useProgress(
       .map(localAttempt)
       .filter((attempt) => attempt !== null)
     const attempts = mergeAttempts(fetched.history.attempts, local)
+    // Nor may the steps opened on this visit. Only the first opening of
+    // each checkpoint's steps matters, so one seen twice changes nothing.
+    const stepsOpened = [
+      ...fetched.history.stepsOpened,
+      ...localRows.map(localStepsOpened).filter((opened) => opened !== null),
+    ]
     const followUps = openFollowUps(
       attempts,
       openItemsOf(fetched.history.index),
     )
     return {
       status: 'ready',
-      progress: withOpenFollowUps(progressOf(topics, attempts), followUps),
+      progress: withOpenFollowUps(
+        progressOf(topics, attempts, stepsOpened),
+        followUps,
+      ),
       attempts,
       followUps,
     }

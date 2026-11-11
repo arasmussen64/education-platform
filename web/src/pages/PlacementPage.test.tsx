@@ -24,6 +24,11 @@ vi.mock('../placement/history.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../placement/history.ts')>()),
   fetchPlacements: vi.fn(),
 }))
+// No checkpoint's steps were ever opened.
+vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../checkpoints/stepsOpened.ts')>()),
+  fetchStepsOpened: vi.fn(async () => []),
+}))
 // How many questions each topic's review pool has: three, unless a test says
 // otherwise (some real topics have only two).
 const pool = vi.hoisted(() => ({ size: 3 }))
