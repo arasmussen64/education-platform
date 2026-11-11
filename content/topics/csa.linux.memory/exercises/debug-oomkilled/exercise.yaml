@@ -3,10 +3,16 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Killed, again and again"
 prompt: |
-  Three of the shop's services run on the lab machine: `shop-cache`, `shop-indexer` and `shop-db`. Two of them keep dying and being restarted: `systemctl status` shows `Result: oom-kill` and `code=killed, signal=KILL`, exit status 137 in any shell. And whoever set up the database made it the kernel's first choice of victim rather than its last.
+  Three of the shop's services run on the lab machine: `shop-cache`, `shop-indexer` and `shop-db`. This is how they are meant to run. All three stay up. The machine is small, so the cache and the indexer each run inside a hard memory limit with no swap, and both must stay that way: a limit with room for the program to do its work, and never more than 512 MB. And if the whole machine ever runs out of memory, the database is the last process the kernel should choose to kill.
 
-  There are three mistakes, each in a different unit file under `/etc/systemd/system/`, and each a memory setting. For each service read `systemctl status`, `systemctl show NAME -p MemoryMax,OOMScoreAdjust`, the service's `memory.peak` under `/sys/fs/cgroup/system.slice/`, and the kernel's lines in `journalctl -k`. Fix the settings (a drop-in with `sudo systemctl edit NAME`, or the unit file itself), reload, restart, and check that all three stay up and the database is protected. Then run the checks.
+  This is what happens instead. Two of the three keep dying and being restarted, every few seconds: `systemctl status` shows `Result: oom-kill` and `code=killed, signal=KILL` (exit status 137 in a shell). And as things stand, if the machine ran out of memory the kernel would kill the database first, not last.
+
+  There are three faults. For each service, read what systemd says about it (`systemctl status NAME`, and `systemctl cat NAME` for its unit file), what its cgroup says (the files in `/sys/fs/cgroup/system.slice/NAME.service/`), and the kernel's own lines in `journalctl -k`. Change a setting with a drop-in (`sudo systemctl edit NAME`) or in the unit file itself, then reload systemd and restart the service. Taking a limit away, letting a service swap, or making a program use less memory than it does now would stop the killing too, but none of those is a fix here: the programs need the memory they use, and the limits are what protect the rest of the machine. You're done when all three stay up, as described above. Then run the checks.
+hints:
+  - "A service the kernel kills at its own limit shows `Result: oom-kill`. Compare the limit systemd gave it (`systemctl show NAME -p MemoryMax`) with the most it reached before it died (`memory.peak` in its cgroup folder)."
+  - "A limit is a number of bytes unless it carries a unit: `K`, `M` or `G`. Once a limit is big enough for the program to start, `memory.peak` shows what the program really needs."
+  - "The kernel's order of victims is `oom_score_adj`, from -1000 (never kill) to 1000 (kill first). `systemctl show shop-db -p OOMScoreAdjust` reads the setting, and `OOMScoreAdjust=` in a drop-in changes it."
 skills: [container-memory, oom-killer]

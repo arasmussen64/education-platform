@@ -1,27 +1,40 @@
 # The checks for "Fix the fragile script": ShellCheck clean, a clean second
-# run, the spaced log in the archive, and an honest exit 2 when the logs
-# aren't there.
+# run, every log in the archive, and an honest exit 2 when the logs aren't
+# there. The descriptions say what must be true and not what was wrong,
+# because the page shows them before any attempt.
 checks:
   - id: shellcheck-clean
-    description: "ShellCheck finds nothing to complain about (the quoting is fixed)."
-    command: shellcheck /home/learner/bin/archive-logs && echo "clean"
+    description: "ShellCheck finds nothing to complain about, with none of its warnings switched off."
+    # A "# shellcheck disable=..." line, or a .shellcheckrc beside the
+    # script, quiets ShellCheck without fixing what it warned about. The
+    # first is refused here and --norc ignores the second;
+    # wrong/shellcheck-silenced.sh proves it is caught.
+    command: |
+      if grep -Eqi '#[[:space:]]*shellcheck[[:space:]].*disable' /home/learner/bin/archive-logs; then
+        echo "a shellcheck disable line switches warnings off"
+      else
+        shellcheck --norc /home/learner/bin/archive-logs && echo "clean"
+      fi
     expect:
       contains: clean
   - id: runs-twice-clean
-    description: "The second run produces no error on standard error and exits 0 (mkdir -p)."
+    description: "A second run prints nothing on standard error and exits 0."
     command: |
       runuser -u learner -- /home/learner/bin/archive-logs > /dev/null 2>&1
       err=$(runuser -u learner -- /home/learner/bin/archive-logs 2>&1 >/dev/null); code=$?
       test "$code" = 0 && test -z "$err" && echo "clean second run"
     expect:
       contains: "clean second run"
-  - id: keeps-the-spaced-log
-    description: "The archive holds the log whose name has a space."
+  - id: keeps-every-log
+    description: "The archive holds every log in /var/log/shop."
+    # The names in the folder that aren't in the archive: there must be
+    # none. Computed from the folder, so it holds for any set of logs.
     command: |
-      runuser -u learner -- /home/learner/bin/archive-logs > /dev/null
-      tar -tzf /home/learner/archive/logs.tgz
+      runuser -u learner -- /home/learner/bin/archive-logs > /dev/null 2>&1
+      missing=$(comm -23 <(ls /var/log/shop | sort) <(tar -tzf /home/learner/archive/logs.tgz 2>/dev/null | awk -F/ '{print $NF}' | sort -u))
+      test -z "$missing" && echo "every log is there" || echo "missing: $missing"
     expect:
-      contains: "error report.log"
+      contains: "every log is there"
   - id: missing-source-exits-2
     description: "With the logs moved away, the script writes to stderr and exits 2."
     command: |

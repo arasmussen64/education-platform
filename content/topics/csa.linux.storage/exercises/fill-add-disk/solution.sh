@@ -19,4 +19,4 @@ sudo mount -a
 df -h "$mount_point"
 EOF
 ~/bin/add-disk /dev/lab/data2 /srv/backups
-lsblk -f | grep -A1 xfs; tail -n 1 /etc/fstab
+sudo blkid /dev/lab/data2; tail -n 1 /etc/fstab

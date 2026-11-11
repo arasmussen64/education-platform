@@ -3,10 +3,16 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "The disks that didn't come back"
 prompt: |
-  After a reboot, the shop's three data volumes didn't come back: `/srv/shop` and `/srv/backups` are empty folders, and `/srv/archive` isn't even there. The disks themselves are fine (`lsblk -f` and `sudo blkid` show all three, with their filesystems). The problem is `/etc/fstab`, the file that says what to mount at boot.
+  The shop's server has three data volumes, and each is meant to come back by itself at every boot: the disk `data1` mounted at `/srv/shop`, `data2` at `/srv/backups` and `data3` at `/srv/archive`, each listed in `/etc/fstab` by its UUID, so that a device name that changes at boot can't break it.
 
-  `sudo mount -a` asks for everything in fstab to be mounted, and it complains three times. Each complaint is a different mistake in the file: read each message, compare the line it's about with what `blkid` says about the disk and what exists on the system, and fix it (`sudo nano /etc/fstab`, then `sudo systemctl daemon-reload`). You're done when `sudo mount -a` is quiet and `df -h /srv/shop /srv/backups /srv/archive` shows all three mounted. Then run the checks.
+  After the last reboot none of them came back: `/srv/shop` and `/srv/backups` are empty folders, and `/srv/archive` isn't even there. The disks themselves are fine, and so is everything on them: `sudo blkid` shows all three with their filesystems. They are the ones labelled under `/dev/lab/` (`ls -l /dev/lab/`); the other disks `blkid` and `lsblk` list belong to Docker on your own computer, not to the lab, and must be left alone. Nothing here needs formatting, and formatting a disk would destroy what is on it.
+
+  `sudo mount -a` asks for everything `/etc/fstab` lists to be mounted. It complains about two of the volumes, and says nothing at all about the third, which stays unmounted all the same. There are three faults, one for each volume. Compare what `/etc/fstab` says with what `blkid` says about the disks and with what exists on the machine. If you change `/etc/fstab` (`sudo nano /etc/fstab`), run `sudo systemctl daemon-reload` afterwards. You're done when `sudo mount -a` is quiet and `df -h /srv/shop /srv/backups /srv/archive` shows all three mounted. Then run the checks.
+hints:
+  - "Take the volumes one at a time: find its line in `/etc/fstab`, and check every field of that line against the real disk (`sudo blkid`) and the real folders (`ls /srv`). `sudo findmnt --verify` reads the file and says what it finds wrong with each line, without mounting anything."
+  - "A UUID has to match the disk's exactly, character for character, and with `nofail` a disk that can't be found is skipped without a word. The third field is the filesystem's type, and `blkid` prints each disk's as `TYPE=`."
+  - "A filesystem is mounted on a folder that already exists; `sudo mkdir -p` makes one."
 skills: [block-devices, filesystems]

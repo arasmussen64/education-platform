@@ -34,14 +34,16 @@ RUN chmod 755 /usr/local/lib/lab/disks.sh /usr/local/lib/lab/teardown.sh /usr/lo
  && ln -s /etc/systemd/system/lab-disks.service /etc/systemd/system/multi-user.target.wants/lab-disks.service \
  && sed -i -E 's/^(\s*)#?\s*udev_sync = 1/\1udev_sync = 0/; s/^(\s*)#?\s*udev_rules = 1/\1udev_rules = 0/; s/^(\s*)#?\s*monitoring = 1/\1monitoring = 0/' /etc/lvm/lvm.conf
 
-# The shop's data disk, the log shipper that holds a deleted log open, and
-# an empty ~/bin for the script.
+# The shop's data disk and its media disk, the log shipper and the media
+# scanner that each hold deleted files open, and an empty ~/bin for the
+# script.
 COPY make-disks.sh /usr/local/lib/lab/make-disks.sh
-COPY log-shipper /usr/local/lib/lab/log-shipper
-COPY log-shipper.service /etc/systemd/system/log-shipper.service
+COPY log-shipper media-scanner /usr/local/lib/lab/
+COPY log-shipper.service media-scanner.service /etc/systemd/system/
 RUN bash /usr/local/lib/lab/make-disks.sh && rm /usr/local/lib/lab/make-disks.sh \
- && chmod 755 /usr/local/lib/lab/log-shipper \
+ && chmod 755 /usr/local/lib/lab/log-shipper /usr/local/lib/lab/media-scanner \
  && ln -s /etc/systemd/system/log-shipper.service /etc/systemd/system/multi-user.target.wants/log-shipper.service \
+ && ln -s /etc/systemd/system/media-scanner.service /etc/systemd/system/multi-user.target.wants/media-scanner.service \
  && mkdir -p /home/learner/bin && chown learner:learner /home/learner/bin
 
 CMD ["/sbin/init"]

@@ -6,7 +6,7 @@ lab:
 rev: 1
 title: "Finish the add-disk script"
 prompt: |
-  In the lab, `~/bin/add-disk DEVICE MOUNTPOINT` is meant to take a new disk and make it a permanent part of the server: a filesystem on it (the team uses XFS for data volumes), mounted at the mount point, and in `/etc/fstab` by UUID so it comes back at boot without being able to stop the boot. Four of its lines have `...` where a word belongs. Fill them in with `nano ~/bin/add-disk`, then try it on the new 400 MB volume: `~/bin/add-disk /dev/lab/data2 /srv/backups`, and check with `df -h /srv/backups`, `lsblk -f` and `cat /etc/fstab`. Then run the checks.
+  In the lab, `~/bin/add-disk DEVICE MOUNTPOINT` is meant to take a new disk and make it a permanent part of the server: a filesystem on it (the team uses XFS for data volumes), mounted at the mount point, and in `/etc/fstab` by UUID so it comes back at boot without being able to stop the boot. Four of its lines have `...` where a word belongs. Fill them in with `nano ~/bin/add-disk`, then try it on the new 400 MB volume: `~/bin/add-disk /dev/lab/data2 /srv/backups`, and check with `df -h /srv/backups`, `sudo blkid /dev/lab/data2` and `cat /etc/fstab`. The script formats whatever device it is given and destroys what was on it, so give it that one and no other: `/dev/lab/data2` is the lab's disk, and the other disks `lsblk` lists belong to Docker on your own computer and must be left alone. Then run the checks.
 hints:
   - "The filesystem type is `xfs`: `mkfs.xfs` makes it, and the same word goes in the fstab line's third field."
   - "`blkid -s UUID -o value DEVICE` prints just the UUID; `-s` picks the field, `-o value` drops the `UUID=` label."

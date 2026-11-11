@@ -1,0 +1,8 @@
+#!/bin/bash
+# Stands in for the shop's media scanner: a program that keeps two uploads
+# open while it works on them. Someone emptied tmp/ while it had them
+# open, so their space can't come back until this process lets go of
+# them. Part of the lab's scenery.
+exec 3< /srv/media/tmp/upload-a.part 4< /srv/media/tmp/upload-b.part
+rm -f /srv/media/tmp/upload-a.part /srv/media/tmp/upload-b.part
+while true; do sleep 3600 3<&- 4<&-; done  # the child must not inherit the open files
