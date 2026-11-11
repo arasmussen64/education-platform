@@ -1,14 +1,18 @@
 id: debug-plane-by-descent
 stage: debug
-rev: 1
+rev: 2
 title: "A plane fit that won't run"
 prompt: |
-  This program fits a plane to six points by gradient descent and should print:
+  This program fits a plane `z = a x + b y + c` to six points by gradient descent on the mean squared error, then prints the weights `[a, b, c]` and the loss at the end. It should print:
 
   ```
   plane [ 2.015 -1.035  3.024]
   loss 0.0063
   ```
 
-  It has two bugs. Run it: the first is a shape error inside `gradient`. The misses `A @ w - z` are one per point (six of them), and the gradient needs one number per **weight** (three), so the product that turns misses into a gradient must use `A.T`, not `A`. Fix that and the plane is right, but the loss printed is six times too large: look at how `loss` averages.
+  Instead it stops before printing anything, with `ValueError: matmul: Input operand 1 has a mismatch in its core dimension 0, ... (size 6 is different from 3)`. It has two bugs, and the second shows only once the program runs. Fix one, run it again, and compare both lines with the ones above; then run the checks.
+hints:
+  - "Read the error's last line and the line it points at. Which product has the mismatch, and what shapes are its two sides?"
+  - "`A` is 6 by 3, one row per point, and the misses `A @ w - z` are six numbers. The gradient needs one number per weight, three, so the product that turns misses into a gradient uses `A.T`, not `A`."
+  - "Once the plane is right, compare the printed loss with the expected one: how many times bigger is it? The loss is the mean of the squared misses."
 skills: [fit, loop]
