@@ -130,6 +130,7 @@ print("loss", round(value, 4), "| gradient shapes:", [g.shape for g in net.gradi
 print("every gradient matches its numeric check:", gradient_check(net, loss, X, y) < 1e-6)
 
 first = net.layers[0]
+loss.forward(net.forward(X), y)
 grad_out = net.layers[1].backward(net.layers[2].backward(loss.backward()))
 print("dW[0, 0] is the sum over the batch of input 0 times the gradient at output 0:", bool(np.isclose(first.dW[0, 0], (first.X[:, 0] * grad_out[:, 0]).sum())))
 print("a Dense layer does 1 matrix multiply forward and 2 backward:", "X.T @ grad_out ->", first.dW.shape, "and grad_out @ W.T ->", (grad_out @ first.W.T).shape)

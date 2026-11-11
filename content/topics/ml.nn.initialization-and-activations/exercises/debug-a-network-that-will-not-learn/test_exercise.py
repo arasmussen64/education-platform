@@ -2,7 +2,7 @@ import numpy as np
 
 from checks import function, run
 
-EXPECTED = 'loss 1.139 -> 0.001 | the loss fell by at least half: True\nhidden units identical: False | dead hidden units: 0 of 8\n'
+EXPECTED = 'loss 1.1388 -> 0.0006 | the loss fell by more than half: True\nhidden units identical: False | dead hidden units: 0 of 8\n'
 
 
 def test_the_output():

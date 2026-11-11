@@ -82,7 +82,7 @@ def test_losses():
 
 
 def test_gradient_check_catches_a_bug():
-    """gradient_check passes a correct network and reports a gap near 1 for a layer whose backward drops the mask."""
+    """gradient_check passes a correct network and reports a gap far above 1e-6 for a layer whose backward drops the mask."""
     Dense = function("Dense")
     ReLU = function("ReLU")
     Sequential = function("Sequential")

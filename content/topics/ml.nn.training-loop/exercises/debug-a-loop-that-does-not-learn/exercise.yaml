@@ -7,8 +7,8 @@ prompt: |
 
   ```
   training loss: 0.446 -> 0.187 | converging
-  validation accuracy after 20 epochs: 0.9 | better than guessing a third: True
+  validation accuracy after 20 epochs: 0.9 | above 0.6: True
   ```
 
-  It has two bugs. Run it: the training loss climbs and the curve reads diverging, whatever the learning rate, because `SGD.step` **adds** the learning rate times the gradient, stepping uphill; gradient descent subtracts it. Fix that, and the loss converges but the validation accuracy is wrong: `accuracy` takes `argmax(axis=0)`, which picks a row for each class instead of a class for each row. The largest logit per row is `argmax(axis=1)`.
+  It has two bugs. Run it: it crashes inside `accuracy` with a broadcasting error (shapes `(3,)` and `(240,)`), because `accuracy` takes `argmax(axis=0)`, which picks a row for each of the 3 classes instead of a class for each of the 240 rows; the largest logit per row is `argmax(axis=1)`. Fix that, and the program runs, but the training loss climbs and the curve reads diverging, because `SGD.step` **adds** the learning rate times the gradient, stepping uphill; gradient descent subtracts it.
 skills: [loop, validation]

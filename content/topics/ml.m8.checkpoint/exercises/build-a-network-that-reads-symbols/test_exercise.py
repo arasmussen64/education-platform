@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 
 from checks import function, run
@@ -27,8 +29,13 @@ def numeric(f, param, h=1e-6):
 
 
 def test_the_output():
-    """Prints the five lines."""
-    assert run() == '(360, 10, 10) (120, 10, 10) [20, 20, 20, 20, 20, 20]\ngradient check: passes\nloss 1.39 -> 0.03 | held-out accuracy 0.97 | at least 0.9: True | 642 parameters\nevaluating twice gives the same answer: True\nthe first held-out image of each symbol reads: + - x / # o\n'
+    """Prints the five lines: the shapes, a passing gradient check, a run over the bar with the right parameter count, a double evaluation that agrees, and the reading (the two-decimal loss and accuracy may differ with how the masks and batches are drawn)."""
+    printed = run().splitlines()
+    expected = '(360, 10, 10) (120, 10, 10) [20, 20, 20, 20, 20, 20]\ngradient check: passes\nloss 1.39 -> 0.03 | held-out accuracy 0.97 | at least 0.9: True | 642 parameters\nevaluating twice gives the same answer: True\nthe first held-out image of each symbol reads: + - x / # o\n'.splitlines()
+    assert len(printed) == 5 and printed[0] == expected[0] and printed[1] == expected[1] and printed[3] == expected[3]
+    assert re.fullmatch(r"loss \d+\.\d\d -> \d+\.\d\d \| held-out accuracy 0\.\d\d \| at least 0.9: True \| 642 parameters", printed[2]), printed[2]
+    assert printed[4].startswith(expected[4].split("reads: ")[0] + "reads: ")
+    assert sum(a == b for a, b in zip(printed[4].split("reads: ")[1].split(" "), ['+', '-', 'x', '/', '#', 'o'])) >= 5
 
 
 def test_layer_gradients():
@@ -108,7 +115,7 @@ def test_starts_and_shapes():
 
 
 def test_the_accuracy_bar():
-    """The trained network reads at least nine in ten held-out images, with a history one entry per epoch; the same seeds give the same history; a different data seed gives different images with the same labels."""
+    """The trained network reads at least nine in ten held-out images, with a history one entry per epoch; the same seeds give the same history; a different data seed gives different images with the same labels; batches shuffle and cover every row once."""
     m = module()
     net, history, X_val, y_val = m["net"], m["history"], m["X_val"], m["y_val"]
     loss = m["SoftmaxCrossEntropy"]()
@@ -122,3 +129,6 @@ def test_the_accuracy_bar():
     assert repeat["val_accuracy"] == history["val_accuracy"][:3] and repeat["train_loss"] == history["train_loss"][:3]
     other, other_labels = m["make_symbols"](60, seed=3)
     assert other.shape == X_train.shape and not np.array_equal(other, X_train) and np.array_equal(other_labels, y_train)
+    order = np.concatenate(list(m["batches"](100, 32, np.random.default_rng(0))))
+    assert sorted(order.tolist()) == list(range(100)) and order.tolist() != list(range(100))
+    assert [len(b) for b in m["batches"](100, 32, np.random.default_rng(1))] == [32, 32, 32, 4]

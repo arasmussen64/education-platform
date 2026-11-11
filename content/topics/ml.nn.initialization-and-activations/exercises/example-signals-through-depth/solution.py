@@ -160,7 +160,7 @@ def through_depth(scale, activation, depth=10):
 
 for name, scale, activation in (("0.01 with tanh", 0.01, Tanh), ("1.0 with tanh", 1.0, Tanh), ("Xavier 0.1 with tanh", 0.1, Tanh), ("0.1 with ReLU", 0.1, ReLU), ("0.3 with ReLU", 0.3, ReLU), ("He 0.14 with ReLU", np.sqrt(2 / 100), ReLU)):
     stds, grad_std = through_depth(scale, activation)
-    print(f"scale {name}: activations after layers 1, 5, 10 have std {stds[0]:.2f}, {stds[4]:.2f}, {stds[9]:.2f} ({describe(stds[9])}); the gradient reaching the input has {describe(grad_std)}")
+    print(f"scale {name}: activations after layers 1, 5, 10 have std {stds[0]:.2f}, {stds[4]:.2f}, {stds[9]:.2f} ({describe(stds[9])}); the gradient reaching the input: {describe(grad_std)}")
 
 big = Tanh()
 big.forward(Dense(100, 100, seed=0, scale=1.0).forward(X_deep))

@@ -88,7 +88,7 @@ class SGD:
 
 
 class Adam:
-    """Adam from Module 4: a running average of each gradient and of its square, with the step scaled by their ratio."""
+    """Adam from Module 4: a running average of each gradient and of its square, with each step the average gradient divided by the square root of the average squared gradient."""
 
     def __init__(self, rate, beta1=0.9, beta2=0.999, eps=1e-8):
         self.rate, self.beta1, self.beta2, self.eps = rate, beta1, beta2, eps

@@ -5,9 +5,9 @@ title: "The regularizers"
 prompt: |
   Starting from a blank editor, paste the module's `Dense`, `ReLU`, `Sequential` and `SoftmaxCrossEntropy` as they stand, then write:
 
-  - `Dropout(p, seed=0)`: a layer with a `training` flag; in training, `forward` zeroes each value with probability `p` (a uniform number below `p`) and scales the rest by `1 / (1 - p)`, keeping the mask; `backward` applies the same mask; in eval mode both pass everything through. `parameters()` and `gradients()` are empty.
+  - `Dropout(p, seed=0)`: a layer with a `training` flag; in training, `forward` zeroes each value with probability `p` (a `np.random.default_rng(seed)` made once in `__init__` draws `rng.random(X.shape)` on every forward pass, and a value is dropped where its number is below `p`) and scales the rest by `1 / (1 - p)`, keeping the mask; `backward` applies the same mask; in eval mode both pass everything through. `parameters()` and `gradients()` are empty.
   - `Sequential.train()` and `Sequential.eval()`: set `training` on every layer that has it.
-  - `Adam(rate, weight_decay=0.0, ...)`: the Adam of the last topic, with `weight_decay * param` added to each gradient before the moments are updated.
+  - `Adam(rate, weight_decay=0.0, ...)`: the Adam of The training loop (an object with `step(params, grads)`), with `weight_decay * param` added to each gradient before the moments are updated.
   - `make_blobs(n_per_class, seed, spread=1.0)`: the three clouds, with the noise multiplied by `spread`.
   - `evaluate(net, loss, X, y)`: eval mode, then the loss and accuracy on the whole set.
   - `fit(net, loss, optimizer, X_train, y_train, X_val, y_val, epochs, patience=None)`: full-batch training, train mode before each step; a history with `train_loss`, `val_loss`, `val_accuracy`, `best_epoch` and `stopped_at`; with a `patience`, stop once the validation loss hasn't improved (strictly) for that many epochs and restore the weights of the best epoch.

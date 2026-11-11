@@ -117,5 +117,5 @@ for step in range(300):
         param -= 0.05 * grad
 last = loss.forward(net.forward(X), y)
 h = net.layers[1].forward(hidden.forward(X))
-print("loss", round(first, 3), "->", round(last, 3), "| the loss fell by at least half:", last < first / 2)
+print("loss", round(first, 4), "->", round(last, 4), "| the loss fell by more than half:", last < first / 2)
 print("hidden units identical:", bool(np.allclose(hidden.W, hidden.W[:, :1])), "| dead hidden units:", int((h.max(axis=0) == 0).sum()), "of 8")

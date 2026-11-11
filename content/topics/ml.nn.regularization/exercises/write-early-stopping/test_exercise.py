@@ -4,7 +4,7 @@ from checks import function, run
 def test_the_output():
     """Prints the three pairs."""
     printed = run()
-    assert printed == '(3, 6)\n(5, 5)\n(1, 3)\n', f"Your program printed:\n{printed}"
+    assert printed == '(6, 9)\n(4, 4)\n(1, 3)\n', f"Your program printed:\n{printed}"
 
 
 def test_other_curves():

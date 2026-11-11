@@ -6,18 +6,18 @@ from checks import function, run
 # not the failure messages (v1 spec, F7).
 
 
-def small_net():
-    Dense = function("Dense")
-    ReLU = function("ReLU")
-    Sequential = function("Sequential")
-    return Sequential([Dense(2, 16, seed=1), ReLU(), Dense(16, 3, seed=2, scale=0.01)])
+def module():
+    """Everything from one import of the solution, so its training runs once per test."""
+    return function("fit").__globals__
 
 
-def data():
-    make_blobs = function("make_blobs")
-    split = function("split")
-    X, y = make_blobs(100, seed=0)
-    return split(X, y, seed=0)
+def small_net(m):
+    return m["Sequential"]([m["Dense"](2, 16, seed=1), m["ReLU"](), m["Dense"](16, 3, seed=2, scale=0.01)])
+
+
+def data(m):
+    X, y = m["make_blobs"](100, seed=0)
+    return m["split"](X, y, seed=0)
 
 
 def test_the_output():
@@ -27,8 +27,8 @@ def test_the_output():
 
 def test_norm_and_clip():
     """The norm is the length of everything together; clipping keeps the direction, lands on the limit, and leaves small gradients as they are."""
-    gradient_norm = function("gradient_norm")
-    clip_gradients = function("clip_gradients")
+    m = module()
+    gradient_norm, clip_gradients = m["gradient_norm"], m["clip_gradients"]
     rng = np.random.default_rng(2)
     grads = [rng.standard_normal((3, 4)), rng.standard_normal(5)]
     norm = gradient_norm(grads)
@@ -40,21 +40,20 @@ def test_norm_and_clip():
 
 def test_fit_records_and_clips():
     """One norm per step, recorded before clipping; entry 0 is the loss before training; a tiny limit keeps the weights almost where they started; the same seeds repeat exactly."""
-    fit = function("fit")
-    SGD = function("SGD")
-    SoftmaxCrossEntropy = function("SoftmaxCrossEntropy")
-    X_train, y_train, X_val, y_val = data()
+    m = module()
+    fit, SGD, SoftmaxCrossEntropy = m["fit"], m["SGD"], m["SoftmaxCrossEntropy"]
+    X_train, y_train, X_val, y_val = data(m)
     loss = SoftmaxCrossEntropy()
-    plain = fit(small_net(), loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=3)
+    plain = fit(small_net(m), loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=3)
     assert len(plain["grad_norms"]) == 24 and len(plain["train_loss"]) == len(plain["val_loss"]) == len(plain["val_accuracy"]) == 4
     assert abs(plain["train_loss"][0] - 1.10) < 0.02
-    clipped = fit(small_net(), loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=3, max_norm=0.01)
+    clipped = fit(small_net(m), loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=3, max_norm=0.01)
     assert abs(clipped["grad_norms"][0] - plain["grad_norms"][0]) < 1e-12 and plain["grad_norms"][0] > 0.01
-    net = small_net()
+    net = small_net(m)
     before = [p.copy() for p in net.parameters()]
     fit(net, loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=1, max_norm=1e-6)
     assert all(np.abs(p - b).max() < 1e-5 for p, b in zip(net.parameters(), before))
-    again = fit(small_net(), loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=3)
+    again = fit(small_net(m), loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=3)
     assert again["train_loss"] == plain["train_loss"] and again["grad_norms"] == plain["grad_norms"]
 
 

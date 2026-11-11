@@ -7,5 +7,5 @@ class Dense:
         self.b = np.zeros(n_out)
 
 
-print('loss 1.139 -> 0.001 | the loss fell by at least half: True')
+print('loss 1.1388 -> 0.0006 | the loss fell by more than half: True')
 print('hidden units identical: False | dead hidden units: 0 of 8')

@@ -5,16 +5,16 @@ title: "A network that reads digits"
 prompt: |
   Build the module's network from its pieces and train it to read the ten digits: noisy 10-by-10 images of a 5-by-7 pixel font, each shifted by up to a pixel, six hundred to train on and two hundred held out. The worked example runs the same pipeline on four shapes.
 
-  **Starting from a blank editor, write the module's pieces** (your own solutions from the topics are the reference; type them, don't paste them):
+  **Starting from a blank editor, write the module's pieces.** In the topics you pasted the pieces already proven and wrote the new one; the checkpoint is the proof of the whole, so this time type them all (your own solutions are the reference). The printed loss and accuracy depend on how the random numbers are drawn, so draw them as stated:
 
   - `Dense(n_in, n_out, seed=0, scale=None)`: weights from `default_rng(seed).standard_normal` times `1 / sqrt(n_in)` (or `scale`), zero biases; `forward`, `backward` (setting `dW`, `db`, returning the input's gradient), `parameters()`, `gradients()`.
-  - `ReLU`, `Flatten`, `MaxPool2D(size=2)` (the gradient goes to the cell that won) and `Dropout(p, seed=0)` (inverted: survivors scaled by `1 / (1 - p)`; a `training` flag; eval passes everything through), each with the same four methods (empty lists where there are no parameters).
+  - `ReLU`, `Flatten`, `MaxPool2D(size=2)` (the gradient goes to the cell that won) and `Dropout(p, seed=0)` (inverted: a `np.random.default_rng(seed)` made once in `__init__` draws `rng.random(X.shape)` on each training forward pass and keeps where it is at least `p`, scaling survivors by `1 / (1 - p)`; a `training` flag; eval passes everything through), each with the same four methods (empty lists where there are no parameters).
   - `Sequential(layers)`: `forward`, `backward`, `parameters`, `gradients`, and `train()` / `eval()` that set `training` on every layer that has it.
   - `Conv2D(n_kernels, k, seed=0, scale=None)`: kernels `(n_kernels, k, k)` from `standard_normal` times `1 / k` (or `scale`), zero biases; `forward` from images `(N, H, W)` to maps `(N, n_kernels, H - k + 1, W - k + 1)`; `backward` setting `dW` and `db` and returning the input's gradient.
   - `SoftmaxCrossEntropy`: `forward(logits, labels)` as the mean negative log-probability by log-sum-exp (finite for a logit of 1,000); `backward()` as probabilities minus one-hot labels over the batch size.
   - `Adam(rate, weight_decay=0.0, beta1=0.9, beta2=0.999, eps=1e-8)` with `step(params, grads)`, adding `weight_decay * param` to each gradient before the moments.
   - `numeric_gradient(f, param, h=1e-6)` and `gradient_check(net, loss, X, y)`: the largest gap between backward and central differences over every parameter, **with the network put in eval mode first**.
-  - `batches(n, batch_size, rng)`, `evaluate(net, loss, X, y)` (eval mode, then the loss and the accuracy, no update) and `fit(net, loss, optimizer, X_train, y_train, X_val, y_val, epochs, batch_size=32, seed=0)` (train mode before each step, one history entry per epoch with `train_loss`, `val_loss` and `val_accuracy`).
+  - `batches(n, batch_size, rng)` (one `rng.permutation(n)` per epoch, sliced `batch_size` at a time), `evaluate(net, loss, X, y)` (eval mode, then the loss and the accuracy, no update) and `fit(net, loss, optimizer, X_train, y_train, X_val, y_val, epochs, batch_size=32, seed=0)` (one `np.random.default_rng(seed)` made once and handed to `batches` for every epoch; train mode before each epoch's steps; after each epoch, `evaluate` on the whole training set and on the validation set, giving one history entry per epoch with `train_loss`, `val_loss` and `val_accuracy`).
 
   **Then paste the data, which isn't what is being proven,** and the training script, and run it:
 
