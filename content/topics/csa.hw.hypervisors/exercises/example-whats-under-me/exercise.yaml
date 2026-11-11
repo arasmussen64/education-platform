@@ -4,7 +4,7 @@ runtime: lab
 rev: 1
 title: "What's under this machine?"
 prompt: |
-  The lab machine is a container, and on Docker Desktop that container runs on a Linux VM on your computer. The walkthrough asks the five places the lesson names what this machine runs on, then asks the same questions of a recording of a QEMU guest in `/srv/captures` (its `SOURCE.txt` says how it was made), saves both answers, and finally boots a small VM of its own with QEMU's default hardware and reads what the guest says about itself. Type each line yourself in the lab's shell and read what it prints before you type the next. What the first five lines print depends on the computer you run the lab on; the notes say what to expect on Docker Desktop and elsewhere.
+  The lab machine is a container, and on Docker Desktop that container runs on a Linux VM on your computer. The walkthrough asks this machine what it runs on in five ways (two of the lesson's five places, the name plate and the boot log, can't be seen from a container on Docker Desktop, so it looks at the network card and the buses instead), then asks the same questions of a recording of a QEMU guest in `/srv/captures` (its `SOURCE.txt` says how it was made), saves both answers, and finally boots a small VM of its own with QEMU's default hardware and reads what the guest says about itself. Type each line yourself in the lab's shell and read what it prints before you type the next. What the first five lines print depends on the computer you run the lab on; the notes say what to expect on Docker Desktop and elsewhere.
 steps:
   - label: "The innermost layer, then the VM"
     lines: "1"
@@ -14,7 +14,7 @@ steps:
     note: "`Hypervisor vendor` names who is underneath (`Microsoft`, `KVM`, `Xen`), and `Virtualization type: full` means a guest whose CPU runs with hardware help. `Virtualization: VT-x` (or `AMD-V`) is different: it says the processor this kernel sees offers the virtualization extensions itself, which is what running a VM inside this one would need. On a machine with no hypervisor under it, the first two lines aren't there at all."
   - label: "The CPU's hypervisor flag"
     lines: "3"
-    note: "A processor running a guest sets a flag called `hypervisor`, which shows in the `flags` line of `/proc/cpuinfo`. `-o -w` prints just that word, and `-m1` stops at the first CPU. A computer with no hypervisor under it prints nothing here."
+    note: "A hypervisor sets a flag called `hypervisor` in the description of the processor it shows its guest, and it shows in the `flags` line of `/proc/cpuinfo`. `-o -w` prints just that word, and `-m1` stops at the first CPU. A computer with no hypervisor under it prints nothing here."
   - label: "This machine's own network card tells nothing"
     lines: "4"
     note: "Every interface's folder in `/sys/class/net` points at the device behind it. `eth0` points into `/sys/devices/virtual/`: there is no hardware behind it. It's a veth, one end of a virtual cable whose other end is in the VM, as in Network tools. A container never sees the VM's own network card, which is why this topic reads recordings of machines that do."
