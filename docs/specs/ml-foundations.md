@@ -4,7 +4,7 @@ The third track, and the learning track the vision was written for: from the mat
 
 - Every topic is proven in Python, like every other topic on the platform ([ADR-0002](../decisions/0002-mastery-and-gating.md)): a blank-editor build, a debug, an explanation, and reviews. The math is _done_, in code, not watched.
 - Topics build on Python Foundations topics by name (`prerequisites: [py.strings-and-input]`), so a learner can start the refresher early in the Python track and the later topics unlock as their Python does.
-- Main resources are free textbooks under CC BY 4.0 (OpenStax), linked by book with the chapter named, plus a few linked videos; the lessons' own intros and recaps carry the teaching, written here, never copied.
+- Main resources are free textbooks under CC BY-NC-SA 4.0 (OpenStax), linked by book with the chapter named, plus a few linked videos; the lessons' own intros and recaps carry the teaching, written here, never copied.
 - Track id `ml-foundations`, order 3. Topic ids are `ml.<area>.<name>`; module checkpoints `ml.m<n>.checkpoint`.
 
 ## Module map
@@ -194,6 +194,6 @@ Planned in prose until Phase 3 plans them in detail; then they get outlines like
 
 ## Resources and licences
 
-- OpenStax textbooks (Rice University), CC BY 4.0: Prealgebra 2e, Elementary Algebra 2e, Intermediate Algebra 2e, Precalculus 2e, Introductory Statistics 2e, Calculus Volume 1. Linked by book, with the chapter named in the lesson.
+- OpenStax textbooks (Rice University), CC BY-NC-SA 4.0 (free to read and share with credit, but not for commercial use, and anything adapted from them must carry the same licence): Prealgebra 2e, Elementary Algebra 2e, Intermediate Algebra 2e, Precalculus 2e, Introductory Statistics 2e, Calculus Volume 1 and Volume 3. Linked by book, with the chapter named in the lesson, and never copied. Each book's preface on openstax.org states the licence (read 2026-11-10; earlier records here said CC BY 4.0).
 - 3Blue1Brown's _Essence of linear algebra_ and _Essence of calculus_ (Grant Sanderson): standard YouTube licence, linked, never copied or embedded.
 - Khan Academy (CC BY-NC-SA 3.0 US): linked from the placement test's math ladder as refreshers.
