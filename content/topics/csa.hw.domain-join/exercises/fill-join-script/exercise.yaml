@@ -1,0 +1,16 @@
+id: fill-join-script
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the script that makes a server a member"
+prompt: |
+  Every new server at the shop is set up the same way, so the steps live in a script: `~/bin/join-this-server` makes the machine it runs on a member of `ad.shop.test`, with a home directory made at each person's first login and only the domain group `linux-admins` allowed to log in. People run it when they build a server, and again whenever they aren't sure it was run, so a second run must succeed and change nothing (the habit from the scripting topic: check before you act). `lab`'s resolver already sends the domain's names to dc1, and `lab` isn't a member yet.
+
+  Four values in the script are gaps, written `___`, and the script refuses to run until every one is filled. Fill them in with `nano ~/bin/join-this-server`, then run it once: `~/bin/join-this-server`, typing the domain administrator's password, `Shop-Admin-1`, when it asks. Look at what it did (`realm list`, `id alice@ad.shop.test`), try a login as `alice` (`Alice-Pass-1`) and as `bob` (`Bob-Pass-1`), and run the script a second time. Then run the checks; the last one runs your script once more.
+hints:
+  - "`realm` takes a word that says what to do: `discover` a domain, `list` the ones this machine belongs to, `join` one, `leave` it, `permit` logins."
+  - "The login step that makes a home directory is called `mkhomedir`, short for make home directory."
+  - "`realm permit` with only a name permits that one account; `-g` in front of the name makes it a group."
+skills: [domain-join]

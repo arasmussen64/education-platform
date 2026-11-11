@@ -1,0 +1,66 @@
+# The checks for "Finish the script that makes a server a member": the gaps
+# are filled, the run left lab a member that lets only the group in, and a
+# second run changes nothing. No description holds a word a gap asks for.
+# The last check runs the learner's script once more, as the learner, the
+# way the next person who isn't sure would; it runs last, so the checks
+# before it read what the learner's own run left.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence, not an exit status.
+checks:
+  - id: no-gaps
+    description: "~/bin/join-this-server has no gaps (___) left in it."
+    command: "! grep -q '___' /home/learner/bin/join-this-server"
+  - id: member
+    description: "lab is a member of ad.shop.test: the directory holds its computer account, and lab can sign in to the domain as itself."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool computer show LAB > /dev/null 2>&1 || { echo "the directory has no computer account for lab"; exit 0; }
+      KRB5CCNAME=FILE:/tmp/check-machine-cc kinit -k 'LAB$@AD.SHOP.TEST' > /dev/null 2>&1 || { echo "lab can't sign in to the domain with the keys in /etc/krb5.keytab"; exit 0; }
+      kdestroy -q -c FILE:/tmp/check-machine-cc
+      echo member
+    expect:
+      equals: member
+  - id: alice-logs-in
+    description: "alice, in linux-admins, logs in over SSH with her domain password, into a home directory made at her first login, holding a Kerberos ticket."
+    command: |
+      result=$(sshpass -p 'Alice-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l alice@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/alice@ad.shop.test" ]; then echo "alice logged in, into $PWD"; elif ! klist -s; then echo "alice logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
+      echo "${result:-alice could not log in over SSH}"
+    expect:
+      equals: in
+  - id: carol-logs-in
+    description: "So does carol, the group's other member."
+    command: |
+      result=$(sshpass -p 'Carol-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l carol@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/carol@ad.shop.test" ]; then echo "carol logged in, into $PWD"; elif ! klist -s; then echo "carol logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
+      echo "${result:-carol could not log in over SSH}"
+    expect:
+      equals: in
+  - id: bob-kept-out
+    description: "bob's password is right (the domain gives him a ticket), and lab refuses him: its own rule for domain accounts, which every way in asks, says no, and so does SSH."
+    command: |
+      echo 'Bob-Pass-1' | KRB5CCNAME=FILE:/tmp/check-bob-cc kinit bob@AD.SHOP.TEST > /dev/null 2>&1 || { echo "bob's password gets him no ticket, so the refusal can't be told from a typo"; exit 0; }
+      kdestroy -q -c FILE:/tmp/check-bob-cc
+      sssctl user-checks bob@ad.shop.test -a acct -s login 2>&1 | grep -q 'pam_acct_mgmt: Permission denied' || { echo "lab's own rule for domain accounts doesn't refuse bob"; exit 0; }
+      if sshpass -p 'Bob-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l bob@ad.shop.test 127.0.0.1 true 2>/dev/null; then echo "bob logged in over SSH"; exit 0; fi
+      echo refused
+    expect:
+      equals: refused
+  - id: runs-twice
+    description: "Run again on a server that is already a member, ~/bin/join-this-server succeeds and leaves lab as it was: still a member, alice let in and bob kept out."
+    command: |
+      realm list --name-only 2>/dev/null | grep -qx ad.shop.test || { echo "lab isn't a member yet: run the script once yourself first"; exit 0; }
+      out=$(runuser -u learner -- /home/learner/bin/join-this-server < /dev/null 2>&1)
+      status=$?
+      [ "$status" -eq 0 ] || { echo "the second run stopped with exit status $status: $(echo "$out" | tail -n 1)"; exit 0; }
+      KRB5CCNAME=FILE:/tmp/check-again-cc kinit -k 'LAB$@AD.SHOP.TEST' > /dev/null 2>&1 || { echo "after the second run, lab can't sign in to the domain as itself"; exit 0; }
+      kdestroy -q -c FILE:/tmp/check-again-cc
+      # A run that rewrites SSSD's settings restarts it, so give it a few
+      # seconds to answer again.
+      for _ in $(seq 1 10); do
+        sssctl user-checks alice@ad.shop.test -a acct -s login 2>&1 | grep -q 'pam_acct_mgmt: Success' && break
+        sleep 1
+      done
+      sssctl user-checks alice@ad.shop.test -a acct -s login 2>&1 | grep -q 'pam_acct_mgmt: Success' || { echo "after the second run, lab's rule doesn't let alice in"; exit 0; }
+      sssctl user-checks bob@ad.shop.test -a acct -s login 2>&1 | grep -q 'pam_acct_mgmt: Permission denied' || { echo "after the second run, lab's rule doesn't keep bob out"; exit 0; }
+      echo "safe to run again"
+    expect:
+      equals: "safe to run again"
