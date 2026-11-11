@@ -9,10 +9,10 @@
 // ADR-0009's amendment):
 // - the open-spaced-repetition wiki page "The Algorithm", sections FSRS v4
 //   and FSRS-4.5;
-// - fsrs-optimizer 4.29.0, the code that fitted the default parameters, and
-//   fsrs-rs 0.6.4, the FSRS-4.5 that Anki ships. Both add two limits the
-//   wiki leaves out: a lapse never raises stability, and stability stays
-//   between 0.01 and 36,500 days.
+// - fsrs-optimizer 4.29.0, FSRS-4.5's training code (the model the default
+//   parameters belong to), and fsrs-rs 0.6.4, the Rust FSRS-4.5 library.
+//   Both add two limits the wiki leaves out: a lapse never raises
+//   stability, and stability stays between 0.01 and 36,500 days.
 // The tests compare this file with values from py-fsrs 2.5.1, the Python
 // package's FSRS-4.5 release.
 //
