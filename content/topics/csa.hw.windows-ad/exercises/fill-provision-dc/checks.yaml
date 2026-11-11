@@ -1,0 +1,47 @@
+# The checks for "Finish the script that stands up the domain": each asks
+# dc1 the question the script's part was for. Checks that ask dc1's own
+# tools run inside its namespaces, the way on-dc does.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence, not an exit status.
+checks:
+  - id: no-gaps
+    description: "~/bin/stand-up-dc has no gaps (___) left in it."
+    command: "! grep -q '___' /home/learner/bin/stand-up-dc"
+  - id: domain-answers
+    description: "dc1 is running as the domain controller for ad.shop.test, short name SHOP, and its DNS answers with the domain's SRV records."
+    # dc1's name server answers a second or so after its service says it's
+    # ready, so a check straight after a boot waits for it.
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      systemctl is-active dc1 > /dev/null || { echo "dc1.service isn't running"; exit 0; }
+      for _ in $(seq 1 10); do
+        srv=$(dig +short +time=2 +tries=1 @10.0.9.10 _kerberos._tcp.ad.shop.test SRV)
+        [ -n "$srv" ] && break
+        sleep 1
+      done
+      dc samba-tool domain info 10.0.9.10 2>/dev/null | grep -q '^Netbios domain *: SHOP$' || { echo "the domain's short name isn't SHOP"; exit 0; }
+      echo "$srv"
+    expect:
+      equals: "0 100 88 dc1.ad.shop.test."
+  - id: starts-at-boot
+    description: "dc1's service starts at every boot."
+    command: systemctl is-enabled dc1
+    expect:
+      equals: enabled
+  - id: dc-forwards
+    description: "dc1 forwards the names it doesn't hold to the site's resolver."
+    command: dig +short +time=2 +tries=1 @10.0.9.10 intranet.shop.internal
+    expect:
+      equals: "10.0.9.1"
+  - id: resolves-backwards
+    description: "Asked for the name of 10.0.9.10, dc1 answers dc1.ad.shop.test."
+    command: dig +short +time=2 +tries=1 @10.0.9.10 -x 10.0.9.10
+    expect:
+      equals: "dc1.ad.shop.test."
+  - id: password-rules
+    description: "The domain demands passwords of at least 12 characters and locks an account after 10 wrong ones."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool domain passwordsettings show 2>/dev/null | awk -F': ' '/Minimum password length/ {len=$2} /Account lockout threshold/ {lock=$2} END {print "length " len ", lockout " lock}'
+    expect:
+      equals: "length 12, lockout 10"

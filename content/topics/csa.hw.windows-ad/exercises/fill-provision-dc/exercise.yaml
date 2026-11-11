@@ -1,0 +1,22 @@
+id: fill-provision-dc
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Finish the script that stands up the domain"
+prompt: |
+  The shop has no domain yet. `dc1` (10.0.9.10) has Samba's domain-controller software installed and nothing else: its service, `dc1.service`, is on `lab` (`sudo systemctl ... dc1`), and `on-dc COMMAND` runs a command on dc1. `~/bin/stand-up-dc` is meant to make dc1 the first domain controller of the shop's domain, but eight of its values are gaps, written `___`. The script refuses to run until every gap is filled. When it's finished:
+
+  - **The domain** is `ad.shop.test`, with the short name `SHOP`. Anything dc1 can't answer itself it forwards to the site's resolver, 10.0.9.1.
+  - **dc1's service runs now, and starts again at every boot.**
+  - **dc1's address has a name:** a reverse zone for the network 10.0.9.x, holding a PTR record that says 10.0.9.10 is `dc1.ad.shop.test`.
+  - **The password rules for the whole domain:** at least 12 characters, and an account locks after 10 wrong passwords.
+
+  Fill in the gaps with `nano ~/bin/stand-up-dc`, run it once, and then look: `dig @10.0.9.10 _ldap._tcp.ad.shop.test SRV`, `dig @10.0.9.10 -x 10.0.9.10`, `on-dc samba-tool domain passwordsettings show`. A domain's name can't be changed once it exists, so the script runs only on a dc1 that holds no domain. If you ran it with a wrong name, start the lab again with `--fresh` (the lab page shows the command) and run the corrected script. Then run the checks.
+hints:
+  - "Kerberos writes the domain's name in capitals and calls it the realm: `AD.SHOP.TEST`. The forwarder is an address, the site resolver's."
+  - "A reverse zone's name is the network's numbers backwards, followed by `in-addr.arpa`: the zone for 192.168.5.x is `5.168.192.in-addr.arpa`. Inside that zone, a record's name is only the part that's left: the last number of the address."
+  - "`systemctl start` runs a service now; `systemctl enable` makes it start at every boot; `--now` with `enable` does both at once."
+  - "`samba-tool domain passwordsettings set` takes the shortest length with `--min-pwd-length=` and the number of wrong passwords that locks an account with `--account-lockout-threshold=`."
+skills: [directory-structure, dc-discovery]
