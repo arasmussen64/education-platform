@@ -162,7 +162,7 @@ Some topics within a module can be done in either order. That gives the Today pa
 These were the to-dos before any topic was written. Both were worked through topic by topic as the track was built (Phase 1):
 
 - Find exact timestamps for each CS50P segment, and confirm the videos allow embedding. _Done: each embedded segment has its `start` and `end` in the topic's `topic.yaml`._
-- Confirm the license and access of every non-CS50P resource. _Done: each resource's `license` is recorded in its `topic.yaml`. The 2026-11-10 audit re-read one of them: the chapters of_ Python for Everybody _are CC BY-NC-SA 3.0 by the book's own copyright page, not CC BY 4.0._
+- Confirm the license and access of every non-CS50P resource. _Done: each resource's `license` is recorded in its `topic.yaml`. One record was corrected on 2026-11-10, in the fixes that followed that day's audit: the chapters of_ Python for Everybody _are CC BY-NC-SA 3.0 by the book's own copyright page, not CC BY 4.0, which is what the site's footer says and what was first recorded._
 
 ## What comes next
 
