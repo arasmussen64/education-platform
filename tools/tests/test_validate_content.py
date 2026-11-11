@@ -382,6 +382,18 @@ def test_parsons_problems_name_the_simplest_other_order(tree: Path) -> None:
     )
 
 
+def test_parsons_problems_count_the_other_orders(tree: Path) -> None:
+    # None of the first three lines needs another, so all 6 orders of them
+    # work: the author's, the one that is named, and 4 more.
+    lines = ["a = 1", "b = 2", "c = 3", "print(a + b + c)"]
+    write(tree, PARSONS_ITEM, parsons_yaml(lines, ["print(a + b + C)"]))
+    assert_reported(
+        tree,
+        "marked wrong: lines 1 and 2 can swap places ('a = 1' and 'b = 2'); "
+        "4 more orders work too. Make each line",
+    )
+
+
 def test_a_parsons_decoy_must_not_work_in_place_of_a_line(tree: Path) -> None:
     lines = ["greeting = 'Hello'", "greeting = greeting + '!'", "print(greeting)"]
     write(tree, PARSONS_ITEM, parsons_yaml(lines, ["print(greeting.strip())"]))
