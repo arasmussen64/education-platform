@@ -1272,6 +1272,29 @@ def test_a_check_runs_under_timeout_inside_the_lab_with_its_own_limit(
     assert [seconds for _, seconds in ran] == [50, 50, 140]
 
 
+def test_each_result_is_heard_as_soon_as_its_check_is_done(
+    tmp_path: Path, monkeypatch
+) -> None:
+    events: list[str] = []
+
+    class Noting(FakeDocker):
+        def __call__(self, *args: str, **options: object):
+            if args[0] == "exec":
+                events.append(f"ran {args[-1].split()[0]}")
+            return super().__call__(*args, **options)
+
+    lab = use_lab(tmp_path, monkeypatch, Noting(), checks=SLOW_CHECKS)
+    labcheck.run_checks(lab, NAME, each=lambda result: events.append(result.id))
+    assert events == [
+        "ran test",
+        "file-exists",
+        "ran cat",
+        "says-hello",
+        "ran ~/bin/shop-vm",
+        "guest-boots",
+    ]
+
+
 def test_a_check_stopped_at_its_limit_fails_saying_it_ran_out_of_time(
     monkeypatch,
 ) -> None:
@@ -1302,6 +1325,37 @@ def test_a_check_that_exits_124_early_is_judged_on_what_it_did(monkeypatch) -> N
     plain = checks_from(CHECKS)[0]
     result = labcheck.run_check(NAME, plain, clock=quick)
     assert not result.passed and result.detail == "exit status 124"
+
+
+def test_check_says_when_checks_are_slow_and_goes_on_after_one_runs_out(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    class StuckGuest(FakeDocker):
+        def __call__(self, *args: str, **options: object):
+            if args[0] == "exec" and "~/bin/shop-vm" in args[-1]:
+                # Docker gave no answer, even in the time it was given.
+                raise subprocess.TimeoutExpired(["docker", *args], 140)
+            return super().__call__(*args, **options)
+
+    docker = StuckGuest({NAME: ("running", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker, checks=SLOW_CHECKS)
+    assert run_main("check", "t.hello", "lab-hello") == 1
+    out = capsys.readouterr().out
+    assert (
+        "Some of these checks run something slow and may take up to 120 seconds "
+        "each. Each line appears when its check is done."
+    ) in out
+    # A failed check with the reason, not a traceback, and the result to paste.
+    assert (
+        "  FAIL  The guest boots and reports two CPUs.\n        ran out of time" in out
+    )
+    assert "1 of 3 checks passed." in out
+    assert '{"id":"guest-boots","passed":false}' in out
+
+    # A lab whose checks all have the usual 30 seconds says nothing about time.
+    use_lab(tmp_path, monkeypatch, FakeDocker({NAME: ("running", IMAGE)}))
+    assert run_main("check", "t.hello", "lab-hello") == 1
+    assert "something slow" not in capsys.readouterr().out
 
 
 def test_a_contract_run_gives_each_check_its_own_limit(

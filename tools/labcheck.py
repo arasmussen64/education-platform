@@ -646,8 +646,18 @@ def run_check(
     return CheckResult(check.id, check.description, passed, detail)
 
 
-def run_checks(lab: Lab, container: str) -> list[CheckResult]:
-    return [run_check(container, check) for check in lab.checks]
+def run_checks(
+    lab: Lab,
+    container: str,
+    each: Callable[[CheckResult], None] = lambda _: None,
+) -> list[CheckResult]:
+    """Runs every check in order; `each` hears about each result as it comes."""
+    results: list[CheckResult] = []
+    for check in lab.checks:
+        result = run_check(container, check)
+        each(result)
+        results.append(result)
+    return results
 
 
 def result_json(lab: Lab, results: list[CheckResult]) -> dict[str, object]:
@@ -954,12 +964,28 @@ def cmd_shell(args: argparse.Namespace) -> int:
     return status
 
 
+def say_now(line: str) -> None:
+    """Prints a line at once, even when the output goes to a pipe or a file."""
+    print(line, flush=True)
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     lab = load_lab(args.topic, args.exercise)
     running_container(lab)
-    results = run_checks(lab, lab.container)
-    print(f"{lab.exercise.title}\n")
-    print_results(results, show_detail=True)
+    say_now(f"{lab.exercise.title}\n")
+    slowest = max(check.timeout for check in lab.checks)
+    if slowest > CHECK_TIMEOUT_SECONDS:
+        # A check that boots a VM can be quiet for a minute or two, which
+        # would look like a tool that has stuck.
+        say_now(
+            "Some of these checks run something slow and may take up to "
+            f"{slowest} seconds each. Each line appears when its check is done.\n"
+        )
+    results = run_checks(
+        lab,
+        lab.container,
+        each=lambda result: print_results([result], show_detail=True, say=say_now),
+    )
     passed = sum(result.passed for result in results)
     print(f"\n{passed} of {len(results)} checks passed.")
     result = result_json(lab, results)
