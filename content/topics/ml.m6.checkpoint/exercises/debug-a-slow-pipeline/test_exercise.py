@@ -81,18 +81,18 @@ def ordered(values):
 
 
 def test_the_output():
-    """Prints the five lines, with the schedule in queue order and Pune two edits away."""
+    """Prints the five lines: the counts, the top three, the join, the closest name and the schedule."""
     printed = run()
     assert printed == EXPECTED, f"Expected this:\n{EXPECTED}\nYour program printed:\n{printed}"
 
 
 def test_dedupe_scales():
-    """3,000 records with 1,500 distinct keys dedupe within 30,000 comparisons: seen must be a set."""
+    """3,000 records with 1,500 distinct keys dedupe within 30,000 comparisons."""
     dedupe = function("dedupe")
     records = [{"key": key, "n": i} for i, key in enumerate(tracked(i % 1500 for i in range(3000)))]
     Tracked.compared = 0
     assert len(dedupe(records, "key")) == 1500
-    assert Tracked.compared < 30_000, f"{Tracked.compared} comparisons: seen must be a set"
+    assert Tracked.compared < 30_000, f"{Tracked.compared} comparisons, where fewer than 30,000 are expected"
 
 
 def test_schedule_is_a_queue():
