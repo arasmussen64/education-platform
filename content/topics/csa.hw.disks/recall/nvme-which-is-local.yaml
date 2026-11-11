@@ -1,0 +1,22 @@
+id: nvme-which-is-local
+type: predict_shell
+rev: 1
+prompt: |
+  On an AWS instance, every disk shows up as an NVMe device (`/dev/nvme0n1`, `/dev/nvme1n1`, and so on), network EBS volumes and the local instance store alike: NVMe is how the instance talks to a disk, not where the disk is. AWS's documentation (read 2026-11-11) says the `Model` column of `sudo nvme list` tells them apart: `Amazon Elastic Block Store` for EBS, `Amazon EC2 NVMe Instance Storage` for the instance store. `nvme-list.txt` is made up in that layout, with invented serial numbers. The command labels each device. What is printed?
+files:
+  nvme-list.txt: |
+    Node             SN                   Model                                    Namespace
+    ---------------- -------------------- ---------------------------------------- ---------
+    /dev/nvme0n1     vol0c4e19a2b7d3f5068 Amazon Elastic Block Store               1
+    /dev/nvme1n1     AWS5E2B8D07C41A9F3B6 Amazon EC2 NVMe Instance Storage         1
+    /dev/nvme2n1     vol07b3d1e95a2c6f840 Amazon Elastic Block Store               1
+command: awk 'NR > 2 {if ($4 == "EC2") print $1, "local"; else print $1, "network"}' nvme-list.txt
+expected_output: |
+  /dev/nvme0n1 network
+  /dev/nvme1n1 local
+  /dev/nvme2n1 network
+explanation: |
+  `NR > 2` skips the two header lines. `awk` splits each line at runs of spaces, so the model `Amazon EC2 NVMe Instance Storage` puts `EC2` in field 4, where `Amazon Elastic Block Store` puts `Elastic`. Two of the three disks are EBS volumes (their serial number is the volume's ID, `vol...`), and they keep their data through a stop. `nvme1n1` is the instance store: fast and included in the price, and empty after a stop.
+
+  The device names say nothing about which is which, and they can change from one boot to the next, which is why the storage topic mounted disks by UUID. Before you put anything on a disk, ask what kind it is.
+skills: [what-survives]

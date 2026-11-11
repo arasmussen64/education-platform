@@ -1,0 +1,23 @@
+id: est-iops-times-block
+type: estimate
+rev: 1
+prompt: |
+  An AWS gp3 volume includes 3,000 IOPS and 125 MiB/s whatever its size (AWS's gp3 page, read 2026-11-11). A database writes 16 KiB at a time, as fast as the volume lets it. How many MiB a second does it write? Within 2% is close enough.
+unit: MiB a second
+answer: 46.9
+tolerance: { percent: 2 }
+given: { iops: 3000, cap_mib: 125, block_kib: 16 }
+# 1,024 KiB in a MiB is what the learner must know.
+working: min(iops * block_kib / 1024, cap_mib)
+mistakes:
+  - id: the-throughput-cap
+    value: 125
+    working: cap_mib
+    why: That's the volume's throughput cap. At 16 KiB a write, 3,000 writes a second come to well under it, so the writes-a-second cap is reached first.
+  - id: divided-by-the-block
+    value: 187.5
+    working: iops / block_kib
+    why: That divides the writes by the block size. Throughput is writes a second times the size of each write.
+explanation: |
+  Throughput is IOPS × block size, until the throughput cap takes over. 3,000 writes a second × 16 KiB = 48,000 KiB a second, and 48,000 ÷ 1,024 = 46.9 MiB a second, well under the 125 MiB cap, so the IOPS cap is the one that binds. At that block size a database would need bigger writes, or more IOPS bought on top of the 3,000 included, to go faster; buying more throughput would change nothing.
+skills: [disk-caps]

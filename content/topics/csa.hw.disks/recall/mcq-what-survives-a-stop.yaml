@@ -1,0 +1,16 @@
+id: mcq-what-survives-a-stop
+type: mcq
+rev: 1
+prompt: |
+  A batch server on AWS keeps its work files on its instance store, the local disk inside the host. AWS's table of events (read 2026-11-11) says the data persists when the instance is rebooted, and doesn't when it is stopped, hibernated or terminated. The team stops the server on Friday evening to save money and starts it again on Monday morning. What do they find?
+choices:
+  - "The instance starts normally, and the work files are all there, because only a terminate erases them"
+  - "The instance won't start again, because its instance store has gone to another customer"
+  - "The instance starts normally, and the instance store is empty, because a stop erases it"
+  - "The instance starts normally, and the work files are all there, because a stop counts as a reboot"
+answer: 2
+explanation: |
+  A stop hands the host back. The instance store was a disk inside that host, so it stays behind, and AWS erases every block of it (cryptographically, by destroying its key). On Monday the instance starts on whichever host has room, with an empty instance store: a new local disk, with no filesystem on it until something formats it again.
+
+  A reboot is different: the instance stays on the same host, so its local disk and the data on it stay too. That's why "only a terminate erases them" and "a stop counts as a reboot" are both wrong, and they are the two mistakes that lose data in real life. The instance does start again; it just gets a fresh local disk, not none. The fix is to keep anything that must outlive a stop on a network disk (EBS), and use the instance store only for what can be rebuilt or fetched again.
+skills: [what-survives]

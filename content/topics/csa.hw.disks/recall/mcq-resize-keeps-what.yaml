@@ -1,0 +1,16 @@
+id: mcq-resize-keeps-what
+type: mcq
+rev: 1
+prompt: |
+  On AWS, a server with an EBS data volume and an instance store volume is moved to a bigger instance type: stop it, change the type, start it. Which of its disks still hold their data afterwards? (AWS's table of instance store events, read 2026-11-11.)
+choices:
+  - "Both disks: changing the type moves every disk across, whatever kind it is"
+  - "Only the instance store: EBS volumes have to be detached for the change"
+  - "Only the EBS volume: the instance store's data is gone, even if the new type has one"
+  - "Neither disk: a change of type gives the instance new disks of the new type's kind"
+answer: 2
+explanation: |
+  The EBS volume is a network disk: it stays attached through the stop, the change and the start, data and all. The instance store doesn't. AWS's table says its data does not persist when the instance type is changed, and adds that if the new type has instance store the instance gets the new type's number of volumes, empty; if the new type has none, it gets none. A change of type needs a stop anyway, and a stop alone empties the instance store.
+
+  So a resize is a stop with extra steps, as far as local disks go. EBS volumes needn't be detached for it, and they aren't replaced by new ones: the same volume, with the same data, is attached to the bigger instance.
+skills: [what-survives]

@@ -1,0 +1,16 @@
+id: mcq-which-disk-for-what
+type: mcq
+rev: 1
+prompt: |
+  A VM has a network disk and a fast local disk. Three things need a home: (1) the mail queue, the only copy of the emails that haven't been sent yet; (2) temporary files for video encoding, thrown away when each video is done; (3) a read replica of a database, a copy kept up to date from the main database on another server, which can copy everything again in half an hour. Which goes where?
+choices:
+  - "The mail queue on the network disk; the encoding files and the replica on the local disk"
+  - "The mail queue and the replica on the local disk; the encoding files on the network disk"
+  - "All three on the local disk, with a snapshot of the local disk taken every night"
+  - "The mail queue and the encoding files on the network disk; the replica on the local disk"
+answer: 0
+explanation: |
+  Ask of each one: if this disk came back empty after a stop, what would be lost? The mail queue is the only copy of unsent mail, so it needs a disk that keeps its data through a stop: the network disk. The encoding files are thrown away anyway, and they are exactly the busy, short-lived writing a fast local disk is for; on the network disk they would spend its allowance. The replica can be copied again from the main database, so losing it costs half an hour, not data: AWS's instance store page (read 2026-11-11) names data you replicate across a fleet as one of its uses, beside caches and scratch data.
+
+  A cloud's snapshots are copies of its network disks (Azure's page calls a snapshot a copy of a managed disk); a local disk isn't one, and even a nightly copy made by hand would lose up to a day of mail. Putting the encoding files on the network disk keeps nothing worth keeping and slows them down.
+skills: [what-survives]

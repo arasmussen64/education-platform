@@ -1,0 +1,22 @@
+id: est-vm-or-disk-cap
+type: estimate
+rev: 1
+prompt: |
+  Azure's own example (its page on virtual machine and disk performance, read 2026-11-11): a `Standard_D8s_v3` VM is allowed 12,800 uncached IOPS to its disks in all. It has 3 Premium SSD P30 disks, each allowed 5,000 IOPS. An application drives all three as hard as it can. How many IOPS does it get in total? Exactly.
+unit: IOPS
+answer: 12800
+tolerance: { absolute: 0 }
+given: { vm_iops: 12800, disks: 3, disk_iops: 5000 }
+working: min(vm_iops, disks * disk_iops)
+mistakes:
+  - id: the-disks-allow
+    value: 15000
+    working: disks * disk_iops
+    why: That's what the three disks would allow. The VM has an allowance of its own, and you get the smaller of the two.
+  - id: one-disk
+    value: 5000
+    working: disk_iops
+    why: That's one disk's allowance. The application drives all three, so the disks together allow 15,000, and the VM's 12,800 is the smaller.
+explanation: |
+  A network disk is capped twice: by the disk's own allowance and by the VM's allowance for all its disks together. The three disks would allow 3 × 5,000 = 15,000; the VM allows 12,800; you get the smaller, 12,800. Azure's page shows the same request split across the disks, about 4,267 each. A bigger disk tier wouldn't help this VM; a bigger VM size, with a bigger allowance, would.
+skills: [disk-caps]

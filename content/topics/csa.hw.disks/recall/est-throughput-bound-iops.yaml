@@ -1,0 +1,23 @@
+id: est-throughput-bound-iops
+type: estimate
+rev: 1
+prompt: |
+  An AWS gp3 volume includes 3,000 IOPS and 125 MiB/s (AWS's gp3 page, read 2026-11-11). A backup writes 256 KiB at a time, as fast as the volume lets it. How many writes a second does the volume allow it? Exactly.
+unit: writes a second
+answer: 500
+tolerance: { absolute: 0 }
+given: { iops: 3000, cap_mib: 125, block_kib: 256 }
+# 1,024 KiB in a MiB is what the learner must know.
+working: min(iops, cap_mib * 1024 / block_kib)
+mistakes:
+  - id: the-iops-cap
+    value: 3000
+    working: iops
+    why: That's the IOPS cap, but 3,000 writes of 256 KiB would be 750 MiB a second, far over the 125 MiB cap. The throughput cap binds first.
+  - id: mib-not-writes
+    value: 750
+    working: iops * block_kib / 1024
+    why: That's the MiB a second that 3,000 writes of 256 KiB would make, not a number of writes, and it's over the throughput cap anyway.
+explanation: |
+  Work out what each cap allows and take the smaller. The throughput cap: 125 MiB a second is 128,000 KiB, and 128,000 ÷ 256 = 500 writes a second. The IOPS cap allows 3,000. So the volume gives 500, and the IOPS cap never comes into it. That's the other side of IOPS × block size: with big blocks the bytes run out before the writes do. (AWS counts an SSD write of up to 256 KiB as one I/O, so each of these is one.)
+skills: [disk-caps]
