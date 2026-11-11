@@ -25,6 +25,10 @@ RUN apt-get update \
 # patch script with its three mistakes.
 COPY make-repo.sh /usr/local/lib/lab/make-repo.sh
 RUN bash /usr/local/lib/lab/make-repo.sh && rm -r /usr/local/lib/lab
+# For the checks' second night: an update that arrives later (shop-theme
+# 1.1), kept out of the repository until a check publishes it.
+COPY next-night.sh /usr/local/lib/lab/next-night.sh
+RUN chmod 755 /usr/local/lib/lab/next-night.sh && /usr/local/lib/lab/next-night.sh build
 COPY nightly-patch.starter /home/learner/bin/nightly-patch
 RUN chmod 755 /home/learner/bin/nightly-patch && chown -R learner:learner /home/learner/bin
 

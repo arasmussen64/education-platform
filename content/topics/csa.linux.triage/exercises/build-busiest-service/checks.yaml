@@ -1,5 +1,10 @@
 # The checks for "Build busiest-service": the busiest is the worker, all
-# three services are listed, and the worker's measured CPU is real.
+# three services are listed, the worker's measured CPU is real, and then a
+# fourth service, started by the last check under a name made when it runs
+# and busier than the worker, is listed and named busiest. Lines typed into
+# the script, or a script that measures only the three names it was told
+# about, can't know that service: wrong/typed-in-answer.sh and
+# wrong/three-names-only.sh prove it.
 checks:
   - id: busiest-is-the-worker
     description: "The busiest line names shop-worker."
@@ -18,3 +23,24 @@ checks:
     command: /home/learner/bin/busiest-service | awk '/shop-worker:/ {print $2}'
     expect:
       gte: 100
+  - id: finds-a-new-service
+    description: "With one more shop service running, busier than the worker (the check starts it), the script lists it too and names it busiest."
+    # Three spinners and ten times the worker's CPU weight, so the new
+    # service is the busiest whether the machine is idle or crowded.
+    # RuntimeMaxSec stops it even if this check is cut short.
+    command: |
+      name="shop-check$(( $(date +%s%N) % 10000 ))"
+      trap 'systemctl stop "$name" 2> /dev/null' EXIT
+      systemd-run --quiet --collect --unit="$name" -p User=shop -p CPUWeight=1000 -p RuntimeMaxSec=20 \
+        /bin/bash -c 'for i in 1 2 3; do /usr/local/bin/shop-worker & done; wait'
+      sleep 1
+      out=$(/home/learner/bin/busiest-service 2>&1)
+      if ! echo "$out" | grep -v '^busiest:' | grep -qw "$name"; then
+        echo "the new service, $name, isn't listed"
+      elif ! echo "$out" | grep '^busiest:' | tail -n 1 | grep -qw "$name"; then
+        echo "the busiest line doesn't name the new service, $name"
+      else
+        echo "found it"
+      fi
+    expect:
+      equals: "found it"

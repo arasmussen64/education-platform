@@ -1,16 +1,26 @@
 # The checks for "The patch script that patches nothing". The first puts
 # the server back to how a fresh night finds it (the old versions, nothing
-# held, no package list, no reboot note) and runs the script once; the rest
-# look at the result.
+# held, no package list, no reboot note, and shop-theme 1.1 not out yet) and
+# runs the script once; the next three look at the result. Then a second
+# night, after the reboot, with a new update for another package and no new
+# kernel: the script must install that one too, and must not ask for a
+# reboot. A script that names last night's packages, or prints "reboot
+# needed" whatever happened, fails it. Fixes typed at the prompt (a hold set
+# by hand, a pin file in /etc/apt/preferences.d, an apt update run by hand)
+# are undone by the first check: the image has no pin files, so a fresh
+# night has none either.
 checks:
   - id: fresh-night
     description: "On a fresh night (old versions, no package list yet), the script runs through without an error."
+    timeout: 90
     command: |
+      /usr/local/lib/lab/next-night.sh withdraw
       held=$(apt-mark showhold); [ -n "$held" ] && apt-mark unhold $held > /dev/null
+      rm -f /etc/apt/preferences.d/*
       apt-get update -qq 2>/dev/null
-      apt-get install -y -qq --allow-downgrades shop-agent=1.0 linux-image-shop=6.8.0-1 shop-report=2.0 > /dev/null 2>&1
+      apt-get install -y -qq --allow-downgrades shop-agent=1.0 linux-image-shop=6.8.0-1 shop-report=2.0 shop-theme=1.0 > /dev/null 2>&1
       rm -rf /var/lib/apt/lists/*
-      rm -f /run/reboot-required /run/reboot-required.pkgs
+      rm -f /run/reboot-required /run/reboot-required.pkgs /tmp/labcheck-nightly.out /tmp/labcheck-nightly-2.out
       /home/learner/bin/nightly-patch > /tmp/labcheck-nightly.out 2>&1
   - id: security-fixes-in
     description: "shop-agent is 1.1 and linux-image-shop is 6.8.0-2 afterwards."
@@ -18,12 +28,33 @@ checks:
     expect:
       equals: "1.1 6.8.0-2"
   - id: right-package-held
-    description: "shop-report is still 2.0 and is the only package held."
-    command: echo "$(dpkg-query -W -f='${Version}' shop-report) $(apt-mark showhold | tr '\n' ' ')"
+    description: "shop-report is still 2.0 afterwards, and no other package is held back."
+    command: |
+      others=$(apt-mark showhold | grep -vx shop-report | tr '\n' ' ')
+      echo "$(dpkg-query -W -f='${Version}' shop-report) ${others:-nothing else held}"
     expect:
-      equals: "2.0 shop-report"
+      equals: "2.0 nothing else held"
   - id: says-reboot
     description: "It said 'reboot needed', because the kernel package changed."
     command: grep -c 'reboot needed' /tmp/labcheck-nightly.out
     expect:
       gte: 1
+  - id: next-night-upgrades
+    description: "On the next night, after the reboot, with an update waiting for another package (shop-theme 1.1), the script installs it and keeps shop-report at 2.0."
+    timeout: 90
+    command: |
+      [ -f /tmp/labcheck-nightly.out ] || { echo "the first night didn't run"; exit 0; }
+      rm -f /run/reboot-required /run/reboot-required.pkgs
+      /usr/local/lib/lab/next-night.sh publish
+      rm -rf /var/lib/apt/lists/*
+      /home/learner/bin/nightly-patch > /tmp/labcheck-nightly-2.out 2>&1 || { echo "the script failed on the second night"; exit 0; }
+      echo "$(dpkg-query -W -f='${Version}' shop-theme) $(dpkg-query -W -f='${Version}' shop-report)"
+    expect:
+      equals: "1.1 2.0"
+  - id: next-night-quiet
+    description: "That night, with no new kernel, it doesn't say 'reboot needed'."
+    command: |
+      [ -f /tmp/labcheck-nightly-2.out ] || { echo "the second night didn't run"; exit 0; }
+      if grep -q 'reboot needed' /tmp/labcheck-nightly-2.out; then echo "it said reboot needed"; else echo "quiet"; fi
+    expect:
+      equals: "quiet"

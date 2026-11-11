@@ -3,14 +3,14 @@ stage: build
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Build busiest-service"
 prompt: |
   `top` tells you the busiest process, but on a server running many services you often want the busiest *service*, which may be a tree of processes. Build `~/bin/busiest-service`, which measures how much CPU each of the shop's services used in the last second and names the heaviest.
 
   Each service runs in its own cgroup under `/sys/fs/cgroup/system.slice/NAME.service/`, and that directory's `cpu.stat` has a line `usage_usec` counting the microseconds of CPU the service has used in total. Sample that number for every `shop-*.service`, wait one second, sample again, and the difference is the CPU each used in that second. Print one line per service as `NAME: USAGE`, the usage a plain number (microseconds, or milliseconds if you divide), busiest first, then a final line `busiest: NAME`.
 
-  The shop runs three services: `shop-api` and `shop-db` are idle, `shop-worker` is pegging a CPU. Run `busiest-service` and confirm it names the worker. Make it executable, and run the checks.
+  The shop runs three services: `shop-api` and `shop-db` are idle, `shop-worker` is pegging a CPU. Run `busiest-service` and confirm it names the worker. The script has to find and measure the services itself each time it runs: the checks also start a fourth `shop-` service of their own, under a name you haven't seen and busier than the worker, and expect to see it listed and named busiest. Make the script executable, and run the checks.
 hints:
   - "Find the services by globbing the cgroup directories: `for d in /sys/fs/cgroup/system.slice/shop-*.service; do name=$(basename \"$d\" .service); ...; done`. Read the counter with `awk '/^usage_usec/ {print $2}' \"$d/cpu.stat\"`."
   - "Record each service's counter into an associative array (`declare -A before; before[$name]=...`), `sleep 1`, read again, and the delta is `after - before[$name]`. Divide by 1000 for milliseconds if you like."

@@ -1,24 +1,93 @@
-# The checks for "Ben can't get in": the key file, Ben's .ssh folder, and
-# the whole thing tried for real over SSH.
+# The checks for "Ben can't get in". Each of the three faults has a check of
+# its own that tests only that part by behaviour: ssh run as the learner
+# loads Ben's key, the SSH server takes his key (tried as root with a copy
+# of it, so the client's side doesn't matter), and both deployers can run
+# the restart through sudo. Two more hold the prompt's rules: the SSH server
+# is as strict as it was, and sudo gives Ben nothing more. Each description
+# is the state the lab must end in; none says what was wrong.
+#
+# A check that finds something wrong prints what it found and exits 0, so
+# the learner's terminal shows the reason beside the failed check.
 checks:
-  - id: key-file-private
-    description: "The private key ~/keys/ben is readable by its owner only (600)."
-    command: stat -c '%a' /home/learner/keys/ben
-    expect:
-      equals: "600"
-  - id: ssh-folder
-    description: "Ben's ~/.ssh is his and mode 700, as sshd insists."
-    command: stat -c '%U %a' /home/ben/.ssh
-    expect:
-      equals: "ben 700"
-  - id: ben-can-log-in
-    description: "ssh -i ~/keys/ben ben@localhost gets in."
+  - id: key-usable
+    description: "The copy of Ben's key in ~/keys/ben is still his own key and still yours, and ssh run as you will use it."
+    # ssh-keygen -y loads a private key the way ssh does, and refuses the
+    # same files. ssh only complains about a key its own user owns, so the
+    # owner is checked too.
     command: |
-      sudo -u learner -H ssh -i /home/learner/keys/ben -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 ben@localhost true
-  - id: ben-can-restart
-    description: "Over SSH, Ben can restart shop-api without a password."
-    command: |
-      sudo -u learner -H ssh -i /home/learner/keys/ben -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 ben@localhost 'sudo -n /usr/bin/systemctl restart shop-api' \
-        && systemctl is-active shop-api
+      key=/home/learner/keys/ben
+      [ -f "$key" ] || { echo "there is no file ~/keys/ben"; exit 0; }
+      [ "$(stat -c %U "$key")" = learner ] || { echo "~/keys/ben no longer belongs to you"; exit 0; }
+      public=$(runuser -u learner -- ssh-keygen -y -f "$key" 2>/dev/null) || { echo "ssh, run as you, won't use ~/keys/ben"; exit 0; }
+      [ "$(echo "$public" | awk '{print $1, $2}')" = "$(awk '{print $1, $2}' /usr/local/lib/lab/bens-key.pub)" ] || { echo "~/keys/ben is no longer Ben's own key"; exit 0; }
+      echo "usable"
     expect:
-      equals: active
+      equals: "usable"
+  - id: server-lets-ben-in
+    description: "The SSH server lets Ben in with his own key."
+    # A root-only copy of Ben's original key, made when the image was built.
+    command: |
+      ssh -i /usr/local/lib/lab/bens-key -o IdentitiesOnly=yes -o BatchMode=yes -o PasswordAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ben@localhost whoami
+    expect:
+      equals: "ben"
+  - id: ssh-still-strict
+    description: "The SSH server's settings are as strict as they were, in its files (sudo sshd -T) and in the server that is running."
+    # StrictModes off, or Ben's keys read from somewhere else (another
+    # AuthorizedKeysFile, or an AuthorizedKeysCommand), would get Ben in by
+    # loosening the server. sshd -T reads the files, and -C asks for the
+    # settings a login by Ben from this machine gets, so a "Match User ben"
+    # block counts too: plain sshd -T shows only the settings outside every
+    # Match (wrong/keys-moved-for-ben.sh). The running server keeps what it
+    # read when it started, so it must have started (or reloaded) since the
+    # files last changed. Neither message says which part.
+    command: |
+      settings=$(sshd -T -C user=ben,host=localhost,addr=::1,laddr=::1,lport=22 2>/dev/null) || { echo "sshd -T can't read the SSH server's settings"; exit 0; }
+      if ! echo "$settings" | grep -qx 'strictmodes yes' \
+        || ! echo "$settings" | grep -qx 'authorizedkeysfile .ssh/authorized_keys .ssh/authorized_keys2' \
+        || ! echo "$settings" | grep -qx 'authorizedkeyscommand none'; then
+        echo "the SSH server's settings are not as strict as they were"
+        exit 0
+      fi
+      if systemctl is-active --quiet ssh; then
+        loaded=$(date -d "$(systemctl show ssh -p StateChangeTimestamp --value --timestamp=us)" +%s.%6N)
+        changed=$(find /etc/ssh/sshd_config /etc/ssh/sshd_config.d -printf '%T@\n' | sort -n | tail -1)
+        if ! awk -v loaded="$loaded" -v changed="$changed" 'BEGIN { exit !(loaded + 0 >= changed + 0) }'; then
+          echo "the running SSH server hasn't read its files since they last changed"
+          exit 0
+        fi
+      fi
+      echo "as strict as it was"
+    expect:
+      equals: "as strict as it was"
+  - id: deployers-can-restart
+    description: "Ben and Ana, the deploy group, can each restart shop-api with sudo -n systemctl restart shop-api, and it comes back."
+    command: |
+      before=$(systemctl show shop-api -p MainPID --value)
+      for who in ben ana; do
+        runuser -u "$who" -- sudo -n systemctl restart shop-api > /dev/null 2>&1 \
+          || { echo "Ben or Ana still can't restart shop-api without a password"; exit 0; }
+      done
+      after=$(systemctl show shop-api -p MainPID --value)
+      if [ "$after" = "$before" ] || [ "$after" = 0 ] || ! systemctl is-active --quiet shop-api; then
+        echo "shop-api isn't running again after the restart"
+        exit 0
+      fi
+      echo "both restarted it"
+    expect:
+      equals: "both restarted it"
+  - id: nothing-more
+    description: "sudo lets Ben do nothing as root but that restart."
+    # sudo -l -U NAME COMMAND exits 0 when a rule would let NAME run COMMAND,
+    # with a password or without, so a rule opened wide, a wildcard, or Ben
+    # added to the sudo group all show here. $command is left unquoted on
+    # purpose: its words are the command and its arguments.
+    command: |
+      for command in "/usr/bin/systemctl stop shop-api" "/usr/bin/systemctl restart ssh" "/usr/bin/bash" "/usr/bin/cat /etc/shadow"; do
+        if sudo -l -U ben $command > /dev/null 2>&1; then
+          echo "sudo lets Ben run more than the restart"
+          exit 0
+        fi
+      done
+      echo "only the restart"
+    expect:
+      equals: "only the restart"

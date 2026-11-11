@@ -214,7 +214,14 @@ function linesLabel(step: Step): string {
   return last ? `lines ${first}–${last}` : `line ${first}`
 }
 
-/** What the checker looks for, with ticks once a result is in. */
+/**
+ * What the checker looks for, with ticks once a result is in.
+ *
+ * A debug lab's checks describe the end state the fix must reach, so read
+ * before a first attempt they point at what's broken. Finding that is the
+ * proof (ADR-0002), so a debug lab lists them only once a result is in: by
+ * then the learner has had a go, and the checker has printed the same list.
+ */
 function Checks({
   exercise,
   result,
@@ -224,31 +231,43 @@ function Checks({
 }) {
   const headingId = useId()
   const outcomes = new Map(result?.checks.map((c) => [c.id, c.passed]) ?? [])
+  const waitForATry = exercise.stage === 'debug' && result === null
   return (
     <section aria-labelledby={headingId} className="space-y-1">
       <h4 id={headingId} className="font-semibold">
         What the checker looks for
       </h4>
-      <ul className="space-y-1">
-        {exercise.checks.map((check) => {
-          const outcome = outcomes.get(check.id)
-          return (
-            <li key={check.id} className="flex gap-2">
-              <span aria-hidden="true" className="w-4 shrink-0">
-                {outcome === undefined ? '○' : outcome ? '✓' : '✗'}
-              </span>
-              <span>
-                {check.description}
-                {outcome !== undefined && (
-                  <span className="sr-only">
-                    {outcome ? ' (passed)' : ' (failed)'}
-                  </span>
-                )}
-              </span>
-            </li>
-          )
-        })}
-      </ul>
+      {waitForATry ? (
+        <p className="text-slate-600 dark:text-slate-400">
+          {exercise.checks.length === 1
+            ? 'One check. It'
+            : `${exercise.checks.length} checks. They`}{' '}
+          show here once you&apos;ve recorded a result, so they don&apos;t give
+          the faults away. Run <code>check</code> when you think you&apos;ve
+          fixed it.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {exercise.checks.map((check) => {
+            const outcome = outcomes.get(check.id)
+            return (
+              <li key={check.id} className="flex gap-2">
+                <span aria-hidden="true" className="w-4 shrink-0">
+                  {outcome === undefined ? '○' : outcome ? '✓' : '✗'}
+                </span>
+                <span>
+                  {check.description}
+                  {outcome !== undefined && (
+                    <span className="sr-only">
+                      {outcome ? ' (passed)' : ' (failed)'}
+                    </span>
+                  )}
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
       {result && (
         <p className="font-medium">
           {result.passed === result.total

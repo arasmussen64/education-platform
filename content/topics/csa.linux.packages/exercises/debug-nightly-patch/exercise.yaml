@@ -3,10 +3,19 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "The patch script that patches nothing"
 prompt: |
-  The shop's server runs `~/bin/nightly-patch` every night. It's meant to refresh the package list, keep `shop-report` at 2.0 (2.1 hasn't been tested), upgrade everything else, and say `reboot needed` when the machine needs one. Last night it printed `0 upgraded` while three updates were waiting, two of them security fixes, and nobody was told about the new kernel.
+  The shop's server runs `~/bin/nightly-patch` every night. It's meant to bring apt's list of packages up to date, keep `shop-report` at 2.0 (2.1 hasn't been tested yet), upgrade everything else, and print `reboot needed` whenever an update needs a reboot to take effect, so that someone schedules one.
 
-  Run it and compare what it does with what `apt list --upgradable`, `apt-mark showhold`, `apt policy shop-report` and `ls /run` tell you. There are three mistakes: one about the order things happen in, one about which package is kept back, and one about where the machine says a reboot is needed. Fix them with `nano ~/bin/nightly-patch`, run it again, and run the checks.
+  Last night it printed `0 upgraded` while three updates were waiting, two of them security fixes, and it said nothing about a reboot, although one of the waiting updates was a new kernel.
+
+  There are three mistakes in the script. Run it, and compare what it does with what apt tells you: `apt list --upgradable` shows what's waiting, `apt-mark showhold` what's held back, and `apt policy shop-report` which version apt would install. Fix the script with `nano ~/bin/nightly-patch` and run it again.
+
+  The checks don't look at what you did by hand. They put the server back the way a fresh night finds it, run your script, then run it again on the next night, after the reboot, when a different update is waiting. So the script itself has to do all of it: anything you fix at the prompt instead is undone. When it works, run the checks.
+hints:
+  - "Read the script line by line against what each command needs before it. `apt upgrade` installs newer versions from the list apt last downloaded, `apt-mark hold` stops one package from changing, and the reboot test looks for a file. Which of those runs too early, holds the wrong thing, or looks in the wrong place?"
+  - "On a fresh night apt has no package list yet, so an `apt upgrade` that runs before `apt update` finds nothing to install. Refreshing the list has to come first."
+  - "The script holds `shop-agent`, the package with the security fix, so its update is the one skipped. Hold `shop-report`, the untested one, before the upgrade. Your first run left `shop-agent` held, so `sudo apt-mark unhold shop-agent` too."
+  - "When an update needs a reboot, Ubuntu leaves a file named `reboot-required` in `/run` (also reached as `/var/run`), as the lesson says, with the packages that asked for it in `reboot-required.pkgs`. The script looks in `/etc`, where it never is."
 skills: [apt-dnf, patching]
