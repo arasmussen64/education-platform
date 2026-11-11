@@ -9,16 +9,16 @@ def test_length_boundary():
 
 
 def test_vowel_search():
-    """has_vowel looks at every character: True for brave and crypt-free words like strong, False for rhythm."""
+    """has_vowel is True for brave and strong, and False for rhythm and crypt."""
     has_vowel = function("has_vowel")
     assert has_vowel("brave") is True, 'has_vowel("brave") should be True'
-    assert has_vowel("strong") is True, 'has_vowel("strong") should be True: the o is not first'
+    assert has_vowel("strong") is True, 'has_vowel("strong") should be True'
     assert has_vowel("rhythm") is False, 'has_vowel("rhythm") should be False'
     assert has_vowel("crypt") is False, 'has_vowel("crypt") should be False'
 
 
 def test_expectations():
-    """test_check_word passes against the fixed functions: every assert expects the right verdict."""
+    """test_check_word() runs to the end without an assert failing."""
     function("test_check_word")()
 
 
