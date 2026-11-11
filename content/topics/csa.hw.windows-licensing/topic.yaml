@@ -116,6 +116,15 @@ objectives:
 #   192 vCPUs, at most 32 D4s v6 and 25 D8s v6 (general-purpose host SKUs,
 #   ms.date 2026-09-25). The plan's price fixture lists the Dsv6 host as 48 x
 #   D4s_v6, which Microsoft's packing table contradicts; nothing here uses it.
+#   Azure Dedicated Host's product page and pricing page, their FAQ
+#   (https://azure.microsoft.com/en-us/products/virtual-machines/dedicated-host/
+#   and https://azure.microsoft.com/en-us/pricing/details/virtual-machines/dedicated-host/,
+#   read 2026-11-11 by the topic's reviewer): "The outsourcing software
+#   licensing terms applicable to Windows Server and SQL Server licenses
+#   acquired before October 1, 2019, allow you to allocate your existing
+#   licenses to Dedicated Host"; newer licences only through Azure Hybrid
+#   Benefit; Windows Server licences bought before that date and allocated
+#   without the benefit "must license all of the physical cores of the host".
 # - Prices: AWS's public price files for US East (N. Virginia), on-demand
 #   (published 2026-11-10T17:38:52Z, read 2026-11-11), instances and Dedicated
 #   Hosts; the Azure Retail Prices API for East US, pay-as-you-go, read
@@ -188,6 +197,11 @@ resources:
     type: video
     use: link
     license: "Standard YouTube licence (linked, not copied)"
+  - title: "Azure Dedicated Host pricing (Azure): host prices by region, and the FAQ on bringing licences bought before 1 October 2019 to a host"
+    url: https://azure.microsoft.com/en-us/pricing/details/virtual-machines/dedicated-host/
+    type: reading
+    use: link
+    license: "Copyright Microsoft; linked, not copied"
   - title: "Windows Virtual Machines Pricing (Azure): today's pay-as-you-go and Azure Hybrid Benefit prices by region, for the look-up"
     url: https://azure.microsoft.com/en-us/pricing/details/virtual-machines/windows/
     type: reading
@@ -241,7 +255,7 @@ prove:
         description: "Licences are counted in cores, with minimums: at least 8 core licences for a Windows Server VM (8 a processor and 16 a server on hardware the company licenses itself), at least 4 for SQL Server; licence included is paid per vCPU-hour on every cloud, and SQL Server costs several times what Windows Server does."
       - id: who-may-bring
         required: true
-        description: "Software Assurance (or a subscription) is what lets a licence move. Azure takes Windows Server and SQL Server through Azure Hybrid Benefit, paying the Linux price. On AWS and Google Cloud, SQL Server with Software Assurance moves to shared VMs through License Mobility, and Windows Server doesn't: it is licence included, or licences bought before 1 October 2019 for a version released before then, on dedicated hardware. The half without Software Assurance can only use that old-licence door, if it applies, or stay on premises. So each vendor is partly right."
+        description: "Software Assurance (or a subscription) is what lets a licence move. Azure takes Windows Server and SQL Server through Azure Hybrid Benefit, paying the Linux price. On AWS and Google Cloud, SQL Server with Software Assurance moves to shared VMs through License Mobility, and Windows Server doesn't: it is licence included, or licences bought before 1 October 2019 for a version released before then, on dedicated hardware. The half without Software Assurance can only use that old-licence door, on dedicated hardware of any of the three clouds, if it applies, or stay on premises. So each vendor is partly right."
       - id: host-economics
         required: true
         description: "A dedicated host or sole-tenant node is paid for whole, full or empty, at a premium (about 10% in prices read in November 2026); it is cheaper when it is nearly full and the licences are counted on its physical cores (Datacenter or SQL Server Enterprise on every core covers any number of VMs), or when the licences owned are only allowed there. On AWS, Windows Server brought to a host must cover all its physical cores."
@@ -257,7 +271,7 @@ prove:
     model_answer: |
       The licence bill is counted in cores with minimums. A Windows Server VM needs a core licence for each vCPU and at least 8; a server the company licenses itself needs every physical core licensed, at least 8 a processor and 16 a server. SQL Server needs one a vCPU and at least 4 a VM. If the company doesn't bring licences, every cloud rents them by the vCPU-hour, licence included: as of November 2026 about $0.046 a vCPU-hour for Windows Server on all three, and several times that for SQL Server (Standard $0.10 to $0.12, Enterprise $0.375 to $0.399), so on the SQL Server VMs the licence is most of the bill.
 
-      Whether the owned licences may come depends on the product, its Software Assurance and the cloud. On Azure, licences with active Software Assurance qualify for Azure Hybrid Benefit, for both Windows Server and SQL Server: a Windows VM then costs the Linux price, and the half with Software Assurance would cover about half the VMs. The half without it can't be used on Azure. AWS and Google Cloud are what Microsoft calls Listed Providers, and there SQL Server with Software Assurance moves onto ordinary shared VMs through License Mobility, but Windows Server has no License Mobility, so even with Software Assurance it can't go on shared VMs. The only way to bring Windows Server there is old licences, bought before 1 October 2019 for a version released before then, on dedicated hardware: an AWS Dedicated Host, licensed on every physical core, or a Google sole-tenant node. Windows Server 2022 or 2025 is licence included on those clouds. So the first vendor is right about SQL Server with Software Assurance and Azure, and the second is right only for old Windows Server licences on AWS or Google Cloud.
+      Whether the owned licences may come depends on the product, its Software Assurance and the cloud. On Azure, licences with active Software Assurance qualify for Azure Hybrid Benefit, for both Windows Server and SQL Server: a Windows VM then costs the Linux price, and the half with Software Assurance would cover about half the VMs. The half without it can't use the benefit: on Azure, as on the other two clouds, licences without Software Assurance may come only if they were bought before 1 October 2019, and then only onto a dedicated host with every physical core licensed. AWS and Google Cloud are what Microsoft calls Listed Providers, and there SQL Server with Software Assurance moves onto ordinary shared VMs through License Mobility, but Windows Server has no License Mobility, so even with Software Assurance it can't go on shared VMs. The only way to bring Windows Server there is old licences, bought before 1 October 2019 for a version released before then, on dedicated hardware: an AWS Dedicated Host, licensed on every physical core, or a Google sole-tenant node. Windows Server 2022 or 2025 is licence included on those clouds. So the first vendor is right about SQL Server with Software Assurance and Azure, and the second is right only for old Windows Server licences on AWS or Google Cloud.
 
       A dedicated host is a whole server, billed by the hour whether it is full or empty, at roughly 10% more than the same capacity on shared VMs in the prices I read. It is cheaper when it is nearly full and the licences are counted on its physical cores: Datacenter on every core of a host covers any number of Windows VMs, and SQL Server Enterprise on every core any number of SQL Server VMs, so 40 VMs that would need 320 or more core licences one by one might need only the host's cores. Or when the licences are only allowed there. Below about half full it rarely pays. The sum is the host's price over one licence-included VM's price, rounded up, and the licence counts both ways.
 
