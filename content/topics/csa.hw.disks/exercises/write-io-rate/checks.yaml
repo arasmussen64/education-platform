@@ -12,12 +12,16 @@
 # The three services were chosen so that each answer is different: the
 # database is held by its writes-a-second cap, the backup job (in a slice
 # of its own, batch.slice) by its bytes-a-second cap, and the logger by
-# neither. The wrong fixes: a folder path that only works in system.slice
+# neither. A fourth service, one the check starts for itself and the
+# learner has never seen, is held by its bytes cap, so a script that names
+# the answer for each shop service instead of working it out doesn't pass.
+# The wrong fixes: a folder path that only works in system.slice
 # (wrong/system-slice-only.sh), one reading divided by the seconds
 # (wrong/one-reading.sh), MB where MiB were asked for
 # (wrong/megabytes.sh), "iops" whenever there is a cap at all
-# (wrong/always-iops.sh), and reads counted instead of writes
-# (wrong/reads-not-writes.sh).
+# (wrong/always-iops.sh), reads counted instead of writes
+# (wrong/reads-not-writes.sh), and the binding written in for each of the
+# three services by name (wrong/binding-by-name.sh).
 checks:
   - id: runs
     description: "~/bin/io-rate is an executable script."
@@ -90,6 +94,48 @@ checks:
     description: "For shop-logs, which writes far below both its caps, it prints its writes a second, its MiB a second, and that neither cap holds it back."
     command: |
       unit=shop-logs
+      dev=$(lsblk -dno MAJ:MIN /dev/lab/data | tr -d ' ')
+      folder=/sys/fs/cgroup$(systemctl show "$unit" -p ControlGroup --value)
+      field() { grep "^$dev " "$folder/$1" | grep -o "$2=[0-9a-z]*" | cut -d= -f2; }
+      w1=$(field io.stat wios); b1=$(field io.stat wbytes); t1=$(date +%s.%N)
+      out=$(cd /home/learner && runuser -u learner -- /home/learner/bin/io-rate "$unit" 10 2>&1)
+      w2=$(field io.stat wios); b2=$(field io.stat wbytes); t2=$(date +%s.%N)
+      ic=$(field io.max wiops); bc=$(field io.max wbps)
+      printf '%s\n' "$out" | awk -v w=$((w2 - w1)) -v b=$((b2 - b1)) -v t1="$t1" -v t2="$t2" \
+          -v ic="${ic:-max}" -v bc="${bc:-max}" '
+        function abs(x) { return x < 0 ? -x : x }
+        /^writes a second: / {gw = $4; seen++}
+        /^MiB a second: / {gm = $4; seen++}
+        /^binding: / {gb = $2; seen++}
+        END {
+          s = t2 - t1; ws = w / s; ms = b / s / 1048576
+          truth = "none"
+          if (ic != "max" && ws >= 0.9 * ic) truth = "iops"
+          else if (bc != "max" && b / s >= 0.9 * bc) truth = "throughput"
+          ok = seen == 3 && gw ~ /^[0-9]+$/ && gm ~ /^[0-9]+\.[0-9]$/ \
+            && abs(gw - ws) <= 0.08 * ws + 2 && abs(gm - ms) <= 0.015 * ms + 0.1 && gb == truth
+          if (ok) print "right"
+          else printf "printed %d of the three lines (%s, %s, %s); the check measured %.0f writes a second, %.2f MiB a second, binding: %s\n", seen, gw, gm, gb, ws, ms, truth
+        }'
+    expect:
+      equals: right
+  - id: unseen-service
+    description: "For a service it hasn't been tried on, held back by its bytes-a-second cap, it prints its writes a second, its MiB a second, and that its bytes-a-second cap is what holds it back."
+    # A throwaway service of the check's own, writing 64 KiB blocks under a
+    # cap of 2 MiB a second: about 32 writes a second, far below its
+    # writes-a-second cap of 400. It is stopped, and its file removed, when
+    # the check ends, whatever the result.
+    timeout: 45
+    command: |
+      unit=io-rate-probe
+      cleanup() { systemctl stop "$unit" 2>/dev/null; systemctl reset-failed "$unit" 2>/dev/null; rm -rf /srv/data/probe; }
+      cleanup
+      trap cleanup EXIT
+      mkdir -p /srv/data/probe
+      systemd-run -q --unit="$unit" -p IOAccounting=yes \
+        -p "IOWriteIOPSMax=/dev/lab/data 400" -p "IOWriteBandwidthMax=/dev/lab/data 2097152" \
+        /bin/bash -c 'while :; do dd if=/dev/zero of=/srv/data/probe/p bs=64k count=64 oflag=direct conv=notrunc status=none; done'
+      sleep 2
       dev=$(lsblk -dno MAJ:MIN /dev/lab/data | tr -d ' ')
       folder=/sys/fs/cgroup$(systemctl show "$unit" -p ControlGroup --value)
       field() { grep "^$dev " "$folder/$1" | grep -o "$2=[0-9a-z]*" | cut -d= -f2; }
