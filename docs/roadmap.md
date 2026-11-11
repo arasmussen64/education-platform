@@ -26,7 +26,7 @@ Content is no longer held to one module ahead of the owner's own learning, which
 **Waiting for the owner.**
 
 - The placement test's database migration ([ADR-0021](decisions/0021-placement-test.md)) hasn't been applied to the live database. From the repository root: `npx supabase db push --remote --dry-run` shows what would be applied, then the same command with `--yes` in place of `--dry-run` applies it ([supabase/README.md](../supabase/README.md)).
-- [ADR-0023](decisions/0023-packages-in-both-runtimes.md), NumPy in both Python runtimes, is still Proposed. The ML track's Modules 3 to 8 are written on it.
+- [ADR-0023](decisions/0023-packages-in-both-runtimes.md), NumPy in both Python runtimes, is still Proposed. Across the ML track's Modules 3 to 8, 39 ready topics import NumPy and so rest on it.
 
 **Parked.** Nightly backups ([ADR-0020](decisions/0020-automated-backups.md)) are built but not switched on, so no automatic backup is being taken. The owner parked the setup on 2026-11-10 while the platform is still being built. The steps are in [setup.md](setup.md), under "Back up your learning data".
 
@@ -133,7 +133,7 @@ Every item below is built (2026-11-10). Two of them aren't fully in use yet: the
   - [ ] The lab checker ([ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09). [x] Local mode (2026-11-09, [ADR-0018](decisions/0018-lab-checker-local-mode.md)): `tools/labcheck.py` builds a lab's container from `content/`, runs its checks, prints a result to paste, and proves every lab's contract in CI; the first lab is Shell essentials' build. [x] The lab view on the topic page (2026-11-09). [ ] Cloud mode, with recordings.
   - [ ] Design reviews, game days and "Defend it"
 
-  The content's order from here: the rest of Stage 1 (Modules 2 to 7), then Stage 2 (Modules 8 to 15 and Capstone 1), Stage 3 (Modules 16 to 24 and Capstone 2) and Stage 4 (Modules 25 to 30 and Capstone 3). Most of Stage 1's practice runs in containers on the learner's machine, which is free. From Stage 2 on, labs run in real cloud accounts, which cost money: they need the lab checker's cloud mode, and the owner approves each paid trial run (the spec's _Before authoring_ section).
+  The content's order from here: the rest of Stage 1 (Modules 2 to 7), then Stage 2 (Modules 8 to 15 and Capstone 1), Stage 3 (Modules 16 to 24 and Capstone 2) and Stage 4 (Modules 25 to 30 and Capstone 3). Most of Stage 1's practice runs in containers on the learner's machine, which is free. From Stage 2 on, labs run in real cloud accounts, which cost money: they need the lab checker's cloud mode, and the owner approves each paid trial run (the spec's _Before authoring_ section). Module 2 meets this early: its Windows Server and Active Directory labs need Windows machines in a real cloud account, which cost money, so those labs wait for the owner's go-ahead as well ([devlog](devlog.md), 2026-11-10).
 
 ## The owner's 12-month learning milestone
 
