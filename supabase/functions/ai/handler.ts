@@ -338,8 +338,10 @@ export function createHandler(services: Services) {
   // Calls Claude answered whose cost couldn't be written down at all, oldest
   // first. While any wait here, no new call is made: the cap can only stop
   // spending it can see (fail closed). Each new request tries to write them
-  // again first. They live in this running copy of the function only; a
-  // fresh copy starts empty, so at most one call per copy can go uncounted.
+  // again first. They live in this running copy of the function only, so if
+  // the copy shuts down first they're lost: at most the calls that were
+  // already under way when writing began to fail. A fresh copy starts empty,
+  // and stops again after its own first uncounted call.
   const unrecorded: Spend[] = []
 
   /** Writes the waiting spends down. True once none are left. */
