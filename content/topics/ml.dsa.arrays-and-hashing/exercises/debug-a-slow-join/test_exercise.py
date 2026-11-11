@@ -41,11 +41,11 @@ def test_group_by_keeps_every_record():
 
 
 def test_join_scales():
-    """Joining 1,000 left records with 2,000 right records gives 2,000 rows after fewer than 60,000 comparisons (the scan makes 2 million)."""
+    """Joining 1,000 left records with 2,000 right records gives 2,000 rows after fewer than 60,000 comparisons."""
     join = function("join")
     left = [{"id": key} for key in tracked(range(1000))]
     right = [{"id": key, "n": i} for i, key in enumerate(tracked([i % 1000 for i in range(2000)]))]
     Tracked.compared = 0
     rows = join(left, right, "id")
     assert len(rows) == 2000
-    assert Tracked.compared < 60_000, f"{Tracked.compared} comparisons: index the right side first"
+    assert Tracked.compared < 60_000, f"{Tracked.compared} comparisons, where fewer than 60,000 are expected"
