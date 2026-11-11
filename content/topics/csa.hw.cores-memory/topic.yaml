@@ -65,7 +65,8 @@ objectives:
 #   seconds at 100%, "a Token bucket"; no extra charge). Azure's B-series v1
 #   (B1s, B2s, B2ms) was announced for retirement on 2025-10-15, to retire
 #   2028-11-15: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/retirement/retired-sizes-list
-#   so the lesson uses Bsv2.
+#   (which now redirects to .../sizes/lifecycle/retirements-and-capacity-restrictions,
+#   re-read 2026-11-11), so the lesson uses Bsv2.
 # - Pressure, throttles and pins: https://docs.kernel.org/accounting/psi.html,
 #   https://docs.kernel.org/admin-guide/cgroup-v2.html (memory.high "throttle
 #   limit"; memory.events high), systemd.resource-control(5) (MemoryHigh=
@@ -229,14 +230,14 @@ prove:
         description: "Size the CPU on the 95th percentile of a week of samples, not the average (which undersizes the busy hours) or the largest sample (one burst then sets the size), against a stated headroom (for example at most 60 or 70% busy); size memory on its peak with headroom; take the cheapest size that meets both; a burstable size only if the average per vCPU is at or under its baseline and the peaks are short, which this database's isn't."
       - id: clouds-differ
         required: true
-        description: "Any two correct differences, for example: AWS's T3 and later default to unlimited mode and bill surplus credits, while Azure's B-series is throttled to its base; Google's shared-core sizes have no visible bank and burst for seconds; Google bills all of a machine type's vCPUs when SMT is switched off, as AWS and Azure charge the full size too; which sizes give a core per vCPU."
+        description: "Any two correct differences, for example: AWS's T3 and later default to unlimited mode and bill surplus credits, while Azure's B-series is throttled to its base; Google's shared-core sizes have no visible bank and burst for seconds; AWS names spent credits as a cause of steal, while Azure's and Google's pages don't say what a held-back guest sees; which sizes give a whole core per vCPU (AWS's Graviton sizes and C7a, M7a and R7a; Azure's Arm sizes and Fasv7; Google's Arm sizes, Tau T2D and H4D). Switching SMT off is not a difference: all three charge for the full size."
       - id: numa
         required: false
         description: "Large instances span NUMA nodes; memory on the far node is slower; keep a process's CPUs and memory on one node."
     model_answer: |
       On most x86 cloud sizes a vCPU is one hardware thread, and each physical core runs two, so the VM's 16 vCPUs are 8 cores, about half the physical server the database came from. Two threads on a core do more than one but well short of two cores' work. Arm sizes, and a few AMD ones, give a whole core per vCPU. To check, I'd read lscpu: sockets times cores per socket is the cores, and threads per core says how many vCPUs share each one; the provider's instance table says the same. A big size also spans NUMA nodes, and a database should keep its CPUs and its memory on the same node, because far memory is slower to reach.
 
-      A burstable instance runs on credits. One credit is one vCPU at 100% for a minute. It earns its baseline on every vCPU, vCPUs times baseline times 60 credits an hour, and spends what it uses; under the baseline the bucket fills, up to about a day's earnings, and over it the bucket drains. A database a little above the baseline drains a full bucket slowly: a t3.medium at 25% instead of its 20% loses 6 credits an hour and runs dry after four days. That's why it took a week. Then, in AWS's standard mode or on Azure's B-series, the instance is held to its baseline; in AWS's unlimited mode, the default for T3, it keeps going and the bill grows instead. Google's shared-core sizes have no bank at all and burst for seconds.
+      A burstable instance runs on credits. One credit is one vCPU at 100% for a minute. It earns its baseline on every vCPU, vCPUs times baseline times 60 credits an hour, and spends what it uses; under the baseline the bucket fills, up to about a day's earnings, and over it the bucket drains. A database a little above the baseline drains a full bucket slowly: a t3.medium at 25% instead of its 20% loses 6 credits an hour and runs dry after four days. That's why it took days to show, not hours. Then, in AWS's standard mode or on Azure's B-series, the instance is held to its baseline; in AWS's unlimited mode, the default for T3, it keeps going and the bill grows instead. Google's shared-core sizes have no bank at all and burst for seconds.
 
       To tell the causes apart I'd take two readings of /proc/stat a minute apart and work out steal, the eighth counter's growth over the growth of the first eight. High steal means the host is withholding CPU: here, spent credits. If steal were zero I'd look for caps of the machine's own: nr_throttled rising in the service's cpu.stat, a memory.high throttle counting up in memory.events, a CPU pin. With no steal and no limits, a run queue in vmstat above the number of CPUs means the machine is too small. Noisy neighbours are rarely the answer on a fixed-size instance, whose cores are pinned to it; a neighbour can still crowd shared caches, memory, disks and the network, but that never shows as steal. A dedicated host removes neighbours.
 
