@@ -1,0 +1,75 @@
+# The checks for "Report what the fleet runs on". Each check works out the
+# right report itself, from the same files, with the rules the prompt gives,
+# and compares it with what the learner's script prints. The second fleet,
+# in /usr/local/share/lab/fleet-b, has servers the prompt doesn't name: a
+# container on a VM (where systemd-detect-virt alone says docker), a Xen
+# server and one with two network cards, the slower one listed first. A
+# failing check shows the learner's own line, never the right one.
+checks:
+  - id: report-fleet-a
+    description: "fleet-report /srv/fleet-a prints the right line for every server, sorted by name."
+    timeout: 20
+    command: |
+      classify() {
+        hv=$(awk -F': ' '$1 == "vm" {print $2}' "$1/detect-virt.txt")
+        case "$hv" in
+          microsoft) hv=hyperv ;; kvm|amazon|google) hv=kvm ;; xen|qemu|none) ;; *) hv="unknown-$hv" ;;
+        esac
+        path=$(awk '
+          $2 ~ /^(mlx4_core|mlx5_core|mana|ena|ixgbevf|iavf)$/ {r = 3}
+          $2 ~ /^(virtio_net|hv_netvsc|vif|vmxnet3|gve)$/ && r < 2 {r = 2}
+          $2 ~ /^(e1000|e1000e|8139cp|8139too|pcnet32|ne2k-pci)$/ && r < 1 {r = 1}
+          END {print (r == 3 ? "sriov" : r == 2 ? "paravirtual" : r == 1 ? "emulated" : "none")}' "$1/net-drivers.txt")
+        echo "$(basename "$1") $hv $path"
+      }
+      want=$(for d in /srv/fleet-a/*/; do classify "${d%/}"; done | LC_ALL=C sort)
+      got=$(runuser -u learner -- /home/learner/bin/fleet-report /srv/fleet-a 2>/dev/null)
+      if [ "$got" = "$want" ]; then echo same
+      else echo "differs, first at: $(diff <(echo "$got") <(echo "$want") | sed -n 's/^< //p' | head -n 1)"
+      fi
+    expect:
+      equals: same
+  - id: report-fleet-b
+    description: "It works on another fleet laid out the same way: its report for a second fleet the prompt doesn't name is right too."
+    timeout: 20
+    command: |
+      classify() {
+        hv=$(awk -F': ' '$1 == "vm" {print $2}' "$1/detect-virt.txt")
+        case "$hv" in
+          microsoft) hv=hyperv ;; kvm|amazon|google) hv=kvm ;; xen|qemu|none) ;; *) hv="unknown-$hv" ;;
+        esac
+        path=$(awk '
+          $2 ~ /^(mlx4_core|mlx5_core|mana|ena|ixgbevf|iavf)$/ {r = 3}
+          $2 ~ /^(virtio_net|hv_netvsc|vif|vmxnet3|gve)$/ && r < 2 {r = 2}
+          $2 ~ /^(e1000|e1000e|8139cp|8139too|pcnet32|ne2k-pci)$/ && r < 1 {r = 1}
+          END {print (r == 3 ? "sriov" : r == 2 ? "paravirtual" : r == 1 ? "emulated" : "none")}' "$1/net-drivers.txt")
+        echo "$(basename "$1") $hv $path"
+      }
+      fleet=/usr/local/share/lab/fleet-b
+      want=$(for d in "$fleet"/*/; do classify "${d%/}"; done | LC_ALL=C sort)
+      got=$(runuser -u learner -- /home/learner/bin/fleet-report "$fleet" 2>/dev/null)
+      if [ "$got" = "$want" ]; then echo same
+      else echo "differs, first at: $(diff <(echo "$got") <(echo "$want") | sed -n 's/^< //p' | head -n 1)"
+      fi
+    expect:
+      equals: same
+  - id: fastest-path-wins
+    description: "The server with both a synthetic interface and a virtual function, api-1, is reported on its fastest path: api-1 hyperv sriov."
+    timeout: 20
+    command: runuser -u learner -- /home/learner/bin/fleet-report /srv/fleet-a 2>/dev/null | grep '^api-1 '
+    expect:
+      equals: "api-1 hyperv sriov"
+  - id: slow-list
+    description: "~/report/slow.txt lists exactly the servers in /srv/fleet-a whose network card is emulated, one per line."
+    timeout: 20
+    command: |
+      want=$(for d in /srv/fleet-a/*/; do
+        if awk '
+          $2 ~ /^(mlx4_core|mlx5_core|mana|ena|ixgbevf|iavf|virtio_net|hv_netvsc|vif|vmxnet3|gve)$/ {fast = 1}
+          $2 ~ /^(e1000|e1000e|8139cp|8139too|pcnet32|ne2k-pci)$/ {slow = 1}
+          END {exit !(slow && !fast)}' "${d%/}/net-drivers.txt"; then basename "$d"; fi
+      done | LC_ALL=C sort)
+      got=$(LC_ALL=C sort /home/learner/report/slow.txt 2>/dev/null)
+      [ -n "$want" ] && [ "$got" = "$want" ] && echo same || echo "it lists: $(echo $got)"
+    expect:
+      equals: same
