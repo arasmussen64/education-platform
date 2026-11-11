@@ -5,8 +5,11 @@
 # third the check writes as it runs (fresh, below), whose sizes, host and
 # Software Assurance are drawn at random each time around a shape every
 # charge shows in: a host with free slots, a Windows VM with Software
-# Assurance and one without, and a 2-vCPU SQL Server without it. A total
-# typed into the script can't pass the second and third.
+# Assurance and one without, a 2-vCPU SQL Server without it, and a SQL
+# Server of more than 4 vCPUs without it, so SQL Server charged for a flat 4
+# vCPUs fails too (wrong/sql-always-four.sh), which neither of the learner's
+# inventories can show. A total typed into the script can't pass the second
+# and third.
 #
 # Each kind of line has a check of its own, so a failure points at one
 # charge (and one skill): SQL Server's minimum, who may use Azure Hybrid
@@ -78,6 +81,7 @@ checks:
         vm f-web-2 "$(pick '2 4 8')" windows none no no
         vm f-db-1 2 windows standard "$(pick 'yes no')" no
         vm f-db-2 "$(pick '4 8')" windows enterprise "$(pick 'yes no')" "$(pick 'yes no')"
+        vm f-db-3 "$(pick '6 8 16')" windows "$(pick 'standard enterprise')" "$(pick 'yes no')" no
         vm f-mail-1 "$(pick '2 4')" linux none no no
       }
       dir=$(mktemp -d); f="$dir/inventory-c.csv"
@@ -123,6 +127,7 @@ checks:
         vm f-web-2 "$(pick '2 4 8')" windows none no no
         vm f-db-1 2 windows standard "$(pick 'yes no')" no
         vm f-db-2 "$(pick '4 8')" windows enterprise "$(pick 'yes no')" "$(pick 'yes no')"
+        vm f-db-3 "$(pick '6 8 16')" windows "$(pick 'standard enterprise')" "$(pick 'yes no')" no
         vm f-mail-1 "$(pick '2 4')" linux none no no
       }
       dir=$(mktemp -d); fresh > "$dir/inventory-c.csv"; chmod -R a+rX "$dir"
@@ -169,6 +174,7 @@ checks:
         vm f-web-2 "$(pick '2 4 8')" windows none no no
         vm f-db-1 2 windows standard "$(pick 'yes no')" no
         vm f-db-2 "$(pick '4 8')" windows enterprise "$(pick 'yes no')" "$(pick 'yes no')"
+        vm f-db-3 "$(pick '6 8 16')" windows "$(pick 'standard enterprise')" "$(pick 'yes no')" no
         vm f-mail-1 "$(pick '2 4')" linux none no no
       }
       dir=$(mktemp -d); fresh > "$dir/inventory-c.csv"; chmod -R a+rX "$dir"
@@ -215,6 +221,7 @@ checks:
         vm f-web-2 "$(pick '2 4 8')" windows none no no
         vm f-db-1 2 windows standard "$(pick 'yes no')" no
         vm f-db-2 "$(pick '4 8')" windows enterprise "$(pick 'yes no')" "$(pick 'yes no')"
+        vm f-db-3 "$(pick '6 8 16')" windows "$(pick 'standard enterprise')" "$(pick 'yes no')" no
         vm f-mail-1 "$(pick '2 4')" linux none no no
       }
       dir=$(mktemp -d); fresh > "$dir/inventory-c.csv"; chmod -R a+rX "$dir"
