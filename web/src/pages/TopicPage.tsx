@@ -340,9 +340,11 @@ function CheckpointView({
   // The steps show most of the build's program, so once they've been opened
   // (on this visit or an earlier one), a pass of the build no longer proves
   // it; a fresh version does (ADR-0012, amended 2026-11-11). A build proved
-  // already stays proved.
+  // already stays proved. Without a fresh version the build still counts,
+  // as progress/progress.ts says.
   const freshVersionNeeded =
     unstuck !== undefined &&
+    unstuck.versions.length > 0 &&
     (openedHere || own?.stepsOpenedAt !== undefined) &&
     !own?.passed.build
   const suggest =
@@ -768,8 +770,9 @@ function ProveIt({
  * program much like the one the build asks for, so showing it any sooner
  * would hand over part of the "blank editor" answer.
  *
- * "Passed" is what the proof list above says: the main build or any fresh
- * version, on any day. A Check passed during this visit counts straight
+ * "Passed" is what the proof list above says: any fresh version, or the main
+ * build from before the steps were first opened, on any day (ADR-0012,
+ * amended 2026-11-11). A Check passed during this visit counts straight
  * away, because the progress includes it. Until the page knows, the check
  * stays closed and says why.
  */

@@ -101,7 +101,11 @@ function proofOf(
   if (event.type === 'explain_submit') return 'explain'
   if (event.type !== 'code_check' || event.item_id === null) return undefined
   if (event.item_id === topic.prove.build) {
-    return passedBeforeTheSteps(event, stepsOpenedAt) ? 'build' : undefined
+    // Once the steps are opened, a fresh version proves the build instead,
+    // as long as there is one to prove it with.
+    const counts =
+      passedBeforeTheSteps(event, stepsOpenedAt) || !hasFreshVersions(topic)
+    return counts ? 'build' : undefined
   }
   // A pass on any fresh version counts as passing the build (ADR-0012).
   if (topic.unstuck?.versions.includes(event.item_id)) return 'build'
@@ -122,6 +126,15 @@ function passedBeforeTheSteps(
   stepsOpenedAt: string | undefined,
 ): boolean {
   return stepsOpenedAt === undefined || event.occurred_at < stepsOpenedAt
+}
+
+/**
+ * Whether a topic has a fresh version that can prove its build instead of
+ * the main one. Every ready checkpoint has two, but if one ever had none,
+ * the main build must keep counting, or the build could never be proved.
+ */
+function hasFreshVersions(topic: Topic): boolean {
+  return (topic.unstuck?.versions.length ?? 0) > 0
 }
 
 /** The first time each topic's steps were opened, by topic. */

@@ -115,6 +115,29 @@ describe('a checkpoint build after the steps were opened', () => {
     expect(inOrder.get(CHECKPOINT.id)?.passed.build).toBe(at(13))
   })
 
+  it("doesn't count a pass at the very moment they opened", () => {
+    const progress = progressWith(
+      [check('build-receipt', true, 10)],
+      [opened(10)],
+    )
+    expect(progress.get(CHECKPOINT.id)?.passed.build).toBeUndefined()
+  })
+
+  it('keeps counting the main build when there is no fresh version to prove it with', () => {
+    // Every ready checkpoint has two, but a build must never become
+    // impossible to prove.
+    const without: Topic = {
+      ...CHECKPOINT,
+      unstuck: { example: 'example-shop', steps: [], versions: [] },
+    }
+    const progress = progressOf(
+      [without],
+      [...REST, check('build-receipt', true, 11)],
+      [opened(10)],
+    )
+    expect(progress.get(CHECKPOINT.id)?.passed.build).toBe(at(11))
+  })
+
   it('only changes the checkpoint whose steps were opened', () => {
     const progress = progressWith(
       [check('build-receipt', true, 11)],
