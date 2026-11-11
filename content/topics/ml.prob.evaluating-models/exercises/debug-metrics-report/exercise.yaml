@@ -1,14 +1,18 @@
 id: debug-metrics-report
 stage: debug
-rev: 1
-title: "A report that averages the wrong way"
+rev: 2
+title: "A metrics report with two wrong numbers"
 prompt: |
-  This program turns four counts into the four metrics and puts an interval on the accuracy, and should print:
+  This program turns a classifier's four counts on 200 examples into accuracy, precision, recall and F1, then puts a 95 percent interval on the accuracy. It should print:
 
   ```
   metrics 0.85 0.75 0.6 0.667
   interval 0.801 0.899
   ```
 
-  It has two bugs. Run it: the F1 comes out as 0.675, the plain average of precision and recall, where F1 is their **harmonic** mean, `2pr / (p + r)`, which punishes a low member. Fix that, and the interval is far too narrow: the standard error divides by `n` outside the square root, where the whole fraction `p(1 - p) / n` belongs **under** it.
+  Instead the F1 prints as 0.675 and the interval is only 0.006 wide. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which try both functions on other numbers.
+hints:
+  - "Precision is 0.75 and recall 0.6. Is 0.675 their plain average? F1 is a different kind of mean."
+  - "F1 is the harmonic mean of precision and recall, `2pr / (p + r)`, which punishes a low member."
+  - "Work the standard error of an accuracy of 0.85 on 200 examples out by hand: the square root of the whole fraction `p(1 - p) / n`. Where does `accuracy_interval` divide by `n`?"
 skills: [metrics, interval]
