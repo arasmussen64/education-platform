@@ -1,0 +1,121 @@
+# The checks for "The database that crawls": both services run, the
+# database has a CPU cap inside its allowance and isn't throttled, keeps its
+# 256 MB ceiling and its swap and isn't being slowed for memory, may run on
+# a CPU the batch job isn't using, the batch job stays on CPU 0, and all of
+# it is in systemd's settings on disk, so a restart keeps it.
+#
+# Each fault turns only its own checks red (tried with the wrong fixes that
+# leave one fault each): the quota cpu-allowance and not-throttled, the
+# memory throttle memory-not-squeezed, the pin own-cpu. The checks read
+# settings, counters and the process's CPU list, never a throughput figure:
+# those belong to the whole machine, and a busy computer moves them.
+checks:
+  - id: both-running
+    description: "shop-db and shop-batch are both running, and neither is being restarted over and over."
+    command: |
+      db=$(systemctl show shop-db -p MainPID --value)
+      batch=$(systemctl show shop-batch -p MainPID --value)
+      sleep 3
+      if [ "$(systemctl is-active shop-db shop-batch | paste -sd' ')" = "active active" ] \
+        && [ "$db" != 0 ] && [ "$db" = "$(systemctl show shop-db -p MainPID --value)" ] \
+        && [ "$batch" != 0 ] && [ "$batch" = "$(systemctl show shop-batch -p MainPID --value)" ]; then
+        echo running
+      else
+        echo "not both steadily running: shop-db $(systemctl is-active shop-db), shop-batch $(systemctl is-active shop-batch)"
+      fi
+    expect:
+      equals: running
+  - id: cpu-allowance
+    description: "shop-db has a CPU cap of more than the one CPU its work needs and no more than one and a half CPUs (its cgroup's cpu.max, as a percentage of one CPU)."
+    # More than 100, not 100: a one-CPU program under a quota of exactly one
+    # CPU is still throttled now and then (csa.linux.cpu's debug, measured
+    # 2026-11-10). With no cap the file starts with "max", or isn't there at
+    # all (systemd turns the CPU controller off for a service that needs
+    # none, tried 2026-11-11); "no cap" isn't a number, so it fails.
+    command: |
+      f=/sys/fs/cgroup/system.slice/shop-db.service/cpu.max
+      if [ -e "$f" ]; then awk '{ if ($1 == "max") print "no cap"; else print $1 * 100 / $2 }' "$f"; else echo "no cap"; fi
+    expect:
+      gt: 100
+      lte: 150
+  - id: not-throttled
+    description: "shop-db is no longer held back by its CPU cap: its count of throttled periods holds still for five seconds."
+    # With no cap at all, cpu.stat has no nr_throttled line, and nothing can
+    # be throttled: that counts as 0 here, and cpu-allowance is the check
+    # that wants the cap kept.
+    command: |
+      f=/sys/fs/cgroup/system.slice/shop-db.service/cpu.stat
+      first=$(awk '/^nr_throttled/ {n = $2} END {print n + 0}' "$f")
+      sleep 5
+      second=$(awk '/^nr_throttled/ {n = $2} END {print n + 0}' "$f")
+      [ "$first" = "$second" ] && echo steady || echo "throttled $((second - first)) times in five seconds"
+    expect:
+      equals: steady
+  - id: memory-ceiling
+    description: "shop-db can still never use more than 256 MB, in systemd's settings and in the kernel's."
+    command: echo "$(systemctl show shop-db -p MemoryMax --value) $(cat /sys/fs/cgroup/system.slice/shop-db.service/memory.max)"
+    expect:
+      equals: "268435456 268435456"
+  - id: memory-not-squeezed
+    description: "shop-db is no longer being slowed for memory: the kernel's count of times it throttled it holds still for eight seconds, and shop-db may still use swap."
+    # The count is read twice from the running service, not saved anywhere:
+    # it is the current state that matters here, and it starts again from
+    # 0 whenever the service restarts. Swap stays allowed, as the prompt
+    # says: forbidding it turns paging into stalling and fixes nothing.
+    command: |
+      f=/sys/fs/cgroup/system.slice/shop-db.service/memory.events
+      first=$(awk '$1 == "high" {print $2}' "$f")
+      sleep 8
+      second=$(awk '$1 == "high" {print $2}' "$f")
+      swap=$(systemctl show shop-db -p MemorySwapMax --value)
+      if [ -n "$first" ] && [ "$first" = "$second" ] && [ "$swap" != 0 ]; then
+        echo steady
+      else
+        echo "throttled $((second - first)) times in eight seconds; MemorySwapMax=$swap"
+      fi
+    expect:
+      equals: steady
+  - id: own-cpu
+    description: "shop-db's process may run on at least one CPU besides CPU 0, the batch job's (taskset -cp shows its list)."
+    command: |
+      pid=$(systemctl show shop-db -p MainPID --value)
+      awk '/^Cpus_allowed_list/ {print $2}' "/proc/$pid/status"
+    # Read from the process, not only from systemd: an emptied AllowedCPUs=
+    # leaves a running process on the CPUs it had until it restarts (tried
+    # on Docker Desktop, 2026-11-11). Any list but "0" has a CPU besides 0.
+    expect:
+      matches: "^(?!0$)[0-9]"
+  - id: batch-on-cpu-0
+    description: "shop-batch is still kept on CPU 0, in systemd's settings and in its process's CPU list."
+    command: |
+      pid=$(systemctl show shop-batch -p MainPID --value)
+      echo "$(systemctl show shop-batch -p AllowedCPUs --value) $(awk '/^Cpus_allowed_list/ {print $2}' "/proc/$pid/status")"
+    expect:
+      equals: "0 0"
+  - id: fixes-last
+    description: "Every one of shop-db's settings comes from systemd's files on disk and is the one the kernel is using, so a restart of the server keeps it: nothing set only until the next boot, nothing written straight into the kernel's files."
+    # A runtime-only fix (systemctl set-property --runtime) lives in /run,
+    # which a reboot empties: DropInPaths shows it. A fix written straight
+    # into the cgroup's files leaves systemd's settings saying the old value,
+    # and the next restart brings the fault back. wrong/runtime-only.sh
+    # proves the first is caught; comparing systemd's view with the
+    # kernel's catches the second.
+    command: |
+      g=/sys/fs/cgroup/system.slice/shop-db.service
+      drop=$(systemctl show shop-db -p DropInPaths --value)
+      case "$drop" in *"/run/"*) echo "set until the next boot only: $drop"; exit 0 ;; esac
+      q=$(systemctl show shop-db -p CPUQuotaPerSecUSec --value)
+      kq=none
+      [ -e "$g/cpu.max" ] && kq=$(awk '{ if ($1 == "max") print "none"; else printf "%.1f", $1 * 100 / $2 }' "$g/cpu.max")
+      sq=$(awk -v q="$q" 'BEGIN { if (q ~ /^[0-9.]+ms$/) printf "%.1f", q / 10; else if (q ~ /^[0-9.]+s$/) printf "%.1f", q * 100; else print "none" }')
+      h=$(systemctl show shop-db -p MemoryHigh --value); [ "$h" = infinity ] && h=max
+      kh=$(cat "$g/memory.high")
+      c=$(systemctl show shop-db -p AllowedCPUs --value)
+      kc=$(cat "$g/cpuset.cpus" 2>/dev/null)
+      if [ "$sq" = "$kq" ] && [ "$h" = "$kh" ] && [ "$c" = "$kc" ]; then
+        echo "systemd and the kernel agree"
+      else
+        echo "systemd says CPU $sq%, memory high $h, CPUs [$c]; the kernel says $kq%, $kh, [$kc]"
+      fi
+    expect:
+      equals: "systemd and the kernel agree"

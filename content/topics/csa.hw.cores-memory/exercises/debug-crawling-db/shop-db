@@ -1,0 +1,34 @@
+#!/usr/bin/python3
+"""shop-db [MB]: the shop's database (a stand-in).
+
+It keeps MB megabytes of tables in memory (150 if not told) and reads
+through every page of them as fast as it can, one pass after another, which
+keeps one CPU busy. On every pass it also builds a 4 MB result, taken fresh
+from the kernel and handed back. Once a second or so it logs how many
+passes it made: a healthy server manages dozens a second.
+"""
+
+import mmap
+import sys
+import time
+
+PAGE = 4096
+size_mb = int(sys.argv[1]) if len(sys.argv) > 1 else 150
+
+tables = bytearray(size_mb * 1024 * 1024)
+tables[::PAGE] = b"\1" * len(range(0, len(tables), PAGE))
+
+passes = 0
+since = time.monotonic()
+while True:
+    sum(tables[::PAGE])  # reads one byte of every page, so every page is touched
+    result = mmap.mmap(-1, 4 * 1024 * 1024)
+    result[::PAGE] = b"\1" * len(range(0, len(result), PAGE))
+    result.close()
+    passes += 1
+    now = time.monotonic()
+    if now - since >= 1:
+        word = "pass" if passes == 1 else "passes"
+        print(f"{passes} {word} in the last {now - since:.1f} s", flush=True)
+        passes = 0
+        since = now
