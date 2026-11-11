@@ -1,14 +1,14 @@
 id: mcq-ext4-vs-xfs
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You're formatting a new 2 TB volume for a database's data files and may need to grow it later, but never to shrink it. Which is true of the choice between ext4 and XFS?
 choices:
-  - "Only ext4 can be grown, so it must be ext4"
-  - "Both are journaling filesystems that suit this well; XFS grows online and allocates inodes as needed but can't shrink, ext4 can shrink when unmounted but fixes its inode count at creation; either is a reasonable choice, and XFS is the common one for large data volumes"
-  - "XFS has no journal, so a crash would corrupt the database"
-  - "ext4 can't hold files over 1 TB"
-answer: 1
+  - "Either suits it: both grow and shrink while mounted, so its size can be changed whenever that is needed"
+  - "It must be XFS: ext4 can only be grown after it is unmounted, which means stopping the database"
+  - "It must be ext4: XFS fixes its number of inodes when it is made, and a database creates many files"
+  - "Either suits it: both are journaling and both grow while mounted; XFS can't shrink, which is fine here"
+answer: 3
 explanation: |
-  Both journal their metadata and both handle terabyte volumes and large files. The practical differences are small: XFS can't shrink (rarely needed) and never runs out of inodes; ext4 can shrink offline and is what Debian and Ubuntu install by default. Red Hat defaults to XFS for exactly this kind of volume. The wrong answer to avoid is thinking the choice is dangerous either way: it isn't.
+  Both journal their changes, both handle terabyte volumes and large files, and both can be grown while mounted (`resize2fs` for ext4, `xfs_growfs` for XFS). Neither shrinks while mounted, though, and the practical differences are small. XFS can never shrink at all, which this volume will never need, and it allocates inodes as they're needed; Red Hat defaults to it, and it's the common choice for large data volumes. ext4 is the one that fixes its inode count when it's created, and the one that can shrink, though only when unmounted; growing it needs no downtime. It's what Debian and Ubuntu install by default. The mistake to avoid is thinking the choice is dangerous either way: it isn't.
 skills: [filesystems]

@@ -1,14 +1,14 @@
 id: mcq-inodes
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   `df -h` says `/var` is 40% used, but every write there fails with "No space left on device". What is the most likely cause, and how do you confirm it?
 choices:
-  - "The disk is failing; check `dmesg`"
-  - "The filesystem is out of inodes: millions of small files have used every file record although bytes remain; `df -i` shows IUse% at 100%"
-  - "The filesystem is mounted read-only; remount it"
-  - "The disk's write cache is full; run `sync`"
+  - "A deleted file is still held open and fills the rest; `lsof +L1` lists it with the process holding it"
+  - "The filesystem is out of inodes, used up by a huge number of small files; `df -i` shows IUse% at 100%"
+  - "The filesystem is mounted read-only, which the kernel reports like this; `findmnt /var` shows `ro`"
+  - "The volume has hit its IOPS limit and is refusing writes; `iostat -x 1` shows `%util` at 100%"
 answer: 1
 explanation: |
-  An ext4 filesystem has a fixed number of inodes, set when it was made, roughly one per 16 KB of space by default. A program that creates millions of tiny files (session files, a queue of small messages, a cache with one file per key) exhausts them long before the bytes run out, and the kernel reports the same error as a full disk. `df -i` tells the two apart. The fix is to delete the files; a bigger disk wouldn't help, and recreating the filesystem with more inodes (or using XFS) prevents a repeat.
+  Every file costs one inode, and an ext4 filesystem has a fixed number of them, set when it was made (roughly one per 16 KB of space by default). A program that creates millions of tiny files (session files, a queue of small messages, a cache with one file per key) uses them up long before the bytes run out, and the kernel reports the same error as for a full disk. `df -i` tells the two apart. The fix is to delete the files; a bigger disk wouldn't help, and recreating the filesystem with more inodes (or using XFS) prevents a repeat. A deleted file that's still held open does hide space, but `df` counts that space as used, so `df -h` would show the filesystem full, not at 40%. A read-only filesystem fails writes with a different message, "Read-only file system". And a volume at its IOPS limit gets slow; it doesn't refuse writes.
 skills: [disk-full, filesystems]
