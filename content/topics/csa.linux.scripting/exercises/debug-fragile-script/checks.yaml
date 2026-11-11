@@ -4,8 +4,17 @@
 # because the page shows them before any attempt.
 checks:
   - id: shellcheck-clean
-    description: "ShellCheck finds nothing to complain about."
-    command: shellcheck /home/learner/bin/archive-logs && echo "clean"
+    description: "ShellCheck finds nothing to complain about, with none of its warnings switched off."
+    # A "# shellcheck disable=..." line, or a .shellcheckrc beside the
+    # script, quiets ShellCheck without fixing what it warned about. The
+    # first is refused here and --norc ignores the second;
+    # wrong/shellcheck-silenced.sh proves it is caught.
+    command: |
+      if grep -Eqi '#[[:space:]]*shellcheck[[:space:]].*disable' /home/learner/bin/archive-logs; then
+        echo "a shellcheck disable line switches warnings off"
+      else
+        shellcheck --norc /home/learner/bin/archive-logs && echo "clean"
+      fi
     expect:
       contains: clean
   - id: runs-twice-clean
