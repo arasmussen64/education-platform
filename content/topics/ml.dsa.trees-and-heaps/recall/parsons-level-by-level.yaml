@@ -1,20 +1,17 @@
 id: parsons-level-by-level
 type: parsons
-rev: 1
+rev: 2
 prompt: |
   Put the lines in order to walk the tree breadth-first, level by level, and print `['a', 'b', 'c', 'd']`. One line is a decoy that doesn't belong.
 lines:
   - 'from collections import deque'
-  - 'tree = {"a": ["b", "c"], "b": ["d"], "c": [], "d": []}'
-  - 'queue = deque(["a"])'
-  - 'order = []'
+  - 'tree, queue, order = {"a": ["b", "c"], "b": ["d"], "c": [], "d": []}, deque(["a"]), []'
   - 'while queue:'
-  - '    node = queue.popleft()'
-  - '    order.append(node)'
-  - '    queue.extend(tree[node])'
+  - '    order.append(queue.popleft())'
+  - '    queue.extend(tree[order[-1]])'
   - 'print(order)'
 distractors:
-  - '    node = queue.pop()'
+  - '    order.append(queue.pop())'
 explanation: |
-  Breadth-first takes nodes from the front of the queue, so a node's children, added at the back, wait until the nodes already queued are done: a, then b and c, then d. The decoy's `pop()` takes from the back, which turns the queue into a stack and visits c before b: depth-first, in a different order.
+  The second line names three things at once: the tree, a queue with the root `a` waiting in it, and an empty list for the order. Breadth-first takes nodes from the front of the queue and writes them down; `order[-1]` is the node just written down, and its children join the back, where they wait until the nodes already queued are done: a, then b and c, then d. The decoy's `pop()` takes from the back, which turns the queue into a stack and visits c before b: depth-first, in a different order.
 skills: [traverse]
