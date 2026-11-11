@@ -1,0 +1,21 @@
+id: rev-awk-floor
+type: predict_shell
+rev: 1
+prompt: |
+  `servers.csv` lists six VMs, their vCPUs and the SQL Server edition each runs (`none` for no SQL Server). The pipeline drops the heading with `tail -n +2`, keeps only the lines that don't end in `,none` with `grep -v`, and then the `awk` program runs its three rules on each line left: set `n` to the vCPUs, raise it to 4 when it is below 4, add it to the total. What is printed?
+files:
+  servers.csv: |
+    server,vcpus,sql
+    web-1,2,none
+    db-1,2,standard
+    db-2,4,enterprise
+    app-1,6,none
+    db-3,16,standard
+    db-4,6,enterprise
+command: |
+  tail -n +2 servers.csv | grep -v ',none$' | awk -F, '{n = $2} n < 4 {n = 4} {total += n} END {print total}'
+expected_output: |
+  30
+explanation: |
+  It counts the SQL Server core licences these VMs need when licensed by VM: `grep -v` leaves the four that run SQL Server, and the floor raises db-1's 2 vCPUs to SQL Server's minimum of 4. 4 + 4 + 16 + 6 = 30. web-1 and app-1 run no SQL Server and need none, though web-1 is just as small. Without the floor the total would be 28; without the `grep -v` it would also count web-1 (raised to 4) and app-1's 6, and print 40.
+skills: [core-counting]

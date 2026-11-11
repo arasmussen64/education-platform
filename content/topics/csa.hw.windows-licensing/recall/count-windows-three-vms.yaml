@@ -1,0 +1,23 @@
+id: count-windows-three-vms
+type: estimate
+rev: 1
+prompt: |
+  Three Azure VMs will use Azure Hybrid Benefit for Windows Server. They have 2, 8 and 12 vCPUs. How many Windows Server core licences must you set aside for them? Exactly.
+unit: core licences
+answer: 28
+tolerance: { absolute: 0 }
+given: { small: 2, medium: 8, large: 12 }
+# 8 is the per-VM minimum the learner must know, so it isn't given.
+working: max(8, small) + max(8, medium) + max(8, large)
+mistakes:
+  - id: no-minimum
+    value: 22
+    working: small + medium + large
+    why: That counts vCPUs. Each VM needs at least 8 core licences, so the 2-vCPU VM takes 8.
+  - id: minimum-everywhere
+    value: 24
+    working: 3 * 8
+    why: That gives every VM the minimum. A VM bigger than 8 vCPUs needs one licence for each of its vCPUs.
+explanation: |
+  8 + 8 + 12 = 28. The minimum is 8 a VM; above 8, it's one licence a vCPU. The 2-vCPU VM is raised to 8, the 8-vCPU VM is exactly 8, and the 12-vCPU VM needs 12.
+skills: [core-counting]

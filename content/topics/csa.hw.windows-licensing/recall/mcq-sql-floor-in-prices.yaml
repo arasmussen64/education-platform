@@ -1,0 +1,21 @@
+id: mcq-sql-floor-in-prices
+type: mcq
+rev: 1
+prompt: |
+  | AWS, US East (N. Virginia), on-demand, read 2026-11-11 | With Windows | With Windows and SQL Server Standard |
+  | --- | --- | --- |
+  | `m7i.large` (2 vCPUs) | $0.1928 an hour | $0.6728 an hour |
+  | `m7i.xlarge` (4 vCPUs) | $0.3856 an hour | $0.8656 an hour |
+
+  SQL Server Standard adds $0.48 an hour to both sizes, although one has twice the vCPUs of the other. Why?
+choices:
+  - "AWS charges SQL Server for at least 4 vCPUs, so the 2-vCPU size pays for 4 of them"
+  - "AWS charges SQL Server per instance, so every size pays the same flat $0.48 an hour"
+  - "AWS discounts Windows on the smaller size, and that hides half of its SQL Server price"
+  - "SQL Server needs 4 vCPUs to run, so AWS quietly gives the 2-vCPU size 2 more of them"
+answer: 0
+explanation: |
+  SQL Server is licensed per core with a minimum of 4 a VM, and every cloud's licence-included price follows that rule: AWS charges SQL Server Standard at $0.12 a vCPU-hour for at least 4 vCPUs, and 4 × $0.12 = $0.48. The 2-vCPU size pays for two vCPUs it doesn't have. Google Cloud's price page says it in words ("Instances with fewer than 4 vCPUs will be charged for 4 vCPUs"), and Azure names its smallest SQL Server meter "1-4 vCPU VM".
+
+  It isn't a flat charge per instance: the 8-vCPU `m7i.2xlarge` pays $0.96 for it. The Windows prices aren't discounted either, since $0.1928 is exactly half of $0.3856. And the instance doesn't get more vCPUs: it keeps its 2 and you pay for 4. This is why SQL Server on a VM smaller than 4 vCPUs is poor value.
+skills: [licence-included, core-counting]

@@ -1,0 +1,25 @@
+id: count-windows-small-vm
+type: estimate
+rev: 1
+prompt: |
+  A company moves one Windows Server VM to Azure, on a size with 4 vCPUs, and turns on Azure Hybrid Benefit for it, using Windows Server core licences it already owns with Software Assurance. How many of those core licences must it set aside for this VM? Exactly.
+unit: core licences
+answer: 8
+tolerance: { absolute: 0 }
+given: { vcpus: 4 }
+# 8 is the per-VM minimum the learner must know (Product Terms, Microsoft
+# Azure, "The minimum number of core licenses required per VM is 8", read
+# 2026-11-11), so it is written into the working, not given.
+working: max(8, vcpus)
+mistakes:
+  - id: one-per-vcpu
+    value: 4
+    working: vcpus
+    why: That is one licence a vCPU with no minimum. Azure Hybrid Benefit needs at least 8 core licences for every VM, however small.
+  - id: server-minimum
+    value: 16
+    working: "16"
+    why: 16 is the minimum for a whole physical server you license yourself. A VM under Azure Hybrid Benefit has a minimum of 8.
+explanation: |
+  Under Azure Hybrid Benefit, a Windows Server VM needs one core licence for each vCPU, and never fewer than 8. A 4-vCPU VM is under the minimum, so it takes 8, the same as an 8-vCPU VM would. That minimum is why small Windows VMs make poor use of owned licences: four of these eight cover vCPUs the VM doesn't have.
+skills: [core-counting]

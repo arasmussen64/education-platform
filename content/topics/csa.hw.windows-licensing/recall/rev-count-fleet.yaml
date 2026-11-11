@@ -1,0 +1,22 @@
+id: rev-count-fleet
+type: estimate
+rev: 1
+prompt: |
+  Four Windows Server VMs in Azure will use Azure Hybrid Benefit: 2 of them have 4 vCPUs each, one has 16 and one has 32. How many Windows Server core licences do they take? Exactly.
+unit: core licences
+answer: 64
+tolerance: { absolute: 0 }
+given: { small: 4, mid: 16, large: 32, small_vms: 2 }
+working: small_vms * max(8, small) + max(8, mid) + max(8, large)
+mistakes:
+  - id: no-minimum
+    value: 56
+    working: small_vms * small + mid + large
+    why: That counts vCPUs. The two 4-vCPU VMs need the minimum of 8 core licences each.
+  - id: minimum-everywhere
+    value: 32
+    working: 4 * 8
+    why: That gives each of the four VMs the minimum of 8. Above 8 vCPUs, it's one core licence a vCPU.
+explanation: |
+  8 + 8 + 16 + 32 = 64. Each VM takes one core licence a vCPU, never fewer than 8. The two small VMs use 16 licences for 8 vCPUs between them, which is the cost of the minimum: Azure Hybrid Benefit goes furthest on VMs of 8 vCPUs or more.
+skills: [core-counting]

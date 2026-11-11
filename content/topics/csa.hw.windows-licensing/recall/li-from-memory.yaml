@@ -1,0 +1,27 @@
+id: li-from-memory
+type: estimate
+rev: 1
+prompt: |
+  No table this time: from memory of what Windows Server licence-included costs on a general-purpose size, as the lesson's prices stood in November 2026. About how much does the Windows Server licence add in a month to a VM with 16 vCPUs? Use 730 hours a month. Within 30% is right.
+unit: US dollars a month
+answer: 537.28
+tolerance: { percent: 30 }
+given: { vcpus: 16, hours: 730 }
+# $0.046 a vCPU-hour is the rate the learner remembers: AWS's Optimize CPUs
+# page, Azure's Windows-minus-Linux prices on the D and E series, and
+# Google's premium-image price, all read 2026-11-11.
+working: vcpus * 0.046 * hours
+mistakes:
+  - id: one-vcpu
+    value: 33.58
+    working: 0.046 * hours
+    why: That is one vCPU's licence for a month. The licence is charged on every vCPU, so 16 of them.
+  - id: one-day
+    value: 17.66
+    working: vcpus * 0.046 * 24
+    why: That is one day. A month is 730 hours, not 24.
+explanation: |
+  Windows Server licence included cost about $0.046 a vCPU-hour on all three clouds in November 2026 (outside the smallest burstable sizes). 16 × $0.046 × 730 = $537.28 a month, roughly $34 a vCPU a month. Within 30% means anything from about $376 to $698 is right: the point is to know, before opening a calculator, that Windows on a big VM is hundreds of dollars a month, not tens or thousands. Then open the price page for the real number.
+skills: [licence-included]
+prices_as_of: 2026-11-11
+prices_source: https://aws.amazon.com/ec2/pricing/on-demand/

@@ -1,0 +1,22 @@
+id: dh-fewer-licences
+type: estimate
+rev: 1
+prompt: |
+  An Azure Dasv5-Type1 dedicated host has 64 physical cores and holds at most 28 VMs of 4 vCPUs. A company puts 20 Windows Server VMs of 4 vCPUs on it and uses its own licences with Software Assurance, through Azure Hybrid Benefit. It can license each VM, or license the host's physical cores with Datacenter, which covers any number of VMs on the host. How many fewer Windows Server core licences does licensing the host take? Exactly.
+unit: core licences
+answer: 96
+tolerance: { absolute: 0 }
+given: { cores: 64, vms: 20, vcpus: 4 }
+working: vms * max(8, vcpus) - cores
+mistakes:
+  - id: no-vm-minimum
+    value: 16
+    working: vms * vcpus - cores
+    why: That counts the VMs' vCPUs, 80, with no minimum. Licensed one by one, each VM needs at least 8 core licences.
+  - id: not-the-difference
+    value: 160
+    working: vms * max(8, vcpus)
+    why: That is what licensing each VM takes. The question is how many fewer the host needs, so take its 64 away.
+explanation: |
+  Licensed VM by VM, each of the 20 VMs needs 8 core licences (4 vCPUs, raised to the minimum of 8): 160 in all. Licensing the host takes one Datacenter core licence for each of its 64 physical cores, and then any number of Windows VMs may run on it. 160 − 64 = 96 fewer. With 8 VMs on the host both ways take 64; with fewer, licensing the host takes more. Whether 96 licences are worth the host's premium, about a tenth over the same VMs on shared hardware, is the sum the lesson's section on dedicated hosts works through.
+skills: [dedicated-hosts, core-counting]

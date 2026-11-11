@@ -1,0 +1,31 @@
+id: sql-size-by-memory
+type: estimate
+rev: 1
+prompt: |
+  A SQL Server Standard database needs 32 GiB of memory and no more than 4 vCPUs. Two Azure sizes have the memory:
+
+  | Azure, East US, pay-as-you-go, read 2026-11-11 | vCPUs | Memory | Windows, per hour |
+  | --- | --- | --- | --- |
+  | `Standard_D8s_v5` (general purpose) | 8 | 32 GiB | $0.752 |
+  | `Standard_E4s_v5` (memory optimised) | 4 | 32 GiB | $0.436 |
+
+  SQL Server Standard licence included adds $0.10 a vCPU-hour, for at least 4 vCPUs. How much less is a month on the `E4s_v5` than on the `D8s_v5`? Use 730 hours a month. Within 2%.
+unit: US dollars a month
+answer: 522.68
+tolerance: { percent: 2 }
+given: { big_vcpus: 8, small_vcpus: 4, big: 0.752, small: 0.436, rate: 0.10, hours: 730 }
+working: ((big + rate * big_vcpus) - (small + rate * small_vcpus)) * hours
+mistakes:
+  - id: vm-only
+    value: 230.68
+    working: (big - small) * hours
+    why: That is the difference in the VMs' price alone. SQL Server is charged on every vCPU too, and the bigger VM has 4 more.
+  - id: licence-only
+    value: 292.00
+    working: rate * (big_vcpus - small_vcpus) * hours
+    why: That is the difference in the SQL Server licence alone. The memory-optimised VM is cheaper as a machine too.
+explanation: |
+  `D8s_v5`: $0.752 + 8 × $0.10 = $1.552 an hour. `E4s_v5`: $0.436 + 4 × $0.10 = $0.836 an hour. The difference, $0.716 an hour, is $522.68 a month, 46% of the bigger bill. A database is usually sized by its memory, and a memory-optimised size gives the same memory with half the vCPUs; since SQL Server is charged per vCPU, every vCPU you don't need is licence you don't pay for. Below 4 vCPUs the saving stops, because SQL Server is charged for at least 4.
+skills: [sql-editions, licence-included]
+prices_as_of: 2026-11-11
+prices_source: https://azure.microsoft.com/en-us/pricing/details/virtual-machines/windows/

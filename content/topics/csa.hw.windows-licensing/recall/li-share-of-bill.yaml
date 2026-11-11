@@ -1,0 +1,34 @@
+id: li-share-of-bill
+type: estimate
+rev: 1
+prompt: |
+  | AWS `m7i.xlarge` (4 vCPUs, 16 GiB), US East (N. Virginia), on-demand, read 2026-11-11 | Per hour |
+  | --- | --- |
+  | Linux | $0.2016 |
+  | Windows Server, licence included | $0.3856 |
+  | Windows Server and SQL Server Enterprise, licence included | $1.8856 |
+
+  The hardware is the same in every row. On the Windows and SQL Server Enterprise instance, what percentage of the bill is software licences rather than the machine? Within 2 percentage points.
+unit: "%"
+answer: 89.3
+tolerance: { absolute: 2 }
+given: { linux: 0.2016, windows: 0.3856, enterprise: 1.8856 }
+working: (enterprise - linux) / enterprise * 100
+mistakes:
+  - id: machine-share
+    value: 10.7
+    working: linux / enterprise * 100
+    why: That is the machine's share of the bill. The rest, nearly nine dollars in ten, is the two licences.
+  - id: sql-only
+    value: 79.6
+    working: (enterprise - windows) / enterprise * 100
+    why: That is SQL Server's share alone. Windows Server is a licence too, and the machine on its own is the Linux row.
+  - id: licence-over-machine
+    value: 835.3
+    working: (enterprise - linux) / linux * 100
+    why: That compares the licences with the machine, not with the bill. The licences cost about 8 times the machine, which is 89% of the whole.
+explanation: |
+  The machine is the Linux row, $0.2016 an hour. Everything above it is licence: $1.8856 − $0.2016 = $1.684 an hour, which is 89.3% of $1.8856. SQL Server Enterprise alone is $1.50 of it (4 vCPUs at $0.375), Windows Server $0.184. On a SQL Server Enterprise machine, a cheaper processor or a few percent off the instance changes little; using fewer vCPUs, or a cheaper edition, changes most of the bill.
+skills: [licence-included]
+prices_as_of: 2026-11-11
+prices_source: https://aws.amazon.com/ec2/pricing/on-demand/

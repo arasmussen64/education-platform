@@ -1,0 +1,30 @@
+id: rev-li-sql-floor
+type: estimate
+rev: 1
+prompt: |
+  | Google Cloud, SQL Server images, read 2026-11-11 | Price |
+  | --- | --- |
+  | SQL Server Enterprise | $0.399 per core-hour |
+
+  The charge comes on top of the machine and its Windows Server licence. What does SQL Server Enterprise add per hour to a VM with 2 vCPUs? Within $0.005.
+unit: US dollars an hour
+answer: 1.596
+tolerance: { absolute: 0.005 }
+given: { rate: 0.399, vcpus: 2 }
+# The minimum of 4 is the rule the learner must know; Google's page states
+# it ("Instances with fewer than 4 vCPUs will be charged for 4 vCPUs").
+working: rate * max(4, vcpus)
+mistakes:
+  - id: no-minimum
+    value: 0.798
+    working: rate * vcpus
+    why: That charges the 2 vCPUs the VM has. SQL Server is charged for at least 4, on Google Cloud as everywhere.
+  - id: one-core
+    value: 0.399
+    working: rate
+    why: That is one core. The charge is per core, and a VM pays for at least 4.
+explanation: |
+  Google charges SQL Server per vCPU with "a four core minimum for each instance", so a 2-vCPU VM pays for 4: 4 × $0.399 = $1.596 an hour, about $1,165 a month. That is Microsoft's minimum of 4 core licences a VM, showing up in a price list. A 2-vCPU VM is the worst size for SQL Server: half its licence covers vCPUs that don't exist.
+skills: [licence-included]
+prices_as_of: 2026-11-11
+prices_source: https://cloud.google.com/compute/disks-image-pricing

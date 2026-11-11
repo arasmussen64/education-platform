@@ -1,0 +1,24 @@
+id: rev-dh-sql-packs
+type: estimate
+rev: 1
+prompt: |
+  An Azure Dsv6-Type1 dedicated host has 96 physical cores and 192 vCPUs. A company runs 24 SQL Server Enterprise VMs of 8 vCPUs on it, with its own licences and Software Assurance. It can license SQL Server VM by VM, or license all the host's physical cores with Enterprise and run any number of VMs. SQL Server core licences come in packs of 2. How many fewer packs does licensing the host take? Exactly.
+unit: 2-core packs
+answer: 48
+tolerance: { absolute: 0 }
+given: { cores: 96, host_vcpus: 192, vms: 24, vcpus: 8, pack: 2 }
+working: (vms * max(4, vcpus) - cores) / pack
+mistakes:
+  - id: licences-not-packs
+    value: 96
+    working: vms * max(4, vcpus) - cores
+    why: 96 is the difference in core licences. Two to a pack, it is 48 packs.
+  - id: host-by-vcpus
+    value: 0
+    working: (vms * max(4, vcpus) - host_vcpus) / pack
+    why: That licenses the host by its 192 vCPUs. Licensing a host counts its physical cores, 96, which is the whole point.
+explanation: |
+  VM by VM: 24 × 8 = 192 core licences, 96 packs. The host: one licence for each of its 96 physical cores, 48 packs. 48 fewer packs; at Microsoft's list price of $15,123 a pack of SQL Server 2025 Enterprise (read 2026-11-11), that is $725,904 of licences not bought, against a host that costs about a tenth more than the same VMs on shared hardware. This is the case dedicated hosts are made for: a full host and licences counted on physical cores.
+skills: [dedicated-hosts, core-counting]
+prices_as_of: 2026-11-11
+prices_source: https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/bade/documents/products-and-services/en-us/cloud/SQL-Server-2025-Pricing.pdf
