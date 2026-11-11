@@ -1,14 +1,16 @@
 id: mcq-container-limit
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A container with a 512 MiB memory limit keeps getting killed with exit code 137, while the node it runs on has 20 GB free. Why does the node's free memory not help?
 choices:
-  - "It should help; the kill must be a bug in the kernel"
-  - "The container's processes live in a cgroup whose `memory.max` is 512 MiB; when they reach it, the kernel runs the OOM killer inside that cgroup only, so the node's free memory is irrelevant. Measure what the program needs and raise the limit, or fix the leak"
-  - "The node's memory is reserved for the kernel"
-  - "Containers can only use swap, not RAM"
-answer: 1
+  - "Most of the node's 20 GB is page cache, which the kernel can't hand over to a container quickly enough"
+  - "Exit code 137 means the container chose to stop itself, so the memory on the node was never involved"
+  - "The limit is its cgroup's `memory.max`, and the kernel kills inside that cgroup once it is reached"
+  - "The node's free memory is kept for pods that set a request, and this container set only a limit"
+answer: 2
 explanation: |
-  A limit is a wall around the container's own memory, enforced by the cgroup, and it's doing exactly what it was asked. Kubernetes reports the result as `OOMKilled`; the cgroup's `memory.events` shows `oom_kill` ticking up. The fix is to know what the program really uses (`memory.current` or `memory.peak`) and set the limit above that, with the request close to the limit so the scheduler places it where the memory exists; a program that grows forever needs fixing, not a bigger wall.
+  A limit is a wall around the container's own memory, enforced by the cgroup, and it's doing exactly what it was asked: when the processes inside reach `memory.max`, the kernel runs the OOM killer inside that cgroup only, so what the node has free is irrelevant. Kubernetes reports the result as `OOMKilled`; the cgroup's `memory.events` shows `oom_kill` ticking up.
+
+  The page cache is not the obstacle: the kernel gives cache back the moment a program needs it, and the container would be stopped at 512 MiB on a node with nothing cached at all. Exit code 137 is 128 plus 9, a `SIGKILL` from outside, never the program's own choice. And a request is what the scheduler reserves when it places a pod; it doesn't decide who may use the node's free memory afterwards. The fix is to know what the program really uses (`memory.current` or `memory.peak`) and set the limit above that, with the request close to the limit; a program that grows forever needs fixing, not a bigger wall.
 skills: [container-memory]

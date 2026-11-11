@@ -1,14 +1,16 @@
 id: mcq-leak-signs
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A service is OOM-killed every two days, restarts, and is fine for two days. Its memory graph is a sawtooth: a steady climb to the limit, then a drop. What does that pattern tell you, and what doesn't fix it?
 choices:
-  - "The server has too little memory; adding RAM fixes it for good"
-  - "The program leaks memory: it keeps allocating and never frees, so it will reach any limit eventually; raising the limit only lengthens the cycle, and the fix is in the program (or a deliberate periodic restart while it's found)"
-  - "The page cache is leaking; drop the caches"
-  - "Swap is too small"
-answer: 1
+  - "The page cache is filling the limit, and dropping the caches only clears it for a while"
+  - "The server is short of RAM for its load, and restarting the service only hides the shortage"
+  - "The limit is set too low for normal use, and changing the program's code would not help"
+  - "The program leaks memory, and raising the limit only makes each climb take longer"
+answer: 3
 explanation: |
-  A steady climb with no plateau means memory in use grows with time rather than with load: a leak. Doubling the limit turns two days into four. Caches don't leak (the kernel reclaims them), and swap only delays the kill. Measure which part of the program grows (heap profiles, `memory.current` over time), fix it, and in the meantime a scheduled restart is an honest stopgap.
+  A steady climb with no plateau means memory in use grows with time rather than with load: a leak. The program keeps allocating and never frees, so it will reach any limit eventually, and doubling the limit turns two days into four. The fix is in the program: measure which part grows (heap profiles, `memory.current` over time) and fix it. In the meantime a scheduled restart is an honest stopgap.
+
+  A limit that was simply too low, or a server short of RAM, would look different: usage would rise to what the work needs and stay there, moving with the load, not climb at the same slope for two days whatever the service is doing. And caches don't leak: the kernel takes the page cache back by itself when memory is needed, so it is never what gets a service killed.
 skills: [oom-killer, container-memory]

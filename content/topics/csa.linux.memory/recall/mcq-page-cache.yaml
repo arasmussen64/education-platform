@@ -1,14 +1,16 @@
 id: mcq-page-cache
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   `free -m` on a database server shows 16,012 MB total, 400 MB free, 6,000 MB buff/cache and 6,100 MB available. A colleague wants to add RAM because "it's nearly out of memory". What do you tell them?
 choices:
-  - "They're right: 400 MB free of 16 GB is critical"
-  - "The 6 GB of buff/cache is file data the kernel keeps in otherwise idle RAM and drops when needed; `available` says about 6 GB could be used by new programs, so the server is fine"
-  - "Run `sync; echo 3 > /proc/sys/vm/drop_caches` every hour to keep `free` high"
-  - "Disable swap, which will raise `free`"
-answer: 1
+  - "It's fine: `available` shows about 6 GB that new programs could use, most of it page cache"
+  - "They're right: with 400 MB `free` of 16 GB, the next large program will be OOM-killed"
+  - "It's fine, provided a job drops the page cache every hour so that `free` stays high"
+  - "They're right: the 6 GB of buff/cache is memory that programs have leaked and never freed"
+answer: 0
 explanation: |
-  Unused RAM is wasted RAM, so the kernel fills it with the page cache; a database server with a warm cache is faster, not sicker. The kernel reclaims cache automatically, so dropping it by hand only makes the next reads slow. `available` is the honest number. Add RAM when `available` stays low or `vmstat` shows swapping, not when `free` is small.
+  Unused RAM is wasted RAM, so the kernel fills it with the page cache: copies of file data that it keeps in otherwise idle memory and drops the moment a program needs the space. `available` is the honest number, and it says about 6 GB could go to new programs, so a large program would start without anything being killed.
+
+  The buff/cache figure is the kernel's own doing, not something programs leaked. And the kernel reclaims cache automatically, so dropping it by hand (`sync; echo 3 > /proc/sys/vm/drop_caches`) only makes the next reads slow: a database server with a warm cache is faster, not sicker. Add RAM when `available` stays low or `vmstat` shows swapping, not when `free` is small.
 skills: [virtual-memory]
