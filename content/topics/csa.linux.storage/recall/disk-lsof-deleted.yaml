@@ -1,16 +1,17 @@
 id: disk-lsof-deleted
 type: predict_shell
-rev: 2
+rev: 3
 prompt: |
-  Someone deleted a 10 GB log, but `df` still shows the space as used. `lsof.txt` is the output of `lsof +L1`, which lists open files that have been deleted (link count 0). The command prints, for each deleted file, the program, its PID and the file's size in GB (field 7 is the size in bytes). What is printed?
+  Someone deleted a 10 GB log, but `df` still shows the space as used. `lsof.txt` is the output of `sudo lsof +L1`, which lists open files that have been deleted (link count 0). The command prints the program, its PID and the size in GB of each deleted file bigger than 1 GB (field 7 is the size in bytes, and a GB here is 1024 × 1024 × 1024 bytes). What is printed?
 files:
   lsof.txt: |
     COMMAND  PID USER FD  TYPE DEVICE    SIZE/OFF NLINK NODE NAME
-    java    1234  app  5w  REG  259,3 10737418240     0 5243 /var/log/app/old.log (deleted)
+    nginx   1180  www  8w  REG  259,3   943718400     0 6111 /var/log/nginx/access.log.1 (deleted)
+    java    2345  app  5w  REG  259,3 10737418240     0 5243 /var/log/app/old.log (deleted)
 command: |
-  awk '/\(deleted\)/ {print $1, $2, $7 / 1024 / 1024 / 1024 " GB"}' lsof.txt
+  awk 'NR > 1 && $7 > 1024 * 1024 * 1024 {print $1, $2, $7 / 1024 / 1024 / 1024 " GB"}' lsof.txt
 expected_output: |
-  java 1234 10 GB
+  java 2345 10 GB
 explanation: |
-  The `java` process (PID 1234) still has the deleted log open for writing (`5w`: file descriptor 5, writing), so its 10 GB stay allocated until the process closes it. `lsof +L1` prints only files whose link count (the NLINK column) is 0, so every line below the header is a deleted file that something still holds open; the `/\(deleted\)/` pattern is what keeps the header line out. To get the space back without restarting Java, empty the file through the descriptor: `: > /proc/1234/fd/5`. The lesson for next time: truncate a live log, don't `rm` it.
+  Two deleted files are still held open, so both still take up space: `nginx` still writes to an old rotated log, and `java` (PID 2345) to the 10 GB one (`5w`: file descriptor 5, writing). `lsof +L1` prints only files whose link count (the NLINK column) is 0, so every line below the header is a deleted file that something holds open. `NR > 1` skips the header, which `awk` would otherwise compare with the number as text and let through. `$7 > 1024 * 1024 * 1024` keeps the files over 1 GB: nginx's 943718400 bytes is 900 MB, under the line, and Java's 10737418240 is exactly 10 GB. To get that space back without restarting Java, empty the file through the descriptor: `: > /proc/2345/fd/5`. The lesson for next time: truncate a live log, don't `rm` it.
 skills: [disk-full]
