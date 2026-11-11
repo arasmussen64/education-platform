@@ -1,0 +1,23 @@
+id: fill-licence-count
+stage: fill_in
+runtime: lab
+rev: 1
+title: "Finish licence-count"
+prompt: |
+  The shop has taken over a second company, and before it buys Software Assurance for everything it wants to know how many core licences that would mean. `/srv/licensing/estate.csv` is the estate now, one server a line, and `/srv/licensing/README.txt` says what each column means.
+
+  `~/bin/licence-count ESTATE` counts the licences the shop would have to own to bring every server to Azure with its own licences: every Windows Server VM through Azure Hybrid Benefit, and every SQL Server VM licensed by VM, whatever the `win_sa` and `sql_sa` columns say today. It prints three lines:
+
+  ```text
+  windows core licences: N
+  sql core licences: N
+  sql 2-core packs: N
+  ```
+
+  Four of its lines have `...` where something belongs: the two minimums, the test that tells whether a server runs SQL Server, and the sum that turns core licences into packs. Until all four are filled in, `awk` refuses to run the program at all: it prints a line like `awk: 3: unexpected character '.'` for the gaps it finds (the number counts lines of the `awk` program, not of the file). Fill them in with `nano ~/bin/licence-count`, then run `~/bin/licence-count /srv/licensing/estate.csv` and check one line by hand: how many Windows Server core licences do web-1, web-2 and app-1 take between them? Then run the checks, which also try the script on an estate it has never seen.
+hints:
+  - "A Windows Server VM under Azure Hybrid Benefit takes one core licence a vCPU and never fewer than 8; a SQL Server VM, never fewer than 4. 16 is the minimum for a whole physical server, which none of these is."
+  - "In `awk` a comparison is a value: `$4 != \"none\"` is 1 on a line where the fourth field isn't `none` and 0 where it is, so `runs_sql = $4 != \"none\"` keeps the answer for the rules after it."
+  - "SQL Server core licences come two to a pack, and every VM here has an even number of vCPUs, so the packs are the core licences divided by 2: `sql / 2`."
+  - "web-1, web-2 and app-1 have 2, 2 and 4 vCPUs, and each takes the minimum of 8: 24 between them."
+skills: [core-counting]

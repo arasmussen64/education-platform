@@ -1,0 +1,61 @@
+# The checks for "Finish licence-count": the script's three lines against the
+# check's own count over the same file, on the shop's estate and on an estate
+# the check writes for itself at that moment, which the learner has never
+# seen. Its sizes and its Software Assurance are drawn at random each time
+# (bash's RANDOM), around a fixed shape that every rule shows in: Windows
+# servers under 8 vCPUs and others under 16 (so a minimum of 16 shows), a
+# SQL Server on 2 vCPUs, and servers that run no SQL Server. Its SQL Server count can never be the shop
+# estate's 32, so numbers typed into the script fail it (wrong/typed-in.sh).
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/licence-count"
+  - id: estate-right
+    description: "On /srv/licensing/estate.csv, all three lines are right."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '
+          $3 == "windows" {n = $2; if (n < 8) n = 8; w += n}
+          $4 != "none" {n = $2; if (n < 4) n = 4; s += n}
+          END {print "windows core licences: " w + 0; print "sql core licences: " s + 0; print "sql 2-core packs: " s / 2}'
+      }
+      got=$(runuser -u learner -- /home/learner/bin/licence-count /srv/licensing/estate.csv 2>&1)
+      [ "$got" = "$(truth /srv/licensing/estate.csv)" ] && echo right || echo "the script printed: $(echo "$got" | tr '\n' ';')"
+    expect:
+      equals: right
+  - id: unseen-estate-right
+    description: "On another estate, which the check writes as it runs and the script has never seen, all three lines are right too."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '
+          $3 == "windows" {n = $2; if (n < 8) n = 8; w += n}
+          $4 != "none" {n = $2; if (n < 4) n = 4; s += n}
+          END {print "windows core licences: " w + 0; print "sql core licences: " s + 0; print "sql 2-core packs: " s / 2}'
+      }
+      pick() { local a=($1); echo "${a[RANDOM % ${#a[@]}]}"; }
+      row() {
+        awk -v n="$1" -v v="$2" -v o="$3" -v s="$4" -v a="$5" -v b="$6" -v f="$7" 'BEGIN {
+          l = (f == "e" ? 0.063 : 0.048) * v; w = (f == "e" ? 0.109 : 0.094) * v
+          if (o == "linux") w = l
+          printf "%s,%d,%s,%s,%s,%s,%.3f,%.3f\n", n, v, o, s, a, b, l, w }'
+      }
+      dir=$(mktemp -d)
+      {
+        echo "server,vcpus,os,sql,win_sa,sql_sa,linux_hourly,windows_hourly"
+        row u-web-1 "$(pick '2 4')" windows none yes no d
+        row u-web-2 "$(pick '2 4')" windows none no no d
+        row u-app-1 "$(pick '8 16')" windows none "$(pick 'yes no')" no d
+        row u-app-2 "$(pick '16 32')" windows none "$(pick 'yes no')" no d
+        row u-db-1 2 windows standard "$(pick 'yes no')" no d
+        row u-db-2 "$(pick '4 8')" windows "$(pick 'standard enterprise')" "$(pick 'yes no')" "$(pick 'yes no')" e
+        row u-db-3 "$(pick '16 32')" windows enterprise yes yes e
+        row u-cache-1 "$(pick '4 8')" linux none no no d
+        row u-cache-2 "$(pick '2 16')" linux none no no d
+      } > "$dir/estate.csv"
+      chmod -R a+rX "$dir"
+      got=$(runuser -u learner -- /home/learner/bin/licence-count "$dir/estate.csv" 2>&1)
+      want=$(truth "$dir/estate.csv")
+      rm -r "$dir"
+      [ "$got" = "$want" ] && echo right || echo "not right on an estate it hasn't seen"
+    expect:
+      equals: right
