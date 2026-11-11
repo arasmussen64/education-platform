@@ -1,0 +1,46 @@
+#!/usr/bin/python3
+# shop-sort: the lab's stand-in for the shop's nightly sort. Part of the
+# lab's scenery. Like any big sort, it spills sorted runs to scratch files
+# in its temporary folder, TMPDIR, 64 KiB at a time and straight to the
+# disk (O_DIRECT): up to 16 MiB a second, or whatever the disk will take
+# if that is less. Nothing it leaves there is needed once it has finished.
+# Every 10 seconds it logs how much it spilled.
+import mmap
+import os
+import time
+
+CHUNK = 65536
+RUN_CHUNKS = 128  # 8 MiB a run file
+RUNS = 4
+WANTED = 256  # chunks a second: 16 MiB
+
+tmp = os.environ.get("TMPDIR", "/tmp")
+os.makedirs(tmp, exist_ok=True)
+buffer = mmap.mmap(-1, CHUNK)
+buffer.write(b"s" * CHUNK)
+
+flags = os.O_RDWR | os.O_CREAT | os.O_DIRECT
+files = [os.open(os.path.join(tmp, f"sort-run-{n}"), flags, 0o600) for n in range(RUNS)]
+print(f"shop-sort: spilling sorted runs to {tmp}", flush=True)
+chunk = 0
+spilled = 0
+paced = 0
+started = pace_from = time.monotonic()
+while True:
+    run, offset = divmod(chunk % (RUNS * RUN_CHUNKS), RUN_CHUNKS)
+    os.pwrite(files[run], buffer, offset * CHUNK)
+    chunk += 1
+    paced += 1
+    spilled += CHUNK
+    now = time.monotonic()
+    due = pace_from + paced / WANTED
+    if now < due:
+        time.sleep(due - now)
+        now = time.monotonic()
+    elif now > due + 1:
+        pace_from, paced = now, 0
+    if now - started >= 10:
+        rate = spilled / (now - started) / 1048576
+        print(f"shop-sort: {rate:.1f} MiB a second spilled to {tmp}", flush=True)
+        spilled = 0
+        started = now

@@ -1,16 +1,22 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.hw.disks
 kind: topic
-status: planned
-title: Memory tiers and disks
-summary: Place cache, memory, local NVMe and network disks by speed.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+status: draft
+title: "Memory tiers and disks"
+summary: "Where a server keeps what it's working on, from the CPU's caches to a disk across the network, and how fast each is; which disks survive a stop; and what a cloud disk and VM together will really deliver."
+prerequisites: [csa.hw.hypervisors]
+estimated_minutes: 205
 rev: 1
 objectives:
-- Place cache, memory, local NVMe and network disks by speed.
-- Choose between local ephemeral and network-attached disks.
-- Work out what a disk and a VM together will deliver.
+  - "Place CPU cache, memory, a local NVMe disk and a network disk in order of speed, with rough numbers, and say what that means for a program that waits on each."
+  - "Choose between a local ephemeral disk and a network-attached disk, from what each keeps through a reboot, a stop, a resize and a host failure on each cloud."
+  - "Work out what a disk and a VM together will deliver: IOPS × block size until the throughput cap, the smaller of the disk's and the VM's allowance, and why a deeper queue doesn't beat a cap."
+practice: [example-cap-a-disk]
+prove:
+  debug: debug-slow-nights
+skills:
+  - id: storage-tiers
+    description: "The memory hierarchy: CPU cache, memory, a local NVMe disk and a network disk, by rough speed, as orders of magnitude"
+  - id: what-survives
+    description: "Local ephemeral disks (instance store, temporary disk, Local SSD) against network disks (EBS, managed disks, Persistent Disk and Hyperdisk): what each keeps through a reboot, a stop, a resize and a host failure, and what each is for"
+  - id: disk-caps
+    description: "IOPS × block size until the throughput cap; the smaller of the disk's and the VM's allowance; why a deeper queue doesn't beat a cap; GiB against GB and MiB/s against MB/s; reading and setting `io.max` with `IOWriteIOPSMax=` and `IOWriteBandwidthMax=`"

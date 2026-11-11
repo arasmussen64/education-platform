@@ -1,0 +1,25 @@
+id: debug-slow-nights
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Slow every night"
+prompt: |
+  The shop's server has two kinds of disk, as a cloud VM does, and two services that use them.
+
+  - **The data disk**, `/dev/lab/data`, mounted at `/srv/data`, is a network disk: what is written to it stays through every stop and start. It is provisioned for 400 writes a second and 6 MiB a second, and everything on the server that writes to it shares that allowance. On the lab machine the disk is a file on your computer, which would take far more, so the lab plays the cloud's part: `shop-db` and `shop-sort` run together in `shop.slice`, and the slice holds their writes to this disk, all together, to what it is provisioned for.
+  - **The scratch disk**, `/dev/lab/scratch`, mounted at `/srv/scratch`, is a local disk: fast, included in the price, and empty again after every stop, as a cloud's local disk is. The lab wipes it at every boot.
+  - **`shop-db`** is the shop's database. It keeps its tables on the data disk and writes to them all the time, and it puts each order checkout takes into a spool folder until it has filed it. Its folders are set in `/etc/shop/shop.conf`.
+  - **`shop-sort`** is the nightly sort. While it runs it spills scratch files into its temporary folder, `TMPDIR`, and nothing it leaves there is needed afterwards. It is night in the lab, so the sort is running.
+
+  **What's wrong.** Checkout is slow every night: `journalctl -u shop-db` shows the database getting through a small fraction of the writes the data disk is provisioned for. And the orders taken on Saturday evening were missing after Sunday's maintenance stop.
+
+  **There are three faults.** The rules of the fix:
+
+  - The slice keeps holding the shop's writes to the data disk to exactly what the disk is provisioned for. Taking the limit away isn't a fix: on the cloud, the disk would still hold the server to it.
+  - Both services keep running and keep doing all their work.
+  - Every fix must last after a reboot.
+
+  Only the disks labelled under `/dev/lab/` belong to the lab: the others `lsblk` lists belong to Docker on your own computer, and must be left alone. Nothing here needs formatting. When you're done, run the checks.
+skills: [disk-caps, what-survives]

@@ -1,0 +1,17 @@
+[Unit]
+Description=shop-sort: the shop's nightly sort
+Requires=lab-disks.service
+After=lab-disks.service
+
+[Service]
+Environment=TMPDIR=/srv/data/sort-tmp
+# Makes its scratch folder, owned by the shop's account, before it starts.
+ExecStartPre=+/usr/bin/install -d -o shop -g shop ${TMPDIR}
+ExecStart=/usr/local/bin/shop-sort
+User=shop
+Slice=shop.slice
+# Keep count of its disk reads and writes (io.stat in its cgroup folder).
+IOAccounting=yes
+
+[Install]
+WantedBy=multi-user.target

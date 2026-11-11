@@ -1,0 +1,120 @@
+# The checks for "Slow every night": both services run; the shop's slice
+# holds their writes to the data disk to exactly the disk's allowance, from
+# settings that last; the sort's scratch files are on the local disk; the
+# order spool is on the data disk; and the database gets through most of
+# the allowance. The descriptions say what must be true, not what was
+# wrong, because the page shows them before any attempt.
+#
+# The two folder checks read what the running service was started with
+# (its environment, in /proc) and what its unit will give it at the next
+# start, and need both to agree: a fix made to a file but never put into
+# effect, or the other way round, doesn't pass. They also need the folder
+# to be a real folder on the right disk, not a link from one disk to the
+# other: the local disk comes back empty at every boot, link and all.
+#
+# Each shortcut has a wrong fix to prove it is caught: taking the cap away
+# (wrong/cap-removed.sh), capping reads instead of writes
+# (wrong/cap-on-reads.sh), a cap set only until the next reboot
+# (wrong/runtime-only.sh), the sort left on the data disk
+# (wrong/scratch-still-on-data.sh) or stopped (wrong/sort-stopped.sh), and
+# the spool moved to /tmp, which Ubuntu empties at every boot
+# (wrong/spool-to-tmp.sh).
+checks:
+  - id: both-running
+    description: "shop-db and shop-sort are both running."
+    # Read twice, two seconds apart, with the same process each time, so a
+    # service that crashes and is started again doesn't pass.
+    command: |
+      a=$(systemctl show shop-db -p MainPID --value)
+      b=$(systemctl show shop-sort -p MainPID --value)
+      sleep 2
+      [ "$(systemctl is-active shop-db shop-sort | sort -u)" = active ] \
+        && [ "$a" != 0 ] && [ "$a" = "$(systemctl show shop-db -p MainPID --value)" ] \
+        && [ "$b" != 0 ] && [ "$b" = "$(systemctl show shop-sort -p MainPID --value)" ]
+  - id: allowance
+    description: "Both services run in shop.slice, and the slice holds their writes to the data disk to what the disk is provisioned for, 400 writes a second and 6 MiB a second, from settings that last after a reboot."
+    # systemd's settings for the slice (every write cap it names for the
+    # data disk, by any path that leads to it), what the kernel was given
+    # (the slice's io.max), and no setting from /run, where
+    # "systemctl set-property --runtime" puts the ones a reboot forgets.
+    command: |
+      data=$(readlink -f /dev/lab/data)
+      dev=$(lsblk -dno MAJ:MIN "$data" | tr -d ' ')
+      said() {
+        systemctl show shop.slice -p "$1" | while read -r line; do
+          set -- ${line#*=}
+          if [ -n "${1:-}" ] && [ "$(readlink -f "$1")" = "$data" ]; then echo "$2"; fi
+        done | sort -u | paste -sd' '
+      }
+      iops=$(said IOWriteIOPSMax)
+      bytes=$(said IOWriteBandwidthMax)
+      kernel=$(awk -v d="$dev" '$1 == d {$1 = ""; print}' /sys/fs/cgroup/shop.slice/io.max)
+      runtime=$(systemctl show shop.slice -p DropInPaths --value | tr ' ' '\n' | grep -c '^/run/' || true)
+      slices=$(systemctl show shop-db shop-sort -p Slice --value | grep . | sort -u | paste -sd' ')
+      if [ "$iops" = 400 ] && [ "$bytes" = 6291456 ] && [ "$runtime" = 0 ] && [ "$slices" = shop.slice ] \
+        && echo "$kernel" | grep -Eq 'wbps=6291456 .*wiops=400'; then
+        echo "held to the allowance"
+      else
+        echo "the slice says writes a second [$iops], bytes a second [$bytes]; the kernel has [$kernel]; settings from /run: $runtime; the services are in [$slices]"
+      fi
+    expect:
+      equals: "held to the allowance"
+  - id: sort-scratch-local
+    description: "shop-sort keeps its scratch files in a folder on the local disk, /dev/lab/scratch, and will again when it next starts."
+    command: |
+      scratch=$(readlink -f /dev/lab/scratch)
+      pid=$(systemctl show shop-sort -p MainPID --value)
+      running=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -n 's/^TMPDIR=//p')
+      # What its unit gives it at the next start: Environment=, and then any
+      # EnvironmentFile=, which wins.
+      next=$(systemctl show shop-sort -p Environment --value | tr ' ' '\n' | sed -n 's/^TMPDIR=//p' | tail -n 1)
+      for file in $(systemctl show shop-sort -p EnvironmentFiles --value | awk '{print $1}'); do
+        value=$(sed -n 's/^[[:space:]]*TMPDIR=//p' "$file" 2>/dev/null | tail -n 1)
+        [ -n "$value" ] && next=$value
+      done
+      on=$(findmnt -n -o SOURCE -T "$running" 2>/dev/null)
+      if [ -n "$running" ] && [ "$running" = "$next" ] && [ "$(realpath -m "$running")" = "${running%/}" ] \
+        && [ "$on" = "$scratch" ] && ls "$running"/sort-run-* > /dev/null 2>&1; then
+        echo "on the local disk"
+      else
+        echo "the sort writes to [$running] (its unit says [$next] for the next start), which is on [$on]"
+      fi
+    expect:
+      equals: "on the local disk"
+  - id: spool-on-data
+    description: "shop-db keeps its order spool in a folder on the data disk, /dev/lab/data, and will again when it next starts."
+    command: |
+      data=$(readlink -f /dev/lab/data)
+      pid=$(systemctl show shop-db -p MainPID --value)
+      running=$(tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null | sed -n 's/^SPOOL_DIR=//p')
+      next=$(systemctl show shop-db -p Environment --value | tr ' ' '\n' | sed -n 's/^SPOOL_DIR=//p' | tail -n 1)
+      for file in $(systemctl show shop-db -p EnvironmentFiles --value | awk '{print $1}'); do
+        value=$(sed -n 's/^[[:space:]]*SPOOL_DIR=//p' "$file" 2>/dev/null | tail -n 1)
+        [ -n "$value" ] && next=$value
+      done
+      on=$(findmnt -n -o SOURCE -T "$running" 2>/dev/null)
+      # The newest order in the spool is a second or two old: the database
+      # is spooling there now.
+      newest=$(ls -t "$running" 2>/dev/null | head -n 1)
+      age=99
+      [ -n "$newest" ] && age=$(( $(date +%s) - $(stat -c %Y "$running/$newest") ))
+      if [ -n "$running" ] && [ "$running" = "$next" ] && [ "$(realpath -m "$running")" = "${running%/}" ] \
+        && [ "$on" = "$data" ] && [ "$age" -le 5 ]; then
+        echo "on the data disk"
+      else
+        echo "the spool is [$running] (the unit says [$next] for the next start), on [$on]; newest order ${age}s old"
+      fi
+    expect:
+      equals: "on the data disk"
+  - id: db-rate
+    description: "shop-db gets through at least 300 writes a second on the data disk, three quarters of its allowance."
+    command: |
+      dev=$(lsblk -dno MAJ:MIN "$(readlink -f /dev/lab/data)" | tr -d ' ')
+      stat=/sys/fs/cgroup$(systemctl show shop-db -p ControlGroup --value)/io.stat
+      writes() { awk -v d="$dev" '$1 == d {for (i = 2; i <= NF; i++) if (sub(/^wios=/, "", $i)) print $i}' "$stat" 2>/dev/null; }
+      a=$(writes)
+      sleep 5
+      b=$(writes)
+      echo $(( (${b:-0} - ${a:-0}) / 5 ))
+    expect:
+      gte: 300
