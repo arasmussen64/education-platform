@@ -1,14 +1,19 @@
 id: debug-a-network-that-will-not-run
 stage: debug
-rev: 1
+rev: 2
 title: "A network that won't run"
 prompt: |
-  A `[3, 4, 2]` network of the module's classes on a batch of two rows. It should print:
+  A `[3, 4, 2]` network of the module's classes (a dense layer, a ReLU, another dense layer) on a batch of two rows. It should print:
 
   ```
   output shape: (2, 2)
   hidden values are never negative: True | some are zero: True
   ```
 
-  It has two bugs. Run it: it crashes inside `forward` with a `matmul` shape error, because `Dense` builds `W` as `(n_out, n_in)`, the wrong way round for `X @ W`; a batch of shape `(rows, inputs)` needs `W` of shape `(inputs, outputs)`. Fix that, and the hidden values come out negative or zero: `ReLU` keeps the **negative** part with `np.minimum`. A ReLU keeps the positive part, `np.maximum(X, 0.0)`.
+  Instead it stops inside `forward` with `ValueError: matmul: Input operand 1 has a mismatch in its core dimension 0`. It has two bugs, and the second shows only once the first is fixed. Run it, read the traceback, fix what you find and run it again; then run the checks, which try the classes on other sizes.
+hints:
+  - "Read the traceback from the bottom: which line failed, and which two arrays were being multiplied there? Print their shapes."
+  - "A batch `X` is `(rows, inputs)`, so `X @ W` needs `W` to be `(inputs, outputs)`, as the docstring of `Dense` says. What shape does `__init__` build it in?"
+  - "Build `W` as `(n_in, n_out)`."
+  - "Once it runs, the hidden layer has negative values in it. A ReLU zeroes what is below zero and keeps what is above: which NumPy function does that, `np.minimum(X, 0.0)` or `np.maximum(X, 0.0)`?"
 skills: [compose, nonlinearity]
