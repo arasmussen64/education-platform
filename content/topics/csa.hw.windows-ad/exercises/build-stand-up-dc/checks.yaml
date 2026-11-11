@@ -57,10 +57,27 @@ checks:
     expect:
       equals: "dc1.ad.shop.test."
   - id: found-through-dns
-    description: "lab finds dc1 through DNS alone: its hosts file names only lab, and its Kerberos settings name no server."
+    description: "lab finds dc1 through DNS alone: the site's resolver gets the domain's zone and its reverse zone from dc1, lab's hosts file names only lab, and its Kerberos settings name no server."
+    # The site's resolver is dnsmasq on lab itself (127.0.0.1). Asked for a
+    # zone's own SOA record, it passes on dc1's answer only when it forwards
+    # that zone to dc1. A record for dc1 typed into the resolver
+    # (host-record=, ptr-record=) answers dc1's name and address but leaves
+    # the zone unforwarded, and so does pointing /etc/resolv.conf at dc1,
+    # which the next boot undoes.
     command: |
       if grep -Eq '(^|[[:space:]])(10\.0\.9\.10|dc1(\.ad\.shop\.test)?)([[:space:]]|$)' /etc/hosts; then echo "lab's hosts file names dc1"; exit 0; fi
       if grep -Eqi '^[[:space:]]*(kdc|admin_server|kpasswd_server)[[:space:]]*=' /etc/krb5.conf; then echo "lab's Kerberos settings name a server"; exit 0; fi
+      for zone in ad.shop.test 9.0.10.in-addr.arpa; do
+        for _ in $(seq 1 5); do
+          soa=$(dig +short +time=2 +tries=1 @127.0.0.1 "$zone" SOA)
+          [ -n "$soa" ] && break
+          sleep 1
+        done
+        case "$soa" in
+          "dc1.ad.shop.test. "*) ;;
+          *) echo "the site's resolver doesn't get the zone $zone from dc1"; exit 0 ;;
+        esac
+      done
       echo "through DNS"
     expect:
       equals: "through DNS"
