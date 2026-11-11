@@ -1,0 +1,16 @@
+id: mcq-detect-none
+type: mcq
+rev: 1
+prompt: |
+  On a server, `systemd-detect-virt --vm` prints `none` and exits with status 1, `lscpu` has no `Hypervisor vendor` line, and there's no `hypervisor` flag in `/proc/cpuinfo`. What does that tell you?
+choices:
+  - "Nothing sits under this kernel: it runs on the hardware itself, as on a physical server or a bare metal instance"
+  - "The command failed to run: status 1 means systemd-detect-virt couldn't read /sys, so the answer can't be trusted"
+  - "It is a container: containers hide the VM under them, so all three tools see nothing but the container's own layer"
+  - "It is a VM under QEMU's emulator, which never shows itself to the guest's kernel, to lscpu or to systemd-detect-virt"
+answer: 0
+explanation: |
+  Three independent signs agree: no VM named by `systemd-detect-virt`, which exits with a non-zero status when it finds nothing, no hypervisor vendor in the processor's answer to `lscpu`, and no `hypervisor` flag, which a hypervisor sets in the description of the processor it shows its guest. This kernel is running on **bare metal**: a physical server, or a cloud's bare metal instance, which rents you a whole server with no hypervisor under you.
+
+  A container doesn't hide the VM under it: `--vm` is there to look past containers, and on Docker Desktop it names `microsoft` from inside one. A QEMU guest under emulation does show itself: the recording in this topic's labs has `systemd-detect-virt` naming `qemu` (it reads the firmware's name plate) and the `hypervisor` flag set, though `lscpu` names no vendor. And status 1 is how the tool says "nothing found", not "couldn't look".
+skills: [read-the-guest]

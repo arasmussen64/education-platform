@@ -1,0 +1,100 @@
+#!/bin/bash
+# lab-capture: record what this Linux machine can see about the hypervisor
+# under it, as a folder of small text files. Run it as root (sudo lab-capture
+# OUT_DIR): some of what it reads is for root only.
+#
+# It only reads. It leaves out what identifies a machine: anything shaped
+# like a MAC address, a UUID or an EC2 instance ID is masked.
+#
+# Each file holds the answer to one question:
+#   about.txt          the kernel, the processor family and the operating system
+#   detect-virt.txt    systemd-detect-virt three ways: any layer, the VM, a container
+#   lscpu.txt          lscpu, whole
+#   cpu-flags.txt      the processor's flags line from /proc/cpuinfo
+#   dmesg-boot.txt     the boot messages that name the hypervisor and its devices
+#   dmi/               the firmware's name plate (missing where there is none)
+#   lspci.txt          the PCI devices and the driver behind each
+#   lsblk.txt          the disks
+#   net-drivers.txt    one line per network interface: its name and its driver
+#   block-drivers.txt  one line per disk: its name and its driver
+#   modules.txt        the loaded modules that belong to a hypervisor's devices
+#   clocksource.txt    the clock the kernel keeps time with, and the others it could use
+#   buses.txt          how many devices sit on each paravirtual bus
+#   vulnerabilities.txt  the kernel's view of each known processor flaw
+#   dev-kvm.txt        whether /dev/kvm is here
+set -u
+out="${1:?usage: lab-capture OUT_DIR}"
+mkdir -p "$out/dmi"
+
+scrub() {
+  sed -E \
+    -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/xx:xx:xx:xx:xx:xx/g' \
+    -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/UUID/g' \
+    -e 's/\bi-[0-9a-f]{8,17}\b/i-INSTANCE/g'
+}
+
+{
+  echo "kernel: $(uname -r)"
+  echo "machine: $(uname -m)"
+  echo "os: $(. /etc/os-release 2>/dev/null && echo "${PRETTY_NAME:-}")"
+} > "$out/about.txt"
+
+{
+  echo "any: $(systemd-detect-virt 2>/dev/null || true)"
+  echo "vm: $(systemd-detect-virt --vm 2>/dev/null || true)"
+  echo "container: $(systemd-detect-virt --container 2>/dev/null || true)"
+} > "$out/detect-virt.txt"
+
+lscpu > "$out/lscpu.txt" 2>/dev/null
+grep -m1 -E '^(flags|Features)' /proc/cpuinfo > "$out/cpu-flags.txt" 2>/dev/null
+
+# The boot messages that name the hypervisor and its devices: from this
+# boot's journal where there is one, else the kernel's own buffer, which a
+# machine that has been up for weeks may have overwritten.
+{ journalctl -k -b --no-pager -o short-monotonic 2>/dev/null || dmesg 2>/dev/null; } \
+  | grep -i -E 'hypervisor detected|DMI:|paravirt|kvm-clock|hv_vmbus|hv_netvsc|hv_storvsc|hv_pci|virtio|\bena\b|nvme|mlx5|\bmana\b|\bgve\b|\bxen|e1000|8139' \
+  | grep -v -i 'command line' | head -n 60 | scrub > "$out/dmesg-boot.txt"
+
+for f in sys_vendor product_name bios_vendor; do
+  [ -r "/sys/class/dmi/id/$f" ] && cat "/sys/class/dmi/id/$f" > "$out/dmi/$f"
+done
+
+lspci -nnk 2>/dev/null | scrub > "$out/lspci.txt"
+lsblk -d -n -o NAME,TYPE,SIZE,TRAN,MODEL 2>/dev/null | grep -v -E '^(loop|ram|zram)' > "$out/lsblk.txt"
+
+# The driver behind each interface and disk is what says how the hypervisor
+# hands it over. An interface with no device behind it (a container's veth)
+# has no driver: "none". An NVMe disk's device is its controller, whose own
+# device has the driver, so that is the second place to look.
+driver_of() {
+  for link in "$1/device/driver" "$1/device/device/driver"; do
+    if [ -e "$link" ]; then basename "$(readlink -f "$link")"; return; fi
+  done
+  echo none
+}
+for n in /sys/class/net/*; do
+  name=$(basename "$n"); [ "$name" = lo ] && continue
+  echo "$name $(driver_of "$n")"
+done > "$out/net-drivers.txt"
+for b in /sys/block/*; do
+  name=$(basename "$b"); case "$name" in loop*|ram*|zram*) continue ;; esac
+  echo "$name $(driver_of "$b")"
+done > "$out/block-drivers.txt"
+
+lsmod 2>/dev/null | awk 'NR > 1 {print $1}' \
+  | grep -E '^(hv_|hyperv|virtio|ena$|nvme|mlx[45]_core|mana|gve|xen|kvm|vmw|vmxnet|e1000|8139)' \
+  | sort > "$out/modules.txt"
+
+{
+  echo "current: $(cat /sys/devices/system/clocksource/clocksource0/current_clocksource 2>/dev/null)"
+  echo "available: $(cat /sys/devices/system/clocksource/clocksource0/available_clocksource 2>/dev/null)"
+} > "$out/clocksource.txt"
+
+for bus in vmbus virtio xen; do
+  echo "$bus $(ls "/sys/bus/$bus/devices" 2>/dev/null | wc -l)"
+done > "$out/buses.txt"
+
+( cd /sys/devices/system/cpu/vulnerabilities 2>/dev/null && grep . -- * ) > "$out/vulnerabilities.txt" 2>/dev/null
+
+if [ -e /dev/kvm ]; then echo present; else echo absent; fi > "$out/dev-kvm.txt"
+echo "wrote $(ls "$out" | wc -l) entries to $out"

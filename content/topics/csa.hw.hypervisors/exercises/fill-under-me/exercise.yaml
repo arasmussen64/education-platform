@@ -1,0 +1,23 @@
+id: fill-under-me
+stage: fill_in
+runtime: lab
+rev: 1
+title: "Finish the under-me script"
+prompt: |
+  In the lab, `~/bin/under-me CAPTURE_DIR` is meant to read a folder that `lab-capture` wrote and answer four questions about the machine it came from, in four lines:
+
+  ```text
+  vendor: Microsoft
+  vm: microsoft
+  nics: none
+  disks: sd
+  ```
+
+  `vendor` is the hypervisor's vendor as `lscpu` names it, or `none` when `lscpu` names none; `vm` is what `systemd-detect-virt --vm` said, the VM even when the capture was taken in a container; `nics` and `disks` are the drivers behind the machine's network cards and disks, sorted, each named once. Four places in the script have `...` where something belongs. The script runs as it is, but until every `...` is filled in it prints wrong lines (and one of them makes `awk` complain).
+
+  Fill them in with `nano ~/bin/under-me`. Try it on the captures in `/srv/captures`, which its `README` describes: `~/bin/under-me /srv/captures/laptop-wsl2` should print the lines above, and compare each line with the files it came from (`cat /srv/captures/qemu-two-nics/net-drivers.txt`). Then capture the lab machine itself, `sudo lab-capture ~/captures/here`, and run the script on that. Then run the checks.
+hints:
+  - "Look at the line you need first: `grep -i hypervisor /srv/captures/laptop-wsl2/lscpu.txt`. The awk program splits each line at the colon, so `$1` is the name before it and `$2` the value after it. `${vendor:-none}` means the value of `vendor`, or `none` when it's empty."
+  - "`detect-virt.txt` has three lines: `any`, `vm` and `container`. `any` names the innermost layer, which is a container when there is one."
+  - "Each line of `net-drivers.txt` is an interface's name and then its driver: the driver is the second field."
+skills: [read-the-guest, device-paths]

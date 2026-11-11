@@ -1,0 +1,27 @@
+# The checks for "What's under this machine?": both answers saved, and a VM
+# booted that reported QEMU's default network card. The first answer is
+# worked out here on whatever machine the lab runs on (microsoft on Docker
+# Desktop for Windows, the cloud's name on a CI runner, none on bare metal),
+# so it is never hard-coded.
+checks:
+  - id: this-machine
+    description: "Line 1 of ~/example/under-me.txt is the VM this machine runs on, as systemd-detect-virt --vm names it."
+    timeout: 10
+    command: |
+      test "$(sed -n 1p /home/learner/example/under-me.txt)" = "$(systemd-detect-virt --vm || true)" && echo same
+    expect:
+      equals: same
+  - id: the-recording
+    description: "Line 2 is the VM the recording in /srv/captures/qemu-virtio ran on."
+    timeout: 10
+    command: |
+      test "$(sed -n 2p /home/learner/example/under-me.txt)" = "$(sed -n 's/^vm: //p' /srv/captures/qemu-virtio/detect-virt.txt)" && echo same
+    expect:
+      equals: same
+  - id: guest-reported
+    description: "~/example/boot.log holds a guest report from the VM booted with QEMU's defaults, its network card on e1000."
+    timeout: 10
+    command: |
+      tr -d '\r' < /home/learner/example/boot.log | sed -n '/=== guest report/,/=== end/p' | grep -c '^nic: eth0 driver=e1000$'
+    expect:
+      equals: "1"

@@ -1,0 +1,16 @@
+id: mcq-which-cloud
+type: mcq
+rev: 1
+prompt: |
+  A Linux guest shows `eth0` on the `hv_netvsc` driver and a second interface on `mlx5_core` with the same MAC address (the hardware address a network card answers to), and `systemd-detect-virt --vm` prints `microsoft`. Where is it most likely running?
+choices:
+  - "On Azure, with Accelerated Networking on"
+  - "On AWS, on a Nitro instance with an ENA card"
+  - "On Google Cloud, with gVNIC as its card"
+  - "On a laptop, in VirtualBox with two cards"
+answer: 0
+explanation: |
+  `microsoft` means Hyper-V is underneath, and `hv_netvsc` is Hyper-V's synthetic network card on VMBus. A second interface on an NVIDIA/Mellanox driver (`mlx5_core`, or `mlx4_core`, or `mana` on Microsoft's own cards) carrying the same MAC address is the SR-IOV virtual function that Azure adds when Accelerated Networking is on. Applications use `eth0`; the kernel sends the traffic through the virtual function.
+
+  A Nitro instance would show `amazon` and an interface on `ena`; a Compute Engine VM would show `google` and `gve` (or `virtio_net` on older series); and VirtualBox is named `oracle` by `systemd-detect-virt` and offers emulated or virtio cards, not Hyper-V's.
+skills: [cloud-hypervisors, read-the-guest]

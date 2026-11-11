@@ -1,0 +1,123 @@
+# The checks for "Write a VM launcher". The first runs the learner's
+# ~/bin/boot-vm itself, as learner, and keeps what the guest printed in
+# /var/tmp/labcheck (outside the learner's files, emptied first, so an old
+# run never counts), with a note of the disk image before and after and of
+# the VM processes it saw. The checks after it read that, so the VM boots
+# once per run of the checks. A log the learner wrote is never read, and a
+# launcher that prints a report without starting a VM fails real-vm. Only
+# makes-missing-disk runs the launcher again, in a home of its own and with
+# QEMU stood in for, so nothing boots twice (unless the launcher names QEMU
+# by its full path, when the copy boots too; tried 2026-11-11, it passes).
+# A boot took 5 to 10 seconds on the owner's PC; the 120 leaves room for a
+# busy CI machine.
+checks:
+  - id: launcher-boots
+    description: "~/bin/boot-vm, started by learner, boots the VM and returns once the guest has reported on itself and switched off."
+    timeout: 120
+    # While the launcher runs, this also notes the owner of every VM process
+    # that wasn't there before it started, for real-vm below.
+    command: |
+      out=/var/tmp/labcheck
+      rm -rf "$out"; mkdir -p "$out"; chmod 700 "$out"; : > "$out/vm-users"
+      disk=/home/learner/vm/disk.img
+      if [ -e "$disk" ]; then stat -c '%i %y' "$disk" > "$out/disk-before"; else echo missing > "$out/disk-before"; fi
+      before=" $(pgrep -d ' ' -x qemu-system-x86) "
+      runuser -u learner -- /home/learner/bin/boot-vm < /dev/null > "$out/console.log" 2>&1 &
+      launcher=$!
+      while kill -0 "$launcher" 2> /dev/null; do
+        for p in $(pgrep -x qemu-system-x86); do
+          case "$before" in *" $p "*) continue ;; esac
+          ps -o user= -p "$p" >> "$out/vm-users"
+        done
+        sleep 0.2
+      done
+      wait "$launcher"
+      if [ -e "$disk" ]; then stat -c '%i %y' "$disk" > "$out/disk-after"; else echo missing > "$out/disk-after"; fi
+      tr -d '\r' < "$out/console.log" | sed -n '/=== guest report/,/=== end/p' > "$out/report.txt"
+      grep -q '^=== end' "$out/report.txt" && echo "the guest reported and switched off"
+    expect:
+      contains: "the guest reported"
+  - id: real-vm
+    description: "The report came from a real VM that ~/bin/boot-vm started."
+    timeout: 10
+    command: |
+      users=$(sort -u /var/tmp/labcheck/vm-users | paste -sd ' ')
+      if [ -z "$users" ]; then echo "no VM was started"; else echo "a VM ran"; fi
+    expect:
+      equals: "a VM ran"
+  - id: disk-made
+    description: "~/vm/disk.img is a raw disk image of 64 MiB, belonging to learner."
+    timeout: 10
+    command: |
+      d=/home/learner/vm/disk.img
+      [ "$(stat -c %U "$d")" = learner ] || exit 1
+      qemu-img info "$d" | grep -E '^(file format|virtual size):' | paste -sd ' '
+    expect:
+      equals: "file format: raw virtual size: 64 MiB (67108864 bytes)"
+  - id: disk-kept
+    description: "Run again, the launcher leaves the disk it made alone: the checks' run didn't make it a second time."
+    timeout: 10
+    command: |
+      out=/var/tmp/labcheck
+      before=$(cat "$out/disk-before"); after=$(cat "$out/disk-after")
+      if [ "$before" = missing ]; then echo "there was no disk before this run: run the launcher once yourself, then check"
+      elif [ "$before" = "$after" ]; then echo kept
+      else echo "the disk was made again"
+      fi
+    expect:
+      equals: kept
+  - id: makes-missing-disk
+    description: "Started where there is no disk yet, the launcher makes one: a raw 64 MiB image at ~/vm/disk.img."
+    timeout: 120
+    # The learner's own disk is never touched: a copy of the launcher runs
+    # in an empty home of its own, with every /home/learner in it pointed
+    # there, and with a stand-in qemu-system-x86_64 first in PATH that only
+    # ends, so nothing boots.
+    command: |
+      tmp=$(mktemp -d)
+      mkdir -p "$tmp/home/bin" "$tmp/home/vm" "$tmp/stub"
+      sed "s#/home/learner#$tmp/home#g" /home/learner/bin/boot-vm > "$tmp/home/bin/boot-vm"
+      printf '#!/bin/sh\nexit 0\n' > "$tmp/stub/qemu-system-x86_64"
+      chmod 755 "$tmp/home/bin/boot-vm" "$tmp/stub/qemu-system-x86_64"
+      chown -R learner:learner "$tmp"
+      runuser -u learner -- env HOME="$tmp/home" PATH="$tmp/stub:$PATH" "$tmp/home/bin/boot-vm" < /dev/null > /dev/null 2>&1
+      d="$tmp/home/vm/disk.img"
+      if [ -f "$d" ]; then qemu-img info "$d" | grep -E '^(file format|virtual size):' | paste -sd ' '
+      else echo "no disk was made"
+      fi
+      rm -rf "$tmp"
+    expect:
+      equals: "file format: raw virtual size: 64 MiB (67108864 bytes)"
+  - id: two-cpus
+    description: "The guest has 2 CPUs."
+    timeout: 10
+    command: grep '^cpus:' /var/tmp/labcheck/report.txt
+    expect:
+      equals: "cpus: 2"
+  - id: memory-512
+    description: "The guest has 512 MiB of memory: the kernel counts between 440,000 and 524,288 kB of it."
+    timeout: 10
+    command: |
+      awk -F': ' '$1 == "memory_kb" {print $2}' /var/tmp/labcheck/report.txt
+    expect:
+      gte: 440000
+      lte: 524288
+  - id: nic-paravirtual
+    description: "The guest's network card is paravirtual: every card it has is on virtio_net."
+    timeout: 10
+    command: grep '^nic:' /var/tmp/labcheck/report.txt | awk '{print $3}' | sort -u | paste -sd ' '
+    expect:
+      equals: "driver=virtio_net"
+  - id: disk-paravirtual
+    description: "The guest sees the 64 MiB disk as a virtio block device (vda, on virtio_blk)."
+    timeout: 10
+    command: |
+      grep -c -E '^disk: vd[a-z]+ driver=virtio_blk size_mb=64$' /var/tmp/labcheck/report.txt
+    expect:
+      equals: "1"
+  - id: vm-gone
+    description: "No VM is left running once the launcher has returned."
+    timeout: 10
+    # A process that has ended but whose exit nobody collected (a zombie)
+    # still matches pgrep -x; -r R,S,D,T asks only for live ones.
+    command: "! pgrep -r R,S,D,T -x qemu-system-x86 > /dev/null"

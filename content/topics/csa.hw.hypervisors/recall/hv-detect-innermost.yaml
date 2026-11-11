@@ -1,0 +1,18 @@
+id: hv-detect-innermost
+type: predict_shell
+rev: 1
+prompt: |
+  `detect-virt.txt` was captured on 2026-11-11 by `lab-capture`, in a container on a Windows 11 laptop running Docker Desktop. It holds what `systemd-detect-virt` printed three ways: with no option (`any`), with `--vm` and with `--container`. The command prints two of the values. What is printed?
+files:
+  detect-virt.txt: |
+    any: wsl
+    vm: microsoft
+    container: wsl
+command: |
+  awk -F': ' '$1 == "vm" {print $2}' detect-virt.txt; awk -F': ' '$1 == "any" {print $2}' detect-virt.txt
+expected_output: |
+  microsoft
+  wsl
+explanation: |
+  `systemd-detect-virt` on its own names only the **innermost** layer it can see. Here that is `wsl`: Docker Desktop on Windows runs its containers inside WSL 2, and the tool sees WSL's own container first. `--vm` looks past containers to the virtual machine under them, `microsoft`, which is Hyper-V: WSL 2 is a Hyper-V VM on the laptop. So to ask "what VM am I on?", always add `--vm`; on a plain cloud VM with no container, both answers are the same.
+skills: [read-the-guest]

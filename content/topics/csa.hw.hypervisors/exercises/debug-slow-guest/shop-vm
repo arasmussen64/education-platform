@@ -1,0 +1,16 @@
+#!/bin/bash
+# shop-vm: start the shop's test database VM with the hardware its settings
+# file asks for, its serial console on this terminal. The guest reports on
+# itself and switches off. Usage: shop-vm
+set -euo pipefail
+conf=/srv/shop-vm/shop-vm.conf
+# shellcheck source=/dev/null
+. "$conf"
+
+echo "starting the shop's test database VM (settings: $conf)"
+exec qemu-system-x86_64 -accel tcg -nographic -no-reboot \
+  -smp "${VCPUS:-1}" -m "$MEMORY_MB" \
+  -nic "user,model=$NIC_MODEL" \
+  -drive "file=$DISK,format=raw,if=ide" \
+  -kernel /opt/vm/vmlinuz -initrd /opt/vm/initramfs.cpio.gz \
+  -append "console=ttyS0 quiet panic=-1"

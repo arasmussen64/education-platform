@@ -1,0 +1,36 @@
+id: example-whats-under-me
+stage: worked_example
+runtime: lab
+rev: 1
+title: "What's under this machine?"
+prompt: |
+  The lab machine is a container, and on Docker Desktop that container runs on a Linux VM on your computer. The walkthrough asks this machine what it runs on in five ways (two of the lesson's five places, the name plate and the boot log, can't be seen from a container on Docker Desktop, so it looks at the network card and the buses instead), then asks the same questions of a recording of a QEMU guest in `/srv/captures` (its `SOURCE.txt` says how it was made), saves both answers, and finally boots a small VM of its own with QEMU's default hardware and reads what the guest says about itself. Type each line yourself in the lab's shell and read what it prints before you type the next. What the first five lines print depends on the computer you run the lab on; the notes say what to expect on Docker Desktop and elsewhere.
+steps:
+  - label: "The innermost layer, then the VM"
+    lines: "1"
+    note: "`systemd-detect-virt` names the innermost layer it can see. On Docker Desktop for Windows that is `wsl` (WSL's own container); elsewhere it's usually `docker`. `--vm` skips containers and names the virtual machine under them: `microsoft` on Docker Desktop for Windows (WSL 2 is a Hyper-V VM), `amazon` or `microsoft` on a cloud VM, and `none` on a computer with no hypervisor under it, when it also exits with a non-zero status."
+  - label: "What lscpu says"
+    lines: "2"
+    note: "`Hypervisor vendor` names who is underneath (`Microsoft`, `KVM`, `Xen`), and `Virtualization type: full` means a guest whose CPU runs with hardware help. `Virtualization: VT-x` (or `AMD-V`) is different: it says the processor this kernel sees offers the virtualization extensions itself, which is what running a VM inside this one would need. On a machine with no hypervisor under it, the first two lines aren't there at all."
+  - label: "The CPU's hypervisor flag"
+    lines: "3"
+    note: "A hypervisor sets a flag called `hypervisor` in the description of the processor it shows its guest, and it shows in the `flags` line of `/proc/cpuinfo`. `-o -w` prints just that word, and `-m1` stops at the first CPU. A computer with no hypervisor under it prints nothing here."
+  - label: "This machine's own network card tells nothing"
+    lines: "4"
+    note: "Every interface's folder in `/sys/class/net` points at the device behind it. `eth0` points into `/sys/devices/virtual/`: there is no hardware behind it. It's a veth, one end of a virtual cable whose other end is in the VM, as in Network tools. A container never sees the VM's own network card, which is why this topic reads recordings of machines that do."
+  - label: "Which paravirtual buses this kernel sees"
+    lines: "5"
+    note: "A container shares the kernel of the VM it runs on, so `/sys/bus` is that kernel's. `vmbus` is Hyper-V's bus for paravirtual devices, `virtio` the one KVM and QEMU use, `xen` Xen's. On Docker Desktop for Windows there are dozens of VMBus devices, a couple of virtio ones and no Xen: a Hyper-V guest. On an AWS Nitro instance, whose network card and disks are PCI devices (ENA and NVMe), you'd expect 0 on all three."
+  - label: "The same questions, asked of a recording"
+    lines: "6"
+    note: "A QEMU guest run under emulation, recorded with `lab-capture`. All three of its lines say `qemu` or `none`: no container, a QEMU VM. Its boot log has the firmware's name plate (`DMI: QEMU ...`), and a line where the kernel says it found no hypervisor to cooperate with (`on bare hardware`): QEMU's emulator offers the guest no paravirtual interface for the CPU. Under KVM the same kernel says `on KVM`."
+  - label: "How its devices reach the hardware"
+    lines: "7"
+    note: "Each line is a device and the driver behind it. `eth0 virtio_net` and `vda virtio_blk` are virtio, paravirtual: the guest knows it's in a VM and uses a driver made for that. `sr0 sr` is the CD-ROM drive QEMU adds by default."
+  - label: "Save both answers"
+    lines: "8"
+    note: "Line 1 of `~/example/under-me.txt` is this machine's VM, line 2 the recording's. `|| true` keeps the line going on a computer where `--vm` finds nothing and exits non-zero; `awk -F': '` splits at the colon and space and prints the value after `vm`."
+  - label: "Boot a VM and let it say what it sees"
+    lines: "9"
+    note: "`/opt/vm/boot-default` prints the QEMU command, then runs it: Ubuntu's kernel and a tiny root filesystem whose only job is to print a guest report and switch off, in 5 to 30 seconds. Nothing chose any hardware, so the guest got QEMU's defaults: 1 CPU, 128 MiB of memory (the kernel reports about 80 MB of it as usable, having kept the rest for itself), a network card on the `e1000` driver, which is QEMU's imitation of a real Intel card from the early 2000s, and no disk but the CD-ROM. `tee` shows the console and keeps a copy in `~/example/boot.log`. The write exercise has you choose better hardware."
+skills: [read-the-guest, cloud-hypervisors]

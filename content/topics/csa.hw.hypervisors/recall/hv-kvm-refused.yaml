@@ -1,0 +1,20 @@
+id: hv-kvm-refused
+type: predict_shell
+rev: 1
+prompt: |
+  Both files were captured on 2026-11-11 in this topic's lab image on a Windows 11 laptop running Docker Desktop. `accel-help.txt` is what `qemu-system-x86_64 -accel help` printed; `kvm-try.txt` is what QEMU printed when it was then asked to start a guest with `-accel kvm`. What does the command print?
+files:
+  accel-help.txt: |
+    Accelerators supported in QEMU binary:
+    tcg
+    kvm
+  kvm-try.txt: |
+    Could not access KVM kernel module: No such file or directory
+    qemu-system-x86_64: -accel kvm: failed to initialize kvm: No such file or directory
+command: tail -n +2 accel-help.txt | paste -sd ' '; head -n 1 kvm-try.txt
+expected_output: |
+  tcg kvm
+  Could not access KVM kernel module: No such file or directory
+explanation: |
+  This QEMU was built able to use two **accelerators**: `tcg`, its own emulator, which imitates the processor in software, and `kvm`, the Linux kernel's hypervisor, which lets the guest run on the real processor. Being built for KVM isn't enough: QEMU reaches KVM through the file `/dev/kvm`, which exists only when the kernel has KVM and the processor offers its virtualization extensions, and which a container sees only when it is handed one. This container has no `/dev/kvm`, so QEMU refuses, and the labs use `-accel tcg`. Getting KVM inside a cloud VM is nested virtualization, which only some instance types offer.
+skills: [hypervisor-types]

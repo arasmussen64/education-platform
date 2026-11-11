@@ -1,0 +1,16 @@
+id: mcq-what-is-shared
+type: mcq
+rev: 1
+prompt: |
+  Two customers' VMs run on the same physical host. Short of a bug in the hypervisor, what can one of them do to the other?
+choices:
+  - "Slow it down, by keeping busy hardware they still share, like the processor's largest cache; its memory is out of reach"
+  - "Read its disk, unless that disk is encrypted, because both VMs' disk images sit on the same physical drive in the host"
+  - "Nothing at all: the hypervisor gives each VM a share of its own of every part of the machine, the caches included"
+  - "End its processes, if it has more vCPUs, since the host's scheduler lets the bigger VM decide who gets the CPU next"
+answer: 0
+explanation: |
+  What a hypervisor **isolates** is memory and devices: each guest's "physical" memory is the host's memory mapped a second time, privately, and its disks and network cards are its own, so one guest can't read another's memory or disks. What it can't make private is **performance**: the VMs still share parts of the hardware, such as the processor's last-level cache and its memory bandwidth, and on a small burstable instance the core itself, in turns. A busy neighbour can make your VM slower without touching anything of yours. (Measuring that is the next topics' work.)
+
+  Disks are given to each guest by the hypervisor, or by Nitro cards on AWS, and a guest has no way to reach another's image file, encrypted or not. "Nothing at all" is the claim the noisy neighbour disproves. And the host decides who runs on its CPUs; a guest's vCPU count gives it no say over another guest's processes.
+skills: [isolation-limits]

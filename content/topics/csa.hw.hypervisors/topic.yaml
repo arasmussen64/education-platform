@@ -1,17 +1,229 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.hw.hypervisors
 kind: topic
-status: planned
-title: Hypervisors
-summary: Tell type 1 from type 2 hypervisors.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+status: ready
+title: "Hypervisors"
+summary: "What sits under every cloud VM: what a hypervisor does and how the processor helps it, type 1 and type 2, emulated, paravirtual and SR-IOV devices, how AWS, Azure and Google Cloud build their hosts and maintain them, how to tell from inside a Linux guest what it runs on, and what a hypervisor can and can't keep apart."
+prerequisites: [csa.m1.checkpoint]
+# 12 minutes of lesson, 70 of core reading (resources 0 to 9 at about 200
+# words a minute), 17 quick questions at about 90 seconds, 75 for the worked
+# example, fill-in and write labs, 80 for the build and the debug, 15 for the
+# explain. Each lab builds a 400 MB image the first time, a few minutes once.
+estimated_minutes: 280
 rev: 1
 objectives:
-- Tell type 1 from type 2 hypervisors.
-- Explain KVM/QEMU, Hyper-V and AWS Nitro, paravirtualization and SR-IOV.
-- Read from inside a guest what it runs on.
-- Say what a hypervisor can and can't isolate.
+  - "Say what a hypervisor does and how the processor's virtualization extensions help it, tell type 1 from type 2, place KVM with QEMU, Hyper-V, Xen and AWS Nitro, and say what nested virtualization is."
+  - "Tell an emulated device from a paravirtual one (virtio, VMBus) and from an SR-IOV virtual function by the driver behind it, and say what each costs."
+  - "Read from inside a Linux guest what it runs on: `systemd-detect-virt --vm`, `lscpu`, the `hypervisor` flag, the boot log, and the driver behind each network card and disk."
+  - "Say how AWS, Azure and Google Cloud build their hosts, what a guest sees on each, and what host maintenance does to a running VM."
+  - "Say what a hypervisor can and can't isolate, and what a dedicated host, an isolated size, a sole-tenant node or bare metal changes."
+# Every resource was opened and read on 2026-11-11 by the topic's writer.
+# Linked, never copied. Licences as each source states them: Brendan
+# Gregg's blog, Red Hat's pages and the AWS whitepaper are copyright their
+# authors; Microsoft Learn and Google Cloud's documentation are CC BY 4.0;
+# systemd's manual pages are LGPL-2.1-or-later; the QEMU manual says "QEMU
+# and this manual are released under the GNU General Public License,
+# version 2".
+#
+# Facts the lesson, the questions and the constructed fixtures rest on, each
+# read on 2026-11-11:
+# - Nitro: three parts (cards, security chip, hypervisor); cards give NVMe
+#   and ENA over PCIe as SR-IOV virtual functions; the hypervisor has no
+#   network stack, file system, drivers or shell, and is updated live in
+#   place: https://docs.aws.amazon.com/whitepapers/latest/security-design-of-aws-nitro-system/the-components-of-the-nitro-system.html
+# - "lightweight Nitro Hypervisor that is based on core KVM technology":
+#   https://aws.amazon.com/ec2/faqs/ (the High Memory entry)
+# - Nitro instances use ENA and NVMe; bare metal can take 20 minutes or more
+#   to come up: https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-nitro-instances.html
+# - T2 is the general-purpose family listed with Xen:
+#   https://docs.aws.amazon.com/ec2/latest/instancetypes/gp.html
+# - No operator access to Nitro hosts or instance memory:
+#   https://docs.aws.amazon.com/whitepapers/latest/security-design-of-aws-nitro-system/no-aws-operator-access.html
+# - Pinned cores, no core shared between customers through SMT, burstable
+#   instances sharing a core in turns, LLC sharing, Dedicated Instances and
+#   Hosts: https://docs.aws.amazon.com/whitepapers/latest/security-design-of-aws-nitro-system/the-ec2-approach-to-preventing-side-channels.html
+# - AWS nested virtualization on M7i, M7i-flex, M8i, M8id, M8i-flex, C7i,
+#   C7i-flex, C8i, C8id, C8i-flex, R7i, R7iz, R8i, R8id, R8i-flex, X8i, I7i,
+#   I7ie; KVM and Hyper-V inside; no extra cost:
+#   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/amazon-ec2-nested-virtualization.html
+# - Azure's hypervisor is based on Hyper-V, root partition owns the devices:
+#   https://learn.microsoft.com/en-us/azure/security/fundamentals/hypervisor
+# - Hyper-V partitions, VMBus, VSP and VSC, enlightened I/O, Intel VT or
+#   AMD-V required (page dated 2026-01-21):
+#   https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/architecture
+# - Accelerated Networking is SR-IOV, can't be switched on while the VM
+#   runs, sizes with 2 or more vCPUs (4 or more with hyperthreading), ConnectX
+#   and MANA cards (dated 2026-08-11):
+#   https://learn.microsoft.com/en-us/azure/virtual-network/accelerated-networking-overview
+# - Synthetic interface on hv_netvsc, VF on mlx4, mlx5 or mana with the same
+#   MAC, IP on the synthetic one, "Data path switched to/from VF", VF removed
+#   in host servicing for about 30 seconds, several times a year (dated
+#   2026-07-16): https://learn.microsoft.com/en-us/azure/virtual-network/accelerated-networking-how-it-works
+# - VMs paused for up to 30 seconds in memory-preserving maintenance:
+#   https://learn.microsoft.com/en-us/azure/virtual-machines/linux/time-sync
+# - Azure Boost offloads networking (MANA) and storage (FPGA, NVMe) from the
+#   hypervisor and host OS: https://learn.microsoft.com/en-us/azure/azure-boost/overview
+# - Dpsv6 (Arm): nested virtualization not supported, Accelerated Networking
+#   required: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dpsv6-series
+# - Isolated sizes dedicated to one customer, about 10% dearer; Dedicated
+#   Host; confidential VMs encrypt without physical isolation (dated
+#   2026-09-25): https://learn.microsoft.com/en-us/azure/virtual-machines/isolation
+# - Compute Engine's "security-hardened, KVM-based hypervisor"; no nested
+#   virtualization on E2, memory-optimized, Arm, or AMD except N4D:
+#   https://docs.cloud.google.com/compute/docs/instances/nested-virtualization/overview
+# - Live migration in the same zone, blackout "typically much less than 1
+#   second", clock jump up to 5 seconds, GPU and bare metal VMs stopped:
+#   https://docs.cloud.google.com/compute/docs/instances/live-migration-process
+# - gVNIC (driver gve), the only interface on third-generation and later
+#   series: https://docs.cloud.google.com/compute/docs/networking/using-gvnic
+# - Sole-tenant node: "a physical Compute Engine server that is dedicated to
+#   hosting only your project's VMs":
+#   https://docs.cloud.google.com/compute/docs/nodes/sole-tenant-nodes
+# - KVM: kvm.ko with kvm-intel.ko or kvm-amd.ko, needs Intel VT or AMD-V:
+#   https://linux-kvm.org/page/Main_Page
+# - QEMU's accelerators (KVM, Xen, MSHV, HVF, WHPX, NVMM, TCG), TCG the
+#   default: https://www.qemu.org/docs/master/system/introduction.html
+# - systemd-detect-virt's ids, innermost layer only, --vm, non-zero exit when
+#   nothing is found: https://www.freedesktop.org/software/systemd/man/latest/systemd-detect-virt.html
+# - Xen's network and disk drivers are called vif and vbd in /sys: the Linux
+#   kernel source, drivers/net/xen-netfront.c, drivers/block/xen-blkfront.c
+#   and drivers/xen/xenbus/xenbus_probe.c (torvalds/linux, master)
+# Measured in this topic's lab image on the owner's laptop (Windows 11,
+# Docker Desktop 29.8.2, QEMU 8.2.2, kernel 6.8.0-149-generic): a 300,000-step
+# loop took 0.29 s on the lab machine and 4.96 s in a guest under TCG; boots
+# took 5 to 10 seconds; QEMU's refusal of KVM is quoted as it printed it.
+resources:
+  - title: "AWS EC2 Virtualization 2017: Introducing Nitro, by Brendan Gregg: eight stages from full emulation to bare metal, with diagrams (about 2,000 words)"
+    url: https://www.brendangregg.com/blog/2017-11-29/aws-ec2-virtualization-2017.html
+    type: reading
+    use: link
+    license: "Copyright Brendan Gregg; linked, not copied"
+  - title: "What is a hypervisor? (Red Hat): type 1 and type 2, and where KVM fits"
+    url: https://www.redhat.com/en/topics/virtualization/what-is-a-hypervisor
+    type: reading
+    use: link
+    license: "Copyright Red Hat; linked, not copied"
+  - title: "Hyper-V architecture (Microsoft Learn): read the first four sections, from partitions to enlightened I/O"
+    url: https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/architecture
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "The components of the Nitro System, from AWS's whitepaper The Security Design of the AWS Nitro System"
+    url: https://docs.aws.amazon.com/whitepapers/latest/security-design-of-aws-nitro-system/the-components-of-the-nitro-system.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "The EC2 approach to preventing side-channels, from the same whitepaper: read to the end of Side-channel protections in the broader EC2 service"
+    url: https://docs.aws.amazon.com/whitepapers/latest/security-design-of-aws-nitro-system/the-ec2-approach-to-preventing-side-channels.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "How Accelerated Networking works in Linux and FreeBSD VMs (Microsoft Learn): read to the end of Azure host servicing"
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/accelerated-networking-how-it-works
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Live migration process during maintenance events (Google Cloud)"
+    url: https://docs.cloud.google.com/compute/docs/instances/live-migration-process
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Isolation for VMs in Azure (Microsoft Learn): isolated sizes, Dedicated Host and confidential VMs"
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/isolation
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "systemd-detect-virt, its manual page: every id it can print, and the innermost-layer rule"
+    url: https://www.freedesktop.org/software/systemd/man/latest/systemd-detect-virt.html
+    type: reading
+    use: link
+    license: "LGPL-2.1-or-later (systemd documentation)"
+  - title: "Introduction, from QEMU's documentation: its accelerators (KVM, TCG and the rest) and its device models"
+    url: https://www.qemu.org/docs/master/system/introduction.html
+    type: reading
+    use: link
+    license: "GPL-2.0 (QEMU documentation)"
+  - title: "Overview of Azure Boost (Microsoft Learn), optional: read the first screen"
+    url: https://learn.microsoft.com/en-us/azure/azure-boost/overview
+    type: reading
+    use: link
+    license: CC BY 4.0
+# The quick questions read recordings of real machines: a container on the
+# owner's laptop and QEMU guests in the lab image, each labelled with where
+# and when it was captured. The labs are plain containers with QEMU and a
+# stock Ubuntu kernel: the learner boots real VMs under emulation (there is
+# no KVM in a container), and the build's cloud servers are constructed from
+# the providers' documentation and labelled so (MODULE-2-BRIEF 3.4).
+practice:
+  - example-whats-under-me
+  - mcq-what-a-hypervisor-does
+  - hv-detect-innermost
+  - hv-lscpu-vendor
+  - mcq-type1-type2
+  - hv-guest-nic-driver
+  - mcq-emulated-vs-paravirtual
+  - hv-kvm-refused
+  - hv-tcg-slowdown
+  - mcq-nested-virtualization
+  - mcq-nitro-pieces
+  - mcq-vf-revoked
+  - mcq-which-cloud
+  - mcq-maintenance
+  - mcq-what-is-shared
+  - hv-vulnerabilities
+  - mcq-dedicated
+  - mcq-host-failure
+  - fill-under-me
+  - write-boot-vm
+prove:
+  build: build-fleet-report
+  debug: debug-slow-guest
+  explain:
+    prompt: |
+      A colleague says: "Our database VM in the cloud is basically a dedicated server. So last night's slowdown can't have come from the provider, and nobody else could ever see our data." Explain, in your own words: what a hypervisor does, and how a VM's network card and disk can reach the hardware (emulated, paravirtual, SR-IOV) and what each costs; how you'd check from inside the Linux guest what it runs on and which path its devices use; how AWS, Azure and Google Cloud build their hosts differently, and what each does to a running VM during host maintenance; and what a hypervisor does and doesn't isolate, with what you could buy or change to close each gap.
+    rubric:
+      - id: role
+        required: true
+        description: "A hypervisor shares one machine's CPUs, memory and devices among guests; with the processor's virtualization extensions most guest code runs directly, and the processor keeps privileged instructions to that guest, trapping to the hypervisor for those that touch the real machine; without them everything is emulated, many times slower."
+      - id: device-paths
+        required: true
+        description: "Emulated: software imitates a real card (e1000), any guest works, slow. Paravirtual (virtio, Hyper-V's VMBus): a driver made for VMs, faster, but the host's software still carries the traffic. SR-IOV: the guest gets a virtual function of the physical card, near the hardware's speed, but tied to that card."
+      - id: read-guest
+        required: true
+        description: "systemd-detect-virt --vm (and why without --vm it may name a container), lscpu's hypervisor vendor or the hypervisor flag, and the driver behind each network card and disk."
+      - id: three-clouds
+        required: true
+        description: "AWS: a small KVM-based Nitro hypervisor with networking and storage on Nitro cards (ENA, NVMe), updated in place. Azure: Hyper-V; a synthetic network card with an optional SR-IOV virtual function, removed for about 30 seconds during host servicing, and pauses of up to 30 seconds. Google: KVM-based; virtio or gVNIC; live migration with a pause typically under a second."
+      - id: limits
+        required: true
+        description: "Isolated: memory and devices. Not isolated: steady performance (shared cache, a core in turns on burstable sizes), side channels on shared hardware in principle, the host failing, and the operator unless the platform prevents it. A dedicated host, isolated size or sole-tenant node removes other tenants only."
+      - id: types
+        required: false
+        description: "Type 1 owns the hardware, type 2 runs as a program on an operating system; KVM makes the Linux kernel the hypervisor."
+      - id: nested
+        required: false
+        description: "Running a hypervisor (KVM, an emulator) inside a cloud VM needs nested virtualization, which only some instance types offer, or bare metal."
+    model_answer: |
+      The VM isn't a dedicated server: it's a guest on a hypervisor, the software on a physical host that shares that one machine's CPUs, memory and devices among several guests. Each of our vCPUs is a thread the host schedules onto its real cores, and our "physical" memory is the host's memory mapped a second time, privately. With the processor's virtualization extensions (Intel VT-x or AMD-V), almost all of the guest's code runs directly on the real processor, and the processor keeps the privileged instructions, the ones only a machine's owner may run, to our guest: some it applies to our guest's own copy of the machine's settings, and at the rest, such as an order to a disk's chip, it stops and hands control to the hypervisor, which does the safe equivalent for our guest alone. Without the extensions everything would have to be emulated in software, which in the lab made a loop seventeen times slower. The network card and disk can reach the hardware three ways. An emulated device is software imitating a real card, like QEMU's e1000: every guest has the driver, but every step traps into the host, so it's slow. A paravirtual device, virtio on KVM or a synthetic device on Hyper-V's VMBus such as hv_netvsc, is made for VMs: the guest needs that driver and hands the host whole batches through shared queues, which is much faster, though the host's software still carries every packet. With SR-IOV the physical card presents virtual functions, and the guest gets one of its own, so its traffic skips the host's software and runs at nearly the hardware's speed, at the price of being tied to that card. From inside the Linux guest I'd run systemd-detect-virt --vm, which names the VM (amazon, microsoft, google), because without --vm it names the innermost layer, which can be a container; lscpu's Hypervisor vendor line and the hypervisor flag in /proc/cpuinfo confirm it; and the driver behind each interface and disk under /sys says the path: virtio_net or hv_netvsc is paravirtual, e1000 emulated, ena, mlx5_core or mana a virtual function. The clouds build this differently. AWS's Nitro System runs a small KVM-based hypervisor that only divides CPU and memory; networking, EBS storage and management run on separate Nitro cards, which hand the instance an ENA network card and NVMe disks as virtual functions, and the hypervisor is replaced in place under running instances. Azure runs Hyper-V with a Windows root partition; a VM has a synthetic network card on VMBus and, with Accelerated Networking, a virtual function too, which Azure removes for about 30 seconds while it services the host, while maintenance that keeps memory pauses the VM for up to 30 seconds. Google runs a KVM-based hypervisor, guests see virtio or gVNIC, and maintenance is a live migration to another host in the same zone, with a pause typically well under a second and a clock that may jump up to 5 seconds. As for isolation, the hypervisor keeps other guests out of our memory and devices, so nobody on the host can simply read our data. It doesn't promise steady speed: neighbours share the processor's largest cache and memory bandwidth, and on burstable sizes even a core in turns, so last night's slowdown could well have been a noisy neighbour. Shared hardware can in principle leak through side channels, which providers limit; AWS never puts two customers on one core at the same time. If the host fails, every guest on it stops, so we spread VMs over hosts and zones. And what the operator can reach depends on the platform: AWS built Nitro with no operator access, and confidential VMs encrypt a guest's memory from the host. A Dedicated Host on AWS, an isolated size or Dedicated Host on Azure, or a sole-tenant node on Google removes other tenants, and with them noisy neighbours and side channels between customers, but not the hypervisor or host failures; a bare metal instance removes the hypervisor too. And to run a hypervisor of our own inside a cloud VM we'd need an instance type with nested virtualization, or bare metal.
+review_pool:
+  - mcq-what-a-hypervisor-does
+  - hv-tcg-slowdown
+  - mcq-nested-virtualization
+  - hv-detect-innermost
+  - hv-lscpu-vendor
+  - mcq-detect-none
+  - hv-guest-nic-driver
+  - mcq-vf-revoked
+  - mcq-which-cloud
+  - mcq-maintenance
+  - mcq-what-is-shared
+skills:
+  - id: hypervisor-types
+    description: "What a hypervisor does (shares CPUs, memory and devices, and traps what a guest may not do itself); type 1 against type 2; emulation against hardware-assisted virtualization (QEMU alone against QEMU with KVM); nested virtualization"
+  - id: read-the-guest
+    description: "Work out from inside a Linux guest what it runs on: `systemd-detect-virt` and its innermost-layer rule, `lscpu`'s hypervisor lines, the `hypervisor` flag, the DMI name plate, the boot log"
+  - id: device-paths
+    description: "Tell emulated, paravirtual and SR-IOV devices apart by their driver, and say what each costs in speed, drivers and mobility"
+  - id: cloud-hypervisors
+    description: "How AWS (Nitro: a KVM-based hypervisor and offload cards, ENA and NVMe), Azure (Hyper-V: VMBus devices and an Accelerated Networking virtual function) and Google Cloud (KVM: virtio or gVNIC) build their hosts, and what host maintenance does on each"
+  - id: isolation-limits
+    description: "What a hypervisor isolates and what it can't (performance, side channels on shared hardware, the host failing, the operator), and what dedicated tenancy and bare metal change"

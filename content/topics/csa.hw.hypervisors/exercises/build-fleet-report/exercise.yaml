@@ -1,0 +1,21 @@
+id: build-fleet-report
+stage: build
+runtime: lab
+rev: 1
+title: "Report what the fleet runs on"
+prompt: |
+  The shop is taking stock of where its servers run. `/srv/fleet-a/` holds a folder for each of its six servers, in the layout `lab-capture` writes: `detect-virt.txt`, `net-drivers.txt` and the rest. Each folder's `SOURCE.txt` says what it is: some were captured from real machines, and the cloud servers are teaching examples built from the providers' documentation.
+
+  Write `~/bin/fleet-report FLEET_DIR`. It prints one line per server, sorted by name: the server's name (its folder's name), what it runs on, and how its network card reaches the hardware, like this:
+
+  ```text
+  api-1 hyperv sriov
+  db-1 kvm paravirtual
+  legacy-1 qemu emulated
+  ```
+
+  - **What it runs on** comes from the `vm:` line of `detect-virt.txt`: `microsoft` is `hyperv`; `kvm`, `amazon` and `google` are `kvm`; `xen` is `xen`; `qemu` is `qemu` (emulation, no hardware help); `none` is `none` (bare metal).
+  - **How its network card reaches the hardware** comes from the drivers in `net-drivers.txt`, sorted into three kinds as the lesson describes them. `emulated`: `e1000`, `e1000e`, `8139cp`, `8139too`, `pcnet32`, `ne2k-pci`. `paravirtual`: `virtio_net`, `hv_netvsc`, `vif` (Xen's), `vmxnet3`, `gve`. `sriov`, a virtual function or a card that hands the guest a device of its own: `mlx4_core`, `mlx5_core`, `mana`, `ena`, `ixgbevf`, `iavf`. A server with more than one interface gets its fastest path: `sriov` beats `paravirtual`, which beats `emulated`.
+
+  The script must work on any folder laid out the same way, not only this one. Then save `~/report/slow.txt`: the names of the servers in `/srv/fleet-a` whose network card is emulated, one per line, sorted. Make the script executable, try it on `/srv/fleet-a`, and run the checks.
+skills: [read-the-guest, device-paths, cloud-hypervisors]

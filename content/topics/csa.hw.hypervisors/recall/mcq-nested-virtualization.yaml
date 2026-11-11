@@ -1,0 +1,16 @@
+id: mcq-nested-virtualization
+type: mcq
+rev: 1
+prompt: |
+  A team runs Android phone emulators in its CI pipeline, the automatic tests it runs on cloud VMs after every change. Each one prints "KVM is not available" and falls back to running very slowly. What is going on, and what fixes it?
+choices:
+  - "The VM's processor doesn't offer it the virtualization extensions; pick an instance type with nested virtualization, or bare metal"
+  - "The VM's image lacks the kvm package; install it with apt and reboot, and the emulators will find /dev/kvm when they next start"
+  - "The cloud region has run out of KVM capacity; move the CI runners to another region where the provider's hypervisor has room"
+  - "The account's vCPU quota is too low for nested guests; ask the provider to raise it, and the emulators get their hardware help"
+answer: 0
+explanation: |
+  An emulator that uses KVM is a hypervisor itself, so inside a cloud VM it needs the processor's virtualization extensions, and a cloud VM has them only when the provider passes them through: **nested virtualization**, a VM inside a VM. On AWS that is a choice at launch on some families only (M7i, M8i, C7i, C8i, R7i, R8i and a few more, as AWS listed them on 2026-11-11, at no extra charge), or a bare metal instance, where there is no hypervisor under you at all. Google Cloud offers it on most Intel series but not on E2, Arm or memory-optimized ones; Azure's Arm Dpsv6 sizes don't offer it. Without it, the emulator can only imitate the CPU in software, which is the slowness the team sees.
+
+  KVM isn't a package to install: it is part of the Linux kernel, and `/dev/kvm` only appears when the processor offers the extensions. Capacity and quotas decide whether you can start a VM, not what its processor can do once it runs.
+skills: [hypervisor-types]
