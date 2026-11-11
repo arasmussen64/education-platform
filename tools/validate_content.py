@@ -24,6 +24,9 @@ It checks:
   baseline of older items and --write-mcq-baseline);
 - by running every predict_shell item's command in real bash (ADR-0017), in
   a temporary folder holding the item's files, and checking what it prints.
+- that every estimate's working gives its answer and each known mistake's
+  gives that mistake's value, and that the tolerance accepts the answer and
+  none of the mistakes (ADR-0024). It's plain arithmetic, so --no-run checks it.
 - the diagnostics the placement test walks (ADR-0021): their shape and ids.
 
 It prints every problem it finds and exits with status 1 if there are any.
@@ -44,9 +47,12 @@ import tempfile
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
+import arithmetic
 import mcq_lengths
 import parsons_orders
 import yaml
@@ -55,6 +61,7 @@ from content_model import (
     STAGES_WITH_FAILING_STARTER,
     STAGES_WITH_HIDDEN_TESTS,
     Diagnostic,
+    EstimateItem,
     Exercise,
     LabChecks,
     McqItem,
@@ -68,10 +75,11 @@ from content_model import (
 )
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-AnyRecall = McqItem | PredictOutputItem | ParsonsItem | PredictShellItem
+AnyRecall = McqItem | PredictOutputItem | ParsonsItem | PredictShellItem | EstimateItem
 AnyItem = AnyRecall | Exercise
-# The recall kinds that ask for output rather than a choice.
-PREDICT_KINDS = {"predict_output", "predict_shell"}
+# The recall kinds that ask the learner to produce an answer, the output or a
+# number, rather than choose one. An estimate counts (ADR-0024).
+PREDICT_KINDS = {"predict_output", "predict_shell", "estimate"}
 
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS_CLI = ROOT / "harness" / "cli.py"
@@ -155,6 +163,11 @@ def load(path: Path, shape: type[BaseModel] | TypeAdapter[Any], report: Report):
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         report.add(path, f"isn't valid YAML: {exc}")
+        return None
+    except ValueError as exc:
+        # YAML reads 2026-13-40 as a date (an estimate's prices_as_of), and a
+        # date that doesn't exist raises this rather than a YAML error.
+        report.add(path, f"has a value that can't be read: {exc}")
         return None
     for text in doubled_apostrophes(data):
         match = DOUBLED_APOSTROPHE.search(text)
@@ -312,8 +325,8 @@ def check_ready_topic(folder: TopicFolder, report: Report) -> None:
         if not review_stages & {*PREDICT_KINDS, "parsons", "review_code"}:
             report.add(
                 topic_file,
-                "the review pool needs a predict-the-output, Parsons or "
-                "review_code item",
+                "the review pool needs a predict-the-output, estimate, Parsons "
+                "or review_code item",
             )
         for item_id in topic.review_pool:
             review_kinds = {None, "mcq", *PREDICT_KINDS, "parsons", "review_code"}
@@ -1016,6 +1029,214 @@ def check_predict_shell(path: Path, item: PredictShellItem, report: Report) -> N
         )
 
 
+# --- Estimate questions (ADR-0024) ---------------------------------------------------
+
+# A number as a prompt writes it: 12, 0.0416 or 2,016. Commas only between
+# groups of three, so "2, 8 and 12" is three numbers.
+STATED_NUMBER = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?|\.\d+")
+# An amount of money: a currency sign before a number ($0.046, € 12), or a
+# currency code beside one (12 USD).
+MONEY = re.compile(r"[$€£¥]\s?\d|\d\s?(?:USD|EUR|GBP)\b|\b(?:USD|EUR|GBP)\s?\d")
+# Code in Markdown, left out before looking for money: in a command, $1 is
+# the shell's first argument, not a dollar.
+MARKDOWN_CODE = re.compile(r"```.*?```|`[^`\n]*`", re.DOTALL)
+# A number both YAML readers agree on. Python's (YAML 1.1) also reads 10_000,
+# 012 (as 10) and 1:30 (as 90); the browser's (YAML 1.2) reads them as text,
+# 12 and text, so a number written that way is wrong on the page.
+PLAIN_NUMBER = re.compile(r"[-+]?(?:\.\d+|(?:0|[1-9]\d*)(?:\.\d*)?)(?:[eE][-+]?\d+)?")
+YAML_NUMBER_TAGS = {"tag:yaml.org,2002:int", "tag:yaml.org,2002:float"}
+
+
+def numbers_in(text: str) -> set[Fraction]:
+    """Every number the text states, exactly."""
+    return {Fraction(found.replace(",", "")) for found in STATED_NUMBER.findall(text)}
+
+
+def mentions_money(prompt: str) -> bool:
+    return MONEY.search(MARKDOWN_CODE.sub("", prompt)) is not None
+
+
+def numbers_read_differently(path: Path) -> list[str]:
+    """Numbers in the file written in a way only Python's YAML reads as that
+    number: their text as written."""
+    found: list[str] = []
+
+    def walk(node: yaml.Node | None) -> None:
+        if isinstance(node, yaml.ScalarNode):
+            if node.tag in YAML_NUMBER_TAGS and not PLAIN_NUMBER.fullmatch(node.value):
+                found.append(node.value)
+        elif isinstance(node, yaml.SequenceNode):
+            for child in node.value:
+                walk(child)
+        elif isinstance(node, yaml.MappingNode):
+            for key, value in node.value:
+                walk(key)
+                walk(value)
+
+    walk(yaml.compose(path.read_text(encoding="utf-8")))
+    return found
+
+
+def decimals_of(number: int | float) -> int:
+    """How many decimal places the number is written with: 28 has none, 27.5
+    one. A sum is rounded to this many before it's compared with it."""
+    exponent = Decimal(repr(number)).as_tuple().exponent
+    return max(0, -exponent) if isinstance(exponent, int) else 0
+
+
+def inside(value: Fraction, answer: Fraction, item: EstimateItem) -> bool:
+    """Whether the tolerance accepts `value`, edges included, as the page does."""
+    tolerance = item.tolerance
+    if tolerance.percent is not None:
+        allowed = abs(answer) * arithmetic.exact(tolerance.percent) / 100
+    else:
+        allowed = arithmetic.exact(tolerance.absolute or 0)
+    return abs(value - answer) <= allowed
+
+
+def check_estimate(path: Path, item: EstimateItem, report: Report) -> None:
+    """An estimate is proved like an exercise (ADR-0004, ADR-0024): its working
+    gives its answer, each known mistake's working gives that mistake's value,
+    and the tolerance accepts the answer and none of the mistakes. It's plain
+    arithmetic, so it's checked under --no-run too."""
+    for written in numbers_read_differently(path):
+        report.add(
+            path,
+            f"the number {written} reads differently in the browser, whose YAML "
+            "doesn't take underscores, leading zeros or colons in numbers; write "
+            "it as plain digits, like 10000",
+        )
+    given = {name: arithmetic.exact(value) for name, value in item.given.items()}
+    answer = arithmetic.exact(item.answer)
+    check_given(path, item, given, report)
+    check_working(path, item, given, answer, report)
+    check_mistakes(path, item, given, answer, report)
+    if mentions_money(item.prompt) and item.prices_as_of is None:
+        report.add(
+            path,
+            "the prompt holds an amount of money, so it needs prices_as_of and "
+            "prices_source: the day the prices were read, and the page that "
+            "shows today's",
+        )
+
+
+def check_given(
+    path: Path, item: EstimateItem, given: dict[str, Fraction], report: Report
+) -> None:
+    """The learner works from the prompt, so every given number is in it."""
+    stated = numbers_in(item.prompt)
+    for name, value in given.items():
+        if name in arithmetic.FUNCTIONS:
+            report.add(
+                path,
+                f"given {name!r} has the name of a function the working can call; "
+                "call it something else, like min_cores",
+            )
+        elif name in arithmetic.RESERVED_WORDS:
+            report.add(
+                path,
+                f"given {name!r} is a word Python keeps for itself, so a sum "
+                "can't use it as a name; call it something else, like "
+                f"{name}_count",
+            )
+        if abs(value) not in stated:
+            report.add(
+                path,
+                f"given {name} is {arithmetic.show(value)}, which the prompt doesn't "
+                "state: write it in the prompt in digits, or if the learner must "
+                "know it, put it in the working as a plain number",
+            )
+
+
+def check_working(
+    path: Path,
+    item: EstimateItem,
+    given: dict[str, Fraction],
+    answer: Fraction,
+    report: Report,
+) -> None:
+    """The working gives the answer, and a learner who works it out exactly is
+    marked right."""
+    worked = work_out(path, "the working", item.working, given, report)
+    if worked is not None:
+        rounded = arithmetic.round_half_up(worked, decimals_of(item.answer))
+        if rounded != answer:
+            report.add(
+                path,
+                f"the working gives {arithmetic.show(worked)}, but the answer is "
+                f"{arithmetic.show(answer)}",
+            )
+        elif not inside(worked, answer, item):
+            report.add(
+                path,
+                f"the working gives {arithmetic.show(worked)} exactly, which the "
+                f"tolerance doesn't accept around {arithmetic.show(answer)}, so a "
+                "learner who works it out exactly is marked wrong; write the "
+                "answer with more decimals, or widen the tolerance",
+            )
+
+
+def check_mistakes(
+    path: Path,
+    item: EstimateItem,
+    given: dict[str, Fraction],
+    answer: Fraction,
+    report: Report,
+) -> None:
+    """Each known mistake's working gives its value, the tolerance turns every
+    one of them away, and no two give the same number, so the page can name
+    the one a learner made."""
+    first_with: dict[Fraction, str] = {}
+    for mistake in item.mistakes:
+        value = arithmetic.exact(mistake.value)
+        where = f"mistake {mistake.id!r}"
+        wrong = work_out(
+            path, f"the working of {where}", mistake.working, given, report
+        )
+        if wrong is not None:
+            rounded = arithmetic.round_half_up(wrong, decimals_of(mistake.value))
+            if rounded != value:
+                report.add(
+                    path,
+                    f"{where}: its working gives {arithmetic.show(wrong)}, but its "
+                    f"value is {arithmetic.show(value)}",
+                )
+        # The value as written, and the working's exact value: neither may pass.
+        accepted = [
+            v for v in (value, wrong) if v is not None and inside(v, answer, item)
+        ]
+        if accepted:
+            report.add(
+                path,
+                f"{where} gives {arithmetic.show(accepted[0])}, which the tolerance "
+                "accepts, so a learner who makes that mistake is marked right; "
+                "narrow the tolerance, or drop the mistake if it isn't one",
+            )
+        if value in first_with:
+            report.add(
+                path,
+                f"mistakes {first_with[value]!r} and {mistake.id!r} both give "
+                f"{arithmetic.show(value)}, so the page can't tell which one a "
+                "learner made; merge them",
+            )
+        first_with.setdefault(value, mistake.id)
+
+
+def work_out(
+    path: Path,
+    what: str,
+    text: str,
+    given: dict[str, Fraction],
+    report: Report,
+) -> Fraction | None:
+    """The value of a working, or None (and a problem) if it isn't a sum."""
+    try:
+        return arithmetic.evaluate(text, given)
+    except arithmetic.NotArithmetic as exc:
+        report.add(path, f"{what} ({text.strip()!r}) {exc}")
+        return None
+
+
 # --- Multiple-choice explanations ----------------------------------------------------
 
 # "The last choice", "the second option", "the first and last answers".
@@ -1164,6 +1385,8 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
                 problem = choice_named_by_position(item)
                 if problem:
                     report.add(item_path, problem)
+            if isinstance(item, EstimateItem):
+                check_estimate(item_path, item, report)
             if isinstance(item, PredictOutputItem) and run:
                 check_predict_output(item_path, item, report)
             elif isinstance(item, ParsonsItem) and run:

@@ -129,6 +129,49 @@ export type PredictShellItem = {
 }
 
 /**
+ * How close a typed number must be to count as right: within `absolute`
+ * either side of the answer (0 means exactly), or within `percent` of it.
+ */
+export type Tolerance = { absolute: number } | { percent: number }
+
+/** A wrong answer a learner is likely to give, and what went wrong. */
+export type EstimateMistake = {
+  id: string
+  value: number
+  /** The wrong sum, over the item's given numbers. */
+  working: string
+  /** Shown when the learner's answer matches `value`. */
+  why: string
+}
+
+/**
+ * A number the learner works out and types, checked within a tolerance
+ * (ADR-0024). The browser works nothing out: the validator proved the
+ * answer and every mistake from `given`.
+ */
+export type EstimateItem = {
+  id: string
+  type: 'estimate'
+  rev: number
+  prompt: string
+  /** Shown after the number box, so the learner never types it. */
+  unit: string
+  answer: number
+  tolerance: Tolerance
+  /** The numbers the prompt states, by name, as the working uses them. */
+  given: Record<string, number>
+  /** The sum, over the given names, that gives the answer. */
+  working: string
+  mistakes: EstimateMistake[]
+  explanation: string
+  skills: string[]
+  /** The day the prompt's prices were read, as YYYY-MM-DD. */
+  prices_as_of?: string
+  /** The page that shows today's prices. */
+  prices_source?: string
+}
+
+/**
  * One rung of a diagnostic's ladder (ADR-0021): a few multiple-choice
  * questions, and where to refresh the level until the platform teaches it.
  */
@@ -151,7 +194,7 @@ export type Diagnostic = {
 }
 
 export type RecallItem =
-  McqItem | PredictOutputItem | ParsonsItem | PredictShellItem
+  McqItem | PredictOutputItem | ParsonsItem | PredictShellItem | EstimateItem
 
 export type Stage =
   'worked_example' | 'fill_in' | 'write' | 'build' | 'debug' | 'review_code'

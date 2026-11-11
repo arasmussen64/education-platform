@@ -38,7 +38,7 @@ resources:
     end: 20
     license: CC BY-NC-SA 4.0
 practice: [example-hello, parsons-order, mcq-print, predict-print,
-  shell-count, fill-hello, write-hello]
+  shell-count, estimate-cost, fill-hello, write-hello]
 prove:
   build: build-hello
   debug: debug-hello
@@ -137,6 +137,34 @@ explanation: grep -c counts matching lines; cat prints a file as it is.
 skills: [print-text]
 """
 
+# An estimate (ADR-0024): the 24 in per-day is a number the learner knows
+# rather than reads, so it's written into the working instead of given.
+ESTIMATE = """id: estimate-cost
+type: estimate
+rev: 1
+prompt: |
+  A VM costs $0.10 an hour, and its disk $0.02 an hour. Use 730 hours a month.
+  What do the two cost in a month? Within 10% is close enough.
+unit: dollars a month
+answer: 87.6
+tolerance: { percent: 10 }
+given: { vm: 0.10, disk: 0.02, hours: 730 }
+working: (vm + disk) * hours
+mistakes:
+  - id: vm-only
+    value: 73
+    working: vm * hours
+    why: That's the VM alone; its disk is billed too.
+  - id: one-day
+    value: 2.88
+    working: (vm + disk) * 24
+    why: That's one day. A month is 730 hours.
+explanation: (0.10 + 0.02) × 730 = 87.60 dollars.
+skills: [print-text]
+prices_as_of: 2026-11-10
+prices_source: https://example.com/prices
+"""
+
 LESSON = """<Intro>Watch for print.</Intro>
 
 <Resource index={0} />
@@ -175,6 +203,7 @@ def make_valid_tree(root: Path) -> Path:
     write(root, f"{topic}/recall/predict-print.yaml", PREDICT)
     write(root, f"{topic}/recall/parsons-order.yaml", PARSONS)
     write(root, f"{topic}/recall/shell-count.yaml", PREDICT_SHELL)
+    write(root, f"{topic}/recall/estimate-cost.yaml", ESTIMATE)
     exercises = {
         "example-hello": "worked_example",
         "fill-hello": "fill_in",

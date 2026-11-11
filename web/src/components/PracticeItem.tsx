@@ -16,6 +16,7 @@ import { labEventData } from '../labs/result.ts'
 import { PLACE_ATTRIBUTE } from '../place/useCurrentPlace.ts'
 import { type ItemState, ITEM_STATE_LABELS } from '../progress/itemStates.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
+import { EstimateQuestion } from './EstimateQuestion.tsx'
 import { type ExerciseActivity, ExerciseView } from './ExerciseView.tsx'
 import { McqQuestion } from './McqQuestion.tsx'
 import { ParsonsProblem } from './ParsonsProblem.tsx'
@@ -132,6 +133,27 @@ function describe(
                   ? null
                   : clip(program.join('\n'), MAX_CODE_CHARS),
               ...unknownIf(program === null),
+            })
+          }
+        />
+      ),
+    }
+  }
+  if (recall?.type === 'estimate') {
+    return {
+      heading: 'Work it out',
+      body: (
+        <EstimateQuestion
+          item={recall}
+          quiet={quiet}
+          onAnswer={(correct, answer) =>
+            onAnswer(correct, {
+              typed:
+                answer === null ? null : clip(answer.typed, MAX_TEXT_CHARS),
+              number: answer?.number ?? null,
+              relative_error: answer?.relativeError ?? null,
+              mistake: answer?.mistake ?? null,
+              ...unknownIf(answer === null),
             })
           }
         />
