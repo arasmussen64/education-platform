@@ -10,7 +10,20 @@ import {
 describe('clip', () => {
   it('leaves short text alone and marks where long text was cut', () => {
     expect(clip('short', 10)).toBe('short')
-    expect(clip('abcdefghij-more', 10)).toBe('abcdefghij…(cut)')
+    expect(clip('abcdefghij', 10)).toBe('abcdefghij')
+    expect(clip('abcdefghij-more', 10)).toBe('abcd…(cut)')
+  })
+
+  it('never returns more than the limit, the marker included', () => {
+    for (const max of [0, 3, 6, 7, 10, 100]) {
+      expect(clip('x'.repeat(500), max).length).toBeLessThanOrEqual(max)
+    }
+  })
+
+  it('never cuts an emoji in half, which the database would refuse', () => {
+    // An emoji is two UTF-16 halves; a lone half isn't valid text in Postgres.
+    const clipped = clip(`abc😀${'x'.repeat(20)}`, 10)
+    expect(clipped).toBe('abc…(cut)')
   })
 })
 
@@ -32,9 +45,10 @@ describe('runEventData', () => {
     })
   })
 
-  it('cuts very long code so the event fits the database limit', () => {
-    const data = runEventData('x'.repeat(10_000), { kind: 'timeout' })
-    expect(String(data.code)).toHaveLength(MAX_CODE_CHARS + '…(cut)'.length)
+  it('cuts very long code to the limit, marker included', () => {
+    const data = runEventData('x'.repeat(30_000), { kind: 'timeout' })
+    expect(String(data.code)).toHaveLength(MAX_CODE_CHARS)
+    expect(String(data.code)).toMatch(/…\(cut\)$/)
   })
 })
 

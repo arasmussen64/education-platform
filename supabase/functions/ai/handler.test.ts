@@ -7,6 +7,7 @@ import {
   createHandler,
   type Graded,
   type Hinted,
+  MAX_CODE_CHARS,
   MAX_LOGGED_REQUEST_BYTES,
   readGradeRequest,
   readHintRequest,
@@ -272,6 +273,11 @@ Deno.test('the logged request is cut by bytes, not characters, so its row always
   assert.equal(MAX_LOGGED_REQUEST_BYTES, 16_384 - 1_024)
   assert.ok(code.startsWith('中中中'))
   assert.ok(code.endsWith('…(cut)'))
+
+  // A long program in plain letters, like Module 8's, is logged whole.
+  const program = 'x = 1\n'.repeat(2054) // 12,324 characters
+  await send(handle, post({ ...HINT_BODY, code: program }))
+  assert.equal(logged[1]?.request.code, program)
 })
 
 Deno.test('turns away bad requests before calling anything costly', async () => {
@@ -380,12 +386,37 @@ Deno.test('a replaced hint is returned and logged as replaced, with the reason',
   assert.deepEqual(logged[0]?.response, replaced)
 })
 
+Deno.test('the tutor reads every program in the track, the longest (12,323 characters) and more', async () => {
+  const { handle, calls } = fakes()
+  const long = 'x'.repeat(MAX_CODE_CHARS)
+  assert.equal(MAX_CODE_CHARS, 20_000)
+  const { status, body } = await send(
+    handle,
+    post({ ...HINT_BODY, code: long, exercise: { ...HINT_BODY.exercise, solution: long } }),
+  )
+  assert.equal(status, 200)
+  assert.equal(body.status, 'hinted')
+  assert.ok(calls.includes('hint'))
+})
+
+Deno.test('a program too long for the tutor is said to be, before anything costly', async () => {
+  const { handle, calls } = fakes()
+  const tooLong = 'x'.repeat(MAX_CODE_CHARS + 1)
+  const code = await send(handle, post({ ...HINT_BODY, code: tooLong }))
+  assert.deepEqual(code, { status: 200, body: { status: 'too_long' } })
+  const solution = await send(
+    handle,
+    post({ ...HINT_BODY, exercise: { ...HINT_BODY.exercise, solution: tooLong } }),
+  )
+  assert.deepEqual(solution, { status: 200, body: { status: 'too_long' } })
+  assert.ok(!calls.includes('isAllowed'))
+  // A stranger is still turned away first.
+  assert.equal((await send(handle, post({ ...HINT_BODY, code: tooLong }, 'forged'))).status, 401)
+})
+
 Deno.test('a hint request is checked before anything costly: sizes, shapes, defaults', async () => {
   const { handle, calls } = fakes()
-  assert.equal(
-    (await send(handle, post({ ...HINT_BODY, code: 'x'.repeat(6001) }))).status,
-    400,
-  )
+  assert.equal((await send(handle, post({ ...HINT_BODY, code: 42 }))).status, 400)
   assert.equal((await send(handle, post({ ...HINT_BODY, exercise: {} }))).status, 400)
   assert.ok(!calls.includes('isAllowed'))
   assert.match(
@@ -403,7 +434,7 @@ Deno.test('a hint request is checked before anything costly: sizes, shapes, defa
     item_id: 'fill-count-up',
     exercise: HINT_BODY.exercise,
   })
-  assert.ok(typeof minimal !== 'string')
+  assert.ok(typeof minimal !== 'string' && !('too_long' in minimal))
   assert.deepEqual(
     { code: minimal.code, question: minimal.question, check: minimal.check, earlier: minimal.earlier },
     { code: '', question: '', check: null, earlier: [] },

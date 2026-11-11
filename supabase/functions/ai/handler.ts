@@ -93,7 +93,10 @@ export type Outcome =
       ai_call_id: string | null
       model: string
     }
-  | { status: 'not_allowed' | 'paused' | 'unavailable' }
+  | { status: 'not_allowed' | 'paused' | 'unavailable' | 'too_long' }
+
+/** A program longer than the tutor reads: not a broken request, so the page can say so. */
+export type TooLong = { too_long: true }
 
 // Browsers ask first (OPTIONS) whether a page on another site may call this.
 export const CORS_HEADERS = {
@@ -103,8 +106,16 @@ export const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-/** The learner's code is cut here, so a call stays small and the log fits. */
-export const MAX_CODE_CHARS = 6000
+/**
+ * The longest program the tutor reads, in characters: the learner's code and
+ * the reference solution alike. The browser checks the same limit before it
+ * asks (MAX_TUTOR_CODE_CHARS in web/src/tutor/hint.ts): change the two
+ * together. The longest program in the track is 12,323 characters (a worked
+ * example in ml.nn.debugging-training, measured 2026-11-11), so this leaves
+ * room. With both at the limit, a call sends about 13,000 tokens: about a
+ * tenth of a cent on Claude Haiku 5.5 (cost.ts).
+ */
+export const MAX_CODE_CHARS = 20_000
 export const MAX_QUESTION_CHARS = 500
 const MAX_EARLIER_HINTS = 8
 const MAX_TESTS = 20
@@ -264,8 +275,11 @@ function readCheck(value: unknown): CheckSummary | null | string {
   return { passed: value.passed, total: value.total, results }
 }
 
-/** A tutor request, checked, or what's wrong with it. */
-export function readHintRequest(body: unknown): HintRequest | string {
+/**
+ * A tutor request, checked, or what's wrong with it. A program too long for
+ * the tutor is its own answer, TooLong, so the page can say so plainly.
+ */
+export function readHintRequest(body: unknown): HintRequest | TooLong | string {
   if (!isRecord(body)) return 'Send a JSON object.'
   if (body.action !== 'tutor_hint') return 'Unknown action.'
   if (!isText(body.topic_id, 200)) return 'topic_id is missing or too long.'
@@ -275,14 +289,15 @@ export function readHintRequest(body: unknown): HintRequest | string {
     !isRecord(exercise) ||
     !isText(exercise.title, 200) ||
     !isText(exercise.prompt, 4000) ||
-    !isText(exercise.solution, MAX_CODE_CHARS, true) ||
+    typeof exercise.solution !== 'string' ||
     !isStringList(exercise.hints, 10, 1000)
   ) {
     return 'exercise needs a title, a prompt, a solution and up to 10 hints.'
   }
   const code = body.code ?? ''
-  if (!isText(code, MAX_CODE_CHARS, true)) {
-    return `The code is longer than ${MAX_CODE_CHARS.toLocaleString('en-US')} characters.`
+  if (typeof code !== 'string') return 'code must be text.'
+  if (code.length > MAX_CODE_CHARS || exercise.solution.length > MAX_CODE_CHARS) {
+    return { too_long: true }
   }
   const question = body.question ?? ''
   if (!isText(question, MAX_QUESTION_CHARS, true)) {
@@ -302,9 +317,9 @@ export function readHintRequest(body: unknown): HintRequest | string {
       title: exercise.title as string,
       prompt: exercise.prompt as string,
       hints: exercise.hints,
-      solution: exercise.solution as string,
+      solution: exercise.solution,
     },
-    code: code as string,
+    code,
     check,
     question: question as string,
     earlier,
@@ -312,7 +327,7 @@ export function readHintRequest(body: unknown): HintRequest | string {
 }
 
 /** Whichever action the browser asked for, checked. */
-export function readRequest(body: unknown): ProxyRequest | string {
+export function readRequest(body: unknown): ProxyRequest | TooLong | string {
   if (!isRecord(body)) return 'Send a JSON object.'
   if (body.action === 'grade_explanation') return readGradeRequest(body)
   if (body.action === 'tutor_hint') return readHintRequest(body)
@@ -369,6 +384,7 @@ export function createHandler(services: Services) {
     }
     const input = readRequest(body)
     if (typeof input === 'string') return reply(400, { error: input })
+    if ('too_long' in input) return reply(200, { status: 'too_long' })
 
     // 2. May they use the AI? 3. Is every earlier call's cost written down,
     // and 4. is there budget left?

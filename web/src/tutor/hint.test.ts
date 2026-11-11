@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fakeExercise } from '../test/fakeContent.tsx'
 import { oneFailed, report } from '../test/fakePython.ts'
-import { askTutor, checkSummary, type HintRequest } from './hint.ts'
+import {
+  askTutor,
+  checkSummary,
+  type HintRequest,
+  MAX_TUTOR_CODE_CHARS,
+} from './hint.ts'
 
 // A stand-in for Supabase's functions client: each test says what the
 // proxy answers.
@@ -98,6 +103,44 @@ describe('askTutor', () => {
       error: null,
     })
     expect(await askTutor(REQUEST)).toEqual({ status: 'failed' })
+  })
+
+  it('sends long programs whole: the longest in the track is 12,323 characters', async () => {
+    proxy.invoke.mockResolvedValue({ data: HINTED, error: null })
+    const program = 'x = 1\n'.repeat(2054) // 12,324 characters
+    await askTutor({
+      ...REQUEST,
+      code: program,
+      exercise: { ...EXERCISE, solution: program },
+    })
+    const body = proxy.invoke.mock.calls[0]?.[1]?.body as {
+      code: string
+      exercise: { solution: string }
+    }
+    expect(body.code).toBe(program)
+    expect(body.exercise.solution).toBe(program)
+  })
+
+  it('says a program is too long for the tutor, without asking the proxy', async () => {
+    const tooLong = 'x'.repeat(MAX_TUTOR_CODE_CHARS + 1)
+    expect(await askTutor({ ...REQUEST, code: tooLong })).toEqual({
+      status: 'too_long',
+    })
+    expect(
+      await askTutor({
+        ...REQUEST,
+        exercise: { ...EXERCISE, solution: tooLong },
+      }),
+    ).toEqual({ status: 'too_long' })
+    expect(proxy.invoke).not.toHaveBeenCalled()
+  })
+
+  it('passes on the proxy saying a program is too long', async () => {
+    proxy.invoke.mockResolvedValueOnce({
+      data: { status: 'too_long' },
+      error: null,
+    })
+    expect(await askTutor(REQUEST)).toEqual({ status: 'too_long' })
   })
 
   it('sends only the last eight earlier hints', async () => {

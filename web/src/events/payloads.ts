@@ -11,9 +11,22 @@ import type { EventData } from './types.ts'
 export const MAX_CODE_CHARS = 6_000
 export const MAX_TEXT_CHARS = 2_000
 
-/** Shortens long text, marking where it was cut. */
+const CUT_MARKER = '…(cut)'
+
+/**
+ * Shortens long text to at most `max` characters, marking where it was cut.
+ * The marker counts towards `max`, so the result is never longer.
+ */
 export function clip(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max)}…(cut)`
+  if (text.length <= max) return text
+  if (max < CUT_MARKER.length) return text.slice(0, max)
+  let end = max - CUT_MARKER.length
+  // An emoji is two halves in JavaScript (a "surrogate pair"). Cutting
+  // between them leaves half a character, which Postgres refuses, so the
+  // whole event would be lost: cut before the pair instead.
+  const last = text.charCodeAt(end - 1)
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1
+  return `${text.slice(0, end)}${CUT_MARKER}`
 }
 
 /** A press of Run: the code and what it printed. */
