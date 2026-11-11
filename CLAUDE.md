@@ -9,18 +9,18 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Concept: [docs/vision.md](docs/vision.md)
 - Plan and current phase: [docs/roadmap.md](docs/roadmap.md)
 - v1 spec: [docs/specs/v1.md](docs/specs/v1.md), with the [data model](docs/specs/data-model.md) and the [first track](docs/specs/python-foundations.md)
-- Third track, the ML path: [Machine Learning Foundations](docs/specs/ml-foundations.md). Module 1 is the math refresher the placement test points at ([ADR-0021](docs/decisions/0021-placement-test.md)), Module 2 intermediate Python, Module 3 linear algebra in NumPy ([ADR-0023](docs/decisions/0023-packages-in-both-runtimes.md), proposed: a topic declares the packages it imports); Module 4 calculus for ML, ending in a network trained from scratch, Module 5 probability and statistics for ML, ending in a judgement between two models, Module 6 data structures and algorithms, ending in the algorithms behind a data pipeline, and Module 7 how computers and GPUs work, ending in a pipeline made fast, and Module 8 neural networks from scratch, ending in a network that reads digits; all eight are written (Modules 4 to 8 on 2026-11-10). Module 9, transformers, is outlined (2026-11-10) and Module 10 is prose in the spec.
-- Next track, specified but not built: [Cloud Solutions Architect](docs/specs/cloud-solutions-architect.md). How its cloud work is proven is [ADR-0014](docs/decisions/0014-cloud-labs.md); how its shell module is taught and proven is [ADR-0017](docs/decisions/0017-shell-in-the-browser.md). Both accepted 2026-11-09. Labs run in containers on the learner's machine through `tools/labcheck.py` ([ADR-0018](docs/decisions/0018-lab-checker-local-mode.md)).
+- Third track, the ML path: [Machine Learning Foundations](docs/specs/ml-foundations.md). Module 1 is the math refresher the placement test points at ([ADR-0021](docs/decisions/0021-placement-test.md)), Module 2 intermediate Python, Module 3 linear algebra in NumPy ([ADR-0023](docs/decisions/0023-packages-in-both-runtimes.md), accepted 2026-11-10: a topic declares the packages it imports); Module 4 calculus for ML, ending in a network trained from scratch, Module 5 probability and statistics for ML, ending in a judgement between two models, Module 6 data structures and algorithms, ending in the algorithms behind a data pipeline, and Module 7 how computers and GPUs work, ending in a pipeline made fast, and Module 8 neural networks from scratch, ending in a network that reads digits; all eight are written (Modules 4 to 8 on 2026-11-10). Module 9, transformers, is outlined (2026-11-10) and Module 10 is prose in the spec.
+- Second track, the one being built: [Cloud Solutions Architect](docs/specs/cloud-solutions-architect.md). Module 1 is built. How its cloud work is proven is [ADR-0014](docs/decisions/0014-cloud-labs.md); how its shell module is taught and proven is [ADR-0017](docs/decisions/0017-shell-in-the-browser.md). Both accepted 2026-11-09. Labs run in containers on the learner's machine through `tools/labcheck.py` ([ADR-0018](docs/decisions/0018-lab-checker-local-mode.md)). A lab that needs a real cloud is an Azure lab inside the owner's $150 monthly credit, or an AWS or Google Cloud lab inside that cloud's free tier; everything else is proven locally ([ADR-0014's amendment](docs/decisions/0014-cloud-labs.md#amendment-2026-11-10-what-a-lab-may-cost-and-who-pays), 2026-11-10).
 - Decisions (ADRs): [docs/decisions/](docs/decisions/)
 - Methods behind the features: [docs/learning-science.md](docs/learning-science.md)
 - Session history: [docs/devlog.md](docs/devlog.md)
 - Owner's machine and accounts: [docs/setup.md](docs/setup.md)
 
-**Current phase:** Phases 1 and 2 are complete (2026-11-09 and 2026-11-10). Phase 3 (CS and ML tracks) has reached the end of the ML track's Module 8, neural networks from scratch (Modules 4 to 8 were written on 2026-11-10); the cloud track's Module 1 is built and its Module 2 is the next step there. The web app lives in `web/`.
+**Current phase:** the status is kept in one place, the top of [docs/roadmap.md](docs/roadmap.md#where-the-project-stands) ("Where the project stands"). Build order (the owner, 2026-11-10): the Cloud Solutions Architect track to its end, then the ML track again from Module 9. The web app lives in `web/`.
 
 **Stack** ([ADR-0007](docs/decisions/0007-tech-stack.md)): TypeScript + React + Vite web app served as static files from Cloudflare; Supabase (Postgres, Auth, Edge Functions as the Claude API proxy); learners' Python runs in the browser via Pyodide in a Web Worker; Python (uv, pytest, ruff) for content tooling and ML; GitHub Actions for CI.
 
-**At the start of a session,** read the latest devlog entry and the roadmap's current phase.
+**At the start of a session,** read the latest devlog entry, the top of the roadmap, and [docs/owner-queue.md](docs/owner-queue.md).
 
 ## Working with the owner
 
@@ -30,6 +30,8 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
 - Teach as you go. When a task would make a good exercise, offer to let the owner write it (with hints) instead of writing it yourself.
 - Keep the owner able to explain the code. Every pull request includes a short plain-language summary, and you offer an occasional explain-it-back question. These never block merging.
 - Ask before anything hard to undo or that costs money: paid services, deleting data, force-pushing, making things public.
+- The owner learns at their own pace, on any track, and asked on 2026-11-10 that the build not wait for it: "your job is to just build". Content is no longer held to one module ahead of the owner's learning.
+- Things only the owner can do or decide (money, the live site or database, making something public, a product rule or an ADR, anything hard to undo) go in [docs/owner-queue.md](docs/owner-queue.md), a short list kept to about seven open items. Every other judgement call is recorded under an "Author notes" heading in the devlog entry, for the record and not for a ruling.
 - The owner may have a dev server running. After changing `vite.config.ts` or installing packages, tell them to restart it (Ctrl+C, then `npm run dev`), because a running server can get stuck half-updated. Never stop a process you didn't start.
 - To check the app yourself, use your own dev server on another port, and make it stop itself: start Vite with `createServer()` and close it with a timer (see the devlog, 2026-11-06). On Windows, stopping a background shell task leaves the server inside it running.
 
@@ -46,7 +48,8 @@ Guidance for Claude Code in this repository. Keep this file short; details live 
   - docs updated if behavior, setup or a decision changed
   - a `docs/devlog.md` entry for the session: what changed, what was decided, what's next
 - **Secrets never get committed.** Keys go in `.env` (gitignored); keep `.env.example` with placeholder names.
-- **Free tiers only** ([ADR-0005](docs/decisions/0005-free-hosting-first.md)). Never add a service that bills without asking. The one paid exception is the Claude API, capped at $10 a month to start (v1 spec).
+- **The repository is public** (since 2026-11-09). Stage files by path, never `git add -A` or `git add .`. Scratch files, downloads and subagent working folders stay outside the repository.
+- **Free tiers only** ([ADR-0005](docs/decisions/0005-free-hosting-first.md)). Never add a service that bills without asking. The one paid exception is the Claude API, capped at $10 a month to start (v1 spec). Cloud labs keep to it: the owner's Azure credit, the AWS and Google Cloud free tiers, otherwise local.
 
 ## Product rules that constrain code
 
@@ -83,10 +86,12 @@ Database: run these from the repository root, with Docker Desktop running. Detai
 - Merging doesn't deploy the AI proxy. With the owner's go-ahead, `npx supabase functions deploy ai --no-verify-jwt --yes` does. The steps are in [supabase/README.md](supabase/README.md).
 - Signing in locally: the dev server uses email links. They land in the local test inbox (Mailpit) at http://127.0.0.1:54324. The live site uses GitHub.
 
-Content: run this from the repository root. Details are in [content/README.md](content/README.md).
+Content: run these from the repository root, except where a line says `web/`. Details are in [content/README.md](content/README.md).
 
 - `python -m uv run python tools/validate_content.py` checks every topic and runs every exercise (`--no-run` skips running code). CI runs it on every pull request, and content must pass it before being marked `ready`.
 - `python -m uv run python tools/outline_cloud_track.py` regenerates the Cloud Solutions Architect track's `planned` outlines from its spec. Change the spec, not the outlines. It never touches a topic that's being written.
+- `npm run time:content -- <topic id>`, run in `web/`, times a topic's exercises in the browser's Python. Before a topic is marked `ready`, keep every exercise under 40% of its time limit; CI fails at 100%.
+- `tools/generators/` is an archive of the scripts that first wrote the ML topics ([its README](tools/generators/README.md)). `content/topics/` is the source of truth: never re-run a generator against it. One helper there is still useful: `python -m uv run python tools/generators/checks/validate_one.py <topic id>` checks the named topics only, in seconds. The full validator must still pass.
 
 ## Environment
 

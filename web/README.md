@@ -6,18 +6,21 @@ The React app for the learning platform. The [v1 spec](../docs/specs/v1.md) desc
 
 Run these inside `web/`.
 
-| Command              | What it does                                                            |
-| -------------------- | ----------------------------------------------------------------------- |
-| `npm install`        | Installs dependencies. Run it the first time and after pulling changes. |
-| `npm run dev`        | Starts the app at http://localhost:5173 and reloads it as you edit.     |
-| `npm test`           | Runs the tests once.                                                    |
-| `npm run test:watch` | Re-runs the tests every time you save.                                  |
-| `npm run lint`       | Checks for common mistakes (Oxlint).                                    |
-| `npm run typecheck`  | Checks types (TypeScript).                                              |
-| `npm run format`     | Formats the code (Prettier). `npm run format:check` only reports.       |
-| `npm run build`      | Builds the production version into `dist/`.                             |
+| Command                | What it does                                                            |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `npm install`          | Installs dependencies. Run it the first time and after pulling changes. |
+| `npm run dev`          | Starts the app at http://localhost:5173 and reloads it as you edit.     |
+| `npm test`             | Runs the tests once.                                                    |
+| `npm run test:watch`   | Re-runs the tests every time you save.                                  |
+| `npm run lint`         | Checks for common mistakes (Oxlint).                                    |
+| `npm run typecheck`    | Checks types (TypeScript).                                              |
+| `npm run format`       | Formats the code (Prettier). `npm run format:check` only reports.       |
+| `npm run build`        | Builds the production version into `dist/`.                             |
+| `npm run time:content` | Times exercises' reference solutions in the browser's Python (below).   |
 
 CI runs `format:check`, `lint`, `typecheck`, `test` and `build` on every pull request.
+
+**Timing content.** `npm run time:content` times each exercise's reference solution in Pyodide (the browser's Python), the way the Run and Check buttons run it, and shows what share of its time limit it uses. Add the starts of topic ids to time only some: `npm run time:content -- ml.nn. py.loops`. Rows over 40% are marked and the command exits with an error; an author keeps every exercise under that before a topic is marked `ready` ([content/README.md](../content/README.md)). Close other programs first, because a busy machine reads high. NumPy is imported before timing starts, so on a NumPy topic the first Run or Check on a real page is about half a second slower than the figure shown.
 
 **Deploying** happens automatically: Cloudflare builds and deploys every merge to `main` using `wrangler.jsonc`. `npx wrangler deploy --dry-run`, run after `npm run build`, checks the config without uploading anything. `.nvmrc` tells Cloudflare's build which Node version to use; keep it the same as the one at the repository root.
 
@@ -75,15 +78,15 @@ The dev server also shows `draft` topics, marked as drafts, so they can be tried
 
 Learner code runs in [Pyodide](https://pyodide.org) (Python compiled to WebAssembly) inside a Web Worker, so it never freezes the page.
 
-| File                  | What it does                                                                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `python/runner.ts`    | The app's side: sends code to the worker one request at a time, and replaces the worker if code runs past its time limit (5 seconds). |
-| `python/worker.ts`    | The worker: loads Pyodide from the jsDelivr CDN and answers Run and Check requests.                                                   |
-| `python/session.ts`   | Drives Pyodide with the shared harness ([`../harness`](../harness/README.md)). The worker and the tests both use it.                  |
-| `python/protocol.ts`  | The messages and results passed between the two.                                                                                      |
-| `python/constants.ts` | The Pyodide version, its CDN address, and the time limit.                                                                             |
+| File                  | What it does                                                                                                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `python/runner.ts`    | The app's side: sends code to the worker one request at a time, and replaces the worker if code runs past its time limit (5 seconds, unless the exercise sets its own `time_limit_ms`). |
+| `python/worker.ts`    | The worker: loads Pyodide from the jsDelivr CDN and answers Run and Check requests.                                                                                                     |
+| `python/session.ts`   | Drives Pyodide with the shared harness ([`../harness`](../harness/README.md)). The worker and the tests both use it.                                                                    |
+| `python/protocol.ts`  | The messages and results passed between the two.                                                                                                                                        |
+| `python/constants.ts` | The Pyodide version, its CDN address, the default time limit for learner code, and the limit for loading a topic's packages.                                                            |
 
-The Pyodide version is pinned in two places: `python/constants.ts`, which is what the browser loads, and `package.json`, which the tests use. `session.pyodide.test.ts` fails if they differ. It also runs every harness scenario in real Pyodide and checks that the results exactly match CPython's. `content/content.pyodide.test.ts` goes further: it runs every ready exercise's reference solution against its tests in Pyodide, so an exercise that passes in CI but not in the browser can't reach a learner. Only the reference solutions run there, because a known-wrong solution may loop forever on purpose and Pyodide in Node can't be interrupted; the validator proves those fail under CPython.
+The Pyodide version is pinned in two places: `python/constants.ts`, which is what the browser loads, and `package.json`, which the tests use. `session.pyodide.test.ts` fails if they differ. It also runs every harness scenario in real Pyodide and checks that the results exactly match CPython's. `content/content.pyodide.test.ts` goes further: it runs every ready exercise's reference solution against its tests in Pyodide, so an exercise that passes in CI but not in the browser can't reach a learner. Only the reference solutions run there, because a known-wrong solution may loop forever on purpose and Pyodide in Node can't be interrupted; the validator proves those fail under CPython. It also times every Check, and every worked example's Run, against the exercise's `time_limit_ms`, fails when one is over, and prints the ten times closest to their limits. The app would stop a correct answer that ran longer, and the validator can't see that, because CPython is faster than Pyodide.
 
 The app starts loading Pyodide (about 10 MB, cached after the first visit) in the background as soon as it opens.
 
@@ -95,14 +98,15 @@ The field is an editable `<span role="textbox">`, not an `<input>`. Password man
 
 Everything a learner does on a topic page becomes an event in the append-only `events` table ([ADR-0008](../docs/decisions/0008-event-log.md)): viewing a lesson, answering, running and checking code, showing a hint. The `data` each event saves is listed in the [data model](../docs/specs/data-model.md#events-append-only).
 
-| File                        | What it does                                                                                                                                          |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `events/eventLog.ts`        | Turns what happened into a complete row (ID, learner, session, time, commit) and decides when to send. Retries wait 5 s, 10 s, 20 s… up to 5 minutes. |
-| `events/outbox.ts`          | Keeps unsent events in `localStorage`, so a reload or a lost connection loses nothing.                                                                |
-| `events/sync.ts`            | Sends the outbox in batches. An event the server refuses is set aside (kept in `localStorage`) so it can't block the rest.                            |
-| `events/supabaseEvents.ts`  | Sends to Supabase as an upsert that ignores duplicates, so retrying is always safe.                                                                   |
-| `events/EventsProvider.tsx` | Connects the log to sign-in, and tries again when the browser comes back online or the tab is shown again.                                            |
-| `components/SaveStatus.tsx` | The "Not saved yet" badge in the header, shown while work is waiting on this device.                                                                  |
+| File                        | What it does                                                                                                                                                                                                                                                                     |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `events/eventLog.ts`        | Turns what happened into a complete row (ID, learner, session, time, commit) and decides when to send. Retries wait 5 s, 10 s, 20 s… up to 5 minutes.                                                                                                                            |
+| `events/outbox.ts`          | Keeps unsent events in `localStorage`, so a reload or a lost connection loses nothing. Holds a second list for events the server refused, each with the reason, the time of the last attempt and the number of attempts.                                                         |
+| `events/sync.ts`            | Sends the outbox in batches. An event the server refuses is moved to the refused list (kept in `localStorage`) so it can't block the rest. `retryRefused` sends each refused event again, one at a time, once 12 hours have passed since its last attempt; none is ever dropped. |
+| `events/refusedText.ts`     | The words the header and the account page use for refused events, in one place.                                                                                                                                                                                                  |
+| `events/supabaseEvents.ts`  | Sends to Supabase as an upsert that ignores duplicates, so retrying is always safe.                                                                                                                                                                                              |
+| `events/EventsProvider.tsx` | Connects the log to sign-in, and tries again when the browser comes back online or the tab is shown again.                                                                                                                                                                       |
+| `components/SaveStatus.tsx` | The "Not saved yet" badge in the header, shown while work is waiting on this device. Also shows a link to the account page while the learner has refused events.                                                                                                                 |
 
 Components record events with `useRecordEvent()`. Only a signed-in learner's events are kept. Events recorded while sign-in is still loading wait in memory, then go to whoever turns out to be signed in.
 
@@ -146,11 +150,11 @@ Like follow-ups, nothing is stored: progress is recalculated from the event log,
 
 The account page (`/account`, opened from the learner's name in the header) downloads everything they've done as one JSON file, for backups and the ML capstone (v1 spec, F16). The file's layout is in the [data model](../docs/specs/data-model.md#the-export-file).
 
-| File                    | What it does                                                                                                                                                      |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `export/exportData.ts`  | Reads the outbox, then the profile and every event from Supabase, and joins them, each event once. It reads 1,000 rows per request until a page comes back empty. |
-| `export/download.ts`    | Saves the file through the browser's normal download. The browser makes the file itself; nothing is uploaded.                                                     |
-| `pages/AccountPage.tsx` | "Download my data", and a message saying how many events the file holds and how many came from this browser's outbox.                                             |
+| File                    | What it does                                                                                                                                                                                                                                    |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `export/exportData.ts`  | Reads the outbox and the refused list, then the profile and every event from Supabase, and joins them, each event once. Refused events go under their own key, `refused_events`. It reads 1,000 rows per request until a page comes back empty. |
+| `export/download.ts`    | Saves the file through the browser's normal download. The browser makes the file itself; nothing is uploaded.                                                                                                                                   |
+| `pages/AccountPage.tsx` | How many events the server has refused and what that means; "Download my data"; and a message saying how many events the file holds, how many came from this browser's outbox, and how many refused ones it lists.                              |
 
 The outbox is read first, then the server. An event sent in between is on the server by then, and one sent later is in the copy of the outbox, so none can fall through the gap.
 

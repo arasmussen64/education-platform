@@ -116,7 +116,9 @@ It picks the oldest account, which is the owner's. For another learner, use thei
 
 ## Back up your learning data
 
-Your learning history lives only in the Supabase project, and we don't rely on the free plan's backups ([ADR-0010](decisions/0010-environments.md)). A workflow takes an encrypted copy every night ([ADR-0020](decisions/0020-automated-backups.md)); it needs four one-time steps from you, because every one of them is a credential:
+_Parked by the owner on 2026-11-10, while the platform is still being built. No automatic backup runs until these steps are done; they're here for when you want them._
+
+Your learning history lives only in the Supabase project, and we don't rely on the free plan's backups ([ADR-0010](decisions/0010-environments.md)). A workflow that takes an encrypted copy every night is built ([ADR-0020](decisions/0020-automated-backups.md)), but it takes nothing until four one-time steps are done. They're yours to do, because every one of them is a credential:
 
 1. **Create the private backups repository.** On GitHub, a new repository called `education-platform-backups`, **private**, with a README so it has a first commit. The nightly dumps are committed there under `dumps/`.
 2. **Make a passphrase.** A long random one from your password manager, saved there as "education-platform backups". The dumps are AES-256 encrypted with it; without it they're unreadable, you included.

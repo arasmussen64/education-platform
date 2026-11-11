@@ -32,3 +32,14 @@ The platform's rules for an item type: it must be machine-checked ([ADR-0004](00
 - The content model, validator, web types, one component and the docs grow by one item type. The review-pool rule and the "code or predict" rule include it.
 - Authors must write prompts that fix the order (say what the program prints) and avoid interchangeable lines; the validator can't catch an ambiguous item, so the content checklist says so.
 - Learner events gain a `program` field in `answer` data; the event log stays append-only ([ADR-0008](0008-event-log.md)).
+
+## Amendment (2026-11-10): the validator proves there is one right order
+
+The third consequence above says the validator can't catch an ambiguous item: one whose lines also work in some other order. It can now, so that part of the consequence no longer holds.
+
+- **Why.** The app accepts only the author's order (decision 2). An audit on 2026-11-10 found that 22 of the 85 Parsons items had another order that ran and printed the same output, so a learner who built a working program could be marked wrong. Saying what the program prints (decision 1) wasn't enough to fix the order.
+- **What the validator does now.** After running the author's order (decision 3), it tries the other arrangements a learner could build. For an item of up to 7 lines that is every other order of its lines. For a longer item it is every swap of two lines and every move of a run of lines. For any item it is also the author's order with each decoy in place of each line. The validator fails the item if any of these runs without an error and prints the same output as the author's order, and its message names the simplest one.
+- **How it stays quick and sure.** Nearly all the other orders crash at once, so they are weeded out quickly inside one Python process per item (`tools/parsons_screen.py`). Each order that survives is run again through the harness in a process of its own, and output is compared only there, because programs that share a process can change what each other prints. `tools/parsons_orders.py` lists the arrangements to try.
+- **What was fixed.** All 22 items were rewritten so that only the author's order works, and each one's `rev` went up to 2.
+- **What doesn't change.** Checking by order (decision 2) stands. Authors still write prompts that fix the order, and [content/README.md](../../content/README.md) now says which shapes of program can never have just one.
+- **What it doesn't cover.** For an item of more than 7 lines, only swaps and moves are tried. A decoy is tried only in the author's order, not together with a reordering. A working program built from fewer of the lines isn't looked for.

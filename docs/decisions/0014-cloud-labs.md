@@ -95,3 +95,29 @@ ADR-0004 still holds. CI tests the checks, not the cloud:
 - Learners need local tools: Python, OpenTofu or Terraform, the three cloud CLIs and Docker. They also pay for their own labs, within the guardrails.
 - The checks need upkeep as cloud APIs change. Recordings get refreshed, and the checker pins its SDK versions.
 - There will be more AI grading. Designs are longer than explanations and may need a bigger model, so the $10 monthly cap may need revisiting with the owner.
+
+## Amendment (2026-11-10): what a lab may cost, and who pays
+
+This amendment settles what a lab that needs a real cloud may cost. That question was holding up the track's Module 2, whose Windows Server and Active Directory labs need Windows machines in a real cloud account.
+
+The owner's words, on 2026-11-10: "I have $200/month in azure credits so I can use that. My goal for this is to make the only paid portion of the site the AI so either local labs or have me build something in Azure is best." And then, adding the two free tiers and correcting the credit to $150: "Let's utilize the AWS and Google free tiers. Also, it's actually $150/month for azure credits."
+
+The rule that follows has three parts:
+
+- **Azure.** A lab that needs a real cloud can be one the owner builds in their own Azure subscription, paid for from that subscription's credit of $150 a month. Each such lab states its estimated cost and ends with a teardown step (removing everything the lab created). A month's labs together stay well inside the credit.
+- **AWS and Google Cloud.** A real lab where it fits the provider's free tier, the allowance of use a cloud gives away without charge. The lab's author looks up the current free-tier terms in the provider's official documentation when writing the lab, because the terms change and some allowances end a set time after the account was created. The lab names the allowance it relies on. The learner sets a budget alert before the first lab on each cloud, and every lab ends with teardown.
+- **Everything else is proven locally:** containers through `tools/labcheck.py` ([ADR-0018](0018-lab-checker-local-mode.md)), emulators (programs that imitate a cloud service on the learner's own machine), drills, and design exercises.
+
+The Claude API stays the only thing that costs real money: [ADR-0005](0005-free-hosting-first.md) still holds, with its one paid exception. No other paid service is added.
+
+- **Why.** The owner wants the AI to be the platform's only paid part. The credit makes Azure free to the owner up to $150 a month, and the free tiers do the same for small labs on the other two clouds. The track's Module 1 was already built with every lab in a local container and no cloud account at all, so "locally" is a real option and not a fallback.
+- **What it changes in the text above.** The decision stands: the seven kinds of proof, the lab checker, and how labs are verified in CI are untouched. Three statements about money are narrowed.
+  - _Consequences:_ "They also pay for their own labs, within the guardrails." For the owner that now means the Azure credit and the free tiers, and a lab is written so that nothing comes out of pocket. A mistake can still cost money, which is what the budget alerts and the teardown step are for. A lab that fits neither isn't written as a real-cloud lab.
+  - _Section 3:_ "That costs money, so the owner approves each run." What a lab's first real run may cost is settled ahead of time by the rule above, so it is no longer a spending question each time. The run itself still happens in the owner's own cloud accounts, with the owner's own sign-in (section 2), so it still waits for the owner.
+  - _Section 4:_ "Every lab states its expected cost and how long it runs." Kept, and made specific: an Azure lab states its estimated cost against the credit, and an AWS or Google Cloud lab names the free-tier allowance it relies on. Another of section 4's rules holds too: the track's first cloud lab sets budgets and alerts before anything else is built. The track's spec puts that step in Module 8, and Module 2's Azure labs now come before it, so a budget alert on the Azure subscription comes before the first of them.
+
+  Section 4's stand-ins for expensive or physical things are the "everything else" of the rule. They now cover whatever the credit and the free tiers can't.
+
+- **What it unblocks.** Module 2's Windows Server and Active Directory labs can be Azure labs: the topic `csa.hw.windows-ad`, and the third part of Checkpoint 2, which stands up a small domain and joins a Windows and a Linux machine to it. They had been waiting for a decision on paying for Windows machines.
+- **What it asks of the track's spec.** The [spec](../specs/cloud-solutions-architect.md) builds most core topics on all three clouds. Under this rule an AWS or Google Cloud build is a real one only where it fits a free tier. Where it doesn't, that cloud's part is proven with an emulator, a drill or a design exercise. Which topics that touches is worked out module by module, as each is written.
+- **What it doesn't solve.** The rule fits the owner. Another learner, without Azure credits, would pay for the Azure labs themselves. That matters only if the platform opens to other learners ([roadmap](../roadmap.md), Phase 4), and it would need its own answer then.

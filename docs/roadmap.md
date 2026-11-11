@@ -23,12 +23,14 @@ What comes after those two isn't decided. The unbuilt items of Phases 3 and 4 ar
 
 Content is no longer held to one module ahead of the owner's own learning, which was the rule until 2026-11-10. The owner learns at their own pace, on any track, and the build doesn't wait for it.
 
-**Waiting for the owner.**
+**Waiting for the owner.** Things only the owner can do or decide are kept in [owner-queue.md](owner-queue.md), a short list. Open on 2026-11-10: applying the placement test's migration to the live database ([ADR-0021](decisions/0021-placement-test.md); the command is in [supabase/README.md](../supabase/README.md#commands)); confirming ADR-0020, 0021 and 0022, which were marked Accepted on the strength of the owner's request to build Phase 2; whether to rewrite the existing debug prompts that name their bugs; protecting `main` on GitHub; a license line for the public repository; and, optionally, asking GitHub Support to drop an erased commit.
 
-- The placement test's database migration ([ADR-0021](decisions/0021-placement-test.md)) hasn't been applied to the live database. From the repository root: `npx supabase db push --remote --dry-run` shows what would be applied, then the same command with `--yes` in place of `--dry-run` applies it ([supabase/README.md](../supabase/README.md)).
-- [ADR-0023](decisions/0023-packages-in-both-runtimes.md), NumPy in both Python runtimes, is still Proposed. Across the ML track's Modules 3 to 8, 39 ready topics import NumPy and so rest on it.
+**Decided by the owner on 2026-11-10.**
 
-**Parked.** Nightly backups ([ADR-0020](decisions/0020-automated-backups.md)) are built but not switched on, so no automatic backup is being taken. The owner parked the setup on 2026-11-10 while the platform is still being built. The steps are in [setup.md](setup.md), under "Back up your learning data".
+- [ADR-0023](decisions/0023-packages-in-both-runtimes.md), NumPy in both Python runtimes, is accepted. Across the ML track's Modules 3 to 8, 39 ready topics import NumPy and rest on it.
+- What a cloud lab may cost ([ADR-0014](decisions/0014-cloud-labs.md#amendment-2026-11-10-what-a-lab-may-cost-and-who-pays), amended): the Claude API stays the only thing that costs real money. A lab that needs a real cloud is an Azure lab in the owner's own subscription, inside its $150 monthly credit, or an AWS or Google Cloud lab inside that cloud's free tier. Everything else is proven locally.
+
+**Parked.** Nightly backups ([ADR-0020](decisions/0020-automated-backups.md)) are built but not switched on, so no automatic backup is being taken. The owner parked the setup on 2026-11-10 while the platform is still being built, and set aside downloading their own data for the same reason: "I don't care about downloading my data right now while we're still just building this thing." Neither is raised again until the owner asks. The steps are in [setup.md](setup.md), under "Back up your learning data".
 
 **Audit.** The whole repository was audited on 2026-11-10; what it found and what was fixed is in the [devlog](devlog.md).
 
@@ -106,7 +108,7 @@ Every item below is built (2026-11-10). Two of them aren't fully in use yet: the
 - [x] A practice-hours tracker (the owner's idea, 2026-11-06): total time spent in active practice, from the attempt durations in the event log, with milestones from 1 hour on the way to 10,000. It counts deliberate practice (attempts, proof checks, reviews), not time with the site open, because that's what the research behind "10,000 hours" measured. Built early, on the Today page (2026-11-09). [x] Counted per track, each on its own ladder ([ADR-0019](decisions/0019-today-across-tracks.md), 2026-11-09).
 - [x] Today shows every track (2026-11-09, [ADR-0019](decisions/0019-today-across-tracks.md)): one Next up per track, with how far along each is, so a learner on two tracks sees where they stand on both.
 - [ ] Automated data backups: built (2026-11-09, [ADR-0020](decisions/0020-automated-backups.md)), not switched on. A nightly encrypted dump to a private backups repository, with the restore rehearsed on every pull request. The nightly run does nothing until the owner adds three secrets, and the owner parked that on 2026-11-10.
-- Content: intermediate Python; a math refresher for the ML track. Both live in the new **Machine Learning Foundations** track ([spec](specs/ml-foundations.md), 2026-11-09): Module 1 is the math refresher (the placement test's seven levels as topics, each proven in Python), Module 2 intermediate Python; both were outlined that day. [x] Module 1 is complete (2026-11-10): seven topics and a checkpoint that fits a line by gradient descent. [x] Module 2 is complete (2026-11-10): seven topics and a checkpoint that builds a small data library, so every outlined topic of the track is ready. [x] Module 3, linear algebra, is complete (2026-11-10): seven NumPy topics and a checkpoint that fits a plane and compresses the same points, written on the NumPy decision in [ADR-0023](decisions/0023-packages-in-both-runtimes.md), which is proposed. Modules 4 to 9 are under Phase 3, below.
+- Content: intermediate Python; a math refresher for the ML track. Both live in the new **Machine Learning Foundations** track ([spec](specs/ml-foundations.md), 2026-11-09): Module 1 is the math refresher (the placement test's seven levels as topics, each proven in Python), Module 2 intermediate Python; both were outlined that day. [x] Module 1 is complete (2026-11-10): seven topics and a checkpoint that fits a line by gradient descent. [x] Module 2 is complete (2026-11-10): seven topics and a checkpoint that builds a small data library, so every outlined topic of the track is ready. [x] Module 3, linear algebra, is complete (2026-11-10): seven NumPy topics and a checkpoint that fits a plane and compresses the same points, written on the NumPy decision in [ADR-0023](decisions/0023-packages-in-both-runtimes.md), which was proposed then and accepted by the owner on 2026-11-10. Modules 4 to 9 are under Phase 3, below.
 
 ## Phase 3: CS and ML tracks (content begun 2026-11-10)
 
@@ -123,7 +125,7 @@ Every item below is built (2026-11-10). Two of them aren't fully in use yet: the
 
 ## Cloud Solutions Architect: the track being built
 
-- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09.
+- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09 and amended 2026-11-10 on what a lab may cost.
 
   Building it, in the order the spec's _Building it_ section gives:
   - [x] More than one track in the app: the map and topic pages know every track (2026-11-08)
@@ -133,7 +135,7 @@ Every item below is built (2026-11-10). Two of them aren't fully in use yet: the
   - [ ] The lab checker ([ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09). [x] Local mode (2026-11-09, [ADR-0018](decisions/0018-lab-checker-local-mode.md)): `tools/labcheck.py` builds a lab's container from `content/`, runs its checks, prints a result to paste, and proves every lab's contract in CI; the first lab is Shell essentials' build. [x] The lab view on the topic page (2026-11-09). [ ] Cloud mode, with recordings.
   - [ ] Design reviews, game days and "Defend it"
 
-  The content's order from here: the rest of Stage 1 (Modules 2 to 7), then Stage 2 (Modules 8 to 15 and Capstone 1), Stage 3 (Modules 16 to 24 and Capstone 2) and Stage 4 (Modules 25 to 30 and Capstone 3). Most of Stage 1's practice runs in containers on the learner's machine, which is free. From Stage 2 on, labs run in real cloud accounts, which cost money: they need the lab checker's cloud mode, and the owner approves each paid trial run (the spec's _Before authoring_ section). Module 2 meets this early: its Windows Server and Active Directory labs need Windows machines in a real cloud account, which cost money, so those labs wait for the owner's go-ahead as well ([devlog](devlog.md), 2026-11-10).
+  The content's order from here: the rest of Stage 1 (Modules 2 to 7), then Stage 2 (Modules 8 to 15 and Capstone 1), Stage 3 (Modules 16 to 24 and Capstone 2) and Stage 4 (Modules 25 to 30 and Capstone 3). Most of Stage 1's practice runs in containers on the learner's machine, which is free. From Stage 2 on, labs run in real cloud accounts, and they need the lab checker's cloud mode. What such a lab may cost was settled by the owner on 2026-11-10 ([ADR-0014's amendment](decisions/0014-cloud-labs.md#amendment-2026-11-10-what-a-lab-may-cost-and-who-pays)): an Azure lab runs in the owner's own subscription and states its estimated cost, so that a month's labs stay well inside the $150 credit; an AWS or Google Cloud lab names the free-tier allowance it relies on; every real-cloud lab ends with a teardown step; and whatever fits neither is proven locally, in containers, emulators, drills or design exercises. Module 2 meets this early: its Windows Server and Active Directory labs need Windows machines in a real cloud account. They had been waiting on the question of paying for those machines ([devlog](devlog.md), 2026-11-10), and can now be Azure labs.
 
 ## The owner's 12-month learning milestone
 
@@ -145,7 +147,7 @@ Principal-engineer level stays the long-term ceiling of the map. It takes years 
 
 ## Open questions
 
-- License: open source or proprietary? This matters if it becomes a company.
+- License: open source or proprietary? This matters if it becomes a company. The repository has been public since 2026-11-09 and its README still says "Not decided yet"; the license line for it is in the [owner queue](owner-queue.md).
 - Final product name ([ADR-0006](decisions/0006-working-name.md))
 - Hidden tests run in the browser, so a determined learner could peek. Fine for personal use; revisit before a public launch.
 - When and how to open it to other learners

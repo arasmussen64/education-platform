@@ -16,6 +16,8 @@ The small layer of Python that runs a learner's code and an exercise's tests. Th
 | `errors.py`     | Turns errors into messages that only mention the learner's own file.                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `cli.py`        | Runs one folder through the harness and prints the report as JSON. The content validator and the scenario tests use it, in a fresh Python process. It isn't bundled into the web app.                                                                                                                                                                                                                                                                                                                                                    |
 
+A note on `checks.py`: `function(name)` runs `solution.py` from the top on every call. A test file whose solution is slow to load (one that trains a network as it loads, say) should load it once per Check instead; see `from_solution` in the ML build tests, for example `content/topics/ml.nn.convolution/exercises/build-a-convolutional-layer/test_exercise.py`, and _Time limits_ in [content/README.md](../content/README.md).
+
 The learner's code is always `solution.py` in the working folder, and the tests are always `test_exercise.py`.
 
 ## Scenarios
