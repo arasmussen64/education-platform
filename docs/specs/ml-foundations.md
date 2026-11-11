@@ -188,7 +188,7 @@ Module 8 built networks as layers that read images; this module builds the layer
 
 ## Later modules
 
-Planned in prose until Phase 3 plans them in detail; then they get outlines like the cloud track's, as Modules 3 to 8 had before they were written (all six on 2026-11-10) and Module 9 has (outlined 2026-11-10).
+One module is still planned in prose. It gets outlines like the cloud track's before it's written, as Modules 3 to 8 had before they were written (all six on 2026-11-10) and Module 9 has now (outlined 2026-11-10). Work on this track picks up again at Module 9 once the Cloud Solutions Architect track is finished, which is the build order the owner set on 2026-11-10 ([roadmap](../roadmap.md#where-the-project-stands)).
 
 - **10. ML systems:** data pipelines, experiment tracking, evaluation, serving, monitoring, and the engineering judgement around them.
 

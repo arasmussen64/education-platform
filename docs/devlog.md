@@ -2,6 +2,89 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-10: An audit, nine fixes from it, and a short list for the owner
+
+**The owner asked** (2026-11-10): "Review this app, let me know where it stands and what's next." Ten reviewers each read one area: the web app's core, the learning rules, the AI proxy and the database, each track's content, the tooling, and the docs and process. Six sceptics then tried to refute the findings that mattered most, and a critic looked for what nobody had read. Of the 38 findings the sceptics tested, 28 held as written, 10 held in part and none was refuted.
+
+**Where it stood.** 465 topics: 115 ready (36 Python, 64 ML, 15 cloud) and 350 planned outlines, about 117 hours of material by its own estimates. Every check passed. What the audit found underneath:
+
+- Six Module 8 exercises could not be passed in the app. The browser stops a Run or a Check after 5 seconds, and a correct answer needed 7 to 24. Nothing compared the two: the validator runs ordinary Python, which is faster.
+- An event the database refused was parked in the browser for good, unsent, with no warning. This was happening to placement-test events, because the placement migration is not yet on the live database.
+- Python Checkpoints 2 to 6 showed most of the build's answer in the explain prompt, on the same page as the "blank editor" build.
+- 22 of the 85 Parsons problems had a second order that works, and the app accepts only the author's.
+- Fifteen OpenStax resources were recorded under the wrong licence; nine 3Blue1Brown links redirected to a homepage; a handful of prompts, hints and test descriptions said something false.
+- Four proofs asked for something the topic had never practised.
+- The scripts that wrote the ML track existed only in one machine's temporary folder.
+- Two stray downloaded web pages had reached `main` in #198. The repository is public.
+- 405 "Decisions for you to review" had piled up across the devlog. About 18 needed the owner.
+- The overview documents disagreed about what was built.
+
+**What the owner decided,** in their words. On pace: "I'm going to just go at my own pace and bounce around from track to track so your job is to just build. Let's focus the build on the cloud track until it's completely finished and then start working on the ML track again." On backups: "I don't care about downloading my data right now while we're still just building this thing." On the fixes: "You can execute all of item 2" and "Erase the stray files." On labs that need a real cloud: "My goal for this is to make the only paid portion of the site the AI so either local labs or have me build something in Azure is best. I accept ADR-0023", then "Let's utilize the AWS and Google free tiers. Also, it's actually $150/month for azure credits." And on 2026-11-11, leaving for a long while: "Your job is to build as much as you can. If you need a question answered for me just use your best judgement and error on the side of whatever provides the best learning experience and optimal memory retention and is free or falls within the $150 azure budget."
+
+So: content is no longer held to one module ahead of the owner's learning; the build order is the cloud track to its end, then ML from Module 9; a lab that needs a real cloud is an Azure lab inside the owner's $150 a month of credits, or an AWS or Google Cloud lab inside the free tier, and otherwise runs locally ([ADR-0014](decisions/0014-cloud-labs.md), amended); [ADR-0023](decisions/0023-packages-in-both-runtimes.md) is _Accepted_; backups stay parked; and while the owner is away, product and content questions are decided by their three tests and listed for them to overturn.
+
+**The stray files were erased from `main`'s history,** not just deleted going forward. Claude's tools refuse to rewrite history even with the owner's yes, so Claude wrote a guarded script (it checks the starting commit, makes the change, checks that exactly two files differ, and only then replaces GitHub's copy) and the owner ran it.
+
+**The live site's deploys had started failing, and nobody knew.** Cloudflare's build check went red on `main` and on the first seven pull requests of this batch, which looked like the known flake. It wasn't. The build log said `EMFILE: too many open files`, 807 times: the app imports about 1,800 code files as text, Vite opens them all at the same moment, and Cloudflare's build machine lets one program hold only about a thousand files open. Whether a build got through had become a race, and it was now losing most of the time. GitHub's machines allow far more, so CI stayed green. #206 fixes it with a small build-only plugin that reads those files 32 at a time (the built app is identical, file for file), and makes CI build under a limit of 1,024 open files, which reproduced the failure on the pull request before the fix went in. After the merge, Cloudflare built `main` again and the live site reported the newest commit.
+
+**Nine fixes.** Each of the first eight was built by one agent in its own working copy, then reviewed and corrected by a second, which tested the first one's claims instead of trusting them. All eight reviews changed something.
+
+- **#199, the generators are in the repository,** under `tools/generators/`, as an archive: history to read, not tools to run. `content/topics/` is the source of truth. Re-running a Module 1 to 6 generator would undo review fixes (209 files differ). Earlier entries in this log that call the generators "the source of truth" are superseded by this.
+- **#200, refused events are sent again,** at most every 12 hours until the database accepts them. The header says how many are waiting and "Download my data" lists them. The review fixed three ways an event could be retried at the wrong time.
+- **#201, a checkpoint's explain check opens after its build passes.** Checkpoints only; [ADR-0012](decisions/0012-checkpoint-support.md) is amended.
+- **#202, Module 8 fits the browser's time limit, and CI checks it.** Eleven test files load the learner's file once per Check where they loaded it up to fourteen times; eight training exercises set a longer limit (10 to 30 seconds); CI times every Check and every worked example's Run against the exercise's limit; `npm run time:content` lets an author do the same first. Timed alone on a quiet machine afterwards, nothing uses more than 19% of its limit. In CI's first run the closest was 43%.
+- **#203, content corrections:** licences, links, hidden tests that compare a written file line by line (a missing last line break no longer fails with no message), and about twenty smaller errors.
+- **#204, every Parsons problem works in one order only, and the validator proves it** by trying the other orders and each decoy. It also rejects an explanation that names a choice by its position, since the app shuffles choices.
+- **#205, the project's status lives in one place,** the top of the [roadmap](roadmap.md#where-the-project-stands), and the other overview documents point there.
+- **#206, the live site's build,** above.
+- **#207, practice before proof:** the decorator wrapper, a loop over `.items()`, what `np.float64(...)` means, and an eigen build that asks only for what was taught.
+
+**Checked together.** All eight branches were combined in one working copy before any was merged: ruff, pytest (133 tests), the full validator (3,214 programs and 43,484 arrangements of Parsons lines), the web suite (1,446 tests), the type check and the build all pass on the combination, and `main` after the merges is that combination plus #206, file for file. Two branches edited the same lesson (`ml.py.functions-as-values`); the second was rebuilt on top of the first.
+
+**Two things about merging, for next time.** A red Cloudflare check on `main`, or on more than one pull request, is a real deploy failure until its log says otherwise. And the GitHub sign-in Claude merges with may not write a workflow file: a pull request that changes `.github/workflows/` only merges if its branch already holds `main`'s latest version of that file, so bring the branch up to date first.
+
+**The owner queue.** [docs/owner-queue.md](owner-queue.md) replaces the "Decisions for you to review" lists. Its _Open_ list holds only what the owner alone can do (the live site or database, settings on their accounts, money, anything hard to undo) and stays at about seven items; four are open today. Product and content questions decided while the owner is away go under _Decided for you_, each with its reason, so one line overturns it. Everything else is recorded below as an author's note, for the record and not for a ruling.
+
+**Decided for the owner, 2026-11-11:** the roughly 70 debug exercises whose prompts name their bugs are rewritten to give the symptom and the number of bugs only, a module at a time, cloud Module 1 first, then Python, then ML. Finding the bug is the skill being proven, and the effort of finding it is what makes it stick.
+
+**Author notes:**
+
+- _Refused events have no attempt limit and no "dismiss"._ An event the database will never accept costs one request every 12 hours and keeps the header line. Giving up would mean deleting learner data.
+- _The header says "pieces of your work", not "answers",_ because a refused event can be a Run, a hint or a lesson view. The wording is one small file, `web/src/events/refusedText.ts`.
+- _A signed-out visitor no longer sees a checkpoint's explain prompt._ Their build isn't saved, so the page can't know it passed.
+- _The explain gate is on every checkpoint,_ including the ML ones whose prompts hold no code. The debug stays open from the start.
+- _The regularization worked example sits at the 30-second maximum._ Its Run took 19% of that on a quiet machine and 35% in CI. Lowering it means changing the program the lesson quotes numbers from.
+- _Time limits are sized to the reference solutions._ A correct but slow learner solution, such as a convolution written with plain loops, was not measured.
+- _`ml.py.classes/parsons-a-counter` lost its `increment` method._ Two methods in one class can always trade places, so a strict-order item can't have both. Its explanation says a real class would use a method.
+- _Several Parsons items now start with a joined set-up line_ (`a, b = ..., ...`). The first use in each module says what it means in the prompt.
+- _Python for Everybody is recorded as CC BY-NC-SA 3.0,_ the book's own copyright page, over the site footer's CC BY 4.0. The stricter one is the safe record.
+- _Module 6's time estimates are the clip length plus about 45 minutes,_ a stand-in until logged times exist.
+- _The eigen build's prompt now names the `eig` line and `np.abs(values - 1)`._ If that is too much help for a proof, the sentence can be cut back to words.
+- _The vision's "don't merge code the owner couldn't explain back" now reads as CLAUDE.md does:_ a summary on every pull request and an occasional explain-it-back question, neither blocking a merge.
+- _The cloud lab parts were archived with the generators,_ and `assemble.sh` now refuses to run unless told where to write.
+- _Claude creates nothing in the owner's Azure subscription,_ though the command line on this machine is signed in to it and the owner's rule allows what fits the $150 credit. A lab that needs a real cloud is written, priced and checked as far as it can be without running it, and its first real run is the owner's.
+- _The placement migration and "protect main" stay in the queue's open list._ Both change something of the owner's that is live.
+- _Two older lines now pull against "your job is to just build":_ CLAUDE.md's "offer to let the owner write it" and the roadmap's "the owner writes a growing share of the platform's code". They are the owner's goals, so both stand.
+- _Five ADRs now carry dated amendments,_ while the ADR index says an accepted ADR is never rewritten, only superseded. An amendment adds to a decision and leaves its text alone; the index does not yet say so.
+
+**Found and left for later:**
+
+- After a reload, refused events aren't counted in on-device progress until a retry saves them.
+- A browser whose storage is full or switched off can still lose an event.
+- The explain prompts of Python Checkpoints 2 to 6 still lean on the build's code; they are now only seen after the build.
+- The `np.float64` surprise remains in some builds and steps of ML Modules 5 and 7, where hidden tests give no message.
+- `ml.m5.checkpoint`'s build would benefit from the load-once helper #202 gave the Module 8 builds; a harness option would replace the eleven copies of that helper.
+- Three leftover known-wrong files in Checkpoint 8 (`dense-backward-not-transposed.py`). They still fail their tests.
+- Two placement-test questions test something their topic doesn't teach.
+- The app bugs the audit confirmed outside this batch: a Check that fails to run is logged as a wrong answer; code typed in the editor isn't saved across a reload; the tutor fails on code over 6,000 characters; `labcheck start` deletes a lab in progress; "open follow-ups block Mastered" (ADR-0011) isn't implemented.
+- `CHANGELOG.md` is one long _Unreleased_ section; nothing has been tagged.
+
+**A lesson worth keeping.** A check that always passes on one machine says little about another. The validator could not see the browser's time limit, and GitHub's runners could not see Cloudflare's open-file limit. Both gaps are now closed by a CI step that runs under the tighter condition.
+
+**Explain-it-back, if you'd like one:** why did the same build pass on GitHub and fail on Cloudflare?
+
+**Next:** the cloud track. A hardening pass over Module 1 is under way (the lab tool's `start` and shell commands, debug prompts that name their bugs, checkpoint checks that accept weak fixes, the first topic's gaps, and multiple-choice answers that are always the longest choice), and so is a design pass for Module 2: a writing brief per topic with checked sources, a free local Active Directory lab beside a priced Azure one, and a way to ask for an estimate and check it within a tolerance.
+
 ## 2026-11-10: Module 8's cold review, about 50 findings fixed
 
 **Two cold reviewers read all of Module 8** with the brief used for Module 7 (`scratchpad/review_brief_m8.md`): read every topic as the first learner would, run every program whose numbers appear in prose, fetch every resource, report what is wrong. The first pair of reviewers ran on Fable and were cut off by the account's Fable usage limit before reporting; the second pair ran on Opus and reported 33 and 31 findings, with the serious ones in common. All fixes were made by patching the generators (`scratchpad/fix_m8_*.py`) and regenerating, so the generators stay the source of truth.

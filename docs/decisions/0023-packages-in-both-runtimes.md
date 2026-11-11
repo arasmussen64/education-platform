@@ -1,6 +1,6 @@
 # ADR-0023: Packages beyond the standard library, in both Python runtimes
 
-- **Status:** Proposed
+- **Status:** Accepted (by the owner on 2026-11-10: "I accept ADR-0023")
 - **Date:** 2026-11-10
 
 ## Context
@@ -36,4 +36,4 @@ What's true of the runtimes:
 - A new field in the content model and the web types, a `load` message in the Python worker's protocol, and a longer time limit for it; the content validator gains a check that imports match declarations.
 - The first Run on a NumPy topic takes a few seconds longer while the package downloads; the button shows it's working. The learner's answer and review logs are unchanged.
 - CI's Pyodide test downloads NumPy from the CDN on each run (Node caches it in `node_modules` within a run). If that proves flaky, the wheel can be cached between runs like the other dependencies.
-- The owner's choice: accept NumPy in the browser on these terms, or ask for Module 3 in plain Python.
+- The owner's choice was to accept NumPy in the browser on these terms, or to ask for Module 3 in plain Python. The owner accepted it on 2026-11-10. By then the ML track's Modules 3 to 8 had been written on it while it was still proposed: 39 ready topics declare `packages: [numpy]`.

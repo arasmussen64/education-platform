@@ -167,18 +167,16 @@ prompt: |
   a = 3
   b = a
   a = 5
-````
-
+  ```
 choices: ["3", "5", "It's an error"]
 answer: 0
 explanation: "`b = a` makes `b` refer to 3. Pointing `a` at 5 afterwards doesn't affect `b`."
 skills: [assignment] # declared in topic.yaml
-
 ````
 
 A `predict_output` item has `code` and `expected_output` instead of `choices` and `answer`. The validator runs the code and checks that the output matches exactly.
 
-A `parsons` item ([ADR-0016](../decisions/0016-parsons-problems.md)) has `lines`, the program's lines in the right order with their indentation, and optional `distractors`, lines that don't belong. The app scrambles them and the learner puts them back; the answer is right when the lines are exactly the solution's, in order, with no decoy. The prompt must say what the program prints, so there's one right order. The validator runs the lines in order: the program must run without an error and without asking for input, the lines must be distinct, and no distractor may equal a line.
+A `parsons` item ([ADR-0016](../decisions/0016-parsons-problems.md)) has `lines`, the program's lines in the right order with their indentation, and optional `distractors`, lines that don't belong. The app scrambles them and the learner puts them back; the answer is right when the lines are exactly the solution's, in order, with no decoy. The prompt must say what the program prints, so there's one right order. The validator runs the lines in order: the program must run without an error and without asking for input, the lines must be distinct, and no distractor may equal a line. It then tries other orders of the lines (every one, for an item of up to 7 lines), and each distractor in place of each line, and fails the item if any of them runs and prints the same output, because the app would mark that working program wrong (the ADR's amendment of 2026-11-10).
 
 A `predict_shell` item ([ADR-0017](../decisions/0017-shell-in-the-browser.md)) is the same question for the command line. It has `files`, a few small text files by path (a plain name, or a path like `logs/app.log`; never absolute, never `..`; 4,000 characters in all at most), `command`, one line of bash or a few, and `expected_output`. The browser runs nothing: the page shows the files and the command and asks what it prints. The validator runs the command in real bash (Linux in CI, Git Bash on Windows) in a temporary folder holding just those files, with `LC_ALL=C`, an empty `HOME` and nothing on stdin, and checks that stdout is exactly `expected_output` and that stderr is empty. So an item must behave the same on both (no `jq` or `rev`, which Git Bash lacks; nothing that prints dates, sizes, user names or the folder's path), and an error it wants to show is redirected with `2>&1`.
 
@@ -188,20 +186,20 @@ A diagnostic ([ADR-0021](../decisions/0021-placement-test.md)) is a ladder the p
 
 ```yaml
 # content/diagnostics/math.yaml
-id: math                        # must match the file name
+id: math # must match the file name
 title: Math for machine learning
 summary: Where your math is solid and where to refresh it before the machine-learning track.
-levels:                         # easiest first; at least 2
+levels: # easiest first; at least 2
   - id: arithmetic
     title: Arithmetic, fractions and percentages
     summary: Fractions, decimals, percentages, negative numbers and the order of operations.
-    refresh:                    # a free refresher, as a link; recorded like any resource (ADR-0004)
+    refresh: # a free refresher, as a link; recorded like any resource (ADR-0004)
       title: "Khan Academy: Arithmetic"
       url: https://www.khanacademy.org/math/arithmetic
       type: interactive
       use: link
       license: CC BY-NC-SA 3.0 US (linked, not copied)
-    items:                      # multiple-choice items, at least 2, no skills (there's no topic to relearn)
+    items: # multiple-choice items, at least 2, no skills (there's no topic to relearn)
       - id: arithmetic-fractions
         type: mcq
         rev: 1
@@ -209,7 +207,7 @@ levels:                         # easiest first; at least 2
         choices: ["4/12", "7/8", "5/8", "1/2"]
         answer: 1
         explanation: "..."
-````
+```
 
 Item ids are unique across the whole diagnostic. As with every multiple-choice item, the app shows the choices in a repeatable shuffled order seeded from the item's id, so where the answer sits in the file doesn't matter; `choice` in the event is still the author's index. Events about a diagnostic use `diagnostic.<id>` as their `topic_id`.
 
@@ -224,12 +222,14 @@ rev: 1
 title: Swap two values
 prompt: |
   Finish the program so it swaps `x` and `y`, then prints them.
-time_limit_ms: 5000
+time_limit_ms: 5000 # optional; 5000 is the default (see below)
 hints: # written by the author; the tutor uses them as a guide
   - What happens to the original value of x when you assign to x?
   - You need somewhere to keep one value safe.
 # steps:              # worked_example only: [{label, lines: "1-2", note}], labeled by purpose
 ```
+
+`time_limit_ms` is how long the app lets a Run or a Check of the exercise take before it stops the program. Left out, it's 5000 (5 seconds). The content model allows up to 30000, for an exercise whose correct answer honestly needs longer, such as one that trains a network. CI times every ready exercise's reference solution in the browser's Python and fails when one runs past its limit ([content/README.md](../../content/README.md), _Time limits_).
 
 How each stage behaves:
 
@@ -339,7 +339,7 @@ Policies allow **insert** and **select** only. There is no update or delete poli
 | `hint`                        | a hint is shown                                                                                    | `level` (how many hints of that source so far); `source` (`author` for a written hint, `tutor` for one from the AI tutor). For the tutor ([ADR-0015](../decisions/0015-hint-only-tutor.md)): `rung` (`nudge`, `concept`, `specific` or `step`), `replaced` (whether the proxy swapped Claude's reply for a safer hint), the learner's `question`, `ai_call_id` and `model` |
 | `review`                      | a review session's items have all had a first attempt (item `review`)                              | `rating` (`good`, `hard` or `again`) and `items`: each item's ID and whether its first attempt was correct. `correct` is whether the rating was Good ([ADR-0009](../decisions/0009-reviews.md))                                                                                                                                                                            |
 | `review`                      | a topic's review session ends                                                                      | item IDs; results; the rating                                                                                                                                                                                                                                                                                                                                              |
-| `answer`, context `placement` | a question is answered during the placement test ([ADR-0021](../decisions/0021-placement-test.md)) | the usual answer data, plus `run`, the run's id; for a diagnostic, `level` too; `dont_know: true` with a null `choice`, `prediction` or `program` when the learner chose "I don't know this" (counted as wrong). `topic_id` is the probed topic, or `diagnostic.<id>`                                                                                                                                                                                                                                       |
+| `answer`, context `placement` | a question is answered during the placement test ([ADR-0021](../decisions/0021-placement-test.md)) | the usual answer data, plus `run`, the run's id; for a diagnostic, `level` too; `dont_know: true` with a null `choice`, `prediction` or `program` when the learner chose "I don't know this" (counted as wrong). `topic_id` is the probed topic, or `diagnostic.<id>`                                                                                                      |
 | `placement`                   | a placement run ends (item `placement`, context `placement`)                                       | `run`; `kind` (`track` or `diagnostic`); `known`, the topics or levels in order that count as known; `next`, where to start, or null; `asked`, `correct`; `probes`, each topic or level probed with its questions and results. `topic_id` is the track's id or `diagnostic.<id>`; `correct` is null                                                                        |
 
 How the browser fills in the other columns:
@@ -469,7 +469,7 @@ Learners insert and read their own reports, and nothing else: `status` isn't in 
 - **`events`** holds every column of the `events` table, oldest first. An event that was still in the outbox has `"received_at": null`.
 - **`refused_events`** holds the events the server has refused, which only the browser that made the file has. Each entry gives the server's `reason` (the HTTP status, the database's error code and its message), `last_tried_at`, `attempts` (how many times it has been refused), and the `event` as it was sent, which has no `received_at`. They're kept out of `events` because they aren't part of the saved history yet: a script that rebuilds progress should read `events` alone. An event leaves this list, and appears in `events`, once a later try saves it. The list is empty in the normal case.
 - **Times** are ISO 8601, in UTC, exactly as stored: the server writes `+00:00`, the browser `Z`.
-- **Not in the file yet:** progress, until Milestone B computes it (it can always be rebuilt from the events).
+- **Not in the file:** progress. It's left out on purpose: the app recalculates it from the events on every visit, so it can always be rebuilt from the events in this file ([F16](v1.md#f16-export-my-data)).
 
 ## Derived progress
 
@@ -505,7 +505,7 @@ state =
 
 ### Checkpoints
 
-Locked → Available → In progress → Passed, once all three proof checks pass. A pass on any fresh version of the build counts as passing the build ([ADR-0012](../decisions/0012-checkpoint-support.md)). Checkpoints have no reviews.
+Locked → Available → In progress → Passed, once all three proof checks pass. A pass on any fresh version of the build counts as passing the build ([ADR-0012](../decisions/0012-checkpoint-support.md)). The page opens a checkpoint's explain check only after its build has passed (the same ADR, amended 2026-11-10); the calculation itself doesn't depend on the order. Checkpoints have no reviews.
 
 ### Mistakes to revisit
 

@@ -2,7 +2,7 @@
 
 This track takes a learner to the work of a senior, then principal, cloud solutions architect on AWS, Microsoft Azure and Google Cloud. It aims at the top of the pay band: an architect who can design an enterprise's cloud estate, build the hard parts themselves, keep it secure, reliable and affordable, and win executives' support.
 
-**Status: specified, not built.** It's the second track, after Python Foundations. Building it needs two things first: the app has to support more than one track, and the lab checker from [ADR-0014](../decisions/0014-cloud-labs.md) (accepted 2026-11-09) has to exist. See [Building it](#building-it).
+**Status: being built.** It's the second track, after Python Foundations. Module 1 is written and `ready`; every other module is a `planned` outline on the map. Since 2026-11-10 the build stays on this track until it's finished ([roadmap](../roadmap.md#where-the-project-stands)). The two things it needed first exist: the app supports more than one track, and the lab checker from [ADR-0014](../decisions/0014-cloud-labs.md) (accepted 2026-11-09) has its local mode ([ADR-0018](../decisions/0018-lab-checker-local-mode.md)). The checker's cloud mode isn't built yet. See [Building it](#building-it).
 
 **Two sources.** The track was first designed from the platform's own rules, then cross-referenced on 2026-11-08 against the owner's _Senior Cloud Architect Knowledge Map & Learning Roadmap_ (twelve domains, a certification order, a 24-month plan and a self-assessment), so that everything in that map is in the track. The map's [24-month example path](#a-faster-path-for-an-experienced-learner) and [self-assessment](#self-assessment-youre-senior-when-you-can) are part of this spec, and the map itself is kept at [docs/research/senior-cloud-architect-knowledge-map.md](../research/senior-cloud-architect-knowledge-map.md).
 
@@ -127,14 +127,22 @@ Drills are short, repeatable exercises for skills that need to be fast. Most of 
 
 ## Lab safety and cost
 
-Labs run in your own cloud accounts and cost real money. Controlling that is part of the job, so it's part of the track ([ADR-0014](../decisions/0014-cloud-labs.md)):
+A lab that runs in a real cloud runs in your own account, where a mistake costs real money. Controlling that is part of the job, so it's part of the track ([ADR-0014](../decisions/0014-cloud-labs.md)):
 
 - **Sandboxes only.** Labs run in accounts, subscriptions and projects made for practice, never in production or an employer's.
-- **Guardrails first.** Module 8 starts by setting budgets and alerts, restricting regions, and blocking the most expensive services. Nothing else gets built before that.
+- **Guardrails first.** Module 8 starts by setting budgets and alerts, restricting regions, and blocking the most expensive services. Nothing else gets built before that. A lab that reaches a cloud before Module 8, as Module 2's Azure labs do, sets a budget alert on that cloud first.
 - **Every lab states its expected cost and how long it runs.** It tags everything it creates with its topic ID. Tearing down is part of the proof: the checker confirms nothing tagged is still running. The map's habit is the same: hard budget caps, and destroy everything weekly.
 - **Your credentials stay on your machine.** The checker runs locally with a read-only identity. The platform receives only which checks passed.
 - **You can read everything that changes your sandbox.** Fault modules and game days are code you apply yourself. To keep the test fair, each picks its faults at random from a published list.
 - **Stand-ins for what one person can't buy.** Physical circuits (Direct Connect, ExpressRoute, Cloud Interconnect) and large GPU clusters are designed and reviewed. You practise with a stand-in: a VPN with BGP, or a single GPU.
+
+**What a lab may cost.** The owner settled this on 2026-11-10, in [ADR-0014's amendment](../decisions/0014-cloud-labs.md#amendment-2026-11-10-what-a-lab-may-cost-and-who-pays): the Claude API is to be the only part of the platform that costs real money. So:
+
+- **Azure:** a lab that needs a real cloud can be one built in the owner's own Azure subscription, paid for from its credit of $150 a month. The lab states its estimated cost, and a month's labs stay well inside the credit.
+- **AWS and Google Cloud:** a real lab where it fits the provider's free tier (the use a cloud gives away without charge). The lab names the allowance it relies on, looked up in the provider's current documentation when the lab is written.
+- **Everything else is proven locally:** containers through `tools/labcheck.py`, emulators, drills and design exercises.
+
+Every real-cloud lab still ends with teardown, as above. Where a topic below asks for a build on all three clouds, the AWS and Google Cloud parts are real builds only where they fit a free tier. That is worked out module by module, as each is written; the modules below are not changed by it. The amendment also says what the rule leaves open: a learner without Azure credits would pay for the Azure labs.
 
 ## Module map
 
@@ -206,7 +214,7 @@ Within a module, most topics can be done in more than one order.
 
 ## Stage 1: Foundations
 
-These are the fundamentals every later module stands on. Most of the practice runs locally, in containers on your own machine, so it costs nothing. Python Foundations is needed from Module 6. Everything in the cloud is a Linux box, a hypervisor, or an abstraction hiding one; architects who skip this layer design systems they can't debug.
+These are the fundamentals every later module stands on. Most of the practice runs locally, in containers on your own machine, so it costs nothing. The exception is Module 2's Windows Server and Active Directory labs, which need Windows machines in a real cloud and can be Azure labs ([Lab safety and cost](#lab-safety-and-cost)). Python Foundations is needed from Module 6. Everything in the cloud is a Linux box, a hypervisor, or an abstraction hiding one; architects who skip this layer design systems they can't debug.
 
 ### Module 1: Linux and the command line
 
@@ -971,7 +979,7 @@ This is what every topic looks like once it's written, using _Private access to 
 - A code kata: add an endpoint and its DNS to a given module, checked offline.
 - A cost drill: NAT or endpoints, for 5 TB a month?
 
-**Cost:** a few dollars across all three clouds, if it's torn down the same day.
+**Cost:** a few dollars across all three clouds, if it's torn down the same day. (This example was written before the 2026-11-10 rule in [Lab safety and cost](#lab-safety-and-cost). When the topic is written, its Azure part comes out of the credit, and its AWS and Google Cloud parts have to fit a free tier or be proven locally.)
 
 ## A faster path for an experienced learner
 
@@ -1142,26 +1150,26 @@ A map of equivalent services, for orientation. Service names change often, so ea
 
 ## Building it
 
-The app can't show this track yet, and some proofs need tools that don't exist. In order:
+The app shows this track, and Module 1 is written. Some later proofs still need tools that don't exist. In order:
 
-1. **More than one track in the app.** _Done 2026-11-08:_ the map shows the first track at `/map` and each other track at `/map/<track id>`, and every topic page names its track and module (`tracks()` and `placeOf()` in `web/src/content/content.ts`). The Today page still only knows Python Foundations; it learns tracks with gating (F12).
+1. **More than one track in the app.** _Done 2026-11-08:_ the map shows the first track at `/map` and each other track at `/map/<track id>`, and every topic page names its track and module (`tracks()` and `placeOf()` in `web/src/content/content.ts`). The Today page has shown every track since 2026-11-09 ([ADR-0019](../decisions/0019-today-across-tracks.md)).
 2. **The map as outlines.** _Done 2026-11-08:_ every topic, checkpoint and capstone is a `planned` outline in `content/`, generated from this spec by `tools/outline_cloud_track.py`. Change the spec and run the script; it never touches a topic that's being written.
 3. **Stage 1 content.** Much of it uses the exercise kinds that exist today: recall items, and Python drills run in the browser (subnetting, availability math, cost). Local labs in containers need the first version of the lab checker. _Started 2026-11-09:_ all fourteen Module 1 topics have lessons and `predict_shell` recall items ([ADR-0017](../decisions/0017-shell-in-the-browser.md)); Shell essentials, Processes and signals, Users, permissions and SSH, Services and logs, Package management and patching, Disks and filesystems, Memory and the OOM killer, CPU scheduling and cgroups, How containers work, Networking from the host, Boot, cloud-init and instance metadata, Shell scripting, Performance triage, and Hardening are `ready` (all fourteen of Module 1's topics), and so is Checkpoint 1: the broken server, which completes Module 1, with their worked examples, practice and proofs as labs in local containers ([ADR-0018](../decisions/0018-lab-checker-local-mode.md)); all but Shell essentials' boot systemd, the Permissions labs log in through a real `sshd`, the Packages labs patch from a package repository built into the image, and the Disks labs format, mount, fill and grow real loop-device disks.
 4. **The lab checker** ([ADR-0014](../decisions/0014-cloud-labs.md)). First offline checks for infrastructure code, then live checks on the three clouds, and fault modules for break-fix proofs.
 5. **Design reviews, game days and "Defend it".** These need AI grading with longer rubrics (the approach from ADR-0013) and the game-day modules.
 
-As with Python Foundations, content stays a module or so ahead of the learner.
+Until 2026-11-10 content stayed a module or so ahead of the learner, as with Python Foundations. Since then the track is built straight through to its end, whatever the owner is learning at the time ([roadmap](../roadmap.md#where-the-project-stands)).
 
 ## Before authoring
 
 - Confirm each resource's license before using it ([ADR-0004](../decisions/0004-content-model.md)). Most main resources are the providers' own documentation and architecture centers, which are linked, never copied. Google Cloud's documentation and the Kubernetes documentation are CC BY 4.0, and NIST's publications are US government works. The books listed above are read, never excerpted.
 - Check every service name and limit against current documentation, because cloud services change monthly.
-- Price every lab before it's published, and run it once in a sandbox. That costs money, so the owner approves each run.
+- Price every lab before it's published, against the rule in [Lab safety and cost](#lab-safety-and-cost): an Azure lab states its estimated cost, and an AWS or Google Cloud lab names the free-tier allowance it relies on, checked in the provider's current documentation. Then run it once in a sandbox. That run happens in the owner's own cloud accounts, so it waits for the owner ([ADR-0014](../decisions/0014-cloud-labs.md), section 3 and its amendment).
 - Have a senior practitioner review advanced content before any public launch, as the [vision's](../vision.md#risks) risk table says.
 
 ## Open questions
 
-- **When to build it,** relative to the rest of v1 and the ML path ([roadmap](../roadmap.md)).
+- ~~**When to build it,** relative to the rest of v1 and the ML path.~~ Answered by the owner on 2026-11-10: now, to its end, and then the ML track again ([roadmap](../roadmap.md#where-the-project-stands)).
 - **The identity provider for the sign-in labs.** Entra ID is the default, because it comes with Azure. Okta is the alternative.
 - **A fourth cloud?** Oracle Cloud is left out. The three covered here make up most of the market.
 - **How lab results reach the platform.** The learner could paste them from the checker, or the checker could send them while the learner is signed in ([ADR-0014](../decisions/0014-cloud-labs.md)).

@@ -39,4 +39,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0020](0020-automated-backups.md)         | Nightly encrypted backups of the learning data                           | Accepted |
 | [0021](0021-placement-test.md)            | The placement test walks the map by halving, and proves nothing          | Accepted |
 | [0022](0022-step-through.md)              | Step through, a visualizer from Python's own trace hook                  | Accepted |
-| [0023](0023-packages-in-both-runtimes.md) | Packages beyond the standard library, in both Python runtimes            | Proposed |
+| [0023](0023-packages-in-both-runtimes.md) | Packages beyond the standard library, in both Python runtimes            | Accepted |
