@@ -2,12 +2,16 @@
 // items to ask, and how a session is rated.
 import { STAGES } from '../content/stages.ts'
 import type { Topic, TopicContent } from '../content/types.ts'
+import { dayOf } from '../days.ts'
 import type { Attempt } from '../followups/followUps.ts'
 import { lastAttempted } from '../followups/followUps.ts'
 import type { TopicProgress } from '../progress/progress.ts'
 import { type Card, type Rating, retrievabilityAt } from './fsrs.ts'
 
-/** At most this many topic reviews a day (ADR-0009). */
+/**
+ * At most this many topic reviews a day (ADR-0009): a calendar day in the
+ * learner's own time zone, not a page load.
+ */
 export const DAILY_REVIEW_LIMIT = 20
 /** A review session asks this many items from the topic's review pool. */
 export const ITEMS_PER_REVIEW = 2
@@ -41,6 +45,25 @@ export function dueReviews(
 }
 
 /**
+ * How many topic reviews are left for the day `now` falls on: the daily
+ * limit, less the review sessions already finished that day (ADR-0009,
+ * amended 2026-11-11). Without this, every reload of the Today page would
+ * offer another full set. Pass the result to dueReviews as its limit.
+ */
+export function reviewsLeftToday(
+  attempts: Attempt[],
+  now: string,
+  limit = DAILY_REVIEW_LIMIT,
+): number {
+  const today = dayOf(now)
+  const done = attempts.filter(
+    (attempt) =>
+      attempt.type === 'review' && dayOf(attempt.occurred_at) === today,
+  ).length
+  return Math.max(0, limit - done)
+}
+
+/**
  * The predicted chance of still remembering a Learned topic, as a whole
  * percentage, for the map (roadmap: "the living map"). 100 right after a
  * review, drifting down until the next one is due at the 90% target.
@@ -58,36 +81,134 @@ function isCodeOrPredict(content: TopicContent, itemId: string): boolean {
   return exercise !== undefined && exercise.stage !== 'worked_example'
 }
 
+/** The review pool's items that can be asked: they exist, and aren't worked examples. */
+function askablePool(content: TopicContent): string[] {
+  return content.topic.review_pool.filter((id) => {
+    const exercise = content.exercises[id]
+    if (exercise) return STAGES[exercise.stage].followUp
+    return content.recall[id] !== undefined
+  })
+}
+
 /**
  * The items for a review session: two from the topic's review pool, at
  * least one of them code or predict-the-output (ADR-0009). Items answered
  * longest ago come first, so a session doesn't repeat the previous one's
- * items while the pool has others.
+ * items while the pool has others. Items in `keep` (answered on an earlier
+ * visit) stay in the session, first.
  */
 export function chooseReviewItems(
   content: TopicContent,
   attempts: Attempt[],
   count = ITEMS_PER_REVIEW,
+  keep: string[] = [],
 ): string[] {
-  const pool = content.topic.review_pool.filter((id) => {
-    const exercise = content.exercises[id]
-    if (exercise) return STAGES[exercise.stage].followUp
-    return content.recall[id] !== undefined
-  })
   const last = lastAttempted(attempts, content.topic.id)
-  const byAge = [...pool].sort(
+  const byAge = askablePool(content).sort(
     (a, b) =>
       (last.get(a) ?? '').localeCompare(last.get(b) ?? '') ||
       a.localeCompare(b),
   )
-  const chosen: string[] = []
-  const codeFirst = byAge.find((id) => isCodeOrPredict(content, id))
-  if (codeFirst) chosen.push(codeFirst)
+  const chosen = [...keep]
+  if (!chosen.some((id) => isCodeOrPredict(content, id))) {
+    const codeFirst = byAge.find(
+      (id) => !chosen.includes(id) && isCodeOrPredict(content, id),
+    )
+    if (codeFirst && chosen.length < count) chosen.push(codeFirst)
+  }
   for (const id of byAge) {
     if (chosen.length >= count) break
     if (!chosen.includes(id)) chosen.push(id)
   }
   return chosen
+}
+
+/**
+ * The first answer to each review item given in the review context since
+ * the card fell due, oldest first, as item ID → correct. A session left
+ * half-way (to re-read the lesson, say) saved no rating, so these answers
+ * carry into the next session and still rate the card (ADR-0009, amended
+ * 2026-11-11). The Today page's mistakes-to-revisit questions are saved in
+ * the review context too, so an answer to one of those counts as well when
+ * the item is in the review pool. Answers from practice don't count, nor
+ * do older answers saved without a context.
+ */
+export function earlierAnswers(
+  content: TopicContent,
+  card: Card,
+  attempts: Attempt[],
+): Map<string, boolean> {
+  const pool = new Set(askablePool(content))
+  const answers = new Map<string, boolean>()
+  const since = attempts
+    .filter(
+      (attempt) =>
+        attempt.topic_id === content.topic.id &&
+        attempt.context === 'review' &&
+        attempt.type !== 'review' &&
+        pool.has(attempt.item_id) &&
+        attempt.occurred_at >= card.due,
+    )
+    .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))
+  for (const attempt of since) {
+    // Only the first attempt at each item counts, as within a session.
+    if (!answers.has(attempt.item_id)) {
+      answers.set(attempt.item_id, attempt.correct)
+    }
+  }
+  return answers
+}
+
+/** A review session as it starts: its items, and any already answered. */
+export type ReviewPlan = {
+  items: string[]
+  /** The first answers given on an earlier visit, item ID → correct. */
+  answered: Map<string, boolean>
+}
+
+/**
+ * Which earlier answers a session keeps: the first ones, up to the
+ * session's size, but always with a code or predict-the-output item among
+ * them or room left for one (ADR-0009). Without this, two quick checks
+ * answered earlier could rate a session on their own.
+ */
+function carriedAnswers(
+  content: TopicContent,
+  earlier: [string, boolean][],
+  count: number,
+): [string, boolean][] {
+  const isCode = ([id]: [string, boolean]) => isCodeOrPredict(content, id)
+  const first = earlier.slice(0, count)
+  const poolHasCode = askablePool(content).some((id) =>
+    isCodeOrPredict(content, id),
+  )
+  if (!poolHasCode || first.some(isCode)) return first
+  // None of the first answers is code or a prediction. Keep one place for
+  // one: a code or prediction answered later, if there is one (asking it
+  // again would only test its explanation), or else one asked now.
+  const laterCode = earlier.find(isCode)
+  return [...first.slice(0, count - 1), ...(laterCode ? [laterCode] : [])]
+}
+
+/**
+ * A topic's review session, picking up where an unfinished one stopped:
+ * the items answered since the card fell due stay in it with their first
+ * answers (up to the session's size, keeping room for a code or predict
+ * item), and the rest are chosen as usual. When the earlier answers
+ * already fill the session, it is complete as soon as it starts.
+ */
+export function planReview(
+  content: TopicContent,
+  card: Card | null,
+  attempts: Attempt[],
+  count = ITEMS_PER_REVIEW,
+): ReviewPlan {
+  const earlier = card ? [...earlierAnswers(content, card, attempts)] : []
+  const answered = new Map(carriedAnswers(content, earlier, count))
+  const items = chooseReviewItems(content, attempts, count, [
+    ...answered.keys(),
+  ])
+  return { items, answered }
 }
 
 /**
