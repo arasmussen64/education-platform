@@ -1,16 +1,222 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.hw.domain-join
 kind: topic
-status: planned
-title: Joining machines, Group Policy and Entra ID
-summary: Join a server to a domain and control who may log in.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+status: ready
+title: "Joining machines, Group Policy and Entra ID"
+summary: "What joining a server to an Active Directory domain creates and how a Linux server joins one, how a member decides who may log in and what to do when its own account goes stale, how Group Policy objects reach computers and people through the folders they're linked to, and how Microsoft Entra ID differs from a domain, with what to run in the cloud for the workloads that still need one."
+# The previous topic (Active Directory: domains, names and tickets) is the
+# real prerequisite: this one joins machines to the domain it taught, and
+# Module 2's topics all reach Checkpoint 1 through it (the Module 2 plan,
+# section 2). What it builds on in Module 1, for the writer: shell (grep,
+# awk, cut), permissions (users, groups, sudo, SSH logins), services
+# (systemctl, journalctl), net-tools (the namespace dc1 is made of),
+# hardening (AllowGroups in sshd; a fix never weakens the server) and
+# scripting (a script that is safe to run twice).
+prerequisites: [csa.hw.windows-ad]
+# Counted, not guessed: the lesson's intro and recap, about 2,700 words at
+# 130 a minute, 21; the four required readings' assigned parts (Ubuntu's
+# guide about 1,000 words, Group Policy processing's five sections about
+# 1,150, the two comparisons 1,076 and 1,513 by their pages' own counts),
+# about 3,750 words, 29; 13 recall items at a minute and a half, 20; the
+# worked example 35, the fill-in 20, the write 30, the build 40, the debug
+# 45 and the explain 15. 255 in all, against the plan's 235. The optional
+# Azure extra at the end of the lesson (about three hours) isn't counted.
+estimated_minutes: 255
 rev: 1
 objectives:
-- Join a server to a domain and control who may log in.
-- Predict which Group Policy objects apply.
-- Say how Entra ID differs from AD DS.
+  - "Say what joining a server to a domain creates (a computer account, its keys in a keytab, its service names), join a Linux server with realm and SSSD, and say how a Windows server joins."
+  - "Control who may log in to a member: tell the domain's question (is the password right?) from the member's own (may this person come in?), permit a group rather than people, and repair a member whose own account no longer matches its keys."
+  - "Predict which Group Policy objects reach a user or a computer from the folders they're linked to, the order they apply in, block and enforce, and how long a change takes to arrive."
+  - "Explain how Microsoft Entra ID differs from AD DS and how the two are kept in step, say how a device joins each, and choose domain controllers on VMs or a managed domain on Azure, AWS or Google Cloud for a workload that needs Kerberos or LDAP."
+# Facts the lesson and the items rely on, each read on 2026-11-11:
+# - realm join configures SSSD (sssd.conf, PAM and NSS) and Kerberos, and
+#   adds host/ and RestrictedKrbHost/ keys to /etc/krb5.keytab; realm
+#   doesn't set up home directories: pam-auth-update --enable mkhomedir;
+#   correct time is a prerequisite: ubuntu.com/server/docs/how-to/sssd/with-active-directory/
+#   (documentation.ubuntu.com/server/... now redirects there).
+# - What a join made, captured in the labs (Samba 4.19.5, SSSD 2.9.4,
+#   realmd 0.17.1, adcli 0.9.2 on Ubuntu 24.04): the computer account
+#   CN=LAB,CN=Computers,...; a 120-character password; five keytab names;
+#   realm join on a joined machine: "realm: Already joined to this domain",
+#   exit 1; realm permit -g writes access_provider = simple and
+#   simple_allow_groups, and a second run changes nothing; a stale machine
+#   password: "kinit -k" says Preauthentication failed and SSSD's
+#   ldap_child logs "Failed to initialize credentials using keytab".
+# - Group Policy: local, site, domain, then OUs from the parent down, each
+#   later one overriding; enforced is a link's property and beats block
+#   inheritance, a container's property; members refresh every 90 minutes
+#   plus a random offset of up to 30, domain controllers every 5; computer
+#   policy applies at startup, user policy at logon; a GPO is stored in the
+#   directory and in the SYSVOL folder of every domain controller; security
+#   filtering narrows which users and computers a GPO applies to:
+#   learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/group-policy/group-policy-processing (dated 2025-06-16).
+#   Domain accounts' password policy is set in the Default Domain Policy,
+#   linked to the domain: learn.microsoft.com/en-us/troubleshoot/windows-server/group-policy/password-policy-changes-not-applied
+#   (dated 2026-02-12).
+# - Entra ID against AD DS: SaaS apps over OAuth2, SAML and WS-*; on-premises
+#   apps use LDAP, NTLM and Kerberos; Windows devices joined to Entra ID and
+#   managed with Intune; Microsoft Entra Connect syncs identities to the
+#   cloud; Linux can use AD as a Kerberos realm:
+#   learn.microsoft.com/en-us/entra/fundamentals/compare (dated 2022-08-17, updated 2026-06-23).
+# - Entra joined or registered devices sign in with OAuth / OpenID Connect,
+#   are managed with MDM such as Intune and work over the internet; domain-
+#   joined ones use Kerberos and NTLM, Group Policy, and must reach the
+#   domain's network; personal devices are Entra registered, organisation-
+#   owned ones Entra joined, and ones also in AD DS hybrid joined; a managed
+#   domain has no domain or enterprise administrator privileges and no
+#   schema extensions, and trusts need its Enterprise SKU:
+#   learn.microsoft.com/en-us/entra/identity/domain-services/compare-identity-solutions (dated 2025-06-30).
+# - Entra Domain Services: two Windows Server domain controllers, managed by
+#   Microsoft; one-way synchronisation from Entra ID; domain join, Group
+#   Policy, LDAP, Kerberos and NTLM:
+#   learn.microsoft.com/en-us/entra/identity/domain-services/overview (dated 2026-02-16).
+# - AWS Managed Microsoft AD runs Microsoft Active Directory, "powered by
+#   Windows Server 2019", as a pair of domain controllers in different
+#   Availability Zones, with trusts and group policies:
+#   docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_microsoft_ad.html
+# - Simple AD "is powered by a Samba 4 Active Directory Compatible Server",
+#   has no trusts, and "is no longer open to new customers":
+#   docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_simple_ad.html
+# - Google's Managed Service for Microsoft AD "runs actual Microsoft Active
+#   Directory domain controllers on Windows virtual machines", with a
+#   forest trust to on-premises and GPOs on OUs under its Cloud OU:
+#   docs.cloud.google.com/managed-microsoft-ad/docs/overview (updated 2026-10-26).
+# - Entra's sign-in document (OpenID Connect discovery), fetched from
+#   login.microsoftonline.com/common/v2.0/.well-known/openid-configuration:
+#   25 keys, RS256; and no _kerberos._tcp SRV record for that host
+#   ("Non-existent domain").
+# - Prices: in the estimate items that use them (prices_as_of), and for the
+#   Azure extra in the lesson, from the Azure Retail Prices API
+#   (prices.azure.com/api/retail/prices, East US 2): Entra Domain Services
+#   Standard $0.15 an hour; B2s with Windows $0.0496, B2als_v2 with Windows
+#   $0.0468, B2ls_v2 with Windows $0.0508, B1s Linux $0.0104, B2als_v2
+#   Linux $0.0376, D2as_v5 with Windows $0.178 and Linux $0.086; NAT
+#   gateway $0.045 an hour and $0.045 a GB; a Standard static IPv4 address
+#   $0.005 an hour; an E4 Standard SSD disk $2.40 a month; Bastion Basic
+#   $0.19 an hour.
+# - The B-series v1 (B1s, B2s) is announced for retirement on 2028-11-15,
+#   new subscriptions can't deploy it, and existing ones only within their
+#   approved quota: learn.microsoft.com/en-us/azure/virtual-machines/sizes/lifecycle/retirements-and-capacity-restrictions (dated 2026-09-25).
+# - Bastion Developer: free, shared, one VM connection at a time, portal
+#   only, no subnet or public address needed; in East US 2, not in East US
+#   or West US 2: learn.microsoft.com/en-us/azure/bastion/bastion-sku-comparison (dated 2025-11-24).
+# - New virtual networks (API versions after 2026-03-31; the portal
+#   already) default to private subnets, whose VMs need an explicit way out
+#   such as a NAT gateway: learn.microsoft.com/en-us/azure/virtual-network/ip-services/default-outbound-access (dated 2026-07-24).
+# Every command output in the lesson, the labs and the recall items marked
+# "captured" is real output of the labs, captured on 2026-11-11; times,
+# GUIDs and user IDs will differ in a new run.
+#
+# Linked, never copied. Licences, each read on 2026-11-11: Ubuntu's server
+# documentation states no licence on the page; the Windows Server
+# documentation's repository (MicrosoftDocs/windowsserverdocs) is CC BY 4.0;
+# the Entra documentation's repository (MicrosoftDocs/entra-docs) is MIT;
+# AWS's documentation is copyright AWS, with no open licence found; Google
+# Cloud's page states CC BY 4.0 in its footer.
+resources:
+  - title: "How to set up SSSD with Active Directory (Ubuntu Server documentation): the whole join the labs follow, from realm discover to home directories"
+    url: https://ubuntu.com/server/docs/how-to/sssd/with-active-directory/
+    type: reading
+    use: link
+    license: "Canonical; no licence stated on the page; linked, not copied"
+  - title: "Group Policy processing for Windows (Microsoft Learn): read the order at the top, then \"How Group Policy processing works\", \"Enforced GPOs\", \"Block Inheritance\" and \"Group Policy refresh\""
+    url: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/group-policy/group-policy-processing
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/windowsserverdocs); linked, not copied"
+  - title: "Compare Active Directory to Microsoft Entra ID (Microsoft Learn): one table, concept by concept"
+    url: https://learn.microsoft.com/en-us/entra/fundamentals/compare
+    type: reading
+    use: link
+    license: "MIT (MicrosoftDocs/entra-docs); linked, not copied"
+  - title: "Compare Microsoft directory-based services (Microsoft Learn): AD DS, Entra ID and Entra Domain Services, and how devices join each"
+    url: https://learn.microsoft.com/en-us/entra/identity/domain-services/compare-identity-solutions
+    type: reading
+    use: link
+    license: "MIT (MicrosoftDocs/entra-docs); linked, not copied"
+  - title: "Overview of Microsoft Entra Domain Services (Microsoft Learn): optional, Azure's managed domain"
+    url: https://learn.microsoft.com/en-us/entra/identity/domain-services/overview
+    type: reading
+    use: link
+    license: "MIT (MicrosoftDocs/entra-docs); linked, not copied"
+  - title: "AWS Managed Microsoft AD (AWS Directory Service): optional, AWS's managed domain on Windows Server"
+    url: https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_microsoft_ad.html
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Simple AD (AWS Directory Service): optional, the AWS directory built on Samba, as the labs' is, and closed to new customers"
+    url: https://docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_simple_ad.html
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Managed Microsoft AD overview (Google Cloud): optional, Google's managed domain on Windows Server"
+    url: https://docs.cloud.google.com/managed-microsoft-ad/docs/overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (stated on the page); linked, not copied"
+# The recall items read a join's output, SSH's and SSSD's logs, Samba's
+# answers about GPOs and Entra's public sign-in document, all captured, and
+# two are estimates. The worked example, the fill-in, the write and both
+# proofs are labs on a machine that boots systemd, with the same domain
+# controller as the previous topic (Samba in namespaces of its own, ADR-0017
+# and ADR-0018), and they share its image layers. Real Windows is the
+# optional Azure extra at the end of the lesson, outside practice, the
+# proofs and the review pool until someone has run it (the Module 2 plan,
+# section 7).
+practice:
+  - example-join-and-log-in
+  - join-read-the-output
+  - mcq-right-password-refused
+  - mcq-permit-the-group
+  - mcq-machine-key-stale
+  - fill-join-script
+  - gpo-who-gets-what
+  - mcq-gpo-closest-wins
+  - mcq-gpo-block-enforce
+  - gpo-refresh-arithmetic
+  - write-policy-scope
+  - entra-discovery-doc
+  - mcq-app-speaks-kerberos
+  - mcq-which-join
+  - mcq-no-gpo-in-entra
+  - managed-domain-cost
+prove:
+  build: build-join-the-domain
+  debug: debug-nobody-can-log-in
+  explain:
+    prompt: |
+      A company runs Active Directory on two servers in its office. It is moving its forty application servers, Windows and Linux, and its three hundred staff laptops to the cloud, and a colleague proposes: "We already have Entra ID with our email, and that's Active Directory in the cloud, so we can switch the domain controllers off." Explain, in your own words: what the domain does today for a server that is joined to it and for a person who logs in to one, including the settings it hands out; how Entra ID differs, and which of the forty servers and three hundred laptops could rely on it alone; what you'd run in the cloud for the rest, on whichever provider, and how the two directories are kept in step; and one thing a lab built on Samba couldn't show you about Windows.
+    rubric:
+      - id: what-the-domain-does
+        required: true
+        description: "A joined server has a computer account and keys of its own in a keytab, so it can look people up in the directory and check their passwords with Kerberos: one account per person works on every member, and each member decides who may log in (a permitted group, not names). Group Policy objects linked to sites, the domain and organisational units push settings to the computers and people in them, applied in order with the closest folder last, unless a folder blocks inheritance or a link is enforced."
+      - id: entra-differs
+        required: true
+        description: "Entra ID signs people in to web and SaaS applications with tokens over HTTPS (OpenID Connect, OAuth, SAML); it offers no Kerberos or LDAP for servers to use, and has no organisational units and no Group Policy; devices are Entra joined or registered and managed by MDM such as Intune. Laptops used with web apps can be Entra joined; servers running applications that expect Kerberos, LDAP or Group Policy can't rely on it alone."
+      - id: what-to-run
+        required: true
+        description: "For those servers, domain services in the cloud: domain controllers on VMs that you patch and back up, or a managed domain (Microsoft Entra Domain Services, AWS Managed Microsoft AD, Google's Managed Service for Microsoft AD), reachable on the servers' network with the network's DNS pointed at it; accounts kept in step by synchronising the office directory to Entra ID (Microsoft Entra Connect), from which Entra Domain Services takes its own copy."
+      - id: samba-limit
+        required: false
+        description: "The lab's domain controller was Samba: the protocols are the same, but Windows's own tools and a Windows member actually fetching and applying Group Policy weren't seen."
+    model_answer: |
+      Today the domain is what lets one account work everywhere. When a server joins, it gets a computer account in the directory and its own keys in a keytab, so it can ask the domain controllers who someone is and check their password with Kerberos, without keeping any passwords itself. A person has one account and one password for every member, and each member decides who may log in: a group, like linux-admins, permitted on the server, so people come and go by changing the group. The domain also hands out settings with Group Policy: objects linked to the domain and to organisational units reach the computers and people in those folders, applied from the domain down so the closest folder wins, unless a folder blocks inheritance or a link is enforced.
+
+      Entra ID isn't that in the cloud. It signs people in to web and SaaS applications with signed tokens over HTTPS, using OpenID Connect, OAuth and SAML. It has no Kerberos or LDAP for a server to use, no organisational units and no Group Policy; devices are Entra joined or registered and managed by Intune over the internet. So the three hundred laptops, if their staff use web apps, can be Entra joined and managed that way. The forty servers whose applications sign people in with Kerberos, look them up over LDAP or depend on GPOs can't rely on it.
+
+      For them I'd keep domain services in the cloud: either domain controllers on VMs, which we'd patch, back up and run in pairs, or a managed domain, Microsoft Entra Domain Services on Azure, AWS Managed Microsoft AD or Google's Managed Service for Microsoft AD, with the servers' network handing out its DNS. The office directory is synchronised to Entra ID with Microsoft Entra Connect, so everyone keeps one account, and Entra Domain Services takes its copy from Entra ID.
+
+      What Samba couldn't show me is Windows itself: its management tools, and a Windows member actually fetching a GPO and applying its settings.
+review_pool:
+  - mcq-right-password-refused
+  - mcq-machine-key-stale
+  - gpo-who-gets-what
+  - gpo-refresh-arithmetic
+  - mcq-app-speaks-kerberos
+  - mcq-which-join
+skills:
+  - id: domain-join
+    description: "What joining creates (a computer account, its password's keys in a keytab, service names), joining Linux with realm and SSSD and Windows with Add-Computer, who may log in to a member (the domain checks the password, the member's own rule decides who comes in), and repairing a member whose own account no longer matches its keys"
+  - id: group-policy
+    description: "What a GPO is and where it lives, linking it to a site, the domain or an organisational unit, the order GPOs apply in, block inheritance and enforced links, refresh times, and predicting which GPOs reach a user or a computer"
+  - id: entra-vs-adds
+    description: "How Entra ID differs from AD DS in protocols, structure and device management, how the two are kept in step, Entra joined, registered and domain-joined devices, managed domains on the three clouds, and choosing for a workload"

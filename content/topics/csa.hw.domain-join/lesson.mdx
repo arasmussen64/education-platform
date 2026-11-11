@@ -1,0 +1,187 @@
+<Intro>
+
+The last topic built a domain and found it from a server; this one makes servers part of it. Once a server has **joined** the domain, a person's one domain account works on it, the domain decides whether their password is right, the server decides whether they may come in, and the domain can hand the server settings. Then the other half of the story: Microsoft's cloud directory, **Entra ID**, which shares a name with Active Directory and very little else, and what a cloud workload that still needs a domain runs instead.
+
+**What joining creates.** Joining needs an account that is allowed to add computers to the domain, such as the domain's administrator, and it makes three things. A **computer account** in the directory: an entry for the machine itself, `CN=LAB,CN=Computers,DC=ad,DC=shop,DC=test`, whose login name ends in a dollar sign, `LAB$`. A **machine password**: 120 random characters that nobody ever types, set on that account. And the password's keys, written into the machine's **keytab**, `/etc/krb5.keytab` (a keytab, from the last topic, is a file of an account's keys, so a program can sign in as that account without anyone typing anything). Beside `LAB$`, the keytab holds the machine's **service names**, such as `host/lab.ad.shop.test`, the name a Kerberos ticket for logging in to this machine is issued for. With those keys the server can prove to a domain controller that it is `LAB$`, and only then will the directory answer its questions about people. The keytab is the machine's password: only root may read it.
+
+**Joining Linux.** Three programs share the work on Ubuntu. **realmd** (the command is `realm`) finds the domain through its SRV records and drives the join; **adcli**, which realm runs, creates the computer account and writes the keytab; and **SSSD**, the System Security Services Daemon, is what the machine asks afterwards: who is `alice@ad.shop.test`, what groups is she in, is this her password? Two parts of Linux ask SSSD those questions. **NSS** (the name service switch) is how every program looks up a user or a group, which used to mean only `/etc/passwd` and `/etc/group`; **PAM** (pluggable authentication modules) is the chain of steps every login program (`sshd`, the console, `sudo`, `su`) runs to check a password and set up a session. `realm join` plugs SSSD into both, so a domain account is "the same thing as a local account, kept somewhere else". Domain accounts are written in full, `alice@ad.shop.test`, so they can't be mistaken for a local `alice`; SSSD works out each one's user ID from the account in the directory, the same on every member, so never write one into a script. Two things the join doesn't do. It makes no home directories: `sudo pam-auth-update --enable mkhomedir` turns on the PAM step that makes `/home/alice@ad.shop.test` at her first login. And it lets **every** account in the domain log in, which is rarely what you want. `realm list` shows what the machine has joined, and `realm leave` undoes a join. On **Windows**, joining is a page in the system settings or one PowerShell command, `Add-Computer -DomainName ad.shop.test -Restart`, which asks for an account allowed to join; the same three things are made, and the machine restarts as a member.
+
+**Two questions at every login.** The last topic named them: **authentication**, proving who you are, and **authorisation**, being allowed to do the thing. At a member they are answered in different places. The domain answers the first: is this alice's password? The member answers the second: may alice log in here? So a login can fail with the right password, and the journal says so in two lines, `pam_sss(sshd:auth): authentication success` and then `pam_sss(sshd:account): Access denied`. The member's rule is SSSD's **access rule**, which every way into the machine asks. `sudo realm permit -g linux-admins@ad.shop.test` sets it to one group (`-g`) and nobody else; `realm permit alice@ad.shop.test` would permit one person, and `realm permit --all` everyone. Permit a group, never people by name: then who may log in to forty servers is changed in one place, the group's members in the directory, and someone who leaves is locked out of all forty at once. SSH's own `AllowGroups`, from the hardening topic, is a second gate in front of SSH only; it doesn't stop the console or `su`, so it is no substitute for the access rule, and when you add a domain group to it, keep the local groups that were there.
+
+**When a member's own account goes stale.** The computer account's password lives in two places, the directory and the keytab, and they must match. If someone resets the computer account, or the server is restored from an old copy, they don't, and the result is easy to misread: every person's password still works (`kinit alice` gets a ticket), but nobody from the domain can log in, `id alice@ad.shop.test` says `no such user`, `sudo kinit -k 'LAB$@AD.SHOP.TEST'` says `Preauthentication failed`, and SSSD's log repeats `Failed to initialize credentials using keytab`. Without its own keys the member can't ask the directory about anyone. Restarting SSSD changes nothing, and nothing a person does fixes it: leave the domain and join again (`sudo realm leave`, then `realm join`), which sets a new password and writes matching keys. Joining again also writes SSSD's settings afresh, which lets everyone in again, so put the access rule back afterwards. A server that won't let domain accounts in is checked in the order the login works: names first (does the domain's SRV record answer from this machine?), then time (more than five minutes out?), then the machine's own account (`kinit -k`), then who is permitted (`realm list`, SSH's `AllowGroups`).
+
+**Group Policy.** A **Group Policy object** (GPO) is a named bundle of settings for Windows computers and the people who use them: lock the screen after ten minutes, install this, map that drive. Each GPO has a display name and a **GUID**, a long identifier in braces, and it is kept in two places on every domain controller: the directory, and a shared folder called **SYSVOL**, which members read the settings from. A GPO does nothing until it is **linked** to a site, the domain, or an organisational unit; then it reaches every computer and person in that folder and in the folders inside it. That is the rule from the last topic, now in action: **policy follows the folders, permissions follow groups.** (A GPO can be narrowed further, to some groups only, by **security filtering**; the labs don't use it.)
+
+**Layers of paint.** GPOs are applied in order, like coats of paint, and where two set the same setting, the last coat is the one you see: first the machine's own **local** policy, then GPOs linked to the **site**, then the **domain**, then each **organisational unit** from the outermost in, so the folder closest to the computer or person comes last and wins. Two switches change that. **Block inheritance** is a setting of a folder: GPOs linked above it stop reaching what's inside. **Enforced** is a setting of one link: that GPO reaches everything below it, a block can't stop it, and folders further down can't override its settings. Enforced beats block. (Domain accounts' password rules are the one thing folders don't change: they are set once for the whole domain, in the GPO linked to the domain itself, the Default Domain Policy, and every domain account is held to them wherever it sits.)
+
+**When settings arrive.** A Windows computer applies its computer settings when it starts, and a person's user settings when they log on. After that it checks again in the background: by default every **90 minutes, plus a random extra of up to 30**, so that a thousand machines don't all ask at once. Domain controllers check every five minutes. A change also has to reach every domain controller first. So a change can take a couple of hours to reach every running machine; `gpupdate` on a Windows machine fetches it at once, and PowerShell's `Invoke-GPUpdate` asks one from elsewhere. In the labs, `samba-tool` on dc1 does what the Windows tools would:
+
+| On dc1 (through `on-dc`) | What it does |
+| --- | --- |
+| `samba-tool ou create 'OU=Staff'` | makes an organisational unit (`'OU=Engineering,OU=Staff'` makes one inside Staff) |
+| `samba-tool user move alice 'OU=Staff'` | moves a person into one |
+| `samba-tool gpo create 'Lock screen' -U Administrator` | makes an empty GPO and prints its GUID |
+| `samba-tool gpo listall` | lists every GPO with its GUID and display name |
+| `samba-tool gpo setlink DN GUID -U Administrator` | links a GPO to the folder or domain whose DN is given; `--enforce` makes the link enforced |
+| `samba-tool gpo getlink DN` | lists what is linked to a folder, and how |
+| `samba-tool gpo setinheritance DN block -U Administrator` | makes a folder block inheritance (`inherit` undoes it) |
+| `samba-tool gpo list NAME` | works out which GPOs reach a person, from where they sit |
+
+Samba works out which GPOs reach whom exactly as Windows does. What never happens in these labs is the last step: a Linux member applies none of a GPO's Windows settings. Only a Windows machine fetches a GPO and does what it says, which is what the optional Azure extra at the end of this page shows.
+
+**Entra ID is not Active Directory in the cloud.** **Microsoft Entra ID** (it was called Azure Active Directory until 2023) is the directory behind Microsoft 365 and Azure: every Azure subscription sits in an Entra **tenant**, one organisation's directory. It signs people in to web applications and **SaaS** (software as a service: applications someone else runs, which you use over the web), and it does it with signed **tokens** over HTTPS, using the web's sign-in protocols, **OAuth 2.0**, **OpenID Connect** and **SAML**. An application finds Entra with one HTTPS request for a published document; it sends the browser to Entra to sign in, and gets back a token it can check. Compare a domain: Kerberos tickets and LDAP, found through DNS SRV records, inside the domain's network. Entra ID offers no Kerberos or LDAP for a server to use, has no organisational units and no Group Policy, and its tenant is flat: people, groups and devices, with no folders. Devices meet it in three ways: **Entra registered** (a personal phone or laptop, given an identity so its owner can sign in to company apps), **Entra joined** (an organisation's own laptop, which people sign in to with their Entra accounts) and **hybrid joined** (a machine joined to the domain and known to Entra ID too). Entra-joined devices get their settings from a **mobile device management** (MDM) service, Microsoft **Intune**, over the internet, wherever they are; Group Policy needs the domain's network. Most organisations run both directories and keep them in step with **Microsoft Entra Connect**, which copies people and groups from the domain into Entra ID, so each person has one account, one password, everywhere.
+
+**When a cloud workload still needs a domain.** An application that signs people in with Kerberos, looks them up over LDAP or depends on Group Policy needs a domain, whatever Entra ID the company has. There are two ways to have one in a cloud. Run your own domain controllers on VMs, at least two, which you patch, back up and watch. Or use a **managed domain**, where the provider runs the domain controllers: **Microsoft Entra Domain Services** on Azure (two Windows domain controllers, filled with a one-way copy of the tenant's people from Entra ID; you get no domain administrator account and can't change the directory's design), **AWS Managed Microsoft AD** (a pair of Windows domain controllers in two Availability Zones: a **region** is one of a provider's areas of data centres, like East US, and its zones are separate parts of it with their own power and network) and Google Cloud's **Managed Service for Microsoft AD** (real Windows domain controllers too). AWS's older **Simple AD** is built on Samba, like these labs, and no longer takes new customers. Either way, the servers' network has to hand out the domain controllers as its DNS servers, or forward the domain's zone to them, the last topic's rule; each cloud has its own setting for it.
+
+**What these labs can't show.** Their domain controller is Samba, which speaks Active Directory's protocols well enough that SSSD, `adcli` and `kinit` can't tell the difference, and AWS's Simple AD is built on it. But a Windows administrator's day is spent in tools the labs don't have, and Group Policy's real work, a Windows machine fetching a GPO and applying it, never happens here.
+
+**Read now:** Ubuntu's guide to SSSD with Active Directory, the main resource below, about eight minutes: it is the join the labs follow. Then Microsoft's Group Policy processing page: the order at the top, "How Group Policy processing works", "Enforced GPOs", "Block Inheritance" and "Group Policy refresh"; skip the preference, filtering and loopback sections. Then the two comparisons, Active Directory against Entra ID (one table) and Microsoft's three directory services (read it all: the device tables are the clearest statement of how devices join). The managed-domain pages for Azure, AWS and Google Cloud are optional. The quick questions read a join's output, SSH's and SSSD's logs, Samba's answers about GPOs and Entra's sign-in document, and two are sums to work out. The labs give you the last topic's domain: you join a server and log in to it, finish a script that joins a server and is safe to run twice, lay out folders and GPOs so each person gets the right ones, join a server from a blank shell, and get a member that nobody from the domain can log in to working again.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Joining** makes a **computer account** (`CN=LAB,CN=Computers,...`, login name `LAB$`), a 120-character **machine password**, and its keys in the **keytab**, `/etc/krb5.keytab`, with service names such as `host/lab.ad.shop.test`. Root only.
+- **On Linux:** `realm discover`, `sudo realm join -U Administrator DOMAIN` (adcli makes the account; SSSD answers NSS and PAM afterwards), `sudo pam-auth-update --enable mkhomedir` for home directories, `realm list`, `realm leave`. Domain accounts are `alice@ad.shop.test`. **On Windows:** `Add-Computer -DomainName DOMAIN -Restart`.
+- **Two questions:** the domain says whether the password is right; the member says whether the person may come in. `authentication success` then `Access denied` means the second.
+- **Who may log in:** `sudo realm permit -g GROUP@DOMAIN`, SSSD's access rule, which every way in asks. A group, never names. SSH's `AllowGroups` is a second gate for SSH only; add to it, don't replace it.
+- **A stale machine account:** people's passwords work, nobody logs in, `kinit -k` says `Preauthentication failed`. Leave and join again, then put the access rule back. Diagnose in order: names, time, the machine's account, who is permitted.
+- **A GPO** is a named bundle of settings with a GUID, kept in the directory and on **SYSVOL**; it does nothing until **linked** to a site, the domain or an OU, and then reaches everything below. Policy follows folders; permissions follow groups.
+- **Order:** local, site, domain, then OUs outermost in; the closest is applied last and wins. **Block inheritance** (a folder's) stops what's above; **enforced** (a link's) beats block. Password rules come from the domain.
+- **Timing:** computer settings at startup, user settings at logon, then every 90 minutes plus up to 30 (domain controllers every 5); `gpupdate` now.
+- **Entra ID:** a tenant's directory for web and SaaS sign-in, with tokens over HTTPS (OAuth 2.0, OpenID Connect, SAML); no Kerberos or LDAP for servers, no OUs, no Group Policy. Devices are Entra **registered** (personal), **joined** (the organisation's) or **hybrid joined**, and managed by MDM (Intune). **Entra Connect** copies the domain's people into it.
+- **A workload that needs Kerberos, LDAP or GPOs needs a domain:** your own DCs on VMs, or a managed domain (Entra Domain Services, AWS Managed Microsoft AD, Google's Managed Service for Microsoft AD), with the network's DNS pointed at it.
+- **The labs' DC is Samba:** the same protocols; not Windows's tools, and no Windows machine applying a GPO.
+
+</Recap>
+
+## Optional extra, not yet run by anyone: real Windows Server in Azure (about $0.60 and three hours)
+
+Everything this topic proves, it proves in the labs above, for free. This extra is for seeing what they can't: Windows Server promoted to a domain controller with Windows's own tools, a Windows server joining and actually applying a GPO, and the same Linux join against real Windows. It isn't part of the practice, the proofs or the reviews, nothing checks it or records it, and **nobody has run it yet**: every command was checked against the Azure CLI's own help and every price against Azure's price list, but the steps have never been run together, so expect to fix something on the way. It spends your Azure credit, about $0.60 for a three-hour sitting, so start it only if you've decided to.
+
+**The words.** A **subscription** is the account Azure bills; a **resource group** is a named box of resources in it, and deleting the group deletes everything inside; a **tag** is a label (`topic=csa.hw.domain-join`) you can search for afterwards; a **region** is where it all runs (East US 2 here). A **virtual network** is your private network in Azure, divided into **subnets**; a **network security group** (NSG) is its firewall; a **NAT gateway** gives machines with no public address a way out to the internet (for updates), and nothing a way in. **Azure Bastion** opens a VM's desktop or shell in your browser, through the Azure portal, so no VM needs a public address; its **Developer** tier is free, one connection at a time. **Auto-shutdown** stops a VM every night at a time you set. A **budget** emails you when spending passes an amount; it doesn't stop anything.
+
+**What it costs.** Pay-as-you-go list prices in East US 2, read on 2026-11-11 from the Azure Retail Prices API (check [Azure's pricing pages](https://azure.microsoft.com/en-us/pricing/) on the day: prices change):
+
+| Item | Choice | Per hour |
+| --- | --- | --- |
+| `dc1` | `Standard_B2s` with Windows Server | $0.0496 |
+| `app1` | `Standard_B2s` with Windows Server | $0.0496 |
+| `web1` | `Standard_B1s`, Ubuntu 24.04 | $0.0104 |
+| NAT gateway | Standard (plus $0.045 per GB through it) | $0.045 |
+| The gateway's address | Standard static public IPv4 | $0.005 |
+| Disks | three 32 GiB Standard SSD (E4, $2.40 a month each) and a small data disk, priced as another | about $0.013 |
+| Bastion | Developer | free |
+| **Total** | | **about $0.17** |
+
+A three-hour sitting is about $0.52, plus a few cents of data: **about $0.60**. Forgotten for a day with the VMs running: about $4.15. Forgotten after auto-shutdown has stopped the VMs: the gateway, its address and the disks still bill, **about $1.50 a day, $46 a month**. Only deleting the resource group ends the bill.
+
+**Check the sizes first.** The B-series v1 (`B1s`, `B2s`) is announced for retirement on 15 November 2028; new subscriptions can't create it, and existing ones only within the quota they already have. Before you start, ask which sizes your subscription can use in East US 2: `az vm list-skus -l eastus2 --size Standard_B2 --query "[].name" -o tsv`. Use `Standard_B2als_v2` if it's listed ($0.0468 an hour with Windows, $0.0376 for Linux), else `Standard_B2s` as above; if neither can be created, `Standard_D2as_v5` ($0.178 with Windows, $0.086 for Linux) makes a sitting about $1.50. Whichever it is, put it in the `--size` of each `az vm create` below.
+
+**Guardrails first, in this order:** a budget alert, one resource group with the tag on everything, auto-shutdown on every VM, no public address on any VM and nothing open to the internet, and the delete at the end.
+
+```bash
+# 0. Which subscription am I in? Stop here if it isn't the one you meant.
+az account show --query name -o tsv
+
+RG=csa-hw-domain-join
+LOC=eastus2
+TAG=topic=csa.hw.domain-join
+
+# 1. One resource group: everything goes in it, so one delete removes everything.
+az group create -n $RG -l $LOC --tags $TAG
+
+# 2. A budget on the group: an email at 80% of $5. An alert, not a cap.
+#    The command is in preview; if it refuses these arguments, make the
+#    budget in the portal (Cost Management, Budgets) instead.
+az consumption budget create-with-rg -g $RG --budget-name $RG --amount 5 \
+  --category Cost --time-grain Monthly \
+  --time-period start-date=2026-11-01 end-date=2027-11-01 \
+  --notifications "{actual80:{enabled:true,operator:GreaterThanOrEqualTo,threshold:80,contact-emails:[YOU@example.com]}}"
+
+# 3. The network. The security group gets no rules of its own: Azure's
+#    defaults allow traffic inside the network and refuse the internet.
+az network nsg create -g $RG -n nsg-servers --tags $TAG
+az network public-ip create -g $RG -n pip-nat --sku Standard --tags $TAG
+az network nat gateway create -g $RG -n nat-lab --public-ip-addresses pip-nat --idle-timeout 4 --tags $TAG
+az network vnet create -g $RG -n vnet-lab --address-prefixes 10.20.0.0/24 --tags $TAG
+az network vnet subnet create -g $RG --vnet-name vnet-lab -n servers \
+  --address-prefixes 10.20.0.0/26 --nsg nsg-servers --nat-gateway nat-lab
+
+# 4. The domain controller: no public address, a fixed private one, and a
+#    small data disk with caching off for the directory's database.
+#    read -s asks for the VMs' administrator password without showing it.
+read -s -p "Admin password: " PW
+az vm create -g $RG -n dc1 --size Standard_B2s \
+  --image MicrosoftWindowsServer:WindowsServer:2022-datacenter-smalldisk-g2:latest \
+  --admin-username labadmin --admin-password "$PW" \
+  --vnet-name vnet-lab --subnet servers --private-ip-address 10.20.0.4 \
+  --public-ip-address "" --nsg "" --storage-sku StandardSSD_LRS \
+  --data-disk-sizes-gb 4 --data-disk-caching None --tags $TAG
+az vm auto-shutdown -g $RG -n dc1 --time 0300      # UTC: pick an hour you're asleep
+```
+
+Then open dc1's desktop through Bastion (in the portal: the VM, Connect, Bastion) and, in PowerShell as administrator, prepare the data disk as `F:`, add the domain controller's role, and make the forest. It asks for a recovery password, then restarts.
+
+```powershell
+Get-Disk | Where-Object PartitionStyle -eq 'RAW' | Initialize-Disk -PartitionStyle GPT -PassThru |
+  New-Partition -DriveLetter F -UseMaximumSize | Format-Volume -FileSystem NTFS
+Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
+Install-ADDSForest -DomainName ad.shop.test -DomainNetbiosName SHOP -InstallDns `
+  -DatabasePath F:\NTDS -LogPath F:\NTDS -SysvolPath F:\SYSVOL
+```
+
+Back in your terminal: hand out dc1 as the network's DNS server, then make the two members, which pick that up when they first start. Then forget the password.
+
+```bash
+az network vnet update -g $RG -n vnet-lab --dns-servers 10.20.0.4
+az vm create -g $RG -n app1 --size Standard_B2s \
+  --image MicrosoftWindowsServer:WindowsServer:2022-datacenter-smalldisk-g2:latest \
+  --admin-username labadmin --admin-password "$PW" \
+  --vnet-name vnet-lab --subnet servers --private-ip-address 10.20.0.5 \
+  --public-ip-address "" --nsg "" --storage-sku StandardSSD_LRS --tags $TAG
+az vm create -g $RG -n web1 --size Standard_B1s --image Canonical:ubuntu-24_04-lts:server:latest \
+  --admin-username labadmin --generate-ssh-keys \
+  --vnet-name vnet-lab --subnet servers --private-ip-address 10.20.0.6 \
+  --public-ip-address "" --nsg "" --storage-sku StandardSSD_LRS --tags $TAG
+az vm auto-shutdown -g $RG -n app1 --time 0300
+az vm auto-shutdown -g $RG -n web1 --time 0300
+unset PW      # the password is in no file, and now in no variable either
+```
+
+On dc1 again: two folders, two people, a group, and a GPO that sets one harmless registry value (a Windows setting) on every server in the Servers folder.
+
+```powershell
+New-ADOrganizationalUnit -Name Servers
+New-ADOrganizationalUnit -Name Staff
+$pw = Read-Host -AsSecureString
+New-ADUser alice -Path 'OU=Staff,DC=ad,DC=shop,DC=test' -AccountPassword $pw -Enabled $true
+New-ADUser bob   -Path 'OU=Staff,DC=ad,DC=shop,DC=test' -AccountPassword $pw -Enabled $true
+New-ADGroup linux-admins -GroupScope Global -Path 'OU=Staff,DC=ad,DC=shop,DC=test'
+Add-ADGroupMember linux-admins alice
+New-GPO -Name 'Server baseline' | New-GPLink -Target 'OU=Servers,DC=ad,DC=shop,DC=test'
+Set-GPRegistryValue -Name 'Server baseline' -Key 'HKLM\Software\Policies\ShopLab' `
+  -ValueName Baseline -Type String -Value applied
+```
+
+On app1, through Bastion: `Add-Computer -DomainName ad.shop.test -OUPath 'OU=Servers,DC=ad,DC=shop,DC=test' -Credential SHOP\labadmin -Restart`. After the restart, `gpupdate /force` and `gpresult /r /scope computer` should name `Server baseline`, and the registry value should be there: the step Samba never shows. `dsregcmd /status` says `DomainJoined : YES` and `AzureAdJoined : NO`. On web1, through Bastion's SSH, the lab's own join, word for word: `sudo apt install realmd sssd-ad sssd-tools libnss-sss libpam-sss adcli krb5-user`, `sudo realm join -U labadmin ad.shop.test`, `sudo pam-auth-update --enable mkhomedir`, `sudo realm permit -g linux-admins@ad.shop.test`. The point of doing it twice is that it is the same.
+
+**A look at Entra ID, changing nothing.** Your subscription already sits in an Entra tenant. `az ad signed-in-user show --query userPrincipalName -o tsv` is your account in it. Then read what a token says, without ever printing the token itself: anyone holding it can act as you for about an hour, so it goes straight from `az` into the decoder and never onto the screen or into a file. The middle part of a token is its readable payload:
+
+```bash
+az account get-access-token --query accessToken -o tsv | cut -d. -f2 | base64 -d 2>/dev/null; echo
+```
+
+Find `iss` (who issued it, an HTTPS address), `aud` (which service it is for) and `exp` (when it expires, in seconds since 1970), and set them beside `klist` on web1: a signed token from a web address, against a ticket from a KDC. The payload names your tenant, so don't paste it anywhere. Don't create users in the tenant or Entra-join a VM: those leave objects behind in the directory you really use.
+
+**The end, before you close the terminal:**
+
+```bash
+az group delete -n $RG --yes
+az group exists -n $RG                       # false once it's gone
+az resource list --tag $TAG -o table         # empty
+```
+
+Stopping the VMs isn't the end: the gateway, its address and the disks bill until the group is gone. Not yet known, because nobody has run it: whether `B2s` makes a forest comfortably and how long it takes, whether Bastion Developer reaches VMs behind a security group with only Azure's own rules, the budget command's exact form, whether deleting the group deletes its budget, Ubuntu's join against Windows Server rather than Samba, and the real cost.
