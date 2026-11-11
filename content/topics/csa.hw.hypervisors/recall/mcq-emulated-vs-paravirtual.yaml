@@ -1,0 +1,16 @@
+id: mcq-emulated-vs-paravirtual
+type: mcq
+rev: 1
+prompt: |
+  The same guest is started again with its network card changed from QEMU's `e1000` model to `virtio-net-pci`, and its network traffic gets faster and costs the host less CPU. What changed?
+choices:
+  - "QEMU stopped imitating a real Intel card register by register; guest and host now pass packets through queues made for VMs"
+  - "The guest now owns a slice of the host's physical network card, so its packets skip QEMU and the host's software entirely"
+  - "Nothing but the card's name: both are software inside QEMU, and the gain comes only from the guest's driver being newer"
+  - "The host now encrypts the guest's traffic in hardware, which frees the CPU time the old card used to spend on doing it"
+answer: 0
+explanation: |
+  The `e1000` is **emulated**: QEMU pretends to be a real Intel card from the early 2000s, and the guest's ordinary `e1000` driver talks to it the way it would talk to the hardware, one register at a time, each step a trap into QEMU. Any guest can use it, because every operating system has that driver, and that's all it has going for it. **virtio** is **paravirtual**: the guest knows it's in a VM and uses a driver made for one (`virtio_net`), and guest and host hand each other whole batches of packets through shared queues in memory. Far fewer traps, much less work.
+
+  Both are still software in QEMU, as "nothing but the card's name" says, but that answer misses where the gain comes from: the protocol, not a newer driver. A slice of the physical card of its own is SR-IOV, a third path, which gives a guest a virtual function of the card. And encryption has nothing to do with either model.
+skills: [device-paths]

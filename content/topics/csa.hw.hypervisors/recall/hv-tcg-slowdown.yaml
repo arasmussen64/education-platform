@@ -1,0 +1,15 @@
+id: hv-tcg-slowdown
+type: predict_shell
+rev: 1
+prompt: |
+  The same shell loop, counting to 300,000 in busybox's `sh`, was timed on 2026-11-11 twice: on the lab machine itself, and inside a QEMU guest under TCG, QEMU's emulator, in this topic's lab image on a Windows 11 laptop. `loop-times.txt` holds the seconds each took (the middle of three runs). The command divides one by the other and drops the fraction. What does it print?
+files:
+  loop-times.txt: |
+    host 0.29
+    guest-tcg 4.96
+command: awk '{t[$1] = $2} END {printf "%d times slower\n", t["guest-tcg"] / t["host"]}' loop-times.txt
+expected_output: |
+  17 times slower
+explanation: |
+  4.96 divided by 0.29 is about 17.1, and `%d` prints the whole part: 17. Under **emulation** every one of the guest's instructions is translated and imitated by software, so even a loop that does nothing but count runs many times slower. With **hardware-assisted virtualization** (KVM, Hyper-V, Nitro) the same loop runs straight on the real processor, at nearly the host's speed, because only privileged instructions are stopped and handed to the hypervisor. That gap is why every cloud uses the processor's extensions, and why the labs' VMs, which can't, take seconds to boot.
+skills: [hypervisor-types]

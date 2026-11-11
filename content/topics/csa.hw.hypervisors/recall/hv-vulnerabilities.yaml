@@ -1,0 +1,22 @@
+id: hv-vulnerabilities
+type: predict_shell
+rev: 1
+prompt: |
+  `vulns.txt` holds eight of the `Vulnerability` lines `lscpu` printed, captured on 2026-11-11 by `lab-capture` in a container on a Windows 11 laptop running Docker Desktop. Each line names a known flaw in processors and says how this kernel stands against it. What does the command print?
+files:
+  vulns.txt: |
+    Vulnerability Mds:                       Not affected
+    Vulnerability Meltdown:                  Not affected
+    Vulnerability Retbleed:                  Mitigation; Enhanced IBRS
+    Vulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl
+    Vulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization
+    Vulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S
+    Vulnerability Srbds:                     Not affected
+    Vulnerability Tsx async abort:           Not affected
+command: grep -c 'Mitigation' vulns.txt; wc -l < vulns.txt
+expected_output: |
+  4
+  8
+explanation: |
+  Four of the eight flaws are `Mitigation`: this processor has them, and this kernel works around them. The rest don't affect it. These flaws are **side channels**: ways for one program to learn another's secrets by watching hardware they share at the same moment, such as a core's caches. A guest sees only its own kernel's view of the processor it was given; protecting one customer from another is the provider's job. AWS's answer is never to run two customers on one core at the same time; a host of your own removes other customers altogether. The names of the flaws are not worth learning; that the list exists, and who closes which gap, is.
+skills: [isolation-limits]

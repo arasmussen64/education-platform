@@ -1,0 +1,37 @@
+id: hv-guest-nic-driver
+type: predict_shell
+rev: 1
+prompt: |
+  The same small VM was booted twice in this topic's lab image on 2026-11-11, both times with 2 CPUs and 512 MiB, and printed these guest reports. `emulated.log` was started with `-nic user,model=e1000 -drive ...,if=ide`; `virtio.log` with `-nic user,model=virtio-net-pci -drive ...,if=virtio`. The command pulls out the network card lines and prints their third field. What is printed?
+files:
+  emulated.log: |
+    === guest report
+    kernel: 6.8.0-149-generic
+    cpus: 2
+    memory_kb: 468892
+    hypervisor_flag: 1
+    dmi_vendor: QEMU
+    nic: eth0 driver=e1000
+    disk: sda driver=sd size_mb=64
+    disk: sr0 driver=sr size_mb=1023
+    virtio_devices: 0
+    === end
+  virtio.log: |
+    === guest report
+    kernel: 6.8.0-149-generic
+    cpus: 2
+    memory_kb: 468880
+    hypervisor_flag: 1
+    dmi_vendor: QEMU
+    nic: eth0 driver=virtio_net
+    disk: sr0 driver=sr size_mb=1023
+    disk: vda driver=virtio_blk size_mb=64
+    virtio_devices: 2
+    === end
+command: grep -h '^nic:' emulated.log virtio.log | awk '{print $3}'
+expected_output: |
+  driver=e1000
+  driver=virtio_net
+explanation: |
+  The guest only knows what it was given, and the driver behind each device says which path it is on. `e1000` is the driver for a real Intel network card, which QEMU **emulated** in software; `virtio_net` is the **paravirtual** driver, made for VMs. The disks tell the same story: on the emulated IDE controller the disk is the old-style `sda` on `sd`, on virtio it is `vda` on `virtio_blk`, and `virtio_devices` counts the virtio devices on the guest's bus: none, then two. (`sr0` is the CD-ROM drive QEMU adds by default.) Same kernel, same files; only the hardware QEMU was asked for changed.
+skills: [device-paths]

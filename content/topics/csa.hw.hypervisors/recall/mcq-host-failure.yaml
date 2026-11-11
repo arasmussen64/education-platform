@@ -1,0 +1,16 @@
+id: mcq-host-failure
+type: mcq
+rev: 1
+prompt: |
+  After an outage, a colleague says: "The hypervisor isolates our VM, so the provider's hardware can't have been the cause." What's wrong with that?
+choices:
+  - "Isolation is between guests; when the host fails, every guest on it stops, which is why VMs are spread across hosts"
+  - "Nothing is wrong: when a host develops a fault, its hypervisor moves every guest to a healthy host before it stops"
+  - "Isolation holds only on dedicated hosts; on shared ones, the hypervisor lets one customer's crash take down another's"
+  - "Isolation covers only the CPUs; the host's memory is pooled, so a memory fault anywhere stops every VM in the zone"
+answer: 0
+explanation: |
+  Isolation keeps guests out of each other's memory and devices. It does nothing for the host itself: when its power, board or hypervisor fails, every guest on it stops together. That's why a service runs on several VMs placed on different hosts, and in more than one zone. Clouds soften some failures (Google live-migrates VMs off a host whose hardware is predicted to fail; if it fails outright, the VM is stopped and restarted elsewhere), but none promises that a host never fails under you.
+
+  Isolation between guests holds on shared hosts too; that is the hypervisor's whole job. And each guest's memory is its own, mapped privately by the hypervisor on one host, not pooled across a zone.
+skills: [isolation-limits]

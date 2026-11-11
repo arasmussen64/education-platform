@@ -1,0 +1,22 @@
+id: hv-lscpu-vendor
+type: predict_shell
+rev: 1
+prompt: |
+  `lscpu.txt` holds seven lines of `lscpu`, as `lab-capture` captured them on 2026-11-11 in a container on a Windows 11 laptop running Docker Desktop (the processor's model name is masked). The command picks out two lines and prints the value after each colon. What is printed?
+files:
+  lscpu.txt: |
+    CPU(s):                                  8
+    Vendor ID:                               GenuineIntel
+    Model name:                              Intel(R) Core(TM) Ultra (model masked)
+    Thread(s) per core:                      1
+    Virtualization:                          VT-x
+    Hypervisor vendor:                       Microsoft
+    Virtualization type:                     full
+command: |
+  grep -e '^Hypervisor vendor' -e '^Virtualization type' lscpu.txt | awk -F': *' '{print $2}'
+expected_output: |
+  Microsoft
+  full
+explanation: |
+  `Hypervisor vendor` is who runs this machine: Microsoft's Hyper-V, under WSL 2. `Virtualization type: full` means a guest whose processor runs with hardware help, rather than a container or an old paravirtualized Xen guest. The line just above, `Virtualization: VT-x`, is a different thing, and the command skips it: it says the processor this kernel sees offers Intel's virtualization extensions itself, which a VM inside this one would need. The model name and vendor are the real processor's, passed through; on a bare metal server the two hypervisor lines simply aren't there.
+skills: [read-the-guest]

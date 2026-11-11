@@ -1,0 +1,16 @@
+id: mcq-nitro-pieces
+type: mcq
+rev: 1
+prompt: |
+  On a current EC2 host built on the AWS Nitro System, what runs where?
+choices:
+  - "A small KVM-based hypervisor on the main board divides CPU and memory; networking, EBS and management run on Nitro cards"
+  - "A Linux host operating system runs one QEMU process per instance, and each QEMU imitates that instance's network and disks"
+  - "A Windows root partition owns the devices and passes each instance's packets through a virtual switch running on the host"
+  - "Xen runs the instances, and a privileged control domain on the same CPUs does all of their disk and their network work"
+answer: 0
+explanation: |
+  The **Nitro hypervisor** is based on KVM and is deliberately tiny: it divides the CPUs and memory and hands out devices, and by design has no network stack, no general file system, no device drivers and no shell. Everything that talks to the outside world runs on **Nitro cards**, separate computers on the host's PCIe bus: the network (the guest sees an ENA card), EBS volumes and local storage (NVMe), management and monitoring. Each card's function is split into SR-IOV virtual functions that are handed straight to the instances, so a guest's packets and disk writes never pass through software on the main processors.
+
+  A Linux host with one QEMU per guest is an ordinary KVM server, the way most private clouds are built. A Windows root partition with a virtual switch is Hyper-V, Azure's design. And Xen with a control domain doing the I/O is how EC2 worked before Nitro; the T2 family still runs on Xen.
+skills: [cloud-hypervisors]

@@ -1,0 +1,16 @@
+id: mcq-maintenance
+type: mcq
+rev: 1
+prompt: |
+  A service on a Compute Engine VM stalled once, for about 400 ms. Nothing rebooted, and the guest's log shows its clock was stepped forward at the same moment. What is the likeliest cause, and what should the service's design allow for?
+choices:
+  - "A live migration's blackout: Google moved the running VM to another host. Design for rare pauses of under a second"
+  - "A noisy neighbour on the host took the CPU for a moment. Move to a dedicated host so nothing else can share it"
+  - "Its disk filled, and writes waited until space was freed. Add an alert on free disk space and give it a bigger disk"
+  - "Its burstable credits ran out, and the host held it back. Choose a larger machine type with a fixed share of CPU"
+answer: 0
+explanation: |
+  When Google maintains a host, it **live-migrates** the VMs on it: it copies each running VM's memory to another host in the same zone while it keeps running, then pauses it for a moment (the **blackout**, "typically much less than 1 second", Google says) to copy the last changes, and starts it on the new host. The guest's clock appears to jump forward, up to 5 seconds, and is corrected. A service on Compute Engine should expect an occasional sub-second pause; one with GPUs, or a bare metal instance, is stopped instead. Each cloud does this differently: Azure pauses a VM for up to 30 seconds during its memory-preserving maintenance, and AWS replaces the Nitro hypervisor in place under running instances.
+
+  A noisy neighbour or spent credits slow a VM for as long as they last, without stepping its clock, and a full disk makes writes fail rather than wait 400 ms once.
+skills: [cloud-hypervisors]

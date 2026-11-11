@@ -1,0 +1,16 @@
+id: mcq-dedicated
+type: mcq
+rev: 1
+prompt: |
+  A regulator asks that no other customer's VM ever run on the same physical server as yours. You buy a Dedicated Host on AWS (on Azure it would be a Dedicated Host or an isolated size, on Google Cloud a sole-tenant node). What does that take away?
+choices:
+  - "Other tenants: their noisy workloads and any side channel between customers, but not the hypervisor or host failures"
+  - "Other tenants and the hypervisor too, since a host with one customer runs its VMs straight on the hardware, no layer"
+  - "Other tenants and host failures, since the provider moves a dedicated host's VMs to a spare before a fault can land"
+  - "Other tenants and the provider's staff, since nobody but you can reach a dedicated host once you've paid for it"
+answer: 0
+explanation: |
+  A host to yourself removes exactly one thing: **other tenants** (a tenant is a customer sharing the provider's hardware). With them go the noisy neighbours and any side channel between customers, the leaks that need two parties on the same hardware at once. Everything else stays. Your VMs still run on the provider's hypervisor, which still divides the host, now among your own VMs. The host can still fail and take every VM on it down, so you still spread them over hosts. And what the provider's staff can reach depends on how the platform is built, not on who rents the host: AWS designed Nitro with no operator access at all, and confidential VMs (a later topic) encrypt a guest's memory from the host.
+
+  Running straight on the hardware with no hypervisor is a different product, a bare metal instance.
+skills: [isolation-limits]

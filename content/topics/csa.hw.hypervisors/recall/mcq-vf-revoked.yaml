@@ -1,0 +1,16 @@
+id: mcq-vf-revoked
+type: mcq
+rev: 1
+prompt: |
+  An Azure VM's kernel log shows `Data path switched from VF`, then about 30 seconds later `Data path switched to VF`. Latency was higher in between, but no connection dropped. What happened?
+choices:
+  - "The host was serviced: the SR-IOV virtual function was taken away, and traffic ran through the synthetic NIC until it came back"
+  - "The VM was live-migrated to a host in another region, and its open connections were carried across with it in the meantime"
+  - "The network card's driver crashed and was loaded again, and the kernel kept every connection open by queueing its packets"
+  - "The VM ran out of CPU credits for half a minute, so the host held its network card back until it had earned the credits again"
+answer: 0
+explanation: |
+  With **Accelerated Networking**, an Azure VM has two interfaces for each network card: a **synthetic** one on VMBus (driver `hv_netvsc`), which holds the IP address and which applications use, and an SR-IOV **virtual function** (VF) of the host's physical card, bonded to it, which carries the traffic straight to the hardware. When Azure services the host (updating its network software or its hypervisor, which Microsoft says happens several times a year), it removes the VF, traffic falls back to the synthetic path through the host's virtual switch, slower and costlier but unbroken, and the VF comes back, typically after about 30 seconds. The two log lines are the netvsc driver saying so.
+
+  Live migration, where a cloud uses it, moves a running VM to another host in the same zone, never to another region, and wouldn't explain the VF lines on its own. A crashed driver wouldn't log a tidy switch away and back. And CPU credits govern CPU time, not the network card.
+skills: [device-paths, cloud-hypervisors]

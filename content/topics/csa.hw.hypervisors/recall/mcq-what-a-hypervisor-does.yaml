@@ -1,0 +1,16 @@
+id: mcq-what-a-hypervisor-does
+type: mcq
+rev: 1
+prompt: |
+  A 96-core server is sold as 24 virtual machines of 4 vCPUs each, all running at once. One guest's kernel runs an instruction that, on a real machine, would switch off interrupts for the whole computer. The server's processor has its virtualization extensions switched on. What happens?
+choices:
+  - "The CPU stops at that instruction and hands it to the hypervisor, which applies it to that one guest's virtual CPU"
+  - "The instruction runs on the real CPU as written, and every guest on the server stops hearing interrupts until it ends"
+  - "The hypervisor rewrote the guest's kernel on disk before boot, so the guest never actually runs that instruction at all"
+  - "QEMU interprets each of the guest's instructions in software, one at a time, so this one is imitated like all the rest"
+answer: 0
+explanation: |
+  Switching off interrupts is a **privileged instruction**: one that only the owner of the machine, a kernel in kernel mode, may run. With the virtualization extensions (Intel VT-x, AMD-V) on, the processor itself stops at it, a **trap**, and hands control to the hypervisor. The hypervisor does the safe equivalent for that guest alone, here marking that guest's virtual CPU as not taking interrupts, and hands back. Everything that isn't privileged runs straight on the real CPU at full speed, which is why a VM with hardware help is nearly as fast as the machine.
+
+  Running it as written on the real CPU is exactly what the trap prevents: one guest would stop every other guest's interrupts. Rewriting a guest's kernel so it asks the hypervisor instead of running such instructions is how Xen's paravirtualized (PV) guests worked before these extensions existed, but it takes a specially built kernel, and nothing rewrites one on disk. And imitating every instruction in software is emulation, what QEMU's TCG does when there are no extensions to use: correct, and many times slower.
+skills: [hypervisor-types]
