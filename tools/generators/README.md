@@ -2,6 +2,8 @@
 
 This folder keeps the scripts that first wrote the Machine Learning Foundations topics, and a few helpers that were used beside them. It is an **archive**: history and reference, not tools to run. Until 2026-11-10 these files lived only in a temporary folder on the owner's PC, where one clean-up would have deleted them.
 
+One generator is still a live tool, and it is not in this folder: `tools/outline_cloud_track.py`, which writes the cloud track's `planned` outlines from its spec ([content/README.md](../../content/README.md) says how to use it).
+
 ## The one rule
 
 **`content/topics/` is the source of truth** (the one place that counts when two copies disagree). To change a topic, edit its files in `content/topics/` and run the checker, as [content/README.md](../../content/README.md) describes. Never re-run a script from this folder to change content: most of them would undo fixes that were made after they last ran.
@@ -10,46 +12,50 @@ Some of the scripts say "Run from the repository root" in their first lines. Tha
 
 ## How the ML topics were produced
 
-A **generator** is a program that writes files. Each topic in Modules 1 to 8 of the ML track (bar one, see the table) was written by its own generator, a single Python script named `gen_ml_<topic>.py`, in these steps:
+A **generator** is a program that writes files. Each topic in Modules 1 to 8 of the ML track (bar one, see the table) was written by its own generator, a single Python script named `gen_ml_<topic>.py`. The generators grew more careful as the track went on.
 
-1. The script holds the whole topic as text: the lesson, every question, every exercise with its solution, its tests and its known-wrong answers.
-2. It runs each program in real Python (CPython, the ordinary Python you install) and captures what the program prints. Expected outputs are captured this way, never typed in by hand.
-3. It checks the topic's story with **assertions**. An assertion is a line starting with `assert` that stops the script if something isn't true. They check things like: this number in the lesson is the number the program printed; this known-wrong answer really does print something different; the right choice of a multiple-choice question isn't the longest one (a giveaway).
+**Modules 1 to 3: a plain file writer.** The script holds the whole topic as text (the lesson, every question, every exercise with its solution, its tests and its known-wrong answers) and writes that text into the topic's files in `content/topics/`. It runs none of the topic's programs and checks nothing: the expected outputs in it were typed in, and it was the validator, afterwards, that proved them right.
+
+**Modules 4 to 8: a writer that checks its own story.** From Module 4 on a generator works in these steps:
+
+1. It holds the whole topic as text, as before.
+2. It runs each program in real Python (CPython, the ordinary Python you install) and captures what the program prints. Expected outputs are captured this way instead of being typed in by hand.
+3. It checks the topic's story with **assertions**. An assertion is a line starting with `assert` that stops the script if something isn't true. They check things like: this number in the lesson is the number the program printed; this known-wrong answer really does print something different; and, from Module 6 on, the right choice of a multiple-choice question isn't the longest one (a giveaway).
 4. It writes the topic's files into `content/topics/`. A failed assertion stops the script on the spot, so a topic whose story doesn't hold is never written in full.
 
-After that the validator (`tools/validate_content.py`) ran every exercise, and a **cold review** followed: a reviewer who had never seen the module read it as a beginner would and listed what was wrong or unclear. The instructions those reviewers were given are in `review-briefs/`.
+After that, for every module, the validator (`tools/validate_content.py`) ran every exercise, and a **cold review** followed: a reviewer who had never seen the module read it as a beginner would and listed what was wrong or unclear. The instructions those reviewers were given are in `review-briefs/`.
 
 The fixes from those reviews are where the generators and the content parted ways. For Modules 7 and 8 the fix was made in the generator, which was then run again. For Modules 1 to 6 the fix was made straight in `content/topics/`, and the generator was never updated. A generator that no longer produces what is in the repository is called **stale** here.
 
 ## What is in this folder
 
-| Folder | What it holds |
-| --- | --- |
-| `ml/module-1` to `-8` | The topic generators, one per topic, grouped by module. Each script's first lines name the topic it wrote. |
-| `ml/module-9-unfinished` | The generator for Module 9's first topic. It stops at a failing assertion and has never written a file (see below). |
-| `ml/outlines` | The scripts that added each module's `planned` outlines to the track file, the topic folders and the spec. All have run. |
-| `review-briefs` | The cold-review instructions for Modules 7 and 8. |
-| `checks` | Small scripts that checked content or a generator while a module was being written (listed below). |
-| `cloud-labs` | The parts the Cloud Solutions Architect track's Module 1 lab images were assembled from, and the script that did it. |
-| `conftest.py` | Tells pytest (the test runner) to skip this folder, because importing a generator runs it. |
+| Folder                   | What it holds                                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `ml/module-1` to `-8`    | The topic generators, one per topic, grouped by module. Each script's first lines name the topic it wrote.               |
+| `ml/module-9-unfinished` | The generator for Module 9's first topic. It stops at a failing assertion and has never written a file (see below).      |
+| `ml/outlines`            | The scripts that added each module's `planned` outlines to the track file, the topic folders and the spec. All have run. |
+| `review-briefs`          | The cold-review instructions for Modules 7 and 8.                                                                        |
+| `checks`                 | Small scripts that checked content or a generator while a module was being written (listed below).                       |
+| `cloud-labs`             | The parts the Cloud Solutions Architect track's Module 1 lab images were assembled from, and the script that did it.     |
+| `conftest.py`            | Tells pytest (the test runner) to skip this folder, because importing a generator runs it.                               |
 
-These files are kept as they were when they last ran, so they are not formatted or linted: `pyproject.toml` excludes this folder from ruff. Three files were changed on the way in, because this repository is public: the owner's folder path in the two review briefs became `<repo root>`, and `cloud-labs/assemble.sh` now takes the folder to write into from a setting called `TOPICS_DIR` instead of a path on the owner's PC.
+These files are kept as they were when they last ran, so they are not formatted or linted: `pyproject.toml` excludes this folder from ruff. (The one thing git changed is invisible: it stores every line ending the same way, as this repository does for all text files.) Three files were changed on the way in, because this repository is public: the owner's folder path in the two review briefs became `<repo root>`, and `cloud-labs/assemble.sh` now takes the folder to write into from a setting called `TOPICS_DIR` instead of a path on the owner's PC.
 
 ## Which generators still matched the content on 2026-11-10
 
 On 2026-11-10 every topic generator was run into an empty scratch folder (a throwaway folder outside the repository) and its output was compared, file by file, with `content/topics/` as it stood after pull request #198, the last change before that day's audit fixes.
 
-| Folder | Module | Generators | Result on 2026-11-10 |
-| --- | --- | --- | --- |
-| `ml/module-1` | 1. Math refresher | 7 | **Stale.** All 7 differ from the content (19 files of 311). |
-| `ml/module-2` | 2. Intermediate Python | 8 | **Stale.** 7 of 8 differ (16 files of 356). |
-| `ml/module-3` | 3. Linear algebra | 8 | **Stale.** 6 of 8 differ (11 files of 364). |
-| `ml/module-4` | 4. Calculus | 8 | **Stale.** All 8 differ (53 files of 372). |
-| `ml/module-5` | 5. Probability and statistics | 8 | **Stale.** All 8 differ (64 files of 373). |
-| `ml/module-6` | 6. Data structures and algorithms | 8 | **Stale.** All 8 differ (46 files of 395). |
-| `ml/module-7` | 7. How computers and GPUs work | 8 | **Matched.** All 420 files identical. |
-| `ml/module-8` | 8. Neural networks from scratch | 8 | **Matched.** All 441 files the generators write are identical. Three more files are only in the repo. |
-| `ml/module-9-unfinished` | 9. Transformers | 1 | Stops at an assertion before writing anything. |
+| Folder                   | Module                            | Generators | Result on 2026-11-10                                                                                  |
+| ------------------------ | --------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------- |
+| `ml/module-1`            | 1. Math refresher                 | 7          | **Stale.** All 7 differ from the content (19 files of 311).                                           |
+| `ml/module-2`            | 2. Intermediate Python            | 8          | **Stale.** 7 of 8 differ (16 files of 356).                                                           |
+| `ml/module-3`            | 3. Linear algebra                 | 8          | **Stale.** 6 of 8 differ (11 files of 364).                                                           |
+| `ml/module-4`            | 4. Calculus                       | 8          | **Stale.** All 8 differ (53 files of 372).                                                            |
+| `ml/module-5`            | 5. Probability and statistics     | 8          | **Stale.** All 8 differ (64 files of 373).                                                            |
+| `ml/module-6`            | 6. Data structures and algorithms | 8          | **Stale.** All 8 differ (46 files of 395).                                                            |
+| `ml/module-7`            | 7. How computers and GPUs work    | 8          | **Matched.** All 420 files identical.                                                                 |
+| `ml/module-8`            | 8. Neural networks from scratch   | 8          | **Matched.** All 441 files the generators write are identical. Three more files are only in the repo. |
+| `ml/module-9-unfinished` | 9. Transformers                   | 1          | Stops at an assertion before writing anything.                                                        |
 
 Notes on the table:
 
@@ -63,11 +69,11 @@ Notes on the table:
 
 A generator writes to `content/topics/<topic>` _relative to the folder it is run from_. Run from the repository root, it overwrites the real topic. Run from an empty folder somewhere else, it builds a harmless copy there, which you can compare with the real one. A **diff** is a listing of the lines that differ between two files or folders.
 
-1. Make an empty scratch folder outside the repository and go into it. On Windows keep its path short, such as `C:\tmp\regen`: Windows refuses paths over 260 characters and some topic files already use 114.
-2. Run the generator from there. `--project` tells uv where the repository is, so the script gets the project's Python and NumPy while the files land in the scratch folder:
+1. Make an empty scratch folder outside the repository and go into it. On Windows keep its path short, such as `C:\tmp\regen`: Windows refuses paths over 260 characters, and the longest topic file's path is already 129 characters counted from the repository root.
+2. Run the generator from there. `--project` tells uv where the repository is, so the script gets the project's Python and NumPy while the files land in the scratch folder. Put the full path of the repository folder where it says `<repo root>`, and keep the quotes, because that path may have a space in it:
 
    ```text
-   python -m uv run --project <repo root> python <repo root>/tools/generators/ml/module-7/gen_ml_hw_bits.py
+   python -m uv run --project "<repo root>" python "<repo root>/tools/generators/ml/module-7/gen_ml_hw_bits.py"
    ```
 
    It prints the outputs it captured and ends with `ml.hw.bits-and-integers written: 48 files`. If an assertion fails it stops with an `AssertionError` and writes nothing after that point.
@@ -127,19 +133,19 @@ Without `TOPICS_DIR` the script stops and says so. The passwords, keys and token
 
 ## The checks
 
-Run from the repository root with `python -m uv run python tools/generators/checks/<name>`. They read the content and never edit it. Several have one module's topic names written into them, so read a script before trusting its output for another module.
+Run from the repository root with `python -m uv run python tools/generators/checks/<name>`. The one exception is `check_resources.sh`, a shell script: run it in Git Bash with `bash tools/generators/checks/check_resources.sh`. They read the content and never edit it. Several have one module's topic names written into them, so read a script before trusting its output for another module.
 
-| Script | What it does |
-| --- | --- |
-| `validate_one.py <topic id>...` | The validator's full checks for the named topics only, in seconds instead of minutes. Still useful day to day. |
-| `check_mcq_lengths.py <generator.py>` | Lists the multiple-choice questions in a generator whose right answer is the longest choice. |
-| `check_recall.py .` | Module 8: runs every predict-the-output item and compares the output; flags right answers that are the longest choice. |
-| `mcq_check.py content/topics <topic id>...` | The same for any topics you name, and it also runs each Parsons item's lines. |
-| `mcq_tally.py`, `audit_items.py`, `revA_check.py` | Tallies for Modules 5, 6 and 8: answer positions, choice lengths, skill ids that don't exist, doubled apostrophes, unpaired backticks. |
-| `yaml_apostrophes.py content/topics` | Module 5: finds a doubled apostrophe (`''`), which shows up as two characters on the page. |
-| `check_resources.sh` | Module 8: fetches each linked resource and prints its title and section names, to compare with what `topic.yaml` says. |
-| `complexity_checks.py`, `hashing_checks.py`, `sorting_checks.py`, `stacks_checks.py` | The sums behind numbers quoted in four Module 6 topics. |
-| `count_trees.py`, `count_checkpoint.py` | Count the comparisons a solution makes, to set the limits in two Module 6 exercises' tests. Give them solution files to count. |
+| Script                                                                               | What it does                                                                                                                                                             |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `validate_one.py <topic id>...`                                                      | The validator's full checks for the named topics only, in seconds instead of minutes. Still useful day to day.                                                           |
+| `check_mcq_lengths.py <generator.py>`                                                | Lists the multiple-choice questions in a generator whose right answer is the longest choice.                                                                             |
+| `check_recall.py .`                                                                  | Module 8: runs every predict-the-output item and compares the output; flags right answers that are the longest choice.                                                   |
+| `mcq_check.py content/topics <topic id>...`                                          | The same for any topics you name, and it also runs each Parsons item's lines.                                                                                            |
+| `mcq_tally.py`, `audit_items.py`, `revA_check.py`                                    | Tallies for Modules 5, 6 and 8: answer positions, choice lengths, skill ids that don't exist, doubled apostrophes, unpaired backticks.                                   |
+| `yaml_apostrophes.py content/topics`                                                 | Module 5: finds a doubled apostrophe (`''`), which shows up as two characters on the page.                                                                               |
+| `check_resources.sh`                                                                 | Module 8: downloads each of the module's 19 linked resource pages and prints its title and section names, to compare with what `topic.yaml` says. It needs the internet. |
+| `complexity_checks.py`, `hashing_checks.py`, `sorting_checks.py`, `stacks_checks.py` | The sums behind numbers quoted in four Module 6 topics.                                                                                                                  |
+| `count_trees.py`, `count_checkpoint.py`                                              | Count the comparisons a solution makes, to set the limits in two Module 6 exercises' tests. Give them solution files to count.                                           |
 
 ## What was left behind
 
