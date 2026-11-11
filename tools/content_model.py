@@ -421,6 +421,8 @@ class LabChecks(Strict):
 
     @model_validator(mode="after")
     def fit_in_ten_minutes(self) -> LabChecks:
+        # Every check counts, so this also stops a lab at 20 checks that all
+        # have the usual 30 seconds; the message says how to get past that.
         total = sum(check.timeout for check in self.checks)
         if total > LAB_CHECK_SECONDS_MAX:
             raise ValueError(
@@ -428,7 +430,8 @@ class LabChecks(Strict):
                 f"{LAB_CHECK_SECONDS_MAX} a lab's checks may take in all (a check "
                 f"without a timeout counts {CHECK_SECONDS}): a learner whose lab "
                 "is still broken waits for every one. Lower the slow checks' "
-                "timeout"
+                "timeout, give quick checks a shorter one of their own (such as "
+                "timeout: 10), or use fewer checks"
             )
         return self
 

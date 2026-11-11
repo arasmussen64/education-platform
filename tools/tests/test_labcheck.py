@@ -1215,9 +1215,15 @@ def test_a_labs_checks_may_take_ten_minutes_in_all() -> None:
     # A check without a timeout counts its 30 seconds.
     with pytest.raises(ValidationError, match="add up to 630 seconds, over the 600"):
         LabChecks.model_validate(lab_of(300, 270, None, None))
-    # Twenty-one checks of 30 seconds each are too many as well.
-    with pytest.raises(ValidationError, match="Lower the slow checks' timeout"):
+    # Twenty-one checks of 30 seconds each are too many as well, and the
+    # message says what to do when no check is a slow one.
+    with pytest.raises(
+        ValidationError,
+        match=r"give quick checks a shorter one of their own \(such as "
+        r"timeout: 10\), or use fewer checks",
+    ):
         LabChecks.model_validate(lab_of(*[None] * 21))
+    LabChecks.model_validate(lab_of(*[10] * 21))  # 210 seconds: allowed
 
 
 def test_the_validator_tells_the_author_what_a_timeout_must_be(tmp_path: Path) -> None:
@@ -1251,7 +1257,7 @@ def test_a_check_runs_under_timeout_inside_the_lab_with_its_own_limit(
     ran = check_exec_calls(docker)
     # As root in the learner's home, as before; now inside coreutils'
     # timeout, which stops the command (and what it started) at the limit
-    # and kills what is left 5 seconds later.
+    # and, if the command is still running 5 seconds later, kills them all.
     assert ran[0][0] == (
         "exec",
         "-u",
