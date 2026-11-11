@@ -1,0 +1,22 @@
+#!/bin/bash
+# Used by the lab's checks, never by the learner: every file under DIR that
+# can't run on a 64-bit Arm server as it is, decided the way the prompt
+# says, one path a line, sorted. A program or library (an ELF file) built
+# for anything but aarch64, and a .jar holding such a library.
+set -u
+find "$1" -type f | while read -r path; do
+  case "$(file -b "$path")" in
+    ELF*aarch64*) continue ;;
+    ELF*) echo "$path"; continue ;;
+  esac
+  case "$path" in
+    *.jar)
+      for entry in $(unzip -Z1 "$path" | grep '\.so$'); do
+        case "$(unzip -p "$path" "$entry" | file -b -)" in
+          ELF*aarch64*) ;;
+          ELF*) echo "$path"; break ;;
+        esac
+      done
+      ;;
+  esac
+done | LC_ALL=C sort
