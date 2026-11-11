@@ -1,6 +1,6 @@
 // The `data` saved with code events (docs/specs/data-model.md, event types).
-// Long code and output are cut short, so every event fits the database's
-// 16 KB limit.
+// Very long code and output are cut short, so every event fits the
+// database's limit (MAX_EVENT_DATA_BYTES).
 import type {
   CheckOutcome,
   RunOutcome,
@@ -8,8 +8,21 @@ import type {
 } from '../python/runner.ts'
 import type { EventData } from './types.ts'
 
-export const MAX_CODE_CHARS = 6_000
+/**
+ * Code is kept whole up to this many characters. The longest program in the
+ * track is 12,323 characters (Module 8 of the ML track, measured
+ * 2026-11-11), so every program a learner writes today is logged whole.
+ */
+export const MAX_CODE_CHARS = 20_000
 export const MAX_TEXT_CHARS = 2_000
+
+/**
+ * The most an event's data may take in the database, in bytes: the check on
+ * events.data in supabase/migrations/20261111164541_raise_event_data_limit.sql.
+ * Change the two together. A character takes up to three bytes, so at the
+ * worst the limits above make 72,000 bytes, well inside it.
+ */
+export const MAX_EVENT_DATA_BYTES = 131_072
 
 const CUT_MARKER = '…(cut)'
 
