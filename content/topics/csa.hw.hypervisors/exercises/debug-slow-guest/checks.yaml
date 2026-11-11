@@ -1,0 +1,75 @@
+# The checks for "The slow guest". The first boots the learner's VM itself,
+# as learner, with ~/bin/shop-vm exactly as it now stands, and keeps what
+# the guest printed in /var/tmp/labcheck (outside the learner's files, and
+# emptied first, so an old run never counts). The checks after it read that,
+# so the VM boots once per run of the checks rather than once per check. A
+# log the learner wrote is never read. Booting under emulation took 5 to 10
+# seconds on the owner's PC; the 120 leaves room for a busy CI machine.
+checks:
+  - id: guest-boots
+    description: "~/bin/shop-vm, started by learner without sudo, boots the VM, and the guest reports on itself and switches off."
+    timeout: 120
+    command: |
+      out=/var/tmp/labcheck
+      rm -rf "$out"; mkdir -p "$out"; chmod 700 "$out"
+      runuser -u learner -- /home/learner/bin/shop-vm < /dev/null > "$out/console.log" 2>&1
+      tr -d '\r' < "$out/console.log" | sed -n '/=== guest report/,/=== end/p' > "$out/report.txt"
+      grep -q '^=== end' "$out/report.txt" && echo "the guest reported and switched off"
+    expect:
+      contains: "the guest reported"
+  - id: two-cpus
+    description: "The guest has 2 CPUs."
+    timeout: 10
+    command: grep '^cpus:' /var/tmp/labcheck/report.txt
+    expect:
+      equals: "cpus: 2"
+  - id: memory-1g
+    description: "The guest has 1 GiB of memory: the kernel counts between 900,000 and 1,048,576 kB of it."
+    timeout: 10
+    command: |
+      awk -F': ' '$1 == "memory_kb" {print $2}' /var/tmp/labcheck/report.txt
+    expect:
+      gte: 900000
+      lte: 1048576
+  - id: nic-paravirtual
+    description: "The guest's network card is paravirtual: every card it has is on virtio_net."
+    timeout: 10
+    command: grep '^nic:' /var/tmp/labcheck/report.txt | awk '{print $3}' | sort -u | paste -sd ' '
+    expect:
+      equals: "driver=virtio_net"
+  - id: disk-paravirtual
+    description: "The guest sees the shop's 96 MiB disk as a virtio block device (vda, on virtio_blk)."
+    timeout: 10
+    command: |
+      grep -c -E '^disk: vd[a-z]+ driver=virtio_blk size_mb=96$' /var/tmp/labcheck/report.txt
+    expect:
+      equals: "1"
+  - id: data-private
+    description: "The shop's disk image belongs to learner, and the intern account can't read it."
+    timeout: 10
+    command: |
+      f=/srv/shop-vm/shop-disk.img
+      [ "$(stat -c %U "$f")" = learner ] || { echo "owned by $(stat -c %U "$f")"; exit 0; }
+      if runuser -u intern -- head -c 1 "$f" > /dev/null 2>&1; then echo "intern can read it"; else echo private; fi
+    expect:
+      equals: private
+  - id: data-intact
+    description: "The shop's data is still on its disk, where it was: the same 96 MiB image with the same orders on it."
+    timeout: 10
+    command: |
+      f=/srv/shop-vm/shop-disk.img
+      [ "$(stat -c %s "$f")" = 100663296 ] && [ "$(head -c 4096 "$f" | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/share/lab/shop-data.sha256)" ] && echo intact
+    expect:
+      equals: intact
+  - id: guest-untouched
+    description: "The guest in /opt/vm is as it was: its kernel and root filesystem are unchanged."
+    timeout: 10
+    command: sha256sum --check --quiet /usr/local/share/lab/opt-vm.sha256 && echo unchanged
+    expect:
+      equals: unchanged
+  - id: vm-gone
+    description: "No VM is left running."
+    timeout: 10
+    # A process that has ended but whose exit nobody collected (a zombie)
+    # still matches pgrep -x; -r R,S,D,T asks only for live ones.
+    command: "! pgrep -r R,S,D,T -x qemu-system-x86 > /dev/null"

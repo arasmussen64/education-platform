@@ -1,0 +1,49 @@
+#!/bin/busybox sh
+# The guest's whole userland, run by its kernel as PID 1: say what this
+# machine looks like from the inside, then switch it off. Everything here
+# is busybox, one small program that plays every everyday command.
+/bin/busybox --install -s /bin
+export PATH=/bin
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev 2>/dev/null
+# The stock kernel has the paravirtual drivers built in; the emulated
+# Intel network card's driver (e1000) is a module, so it is loaded here.
+for m in /lib/modules/*.ko; do insmod "$m" 2>/dev/null; done
+sleep 1
+
+if grep -q -w lab.shell /proc/cmdline; then
+  echo
+  echo "A shell inside the guest. Type poweroff -f to switch the guest off."
+  setsid cttyhack sh
+  poweroff -f
+fi
+
+# A device's driver is behind its "device" folder in /sys; an NVMe disk's
+# is one step further, behind its controller.
+driver_of() {
+  for link in "$1/device/driver" "$1/device/device/driver"; do
+    if [ -e "$link" ]; then basename "$(readlink -f "$link")"; return; fi
+  done
+  echo none
+}
+
+echo
+echo "=== guest report"
+echo "kernel: $(uname -r)"
+echo "cpus: $(grep -c ^processor /proc/cpuinfo)"
+echo "memory_kb: $(awk '/^MemTotal/ {print $2}' /proc/meminfo)"
+echo "hypervisor_flag: $(grep -m1 -c -w hypervisor /proc/cpuinfo)"
+echo "dmi_vendor: $(cat /sys/class/dmi/id/sys_vendor 2>/dev/null)"
+for n in /sys/class/net/*; do
+  name=$(basename "$n"); [ "$name" = lo ] && continue
+  echo "nic: $name driver=$(driver_of "$n")"
+done
+# A disk's size file counts 512-byte sectors; 2048 of them make a MiB.
+for b in /sys/block/*; do
+  name=$(basename "$b"); case "$name" in loop*|ram*) continue ;; esac
+  echo "disk: $name driver=$(driver_of "$b") size_mb=$(( $(cat "$b/size") / 2048 ))"
+done
+echo "virtio_devices: $(ls /sys/bus/virtio/devices | wc -l)"
+echo "=== end"
+poweroff -f

@@ -1,0 +1,12 @@
+id: debug-slow-guest
+stage: debug
+runtime: lab
+rev: 1
+title: "The slow guest"
+prompt: |
+  The shop's test database runs in a small VM on this machine. `~/bin/shop-vm` starts it, with the settings in `/srv/shop-vm/shop-vm.conf`, and the shop's data is on its disk, `/srv/shop-vm/shop-disk.img`. It is meant to run as `/srv/shop-vm/README` says: 2 CPUs and 1 GiB of memory, its disk and its network card both on the fast, paravirtual path, and its data private to the `learner` account.
+
+  This is what happens instead. People who use it say it is slow. And an audit found that another account on this machine, `intern`, can read the shop's data.
+
+  There are four faults. Start the VM with `~/bin/shop-vm | tee ~/boot.log`, read what the guest says about itself, and put it right. The rules of the fix: don't change the guest in `/opt/vm`, keep the shop's data where it is and as it is, don't give the VM more than the README asks for, and make it work when `learner` starts it, without `sudo`. Then run the checks. They start the VM themselves and read what the guest reports, so the first one can take up to two minutes.
+skills: [device-paths, read-the-guest, hypervisor-types]
