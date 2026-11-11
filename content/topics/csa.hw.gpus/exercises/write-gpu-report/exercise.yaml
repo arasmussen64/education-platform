@@ -1,0 +1,25 @@
+id: write-gpu-report
+stage: write
+runtime: lab
+rev: 1
+title: "Write gpu-report"
+prompt: |
+  The shop's GPU servers send a monitoring export each minute, and the on-call team wants one command that sums a minute up. `/srv/gpu/` holds two exports, `box-2/gpu.csv` and `box-3/gpu.csv` (`/srv/gpu/README` says what the columns are). Each has a heading line, then one line a second: `second,gpu_util_pct,mem_used_mib,mem_total_mib`.
+
+  Write a script, `~/bin/gpu-report DIR`, that reads `DIR/gpu.csv` and prints three lines in this layout (the numbers here are from neither box):
+
+  ```text
+  average util: 37%
+  peak memory: 20480 of 40537 MiB
+  idle seconds: 9
+  ```
+
+  The first is the mean of `gpu_util_pct` over the minute, rounded to the nearest whole number; the second is the largest `mem_used_mib`, then the card's total; the third is how many seconds the utilisation was 0. Given anything other than one folder, it prints a usage line and exits with a non-zero status.
+
+  Write it from a blank file with `nano ~/bin/gpu-report`, make it executable with `chmod +x ~/bin/gpu-report`, and try it on both boxes. Then run the checks, which also try it on a box you won't have seen.
+hints:
+  - "`awk -F, 'NR > 1 {...}'` runs the braces once for every line but the heading. Keep a running sum and a count for the mean, and print it in an `END` block."
+  - "In the same pass: add one to a counter when `$2 == 0`, and keep the largest `$3` seen so far with `if ($3 > peak) peak = $3`."
+  - "`printf \"%.0f\"` prints a number rounded to a whole one, and `%%` in a `printf` prints a percent sign."
+  - "`$#` is the number of arguments. Print the usage line with `>&2`, so it goes to the error output, and end with `exit 2`."
+skills: [read-nvidia-smi, gpu-starvation]

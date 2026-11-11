@@ -1,0 +1,81 @@
+# The checks for "Write gpu-report": the learner's script, run as the
+# learner, against the check's own reading of the same gpu.csv, on the two
+# boxes in /srv/gpu and on a third that the check makes up as it runs (so a
+# script that prints the answers for the two boxes it was shown fails). And
+# Module 1's scripting habit: a usage message and a failing exit status
+# when no folder is given.
+#
+# The boxes are built so the lazy routes fail: the last second is idle and
+# isn't the fullest (wrong/last-line.sh, wrong/peak-is-last.sh); box-3's
+# mean is 17.7, so dropping the fraction says 17 where rounding says 18
+# (wrong/truncated.sh); and a script that counts the heading line as a
+# second of 0% finds one idle second too many (wrong/header-counted.sh).
+# The made-up box keeps its mean away from a half, so rounding by any
+# usual method gives the same whole number.
+checks:
+  - id: executable
+    description: "~/bin/gpu-report exists and can be run."
+    command: test -x /home/learner/bin/gpu-report
+  - id: box-2-right
+    description: "On box-2, all three lines are right: the mean utilisation, the most memory in use against the total, and the idle seconds."
+    command: |
+      d=/srv/gpu/box-2
+      read -r avg peak total idle <<< "$(awk -F, 'NR > 1 {s += $2; n++; if ($2 == 0) i++; if ($3 > p) p = $3; t = $4} END {printf "%.0f %d %d %d\n", s / n, p, t, i}' "$d/gpu.csv")"
+      got=$(runuser -u learner -- /home/learner/bin/gpu-report "$d" 2>&1)
+      ga=$(printf '%s\n' "$got" | sed -n 's/^average util: *\([0-9][0-9]*\) *% *$/\1/p')
+      gp=$(printf '%s\n' "$got" | sed -n 's/^peak memory: *\([0-9][0-9]*\) of \([0-9][0-9]*\) MiB *$/\1 \2/p')
+      gi=$(printf '%s\n' "$got" | sed -n 's/^idle seconds: *\([0-9][0-9]*\) *$/\1/p')
+      if [ "$ga" = "$avg" ] && [ "$gp" = "$peak $total" ] && [ "$gi" = "$idle" ]; then echo right; else echo "the script printed: $(printf '%s' "$got" | tr '\n' ';')"; fi
+    expect:
+      equals: right
+  - id: box-3-right
+    description: "On box-3, all three lines are right."
+    command: |
+      d=/srv/gpu/box-3
+      read -r avg peak total idle <<< "$(awk -F, 'NR > 1 {s += $2; n++; if ($2 == 0) i++; if ($3 > p) p = $3; t = $4} END {printf "%.0f %d %d %d\n", s / n, p, t, i}' "$d/gpu.csv")"
+      got=$(runuser -u learner -- /home/learner/bin/gpu-report "$d" 2>&1)
+      ga=$(printf '%s\n' "$got" | sed -n 's/^average util: *\([0-9][0-9]*\) *% *$/\1/p')
+      gp=$(printf '%s\n' "$got" | sed -n 's/^peak memory: *\([0-9][0-9]*\) of \([0-9][0-9]*\) MiB *$/\1 \2/p')
+      gi=$(printf '%s\n' "$got" | sed -n 's/^idle seconds: *\([0-9][0-9]*\) *$/\1/p')
+      if [ "$ga" = "$avg" ] && [ "$gp" = "$peak $total" ] && [ "$gi" = "$idle" ]; then echo right; else echo "the script printed: $(printf '%s' "$got" | tr '\n' ';')"; fi
+    expect:
+      equals: right
+  - id: unseen-box-right
+    description: "On a box it hasn't seen, all three lines are right too."
+    command: |
+      d=$(mktemp -d)
+      awk -v seed="$(date +%N)" -v out="$d/gpu.csv" 'BEGIN {
+        srand(seed)
+        for (try = 0; try < 10000; try++) {
+          q = 3 + int(rand() * 4); k = 1 + int(rand() * (q - 1)); base = 10 + int(rand() * 60); amp = 5 + int(rand() * 25)
+          mul = 3 + 2 * int(rand() * 4); mb = 5000 + int(rand() * 30000); ms = 50 + int(rand() * 200); mp = 5 + int(rand() * 9)
+          tot = (rand() < 0.5 ? 40537 : 81559)
+          sum = 0; idle = 0; peak = 0
+          for (i = 1; i <= 60; i++) {
+            u[i] = (i % q < k) ? 0 : base + (i * mul) % amp; m[i] = mb + (i % mp) * ms
+            sum += u[i]; if (u[i] == 0) idle++; if (m[i] > peak) peak = m[i]
+          }
+          mean = sum / 60; f = mean - int(mean)
+          if ((f < 0.4 || f > 0.6) && idle > 0 && m[60] < peak && u[60] != int(mean + 0.5) && peak < tot) break
+        }
+        print "second,gpu_util_pct,mem_used_mib,mem_total_mib" > out
+        for (i = 1; i <= 60; i++) print i "," u[i] "," m[i] "," tot > out
+      }'
+      chmod -R a+rX "$d"
+      read -r avg peak total idle <<< "$(awk -F, 'NR > 1 {s += $2; n++; if ($2 == 0) i++; if ($3 > p) p = $3; t = $4} END {printf "%.0f %d %d %d\n", s / n, p, t, i}' "$d/gpu.csv")"
+      got=$(runuser -u learner -- /home/learner/bin/gpu-report "$d" 2>&1)
+      rm -r "$d"
+      ga=$(printf '%s\n' "$got" | sed -n 's/^average util: *\([0-9][0-9]*\) *% *$/\1/p')
+      gp=$(printf '%s\n' "$got" | sed -n 's/^peak memory: *\([0-9][0-9]*\) of \([0-9][0-9]*\) MiB *$/\1 \2/p')
+      gi=$(printf '%s\n' "$got" | sed -n 's/^idle seconds: *\([0-9][0-9]*\) *$/\1/p')
+      if [ "$ga" = "$avg" ] && [ "$gp" = "$peak $total" ] && [ "$gi" = "$idle" ]; then echo right; else echo "not right on the box it hasn't seen"; fi
+    expect:
+      equals: right
+  - id: usage-when-no-folder
+    description: "Run with no folder, gpu-report prints a usage message and exits with a non-zero status."
+    command: |
+      out=$(runuser -u learner -- /home/learner/bin/gpu-report 2>&1 < /dev/null)
+      status=$?
+      if [ "$status" -ne 0 ] && echo "$out" | grep -qi usage; then echo right; else echo "exit $status, printed: $out"; fi
+    expect:
+      equals: right
