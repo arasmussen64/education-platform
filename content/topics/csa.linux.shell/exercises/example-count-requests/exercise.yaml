@@ -1,10 +1,22 @@
 id: example-count-requests
 stage: worked_example
 runtime: lab
-rev: 1
+rev: 2
 title: "Two questions about a log, answered and saved"
 prompt: |
-  Your first lab. The container is a small web shop's server with its logs in `/var/log/shop/`: `access.log` has one request per line (`METHOD PATH STATUS BYTES`) and `app.log` has the application's log lines. The walkthrough below answers two questions with pipelines and saves the answers into files. Start the lab, open its shell, and type each line yourself, watching what each one prints before you add the next. Then run the checks.
+  **Before your first lab.** A lab is a small Linux machine of your own, with a job to do on it. It runs on your computer as a **container**: a Linux system that a program called Docker builds from a recipe and keeps sealed off from your own files. A lab you've made a mess of can be thrown away and started again fresh. Two things have to be in place:
+
+  - **Docker Desktop**, installed and running. Open it from the Start menu and wait until it says the engine is running. You can close its window; it keeps running in the background.
+  - **A copy of this platform's repository** on your computer, with Python and `uv`, the tool that runs the lab checker. The labs' recipes and the checker are files in the repository, and its `docs/setup.md` lists what to install and how.
+
+  Just under this text, the page gives this lab's commands in the order you'll use them, and says what each one does. Run them in a terminal on your own computer, opened in the repository's folder (use `cd` to get there). Four things worth knowing the first time:
+
+  - Shift+Insert pastes a copied command into a terminal.
+  - The first start downloads Ubuntu, a common kind of Linux, and builds the machine, which takes a few minutes. Later starts take seconds.
+  - You'll be working in two places, and the prompt says which one you're in. Inside the lab it reads `learner@lab:~$`: you are the user `learner`, on a machine called `lab`, in your home folder. The walkthrough's lines are typed there. The page's own commands are typed on your computer, so keep a second terminal window for them, or type `exit` to step out of the lab's shell first. Stepping out leaves the lab running, with your work in it.
+  - The check prints a long line that starts with `{`. That line is the result: copy all of it into the box on this page.
+
+  **This lab.** The machine is a small web shop's server, and its logs are in `/var/log/shop/`. `access.log` has one line per request, as `METHOD PATH STATUS BYTES`, the access log from the lesson. `app.log` has the lines the shop's own program wrote about its work, each starting with a word for how serious it is: `INFO`, `WARN`, or an error, which the program doesn't always write in capitals. The walkthrough below answers two questions with pipelines and saves the answers into files. Start the lab, open its shell, and type each line yourself, watching what each one prints before you add the next. Then run the checks.
 steps:
   - label: "Make a folder for the answers"
     lines: "1"
@@ -14,10 +26,10 @@ steps:
     note: "`cd` into `/var/log/shop`, an absolute path. `ls` there shows five files, the two logs among them; `head -n 3 access.log` shows what a line looks like."
   - label: "Count the requests by status"
     lines: "3"
-    note: "Four stages: `awk` keeps only the third field, the status; `sort` puts equal statuses next to each other; `uniq -c` counts each run; `sort -rn` puts the biggest count first. `>` saves the result instead of printing it. Run the pipeline without the `>` first to see it."
+    note: "Four stages: `awk` keeps only the third field, the status; `sort` puts equal statuses next to each other; `uniq -c` counts each run; `sort -rn` puts the biggest count first. `>` saves the result instead of printing it. Build it one stage at a time: run `awk '{print $3}' access.log` alone, press the up-arrow key to bring the line back, add `| sort`, and so on. Add the `>` last, once the pipeline prints what you expect."
   - label: "The first three error lines"
     lines: "4"
     note: "`grep -i` finds lines with `error` in any capitalisation, and `head -n 3` keeps the first three. The log mixes `ERROR` and `error`, so the `-i` matters."
   - label: "Look at what you saved"
     lines: "5"
-    note: "`cat` prints the two files one after the other, so you can see the answers. Now run the lab's checks from your own terminal."
+    note: "`cat` prints the two files one after the other, so you can see the answers. Now go back to a terminal on your own computer (`exit` steps out of the lab's shell) and run the lab's check command."
