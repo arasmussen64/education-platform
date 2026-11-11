@@ -1,0 +1,22 @@
+id: psi-which-resource
+type: predict_shell
+rev: 1
+prompt: |
+  The three files in `pressure/` are copies of `/proc/pressure/cpu`, `memory` and `io` from a slow VM (constructed numbers, in the kernel's layout). Each `some` line says for what share of the last 10, 60 and 300 seconds at least one task was waiting for that resource. `grep -H` prints each `some` line with its file name, `sed` cuts it down to the name and the 10-second figure, and `sort` puts the largest first. What is printed?
+files:
+  pressure/cpu: |
+    some avg10=2.10 avg60=1.84 avg300=1.20 total=88123004
+    full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+  pressure/memory: |
+    some avg10=45.20 avg60=38.91 avg300=22.07 total=912334108
+    full avg10=31.70 avg60=27.40 avg300=15.12 total=640118223
+  pressure/io: |
+    some avg10=6.00 avg60=5.12 avg300=3.40 total=120334511
+    full avg10=2.90 avg60=2.47 avg300=1.66 total=58821130
+command: |
+  grep -H '^some' pressure/* | sed 's/ avg60.*//; s/pressure\///; s/:some avg10=/ /' | sort -k2 -rn | head -n 1
+expected_output: |
+  memory 45.20
+explanation: |
+  For 45% of the last ten seconds at least one task was waiting for memory, and the `full` line says that for 32% every task was. CPU, at 2%, and the disk, at 6%, are not what holds this VM back. Memory pressure like this means the kernel is busy reclaiming: swapping, or squeezing a group that has gone over its `memory.high` throttle. The next files to read are `vmstat`'s `si` and `so`, and the service's `memory.events`.
+skills: [stolen-or-capped]

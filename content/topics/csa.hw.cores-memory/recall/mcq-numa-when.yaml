@@ -1,0 +1,14 @@
+id: mcq-numa-when
+type: mcq
+rev: 1
+prompt: |
+  Two VMs run the same in-memory database. `lscpu` on the first, with 8 vCPUs, says `NUMA node(s): 1`; on the second, with 96 vCPUs, it says `NUMA node(s): 2`. For which is it worth binding the database's CPUs and memory to one node?
+choices:
+  - "Only the first, because it is small, so each access to far memory costs it relatively more"
+  - "Both of them, because every VM has some far memory, and binding always shortens the path"
+  - "Only the second, because it spans two nodes, so its memory can land on the far node"
+  - "Neither of them, because the hypervisor hides the nodes, so binding has no effect in a VM"
+answer: 2
+explanation: |
+  With one node, all the VM's memory is local: there is nothing far to avoid, and binding changes nothing. With two, a process on one node's CPUs can be given memory on the other, which is slower to reach, so keeping its CPUs and memory together (`numactl --cpunodebind=N --membind=N`, or the database's own NUMA setting) is worth doing. Small VMs fit inside one node; big sizes span several. Providers pass the nodes through to the guest (AWS says Nitro shows the real NUMA layout, and Azure's HBv3 VMs see 4 nodes), so binding inside the VM works on the real hardware.
+skills: [numa]

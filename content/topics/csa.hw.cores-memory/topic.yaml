@@ -1,16 +1,277 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.hw.cores-memory
 kind: topic
-status: planned
-title: Cores, memory and noisy neighbours
-summary: Explain vCPU versus physical core, hyperthreading, NUMA, burstable credits and noisy neighbours.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+status: ready
+title: "Cores, memory and noisy neighbours"
+summary: "What a cloud VM's CPUs really are: sockets, cores and hardware threads, and when a vCPU is a thread or a whole core; NUMA nodes and far memory; how burstable sizes ration CPU with credits on each cloud; how to tell CPU the host withheld from a cap of the machine's own and from a machine that is simply too small; and how to size a machine from a week of its numbers."
+# Module 2's plan (docs/plans/cloud-module-2/MODULE-2-BRIEF.md, section 2):
+# every Module 2 topic depends on Checkpoint 1 through another Module 2 topic,
+# and this one builds on Hypervisors (host, guest, tenant, dedicated host,
+# what a hypervisor isolates). The Module 1 topics it leans on (cpu, memory,
+# services, triage, shell, scripting) are all before Checkpoint 1.
+prerequisites: [csa.hw.hypervisors]
+# Counted: lesson 15, the reading the lesson asks for 38, the 23 quick
+# questions of the practice ladder 40, the worked example 30, the fill-in 25,
+# the write 30, the build 60, the debug 45, the explain 20.
+estimated_minutes: 300
 rev: 1
 objectives:
-- Explain vCPU versus physical core, hyperthreading, NUMA, burstable credits and noisy neighbours.
-- Tell CPU the host withheld from a limit of the machine's own.
-- Size a machine from a week of its metrics.
+  - "Read `lscpu` and a provider's instance table: sockets, cores and threads per core, and so whether a vCPU is one hardware thread or a whole core, and what switching SMT off changes and costs."
+  - "Read a machine's NUMA nodes in `lscpu` and `numactl --hardware`, say why memory on the far node is slower, and keep a process's CPUs and memory on one node."
+  - "Work a burstable instance's credit bucket: what it earns and spends, when it runs dry, what happens then in AWS's standard and unlimited modes, on Azure's B-series and on Google's shared-core sizes."
+  - "Tell CPU the host withheld (steal, over an interval in `/proc/stat`) from a cap of the machine's own (a cgroup quota, a `memory.high` throttle, a CPU pin) and from a machine that is simply too small, with the witness and the fix for each."
+  - "Size a machine from a week of its metrics: the 95th percentile of CPU and the peak of memory against a stated headroom, the cheapest size that fits, and when a burstable size does."
+# Facts, each read on the day (2026-11-11), with where:
+# - vCPUs, cores and threads per core: AWS's instance table,
+#   https://docs.aws.amazon.com/ec2/latest/instancetypes/gp.html (m5.xlarge
+#   4/2/2, m5.24xlarge 96/48/2, m7i.large 2/1/2, m7i.xlarge 4/2/2,
+#   m7i.2xlarge 8/4/2, m7g.large 2/2/1, m7g.xlarge 4/4/1, m7a.xlarge 4/4/1,
+#   m8g.2xlarge 8/8/1, t3.large 2/1/2, t3.2xlarge 8/4/2); AWS's CPU options
+#   page (SMT off on most sizes, not on T2, C7a, M7a, R7a, Graviton; "charged
+#   the same"); Azure, https://learn.microsoft.com/en-us/azure/virtual-machines/mitigate-se
+#   ("Azure allocates 2 threads per core - these are called vCPUs"; check
+#   Thread(s) per core in lscpu), .../vm-customization (threads per core = 1;
+#   "The base VM price remains the same"), .../sizes/general-purpose/dsv5-series
+#   ("hyper threaded configuration"), .../dpsv6-series (Cobalt 100, "an entire
+#   physical core for each virtual machine vCPU"), .../sizes/compute-optimized/f-family
+#   (Fasv7 "without Simultaneous Multithreading"); Google,
+#   https://docs.cloud.google.com/compute/docs/cpu-platforms ("each hardware
+#   thread is called a virtual CPU"; Arm one thread per core; Tau T2D and H4D
+#   one thread per core) and .../instances/set-threads-per-core (n2-standard-8
+#   at 1 thread: "still billed for 8 vCPUs").
+# - Pinning and sharing: AWS Nitro whitepaper, "The EC2 approach to
+#   preventing side-channels" (fixed-performance cores "pinned"; never shared
+#   simultaneously through SMT; some sizes share last-level cache lines
+#   non-simultaneously; burstable instances overcommitted and run
+#   sequentially on a core; Nitro exposes the CPU topology and NUMA).
+# - Steal: AWS re:Post, https://repost.aws/knowledge-center/ec2-troubleshoot-cpu-utilization
+#   (causes: a busy neighbour, an overloaded hypervisor, "The CPU credit
+#   balance for a burstable instance is depleted"; keep steal under 5%);
+#   proc_stat(5) (steal is the eighth value, in USER_HZ). Azure's pages read
+#   say nothing about what a B-series guest sees when throttled, so the
+#   lesson claims nothing for Azure.
+# - Credits: AWS's main resource (credit = 1 vCPU x 100% x 1 minute; earned
+#   an hour = baseline x vCPUs x 60; a day's earnings at most; T8i, T4g, T3a
+#   and T3 launch unlimited; standard "gradually comes down to baseline";
+#   credits kept 7 days after a stop, T2 none; the credit table); AWS's
+#   on-demand pricing page (surplus credits on T2 and T3 Linux $0.05 a
+#   vCPU-hour, every region); AWS's unlimited-mode page (t3.large against
+#   m5.large breaks even at 42.5%; flat out costs "approximately 1.5 times"
+#   an M5); Azure's B-series credit model page ("throttled back to its base
+#   CPU performance"; credits banked a minute formula; B2ts_v2 and B32as_v2
+#   examples) and Bsv2 table (B2ts_v2 20% 60 24 576, B2ls_v2 30% 60 36 864,
+#   B2s_v2 40% 60 48 1,152, B4ls_v2 30% 120 72 1,728; hyper-threaded; no
+#   local disk); Google, .../general-purpose-machines (e2-micro 12.5%,
+#   e2-small 25%, e2-medium 50% of each of 2 vCPUs; bursts of 30, 60, 120
+#   seconds at 100%, "a Token bucket"; no extra charge). Azure's B-series v1
+#   (B1s, B2s, B2ms) was announced for retirement on 2025-10-15, to retire
+#   2028-11-15: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/retirement/retired-sizes-list
+#   (which now redirects to .../sizes/lifecycle/retirements-and-capacity-restrictions,
+#   re-read 2026-11-11), so the lesson uses Bsv2.
+# - Pressure, throttles and pins: https://docs.kernel.org/accounting/psi.html,
+#   https://docs.kernel.org/admin-guide/cgroup-v2.html (memory.high "throttle
+#   limit"; memory.events high), systemd.resource-control(5) (MemoryHigh=
+#   "heavily slowed down"; AllowedCPUs=). Tried on Docker Desktop: an empty
+#   AllowedCPUs= leaves a running process on its old CPUs until restarted.
+# - NUMA: https://docs.kernel.org/mm/numa.html; Azure HBv3 overview (SMT
+#   disabled, 4 NUMA domains in the VM); numactl(8) (--membind "Allocation
+#   will fail when there is not enough memory").
+# - Sizing: AWS Compute Optimizer's preferences page ("A percentile is the
+#   value below which a given percentage of your data points fall"; P90, P95,
+#   P99.5; CPU headroom 30, 20 or 0%, memory 30, 20 or 10%; "Balanced": P95
+#   with 30% headroom). The build's prices: AWS's public price file for US
+#   East (N. Virginia), Linux, on-demand, published 2026-11-10, read
+#   2026-11-11.
+# Linked, never copied. Licences as each source states them, read
+# 2026-11-11: AWS's documentation and re:Post are copyright Amazon Web
+# Services; Microsoft Learn's compute pages are CC BY 4.0 (the LICENSE of
+# MicrosoftDocs/azure-compute-docs); Google Cloud's pages are CC BY 4.0
+# (each page's footer); the kernel's documentation is GPL-2.0; proc_stat(5)
+# is GPL-3.0-or-later (its source, man-pages 6.7); lscpu(1) is util-linux's
+# default, GPL-2.0-or-later (its README.licensing); numactl(8) is copyright
+# Andi Kleen with permission to copy verbatim (its source);
+# systemd.resource-control(5) is LGPL-2.1-or-later (its source).
+resources:
+  - title: "Key concepts for burstable performance instances (AWS): the credit, the baseline, earning and spending, the credit table, standard and unlimited mode"
+    url: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-credits-baseline-concepts.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Rightsizing recommendation preferences (AWS Compute Optimizer): the section \"CPU and memory utilization\", on percentiles and headroom"
+    url: https://docs.aws.amazon.com/compute-optimizer/latest/ug/rightsizing-preferences.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "The EC2 approach to preventing side-channels (AWS Nitro whitepaper): the section \"Side-channel protections in the broader EC2 service\", on pinned cores and burstable instances taking turns"
+    url: https://docs.aws.amazon.com/whitepapers/latest/security-design-of-aws-nitro-system/the-ec2-approach-to-preventing-side-channels.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "CPU options for Amazon EC2 instances: cores, threads per core and vCPUs"
+    url: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-optimize-cpu.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "B-series CPU credit model (Azure): base performance, banked credits, and what happens at zero"
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/b-series-cpu-credit-model/b-series-cpu-credit-model
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "General-purpose machine family (Google Cloud): the sections \"Shared-core VMs\" and \"CPU bursting\" only"
+    url: https://docs.cloud.google.com/compute/docs/general-purpose-machines
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "CPU platforms (Google Cloud): the opening, on cores, threads and vCPUs"
+    url: https://docs.cloud.google.com/compute/docs/cpu-platforms
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Guidance for mitigating speculative-execution side-channel vulnerabilities (Azure): the part on checking threads per core with lscpu, and \"Core count\""
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/mitigate-se
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "PSI, Pressure Stall Information (Linux kernel documentation): the first half, to the end of the pressure interface"
+    url: https://docs.kernel.org/accounting/psi.html
+    type: reading
+    use: link
+    license: GPL-2.0
+  - title: "proc_stat(5): the cpu line and its ten counters"
+    url: https://man7.org/linux/man-pages/man5/proc_stat.5.html
+    type: reading
+    use: link
+    license: GPL-3.0-or-later
+  - title: "What is NUMA? (Linux kernel documentation): the first four paragraphs"
+    url: https://docs.kernel.org/mm/numa.html
+    type: reading
+    use: link
+    license: GPL-2.0
+  - title: "HBv3-series virtual machine overview (Azure): a real cloud VM with four NUMA domains, and its topology drawn"
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/high-performance-compute/hbv3-series-overview
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "How do I troubleshoot high CPU utilization on an Amazon EC2 Linux instance? (AWS re:Post): the causes of high steal"
+    url: https://repost.aws/knowledge-center/ec2-troubleshoot-cpu-utilization
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "lscpu(1): the manual, including what a guest sees and --sysroot"
+    url: https://man7.org/linux/man-pages/man1/lscpu.1.html
+    type: reading
+    use: link
+    license: GPL-2.0-or-later
+  - title: "numactl(8): --hardware, --cpunodebind and --membind"
+    url: https://man7.org/linux/man-pages/man8/numactl.8.html
+    type: reading
+    use: link
+    license: "Copyright Andi Kleen; verbatim copying permitted; linked, not copied"
+  - title: "systemd.resource-control(5): MemoryHigh= and AllowedCPUs="
+    url: https://man7.org/linux/man-pages/man5/systemd.resource-control.5.html
+    type: reading
+    use: link
+    license: LGPL-2.1-or-later
+# The quick questions read lscpu, numactl, /proc/stat, mpstat, the pressure
+# files and metric samples with the text tools of Module 1, or ask for a
+# number worked out from a dated table (estimate questions, ADR-0024). The
+# worked example and the debug are labs on a machine that boots systemd,
+# where the memory throttle and the CPU pin are real cgroup settings; the
+# fill-in, the write and the build are plain labs over constructed files:
+# no container can be given real steal or a real burstable instance, and no
+# stand-in in the learner's shell pretends to (the plan's 3.4).
+practice:
+  - example-read-the-slice
+  - mcq-vcpu-is-a-thread
+  - mcq-what-is-a-vcpu
+  - slice-lscpu-cores
+  - slice-siblings
+  - est-cores-from-vcpus
+  - mcq-smt-off-bill
+  - numa-hardware-read
+  - numa-which-node
+  - mcq-numa-remote-memory
+  - metrics-p95
+  - est-vcpus-busy-hours
+  - est-memory-headroom
+  - mcq-size-on-what
+  - est-credits-per-hour
+  - est-minutes-to-empty
+  - credits-bucket-trace
+  - mcq-standard-or-unlimited
+  - mcq-three-clouds-burst
+  - mcq-burstable-fits
+  - fill-credit-bucket
+  - steal-from-proc-stat
+  - mcq-stolen-or-capped
+  - mcq-what-neighbours-share
+  - psi-which-resource
+  - write-steal-pct
+prove:
+  build: build-capacity-review
+  debug: debug-crawling-db
+  explain:
+    prompt: |
+      A team moved a database from a physical server with 16 cores to a cloud VM with 16 vCPUs of a burstable type. A week later the database is slow every afternoon, and a colleague blames "noisy neighbours". Explain, in your own words: what 16 vCPUs usually are, and how you would check; how a burstable instance's credits work, and why the slowdown took a week to show; how you would tell CPU the host withheld from a cap of the machine's own and from a machine that is simply too small, and what a neighbour can and cannot take from you; how you would size its replacement from a week of its numbers; and how the three clouds differ on any two of these.
+    rubric:
+      - id: vcpu
+        required: true
+        description: "On most x86 sizes a vCPU is one hardware thread and two share a core, so 16 vCPUs are 8 cores; Arm sizes and some AMD sizes give a whole core per vCPU. lscpu's threads per core, cores per socket and sockets, or the provider's instance table, say which."
+      - id: credits
+        required: true
+        description: "A burstable instance earns credits at a fixed rate set by its baseline (vCPUs × baseline × 60 an hour) and spends them in proportion to its CPU use, one credit for one vCPU flat out for a minute; below the baseline the balance grows to about a day's earnings, above it the balance falls. A steady load a little above the baseline takes days to empty a full bucket, and then the instance is held to its baseline (or, in AWS's unlimited mode, keeps going and is billed for the surplus)."
+      - id: stolen-capped-busy
+        required: true
+        description: "Steal (st, the eighth counter in /proc/stat, compared over an interval) is CPU the host withheld: spent credits on a burstable size, or a busy host. Throttled periods in cpu.stat, a memory.high throttle (memory.events high rising) or a CPU pin are caps of the machine's own and show no steal. A run queue (vmstat's r) above the CPU count with no steal and no limit is a machine that is too small. Each has a different remedy: a fixed-size or unlimited instance, raising the cap, more vCPUs."
+      - id: neighbours
+        required: true
+        description: "On fixed-size instances the provider dedicates cores to the instance (AWS pins them), so a neighbour can't take CPU time, though shared caches, memory bandwidth, disks and the network can still be contended; a dedicated host removes the neighbours. Here the cause is the burstable type's credits, not a neighbour."
+      - id: right-size
+        required: true
+        description: "Size the CPU on the 95th percentile of a week of samples, not the average (which undersizes the busy hours) or the largest sample (one burst then sets the size), against a stated headroom (for example at most 60 or 70% busy); size memory on its peak with headroom; take the cheapest size that meets both; a burstable size only if the average per vCPU is at or under its baseline and the peaks are short, which this database's isn't."
+      - id: clouds-differ
+        required: true
+        description: "Any two correct differences, for example: AWS's T3 and later default to unlimited mode and bill surplus credits, while Azure's B-series is throttled to its base; Google's shared-core sizes have no visible bank and burst for seconds; AWS names spent credits as a cause of steal, while Azure's and Google's pages don't say what a held-back guest sees; which sizes give a whole core per vCPU (AWS's Graviton sizes and C7a, M7a and R7a; Azure's Arm sizes and Fasv7; Google's Arm sizes, Tau T2D and H4D). Switching SMT off is not a difference: all three charge for the full size."
+      - id: numa
+        required: false
+        description: "Large instances span NUMA nodes; memory on the far node is slower; keep a process's CPUs and memory on one node."
+    model_answer: |
+      On most x86 cloud sizes a vCPU is one hardware thread, and each physical core runs two, so the VM's 16 vCPUs are 8 cores, about half the physical server the database came from. Two threads on a core do more than one but well short of two cores' work. Arm sizes, and a few AMD ones, give a whole core per vCPU. To check, I'd read lscpu: sockets times cores per socket is the cores, and threads per core says how many vCPUs share each one; the provider's instance table says the same. A big size also spans NUMA nodes, and a database should keep its CPUs and its memory on the same node, because far memory is slower to reach.
+
+      A burstable instance runs on credits. One credit is one vCPU at 100% for a minute. It earns its baseline on every vCPU, vCPUs times baseline times 60 credits an hour, and spends what it uses; under the baseline the bucket fills, up to about a day's earnings, and over it the bucket drains. A database a little above the baseline drains a full bucket slowly: a t3.medium at 25% instead of its 20% loses 6 credits an hour and runs dry after four days. That's why it took days to show, not hours. Then, in AWS's standard mode or on Azure's B-series, the instance is held to its baseline; in AWS's unlimited mode, the default for T3, it keeps going and the bill grows instead. Google's shared-core sizes have no bank at all and burst for seconds.
+
+      To tell the causes apart I'd take two readings of /proc/stat a minute apart and work out steal, the eighth counter's growth over the growth of the first eight. High steal means the host is withholding CPU: here, spent credits. If steal were zero I'd look for caps of the machine's own: nr_throttled rising in the service's cpu.stat, a memory.high throttle counting up in memory.events, a CPU pin. With no steal and no limits, a run queue in vmstat above the number of CPUs means the machine is too small. Noisy neighbours are rarely the answer on a fixed-size instance, whose cores are pinned to it; a neighbour can still crowd shared caches, memory, disks and the network, but that never shows as steal. A dedicated host removes neighbours.
+
+      To size the replacement I'd take a week of five-minute samples and size the CPU on the 95th percentile, not the average, which undersizes the busy afternoons, nor the largest sample, which lets one burst set the size, so that at the 95th percentile it uses, say, at most 60% of the new vCPUs. Memory goes on its peak with headroom. Then the cheapest size that meets both. A database busy every afternoon has an average above a burstable baseline, so it needs a fixed-size instance.
+review_pool:
+  - est-cores-from-vcpus
+  - slice-siblings
+  - est-minutes-to-empty
+  - credits-bucket-trace
+  - steal-from-proc-stat
+  - mcq-stolen-or-capped
+  - numa-which-node
+  - mcq-numa-remote-memory
+  - est-vcpus-busy-hours
+  - mcq-size-on-what
+  - est-cores-three-rows
+  - est-smt-off-vcpus
+  - mcq-which-vcpu-is-a-core
+  - est-hours-to-empty
+  - est-unlimited-bill
+  - mpstat-steal-per-cpu
+  - mcq-remedy-for-spent-credits
+  - mcq-slow-not-dead
+  - numa-distance
+  - mcq-numa-when
+  - est-p95-rank
+skills:
+  - id: vcpu-to-core
+    description: "Read `lscpu` (sockets, cores per socket, threads per core) and a provider's instance table; turn vCPUs into physical cores; say when a vCPU is a thread and when a whole core, and what switching SMT off changes and costs"
+  - id: numa
+    description: "Read NUMA nodes in `lscpu` and `numactl --hardware`; local and far memory and node distances; keep a process's CPUs and memory on one node; say when it matters"
+  - id: burst-credits
+    description: "Burstable instances: the baseline, credits earned and spent, when the bucket empties or fills, what happens at zero in AWS's standard and unlimited modes, and how Azure's B-series and Google's shared-core sizes differ"
+  - id: stolen-or-capped
+    description: "Tell CPU the host withheld (steal over an interval in `/proc/stat`, `mpstat`'s `%steal`) from a cap of the machine's own (a cgroup CPU quota, a `memory.high` throttle, a CPU pin with `AllowedCPUs=`) and from a machine that is too small, using `cpu.stat`, `memory.events` and the pressure files; what a neighbour can and cannot take; which remedy fits"
+  - id: right-size
+    description: "What a percentile is; size CPU on the 95th percentile and memory on the peak against a stated headroom; why the average undersizes and the largest sample oversizes; the cheapest size that fits; when a burstable size fits"

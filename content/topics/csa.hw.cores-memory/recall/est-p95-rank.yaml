@@ -1,0 +1,22 @@
+id: est-p95-rank
+type: estimate
+rev: 1
+prompt: |
+  A week of 5-minute samples is 2,016 samples. You sort them from smallest to largest and take the nearest-rank 95th percentile: the sample at position 95% of the count, rounded up. Counting from the smallest, at which position is it? Exactly.
+unit: position in the sorted list
+answer: 1916
+tolerance: { absolute: 0 }
+given: { samples: 2016, pct: 95 }
+working: ceil(samples * pct / 100)
+mistakes:
+  - id: rounded-down
+    value: 1915
+    working: floor(samples * pct / 100)
+    why: 95% of 2,016 is 1,915.2. The nearest rank rounds up, so that at least 95% of the samples are at or below the one you take.
+  - id: from-the-top
+    value: 101
+    working: samples - floor(samples * pct / 100)
+    why: That counts from the largest end. The question counts from the smallest.
+explanation: |
+  2,016 × 0.95 = 1,915.2, rounded up to 1,916. The 1,916th smallest sample has 1,916 of the 2,016 (95.04%) at or below it, and only the busiest 100 above.
+skills: [right-size]

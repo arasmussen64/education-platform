@@ -1,0 +1,16 @@
+id: mcq-smt-off-bill
+type: mcq
+rev: 1
+prompt: |
+  A compute-heavy job runs best with one thread per core. On Google Cloud you create an `n2-standard-8` (8 vCPUs, 2 per physical core) with threads per core set to 1. Google's page on the setting (read 2026-11-11) says what the VM then has and what you pay for. Which?
+choices:
+  - "The guest sees 4 vCPUs on 4 cores, and you are billed for those 4 vCPUs"
+  - "The guest sees 4 vCPUs on 4 cores, and you are billed for all 8 vCPUs"
+  - "The guest sees 8 vCPUs on 8 cores, and you are billed for 16 vCPUs"
+  - "The guest sees 8 vCPUs on 4 cores, and you are billed for all 8 vCPUs"
+answer: 1
+explanation: |
+  Turning SMT off doesn't give you more cores; it takes away the second thread of each. The `n2-standard-8` has 4 physical cores, so the guest sees 4 vCPUs, one per core, and Google bills for the 8 vCPUs of the machine type all the same. AWS and Azure behave the same way on price: the instance costs what the full size costs.
+
+  So it is worth doing only when one thread per core makes the job faster, as it can for work that keeps both threads of a core computing at once. For most work, including anything that waits on disks or the network, two threads get more done than one.
+skills: [vcpu-to-core]

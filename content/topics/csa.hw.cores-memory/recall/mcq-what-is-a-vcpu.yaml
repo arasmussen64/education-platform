@@ -1,0 +1,16 @@
+id: mcq-what-is-a-vcpu
+type: mcq
+rev: 1
+prompt: |
+  In AWS's instance table (read 2026-11-11), `m7i.large` and `m7g.large` both have 2 vCPUs and 8 GiB of memory. The first runs on Intel Xeon (Sapphire Rapids), the second on AWS Graviton3, an Arm processor. What is behind the 2 vCPUs of each?
+choices:
+  - "On both sizes, two whole cores, since AWS counts every vCPU as one physical core"
+  - "On both sizes, one core's two threads, since every vCPU is one hardware thread"
+  - "On the Intel size, one core's two threads; on the Graviton size, two whole cores"
+  - "On the Intel size, two whole cores; on the Graviton size, half of one core each"
+answer: 2
+explanation: |
+  The same "2 vCPUs" means different hardware. The table's own columns say it: `m7i.large` has 1 core and 2 threads per core, `m7g.large` 2 cores and 1 thread per core. Intel and most AMD server chips present two hardware threads per core, and on those sizes a vCPU is a thread. Arm server chips such as Graviton have one thread per core, so there a vCPU is a whole core.
+
+  That's why two sizes with the same vCPU count can do different amounts of compute-heavy work, and why the comparison has to be made per core or, better, by measuring the work. A vCPU is never less than a thread on a fixed-size instance, so "half a core each" has it backwards.
+skills: [vcpu-to-core]

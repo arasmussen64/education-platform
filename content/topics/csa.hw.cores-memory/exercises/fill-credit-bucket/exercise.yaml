@@ -1,0 +1,24 @@
+id: fill-credit-bucket
+stage: fill_in
+runtime: lab
+rev: 1
+title: "Finish the credit bucket"
+prompt: |
+  The shop runs its web front end, `shop-web`, on a burstable instance, and wants to know what four busy hours do to its CPU credits. `/srv/burst/shop-web/` holds two files: `instance.conf`, the instance's size (a `t3.small`: 2 vCPUs, a baseline of 20% a vCPU, at most 576 credits, and 100 in the bucket when the four hours begin), and `usage.csv`, how much CPU the work asked for in each of the 240 minutes, as a percentage of each vCPU.
+
+  `~/bin/credit-bucket DIR` walks through the minutes in `awk` and prints three lines:
+
+  ```text
+  empty at minute: N
+  minutes held to baseline: N
+  final balance: N.N
+  ```
+
+  The first is the minute the balance first ran out, or `never`. The second counts the minutes that ended with an empty bucket while the work asked for more than the baseline: in standard mode those are the minutes the instance was held back. The third is the balance after the last minute.
+
+  Three of its lines have `...` where the arithmetic belongs: the credits earned in a minute, the credits a minute's work spends, and the line that keeps the balance inside the bucket. Until all three are filled in, `awk` refuses to run the program at all: it prints a line like `awk: 4: unexpected character '.'` for each gap left (the number counts lines of the `awk` program, not of the file). Fill them in with `nano ~/bin/credit-bucket`, then run `~/bin/credit-bucket /srv/burst/shop-web` and check the first lines against the arithmetic by hand: how much does the balance grow in each of the first sixty minutes? Then run the checks, which also try the script on an instance it hasn't seen.
+hints:
+  - "One credit is one vCPU at 100% for one minute. So in a minute the instance earns its baseline percentage on each of its vCPUs, and the work spends its CPU percentage on each of them. `$2` is the minute's `cpu_pct`; divide a percentage by 100 to make it a share."
+  - "A bucket can't hold less than nothing or more than its limit. In `awk`, two `if`s can share a line with a `;` between them, like `if (x < 1) x = 1; if (x > 9) x = 9`."
+  - "For shop-web, each of the first sixty minutes earns 0.4 credits and spends 0.1, so the balance grows by 0.3 a minute: 118 after an hour."
+skills: [burst-credits]

@@ -1,0 +1,26 @@
+id: est-credits-per-hour
+type: estimate
+rev: 1
+prompt: |
+  Azure's `Standard_B4ls_v2` is a burstable size with 4 vCPUs and a base CPU performance of 30% (Microsoft's Bsv2 table, read 2026-11-11). One credit is one vCPU at 100% for one minute. Left idle, how many credits does it bank in an hour? Exactly.
+unit: credits an hour
+answer: 72
+tolerance: { absolute: 0 }
+given: { vcpus: 4, base: 30 }
+working: vcpus * base / 100 * 60
+mistakes:
+  - id: one-vcpu
+    value: 18
+    working: base / 100 * 60
+    why: That is one vCPU's worth. The baseline applies to each of its 4 vCPUs.
+  - id: one-minute
+    value: 1.2
+    working: vcpus * base / 100
+    why: That is a minute's worth. An hour has 60 of them.
+  - id: no-percent
+    value: 120
+    working: vcpus * base
+    why: That multiplies by 30 instead of 30%. The baseline is a share of each vCPU, 0.3.
+explanation: |
+  Each minute it earns its baseline on each vCPU: 4 × 0.3 = 1.2 credits. An hour is 60 minutes: 72 credits. Microsoft's table says the same ("credits banked/hour", 72), and its most is a day's worth, 1,728.
+skills: [burst-credits]

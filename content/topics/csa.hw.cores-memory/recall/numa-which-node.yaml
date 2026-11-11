@@ -1,0 +1,17 @@
+id: numa-which-node
+type: predict_shell
+rev: 1
+prompt: |
+  `lscpu.txt` holds the NUMA lines of `lscpu` on a 96-vCPU database server. A database is pinned to CPUs 24 to 47. The command finds the node line whose CPUs include that range. What is printed?
+files:
+  lscpu.txt: |
+    NUMA node(s):          2
+    NUMA node0 CPU(s):     0-23,48-71
+    NUMA node1 CPU(s):     24-47,72-95
+command: |
+  awk '/^NUMA node[0-9]/ && /24-47/ {print $1, $2}' lscpu.txt
+expected_output: |
+  NUMA node1
+explanation: |
+  CPUs 24 to 47 are on node 1. So are 72 to 95: they are the second hardware threads of the same 24 cores, numbered after all the first threads. Pinning to 24-47 alone leaves those siblings to anything else on the machine, which then shares the database's cores. Pin to `24-47,72-95` to give it node 1's cores whole, and bind its memory to node 1 too (`numactl --cpunodebind=1 --membind=1`), so its CPUs and its memory are in the same place.
+skills: [numa, vcpu-to-core]

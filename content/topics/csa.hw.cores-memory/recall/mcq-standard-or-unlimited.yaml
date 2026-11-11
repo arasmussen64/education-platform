@@ -1,0 +1,16 @@
+id: mcq-standard-or-unlimited
+type: mcq
+rev: 1
+prompt: |
+  A `t3.large` is left running a CPU-bound loop for a month in the mode it launched in. AWS's pages (read 2026-11-11): T3 instances launch in unlimited mode unless told otherwise, and surplus credits for T3 on Linux cost $0.05 a vCPU-hour. What happens?
+choices:
+  - "It slows to its baseline after about a day, and the bill stays at the plain hourly price"
+  - "It never slows down, and the bill adds a charge for the CPU it used above its baseline"
+  - "It is stopped by AWS once the credits run out, and has to be started again by hand"
+  - "It never slows down, and the bill stays at the plain price, because bursting is included"
+answer: 1
+explanation: |
+  Unlimited mode is the default for T3 (and T3a, T4g and T8i). When the credits run out, the instance keeps going on surplus credits, and if its average over a day is above the baseline, AWS bills the extra at a flat rate per vCPU-hour. Flat out for a month, every hour of it is billed for the 70% of each vCPU above the baseline, on top of the instance's own price. No slowdown to notice, only a bill.
+
+  Slowing to the baseline is what standard mode does, and it's the default only for the older T2. AWS doesn't stop an instance for running out of credits. Bursting is included only while the average stays at or under the baseline.
+skills: [burst-credits]

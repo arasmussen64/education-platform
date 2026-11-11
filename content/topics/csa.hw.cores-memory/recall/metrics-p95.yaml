@@ -1,0 +1,37 @@
+id: metrics-p95
+type: predict_shell
+rev: 1
+prompt: |
+  `cpu.txt` holds twenty CPU samples from a VM (constructed numbers), one a line, each a percentage of its vCPUs. `sort -n` puts them in order from smallest to largest; `awk` keeps them in a list `v`, adds them up, and works out `k`, 95% of the count rounded up, to read the 95th percentile off the sorted list. What is printed?
+files:
+  cpu.txt: |
+    12
+    18
+    9
+    22
+    31
+    15
+    11
+    74
+    19
+    25
+    14
+    28
+    10
+    16
+    33
+    21
+    13
+    17
+    24
+    20
+command: |
+  sort -n cpu.txt | awk '{v[NR] = $1; sum += $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print "samples:", NR; print "average:", sum / NR; print "95th percentile:", v[k]; print "largest:", v[NR]}'
+expected_output: |
+  samples: 20
+  average: 21.6
+  95th percentile: 33
+  largest: 74
+explanation: |
+  95% of 20 samples is 19, so the 95th percentile is the 19th smallest: 33. Nineteen samples are at or below it, and one, a single burst at 74, is above. Each number tells a different story. The average, 21.6, hides the busy samples: a machine sized on it runs out at the busy times. The largest, 74, is one burst: sized on it, the machine waits idle the rest of the time. The 95th percentile is what the busy hours need, and the headroom in a sizing policy covers the rest.
+skills: [right-size]

@@ -1,0 +1,22 @@
+id: est-memory-headroom
+type: estimate
+rev: 1
+prompt: |
+  A week of a database server's metrics shows its memory in use peaking at 22 GiB. The sizing policy says the peak may be at most 80% of the new machine's memory. What is the least memory the new machine may have, in GiB? Within 0.1 GiB.
+unit: GiB
+answer: 27.5
+tolerance: { absolute: 0.1 }
+given: { peak: 22, policy: 80 }
+working: peak * 100 / policy
+mistakes:
+  - id: no-headroom
+    value: 22
+    working: peak
+    why: That is the peak itself. The policy wants it to fill only 80% of the new machine, so the machine needs more than the peak.
+  - id: multiplied
+    value: 17.6
+    working: peak * policy / 100
+    why: That takes 80% of the peak, which is less than the peak. The peak must be 80% of the machine, so divide by 0.8.
+explanation: |
+  The peak must be at most 80% of the new memory: 22 ÷ 0.8 = 27.5 GiB. Memory is sized on its peak, not a percentile, because running short of memory isn't a slowdown that passes: the kernel kills a process (Module 1's OOM killer). Sizes come in steps, so the choice is the smallest size with at least 27.5 GiB, which on most families is 32.
+skills: [right-size]

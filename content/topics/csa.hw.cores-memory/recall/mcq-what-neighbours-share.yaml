@@ -1,0 +1,16 @@
+id: mcq-what-neighbours-share
+type: mcq
+rev: 1
+prompt: |
+  AWS's Nitro security paper (read 2026-11-11) says the cores of a fixed-size instance are pinned to it and never run another customer's work, though some sizes can share the last-level cache. On such an instance, which of these can a busy neighbour on the same host still cause?
+choices:
+  - "High `st`, because the hypervisor lends the instance's idle threads to other customers"
+  - "Throttled periods in `cpu.stat`, because the host sets a quota when a neighbour is busy"
+  - "An out-of-memory kill, because the host gives the instance's memory pages to neighbours"
+  - "Slower memory and cache access, because a cache can be shared, with `st` near zero"
+answer: 3
+explanation: |
+  Pinned cores mean nobody else's work runs on yours, so the hypervisor has nothing to steal for: `st` should sit near zero on a fixed-size instance. What can still be shared is hardware outside the core: on some sizes the last-level cache (L3), and on every host the path to memory, the disks and the network behind the instance. A neighbour busy with those makes your memory access slower without any CPU being taken, so none of it shows as `st`. You see it as the same work taking longer.
+
+  A host doesn't reach into your VM to set a cgroup quota; `cpu.stat` counts the guest's own limits. The paper says memory pages are never shared across instances, and an out-of-memory kill is the guest's own kernel running out. To remove neighbours altogether, there are dedicated hosts.
+skills: [stolen-or-capped]

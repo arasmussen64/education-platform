@@ -1,0 +1,27 @@
+id: slice-siblings
+type: predict_shell
+rev: 1
+prompt: |
+  `lscpu-e.txt` is `lscpu -e=CPU,NODE,SOCKET,CORE` on an 8-vCPU VM: one line per CPU, with the NUMA node, the socket and the core it belongs to. The first command prints the CPUs that belong to core 2; the second counts the different cores. What is printed?
+files:
+  lscpu-e.txt: |
+    CPU NODE SOCKET CORE
+      0    0      0    0
+      1    0      0    1
+      2    0      0    2
+      3    0      0    3
+      4    0      0    0
+      5    0      0    1
+      6    0      0    2
+      7    0      0    3
+command: |
+  awk 'NR > 1 && $4 == 2 {print "CPU", $1}' lscpu-e.txt; echo "cores: $(awk 'NR > 1 {print $4}' lscpu-e.txt | sort -u | wc -l)"
+expected_output: |
+  CPU 2
+  CPU 6
+  cores: 4
+explanation: |
+  CPUs 2 and 6 are the two hardware threads of core 2: siblings. Linux numbers the first thread of every core, then the second threads in the same order, so a CPU's sibling is half the CPU count further on, not the next number. Four cores, each appearing twice.
+
+  It matters when you pin work to CPUs. Pinning two busy programs to CPUs 2 and 3 gives them a core each; pinning them to 2 and 6 makes them share one core, and each gets well under a core's worth.
+skills: [vcpu-to-core]

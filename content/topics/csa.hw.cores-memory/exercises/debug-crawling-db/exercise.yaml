@@ -1,0 +1,25 @@
+id: debug-crawling-db
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The database that crawls"
+prompt: |
+  `shop-db` is the shop's database, and it shares this server with `shop-batch`, the nightly batch job. Both run as services. This is how the server is meant to treat the database:
+
+  - **CPU.** It gets the CPU its work needs, up to one and a half CPUs' worth and no more, so that a runaway query can never take the whole server.
+  - **Memory.** It may use up to 256 MB and no more, because the batch job needs the rest. Like every service here, it may use the server's swap.
+  - **The batch job** is kept on CPU 0 on purpose, and must stay there.
+
+  **What's wrong.** Checkout is slow. The database logs how many passes over its tables it makes (`journalctl -u shop-db -f`, Ctrl+C to stop following): on a healthy server, a line every second showing dozens of passes. Here its lines come seldom, if at all, while some of the server's CPUs sit idle.
+
+  **There are three faults** in how this server treats `shop-db`. Find each one from the evidence: what systemd says about the service, what the kernel says in its control group's files (`/sys/fs/cgroup/system.slice/shop-db.service/`), and what its process is allowed to do. Then fix it where it lives. The rules of the fix:
+
+  - **Keep both services running.** Restarting one is fine; stopping one isn't.
+  - **Give the database no more than it is meant to have.** Its CPU cap stays, and so does its 256 MB.
+  - **Leave the batch job where it is.**
+  - **Make it last.** Every fix must still be in place after the server restarts.
+
+  Then run the checks.
+skills: [stolen-or-capped]

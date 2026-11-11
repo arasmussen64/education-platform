@@ -1,0 +1,57 @@
+id: example-read-the-slice
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Read the slice"
+prompt: |
+  The lab machine has three other machines to look at, saved as folders under `/srv/machines`: `web-1`, a small x86 server; `arm-1`, a small Arm server; and `db-1`, a big two-socket database server. They are constructed, not captured: the lab wrote them in the kernel's own layout from a shape, and `/srv/machines/README` says so. `lscpu --sysroot FOLDER` reads one as if it were the machine you're on.
+
+  The walkthrough reads your own lab machine's CPUs, then each of the three, counts db-1's physical cores and finds which two CPU numbers share its first core. It reads db-1's two NUMA nodes, puts two programs on one hardware thread to see what sharing a thread looks like, and reads the steal counter. Then it turns to the shop's cache, `shop-cache`, which runs here as a service: it squeezes it with a memory throttle and watches it slow down without dying, lets it go, and pins it to one CPU and unpins it. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "Your own lab machine"
+    lines: "1"
+    note: "`lscpu` describes the CPUs. Multiply three lines: `Socket(s)` × `Core(s) per socket` × `Thread(s) per core` = `CPU(s)`, the number of CPUs Linux schedules on. `Hypervisor vendor` means this is a guest: you are seeing what Docker Desktop's virtual machine (or a CI runner's) presents, which may not be the real chip's layout."
+  - label: "A two-vCPU x86 machine"
+    lines: "2"
+    note: "web-1 has 2 CPUs: 1 socket × 1 core × 2 threads. Rent this as \"2 vCPUs\" and you get one physical core, with its two hardware threads."
+  - label: "A two-vCPU Arm machine"
+    lines: "3"
+    note: "arm-1 also has 2 CPUs, but as 2 cores × 1 thread: two whole cores. Ignore its `Architecture` line: lscpu takes that one line from the kernel you are running on (x86_64 here), and everything else from the folder."
+  - label: "A big database server, and the two threads of one core"
+    lines: "4"
+    note: "db-1: 2 sockets × 24 cores × 2 threads = 96 CPUs. `lscpu -e` lists every CPU with its NUMA node, socket and core; the `awk` keeps the heading and core 0. Its two threads are CPUs 0 and 48: Linux numbers the first thread of every core, then the second threads, so a sibling is not the next number."
+  - label: "Count its physical cores"
+    lines: "5"
+    note: "`-p` prints one line per CPU in a form made for scripts. Each core shows up twice (once per thread), so `sort -u` keeps one line per core and `wc -l` counts them: 48. This is the number a per-core rule, or a job that wants a core per worker, cares about."
+  - label: "Its two NUMA nodes, and yours"
+    lines: "6"
+    note: "A NUMA node is a group of CPUs with its own memory. db-1 has two, one per socket: node 0 holds CPUs 0-23 and 48-71 (both threads of socket 0's cores), node 1 the rest. Node 1's memory is nearly all in use, so a program on node 1's CPUs would be given memory on node 0, which is distance 21 away instead of 10, about twice as slow to reach. Your own lab machine is one node."
+  - label: "Two programs on one hardware thread"
+    lines: "7"
+    note: "`taskset -c 0` runs a program on CPU 0 only. Both spinners show processor (`PSR`) 0 and about half a CPU each, while the other CPUs sit idle: they take turns on one thread. That is why a cloud pins a fixed-size instance's vCPUs to cores of its own. `kill %1 %2` stops both."
+  - label: "Steal on this machine"
+    lines: "8"
+    note: "The `cpu` line of `/proc/stat` counts time since boot in ticks (hundredths of a second), split into states: user, nice, system, idle, iowait, irq, softirq, and eighth, steal. One reading means nothing; the growth between two readings does. Here steal barely moves: nothing is taking this machine's CPU away."
+  - label: "Squeeze the cache"
+    lines: "9"
+    note: "The log shows about ten passes a second. `MemoryHigh=64M` sets the cache's `memory.high` below the 150 MB it holds: a throttle, not a wall. `--runtime` means the setting lasts only until the machine restarts. On a machine with swap, as Docker Desktop's is, twenty seconds later the passes are down to one every few seconds: the kernel has pushed most of the cache out to disk, and every pass has to fetch it back."
+  - label: "Slow, not dead"
+    lines: "10"
+    note: "`memory.events` counts `high`, the times the kernel throttled the cache and made it give memory back; it climbs while the squeeze lasts. `max` and `oom_kill` stay 0: nothing hit a wall and nothing was killed. `memory.current` sits near 64 MB, and the service is still `active`. With swap, its pages went out to disk; without swap, the kernel slows every new request for memory. Either way it is alive and crawling."
+  - label: "Save the count"
+    lines: "11"
+    note: "The `high` count goes in `~/example/squeeze.txt`. A restart of the service, or of the lab, sets the counter back to 0, so the number you saw is kept in a file."
+  - label: "Let it go"
+    lines: "12"
+    note: "`MemoryHigh=infinity` takes the throttle away. The cache reads its pages back in and the passes return to about ten a second."
+  - label: "systemd's taskset"
+    lines: "13"
+    note: "`AllowedCPUs=0` is how a service is pinned: systemd writes the CPU list into the service's control group (its cpuset), and `taskset -cp` shows the process now allowed on CPU 0 alone."
+  - label: "Unpin, and check the process"
+    lines: "14"
+    note: "An empty `AllowedCPUs=` takes the setting away, but `taskset -cp` shows the running process still on CPU 0: the kernel kept the list it was given. A restart starts it afresh on every CPU. Check the process, not only the setting. (systemd may warn that the unit's files changed on disk: those are the settings `set-property` just wrote, and the warning is harmless here.)"
+  - label: "Save the counts"
+    lines: "15"
+    note: "`~/example/cores.txt` gets the physical cores of the three machines, one a line, and `~/example/siblings.txt` the two CPUs that share db-1's first core. Then run the checks."

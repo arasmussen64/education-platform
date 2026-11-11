@@ -1,0 +1,25 @@
+id: credits-bucket-trace
+type: predict_shell
+rev: 1
+prompt: |
+  A `t3.micro` (2 vCPUs, earns 12 credits an hour, holds at most 288) starts with 30 credits. `usage.txt` holds six hourly averages of its CPU, as a percentage of each vCPU. For each hour the `awk` adds what it earns, takes away what the hour spent (2 vCPUs × the percentage × 60 minutes), keeps the balance between 0 and 288, and prints it. What is printed?
+files:
+  usage.txt: |
+    5
+    5
+    60
+    60
+    10
+    0
+command: |
+  awk 'BEGIN {b = 30} {b = b + 12 - 2 * $1 * 60 / 100; if (b < 0) b = 0; if (b > 288) b = 288; print b}' usage.txt
+expected_output: |
+  36
+  42
+  0
+  0
+  0
+  12
+explanation: |
+  An hour at 5% spends 2 × 0.05 × 60 = 6 and earns 12: up 6, to 36, then 42. An hour at 60% spends 72: the bucket can't cover it and stops at 0, and in standard mode the instance comes down to its 10% baseline for the rest of that hour, and the next. At 10% it spends exactly what it earns, so the balance stays at 0: running at the baseline never refills the bucket. Only the idle hour adds the full 12.
+skills: [burst-credits]

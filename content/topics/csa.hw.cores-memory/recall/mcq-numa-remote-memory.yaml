@@ -1,0 +1,16 @@
+id: mcq-numa-remote-memory
+type: mcq
+rev: 1
+prompt: |
+  A 96-vCPU database server got slower after a restart, though nothing else changed. `numastat -p` (which shows where a process's memory sits) says its CPUs are on node 0 and most of its memory on node 1; `numactl --hardware` gives the distances as 10 and 21. What happened, and what do you do?
+choices:
+  - "Its memory was moved to swap by the kernel, so every access waits on the disk: add more swap space to the server"
+  - "Its memory landed on the far node, so every access travels further: bind its CPUs and its memory to one node"
+  - "Its CPUs are being taken by the host for another tenant, so it waits its turn: move it to a dedicated host"
+  - "Its threads are sharing cores two at a time, so each one is slower: switch off SMT for the whole instance"
+answer: 1
+explanation: |
+  Each NUMA node has its own memory, and a CPU reaches its own node's memory faster than the other's: distance 10 is local, 21 about twice as far. After the restart the database's memory was allocated on node 1 (perhaps node 0 was full at the time), while its threads run on node 0, so every memory access crosses between the nodes. `numactl --cpunodebind=0 --membind=0` keeps both on one node (or the database's own NUMA settings do).
+
+  Swap would show in `vmstat`'s `si` and `so`, not in `numastat`. CPU taken by the host shows as `st`, steal. And sharing cores between threads hasn't changed with a restart.
+skills: [numa]

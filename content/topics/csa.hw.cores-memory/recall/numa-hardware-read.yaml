@@ -1,0 +1,26 @@
+id: numa-hardware-read
+type: predict_shell
+rev: 1
+prompt: |
+  `numactl.txt` is `numactl --hardware` on a two-node database server (constructed, in numactl's own layout). The command prints how much memory is free on each node. What is printed?
+files:
+  numactl.txt: |
+    available: 2 nodes (0-1)
+    node 0 cpus: 0 1 2 3 4 5 6 7 16 17 18 19 20 21 22 23
+    node 0 size: 64326 MB
+    node 0 free: 41250 MB
+    node 1 cpus: 8 9 10 11 12 13 14 15 24 25 26 27 28 29 30 31
+    node 1 size: 64508 MB
+    node 1 free: 2150 MB
+    node distances:
+    node   0   1
+      0:  10  21
+      1:  21  10
+command: |
+  awk '/^node [0-9] free/ {print "node", $2, "free MB:", $4}' numactl.txt
+expected_output: |
+  node 0 free MB: 41250
+  node 1 free MB: 2150
+explanation: |
+  Node 1 has about 2 GB left and node 0 about 41 GB. A program running on node 1's CPUs that asks for 8 GB more is given most of it from node 0, at distance 21 instead of 10: about twice as far, every time it touches that memory. The machine as a whole has plenty free; one node doesn't. That is how a database on a big machine gets slower with no change to it at all.
+skills: [numa]

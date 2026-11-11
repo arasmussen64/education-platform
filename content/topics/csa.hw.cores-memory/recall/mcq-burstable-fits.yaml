@@ -1,0 +1,16 @@
+id: mcq-burstable-fits
+type: mcq
+rev: 1
+prompt: |
+  A team's build-log server is being considered for a `t3.small`: 2 vCPUs, a baseline of 20% a vCPU, 24 credits earned an hour (AWS's table, read 2026-11-11). Over a week its CPU averages 11% of each vCPU; twice a day, for about fifteen minutes, it runs at 70%. Which is right?
+choices:
+  - "It doesn't fit, because its busy spells go above the baseline, and a burstable size must stay under it"
+  - "It fits only in unlimited mode, because in standard mode a burstable size never goes over its baseline"
+  - "It doesn't fit, because a burstable size is meant for test machines, not for a server a team relies on"
+  - "It fits, because its average is under the baseline, so the credits it earns cover its short spells"
+answer: 3
+explanation: |
+  A burstable size fits when the work's average per vCPU is at or under the baseline and its peaks are short. Here the average, 11%, is under 20%, so over a day the bucket fills: it earns 24 credits an hour and spends about 2 × 11% × 60 = 13. Each fifteen-minute spell at 70% spends 2 × 0.7 × 15 = 21 credits while earning 6, a small dip in a bucket that holds 576.
+
+  Going above the baseline is what credits are for, in either mode; standard mode only comes down to the baseline when the bucket is empty. And nothing about burstable sizes keeps them to test machines: a quiet server with short peaks is what they are made for. A server whose average is above its baseline is the one that doesn't fit, however short its peaks.
+skills: [right-size, burst-credits]

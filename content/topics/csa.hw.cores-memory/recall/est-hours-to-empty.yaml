@@ -1,0 +1,22 @@
+id: est-hours-to-empty
+type: estimate
+rev: 1
+prompt: |
+  A `t3.large` in standard mode (AWS's table, read 2026-11-11: 2 vCPUs, earns 36 credits an hour, holds at most 864) starts with a full bucket. A service then runs it steadily at 35% of each vCPU. After how many hours is the bucket empty? Within 1 hour.
+unit: hours
+answer: 144
+tolerance: { absolute: 1 }
+given: { vcpus: 2, earn: 36, full: 864, util: 35 }
+working: full / (vcpus * util / 100 * 60 - earn)
+mistakes:
+  - id: ignores-earning
+    value: 20.6
+    working: full / (vcpus * util / 100 * 60)
+    why: That leaves out what it earns. It spends 42 an hour and earns 36, so it loses only 6 an hour.
+  - id: one-day
+    value: 24
+    working: full / earn
+    why: The bucket holds a day's earnings, but it isn't draining at 36 an hour. It drains at the difference between spending and earning, 6.
+explanation: |
+  It spends 2 × 0.35 × 60 = 42 credits an hour and earns 36: a net loss of 6 an hour. 864 ÷ 6 = 144 hours, six days. That's the trap: a test of an afternoon, or even a day, never shows it. On the seventh day the instance comes down to its 30% baseline, and the service, which needs 35%, falls behind.
+skills: [burst-credits]
