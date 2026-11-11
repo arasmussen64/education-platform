@@ -135,6 +135,31 @@ describe('a lab exercise', () => {
     })
   })
 
+  it("keeps a debug lab's checks back until a result is in", async () => {
+    render(
+      <ExerciseView
+        exercise={fakeLab({ id: 'build-report', stage: 'debug' })}
+        topicId={TOPIC}
+      />,
+    )
+    const checks = screen.getByRole('region', {
+      name: 'What the checker looks for',
+    })
+    // Before a try: how many there are, but not what they look for.
+    expect(within(checks).queryAllByRole('listitem')).toHaveLength(0)
+    expect(
+      within(checks).queryByText('A report folder exists.'),
+    ).not.toBeInTheDocument()
+    expect(within(checks).getByText(/^2 checks\. They/)).toBeInTheDocument()
+    // After one, the list, with its ticks.
+    await paste(printed({ 'report-folder': true, 'failed-count': false }))
+    expect(within(checks).getAllByRole('listitem')).toHaveLength(2)
+    expect(
+      within(checks).getByText('A report folder exists.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('1 of 2 checks passed.')).toBeInTheDocument()
+  })
+
   it('records a partial result without giving the solution away', async () => {
     const onActivity = vi.fn()
     render(
