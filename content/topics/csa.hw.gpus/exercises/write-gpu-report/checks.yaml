@@ -3,7 +3,8 @@
 # boxes in /srv/gpu and on a third that the check makes up as it runs (so a
 # script that prints the answers for the two boxes it was shown fails). And
 # Module 1's scripting habit: a usage message and a failing exit status
-# when no folder is given.
+# when no folder, or more than one, is given (wrong/no-usage-check.sh,
+# wrong/usage-only-when-empty.sh).
 #
 # The boxes are built so the lazy routes fail: the last second is idle and
 # isn't the fullest (wrong/last-line.sh, wrong/peak-is-last.sh); box-3's
@@ -72,10 +73,13 @@ checks:
     expect:
       equals: right
   - id: usage-when-no-folder
-    description: "Run with no folder, gpu-report prints a usage message and exits with a non-zero status."
+    description: "Run with no folder, or with two, gpu-report prints a usage message and exits with a non-zero status."
     command: |
       out=$(runuser -u learner -- /home/learner/bin/gpu-report 2>&1 < /dev/null)
       status=$?
-      if [ "$status" -ne 0 ] && echo "$out" | grep -qi usage; then echo right; else echo "exit $status, printed: $out"; fi
+      if [ "$status" -eq 0 ] || ! echo "$out" | grep -qi usage; then echo "with no folder: exit $status, printed: $out"; exit 0; fi
+      out=$(runuser -u learner -- /home/learner/bin/gpu-report /srv/gpu/box-2 /srv/gpu/box-3 2>&1 < /dev/null)
+      status=$?
+      if [ "$status" -ne 0 ] && echo "$out" | grep -qi usage; then echo right; else echo "with two folders: exit $status, printed: $(printf '%s' "$out" | tr '\n' ';')"; fi
     expect:
       equals: right
