@@ -58,8 +58,9 @@ describe('the topic loader', () => {
 
   it('loads nothing for a topic that is still an outline, or unknown', async () => {
     // The cloud track's outlines aren't bundled in; the loader fetches them.
-    expect(await load('csa.hw.hypervisors')).toMatchObject({
-      topic: { id: 'csa.hw.hypervisors', status: 'planned' },
+    // A Module 3 topic: Modules 1 and 2 have real content.
+    expect(await load('csa.net.cidr')).toMatchObject({
+      topic: { id: 'csa.net.cidr', status: 'planned' },
       content: null,
       interleaved: null,
     })
