@@ -1,9 +1,9 @@
 id: debug-mutation
 stage: debug
-rev: 1
+rev: 2
 title: "A shopping list that keeps changing"
 prompt: |
-  This program should print:
+  This program keeps a shopping list. `backup` is meant to be a snapshot of the list as it was at the start, and `add_item` promises a new list with the item added, leaving the list it's given unchanged. It should print:
 
   ```
   ['milk', 'tea']
@@ -11,5 +11,10 @@ prompt: |
   ['milk']
   ```
 
-  `backup` is meant to be a snapshot of the list as it was; `add_item` promises a new list and an unchanged original. It has three bugs, all about which names share a list and what `append` gives back. Trace it with the arrows in mind.
+  Instead it prints `None`, then the same three-item list twice. It has three bugs. Trace it before you change anything, then run the checks, which also try `add_item` on its own.
+hints:
+  - "Start with the first line printed. Which line gave `shopping` the value `None`?"
+  - "`append` changes the list in place and gives back `None`. Call it on its own line, without `shopping = ` in front."
+  - "After `backup = shopping`, both names point to one list, so every change to `shopping` shows in `backup` too. `list(shopping)` makes a separate copy."
+  - "`add_item` appends to the list it was given, which is `main`'s `shopping`, and returns that same list. Copy the list inside `add_item`, add to the copy, and return the copy."
 skills: [mutating-functions, copying, aliasing]
