@@ -1,0 +1,24 @@
+id: write-policy-scope
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Lay out the domain and its policies"
+prompt: |
+  The shop's domain, `ad.shop.test`, has four people so far, all still in the default `CN=Users` container: `alice`, `bob`, `carol` and `frank`, and no policies but the two every domain starts with. Give it folders and Group Policy, on dc1: `on-dc COMMAND` runs a command there, and the domain's administrator is `Administrator`, password `Shop-Admin-1`.
+
+  1. **Folders:** an organisational unit `Staff` at the top of the domain, with two inside it, `Engineering` and `Contractors`.
+  2. **People:** alice in Engineering, bob in Staff itself, frank in Contractors. carol stays where she is.
+  3. **Policies,** four new GPOs, each linked once:
+     - `Lock screen`, linked to Staff;
+     - `Engineering tools`, linked to Engineering;
+     - `Contractor limits`, linked to Contractors. Contractors must get nothing from the folders and the domain above it, with one exception:
+     - `Security baseline`, linked to the whole domain, which no folder may escape.
+
+  The commands are `samba-tool ou`, `samba-tool user move` and `samba-tool gpo`; each lists what it can do with `--help` (`on-dc samba-tool gpo --help`), and the lesson's table has the ones you need. Work out first, on paper, which GPOs each of the four people should get. Then build it, compare with `on-dc samba-tool gpo list NAME` for each of them, and run the checks: they ask dc1 the same question.
+hints:
+  - "A GPO is linked by its GUID, the identifier in braces that `gpo create` prints. `on-dc samba-tool gpo listall` lists every GPO with its GUID and its display name, if you lost one."
+  - "`samba-tool gpo setlink CONTAINER_DN GUID` links a GPO to a folder or to the domain (the domain's DN is `DC=ad,DC=shop,DC=test`); `--enforce` on the same command makes that link enforced."
+  - "Blocking is a setting of the folder, not of a link: `samba-tool gpo setinheritance CONTAINER_DN block`. `gpo getinheritance` and `gpo getlink` show what a folder has."
+skills: [group-policy]

@@ -1,0 +1,45 @@
+# The checks for "Join a server and log in to it": lab is a member, alice's
+# login was saved, only the group may log in, and the new GPO reaches the
+# folder it was linked to. Each reads something that survives a restart:
+# the machine's keys, a file the learner saved, SSSD's settings and the
+# directory itself. Checks that ask dc1's own tools run inside its
+# namespaces, the way on-dc does.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence, not an exit status.
+checks:
+  - id: member
+    description: "lab is a member of ad.shop.test: the directory holds its computer account, and lab can sign in to the domain as itself."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool computer show LAB > /dev/null 2>&1 || { echo "the directory has no computer account for lab"; exit 0; }
+      KRB5CCNAME=FILE:/tmp/check-machine-cc kinit -k 'LAB$@AD.SHOP.TEST' > /dev/null 2>&1 || { echo "lab can't sign in to the domain with the keys in /etc/krb5.keytab"; exit 0; }
+      kdestroy -q -c FILE:/tmp/check-machine-cc
+      echo member
+    expect:
+      equals: member
+  - id: alice-logged-in
+    description: "~/example/alice.txt holds what alice's login printed: her home directory, /home/alice@ad.shop.test, and a klist with her first ticket (krbtgt/)."
+    command: |
+      f=/home/learner/example/alice.txt
+      grep -qx '/home/alice@ad.shop.test' "$f" 2>/dev/null || { echo "alice.txt doesn't show alice in /home/alice@ad.shop.test"; exit 0; }
+      grep -q 'krbtgt/AD.SHOP.TEST@AD.SHOP.TEST' "$f" || { echo "alice.txt has no krbtgt/ ticket"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: only-the-group
+    description: "lab's own rule for domain accounts lets alice, in linux-admins, in, and keeps bob out."
+    command: |
+      sssctl user-checks alice@ad.shop.test -a acct -s login 2>&1 | grep -q 'pam_acct_mgmt: Success' || { echo "the rule doesn't let alice in"; exit 0; }
+      sssctl user-checks bob@ad.shop.test -a acct -s login 2>&1 | grep -q 'pam_acct_mgmt: Permission denied' || { echo "the rule doesn't keep bob out"; exit 0; }
+      echo "only the group"
+    expect:
+      equals: "only the group"
+  - id: policy-reaches-staff
+    description: "The GPO Lock screen reaches alice, who is in the Staff folder, and not carol, who isn't."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool gpo list alice 2>/dev/null | grep -q '^ *Lock screen {' || { echo "Lock screen doesn't reach alice"; exit 0; }
+      if dc samba-tool gpo list carol 2>/dev/null | grep -q '^ *Lock screen {'; then echo "Lock screen reaches carol too"; exit 0; fi
+      echo "Staff only"
+    expect:
+      equals: "Staff only"

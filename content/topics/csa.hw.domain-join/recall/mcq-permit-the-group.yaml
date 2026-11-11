@@ -1,0 +1,16 @@
+id: mcq-permit-the-group
+type: mcq
+rev: 1
+prompt: |
+  The operations team must be able to log in to forty Linux servers that are members of the domain, and nobody else should. People join and leave the team every month. How do you set up who may log in?
+choices:
+  - "Permit the team's domain group on every server, and keep the team's members in that group"
+  - "Permit each person on the team by name on every server, and update the forty lists each month"
+  - "Permit every account in the domain, since the domain already checks each person's password"
+  - "Make a local account for each person on every server, with the same password as in the domain"
+answer: 0
+explanation: |
+  Permit the group once on each server (`realm permit -g ops@ad.shop.test`), and from then on who may log in is decided in one place, the group's members in the directory. Someone who joins the team can log in everywhere the moment they're added, and someone who leaves is locked out of all forty the moment they're removed, without anyone touching a server.
+
+  Names on each server mean forty lists to change every month, and the one that's forgotten is the one a person who left can still get into. Every account in the domain is what a join allows by itself: the password check is authentication, and who may come in is the separate question this rule answers. Local accounts throw the directory away: forty copies of each password, none of them locked when the person leaves.
+skills: [domain-join]

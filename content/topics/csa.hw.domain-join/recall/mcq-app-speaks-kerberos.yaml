@@ -1,0 +1,16 @@
+id: mcq-app-speaks-kerberos
+type: mcq
+rev: 1
+prompt: |
+  A company is moving a file-sharing application to VMs in the cloud. The application signs people in with Kerberos and looks them up over LDAP, and it can't be changed. The company already uses Microsoft Entra ID for email and its web apps, and has a domain in its office. What does the application need in the cloud?
+choices:
+  - "Domain services on the VMs' network: domain controllers on VMs, or a managed domain"
+  - "Nothing more: Entra ID is Active Directory in the cloud and answers Kerberos and LDAP"
+  - "A VPN from the VMs to Entra ID, so the Kerberos requests can reach Entra's servers"
+  - "Nothing more: Kerberos works across the internet, so it can use the office's domain"
+answer: 0
+explanation: |
+  Entra ID signs people in to web applications with tokens over HTTPS (OAuth 2.0, OpenID Connect, SAML). It has no Kerberos and no LDAP for an application to use, no organisational units and no Group Policy, so an application that speaks Kerberos and LDAP needs a domain: its own domain controllers on VMs, which someone patches and backs up, or a managed domain such as Microsoft Entra Domain Services, AWS Managed Microsoft AD or Google's Managed Service for Microsoft AD, reachable on the VMs' network, with the network's DNS pointed at it.
+
+  The VPN doesn't help, because there's no Kerberos at the far end to reach. And sending every sign-in back to the office over the internet means opening a domain controller's ports to the world; at best it's a VPN to the office's own domain controllers, which ties the cloud application to the office staying up.
+skills: [entra-vs-adds]

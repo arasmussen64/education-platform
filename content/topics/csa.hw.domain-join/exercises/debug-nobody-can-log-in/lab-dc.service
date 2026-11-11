@@ -1,0 +1,18 @@
+# dc1, the lab's domain controller: Samba running as an Active Directory
+# domain controller in namespaces of its own. Part of the lab's scenery.
+[Unit]
+Description=dc1: the domain controller for ad.shop.test
+After=lab-network.service dnsmasq.service
+Requires=lab-network.service
+
+[Service]
+Type=notify
+NotifyAccess=all
+LimitNOFILE=16384
+TimeoutStartSec=300
+ExecStartPre=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/local/lib/lab/dc-provision.sh
+ExecStart=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/sbin/samba --foreground --no-process-group
+ExecStartPost=/usr/sbin/ip netns exec dc /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter /usr/local/lib/lab/dc-seed.sh
+
+[Install]
+WantedBy=multi-user.target

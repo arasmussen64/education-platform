@@ -1,0 +1,40 @@
+id: managed-domain-cost
+type: estimate
+rev: 1
+prompt: |
+  An application on Azure needs a domain. Two ways to have one, at Azure's list prices in East US 2 on 2026-11-11 (pay as you go, US dollars):
+
+  | Choice | What it is | Per hour |
+  | --- | --- | --- |
+  | A managed domain | Microsoft Entra Domain Services, Standard: two domain controllers run for you | $0.15 |
+  | Your own domain controllers | two `Standard_B2ls_v2` VMs with Windows Server, each | $0.0508 |
+
+  Counting only these hourly prices and a 730-hour month, how many dollars a month more does the managed domain cost than the two VMs? Within 10%.
+unit: dollars a month
+answer: 35.332
+tolerance: { percent: 10 }
+given: { managed: 0.15, vm: 0.0508, hours: 730 }
+# Prices from the Azure Retail Prices API (prices.azure.com/api/retail/prices),
+# region eastus2, read 2026-11-11: Microsoft Entra Domain Services
+# "Standard User Forest" $0.15 an hour; "Virtual Machines Bsv2 Series
+# Windows" B2ls v2 $0.0508 an hour. The 720-hour month gives 34.85, inside
+# the tolerance, so the answer doesn't rest on that convention.
+working: (managed - 2 * vm) * hours
+mistakes:
+  - id: one-vm
+    value: 72.416
+    working: (managed - vm) * hours
+    why: That compares the managed domain with one VM. It runs two domain controllers, and a domain of your own needs two as well, so one can fail.
+  - id: added-not-subtracted
+    value: 183.668
+    working: (managed + 2 * vm) * hours
+    why: That's both choices added together. The question asks how much more one costs than the other.
+  - id: one-day
+    value: 1.1616
+    working: (managed - 2 * vm) * 24
+    why: That's one day. A month is 730 hours.
+prices_as_of: 2026-11-11
+prices_source: https://azure.microsoft.com/en-us/pricing/details/microsoft-entra-ds/
+explanation: |
+  Two VMs cost 2 × $0.0508 = $0.1016 an hour, so the managed domain costs $0.0484 an hour more: × 730 = about $35.33 a month. The VMs look cheaper, and that's only the start of their bill: their disks, their Windows updates, their backups, watching that both stay up, and the person who does it are all yours, where a managed domain's are Microsoft's. What the managed domain doesn't give you is control: no domain administrator account and no changes to the directory's design. Prices change: look them up again on the day.
+skills: [entra-vs-adds]

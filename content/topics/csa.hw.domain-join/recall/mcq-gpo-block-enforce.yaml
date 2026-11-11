@@ -1,0 +1,16 @@
+id: mcq-gpo-block-enforce
+type: mcq
+rev: 1
+prompt: |
+  The Engineering folder, inside Staff, has its own GPO, `Engineering tools`, and blocks inheritance. Staff's GPO, `Lock screen`, is linked to Staff with its link enforced. The domain has only the `Default Domain Policy`, not enforced. Which GPOs reach alice, who is in Engineering? (In the lab, Samba gave the same answer.)
+choices:
+  - "Engineering tools and Lock screen, but not the Default Domain Policy"
+  - "All three of them, because a block only matters where two GPOs set one setting"
+  - "Only Engineering tools, because a block stops everything from the folders above"
+  - "Engineering tools and the Default Domain Policy, but not the Lock screen GPO"
+answer: 0
+explanation: |
+  Blocking inheritance is a setting of a folder: GPOs linked above it (to its parent folders, the domain and the site) stop reaching what's inside. Enforcing is a setting of one link: that GPO reaches everything below it, and a block can't stop it, which is what "enforced beats block" means. So alice keeps her own folder's GPO, keeps Lock screen because its link is enforced, and loses the Default Domain Policy, whose link isn't.
+
+  A block isn't about settings that clash: whatever they set, the GPOs linked above the folder stop reaching what's inside it, all but the enforced ones. So the Default Domain Policy doesn't reach alice, and Staff's GPO wouldn't either if its link weren't enforced; "only Engineering tools" forgets that enforcement. And keeping the Default Domain Policy while losing Lock screen has the two rules the wrong way round.
+skills: [group-policy]

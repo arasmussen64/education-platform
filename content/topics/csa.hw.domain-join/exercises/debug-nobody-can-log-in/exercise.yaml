@@ -1,0 +1,25 @@
+id: debug-nobody-can-log-in
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Nobody from the domain can log in"
+prompt: |
+  `lab` has been a member of the shop's domain, `ad.shop.test`, for months. This is how it is meant to work:
+
+  - **Domain accounts.** Members of the domain group `linux-admins`, among them `alice` (password `Alice-Pass-1`) and `carol` (`Carol-Pass-1`), log in over SSH with their domain passwords, into home directories made at their first login. Nobody else in the domain may log in to `lab` by any way in: `bob` (`Bob-Pass-1`) never could.
+  - **Local accounts.** `kim` (`Kim-Local-1`), an operator, logs in over SSH with her local password. `ben`, whose account only runs the backups, never could.
+  - **Names.** `lab` finds the domain through DNS, as every member does, by asking the site's ordinary resolver, a small name server on `lab` itself.
+
+  Since Monday no domain account can log in at all, while `kim` still can. There are three faults. Find each one from the evidence and fix it at its cause, so that everything works as described above. Start where a person would: try a login (`ssh alice@ad.shop.test@localhost`), then read what the machine says about it (`journalctl -u ssh`, `journalctl -u sssd`), and what the domain says (`kinit alice`).
+
+  The rules of the fix:
+
+  - **Nobody is let in who was kept out before,** domain account or local.
+  - **Nothing about dc1 is typed in by hand on `lab`:** not into a hosts file, a name server's own records, a Kerberos configuration or SSSD's settings.
+  - **dc1 stays as strict as it is:** it keeps refusing passwords sent over unencrypted LDAP.
+  - **Every fix lasts past a reboot.**
+
+  The domain's administrator is `Administrator` (`Shop-Admin-1`). dc1 is at 10.0.9.10, and `on-dc COMMAND` runs a command on it. When alice and carol can log in, run the checks.
+skills: [domain-join]

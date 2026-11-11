@@ -1,0 +1,30 @@
+id: gpo-refresh-arithmetic
+type: estimate
+rev: 1
+prompt: |
+  At 09:00 an administrator changes a GPO linked to the Servers folder. The change takes up to 15 minutes to reach every domain controller. The Windows servers in the folder are all running, keep Windows's default refresh settings, and nobody runs `gpupdate` on them. At the latest, how many minutes after 09:00 has every one of them applied the change? Exactly.
+unit: minutes after 09:00
+answer: 135
+tolerance: { absolute: 0 }
+given: { replication: 15 }
+# 90 and 30 are Windows's defaults, which the learner must know: a member
+# refreshes computer policy every 90 minutes, plus a random extra of up to
+# 30 (learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/group-policy/group-policy-processing,
+# dated 2025-06-16, read 2026-11-11).
+working: replication + 90 + 30
+mistakes:
+  - id: no-random-offset
+    value: 105
+    working: replication + 90
+    why: That leaves out the random extra. Each member waits 90 minutes plus up to 30 more between refreshes, so that they don't all ask the domain controllers at once.
+  - id: no-replication
+    value: 120
+    working: 90 + 30
+    why: That's a member's longest wait between refreshes, counted from 09:00. But a member can only find the change once its domain controller has it, up to 15 minutes later.
+  - id: domain-controller-interval
+    value: 20
+    working: replication + 5
+    why: Five minutes is how often domain controllers refresh their own policy. Member servers wait 90 minutes plus up to 30.
+explanation: |
+  The change is on every domain controller by 09:15 at the latest. A server that refreshed at 09:14 asking a controller that didn't have it yet waits its whole interval again: 90 minutes, plus a random extra of up to 30, so at most 120 minutes. 15 + 120 = 135 minutes: 11:15. A server that restarts sooner applies its computer policy at startup, and `gpupdate` on a server, or `Invoke-GPUpdate` from elsewhere, applies it on the spot; that's how a change that can't wait two hours is pushed.
+skills: [group-policy]

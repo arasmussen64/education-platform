@@ -1,0 +1,16 @@
+id: mcq-no-gpo-in-entra
+type: mcq
+rev: 1
+prompt: |
+  300 company laptops are Entra joined and are rarely on the office network. Every one of them must lock its screen after 10 minutes. How do you set that?
+choices:
+  - "A device-management policy, in Intune, assigned to the laptops' group"
+  - "A GPO linked to the laptops' organisational unit in the Entra tenant"
+  - "A logon script on the domain's SYSVOL share that sets the screen lock"
+  - "A trust from the office's domain to Entra ID, so its GPOs reach them"
+answer: 0
+explanation: |
+  Entra-joined devices are managed by a mobile device management (MDM) service, Microsoft Intune for Entra ID: a policy assigned to a group reaches every device in it over the internet, wherever it is. Group Policy needs a domain: a domain-joined machine fetches its GPOs from a domain controller's SYSVOL share, over the domain's network.
+
+  Entra ID has no organisational units and no Group Policy, so there's nothing to link a GPO to. A script on SYSVOL is still Group Policy, and these laptops aren't domain members and rarely reach the network it's on. And a trust is between two Active Directory domains; it decides whose sign-ins one domain accepts, and carries no settings to anyone.
+skills: [entra-vs-adds]

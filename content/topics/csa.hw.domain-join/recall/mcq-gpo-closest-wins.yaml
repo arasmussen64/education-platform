@@ -1,0 +1,16 @@
+id: mcq-gpo-closest-wins
+type: mcq
+rev: 1
+prompt: |
+  A GPO linked to the whole domain locks a server's screen after 15 minutes. Another, linked to the Servers organisational unit, sets the same setting to 30 minutes. Nothing is enforced and nothing is blocked. After which of the two does a server in Servers lock its screen?
+choices:
+  - "30 minutes: the Servers GPO is applied last, so its value is the one left in place"
+  - "15 minutes: a GPO linked to the whole domain overrides those linked to its folders"
+  - "15 minutes: when two GPOs set one value, the stricter of the two always takes effect"
+  - "30 minutes: of two GPOs that set one value, whichever was created later takes effect"
+answer: 0
+explanation: |
+  GPOs are applied in layers, like coats of paint: the machine's own local policy first, then the site's, then the domain's, then each folder's from the outermost in. A later coat covers an earlier one, so for a setting two GPOs both set, the one closest to the server, its own folder's, is what it ends up with, even when it's the less strict of the two. To make the domain's 15 minutes stick everywhere, its link would have to be enforced.
+
+  The domain's GPO comes early, so it's the one that gets covered. Group Policy has no rule about which value is stricter; it only knows the order. And when two GPOs were made makes no difference; where they're linked does (and, for several linked to the same folder, their link order there).
+skills: [group-policy]
