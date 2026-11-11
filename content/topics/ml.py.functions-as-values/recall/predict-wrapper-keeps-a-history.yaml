@@ -1,0 +1,30 @@
+id: predict-wrapper-keeps-a-history
+type: predict_output
+rev: 1
+prompt: |
+  A decorator whose wrapper notes down the arguments of every call, in a list it keeps on itself. What does the program print? Three lines.
+code: |
+  def recorded(func):
+      def wrapper(*args):
+          wrapper.history.append(args)
+          return func(*args)
+
+      wrapper.history = []
+      return wrapper
+
+
+  @recorded
+  def add(a, b):
+      return a + b
+
+
+  print(add(2, 3))
+  print(add(10, 5))
+  print(add.history)
+expected_output: |
+  5
+  15
+  [(2, 3), (10, 5)]
+explanation: |
+  `@recorded` makes `add` mean the wrapper, so each call runs the wrapper first. `*args` collects the call's arguments into one tuple, `(2, 3)` and then `(10, 5)`; the wrapper appends that tuple to its list and then calls the original with the same arguments, `func(*args)`, so the sums come back unchanged: 5 and 15. The list is an attribute stored on the wrapper (`wrapper.history`), made once and empty before any call. It's still there after each call ends, and because `add` is the wrapper, `add.history` reads it: one tuple per call, in order.
+skills: [decorators]

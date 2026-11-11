@@ -8,6 +8,9 @@ def after_years(T, start, years):
 def steady_state(T):
     values, vectors = np.linalg.eig(T)
     i = int(np.argmin(np.abs(values - 1)))
+    # np.real keeps the real part of each entry. It changes nothing for these
+    # matrices, whose eigenvalues are real, so vectors[:, i] alone passes too;
+    # it's a guard for a matrix that makes eig return complex numbers.
     s = np.real(vectors[:, i])
     return s / s.sum()
 
