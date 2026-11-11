@@ -35,6 +35,15 @@ RUN useradd -m -s /bin/bash ben \
  && chown -R learner:learner /home/learner/keys && chmod 600 /home/learner/keys/ben \
  && printf 'd /run/sshd 0755 root root -\n' > /etc/tmpfiles.d/sshd.conf
 
+# sshd -t and sshd -T need the folder /run/sshd. systemd makes it when
+# ssh.service starts and, on this release, removes it again when the service
+# stops or fails to start; after that both commands only say "Missing
+# privilege separation directory". A learner is asked for sshd -t at just
+# those moments (before a restart, after a start that failed), so the lab
+# keeps the folder.
+RUN mkdir -p /etc/systemd/system/ssh.service.d \
+ && printf '# Part of the lab: keeps /run/sshd when ssh.service stops, so that\n# sshd -t and sshd -T always work.\n[Service]\nRuntimeDirectoryPreserve=yes\n' > /etc/systemd/system/ssh.service.d/keep-run-sshd.conf
+
 # The hardening drop-in with its gaps, in place and ready to fill.
 COPY sshd-hardening.starter /etc/ssh/sshd_config.d/90-hardening.conf
 RUN chmod 644 /etc/ssh/sshd_config.d/90-hardening.conf

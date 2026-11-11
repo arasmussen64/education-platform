@@ -3,18 +3,20 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Hardened, and locked out"
 prompt: |
-  Someone hardened this server's SSH and now `ben` can't log in: `ssh -i ~/keys/ben ben@localhost` is refused, even though his key is fine. The drop-in they wrote, `/etc/ssh/sshd_config.d/90-hardening.conf`, is wrong three ways:
+  Yesterday someone hardened SSH on this server. The change was meant to do four things: turn off password logins, turn off root logins, let only members of the `ssh-users` group log in, and allow three tries per connection. Since then `ben` can't get in. From this machine, `ssh -i ~/keys/ben ben@localhost` fails at once: the first attempt says the connection was reset, and the ones after it say `Connection refused`. Nothing is wrong on ben's side: the key in `~/keys/ben` is his, its public half is installed in his account, and `groups ben` shows he is in `ssh-users`.
 
-  - `MaxAuthTries` is set to a word, not a number, so `sudo sshd -t` rejects the whole file and SSH won't start at all;
-  - `AllowGroups` names a group `ben` isn't in (he's in `ssh-users`), so even a valid login is refused;
-  - `PubkeyAuthentication` is `no`, which switches off the key-based login ben relies on.
+  Three separate things are wrong on the server, and fixing one uncovers the next, so try the login again after each fix and read what has changed. To systemd the SSH server is the service `ssh`, so what you know from Services and logs works on it: `systemctl status ssh`, and `journalctl -u ssh` for what the server itself said. Change SSH's settings the careful way the lesson describes: `sudo sshd -t` before the service is touched, then `sudo systemctl reload ssh`, or `sudo systemctl restart ssh` when the service isn't running. (If a restart fails while `sudo sshd -t` is silent, and `systemctl status ssh` says `Start request repeated too quickly`, systemd has stopped retrying a service that kept failing: `sudo systemctl reset-failed ssh`, then restart it again.)
 
-  Fix all three in `/etc/ssh/sshd_config.d/90-hardening.conf` with `sudo nano`, keeping the server hardened: passwords and root login stay off, the try limit becomes a sensible number, the group becomes `ssh-users`, and key authentication is on. The fix is **not** to turn passwords back on. Confirm with `sudo sshd -t`, then `sudo systemctl restart ssh` (it wouldn't start with the broken file), `sudo sshd -T`, and `ssh -i ~/keys/ben ben@localhost`. Then run the checks.
+  Get ben in without undoing the hardening. When you finish, all four things the change was meant to do must be true, both in the configuration (`sudo sshd -T`) and in the SSH server that is running, and ben must get in with his key.
+
+  You're done when `ssh -i ~/keys/ben ben@localhost whoami` prints `ben`. Then run the checks.
 hints:
-  - "`sudo sshd -t` points at the first line it can't parse; `MaxAuthTries 3` is a valid value. Work until `sshd -t` is silent."
-  - "`AllowGroups ssh-users` lets ben in (check with `groups ben`). `PubkeyAuthentication yes` turns key login back on (or remove the line, since keys are on by default)."
-  - "Keep `PasswordAuthentication no`: the point is to get ben in with his key, not to weaken the server. Prove it with the login at the end."
+  - "Ask the server's side what it thinks. `sudo sshd -t` reads the configuration without starting anything and names the file and line it can't accept. `systemctl status ssh` and `journalctl -u ssh -n 20` show what the service said when it last tried to start, or when it last turned someone away."
+  - "If systemd answers `Start request repeated too quickly`, the service failed several times in a row and systemd has stopped trying. `sudo systemctl reset-failed ssh` (or a ten-second wait) clears that; then `sudo systemctl restart ssh`."
+  - "Once the server starts, `Permission denied` has a reason on the server's side: `journalctl -u ssh -n 20` says why ben was turned away. The brackets after `Permission denied` list the ways in that the server still offers. Empty brackets mean it offers none, so read every line of `sudo sshd -T | grep -i authentication`."
+  - "All three are in the drop-in `/etc/ssh/sshd_config.d/90-hardening.conf`. `MaxAuthTries` needs a number, `3`. `AllowGroups` must name the group ben is in, `ssh-users`. And nothing in the hardening called for `PubkeyAuthentication no`, which switches off key login itself: make it `yes`, or delete the line, since keys are on by default."
+  - "Keep `PasswordAuthentication no` and `PermitRootLogin no`: the point is to get ben in with his key, not to weaken the server. After the last edit: `sudo sshd -t`, `sudo systemctl reload ssh`, then the login."
 skills: [ssh-hardening, baseline]

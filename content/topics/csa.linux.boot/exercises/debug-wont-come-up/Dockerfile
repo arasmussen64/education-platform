@@ -47,9 +47,11 @@ RUN bash /usr/local/lib/lab/make-repo.sh && rm /usr/local/lib/lab/make-repo.sh \
 
 # The broken setup, both as this instance's first boot (so it comes up
 # half-configured, the way the ticket describes) and as a file in the
-# learner's home to fix and launch again.
+# learner's home to fix and launch again. The shop's image has the shop's
+# data folder, /var/lib/shop, where the readiness marker belongs.
 COPY user-data-debug.broken /var/lib/cloud/seed/nocloud/user-data
 COPY user-data-debug.broken /home/learner/user-data.yaml
-RUN chmod 644 /var/lib/cloud/seed/nocloud/user-data && chown learner:learner /home/learner/user-data.yaml
+RUN chmod 644 /var/lib/cloud/seed/nocloud/user-data && chown learner:learner /home/learner/user-data.yaml \
+ && mkdir -p /var/lib/shop
 
 CMD ["/sbin/init"]
