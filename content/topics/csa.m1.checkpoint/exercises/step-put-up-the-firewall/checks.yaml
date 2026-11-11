@@ -1,6 +1,11 @@
-# The checks for "Stand up the shop's server": the service runs and answers,
-# the firewall is default-deny and keeps SSH and the API and persists, and
-# SSH is hardened with ben still able to log in.
+# The checks for "Step 2 of the runbook: put up the firewall".
+# The service runs and answers; the firewall lets in SSH and the API and
+# nothing else, which is tested from the office (a second machine) rather
+# than by reading the rules, so any correct way of writing them passes; the
+# same rules come back after a reboot; and the SSH server that is running,
+# not just its files, is hardened, with Ben still able to log in. The build,
+# its fresh versions, the steps and the worked example share these checks,
+# with the service and the port swapped.
 checks:
   - id: service-running
     description: "shop-api is active and enabled to start on boot."
@@ -14,27 +19,80 @@ checks:
       echo "$out"
     expect:
       contains: "shop api ok"
+  - id: reachable-from-outside
+    description: "From the office, a second machine on the network, SSH (port 22) and the API (port 8080) both answer."
+    command: |
+      for i in 1 2 3; do out=$(ip netns exec office curl -s --max-time 3 http://10.0.9.1:8080/); [ -n "$out" ] && break; sleep 1; done
+      if ! echo "$out" | grep -q "shop api ok"; then echo "port 8080 gives no answer from the office"
+      elif ! ip netns exec office nc -z -w 3 10.0.9.1 22 2> /dev/null; then echo "port 22 gives no answer from the office"
+      else echo "22 and 8080 answer"; fi
+    expect:
+      equals: "22 and 8080 answer"
   - id: firewall-default-deny
-    description: "The running firewall's input policy is drop, and it accepts SSH and the API."
+    description: "From the office, ports the server isn't meant to serve get no answer."
     command: |
-      r=$(sudo nft list ruleset)
-      echo "$r" | grep -qE 'hook input .*policy drop' && echo "$r" | grep -q 'tcp dport 22 accept' && echo "$r" | grep -q 'tcp dport 8080 accept' && echo "default deny, 22 and 8080 kept"
+      # Listeners of the check's own, on ports nobody asked for: the web's
+      # two, a database's and two more. If the office can reach any of them,
+      # the firewall lets in more than the server serves, whether it is off,
+      # wide open or opened "for later".
+      ports="80 443 3306 8081 9999"
+      listeners=""
+      for port in $ports; do
+        timeout 20 nc -4 -l "$port" > /dev/null 2>&1 &
+        listeners="$listeners $!"
+      done
+      sleep 0.5
+      missing=$(for port in $ports; do ss -Hltn sport = ":$port" | grep -q . || echo "$port"; done)
+      # Every port at once, so a firewall that drops them all takes 2
+      # seconds rather than 10.
+      reachable=$({ for port in $ports; do (ip netns exec office nc -z -w 2 10.0.9.1 "$port" 2> /dev/null && echo "$port") & done; wait; } | sort -n)
+      if [ -n "$missing" ]; then result="the check couldn't listen on port $(echo $missing)"
+      elif [ -n "$reachable" ]; then result="reachable from the office on ports nobody asked for: $(echo $reachable)"
+      else result="closed"; fi
+      # A listener the office reached has gone already, so kill's own
+      # complaint is no news.
+      kill $listeners 2> /dev/null
+      echo "$result"
     expect:
-      contains: "default deny, 22 and 8080 kept"
+      equals: "closed"
   - id: firewall-persisted
-    description: "The rules are in /etc/nftables.conf (policy drop) and nftables is enabled."
-    command: sudo nft -c -f /etc/nftables.conf && grep -q 'policy drop' /etc/nftables.conf && systemctl is-enabled nftables
-    expect:
-      equals: enabled
-  - id: ssh-hardened
-    description: "Password and root logins are off."
+    description: "The same firewall comes back after a reboot: the rules that are running are the ones saved in /etc/nftables.conf, and nftables is enabled."
     command: |
-      t=$(sudo sshd -T)
-      echo "$t" | grep -iq '^passwordauthentication no' && echo "$t" | grep -iq '^permitrootlogin no' && echo "hardened"
+      # Load the saved file in a network namespace of the check's own, which
+      # is what a boot would do with it, and compare with the running rules.
+      ns=labcheck-$$
+      trap 'ip netns del "$ns" 2> /dev/null' EXIT
+      ip netns add "$ns" && ip -n "$ns" link add eth0 type veth peer name eth1
+      if ! ip netns exec "$ns" nft -f /etc/nftables.conf 2> /dev/null; then echo "/etc/nftables.conf doesn't load"
+      elif [ "$(ip netns exec "$ns" nft -s list ruleset)" != "$(nft -s list ruleset)" ]; then echo "the running rules aren't the ones saved in /etc/nftables.conf"
+      elif [ "$(systemctl is-enabled nftables 2> /dev/null)" != enabled ]; then echo "nftables isn't enabled"
+      else echo "saved and enabled"; fi
     expect:
-      contains: hardened
+      equals: "saved and enabled"
+  - id: ssh-hardened
+    description: "The SSH server that is running refuses password logins and has loaded its current configuration, in which password and root logins are off."
+    command: |
+      # Ask the running server which ways of logging in it offers; sshd -T
+      # only reads the files, which a server started earlier may not have.
+      answer=$(ssh -o PreferredAuthentications=none -o PubkeyAuthentication=no -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ben@localhost true 2>&1)
+      offered=$(echo "$answer" | sed -n 's/.*Permission denied (\(.*\))\..*/\1/p')
+      settings=$(sshd -T 2> /dev/null)
+      # A root login can't be tried without a key for root, so for that
+      # setting ask whether the running server is older than its files: when
+      # the unit last started or reloaded, against the newest change under
+      # /etc/ssh (removing a file changes the folder's own time).
+      loaded=$(date -d "$(systemctl show -p StateChangeTimestamp --value ssh)" +%s 2> /dev/null)
+      changed=$(stat -c %Y /etc/ssh/sshd_config /etc/ssh/sshd_config.d /etc/ssh/sshd_config.d/* 2> /dev/null | sort -n | tail -1)
+      if [ -z "$offered" ]; then echo "the SSH server didn't answer"
+      elif echo ",$offered," | grep -qE ',(password|keyboard-interactive),'; then echo "the running SSH server still offers: $offered"
+      elif ! echo "$settings" | grep -qx 'passwordauthentication no'; then echo "PasswordAuthentication isn't no in the configuration"
+      elif ! echo "$settings" | grep -qx 'permitrootlogin no'; then echo "PermitRootLogin isn't no in the configuration"
+      elif [ "${changed:-0}" -gt "${loaded:-0}" ]; then echo "the SSH server that is running hasn't loaded its configuration since it last changed"
+      else echo "hardened"; fi
+    expect:
+      equals: "hardened"
   - id: key-login-works
-    description: "ben can still log in with his key."
+    description: "Ben can still log in with his key."
     command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
     expect:
       equals: "ben"

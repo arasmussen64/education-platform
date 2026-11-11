@@ -33,6 +33,17 @@ RUN useradd -m -s /bin/bash ben \
  && chown -R learner:learner /home/learner/keys /home/learner/bin && chmod 600 /home/learner/keys/ben \
  && printf 'd /run/sshd 0755 root root -\n' > /etc/tmpfiles.d/sshd.conf
 
+# The office: a second machine on the far side of eth1 (a network namespace
+# joined to this one by a veth pair, made at boot by network.sh; from-office
+# runs a command there), so the firewall is proved from outside, as in the
+# networking topic. Identical in every checkpoint lab.
+COPY network.sh /usr/local/lib/lab/network.sh
+COPY lab-network.service /etc/systemd/system/lab-network.service
+COPY from-office /usr/local/bin/from-office
+RUN chmod 755 /usr/local/lib/lab/network.sh /usr/local/bin/from-office \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/lab-network.service /etc/systemd/system/multi-user.target.wants/lab-network.service
+
 # A fresh server for the API gateway, nothing set up: gateway is installed
 # but not enabled or started, there's no firewall, and SSH still takes
 # passwords.

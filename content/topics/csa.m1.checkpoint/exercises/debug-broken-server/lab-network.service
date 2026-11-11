@@ -1,0 +1,17 @@
+# Makes the lab's second machine at boot (see /usr/local/lib/lab/network.sh):
+# the office, on the far side of eth1. Part of the lab's scenery. It runs
+# before the firewall is loaded, as a server's network card is there before
+# its firewall is.
+[Unit]
+Description=The lab's network: the office, a second machine
+DefaultDependencies=no
+After=local-fs.target
+Before=nftables.service network-pre.target network.target multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/lab/network.sh
+
+[Install]
+WantedBy=multi-user.target
