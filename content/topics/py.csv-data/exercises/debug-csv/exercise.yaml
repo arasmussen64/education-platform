@@ -1,9 +1,9 @@
 id: debug-csv
 stage: debug
-rev: 1
+rev: 2
 title: "Orders"
 prompt: |
-  This program writes a small CSV of orders, reads it back, and should print:
+  This program writes a small CSV file of orders, reads it back, and prints how many orders there are, their total amount and the first order's item:
 
   ```
   2
@@ -11,5 +11,10 @@ prompt: |
   pen
   ```
 
-  It has three bugs: the rows are read after the file has closed, text is added as if it were numbers, and a key doesn't match the header. Read each error, then check the header line against the keys used.
+  Instead it stops with a `ValueError` before printing anything. It has three bugs, and each one stops the program with a different error. Read each error and fix one thing at a time.
+hints:
+  - "Read the error's last line: what was used after it was closed? Look at where the `with` block ends."
+  - "A `DictReader` reads from the open file as you go. Turn it into a list inside the `with` block, while the file is still open."
+  - "Everything a `DictReader` gives is text, so `row[\"amount\"]` is `\"2.5\"`, not 2.5. Turn it into a number with `float()` before adding it."
+  - "A `KeyError` names the key it couldn't find. Compare it, letter by letter, with the header line the program writes."
 skills: [dict-reader, summarize, split-rows]
