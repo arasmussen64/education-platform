@@ -1,0 +1,17 @@
+id: write-steal-pct
+stage: write
+runtime: lab
+rev: 1
+title: "Write steal-pct"
+prompt: |
+  When a VM feels slow, an on-call script saves the first line of `/proc/stat` twice, a minute apart, so that someone can work out later how much CPU the host took away. `/srv/stat/` holds three such pairs, `quiet`, `robbed` and `mostly-idle`, each a `before.txt` and an `after.txt` (`/srv/stat/README` says what they are).
+
+  Write a script, `~/bin/steal-pct BEFORE AFTER`, that prints the share of the time between the two readings that was stolen, as a percentage to one decimal place, like `37.5`. The line is `cpu`, then ten counters in ticks since boot: user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice. Steal is the eighth; the first eight together are all the time there was (guest and guest_nice are already counted inside user and nice). Given anything other than two files, it prints a usage line and exits with a non-zero status.
+
+  Write it from a blank file with `nano ~/bin/steal-pct`, make it executable, and try it on all three pairs. Then run the checks, which also try it on a pair it hasn't seen.
+hints:
+  - "One reading counts from the moment the machine started. What happened between the two is the growth of each counter: the second number minus the first."
+  - "`paste before.txt after.txt` puts the two lines side by side on one line. In `awk`, the first line's counters are then `$2` to `$11` and the second's `$13` to `$22`, so `$(i + 11)` is the second reading of the counter in `$i`."
+  - "Add up the growth of the first eight counters for the total, take the growth of the eighth for the steal, and print `steal * 100 / total` with `printf \"%.1f\\n\"`."
+  - "`$#` is the number of arguments. Print the usage line with `>&2`, so it goes to the error output, and end with `exit 2`."
+skills: [stolen-or-capped]

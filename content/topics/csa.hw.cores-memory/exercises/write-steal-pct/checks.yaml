@@ -1,0 +1,61 @@
+# The checks for "Write steal-pct": the learner's script, run as the
+# learner, against the check's own sum over the same two files, on the three
+# pairs in /srv/stat and on a fourth it hasn't seen (kept where only root can
+# read it). And Module 1's scripting habit: a usage message and a failing
+# exit status when the files aren't given.
+#
+# Every pair has about 5% stolen since boot, so a script that reads the
+# second file alone prints about 5 for all of them (wrong/after-only.sh).
+# The hidden pair is idle apart from being robbed, so a script that divides
+# steal by the busy time alone prints 97.5 for it (wrong/busy-only.sh).
+checks:
+  - id: executable
+    description: "~/bin/steal-pct exists and can be run."
+    command: test -x /home/learner/bin/steal-pct
+  - id: quiet-right
+    description: "steal-pct prints quiet's steal over its minute, to within 0.1."
+    command: |
+      d=/srv/stat/quiet
+      truth=$(paste "$d/before.txt" "$d/after.txt" | awk '{for (i = 2; i <= 9; i++) t += $(i + 11) - $i; printf "%.1f", ($20 - $9) * 100 / t}')
+      got=$(runuser -u learner -- /home/learner/bin/steal-pct "$d/before.txt" "$d/after.txt" 2>&1)
+      awk -v g="$got" -v t="$truth" 'BEGIN {d = g - t; if (g ~ /^-?[0-9.]+$/ && d <= 0.1 && d >= -0.1) print "right"; else print "printed " g}'
+    expect:
+      equals: right
+  - id: robbed-right
+    description: "steal-pct prints robbed's steal over its minute, to within 0.1."
+    command: |
+      d=/srv/stat/robbed
+      truth=$(paste "$d/before.txt" "$d/after.txt" | awk '{for (i = 2; i <= 9; i++) t += $(i + 11) - $i; printf "%.1f", ($20 - $9) * 100 / t}')
+      got=$(runuser -u learner -- /home/learner/bin/steal-pct "$d/before.txt" "$d/after.txt" 2>&1)
+      awk -v g="$got" -v t="$truth" 'BEGIN {d = g - t; if (g ~ /^-?[0-9.]+$/ && d <= 0.1 && d >= -0.1) print "right"; else print "printed " g}'
+    expect:
+      equals: right
+  - id: mostly-idle-right
+    description: "steal-pct prints mostly-idle's steal over its minute, to within 0.1."
+    command: |
+      d=/srv/stat/mostly-idle
+      truth=$(paste "$d/before.txt" "$d/after.txt" | awk '{for (i = 2; i <= 9; i++) t += $(i + 11) - $i; printf "%.1f", ($20 - $9) * 100 / t}')
+      got=$(runuser -u learner -- /home/learner/bin/steal-pct "$d/before.txt" "$d/after.txt" 2>&1)
+      awk -v g="$got" -v t="$truth" 'BEGIN {d = g - t; if (g ~ /^-?[0-9.]+$/ && d <= 0.1 && d >= -0.1) print "right"; else print "printed " g}'
+    expect:
+      equals: right
+  - id: unseen-pair-right
+    description: "steal-pct is right, to within 0.1, on a pair of readings it hasn't seen."
+    command: |
+      copy=$(mktemp -d)
+      cp /usr/local/lib/lab/hidden/idle-robbed/* "$copy"
+      chmod -R a+rX "$copy"
+      truth=$(paste "$copy/before.txt" "$copy/after.txt" | awk '{for (i = 2; i <= 9; i++) t += $(i + 11) - $i; printf "%.1f", ($20 - $9) * 100 / t}')
+      got=$(runuser -u learner -- /home/learner/bin/steal-pct "$copy/before.txt" "$copy/after.txt" 2>&1)
+      rm -r "$copy"
+      awk -v g="$got" -v t="$truth" 'BEGIN {d = g - t; if (g ~ /^-?[0-9.]+$/ && d <= 0.1 && d >= -0.1) print "right"; else print "not right on the unseen pair"}'
+    expect:
+      equals: right
+  - id: usage-when-no-files
+    description: "Run with no files, steal-pct prints a usage message and exits with a non-zero status."
+    command: |
+      out=$(runuser -u learner -- /home/learner/bin/steal-pct 2>&1 < /dev/null)
+      status=$?
+      if [ "$status" -ne 0 ] && echo "$out" | grep -qi usage; then echo right; else echo "exit $status, printed: $out"; fi
+    expect:
+      equals: right
