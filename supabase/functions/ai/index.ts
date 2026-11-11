@@ -57,6 +57,20 @@ const admin = createClient(
 const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
 const claude = apiKey ? new Anthropic({ apiKey }) : null
 
+/**
+ * Why an answer Claude sent couldn't be used, for the log. Any error counts:
+ * the call has been paid for by then, so it must reach the log (and the
+ * budget) rather than end the request.
+ */
+function problemWith(
+  error: unknown,
+  expected: new (message?: string) => Error,
+): string {
+  if (error instanceof expected) return error.message
+  console.error('Claude answered, but the answer broke the reader', error)
+  return 'The answer could not be read'
+}
+
 async function grade(
   input: Parameters<typeof gradingRequest>[0],
 ): Promise<Graded> {
@@ -77,13 +91,12 @@ async function grade(
       grading: readGrading(message, input),
     }
   } catch (error) {
-    if (!(error instanceof GradingUnavailable)) throw error
     return {
       model: graderModel,
       usage,
       cost_usd,
       grading: null,
-      problem: error.message,
+      problem: problemWith(error, GradingUnavailable),
     }
   }
 }
@@ -101,8 +114,13 @@ async function hint(input: HintInput): Promise<Hinted> {
   try {
     return { model: tutorModel, usage, cost_usd, hint: readHint(message, input) }
   } catch (error) {
-    if (!(error instanceof HintUnavailable)) throw error
-    return { model: tutorModel, usage, cost_usd, hint: null, problem: error.message }
+    return {
+      model: tutorModel,
+      usage,
+      cost_usd,
+      hint: null,
+      problem: problemWith(error, HintUnavailable),
+    }
   }
 }
 

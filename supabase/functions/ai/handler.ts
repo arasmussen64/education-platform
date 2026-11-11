@@ -40,14 +40,21 @@ export type Graded = Called & { grading: Grading | null }
 /** A tutor call. `hint` is null when the reply couldn't be used. */
 export type Hinted = Called & { hint: Hint | null }
 
-/** One row of the ai_calls table. */
-export type CallLog = {
+/**
+ * What one call cost, as the budget counts it: the smallest row of the
+ * ai_calls table. Written on its own when the full row can't be.
+ */
+export type Spend = {
   user_id: string
   action: ProxyRequest['action']
   model: string
   input_tokens: number
   output_tokens: number
   cost_usd: number
+}
+
+/** One full row of the ai_calls table: the spend, and what was asked and answered. */
+export type CallLog = Spend & {
   request: Record<string, unknown>
   response: Record<string, unknown>
 }
@@ -62,8 +69,8 @@ export type Services = {
   grade: ((input: GradeInput) => Promise<Graded>) | null
   /** Hints with Claude (ADR-0015). Null when there's no API key. */
   hint: ((input: HintInput) => Promise<Hinted>) | null
-  /** Saves one call and returns its ID. */
-  logCall(call: CallLog): Promise<string>
+  /** Saves one call, in full or just its spend, and returns its ID. */
+  logCall(call: CallLog | Spend): Promise<string>
   /** Calls stop once the month's spending reaches this, in US dollars. */
   capUsd: number
   /** Which version of the grading instructions this proxy uses, for the log. */
@@ -86,7 +93,10 @@ export type Outcome =
       ai_call_id: string | null
       model: string
     }
-  | { status: 'not_allowed' | 'paused' | 'unavailable' }
+  | { status: 'not_allowed' | 'paused' | 'unavailable' | 'too_long' }
+
+/** A program longer than the tutor reads: not a broken request, so the page can say so. */
+export type TooLong = { too_long: true }
 
 // Browsers ask first (OPTIONS) whether a page on another site may call this.
 export const CORS_HEADERS = {
@@ -96,11 +106,75 @@ export const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-/** The learner's code is cut here, so a call stays small and the log fits. */
-export const MAX_CODE_CHARS = 6000
+/**
+ * The longest program the tutor reads, in characters: the learner's code and
+ * the reference solution alike. The browser checks the same limit before it
+ * asks (MAX_TUTOR_CODE_CHARS in web/src/tutor/hint.ts): change the two
+ * together. The longest program in the track is 12,323 characters (a worked
+ * example in ml.nn.debugging-training, measured 2026-11-11), so this leaves
+ * room. With both at the limit, a call sends about 13,000 tokens: about a
+ * tenth of a cent on Claude Haiku 5.5 (cost.ts).
+ */
+export const MAX_CODE_CHARS = 20_000
 export const MAX_QUESTION_CHARS = 500
 const MAX_EARLIER_HINTS = 8
 const MAX_TESTS = 20
+
+/**
+ * The ai_calls table refuses a request bigger than 16,384 bytes (its
+ * migration, 20261108223826_ai_calls.sql), and a refused row would leave the
+ * call's cost uncounted. So the logged request is cut to fit, by bytes, not
+ * characters: "é" is one character and two bytes, "中" one and three, so
+ * 6,000 characters can be 18,000 bytes. 1,024 bytes are kept back for
+ * Postgres's own bookkeeping inside the column.
+ */
+export const MAX_LOGGED_REQUEST_BYTES = 16_384 - 1_024
+
+/** Marks where logged text was cut, like clip() in the browser (web/src/events/payloads.ts). */
+const CUT_MARKER = '…(cut)'
+
+const encoder = new TextEncoder()
+
+/** How many bytes `text` takes in UTF-8, as Postgres stores it. */
+export const bytesOf = (text: string) => encoder.encode(text).length
+
+/**
+ * `text` cut to at most `maxBytes` bytes of UTF-8, its marker included.
+ * It's cut between characters, never through one: `for...of` walks whole
+ * characters, so an emoji (two halves in JavaScript) stays whole.
+ */
+export function clipBytes(text: string, maxBytes: number): string {
+  if (bytesOf(text) <= maxBytes) return text
+  const room = maxBytes - bytesOf(CUT_MARKER)
+  if (room < 0) return ''
+  let used = 0
+  let end = 0
+  for (const character of text) {
+    const size = bytesOf(character)
+    if (used + size > room) break
+    used += size
+    end += character.length
+  }
+  return `${text.slice(0, end)}${CUT_MARKER}`
+}
+
+/**
+ * The request as it's logged: `field`, its one long text, cut by bytes so
+ * the whole request fits its column. JSON measures the rest a little
+ * generously (its quotes and commas), which only adds to the margin.
+ */
+export function requestForLog(
+  request: Record<string, unknown>,
+  field: string,
+): Record<string, unknown> {
+  const text = request[field]
+  if (typeof text !== 'string') return request
+  const rest = bytesOf(JSON.stringify({ ...request, [field]: '' }))
+  return {
+    ...request,
+    [field]: clipBytes(text, Math.max(0, MAX_LOGGED_REQUEST_BYTES - rest)),
+  }
+}
 
 function reply(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -201,8 +275,11 @@ function readCheck(value: unknown): CheckSummary | null | string {
   return { passed: value.passed, total: value.total, results }
 }
 
-/** A tutor request, checked, or what's wrong with it. */
-export function readHintRequest(body: unknown): HintRequest | string {
+/**
+ * A tutor request, checked, or what's wrong with it. A program too long for
+ * the tutor is its own answer, TooLong, so the page can say so plainly.
+ */
+export function readHintRequest(body: unknown): HintRequest | TooLong | string {
   if (!isRecord(body)) return 'Send a JSON object.'
   if (body.action !== 'tutor_hint') return 'Unknown action.'
   if (!isText(body.topic_id, 200)) return 'topic_id is missing or too long.'
@@ -212,14 +289,15 @@ export function readHintRequest(body: unknown): HintRequest | string {
     !isRecord(exercise) ||
     !isText(exercise.title, 200) ||
     !isText(exercise.prompt, 4000) ||
-    !isText(exercise.solution, MAX_CODE_CHARS, true) ||
+    typeof exercise.solution !== 'string' ||
     !isStringList(exercise.hints, 10, 1000)
   ) {
     return 'exercise needs a title, a prompt, a solution and up to 10 hints.'
   }
   const code = body.code ?? ''
-  if (!isText(code, MAX_CODE_CHARS, true)) {
-    return `The code is longer than ${MAX_CODE_CHARS.toLocaleString('en-US')} characters.`
+  if (typeof code !== 'string') return 'code must be text.'
+  if (code.length > MAX_CODE_CHARS || exercise.solution.length > MAX_CODE_CHARS) {
+    return { too_long: true }
   }
   const question = body.question ?? ''
   if (!isText(question, MAX_QUESTION_CHARS, true)) {
@@ -239,9 +317,9 @@ export function readHintRequest(body: unknown): HintRequest | string {
       title: exercise.title as string,
       prompt: exercise.prompt as string,
       hints: exercise.hints,
-      solution: exercise.solution as string,
+      solution: exercise.solution,
     },
-    code: code as string,
+    code,
     check,
     question: question as string,
     earlier,
@@ -249,7 +327,7 @@ export function readHintRequest(body: unknown): HintRequest | string {
 }
 
 /** Whichever action the browser asked for, checked. */
-export function readRequest(body: unknown): ProxyRequest | string {
+export function readRequest(body: unknown): ProxyRequest | TooLong | string {
   if (!isRecord(body)) return 'Send a JSON object.'
   if (body.action === 'grade_explanation') return readGradeRequest(body)
   if (body.action === 'tutor_hint') return readHintRequest(body)
@@ -257,6 +335,42 @@ export function readRequest(body: unknown): ProxyRequest | string {
 }
 
 export function createHandler(services: Services) {
+  // Calls Claude answered whose cost couldn't be written down at all, oldest
+  // first. While any wait here, no new call is made: the cap can only stop
+  // spending it can see (fail closed). Each new request tries to write them
+  // again first. They live in this running copy of the function only, so if
+  // the copy shuts down first they're lost: at most the calls that were
+  // already under way when writing began to fail. A fresh copy starts empty,
+  // and stops again after its own first uncounted call.
+  const unrecorded: Spend[] = []
+  // The retry under way, if there is one. Every request waits for the same
+  // retry, so none can go ahead while it isn't yet known whether the
+  // waiting costs got written, and no cost is written twice.
+  let retrying: Promise<boolean> | null = null
+
+  /** Writes the waiting spends down. True once none are left. */
+  function recordUnrecorded(): Promise<boolean> {
+    if (unrecorded.length === 0) return Promise.resolve(true)
+    retrying ??= writeUnrecorded().finally(() => {
+      retrying = null
+    })
+    return retrying
+  }
+
+  async function writeUnrecorded(): Promise<boolean> {
+    while (unrecorded.length > 0) {
+      try {
+        await services.logCall(unrecorded[0] as Spend)
+      } catch (error) {
+        console.error('An earlier call still could not be counted', error)
+        return false
+      }
+      // Off the list only once it's written.
+      unrecorded.shift()
+    }
+    return true
+  }
+
   return async function handle(request: Request): Promise<Response> {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS })
@@ -283,25 +397,31 @@ export function createHandler(services: Services) {
     }
     const input = readRequest(body)
     if (typeof input === 'string') return reply(400, { error: input })
+    if ('too_long' in input) return reply(200, { status: 'too_long' })
 
-    // 2. May they use the AI, 3. is there budget left?
+    // 2. May they use the AI? 3. Is every earlier call's cost written down,
+    // and 4. is there budget left?
     const outcome = (status: Outcome['status']) => reply(200, { status })
     if (!(await services.isAllowed(userId))) return outcome('not_allowed')
+    if (!(await recordUnrecorded())) return outcome('unavailable')
     if ((await services.spentThisMonth()) >= services.capUsd) {
       return outcome('paused')
     }
 
-    // 4. Is there a key? Then 5. ask Claude, and 6. log the call.
+    // 5. Is there a key? Then 6. ask Claude, and 7. log the call.
     if (input.action === 'grade_explanation') {
       const grade = services.grade
       if (!grade) return outcome('unavailable')
       return completeCall(userId, () => grade(input), {
         action: 'grade_explanation',
-        request: {
-          topic_id: input.topic_id,
-          explanation: input.explanation,
-          prompt_version: services.promptVersion,
-        },
+        request: requestForLog(
+          {
+            topic_id: input.topic_id,
+            explanation: input.explanation,
+            prompt_version: services.promptVersion,
+          },
+          'explanation',
+        ),
         response: (graded) => graded.grading,
         answer: (graded, ai_call_id) =>
           graded.grading && {
@@ -316,15 +436,18 @@ export function createHandler(services: Services) {
     if (!hint) return outcome('unavailable')
     return completeCall(userId, () => hint(input), {
       action: 'tutor_hint',
-      request: {
-        topic_id: input.topic_id,
-        item_id: input.item_id,
-        level: levelFor(input.earlier.length),
-        hints_so_far: input.earlier.length,
-        question: input.question,
-        code: input.code,
-        prompt_version: services.tutorPromptVersion,
-      },
+      request: requestForLog(
+        {
+          topic_id: input.topic_id,
+          item_id: input.item_id,
+          level: levelFor(input.earlier.length),
+          hints_so_far: input.earlier.length,
+          question: input.question,
+          code: input.code,
+          prompt_version: services.tutorPromptVersion,
+        },
+        'code',
+      ),
       response: (hinted) => hinted.hint,
       answer: (hinted, ai_call_id) =>
         hinted.hint && {
@@ -337,7 +460,7 @@ export function createHandler(services: Services) {
   }
 
   /**
-   * Steps 5 and 6, the same for both actions: ask Claude, log what it cost
+   * Steps 6 and 7, the same for both actions: ask Claude, log what it cost
    * (even when the answer couldn't be used), and answer the browser.
    */
   async function completeCall<Result extends Called>(
@@ -361,24 +484,36 @@ export function createHandler(services: Services) {
       return reply(200, { status: 'unavailable' })
     }
 
-    let aiCallId: string | null = null
+    // Claude has answered, so the call costs money: the budget must count it.
+    const spend: Spend = {
+      user_id: userId,
+      action: call.action,
+      model: result.model,
+      input_tokens: result.usage.input_tokens,
+      output_tokens: result.usage.output_tokens,
+      cost_usd: result.cost_usd,
+    }
+    let aiCallId: string
     try {
       aiCallId = await services.logCall({
-        user_id: userId,
-        action: call.action,
-        model: result.model,
-        input_tokens: result.usage.input_tokens,
-        output_tokens: result.usage.output_tokens,
-        cost_usd: result.cost_usd,
+        ...spend,
         request: call.request,
         response: call.response(result) ?? {
           problem: result.problem ?? 'unknown',
         },
       })
     } catch (error) {
-      // The learner still gets their answer. The Anthropic Console's own
-      // monthly limit stops spending if logging keeps failing.
-      console.error('The call could not be logged', error)
+      console.error('The call could not be logged in full', error)
+      try {
+        // The spend alone, so the cap still counts it.
+        aiCallId = await services.logCall(spend)
+      } catch (error) {
+        // Not even that: no more calls until it's written (see `unrecorded`),
+        // and no answer this time, so a failure is never a silent success.
+        console.error('The call could not be counted: calls stop', error)
+        unrecorded.push(spend)
+        return reply(200, { status: 'unavailable' })
+      }
     }
 
     const answer = call.answer(result, aiCallId)

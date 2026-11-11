@@ -1,5 +1,5 @@
 import type { Exercise } from '../content/types.ts'
-import { clip, MAX_CODE_CHARS } from '../events/payloads.ts'
+import { clip } from '../events/payloads.ts'
 import type { CheckOutcome } from '../python/runner.ts'
 import { getSupabase } from '../supabase/client.ts'
 
@@ -40,6 +40,8 @@ export type HintOutcome =
   | { status: 'paused' }
   /** The proxy has no key, doesn't know the tutor yet, or Claude couldn't help. */
   | { status: 'unavailable' }
+  /** The program, the learner's or the exercise's, is too long for the tutor. */
+  | { status: 'too_long' }
   /** The proxy couldn't be reached, or said something unexpected. */
   | { status: 'failed' }
 
@@ -72,6 +74,13 @@ export type HintRequest = {
 
 export type AskTutor = (request: HintRequest) => Promise<HintOutcome>
 
+/**
+ * The longest program the tutor reads, in characters: the learner's code and
+ * the reference solution alike. The proxy has the same limit (MAX_CODE_CHARS
+ * in supabase/functions/ai/handler.ts): change the two together. The longest
+ * program in the track is 12,323 characters (measured 2026-11-11).
+ */
+export const MAX_TUTOR_CODE_CHARS = 20_000
 /** The longest question the proxy takes. */
 export const MAX_QUESTION_CHARS = 500
 /** The proxy reads at most this many earlier hints; the latest ones matter most. */
@@ -134,7 +143,7 @@ function readOutcome(data: unknown): HintOutcome {
   if (!isRecord(data)) return { status: 'failed' }
   const { status } = data
   if (status === 'not_allowed' || status === 'paused') return { status }
-  if (status === 'unavailable') return { status }
+  if (status === 'unavailable' || status === 'too_long') return { status }
   if (status !== 'hinted' || !isRecord(data.hint)) return { status: 'failed' }
   const { text, level, replaced } = data.hint
   if (
@@ -159,6 +168,13 @@ function readOutcome(data: unknown): HintOutcome {
  * "failed", so the page can say so and the written hints stay available.
  */
 export const askTutor: AskTutor = async (request) => {
+  // Sent whole or not at all: half a program would mislead the tutor.
+  if (
+    request.code.length > MAX_TUTOR_CODE_CHARS ||
+    request.exercise.solution.length > MAX_TUTOR_CODE_CHARS
+  ) {
+    return { status: 'too_long' }
+  }
   try {
     const { data, error } = await getSupabase().functions.invoke('ai', {
       body: {
@@ -172,7 +188,7 @@ export const askTutor: AskTutor = async (request) => {
           // The tutor needs it to judge the code; it never quotes it.
           solution: request.exercise.solution,
         },
-        code: clip(request.code, MAX_CODE_CHARS),
+        code: request.code,
         check: checkSummary(request.check),
         question: request.question.trim().slice(0, MAX_QUESTION_CHARS),
         earlier: request.earlier.slice(-MAX_EARLIER_HINTS),

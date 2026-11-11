@@ -1,6 +1,6 @@
 // The `data` saved with code events (docs/specs/data-model.md, event types).
-// Long code and output are cut short, so every event fits the database's
-// 16 KB limit.
+// Very long code and output are cut short, so every event fits the
+// database's limit (MAX_EVENT_DATA_BYTES).
 import type {
   CheckOutcome,
   RunOutcome,
@@ -8,12 +8,38 @@ import type {
 } from '../python/runner.ts'
 import type { EventData } from './types.ts'
 
-export const MAX_CODE_CHARS = 6_000
+/**
+ * Code is kept whole up to this many characters. The longest program in the
+ * track is 12,323 characters (Module 8 of the ML track, measured
+ * 2026-11-11), so every program a learner writes today is logged whole.
+ */
+export const MAX_CODE_CHARS = 20_000
 export const MAX_TEXT_CHARS = 2_000
 
-/** Shortens long text, marking where it was cut. */
+/**
+ * The most an event's data may take in the database, in bytes: the check on
+ * events.data in supabase/migrations/20261111164541_raise_event_data_limit.sql.
+ * Change the two together. A character takes up to three bytes, so at the
+ * worst the limits above make 72,000 bytes, well inside it.
+ */
+export const MAX_EVENT_DATA_BYTES = 131_072
+
+const CUT_MARKER = '…(cut)'
+
+/**
+ * Shortens long text to at most `max` characters, marking where it was cut.
+ * The marker counts towards `max`, so the result is never longer.
+ */
 export function clip(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max)}…(cut)`
+  if (text.length <= max) return text
+  if (max < CUT_MARKER.length) return text.slice(0, max)
+  let end = max - CUT_MARKER.length
+  // An emoji is two halves in JavaScript (a "surrogate pair"). Cutting
+  // between them leaves half a character, which Postgres refuses, so the
+  // whole event would be lost: cut before the pair instead.
+  const last = text.charCodeAt(end - 1)
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1
+  return `${text.slice(0, end)}${CUT_MARKER}`
 }
 
 /** A press of Run: the code and what it printed. */
