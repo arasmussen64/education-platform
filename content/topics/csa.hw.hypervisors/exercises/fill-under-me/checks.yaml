@@ -1,0 +1,98 @@
+# The checks for "Finish the under-me script". Each compares the script's
+# line with the same question answered here, from the same files, on the
+# laptop capture (a container on a Hyper-V VM) and the QEMU guest with two
+# network cards, listed slower one second. Then two captures the prompt
+# doesn't name, and one the check makes itself of the lab machine, whatever
+# that is: a Hyper-V guest on Docker Desktop, an Azure or AWS VM on CI, or
+# bare metal, where lscpu names no vendor.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    timeout: 10
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/under-me"
+  - id: vendor-line
+    description: "The vendor line is lscpu's hypervisor vendor, or none when lscpu names none, on the laptop capture and on qemu-two-nics."
+    timeout: 20
+    command: |
+      for c in laptop-wsl2 qemu-two-nics; do
+        v=$(grep '^Hypervisor vendor:' "/srv/captures/$c/lscpu.txt" | sed 's/^[^:]*: *//')
+        want="vendor: ${v:-none}"
+        got=$(runuser -u learner -- /home/learner/bin/under-me "/srv/captures/$c" 2>/dev/null | grep '^vendor:' || true)
+        [ "$got" = "$want" ] || { echo "for $c it prints: ${got:-nothing}"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: vm-line
+    description: "The vm line is the VM the capture's systemd-detect-virt --vm named, on the laptop capture and on qemu-two-nics."
+    timeout: 20
+    command: |
+      for c in laptop-wsl2 qemu-two-nics; do
+        want="vm: $(sed -n 's/^vm: //p' "/srv/captures/$c/detect-virt.txt")"
+        got=$(runuser -u learner -- /home/learner/bin/under-me "/srv/captures/$c" 2>/dev/null | grep '^vm:' || true)
+        [ "$got" = "$want" ] || { echo "for $c it prints: ${got:-nothing}"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: nics-line
+    description: "The nics line names the drivers behind the network cards, sorted, each once, on the laptop capture and on qemu-two-nics."
+    timeout: 20
+    command: |
+      for c in laptop-wsl2 qemu-two-nics; do
+        want="nics: $(cut -d' ' -f2 "/srv/captures/$c/net-drivers.txt" | LC_ALL=C sort -u | paste -sd ' ')"
+        got=$(runuser -u learner -- /home/learner/bin/under-me "/srv/captures/$c" 2>/dev/null | grep '^nics:' || true)
+        [ "$got" = "$want" ] || { echo "for $c it prints: ${got:-nothing}"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: disks-line
+    description: "The disks line names the drivers behind the disks, sorted, each once, on the laptop capture and on qemu-two-nics."
+    timeout: 20
+    command: |
+      for c in laptop-wsl2 qemu-two-nics; do
+        want="disks: $(cut -d' ' -f2 "/srv/captures/$c/block-drivers.txt" | LC_ALL=C sort -u | paste -sd ' ')"
+        got=$(runuser -u learner -- /home/learner/bin/under-me "/srv/captures/$c" 2>/dev/null | grep '^disks:' || true)
+        [ "$got" = "$want" ] || { echo "for $c it prints: ${got:-nothing}"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: works-on-another
+    description: "It answers all four questions right for two captures the prompt doesn't name."
+    timeout: 20
+    command: |
+      for d in /usr/local/share/lab/captures/*/; do
+        d=${d%/}
+        v=$(grep '^Hypervisor vendor:' "$d/lscpu.txt" | sed 's/^[^:]*: *//')
+        want=$(
+          echo "vendor: ${v:-none}"
+          echo "vm: $(sed -n 's/^vm: //p' "$d/detect-virt.txt")"
+          echo "nics: $(cut -d' ' -f2 "$d/net-drivers.txt" | LC_ALL=C sort -u | paste -sd ' ')"
+          echo "disks: $(cut -d' ' -f2 "$d/block-drivers.txt" | LC_ALL=C sort -u | paste -sd ' ')"
+        )
+        got=$(runuser -u learner -- /home/learner/bin/under-me "$d" 2>/dev/null || true)
+        [ "$got" = "$want" ] || { echo "not for one of them"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: works-live
+    description: "It answers all four questions right for a capture of the lab machine itself, which the check takes with lab-capture."
+    timeout: 30
+    command: |
+      tmp=$(mktemp -d); chmod 755 "$tmp"; d="$tmp/here"
+      lab-capture "$d" > /dev/null 2>&1; chmod -R a+rX "$d"
+      v=$(grep '^Hypervisor vendor:' "$d/lscpu.txt" | sed 's/^[^:]*: *//')
+      want=$(
+        echo "vendor: ${v:-none}"
+        echo "vm: $(sed -n 's/^vm: //p' "$d/detect-virt.txt")"
+        echo "nics: $(cut -d' ' -f2 "$d/net-drivers.txt" | LC_ALL=C sort -u | paste -sd ' ')"
+        echo "disks: $(cut -d' ' -f2 "$d/block-drivers.txt" | LC_ALL=C sort -u | paste -sd ' ')"
+      )
+      got=$(runuser -u learner -- /home/learner/bin/under-me "$d" 2>/dev/null || true)
+      rm -rf "$tmp"
+      [ "$got" = "$want" ] && echo right || echo "not for this machine"
+    expect:
+      equals: right
