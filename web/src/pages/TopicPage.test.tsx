@@ -1148,6 +1148,48 @@ describe('a checkpoint page', () => {
       expect(screen.getByLabelText('Your explanation')).toBeInTheDocument()
     })
 
+    // The way through is for part 1 alone, and the steps rule is part 1's
+    // alone, so with another build on the page the notes say which.
+    it('says the way through is for part 1, and that the other parts still count', async () => {
+      renderParts()
+      expect(wayThrough()).toHaveTextContent(
+        "If you're stuck on part 1, the first build, take it one stage at a time:",
+      )
+      expect(wayThrough()).toHaveTextContent(
+        'So once you open them, passing part 1 above no longer counts as your proof: a fresh version does.',
+      )
+      expect(wayThrough()).toHaveTextContent(
+        'The steps show nothing of the other parts, so they count whenever they pass.',
+      )
+      // "Parts" names the proof checks here, not the way through's stages.
+      expect(wayThrough()).not.toHaveTextContent('three parts')
+
+      await progressLoaded()
+      await openTheSteps()
+      const notice = await screen.findByText(
+        /passing part 1 below no longer counts as your proof/,
+      )
+      expect(notice).toHaveTextContent(
+        'Your other parts count whenever they pass.',
+      )
+    })
+
+    it('suggests the steps for part 1 after two failing Checks on it', async () => {
+      setFakeRunner(fakeRunner({ check: oneFailed('Adds it all up') }))
+      renderParts()
+      await checkTheBuild()
+      await checkTheBuild()
+      const suggestion = await screen.findByRole('button', {
+        name: 'Try it in steps',
+      })
+      expect(suggestion.closest('p')).toHaveTextContent(
+        "Stuck on part 1? That's normal on a checkpoint. Try it in steps: a solved example, then part 1 a piece at a time, with hints, then a fresh version to prove it.",
+      )
+      expect(
+        screen.getByText('Stuck on part 1? You can try it in steps.'),
+      ).toBeInTheDocument()
+    })
+
     it('leaves a checkpoint without further parts as it was', async () => {
       renderCheckpoint()
       expect(within(proveIt()).queryByText('Part 1')).not.toBeInTheDocument()
@@ -1157,6 +1199,10 @@ describe('a checkpoint page', () => {
       expect(
         screen.queryByRole('button', { name: /Try a fresh version of part/ }),
       ).not.toBeInTheDocument()
+      expect(wayThrough()).toHaveTextContent(
+        'When you are, take it in three parts:',
+      )
+      expect(wayThrough()).not.toHaveTextContent('part 1')
       expect(await rows()).toEqual([
         '○ Build: not passed yet',
         '○ Debug: not passed yet',

@@ -330,6 +330,9 @@ function CheckpointView({
   locked: boolean
 }) {
   const { unstuck } = content.topic
+  // With further parts, the build is part 1 of several, and the notes about
+  // the steps say so (ADR-0012, amended 2026-11-11).
+  const numbered = furtherParts(content.topic).length > 0
   const recordEvent = useRecordEvent()
   const [failedChecks, setFailedChecks] = useState(0)
   const [buildPassed, setBuildPassed] = useState(false)
@@ -402,15 +405,19 @@ function CheckpointView({
           else setFailedChecks((count) => count + 1)
         }}
         beforeBuild={
-          freshVersionNeeded && <ProveOnAFreshVersion onGoToSteps={goToSteps} />
+          freshVersionNeeded && (
+            <ProveOnAFreshVersion onGoToSteps={goToSteps} numbered={numbered} />
+          )
         }
         afterBuild={
           <>
             {/* <output> is announced by screen readers when its text changes. */}
             <output className="sr-only">
-              {suggest ? 'Stuck on the build? You can try it in steps.' : ''}
+              {suggest
+                ? `Stuck on ${numbered ? 'part 1' : 'the build'}? You can try it in steps.`
+                : ''}
             </output>
-            {suggest && <SuggestSteps onOpen={goToSteps} />}
+            {suggest && <SuggestSteps onOpen={goToSteps} numbered={numbered} />}
           </>
         }
         afterDebug={<MoreParts content={content} loadAttempts={loadAttempts} />}
