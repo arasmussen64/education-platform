@@ -90,7 +90,7 @@ Mobile apps, social features or leaderboards, certificates, languages other than
 | Risk | Mitigation |
 |---|---|
 | Errors in AI-drafted advanced content | Ground it in trusted sources; make every exercise runnable; add a "report a problem" button; get expert review before any paid launch |
-| Scope: beginner to principal is a huge map | Build the engine to work for any topic; build one track to its end before going back to the next. (Until 2026-11-10 the rule was to add content only just ahead of the first learner; the [roadmap](roadmap.md#where-the-project-stands) has the owner's change.) |
+| Scope: beginner to principal is a huge map | Build the engine to work for any topic; build one track to its end before returning to another. (Until 2026-11-10 the rule was to add content only just ahead of the first learner; the [roadmap](roadmap.md#where-the-project-stands) has the owner's change.) |
 | Building it with AI without understanding it | Every pull request has a short plain-language summary, and the owner is offered an explain-it-back question now and then. Neither blocks merging |
 | Free tiers change or run out | Pick portable tech (plain Postgres, static hosting) so moving is cheap |
 | Cheating on in-browser hidden tests | Doesn't matter for personal use (cheating only hurts the cheater); revisit before a public launch |
