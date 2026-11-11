@@ -7,8 +7,9 @@ def call(wrapped, *args):
     try:
         return wrapped(*args)
     except TypeError as error:
+        count = "1 argument" if len(args) == 1 else f"{len(args)} arguments"
         raise AssertionError(
-            f"The wrapper should take any number of arguments, but a call with {len(args)} failed: {error}"
+            f"The wrapper should take any number of arguments, but a call with {count} failed: {error}"
         ) from None
 
 
