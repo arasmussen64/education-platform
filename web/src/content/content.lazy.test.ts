@@ -16,9 +16,12 @@ import {
 // on the one before.
 
 const CLOUD = 'cloud-solutions-architect'
-/** The cloud track's module with real content, and its checkpoint, bundled into the app. */
+/** The cloud track's modules with real content, and their checkpoints, bundled into the app. */
 const isBundled = (id: string) =>
-  id.startsWith('csa.linux.') || id === 'csa.m1.checkpoint'
+  id.startsWith('csa.linux.') ||
+  id === 'csa.m1.checkpoint' ||
+  id.startsWith('csa.hw.') ||
+  id === 'csa.m2.checkpoint'
 
 describe('topic outlines that load on demand', () => {
   it('bundles the main track and the module being written, and leaves the outlines out', () => {
@@ -46,8 +49,8 @@ describe('topic outlines that load on demand', () => {
     for (const id of topicIdsOf(cloud)) {
       expect(getTopic(id), id).toBeDefined()
     }
-    // A Module 2 topic: planned for a long while yet.
-    expect(getTopic('csa.hw.hypervisors')).toMatchObject({
+    // A Module 3 topic: planned for a long while yet.
+    expect(getTopic('csa.net.cidr')).toMatchObject({
       status: 'planned',
       practice: [],
     })
