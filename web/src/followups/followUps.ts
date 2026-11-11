@@ -53,11 +53,14 @@ export type FollowUp = {
   skillId: string
   /** The day of the most recent miss. */
   missedOn: Day
-  /** The items missed that day. */
+  /**
+   * The items missed that day. Getting one of them right later doesn't
+   * count, unless the skill has no other question.
+   */
   missedItems: string[]
-  /** Days since the miss with a correct answer on this skill. */
+  /** The days that counted towards relearning it, oldest first. */
   correctOn: Day[]
-  /** When it should come back. */
+  /** When it should come back. A right answer before then doesn't count. */
   due: Day
 }
 
@@ -107,7 +110,11 @@ export function itemsIn(contents: Map<string, TopicContent>): ItemsOf {
   return (topicId) => byTopic.get(topicId)
 }
 
-/** An item, if its topic and the item are known. */
+/**
+ * An item, if what happens on it says something about its skills. A worked
+ * example shows its answer as it goes, so getting it right, or wrong, says
+ * nothing about what the learner remembers (ADR-0011, amended 2026-11-11).
+ */
 function evidenceFrom(
   itemsOf: ItemsOf,
   topicId: string,
@@ -115,7 +122,8 @@ function evidenceFrom(
 ): ItemFacts | undefined {
   const items = itemsOf(topicId)
   // Object.hasOwn: an item ID like "constructor" isn't one of the items.
-  return items && Object.hasOwn(items, itemId) ? items[itemId] : undefined
+  const item = items && Object.hasOwn(items, itemId) ? items[itemId] : undefined
+  return item?.stage === 'worked_example' ? undefined : item
 }
 
 /**
@@ -260,11 +268,32 @@ function skillEvidence(attempts: Attempt[], itemsOf: ItemsOf): SkillEvidence[] {
 }
 
 /**
+ * Whether a day of right answers on a skill moves its follow-up on
+ * (ADR-0011, amended 2026-11-11). The day must be on or after the one the
+ * follow-up is due, so the growing gaps of 1, 3 and 7 days are kept:
+ * otherwise three right days in a row would close it in three days. And a
+ * right answer must be on an item other than the ones missed, because
+ * answering the same question again can be remembering its answer rather
+ * than the rule. A missed item counts only when the skill has no other.
+ */
+function movesOn(
+  followUp: FollowUp,
+  day: Day,
+  rightOn: Set<string>,
+  candidates: string[],
+): boolean {
+  if (day < followUp.due) return false
+  const missed = new Set(followUp.missedItems)
+  const nothingElseToAsk = candidates.every((id) => missed.has(id))
+  return [...rightOn].some((item) => nothingElseToAsk || !missed.has(item))
+}
+
+/**
  * Every skill that's currently being relearned. Day by day, for each skill:
  * a miss opens it (due the next day, and any earlier progress starts over);
- * each correct day after the miss counts towards closing it (due again 3
- * days later, then 7); 3 correct days close it. Checkpoint tests count for
- * the skills they name (ADR-0012).
+ * a right day on another item, once it's due, counts towards closing it
+ * (due again 3 days later, then 7); 3 such days close it. Checkpoint tests
+ * count for the skills they name (ADR-0012).
  */
 export function openFollowUps(
   attempts: Attempt[],
@@ -288,6 +317,7 @@ export function openFollowUps(
   const open: FollowUp[] = []
   for (const [key, days] of bySkill) {
     const [topicId = '', skillId = ''] = key.split('\n')
+    const candidates = candidatesFor(itemsOf(topicId), skillId)
     let state: FollowUp | null = null
     for (const [day, { missed, right }] of [...days].sort(([a], [b]) =>
       a.localeCompare(b),
@@ -301,7 +331,7 @@ export function openFollowUps(
           correctOn: [],
           due: addDays(day, 1),
         }
-      } else if (state && right.size > 0 && day > state.missedOn) {
+      } else if (state && movesOn(state, day, right, candidates)) {
         state.correctOn.push(day)
         const gap = RELEARNING_GAPS[state.correctOn.length - 1]
         if (gap === undefined) state = null

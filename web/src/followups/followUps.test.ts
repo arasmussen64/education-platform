@@ -102,6 +102,102 @@ describe('openFollowUps', () => {
     expect(openFollowUps(history, itemsOf)).toEqual([])
   })
 
+  it('counts a right day that comes later than due, and spaces from it', () => {
+    const open = openFollowUps(
+      [
+        attempt('mcq-commas', false, '2026-11-06'),
+        // Due on the 7th; the learner came back on the 9th.
+        attempt('predict-commas', true, '2026-11-09'),
+      ],
+      itemsOf,
+    )
+    expect(open[0]).toMatchObject({
+      correctOn: ['2026-11-09'],
+      due: '2026-11-12',
+    })
+  })
+
+  it("doesn't count a right day that comes before the follow-up is due", () => {
+    // Right the next day (due again 3 days later), then right on each of
+    // the two days in between: the gaps of 3 and 7 days are the point.
+    const open = openFollowUps(
+      [
+        attempt('mcq-commas', false, '2026-11-06'),
+        attempt('predict-commas', true, '2026-11-07'),
+        attempt('predict-commas', true, '2026-11-08'),
+        attempt('predict-commas', true, '2026-11-09'),
+      ],
+      itemsOf,
+    )
+    expect(open[0]).toMatchObject({
+      correctOn: ['2026-11-07'],
+      due: '2026-11-10',
+    })
+  })
+
+  it("doesn't count the missed question, answered again from memory", () => {
+    const open = openFollowUps(
+      [
+        attempt('mcq-commas', false, '2026-11-06'),
+        attempt('mcq-commas', true, '2026-11-07'),
+        attempt('mcq-commas', true, '2026-11-10'),
+        attempt('mcq-commas', true, '2026-11-17'),
+      ],
+      itemsOf,
+    )
+    expect(open[0]).toMatchObject({ correctOn: [], due: '2026-11-07' })
+  })
+
+  it('counts a day with the missed question and a different one right', () => {
+    const open = openFollowUps(
+      [
+        attempt('mcq-commas', false, '2026-11-06'),
+        attempt('mcq-commas', true, '2026-11-07', 10),
+        attempt('fill-commas', true, '2026-11-07', 11),
+      ],
+      itemsOf,
+    )
+    expect(open[0]?.correctOn).toEqual(['2026-11-07'])
+  })
+
+  it('counts the missed question when the skill has no other to ask', () => {
+    // Both of the skill's questions missed on the same day: one of them has
+    // to come back, and getting it right must count, or the follow-up could
+    // never close.
+    const twoOnly: TopicItems = {
+      'mcq-commas': { skills: ['commas'] },
+      'predict-commas': { skills: ['commas'] },
+    }
+    const open = openFollowUps(
+      [
+        attempt('mcq-commas', false, '2026-11-06'),
+        attempt('predict-commas', false, '2026-11-06'),
+        attempt('mcq-commas', true, '2026-11-07'),
+      ],
+      () => twoOnly,
+    )
+    expect(open[0]).toMatchObject({
+      missedItems: ['mcq-commas', 'predict-commas'],
+      correctOn: ['2026-11-07'],
+    })
+  })
+
+  it('learns nothing from a worked example, right or wrong', () => {
+    // A worked example shows its answer as it goes (ADR-0011, amended
+    // 2026-11-11). A lab walkthrough is Checked like any other exercise.
+    expect(
+      openFollowUps([attempt('example-banner', false, '2026-11-06')], itemsOf),
+    ).toEqual([])
+    const open = openFollowUps(
+      [
+        attempt('mcq-quotes', false, '2026-11-06'),
+        attempt('example-banner', true, '2026-11-07'),
+      ],
+      itemsOf,
+    )
+    expect(open[0]).toMatchObject({ skillId: 'quotes', correctOn: [] })
+  })
+
   it('starts over after another miss', () => {
     const open = openFollowUps(
       [
@@ -430,6 +526,33 @@ describe('checkpoint tests (ADR-0012)', () => {
 
   it("learns nothing from a Check whose tests couldn't run", () => {
     expect(open([check(undefined, '2026-11-06')])).toEqual([])
+  })
+
+  it("counts a passed test of a fresh version, not the same build's", () => {
+    const missed = check(['test_format'], '2026-11-06')
+    // The same build passing the next day is the learner's own fix, seen
+    // before: the skill's topic has questions of its own to ask.
+    expect(open([missed, check([], '2026-11-07')])[0]?.correctOn).toEqual([])
+    expect(open([missed, check([], '2026-11-07', 10, 'build-fuel')])).toEqual([
+      expect.objectContaining({
+        skillId: 'fstrings',
+        correctOn: ['2026-11-07'],
+        due: '2026-11-10',
+      }),
+    ])
+  })
+
+  it("counts the skill's own questions in its topic", () => {
+    const answer: Attempt = {
+      ...attempt('mcq-fstrings', true, '2026-11-07'),
+      topic_id: STRINGS,
+    }
+    expect(open([check(['test_format'], '2026-11-06'), answer])).toEqual([
+      expect.objectContaining({
+        skillId: 'fstrings',
+        correctOn: ['2026-11-07'],
+      }),
+    ])
   })
 
   it('looks up test skills in loaded content', () => {
