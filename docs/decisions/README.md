@@ -34,7 +34,7 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0015](0015-hint-only-tutor.md)           | The hint-only tutor                                                      | Accepted |
 | [0016](0016-parsons-problems.md)          | Parsons problems as a recall item type                                   | Accepted |
 | [0017](0017-shell-in-the-browser.md)      | Teaching and proving the shell                                           | Accepted |
-| [0018](0018-lab-checker-local-mode.md)    | The lab checker's local mode                                             | Accepted |
+| [0018](0018-lab-checker-local-mode.md)    | The lab checker's local mode (its two amendments of 2026-11-11 Proposed) | Accepted |
 | [0019](0019-today-across-tracks.md)       | Today shows every track, and counts practice hours per track             | Accepted |
 | [0020](0020-automated-backups.md)         | Nightly encrypted backups of the learning data                           | Accepted |
 | [0021](0021-placement-test.md)            | The placement test walks the map by halving, and proves nothing          | Accepted |
