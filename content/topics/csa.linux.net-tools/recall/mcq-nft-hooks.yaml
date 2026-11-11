@@ -1,14 +1,16 @@
 id: mcq-nft-hooks
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A packet arrives on `eth0` addressed to this server's own IP. Which nftables hooks does it pass through, in order?
 choices:
-  - "`output`, then `postrouting`"
-  - "`prerouting`, then (after the routing decision says it's for this host) `input`"
-  - "`forward` only"
-  - "`input`, then `forward`, then `output`"
-answer: 1
+  - "`input`, then `prerouting`"
+  - "`prerouting`, then `forward`"
+  - "`prerouting`, then `input`"
+  - "`input`, then `postrouting`"
+answer: 2
 explanation: |
-  Every incoming packet hits `prerouting` first (where DNAT for published container ports happens), then the kernel decides where it goes: to a local process, through `input`, or on to another machine, through `forward`. Packets this host creates go through `output`, and everything leaving passes `postrouting` (where masquerading rewrites source addresses). A host firewall lives in `input`; a router's or a container host's rules live in `forward`.
+  Every incoming packet hits `prerouting` first (where DNAT for published container ports happens), then the kernel makes its routing decision: to a local process, through `input`, or on to another machine, through `forward`. This packet is for the server itself, so it takes `input`, and `prerouting` can't come second, because it runs before that decision is made.
+
+  `forward` is only for packets passing through to somewhere else, which is why a router's or a container host's rules live there while a host firewall lives in `input`. `postrouting` is for packets leaving the machine (where masquerading rewrites source addresses), and packets this host creates go through `output` first; a packet that is delivered here never leaves.
 skills: [firewall-path]

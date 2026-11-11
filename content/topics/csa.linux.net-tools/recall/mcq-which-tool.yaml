@@ -1,14 +1,16 @@
 id: mcq-which-tool
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   From your laptop, you want to know whether a database server accepts TCP connections on port 5432 at all, before worrying about passwords or clients. Which command answers exactly that?
 choices:
+  - "`dig +short db.example.com`"
   - "`nc -zv db.example.com 5432`"
-  - "`dig db.example.com`"
-  - "`curl https://db.example.com:5432/`"
-  - "`ping db.example.com`"
-answer: 0
+  - "`curl -I db.example.com:5432`"
+  - "`traceroute db.example.com`"
+answer: 1
 explanation: |
-  `nc -z` opens a TCP connection and closes it without sending anything, and `-v` reports "succeeded" or "refused" or a timeout: reachability and nothing else. `dig` only resolves the name. `curl` speaks HTTP, which a database doesn't, so its errors mix the two questions. `ping` uses ICMP, which says nothing about a port and is often blocked anyway. Test name, then port, then protocol, each with the tool made for it.
+  `nc -z` opens a TCP connection and closes it without sending anything, and `-v` reports "succeeded", "refused" or a timeout: reachability of that one port and nothing else.
+
+  `dig` only resolves the name to an address. `curl` speaks HTTP, which a database doesn't, so its errors mix two questions: does the port answer, and does it answer in HTTP? `traceroute` shows the routers on the way to the machine and says nothing about a port; the same goes for `ping`, which is often blocked anyway. Test name, then port, then protocol, each with the tool made for it.
 skills: [test-tools]
