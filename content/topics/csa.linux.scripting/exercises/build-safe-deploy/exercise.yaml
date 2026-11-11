@@ -1,18 +1,20 @@
 id: build-safe-deploy
 stage: build
 runtime: lab
-rev: 1
+rev: 2
 title: "Build a safe deploy script"
 prompt: |
   Build `~/bin/deploy VERSION`, the kind of script that runs on a server a hundred times without surprises. It must:
 
   1. **Fail honestly with no version.** Run as `deploy` with no argument, it writes a usage message to standard error and exits with status 2.
-  2. **Run under strict mode** (`set -euo pipefail`) with every variable quoted, and pass ShellCheck with nothing to report.
+  2. **Run under strict mode** (`set -euo pipefail`) with every variable quoted, and pass ShellCheck with nothing to report, without switching any of its warnings off.
   3. **Build in a temp directory it always cleans up.** Make a temp dir with `mktemp -d` and remove it with a `trap ... EXIT`, so nothing is left behind whether the script finishes, fails, or is interrupted.
   4. **Place the release and swap `current`.** Copy `~/app/src` into `~/app/releases/VERSION`, then point the symlink `~/app/current` at `releases/VERSION` with `ln -sfn`, so the switch is atomic and re-running the same version is fine.
   5. **Keep only the three newest releases.** After deploying, remove all but the three most recent release directories, so the disk doesn't fill. Running it again must not break on the releases that are already gone.
 
-  Try `deploy 1.0`, then `deploy 1.1` … up to `deploy 1.4`, checking `ls ~/app/releases` and `readlink ~/app/current` as you go, and `deploy` with no argument to see the exit 2. Run `shellcheck ~/bin/deploy`. Make it executable, and run the checks.
+  Try `deploy 1.0`, then `deploy 1.1` … up to `deploy 1.4`, checking `ls ~/app/releases` and `readlink ~/app/current` as you go, and `deploy` with no argument to see the exit 2. Run `shellcheck ~/bin/deploy`.
+
+  The checks don't look at your own `~/app`. They run your script for an app of their own: they set `HOME` to a folder whose path has a space in it, put an app with its own files in its `app/src`, and deploy versions you haven't seen, one after another, then one whose copy fails part way. So build every path from `$HOME` (or `~`), not `/home/learner`, and quote them all. Make the script executable, and run the checks.
 hints:
   - "The version guard comes first: `[[ $# -ge 1 ]] || { echo \"usage: deploy VERSION\" >&2; exit 2; }`, then `version=\"$1\"`. The `>&2` sends the message to standard error, and `exit 2` is the honest status."
   - "The swap is one line: `ln -sfn \"releases/$version\" \"$app/current\"` (a relative target keeps the link valid if the app moves). `ln -sfn` replaces an existing link instead of failing, which is what makes a repeat safe."
