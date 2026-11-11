@@ -32,11 +32,26 @@ export type GradedEvent = {
   context?: string
 }
 
+/**
+ * A time the learner opened a checkpoint's step-by-step help (ADR-0012),
+ * saved as a `hint` event (see checkpoints/stepsOpened.ts).
+ */
+export type StepsOpened = {
+  topic_id: string
+  /** In ISO format, UTC, so comparing the text compares the times. */
+  occurred_at: string
+}
+
 export type TopicProgress = {
   /** Any graded attempt at one of the topic's questions or exercises. */
   started: boolean
   /** When each proof check first passed. */
   passed: Partial<Record<Proof, string>>
+  /**
+   * For a checkpoint: when the learner first opened its steps, if they have.
+   * From then on only a fresh version proves its build (ADR-0012).
+   */
+  stepsOpenedAt?: string
   /**
    * When the last of the three first passed: from then on, the topic is
    * Learned (a checkpoint, Passed).
@@ -73,12 +88,21 @@ export type TopicState =
   | 'relearning'
   | 'passed'
 
-/** Which proof check, if any, passing this event counts as. */
-function proofOf(topic: Topic, event: GradedEvent): Proof | undefined {
+/**
+ * Which proof check, if any, passing this event counts as. `stepsOpenedAt`
+ * is when the learner first opened the topic's steps, if they have.
+ */
+function proofOf(
+  topic: Topic,
+  event: GradedEvent,
+  stepsOpenedAt: string | undefined,
+): Proof | undefined {
   if (!event.correct) return undefined
   if (event.type === 'explain_submit') return 'explain'
   if (event.type !== 'code_check' || event.item_id === null) return undefined
-  if (event.item_id === topic.prove.build) return 'build'
+  if (event.item_id === topic.prove.build) {
+    return passedBeforeTheSteps(event, stepsOpenedAt) ? 'build' : undefined
+  }
   // A pass on any fresh version counts as passing the build (ADR-0012).
   if (topic.unstuck?.versions.includes(event.item_id)) return 'build'
   if (event.item_id === topic.prove.debug) return 'debug'
@@ -86,14 +110,41 @@ function proofOf(topic: Topic, event: GradedEvent): Proof | undefined {
 }
 
 /**
- * Every topic's progress, from the learner's graded events. The order of
- * the events doesn't matter: only the first pass of each check counts, so
- * an event arriving late (say, from another device's outbox) changes
- * nothing but what it adds.
+ * Whether a pass of a checkpoint's main build came before the learner opened
+ * its steps. The steps hand over most of that very program, so a pass after
+ * them doesn't show it can be written from a blank editor; from then on a
+ * fresh version proves the build (ADR-0012, amended 2026-11-11). Opening the
+ * steps was first saved that day, so in older history nothing is known and
+ * every pass counts, as it always did.
+ */
+function passedBeforeTheSteps(
+  event: GradedEvent,
+  stepsOpenedAt: string | undefined,
+): boolean {
+  return stepsOpenedAt === undefined || event.occurred_at < stepsOpenedAt
+}
+
+/** The first time each topic's steps were opened, by topic. */
+function firstOpenings(stepsOpened: StepsOpened[]): Map<string, string> {
+  const first = new Map<string, string>()
+  for (const { topic_id, occurred_at } of stepsOpened) {
+    const earlier = first.get(topic_id)
+    if (!earlier || occurred_at < earlier) first.set(topic_id, occurred_at)
+  }
+  return first
+}
+
+/**
+ * Every topic's progress, from the learner's graded events, and the times
+ * they opened a checkpoint's steps. The order of the events doesn't matter:
+ * only the first pass of each check counts, and only the first opening of
+ * the steps, so an event arriving late (say, from another device's outbox)
+ * changes nothing but what it adds.
  */
 export function progressOf(
   topics: Topic[],
   events: GradedEvent[],
+  stepsOpened: StepsOpened[] = [],
 ): Map<string, TopicProgress> {
   const progress = new Map<string, TopicProgress>(
     topics.map((topic) => [
@@ -102,6 +153,10 @@ export function progressOf(
     ]),
   )
   const topicsById = new Map(topics.map((topic) => [topic.id, topic]))
+  for (const [topicId, openedAt] of firstOpenings(stepsOpened)) {
+    const entry = progress.get(topicId)
+    if (entry) entry.stepsOpenedAt = openedAt
+  }
 
   for (const event of events) {
     const topic = topicsById.get(event.topic_id)
@@ -117,7 +172,7 @@ export function progressOf(
       continue
     }
     entry.started = true
-    const proof = proofOf(topic, event)
+    const proof = proofOf(topic, event, entry.stepsOpenedAt)
     const earlier = proof && entry.passed[proof]
     if (proof && (!earlier || event.occurred_at < earlier)) {
       entry.passed[proof] = event.occurred_at
