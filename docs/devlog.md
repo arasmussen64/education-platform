@@ -47,8 +47,9 @@ All 79 labs passed on the combined branches before any was merged.
 - _Checkpoint 1's 45-minute target is stated, not timed._ The same goes for Checkpoint 2.
 - _The answer-length baseline lists 72 older Python and ML items, one placement-test question and 16 topics_ that break the new rules, to be rewritten when those tracks are next touched.
 - _Four ML topics' explain prompts tell their debug's bugs as a teammate's story,_ and two ML checkpoints' debugs can be solved from the build prompt on the same page. Found by the debug reviewers; left for the ML track's next pass.
-- _In five ML checkpoints and Cloud Checkpoint 1, the steps and the solved example already show 80 to 94% of each fresh version's code,_ so a fresh version proves less after the steps than it should. Left for the same pass.
+- _In five ML checkpoints and Cloud Checkpoint 1, the steps and the solved example already show most of each fresh version's code_ (80 to 94% in ADR-0012's count of 2026-11-11), so a fresh version proves less after the steps than it should. Left for each track's next content pass.
 - _With two questions, a placement probe can pass on one lucky guess._ Eleven topics have only two questions to ask.
+- _Three cloud Module 1 debug labs still say where or what their faults are:_ `csa.linux.permissions/debug-cant-log-in`, `csa.linux.packages/debug-nightly-patch` and `csa.linux.containers/debug-leaky-box` were outside the ten rewritten today. The first also has no symptom for its server-side fault on Ubuntu 24.04, whose `sshd` accepts a `~/.ssh` writable by the user's own group (found in #227's review). They are the next debug rewrites.
 
 **Next:** Module 2's last three topics and its checkpoint (GPU basics, joining machines and Entra ID, Windows licensing, Checkpoint 2), once the first five land.
 
