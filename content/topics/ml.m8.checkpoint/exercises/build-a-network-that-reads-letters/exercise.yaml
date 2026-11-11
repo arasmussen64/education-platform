@@ -1,6 +1,11 @@
 id: build-a-network-that-reads-letters
 stage: build
 rev: 1
+# The app stops a Run or a Check after this long (5 seconds when a file
+# doesn't say). This program trains a network, and the Check runs it
+# twice, so it needs longer. The prompt's last line states this limit.
+# Keep the solution under 40% of it: npm run time:content, in web/.
+time_limit_ms: 15000
 title: "A network that reads letters"
 prompt: |
   A fresh version of the build: the same network and loop, trained to read eight capital letters (A, C, E, F, H, L, T, U) from the same kind of noisy, shifted images; four hundred and eighty to train on and a hundred and sixty held out.
@@ -77,7 +82,7 @@ prompt: |
   the first held-out image of each letter reads: A C E F H L T U
   ```
 
-  The output layer has eight units and the network 836 parameters. The checks compare every layer's gradient and the input gradient with central differences, test the loss and Adam's decay on known numbers, dropout's two modes and that `evaluate` leaves no weight changed, the random starts and the parameter counts, and hold the trained network to nine in ten held-out letters, with the same seeds giving the same history. The browser allows about a minute; the reference solution trains in a few seconds.
+  The output layer has eight units and the network 836 parameters. The checks compare every layer's gradient and the input gradient with central differences, test the loss and Adam's decay on known numbers, dropout's two modes and that `evaluate` leaves no weight changed, the random starts and the parameter counts, and hold the trained network to nine in ten held-out letters, with the same seeds giving the same history. The browser stops a Run or a Check after 15 seconds; the reference solution trains in a few seconds.
 # Every test names the module skills it checks (ADR-0012), so a failed test
 # says which topics to revisit.
 test_skills:

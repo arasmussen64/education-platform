@@ -1,6 +1,11 @@
 id: build-a-network-that-reads-digits
 stage: build
 rev: 1
+# The app stops a Run or a Check after this long (5 seconds when a file
+# doesn't say). This program trains a network, and the Check runs it
+# twice, so it needs longer. The prompt's last line states this limit.
+# Keep the solution under 40% of it: npm run time:content, in web/.
+time_limit_ms: 15000
 title: "A network that reads digits"
 prompt: |
   Build the module's network from its pieces and train it to read the ten digits: noisy 10-by-10 images of a 5-by-7 pixel font, each shifted by up to a pixel, six hundred to train on and two hundred held out. The worked example runs the same pipeline on four shapes.
@@ -79,7 +84,7 @@ prompt: |
   the first held-out image of each digit reads: 0 1 2 3 4 5 6 7 8 9
   ```
 
-  The checks compare every layer's gradient and the input gradient with central differences, test the loss and Adam's decay on known numbers, dropout's two modes and that `evaluate` leaves no weight changed, the random starts and the parameter counts, and hold the trained network to nine in ten held-out digits, with the same seeds giving the same history. The browser allows about a minute; the reference solution trains in a few seconds.
+  The checks compare every layer's gradient and the input gradient with central differences, test the loss and Adam's decay on known numbers, dropout's two modes and that `evaluate` leaves no weight changed, the random starts and the parameter counts, and hold the trained network to nine in ten held-out digits, with the same seeds giving the same history. The browser stops a Run or a Check after 15 seconds; the reference solution trains in a few seconds.
 # Every test names the module skills it checks (ADR-0012), so a failed test
 # says which topics to revisit.
 test_skills:
