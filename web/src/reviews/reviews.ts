@@ -2,12 +2,16 @@
 // items to ask, and how a session is rated.
 import { STAGES } from '../content/stages.ts'
 import type { Topic, TopicContent } from '../content/types.ts'
+import { dayOf } from '../days.ts'
 import type { Attempt } from '../followups/followUps.ts'
 import { lastAttempted } from '../followups/followUps.ts'
 import type { TopicProgress } from '../progress/progress.ts'
 import { type Card, type Rating, retrievabilityAt } from './fsrs.ts'
 
-/** At most this many topic reviews a day (ADR-0009). */
+/**
+ * At most this many topic reviews a day (ADR-0009): a calendar day in the
+ * learner's own time zone, not a page load.
+ */
 export const DAILY_REVIEW_LIMIT = 20
 /** A review session asks this many items from the topic's review pool. */
 export const ITEMS_PER_REVIEW = 2
@@ -38,6 +42,25 @@ export function dueReviews(
     due.push({ topic, card, retrievability: retrievabilityAt(card, now) })
   }
   return due.sort((a, b) => a.retrievability - b.retrievability).slice(0, limit)
+}
+
+/**
+ * How many topic reviews are left for the day `now` falls on: the daily
+ * limit, less the review sessions already finished that day (ADR-0009,
+ * amended 2026-11-11). Without this, every reload of the Today page would
+ * offer another full set. Pass the result to dueReviews as its limit.
+ */
+export function reviewsLeftToday(
+  attempts: Attempt[],
+  now: string,
+  limit = DAILY_REVIEW_LIMIT,
+): number {
+  const today = dayOf(now)
+  const done = attempts.filter(
+    (attempt) =>
+      attempt.type === 'review' && dayOf(attempt.occurred_at) === today,
+  ).length
+  return Math.max(0, limit - done)
 }
 
 /**

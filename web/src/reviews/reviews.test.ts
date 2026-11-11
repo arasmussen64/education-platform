@@ -12,6 +12,7 @@ import {
   memoryPercent,
   planReview,
   ratingOf,
+  reviewsLeftToday,
 } from './reviews.ts'
 
 const day = (n: number) => new Date(Date.UTC(2026, 10, 1 + n, 12)).toISOString()
@@ -100,6 +101,77 @@ describe('dueReviews', () => {
         day(30),
       ),
     ).toHaveLength(DAILY_REVIEW_LIMIT)
+  })
+})
+
+describe('reviewsLeftToday', () => {
+  /** A finished review session at a local time on 11 November 2026. */
+  const reviewAt = (hour: number, minute = 0, date = 11): Attempt => ({
+    id: `review-${date}-${hour}-${minute}`,
+    type: 'review',
+    topic_id: 'py.a',
+    item_id: 'review',
+    correct: true,
+    occurred_at: new Date(2026, 10, date, hour, minute).toISOString(),
+    rating: 'good',
+    context: 'review',
+  })
+  const now = new Date(2026, 10, 11, 18, 0).toISOString()
+
+  it('is the whole limit on a day with no reviews yet', () => {
+    expect(reviewsLeftToday([], now)).toBe(DAILY_REVIEW_LIMIT)
+  })
+
+  it("counts the day's finished reviews, from midnight, local time", () => {
+    const history = [
+      reviewAt(23, 30, 10), // yesterday evening: doesn't count
+      reviewAt(0, 10),
+      reviewAt(9),
+      reviewAt(17, 59),
+    ]
+    expect(reviewsLeftToday(history, now)).toBe(DAILY_REVIEW_LIMIT - 3)
+  })
+
+  it("leaves out answers, Checks and explanations: they aren't review sessions", () => {
+    const at = reviewAt(9).occurred_at
+    const others: Attempt[] = [
+      ['answer', 'mcq-print'] as const,
+      ['code_check', 'write-hello'] as const,
+      ['explain_submit', 'explain'] as const,
+    ].map(([type, item]) => ({
+      id: `${type}-1`,
+      type,
+      topic_id: 'py.a',
+      item_id: item,
+      correct: true,
+      occurred_at: at,
+      context: 'review',
+    }))
+    expect(reviewsLeftToday(others, now)).toBe(DAILY_REVIEW_LIMIT)
+  })
+
+  it('never goes below none', () => {
+    const many = Array.from({ length: DAILY_REVIEW_LIMIT + 3 }, (_, i) =>
+      reviewAt(8, i),
+    )
+    expect(reviewsLeftToday(many, now)).toBe(0)
+  })
+
+  it('makes dueReviews offer only what is left of the day', () => {
+    const many = Array.from({ length: DAILY_REVIEW_LIMIT + 5 }, (_, i) =>
+      learned(`py.t${i}`, 0),
+    )
+    const topics = many.map((each) => each.topic)
+    const progress = progressOf(
+      topics,
+      many.flatMap((each) => each.events),
+    )
+    // Learned on 1 November, so all of them are due by the 11th.
+    const doneToday = Array.from({ length: 5 }, (_, i) => reviewAt(8, i))
+    expect(dueReviews(topics, progress, now)).toHaveLength(DAILY_REVIEW_LIMIT)
+    expect(
+      dueReviews(topics, progress, now, reviewsLeftToday(doneToday, now)),
+    ).toHaveLength(DAILY_REVIEW_LIMIT - 5)
   })
 })
 
