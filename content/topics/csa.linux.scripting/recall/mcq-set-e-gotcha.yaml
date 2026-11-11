@@ -1,6 +1,6 @@
 id: mcq-set-e-gotcha
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A script starts with `set -e`, yet this line doesn't stop it when `build_assets` fails:
   ```
@@ -8,11 +8,11 @@ prompt: |
   ```
   Why not, and what's the fix?
 choices:
-  - "`set -e` only works in the main script, not in functions"
-  - "The line's command is `local`, which succeeds; the failure of `build_assets` inside `$(…)` is masked. Declare and assign separately: `local output; output=$(build_assets)`"
-  - "Command substitution disables `set -e` for the rest of the script"
-  - "`build_assets` must be called with `exec`"
-answer: 1
+  - "`local` itself succeeds and hides the failure; declare, then assign: `local output; output=$(build_assets)`"
+  - "`set -e` never looks inside `$(…)`; test the result yourself: `local output=$(build_assets) || exit 1`"
+  - "`set -e` is switched off inside functions; switch it on there: `set -e; local output=$(build_assets)`"
+  - "`local` runs the command where `set -e` can't reach it; use `export output=$(build_assets)` instead"
+answer: 0
 explanation: |
-  `set -e` looks at the status of the whole simple command, and here that command is `local`, which returns 0 whatever the substitution did. Splitting the declaration from the assignment makes the assignment's status the substitution's, so `-e` sees the failure. The same masking happens with `export VAR=$(…)`. ShellCheck flags this (SC2155), which is one good reason to run it.
+  `set -e` looks at the status of the whole command, and here that command is `local`, which returns 0 whatever the substitution did. Splitting the declaration from the assignment makes the line's status the substitution's, so `-e` sees the failure. `set -e` does look inside `$(…)`: a plain `output=$(build_assets)` stops the script. Adding `|| exit 1` to the original line changes nothing, because it tests `local`, which succeeded. `set -e` stays on inside functions, so switching it on again does nothing. And `export output=$(…)` masks the failure in just the same way as `local`. ShellCheck flags this (SC2155), which is one good reason to run it.
 skills: [strict-mode]

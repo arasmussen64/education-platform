@@ -1,14 +1,14 @@
 id: mcq-uuid-fstab
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   Why does `/etc/fstab` name a filesystem as `UUID=3f2a…` rather than `/dev/sdb`, and what does the `nofail` option add?
 choices:
-  - "UUIDs are shorter to type; `nofail` makes the disk faster"
-  - "Device names like `/dev/sdb` can change between boots or when disks are added, while the UUID is written into the filesystem and stays; `nofail` lets the boot continue if that filesystem is missing"
-  - "`/dev/sdb` is read-only; `nofail` hides errors in the log"
-  - "UUIDs are required by XFS; `nofail` is required by ext4"
-answer: 1
+  - "Device names can change between boots and the UUID can't; `nofail` keeps retrying the mount until it works"
+  - "A UUID lets one line mount any disk of the same size; `nofail` lets the boot go on if it is missing"
+  - "Device names can change between boots and the UUID can't; `nofail` lets the boot go on if it is missing"
+  - "A UUID lets one line mount any disk of the same size; `nofail` keeps retrying the mount until it works"
+answer: 2
 explanation: |
-  The kernel numbers disks in the order it finds them, which can differ after a reboot or a new attachment, so an `fstab` entry by device name may mount the wrong disk or none. The UUID lives inside the filesystem and travels with it. Without `nofail`, a missing filesystem stops the boot in an emergency shell; with it, the system comes up and you fix the disk from a normal login, which is what you want for any volume other than the root.
+  The kernel numbers disks in the order it finds them, which can differ after a reboot or when a disk is added, so an `fstab` entry by device name may mount the wrong disk, or none. The UUID is written into the filesystem and travels with it: it identifies that one filesystem, not a size or a kind of disk, so no other disk matches it. Device names do work in `fstab`; they're just not safe. Without `nofail`, a missing filesystem stops the boot in an emergency shell; with it, the system comes up and you fix the disk from a normal login, which is what you want for any volume other than the root. `nofail` doesn't retry anything: all it changes is that a missing filesystem no longer holds up the boot.
 skills: [block-devices]

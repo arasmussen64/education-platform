@@ -1,14 +1,14 @@
 id: mcq-ssh-perms
 type: mcq
-rev: 1
+rev: 2
 prompt: |
-  You added your public key to a server's `~/.ssh/authorized_keys`, but `ssh` still asks for a password. On the server, `ls -ld ~/.ssh` shows `drwxrwxr-x`. What's wrong?
+  Your account on a server is `ada`. You added your public key to its `~/.ssh/authorized_keys`, but `ssh` still asks for a password. On the server, `ls -ld ~/.ssh` shows `drwxrwxr-x 2 ada deploy 4096 Nov 9 09:00 /home/ada/.ssh`, and `deploy` is a group the whole team is in. What's wrong?
 choices:
-  - "The key is in the wrong format and must be RSA"
-  - "`~/.ssh` is group-writable, so `sshd` ignores the whole directory; it must be `700`, with `authorized_keys` (and private keys) `600`"
-  - "Password login must be turned off before keys work"
-  - "The public key must be copied to `/etc/ssh` instead"
-answer: 1
+  - "`sshd` runs as another user and can't read `~/.ssh`; it needs `drwxrwxrwx` to see the key"
+  - "Password login is still switched on, and `sshd` only tries keys once passwords are turned off"
+  - "`~/.ssh` can be written by the `deploy` group, so `sshd` refuses the `authorized_keys` in it"
+  - "The mode is fine for a directory; the key belongs in `/etc/ssh/authorized_keys`, not in your home"
+answer: 2
 explanation: |
-  `sshd` checks the ownership and modes of `~/.ssh` and the files in it, and refuses to use them if anyone but the owner could write them, because a writable `authorized_keys` would let another user add their own key to your account. Fix it with `chmod 700 ~/.ssh` and `chmod 600 ~/.ssh/authorized_keys`, and look in the server's auth log for the "bad ownership or modes" message when keys mysteriously don't work.
+  `sshd` checks the ownership and modes of your home folder, `~/.ssh` and `authorized_keys`, and ignores the keys if anyone but you could write to them, because someone who can write there could add their own key to your account. `drwxrwxr-x` gives the `deploy` group `w`, so anyone in the team could add a key: the keys are skipped and `ssh` falls back to asking for a password. Debian and Ubuntu let a group-writable folder pass when its group is your own, the group of the same name with nobody else in it, because then only you can write there; a shared group like `deploy` is refused everywhere. Fix it with `chmod 700 ~/.ssh` and `chmod 600 ~/.ssh/authorized_keys`, and look in the server's auth log for "bad ownership or modes" when keys mysteriously don't work. Opening the directory up further makes it worse, not better: `sshd` can already read it. Keys are tried before passwords, so leaving password login on doesn't block them. And each user's keys live in their own `~/.ssh/authorized_keys`, which is where you put yours.
 skills: [ssh-keys]

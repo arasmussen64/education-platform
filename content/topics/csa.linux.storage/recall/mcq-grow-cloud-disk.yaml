@@ -1,14 +1,14 @@
 id: mcq-grow-cloud-disk
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You've enlarged a server's root volume from 20 GB to 50 GB in the cloud console, but `df -h` still shows 20 GB. The root filesystem is ext4 on `/dev/nvme0n1p1`. What makes the space usable, without a reboot?
 choices:
-  - "Nothing; a bigger root volume needs a new server"
-  - "`growpart /dev/nvme0n1 1` to extend the partition, then `resize2fs /dev/nvme0n1p1` to grow the filesystem, both while it's mounted (for XFS, `xfs_growfs /` instead)"
-  - "`mkfs.ext4 /dev/nvme0n1p1` again, which picks up the new size"
-  - "`umount /` and then `fdisk` to recreate the partition"
-answer: 1
+  - "`resize2fs /dev/nvme0n1p1` to grow the filesystem, then `growpart /dev/nvme0n1 1` for the partition"
+  - "`growpart /dev/nvme0n1 1` to extend the partition, then `xfs_growfs /` to grow the filesystem into it"
+  - "`growpart /dev/nvme0n1 1` to extend the partition, then `mkfs.ext4 /dev/nvme0n1p1` to fill the new size"
+  - "`growpart /dev/nvme0n1 1` to extend the partition, then `resize2fs /dev/nvme0n1p1` for the filesystem"
+answer: 3
 explanation: |
-  The cloud grew the disk; the partition and the filesystem on it still have their old sizes and have to be grown in turn. `growpart` moves the partition's end to the end of the disk, and `resize2fs` (ext4) or `xfs_growfs` (XFS) expands the filesystem into it, both online. `mkfs` would erase the root filesystem. With LVM in between, it's `growpart`, then `pvresize`, then `lvextend -r`. The AWS page in the resources walks the exact commands.
+  The cloud grew the disk; the partition and the filesystem on it still have their old sizes and have to be grown in turn, from the outside in. `growpart` moves the partition's end to the end of the disk, and `resize2fs` then expands the ext4 filesystem into the new room, both while it's mounted and in use. In the other order, `resize2fs` finds that the filesystem already fills its partition and does nothing. `xfs_growfs` is the second step for XFS only; on ext4 it refuses. And `mkfs` doesn't resize anything: it makes a new, empty filesystem, which would erase the root. With LVM in between, it's `growpart`, then `pvresize`, then `lvextend -r`. The AWS page in the resources walks through the exact commands.
 skills: [lvm-grow]

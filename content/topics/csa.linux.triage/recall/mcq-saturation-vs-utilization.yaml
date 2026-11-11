@@ -1,14 +1,14 @@
 id: mcq-saturation-vs-utilization
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   Server A's four CPUs show 95% utilisation and a run queue (`r` in `vmstat`) of 3. Server B's show 60% utilisation and a run queue of 14. Which is in trouble, and why?
 choices:
-  - "A: 95% means it's nearly out of CPU"
-  - "B: a run queue far above the CPU count means tasks are waiting to run (saturation), which is what makes things slow, even though utilisation is lower; A is busy but keeping up"
-  - "Both equally; utilisation is what matters"
-  - "Neither; the run queue is only about disk"
-answer: 1
+  - "B: fourteen runnable tasks on four CPUs means most are waiting for a turn, which is saturation"
+  - "A: at 95% its CPUs have almost nothing left, while B still has 40% of its CPU time to spare"
+  - "Both: A is short of CPU by its utilisation and B by its run queue, and the two count the same"
+  - "Neither: the run queue counts tasks waiting for the disk, so it says nothing about either CPU"
+answer: 0
 explanation: |
-  Utilisation says how busy a resource was; saturation says whether work queued up. Fourteen runnable tasks on four CPUs means ten are waiting at any moment, and every request on B waits its turn. A at 95% with three runnable tasks has a CPU free most of the time. The same logic applies to disks (queue size and await over utilisation) and networks (drops over throughput): look for the queue, not the gauge.
+  Utilisation says how busy a resource was; saturation says whether work queued up. Fourteen runnable tasks on four CPUs means ten are waiting at any moment, and every request on B waits its turn, even though its utilisation is the lower of the two. A's three runnable tasks fit on its four CPUs, so none of them is waiting: A is busy but keeping up, which is why 95% alone isn't trouble and the two figures don't count the same. `r` counts tasks that want a CPU; the ones blocked on the disk are in the next column, `b`. The same logic applies to disks (queue size and await over utilisation) and networks (drops over throughput): look for the queue, not the gauge.
 skills: [use-method]

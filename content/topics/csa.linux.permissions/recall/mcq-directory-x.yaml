@@ -1,14 +1,14 @@
 id: mcq-directory-x
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A directory `reports` has mode `drw-r--r--`. A user who owns it runs `cat reports/today.txt`. What happens?
 choices:
-  - "It works: the owner has read permission on the directory"
-  - "Permission denied: without `x` on the directory, nobody can enter it to reach the files inside, even the owner"
-  - "It works, but only because the file itself is readable"
-  - "The file is printed, then the directory is deleted"
-answer: 1
+  - "Permission denied: without `x` on the directory, even its owner can't reach the files inside"
+  - "No such file or directory: without `x`, the names inside the directory can't be seen at all"
+  - "It works if `today.txt` is readable: only the file's own mode is checked when it is opened"
+  - "It works for the owner: a missing `x` on a directory only locks out the group and other users"
+answer: 0
 explanation: |
-  On a directory, `r` only lets you list the names inside; `x` is what lets you pass through it to open a file by path. With `rw-` and no `x`, `ls reports` shows the names but `cat reports/today.txt` fails, whatever the file's own mode. That's why directories are `755` or `700`, not `644`: wherever a directory has `r`, it needs `x` too.
+  On a directory, `r` only lets you list the names inside; `x` is what lets you pass through it to open a file by its path. With `rw-` and no `x`, the names can still be seen (`ls reports` shows them), so the file isn't "not found"; but `cat reports/today.txt` is refused, whatever the file's own mode says: every directory on the way to a file must let you through before the file's mode is even looked at. Owning the directory doesn't help, because the owner's three bits are the ones that apply to the owner, and they have no `x` (the owner could put it back with `chmod u+x reports`). That's why directories are `755` or `700`, not `644`: wherever a directory has `r`, it needs `x` too.
 skills: [chmod-chown]

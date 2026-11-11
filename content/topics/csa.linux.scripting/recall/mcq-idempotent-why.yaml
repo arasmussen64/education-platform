@@ -1,14 +1,14 @@
 id: mcq-idempotent-why
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   Why do people insist that a server setup script be *idempotent*, safe to run twice with the same result?
 choices:
-  - "Because bash can't run a script more than once otherwise"
-  - "Because a script that fails halfway will be run again (by you, by cloud-init on a new instance, by a retry), and the steps that already succeeded must not break the second run: `mkdir` fails on an existing directory, `ln -s` on an existing link, and a plain `>>` duplicates lines"
-  - "Because idempotent scripts run faster"
-  - "Because the kernel requires it for scripts in `/usr/local/bin`"
-answer: 1
+  - "Running it twice is how its result is checked: the two runs' output is compared and must match"
+  - "It must undo its own changes when it ends, so the server is left exactly as it was before the run"
+  - "A script that fails halfway gets run again, and the steps already done must not break that run"
+  - "Two copies may run at the same moment, and idempotent steps take a lock so that only one proceeds"
+answer: 2
 explanation: |
-  Partial failure is the normal case over a fleet's lifetime, and "I'll just rerun it" only works if every step checks before it acts. The standard tools have idempotent forms (`mkdir -p`, `ln -sfn`, `install -d`), and for the rest you write the check: `grep -q … || echo … >>`, `id user || useradd`. Configuration-management tools like Ansible are built entirely on this idea, which is why learning it in bash first pays off.
+  Partial failure is the normal case over a fleet's lifetime: a script that stops at step three will be run again, by you, by cloud-init on a new instance, or by a retry, and steps one and two have already happened. Plain `mkdir` fails on a directory that exists, `ln -s` on a link that exists, and a plain `>>` adds the same line twice. The standard tools have idempotent forms (`mkdir -p`, `ln -sfn`, `install -d`), and for the rest you write the check: `grep -q … || echo … >>`, `id user || useradd`. Idempotent doesn't mean the script undoes anything: it leaves its changes in place, and a second run finds them and has nothing left to do. Nobody compares two runs' output; what counts is the state of the server afterwards. And it isn't about two copies running at once: that's what a lock file is for, a separate habit. Configuration-management tools like Ansible are built entirely on this idea, which is why learning it in bash first pays off.
 skills: [idempotent]

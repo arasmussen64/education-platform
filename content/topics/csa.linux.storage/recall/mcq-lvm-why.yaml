@@ -1,14 +1,14 @@
 id: mcq-lvm-why
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   What does LVM (the Logical Volume Manager) add on top of plain partitions?
 choices:
-  - "A faster filesystem"
-  - "A layer between disks and filesystems: disks become physical volumes pooled in a volume group, carved into logical volumes that can span disks and be grown online, so a filesystem is no longer tied to one disk or one partition"
-  - "Automatic backups of every volume"
-  - "Encryption of the whole disk"
-answer: 1
+  - "A layer that pools disks into a volume group, so a volume can span disks and be grown while mounted"
+  - "A layer that backs up each logical volume every night, so a filesystem can be rolled back after a mistake"
+  - "A layer that encrypts each logical volume, so a disk taken out of the server can't be read elsewhere"
+  - "A faster filesystem that replaces ext4 and XFS, with one journal shared by the whole volume group"
+answer: 0
 explanation: |
-  With plain partitions a filesystem is stuck inside one partition on one disk. LVM pools disks (physical volumes) into a volume group and hands out logical volumes from the pool; a logical volume can be bigger than any single disk, and `lvextend -r` grows it and its filesystem while mounted. Adding a disk to the group (`vgextend`) gives every volume room to grow. Snapshots are a bonus; speed, backups and encryption are other tools' jobs.
+  With plain partitions a filesystem is stuck inside one partition on one disk. LVM sits between disks and filesystems: disks become physical volumes, pooled into a volume group, and logical volumes are handed out from the pool. A logical volume can be bigger than any single disk, and `lvextend -r` grows it and its filesystem while mounted; adding a disk to the group (`vgextend`) gives every volume room to grow. LVM isn't a filesystem: ext4 or XFS still goes on top of each logical volume, at the same speed as before. It doesn't back anything up by itself (it can take a snapshot when you ask, which is a bonus, not a nightly backup). And encryption is a different tool's job.
 skills: [lvm-grow]

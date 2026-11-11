@@ -1,14 +1,14 @@
 id: mcq-why-a-service
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A teammate runs a web app on a server with `nohup python3 app.py &` from their SSH session. Which problems does turning it into a systemd service solve?
 choices:
-  - "Only one: the app gets a nicer name in `ps`"
-  - "It starts at boot, restarts when it crashes, survives the SSH session ending, runs as a chosen user, and its output goes to the journal"
-  - "It runs faster, because systemd gives services more CPU"
-  - "None; `nohup` already does all of that"
-answer: 1
+  - "It starts at boot, is restarted after a crash, runs as a chosen user and logs to the journal"
+  - "Only one: it survives the SSH session ending; boot and crashes still need a script of your own"
+  - "It is given more CPU than a shell job, because systemd runs services ahead of user sessions"
+  - "None that matter: `nohup` already restarts the app after a crash and starts it again at boot"
+answer: 0
 explanation: |
-  `nohup` only stops the hang-up signal from killing the program. Nobody restarts it after a crash, nothing starts it at boot, it runs as whoever typed the command, and its output lands in `nohup.out` in that person's home folder. A unit file hands all of that to PID 1: `enable` for boot, `Restart=` for crashes, `User=` for the account, and the journal for the logs. systemd doesn't make a program faster.
+  `nohup` only stops the hang-up signal from ending the program when the session closes. Nobody restarts it after a crash, nothing starts it at boot, it runs as whoever typed the command, and its output lands in a `nohup.out` file in whichever folder they started it from. A unit file hands all of that to PID 1: `enable` for boot, `Restart=` for crashes, `User=` for the account, and the journal for the logs. Surviving the session is the one thing `nohup` already did, so it's the least of what a service adds. And systemd doesn't make a program faster or give it a bigger share of the CPU.
 skills: [supervision]

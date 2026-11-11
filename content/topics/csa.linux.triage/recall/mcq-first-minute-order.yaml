@@ -1,14 +1,14 @@
 id: mcq-first-minute-order
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   In the sixty-second checklist, why does `dmesg -T | tail` come second, right after `uptime`?
 choices:
-  - "Because it's the slowest command"
-  - "Because the kernel's recent messages (an OOM kill, a disk timeout, a network error) can name the cause outright before any measuring, and they're easy to miss later once you're deep in numbers"
-  - "Because `dmesg` restarts the kernel log"
-  - "Because it shows the load average more precisely than `uptime`"
-answer: 1
+  - "It clears the kernel's message buffer, so that errors from the commands that follow stand out"
+  - "It gives the load averages per CPU, which `uptime` shows only as one figure for the whole machine"
+  - "It is the slowest of the ten commands, so it is started early to finish while the others run"
+  - "It shows the kernel's recent errors, such as an OOM kill, which can name the cause straight away"
+answer: 3
 explanation: |
-  Errors are the E in USE, and `dmesg` is where the kernel reports them. Ten seconds reading its tail can save the rest of the hour: "Killed process 4321 (java)" or "nvme1: I/O timeout" is the answer, not a clue. `-T` prints human-readable timestamps so you can tell a message from ten seconds ago from one from last week. The rest of the list then measures utilisation and saturation per resource.
+  Errors are the E in USE, and `dmesg` is where the kernel reports them. Ten seconds reading its tail can save the rest of the hour: "Killed process 4321 (java)" or "nvme1: I/O timeout" is the answer, not a clue, and such lines are easy to miss later, once you're deep in numbers. `-T` prints human-readable timestamps so you can tell a message from ten seconds ago from one from last week. `dmesg` only reads the kernel's messages: it doesn't clear them, and there are no load averages in them (per-CPU figures come from `mpstat -P ALL`, fourth on the list). It also returns at once; nothing on the list is started early to run in the background. The rest of the list then measures utilisation and saturation, resource by resource.
 skills: [first-minute]
