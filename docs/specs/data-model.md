@@ -352,6 +352,25 @@ How the browser fills in the other columns:
 
 Code and output are cut to 6,000 and 2,000 characters, so every event fits the 16 KB limit. Signed-out visitors' events aren't recorded at all.
 
+#### Events the server refuses
+
+Every event waits in the browser's outbox (a list in `localStorage`) until the server confirms it. A send can fail in two ways:
+
+- **A passing problem:** no connection, an expired sign-in, a busy or broken server (HTTP status 0, 401, 408, 429 or 5xx). The event stays in the outbox and is sent again after 5 seconds, then 10, and so on up to every 5 minutes.
+- **A refusal:** any other status, which means the server wouldn't take the data itself. The usual cause is that the app is ahead of the database: it records a new kind of event before the migration that allows it has reached the server.
+
+A refused event is never dropped. It moves from the outbox to a second list in `localStorage`, so that it can't hold up the events behind it, and it's kept there with the server's reason, the time of the last attempt, and the number of attempts.
+
+The browser tries refused events again. After any save that goes through, it sends each of the signed-in learner's refused events whose last attempt was more than 12 hours ago, one at a time:
+
+- **Accepted:** the event is on the server, so it leaves the refused list. Sending an event the server already has is harmless, because the server ignores an `id` it has seen.
+- **Refused again:** it stays, with the new reason and time, and one more attempt counted.
+- **A passing problem:** the browser stops and leaves the rest untouched until the next save.
+
+Another learner's refused events on the same device are never sent, and never removed.
+
+While a learner has refused events, the header says so ("3 pieces of your work couldn't be saved yet") and the account page explains it: the work exists only in that browser until it's saved, so it isn't on other devices and clearing the browser's site data would erase it. ["Download my data"](#the-export-file) includes it.
+
 ### `topic_progress` (derived cache)
 
 One row per learner and topic. It can be deleted and rebuilt from `events` at any time.
@@ -386,7 +405,7 @@ Learners insert and read their own reports, and nothing else: `status` isn't in 
 
 ### The export file
 
-"Export my data" ([F16](v1.md#f16-export-my-data)) downloads everything a learner has done as one JSON file, for backups and the ML capstone. The browser builds it: it reads the learner's profile and events from Supabase (row-level security returns only their own), and adds the events still waiting in the outbox. It reads the outbox first, so an event sent in between is on the server by then.
+"Export my data" ([F16](v1.md#f16-export-my-data)) downloads everything a learner has done as one JSON file, for backups and the ML capstone. The browser builds it: it reads the learner's profile and events from Supabase (row-level security returns only their own), and adds the events still waiting in the outbox. It reads the outbox first, so an event sent in between is on the server by then. It also lists the events the server has refused ([above](#events-the-server-refuses)), under a key of their own.
 
 ```json
 {
@@ -419,14 +438,38 @@ Learners insert and read their own reports, and nothing else: `status` isn't in 
       "received_at": "2026-11-06T10:42:13.201456+00:00",
       "data": { "prediction": "Hello world" }
     }
+  ],
+  "refused_events": [
+    {
+      "reason": "400 23514: new row for relation \"events\" violates check constraint \"events_context_check\"",
+      "last_tried_at": "2026-11-10T08:30:00.000Z",
+      "attempts": 2,
+      "event": {
+        "id": "c41f…",
+        "user_id": "0b6e…",
+        "type": "answer",
+        "topic_id": "py.variables",
+        "item_id": "mcq-rebinding",
+        "context": "placement",
+        "correct": true,
+        "duration_ms": 9300,
+        "hints_used": 0,
+        "item_rev": 1,
+        "content_build": "8c5f1ed",
+        "session_id": "77b2…",
+        "occurred_at": "2026-11-09T20:14:02.511Z",
+        "data": { "choice": 2, "run": "e09a…" }
+      }
+    }
   ]
 }
 ```
 
 - **`format`** is the layout's version. Adding a field doesn't change it. It changes when an existing field changes meaning, so scripts reading older files can tell them apart.
 - **`events`** holds every column of the `events` table, oldest first. An event that was still in the outbox has `"received_at": null`.
+- **`refused_events`** holds the events the server has refused, which only the browser that made the file has. Each entry gives the server's `reason` (the HTTP status, the database's error code and its message), `last_tried_at`, `attempts` (how many times it has been refused), and the `event` as it was sent, which has no `received_at`. They're kept out of `events` because they aren't part of the saved history yet: a script that rebuilds progress should read `events` alone. An event leaves this list, and appears in `events`, once a later try saves it. The list is empty in the normal case.
 - **Times** are ISO 8601, in UTC, exactly as stored: the server writes `+00:00`, the browser `Z`.
-- **Not in the file yet:** progress, until Milestone B computes it (it can always be rebuilt from the events); and events the server refused, which stay in the browser for investigation.
+- **Not in the file yet:** progress, until Milestone B computes it (it can always be rebuilt from the events).
 
 ## Derived progress
 
