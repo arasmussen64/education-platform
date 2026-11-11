@@ -9,6 +9,6 @@ def early_stopping(val_losses, patience):
     return best_epoch, len(val_losses)
 
 
-print(early_stopping([0.9, 0.7, 0.6, 0.62, 0.61, 0.65, 0.7, 0.8], patience=3))
-print(early_stopping([0.9, 0.7, 0.6, 0.5, 0.4], patience=3))
+print(early_stopping([1.0, 0.8, 0.75, 0.9, 0.85, 0.7, 0.72, 0.74, 0.8], patience=3))
+print(early_stopping([0.6, 0.5, 0.45, 0.44], patience=2))
 print(early_stopping([0.5, 0.5, 0.5, 0.5], patience=2))

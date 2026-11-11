@@ -3,7 +3,19 @@ stage: build
 rev: 1
 title: "The diagnostics"
 prompt: |
-  Starting from a blank editor, paste the module's `Dense`, `ReLU`, `Sequential`, `SoftmaxCrossEntropy`, `SGD`, `numeric_gradient`, `gradient_check`, `make_blobs`, `batches`, `evaluate`, `read_curve` and `split` as they stand, then write:
+  Starting from a blank editor, paste the module's `Dense` (with its `scale` argument, as Starting weights and activation functions left it), `ReLU`, `Sequential`, `SoftmaxCrossEntropy`, `SGD`, `numeric_gradient`, `gradient_check`, `make_blobs`, `batches`, `evaluate` and `read_curve` as The training loop left them, and this topic's `split`, which holds out the first rows of a seeded shuffle:
+
+  ```python
+  def split(X, y, seed, held_out=0.2):
+      """Shuffle the rows, inputs and labels together, and hold out a share for validation."""
+      rng = np.random.default_rng(seed)
+      order = rng.permutation(len(X))
+      X, y = X[order], y[order]
+      n_val = int(len(X) * held_out)
+      return X[n_val:], y[n_val:], X[:n_val], y[:n_val]
+  ```
+
+  Then write:
 
   - `gradient_norm(grads)`: the length of the gradients taken together, as a float.
   - `clip_gradients(grads, max_norm)`: all scaled down by one factor to norm `max_norm` when above it; `grads` itself otherwise.

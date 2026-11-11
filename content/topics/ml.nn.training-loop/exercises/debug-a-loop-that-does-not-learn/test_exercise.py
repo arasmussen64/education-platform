@@ -2,7 +2,7 @@ import numpy as np
 
 from checks import function, run
 
-EXPECTED = 'training loss: 0.446 -> 0.187 | converging\nvalidation accuracy after 20 epochs: 0.9 | better than guessing a third: True\n'
+EXPECTED = 'training loss: 0.446 -> 0.187 | converging\nvalidation accuracy after 20 epochs: 0.9 | above 0.6: True\n'
 
 
 def test_the_output():

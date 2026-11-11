@@ -88,7 +88,7 @@ class SGD:
 
 
 class Adam:
-    """Adam from Module 4: a running average of each gradient and of its square, with the step scaled by their ratio."""
+    """Adam from Module 4: a running average of each gradient and of its square, with each step the average gradient divided by the square root of the average squared gradient."""
 
     def __init__(self, rate, beta1=0.9, beta2=0.999, eps=1e-8):
         self.rate, self.beta1, self.beta2, self.eps = rate, beta1, beta2, eps
@@ -188,7 +188,9 @@ print("the curve is", read_curve(history["train_loss"]), "| steps taken:", 30 * 
 for rate in (0.00005, 0.05, 30.0):
     with np.errstate(over="ignore", invalid="ignore"):
         history = fit(new_net(), loss, SGD(rate), X_train, y_train, X_val, y_val, epochs=30, batch_size=32)
-    print(f"learning rate {rate}: the training loss goes from {history['train_loss'][0]:.3g} to {history['train_loss'][-1]:.3g}: {read_curve(history['train_loss'])}")
+    first = history['train_loss'][0]
+    shown = f"{first:.3g}" if first < 1000 else "over a thousand"
+    print(f"learning rate {rate}: the training loss goes from {shown} to {history['train_loss'][-1]:.3g}: {read_curve(history['train_loss'])}")
 
 for batch_size in (8, 240):
     history = fit(new_net(), loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=30, batch_size=batch_size)

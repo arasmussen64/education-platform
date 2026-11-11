@@ -88,7 +88,7 @@ class SGD:
 
 
 class Adam:
-    """Adam from Module 4: a running average of each gradient and of its square, with the step scaled by their ratio."""
+    """Adam from Module 4: a running average of each gradient and of its square, with each step the average gradient divided by the square root of the average squared gradient."""
 
     def __init__(self, rate, beta1=0.9, beta2=0.999, eps=1e-8):
         self.rate, self.beta1, self.beta2, self.eps = rate, beta1, beta2, eps
@@ -175,4 +175,4 @@ net = Sequential([Dense(2, 16, seed=0, scale=np.sqrt(2 / 2)), ReLU(), Dense(16, 
 loss = SoftmaxCrossEntropy()
 history = fit(net, loss, SGD(0.05), X_train, y_train, X_val, y_val, epochs=20, batch_size=32)
 print("training loss:", round(history["train_loss"][0], 3), "->", round(history["train_loss"][-1], 3), "|", read_curve(history["train_loss"]))
-print("validation accuracy after 20 epochs:", round(history["val_accuracy"][-1], 2), "| better than guessing a third:", history["val_accuracy"][-1] > 0.6)
+print("validation accuracy after 20 epochs:", round(history["val_accuracy"][-1], 2), "| above 0.6:", history["val_accuracy"][-1] > 0.6)
