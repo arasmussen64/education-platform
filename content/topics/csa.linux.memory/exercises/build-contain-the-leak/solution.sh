@@ -3,7 +3,9 @@
 #    killed and restarted, and each restart starts the count again.
 free -m; sleep 3; free -m
 ps -eo pid,comm,rss --sort=-rss | head -n 4
-systemctl status shop-indexer --no-pager | head -n 12
+# The PID at the top of that list; systemctl status PID names its service.
+pid=$(ps -eo pid --sort=-rss | sed -n 2p | tr -d ' ')
+systemctl status "$pid" --no-pager | head -n 12
 cat /sys/fs/cgroup/system.slice/shop-indexer.service/memory.current
 mkdir -p ~/report && cat /sys/fs/cgroup/system.slice/shop-indexer.service/memory.peak | tee ~/report/peak.txt
 
@@ -14,8 +16,9 @@ printf '[Service]\nMemoryMax=128M\nMemorySwapMax=0\n' | sudo tee /etc/systemd/sy
 sudo systemctl daemon-reload
 sudo systemctl restart shop-indexer
 
-# 3. Watch the kernel kill it at the limit and systemd bring it back.
-sleep 10
+# 3. Watch the kernel kill it at the limit and systemd bring it back. The
+#    leak takes about eight seconds to reach 128 MB.
+sleep 12
 journalctl -u shop-indexer --no-pager | grep -i oom | tail -n 3
 systemctl show shop-indexer -p NRestarts
 journalctl -k --no-pager | grep 'Killed process' | tail -n 1

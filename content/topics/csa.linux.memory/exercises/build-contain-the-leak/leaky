@@ -1,19 +1,27 @@
 #!/usr/bin/python3
-"""leaky [CAP_MB]: a program with a memory leak. It grows by 32 MB a second
-until it reaches CAP_MB (600 by default), then keeps what it has. A stand-in
-for the shop's indexer, which forgets to let go of what it has read."""
+"""leaky [CAP_MB]: a program with a memory leak. It grows by 16 MB a second
+until it holds CAP_MB (600 by default), lets go of all of it at once, and
+starts again, for as long as it runs. A stand-in for the shop's indexer,
+which keeps everything it has read until it reaches the end of the
+catalogue and then starts the next pass. So whenever you look, its memory
+is climbing, and about every forty seconds it drops back."""
 
 import sys
 import time
 
+MB_PER_SECOND = 16
+
 cap = int(sys.argv[1]) if len(sys.argv) > 1 else 600
-chunks = []
-while len(chunks) < cap:
-    chunk = bytearray(1024 * 1024)
-    for i in range(0, len(chunk), 4096):
-        chunk[i] = 1
-    chunks.append(chunk)
-    if len(chunks) % 32 == 0:
-        time.sleep(1)
 while True:
-    time.sleep(3600)
+    chunks = []
+    while len(chunks) < cap:
+        chunk = bytearray(1024 * 1024)
+        # Touch every page, so the memory is really in use and not just promised.
+        for i in range(0, len(chunk), 4096):
+            chunk[i] = 1
+        chunks.append(chunk)
+        if len(chunks) % MB_PER_SECOND == 0:
+            time.sleep(1)
+    # The end of a pass over the catalogue: everything is let go at once.
+    chunks.clear()
+    time.sleep(1)

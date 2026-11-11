@@ -1,18 +1,23 @@
 # The checks for "Contain the leak": the limit and the swap setting, the
-# kill and the restart, the database's protection, and the report.
+# kill and the restart, the database's protection, and the report. The
+# descriptions say "the leaking service" and not its name, because finding
+# out which one it is is the lab's first step and the page shows them
+# before any attempt.
 checks:
   - id: limit-set
-    description: "shop-indexer has MemoryMax=128M."
+    description: "The leaking service has a hard memory limit of 128 MB (MemoryMax)."
     command: systemctl show shop-indexer -p MemoryMax --value
     expect:
       equals: "134217728"
   - id: swap-off
-    description: "shop-indexer has MemorySwapMax=0."
+    description: "The leaking service may not swap (its MemorySwapMax is 0)."
     command: systemctl show shop-indexer -p MemorySwapMax --value
     expect:
       equals: "0"
   - id: killed-at-limit
-    description: "The kernel has killed the indexer at its limit at least once (its journal says so)."
+    description: "The kernel has killed it at its limit at least once (the service's journal says so)."
+    # At 16 MB a second the leak reaches 128 MB about eight seconds after a
+    # restart, so a check run straight after one waits for the first kill.
     command: |
       for _ in $(seq 1 20); do
         n=$(journalctl -u shop-indexer --no-pager 2>/dev/null | grep -c -i 'oom')
@@ -23,18 +28,18 @@ checks:
     expect:
       gte: 1
   - id: still-supervised
-    description: "shop-indexer is still running (or being restarted), not stopped."
+    description: "The leaking service is still running (or being restarted), not stopped."
     # is-active exits non-zero for "activating", which is a fine answer here.
     command: systemctl is-active shop-indexer || true
     expect:
       matches: "^(active|activating)$"
   - id: db-protected
-    description: "The running shop-db process has oom_score_adj of -500 or lower."
+    description: "The running shop-db process has an oom_score_adj of -500 or lower."
     command: cat "/proc/$(systemctl show shop-db -p MainPID --value)/oom_score_adj"
     expect:
       lte: -500
   - id: peak-reported
-    description: "~/report/peak.txt holds the indexer's peak memory in bytes, read while it was still leaking: well above 20 MB."
+    description: "~/report/peak.txt holds the leaking service's peak memory in bytes, read before it had a limit: well above 20 MB."
     command: cat /home/learner/report/peak.txt
     expect:
       matches: "^[0-9]+$"
