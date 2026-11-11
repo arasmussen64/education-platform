@@ -1,0 +1,75 @@
+# The checks for "Finish the credit bucket": the script's three lines,
+# against the check's own walk through the same files, on shop-web and on an
+# instance the learner hasn't seen (shop-batch, kept where only root can
+# read it, so its answers can't be copied in).
+#
+# shop-batch idles long enough to fill its bucket to the top, so a script
+# without the ceiling gets its "empty at minute" wrong, and runs flat out
+# long enough to empty it, so one without the floor gets the rest wrong.
+# wrong/no-ceiling.sh and wrong/no-floor.sh prove it.
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/credit-bucket"
+  - id: shop-web-right
+    description: "On shop-web, all three lines are right: the minute the balance ran out, the minutes held to the baseline, and the final balance (to within 0.1)."
+    command: |
+      truth() {
+        dir=$1
+        v=$(grep '^vcpus=' "$dir/instance.conf" | cut -d= -f2)
+        p=$(grep '^baseline_pct=' "$dir/instance.conf" | cut -d= -f2)
+        s=$(grep '^start_credits=' "$dir/instance.conf" | cut -d= -f2)
+        m=$(grep '^max_credits=' "$dir/instance.conf" | cut -d= -f2)
+        awk -F, -v v="$v" -v p="$p" -v b="$s" -v m="$m" 'NR > 1 {
+          b += v * p / 100 - v * $2 / 100
+          if (b <= 0 && e == "") e = $1
+          if (b < 0) b = 0
+          if (b > m) b = m
+          if (b == 0 && $2 > p) h++
+        } END { printf "%s %d %.1f\n", (e == "" ? "never" : e), h, b }' "$dir/usage.csv"
+      }
+      got=$(runuser -u learner -- /home/learner/bin/credit-bucket /srv/burst/shop-web 2>&1)
+      read -r empty held final <<< "$(truth /srv/burst/shop-web)"
+      e=$(echo "$got" | sed -n 's/^empty at minute: //p')
+      h=$(echo "$got" | sed -n 's/^minutes held to baseline: //p')
+      f=$(echo "$got" | sed -n 's/^final balance: //p')
+      if [ "$e" = "$empty" ] && [ "$h" = "$held" ] && awk -v a="$f" -v b="$final" 'BEGIN {d = a - b; exit !(a != "" && d <= 0.1 && d >= -0.1)}'; then
+        echo right
+      else
+        echo "the script printed: $(echo "$got" | tr '\n' ';')"
+      fi
+    expect:
+      equals: right
+  - id: other-instance-right
+    description: "On another instance's numbers, which the script hasn't seen, all three lines are right too."
+    command: |
+      truth() {
+        dir=$1
+        v=$(grep '^vcpus=' "$dir/instance.conf" | cut -d= -f2)
+        p=$(grep '^baseline_pct=' "$dir/instance.conf" | cut -d= -f2)
+        s=$(grep '^start_credits=' "$dir/instance.conf" | cut -d= -f2)
+        m=$(grep '^max_credits=' "$dir/instance.conf" | cut -d= -f2)
+        awk -F, -v v="$v" -v p="$p" -v b="$s" -v m="$m" 'NR > 1 {
+          b += v * p / 100 - v * $2 / 100
+          if (b <= 0 && e == "") e = $1
+          if (b < 0) b = 0
+          if (b > m) b = m
+          if (b == 0 && $2 > p) h++
+        } END { printf "%s %d %.1f\n", (e == "" ? "never" : e), h, b }' "$dir/usage.csv"
+      }
+      copy=$(mktemp -d)
+      cp /usr/local/lib/lab/hidden/shop-batch/* "$copy"
+      chmod -R a+rX "$copy"
+      got=$(runuser -u learner -- /home/learner/bin/credit-bucket "$copy" 2>&1)
+      read -r empty held final <<< "$(truth "$copy")"
+      rm -r "$copy"
+      e=$(echo "$got" | sed -n 's/^empty at minute: //p')
+      h=$(echo "$got" | sed -n 's/^minutes held to baseline: //p')
+      f=$(echo "$got" | sed -n 's/^final balance: //p')
+      if [ "$e" = "$empty" ] && [ "$h" = "$held" ] && awk -v a="$f" -v b="$final" 'BEGIN {d = a - b; exit !(a != "" && d <= 0.1 && d >= -0.1)}'; then
+        echo right
+      else
+        echo "not right on the other instance"
+      fi
+    expect:
+      equals: right
