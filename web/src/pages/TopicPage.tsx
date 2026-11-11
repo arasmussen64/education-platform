@@ -10,8 +10,10 @@ import {
 import { flushSync } from 'react-dom'
 import { Link, useLoaderData } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
+import { stepsOpenedEvent } from '../checkpoints/stepsOpened.ts'
 import {
   type LoadAttempts,
+  ProveOnAFreshVersion,
   SuggestSteps,
   Unstuck,
 } from '../checkpoints/Unstuck.tsx'
@@ -324,15 +326,55 @@ function CheckpointView({
   locked: boolean
 }) {
   const { unstuck } = content.topic
+  const recordEvent = useRecordEvent()
   const [failedChecks, setFailedChecks] = useState(0)
   const [buildPassed, setBuildPassed] = useState(false)
   const [stepsOpen, setStepsOpen] = useState(false)
+  // Whether the steps have been opened at all on this visit.
+  const [openedHere, setOpenedHere] = useState(false)
   const stepsHeading = useRef<HTMLHeadingElement>(null)
+  const own =
+    progress.status === 'ready'
+      ? progress.progress.get(content.topic.id)
+      : undefined
+  // The steps show most of the build's program, so once they've been opened
+  // (on this visit or an earlier one), a pass of the build no longer proves
+  // it; a fresh version does (ADR-0012, amended 2026-11-11). A build proved
+  // already stays proved. Without a fresh version the build still counts,
+  // as progress/progress.ts says.
+  const freshVersionNeeded =
+    unstuck !== undefined &&
+    unstuck.versions.length > 0 &&
+    (openedHere || own?.stepsOpenedAt !== undefined) &&
+    !own?.passed.build
   const suggest =
     unstuck !== undefined &&
     failedChecks >= SUGGEST_STEPS_AFTER &&
     !buildPassed &&
-    !stepsOpen
+    !stepsOpen &&
+    // Already pointing at the steps, for a better reason.
+    !freshVersionNeeded
+
+  /**
+   * Opens or closes the steps. The first opening on each visit is saved, so
+   * progress knows from when the build's own passes stop counting.
+   */
+  function showSteps(open: boolean) {
+    setStepsOpen(open)
+    if (open && !openedHere) {
+      setOpenedHere(true)
+      recordEvent(stepsOpenedEvent(content))
+    }
+  }
+
+  /** Opens the steps and moves there, keyboard focus and all. */
+  function goToSteps() {
+    // Show the steps straight away, so the page is long enough to scroll
+    // them to the top of the screen.
+    flushSync(() => showSteps(true))
+    stepsHeading.current?.scrollIntoView({ block: 'start' })
+    stepsHeading.current?.focus({ preventScroll: true })
+  }
 
   if (locked) {
     return (
@@ -355,24 +397,16 @@ function CheckpointView({
           if (passed) setBuildPassed(true)
           else setFailedChecks((count) => count + 1)
         }}
+        beforeBuild={
+          freshVersionNeeded && <ProveOnAFreshVersion onGoToSteps={goToSteps} />
+        }
         afterBuild={
           <>
             {/* <output> is announced by screen readers when its text changes. */}
             <output className="sr-only">
               {suggest ? 'Stuck on the build? You can try it in steps.' : ''}
             </output>
-            {suggest && (
-              <SuggestSteps
-                onOpen={() => {
-                  // Show the steps straight away, so the page is long enough
-                  // to scroll them to the top of the screen. Keyboard focus
-                  // goes with them.
-                  flushSync(() => setStepsOpen(true))
-                  stepsHeading.current?.scrollIntoView({ block: 'start' })
-                  stepsHeading.current?.focus({ preventScroll: true })
-                }}
-              />
-            )}
+            {suggest && <SuggestSteps onOpen={goToSteps} />}
           </>
         }
       />
@@ -381,7 +415,7 @@ function CheckpointView({
           content={content}
           unstuck={unstuck}
           open={stepsOpen}
-          onToggle={() => setStepsOpen((open) => !open)}
+          onToggle={() => showSteps(!stepsOpen)}
           headingRef={stepsHeading}
           loadAttempts={loadAttempts}
         />
@@ -664,6 +698,7 @@ function ProveIt({
   intro = TOPIC_PROOF_INTRO,
   explainWaitsForBuild = false,
   onBuildCheck,
+  beforeBuild,
   afterBuild,
   progress,
 }: {
@@ -676,6 +711,8 @@ function ProveIt({
   explainWaitsForBuild?: boolean
   /** Called after each Check of the build, with whether it passed. */
   onBuildCheck?: (passed: boolean) => void
+  /** Shown right before the build. */
+  beforeBuild?: ReactNode
   /** Shown right after the build. */
   afterBuild?: ReactNode
   /** The learner's progress here, which the page loads once. */
@@ -688,6 +725,7 @@ function ProveIt({
       <SectionHeading id="prove-it">Prove it</SectionHeading>
       <p className="text-slate-600 dark:text-slate-400">{intro}</p>
       <ProofProgress topic={content.topic} state={progress} />
+      {beforeBuild}
       {build && (
         <PracticeItem
           itemId={build}
@@ -732,8 +770,9 @@ function ProveIt({
  * program much like the one the build asks for, so showing it any sooner
  * would hand over part of the "blank editor" answer.
  *
- * "Passed" is what the proof list above says: the main build or any fresh
- * version, on any day. A Check passed during this visit counts straight
+ * "Passed" is what the proof list above says: any fresh version, or the main
+ * build from before the steps were first opened, on any day (ADR-0012,
+ * amended 2026-11-11). A Check passed during this visit counts straight
  * away, because the progress includes it. Until the page knows, the check
  * stays closed and says why.
  */
@@ -747,15 +786,22 @@ function ExplainAfterBuild({
   progress: ProgressState
 }) {
   switch (progress.status) {
-    case 'ready':
-      if (progress.progress.get(topic.id)?.passed.build) {
+    case 'ready': {
+      const own = progress.progress.get(topic.id)
+      if (own?.passed.build) {
         return <ExplainCheck topic={topic} explain={explain} />
       }
       return (
         <ExplainClosed>
-          <p>Explain it back opens once your build passes.</p>
+          <p>
+            Explain it back opens once your build passes.
+            {/* The main build stops counting once the steps are opened. */}
+            {own?.stepsOpenedAt &&
+              " Since you've opened the steps, that means a fresh version, at the end of them."}
+          </p>
         </ExplainClosed>
       )
+    }
     case 'loading':
       return (
         <ExplainClosed>

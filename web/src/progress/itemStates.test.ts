@@ -52,4 +52,32 @@ describe('item states', () => {
     ])
     expect([...states.keys()]).toEqual(['py.programs-and-print/mcq-print'])
   })
+
+  // The placement test asks review questions of topics the learner may never
+  // have opened. Its answers place them; they aren't practice (ADR-0021).
+  it('ignores answers given in the placement test', () => {
+    const placed = (itemId: string, correct: boolean): Attempt => ({
+      ...attempt(itemId, correct),
+      id: `placement-${itemId}`,
+      context: 'placement',
+    })
+    expect(
+      itemStates([placed('mcq-print', true), placed('predict-print', false)]),
+    ).toEqual(new Map())
+  })
+
+  it('still marks an item done when it was also answered in the placement test', () => {
+    const states = itemStates([
+      { ...attempt('mcq-print', false), context: 'placement' },
+      { ...attempt('mcq-print', true), id: 'later', context: 'practice' },
+    ])
+    expect(states.get(itemKey('py.values-and-types', 'mcq-print'))).toBe('done')
+  })
+
+  it('counts answers saved before contexts were read, which have none', () => {
+    const states = itemStates([attempt('mcq-print', false)])
+    expect(states.get(itemKey('py.values-and-types', 'mcq-print'))).toBe(
+      'tried',
+    )
+  })
 })

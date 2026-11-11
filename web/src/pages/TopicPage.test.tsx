@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
+import { fetchStepsOpened } from '../checkpoints/stepsOpened.ts'
 import { getTopic } from '../content/content.ts'
 import type { Topic, TopicContent } from '../content/types.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
@@ -32,6 +33,15 @@ vi.mock('../explain/grade.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../explain/grade.ts')>()),
   gradeExplanation: vi.fn(),
 }))
+// When the learner opened a checkpoint's steps comes from the server too:
+// never, unless a test says otherwise.
+vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../checkpoints/stepsOpened.ts')>()),
+  fetchStepsOpened: vi.fn(),
+}))
+beforeEach(() => {
+  vi.mocked(fetchStepsOpened).mockResolvedValue([])
+})
 
 /** Noon on November 6, wherever the test runs. */
 const NOV_6 = new Date(2026, 10, 6, 12)
@@ -397,6 +407,33 @@ describe('a checkpoint page', () => {
     )
   }
 
+  /**
+   * Renders the fake checkpoint with a real event log, so a Check passed
+   * on the page counts toward its progress straight away.
+   */
+  function renderSavingCheckpoint() {
+    const content = fakeCheckpointContent()
+    render(
+      <AuthProvider auth={fakeAuth(fakeUser())}>
+        <EventsProvider client={fakeEventsClient()}>
+          <MemoryRouter>
+            <TopicView
+              topic={content.topic}
+              content={content}
+              loadAttempts={vi.fn((_topicId: string) =>
+                Promise.resolve(unlocked(content.topic)),
+              )}
+            />
+          </MemoryRouter>
+        </EventsProvider>
+      </AuthProvider>,
+    )
+  }
+
+  /** Waits until the learner's progress has loaded. */
+  const progressLoaded = () =>
+    screen.findByRole('list', { name: 'Your proof so far:' })
+
   it('says what it brings together, in place of a lesson', () => {
     renderCheckpoint()
     expect(
@@ -576,33 +613,6 @@ describe('a checkpoint page', () => {
       expect(screen.getByLabelText('Your explanation')).toBeInTheDocument()
     }
 
-    /**
-     * Renders the fake checkpoint with a real event log, so a Check passed
-     * on the page counts toward its progress straight away.
-     */
-    function renderSavingCheckpoint() {
-      const content = fakeCheckpointContent()
-      render(
-        <AuthProvider auth={fakeAuth(fakeUser())}>
-          <EventsProvider client={fakeEventsClient()}>
-            <MemoryRouter>
-              <TopicView
-                topic={content.topic}
-                content={content}
-                loadAttempts={vi.fn((_topicId: string) =>
-                  Promise.resolve(unlocked(content.topic)),
-                )}
-              />
-            </MemoryRouter>
-          </EventsProvider>
-        </AuthProvider>,
-      )
-    }
-
-    /** Waits until the learner's progress has loaded. */
-    const progressLoaded = () =>
-      screen.findByRole('list', { name: 'Your proof so far:' })
-
     it('stays closed, prompt and all, until the build passes on the page', async () => {
       const runner = setFakeRunner(
         fakeRunner({ check: oneFailed('Adds it all up') }),
@@ -768,6 +778,179 @@ describe('a checkpoint page', () => {
       expect(explainCard()).toHaveTextContent(prompt)
       expect(document.body).not.toHaveTextContent(CLOSED)
       expect(screen.getByLabelText('Your explanation')).toBeInTheDocument()
+    })
+  })
+
+  // The steps hand over most of the build's own program, so once they've
+  // been opened, a pass of that build no longer proves it; a fresh version
+  // does (ADR-0012, amended 2026-11-11).
+  describe('once the steps are opened', () => {
+    const CHECKPOINT = 'py.m1.checkpoint'
+    const NOTICE = /passing the build below no longer counts as your proof/
+    const PROMPT = 'How does your receipt program work?'
+    const FRESH_VERSION_NEEDED =
+      "Since you've opened the steps, that means a fresh version"
+
+    const notice = () => screen.queryByText(NOTICE)
+    const explainCard = () =>
+      screen.getByRole('region', { name: 'Explain it back' })
+
+    /** Opened on an earlier visit, at this time. */
+    function openedBefore(occurred_at: string) {
+      vi.mocked(fetchStepsOpened).mockResolvedValue([
+        { topic_id: CHECKPOINT, occurred_at },
+      ])
+    }
+
+    // Only Date is faked: the timers that waitFor and userEvent rely on stay
+    // real.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-11-11T12:00:00.000Z'))
+      return () => vi.useRealTimers()
+    })
+
+    it('says so where the steps are offered, before they open', () => {
+      renderCheckpoint()
+      expect(wayThrough()).toHaveTextContent(
+        'So once you open them, passing the build above no longer counts as your proof: a fresh version does.',
+      )
+      expect(notice()).not.toBeInTheDocument()
+    })
+
+    it('says so in the suggestion after two failing Checks, whose button opens them at once', async () => {
+      setFakeRunner(fakeRunner({ check: oneFailed('Adds it all up') }))
+      const { events } = renderCheckpoint()
+      await checkTheBuild()
+      await checkTheBuild()
+      const suggestion = await screen.findByRole('button', {
+        name: 'Try it in steps',
+      })
+      expect(suggestion.closest('p')).toHaveTextContent(
+        "Once you've opened the steps, that fresh version is your proof instead of this build.",
+      )
+      // Nothing is saved until the learner chooses.
+      expect(events.filter((event) => event.type === 'hint')).toEqual([])
+    })
+
+    it("saves the first opening on each visit, as a hint on the checkpoint's build", async () => {
+      const { events } = renderCheckpoint()
+      await openTheSteps()
+      await userEvent.click(
+        within(wayThrough()).getByRole('button', { name: 'Hide the steps' }),
+      )
+      await openTheSteps()
+      const hints = events.filter((event) => event.type === 'hint')
+      expect(hints).toHaveLength(1)
+      expect(hints[0]).toMatchObject({
+        topic_id: CHECKPOINT,
+        item_id: 'build-receipt',
+        context: 'prove',
+        data: { source: 'steps' },
+      })
+    })
+
+    it('says by the build that a fresh version proves it now, and goes there', async () => {
+      renderCheckpoint()
+      await openTheSteps()
+      await userEvent.click(
+        within(wayThrough()).getByRole('button', { name: 'Hide the steps' }),
+      )
+      // Above the build, where the learner would come back to finish it.
+      const proveIt = screen.getByRole('region', { name: 'Prove it' })
+      expect(within(proveIt).getByText(NOTICE)).toBeInTheDocument()
+
+      const scroll = vi.spyOn(Element.prototype, 'scrollIntoView')
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Prove it on a fresh version' }),
+      )
+      const heading = screen.getByRole('heading', {
+        name: 'Stuck? Try it in steps',
+      })
+      expect(heading).toHaveFocus()
+      expect(scroll.mock.contexts).toContain(heading)
+      expect(
+        within(wayThrough()).getByRole('button', { name: 'Hide the steps' }),
+      ).toHaveAttribute('aria-expanded', 'true')
+    })
+
+    it("doesn't count a pass of the build after them, but does a fresh version's", async () => {
+      setFakeRunner(fakeRunner({ check: allPassed('Adds it all up') }))
+      renderSavingCheckpoint()
+      await progressLoaded()
+      await openTheSteps()
+
+      // Five minutes later, the learner goes back up and passes the build.
+      vi.setSystemTime(new Date('2026-11-11T12:05:00.000Z'))
+      await checkTheBuild()
+      expect(await progressLoaded()).toHaveTextContent('Build: not passed yet')
+      expect(notice()).toBeInTheDocument()
+      expect(explainCard()).toHaveTextContent(FRESH_VERSION_NEEDED)
+      expect(document.body).not.toHaveTextContent(PROMPT)
+
+      const version = await within(wayThrough()).findByRole('region', {
+        name: 'Build: Split the bill',
+      })
+      await userEvent.click(
+        within(version).getByRole('button', { name: 'Check' }),
+      )
+      await vi.waitFor(async () =>
+        expect(await progressLoaded()).toHaveTextContent(/Build: passed on/),
+      )
+      expect(notice()).not.toBeInTheDocument()
+      expect(explainCard()).toHaveTextContent(PROMPT)
+    })
+
+    it('keeps a build passed on this visit before the steps were opened', async () => {
+      setFakeRunner(fakeRunner({ check: allPassed('Adds it all up') }))
+      renderSavingCheckpoint()
+      await progressLoaded()
+      await checkTheBuild()
+      await vi.waitFor(async () =>
+        expect(await progressLoaded()).toHaveTextContent(/Build: passed on/),
+      )
+
+      // Five minutes later, curious, the learner opens the steps.
+      vi.setSystemTime(new Date('2026-11-11T12:05:00.000Z'))
+      await openTheSteps()
+      expect(await progressLoaded()).toHaveTextContent(/Build: passed on/)
+      expect(notice()).not.toBeInTheDocument()
+      expect(explainCard()).toHaveTextContent(PROMPT)
+    })
+
+    it('remembers the steps were opened on an earlier visit', async () => {
+      setFakeRunner(fakeRunner({ check: oneFailed('Adds it all up') }))
+      openedBefore('2026-11-05T12:00:00.000Z')
+      // The build passed after that, on Nov 6.
+      renderCheckpoint({ history: [passedCheck('build-receipt', CHECKPOINT)] })
+      expect(await progressLoaded()).toHaveTextContent('Build: not passed yet')
+      expect(notice()).toBeInTheDocument()
+      expect(explainCard()).toHaveTextContent(FRESH_VERSION_NEEDED)
+      expect(document.body).not.toHaveTextContent(PROMPT)
+
+      // The notice already points at the steps, so the suggestion to try
+      // them doesn't come as well.
+      await checkTheBuild()
+      await checkTheBuild()
+      expect(
+        screen.queryByRole('button', { name: 'Try it in steps' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('still counts a build passed before they were opened', async () => {
+      openedBefore('2026-11-07T12:00:00.000Z')
+      // Passed on Nov 6, the day before.
+      renderCheckpoint({ history: [passedCheck('build-receipt', CHECKPOINT)] })
+      expect(await progressLoaded()).toHaveTextContent(/Build: passed on/)
+      expect(notice()).not.toBeInTheDocument()
+      expect(explainCard()).toHaveTextContent(PROMPT)
+    })
+
+    it('counts the build in history with no record of the steps, as before', async () => {
+      // Openings were first saved on 2026-11-11: older history has none.
+      renderCheckpoint({ history: [passedCheck('build-receipt', CHECKPOINT)] })
+      expect(await progressLoaded()).toHaveTextContent(/Build: passed on/)
+      expect(notice()).not.toBeInTheDocument()
     })
   })
 })

@@ -21,6 +21,11 @@ vi.mock('../followups/history.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../followups/history.ts')>()),
   fetchAttempts: vi.fn(),
 }))
+// No checkpoint's steps were ever opened.
+vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../checkpoints/stepsOpened.ts')>()),
+  fetchStepsOpened: vi.fn(async () => []),
+}))
 vi.mock('../placement/history.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../placement/history.ts')>()),
   fetchPlacements: vi.fn(),

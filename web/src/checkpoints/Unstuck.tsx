@@ -71,6 +71,12 @@ export function Unstuck({
             the same as passing the build above.
           </li>
         </ol>
+        {/* Said before the button, so the learner knows when they choose. */}
+        <p>
+          The steps show most of the build's own program. So once you open them,
+          passing the build above no longer counts as your proof: a fresh
+          version does. A build you passed before opening them still counts.
+        </p>
         <p>
           Any test you miss, here or above, also brings its skill back for
           practice on your Today page.
@@ -173,18 +179,50 @@ function useFreshVersion(
   return choice?.version ?? null
 }
 
+/** The look of a note beside the build. */
+const NOTE =
+  'rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100'
+
 /**
  * Shown next to the build after a few failing Checks (ADR-0012): a
  * suggestion, so the learner decides whether to use it.
  */
 export function SuggestSteps({ onOpen }: { onOpen: () => void }) {
   return (
-    <p className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100">
+    <p className={NOTE}>
       Stuck on the build? That's normal on a checkpoint.{' '}
       <button type="button" onClick={onOpen} className="font-medium underline">
         Try it in steps
       </button>
-      : a solved example, then the build in parts, with hints.
+      : a solved example, then the build in parts, with hints, then a fresh
+      version to prove it. Once you've opened the steps, that fresh version is
+      your proof instead of this build.
+    </p>
+  )
+}
+
+/**
+ * Shown above the build once the learner has opened the steps, until the
+ * build is proved (ADR-0012, amended 2026-11-11): the steps showed most of
+ * this program, so passing it here no longer proves it. A fresh version does.
+ */
+export function ProveOnAFreshVersion({
+  onGoToSteps,
+}: {
+  onGoToSteps: () => void
+}) {
+  return (
+    <p className={NOTE}>
+      You've opened the steps, which show most of this program, so passing the
+      build below no longer counts as your proof. You can still practise on it.{' '}
+      <button
+        type="button"
+        onClick={onGoToSteps}
+        className="font-medium underline"
+      >
+        Prove it on a fresh version
+      </button>{' '}
+      instead, at the end of the steps.
     </p>
   )
 }

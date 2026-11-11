@@ -62,12 +62,35 @@ describe('a probe’s verdict', () => {
     expect(verdict([true, false, false], 3)).toBe('fail')
   })
 
-  it('needs both of two, and the one of one', () => {
-    expect(verdict([true], 2)).toBe('open')
+  // ADR-0021: a tie gets the benefit of the doubt. Eleven ready topics have
+  // only two recall questions in their review pool, so their probes ask two.
+  it('passes a tie of two, one right and one wrong, in either order', () => {
+    expect(verdict([true, false], 2)).toBe('pass')
+    expect(verdict([false, true], 2)).toBe('pass')
+  })
+
+  it('fails two of two wrong', () => {
+    expect(verdict([false], 2)).toBe('open')
+    expect(verdict([false, false], 2)).toBe('fail')
+  })
+
+  it('is decided by a first right answer of two, as a tie would pass anyway', () => {
+    expect(verdict([true], 2)).toBe('pass')
     expect(verdict([true, true], 2)).toBe('pass')
-    expect(verdict([false], 2)).toBe('fail')
+  })
+
+  it('needs the one of one', () => {
     expect(verdict([true], 1)).toBe('pass')
     expect(verdict([false], 1)).toBe('fail')
+  })
+
+  it('passes a tie of four too', () => {
+    expect(verdict([true, false, true, false], 4)).toBe('pass')
+    expect(verdict([false, false, true, false], 4)).toBe('fail')
+  })
+
+  it('passes a probe with nothing to ask', () => {
+    expect(verdict([], 0)).toBe('pass')
   })
 })
 

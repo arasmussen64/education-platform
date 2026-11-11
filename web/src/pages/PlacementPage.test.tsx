@@ -24,17 +24,25 @@ vi.mock('../placement/history.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../placement/history.ts')>()),
   fetchPlacements: vi.fn(),
 }))
-// Every topic's questions are three multiple-choice ones whose right answer
-// is "right", so a test can pass or fail any probe on purpose.
+// No checkpoint's steps were ever opened.
+vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../checkpoints/stepsOpened.ts')>()),
+  fetchStepsOpened: vi.fn(async () => []),
+}))
+// How many questions each topic's review pool has: three, unless a test says
+// otherwise (some real topics have only two).
+const pool = vi.hoisted(() => ({ size: 3 }))
+// Every topic's questions are multiple-choice ones whose right answer is
+// "right", so a test can pass or fail any probe on purpose.
 vi.mock('../content/content.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../content/content.ts')>()
   const { fakeContent } = await import('../test/fakeContent.tsx')
-  const QUESTIONS = ['q-1', 'q-2', 'q-3']
   return {
     ...real,
     loadTopicContent: vi.fn(async (id: string) => {
       const topic = real.getTopic(id)
       if (!topic) return null
+      const QUESTIONS = ['q-1', 'q-2', 'q-3'].slice(0, pool.size)
       const content = fakeContent({ ...topic, review_pool: QUESTIONS })
       content.recall = Object.fromEntries(
         QUESTIONS.map((itemId) => [
@@ -119,6 +127,7 @@ describe('the placement page', () => {
   })
   afterEach(() => {
     vi.restoreAllMocks()
+    pool.size = 3
   })
 
   it('asks visitors to sign in', async () => {
@@ -237,6 +246,59 @@ describe('the placement page', () => {
     expect(within(list).getAllByRole('link').at(-1)).toHaveTextContent(
       ORDER[9]?.title ?? '',
     )
+  })
+
+  // Eleven ready topics have only two recall questions to ask. ADR-0021
+  // gives a tie the benefit of the doubt.
+  describe('with two questions a topic', () => {
+    beforeEach(() => {
+      pool.size = 2
+    })
+
+    /** Walks a Python placement, answering each probe's questions in turn. */
+    async function walkAnswering(answers: string[]) {
+      const asked = new Map<Topic, number>()
+      for (let step = 0; step < 40; step++) {
+        if (screen.queryByRole('heading', { name: /where to start/ })) return
+        await screen.findByRole('radio', { name: 'right' })
+        const topic = topicShowing()
+        const count = asked.get(topic) ?? 0
+        asked.set(topic, count + 1)
+        await answer(answers[count] ?? 'wrong')
+      }
+      throw new Error('the placement never finished')
+    }
+
+    async function start() {
+      await userEvent.click(
+        within(await region('Python Foundations')).getByRole('button', {
+          name: 'Start',
+        }),
+      )
+    }
+
+    it('passes a topic on one right and one wrong', async () => {
+      renderPlacement()
+      await start()
+      // Wrong first, so the probe has to ask both.
+      await walkAnswering(['wrong', 'right'])
+      const result = await region('Python Foundations: where to start')
+      expect(result).toHaveTextContent('You answered 4 of 8 right.')
+      expect(result).toHaveTextContent(
+        'You seem to know everything written here so far.',
+      )
+    })
+
+    it('fails a topic on two wrong', async () => {
+      renderPlacement()
+      await start()
+      await walkAnswering(['wrong', 'wrong'])
+      const result = await region('Python Foundations: where to start')
+      expect(result).toHaveTextContent('You answered 0 of 10 right.')
+      expect(result).toHaveTextContent(
+        'Start at the beginning: Programs and print.',
+      )
+    })
   })
 
   it('walks the math ladder and says where to refresh', async () => {

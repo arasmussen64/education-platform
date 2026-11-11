@@ -17,6 +17,11 @@ vi.mock('../followups/history.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../followups/history.ts')>()),
   fetchAttempts: vi.fn(),
 }))
+// No checkpoint's steps were ever opened.
+vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../checkpoints/stepsOpened.ts')>()),
+  fetchStepsOpened: vi.fn(async () => []),
+}))
 
 const PRINT = getTopic('py.programs-and-print')!
 const TYPES = getTopic('py.values-and-types')!
