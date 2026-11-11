@@ -1,0 +1,38 @@
+id: example-price-one-estate
+stage: worked_example
+runtime: lab
+rev: 1
+title: "Price one estate"
+prompt: |
+  The shop is moving seven servers to Azure, and wants to know what Azure Hybrid Benefit would save it. The estate is in `/srv/licensing/shop-estate.csv`, one server a line, with whether each server's Windows Server and SQL Server licences have active Software Assurance and what its VM costs an hour as Linux and with Windows included. `/srv/licensing/README.txt` says what each column means, where the prices came from and when, and what SQL Server licence included costs.
+
+  The walkthrough follows the lesson's method. It reads the README and the estate, counts the Windows Server core licences the benefit would need (at least 8 a VM) and the SQL Server ones (at least 4 a VM), prices a 730-hour month with every licence included and again with the benefit wherever Software Assurance allows it, and saves the five numbers in `~/example/answer.txt`. Type each line yourself, in one shell session (the later lines use numbers the earlier ones kept in shell variables), and read what it prints before you type the next. Then run the checks.
+steps:
+  - label: "What the files are"
+    lines: "1"
+    note: "Always read the data's own description first: where the prices came from and when, the region, the units, and the rules it assumes. These are Azure's East US prices of 2026-11-11, an hour, and a month is 730 hours. SQL Server licence included is charged on top of the VM, per vCPU, for at least 4 vCPUs."
+  - label: "The estate"
+    lines: "2"
+    note: "Seven servers, one a line after the heading. Six run Windows Server, two of them SQL Server too, and one runs Linux. `win_sa` and `sql_sa` say whose licences have active Software Assurance: only those may use Azure Hybrid Benefit. app-1's Windows and db-2's SQL Server don't have it."
+  - label: "Who may use the benefit"
+    lines: "3"
+    note: "An `awk` condition with no action prints the lines where it holds (Shell essentials). These five Windows servers have Software Assurance, so their licences may come to Azure. The two at 2 vCPUs are smaller than the minimum."
+  - label: "Count Windows Server core licences, with the minimum"
+    lines: "4"
+    note: "The first `awk` keeps the five; the second runs three rules on each, in order: `{n = $2}` takes the vCPUs, `n < 8 {n = 8}` raises them to the minimum of 8 a VM, `{total += n}` adds them up, and `END` prints the total. 8 + 8 + 8 + 8 + 16 = 48. Without the minimum it would say 30, and 18 licences would be missing. `w=$(...)` keeps the number in a shell variable for the last step."
+  - label: "Count SQL Server core licences"
+    lines: "5"
+    note: "The same shape, for SQL Server: the servers that run it (`$4 != \"none\"`) and whose licences have Software Assurance, with the minimum of 4 a VM. Only db-1 qualifies, and its 2 vCPUs are raised to 4. db-2's SQL Server has no Software Assurance, so its licence stays included."
+  - label: "A month with every licence included"
+    lines: "6"
+    note: "Each server's hour starts at its Windows price (`$8`, the same as Linux for cache-1), plus SQL Server per vCPU, for at least 4: db-1 pays for 4 of its 2 vCPUs. The total over seven servers times 730 hours, printed to the cent with `printf \"%.2f\\n\"`, is $5,042.84. db-2's SQL Server Enterprise alone is $3.00 of the $6.908 an hour."
+  - label: "A month with the benefit where it is allowed"
+    lines: "7"
+    note: "`$5 == \"yes\" {hourly = $7}` puts a Windows server whose licences have Software Assurance at the Linux price, and SQL Server is charged only where `sql_sa` isn't `yes`. $3,743.44. app-1 still pays for Windows and db-2 for SQL Server, because their licences can't move."
+  - label: "Save the answers"
+    lines: "8"
+    note: "`printf` writes the four numbers into the file in the `key=value` form, one a line (`%s` stands for each value in turn, and `\\n` ends a line)."
+  - label: "The saving"
+    lines: "9"
+    note: "`awk -v` hands the two months to `awk`, which takes one from the other: $1,299.40 a month, about a quarter of the bill, for the price of the Software Assurance the shop already pays. The 48 Windows and 4 SQL Server core licences are what it must keep covered. Then run the checks."
+skills: [core-counting, licence-included, bring-your-own]
