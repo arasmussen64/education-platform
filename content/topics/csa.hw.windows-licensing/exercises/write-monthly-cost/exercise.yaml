@@ -1,0 +1,28 @@
+id: write-monthly-cost
+stage: write
+runtime: lab
+rev: 1
+title: "Write monthly-cost"
+prompt: |
+  The shop wants a script it can run on any estate it might move to Azure, to see what Azure Hybrid Benefit is worth. `/srv/licensing/estate.csv` is one such estate, and `/srv/licensing/README.txt` says what each column means, where the prices came from, and what SQL Server licence included costs.
+
+  Write a script, `~/bin/monthly-cost ESTATE`, that prints three lines, money to the cent for a 730-hour month:
+
+  ```text
+  licence-included: 1234.56
+  with-hybrid-benefit: 987.65
+  saving: 246.91
+  ```
+
+  1. What every server costs with every licence included: its Windows price (on a Linux server, the same as its Linux price), plus SQL Server where it runs: Standard $0.10 and Enterprise $0.375 a vCPU-hour, for at least 4 vCPUs.
+  2. The same with Azure Hybrid Benefit wherever the licences allow it: the Linux price for a Windows server only where `win_sa` is `yes`, and no SQL Server charge only where `sql_sa` is `yes`.
+  3. The difference between the two.
+
+  Given anything other than one estate, it prints a usage line and exits with a non-zero status. Write it from a blank file with `nano ~/bin/monthly-cost`, make it executable with `chmod +x ~/bin/monthly-cost`, and try it on the estate. Then run the checks, which also try it on an estate it has never seen: so the script must work its numbers out from the file it is given.
+hints:
+  - "Start like the worked example: `tail -n +2 \"$1\" | awk -F, '...'`. In the program, `$2` is the vCPUs, `$4` the SQL Server edition, `$5` and `$6` the Software Assurance columns, `$7` the Linux price and `$8` the Windows price."
+  - "Work out each server's hour twice, adding each to its own total: `{included += ...}` and `{benefit += ...}`. The worked example's two price lines are the two halves."
+  - "The SQL Server minimum is the same three rules as the Windows one: `{n = $2} n < 4 {n = 4}`, then charge the rate times `n`. A rule like `$4 == \"standard\" {rate = 0.10}` sets the rate for the editions; give `none` a rate of 0."
+  - "In `END`, `printf \"licence-included: %.2f\\n\", included * 730` prints a line with two decimals. The saving is `(included - benefit) * 730`."
+  - "`$#` is the number of arguments. `if [ $# -ne 1 ]; then echo \"usage: monthly-cost ESTATE\" >&2; exit 2; fi` at the top sends the usage line to the error output and stops."
+skills: [licence-included, bring-your-own]

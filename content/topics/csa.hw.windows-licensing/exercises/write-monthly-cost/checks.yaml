@@ -1,0 +1,89 @@
+# The checks for "Write monthly-cost": the learner's script, run as the
+# learner, against the check's own sums over the same file, on the shop's
+# estate and on an estate the check writes for itself as it runs, which the
+# learner has never seen. That estate's sizes and some of its Software
+# Assurance are drawn at random each time (bash's RANDOM), around a shape
+# every rule shows in: a Windows server with Software Assurance and one
+# without, a SQL Server Standard on 2 vCPUs without Software Assurance (the
+# minimum of 4), and a SQL Server Enterprise with it. Its saving is always
+# more than $4,900, and the shop estate's is $3,623.72, so numbers typed into
+# the script fail it (wrong/typed-in.sh). Each line may be off by 10 cents,
+# for rounding along the way; 720 hours instead of 730 is off by dollars.
+# And Module 1's scripting habit: a usage line and a failing exit status when
+# no estate is given.
+checks:
+  - id: executable
+    description: "~/bin/monthly-cost exists and can be run."
+    command: test -x /home/learner/bin/monthly-cost
+  - id: estate-right
+    description: "On /srv/licensing/estate.csv, the three lines are right, each to within 10 cents."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '{
+          n = $2; if (n < 4) n = 4
+          r = ($4 == "standard") ? 0.10 : (($4 == "enterprise") ? 0.375 : 0)
+          inc += $8 + r * n
+          h = ($5 == "yes") ? $7 : $8
+          if ($6 != "yes") h += r * n
+          ben += h
+        } END {printf "%.4f %.4f %.4f\n", inc * 730, ben * 730, (inc - ben) * 730}'
+      }
+      got=$(runuser -u learner -- /home/learner/bin/monthly-cost /srv/licensing/estate.csv 2>&1)
+      read -r inc ben sav <<< "$(truth /srv/licensing/estate.csv)"
+      echo "$got" | awk -v inc="$inc" -v ben="$ben" -v sav="$sav" -F': *' '
+        $1 == "licence-included" {a = $2} $1 == "with-hybrid-benefit" {b = $2} $1 == "saving" {c = $2}
+        function near(x, t) {return x ~ /^-?[0-9]+(\.[0-9]+)?$/ && x - t <= 0.10 && t - x <= 0.10}
+        END {if (near(a, inc) && near(b, ben) && near(c, sav)) print "right"; else print "the script printed: " a ", " b ", " c}'
+    expect:
+      equals: right
+  - id: unseen-estate-right
+    description: "On another estate, which the check writes as it runs and the script has never seen, the three lines are right too."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '{
+          n = $2; if (n < 4) n = 4
+          r = ($4 == "standard") ? 0.10 : (($4 == "enterprise") ? 0.375 : 0)
+          inc += $8 + r * n
+          h = ($5 == "yes") ? $7 : $8
+          if ($6 != "yes") h += r * n
+          ben += h
+        } END {printf "%.4f %.4f %.4f\n", inc * 730, ben * 730, (inc - ben) * 730}'
+      }
+      pick() { local a=($1); echo "${a[RANDOM % ${#a[@]}]}"; }
+      row() {
+        awk -v n="$1" -v v="$2" -v o="$3" -v s="$4" -v a="$5" -v b="$6" -v f="$7" 'BEGIN {
+          l = (f == "e" ? 0.063 : 0.048) * v; w = (f == "e" ? 0.109 : 0.094) * v
+          if (o == "linux") w = l
+          printf "%s,%d,%s,%s,%s,%s,%.3f,%.3f\n", n, v, o, s, a, b, l, w }'
+      }
+      dir=$(mktemp -d)
+      {
+        echo "server,vcpus,os,sql,win_sa,sql_sa,linux_hourly,windows_hourly"
+        row u-web-1 "$(pick '2 4')" windows none yes no d
+        row u-web-2 "$(pick '2 4')" windows none no no d
+        row u-app-1 "$(pick '8 16')" windows none "$(pick 'yes no')" no d
+        row u-app-2 "$(pick '16 32')" windows none "$(pick 'yes no')" no d
+        row u-db-1 2 windows standard "$(pick 'yes no')" no d
+        row u-db-2 "$(pick '4 8')" windows "$(pick 'standard enterprise')" "$(pick 'yes no')" "$(pick 'yes no')" e
+        row u-db-3 "$(pick '16 32')" windows enterprise yes yes e
+        row u-cache-1 "$(pick '4 8')" linux none no no d
+        row u-cache-2 "$(pick '2 16')" linux none no no d
+      } > "$dir/estate.csv"
+      chmod -R a+rX "$dir"
+      got=$(runuser -u learner -- /home/learner/bin/monthly-cost "$dir/estate.csv" 2>&1)
+      read -r inc ben sav <<< "$(truth "$dir/estate.csv")"
+      rm -r "$dir"
+      echo "$got" | awk -v inc="$inc" -v ben="$ben" -v sav="$sav" -F': *' '
+        $1 == "licence-included" {a = $2} $1 == "with-hybrid-benefit" {b = $2} $1 == "saving" {c = $2}
+        function near(x, t) {return x ~ /^-?[0-9]+(\.[0-9]+)?$/ && x - t <= 0.10 && t - x <= 0.10}
+        END {if (near(a, inc) && near(b, ben) && near(c, sav)) print "right"; else print "not right on an estate it has never seen"}'
+    expect:
+      equals: right
+  - id: usage-when-no-estate
+    description: "Run with no estate, monthly-cost prints a usage message and exits with a non-zero status."
+    command: |
+      out=$(runuser -u learner -- /home/learner/bin/monthly-cost 2>&1 < /dev/null)
+      status=$?
+      if [ "$status" -ne 0 ] && echo "$out" | grep -qi usage; then echo right; else echo "exit $status, printed: $out"; fi
+    expect:
+      equals: right
