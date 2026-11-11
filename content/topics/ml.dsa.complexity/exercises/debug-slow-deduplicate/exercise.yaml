@@ -1,13 +1,18 @@
 id: debug-slow-deduplicate
 stage: debug
-rev: 1
+rev: 2
 title: "A slow deduplicate"
 prompt: |
-  `unique_in_order` should return the distinct emails in the order they first appear, and the program should print:
+  `unique_in_order` should return the distinct emails in the order they first appear. The program runs it on 3,000 emails, 1,500 of them distinct, and prints how many it kept, the first two and the last:
 
   ```
   1500 ['user0@example.com', 'user1@example.com'] user1499@example.com
   ```
 
-  It has two bugs. Run it: the order is backwards, because each new email is inserted at the **front** of the result (and `insert(0, ...)` shifts every element along, a linear step inside the loop). Fix that, and the output is right but the function is quadratic: `seen` is a list, so `email not in seen` scans it from the start every time. The checks count the comparisons: with a set they stay in the thousands, with the list they reach the millions.
+  Instead the count is right but the emails come out backwards, last first. It has two bugs, and one of them doesn't change the output at all: the checks count how many comparisons the function makes on data like this, and fail it when it makes far more than the job needs. Run it, fix what you find, and run it again; then run the checks.
+hints:
+  - "Look at where each new email goes in `result`. Which end should the first one end up at?"
+  - "`result.insert(0, email)` puts each new email at the front, and shifts every element along to do it; `append` adds it at the end."
+  - "With the order right, the checks still count about 2.25 million comparisons. What does `email not in seen` cost when `seen` is a list?"
+  - "`email not in seen` scans a list from the start every time; a set answers it in one step, so `seen` should be a set."
 skills: [count, choose]

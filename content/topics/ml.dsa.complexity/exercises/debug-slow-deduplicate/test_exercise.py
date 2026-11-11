@@ -34,10 +34,10 @@ def test_the_output():
 
 
 def test_scales():
-    """On 3,000 values with 1,500 distinct, the function compares fewer than 30,000 times (a list makes about 2.25 million) and keeps the first-seen order."""
+    """On 3,000 values with 1,500 distinct, the function keeps the first-seen order and compares fewer than 30,000 times."""
     unique_in_order = function("unique_in_order")
     values = tracked([i % 1500 for i in range(3000)])
     Tracked.compared = 0
     result = unique_in_order(values)
     assert [item.value for item in result] == list(range(1500)), "the order or the set of values is wrong"
-    assert Tracked.compared < 30_000, f"{Tracked.compared} comparisons: seen must be a set"
+    assert Tracked.compared < 30_000, f"{Tracked.compared} comparisons, where fewer than 30,000 are expected"
