@@ -1,0 +1,20 @@
+id: debug-tickets-refused
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "The report that gets no tickets"
+prompt: |
+  The shop's nightly directory report runs on `lab`. It is `/usr/local/bin/directory-report`, with its settings in `/etc/directory-report.conf`. `directory-report.service` runs it at two every night (its timer is `directory-report.timer`) for the groups `linux-admins` and `stock-team`, and writes what it finds to `/srv/reports/groups.txt`. The report signs in to the domain, `ad.shop.test`, as the service account `svc-report`, with that account's keytab, `/etc/svc-report.keytab`; it finds a domain controller through DNS, and lists each group's members over LDAP, signed in with Kerberos. For months it worked.
+
+  Since Monday the report has been empty, and its log ends in Kerberos errors. There are three faults. Find each one from the evidence and fix it at its cause, so that the report lists every group's members again. You can run the report whenever you like: `sudo systemctl start directory-report`, then `journalctl -u directory-report` for its log and `cat /srv/reports/groups.txt` for what it found.
+
+  The rules of the fix:
+
+  - **svc-report's password and keytab stay as they are:** other programs sign in with them too.
+  - **Nothing about dc1 is typed into a hosts file or a Kerberos configuration** on `lab`.
+  - **dc1 stays as strict as it is:** it keeps refusing passwords sent over unencrypted LDAP.
+
+  dc1 is at 10.0.9.10, and `on-dc COMMAND` runs a command on it. The domain's administrator is `Administrator`, password `Shop-Admin-1`. When the report works, run the checks.
+skills: [kerberos-tickets, dc-discovery]

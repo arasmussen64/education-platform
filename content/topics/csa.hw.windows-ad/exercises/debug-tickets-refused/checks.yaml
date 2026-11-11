@@ -1,0 +1,52 @@
+# The checks for "The report that gets no tickets". The descriptions say what
+# must be true at the end, never what was wrong. The report is run the way
+# its service runs it, as root, for a group its service names and for one
+# the prompt never mentions, and compared with what dc1 itself says.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence, not an exit status.
+checks:
+  - id: report-right
+    description: "The directory report runs and lists each group's members correctly: linux-admins, and night-shift too."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      want=""
+      for group in linux-admins night-shift; do
+        members=$(dc samba-tool group listmembers "$group" 2>/dev/null | sort | tr '\n' ' ')
+        want="$want$group: ${members% }|"
+      done
+      got=$(/usr/local/bin/directory-report linux-admins night-shift 2>&1 | tr '\n' '|')
+      [ "$got" = "$want" ] || { echo "the report printed [$got], not [$want]"; exit 0; }
+      echo right
+    expect:
+      equals: right
+  - id: reverse-lookups
+    description: "Asked through lab's own resolver, 10.0.9.10 has the name dc1.ad.shop.test."
+    command: dig +short +time=2 +tries=1 -x 10.0.9.10
+    expect:
+      equals: "dc1.ad.shop.test."
+  - id: account-and-keytab
+    description: "svc-report is enabled, and the keytab the report was given is the same file as before and still gets it a ticket."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      uac=$(dc samba-tool user show svc-report --attributes=userAccountControl 2>/dev/null | awk '/^userAccountControl:/ {print $2}')
+      [ -n "$uac" ] || { echo "dc1 has no svc-report"; exit 0; }
+      [ $((uac & 2)) -eq 0 ] || { echo "svc-report is disabled"; exit 0; }
+      [ "$(sha256sum /etc/svc-report.keytab 2>/dev/null | cut -d' ' -f1)" = "$(cat /var/lib/lab/keytab.sha256)" ] || { echo "/etc/svc-report.keytab isn't the keytab the report was given"; exit 0; }
+      KRB5CCNAME=FILE:/tmp/check-svc-cc kinit -k -t /etc/svc-report.keytab svc-report@AD.SHOP.TEST > /dev/null 2>&1 || { echo "the keytab gets svc-report no ticket"; exit 0; }
+      KRB5CCNAME=FILE:/tmp/check-svc-cc kdestroy -q
+      echo right
+    expect:
+      equals: right
+  - id: found-through-dns
+    description: "lab finds dc1 through DNS alone: its hosts file names only lab, and its Kerberos settings name no server."
+    command: |
+      if grep -Eq '(^|[[:space:]])(10\.0\.9\.10|dc1(\.ad\.shop\.test)?)([[:space:]]|$)' /etc/hosts; then echo "lab's hosts file names dc1"; exit 0; fi
+      if grep -Eqi '^[[:space:]]*(kdc|admin_server|kpasswd_server)[[:space:]]*=' /etc/krb5.conf; then echo "lab's Kerberos settings name a server"; exit 0; fi
+      echo "through DNS"
+    expect:
+      equals: "through DNS"
+  - id: dc-still-strict
+    description: "dc1 still refuses a password sent over an unencrypted LDAP connection."
+    command: ldapsearch -x -o nettimeout=5 -H ldap://10.0.9.10 -D 'alice@ad.shop.test' -w 'Alice-Pass-1' -b 'DC=ad,DC=shop,DC=test' -s base dn 2>&1 | head -n 2
+    expect:
+      contains: "Strong(er) authentication required"
