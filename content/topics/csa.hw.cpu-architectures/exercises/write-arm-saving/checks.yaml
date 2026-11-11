@@ -1,0 +1,37 @@
+# The checks for "Write arm-saving": the price file is as it was read, and
+# the script's three numbers are right for pairs of types from it and from
+# a second file of made-up prices that the prompt doesn't name, including a
+# pair where Arm costs more. Each pair is run by the helper
+# /usr/local/libexec/lab/check-saving, which works the same sums out from
+# the file and says "right" or what it wanted (its margins are in it).
+checks:
+  - id: prices-untouched
+    description: "/srv/prices/2026-11.csv is exactly as it was read."
+    command: sha256sum -c --quiet /usr/local/share/lab/prices.sha256 && echo "unchanged"
+    expect:
+      equals: unchanged
+  - id: aws-pair
+    description: "For 40 instances moving from m7i.large to m7g.large, the three numbers are right."
+    command: /usr/local/libexec/lab/check-saving /srv/prices/2026-11.csv m7i.large m7g.large 40
+    expect:
+      equals: right
+  - id: azure-pair
+    description: "For 12 VMs moving from Standard_D2s_v6 to Standard_D2ps_v6, the three numbers are right."
+    command: /usr/local/libexec/lab/check-saving /srv/prices/2026-11.csv Standard_D2s_v6 Standard_D2ps_v6 12
+    expect:
+      equals: right
+  - id: google-pair
+    description: "For 7 VMs moving from n4-standard-2 to n4a-standard-2, the three numbers are right."
+    command: /usr/local/libexec/lab/check-saving /srv/prices/2026-11.csv n4-standard-2 n4a-standard-2 7
+    expect:
+      equals: right
+  - id: another-file
+    description: "It reads whichever price file it's given: for 3 machines in another file, with 8 vCPUs each, the numbers are right."
+    command: /usr/local/libexec/lab/check-saving /usr/local/share/lab/prices-test.csv x-big a-big 3
+    expect:
+      equals: right
+  - id: arm-dearer
+    description: "When the Arm type costs more (e2-standard-2 to n4a-standard-2), the saving comes out negative."
+    command: /usr/local/libexec/lab/check-saving /srv/prices/2026-11.csv e2-standard-2 n4a-standard-2 5
+    expect:
+      equals: right

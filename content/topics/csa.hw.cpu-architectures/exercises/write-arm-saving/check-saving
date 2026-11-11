@@ -1,0 +1,32 @@
+#!/bin/bash
+# Used by the lab's checks, never by the learner: runs ~/bin/arm-saving on
+# one pair of types, as the learner, and compares its three numbers with the
+# same sums worked out here from the price file. It prints "right", or what
+# it wanted.
+#
+# The margins: the per-hour saving within 0.0005 dollars, the percentage
+# within half a point, the month within 2%. A month of 720 hours instead of
+# 730 is 1.4% off and passes, on purpose: that's a choice of convention,
+# not a mistake, and the answer shouldn't hang on it.
+set -u
+csv=$1 x86=$2 arm=$3 count=$4
+out=$(runuser -u learner -- /home/learner/bin/arm-saving "$csv" "$x86" "$arm" "$count" 2>&1)
+printf '%s\n' "$out" | awk -F': ' -v csv="$csv" -v x="$x86" -v a="$arm" -v n="$count" '
+  function abs(v) { return v < 0 ? -v : v }
+  BEGIN {
+    while ((getline line < csv) > 0) { split(line, field, ","); price[field[2]] = field[5] }
+    hour = price[x] - price[a]
+    pct = hour * 100 / price[x]
+    month = hour * 730 * n
+  }
+  $1 == "per hour" { h = $2; got++ }
+  $1 == "percent" { p = $2; got++ }
+  $1 == "per month for " n { m = $2; got++ }
+  END {
+    if (got != 3) {
+      print "wanted three lines, per hour: ..., percent: ... and per month for " n ": ..."
+      exit
+    }
+    if (abs(h - hour) <= 0.0005 && abs(p - pct) <= 0.5 && abs(m - month) <= 0.02 * abs(month)) print "right"
+    else printf "wanted about per hour %.4f, percent %.1f, per month %.2f\n", hour, pct, month
+  }'
