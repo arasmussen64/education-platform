@@ -1,0 +1,14 @@
+id: fill-what-arch
+stage: fill_in
+runtime: lab
+rev: 1
+title: "Finish what-arch"
+prompt: |
+  In the lab, `~/bin/what-arch` is meant to say, for each file it's given, whether it's a program or library and which architecture it's built for. It prints one line a file: the file as it was given, then `x86-64`, `aarch64` or `not-a-program` (a script, a text file, an archive, an empty file: anything that isn't machine code). It decides from what `file` says about the file, never from the file's name, because names can be wrong.
+
+  Four places have `...` where something belongs: what `file` is asked about, the two patterns that recognise a program or library for each architecture, and the word for everything else. The script runs as it is, but prints nonsense until all four are filled. Fill them with `nano ~/bin/what-arch`, then try `~/bin/what-arch /srv/samples/*` and compare its lines with `file /srv/samples/*`. Then run the checks, which also try it on a folder the prompt doesn't name.
+hints:
+  - "`file -b` takes the file to describe as its argument: here, the loop's variable, quoted (`\"$path\"`), so a name with a space still works."
+  - "Run `file -b /srv/samples/shop-api` and `file -b /srv/samples/README.txt` and compare. Every Linux program and library starts `ELF`, and the architecture comes further along the line, written `x86-64` or `ARM aarch64`."
+  - "A pattern for an x86-64 program: `ELF*x86-64*`, which means ELF, then anything, then x86-64, then anything. Why insist on the ELF? Some files that aren't programs mention an architecture in their description: try `file -b` on a gzip archive whose packed file had x86-64 in its name."
+skills: [read-arch]
