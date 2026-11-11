@@ -1,5 +1,12 @@
 # The checks for "Killed, again and again": the cache and the indexer stay
-# up with limits they fit in, and the database is protected, not exposed.
+# up, each still inside a real limit (a finite one of at most 512 MB, with
+# no swap), and the database is the kernel's last choice of victim.
+#
+# The limit checks are what make this a lab about limits. Without them,
+# MemoryMax=infinity "fixes" both services, and so does letting them swap:
+# a cache that needs 100 MB stays up at a 32 MB limit with the rest of its
+# pages on disk (tried on Docker Desktop, 2026-11-10). wrong/limits-removed.sh
+# and wrong/swap-instead-of-room.sh prove both are caught.
 checks:
   - id: cache-stays-up
     description: "shop-cache is running, and stays running."
@@ -18,13 +25,15 @@ checks:
       fi
     expect:
       equals: active
-  - id: cache-limit-fits
-    description: "shop-cache's limit is at least 128 MB (or there is none)."
+  - id: cache-limit-kept
+    description: "shop-cache still has a hard memory limit, of no more than 512 MB."
+    # "infinity" means the limit was taken away; it isn't a number, so the
+    # comparison fails.
     command: |
       limit=$(systemctl show shop-cache -p MemoryMax --value)
-      if [ "$limit" = infinity ]; then echo 999999999999; else echo "$limit"; fi
+      if [ "$limit" = infinity ]; then echo "no limit"; else echo "$limit"; fi
     expect:
-      gte: 134217728
+      lte: 536870912
   - id: indexer-stays-up
     description: "shop-indexer is running, and stays running."
     command: |
@@ -42,15 +51,20 @@ checks:
       fi
     expect:
       equals: active
-  - id: indexer-limit-sane
-    description: "shop-indexer's limit is at least 64 MB (or there is none): 512 bytes was never a limit a program could live in."
+  - id: indexer-limit-kept
+    description: "shop-indexer still has a hard memory limit, of no more than 512 MB."
     command: |
       limit=$(systemctl show shop-indexer -p MemoryMax --value)
-      if [ "$limit" = infinity ]; then echo 999999999999; else echo "$limit"; fi
+      if [ "$limit" = infinity ]; then echo "no limit"; else echo "$limit"; fi
     expect:
-      gte: 67108864
+      lte: 536870912
+  - id: no-swap
+    description: "Neither of the two may swap: MemorySwapMax is 0 for shop-cache and for shop-indexer."
+    command: echo "$(systemctl show shop-cache -p MemorySwapMax --value) $(systemctl show shop-indexer -p MemorySwapMax --value)"
+    expect:
+      equals: "0 0"
   - id: db-protected
-    description: "The running shop-db process has oom_score_adj of -500 or lower, not 1000."
+    description: "The running shop-db process has an oom_score_adj of -500 or lower."
     command: cat "/proc/$(systemctl show shop-db -p MainPID --value)/oom_score_adj"
     expect:
       lte: -500
