@@ -1,8 +1,8 @@
 id: hard-sshd-effective
 type: predict_shell
-rev: 1
+rev: 2
 prompt: |
-  `sshd-T.txt` is the output of `sshd -T`, which prints every SSH server setting as it is actually in effect, in lowercase, after all the included files. The command picks the three that decide who can log in and how. What is printed?
+  `sshd-T.txt` is the output of `sshd -T`, which prints every SSH server setting that the configuration files add up to, in lowercase, after all the included files. The command picks the three that decide who can log in and how. What is printed?
 files:
   sshd-T.txt: |
     port 22
@@ -21,5 +21,5 @@ expected_output: |
   passwordauthentication yes
   pubkeyauthentication yes
 explanation: |
-  Keys work (`pubkeyauthentication yes`), which is good, but passwords are also accepted and so is root, which together mean this server can be brute-forced: a dictionary against `root` over port 22, the most common attack on the internet. The fix is two lines, `PermitRootLogin no` and `PasswordAuthentication no`, after confirming a key is installed. `sshd -T` is the right thing to read on a server you didn't set up, because `sshd_config` can be overridden by files in `sshd_config.d/`.
+  Keys work (`pubkeyauthentication yes`), which is good, but passwords are also accepted and so is root, which together mean this server can be brute-forced: a dictionary against `root` over port 22, the most common attack on the internet. The fix is two lines, `PermitRootLogin no` and `PasswordAuthentication no`, after confirming a key is installed. `sshd -T` is the right thing to read on a server you didn't set up, because `sshd_config` can be overridden by files in `sshd_config.d/`. It reads the files, though, not the server that is running: after the fix, `systemctl reload ssh` is what makes the running server take the two lines on, and a login that offers no key (`ssh -o BatchMode=yes -o PubkeyAuthentication=no ...`) shows what it really offers.
 skills: [ssh-hardening]
