@@ -1,7 +1,7 @@
 # The checks for "The API that can't get a CPU": it runs, it keeps a CPU cap
 # with headroom for its work (more than one CPU, at most two, never none),
 # it isn't throttled any more, its nice value is normal and its weight is at
-# least the default.
+# least the default, and systemd's settings say so too, so a restart keeps it.
 #
 # The cap check is what makes this a lab about choosing a limit. Without
 # it, an empty CPUQuota= "fixes" the throttling by taking the cap away,
@@ -43,3 +43,24 @@ checks:
     command: cat /sys/fs/cgroup/system.slice/shop-api.service/cpu.weight
     expect:
       gte: 100
+  - id: kept-after-restart
+    description: "systemd's own settings for shop-api say the same as the checks above, so a restart or a reboot keeps all of it."
+    # The checks above read the kernel and the running process, which can be
+    # changed on the spot (renice, or writing to cpu.max and cpu.weight)
+    # while the unit still says 5%, 19 and 1, and the next restart brings
+    # every fault back. So systemd's view has to agree: a quota above one
+    # CPU and at most two, nice 0 or better, and a weight of at least 100
+    # (or none set, which is 100). systemd prints the quota per second, as
+    # "1.500000s" or "900ms"; awk turns it into a percentage of one CPU.
+    # wrong/runtime-only.sh proves the on-the-spot fix is caught.
+    command: |
+      q=$(systemctl show shop-api -p CPUQuotaPerSecUSec --value)
+      n=$(systemctl show shop-api -p Nice --value)
+      w=$(systemctl show shop-api -p CPUWeight --value)
+      awk -v q="$q" -v n="$n" -v w="$w" 'BEGIN {
+        if (q ~ /^[0-9.]+ms$/) pct = q / 10; else if (q ~ /^[0-9.]+s$/) pct = q * 100; else pct = -1
+        ok = pct > 100 && pct <= 200 && n <= 0 && (w == "[not set]" || (w ~ /^[0-9]+$/ && w >= 100))
+        print (ok ? "the unit agrees" : "the unit says: quota " q ", nice " n ", weight " w)
+      }'
+    expect:
+      equals: "the unit agrees"
