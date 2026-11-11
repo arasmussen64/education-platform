@@ -1,14 +1,18 @@
 id: mcq-boot-order
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   In what order do these run when a Linux server boots?
 choices:
-  - "systemd, then the kernel, then GRUB, then the firmware"
-  - "Firmware (UEFI), then the bootloader (GRUB), then the kernel with its initramfs, then systemd as PID 1, which starts services until the default target is reached"
-  - "The kernel, then the firmware, then cloud-init, then GRUB"
-  - "GRUB, then cloud-init, then the kernel, then systemd"
-answer: 1
+  - "Firmware (UEFI), then the bootloader (GRUB), then the kernel with its initramfs, then systemd as PID 1"
+  - "Firmware (UEFI), then the kernel with its initramfs, then the bootloader (GRUB), then systemd as PID 1"
+  - "The bootloader (GRUB), then firmware (UEFI), then the kernel with its initramfs, then systemd as PID 1"
+  - "Firmware (UEFI), then the bootloader (GRUB), then systemd as PID 1, then the kernel with its initramfs"
+answer: 0
 explanation: |
-  Each stage's only job is to find and start the next: firmware finds a disk and runs the bootloader, the bootloader loads the kernel and the initramfs, the kernel mounts the real root and starts systemd, and systemd starts everything else, cloud-init included, as ordinary units. Knowing the order tells you where to look: no bootloader menu is a firmware or disk problem, a kernel panic is before PID 1, and a hung boot after that is a unit, which `journalctl -b` and the serial console will name.
+  Each stage's only job is to find and start the next: the firmware finds a disk and runs the bootloader, the bootloader loads the kernel and the initramfs into memory, the kernel mounts the real root filesystem and starts systemd, and systemd starts everything else, cloud-init included, as ordinary units until the default target is reached.
+
+  That is why the other orders can't happen. GRUB lives on the disk, so nothing can run it before the firmware has found that disk. The kernel is a file that GRUB loads, so it can't start before GRUB. And systemd is a program the kernel starts, so it can't come before the kernel.
+
+  Knowing the order tells you where to look: no bootloader menu is a firmware or disk problem, a kernel panic is before PID 1, and a hung boot after that is a unit, which `journalctl -b` and the serial console will name.
 skills: [boot-sequence]

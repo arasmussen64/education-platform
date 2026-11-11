@@ -1,14 +1,16 @@
 id: mcq-metadata-what
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A program on an EC2 instance uploads to S3 without any access key in its configuration or environment. How?
 choices:
-  - "S3 doesn't require authentication from EC2"
-  - "The instance has an IAM role, and the program's SDK fetches short-lived credentials for it from the instance metadata service at `169.254.169.254`, renewing them before they expire"
-  - "The key is hidden in the AMI"
-  - "AWS logs the program in with the console user's password"
-answer: 1
+  - "Its SDK asks the metadata service for short-lived credentials for the IAM role attached to the instance"
+  - "S3 trusts any request that comes from an EC2 address in the same account, so no credentials are needed at all"
+  - "AWS bakes a long-lived access key into every machine image, in a file the SDK reads at start-up"
+  - "cloud-init writes the access key of whoever launched the instance to its disk on the first boot"
+answer: 0
 explanation: |
-  The metadata service answers HTTP requests only from the instance itself, and among the things it serves (`instance-id`, `instance-type`, `placement/`, `tags/`, user data) is `iam/security-credentials/ROLE`: a temporary access key, secret and session token for the role attached to the instance. Every SDK checks there automatically. No secret ever has to be written to disk, and rotation is free. Azure's managed identities and Google's service accounts attached to VMs work the same way through their metadata servers.
+  The instance has an IAM role attached. The metadata service at `169.254.169.254` answers HTTP requests only from the instance itself, and among the things it serves (`instance-id`, `instance-type`, `placement/`, `tags/`, user data) is `iam/security-credentials/ROLE`: a temporary access key, secret and session token for that role. Every SDK checks there automatically and renews the credentials before they expire.
+
+  The point of the role is that no secret is ever written to disk, so neither a machine image nor cloud-init puts a key there, and rotation is free. S3 does not trust a request for where it comes from: every request must be signed with credentials, and the role's temporary ones are what sign it. Azure's managed identities and Google's service accounts attached to VMs work the same way through their metadata servers.
 skills: [metadata]

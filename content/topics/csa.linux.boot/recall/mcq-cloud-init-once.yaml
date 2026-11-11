@@ -1,14 +1,16 @@
 id: mcq-cloud-init-once
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You fix a typo in a running instance's user data (through the cloud console) and reboot it. The fix doesn't take effect. Why?
 choices:
-  - "User data can't be changed after launch"
-  - "cloud-init's per-instance modules run only on the first boot of a given instance ID; on a reboot of the same instance they're skipped. Launch a new instance from the fixed user data, or run `cloud-init clean` and reboot to force a rerun"
-  - "The reboot wasn't a full power cycle"
-  - "User data is read only by the bootloader"
-answer: 1
+  - "User data is copied into the machine image at launch, so an edit in the console never reaches the instance"
+  - "A reboot isn't enough: cloud-init runs its per-instance modules again only after a full stop and start"
+  - "cloud-init already configured this instance ID, so on a reboot it skips its per-instance modules"
+  - "cloud-init runs only on a machine image's very first boot, then switches its own services off for good"
+answer: 2
 explanation: |
-  cloud-init saves the instance ID after configuring it and checks it on every boot: same ID, nothing per-instance to do. That protects a running server from being reconfigured by accident, and it means user data is a *launch-time* input in practice. Treat the instance as disposable: fix the user data (or, better, the image) and replace it. `cloud-init clean --logs` followed by a reboot is the escape hatch for a lab.
+  cloud-init saves the instance ID after configuring an instance and checks it on every boot: same ID, nothing per-instance to do. That protects a running server from being reconfigured by accident, and it means user data is a *launch-time* input in practice. To apply the fix, launch a new instance from the corrected user data, or run `cloud-init clean` and reboot to force a rerun (`cloud-init clean --logs` is the escape hatch for a lab). Better still, treat the instance as disposable and replace it.
+
+  The edit did reach the instance: user data is never copied into the image, and the metadata service hands the new version to anything that asks. cloud-init just has nothing per-instance left to run. A full stop and start changes nothing either, because the instance keeps its ID. And cloud-init doesn't switch itself off after a first boot: it runs on every boot and compares IDs, which is why `bootcmd` still runs each time and why an instance launched from an image of this one is configured afresh.
 skills: [cloud-init]
