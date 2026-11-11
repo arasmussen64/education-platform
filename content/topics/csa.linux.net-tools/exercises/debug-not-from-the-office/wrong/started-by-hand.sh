@@ -6,5 +6,10 @@ sudo sed -i 's/^host-record=shop.internal,.*/host-record=shop.internal,10.0.9.1/
 sudo sed -i 's/{ 22, 8000 }/{ 22, 8080 }/' /etc/nftables.conf && sudo nft -f /etc/nftables.conf
 sudo systemctl stop shop-api
 sudo -u shop setsid nohup /usr/local/bin/shop-api > /dev/null 2>&1 &
-sleep 2
+# Wait for the copy to listen, then show that the office is answered: the
+# shortcut does work today, which is what makes it tempting.
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  from-office curl -s -m 5 http://shop.internal:8080/ > /dev/null && break
+  sleep 1
+done
 from-office curl -s -m 5 http://shop.internal:8080/
