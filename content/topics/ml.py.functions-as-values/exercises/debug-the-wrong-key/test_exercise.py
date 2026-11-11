@@ -13,5 +13,5 @@ def test_other_products():
     """Works when the alphabetical order and the price order disagree."""
     printed = run_with({"products": [("zebra", 1.0), ("apple", 9.0), ("mango", 3.0)]})
     assert printed == "[('zebra', 1.0), ('mango', 3.0), ('apple', 9.0)]\napple\n", (
-        f"It should sort by price, not by name. It printed:\n{printed}"
+        f"It should list them cheapest first, then name the most expensive. It printed:\n{printed}"
     )

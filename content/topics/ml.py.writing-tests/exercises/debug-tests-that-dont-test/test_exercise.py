@@ -53,6 +53,6 @@ def test_the_tests_still_test_something():
     module = load_solution()
     names = sorted(name for name in dir(module) if name.startswith("test_"))
     assert names == ["test_negative_numbers", "test_two_positive_numbers", "test_zero_changes_nothing"], (
-        f"Keep the three tests and fix them, don't delete or rename them. Found: {names}"
+        f"Keep all three tests and make all three run; don't delete any. Found: {names}"
     )
     assert catches(module, "add", lambda a, b: a - b)

@@ -1,6 +1,6 @@
 id: debug-record-gone-wrong
 stage: debug
-rev: 1
+rev: 2
 title: "A record gone wrong"
 prompt: |
   This program should declare a `Ticket` record and print one, then the price of two of them:
@@ -10,5 +10,10 @@ prompt: |
   90.0
   ```
 
-  It has two bugs. Run it, read the error, fix it, and run again; the second bug shows only once the first is fixed, and it's about what a default's value is, not where it sits.
+  Instead it stops with `TypeError: Ticket() takes no arguments`. It has two bugs, and the second shows only once the first is fixed. Run it, read the error, fix what you find, and run it again.
+hints:
+  - "`Ticket(\"Concert\")` hands the class an argument, so the class needs an `__init__` that takes one. What writes that `__init__` for you from the annotated fields?"
+  - "`@dataclass`, on the line above `class`, turns the fields into an `__init__`, a `__repr__` and an `==`. The import is there already."
+  - "Once it runs, the second line prints `45.045.0`, not `90.0`. What does `*` do to a string?"
+  - "An annotation doesn't convert anything: `price: float = \"45.0\"` stores the text `\"45.0\"`. The default should be the number `45.0`."
 skills: [dataclass, runtime]

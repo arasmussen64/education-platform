@@ -10,7 +10,7 @@ def test_the_output():
 
 
 def test_a_new_player_starts_at_zero():
-    """A new Player has a score of 0, stored on the object."""
+    """A new Player has a score of 0, and add_points(7) makes it 7."""
     Player = function("Player")
     bob = Player("Bob")
     assert bob.score == 0
