@@ -1,7 +1,10 @@
-"""The lab checker's pure parts: expectations, discovery and the result. Its
-contract runs need Docker, which CI's Labs job provides; pytest stays quick."""
+"""The lab checker's pure parts: expectations, discovery and the result, and
+what its commands ask of Docker, with Docker stood in for. Its contract runs
+need Docker, which CI's Labs job provides; pytest stays quick."""
 
 import argparse
+import io
+import os
 import subprocess
 from pathlib import Path
 
@@ -111,8 +114,14 @@ def test_a_systemd_lab_boots_privileged_in_its_own_cgroup_namespace(
         "box",
         "--hostname",
         "lab",
+        # The labels `status` and `stop --all` find the container by.
+        "--label",
+        "labcheck.lab=t.hello/lab-hello",
+        "--label",
+        "labcheck.role=learner",
         "lab-t.hello-lab-hello:r2",
     ]
+    assert "--privileged" not in plain
 
     write(
         tmp_path,
@@ -293,3 +302,673 @@ def test_a_shard_that_isnt_i_of_n_is_refused() -> None:
     for bad in ("4/4", "-1/4", "half", "1/0"):
         with pytest.raises(LabError):
             labcheck.shard_of([("t", "lab")], bad)
+
+
+# --- The learner's commands, with Docker stood in for -----------------------------
+
+NAME = "lab-t.hello-lab-hello"
+IMAGE = "lab-t.hello-lab-hello:r2"
+RUN = "python -m uv run python tools/labcheck.py"
+# Kept, for the tests that put the real thing back over a stand-in.
+REAL_DOCKER = labcheck.docker
+
+
+def answer(code: int = 0, stdout: str = "", stderr: str = ""):
+    return subprocess.CompletedProcess([], code, stdout=stdout, stderr=stderr)
+
+
+class FakeDocker:
+    """Stands in for labcheck.docker: remembers every call, and answers the
+    questions about containers from the ones it was told exist."""
+
+    def __init__(
+        self, containers: dict[str, tuple[str, str]] | None = None, listed: str = ""
+    ) -> None:
+        # name -> (status, image), as `docker container inspect` reports them.
+        self.containers = dict(containers or {})
+        # What `docker ps` prints: name|state|lab|role per line.
+        self.listed = listed
+        self.calls: list[tuple[str, ...]] = []
+        # Verbs that fail when called, with what docker would say.
+        self.failing: dict[str, str] = {}
+
+    def __call__(self, *args: str, **options: object):
+        self.calls.append(args)
+        name = args[-1]
+        if args[0] in self.failing:
+            if options.get("check", True):
+                raise LabError(f"docker {args[0]} failed: {self.failing[args[0]]}")
+            return answer(1, stderr=self.failing[args[0]])
+        if args[:2] == ("container", "inspect"):
+            if name not in self.containers:
+                return answer(
+                    1, stderr=f"Error response from daemon: No such container: {name}"
+                )
+            return answer(stdout="|".join(self.containers[name]) + "\n")
+        if args[0] == "inspect":
+            # Docker counts a paused container as running.
+            up = self.containers.get(name, ("", ""))[0] in ("running", "paused")
+            return answer(0 if name in self.containers else 1, stdout=f"{up}\n".lower())
+        if args[0] == "ps":
+            return answer(stdout=self.listed)
+        return answer()
+
+    @property
+    def verbs(self) -> list[str]:
+        return [call[0] for call in self.calls]
+
+
+def use_lab(
+    tmp_path: Path, monkeypatch, docker: FakeDocker, extra_yaml: str = ""
+) -> labcheck.Lab:
+    """A lab on disk that every command finds, and the stand-in Docker."""
+    folder = "content/topics/t.hello/exercises/lab-hello"
+    write(tmp_path, f"{folder}/exercise.yaml", LAB_YAML + extra_yaml)
+    write(tmp_path, f"{folder}/checks.yaml", CHECKS)
+    write(tmp_path, f"{folder}/Dockerfile", "FROM ubuntu:24.04\n")
+    lab = load_lab("t.hello", "lab-hello", tmp_path / "content" / "topics")
+    monkeypatch.setattr(labcheck, "load_lab", lambda topic, exercise: lab)
+    monkeypatch.setattr(labcheck, "docker", docker)
+    return lab
+
+
+def run_main(*argv: str) -> int:
+    return labcheck.main(list(argv))
+
+
+def test_start_builds_and_runs_a_lab_that_has_no_container(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker()
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    assert docker.verbs == ["container", "build", "inspect", "rm", "run"]
+    out = capsys.readouterr().out
+    assert "the lab is running, as new" in out
+    # The learner is told to run this tool's own commands. Pasting a docker
+    # command into Git Bash is what used to break.
+    assert f"{RUN} shell t.hello lab-hello" in out
+    assert f"{RUN} check t.hello lab-hello" in out
+    assert f"{RUN} stop t.hello lab-hello" in out
+    assert "docker exec" not in out
+
+
+def test_start_leaves_a_running_lab_alone(tmp_path: Path, monkeypatch, capsys) -> None:
+    docker = FakeDocker({NAME: ("running", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    # It asked, and did nothing else: no build, no removal, no new container.
+    assert docker.calls == [
+        ("container", "inspect", "-f", "{{.State.Status}}|{{.Config.Image}}", NAME)
+    ]
+    out = capsys.readouterr().out
+    assert "already running, with your work" in out
+    assert f"{RUN} shell t.hello lab-hello" in out
+    assert f"{RUN} start --fresh t.hello lab-hello" in out
+
+
+def test_start_starts_a_stopped_lab_again_and_keeps_it(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("exited", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker, "lab:\n  init: systemd\n")
+    booted: list[str] = []
+    monkeypatch.setattr(labcheck, "wait_for_boot", booted.append)
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    assert docker.verbs == ["container", "start"]
+    assert docker.calls[-1] == ("start", NAME)
+    # A lab that boots is waited for, as on its first start.
+    assert booted == [NAME]
+    out = capsys.readouterr().out
+    assert "was stopped. Starting it again, with your work in it" in out
+    assert "the lab is running again" in out
+    assert "from a reboot" in out
+
+
+def test_start_unpauses_a_paused_lab(tmp_path: Path, monkeypatch, capsys) -> None:
+    docker = FakeDocker({NAME: ("paused", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    assert docker.verbs == ["container", "unpause"]
+    out = capsys.readouterr().out
+    assert "was paused" in out
+    # Nothing was switched off, so there is no reboot to explain.
+    assert "from a reboot" not in out
+
+
+def test_start_fresh_is_the_only_way_to_remove_a_lab_in_progress(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("running", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("start", "--fresh", "t.hello", "lab-hello") == 0
+    # The old container gets its teardown, is removed, and a new one runs.
+    assert docker.verbs == ["container", "build", "inspect", "exec", "rm", "run"]
+    out = capsys.readouterr().out
+    assert "Removing lab-t.hello-lab-hello and the work in it, as --fresh asks" in out
+    assert "the lab is running, as new" in out
+
+
+def test_start_refuses_a_container_from_an_older_revision_without_removing_it(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("running", "lab-t.hello-lab-hello:r1")})
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("start", "t.hello", "lab-hello") == 2
+    assert docker.verbs == ["container"]
+    err = capsys.readouterr().err
+    assert "has changed since you started it" in err
+    assert f"{RUN} start --fresh t.hello lab-hello" in err
+
+
+def test_a_lab_that_wont_start_again_is_kept_and_fresh_is_offered(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("exited", IMAGE)})
+    docker.failing["start"] = "OCI runtime create failed"
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("start", "t.hello", "lab-hello") == 2
+    assert "rm" not in docker.verbs and "run" not in docker.verbs
+    err = capsys.readouterr().err
+    assert "OCI runtime create failed" in err
+    assert "The lab didn't come back" in err
+    assert f"{RUN} start --fresh t.hello lab-hello" in err
+
+
+def test_check_on_a_stopped_lab_says_how_to_start_it_again_with_the_work(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("exited", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("check", "t.hello", "lab-hello") == 2
+    # It only asked: no check ran, and nothing was removed.
+    assert docker.verbs == ["container"]
+    err = capsys.readouterr().err
+    assert "is stopped: its container is still there, with your work in it" in err
+    assert "Start it again, which keeps the work" in err
+    assert f"{RUN} start t.hello lab-hello" in err
+    assert "--fresh" not in err
+
+
+def test_check_on_a_lab_never_started_says_so(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    use_lab(tmp_path, monkeypatch, FakeDocker())
+    assert run_main("check", "t.hello", "lab-hello") == 2
+    err = capsys.readouterr().err
+    assert "t.hello/lab-hello hasn't been started" in err
+    assert f"{RUN} start t.hello lab-hello" in err
+
+
+def test_check_refuses_a_container_from_an_older_revision(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("running", "lab-t.hello-lab-hello:r1")})
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("check", "t.hello", "lab-hello") == 2
+    assert "exec" not in docker.verbs
+    assert "has changed since you started it" in capsys.readouterr().err
+
+
+def test_check_prints_the_result_and_reminds_that_the_lab_still_runs(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("running", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker)
+    # The stand-in answers every check with exit status 0 and no output:
+    # the first check passes, the second wanted "hello".
+    assert run_main("check", "t.hello", "lab-hello") == 1
+    out = capsys.readouterr().out
+    assert "1 of 2 checks passed." in out
+    assert '{"lab":"t.hello/lab-hello","rev":2,' in out
+    result_at = out.index('{"lab":')
+    reminder_at = out.index("The lab is still running, with your work in it.")
+    assert reminder_at > result_at
+    assert f"{RUN} stop t.hello lab-hello" in out[reminder_at:]
+    assert f"{RUN} shell t.hello lab-hello" in out[reminder_at:]
+
+
+def test_the_shell_is_docker_exec_as_the_learner_in_their_home() -> None:
+    assert labcheck.shell_arguments("box", interactive=True) == [
+        "exec",
+        "-it",
+        "-u",
+        "learner",
+        "-w",
+        "/home/learner",
+        "box",
+        "bash",
+    ]
+    # Commands sent in on standard input: no terminal is asked for.
+    assert labcheck.shell_arguments("box", interactive=False)[1] == "-i"
+
+
+def shell_with(
+    kind: str, tmp_path: Path, monkeypatch, docker: FakeDocker
+) -> list[tuple]:
+    """Runs `shell` as if standard input were that kind of thing; returns
+    what would have been handed to docker."""
+    use_lab(tmp_path, monkeypatch, docker)
+    handed: list[tuple] = []
+    monkeypatch.setattr(labcheck, "terminal_kind", lambda stream: kind)
+    monkeypatch.setattr(
+        labcheck, "run_attached", lambda *args: handed.append(args) or 7
+    )
+    return handed
+
+
+def test_shell_from_a_real_terminal_opens_an_interactive_shell(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("running", IMAGE)})
+    handed = shell_with(labcheck.CONSOLE, tmp_path, monkeypatch, docker)
+    # The shell's own exit status is passed on.
+    assert run_main("shell", "t.hello", "lab-hello") == 7
+    assert handed == [
+        ("exec", "-it", "-u", "learner", "-w", "/home/learner", NAME, "bash")
+    ]
+    out = capsys.readouterr().out
+    assert "you're in the lab now, as the user learner" in out
+    assert "Type exit" in out
+    assert "You're back in your own terminal. The lab is still running." in out
+    assert f"{RUN} stop t.hello lab-hello" in out
+
+
+def test_shell_with_commands_on_standard_input_runs_them_and_says_nothing(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("running", IMAGE)})
+    handed = shell_with(labcheck.NOT_A_TERMINAL, tmp_path, monkeypatch, docker)
+    assert run_main("shell", "t.hello", "lab-hello") == 7
+    assert handed == [
+        ("exec", "-i", "-u", "learner", "-w", "/home/learner", NAME, "bash")
+    ]
+    assert capsys.readouterr().out == ""
+
+
+def test_shell_in_a_git_bash_window_without_a_console_says_which_terminal_to_use(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("running", IMAGE)})
+    handed = shell_with(labcheck.GIT_BASH_WINDOW, tmp_path, monkeypatch, docker)
+    assert run_main("shell", "t.hello", "lab-hello") == 2
+    # Docker is never asked: its own error is what a beginner can't act on.
+    assert handed == []
+    err = capsys.readouterr().err
+    assert "this window can't hold the lab's shell" in err
+    assert "Open PowerShell or Windows Terminal" in err
+    assert f"{RUN} shell t.hello lab-hello" in err
+    assert "it is still running, with your work in it" in err
+
+
+def test_shell_needs_a_running_lab(tmp_path: Path, monkeypatch, capsys) -> None:
+    docker = FakeDocker({NAME: ("exited", IMAGE)})
+    handed = shell_with(labcheck.CONSOLE, tmp_path, monkeypatch, docker)
+    assert run_main("shell", "t.hello", "lab-hello") == 2
+    assert handed == []
+    assert "Start it again, which keeps the work" in capsys.readouterr().err
+
+    docker.containers.clear()
+    assert run_main("shell", "t.hello", "lab-hello") == 2
+    assert "hasn't been started" in capsys.readouterr().err
+
+
+def test_git_bash_window_pipes_are_told_from_other_pipes() -> None:
+    # What the probes on the owner's PC showed (2026-11-11).
+    assert labcheck.is_git_bash_pipe(r"\msys-1888ae32e00d56aa-pty0-from-master-nat")
+    assert labcheck.is_git_bash_pipe(r"\cygwin-e022582115c10879-pty1-from-master")
+    # A pipe from another program, and a file.
+    assert not labcheck.is_git_bash_pipe(r"\uv\2-22292")
+    assert not labcheck.is_git_bash_pipe(r"\Users\someone\commands.txt")
+    assert not labcheck.is_git_bash_pipe("")
+
+
+def test_a_pipe_or_a_file_is_not_a_terminal(tmp_path: Path) -> None:
+    # Something with no file behind it at all, as pytest's own stdin is.
+    assert labcheck.terminal_kind(io.StringIO("ls\n")) == labcheck.NOT_A_TERMINAL
+    reader, writer = os.pipe()
+    try:
+        with os.fdopen(reader) as stream:
+            assert labcheck.terminal_kind(stream) == labcheck.NOT_A_TERMINAL
+    finally:
+        os.close(writer)
+    commands = tmp_path / "commands.txt"
+    commands.write_text("ls\n", encoding="utf-8")
+    with commands.open() as stream:
+        assert labcheck.terminal_kind(stream) == labcheck.NOT_A_TERMINAL
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the nul device is a Windows thing")
+def test_the_windows_nul_device_is_not_mistaken_for_a_console() -> None:
+    # isatty() says yes to "nul", which is why the console is asked directly.
+    with open("nul") as stream:
+        assert os.isatty(stream.fileno())
+        assert labcheck.terminal_kind(stream) == labcheck.NOT_A_TERMINAL
+
+
+def test_the_shell_runs_docker_joined_to_the_terminal_without_its_tips(
+    monkeypatch,
+) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **options: object):
+        seen["argv"] = argv
+        seen["options"] = options
+        return subprocess.CompletedProcess(argv, 3)
+
+    monkeypatch.setattr(labcheck, "docker_command", lambda: "docker")
+    monkeypatch.setattr(labcheck.subprocess, "run", fake_run)
+    assert labcheck.run_attached("exec", "-it", "box", "bash") == 3
+    # A list, one argument each: no shell in between to rewrite a path.
+    assert seen["argv"] == ["docker", "exec", "-it", "box", "bash"]
+    options = seen["options"]
+    assert isinstance(options, dict)
+    assert options["env"]["DOCKER_CLI_HINTS"] == "false"
+    # Nothing is captured: the learner's terminal is the shell's terminal.
+    assert "capture_output" not in options and "stdin" not in options
+
+
+def test_stop_removes_one_lab_and_says_the_work_went_with_it(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("running", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("stop", "t.hello", "lab-hello") == 0
+    assert docker.verbs == ["container", "inspect", "exec", "rm"]
+    assert "its container, and the work in it, are removed" in capsys.readouterr().out
+
+    docker.containers.clear()
+    docker.calls.clear()
+    assert run_main("stop", "t.hello", "lab-hello") == 0
+    assert docker.verbs == ["container"]
+    assert "isn't started: there is nothing to stop" in capsys.readouterr().out
+
+
+LISTED = (
+    "lab-t.b-lab-two|exited|t.b/lab-two|learner\n"
+    "lab-t.a-lab-one|running|t.a/lab-one|learner\n"
+    "lab-t.a-lab-one-test|running|t.a/lab-one|test\n"
+)
+
+
+def test_status_lists_every_lab_container_this_tool_started(
+    monkeypatch, capsys
+) -> None:
+    docker = FakeDocker(listed=LISTED)
+    monkeypatch.setattr(labcheck, "docker", docker)
+    assert run_main("status") == 0
+    # Found by the label this tool puts on what it starts, stopped ones too.
+    assert docker.calls[0][:4] == ("ps", "-a", "--filter", "label=labcheck.lab")
+    out = capsys.readouterr().out
+    assert "  running  t.a lab-one\n" in out
+    assert "  stopped  t.b lab-two\n" in out
+    assert "  running  t.a lab-one   (a test run's)\n" in out
+    assert f"{RUN} stop --all" in out
+
+    docker.listed = ""
+    assert run_main("status") == 0
+    assert "No lab is running or stopped on this machine" in capsys.readouterr().out
+
+
+def test_stop_all_removes_the_learners_labs_and_leaves_test_runs_alone(
+    monkeypatch, capsys
+) -> None:
+    docker = FakeDocker(
+        {"lab-t.a-lab-one": ("running", "x"), "lab-t.b-lab-two": ("exited", "x")},
+        listed=LISTED,
+    )
+    monkeypatch.setattr(labcheck, "docker", docker)
+    assert run_main("stop", "--all") == 0
+    removed = [call[-1] for call in docker.calls if call[0] == "rm"]
+    assert removed == ["lab-t.a-lab-one", "lab-t.b-lab-two"]
+    # The running one got its teardown first; the stopped one has nothing to run.
+    assert [call[1] for call in docker.calls if call[0] == "exec"] == [
+        "lab-t.a-lab-one"
+    ]
+    out = capsys.readouterr().out
+    assert "Stopped t.a/lab-one" in out and "Stopped t.b/lab-two" in out
+    assert "1 container(s) of a test run are still here" in out
+    assert f"{RUN} stop --all --tests" in out
+
+
+def test_stop_all_with_tests_also_removes_what_a_test_run_left(
+    monkeypatch, capsys
+) -> None:
+    docker = FakeDocker(listed=LISTED)
+    monkeypatch.setattr(labcheck, "docker", docker)
+    assert run_main("stop", "--all", "--tests") == 0
+    removed = [call[-1] for call in docker.calls if call[0] == "rm"]
+    assert removed == ["lab-t.a-lab-one", "lab-t.b-lab-two", "lab-t.a-lab-one-test"]
+    assert "still here" not in capsys.readouterr().out
+
+
+def test_stop_all_with_nothing_started_says_so(monkeypatch, capsys) -> None:
+    docker = FakeDocker()
+    monkeypatch.setattr(labcheck, "docker", docker)
+    assert run_main("stop", "--all") == 0
+    assert "rm" not in docker.verbs
+    assert "nothing to stop" in capsys.readouterr().out
+
+
+def test_stop_wants_a_lab_or_all_and_not_both(capsys) -> None:
+    assert run_main("stop") == 2
+    assert "stop needs a topic and an exercise, or --all" in capsys.readouterr().err
+    assert run_main("stop", "--all", "t.hello", "lab-hello") == 2
+    assert "stop --all takes no lab name" in capsys.readouterr().err
+
+
+def test_a_contract_runs_container_is_labelled_as_a_test_runs(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    labcheck.start_container(lab, f"{NAME}-test")
+    assert "labcheck.role=test" in docker.calls[-1]
+    labcheck.start_container(lab)
+    assert "labcheck.role=learner" in docker.calls[-1]
+
+
+# --- Docker that isn't there, or is slow -------------------------------------------
+
+ENGINE_DOWN_SAID = (
+    "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine;"
+    " check if the path is correct and if the daemon is running: open "
+    "//./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified."
+)
+
+
+def test_docker_not_running_is_said_in_words_a_beginner_can_act_on(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    def fake_run(argv: list[str], **_: object):
+        return subprocess.CompletedProcess(argv, 1, stdout="", stderr=ENGINE_DOWN_SAID)
+
+    use_lab(tmp_path, monkeypatch, FakeDocker())
+    # The checker's real way of calling docker this time, over a docker
+    # command that can't reach its engine.
+    monkeypatch.setattr(labcheck, "docker", REAL_DOCKER)
+    monkeypatch.setattr(labcheck, "docker_command", lambda: "docker")
+    monkeypatch.setattr(labcheck.subprocess, "run", fake_run)
+    for command in (["start"], ["check"], ["shell"], ["stop"]):
+        assert run_main(*command, "t.hello", "lab-hello") == 2
+        err = capsys.readouterr().err
+        assert "Docker isn't answering. Start Docker Desktop" in err
+        assert "npipe" not in err
+    assert run_main("status") == 2
+    assert "Docker isn't answering" in capsys.readouterr().err
+    # Older versions of docker word it differently.
+    assert labcheck.engine_is_down(
+        "Cannot connect to the Docker daemon at unix:///var/run/docker.sock."
+    )
+    assert labcheck.engine_is_down("error during connect: this error may indicate...")
+    assert not labcheck.engine_is_down("No such container: box")
+
+
+def test_a_question_docker_cant_answer_is_not_taken_for_no_container(
+    monkeypatch,
+) -> None:
+    docker = FakeDocker()
+    docker.failing["container"] = "permission denied while trying to connect"
+    monkeypatch.setattr(labcheck, "docker", docker)
+    # "There is no such container" would send `start` off to make a new one.
+    with pytest.raises(LabError, match="couldn't say whether box exists"):
+        labcheck.find_container("box")
+
+
+def test_docker_taking_too_long_ends_in_a_message_not_a_traceback(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    def slow(*args: str, **_: object):
+        raise subprocess.TimeoutExpired(["docker", *args], 30)
+
+    use_lab(tmp_path, monkeypatch, FakeDocker())
+    monkeypatch.setattr(labcheck, "docker", slow)
+    assert run_main("start", "t.hello", "lab-hello") == 2
+    err = capsys.readouterr().err
+    assert "Docker didn't answer within 30 seconds" in err
+    assert "Traceback" not in err
+
+
+# --- Disks that dead labs left attached -------------------------------------------
+
+
+def test_a_lab_with_a_teardown_script_is_a_lab_with_disks(
+    tmp_path: Path, monkeypatch
+) -> None:
+    lab = use_lab(tmp_path, monkeypatch, FakeDocker())
+    assert not labcheck.has_disks(lab)
+    write(tmp_path, "content/topics/t.hello/exercises/lab-hello/teardown.sh", "exit 0")
+    assert labcheck.has_disks(lab)
+
+
+def test_stale_disks_are_let_go_of_by_a_helper_that_sees_the_whole_machine(
+    tmp_path: Path, monkeypatch
+) -> None:
+    class Helper(FakeDocker):
+        def __call__(self, *args: str, **options: object):
+            super().__call__(*args, **options)
+            return answer(
+                stdout=(
+                    "in-use /dev/loop4 /var/lib/lab/data1.img\n"
+                    "stale /dev/loop2 /var/lib/lab/data1.img\n"
+                    "stale /dev/loop3 /var/lib/lab/data2.img\n"
+                )
+            )
+
+    docker = Helper()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    assert labcheck.detach_stale_disks(lab) == ["/dev/loop2", "/dev/loop3"]
+    call = docker.calls[0]
+    assert call[:4] == ("run", "--rm", "--privileged", "--pid=host")
+    # The lab's own image, which has the tools; the script; and "detach".
+    assert call[4:7] == (IMAGE, "bash", "-c")
+    assert call[7] == labcheck.STALE_DISKS
+    assert call[-1] == "detach"
+
+
+def test_the_helper_script_only_lets_go_of_what_it_can_prove_is_stale() -> None:
+    script = labcheck.STALE_DISKS
+    # Only lab disks: image files under the labs' own folder.
+    assert script.count("/var/lib/lab/*)") == 2
+    # It gives up unless it can see the machine's processes...
+    assert '[ "$$" != 1 ] ||' in script
+    # ...holds the device open while it decides...
+    assert 'exec 9< "$dev"' in script and "exec 9<&-" in script
+    # ...and asks whether the file's filesystem is still mounted anywhere.
+    assert "/proc/[0-9]*/mountinfo" in script
+    # Detaching happens in one place, behind the word "detach".
+    assert script.count("losetup -d") == 1
+    assert '[ "$1" = detach ] && losetup -d "$dev"' in script
+    # No backslash-n or Windows line ending for bash to trip over.
+    assert "\r" not in script
+
+
+def test_a_helper_that_fails_or_is_slow_changes_nothing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker()
+    docker.failing["run"] = "--pid=host is not allowed"
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    assert labcheck.detach_stale_disks(lab) == []
+
+    def slow(*args: str, **_: object):
+        raise subprocess.TimeoutExpired(["docker", *args], 120)
+
+    monkeypatch.setattr(labcheck, "docker", slow)
+    assert labcheck.detach_stale_disks(lab) == []
+
+
+def test_start_clears_stale_disks_before_a_lab_with_disks_boots(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    order: list[str] = []
+    monkeypatch.setattr(
+        labcheck,
+        "detach_stale_disks",
+        lambda lab: order.append("clear") or ["/dev/loop2"],
+    )
+    monkeypatch.setattr(
+        labcheck, "start_container", lambda lab: order.append("start") or NAME
+    )
+    monkeypatch.setattr(
+        labcheck, "restart_container", lambda lab, found: order.append("restart")
+    )
+
+    # A lab without disks never runs the helper.
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    assert order == ["start"]
+
+    write(tmp_path, "content/topics/t.hello/exercises/lab-hello/teardown.sh", "exit 0")
+    assert labcheck.has_disks(lab)
+    order.clear()
+    capsys.readouterr()
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    assert order == ["clear", "start"]
+    assert "Let go of 1 disk(s) that a lab no longer running" in capsys.readouterr().out
+
+    # A stopped lab's own disks from before are stale: cleared before it boots.
+    docker.containers[NAME] = ("exited", IMAGE)
+    order.clear()
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    assert order == ["clear", "restart"]
+
+    # A running lab is left alone, and so is everything attached to it.
+    docker.containers[NAME] = ("running", IMAGE)
+    order.clear()
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    assert order == []
+
+
+def test_stopping_a_lab_that_had_already_stopped_clears_what_it_left(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker({NAME: ("exited", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, "content/topics/t.hello/exercises/lab-hello/teardown.sh", "exit 0")
+    cleared: list[str] = []
+    monkeypatch.setattr(
+        labcheck, "detach_stale_disks", lambda lab: cleared.append(lab.name) or []
+    )
+    # It couldn't run its teardown script, so the helper lets go of its disks.
+    assert run_main("stop", "t.hello", "lab-hello") == 0
+    assert "exec" not in docker.verbs and "rm" in docker.verbs
+    assert cleared == ["t.hello/lab-hello"]
+
+    # A running lab's teardown script does that itself.
+    docker.containers[NAME] = ("running", IMAGE)
+    cleared.clear()
+    assert run_main("stop", "t.hello", "lab-hello") == 0
+    assert cleared == []
+
+
+def test_a_contract_run_never_runs_the_stale_disk_helper(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, "content/topics/t.hello/exercises/lab-hello/teardown.sh", "exit 0")
+    labcheck.start_container(lab, f"{NAME}-test")
+    # CI and other test runs share one Docker: only `start` clears disks.
+    assert not any("--pid=host" in call for call in docker.calls)
