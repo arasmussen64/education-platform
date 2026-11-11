@@ -1,14 +1,16 @@
 id: mcq-netns-veth
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   `docker run -p 8080:80 nginx` makes the host's port 8080 reach nginx's port 80 inside the container. What's happening at the network level?
 choices:
-  - "The container shares the host's network stack, so nginx is really listening on 8080"
-  - "The container has its own network namespace with its own interface; a veth pair connects it to the `docker0` bridge; a DNAT rule in `prerouting` rewrites packets for the host's 8080 to the container's address and port 80, and outgoing traffic is masqueraded to the host's address"
-  - "Docker copies every packet from 8080 to 80 in user space"
-  - "Port 8080 on the host is renamed to 80"
+  - "The container shares the host's network namespace, so nginx itself is listening on the host's port 8080"
+  - "A DNAT rule in `prerouting` rewrites packets for the host's port 8080 to the container's address and port 80"
+  - "A veth pair joins port 8080 to port 80: each end of the pair is tied to one port number on its side"
+  - "A source-NAT rule in `postrouting` rewrites the client's address to the container's, on port 80"
 answer: 1
 explanation: |
-  Inside the namespace nginx sees `eth0` with an address like `172.17.0.2` and listens on 80. The veth pair is the virtual cable from that namespace to the bridge on the host, and nftables (or iptables) rules do the rest: destination NAT in `prerouting` for published ports, source NAT in `postrouting` for the container's outgoing connections. `ip netns`, `nsenter --net` and `tcpdump -i docker0` let you watch each step. `--network host` is the mode that skips all of this.
+  The container has its own network namespace: inside it nginx sees `eth0` with an address like `172.17.0.2` and listens on 80, not on the host's 8080. A veth pair is the virtual cable from that namespace to the `docker0` bridge on the host; like a cable, it carries every packet whatever its port. The nftables (or iptables) rules do the rest: destination NAT in `prerouting` rewrites where packets for the host's 8080 are going, to the container's address and port 80.
+
+  Source NAT is the other direction: in `postrouting`, the container's *outgoing* connections have their source address rewritten to the host's. `ip netns`, `nsenter --net` and `tcpdump -i docker0` let you watch each step. `--network host` is the mode in which the container really does share the host's namespace, and it skips all of this.
 skills: [firewall-path]

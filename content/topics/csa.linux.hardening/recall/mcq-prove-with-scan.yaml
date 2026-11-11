@@ -1,14 +1,16 @@
 id: mcq-prove-with-scan
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   After hardening a server, a scan still reports one failing rule: the application needs a setting the benchmark forbids. What do you do?
 choices:
-  - "Edit the report so the rule shows as passed"
-  - "Record it as a documented exception: which rule, why the application needs it, what compensating control reduces the risk, and who approved it; keep the before-and-after reports, and schedule the scan to rerun so drift shows up"
-  - "Stop running the scanner, since it will always complain"
-  - "Uninstall the application"
-answer: 1
+  - "Quietly take that rule out of the scan's profile, so that the next report comes out clean"
+  - "Apply the benchmark's setting anyway: a Level 1 rule is safe for every server, so the app will cope"
+  - "Stop scanning this server: a benchmark that doesn't fit the application has nothing useful to say"
+  - "Write it up as an exception, with the reason and a compensating control, and keep scanning"
+answer: 3
 explanation: |
-  Benchmarks are written for the general case, and a real server will have a few justified deviations. What matters is that they're deliberate and visible: an exception with a reason and a compensating control is a decision; a silent failure is a gap nobody owns. The before-and-after reports are the proof the baseline was applied, and a scheduled rescan is what keeps it true next month, when someone "temporarily" re-enables password logins.
+  Benchmarks are written for the general case, and a real server will have a few justified deviations. What matters is that they're deliberate and visible: record which rule, why the application needs the setting, what compensating control reduces the risk, and who approved it. An exception with a reason is a decision; a rule that silently vanished from the profile is a gap nobody owns, even though the report looks clean.
+
+  "Safe for every server" describes Level 1 in general; it can't know about this application, which you already know breaks without the setting. And one rule that doesn't fit is no reason to stop scanning: the before-and-after reports are the proof the baseline was applied, and a scheduled rescan is what keeps it true next month, when someone "temporarily" re-enables password logins.
 skills: [benchmarks-scanning]

@@ -1,14 +1,16 @@
 id: mcq-nice-values
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A nightly backup slows the web server while it runs. You start it with `nice -n 19 ./backup.sh`. What changes?
 choices:
-  - "The backup is limited to 5% of the CPU at all times"
-  - "When the backup and the web server compete for CPU, the web server gets almost all of it; when the CPU is otherwise idle, the backup still runs at full speed"
-  - "The backup runs only at night"
-  - "The backup gets a higher priority: 19 is the maximum"
-answer: 1
+  - "The backup gets the smallest share when the two compete for CPU, and a whole idle CPU otherwise"
+  - "The backup gets the highest priority, as 19 is the top of the nice range, and finishes sooner"
+  - "The backup is held to a small slice of the CPU at all times, even when the web server is idle"
+  - "The backup's disk reads and writes go to the back of the queue; its CPU share stays as it was"
+answer: 0
 explanation: |
-  Nice 19 is the *lowest* priority (-20 is the highest). It shrinks the backup's share under contention, which is exactly the goal, without wasting an idle CPU when the web server has nothing to do. It's not a cap: for a hard limit you'd use a cgroup quota (`systemd-run -p CPUQuota=20% ./backup.sh`). And if the slowdown is really disk contention rather than CPU, `ionice` is the matching tool.
+  Nice 19 is the *lowest* priority (-20 is the highest): the name is about being nice to others. It shrinks the backup's share under contention, so the web server gets almost all of the CPU when both want it, which is exactly the goal, without wasting an idle CPU when the web server has nothing to do.
+
+  It's not a cap: for a hard limit that holds even on an idle machine you'd use a cgroup quota (`systemd-run -p CPUQuota=20% ./backup.sh`). And nice is first of all about CPU time, so the CPU share is the one thing sure to change. A process's disk priority follows its nice value by default, but only some disk schedulers act on it; if the slowdown is really disk contention rather than CPU, `ionice` is the tool made for the disk queue.
 skills: [scheduler]

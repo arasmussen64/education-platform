@@ -1,14 +1,16 @@
 id: mcq-close-wait
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   `ss -tan | grep -c CLOSE-WAIT` on an application server climbs from a handful to thousands over a day, and eventually the app fails with "too many open files". What's happening?
 choices:
-  - "Clients are attacking the server with half-open connections"
-  - "The remote side closed each connection, but the application never closed its own end, so the sockets stay in CLOSE-WAIT forever and use up file descriptors: a bug in the application (a missing close), not in the network"
-  - "TIME-WAIT and CLOSE-WAIT are the same, and both are harmless"
-  - "The kernel is slow to clean up connections; raise the ephemeral port range"
-answer: 1
+  - "The far side closed each connection, but the application never closes its own end of the socket"
+  - "Clients open connections and never finish the handshake: an attack that fills the server's table"
+  - "The application closed each connection first, and the kernel holds each socket for a minute after"
+  - "The server has run out of ephemeral ports, so each new connection waits for a port to come free"
+answer: 0
 explanation: |
-  CLOSE-WAIT is the state between "they said goodbye" and "we said goodbye", and only the application can move past it by closing the socket. A steady climb means some code path reads a response and forgets to close, or an HTTP client library is used without closing connections. TIME-WAIT, by contrast, is the kernel's own timer after a clean close and clears itself. Half-open attacks show as SYN-RECV, and the port range is about outgoing connections.
+  CLOSE-WAIT is the state between "they said goodbye" and "we said goodbye", and only the application can move past it by closing the socket. Until it does, the socket keeps its file descriptor, so a steady climb ends in "too many open files". It is a bug in the application, not in the network: some code path reads a response and forgets to close, or an HTTP client library is used without closing connections.
+
+  The other stories have states of their own. Connections that never finish the handshake show as SYN-RECV. The minute the kernel holds a socket after our side closed first is TIME-WAIT: the kernel's own timer after a clean close, which clears itself and holds no file descriptor. And the ephemeral port range is about connections this server opens to others; running out of it gives "cannot assign requested address", not a pile of CLOSE-WAIT.
 skills: [sockets-ss]

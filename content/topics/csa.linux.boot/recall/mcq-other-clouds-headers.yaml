@@ -1,14 +1,16 @@
 id: mcq-other-clouds-headers
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   Azure's and Google Cloud's metadata services have no PUT-token step. How do they defend against the same forged-request attack?
 choices:
-  - "They don't; the attack only exists on AWS"
-  - "They require a header a naive forwarder wouldn't add: Azure demands `Metadata: true` (and refuses requests carrying `X-Forwarded-For`, which proxies add), Google demands `Metadata-Flavor: Google`; a web app fetching a user-supplied URL sends neither"
-  - "They only answer requests signed with the VM's private key"
-  - "They require the request to come from port 22"
-answer: 1
+  - "They answer only requests signed with the VM's private key, which a web application can't read"
+  - "They answer only requests made by the root user, so a web app running as someone else is refused"
+  - "They demand a custom header on every request, which an app that fetches a user's URL would not add"
+  - "They hand out no credentials at all, only the VM's name and zone, so there is nothing to steal"
+answer: 2
 explanation: |
-  The defence in every cloud is the same shape: make the request something a server-side request forgery can't produce. AWS uses a token obtained with a PUT; Azure and Google use a mandatory custom header, and Azure additionally rejects requests that have passed through a proxy. A fetch feature that takes a URL from a user can't add headers, so it is turned away. On AWS, the equivalent of "the header is mandatory" is requiring IMDSv2 on the instance.
+  The defence in every cloud has the same shape: make the request something a server-side request forgery can't produce. AWS uses a token obtained with a `PUT`. Azure demands the header `Metadata: true` and refuses requests carrying `X-Forwarded-For`, which proxies add; Google demands `Metadata-Flavor: Google`. A fetch feature that takes a URL from a user sends neither header, so it is turned away. On AWS, the equivalent of "the header is mandatory" is requiring IMDSv2 on the instance.
+
+  Neither service checks a signature or which user is asking: any program on the VM that sends the header gets an answer. And both do hand out credentials (the tokens for an Azure managed identity or a Google service account), which is exactly why they need the defence.
 skills: [imds-v2, metadata]

@@ -1,14 +1,16 @@
 id: mcq-root-in-container
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   An image runs its application as root "because it's only root inside the container". Why is that a risk, and what reduces it?
 choices:
-  - "No risk: a container's root is a pretend user with no power"
-  - "Without a user namespace, root in the container is the same UID 0 as the host's root, held back only by the capabilities and seccomp filter the runtime applies; a container escape or a bind-mounted host path then gives real root. Run as a non-root user in the image, drop capabilities, avoid `--privileged`, and use user namespaces where you can"
-  - "The only risk is that logs will be owned by root"
-  - "It's a risk because root can't use the network namespace"
-answer: 1
+  - "It isn't one: every container gets a user namespace, so root inside is always an ordinary user outside"
+  - "Capabilities give root inside more powers than the host's root has; adding `--privileged` takes them away"
+  - "Root inside can see and signal every process on the host; a pid namespace of its own is what reduces it"
+  - "Without a user namespace it is the host's own UID 0; building the image to run as a non-root user reduces it"
+answer: 3
 explanation: |
-  Namespaces change what a process sees, not who it is: UID 0 inside is UID 0 outside unless a user namespace remaps it. Runtimes drop most capabilities and filter system calls, which is what keeps a containerised root from loading kernel modules or rebooting the host, but a bind mount of `/var/run/docker.sock` or a kernel bug undoes that. A `USER` line in the Dockerfile, read-only root filesystems and no privileged mode are cheap, and rootless runtimes map root away entirely.
+  Namespaces change what a process sees, not who it is: UID 0 inside is UID 0 outside unless a user namespace remaps it, and a user namespace is optional, not something every container gets. So a container escape, or a bind mount of a host path such as `/var/run/docker.sock`, gives real root. A `USER` line in the Dockerfile (it names the user the image's program runs as), a read-only root filesystem and no privileged mode are cheap, and rootless runtimes map root away entirely.
+
+  Capabilities work the other way round from "more powers": they are root's powers split into pieces, and the runtime drops most of them, which is what keeps a containerised root from loading kernel modules or rebooting the host. `--privileged` hands them all back. And a container already has its own pid namespace, so even root inside can't see or signal the host's processes; that isn't where the risk is.
 skills: [namespaces]

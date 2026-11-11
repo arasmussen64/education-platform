@@ -1,14 +1,16 @@
 id: mcq-remove-services
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   `ss -ltnp` on a web server shows a print service listening on `0.0.0.0:631`. Nobody prints from a web server. Which is the best response, in order of preference?
 choices:
-  - "Leave it; the firewall blocks 631, so it's harmless"
-  - "Uninstall the package (`apt purge cups`); if it must stay, disable the service (`systemctl disable --now cups`) or bind it to `127.0.0.1`; the firewall is the last layer, not the first"
-  - "Change its port to something unusual"
-  - "Rename the process so scanners don't recognise it"
-answer: 1
+  - "Uninstall the package; failing that, disable the service, or at least bind it to `127.0.0.1`"
+  - "Block port 631 in the firewall; failing that, disable the service or uninstall it"
+  - "Move it to an unusual port; failing that, rename the program so scanners miss it"
+  - "Leave it running: the default-deny firewall blocks 631, so the service is harmless"
+answer: 0
 explanation: |
-  Software that isn't installed can't be exploited, needs no updates and can't be re-enabled by accident, which is why removing beats disabling, and disabling beats firewalling. A firewall rule protects the service until someone loosens the rule "just to test something"; the service behind it is still vulnerable. Port changes and renames are camouflage: scanners identify services by how they answer, not by their port or name.
+  Software that isn't installed can't be exploited, needs no updates and can't be re-enabled by accident, which is why removing (`apt purge cups`) beats disabling (`systemctl disable --now cups`) or binding to `127.0.0.1`, and those beat firewalling. The firewall is the last layer, not the first: a rule protects the service until someone loosens the rule "just to test something", and the service behind it is still there and still vulnerable. That is also why "the firewall blocks it" is not a reason to leave it running.
+
+  Port changes and renames are camouflage: scanners identify services by how they answer, not by their port or name.
 skills: [attack-surface]

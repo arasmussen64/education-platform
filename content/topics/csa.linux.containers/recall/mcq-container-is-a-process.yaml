@@ -1,14 +1,16 @@
 id: mcq-container-is-a-process
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You run `ps -ef` on a Docker host that has one nginx container running. What do you see?
 choices:
-  - "Nothing from the container; its processes are hidden inside a virtual machine"
-  - "The container's nginx processes, with the host's own PIDs, as children of a `containerd-shim` process: a container is a process tree on the host's kernel, isolated by namespaces and limited by a cgroup"
-  - "A single process called `docker` that stands in for the whole container"
-  - "The processes, but only if you run `ps` as root"
-answer: 1
+  - "Nothing from the container: its pid namespace hides its processes from the host as well"
+  - "One `docker` process standing in for the whole container, the way a VM shows up as one"
+  - "The container's nginx processes among all the others, each under a PID from the host's own numbering"
+  - "The container's nginx processes, under the PIDs they have inside it, with the master as PID 1"
+answer: 2
 explanation: |
-  There is one kernel, and the container's processes are its processes. Namespaces change what the *container* sees (its nginx thinks it's PID 1), not what the host sees. That's why a host-level `top` shows a container's CPU use directly, why `kill` from the host works on it, and why the cgroup, not a hypervisor, is what limits it. If it were a VM, the host would see only the VM's own process.
+  There is one kernel, and the container's processes are its processes: a container is a process tree on the host's kernel, isolated by namespaces and limited by a cgroup. On a Docker host they appear as children of a `containerd-shim` process. That's why a host-level `top` shows a container's CPU use directly and why `kill` from the host works on it.
+
+  A pid namespace hides in one direction only: it changes what the *container* sees, not what the host sees. And the numbers differ: nginx thinks it's PID 1, but the host lists it under a PID from its own table, such as 2340. If the container were a virtual machine, the host would indeed see only one process, the VM's; the cgroup, not a hypervisor, is what limits a container.
 skills: [container-vs-vm, cgroups-limits]
