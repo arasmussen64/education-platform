@@ -9,7 +9,7 @@ def test_largest():
 
 
 def test_sum_to():
-    """sum_to(4) returns 10: the whole loop runs before the return."""
+    """sum_to(4) returns 10, which is 1 + 2 + 3 + 4."""
     sum_to = function("sum_to")
     assert sum_to(4) == 10, f"sum_to(4) returned {sum_to(4)!r}"
     assert sum_to(1) == 1, f"sum_to(1) returned {sum_to(1)!r}"
