@@ -1,0 +1,19 @@
+id: write-boot-vm
+stage: write
+runtime: lab
+rev: 1
+title: "Write a VM launcher"
+prompt: |
+  Write `~/bin/boot-vm`, a launcher for the small VM in `/opt/vm` (Ubuntu's kernel, `vmlinuz`, and a tiny root filesystem, `initramfs.cpio.gz`, that reports on the machine it finds itself in and switches off). It must:
+
+  1. **Make the VM's disk if it isn't there yet:** `~/vm/disk.img`, a raw image of 64 MiB, made with `qemu-img`. If the disk is already there, leave it alone: running the launcher a second time must never make it again, which would wipe whatever the guest had stored on it.
+  2. **Start the guest with the hardware this VM is meant to have:** 2 virtual CPUs, 512 MiB of memory, a paravirtual network card (virtio's), and the disk attached as virtio's block device, so the guest sees it as `vda`. This machine has no KVM, so QEMU emulates the CPU (`-accel tcg`).
+  3. **Boot the kernel and root filesystem in `/opt/vm` directly,** with the guest's serial console on your terminal, as the worked example's `/opt/vm/boot-default` did.
+  4. **Wait for the guest,** so the launcher ends when the guest has switched itself off and leaves nothing running.
+
+  Make it executable and run it as `~/bin/boot-vm | tee ~/vm/boot.log`. Read the guest report it prints: the number of CPUs, the memory, and the driver behind each network card and disk should be the ones you asked for. Run it a second time and check with `ls -l ~/vm` that the disk wasn't made again. Then run the checks. They run your launcher themselves and read what the guest reports, so the first can take up to two minutes.
+hints:
+  - "The fixed part, from `/opt/vm/boot-default`: `qemu-system-x86_64 -accel tcg -nographic -no-reboot -kernel /opt/vm/vmlinuz -initrd /opt/vm/initramfs.cpio.gz -append \"console=ttyS0 quiet panic=-1\"`. `-nographic` puts the guest's serial console on your terminal; `-no-reboot` makes QEMU end, instead of starting the guest again, if the guest tries to restart."
+  - "The hardware: `-smp 2` is the number of virtual CPUs and `-m 512` the memory in MiB. `-nic user,model=virtio-net-pci` gives the guest a paravirtual network card (`qemu-system-x86_64 -nic model=help` lists every model). `-drive file=$HOME/vm/disk.img,format=raw,if=virtio` attaches the disk as a virtio block device."
+  - "Make the disk only when it's missing: `[ -e \"$disk\" ] || qemu-img create -q -f raw \"$disk\" 64M`, with `mkdir -p ~/vm` first. Run QEMU in the foreground, with no `&` after it, so the launcher waits for the guest."
+skills: [hypervisor-types, device-paths]
