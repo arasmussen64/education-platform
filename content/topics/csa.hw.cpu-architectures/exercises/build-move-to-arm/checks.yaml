@@ -4,6 +4,9 @@
 # images list with the same rules worked out here; the builds by what file
 # says and by running each one, under the emulator, as the oldest CPU in
 # the fleet (Neoverse N1, which has no SVE). Lines may come in any order.
+# The right answers come from /srv/shop as it stands, so the last check
+# proves nothing in it was changed, added or removed (wrong fix
+# installed-over-the-shop.sh shows why).
 checks:
   - id: audit-shop
     description: "arm-audit /srv/shop lists exactly the files there that can't run on 64-bit Arm as they are."
@@ -39,12 +42,12 @@ checks:
     description: "~/out/shop-api is a statically linked program for 64-bit Arm."
     command: file -b /home/learner/out/shop-api
     expect:
-      matches: "ARM aarch64.*statically linked"
+      matches: "ARM aarch64.*(statically linked|static-pie linked)"
   - id: thumb-built
     description: "~/out/shop-thumb is a statically linked program for 64-bit Arm."
     command: file -b /home/learner/out/shop-thumb
     expect:
-      matches: "ARM aarch64.*statically linked"
+      matches: "ARM aarch64.*(statically linked|static-pie linked)"
   - id: api-runs-on-the-oldest
     description: "On a Neoverse N1, the fleet's oldest Arm CPU, ~/out/shop-api passes its self-test."
     command: |
@@ -57,8 +60,9 @@ checks:
       test "$(qemu-aarch64-static -cpu neoverse-n1 /home/learner/out/shop-thumb --selftest 2>&1)" = "$(cat /usr/local/share/lab/expected/shop-thumb.txt)" && echo "passes"
     expect:
       equals: passes
-  - id: sources-untouched
-    description: "The shop's sources in /srv/shop/src are as they were."
-    command: cd /srv/shop/src && sha256sum -c --quiet /usr/local/share/lab/src.sha256 && echo "unchanged"
+  - id: shop-untouched
+    description: "Everything in /srv/shop is as it was: no file changed, added or removed."
+    command: |
+      cd /srv/shop && diff <(find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) /usr/local/share/lab/shop.sha256 > /dev/null && echo "unchanged"
     expect:
       equals: unchanged

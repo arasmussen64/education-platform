@@ -82,11 +82,14 @@ for program in shop-api shop-thumb; do
   "$work/$program" --selftest > "$expected/$program.txt"
 done
 
-# The checks' helper, and the sources' checksums.
+# The checks' helper, and a checksum of every file in the shop, so a check
+# can tell nothing there was changed, added or removed: the audit's and the
+# plan's right answers are worked out from the shop as it stands, so Arm
+# builds copied over its programs would make an empty plan look right.
 mkdir -p /usr/local/libexec/lab
 cp "$here/audit-truth" /usr/local/libexec/lab/audit-truth
 chmod 755 /usr/local/libexec/lab/audit-truth
-(cd "$shop/src" && sha256sum shop-api.c shop-thumb.c BUILD.txt) > /usr/local/share/lab/src.sha256
+(cd "$shop" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum) > /usr/local/share/lab/shop.sha256
 
 rm -r "$work"
 mkdir -p /home/learner/bin
