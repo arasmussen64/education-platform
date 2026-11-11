@@ -1,0 +1,49 @@
+id: example-join-and-log-in
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Join a server and log in to it"
+prompt: |
+  The lab has two machines, as in the last topic. `lab` is the one your shell opens on, an ordinary Linux server; `dc1`, at 10.0.9.10, is the domain controller for `ad.shop.test`. This time `lab`'s resolver already sends the domain's names to dc1, the way the last walkthrough left it, but `lab` isn't a member of the domain: it has no account there, and nobody from the domain can log in to it. The people: `alice` (password `Alice-Pass-1`) and `carol` (`Carol-Pass-1`) are in the group `linux-admins`, and `bob` (`Bob-Pass-1`) isn't. The domain's administrator is `Administrator` (`Shop-Admin-1`), and `on-dc COMMAND` runs a command on dc1.
+
+  The walkthrough joins `lab` to the domain, looks at what the join made, logs in as a domain user, lets only one group in, and then makes a Group Policy object and sees whom it reaches. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "The names already work"
+    lines: "1"
+    note: "The SRV record for the domain's LDAP servers answers through this machine's own resolver: the conditional forwarders for `ad.shop.test` and its reverse zone are in place. Joining starts with this lookup, as everything about a domain does, so if it said NXDOMAIN, the join would fail at its first step. `mkdir -p ~/example` makes a folder for what the walkthrough saves."
+  - label: "Ask what the domain is"
+    lines: "2"
+    note: "`realm` is the tool Ubuntu uses to join a domain. `realm discover` finds the domain through those SRV records and says what it learned: a Kerberos realm, `AD.SHOP.TEST`; server software `active-directory` (Samba answers exactly the way a Windows domain controller would); client software `sssd`, the program that will look people up and check their passwords; and the packages a member needs, already installed here. `configured: no` means this machine isn't a member yet."
+  - label: "Join"
+    lines: "3"
+    note: "In the lab, type `sudo realm join -v -U Administrator ad.shop.test` and give `Shop-Admin-1` when it asks: the line here hands the password over on standard input only so the walkthrough can run unattended. Joining needs an account that is allowed to add computers to the domain, here the administrator's. `-v` prints every step. Read them: it finds dc1 through `_ldap._tcp`, works out the computer account's name, `LAB`, from the machine's full name, generates a 120-character password that nobody will ever type, creates the account `CN=LAB,CN=Computers,DC=ad,DC=shop,DC=test`, adds its keys to `/etc/krb5.keytab`, writes SSSD's settings and starts SSSD, now and at every boot."
+  - label: "What realm says now"
+    lines: "4"
+    note: "`configured: kerberos-member`: lab is a member. `login-formats: %U@ad.shop.test` says how a domain account is named on this machine: `alice@ad.shop.test`, written in full so it can't be mistaken for a local account called alice. `login-policy: allow-realm-logins` means every account in the domain may log in here. That is the default after a join, and step 9 changes it."
+  - label: "The machine's own keys"
+    lines: "5-6"
+    note: "`klist -k` lists what a keytab holds. `LAB$@AD.SHOP.TEST` is the computer account (a `$` at the end marks a computer); `host/lab.ad.shop.test` is the service name for logging in to this machine, the ticket a Kerberos login to lab asks for; `RestrictedKrbHost` is one more service name that Windows gives every computer. Each appears three times, once for each kind of encryption, and `KVNO` 2 is the key's version number. On dc1, `samba-tool computer list` now shows `LAB$` beside `DC1$`. The keytab is this machine's password, so only root may read it: `sudo`."
+  - label: "A domain user exists here now"
+    lines: "7"
+    note: "`id` asks the system who alice is, and the system now asks SSSD as well as `/etc/passwd`. She has a user ID and groups, `linux-admins@ad.shop.test` among them, and no line in `/etc/passwd`. SSSD works the ID out from her account in the directory, so it's the same on every member, and new each time this lab is made: never write a domain user's ID into a script."
+  - label: "Home directories"
+    lines: "8"
+    note: "`realm` doesn't make home directories. `pam-auth-update --enable mkhomedir` turns on the login step that makes one, `/home/alice@ad.shop.test`, the first time someone logs in (PAM, the part of Linux that every login program asks to check a password and set up a session, is made of steps like this one). It may print warnings about `debconf` and a terminal; they're harmless."
+  - label: "Log in as alice"
+    lines: "9"
+    note: "In the lab, type `ssh alice@ad.shop.test@localhost 'pwd; klist' | tee ~/example/alice.txt`, answer `yes` to the question about this machine's key, and give alice's password: the last `@` separates the account from the machine. `sshpass`, `-n` and the `-o` setting are there only so an unattended run doesn't stop at those questions. The login asked dc1 whether the password was right, made her home directory, and handed her a Kerberos ticket: `klist` inside her session shows `krbtgt/AD.SHOP.TEST@AD.SHOP.TEST`, so she can reach other services in the domain without typing her password again."
+  - label: "Let only the group in"
+    lines: "10-11"
+    note: "`realm permit -g linux-admins@ad.shop.test` sets the rule for who may log in: members of that group, and nobody else from the domain. It writes the rule into SSSD's settings, `access_provider = simple` with `simple_allow_groups`, so every way into the machine asks it, SSH, the console and `su` alike. `realm list` now says `allow-permitted-logins` and names the group. Permit a group, not people by name: someone who joins the team next month is let in without anyone touching this server."
+  - label: "bob's password is right, and he's refused"
+    lines: "12-13"
+    note: "bob's login fails. The journal says why, in two lines: `pam_sss(sshd:auth): authentication success` (the domain says his password is right) and then `pam_sss(sshd:account): Access denied` (this server's rule says he may not come in). Proving who you are and being allowed in are separate questions, answered in separate places: the domain answers the first, the member the second."
+  - label: "A folder, and a Group Policy object"
+    lines: "14-17"
+    note: "On dc1: a new organisational unit, `Staff`, and alice moved into it. Then a Group Policy object (GPO): a named bundle of settings, empty here, which `gpo create` stores in the directory and in dc1's `SYSVOL` share under a new GUID, a long identifier in braces. `guid=$(...)` saves it, because `gpo setlink` needs it: the link to `OU=Staff,...` is what makes the GPO apply to what's in that folder. On a real domain you'd let `-U Administrator` ask for the password instead of typing it on the command line (samba-tool warns about that)."
+  - label: "Who gets it"
+    lines: "18-19"
+    note: "`samba-tool gpo list NAME` works out which GPOs reach a person, from where they sit in the directory. alice, in Staff, gets `Lock screen` and the `Default Domain Policy`, which is linked to the whole domain; carol, still in the default `CN=Users` container, gets only the domain's. Policy follows the folders, not the groups. Saved to `~/example/gpos.txt`. A Windows member would now fetch and apply those settings; this Linux member doesn't, which is the difference the Azure extra at the end of the lesson shows."
+skills: [domain-join, group-policy]
