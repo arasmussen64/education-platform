@@ -1,0 +1,11 @@
+#!/bin/bash
+# shop-logs: the lab's stand-in for a quiet logger. Part of the lab's
+# scenery. It writes a 4 KiB record straight to the disk (oflag=direct)
+# about twenty times a second, far below any cap.
+mkdir -p "$LOG_DIR"
+i=0
+while :; do
+  dd if=/dev/zero of="$LOG_DIR/app.log" bs=4k count=1 seek=$((i % 1024)) oflag=direct conv=notrunc status=none
+  i=$((i + 1))
+  sleep 0.05
+done

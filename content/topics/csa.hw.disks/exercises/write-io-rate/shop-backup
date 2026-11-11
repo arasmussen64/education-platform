@@ -1,0 +1,43 @@
+#!/usr/bin/python3
+# shop-backup: the lab's stand-in for the shop's backup job. Part of the
+# lab's scenery. It copies the day's data into BACKUP_DIR in 128 KiB
+# writes, straight to the disk (O_DIRECT), asking for 32 MiB a second and
+# taking whatever the disk will give it up to that. Every 10 seconds it
+# logs how much it wrote.
+import mmap
+import os
+import time
+
+CHUNK = 131072
+FILE_CHUNKS = 256  # a 32 MiB backup file, written over and over
+WANTED = 256  # chunks a second: 32 MiB
+
+backup_dir = os.environ["BACKUP_DIR"]
+os.makedirs(backup_dir, exist_ok=True)
+buffer = mmap.mmap(-1, CHUNK)
+buffer.write(b"b" * CHUNK)
+
+flags = os.O_RDWR | os.O_CREAT | os.O_DIRECT
+fd = os.open(os.path.join(backup_dir, "today.bak"), flags, 0o600)
+print(f"shop-backup: writing to {backup_dir}", flush=True)
+chunk = 0
+written = 0
+paced = 0
+started = pace_from = time.monotonic()
+while True:
+    os.pwrite(fd, buffer, (chunk % FILE_CHUNKS) * CHUNK)
+    chunk += 1
+    paced += 1
+    written += CHUNK
+    now = time.monotonic()
+    due = pace_from + paced / WANTED
+    if now < due:
+        time.sleep(due - now)
+        now = time.monotonic()
+    elif now > due + 1:
+        pace_from, paced = now, 0
+    if now - started >= 10:
+        rate = written / (now - started) / 1048576
+        print(f"shop-backup: {rate:.1f} MiB a second", flush=True)
+        written = 0
+        started = now

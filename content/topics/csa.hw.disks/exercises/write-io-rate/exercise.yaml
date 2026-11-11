@@ -1,0 +1,28 @@
+id: write-io-rate
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write io-rate"
+prompt: |
+  Write a script, `~/bin/io-rate UNIT SECONDS`, that says how hard a service writes to the data disk, `/dev/lab/data`, and which of its write caps is holding it back. It reads the service's `io.stat` twice, `SECONDS` apart, reads its `io.max`, and prints exactly three lines, for example:
+
+  ```text
+  writes a second: 250
+  MiB a second: 1.0
+  binding: iops
+  ```
+
+  - **writes a second** is the growth in `wios` divided by the seconds, as a whole number.
+  - **MiB a second** is the growth in `wbytes` divided by the seconds and by 1,048,576, to one decimal place.
+  - **binding** is `iops` when the writes a second are at least 90% of the `wiops` cap, `throughput` when the bytes a second are at least 90% of the `wbps` cap, and `none` otherwise. A cap of `max`, or no line for the disk at all, is no cap.
+
+  Both files have a line for each disk, starting with the disk's device number (`lsblk -dno MAJ:MIN /dev/lab/data`). Run with anything but two arguments, the script prints a usage line and exits with a status other than 0.
+
+  Three of the shop's services write to the data disk under caps of their own: `shop-db`, `shop-backup` and `shop-logs`. They aren't all in the same slice, so find each one's cgroup folder with `systemctl show UNIT -p ControlGroup --value` (it is the part after `/sys/fs/cgroup`). Try `~/bin/io-rate shop-db 5` on each of the three and compare what it says with `systemctl show UNIT -p IOWriteIOPSMax -p IOWriteBandwidthMax`. Make the script executable, and run the checks.
+hints:
+  - "One value from one line: `grep \"^$device \" \"$folder/io.stat\" | grep -o 'wios=[0-9]*' | cut -d= -f2`, as in the `io.stat` question. The same with `[0-9a-z]*` reads a cap that may say `max`."
+  - "Bash's `$(( ))` does whole numbers only; for the decimal and the 90% comparisons, hand the numbers to `awk -v name=value ... 'BEGIN { printf \"%.1f\\n\", ... }'`."
+  - "Don't name a variable `SECONDS`: bash keeps that name for a clock of its own, which counts up while the script sleeps. `seconds` is fine."
+skills: [disk-caps]
