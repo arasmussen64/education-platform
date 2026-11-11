@@ -1,14 +1,16 @@
 id: mcq-cfs-fair-share
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   Four CPU-hungry processes run on a machine with one CPU, all at the default nice value. What does the Completely Fair Scheduler do?
 choices:
-  - "Runs them one after another to completion, in the order they started"
-  - "Gives each about a quarter of the CPU time, switching between them many times a second and always picking the one that has had the least time so far"
-  - "Runs the one with the lowest PID until it blocks"
-  - "Assigns each a fixed 25% quota that it can't exceed even when the others finish"
-answer: 1
+  - "Runs them one after another to completion, in the order in which they were started"
+  - "Gives each a fixed 25% quota, which it can't exceed even after the other three finish"
+  - "Keeps switching to whichever has had the least CPU time, so each gets about a quarter"
+  - "Runs the one with the lowest PID until it blocks, then moves on to the next lowest"
+answer: 2
 explanation: |
-  CFS tracks each task's share of CPU time and keeps picking the one that is furthest behind, so over any short window all four get roughly equal time. There's no fixed quota: if three of them finish, the fourth gets the whole CPU. Nice values change the proportions (a nice-10 task gets a smaller share than a nice-0 one), but only when tasks are competing like this.
+  CFS tracks how much CPU time each task has had and keeps picking the one that is furthest behind, many times a second, so over any short window all four get roughly equal time. Nothing waits for another to finish, and neither the start order nor the PID plays any part.
+
+  The quarter is a result, not a rule: there's no fixed quota, so if three of them finish, the fourth gets the whole CPU. Nice values change the proportions (a nice-10 task gets a smaller share than a nice-0 one), but only when tasks are competing like this.
 skills: [scheduler]

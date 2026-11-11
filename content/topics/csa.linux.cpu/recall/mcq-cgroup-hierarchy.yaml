@@ -1,14 +1,16 @@
 id: mcq-cgroup-hierarchy
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   What is a cgroup, as you'd find it on a modern (cgroups v2) Linux server?
 choices:
-  - "A Linux user group with extra permissions"
-  - "A directory under `/sys/fs/cgroup` holding a set of processes (`cgroup.procs`) and plain files that set and report their resource limits (`cpu.weight`, `cpu.max`, `memory.max`, `pids.max`, `cpu.stat`); systemd puts each service in one, and every container is one"
-  - "A compressed group of processes"
-  - "A kernel module that must be loaded for containers"
-answer: 1
+  - "A directory under `/sys/fs/cgroup` whose files list a set of processes and set their limits"
+  - "A group of user accounts, listed in `/etc/group`, whose members share one CPU allowance"
+  - "A systemd unit that bundles several services, so that one `systemctl` command starts them all"
+  - "A nice value shared by a set of processes, so that the scheduler treats them all as one task"
+answer: 0
 explanation: |
-  cgroups are the kernel's way of accounting for and limiting resources per group of processes, and v2 exposes them as one tree of directories whose files you can `cat` and `echo` into. systemd owns the top of the tree (`system.slice`, `user.slice`) and creates a group per unit, which is how `CPUQuota=` and `MemoryMax=` in a unit file work; container runtimes create a group per container. Reading those files is how you see what a container is really allowed.
+  cgroups are the kernel's way of accounting for and limiting resources per group of processes, and v2 exposes them as one tree of directories whose files you can `cat` and `echo` into: `cgroup.procs` lists the PIDs, and `cpu.weight`, `cpu.max`, `memory.max`, `pids.max` and `cpu.stat` set and report the limits. Reading those files is how you see what a service or a container is really allowed.
+
+  A cgroup's members are processes, whoever owns them, so it has nothing to do with user accounts or `/etc/group`. It isn't a unit either: systemd owns the top of the tree (`system.slice`, `user.slice`) and creates one cgroup *for* each unit, which is how `CPUQuota=` and `MemoryMax=` in a unit file work, and container runtimes create one per container. And it is far more than a shared nice value: nice only tilts the CPU shares of single tasks, while a cgroup can hold a quota, a memory limit and a process limit for the whole group.
 skills: [cgroups-v2]

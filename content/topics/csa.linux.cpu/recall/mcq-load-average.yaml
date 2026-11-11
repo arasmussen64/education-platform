@@ -1,14 +1,16 @@
 id: mcq-load-average
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A 2-CPU server shows a load average of 6.0, yet `top` says the CPUs are 70% idle. How can both be true?
 choices:
-  - "They can't; one of the tools is broken"
-  - "The load average also counts tasks in uninterruptible sleep, usually waiting on disk or network storage, so six tasks stuck on I/O give a load of 6 while the CPUs sit idle; check `wa` in `top` and `iostat`"
-  - "The load average is a percentage, so 6.0 means 6%"
-  - "The load average counts threads of the kernel only"
+  - "The load average is a percentage of one CPU, so 6.0 means the server is only 6% busy"
+  - "The load average also counts tasks stuck waiting on disk, which use no CPU while they wait"
+  - "The load average counts every process there is, sleeping ones included, not just busy ones"
+  - "The load average counts a task once per CPU, so three busy tasks on 2 CPUs show as 6.0"
 answer: 1
 explanation: |
-  Linux's load average is the number of tasks that are runnable *or* in uninterruptible wait (the `D` state in `ps`), which is why a machine with a sick disk can show a load of 20 with idle CPUs. A high load with high `id` and high `wa` points at storage; a high load with `id` near zero points at CPU. Always read the load average together with the CPU line and the CPU count.
+  Linux's load average is the number of tasks that are runnable *or* in uninterruptible wait (the `D` state in `ps`), usually waiting on disk or network storage. Six tasks stuck on I/O give a load of 6 while the CPUs sit idle, which is why a machine with a sick disk can show a load of 20 with idle CPUs. Check `wa` in `top`, and `iostat`.
+
+  It is a count of tasks, not a percentage, and each task counts once however many CPUs there are. It doesn't count every process either: one that is asleep waiting for a request or a timer adds nothing. A high load with high `id` and high `wa` points at storage; a high load with `id` near zero points at CPU. Always read the load average together with the CPU line and the CPU count.
 skills: [load-average]

@@ -1,14 +1,16 @@
 id: mcq-throttling-symptom
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   An API container has a CPU limit of 0.5 CPU. Its average utilisation is 20%, yet every few requests take ten times longer than the rest. What's the most likely cause, and how do you confirm it?
 choices:
-  - "The network is slow; check `ping`"
-  - "CPU throttling: a request burns the 50 ms quota early in a 100 ms period and the container is stopped for the rest; `cpu.stat` shows `nr_throttled` and `throttled_usec` climbing. Raise or remove the CPU limit (keep the request), or add replicas"
-  - "Memory pressure; check `free`"
-  - "The container has too high a priority"
+  - "Not the CPU: an average of 20% leaves the 50% limit far away, so check the disk with `wa` in `top`"
+  - "CPU throttling: a burst uses up the period's quota early, and `nr_throttled` in `cpu.stat` keeps climbing"
+  - "A spent daily quota: at 20% a day's allowance has run out, and `cpu.max` shows its first number at 0"
+  - "CPU steal: the hypervisor takes the CPU from this one container, and `st` in its `cpu.stat` keeps climbing"
 answer: 1
 explanation: |
-  A quota is checked every 100 ms, and a burst that needs 60 ms of CPU at once gets 50, then waits 50 ms for the next period, then finishes. The average over a minute stays low; the tail latency doesn't. `cpu.stat` is the evidence, and the Kubernetes metric `container_cpu_cfs_throttled_periods_total` is the same number exported. Priority (weight) can't fix a quota, and the node's idle CPUs don't help: the wall is the container's own.
+  A quota is checked every 100 ms, and a burst that needs 60 ms of CPU at once gets 50, then waits 50 ms for the next period, then finishes. The average over a minute stays low; the tail latency doesn't. That is the trap in "20% is far from the limit": the limit is per period, and an average hides the bursts that hit it. `cpu.stat` is the evidence, with `nr_throttled` and `throttled_usec` climbing, and the Kubernetes metric `container_cpu_cfs_throttled_periods_total` is the same number exported. Raise or remove the CPU limit (keep the request), or add replicas.
+
+  There is no daily allowance: the quota starts afresh every period, and `cpu.max` holds the setting, not what's left of it. Steal is something a hypervisor does to a whole VM, it shows as `st` in `top`, and `cpu.stat` has no such line. Priority (weight) can't fix a quota, and the node's idle CPUs don't help: the wall is the container's own.
 skills: [throttling]
