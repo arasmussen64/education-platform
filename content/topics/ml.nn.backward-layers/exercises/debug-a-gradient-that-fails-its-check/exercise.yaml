@@ -1,13 +1,19 @@
 id: debug-a-gradient-that-fails-its-check
 stage: debug
-rev: 1
+rev: 2
 title: "A gradient that fails its check"
 prompt: |
-  The module's classes on three rows, with the gradient check. The program should print:
+  The module's classes on three rows, with the gradient check: every parameter's gradient from `backward` against a central difference. The program should print:
 
   ```
   gradient shapes match the parameters: True | worst gap: under 1e-6
   ```
 
-  It has two bugs. Run it: it crashes inside the gradient check with a broadcasting error, because `Dense.backward` computes `dW` as `grad_out.T @ X`, which has the shape of `W` **transposed**; the weight gradient is `X.T @ grad_out`, one entry per entry of `W`. Fix that, and the worst gap is "too big": `ReLU.backward` takes its mask from the sign of the **gradient** coming back instead of from the input it saw in `forward`. The gradient passes where the input was positive, which is what `self.mask` recorded.
+  Instead it prints the first half of the line, then stops inside the gradient check with `ValueError: operands could not be broadcast together with shapes (4,3) (3,4)`. It has two bugs, and the second shows only once the first is fixed. Run it, read the traceback, fix what you find and run it again; then run the checks, which try a deeper stack and a ReLU on its own.
+hints:
+  - "The failing line subtracts a parameter's numeric gradient from the one `backward` set, and they should have the same shape. Which parameter is `(3, 4)`, and which line of `backward` sets its gradient?"
+  - "A weight gradient has one entry per entry of `W`, so for `W` of shape `(n_in, n_out)` it is `(n_in, n_out)` too. Which product of `self.X` and `grad_out` has that shape?"
+  - "`self.dW = self.X.T @ grad_out`."
+  - "Now the worst gap is too big. A ReLU passes the gradient where its input was positive. What does `ReLU.backward` test to decide that, and what did `forward` record?"
+  - "Multiply by the mask the forward pass saved: `grad_out * self.mask`."
 skills: [layer-backward, chain]
