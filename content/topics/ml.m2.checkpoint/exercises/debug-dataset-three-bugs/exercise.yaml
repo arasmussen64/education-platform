@@ -1,6 +1,6 @@
 id: debug-dataset-three-bugs
 stage: debug
-rev: 1
+rev: 2
 title: "Three bugs in a Dataset"
 prompt: |
   This `Dataset` should print the row count, the summary of `temperature` and the report line:
@@ -11,7 +11,13 @@ prompt: |
   temperature: count=3 mean=20.0 min=18.5 max=21.5
   ```
 
-  It has three bugs, in three different methods, and each one hides the next: fix the first and the second shows itself. Run it, read what happens, fix, and run again until the output matches. Check each method against its job: `column` yields values from the records **that have** the column; the mean divides the total of the values by **how many values** there are; the report prints min and max in the right places.
+  Instead it prints `4 rows` and stops with `KeyError: 'temperature'`. It has three bugs. Run it, read what happens, fix what you find, and run it again until the output matches.
+hints:
+  - "Read the error's last lines, then look at the data at the top: which record has no `temperature`? The summary should leave a record like that out, not stop."
+  - "`column` should yield a value only from a row that has the column: `if name in row:`."
+  - "Next the mean comes out as 15.0. Work it out by hand from the three temperatures: what should the total be divided by, and what is it divided by?"
+  - "The mean divides by `len(values)`, the number of temperatures, not the number of rows."
+  - "Compare the report line with the summary above it, number by number."
 test_skills:
   test_the_output: [ml.py.json-and-nested-data/safe-walk, ml.math.probability-and-statistics/center, ml.py.classes/methods]
   test_other_records: [ml.py.iterators-and-generators/generators, ml.math.probability-and-statistics/center]
