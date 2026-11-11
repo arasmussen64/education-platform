@@ -1,0 +1,25 @@
+#!/bin/bash
+# Usage: fit-check PARAMS_BILLION BITS HEADROOM_PCT
+# Prints the cheapest instance in /srv/plan/gpus.csv on which a model of
+# PARAMS_BILLION billion parameters, each stored in BITS bits, runs on one
+# card with HEADROOM_PCT % of its weights to spare, as "instance price", or
+# "none" when no instance in the table can.
+table=/srv/plan/gpus.csv
+if [ $# -ne 3 ]; then
+  echo "Usage: fit-check PARAMS_BILLION BITS HEADROOM_PCT" >&2
+  exit 2
+fi
+
+# The weights in GiB, and what the card must hold with the headroom.
+weights=$(awk -v p="$1" -v b="$2" 'BEGIN {print p * 1000000000 * b / 8 / 1073741824}')
+needed=$(awk -v w="$weights" -v h="$3" 'BEGIN {print w * (100 - h) / 100}')
+
+# Every instance with the memory for it, as its name and its price.
+# (The columns used: 4 instance, 6 gpu_count, 8 gpu_mem_gib, 10 hourly_usd.)
+fits=$(awk -F, -v n="$needed" 'NR > 1 && $6 * $8 >= n {print $4, $10}' "$table")
+
+if [ -z "$fits" ]; then
+  echo none
+else
+  echo "$fits" | tail -n 1
+fi
