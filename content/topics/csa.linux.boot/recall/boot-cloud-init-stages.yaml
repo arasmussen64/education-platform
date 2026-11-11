@@ -1,6 +1,6 @@
 id: boot-cloud-init-stages
 type: predict_shell
-rev: 1
+rev: 2
 prompt: |
   `cloud-init-output.log` records each stage cloud-init ran. The first command lists the stages in order (the quoted word after `running`); the second shows which datasource it used. What is printed?
 files:
@@ -22,5 +22,5 @@ expected_output: |
   'modules:final'
   Datasource DataSourceEc2Local
 explanation: |
-  The four stages, in order: local (before the network), init (the network stage, which fetched the user data), config, and final, where the packages were installed; the whole run took twenty seconds. The datasource is EC2's metadata service, which is where this instance got its instructions. When something you expected didn't happen, this file shows which stage it should have run in and what that stage printed, and `cloud-init status --long` gives the verdict.
+  The four stages, in order: local (before the network is up), init (the network stage, which worked through the user data), config, and final, where the packages were installed; the whole run took twenty seconds. The datasource is EC2's metadata service, which is where this instance got its instructions, and the `Local` in `DataSourceEc2Local` says when: cloud-init read the metadata and user data in the local stage, over a short-lived connection of its own, before the rest of the network was set up. When something you expected didn't happen, this file shows which stage it should have run in and what that stage printed, and `cloud-init status --long` gives the verdict.
 skills: [cloud-init]
