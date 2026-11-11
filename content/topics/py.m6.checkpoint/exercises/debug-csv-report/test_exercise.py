@@ -29,7 +29,7 @@ def test_totals():
 
 
 def test_write_report():
-    """write_report leaves every line in the file, not just the last."""
+    """write_report writes every line to the file, in order: one, two, three."""
     function("write_report")("wr.txt", ["one", "two", "three"])
     got = Path("wr.txt").read_text(encoding="utf-8")
     assert got == "one\ntwo\nthree\n", f"the file contains {got!r}"

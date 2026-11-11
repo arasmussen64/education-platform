@@ -9,7 +9,7 @@ def test_average():
 
 
 def test_letter_boundaries():
-    """90 is an A, 80 a B, 70 a C, 60 a D: the boundaries count."""
+    """90 is an A, 80 a B, 70 a C, 60 a D, and 59 an F."""
     letter_grade = function("letter_grade")
     for value, expected in [(90, "A"), (80, "B"), (70, "C"), (60, "D"), (59, "F")]:
         got = letter_grade(value)

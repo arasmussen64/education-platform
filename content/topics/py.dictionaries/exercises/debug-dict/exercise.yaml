@@ -1,9 +1,9 @@
 id: debug-dict
 stage: debug
-rev: 1
+rev: 2
 title: "Word counts"
 prompt: |
-  This program should count words and print:
+  This program counts how many times each word appears, prints each word with its count, then prints the count for a word that never appeared, which is 0. It should print:
 
   ```
   a 2
@@ -11,5 +11,10 @@ prompt: |
   0
   ```
 
-  It has three bugs, each a `KeyError` or the wrong kind of loop over a dictionary. Read the first error, fix one thing, and run again.
+  Instead it stops with a `KeyError` before printing anything. It has three bugs, and fixing one shows the next. Read the first error, fix one thing, and run again.
+hints:
+  - "Each time it stops, the error's last line names the key that wasn't there, and the traceback names the line that asked for it. Why isn't that key in `counts` at that moment?"
+  - "The first time a word comes along, it isn't in `counts` yet, so `counts[word]` fails. `counts.get(word, 0)` gives 0 for a key that isn't there."
+  - "Look at what the loop in `main` gets as `word`. Looping over `counts.items()` gives (key, value) pairs; looping over `counts` gives just the keys."
+  - "`counts[\"c\"]` asks for a key that was never added. `get` with a default gives 0 instead."
 skills: [counting, loop-dict, lookup-update]

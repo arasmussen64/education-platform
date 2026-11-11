@@ -1,14 +1,20 @@
 id: debug-exceptions
 stage: debug
-rev: 1
+rev: 2
 title: "A number, eventually"
 prompt: |
-  `get_int` should keep asking until the user types a whole number. Typing `abc` and then `21` should print:
+  `get_int` should keep asking until the user types a whole number, then return it. Typing `abc` and then `21` should print:
 
   ```
   Not a whole number.
   Double: 42
   ```
 
-  It has three bugs: the wrong error is caught, the risky line isn't where the `try` can protect it, and the `return` is in the wrong block. Type `abc` first and read what happens.
+  and typing `8` should print `Double: 16` straight away. Instead, typing `abc` stops the program with a `ValueError`. It has three bugs, and fixing one shows the next. Type `abc` first and read what happens, then try `8` on its own.
+hints:
+  - "Read the error: which line raised the `ValueError`? Is that line inside the `try`?"
+  - "Only the lines inside `try:` are protected. `input` can't fail on `abc`, but `int(text)` can, so `int(text)` belongs inside the `try`."
+  - "An `except` block runs only for the error it names. Which error does `int(\"abc\")` raise?"
+  - "Once `abc` gives the message, follow what happens next, and what happens when you type `8` straight away. When does the block holding `return number` run?"
+  - "The `except` block runs when `int` failed, so there's no number to return yet. Return the number from an `else:` block, which runs only when the `try` worked."
 skills: [try-except, validate-loop]

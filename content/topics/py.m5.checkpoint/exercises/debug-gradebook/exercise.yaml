@@ -1,9 +1,9 @@
 id: debug-gradebook
 stage: debug
-rev: 1
+rev: 2
 title: "A gradebook that eats its data"
 prompt: |
-  This program should print:
+  This program prints a gradebook report: each student's average and letter grade (A for 90 or more, B for 80 or more, C for 70 or more, D for 60 or more, otherwise F), then how many students there are. It should print:
 
   ```
   Ada: 85.0 (B)
@@ -11,7 +11,13 @@ prompt: |
   Students: 2
   ```
 
-  It has three bugs: an average that's wrong, grade boundaries that are off by one, and a function that quietly changes the list it's given, so the last line comes out wrong. Check each function against its docstring, and ask of each one: does it change anything it was given?
+  Instead every line it prints is wrong. It has three bugs. Check each function against its docstring, then run the checks, which try each function on its own. You're done when it prints the lines above and every check passes.
+hints:
+  - "Work out Ada's average by hand: (90 + 80) / 2. Which part of `average` gives a different answer?"
+  - "An average divides the total by how many scores there are, `len(scores)`, and nothing else."
+  - "`Students: 0` means `STUDENTS` is empty by the time `main` counts it. Which function was handed that list, and what does it do to it?"
+  - "`students.pop(0)` takes each student out of the caller's list. A `for` loop visits each student and leaves the list as it was."
+  - "The checks try the boundaries, where 90 should be an A. Is 90 `> 90`? \"90 or more\" needs `>=`."
 test_skills:
   test_average: [py.lists/loop-lists, py.arithmetic/operators]
   test_letter_boundaries: [py.booleans-and-comparisons/compare, py.if-elif-else/elif-order]

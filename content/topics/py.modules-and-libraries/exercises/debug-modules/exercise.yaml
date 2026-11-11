@@ -1,9 +1,9 @@
 id: debug-modules
 stage: debug
-rev: 1
+rev: 2
 title: "Three borrowed functions"
 prompt: |
-  Run directly, this file should print:
+  This file has two small functions, `pick` and `root`, and a `main` that tries them out. Run directly, it should print:
 
   ```
   Mean: 4
@@ -11,5 +11,10 @@ prompt: |
   Pick ok: True
   ```
 
-  and importing it should print nothing. It has three bugs: a module that's used but never imported, a function called without its module's name, and a `main()` that runs even when the file is imported. Read the first error and work down.
+  and importing it into another file should print nothing, so that file can use `pick` and `root`. Instead it prints the first line and then stops with a `NameError`. It has three bugs, and fixing one shows the next. Read the first error and work down, then run the checks, which also import the file.
+hints:
+  - "Read the error's last line: which name isn't defined? Which module does that name belong to?"
+  - "`import math` gives you the name `math`, not the names inside it. Reach `sqrt` through its module: `math.sqrt`."
+  - "A module's name exists only once it's imported. Which module does `pick` use, and is it in the imports at the top?"
+  - "If importing the file still prints, the last line runs `main()` whenever the file is loaded. Put it under `if __name__ == \"__main__\":`."
 skills: [import-use, stdlib-tools, own-module]

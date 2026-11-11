@@ -18,7 +18,7 @@ def test_maximum():
 
 
 def test_no_fine():
-    """On time or early means no fine: 0, -1 and -10 days all cost 0.00, never a negative amount."""
+    """No fine on time, early or within the free days: 0, -1, -10, 1 and 2 days all cost 0.00."""
     fine = function("fine")
     for days in (0, -1, -10, 1, 2):
         got = fine(days)
