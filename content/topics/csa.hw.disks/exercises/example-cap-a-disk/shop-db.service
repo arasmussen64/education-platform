@@ -1,0 +1,19 @@
+[Unit]
+Description=shop-db: the shop's database
+Requires=lab-disks.service
+After=lab-disks.service
+
+[Service]
+Environment=DATA_DIR=/srv/data/db SPOOL_DIR=/srv/data/spool
+# Makes its folders, owned by the shop's account, before it starts.
+ExecStartPre=+/usr/bin/install -d -o shop -g shop ${DATA_DIR} ${SPOOL_DIR}
+ExecStart=/usr/local/bin/shop-db
+User=shop
+# Keep count of its disk reads and writes (io.stat in its cgroup folder).
+IOAccounting=yes
+# Its disk allowance on the lab machine: at most 200 writes a second to
+# the data disk, as if the disk were provisioned for that.
+IOWriteIOPSMax=/dev/lab/data 200
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,41 @@
+id: example-cap-a-disk
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Cap a disk, and measure it"
+prompt: |
+  The lab machine has one data disk, `/dev/lab/data`, mounted at `/srv/data`. It is a file on your own computer, so it is far faster than a cloud's network disk; to see what a network disk's allowance does, you hold writes to it to a cap, the way a cloud does, and measure what comes through. The measuring tool is `fio`, which writes as fast as it is allowed and reports how many writes a second it managed (`IOPS=`), how many bytes a second (`BW=`), and how long each write took on average (`lat ... avg=`). The shop's database, `shop-db`, already runs under a cap of its own.
+
+  Only the disks labelled under `/dev/lab/` belong to the lab: the others `lsblk` lists belong to Docker on your own computer, and must be left alone. Every `fio` here writes to one file, `/srv/data/fio-test`; never give `fio` a disk's own name (`--filename=/dev/...`), which would write over that whole disk.
+
+  Type each line yourself in the lab's shell and read what it prints before you type the next. Your numbers will differ from the notes' a little. At the end you save three of them: the writes a second from the cap step, the queue-depth step and the big-blocks step.
+steps:
+  - label: "Name the test once"
+    lines: "1"
+    note: "A shell variable (Shell essentials) holds the options every test shares, so the lines below stay short. `--filename` and `--size`: a 16 MiB test file on the data disk. `--direct=1`: write straight to the disk, past the page cache, which would otherwise take the writes into memory and make any disk look fast. `--runtime=5 --time_based`: run for five seconds."
+  - label: "The disk with no cap"
+    lines: "2"
+    note: "Random writes of 4 KiB, one at a time (queue depth 1, fio's default). On the owner's PC this gave `IOPS=22.5k` and an average of about 44 µs a write (µs: a millionth of a second). That's a file on a fast laptop disk, behind caches; what matters is what changes next."
+  - label: "Cap it the way a cloud caps a network disk"
+    lines: "3"
+    note: "`systemd-run` runs one command as a short-lived service with the settings you give it (`-p`); `--wait` waits for it, `--pipe` shows its output here, `-q` keeps systemd's own messages out. `IOWriteIOPSMax=/dev/lab/data 500` sets the service's `io.max` to 500 writes a second on that disk. Now `IOPS=500`, and the average write takes about 2,000 µs: 2 ms, which is 1 second divided by 500. The kernel lets writes through in small bursts, so most finish at once and a few wait a long time; the average is what the arithmetic says."
+  - label: "A deeper queue doesn't beat a cap"
+    lines: "4"
+    note: "`--ioengine=libaio --iodepth=16` keeps 16 writes in flight at once. Still about 500 a second, and now the average write takes about 32 ms: each one queues behind 15 others for slots that come 500 a second, 16 ÷ 500 = 0.032 s. Queue depth raises the rate only while the disk has room to spare. At a cap it only adds waiting."
+  - label: "Big blocks meet the other cap"
+    lines: "5"
+    note: "A second cap on bytes, `IOWriteBandwidthMax=/dev/lab/data 8M`, and 1 MiB writes in order (`--rw=write --bs=1M`). The IOPS cap would allow 500 × 1 MiB = 500 MiB a second, far more than 8 MB a second, so now the bytes cap binds: `IOPS=7`, `BW=7814KiB/s (8001kB/s)`. Mind the units. To systemd, `8M` is 8,000,000 bytes (M is a million, as in MB). fio shows the same rate both ways: 7,814 KiB a second (KiB is 1,024 bytes) and 8,001 kB a second (kB is 1,000). In MiB (1,048,576 bytes) it's 7.6 a second. Write a cap in MiB as bytes: 8 MiB is `8388608`."
+  - label: "Small blocks meet the IOPS cap again"
+    lines: "6"
+    note: "Both caps, 4 KiB writes: about 500 a second again, 2,000 KiB a second, well under 8 MB. Which cap binds depends on the block size: IOPS × block size, until the bytes cap takes over."
+  - label: "A service with an allowance"
+    lines: "7"
+    note: "`shop-db`'s own cap, from its unit: `IOWriteIOPSMax=/dev/lab/data 200`. Its cgroup's `io.max` has a line for the disk: `7:2 rbps=max wbps=max riops=max wiops=200` (your numbers before the colon may differ). `7:2` is the disk's device number, the one `lsblk` shows under `MAJ:MIN`. `max` means no cap; `wiops` is write IOPS, `wbps` write bytes a second, and `r` the same for reads."
+  - label: "Watch it sit at its cap"
+    lines: "8"
+    note: "`io.stat` counts the service's writes since it started (`wios=`). Read five seconds apart, it grows by about 1,000: 200 a second, exactly the cap. A rate that sits flat on a cap is the mark of a cap. `io.pressure` says how much of the time the service was waiting on the disk: here `some avg10=` around 25, a quarter of the last ten seconds."
+  - label: "Save what you measured"
+    lines: "9"
+    note: "Your three numbers, one a line, in the order of the steps: the cap step, the queue-depth step, the big-blocks step. The check reads them from this file, so they are still there after the lab restarts. Then run the checks."

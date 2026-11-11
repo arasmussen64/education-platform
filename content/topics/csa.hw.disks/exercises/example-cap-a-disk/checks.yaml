@@ -1,0 +1,25 @@
+# The checks for "Cap a disk, and measure it": the three numbers saved are
+# what a capped disk gives (about 500 writes a second at depth 1 and at
+# depth 16, and 5 to 10 a second with 1 MiB blocks under 8 MB a second),
+# and the database still runs under the allowance it came with.
+#
+# The numbers are read from the learner's file, not measured again: the
+# file survives a restart of the lab, and a measurement taken by the check
+# would be the check's work, not the learner's.
+checks:
+  - id: saved-the-numbers
+    description: "~/example/disk.txt holds three numbers, one a line: the writes a second fio measured under the 500 cap at queue depth 1, then at depth 16, then with 1 MiB blocks under the 8 MB a second cap."
+    command: |
+      file=/home/learner/example/disk.txt
+      [ "$(grep -c . "$file")" -eq 3 ] && awk '
+        $1 !~ /^[0-9]+(\.[0-9]+)?$/ {bad = 1}
+        NR <= 2 && ($1 < 450 || $1 > 550) {bad = 1}
+        NR == 3 && ($1 < 5 || $1 > 10) {bad = 1}
+        END {exit bad}' "$file"
+  - id: db-still-capped
+    description: "shop-db is running, still held to 200 writes a second on the data disk."
+    command: |
+      dev=$(lsblk -dno MAJ:MIN "$(readlink -f /dev/lab/data)" | tr -d ' ')
+      systemctl is-active --quiet shop-db \
+        && [ "$(systemctl show shop-db -p IOWriteIOPSMax --value)" = "/dev/lab/data 200" ] \
+        && grep -q "^$dev .*wiops=200" /sys/fs/cgroup/system.slice/shop-db.service/io.max
