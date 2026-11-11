@@ -1,0 +1,459 @@
+# The checks for "The right machine for the bakery".
+# One check for each workload's fit and one for its price, so a failure
+# points at one skill; each works out its own truth from /srv/sizing (the
+# workload's metrics, the price table and the facts of its brief, written
+# into the check) rather than holding an answer. The estimates and the
+# saving are checked against the sizes the learner chose, so one wrong size
+# fails its own checks and not the sums.
+# Every sizing lab of this checkpoint has these checks, with its own
+# workloads' facts.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence.
+checks:
+  - id: sheet-complete
+    description: "answers.csv has its header, one row for each of w1, w2, w3, w4, w5, each with a size from prices.csv and a monthly cost, and the saving line with a number."
+    command: |
+      lines=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | grep -v '^$')
+      [ "$(echo "$lines" | head -n 1)" = "workload,instance,monthly_usd" ] || { echo "the first line is not the header workload,instance,monthly_usd"; exit 0; }
+      for w in w1 w2 w3 w4 w5; do
+        n=$(echo "$lines" | grep -c "^$w,")
+        [ "$n" -eq 1 ] || { echo "answers.csv has $n rows for $w"; exit 0; }
+        line=$(echo "$lines" | grep "^$w,")
+        pick=$(echo "$line" | cut -d, -f2 | sed 's/^Standard_//')
+        awk -F, -v i="$pick" 'NR > 1 && tolower($4) == tolower(i) {found = 1} END {exit !found}' /srv/sizing/prices.csv || { echo "$w: [$pick] is not a size in prices.csv"; exit 0; }
+        echo "$line" | cut -d, -f3 | tr -d '$' | grep -Eq '^[0-9]+(\.[0-9]+)?$' || { echo "$w: its monthly_usd is not a number"; exit 0; }
+      done
+      echo "$lines" | grep '^saving,' | cut -d, -f3 | tr -d '$' | grep -Eq '^-?[0-9]+(\.[0-9]+)?$' || { echo "the saving line has no number"; exit 0; }
+      echo complete
+    expect:
+      equals: "complete"
+  - id: data-untouched
+    description: "The evidence in /srv/sizing is as the review began: nothing changed, added or removed."
+    command: |
+      [ "$(cd /srv/sizing && find . -type f | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/lib/lab/sizing.sha256)" ] && echo untouched || echo changed
+    expect:
+      equals: "untouched"
+  - id: w1-fits
+    description: "w1's size meets the sizing policy and w1's brief: enough vCPUs and memory for its week, on a cloud and an architecture its brief allows."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w1" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w1/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=0
+      awk -F, -v w=w1 -v pick="$pick" -v cur=m7i.2xlarge -v clouds=" aws " -v arch=x86 -v win=0 -v sql=0 -v gpu=0 -v short=0 -v hours=730 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        NR > 1 { vcpus[$4] = $7; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (pick == "") { print w ": no size given"; exit }
+          if (row == "") { print w ": " pick " is not a size in prices.csv"; exit }
+          split(row, r, ","); why = fits(r)
+          print (why == "" ? "fits" : w ": " r[4] " " why)
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "fits"
+  - id: w1-not-oversized
+    description: "A month of w1's size costs at most 15% more than the cheapest size that meets the policy and w1's brief, for the hours it runs."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w1" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w1/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=0
+      awk -F, -v w=w1 -v pick="$pick" -v cur=m7i.2xlarge -v clouds=" aws " -v arch=x86 -v win=0 -v sql=0 -v gpu=0 -v short=0 -v hours=730 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        function cost(r,  p) {
+          if (win && r[14] == "") return -1
+          p = (win ? r[14] : r[13])
+          if (sql) p += rate[r[2]] * (r[7] < 4 ? 4 : r[7])
+          return p * hours
+        }
+        BEGIN { rate["aws"] = 0.12; rate["azure"] = 0.10; rate["gcp"] = 0.12; best = -1 }
+        NR > 1 { vcpus[$4] = $7; rows[NR] = $0; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (row == "") { print w ": [" pick "] is not a size in prices.csv"; exit }
+          for (i in rows) {
+            split(rows[i], r, ",")
+            if (fits(r) == "") { c = cost(r); if (best < 0 || c < best) best = c }
+          }
+          split(row, r, ","); c = cost(r)
+          if (c < 0) { print w ": " r[4] " has no price for the licences " w " needs"; exit }
+          if (c <= best * 1.15) print "within 15%"
+          else printf "%s: %s costs %.0f%% more a month than the cheapest size that meets the policy and the brief\n", w, r[4], (c / best - 1) * 100
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "within 15%"
+  - id: w2-fits
+    description: "w2's size meets the sizing policy and w2's brief: enough vCPUs and memory for its week, on a cloud and an architecture its brief allows, with a price for its licences."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w2" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w2/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=0
+      awk -F, -v w=w2 -v pick="$pick" -v cur=r7i.2xlarge -v clouds=" aws " -v arch=any -v win=1 -v sql=1 -v gpu=0 -v short=0 -v hours=730 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        NR > 1 { vcpus[$4] = $7; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (pick == "") { print w ": no size given"; exit }
+          if (row == "") { print w ": " pick " is not a size in prices.csv"; exit }
+          split(row, r, ","); why = fits(r)
+          print (why == "" ? "fits" : w ": " r[4] " " why)
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "fits"
+  - id: w2-not-oversized
+    description: "A month of w2's size costs at most 15% more than the cheapest size that meets the policy and w2's brief, for the hours it runs, licences included."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w2" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w2/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=0
+      awk -F, -v w=w2 -v pick="$pick" -v cur=r7i.2xlarge -v clouds=" aws " -v arch=any -v win=1 -v sql=1 -v gpu=0 -v short=0 -v hours=730 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        function cost(r,  p) {
+          if (win && r[14] == "") return -1
+          p = (win ? r[14] : r[13])
+          if (sql) p += rate[r[2]] * (r[7] < 4 ? 4 : r[7])
+          return p * hours
+        }
+        BEGIN { rate["aws"] = 0.12; rate["azure"] = 0.10; rate["gcp"] = 0.12; best = -1 }
+        NR > 1 { vcpus[$4] = $7; rows[NR] = $0; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (row == "") { print w ": [" pick "] is not a size in prices.csv"; exit }
+          for (i in rows) {
+            split(rows[i], r, ",")
+            if (fits(r) == "") { c = cost(r); if (best < 0 || c < best) best = c }
+          }
+          split(row, r, ","); c = cost(r)
+          if (c < 0) { print w ": " r[4] " has no price for the licences " w " needs"; exit }
+          if (c <= best * 1.15) print "within 15%"
+          else printf "%s: %s costs %.0f%% more a month than the cheapest size that meets the policy and the brief\n", w, r[4], (c / best - 1) * 100
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "within 15%"
+  - id: w3-fits
+    description: "w3's size meets the sizing policy and w3's brief: enough vCPUs and memory for its week, on a cloud and an architecture its brief allows."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w3" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w3/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=0
+      awk -F, -v w=w3 -v pick="$pick" -v cur=D4s_v6 -v clouds=" azure " -v arch=arm -v win=0 -v sql=0 -v gpu=0 -v short=0 -v hours=730 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        NR > 1 { vcpus[$4] = $7; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (pick == "") { print w ": no size given"; exit }
+          if (row == "") { print w ": " pick " is not a size in prices.csv"; exit }
+          split(row, r, ","); why = fits(r)
+          print (why == "" ? "fits" : w ": " r[4] " " why)
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "fits"
+  - id: w3-not-oversized
+    description: "A month of w3's size costs at most 15% more than the cheapest size that meets the policy and w3's brief, for the hours it runs."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w3" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w3/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=0
+      awk -F, -v w=w3 -v pick="$pick" -v cur=D4s_v6 -v clouds=" azure " -v arch=arm -v win=0 -v sql=0 -v gpu=0 -v short=0 -v hours=730 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        function cost(r,  p) {
+          if (win && r[14] == "") return -1
+          p = (win ? r[14] : r[13])
+          if (sql) p += rate[r[2]] * (r[7] < 4 ? 4 : r[7])
+          return p * hours
+        }
+        BEGIN { rate["aws"] = 0.12; rate["azure"] = 0.10; rate["gcp"] = 0.12; best = -1 }
+        NR > 1 { vcpus[$4] = $7; rows[NR] = $0; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (row == "") { print w ": [" pick "] is not a size in prices.csv"; exit }
+          for (i in rows) {
+            split(rows[i], r, ",")
+            if (fits(r) == "") { c = cost(r); if (best < 0 || c < best) best = c }
+          }
+          split(row, r, ","); c = cost(r)
+          if (c < 0) { print w ": " r[4] " has no price for the licences " w " needs"; exit }
+          if (c <= best * 1.15) print "within 15%"
+          else printf "%s: %s costs %.0f%% more a month than the cheapest size that meets the policy and the brief\n", w, r[4], (c / best - 1) * 100
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "within 15%"
+  - id: w4-fits
+    description: "w4's size meets the sizing policy and w4's brief: enough vCPUs, memory and GPU memory for its week, on a cloud and an architecture its brief allows."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w4" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w4/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=$(tail -n +2 $m | cut -d, -f5 | sort -n | tail -n 1)
+      awk -F, -v w=w4 -v pick="$pick" -v cur=a2-highgpu-1g -v clouds=" aws azure gcp " -v arch=x86 -v win=0 -v sql=0 -v gpu=1 -v short=0 -v hours=120 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        NR > 1 { vcpus[$4] = $7; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (pick == "") { print w ": no size given"; exit }
+          if (row == "") { print w ": " pick " is not a size in prices.csv"; exit }
+          split(row, r, ","); why = fits(r)
+          print (why == "" ? "fits" : w ": " r[4] " " why)
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "fits"
+  - id: w4-not-oversized
+    description: "A month of w4's size costs at most 15% more than the cheapest size that meets the policy and w4's brief, for the hours it runs."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w4" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w4/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=$(tail -n +2 $m | cut -d, -f5 | sort -n | tail -n 1)
+      awk -F, -v w=w4 -v pick="$pick" -v cur=a2-highgpu-1g -v clouds=" aws azure gcp " -v arch=x86 -v win=0 -v sql=0 -v gpu=1 -v short=0 -v hours=120 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        function cost(r,  p) {
+          if (win && r[14] == "") return -1
+          p = (win ? r[14] : r[13])
+          if (sql) p += rate[r[2]] * (r[7] < 4 ? 4 : r[7])
+          return p * hours
+        }
+        BEGIN { rate["aws"] = 0.12; rate["azure"] = 0.10; rate["gcp"] = 0.12; best = -1 }
+        NR > 1 { vcpus[$4] = $7; rows[NR] = $0; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (row == "") { print w ": [" pick "] is not a size in prices.csv"; exit }
+          for (i in rows) {
+            split(rows[i], r, ",")
+            if (fits(r) == "") { c = cost(r); if (best < 0 || c < best) best = c }
+          }
+          split(row, r, ","); c = cost(r)
+          if (c < 0) { print w ": " r[4] " has no price for the licences " w " needs"; exit }
+          if (c <= best * 1.15) print "within 15%"
+          else printf "%s: %s costs %.0f%% more a month than the cheapest size that meets the policy and the brief\n", w, r[4], (c / best - 1) * 100
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "within 15%"
+  - id: w5-fits
+    description: "w5's size meets the sizing policy and w5's brief: enough vCPUs and memory for its week, on a cloud and an architecture its brief allows."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w5" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w5/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=0
+      awk -F, -v w=w5 -v pick="$pick" -v cur=m7i.xlarge -v clouds=" aws azure " -v arch=x86 -v win=0 -v sql=0 -v gpu=0 -v short=0 -v hours=730 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        NR > 1 { vcpus[$4] = $7; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (pick == "") { print w ": no size given"; exit }
+          if (row == "") { print w ": " pick " is not a size in prices.csv"; exit }
+          split(row, r, ","); why = fits(r)
+          print (why == "" ? "fits" : w ": " r[4] " " why)
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "fits"
+  - id: w5-not-oversized
+    description: "A month of w5's size costs at most 15% more than the cheapest size that meets the policy and w5's brief, for the hours it runs."
+    command: |
+      pick=$(grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r' | awk -F, '$1 == "w5" {print $2; exit}' | sed 's/^Standard_//')
+      m=/srv/sizing/workloads/w5/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      avg=$(tail -n +2 $m | awk -F, '{t += $2} END {print t / NR}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      gpeak=0
+      awk -F, -v w=w5 -v pick="$pick" -v cur=m7i.xlarge -v clouds=" aws azure " -v arch=x86 -v win=0 -v sql=0 -v gpu=0 -v short=0 -v hours=730 \
+        -v p95="$p95" -v avg="$avg" -v peak="$peak" -v gpeak="$gpeak" '
+        function fits(r) {
+          if (index(clouds, " " r[2] " ") == 0) return "is on a cloud the brief does not allow"
+          if (arch != "any" && r[6] != arch) return (r[6] == "arm" ? "is an Arm size" : "is an x86 size")
+          if (r[7] * 0.6 < p95 / 100 * vcpus[cur]) return "has too few vCPUs for the policy"
+          if (r[8] * 0.8 < peak) return "has too little memory for the policy"
+          if (gpu && r[11] == "") return "has no GPU"
+          if (gpu && r[11] * 0.9 < gpeak) return "has too little GPU memory for the policy"
+          if (r[12] != "" && (!short || avg / 100 * vcpus[cur] > r[12] / 100 * r[7])) return "is a burstable size the policy rules out for " w
+          if (win && r[14] == "") return "has no Windows price"
+          return ""
+        }
+        function cost(r,  p) {
+          if (win && r[14] == "") return -1
+          p = (win ? r[14] : r[13])
+          if (sql) p += rate[r[2]] * (r[7] < 4 ? 4 : r[7])
+          return p * hours
+        }
+        BEGIN { rate["aws"] = 0.12; rate["azure"] = 0.10; rate["gcp"] = 0.12; best = -1 }
+        NR > 1 { vcpus[$4] = $7; rows[NR] = $0; if (tolower($4) == tolower(pick)) row = $0 }
+        END {
+          if (row == "") { print w ": [" pick "] is not a size in prices.csv"; exit }
+          for (i in rows) {
+            split(rows[i], r, ",")
+            if (fits(r) == "") { c = cost(r); if (best < 0 || c < best) best = c }
+          }
+          split(row, r, ","); c = cost(r)
+          if (c < 0) { print w ": " r[4] " has no price for the licences " w " needs"; exit }
+          if (c <= best * 1.15) print "within 15%"
+          else printf "%s: %s costs %.0f%% more a month than the cheapest size that meets the policy and the brief\n", w, r[4], (c / best - 1) * 100
+        }' /srv/sizing/prices.csv
+    expect:
+      equals: "within 15%"
+  - id: estimates-right
+    description: "Every row's monthly_usd is within 15% of what a month of the size chosen costs, for the hours the workload runs, licences included."
+    command: |
+      cost() {
+        awk -F, -v i="$1" -v win="$2" -v sql="$3" -v hours="$4" '
+          BEGIN { rate["aws"] = 0.12; rate["azure"] = 0.10; rate["gcp"] = 0.12 }
+          NR > 1 && tolower($4) == tolower(i) {
+            if (win && $14 == "") exit
+            c = (win ? $14 : $13); if (sql) c += rate[$2] * ($7 < 4 ? 4 : $7)
+            printf "%.4f\n", c * hours; exit
+          }' /srv/sizing/prices.csv
+      }
+      field() { grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r$' | awk -F, -v w="$1" -v f="$2" '$1 == w {print $f; exit}'; }
+      for spec in w1:0:0:730 w2:1:1:730 w3:0:0:730 w4:0:0:120 w5:0:0:730; do
+        IFS=: read -r w win sql hours <<< "$spec"
+        pick=$(field "$w" 2 | sed 's/^Standard_//'); said=$(field "$w" 3)
+        real=$(cost "$pick" "$win" "$sql" "$hours")
+        [ -n "$real" ] || { echo "$w: [$pick] is not a size in prices.csv with a price for its licences"; exit 0; }
+        awk -v said="$said" -v t="$real" 'BEGIN {d = said - t; exit !(said ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.15 * t && d >= -0.15 * t)}' \
+          || { echo "$w: [$said] a month is not within 15% of what $pick costs for the hours $w runs, licences included"; exit 0; }
+      done
+      echo "all within 15%"
+    expect:
+      equals: "all within 15%"
+  - id: saving-right
+    description: "The saving is within 15% of what the workloads cost a month on the machines they run on now, minus what the sizes chosen cost."
+    command: |
+      cost() {
+        awk -F, -v i="$1" -v win="$2" -v sql="$3" -v hours="$4" '
+          BEGIN { rate["aws"] = 0.12; rate["azure"] = 0.10; rate["gcp"] = 0.12 }
+          NR > 1 && tolower($4) == tolower(i) {
+            if (win && $14 == "") exit
+            c = (win ? $14 : $13); if (sql) c += rate[$2] * ($7 < 4 ? 4 : $7)
+            printf "%.4f\n", c * hours; exit
+          }' /srv/sizing/prices.csv
+      }
+      field() { grep -v '^[[:space:]]*#' /home/learner/sizing/answers.csv | tr -d ' \r$' | awk -F, -v w="$1" -v f="$2" '$1 == w {print $f; exit}'; }
+      total=0
+      for spec in w1:m7i.2xlarge:0:0:730 w2:r7i.2xlarge:1:1:730 w3:D4s_v6:0:0:730 w4:a2-highgpu-1g:0:0:120 w5:m7i.xlarge:0:0:730; do
+        IFS=: read -r w now win sql hours <<< "$spec"
+        then=$(cost "$now" "$win" "$sql" "$hours")
+        pick=$(field "$w" 2 | sed 's/^Standard_//')
+        new=$(cost "$pick" "$win" "$sql" "$hours")
+        [ -n "$new" ] || { echo "the saving can only be checked once every row names a size in prices.csv with a price for its licences"; exit 0; }
+        total=$(awk -v t="$total" -v a="$then" -v b="$new" 'BEGIN {printf "%.4f", t + a - b}')
+      done
+      said=$(field saving 3)
+      awk -v said="$said" -v t="$total" 'BEGIN {
+        if (said !~ /^-?[0-9]+(\.[0-9]+)?$/) { print "the saving [" said "] is not a number"; exit }
+        d = said - t; if (d < 0) d = -d; m = (t < 0 ? -t : t)
+        if (d <= 0.15 * m) print "within 15%"; else print "the saving [" said "] is not within 15% of what the workloads cost now minus what the sizes chosen cost"
+      }'
+    expect:
+      equals: "within 15%"
