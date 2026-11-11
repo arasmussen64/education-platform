@@ -1,14 +1,14 @@
 id: mcq-chown
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You've unpacked a web app into `/srv/app` as yourself, and it should be owned by the `app` user and group, every file and folder included. Which command, and why does it need `sudo`?
 choices:
+  - "`sudo chmod -R app:app /srv/app`, because only root may change who owns a file"
+  - "`sudo chown app:app /srv/app`, because `chown` on a folder also changes all that is in it"
+  - "`sudo chgrp -R app /srv/app`, because `chgrp` sets the owner and the group to one name"
   - "`sudo chown -R app:app /srv/app`, because only root may give a file to another user"
-  - "`chmod -R app /srv/app`, because `chmod` changes the owner"
-  - "`chown app /srv/app`, which changes the folder and everything in it"
-  - "`sudo chgrp app /srv/app`, which sets both the owner and the group"
-answer: 0
+answer: 3
 explanation: |
-  `chown owner:group` sets both at once, and `-R` walks the whole tree; without `-R` only `/srv/app` itself changes. Handing a file to another user is a root-only operation (otherwise anyone could dump files into someone else's disk quota or make them look like someone else's), hence `sudo`. `chmod` is for permissions, not ownership, and `chgrp` changes only the group.
+  `chown owner:group` sets both at once, and `-R` walks the whole tree. Handing a file to another user is a root-only operation (otherwise anyone could dump files into someone else's disk quota, or make them look like someone else's), hence `sudo`. Without `-R`, only `/srv/app` itself changes and everything inside keeps its old owner. `chmod` sets permissions, not ownership, and `app:app` isn't a mode it understands. `chgrp` changes only the group, so the files would still be yours.
 skills: [chmod-chown]

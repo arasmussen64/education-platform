@@ -1,14 +1,14 @@
 id: mcq-sudo-why
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   On a shared server, why do administrators log in as themselves and use `sudo`, rather than logging in as `root`?
 choices:
-  - "Because `sudo` runs commands faster than root does"
-  - "Because each privileged command is then tied to a named person, asks for that person's own password, is logged, and can be limited to specific commands; a shared root login is anonymous and all-powerful all the time"
-  - "Because root can't run commands in `/home`"
-  - "Because `sudo` doesn't need a password"
-answer: 1
+  - "Each root command is then tied to a named person and logged, and can be limited to certain commands"
+  - "`sudo` runs a command with fewer rights than root has, so a mistyped command can't harm system files"
+  - "The root account can't open files under `/home`, so admins need their own accounts to reach user data"
+  - "`sudo` never asks for a password, which is safer than typing root's password where others can see it"
+answer: 0
 explanation: |
-  `sudo` gives root's power for one command at a time, with a name attached and a line in the log, so you can see who changed what, and `sudoers` can grant one group just one command. A root login does everything with no record of who was typing, and keeps that power for every command, including the mistyped ones. The usual default is that `sudo` *does* ask for your password, and remembers it for a few minutes.
+  `sudo` gives root's power for one command at a time, asks for *your own* password, and writes a line to the log saying who ran what; `sudoers` can grant one group just one command. A shared root login does everything with no record of who was typing, and keeps that power for every command, including the mistyped ones. A command run through `sudo` has all of root's rights, not fewer, so it can do just as much damage: the protection is that you only reach for it when you mean to. root can open any file, in `/home` or anywhere else. And by default `sudo` does ask for a password, yours, then remembers it for a few minutes.
 skills: [users-sudo]
