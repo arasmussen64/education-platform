@@ -82,8 +82,13 @@ export const RETRY_REFUSED_AFTER_MS = 12 * 60 * 60 * 1000
 function isDueForRetry(lastTriedAt: string, now: number): boolean {
   const lastTried = Date.parse(lastTriedAt)
   // A time that can't be read counts as long ago: better one request too
-  // many than an event that's never tried again.
-  return Number.isNaN(lastTried) || now - lastTried > RETRY_REFUSED_AFTER_MS
+  // many than an event that's never tried again. So does a time more than
+  // 12 hours in the future, which only a wrong clock can have written:
+  // otherwise the event would wait until the real date caught up.
+  return (
+    Number.isNaN(lastTried) ||
+    Math.abs(now - lastTried) > RETRY_REFUSED_AFTER_MS
+  )
 }
 
 /**
@@ -98,18 +103,25 @@ function isDueForRetry(lastTriedAt: string, now: number): boolean {
  *   rest exactly as they were for next time.
  *
  * Nothing is ever dropped, and another learner's events are never sent.
+ *
+ * `stillSignedIn` is asked before each event. Once it says no (the learner
+ * signed out, or someone else signed in, partway through), the rest wait:
+ * sent under another sign-in they would only be refused, and wait 12 hours
+ * more for it.
  */
 export async function retryRefused(
   outbox: Outbox,
   client: EventsClient,
   userId: string,
   now = Date.now(),
+  stillSignedIn: () => boolean = () => true,
 ): Promise<'done' | 'retry-later'> {
   const due = outbox
     .refused(userId)
     .filter((refusal) => isDueForRetry(refusal.at, now))
 
   for (const { event } of due) {
+    if (!stillSignedIn()) return 'retry-later'
     const result = await client.send([event])
     if (result.ok) {
       outbox.forgetRefused(event.id)

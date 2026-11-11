@@ -110,28 +110,40 @@ export function createOutbox(storage?: Storage) {
         at: new Date(now).toISOString(),
         attempts: (earlier ? (earlier.attempts ?? 1) : 0) + 1,
       }
-      // In place, so the list keeps its order and every other entry.
+      // In place, so the list keeps its order and every other entry. A
+      // second copy of this same event goes: before retries existed, two
+      // tabs refused at the same moment could each add one, and a copy left
+      // with its old time would be sent again on every save.
       const updated = earlier
-        ? all.map((entry) => (entry === earlier ? refusal : entry))
+        ? all.flatMap((entry) => {
+            if (entry === earlier) return [refusal]
+            return entry?.event?.id === event.id ? [] : [entry]
+          })
         : [...all, refusal]
       // Only leaves the outbox once it's safely on the refused list.
       if (write(REFUSED_KEY, updated)) remove([event.id])
     },
 
-    /** One learner's refused events, in the order they were first refused. */
+    /**
+     * One learner's refused events, in the order they were first refused.
+     * Each event is listed once, even if storage holds two copies of it.
+     */
     refused(userId: string): RefusedEvent[] {
-      return storedRefusals().flatMap((entry) =>
-        entry?.event?.user_id === userId
-          ? [
-              {
-                event: entry.event,
-                reason: entry.reason ?? '',
-                at: entry.at ?? '',
-                attempts: entry.attempts ?? 1,
-              },
-            ]
-          : [],
-      )
+      const listed = new Set<string>()
+      return storedRefusals().flatMap((entry) => {
+        if (!entry?.event) return []
+        const { event } = entry
+        if (event.user_id !== userId || listed.has(event.id)) return []
+        listed.add(event.id)
+        return [
+          {
+            event,
+            reason: entry.reason ?? '',
+            at: entry.at ?? '',
+            attempts: entry.attempts ?? 1,
+          },
+        ]
+      })
     },
 
     /** Forgets a refused event the server has now accepted. */

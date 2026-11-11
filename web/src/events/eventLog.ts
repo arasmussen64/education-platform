@@ -151,7 +151,9 @@ export function createEventLog({
    */
   async function retryRefusedEvents(user: string): Promise<void> {
     try {
-      await retryRefused(outbox, client(), user, now())
+      // Stops if the sign-in changes partway through, as it can when the
+      // learner signs out here or in another tab.
+      await retryRefused(outbox, client(), user, now(), () => userId === user)
     } catch (error) {
       console.error('Retrying refused events failed', error)
     }

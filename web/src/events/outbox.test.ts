@@ -129,6 +129,38 @@ describe('the outbox', () => {
     expect(stored).toHaveLength(3)
   })
 
+  it('keeps one entry for an event that storage holds twice', () => {
+    // Before retries existed, two tabs refused at the same moment could each
+    // add the same event.
+    const twice = eventRow({ id: 'twice' })
+    const old = {
+      event: twice,
+      reason: '400 : bad',
+      at: '2026-11-09T08:00:00.000Z',
+    }
+    const other = { ...old, event: eventRow({ id: 'other' }) }
+    localStorage.setItem(REFUSED_KEY, JSON.stringify([old, other, old]))
+    const outbox = createOutbox()
+    // It's one piece of work, so it's listed and counted once.
+    expect(outbox.refused(ADA).map(({ event }) => event.id)).toEqual([
+      'twice',
+      'other',
+    ])
+
+    // Refused again: both copies become one entry with the new time, so no
+    // copy is left looking overdue.
+    outbox.refuse(twice, '400 : still bad', NOON)
+    expect(JSON.parse(localStorage.getItem(REFUSED_KEY)!)).toEqual([
+      {
+        event: twice,
+        reason: '400 : still bad',
+        at: '2026-11-10T12:00:00.000Z',
+        attempts: 2,
+      },
+      other,
+    ])
+  })
+
   it('treats unreadable storage as empty', () => {
     localStorage.setItem('learner-events-outbox-v1', 'not json')
     expect(createOutbox().pending(ADA)).toEqual([])

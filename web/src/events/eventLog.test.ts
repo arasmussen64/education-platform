@@ -347,4 +347,25 @@ describe('events the server refuses', () => {
     expect(log.getStatus().refused).toBe(0)
     expect(outbox.refused(ADA)).toHaveLength(1)
   })
+
+  it('stops trying them when someone else signs in partway through', async () => {
+    const { log, outbox, client, wait } = await refuseOneAnswer()
+    log.record(ANSWER)
+    await vi.waitFor(() => expect(log.getStatus().refused).toBe(2))
+    await vi.waitFor(() => expect(log.getStatus().syncing).toBe(false))
+    client.send.mockClear()
+    wait(RETRY_REFUSED_AFTER_MS + 1000)
+
+    // Bob signs in (in another tab, say) while Ada's first event is being
+    // sent again. Her second must not go out under his sign-in.
+    client.send.mockImplementation(() => {
+      log.setUser(BOB)
+      return Promise.resolve(REFUSED)
+    })
+    await log.sync()
+    await vi.waitFor(() => expect(log.getStatus().syncing).toBe(false))
+
+    expect(client.send).toHaveBeenCalledTimes(1)
+    expect(outbox.refused(ADA).map(({ attempts }) => attempts)).toEqual([2, 1])
+  })
 })

@@ -228,4 +228,63 @@ describe('retryRefused', () => {
     await retryRefused(outbox, server, ADA, NOON)
     expect(server.stored).toEqual(['no-time'])
   })
+
+  it('tries an event whose last attempt is dated far in the future', async () => {
+    // The device's clock was a year ahead when the event was refused, and
+    // has been put right since. Waiting for that date would take a year.
+    const outbox = createOutbox()
+    const aYearAhead = NOON + 365 * 24 * 60 * 60 * 1000
+    outbox.refuse(eventRow({ id: 'wrong-clock' }), REFUSED.message, aYearAhead)
+    const server = pickyServer([])
+
+    await retryRefused(outbox, server, ADA, NOON)
+    expect(server.stored).toEqual(['wrong-clock'])
+  })
+
+  it('sends an event that storage holds twice only once, and waits 12 hours after it is refused again', async () => {
+    // Two copies of one event, as two tabs could leave before retries
+    // existed.
+    const twice = eventRow({ id: 'twice' })
+    const old = { event: twice, reason: '400', at: '2026-11-09T08:00:00.000Z' }
+    localStorage.setItem(
+      'learner-events-rejected-v1',
+      JSON.stringify([old, old]),
+    )
+    const outbox = createOutbox()
+    const client = fakeEventsClient(REFUSED)
+
+    await retryRefused(outbox, client, ADA, NOON)
+    expect(client.send).toHaveBeenCalledTimes(1)
+    expect(outbox.refused(ADA)).toEqual([
+      expect.objectContaining({ event: twice, attempts: 2 }),
+    ])
+
+    // An hour later, on the next save: nothing is due.
+    client.send.mockClear()
+    await retryRefused(outbox, client, ADA, NOON + 60 * 60 * 1000)
+    expect(client.send).not.toHaveBeenCalled()
+  })
+
+  it('stops as soon as the learner is no longer the one signed in', async () => {
+    const outbox = createOutbox()
+    for (const id of ['first', 'second', 'third']) {
+      outbox.refuse(eventRow({ id }), REFUSED.message, NOON)
+    }
+    // The sign-in changes while the first event is on its way.
+    let signedIn = true
+    const client = fakeEventsClient(REFUSED)
+    client.send.mockImplementation(() => {
+      signedIn = false
+      return Promise.resolve(REFUSED)
+    })
+
+    expect(
+      await retryRefused(outbox, client, ADA, NEXT_DAY, () => signedIn),
+    ).toBe('retry-later')
+    expect(client.send).toHaveBeenCalledTimes(1)
+    // The other two weren't sent, so they're still due next time.
+    expect(outbox.refused(ADA).map(({ attempts }) => attempts)).toEqual([
+      2, 1, 1,
+    ])
+  })
 })
