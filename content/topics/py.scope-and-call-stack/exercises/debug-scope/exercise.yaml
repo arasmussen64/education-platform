@@ -1,13 +1,18 @@
 id: debug-scope
 stage: debug
-rev: 1
+rev: 2
 title: "A plant that won't grow"
 prompt: |
-  This program should print:
+  This program starts a plant at 10 cm, grows it by 5 cm, and reports how tall it is. It should print:
 
   ```
   The plant is 15 cm tall
   ```
 
-  It has three bugs, all about values that don't make it from one function to another. Trace it: when `grow` changes `plant_height`, whose variable is that? Where does `message` live? Fix it without the `global` keyword: pass values in and return them out.
+  Instead it stops with a `NameError`. It has three bugs, and fixing one shows the next. Trace it before you change anything, then run the checks, which also call `grow` and `report` on their own.
+hints:
+  - "Read the error's last line: which name is missing? Find the function where that name was made, and think about what happens to its variables when it returns."
+  - "`message` is made inside `report`, so it's local: it's gone when `report` returns. Have `report` return the sentence, and have `main` print what comes back."
+  - "Once it prints, the height is still 10. `grow` changes its own `plant_height`, a local copy, so `main`'s `height` never changes. Have `grow` return the new height, and have `main` keep it: `height = grow(height)`."
+  - "The `global` keyword would hide the problem rather than fix it: the checks call `grow(10)` and expect 15 back."
 skills: [local-global, pass-dont-reach, call-stack]
