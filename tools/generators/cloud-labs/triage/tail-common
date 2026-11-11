@@ -1,0 +1,12 @@
+
+# The triage tools on top of the shared base: sysstat (vmstat is in procps,
+# but iostat, mpstat, pidstat and sar come from here) and strace. The
+# sysstat background collector and its timers are switched off; the labs
+# sample live, with an interval, and don't need the historical data.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends sysstat strace \
+ && rm -rf /var/lib/apt/lists/* \
+ && systemctl disable sysstat.service sysstat-collect.timer sysstat-summary.timer 2>/dev/null; \
+    rm -f /etc/systemd/system/multi-user.target.wants/sysstat.service \
+          /etc/systemd/system/sysstat.service.wants/sysstat-collect.timer \
+          /etc/systemd/system/sysstat.service.wants/sysstat-summary.timer

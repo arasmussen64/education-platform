@@ -1,0 +1,14 @@
+#!/usr/bin/python3
+"""shop-db: the shop's database, correctly bound to 127.0.0.1 only, so it's
+reachable from this machine and nowhere else. Not an exposed door."""
+
+import socket
+
+server = socket.socket()
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(("127.0.0.1", 5432))
+server.listen(8)
+print("shop-db listening on 127.0.0.1:5432", flush=True)
+while True:
+    connection, _ = server.accept()
+    connection.close()

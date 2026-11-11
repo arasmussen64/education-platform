@@ -1,0 +1,10 @@
+
+# The leaking cache, warmed at boot by thirty connections it never closes
+# its side of, and an empty ~/bin for the script.
+COPY shop-cache shop-cache-warm /usr/local/bin/
+COPY shop-cache.service shop-cache-warm.service /etc/systemd/system/
+RUN chmod 755 /usr/local/bin/shop-cache /usr/local/bin/shop-cache-warm \
+ && for unit in shop-cache shop-cache-warm; do ln -s /etc/systemd/system/$unit.service /etc/systemd/system/multi-user.target.wants/$unit.service; done \
+ && mkdir -p /home/learner/bin && chown learner:learner /home/learner/bin
+
+CMD ["/sbin/init"]

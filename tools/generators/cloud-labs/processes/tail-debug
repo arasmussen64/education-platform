@@ -1,0 +1,15 @@
+
+# The three workers (one program under three names), the starter that runs
+# them at boot, and the broken stop script in the learner's ~/bin.
+COPY worker /srv/shop/workers/order-worker
+COPY worker /srv/shop/workers/mail-worker
+COPY worker /srv/shop/workers/report-worker
+COPY start-workers /srv/shop/start-workers
+COPY shop-workers.service /etc/systemd/system/shop-workers.service
+COPY stop-workers.starter /home/learner/bin/stop-workers
+RUN chmod 755 /srv/shop/workers/* /srv/shop/start-workers /home/learner/bin/stop-workers \
+ && chown -R learner:learner /home/learner/bin \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/shop-workers.service /etc/systemd/system/multi-user.target.wants/shop-workers.service
+
+CMD ["/sbin/init"]

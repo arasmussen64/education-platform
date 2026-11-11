@@ -1,0 +1,12 @@
+
+# The shop's server with everything done except the firewall: shop-api is
+# enabled and running and SSH is hardened; there's no firewall yet. That
+# one part is the step.
+COPY shop-api /usr/local/bin/shop-api
+COPY shop-api.service /etc/systemd/system/shop-api.service
+COPY 90-hardening.conf /etc/ssh/sshd_config.d/90-hardening.conf
+RUN chmod 755 /usr/local/bin/shop-api && chmod 644 /etc/ssh/sshd_config.d/90-hardening.conf \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/shop-api.service /etc/systemd/system/multi-user.target.wants/shop-api.service
+
+CMD ["/sbin/init"]

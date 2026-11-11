@@ -1,0 +1,12 @@
+
+# A CPU-bound worker running at boot, so the report has a clear busiest
+# process, and the report with its gaps.
+COPY spin /usr/local/bin/shop-worker
+COPY shop-worker.service /etc/systemd/system/shop-worker.service
+COPY triage-report.starter /home/learner/bin/triage-report
+RUN chmod 755 /usr/local/bin/shop-worker /home/learner/bin/triage-report \
+ && chown -R learner:learner /home/learner/bin \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/shop-worker.service /etc/systemd/system/multi-user.target.wants/shop-worker.service
+
+CMD ["/sbin/init"]

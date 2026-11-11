@@ -1,0 +1,13 @@
+
+# The lab's disks: image files attached as block devices at boot (disks.sh)
+# and let go of when the lab stops (teardown.sh, which the checker runs),
+# the "cloud console" stand-in that grows one (lab-grow), and LVM told not
+# to wait for udev, which a container doesn't run.
+COPY disks.sh /usr/local/lib/lab/disks.sh
+COPY teardown.sh /usr/local/lib/lab/teardown.sh
+COPY lab-grow /usr/local/bin/lab-grow
+COPY lab-disks.service /etc/systemd/system/lab-disks.service
+RUN chmod 755 /usr/local/lib/lab/disks.sh /usr/local/lib/lab/teardown.sh /usr/local/bin/lab-grow \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants /etc/lab /var/lib/lab \
+ && ln -s /etc/systemd/system/lab-disks.service /etc/systemd/system/multi-user.target.wants/lab-disks.service \
+ && sed -i -E 's/^(\s*)#?\s*udev_sync = 1/\1udev_sync = 0/; s/^(\s*)#?\s*udev_rules = 1/\1udev_rules = 0/; s/^(\s*)#?\s*monitoring = 1/\1monitoring = 0/' /etc/lvm/lvm.conf

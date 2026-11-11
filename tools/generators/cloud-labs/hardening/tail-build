@@ -1,0 +1,12 @@
+
+# An unhardened server with a debugging port open to the world (9000), for
+# the learner to lock down. nftables is installed with no ruleset and its
+# service off, as on a fresh server.
+COPY shop-debug /usr/local/bin/shop-debug
+COPY shop-debug.service /etc/systemd/system/shop-debug.service
+RUN chmod 755 /usr/local/bin/shop-debug \
+ && mkdir -p /home/learner/bin /etc/systemd/system/multi-user.target.wants \
+ && chown learner:learner /home/learner/bin \
+ && ln -s /etc/systemd/system/shop-debug.service /etc/systemd/system/multi-user.target.wants/shop-debug.service
+
+CMD ["/sbin/init"]

@@ -1,0 +1,12 @@
+
+# The shop's data disk, the log shipper that holds a deleted log open, and
+# an empty ~/bin for the script.
+COPY make-disks.sh /usr/local/lib/lab/make-disks.sh
+COPY log-shipper /usr/local/lib/lab/log-shipper
+COPY log-shipper.service /etc/systemd/system/log-shipper.service
+RUN bash /usr/local/lib/lab/make-disks.sh && rm /usr/local/lib/lab/make-disks.sh \
+ && chmod 755 /usr/local/lib/lab/log-shipper \
+ && ln -s /etc/systemd/system/log-shipper.service /etc/systemd/system/multi-user.target.wants/log-shipper.service \
+ && mkdir -p /home/learner/bin && chown learner:learner /home/learner/bin
+
+CMD ["/sbin/init"]
