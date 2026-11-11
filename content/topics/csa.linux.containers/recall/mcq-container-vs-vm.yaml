@@ -1,14 +1,16 @@
 id: mcq-container-vs-vm
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   Which statement about containers and virtual machines is correct?
 choices:
-  - "A container has its own kernel, like a VM, just a smaller one"
-  - "A VM runs its own kernel on a hypervisor: slower to start and heavier, but a guest kernel bug stays in the guest. A container shares the host's kernel: starts in milliseconds and packs densely, but a kernel vulnerability or a privileged container reaches the host and every other container"
-  - "Containers are more secure than VMs because namespaces are stronger than hypervisors"
-  - "A VM can't run containers inside it"
-answer: 1
+  - "A VM boots its own kernel on a hypervisor, while containers share the kernel of the host they run on"
+  - "A container boots its own small kernel, which is why it starts faster than a VM's full-sized one"
+  - "Containers are isolated more strongly than VMs, because namespaces are built into the kernel itself"
+  - "A bug in a container's kernel stays in that container, while a bug in a VM's kernel reaches its host"
+answer: 0
 explanation: |
-  The shared kernel is both the point and the price. One kernel means no boot, no duplicate memory for a second operating system, and dozens of containers per host; it also means the isolation is only as good as namespaces, cgroups, capabilities and seccomp, all of which live in that one kernel. Clouds and multi-tenant platforms run untrusted containers inside small VMs (Firecracker, or gVisor-style sandboxes) to get both properties, and a VM running containers is the normal case: every Kubernetes node is one.
+  The shared kernel is both the point and the price. A VM runs its own kernel on a hypervisor: slower to start and heavier, but a guest kernel bug stays in the guest. A container has no kernel of its own, small or otherwise: it uses the host's, which is why it starts in milliseconds and dozens fit on one host.
+
+  That also makes the isolation weaker, not stronger. It is only as good as namespaces, cgroups, capabilities and seccomp, all of which live in that one kernel, so a kernel vulnerability or a privileged container reaches the host and every other container. Clouds and multi-tenant platforms run untrusted containers inside small VMs (Firecracker, or gVisor-style sandboxes) to get both properties, and a VM running containers is the normal case: every Kubernetes node is one.
 skills: [container-vs-vm]
