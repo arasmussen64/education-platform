@@ -40,10 +40,11 @@ peak=$(tail -n +2 $r/sizing/metrics.csv | cut -d, -f3 | sort -n | tail -n 1)
 echo "p95 $p95% of 16 vCPUs, peak $peak GiB"
 echo "size.web=$(awk -F, -v p95="$p95" -v peak="$peak" 'NR > 1 && p95 / 100 * 16 <= 0.70 * $2 && peak <= 0.75 * $3 {print $4, $1}' $r/sizing/sizes.csv | sort -n | head -n 1 | cut -d' ' -f2)" >> answers.txt
 
-# The ticket: no steal (0.1% between the stat files), no throttling (no
-# quota, nr_throttled 0), memory fine (no throttle, nothing in memory
-# pressure), every CPU busy rather than one; but r, the tasks ready to run,
-# is far above the 4 CPUs, and CPU pressure is high. Too few CPUs.
+# The ticket: no steal (12 ticks of 24,000 between the stat files, 0.05%),
+# no throttling (no quota, nr_throttled 0), memory fine (no throttle,
+# nothing in memory pressure), every CPU busy rather than one; but r, the
+# tasks ready to run, is far above the 4 CPUs, and CPU pressure is high.
+# Too few CPUs.
 echo "ticket.cause=too-few-cpus" >> answers.txt
 echo "ticket.evidence=$(awk 'NR > 2 {t += $1; n++} END {printf "%.1f", t / n}' $r/ticket/vmstat.txt)" >> answers.txt
 echo "ticket.fix=more-vcpus" >> answers.txt

@@ -1,5 +1,5 @@
-# Wrong: the slow VM put down to steal. Its steal over the minute is a
-# tenth of a percent; what stands out is r, about ten tasks ready to run
+# Wrong: the slow VM put down to steal. Its steal over the minute is about
+# 0.05% (12 ticks of 24,000); what stands out is r, about ten tasks ready to run
 # on four CPUs, with no limit holding them back.
 cat > ~/review/answers.txt <<'EOF'
 cores.app-1=4
