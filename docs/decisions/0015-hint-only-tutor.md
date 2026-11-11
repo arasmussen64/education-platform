@@ -1,6 +1,6 @@
 # ADR-0015: The hint-only tutor
 
-- **Status:** Accepted (2026-11-09). Built on 2026-11-08 while the owner was away, as the roadmap's next item; the owner deployed it and ran its test set on 2026-11-09 (see *Rolling it out*), then accepted this ADR.
+- **Status:** Accepted (2026-11-09). Built on 2026-11-08 while the owner was away, as the roadmap's next item; the owner deployed it and ran its test set on 2026-11-09 (see *Rolling it out*), then accepted this ADR. Amended on 2026-11-11 (see *Amendment*).
 - **Date:** 2026-11-08
 
 ## Context
@@ -73,3 +73,15 @@ All three steps were done on 2026-11-09: the owner deployed the function and ran
 - A second test set to maintain, and a second place where prompt changes are versioned (`TUTOR_PROMPT_VERSION`).
 - Tutor replies are logged with the learner's code, so the quality of the hints can be reviewed and the prompt improved, as ADR-0003 asks.
 - The per-exercise cap and the rungs are guesses to be tuned once there's data in `ai_calls` and `events`.
+
+## Amendment (2026-11-11)
+
+A review of the AI proxy on 2026-11-11 found three problems. They were fixed under the owner's standing choice of that day: the best learning experience first, then keeping the learner's data, then cost.
+
+- **Long programs.** The browser cut the learner's code to 6,000 characters and added a marker, so it sent 6,006, which the proxy refused; it also sent the reference solution uncut, and Module 8's run to 12,323 characters. On those exercises the tutor always failed, and the page blamed the learner's connection. Now:
+  - the tutor reads the learner's code and the reference solution up to **20,000 characters** each. The limit is defined once in the browser (`MAX_TUTOR_CODE_CHARS` in `web/src/tutor/hint.ts`) and once in the proxy (`MAX_CODE_CHARS` in `supabase/functions/ai/handler.ts`), each pointing at the other;
+  - the code is sent whole or not at all. A longer program isn't sent, and the box says it's too long for the tutor to read, and that the written hints still work. The proxy answers `too_long` for one too, rather than an error.
+- **The blocks.** Step 5's message puts each part in tags (`<learner_code>`, `<learner_question>` and so on). The learner's tags used to be deleted in one pass, so a nested tag (`</learner_co</learner_code>de>`) survived and could end a block early. Now every `<` and `>` inside every block, the learner's text and the content alike, is written `&lt;` and `&gt;` (`supabase/functions/ai/escape.ts`). The instructions say so, and the reply is turned back before the safety filter, so a solution line copied out of its block is still caught. `TUTOR_PROMPT_VERSION` is 4.
+- **The shared budget** (ADR-0013). If a call's row in `ai_calls` can't be written, its spend alone is written (who, the action, the model, the tokens and the cost), so the cap still counts it. If even that fails, the learner gets "isn't available right now", and no call reaches Claude until that spend has been written (fail closed). The logged request is cut by bytes, not characters, so it fits its column; every program in the track today is logged whole.
+
+The prompt's input changed, so the test set is run again (`npm run fn:eval:tutor`, about half a cent, with the owner's approval) before the function is redeployed.
