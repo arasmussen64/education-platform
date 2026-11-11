@@ -1,9 +1,9 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
-import { getTopic } from '../content/content.ts'
+import { getTopic, loadTopicContent } from '../content/content.ts'
 import { dayOf } from '../days.ts'
 import { EventsProvider } from '../events/EventsProvider.tsx'
 import type { Attempt } from '../followups/followUps.ts'
@@ -32,6 +32,23 @@ vi.mock(
   '../components/CodeEditor.tsx',
   () => import('../test/FakeCodeEditor.tsx'),
 )
+// The real content loads as usual; tests can see which topics did, or make
+// a download fail.
+vi.mock('../content/content.ts', async (importOriginal) => {
+  const content = await importOriginal<typeof import('../content/content.ts')>()
+  return { ...content, loadTopicContent: vi.fn(content.loadTopicContent) }
+})
+
+// The page reads the clock; every test here sees the same afternoon. Only
+// Date is pinned, so the page's timers still run.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 10, 11, 15, 0))
+  vi.mocked(loadTopicContent).mockClear()
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 const COMMAS =
   'Print several pieces of text on one line, with commas between them'
@@ -70,8 +87,8 @@ function renderToday(
 ) {
   vi.mocked(fetchPlacements).mockResolvedValue(placements)
   if (history instanceof Error) {
-    // The page reads the history twice (mistakes to revisit, then next up);
-    // the first read fails.
+    // The page reads the history once, for everything on it; that read
+    // fails, and the next one works.
     vi.mocked(fetchAttempts).mockResolvedValue([])
     vi.mocked(fetchAttempts).mockRejectedValueOnce(history)
   } else {
@@ -277,12 +294,64 @@ describe('the Today page', () => {
 
   it('offers to try again when the history fails to load', async () => {
     renderToday(new Error('offline'))
-    vi.mocked(fetchAttempts).mockResolvedValue([])
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Try again' }),
-    )
+    expect(
+      await screen.findByText(
+        "Your progress couldn't load. Check your connection, then try again.",
+      ),
+    ).toBeInTheDocument()
+    // Nothing else shows meanwhile: every part of the plan needs it.
+    expect(screen.queryByRole('region', { name: 'Reviews' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Next up' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await revisitSection()).toHaveTextContent(
       'Nothing to revisit today.',
+    )
+    expect(screen.getByRole('region', { name: 'Next up' })).toBeInTheDocument()
+  })
+
+  it('reads the history once for the whole page', async () => {
+    renderToday([answer('predict-four-lines', false, daysAgo(1))])
+    await revisitSection()
+    await screen.findByRole('region', { name: 'Next up' })
+    await screen.findByText('No reviews due today.')
+    expect(fetchAttempts).toHaveBeenCalledTimes(1)
+  })
+
+  it("downloads only the topics of today's questions in full", async () => {
+    renderToday([
+      // Due today: its topic is needed for the question.
+      answer('predict-four-lines', false, daysAgo(1)),
+      // Missed today, so back tomorrow: listed from the topic's outline.
+      {
+        ...answer('mcq-which-type', false, daysAgo(0)),
+        topic_id: 'py.values-and-types',
+      },
+    ])
+    expect(await revisitSection()).toHaveTextContent(COMMAS)
+    expect(
+      screen.getByRole('region', { name: 'Coming back later' }),
+    ).toHaveTextContent(
+      'Tell str, int and float apart, and check with type() (Values and types): tomorrow',
+    )
+    expect(
+      vi.mocked(loadTopicContent).mock.calls.map(([topicId]) => topicId),
+    ).toEqual(['py.programs-and-print'])
+  })
+
+  it("offers to try again when today's questions fail to download", async () => {
+    vi.mocked(loadTopicContent).mockRejectedValueOnce(new Error('offline'))
+    renderToday([answer('predict-four-lines', false, daysAgo(1))])
+    const revisit = await revisitSection()
+    expect(
+      await within(revisit).findByText(
+        "Today's questions to revisit couldn't load. Check your connection, then try again.",
+      ),
+    ).toBeInTheDocument()
+    await userEvent.click(
+      within(revisit).getByRole('button', { name: 'Try again' }),
+    )
+    expect(await revisitSection()).toHaveTextContent(
+      'What does this line print?',
     )
   })
 
@@ -353,6 +422,24 @@ describe('reviews on the Today page', () => {
       screen.getByRole('region', { name: 'Quick check' }),
     ).toBeInTheDocument()
     expect(within(reviews).getAllByText(/Review \d of 2/)).toHaveLength(2)
+  })
+
+  it('offers to try again when a review fails to download', async () => {
+    // Offline, or the site was updated while the tab was open.
+    vi.mocked(loadTopicContent).mockRejectedValueOnce(new Error('offline'))
+    renderToday(learnedDaysAgo(10))
+    const reviews = await reviewsSection()
+    expect(
+      await within(reviews).findByText(
+        "Your reviews couldn't load. Check your connection, then try again.",
+      ),
+    ).toBeInTheDocument()
+    await userEvent.click(
+      within(reviews).getByRole('button', { name: 'Try again' }),
+    )
+    expect(
+      await screen.findByText(/One topic is due for a review/),
+    ).toBeInTheDocument()
   })
 
   it("isn't due the day after Learned", async () => {

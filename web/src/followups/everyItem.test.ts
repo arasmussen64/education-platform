@@ -10,10 +10,8 @@ import type { TopicContent } from '../content/types.ts'
 import {
   type Attempt,
   chooseQuestion,
+  itemsIn,
   openFollowUps,
-  skillsIn,
-  testSkillsIn,
-  topicsNamedByTests,
 } from './followUps.ts'
 
 // The promise behind ADR-0011, checked against the real content in
@@ -49,7 +47,7 @@ describe.each(readyTopics)('%s', (topicId) => {
         correct: false,
         occurred_at: yesterday,
       }
-      const open = openFollowUps([missed], skillsIn(contents))
+      const open = openFollowUps([missed], itemsIn(contents))
       expect(
         open.map((followUp) => followUp.skillId).sort(),
         `${item.id} opens a follow-up for each of its skills`,
@@ -71,6 +69,26 @@ describe.each(readyTopics)('%s', (topicId) => {
             true,
           )
         }
+        // And getting that question right once it's due moves the
+        // follow-up on, so no follow-up can get stuck (ADR-0011, amended
+        // 2026-11-11). 36 hours later is always a later calendar day.
+        const right: Attempt = {
+          ...missed,
+          id: `right-${question}`,
+          type: question && content.recall[question] ? 'answer' : 'code_check',
+          item_id: question ?? '',
+          correct: true,
+          occurred_at: new Date(
+            Date.parse(yesterday) + 36 * 60 * 60 * 1000,
+          ).toISOString(),
+        }
+        const after = openFollowUps([missed, right], itemsIn(contents)).find(
+          (each) => each.skillId === followUp.skillId,
+        )
+        expect(
+          after?.correctOn,
+          `${where}: a right answer counts`,
+        ).toHaveLength(1)
       }
     }
   })
@@ -83,6 +101,14 @@ describe.each(readyTopics)('%s', (topicId) => {
 const readyCheckpoints = readyTopics.filter(
   (id) => getTopic(id)?.kind === 'checkpoint',
 )
+
+/** The topics whose skills a checkpoint's tests name ("topic/skill"). */
+function topicsNamedBy(checkpoint: TopicContent): string[] {
+  const refs = Object.values(checkpoint.exercises).flatMap((exercise) =>
+    Object.values(exercise.test_skills).flat(),
+  )
+  return [...new Set(refs.map((ref) => ref.split('/')[0] ?? ''))]
+}
 
 describe('ready checkpoints', () => {
   // Loads every ready checkpoint and every topic its tests name, which takes
@@ -97,7 +123,7 @@ describe('ready checkpoints', () => {
         const contents = new Map<string, TopicContent>([
           [checkpointId, checkpoint],
         ])
-        for (const topicId of topicsNamedByTests(contents)) {
+        for (const topicId of topicsNamedBy(checkpoint)) {
           const content = await loadTopicContent(topicId)
           if (content) contents.set(topicId, content)
         }
@@ -122,11 +148,7 @@ describe('ready checkpoints', () => {
               failing: [test],
             }
             const where = `${checkpointId} ${itemId} ${test}`
-            const open = openFollowUps(
-              [failed],
-              skillsIn(contents),
-              testSkillsIn(contents),
-            )
+            const open = openFollowUps([failed], itemsIn(contents))
             expect(
               open.map((followUp) => `${followUp.topicId}/${followUp.skillId}`),
               `${where} opens a follow-up for each skill it names`,

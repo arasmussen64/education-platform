@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { Markdown } from '../components/Markdown.tsx'
@@ -9,7 +9,6 @@ import {
   getTopic,
   getTrack,
   isOpen,
-  loadTopicContent,
   placeOf,
   topicIdsOf,
   tracks,
@@ -17,12 +16,14 @@ import {
 import type { Topic, TopicContent, Track } from '../content/types.ts'
 import { addDays, type Day, dayOf } from '../days.ts'
 import {
+  type Attempt,
   CORRECT_DAYS_NEEDED,
   type FollowUp,
   type PlannedCard,
   planCards,
+  topicsToLoad,
 } from '../followups/followUps.ts'
-import { type FollowUpsState, useFollowUps } from '../followups/useFollowUps.ts'
+import { useTopicContents } from '../followups/useTopicContents.ts'
 import {
   formatDuration,
   formatHours,
@@ -76,7 +77,10 @@ export function TodayPage() {
   )
 }
 
-/** The signed-in learner's plan. The progress is read once, for all of it. */
+/**
+ * The signed-in learner's plan. The history is read once, for all of it:
+ * reviews, mistakes to revisit, next up and practice hours all come from it.
+ */
 function Plan() {
   // The topics bundled with the app. An outline-only track's topics aren't,
   // and don't need to be: nothing in them can be due or next (content.ts).
@@ -91,13 +95,28 @@ function Plan() {
   const progress = useProgress(topics)
   // Read the clock once, when the page opens.
   const [now] = useState(() => new Date().toISOString())
+  if (progress.status === 'failed') {
+    return <CouldNotLoad what="Your progress" retry={progress.retry} />
+  }
   return (
     <>
       <Reviews topics={topics} progress={progress} now={now} />
-      <Revisit />
+      <Revisit progress={progress} />
       <NextUp topics={topics} progress={progress} />
       <PracticeHours progress={progress} now={now} />
     </>
+  )
+}
+
+/** Says what couldn't load, with a button to try again. */
+function CouldNotLoad({ what, retry }: { what: string; retry: () => void }) {
+  return (
+    <div className="space-y-2">
+      <p>{what} couldn't load. Check your connection, then try again.</p>
+      <button type="button" onClick={retry} className={BUTTON}>
+        Try again
+      </button>
+    </div>
   )
 }
 
@@ -219,35 +238,24 @@ function Reviews({
   if (progress.status === 'ready' && due === null) {
     setDue(dueReviews(topics.filter(isOpen), progress.progress, now))
   }
-  const [contents, setContents] = useState<Map<string, TopicContent> | null>(
-    null,
+  const ids = useMemo(
+    () => (due === null ? null : due.map((review) => review.topic.id)),
+    [due],
   )
-  useEffect(() => {
-    if (due === null) return
-    let active = true
-    Promise.all(due.map((review) => loadTopicContent(review.topic.id))).then(
-      (loaded) => {
-        if (!active) return
-        const found = loaded.filter((content) => content !== null)
-        setContents(
-          new Map(found.map((content) => [content.topic.id, content])),
-        )
-      },
-    )
-    return () => {
-      active = false
-    }
-  }, [due])
+  const loaded = useTopicContents(ids)
 
   if (progress.status === 'signed-out' || progress.status === 'failed') {
     return null
   }
+  const contents = loaded.status === 'ready' ? loaded.contents : null
   return (
     <section aria-labelledby="reviews" className="space-y-4">
       <h2 id="reviews" className="text-xl font-semibold">
         Reviews
       </h2>
-      {due === null || contents === null || progress.status !== 'ready' ? (
+      {loaded.status === 'failed' ? (
+        <CouldNotLoad what="Your reviews" retry={loaded.retry} />
+      ) : due === null || contents === null || progress.status !== 'ready' ? (
         <p className="text-slate-500 dark:text-slate-400">
           Loading your reviews…
         </p>
@@ -457,16 +465,17 @@ function PlacementNote({
   )
 }
 
-type Ready = Extract<FollowUpsState, { status: 'ready' }>
-
 /** A question to ask today, with the follow-ups it answers. */
 type Card = PlannedCard & { key: string }
 
 const keyOf = (followUp: FollowUp) => `${followUp.topicId}/${followUp.skillId}`
 
-function dueCards(state: Ready, today: Day): Card[] {
-  const due = state.open.filter((followUp) => followUp.due <= today)
-  return planCards(due, state.contents, state.attempts).map((card) => ({
+function dueCards(
+  due: FollowUp[],
+  contents: Map<string, TopicContent>,
+  attempts: Attempt[],
+): Card[] {
+  return planCards(due, contents, attempts).map((card) => ({
     ...card,
     key: `${card.topicId}/${card.itemId}`,
   }))
@@ -492,39 +501,44 @@ function whenDue(day: Day, today: Day): string {
   return `on ${noon.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`
 }
 
-function skillName(followUp: FollowUp, content: TopicContent | undefined) {
-  const skill = content?.topic.skills.find(
+/** A skill's description, from its topic's outline (always bundled in). */
+function skillName(followUp: FollowUp) {
+  const skill = getTopic(followUp.topicId)?.skills.find(
     (candidate) => candidate.id === followUp.skillId,
   )
   return skill?.description ?? followUp.skillId
 }
 
-function Revisit() {
-  const state = useFollowUps()
+/**
+ * The mistakes coming back today (ADR-0011), and those coming back later.
+ * The follow-ups come with the progress; only the topics of today's cards
+ * download in full, for their questions.
+ */
+function Revisit({ progress }: { progress: ProgressState }) {
   // Read the clock once, when the page opens, so "today" stays the same
   // for the whole visit.
   const [today] = useState(() => dayOf(Date.now()))
-  // The questions are chosen once, when the history first loads. Otherwise
-  // answering one would change the card under the learner's eyes.
+  // What's due, and so the questions, is fixed when the history first
+  // loads. Otherwise answering one would change the card under the
+  // learner's eyes.
+  const [due, setDue] = useState<FollowUp[] | null>(null)
+  if (progress.status === 'ready' && due === null) {
+    setDue(progress.followUps.filter((followUp) => followUp.due <= today))
+  }
+  const ids = useMemo(() => (due === null ? null : topicsToLoad(due)), [due])
+  const loaded = useTopicContents(ids)
   const [cards, setCards] = useState<Card[] | null>(null)
-  if (state.status === 'ready' && cards === null) {
-    setCards(dueCards(state, today))
+  if (
+    progress.status === 'ready' &&
+    due !== null &&
+    loaded.status === 'ready' &&
+    cards === null
+  ) {
+    setCards(dueCards(due, loaded.contents, progress.attempts))
   }
 
-  if (state.status === 'failed') {
-    return (
-      <div className="space-y-2">
-        <p>
-          Your history couldn't load. Check your connection, then try again.
-        </p>
-        <button type="button" onClick={state.retry} className={BUTTON}>
-          Try again
-        </button>
-      </div>
-    )
-  }
-
-  if (state.status === 'loading' || cards === null) {
+  const failed = loaded.status === 'failed' ? loaded : null
+  if (progress.status !== 'ready' || (cards === null && !failed)) {
     return (
       <p className="text-slate-500 dark:text-slate-400">
         Loading your history…
@@ -532,12 +546,14 @@ function Revisit() {
     )
   }
   const live = new Map(
-    state.open.map((followUp) => [keyOf(followUp), followUp]),
+    progress.followUps.map((followUp) => [keyOf(followUp), followUp]),
   )
   const shown = new Set(
-    cards.flatMap((card) => card.followUps.map((followUp) => keyOf(followUp))),
+    (cards ?? []).flatMap((card) =>
+      card.followUps.map((followUp) => keyOf(followUp)),
+    ),
   )
-  const later = state.open.filter(
+  const later = progress.followUps.filter(
     (followUp) => followUp.due > today && !shown.has(keyOf(followUp)),
   )
 
@@ -547,7 +563,15 @@ function Revisit() {
         <h2 id="revisit" className="text-xl font-semibold">
           Mistakes to revisit
         </h2>
-        {cards.length === 0 ? (
+        {cards === null ? (
+          // Only when today's questions couldn't load: see above.
+          failed && (
+            <CouldNotLoad
+              what="Today's questions to revisit"
+              retry={failed.retry}
+            />
+          )
+        ) : cards.length === 0 ? (
           <p className="text-slate-600 dark:text-slate-400">
             Nothing to revisit today.
           </p>
@@ -570,9 +594,7 @@ function Revisit() {
           <ul className={`list-disc space-y-1 pl-6 ${INLINE_CODE}`}>
             {later.map((followUp) => (
               <li key={keyOf(followUp)}>
-                <Markdown inline>
-                  {skillName(followUp, state.contents.get(followUp.topicId))}
-                </Markdown>{' '}
+                <Markdown inline>{skillName(followUp)}</Markdown>{' '}
                 <span className="text-sm text-slate-500 dark:text-slate-400">
                   ({getTopic(followUp.topicId)?.title}):{' '}
                   {whenDue(followUp.due, today)}
@@ -597,7 +619,7 @@ function FollowUpCard({
   today: Day
 }) {
   const { content, followUps } = card
-  const names = followUps.map((followUp) => skillName(followUp, content))
+  const names = followUps.map((followUp) => skillName(followUp))
   const results = followUps.map((followUp) =>
     progressOf(live.get(keyOf(followUp)), today),
   )

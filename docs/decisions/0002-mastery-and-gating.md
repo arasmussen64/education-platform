@@ -44,3 +44,15 @@ The placement test and a "prove it now" option let learners skip lessons for top
 - Progress looks slower than on platforms that count watched videos, but it's real.
 - Every topic needs machine-verifiable exercises (ADR-0004) and AI grading for explanations (ADR-0003).
 - Mastery must never come from self-report. Any shortcut needs a new ADR.
+
+## Amendment (2026-11-11): a failed review starts the week over, and open follow-ups hold Mastered back
+
+Mastered is now: Learned, **and** a review rated Good at least 7 days after the later of two moments, when the topic became Learned and its most recent review rated Again, **and** no open follow-up on any of the topic's skills ([ADR-0011](0011-mistakes-come-back.md)).
+
+- **What was wrong.** "Passed a review at least ~7 days later" was counted from the moment the topic became Learned, whatever happened in between. The audit of 2026-11-10 found that a learner who failed their first review on day 4 and passed the relearning reviews on days 5 and 9 got the star without ever having remembered the topic across a week. The fourth proof, survives a delayed review, was being met by a recall one to four days old.
+- **A failed review** is one rated Again: none of its items right ([ADR-0009](0009-reviews.md)). It starts the week over, so the star needs a Good review at least 7 days after it. A Good review from before the failure no longer counts, so a Mastered topic that fails a review shows Learned (after Relearning) until it survives a week again.
+- **Hard isn't a failure**, so it doesn't start the week over. Its wrong item opens a follow-up, though, and that holds the star back by itself until the follow-up closes.
+- **Open follow-ups.** ADR-0011 already said a topic can't be Mastered while one of its skills has an open follow-up, but neither the code nor [data-model.md](../specs/data-model.md) did it. Now they do: the follow-ups are worked out from the same history as the progress, using a small index of every item's skills built with the app.
+- **What a learner with history sees.** States are worked out from the event log on every visit, so the rule covers past reviews too, and nothing stored changes. A topic whose star came on a short gap after a failed review shows Learned until a Good review at least a week after that failure. A topic with a skill being relearned shows Learned until the follow-up closes, then Mastered again.
+- **Why the stricter reading.** It's what "survives a delayed review" means, and the week-long gap is what the spacing research behind the review schedule rests on ([learning science](../learning-science.md)). It makes the star later for a learner who fails a review, never earlier.
+- Decided under the owner's delegation of 2026-11-11 (best learning experience and retention, and free), and recorded in [docs/owner-queue.md](../owner-queue.md) under "Decided for you".

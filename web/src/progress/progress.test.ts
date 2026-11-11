@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { Topic } from '../content/types.ts'
 import { fakeCheckpointContent, fakeTopic } from '../test/fakeContent.tsx'
-import { type GradedEvent, nextUp, progressOf, stateOf } from './progress.ts'
+import {
+  type GradedEvent,
+  nextUp,
+  progressOf,
+  stateOf,
+  withOpenFollowUps,
+} from './progress.ts'
 
 // A small map: the first topic, a second built on it, a checkpoint built on
 // the second, and a topic after the checkpoint. Every topic's build is
@@ -251,6 +257,76 @@ describe('reviews and the states after Learned', () => {
     expect(stateAt(hard, FIRST, 11)).toBe('learned')
   })
 
+  // A failed review starts the week's wait over (ADR-0002, amended
+  // 2026-11-11): Mastered means a review survived at least 7 days after
+  // the topic was last known to be fresh, not 7 days after it was Learned.
+  it('waits a week after a failed review before Mastered, however long ago Learned was', () => {
+    // The on-time path the audit found: Again on day 4, Good on day 5, Good
+    // on day 9. No gap of a week was ever survived.
+    const relearned = [
+      ...proved(FIRST),
+      review(FIRST, 'again', 4),
+      review(FIRST, 'good', 5),
+      review(FIRST, 'good', 9),
+    ]
+    expect(stateAt(relearned, FIRST, 9)).toBe('learned')
+    // A first review taken late and failed: Again on day 8, Good on day 10.
+    const late = [
+      ...proved(FIRST),
+      review(FIRST, 'again', 8),
+      review(FIRST, 'good', 10),
+    ]
+    expect(stateAt(late, FIRST, 10)).toBe('learned')
+    // A Good review a full week after the failure is enough.
+    expect(stateAt([...late, review(FIRST, 'good', 15)], FIRST, 15)).toBe(
+      'mastered',
+    )
+  })
+
+  it('takes Mastered away after a failed review, until a week has passed again', () => {
+    const mastered = [...proved(FIRST), review(FIRST, 'good', 10)]
+    expect(stateAt(mastered, FIRST, 10)).toBe('mastered')
+    const lapsed = [
+      ...mastered,
+      review(FIRST, 'again', 40),
+      review(FIRST, 'good', 42),
+    ]
+    // The Good on day 10 came before the failure, so it no longer counts.
+    expect(stateAt(lapsed, FIRST, 42)).toBe('learned')
+    expect(stateAt([...lapsed, review(FIRST, 'good', 47)], FIRST, 47)).toBe(
+      'mastered',
+    )
+  })
+
+  it('counts the week from the most recent of several failed reviews', () => {
+    const twice = [
+      ...proved(FIRST),
+      review(FIRST, 'again', 4),
+      review(FIRST, 'good', 6),
+      review(FIRST, 'good', 12),
+      review(FIRST, 'again', 30),
+      review(FIRST, 'good', 32),
+      review(FIRST, 'good', 36),
+    ]
+    // The Good on day 36 is a week after the first failure, not the second.
+    expect(stateAt(twice, FIRST, 36)).toBe('learned')
+    expect(stateAt([...twice, review(FIRST, 'good', 37)], FIRST, 37)).toBe(
+      'mastered',
+    )
+  })
+
+  it("doesn't restart the wait after a Hard review, which isn't a failure", () => {
+    // Hard is some right, some wrong (ADR-0009); only Again is a failed
+    // review. The wrong item opens a follow-up, which holds Mastered back
+    // on its own (see below).
+    const hard = [
+      ...proved(FIRST),
+      review(FIRST, 'hard', 4),
+      review(FIRST, 'good', 10),
+    ]
+    expect(stateAt(hard, FIRST, 10)).toBe('mastered')
+  })
+
   it('is Relearning after a review rated Again, and stays unlocked below', () => {
     const events = [...proved(FIRST), review(FIRST, 'again', 4)]
     expect(stateAt(events, FIRST, 4)).toBe('relearning')
@@ -260,6 +336,53 @@ describe('reviews and the states after Learned', () => {
     expect(stateAt([...events, review(FIRST, 'good', 6)], FIRST, 6)).toBe(
       'learned',
     )
+  })
+
+  describe('with a skill still being relearned (ADR-0011)', () => {
+    const mastered = [...proved(FIRST), review(FIRST, 'good', 10)]
+    const followUp = (topicId: string, skillId: string) => ({
+      topicId,
+      skillId,
+    })
+
+    it("isn't Mastered while one of its skills has an open follow-up", () => {
+      const progress = withOpenFollowUps(progressOf(TOPICS, mastered), [
+        followUp(FIRST.id, 'print-text'),
+      ])
+      expect(stateOf(FIRST, progress, dayAfter(10))).toBe('learned')
+      expect(progress.get(FIRST.id)?.openFollowUps).toEqual(['print-text'])
+    })
+
+    it('is Mastered again once the follow-up has closed', () => {
+      const progress = withOpenFollowUps(progressOf(TOPICS, mastered), [])
+      expect(stateOf(FIRST, progress, dayAfter(10))).toBe('mastered')
+    })
+
+    it("isn't held back by another topic's follow-ups", () => {
+      const progress = withOpenFollowUps(progressOf(TOPICS, mastered), [
+        followUp(SECOND.id, 'print-text'),
+        followUp('py.not-on-the-map', 'anything'),
+      ])
+      expect(stateOf(FIRST, progress, dayAfter(10))).toBe('mastered')
+      expect(progress.get(SECOND.id)?.openFollowUps).toEqual(['print-text'])
+    })
+
+    it('leaves the other states alone', () => {
+      const progress = withOpenFollowUps(
+        progressOf(TOPICS, [...proved(FIRST), review(FIRST, 'again', 4)]),
+        [followUp(FIRST.id, 'print-text')],
+      )
+      expect(stateOf(FIRST, progress, dayAfter(4))).toBe('relearning')
+      // A prerequisite still being relearned still unlocks what's built on it.
+      expect(stateOf(SECOND, progress, dayAfter(4))).toBe('available')
+    })
+
+    it('counts as none open when nobody has looked, as for older callers', () => {
+      // progressOf on its own knows nothing of follow-ups.
+      const progress = progressOf(TOPICS, mastered)
+      expect(progress.get(FIRST.id)?.openFollowUps).toBeUndefined()
+      expect(stateOf(FIRST, progress, dayAfter(10))).toBe('mastered')
+    })
   })
 
   it('ignores reviews from before the topic was Learned', () => {

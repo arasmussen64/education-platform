@@ -46,9 +46,17 @@ export type TopicProgress = {
   reviews: Review[]
   /** The review card, once the topic is Learned. Checkpoints have none. */
   card: Card | null
+  /**
+   * The topic's skills that have an open follow-up (ADR-0011), once
+   * withOpenFollowUps has looked. Left out, none are known.
+   */
+  openFollowUps?: string[]
 }
 
-/** A review rated Good this long after Learned makes a topic Mastered. */
+/**
+ * A review rated Good this long after the topic became Learned, and after
+ * its last failed review, makes a topic Mastered.
+ */
 export const MASTERY_DAYS = 7
 
 /**
@@ -136,12 +144,51 @@ export function progressOf(
   return progress
 }
 
-/** Whether a Learned topic has survived a review at least a week later. */
+/**
+ * Whether a Learned topic is Mastered (ADR-0002, amended 2026-11-11): it has
+ * survived a delayed review, and none of its skills is being relearned.
+ */
 function isMastered(entry: TopicProgress): boolean {
+  return survivedDelayedReview(entry) && !entry.openFollowUps?.length
+}
+
+/**
+ * Whether a review rated Good came at least a week after the topic was last
+ * known to be fresh: when it became Learned, or its most recent review rated
+ * Again, whichever is later. A failed review starts the week over, so a
+ * relearning review a day or two after it can't count.
+ */
+function survivedDelayedReview(entry: TopicProgress): boolean {
   if (!entry.learnedAt) return false
-  const since = Date.parse(entry.learnedAt) + MASTERY_DAYS * 24 * 60 * 60 * 1000
+  const failures = entry.reviews
+    .filter((review) => review.rating === 'again')
+    .map((review) => Date.parse(review.at))
+  const freshAt = Math.max(Date.parse(entry.learnedAt), ...failures)
+  const since = freshAt + MASTERY_DAYS * 24 * 60 * 60 * 1000
   return entry.reviews.some(
     (review) => review.rating === 'good' && Date.parse(review.at) >= since,
+  )
+}
+
+/**
+ * The progress, with each topic's skills that are still being relearned
+ * noted on it (ADR-0011), so stateOf can hold Mastered back until they
+ * close. `open` is every open follow-up; those of topics not in the map are
+ * left out.
+ */
+export function withOpenFollowUps(
+  progress: Map<string, TopicProgress>,
+  open: { topicId: string; skillId: string }[],
+): Map<string, TopicProgress> {
+  const skillsByTopic = new Map<string, string[]>()
+  for (const { topicId, skillId } of open) {
+    skillsByTopic.set(topicId, [...(skillsByTopic.get(topicId) ?? []), skillId])
+  }
+  return new Map(
+    [...progress].map(([topicId, entry]) => [
+      topicId,
+      { ...entry, openFollowUps: skillsByTopic.get(topicId) ?? [] },
+    ]),
   )
 }
 
@@ -149,7 +196,8 @@ function isMastered(entry: TopicProgress): boolean {
  * Where a topic stands at `now`, given everyone's progress (its
  * prerequisites' included). A prerequisite counts once it's Learned or
  * Passed, in any of the learned states, so a later failed review never
- * locks the topics built on it (ADR-0002).
+ * locks the topics built on it (ADR-0002). For Mastered, the progress must
+ * have been through withOpenFollowUps; otherwise no follow-up holds it back.
  */
 export function stateOf(
   topic: Topic,
