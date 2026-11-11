@@ -1,26 +1,37 @@
 # The checks for "The runaway that's eating a CPU": the runaway is stopped
-# and gone, the healthy service is untouched, and the finding records the
-# culprit and the system call it was storming on.
+# and gone, it won't be back at the next boot, the healthy service is
+# untouched, and the finding records the culprit and the system call it was
+# storming on. The descriptions don't name either service, because finding
+# out which is which is the lab and the page shows them before any attempt.
 checks:
-  - id: tailer-stopped
-    description: "shop-tailer is no longer active."
+  - id: runaway-stopped
+    description: "The service at fault is no longer active."
     command: systemctl is-active shop-tailer 2>/dev/null; true
     expect:
-      matches: "^(inactive|failed|masked)$"
-  - id: culprit-gone
-    description: "No shop-tailer process is running (it wasn't just killed and restarted)."
+      matches: "^(inactive|failed)$"
+  - id: runaway-gone
+    description: "None of its processes is running, two seconds later."
     command: |
       sleep 2
       pgrep -x shop-tailer > /dev/null && echo "still running" || echo "gone"
     expect:
       contains: "gone"
+  - id: runaway-stays-off
+    description: "It won't start again at the next boot: the service is no longer enabled."
+    # Stopping a service leaves it enabled, so it would be back after a
+    # reboot; wrong/stopped-not-disabled.sh proves that is caught.
+    command: systemctl is-enabled shop-tailer 2>/dev/null; true
+    expect:
+      matches: "^(disabled|masked)$"
   - id: healthy-service-untouched
-    description: "shop-api, the healthy service, is still running."
+    description: "The shop's healthy service is still running."
     command: systemctl is-active shop-api
     expect:
       equals: "active"
   - id: finding-records-the-cause
-    description: "~/triage/finding.txt names shop-tailer and the system call it was storming on."
-    command: grep -iq 'shop-tailer' /home/learner/triage/finding.txt && grep -iqE 'open(at)?|system call|syscall' /home/learner/triage/finding.txt && echo "finding is complete"
+    description: "~/triage/finding.txt names the service at fault and the system call that failed every time."
+    # The call by name (openat, or open as the C library calls it), as a
+    # whole word: "it makes too many system calls" names nothing.
+    command: grep -iq 'shop-tailer' /home/learner/triage/finding.txt && grep -iqwE 'open(at)?' /home/learner/triage/finding.txt && echo "finding is complete"
     expect:
       contains: "complete"
