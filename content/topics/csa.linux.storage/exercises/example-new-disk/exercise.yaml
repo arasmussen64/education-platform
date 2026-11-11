@@ -10,7 +10,7 @@ prompt: |
 steps:
   - label: "Find the new disk"
     lines: "1"
-    note: "`lsblk` lists block devices with their size and where each is mounted. `ls -l /dev/lab/` shows which device the label `data1` points at: that 200M disk is the lab's. Every other disk in the list (the `sd` ones and the bigger `loop` ones) is Docker's: never format or write to those. `sudo blkid /dev/lab/data1` asks what is on the new disk and prints nothing: raw blocks. (On a real server `lsblk -f` shows filesystems as well. On the lab machine its filesystem columns stay empty, so here `blkid` is the tool for that.)"
+    note: "`lsblk` lists block devices with their size and where each is mounted. `ls -l /dev/lab/` shows which device the label `data1` points at: that 200M disk is the lab's. Every other disk in the list (the `sd` ones, and any `loop` one that no label under `/dev/lab/` points at) is Docker's: never format or write to those. `sudo blkid /dev/lab/data1` asks what is on the new disk and prints nothing: raw blocks. (On a real server `lsblk -f` shows filesystems as well. On the lab machine its filesystem columns stay empty, so here `blkid` is the tool for that.)"
   - label: "Put a filesystem on it"
     lines: "2"
     note: "`mkfs.ext4` writes the structure that turns blocks into files and folders. It destroys whatever was on the device it is given, without asking, so check the name twice, and in the labs only ever give it a name under `/dev/lab/`. `-q` keeps it quiet."
