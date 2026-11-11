@@ -60,10 +60,22 @@ checks:
     expect:
       equals: in
   - id: carol-logs-in
-    description: "So does carol, the group's other member."
+    description: "So does carol, another member of the group."
     command: |
       result=$(sshpass -p 'Carol-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l carol@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/carol@ad.shop.test" ]; then echo "carol logged in, into $PWD"; elif ! klist -s; then echo "carol logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
       echo "${result:-carol could not log in over SSH}"
+    expect:
+      equals: in
+  # dana is in linux-admins too (dc-seed.sh), and the prompt doesn't name
+  # her. Permitting alice and carol by name, in SSSD's rule or in SSH's
+  # (the two added to the local group ssh-users), passes the two checks
+  # above and fails this one, as it would fail whoever joins the group next
+  # month. wrong/permit-by-names.sh and wrong/ssh-group-by-names.sh.
+  - id: whole-group-logs-in
+    description: "Whoever else is in linux-admins logs in the same way, into a home directory made at their first login."
+    command: |
+      result=$(sshpass -p 'Dana-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l dana@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/dana@ad.shop.test" ]; then echo "dana, another member of linux-admins, logged in, into $PWD"; elif ! klist -s; then echo "dana, another member of linux-admins, logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
+      echo "${result:-dana, another member of linux-admins, could not log in over SSH}"
     expect:
       equals: in
   # Joining again writes a fresh SSSD configuration that lets every domain
@@ -98,15 +110,28 @@ checks:
       contains: "Strong(er) authentication required"
   # A setting made only for this boot passes every check above until the
   # next reboot: a drop-in or an environment file under /run (what
-  # systemctl edit --runtime writes), or systemctl set-environment.
-  # wrong/runtime-only.sh proves it is caught. The description names no
-  # service, so that it points at none of the faults.
+  # systemctl edit --runtime writes), or systemctl set-environment. So does
+  # a server started by hand with its settings on its command line, outside
+  # its service (a docker exec shell's processes sit in /init.scope; SSH's
+  # socket is held by PID 1, and its listener runs in ssh.service), and so
+  # does an address given to dc1 by hand, which network.sh doesn't make.
+  # wrong/runtime-only.sh, wrong/hand-run-resolver.sh, wrong/hand-run-ssh.sh
+  # and wrong/dc-given-the-address.sh prove each is caught. The description
+  # names no service, so that it points at none of the faults.
   - id: fixes-last
-    description: "Every fix lasts past a reboot: the services lab's logins depend on start at boot, and none of their settings were added only until the next boot."
+    description: "Every fix lasts past a reboot: the services that lab's logins depend on run as their own services and start at boot, and nothing was set only until the next boot."
     command: |
       for unit in dnsmasq sssd; do
         [ "$(systemctl is-enabled "$unit" 2>/dev/null)" = enabled ] || { echo "$unit won't start at the next boot"; exit 0; }
+        [ "$(systemctl is-active "$unit" 2>/dev/null)" = active ] || { echo "$unit isn't running as its service"; exit 0; }
+        for pid in $(pgrep -x "$unit"); do
+          grep -q "/$unit\.service\$" "/proc/$pid/cgroup" 2>/dev/null || { echo "a $unit started by hand, outside its service, is running: the next boot won't start it"; exit 0; }
+        done
       done
+      for pid in $(ss -Htlnp 'sport = :22' | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u); do
+        [ "$pid" = 1 ] || grep -q '/ssh\.service$' "/proc/$pid/cgroup" 2>/dev/null || { echo "an SSH server started by hand, outside its service, answers on port 22: the next boot won't start it"; exit 0; }
+      done
+      [ "$(ip -n dc -4 -o addr show dev eth0 | awk '{print $4}' | paste -sd' ' -)" = 10.0.9.10/24 ] || { echo "dc1 has an address the next boot won't give it"; exit 0; }
       runtime=$(systemctl show dnsmasq ssh ssh.socket sssd -p FragmentPath -p DropInPaths -p EnvironmentFiles --value | tr ' ' '\n' | grep '^/run/' | grep -v '^/run/systemd/generator' | tr '\n' ' ')
       [ -z "$runtime" ] || { echo "settings that last only until the next boot: $runtime"; exit 0; }
       if systemctl show-environment | grep -Eq '^(DNSMASQ_OPTS|SSHD_OPTS|KRB5_CONFIG)='; then echo "a setting handed to every service only until the next boot: $(systemctl show-environment | grep -E '^(DNSMASQ_OPTS|SSHD_OPTS|KRB5_CONFIG)=' | cut -d= -f1)"; exit 0; fi
