@@ -26,9 +26,11 @@ export async function topicLoader({ params }: LoaderFunctionArgs) {
   const topic = getTopic(topicId)
   const content =
     topic && isOpen(topic) ? await loadTopicContent(topic.id) : null
+  // The mixed-in question is extra: if it can't download, the topic still
+  // opens without it, rather than going to the error page.
   const interleaved =
     topic && content && topic.kind === 'topic'
-      ? await loadInterleaved(topic)
+      ? await loadInterleaved(topic).catch(() => null)
       : null
   return { topic, content, interleaved }
 }
