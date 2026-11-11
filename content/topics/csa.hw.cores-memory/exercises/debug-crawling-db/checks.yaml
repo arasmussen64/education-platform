@@ -1,14 +1,19 @@
 # The checks for "The database that crawls": both services run, the
 # database has a CPU cap inside its allowance and isn't throttled, keeps its
 # 256 MB ceiling and its swap and isn't being slowed for memory, may run on
-# a CPU the batch job isn't using, the batch job stays on CPU 0, and all of
-# it is in systemd's settings on disk, so a restart keeps it.
+# a CPU the batch job isn't using, the batch job stays on CPU 0, its process
+# is inside its own control group, and all of it is in systemd's settings on
+# disk, so a restart keeps it.
 #
 # Each fault turns only its own checks red (tried with the wrong fixes that
 # leave one fault each): the quota cpu-allowance and not-throttled, the
 # memory throttle memory-not-squeezed, the pin own-cpu. The checks read
 # settings, counters and the process's CPU list, never a throughput figure:
 # those belong to the whole machine, and a busy computer moves them.
+#
+# The descriptions are shown before the first attempt, so each states an end
+# state, in the prompt's terms, and never says what is wrong now or which
+# tool shows it (MODULE-2-BRIEF 3.2).
 checks:
   - id: both-running
     description: "shop-db and shop-batch are both running, and neither is being restarted over and over."
@@ -26,7 +31,7 @@ checks:
     expect:
       equals: running
   - id: cpu-allowance
-    description: "shop-db has a CPU cap of more than the one CPU its work needs and no more than one and a half CPUs (its cgroup's cpu.max, as a percentage of one CPU)."
+    description: "shop-db keeps a CPU cap, within its allowance: more than the one CPU its work needs, and no more than one and a half CPUs."
     # More than 100, not 100: a one-CPU program under a quota of exactly one
     # CPU is still throttled now and then (csa.linux.cpu's debug, measured
     # 2026-11-10). With no cap the file starts with "max", or isn't there at
@@ -39,16 +44,21 @@ checks:
       gt: 100
       lte: 150
   - id: not-throttled
-    description: "shop-db is no longer held back by its CPU cap: its count of throttled periods holds still for five seconds."
-    # With no cap at all, cpu.stat has no nr_throttled line, and nothing can
-    # be throttled: that counts as 0 here, and cpu-allowance is the check
-    # that wants the cap kept.
+    description: "shop-db gets the CPU its work needs within its cap: over five seconds, the cap stops it in fewer than 5 of its 50 periods."
+    # Fewer than 5, not none: a cap only just above one CPU still stops this
+    # one-thread program now and then. Measured on Docker Desktop, 2026-11-11,
+    # six five-second windows each: 100% gave 1 to 4, 101% 0 to 2, 105% 0 or
+    # 1, 110% to 150% always 0; the faulty 10% and wrong/still-throttled.sh's
+    # 60% are stopped in nearly every one of the 50. With no cap at all,
+    # cpu.stat has no nr_throttled line, and nothing can be throttled: that
+    # counts as 0 here, and cpu-allowance is the check that wants the cap
+    # kept.
     command: |
       f=/sys/fs/cgroup/system.slice/shop-db.service/cpu.stat
       first=$(awk '/^nr_throttled/ {n = $2} END {print n + 0}' "$f")
       sleep 5
       second=$(awk '/^nr_throttled/ {n = $2} END {print n + 0}' "$f")
-      [ "$first" = "$second" ] && echo steady || echo "throttled $((second - first)) times in five seconds"
+      [ $((second - first)) -lt 5 ] && echo steady || echo "throttled $((second - first)) times in five seconds"
     expect:
       equals: steady
   - id: memory-ceiling
@@ -57,7 +67,7 @@ checks:
     expect:
       equals: "268435456 268435456"
   - id: memory-not-squeezed
-    description: "shop-db is no longer being slowed for memory: the kernel's count of times it throttled it holds still for eight seconds, and shop-db may still use swap."
+    description: "shop-db gets the memory its work needs within its 256 MB, without the kernel slowing it to take memory back (watched for eight seconds), and it may still use swap."
     # The count is read twice from the running service, not saved anywhere:
     # it is the current state that matters here, and it starts again from
     # 0 whenever the service restarts. Swap stays allowed, as the prompt
@@ -76,7 +86,7 @@ checks:
     expect:
       equals: steady
   - id: own-cpu
-    description: "shop-db's process may run on at least one CPU besides CPU 0, the batch job's (taskset -cp shows its list)."
+    description: "shop-db's process may run on at least one CPU besides CPU 0, the batch job's."
     command: |
       pid=$(systemctl show shop-db -p MainPID --value)
       awk '/^Cpus_allowed_list/ {print $2}' "/proc/$pid/status"
@@ -92,6 +102,19 @@ checks:
       echo "$(systemctl show shop-batch -p AllowedCPUs --value) $(awk '/^Cpus_allowed_list/ {print $2}' "/proc/$pid/status")"
     expect:
       equals: "0 0"
+  - id: in-its-group
+    description: "shop-db's process runs inside its own control group, where systemd's settings for it apply."
+    # A process moved into another group (its PID written into that group's
+    # cgroup.procs) is out of reach of the memory throttle and the CPU list,
+    # while systemd's settings still hold both and the next restart puts the
+    # process back under them: wrong/escaped-the-group.sh passed every other
+    # check (tried on Docker Desktop, 2026-11-11). /proc/PID/cgroup names the
+    # group, relative to the container's own tree.
+    command: |
+      pid=$(systemctl show shop-db -p MainPID --value)
+      cat "/proc/$pid/cgroup"
+    expect:
+      equals: "0::/system.slice/shop-db.service"
   - id: fixes-last
     description: "Every one of shop-db's settings comes from systemd's files on disk and is the one the kernel is using, so a restart of the server keeps it: nothing set only until the next boot, nothing written straight into the kernel's files."
     # A runtime-only fix (systemctl set-property --runtime) lives in /run,
