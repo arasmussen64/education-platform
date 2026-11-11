@@ -37,7 +37,7 @@ These files are kept as they were when they last ran, so they are not formatted 
 
 ## Which generators still matched the content on 2026-11-10
 
-On 2026-11-10 every topic generator was run into an empty scratch folder (a throwaway folder outside the repository) and its output was compared, file by file, with `content/topics/` at commit `dd64790`.
+On 2026-11-10 every topic generator was run into an empty scratch folder (a throwaway folder outside the repository) and its output was compared, file by file, with `content/topics/` as it stood after pull request #198, the last change before that day's audit fixes.
 
 | Folder | Module | Generators | Result on 2026-11-10 |
 | --- | --- | --- | --- |
@@ -57,7 +57,7 @@ Notes on the table:
 - In the stale modules the differences are the review fixes: clearer wording in lessons and explanations, reordered multiple-choice answers, corrected numbers, corrected resource titles, and doubled apostrophes removed. Re-running a stale generator would put the old text back. One Module 5 topic alone, `ml.prob.bayes`, would lose changes in 9 files.
 - Three generators in the stale modules happened to match (`ml.m2.checkpoint`, `ml.la.matrices-as-maps`, `ml.la.systems`). That is luck, not a promise. Treat the whole of Modules 1 to 6 as stale.
 - The three extra Module 8 files are `wrong/dense-backward-not-transposed.py` in `ml.m8.checkpoint`'s build exercise and its two fresh versions. A review fix renamed that known-wrong answer to `dw-from-the-first-row-only.py` in the generator. A generator only writes files, it never deletes one, so the file with the old name stayed behind.
-- "Matched" describes that one commit. The audit fixes that arrived together with this archive were made in `content/topics/` and may have touched Modules 7 and 8 too. **Assume that no generator matches the content today**, and check before you believe otherwise.
+- "Matched" describes that one moment. The audit fixes that arrived together with this archive were made in `content/topics/` and may have touched Modules 7 and 8 too. **Assume that no generator matches the content today**, and check before you believe otherwise.
 
 ## Looking at what a generator would write, without touching the content
 
