@@ -22,7 +22,7 @@ prompt: |
   3. GROUP, then its members' account names (`sAMAccountName`), sorted, one space apart, from an LDAP search of dc1 signed in with that ticket.
   4. `ticket hours:` and the lifetime of that ticket in whole hours, rounded down: its Expires time minus its Valid starting time.
 
-  Keep the ticket in a cache of the script's own (set `KRB5CCNAME`), so your own tickets are left alone. The checks run the script for other services and groups as well, once with a keytab that no longer works, and once with Kerberos settings that ask for shorter tickets, so every line has to come from what the domain says at that moment. Make the script executable, try it, and run the checks.
+  Keep the ticket in a cache of the script's own (set `KRB5CCNAME`), so your own tickets are left alone. The checks run the script as you, in a way that stops `sudo` (and so `on-dc`) from working, for other services and groups as well, once with a keytab that no longer works, and once with Kerberos settings that ask for shorter tickets, so every line has to come from what the domain tells svc-report at that moment. Make the script executable, try it, and run the checks.
 hints:
   - "Start with `#!/bin/bash`, `set -euo pipefail` and the arguments, `service=$1` and `group=$2`. `export KRB5CCNAME=FILE:/tmp/domain-report-$(id -u)` then keeps the script's tickets in a file of its own, and every `kinit`, `klist`, `ldapsearch` and `kdestroy` after it uses that file."
   - "`dig +short _ldap._tcp.ad.shop.test SRV` prints `priority weight port host.`; in awk the port is `$3` and the host `$4`, and `sub(/\\.$/, \"\", $4)` drops a final dot. `awk -v service=\"$service\"` hands a shell variable to awk."
