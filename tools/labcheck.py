@@ -766,12 +766,20 @@ def cmd_start(args: argparse.Namespace) -> int:
     lab = load_lab(args.topic, args.exercise)
     found = find_container(lab.container)
     if found is None or args.fresh:
-        if found is not None:
-            print(f"Removing {lab.container} and the work in it, as --fresh asks.")
         print(f"Building {lab.image} (the first time takes a minute)...")
         build_image(lab)
         clear_stale_disks(lab)
-        start_container(lab)
+        if found is not None:
+            # Only now, with the new image built: a build that fails leaves
+            # the old container, and the work in it, where they were.
+            print(f"Removing {lab.container} and the work in it, as --fresh asks.")
+        try:
+            start_container(lab)
+        except LabError, subprocess.TimeoutExpired, KeyboardInterrupt:
+            # A new lab that didn't come up has no work in it. Leave nothing
+            # behind, or the next `start` would find it and call it running.
+            remove_container(lab.container)
+            raise
         print(f"\n{lab.exercise.title}: the lab is running, as new.\n")
         print_next_steps(lab)
         return 0
@@ -1265,6 +1273,9 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    except KeyboardInterrupt:
+        print("\nlabcheck: stopped, because Ctrl+C was pressed.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

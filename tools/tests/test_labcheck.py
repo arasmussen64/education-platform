@@ -475,6 +475,51 @@ def test_a_lab_that_wont_start_again_is_kept_and_fresh_is_offered(
     assert f"{RUN} start --fresh t.hello lab-hello" in err
 
 
+def test_a_new_lab_that_doesnt_come_up_is_not_left_behind(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker()
+    use_lab(tmp_path, monkeypatch, docker, "lab:\n  init: systemd\n")
+
+    def never_boots(name: str) -> str:
+        # By now the container exists, as far as Docker is concerned.
+        docker.containers[name] = ("running", IMAGE)
+        raise LabError(f"{name} didn't finish booting in 480 s")
+
+    monkeypatch.setattr(labcheck, "wait_for_boot", never_boots)
+    assert run_main("start", "t.hello", "lab-hello") == 2
+    assert "didn't finish booting" in capsys.readouterr().err
+    # It was removed again. Left there, the next `start` would have found a
+    # running container and said the lab was already running.
+    assert docker.verbs[-3:] == ["inspect", "exec", "rm"]
+    assert docker.calls[-1] == ("rm", "-f", NAME)
+
+
+def test_a_build_that_fails_leaves_the_old_lab_where_it_was(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("running", IMAGE)})
+    docker.failing["build"] = "no space left on device"
+    use_lab(tmp_path, monkeypatch, docker)
+    assert run_main("start", "--fresh", "t.hello", "lab-hello") == 2
+    assert "rm" not in docker.verbs
+    captured = capsys.readouterr()
+    assert "no space left on device" in captured.err
+    assert "Removing" not in captured.out
+
+
+def test_ctrl_c_ends_in_a_sentence_not_a_traceback(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    def interrupted(*args: str, **_: object):
+        raise KeyboardInterrupt
+
+    use_lab(tmp_path, monkeypatch, FakeDocker())
+    monkeypatch.setattr(labcheck, "docker", interrupted)
+    assert run_main("check", "t.hello", "lab-hello") == 130
+    assert "stopped, because Ctrl+C was pressed" in capsys.readouterr().err
+
+
 def test_check_on_a_stopped_lab_says_how_to_start_it_again_with_the_work(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
