@@ -1,14 +1,18 @@
 id: debug-an-interval-that-is-too-narrow
 stage: debug
-rev: 1
+rev: 2
 title: "An interval that is far too sure of itself"
 prompt: |
-  This program builds a 95 percent interval for the mean of 36 scores from a population with mean 100 and spread 15, then checks the procedure's coverage over 1,000 fresh samples. It should print:
+  This program builds a 95 percent interval for the mean of 36 scores from a population with mean 100 and spread 15. Then it checks the procedure: it draws 1,000 fresh samples, builds an interval from each, and prints the fraction of those intervals that contain the true mean, 100, which should be close to 0.95. It should print:
 
   ```
   interval 95.9 106.5
   coverage 0.937
   ```
 
-  It has two bugs. Run it: the coverage is tiny, because the standard error divides by `n` instead of its **square root**, making the interval six times too narrow. Fix that, and the coverage lands near two thirds (0.652 here) rather than 0.95: the interval reaches one standard error each side, where 95 percent needs `z = 1.96` of them.
+  Instead the interval is less than a point wide, and only 127 of the 1,000 intervals contain the true mean. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which try `interval` on a sample you can work out by hand.
+hints:
+  - "Work this sample's standard error out by hand: the spread is about 15 and there are 36 scores. What should it be, and what does `interval` compute?"
+  - "The standard error divides the spread by the square root of `n`, not by `n`."
+  - "With the standard error right, the coverage lands near two thirds. A 95 percent interval reaches `z = 1.96` standard errors each side of the mean, not one."
 skills: [standard-error, interval]

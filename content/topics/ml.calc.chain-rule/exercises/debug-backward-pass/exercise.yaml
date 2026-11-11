@@ -1,9 +1,9 @@
 id: debug-backward-pass
 stage: debug
-rev: 1
+rev: 2
 title: "A derivative that doesn't match"
 prompt: |
-  `y(x)` is `sigmoid(3x + 1)` squared, a chain of three links, and `dy(x)` should be its derivative by the chain rule. The program should print:
+  `y(x)` is `sigmoid(3x + 1)` squared, a chain of three links, and `dy(x)` should be its derivative by the chain rule. The program prints both at `x = 0.5`, then whether `dy` matches a numeric slope of `y`. It should print:
 
   ```
   y 0.854038
@@ -11,5 +11,9 @@ prompt: |
   matches True
   ```
 
-  It has two bugs, both in `dy`, and the last line says so (`matches False`). Read `dy` against the chain: the middle link, the sigmoid, must be evaluated at the value it receives, `u = 3x + 1`, not at `x`; and the three local derivatives must be **multiplied**, not added.
+  Instead `dy/dx` comes out as 4.479922 and the last line says `matches False`. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which compare `dy` with a numeric slope at another point.
+hints:
+  - "`y` is right, so look at how its derivative is worked out. Write the chain out link by link: what does each link receive, and what is its local derivative?"
+  - "The middle link, the sigmoid, receives `u = 3x + 1`, so its derivative must be evaluated at `u`, not at `x`."
+  - "The chain rule multiplies the local derivatives; it doesn't add them."
 skills: [two, many, check]

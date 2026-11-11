@@ -1,6 +1,6 @@
 id: debug-adam
 stage: debug
-rev: 1
+rev: 2
 title: "An Adam that divides by zero"
 prompt: |
   This program runs Adam on `x²` from 2 at rate 0.1 and should print `x` after 1, 2 and 50 steps:
@@ -11,5 +11,10 @@ prompt: |
   50 -0.0758
   ```
 
-  It has two bugs. Run it: the first is a `ZeroDivisionError` in the correction for starting at zero (the Adam paper calls it *bias correction*; it has nothing to do with a network's biases `b1` and `b2`), because `t` starts at 0 and `1 - beta1 ** 0` is zero; Adam counts its steps from 1. Fix that and it runs, but the first step isn't 0.1 and the numbers drift: `s` is meant to average the gradient **squared**, and this version averages the gradient itself.
+  Instead it stops at once, with `ZeroDivisionError: division by zero`. It has two bugs, and the second shows only once the program runs. Fix one, run it again, and compare every line with the ones above; then run the checks, which start Adam from somewhere else.
+hints:
+  - "Read the error's last line and the line it points at. On the loop's first pass, what is `t`, and what is `1 - beta1 ** t`?"
+  - "Adam counts its steps from 1, so `t` must run 1, 2, and so on up to `steps`. (The paper calls this correction for starting at zero *bias correction*; it has nothing to do with a network's biases.)"
+  - "From 2 at rate 0.1 the first step should land at 1.9: Adam's very first step is always exactly the rate. If it lands somewhere else, compare each running average with the lesson's."
+  - "`s` is meant to average the gradient squared, and this version averages the gradient itself."
 skills: [adam]

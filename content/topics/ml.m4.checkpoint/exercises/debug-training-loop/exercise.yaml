@@ -1,9 +1,9 @@
 id: debug-training-loop
 stage: debug
-rev: 1
+rev: 2
 title: "Three bugs in a training loop"
 prompt: |
-  This is the checkpoint's program on the circle data, and it should print:
+  This is the checkpoint's program on the circle data: a network with four hidden ReLU units, trained by backpropagation and momentum for 2,000 steps, which reports its loss at steps 0, 500 and the last, its accuracy, and the class it gives each of the sixteen points. It should print:
 
   ```
   loss 0.598 0.006 0.001
@@ -11,11 +11,12 @@ prompt: |
   classes [0 0 0 0 0 1 1 0 0 1 1 0 0 0 0 0]
   ```
 
-  It has three bugs, each of which hides the next. Run it and read each error:
-
-  1. A **shape mistake** in `backward`: the gradient at the hidden layer spreads each example's `dz2` along `W2`, which is an outer product, not a matrix product of two flat arrays.
-  2. Once it runs, the loss **climbs** instead of falling: the momentum update has the wrong sign.
-  3. Once it falls, it stops well above the floor (0.023 at the end, where 0.001 is expected): a **chain-rule step is out of order**. ReLU's mask must be applied before the first layer's weight gradient is formed, so `dW1` must use `dz1`, not `dh`.
+  Instead it stops before printing anything, with `ValueError: matmul: Input operand 1 has a mismatch in its core dimension 0, ... (size 4 is different from 16)`. It has three bugs, each hidden behind the one before: fix one, run it again, and compare every number with the lines above. You're done when it prints them exactly and every check passes.
+hints:
+  - "Read the error's last line and the line it points at. `dz2` holds one number per example (16 of them) and `W2` one per hidden unit (4): the gradient at the hidden layer needs one row per example and one column per unit."
+  - "Spreading each example's `dz2` along `W2` is an outer product, `np.outer(dz2, params[\"W2\"])`, not a matrix product of two flat arrays."
+  - "If the loss climbs instead of falling, read the update line: gradient descent steps against the gradient, and momentum steps against the velocity."
+  - "If the loss falls but stops well above the floor (0.023 at the end, where 0.001 is expected), follow the chain rule backward through ReLU: its mask must be applied before the first layer's weight gradient is formed, so `W1`'s gradient uses `dz1`, not `dh`."
 # Every test names the module skills it checks (ADR-0012), so a failed test
 # says which topics to revisit.
 test_skills:

@@ -1,14 +1,18 @@
 id: debug-likelihood-report
 stage: debug
-rev: 1
+rev: 2
 title: "A likelihood that always picks the edge"
 prompt: |
-  This program fits a coin's bias and a normal's mean by maximum likelihood over a grid, and should print:
+  This program fits a coin's bias to 6 heads in 8 flips, and a normal's mean to 1,000 samples, by maximum likelihood over a grid: it works out the likelihood (or the log-likelihood) at every point of the grid and picks the largest. It should print:
 
   ```
   coin 0.75
   normal 169.9
   ```
 
-  It has two bugs. Run it: the coin comes out at 0.99, the largest bias on the grid, because `coin_likelihood` charges every flip as a head (`ps**flips`) and forgets the two tails. Fix that, and the normal's mean comes out at an edge of its grid too: `normal_log_likelihood` is missing the minus sign, so the grid search finds the **least** likely mean instead of the most.
+  Instead both answers sit at the top edge of their grids: the coin at 0.99, the largest bias tried, and the mean at 175.0, the largest mean tried. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which try both functions on small cases.
+hints:
+  - "Write the likelihood of 6 heads in 8 flips by hand: each head contributes `p` and each tail `1 - p`. Does `coin_likelihood` have both?"
+  - "`ps**flips` charges every flip as a head and forgets the two tails. The likelihood is `ps**heads * (1 - ps) ** (flips - heads)`."
+  - "A normal's log-likelihood falls as the mean moves away from the data, so the squared distances carry a minus sign. Without it, `argmax` finds the least likely mean instead of the most."
 skills: [likelihood, maximize]

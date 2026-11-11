@@ -12,7 +12,7 @@ def test_the_output():
 
 
 def test_loss_is_a_mean():
-    """At the plane [2, -1, 4] (one unit too high everywhere) the loss is about 1 plus the floor, not six times that."""
+    """Raising the plane [2, -1, 3] by one unit everywhere, to [2, -1, 4], adds about 1 to the loss."""
     loss = function("loss")
     assert abs(float(loss(np.array([2.0, -1.0, 4.0]))) - float(loss(np.array([2.0, -1.0, 3.0]))) - 1.0) < 0.1
 
