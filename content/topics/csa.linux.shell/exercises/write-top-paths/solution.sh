@@ -1,4 +1,6 @@
-# The reference script, written in one go; in the lab you'd use nano.
+# The reference script. In the lab you write it with nano. Here it's written
+# in one go: `cat > FILE <<'EOF'` puts every line up to the closing EOF into
+# the file.
 cat > ~/bin/top-paths <<'EOF'
 #!/usr/bin/env bash
 # Usage: top-paths LOGFILE N

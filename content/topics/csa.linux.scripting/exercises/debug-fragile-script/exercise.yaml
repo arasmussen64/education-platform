@@ -1,17 +1,20 @@
 id: debug-fragile-script
 stage: debug
 runtime: lab
-rev: 1
+rev: 2
 title: "Fix the fragile script"
 prompt: |
-  `~/bin/archive-logs` tars up the shop's logs, and it's fragile three ways:
+  `~/bin/archive-logs` is meant to run every night with nobody watching: it copies the shop's logs from `/var/log/shop` into `~/archive/logs` and packs that folder into `~/archive/logs.tgz`. A script like that has to work the same on the second night as on the first, put every log in the archive whatever the log is called, and, if the logs folder isn't there, say so on standard error and exit with status 2, so that whatever runs it can tell. It should also leave `shellcheck` with nothing to say.
 
-  - **It fails the second time it runs.** It makes its working folder with `mkdir` (no `-p`), which errors if the folder is already there.
-  - **It drops a log whose name has a space.** It lists files with an unquoted `$(ls ...)`, so `error report.log` is split into two names that don't exist.
-  - **It stays quiet when the logs are missing.** With nothing checking, a missing source just makes an empty archive and the script reports success.
+  This one doesn't:
 
-  Fix all three in `~/bin/archive-logs` with `nano`: add strict mode and quote the variables, use `mkdir -p` and a quoted glob (`"$src"/*`) instead of `$(ls)`, and guard the source so the script writes to standard error and exits `2` when the directory isn't there. Run `shellcheck ~/bin/archive-logs` until it's quiet, run the script twice to confirm it's clean the second time, check `tar -tzf ~/archive/logs.tgz` includes the spaced file, and try `~/bin/archive-logs; echo $?` after `sudo mv /var/log/shop /tmp/shop` (move it back with `sudo mv /tmp/shop /var/log/shop`). Then run the checks.
+  - **A second run complains** about something the first run left behind.
+  - **One of the shop's logs never reaches the archive**, on any run: compare `ls /var/log/shop` with `tar -tzf ~/archive/logs.tgz`.
+  - **When the logs are missing it reports success.** Try `sudo mv /var/log/shop /tmp/shop`, then `~/bin/archive-logs; echo $?`, and put them back with `sudo mv /tmp/shop /var/log/shop`.
+
+  There are three faults in the script, one behind each of those. Make each one happen and read what the script prints before you change anything. Then fix them with `nano ~/bin/archive-logs`, until all three are gone and `shellcheck ~/bin/archive-logs` is quiet. Then run the checks.
 hints:
+  - "Each error message names the command that failed and what it was given. Compare what the command was given with what you meant it to get. `shellcheck ~/bin/archive-logs` points at the risky lines and says why."
   - "Start with `#!/usr/bin/env bash` and `set -euo pipefail`, and quote every `$src`, `$dest` and `$f`. ShellCheck will point at each unquoted one (SC2086) and at the `$(ls)` (SC2045)."
   - "Replace the loop with a single quoted copy that handles spaces: `mkdir -p \"$dest/logs\"` then `cp -r \"$src\"/* \"$dest/logs/\"`. A quoted glob keeps each filename whole."
   - "Guard the source near the top: `[[ -d \"$src\" ]] || { echo \"no logs at $src\" >&2; exit 2; }`."

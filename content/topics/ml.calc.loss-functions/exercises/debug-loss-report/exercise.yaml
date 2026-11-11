@@ -1,14 +1,18 @@
 id: debug-loss-report
 stage: debug
-rev: 1
+rev: 2
 title: "Two losses, both wrong"
 prompt: |
-  This program reports a mean squared error and a cross-entropy, and should print:
+  This program reports a mean squared error for four predictions of a number, and a cross-entropy for four predicted chances of a yes, and should print:
 
   ```
   mse 0.1375
   cross-entropy 0.992
   ```
 
-  It runs, but both numbers are wrong. `mse` averages the misses without squaring them (it's measuring mean **absolute** error), and `cross_entropy` uses `np.log10`, the base-10 log, where the loss is defined with the natural log, `np.log`; base 10 makes every cost 2.3 times too small.
+  It runs, but both numbers are wrong: it prints `mse 0.325` and `cross-entropy 0.431`. It has two bugs. Run it, then run the checks, which try each loss on a case you can work out by hand.
+hints:
+  - "Work one case of each by hand: a miss of 2 should cost 4 under mean squared error, and a predicted chance of 0.5 for a true yes should cost `-log(0.5)`, about 0.693, under cross-entropy. What does each function give instead?"
+  - "`mse` averages the misses without squaring them, which is the mean absolute error."
+  - "Cross-entropy is defined with the natural log, `np.log`. `np.log10` is the base-10 log, which makes every cost 2.3 times too small."
 skills: [mse, cross-entropy]

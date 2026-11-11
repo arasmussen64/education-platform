@@ -1,14 +1,16 @@
 id: mcq-bind-localhost
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A web app works with `curl http://localhost:8080` on the server, but nobody can reach it from another machine. `ss -ltnp` shows `127.0.0.1:8080`. What's wrong?
 choices:
-  - "The firewall is blocking it; nothing else matters"
-  - "The app is bound to the loopback address, so it only accepts connections from the machine itself; it must listen on `0.0.0.0:8080` (or the interface's address), and then the firewall or security group must allow the port too"
-  - "Port 8080 can't be reached over a network; only ports below 1024 can"
-  - "`localhost` and `127.0.0.1` are different machines"
-answer: 1
+  - "The firewall is dropping port 8080, which `ss` shows by printing `127.0.0.1` in place of the address"
+  - "Ports above 1024 are for local use only, so the app needs a port such as 80 to be reached remotely"
+  - "The clients are using the wrong address: from another machine they should ask for `127.0.0.1:8080`"
+  - "The app listens on the loopback address only, so it never sees a connection from another machine"
+answer: 3
 explanation: |
-  The local address in `ss` is the half of the story people forget: a socket bound to `127.0.0.1` never sees a packet that arrived on `eth0`. Most servers have a setting (`--host 0.0.0.0`, `bind = 0.0.0.0`) for this, and the default is often loopback on purpose, for safety. After the bind is right, the host firewall and the cloud security group are the next two gates. Any port works over the network; the 1024 line is about which ports need root to bind.
+  The local address in `ss` is the half of the story people forget: a socket bound to `127.0.0.1` never sees a packet that arrived on `eth0`. The app must listen on `0.0.0.0:8080` (or the interface's address). Most servers have a setting for this (`--host 0.0.0.0`, `bind = 0.0.0.0`), and the default is often loopback on purpose, for safety.
+
+  `ss` knows nothing about the firewall: the address it prints is the one the program asked to listen on. Once the bind is right, the host firewall and the cloud security group are the next two gates. Any port works over the network; the 1024 line is only about which ports need root to bind. And `127.0.0.1` always means "this machine", so a client asking for it reaches itself, not the server.
 skills: [sockets-ss, ip-and-routes]

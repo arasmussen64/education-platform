@@ -133,3 +133,32 @@ def test_leaves_topics_that_are_being_written_alone(tmp_path: Path) -> None:
     counts = write_outlines(parsed(), content, CAPSTONE_AFTER)
     assert counts == {"written": 5, "kept": 1}
     assert shell.read_text() == started
+
+
+def pad_tables(spec: str) -> str:
+    """The spec with extra spaces around every table cell, as Prettier pads."""
+    lines = spec.split("\n")
+    return "\n".join(
+        line.replace(" | ", "   |  ").replace("| ", "|  ", 1)
+        if line.startswith("| ")
+        else line
+        for line in lines
+    )
+
+
+def test_reads_tables_a_formatter_has_padded() -> None:
+    # Prettier lines the columns up with spaces. On 2026-11-11 the real spec's
+    # tables were padded and the rows had stopped matching: run on it, the
+    # script would have dropped about 300 topics from the track.
+    padded = pad_tables(SPEC)
+    assert "|  1   |  Shell essentials" in padded
+
+    def topics(spec: str) -> list[tuple[str, str]]:
+        return [
+            (topic.id, topic.title)
+            for module in parse_spec(spec).modules
+            for topic in module.topics
+        ]
+
+    assert topics(padded) == topics(SPEC)
+    assert ("csa.deep.networking", "Specialty: Networking") in topics(padded)

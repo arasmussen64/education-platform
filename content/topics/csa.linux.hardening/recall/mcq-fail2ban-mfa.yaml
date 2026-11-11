@@ -1,14 +1,16 @@
 id: mcq-fail2ban-mfa
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   The auth log shows thousands of failed SSH logins a day from the internet. Passwords are already disabled. What's the right level of concern, and what helps?
 choices:
-  - "Critical: move SSH to port 2222 immediately"
-  - "Low: with keys only, password guessing can't succeed; `fail2ban` or rate limits cut the noise in the logs, restricting the source addresses in the security group cuts it further, and the place that really needs multi-factor authentication is the cloud console"
-  - "Critical: disable SSH entirely"
-  - "Low, but only if you also rename the `root` user"
-answer: 1
+  - "Low: with keys only there is nothing to guess, and `fail2ban` is enough to cut the noise in the logs"
+  - "High: at that rate one guess will get through in time, so move SSH to port 2222 to stop the attempts"
+  - "Low, but only once the `root` account is renamed, because its password is what they are guessing at"
+  - "High: that many failures will lock the real users out, so raise `MaxAuthTries` to let them back in"
+answer: 0
 explanation: |
-  Guessing attacks need something to guess; against a key there is nothing. What's left is log noise and a little CPU, which `fail2ban` (temporary bans after repeated failures) and a security group that allows SSH only from your network handle. A different port stops some scanners for a week and confuses your own team for years. The cloud console, where one password can create or destroy every server, is where a second factor is worth the friction.
+  Guessing attacks need something to guess; against a key there is nothing, however many attempts are made, so no rate of failures "gets through in time". What's left is log noise and a little CPU, which `fail2ban` (temporary bans after repeated failures) and a security group that allows SSH only from your network handle.
+
+  A different port stops some scanners for a week and confuses your own team for years. Renaming `root` changes nothing here: with passwords disabled there is no password to guess, for `root` or anyone. And strangers' failures can't lock real users out: `MaxAuthTries` counts the attempts within one connection, not across the internet. The place that really needs multi-factor authentication is the cloud console, where one password can create or destroy every server.
 skills: [ssh-hardening, attack-surface]

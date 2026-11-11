@@ -1,9 +1,9 @@
 id: debug-gradient-routine
 stage: debug
-rev: 1
-title: "A gradient with a stray nudge"
+rev: 2
+title: "A gradient and two rates, all off"
 prompt: |
-  This program estimates the gradient of `f(x, y) = x² + 3y²` at `(1, 1)` and the rate of change along two directions. It should print:
+  This program estimates the gradient of `f(x, y) = x² + 3y²` at `(1, 1)` numerically, then the rate of change along two directions, east and north-east, each given as an arrow. It should print:
 
   ```
   gradient [2. 6.]
@@ -11,5 +11,9 @@ prompt: |
   north-east 5.657
   ```
 
-  It has two bugs. Run it: the gradient's second entry is 8 where it should be 6. The `step` array is made once, outside the loop, so by the second coordinate it still holds the first coordinate's nudge and both move at once. Fix that, and the two rates are still too big: `directional_derivative` dots the gradient with the direction as given, but the rate along a direction is defined for a direction of **length 1**.
+  Instead the gradient's second entry comes out as 8, and both rates are far too big. It has two bugs. Run it, compare each line with the one above, fix what you find, and run it again; then run the checks, which try each function on its own.
+hints:
+  - "Fix the gradient first, since both rates are built from it. Its first entry is right and its second isn't: trace the loop's second pass (or step through it) and look at what `p + step` is."
+  - "`step` is made once, before the loop, so on the second pass it still holds the first coordinate's nudge and both coordinates move at once. Each pass needs a fresh array of zeros."
+  - "The rate along a direction is defined for a direction of length 1. `[2, 0]` and `[3, 3]` are arrows of length 2 and about 4.24: divide by the direction's length, `np.linalg.norm(direction)`."
 skills: [gradient, contours]

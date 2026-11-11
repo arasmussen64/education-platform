@@ -1,6 +1,6 @@
 id: debug-gaussian-elimination
 stage: debug
-rev: 1
+rev: 2
 title: "Elimination for any size"
 prompt: |
   `gaussian_solve(A, b)` is elimination for a system of any size: it puts `b` alongside `A` as an extra column, zeroes out everything below each pivot, then substitutes back from the last row up. For the system in the program it should print the same answer `np.linalg.solve` would:
@@ -9,5 +9,10 @@ prompt: |
   [ 2.  3. -1.]
   ```
 
-  It has two bugs. Run it and compare with `np.linalg.solve(A, b)`. One bug is a slice that stops one column too early during elimination; the other is a loop that stops one row too early during back-substitution.
+  Instead it prints `[  0. -25.   3.]`. It has two bugs. Run it, compare with `np.linalg.solve(A, b)`, fix what you find, and run it again.
+hints:
+  - "Print `rows` after the elimination loops. Every row operation should change the whole row, the last column, `b`, included. Is that column what you'd get by hand?"
+  - "`rows[r, col:n]` stops before column `n`, which is where `b` sits, so `b` is never updated. `rows[r, col:]` takes the row to its end."
+  - "Once the elimination is right it prints `[ 0.  3. -1.]`: the first unknown is never worked out. Which rows does the back-substitution loop visit?"
+  - "`range(n - 1, 0, -1)` stops before 0, so row 0 is skipped. Counting down to 0 takes `range(n - 1, -1, -1)`."
 skills: [eliminate, solve]

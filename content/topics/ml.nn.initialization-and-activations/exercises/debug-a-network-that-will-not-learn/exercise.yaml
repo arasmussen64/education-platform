@@ -1,14 +1,20 @@
 id: debug-a-network-that-will-not-learn
 stage: debug
-rev: 1
+rev: 2
 title: "A network that won't learn"
 prompt: |
-  A `[3, 8, 1]` ReLU network trained for 300 steps on six rows. It should print:
+  A `[3, 8, 1]` ReLU network trained for 300 steps on six rows. Its hidden layer should start at He's scale for its 3 inputs, and its output layer at the default. It should print:
 
   ```
   loss 1.1388 -> 0.0006 | the loss fell by more than half: True
   hidden units identical: False | dead hidden units: 0 of 8
   ```
 
-  It has two bugs, both in how the hidden layer starts. Run it: the loss doesn't fall by more than half, the hidden units are identical and all 8 read dead, because the hidden layer's weights start at **zero** (`scale=0.0`), so every unit is a copy of every other and no gradient reaches them; start them random at He's scale, `sqrt(2 / 3)` for 3 inputs. Fix that, and the units are distinct but all 8 are still **dead**: their biases start at -5, so no unit's pre-activation is ever positive and no gradient ever reaches their weights. Biases start at 0.
+  Instead the loss only goes from 0.5 to 0.25, the eight hidden units are identical, and all eight are dead. It has two bugs, and they overlap: a right fix can leave most of the output unchanged until the other is fixed too. Fix one thing at a time, and run it after each change.
+hints:
+  - "The two bugs overlap: the dead count only comes right once both are fixed, so read the other numbers as you go."
+  - "Identical hidden units started the same and got the same gradient ever after. What does `scale=0.0` make every starting weight?"
+  - "He's scale for a ReLU layer with 3 inputs is `sqrt(2 / 3)`: `Dense(3, 8, seed=1, scale=np.sqrt(2 / 3))`."
+  - "A dead unit's pre-activation, `X @ W + b`, is never positive on any row. With weights this size, what does a bias of -5 do to it?"
+  - "Start the biases at 0, as `Dense` already does: take out the line that sets them to -5."
 skills: [symmetry, activations]

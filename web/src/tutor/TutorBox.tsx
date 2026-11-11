@@ -10,6 +10,7 @@ import {
   type HintOutcome,
   LEVEL_LABELS,
   MAX_QUESTION_CHARS,
+  MAX_TUTOR_CODE_CHARS,
   type TutorHint,
 } from './hint.ts'
 
@@ -195,6 +196,14 @@ function Status({ state }: { state: State }) {
         <span>
           The tutor isn't available right now. The written hints still work; try
           the tutor again later.
+        </span>
+      )
+    case 'too_long':
+      return (
+        <span>
+          This program is too long for the tutor to read: it reads up to{' '}
+          {MAX_TUTOR_CODE_CHARS.toLocaleString('en-US')} characters. The written
+          hints still work.
         </span>
       )
     case 'failed':

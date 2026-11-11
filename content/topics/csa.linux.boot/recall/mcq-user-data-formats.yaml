@@ -1,14 +1,16 @@
 id: mcq-user-data-formats
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   How does cloud-init tell a `#cloud-config` document from a script, and what's the difference in how each is handled?
 choices:
-  - "By the file extension: `.yaml` or `.sh`"
-  - "By the first line: `#cloud-config` marks YAML that cloud-init's modules interpret (users, packages, files, runcmd), while a shebang like `#!/bin/bash` marks a script cloud-init simply runs; both arrive as user data"
-  - "Scripts run on every boot; cloud-config runs never"
-  - "cloud-config is for Ubuntu and scripts are for everything else"
-answer: 1
+  - "By the file extension: `.yaml` is read by cloud-init's modules, and `.sh` is handed to bash to run"
+  - "By trying to parse it as YAML: what parses is cloud-config, and whatever fails is run as a script"
+  - "By the first line: a `#!` script runs on every boot, and `#cloud-config` YAML only on the first one"
+  - "By the first line: `#cloud-config` YAML is read by cloud-init's modules, and a `#!` script is simply run"
+answer: 3
 explanation: |
-  User data is just bytes handed to the instance, and cloud-init reads the first line to decide what it has. Cloud-config is declarative, so each module knows how to apply its part sensibly; a script is whatever you wrote. Both run once per instance by default. You can even combine them in a multipart document. Prefer cloud-config for setup and keep scripts short, or better, bake what you can into the image.
+  User data is just bytes handed to the instance, and cloud-init reads the first line to decide what it has. `#cloud-config` marks YAML that its modules interpret (users, packages, files, `runcmd`); a shebang like `#!/bin/bash` marks a script that cloud-init simply runs. Cloud-config is declarative, so each module knows how to apply its part sensibly; a script is whatever you wrote.
+
+  User data arrives with no file name, so there is no extension to look at, and cloud-init doesn't guess by parsing: a YAML file without the `#cloud-config` line is not treated as cloud-config. A user-data script runs once per instance by default, as most cloud-config modules do, so it does not run again on every boot. You can even combine them in a multipart document. Prefer cloud-config for setup and keep scripts short, or better, bake what you can into the image.
 skills: [cloud-init]

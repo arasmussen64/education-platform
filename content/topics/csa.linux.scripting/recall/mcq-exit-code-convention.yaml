@@ -1,14 +1,14 @@
 id: mcq-exit-code-convention
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A deployment script prints "ERROR: upload failed" and then ends with `exit 0`. What's wrong with that, and where should the message have gone?
 choices:
-  - "Nothing; the message is enough"
-  - "Exit 0 means success, so the CI job, systemd unit or calling script treats the deployment as done; the script should `exit 1` (or another non-zero code) and print the error to stderr with `>&2`, so it isn't mixed into normal output"
-  - "Scripts can't change their exit status"
-  - "It should exit with 200, like HTTP"
+  - "Exit 0 means failure in bash, so the status is right; only the message is wrong, and belongs on stderr"
+  - "Exit 0 tells whatever ran it that all went well; it should exit non-zero and print the error to stderr"
+  - "Exit 0 reports success, so it should exit non-zero; the error belongs on stdout with the other output"
+  - "Exit 0 is right, because the script ran to its end; the message is the report, and belongs on stdout"
 answer: 1
 explanation: |
-  Nothing reads your messages; everything reads your exit status. `set -e` gives most failures the right status automatically, and an explicit `exit 1` or `exit 2` covers the checks you write yourself. Errors go to stderr so that a caller capturing the script's output (`result=$(./deploy.sh)`) gets data, not error text, and so the two streams can be logged separately. Codes above 125 have special meanings (128 + signal), so pick small numbers.
+  Nothing reads your messages; everything reads your exit status. Exit 0 means success, so the CI job, the systemd unit or the calling script treats the deployment as done. It's the other way round from true and false in most programming languages: in the shell, 0 is the only "it worked". And the status isn't about whether the script reached its last line: it's the script's verdict on its own job, so a failed upload must end in `exit 1` or another non-zero code (`set -e` gives most failures the right status automatically; codes above 125 have special meanings, so pick small numbers). The message goes to stderr, with `>&2`, so that a caller capturing the script's output (`result=$(./deploy.sh)`) gets data, not error text, and so the two streams can be logged separately.
 skills: [traps-cleanup]

@@ -17,10 +17,10 @@ checks:
     description: "data2 is mounted at /srv/backups."
     command: test "$(findmnt -n -o SOURCE /srv/backups)" = "$(readlink -f /dev/lab/data2)"
   - id: fstab-by-uuid
-    description: "/etc/fstab names it by UUID, at /srv/backups, as xfs, with nofail."
+    description: "/etc/fstab names it by UUID, at /srv/backups, as xfs, with the option that lets a boot go on without it."
     command: |
       uuid=$(blkid -s UUID -o value "$(readlink -f /dev/lab/data2)")
       grep -E "^UUID=$uuid[[:space:]]+/srv/backups[[:space:]]+xfs[[:space:]]+[^[:space:]]*nofail" /etc/fstab
   - id: fstab-works
-    description: "mount -a is happy with fstab."
+    description: "Everything /etc/fstab lists can be mounted without a complaint."
     command: mount -a > /dev/null 2>&1

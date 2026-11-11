@@ -14,3 +14,4 @@ echo "deleted but open: $(sudo lsof +L1 2>/dev/null | grep -c " $mount/")"
 EOF
 chmod +x ~/bin/disk-report
 ~/bin/disk-report /srv/shop
+~/bin/disk-report /srv/media

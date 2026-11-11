@@ -10,7 +10,7 @@ table inet filter {
 	chain output { type filter hook output priority filter; policy accept; }
 }
 NFT
-sudo nft -f /etc/nftables.conf; sudo systemctl enable nftables; echo "dport rules: $(sudo nft list ruleset | grep -c dport)"
+sudo nft -f /etc/nftables.conf; sudo systemctl enable nftables; from-office curl -s http://10.0.9.1:8000/
 printf 'PasswordAuthentication no\nPermitRootLogin no\n' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf; sudo sshd -t && echo "config valid" && sudo systemctl reload ssh
 ssh -i ~/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
 mkdir -p ~/runbook; { echo "service: $(systemctl is-active blog-web)"; echo "answers: $(curl -s localhost:8000)"; echo "login: $(ssh -i ~/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami)"; } > ~/runbook/done.txt; cat ~/runbook/done.txt

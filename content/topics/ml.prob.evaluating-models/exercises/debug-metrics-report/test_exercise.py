@@ -10,7 +10,7 @@ def test_the_output():
 
 
 def test_f1_and_the_interval():
-    """Precision 1 and recall 0.25 give F1 0.4, not 0.625; an accuracy of 0.9 on 100 examples spans 0.841 to 0.959."""
+    """Precision 1 and recall 0.25 give F1 0.4; an accuracy of 0.9 on 100 examples spans 0.841 to 0.959."""
     metrics = function("metrics")
     accuracy_interval = function("accuracy_interval")
     assert abs(metrics(10, 0, 30, 60)[3] - 0.4) < 1e-12

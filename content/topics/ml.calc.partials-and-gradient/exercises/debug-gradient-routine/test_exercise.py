@@ -12,7 +12,7 @@ def test_the_output():
 
 
 def test_three_coordinates():
-    """numeric_gradient nudges one coordinate at a time: f = x y z at (1, 2, 3) gives [6, 3, 2]."""
+    """numeric_gradient gives [6, 3, 2] for f = x y z at (1, 2, 3)."""
     numeric_gradient = function("numeric_gradient")
     g = numeric_gradient(lambda p: p[0] * p[1] * p[2], np.array([1.0, 2.0, 3.0]))
     assert np.abs(g - [6.0, 3.0, 2.0]).max() < 1e-6

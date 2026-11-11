@@ -1,14 +1,18 @@
 id: debug-a-speed-up-and-a-count
 stage: debug
-rev: 1
+rev: 2
 title: "A speed-up and a count"
 prompt: |
-  `amdahl` should give the speed-up of 90 percent parallel work on 8 workers, and `matmul_cost` the FLOPs and bytes of a 1024-cube in float32. The program should print:
+  `amdahl` should give the speed-up of 90 percent parallel work on 8 workers, and `matmul_cost` the FLOPs and bytes of a 1024-cube matrix multiply in float32. The program should print:
 
   ```
   8 workers on 90% parallel work: 4.71x
   1024-cube matmul: 2,147,483,648 FLOPs, 12,582,912 bytes, 170.7 FLOPs per byte
   ```
 
-  It has two bugs. Run it: the speed-up comes out `1.10x`, because the fractions are the wrong way round: it is the **parallel** part that gets divided among the workers and the serial part that stays whole. Fix that, and the matrix multiply counts `1,073,741,824` FLOPs, half the right number: each term of an output is a multiply **and** an add, so the count is `2 * m * k * n`, and the FLOPs per byte are 170.7, not 85.3.
+  Instead it says 8 workers give only `1.10x`, and the matrix multiply comes to `1,073,741,824` FLOPs and 85.3 FLOPs per byte. It has two bugs. Work out each number by hand from the function's docstring, then run the checks, which try other values.
+hints:
+  - "Each line has its own cause. Work the speed-up out by hand: with 90 percent of the work parallel on 8 workers, what fraction of the old time is left?"
+  - "The serial tenth keeps its whole time and the parallel nine tenths are shared by 8, so the time left is `0.1 + 0.9 / 8`. Which fraction does the code divide by the workers?"
+  - "The FLOPs are exactly half the right number. Each of the `m * n` outputs sums `k` products, and each product is a multiply and an add: two FLOPs, so `2 * m * k * n`."
 skills: [amdahl, intensity]

@@ -9,7 +9,9 @@ cd /var/log/shop
 
 # access.log: 600 requests, "METHOD PATH STATUS BYTES". /home is the most
 # requested path but never twice in a row, while /cart comes in pairs, so
-# counting with uniq -c without sorting first gives the wrong answer.
+# counting with uniq -c without sorting first gives the wrong answer. The
+# 404s are rarer than the 500s, so the statuses don't come out biggest first
+# by themselves: a count by status needs its final sort -rn.
 : > access.log
 for i in $(seq 1 600); do
   case $((i % 10)) in
@@ -23,7 +25,7 @@ for i in $(seq 1 600); do
   if (( i % 10 == 0 )); then method=POST; else method=GET; fi
   if (( i % 40 == 0 )); then status=503
   elif (( i % 25 == 0 )); then status=500
-  elif (( i % 13 == 0 )); then status=404
+  elif (( i % 31 == 0 )); then status=404
   else status=200
   fi
   bytes=$(( (i * 37) % 1500 + 100 ))
@@ -53,7 +55,10 @@ for i in $(seq 1 120); do
 done
 
 # old-access.log: last month's requests, with a different favourite path and
-# no ties in the top two.
+# no ties in the top two. It has two statuses access.log lacks: 502, which is
+# in the 500s, and 405, which isn't. A count that only knows the statuses it
+# has seen (500 and 503), or that takes any status with a 5 in it, is wrong
+# here.
 : > old-access.log
 for i in $(seq 1 300); do
   case $((i % 6)) in
@@ -61,7 +66,11 @@ for i in $(seq 1 300); do
     3|4)   path=/home ;;
     *)     path=/cart ;;
   esac
-  if (( i % 30 == 0 )); then status=500; else status=200; fi
+  if (( i % 30 == 0 )); then status=500
+  elif (( i % 45 == 0 )); then status=502
+  elif (( i % 22 == 0 )); then status=405
+  else status=200
+  fi
   echo "GET $path $status $(( (i * 53) % 900 + 100 ))" >> old-access.log
 done
 

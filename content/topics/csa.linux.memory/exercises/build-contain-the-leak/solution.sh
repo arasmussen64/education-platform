@@ -3,9 +3,16 @@
 #    killed and restarted, and each restart starts the count again.
 free -m; sleep 3; free -m
 ps -eo pid,comm,rss --sort=-rss | head -n 4
-systemctl status shop-indexer --no-pager | head -n 12
+# The PID at the top of that list; systemctl status PID names its service.
+pid=$(ps -eo pid --sort=-rss | sed -n 2p | tr -d ' ')
+systemctl status "$pid" --no-pager | head -n 12
 cat /sys/fs/cgroup/system.slice/shop-indexer.service/memory.current
-mkdir -p ~/report && cat /sys/fs/cgroup/system.slice/shop-indexer.service/memory.peak | tee ~/report/peak.txt
+# A person reading this has watched for a while, and the peak is hundreds
+# of MB. This script runs seconds after boot, so it waits until the leak has
+# passed 128 MB: no run under the limit can reach a peak like that.
+peak=/sys/fs/cgroup/system.slice/shop-indexer.service/memory.peak
+for _ in $(seq 1 30); do [ "$(cat "$peak")" -gt 150000000 ] && break; sleep 1; done
+mkdir -p ~/report && cat "$peak" | tee ~/report/peak.txt
 
 # 2. A hard limit and no swap, as a drop-in. (In the lab you'd write it with
 #    sudo systemctl edit shop-indexer; here the file is written directly.)
@@ -14,8 +21,9 @@ printf '[Service]\nMemoryMax=128M\nMemorySwapMax=0\n' | sudo tee /etc/systemd/sy
 sudo systemctl daemon-reload
 sudo systemctl restart shop-indexer
 
-# 3. Watch the kernel kill it at the limit and systemd bring it back.
-sleep 10
+# 3. Watch the kernel kill it at the limit and systemd bring it back. The
+#    leak takes about eight seconds to reach 128 MB.
+sleep 12
 journalctl -u shop-indexer --no-pager | grep -i oom | tail -n 3
 systemctl show shop-indexer -p NRestarts
 journalctl -k --no-pager | grep 'Killed process' | tail -n 1

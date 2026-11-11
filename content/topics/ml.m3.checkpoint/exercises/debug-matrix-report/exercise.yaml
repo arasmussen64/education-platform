@@ -1,9 +1,9 @@
 id: debug-matrix-report
 stage: debug
-rev: 1
+rev: 2
 title: "Three bugs in a matrix program"
 prompt: |
-  This is the checkpoint's program, and it should print:
+  This is the checkpoint's program: it fits a plane to some points by least squares, checks the fit against `np.linalg.lstsq`, then compresses the points onto their top two principal components. It should print:
 
   ```
   plane [ 2.015 -1.035  3.024]
@@ -12,7 +12,14 @@ prompt: |
   compression error 0.079
   ```
 
-  It has three bugs, in three different places, and each hides the next. Run it and read each error: the first is a **shape mismatch** when the design matrix is built (how many ones?); the second is a **transposed multiply** in the normal equations (how many rows does the matrix handed to `np.linalg.solve` have, and how many entries does the right-hand side have?); and once both are fixed the program runs but the variance kept is wrong, because the covariance is computed on **uncentered** data.
+  Instead it stops with a `ValueError` that starts `all the input array dimensions except for the concatenation axis must match exactly`. It has three bugs, and each one hides the next. Run it, read each error, fix what you find, and run it again until the output matches.
+hints:
+  - "Read the error's last line and the line it points to: which of the arrays being stacked has the wrong length?"
+  - "The design matrix needs one 1 per point: `np.ones(len(points))`, as `report` has it."
+  - "Next `np.linalg.solve` complains about sizes. Print the shapes of what it's handed: for 3 unknowns, a 3-by-3 matrix and 3 numbers."
+  - "The normal equations use `A.T @ A`, which is 3 by 3; `A @ A.T` is 6 by 6."
+  - "Now it runs, but the variance kept is 0.9896. Compare `compress` with the steps of PCA: which data should the covariance be built from?"
+  - "`centered` is worked out and then never used: the covariance is `centered.T @ centered / (len(points) - 1)`."
 test_skills:
   test_the_output: [ml.la.numpy-arrays/elementwise, ml.la.least-squares/design, ml.la.pca/covariance]
   test_exact_plane: [ml.la.systems/solve, ml.la.pca/explained]

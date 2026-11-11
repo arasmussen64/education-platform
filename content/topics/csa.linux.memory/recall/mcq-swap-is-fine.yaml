@@ -1,14 +1,16 @@
 id: mcq-swap-is-fine
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A server has used 300 MB of its 2 GB swap for weeks. `vmstat 1` shows `si` and `so` at 0 almost every second, and `available` memory is 6 GB. Is this a problem?
 choices:
-  - "Yes: any swap use means the server is out of memory"
-  - "No: the kernel moved pages that nothing has touched in a long time to disk, which frees RAM for the cache and for active programs; swap is only a problem when pages move in and out continuously"
-  - "Yes: swap must be turned off on servers"
-  - "No, but only because 300 MB is less than 10% of the swap"
-answer: 1
+  - "Yes: any swap in use means RAM has run out, so this server needs more memory right now"
+  - "No, but only because 300 MB is under a quarter of the swap; above that it would be thrashing"
+  - "Yes: `si` and `so` at 0 mean the swapped pages are stuck on disk and can't be read back in"
+  - "No: those are idle pages parked on disk, and swap only hurts when pages keep moving in and out"
+answer: 3
 explanation: |
-  Swap holding idle pages is the system working as designed: that memory is better spent on the page cache or on programs doing something. The sign of trouble is movement, not occupancy: steady non-zero `si` and `so` mean the working set doesn't fit and the machine is thrashing. Turning swap off doesn't create memory; it only removes the kernel's option to park idle pages, and makes the OOM killer the first response instead of the last.
+  Swap holding idle pages is the system working as designed: the kernel moved pages that nothing has touched in a long time to disk, and that RAM is better spent on the page cache or on programs doing something. With 6 GB available, this server is not short of memory.
+
+  The sign of trouble is movement, not occupancy: steady non-zero `si` and `so` mean the working set doesn't fit and the machine is thrashing. So there is no safe or unsafe fraction of swap in use, and zeros in `si` and `so` are the good news, not a fault: nobody is asking for those pages, and any of them is read back the moment a program touches it. Turning swap off doesn't create memory; it only removes the kernel's option to park idle pages, and makes the OOM killer the first response instead of the last.
 skills: [swap-paging]

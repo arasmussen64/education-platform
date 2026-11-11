@@ -1,14 +1,14 @@
 id: mcq-fsync
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A teammate suggests turning off `fsync` in the database's configuration because commits are slow. What does `fsync` do, and what would turning it off risk?
 choices:
-  - "`fsync` compresses data before writing; turning it off uses more disk space"
-  - "`fsync` makes the kernel write a file's buffered data to the disk and wait until it's there; without it, a commit is acknowledged while its data is still only in memory, and a crash or power cut loses transactions the clients were told were saved"
-  - "`fsync` checks the disk for errors; turning it off risks nothing on cloud disks"
-  - "`fsync` syncs the clock; turning it off makes timestamps wrong"
+  - "It checks each block for errors as it is written; without it, a failing disk can corrupt data unnoticed"
+  - "It waits until a file's data is really on the disk; without it, a crash can lose commits reported as saved"
+  - "It writes each change to the journal first; without it, a crash can leave the filesystem itself corrupt"
+  - "It copies the kernel's cache to a second disk; without it, losing one disk loses the whole database"
 answer: 1
 explanation: |
-  `write()` returns as soon as the data is in the kernel's page cache; the disk may see it seconds later. `fsync` waits for the disk to confirm, which is why a committed transaction survives a power cut, and why each commit costs a disk round trip. Turning it off trades that guarantee for speed: the database may lose or corrupt data it acknowledged. The right fixes for slow commits are a lower-latency disk, batching commits, or a write-ahead log on its own fast volume.
+  `write()` returns as soon as the data is in the kernel's page cache; the disk may see it seconds later. `fsync` makes the kernel write a file's buffered data out and waits until the disk confirms, which is why a committed transaction survives a power cut, and why each commit costs a disk round trip. Turning it off trades that guarantee for speed: a commit is acknowledged while its data is still only in memory, and a crash loses transactions the clients were told were saved. `fsync` doesn't check for errors and doesn't copy anything to another disk. The journal is the filesystem's own protection for its structure, and it stays on whatever the database does. The right fixes for slow commits are a lower-latency disk, batching commits, or a write-ahead log on its own fast volume.
 skills: [durability]

@@ -13,4 +13,5 @@ hints:
   - "`sudo systemd-run --wait --collect --unit=\"$name\" -p MemoryMax=\"$limit\" -p MemorySwapMax=0 \"$@\"` runs the command as a service and waits for it. The arguments: `name=\"$1\"`, `limit=\"$2\"`, then `shift 2` leaves the command in `\"$@\"`."
   - "With `--wait`, systemd-run prints a line `Finished with result: success` or `Finished with result: oom-kill` (to standard error, so capture it with `2>&1`), and exits non-zero when the unit failed; keep the output with `out=$(... 2>&1 || true)` and pick the result out of it with `grep` and `awk`."
   - "`--collect` cleans the unit up afterwards even when it failed, so the same name can be used again. Exit with `exit 137` for a kill and `exit 0` otherwise."
+  - "To do one thing for a kill and another otherwise, bash has `if`, which runs the command after it and takes the `then` branch when that command succeeds: `if echo \"$out\" | grep -q 'result: oom-kill'; then echo \"$name: killed: out of memory at $limit\"; exit 137; fi`, with the `finished` line after it. The Shell scripting topic, later in this module, covers `if` properly."
 skills: [container-memory, oom-killer]

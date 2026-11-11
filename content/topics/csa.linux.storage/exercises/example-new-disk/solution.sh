@@ -1,4 +1,4 @@
-lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS; ls -l /dev/lab/
+lsblk -o NAME,SIZE,MOUNTPOINTS; ls -l /dev/lab/; sudo blkid /dev/lab/data1
 sudo mkfs.ext4 -q /dev/lab/data1
 sudo mkdir -p /data && sudo mount /dev/lab/data1 /data
 df -h /data

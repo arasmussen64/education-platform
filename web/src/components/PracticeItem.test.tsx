@@ -6,7 +6,12 @@ import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import type { CheckOutcome } from '../python/runner.ts'
 import { fakeAuth } from '../test/fakeAuth.ts'
-import { fakeContent, fakeLab, PARSONS } from '../test/fakeContent.tsx'
+import {
+  ESTIMATE,
+  fakeContent,
+  fakeLab,
+  PARSONS,
+} from '../test/fakeContent.tsx'
 import { recordingEventLog } from '../test/fakeEvents.ts'
 import { allPassed, oneFailed, report } from '../test/fakePython.ts'
 import { PracticeItem } from './PracticeItem.tsx'
@@ -61,6 +66,63 @@ describe('a Parsons problem as a practice item', () => {
         data: { program: PARSONS.lines.join('\n') },
       }),
     ])
+  })
+})
+
+describe('an estimate as a practice item (ADR-0024)', () => {
+  function renderEstimate() {
+    const base = fakeContent()
+    const content = {
+      ...base,
+      recall: { ...base.recall, [ESTIMATE.id]: ESTIMATE },
+    }
+    const { log, events } = recordingEventLog()
+    render(
+      <AuthProvider auth={fakeAuth(null)}>
+        <EventLogContext value={log}>
+          <MemoryRouter>
+            <PracticeItem
+              itemId={ESTIMATE.id}
+              content={content}
+              context="review"
+            />
+          </MemoryRouter>
+        </EventLogContext>
+      </AuthProvider>,
+    )
+    return { content, events }
+  }
+  const box = () => screen.getByRole('textbox', { name: 'Your answer' })
+
+  it('has its own heading, and saves what was typed and the number it was read as', async () => {
+    const { content, events } = renderEstimate()
+    expect(
+      screen.getByRole('heading', { name: 'Work it out' }),
+    ).toBeInTheDocument()
+    await userEvent.type(box(), '$73{Enter}')
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'answer',
+        topic_id: content.topic.id,
+        item_id: ESTIMATE.id,
+        item_rev: 1,
+        context: 'review',
+        correct: false,
+        data: {
+          typed: '$73',
+          number: 73,
+          relative_error: expect.closeTo(-0.1667, 4),
+          mistake: 'vm-only',
+        },
+      }),
+    ])
+  })
+
+  it("saves nothing for text it can't read as a number", async () => {
+    const { events } = renderEstimate()
+    await userEvent.type(box(), 'eighty{Enter}')
+    expect(screen.getByText(/Type a number, like 1168/)).toBeVisible()
+    expect(events).toEqual([])
   })
 })
 

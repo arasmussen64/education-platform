@@ -1,6 +1,6 @@
 id: debug-a-job-queue
 stage: debug
-rev: 1
+rev: 2
 title: "A job queue"
 prompt: |
   Jobs arrive in a queue; a job may be a list of parts, which go to the back of the queue when it is reached. `count_jobs` should count the single jobs, and `run_all` should run them in arrival order. The program should print:
@@ -10,5 +10,10 @@ prompt: |
   a d b c f e
   ```
 
-  It has two bugs. Run it: the count is 10 for 6 jobs, because `count_jobs` adds one for every **list** as well as for every name; a list is not a job, only the sum of its parts. Fix that, and the jobs come out as `f e d c b a`, last in first out: `run_all` takes jobs from the **back** of the deque with `pop()`, which makes it a stack. A queue takes from the front.
+  Instead it counts 10 jobs and runs them as `f e d c b a`. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which try both functions on other jobs.
+hints:
+  - "Count the single jobs in `[\"b\", \"c\"]` by hand: two. What does `count_jobs` give for it, and where does the extra one come from?"
+  - "A list is not a job itself, only the sum of its parts, so the list case adds nothing of its own."
+  - "`f e d c b a` is last in, first out. Which end of the deque does `queue.pop()` take from?"
+  - "`pop()` takes from the back, which makes the deque a stack. A queue takes from the front, with `popleft()`."
 skills: [stack-queue, recursion]

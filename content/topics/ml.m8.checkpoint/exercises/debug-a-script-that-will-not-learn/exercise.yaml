@@ -1,6 +1,6 @@
 id: debug-a-script-that-will-not-learn
 stage: debug
-rev: 1
+rev: 2
 # The app stops a Run or a Check after this long (5 seconds when a file
 # doesn't say). This program trains a network, and the Check runs it
 # twice, so it needs longer.
@@ -8,20 +8,21 @@ rev: 1
 time_limit_ms: 15000
 title: "Three bugs in a training script"
 prompt: |
-  This is the digit reader, with the weights of both layer types started by one helper, `start_weights` (its `fan_in` is the number of inputs a unit sums: `n_in` for a dense layer, `k * k` for a kernel), and the learning rate in one name, `RATE`. It should print:
+  This is the digit reader from the build, with the same network, data and training settings, except that the weights of both layer types are started by one helper, `start_weights` (its `fan_in` is the number of inputs a unit sums: `n_in` for a dense layer, `k * k` for a kernel). It should print:
 
   ```
   loss 1.97 -> 0.06 | held-out accuracy 0.95 | at least 0.9: True
   evaluating twice gives the same answer: True
   ```
 
-  It has three bugs, and each shows from the outside. Run it:
-
-  1. **The loss sits at 2.30 for twenty epochs and the accuracy at 0.10:** 2.30 is log 10, the loss of guessing evenly among ten digits, and the curve never moves. `start_weights` returns zeros, a placeholder that was never replaced: with every weight at zero, every hidden value is zero, no gradient reaches any weight, and only the output bias moves. Starting weights must be small random numbers scaled by the fan-in (`standard_normal(shape) / sqrt(fan_in)`), so that the signal neither vanishes nor explodes and no two units begin alike.
-  2. **The run now learns, but ends at 0.77, short of the bar, and evaluating twice already gives two different answers** (that is the third bug showing; hold it for a moment): `RATE` is 0.1, ten times too high for Adam on this network, so each step overshoots; with the evaluation fixed as well, a rate of 0.1 still stops at 0.88. The checklist's fix is the rate by a factor of ten: 0.01.
-  3. **The accuracy is 0.92, but evaluating the network twice gives two different answers:** `evaluate` never switches the network to eval mode, so dropout is still drawing a fresh random mask on every forward pass while the network is being measured. `evaluate` must call `net.eval()` before its forward pass; `fit` already calls `net.train()` before each epoch's steps.
-
-  The checks also hold `start_weights` to a random, fan-in-scaled start, `RATE` to 0.01, and `evaluate` to leaving dropout off.
+  Instead the loss goes from 2.31 to 2.30 in twenty epochs, and the held-out accuracy is 0.10. It has three bugs. Each one shows from the outside, but not all at once: one of them hides the other two until it is fixed. Run it after every change, and tell them apart the way the module's checklist does.
+hints:
+  - "Read the first loss before anything else. 2.30 is log 10, the loss of guessing evenly among ten digits, and the curve never moves. What would make every hidden value zero and stop any gradient reaching the weights?"
+  - "`start_weights` returns zeros. A start must be small random numbers scaled by the fan-in: `rng.standard_normal(shape) / np.sqrt(fan_in)`."
+  - "Now it learns, but evaluating the same network twice gives two different answers. Nothing changes the weights between the two, so something in the network is random: which layer, and which mode is it in when `evaluate` runs?"
+  - "`evaluate` must call `net.eval()` before its forward pass; `fit` already switches back with `net.train()` before each epoch's steps."
+  - "Now the double evaluation agrees, but the accuracy ends short of 0.9. It learns, so the weights and the data are fine: compare the learning rate with the one the build's digit reader trains at."
+  - "The build trains Adam at 0.01, and `RATE` is ten times that: each step overshoots. Set `RATE = 0.01`."
 # Every test names the module skills it checks (ADR-0012), so a failed test
 # says which topics to revisit.
 test_skills:

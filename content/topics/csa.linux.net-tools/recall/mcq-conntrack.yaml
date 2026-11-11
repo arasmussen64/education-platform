@@ -1,14 +1,16 @@
 id: mcq-conntrack
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A server's input chain is `policy drop` with only `ct state established,related accept` and `tcp dport 22 accept`. The server itself runs `curl https://example.com` and it works. How do the reply packets get in, with no rule for port 443?
 choices:
-  - "They don't; `curl` must be using port 22"
-  - "Connection tracking recorded the outgoing connection when the server sent its SYN, so the replies arrive with state `established` and the first rule accepts them; a rule per port is needed only for connections *initiated* from outside"
-  - "The policy `drop` only applies to the first packet of the day"
-  - "HTTPS packets are exempt from firewalls"
-answer: 1
+  - "Replies go through the `output` chain, which has no rules here, so the `input` chain never sees them"
+  - "The replies are `related` to the SSH session that ran `curl`, so the rule for port 22 lets them in"
+  - "Connection tracking saw the server start the connection, so the replies count as `established`"
+  - "The replies arrive on a high port, and `policy drop` applies only to the ports below 1024"
+answer: 2
 explanation: |
-  The kernel's connection-tracking table remembers every connection it has seen start, in either direction, and classifies later packets as `established` (part of a known connection) or `related` (such as an ICMP error about one). That single rule is what makes a default-deny firewall usable: our own outgoing connections and the connections we've accepted keep flowing, and a `new` packet needs an explicit accept. `conntrack -L` shows the table.
+  The kernel's connection-tracking table remembers every connection it has seen start, in either direction. It recorded the outgoing connection when the server sent its SYN, so the replies arrive with state `established` and the first rule accepts them. That single rule is what makes a default-deny firewall usable: our own outgoing connections and the connections we've accepted keep flowing, and only a `new` packet from outside needs an explicit accept. `conntrack -L` shows the table.
+
+  Replies are incoming packets, so they do pass through `input`; `output` is for what this host sends. `related` means something like an ICMP error about a known connection, not "started from the same login session": the firewall knows nothing about who typed the command. And a policy applies to every packet that no rule matched, whatever its port.
 skills: [firewall-path]

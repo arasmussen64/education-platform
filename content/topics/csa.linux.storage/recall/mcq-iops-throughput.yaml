@@ -1,14 +1,14 @@
 id: mcq-iops-throughput
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A database doing many small random reads and writes is slow, although the cloud disk's throughput graph shows it far below its MB/s limit. What's the likely limit, and what does queue depth have to do with it?
 choices:
-  - "The CPU; disks can't be the bottleneck below their throughput limit"
-  - "IOPS: small random operations are limited by operations per second, not megabytes per second; a deeper queue (more requests in flight) raises total throughput but makes each request wait longer, so a latency-sensitive database often can't hide the limit by queueing"
-  - "Inodes; the disk has run out of them"
-  - "The network; cloud disks don't have IOPS limits"
-answer: 1
+  - "IOPS: small random operations run into it first; a deeper queue lets every single request finish sooner"
+  - "Throughput: the graph is lagging behind; a deeper queue raises the MB/s limit that the provider sets"
+  - "IOPS: small random operations run into it first; a deeper queue gets more done, but each request waits longer"
+  - "Latency: each request is slow because the queue is empty; a deeper queue shortens every request's wait"
+answer: 2
 explanation: |
-  Cloud volumes are rated separately for IOPS and for throughput (and often per instance too). Small random I/O hits the IOPS limit while barely moving the MB/s needle; large sequential I/O does the opposite. Queue depth is how many requests are outstanding at once: more in flight means more work done per second, but each request sits in the queue longer, which is exactly what a database waiting on `fsync` can't afford. The fix is a volume with more IOPS, or fewer operations.
+  Cloud volumes are rated separately for IOPS (operations per second) and for throughput (megabytes per second), and often per instance too. Small random I/O hits the IOPS limit while barely moving the MB/s needle; large sequential I/O does the opposite, so the throughput graph is telling the truth and simply isn't the limit here. Queue depth is how many requests are in flight at once: more in flight means more work done per second, but each request sits in the queue longer, which is exactly what a database waiting on `fsync` can't afford. So a deeper queue never makes a single request faster, and it doesn't change the limits the provider sets. Latency is the symptom you see, not a separate limit to raise. The fix is a volume with more IOPS, or fewer operations.
 skills: [durability]

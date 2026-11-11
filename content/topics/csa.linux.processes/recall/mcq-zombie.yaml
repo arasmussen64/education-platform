@@ -1,14 +1,14 @@
 id: mcq-zombie
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   `ps` shows a process marked `<defunct>`, and `kill -9` on it changes nothing. What is going on, and what removes it?
 choices:
-  - "It's hung in the kernel; only a reboot removes it"
-  - "It has already exited, and only its process-table entry remains until its parent reads the exit status; make the parent `wait`, or end the parent so PID 1 adopts and reaps it"
-  - "It's being debugged; detach the debugger"
-  - "It's out of memory; free some memory and it will exit"
+  - "It is ignoring signals; only a `KILL` sent by root can't be ignored, so repeat it with `sudo`"
+  - "It has already exited; its entry stays until its parent calls `wait`, or the parent itself ends"
+  - "It is paused by `STOP`; send it `CONT` so that it can act on the `KILL` that is waiting for it"
+  - "It is stuck inside the kernel and still holds its memory; only a reboot clears such an entry"
 answer: 1
 explanation: |
-  A zombie is finished: no memory, no CPU, just an entry kept so the parent can collect the exit status with `wait`. Signals act on running code, and there's none left, so `kill -9` has nothing to do. The entry disappears when the parent reaps it, or when the parent dies, because PID 1 adopts orphans and reaps them. Many zombies point at a parent with a bug: it spawns children and never waits.
+  A zombie is finished: no memory, no CPU, just an entry in the process table, kept so that the parent can collect the exit status with `wait`. Signals act on running code, and there's none left, so `kill -9` has nothing to do, whoever sends it: no program can ignore `KILL`, whether it comes from root or from you. A process paused by `STOP` shows as stopped, not `<defunct>`, and `KILL` ends a paused process without waiting for `CONT`. No reboot is needed: the entry disappears when the parent reaps it, or when the parent ends, because PID 1 adopts orphans and reaps them. Many zombies point at a parent with a bug: it starts children and never waits for them.
 skills: [process-model]

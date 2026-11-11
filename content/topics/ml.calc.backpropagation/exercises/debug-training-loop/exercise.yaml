@@ -1,9 +1,9 @@
 id: debug-training-loop
 stage: debug
-rev: 1
+rev: 2
 title: "A network that won't learn"
 prompt: |
-  This program trains the tiny network on XOR and should print:
+  This program trains the tiny network (two inputs, four hidden ReLU units, one sigmoid output) on XOR for 1,000 steps, and should print the loss at the start and at the end, then its four predictions:
 
   ```
   start 0.732
@@ -11,5 +11,10 @@ prompt: |
   predictions [0. 1. 1. 0.]
   ```
 
-  It has two bugs, both in `backward`. Run it: the first is a shape error at `dW1`, because `X @ dz1` multiplies a 4-by-2 matrix by a 4-by-4 one; the first layer's weight gradient is the input **transposed** times `dz1`, like `h.T @ dz2` a layer later. Fix that and it runs, and even seems to learn: the loss ends at 0.005 instead of 0.001 and the first prediction prints as 0.01 instead of 0. It gets that close because `h` and the mask agree wherever a unit is off and differ only in size where it is on. The remaining bug: `dz1` multiplies by `h`, ReLU's **value**, where it should multiply by ReLU's **derivative**, the mask `z1 > 0`.
+  Instead it prints the first line and then stops, with `ValueError: matmul: Input operand 1 has a mismatch in its core dimension 0, ... (size 4 is different from 2)`. It has two bugs. Once it runs, compare every number with the lines above, digit by digit: the second bug changes them only a little. You're done when it prints them exactly and every check passes.
+hints:
+  - "Read the error's last line and the line it points at. `X` is 4 by 2 and `dz1` is 4 by 4: which way round must the product go to give a gradient of `W1`'s shape, 2 by 4?"
+  - "The first layer's weight gradient is the input transposed times `dz1`, `X.T @ dz1`, like `h.T @ dz2` a layer later."
+  - "Once it runs it nearly learns: the loss ends at 0.005 and the first prediction at 0.01. Go through `backward` against the chain rule, one line at a time: which local derivative does each line multiply by?"
+  - "`dz1` multiplies by `h`, ReLU's value, where it should multiply by ReLU's derivative, the mask `z1 > 0`. The two agree wherever a unit is off and differ only in size where it is on, which is why it gets so close."
 skills: [backward, train]

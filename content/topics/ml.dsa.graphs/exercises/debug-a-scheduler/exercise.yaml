@@ -1,14 +1,18 @@
 id: debug-a-scheduler
 stage: debug
-rev: 1
+rev: 2
 title: "A scheduler that gets stuck"
 prompt: |
-  `schedule(graph)` should list a pipeline's steps in an order that respects every arrow (Kahn's algorithm) and say whether every step was placed. The program should print:
+  `schedule(graph)` should list a pipeline's steps in an order that respects every arrow (Kahn's algorithm) and say whether every step was placed. The program schedules the pipeline, then a graph with a cycle, which can't be scheduled. It should print:
 
   ```
   ['load', 'clean', 'features', 'report', 'train', 'evaluate'] complete
   ([], False)
   ```
 
-  It has two bugs. Run it: the schedule starts with `report` and `evaluate`, the steps that nothing depends on, and then gets stuck, because the counting loop adds to the **source** of each arrow instead of its target: it counts outgoing arrows, not incoming ones. Fix that, and the schedule is `['load']` and stuck: when a step is taken, each step it points at must have its incoming count reduced, or nothing ever becomes ready. The cyclic graph should stay stuck either way.
+  Instead it places only `report` and `evaluate`, the last steps of the pipeline, and says `stuck`. (The cycle's line is right already, and must stay right.) It has two bugs. Run it, fix what you find, and run it again; then run the checks, which try other graphs.
+hints:
+  - "Kahn's algorithm starts from the steps with no incoming arrows. Which step is that here, and why does the program start from `report` and `evaluate` instead?"
+  - "The counting loop adds one to `node`, the arrow's source, so it counts outgoing arrows. An arrow from `node` to `next_node` is incoming for `next_node`."
+  - "If only `load` is placed, follow what happens when a step is taken: each step it points at has one fewer arrow to wait for. That count must go down before the check for zero, or nothing after the first step ever becomes ready."
 skills: [topo]

@@ -1,9 +1,9 @@
 id: debug-a-slow-pipeline
 stage: debug
-rev: 1
+rev: 2
 title: "Three bugs in a pipeline"
 prompt: |
-  This is the checkpoint's toolkit on its data, and it should print:
+  This is the checkpoint's toolkit on its data: it dedupes seven events by `id`, takes the three biggest spenders, joins the events to their users' cities, finds the closest name to a typo, and puts the pipeline's steps in an order that respects their dependencies, taking ready steps in the order they became ready. It should print:
 
   ```
   7 events, 5 distinct
@@ -13,11 +13,14 @@ prompt: |
   ['load', 'clean', 'join', 'features', 'train', 'report']
   ```
 
-  It has three bugs, in three different functions. Run it:
-
-  1. **The schedule runs `join` before `clean`:** `['load', 'join', 'clean', 'features', 'train', 'report']`. The scheduler takes ready steps from the **back** of its deque with `pop()`, which makes it a stack; the steps that became ready first must run first, which is `popleft()`.
-  2. **The closest name is wrong:** `('Pune', 0)` instead of `('Pune', 2)`. The edit-distance table is filled from the **bottom row up**, so each row reads the row above it before that row has been computed. A table has to be filled in an order where each cell's three neighbours (above, left, diagonal) are already done: row by row from the top, left to right.
-  3. **The dedupe is quadratic and prints the right answer anyway:** `seen` is a list, so `record[key] not in seen` scans it every time. The checks count the comparisons (fewer than 30,000 on 3,000 records; the list makes about 2.25 million), and only a set passes.
+  Instead the closest name comes out as `('Pune', 0)`, and the schedule runs `join` before `clean`. It has three bugs, and one of them doesn't change the output at all: only the checks, which count comparisons, show it. Run it, check each function against its docstring, and fix what you find; then run the checks, which try each function on its own. You're done when it prints the lines above and every check passes.
+hints:
+  - "Fix one thing at a time and run it after each change. The checks try each function on its own, so a failing check points at one function."
+  - "The schedule: when two steps are ready, the one that became ready first must run first. Which end of the deque does `ready.pop()` take from?"
+  - "`pop()` takes from the back, which makes `ready` a stack; `popleft()` takes from the front, which makes it a queue."
+  - "The closest name: `Pnue` to `Pune` can't be 0 edits. Each cell of the table reads the cells above, to the left and diagonally above-left, so those must be filled first. In which order does the outer loop fill the rows?"
+  - "Fill the rows from the top, `range(1, len(a) + 1)`, each from left to right."
+  - "The dedupe prints the right answer, but the checks count about 2.25 million comparisons. `record[key] not in seen` scans `seen` from the start when it's a list; a set answers it in one step."
 # Every test names the module skills it checks (ADR-0012), so a failed test
 # says which topics to revisit.
 test_skills:

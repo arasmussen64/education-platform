@@ -1,14 +1,16 @@
 id: mcq-unattended
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You want a server to install security fixes by itself every night, but not every other update, and not to reboot on its own. What's the usual setup on Ubuntu?
 choices:
-  - "`unattended-upgrades`, with the security origin allowed and automatic reboot off (and `dnf-automatic` on Fedora and RHEL)"
-  - "A cron job that runs `apt upgrade -y` every night"
-  - "`apt update` in `/etc/rc.local`"
-  - "Nothing; Ubuntu installs all updates automatically by default"
-answer: 0
+  - "A nightly cron job that runs `apt upgrade -y`, with `apt-mark hold` on the kernel to prevent reboots"
+  - "A nightly cron job that runs `apt update`, which brings in the security fixes without a restart"
+  - "`apt full-upgrade` once when the server is built, which keeps the security suite current from then on"
+  - "`unattended-upgrades`, taking updates from the security suite only, with automatic reboot switched off"
+answer: 3
 explanation: |
-  `unattended-upgrades` is built for this: its config lists which origins to take updates from (the security suite by default), lets you blacklist packages, mails or logs what it did, and has a separate switch for automatic reboots, which you leave off for servers you reboot on your own schedule. A blind `apt upgrade -y` installs everything, including the database upgrade you meant to hold. Ubuntu Server enables unattended security upgrades by default on many installs, but check rather than assume.
+  `unattended-upgrades` is built for this: its config lists which origins to take updates from (the security suite by default), lets you exclude packages, mails or logs what it did, and has a separate switch for automatic reboots, which you leave off for servers you reboot on your own schedule. On Fedora and RHEL the same job is done by `dnf-automatic`. Ubuntu Server enables unattended security upgrades by default on many installs, but check rather than assume.
+
+  A blind `apt upgrade -y` installs everything, not just security fixes, including the database upgrade you meant to hold. `apt update` installs nothing at all: it only refreshes the list of what's available. And no upgrade command run once keeps anything current afterwards; `full-upgrade` is a single upgrade that may also remove packages.
 skills: [patching]

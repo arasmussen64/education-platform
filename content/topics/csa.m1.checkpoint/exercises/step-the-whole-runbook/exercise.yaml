@@ -3,19 +3,21 @@ stage: fill_in
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Step 4 of the runbook: the whole thing, from an outline"
 prompt: |
   The checkpoint's build with nothing done for you, but an outline to work from. A fresh server: `shop-api` installed and not running, no firewall, SSH taking passwords. Follow the outline and check each part as you go:
 
   ```
   # 1. Run the service: enable it for every boot and start it now.
-  # 2. Put up the firewall: default deny, keep SSH (22) and the API (8080), load it, enable it.
-  # 3. Harden SSH: passwords and root login off, check the config, prove the key login.
+  # 2. Put up the firewall: default deny, keep SSH (22) and the API (8080), save it, load it, enable it, try it from the office.
+  # 3. Harden SSH: prove the key login, turn passwords and root login off, check the config, reload the SSH server, prove the login again.
   ```
+
+  `from-office` runs a command on a second machine on the office network, where this server's address is `10.0.9.1`: `from-office curl -s http://10.0.9.1:8080/` is the API reached through the firewall.
 
   Then run the checks. When these pass, try one of the checkpoint's fresh versions from a blank slate, with no outline.
 hints:
   - "Part 1 is one command: `sudo systemctl enable --now shop-api`. Confirm with `curl -s localhost:8080`."
-  - "Part 2 is the firewall file from the hardening topic plus a `tcp dport 8080 accept` line, then `sudo nft -f /etc/nftables.conf` and `sudo systemctl enable nftables`."
-  - "Part 3 is the drop-in (`PasswordAuthentication no`, `PermitRootLogin no`), `sudo sshd -t`, `sudo systemctl reload ssh`, and `ssh -i ~/keys/ben ben@localhost whoami` printing `ben`."
+  - "Part 2 is the firewall file from the hardening topic plus a `tcp dport 8080 accept` line, written to `/etc/nftables.conf`, then `sudo nft -f /etc/nftables.conf` and `sudo systemctl enable nftables`. `from-office curl -s http://10.0.9.1:8080/` should answer."
+  - "Part 3 is the drop-in (`PasswordAuthentication no`, `PermitRootLogin no`), `sudo sshd -t`, `sudo systemctl reload ssh` so the server that is already running takes the new settings, and `ssh -i ~/keys/ben ben@localhost whoami` printing `ben`."

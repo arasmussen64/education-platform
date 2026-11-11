@@ -1,5 +1,7 @@
 # Wrong: stopping the indexer frees the memory and stops the shop's indexing.
-sleep 3; mkdir -p ~/report && cat /sys/fs/cgroup/system.slice/shop-indexer.service/memory.peak > ~/report/peak.txt
+peak=/sys/fs/cgroup/system.slice/shop-indexer.service/memory.peak
+for _ in $(seq 1 30); do [ "$(cat "$peak")" -gt 150000000 ] && break; sleep 1; done
+mkdir -p ~/report && cat "$peak" > ~/report/peak.txt
 sudo mkdir -p /etc/systemd/system/shop-indexer.service.d
 printf '[Service]\nMemoryMax=128M\nMemorySwapMax=0\n' | sudo tee /etc/systemd/system/shop-indexer.service.d/override.conf > /dev/null
 sudo systemctl daemon-reload

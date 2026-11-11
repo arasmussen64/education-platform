@@ -3,10 +3,16 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "The API that can't get a CPU"
 prompt: |
-  The shop's API answers slowly on the lab machine, although the machine is nearly idle, and someone's answer was to "give it a higher priority", which changed nothing. `systemctl cat shop-api` shows a unit with three CPU settings, and all three are mistakes: one caps the service far below what a service that must answer quickly can live with, one gives it the lowest scheduling priority there is, and one gives it the smallest possible share when CPUs are contended.
+  The shop's API, `shop-api`, is busy on the lab machine: it has a whole CPU's worth of work to do, all the time. This is how it is meant to run. It gets that CPU, without being held back, whenever the machine has CPUs to spare, and this machine has. Because the machine is shared with other teams' services, it keeps a CPU cap all the same, so that a bug can't take every CPU: a cap with headroom, of more than the one CPU its work needs and of two CPUs at most. And when CPUs do run short, it is treated at least as well as a service left on the default settings.
 
-  The witnesses: `cpu.stat`'s `nr_throttled` under `/sys/fs/cgroup/system.slice/shop-api.service/` climbing every second, `ps -o pid,ni,comm -p PID` for the running process (its `MainPID` from `systemctl show`), and `cpu.weight` in the same cgroup folder. Fix all three (a drop-in with `sudo systemctl edit shop-api`, or the unit file itself), reload, restart, and confirm the throttling has stopped. Then run the checks.
+  This is what happens instead. The API answers slowly although the machine is nearly idle: `top` shows it getting a small fraction of one CPU while other CPUs sit idle. And the team's notes say that whenever a batch job runs beside it, the API gets almost nothing at all, far less than the batch job.
+
+  There are three faults. Read the service's unit (`systemctl cat shop-api`), what the kernel is doing to it (the files in its cgroup folder, `/sys/fs/cgroup/system.slice/shop-api.service/`), and what `ps` and `top` say about its process (its PID is `MainPID` in `systemctl show shop-api`). Change a setting with a drop-in (`sudo systemctl edit shop-api`) or in the unit file itself, then reload systemd and restart the service. On a machine of its own you could take a cap like this one off altogether, which the lesson gives as one fix for a throttled service. On this shared machine the cap has to stay, so here that is not a fix. Then run the checks.
+hints:
+  - "Start with why it is slow on an idle machine. A service that wants CPU and doesn't get it while CPUs sit idle is being held back by something that applies even when nothing competes: read `cpu.max` and `cpu.stat` in its cgroup folder."
+  - "`nr_throttled` in `cpu.stat` climbing means the quota is too small for the work. A job that needs one whole CPU needs a quota above 100%: at exactly 100% the kernel still stops it now and then."
+  - "Two settings decide who wins when CPUs run short: the process's nice value (`ps -o pid,ni,comm -p PID`; 0 is normal, 19 is the lowest priority) and its cgroup's `cpu.weight` (100 is the default). In a unit they are `Nice=` and `CPUWeight=`."
 skills: [throttling, scheduler, cgroups-v2]

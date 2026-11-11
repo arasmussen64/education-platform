@@ -3,19 +3,22 @@ stage: build
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Stand up the API gateway"
 prompt: |
-  A fresh version of the checkpoint's build, in a different story. A new server for the company's API gateway: the `gateway` service is installed (`/etc/systemd/system/gateway.service`, listening on port 9090) but not running, there's no firewall, and SSH still takes passwords. Bring it up to the runbook, from a blank slate and with no hints:
+  A fresh version of the checkpoint's build, in a different story. A new server has arrived for the company's API gateway, the service every request to the company's APIs passes through first. Nothing is set up yet: the `gateway` service is installed but not running, there is no firewall, and SSH still accepts passwords. Bring the server up to the runbook, the company's written standard for a new server. There are no steps and no hints here, only what must be true when you finish:
 
-  1. **Run the service.** Enable `gateway` so it starts on boot and start it now, so `systemctl is-active gateway` is `active` and `curl -s localhost:9090` answers.
-  2. **Put up the firewall.** `/etc/nftables.conf` with an `input` chain whose policy is `drop`, accepting loopback, established and related traffic, SSH (`tcp dport 22`) and the gateway (`tcp dport 9090`). Load it and `systemctl enable nftables`.
-  3. **Harden SSH.** A drop-in with `PasswordAuthentication no` and `PermitRootLogin no`, checked with `sudo sshd -t`, applied with `sudo systemctl reload ssh` (`restart` if the service isn't running), and `ssh -i ~/keys/ben ben@localhost` still working.
+  1. **The service runs.** `gateway` is running now, starts by itself after a reboot, and answers on port 9090.
+  2. **The firewall lets in only what the server serves.** From another machine, SSH (port 22) and the gateway (port 9090) answer and nothing else does. The firewall is nftables, and the same rules come back after a reboot: they are saved in `/etc/nftables.conf`, and the `nftables` service is enabled.
+  3. **SSH is hardened.** The SSH server that is running refuses password logins and root logins, and Ben, who deploys the company's code, can still log in with his key: `ssh -i ~/keys/ben ben@localhost` (a copy of his private key is in your `~/keys`, so you can test as him).
 
-  No shortcuts that weaken the server. When it's all up, run the checks.
+  To test from another machine, use `from-office`: it runs a command on a second machine on the office network, where this server's address is `10.0.9.1`. For example, `from-office curl -s http://10.0.9.1:9090/`.
+
+  No shortcut that leaves the server weaker counts: with the firewall off, or passwords still accepted, the checks fail. When all three are true, run the checks.
 test_skills:
   service-running: [csa.linux.services/systemctl, csa.linux.services/unit-files]
   api-answers: [csa.linux.services/supervision]
+  reachable-from-outside: [csa.linux.hardening/firewall-min, csa.linux.net-tools/test-tools]
   firewall-default-deny: [csa.linux.net-tools/firewall-path, csa.linux.hardening/firewall-min]
   firewall-persisted: [csa.linux.hardening/firewall-min]
   ssh-hardened: [csa.linux.hardening/ssh-hardening]

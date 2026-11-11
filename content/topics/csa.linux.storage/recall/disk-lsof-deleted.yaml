@@ -1,17 +1,16 @@
 id: disk-lsof-deleted
 type: predict_shell
-rev: 1
+rev: 2
 prompt: |
   Someone deleted a 10 GB log, but `df` still shows the space as used. `lsof.txt` is the output of `lsof +L1`, which lists open files that have been deleted (link count 0). The command prints, for each deleted file, the program, its PID and the file's size in GB (field 7 is the size in bytes). What is printed?
 files:
   lsof.txt: |
     COMMAND  PID USER FD  TYPE DEVICE    SIZE/OFF NLINK NODE NAME
     java    1234  app  5w  REG  259,3 10737418240     0 5243 /var/log/app/old.log (deleted)
-    nginx   2345  www  8w  REG  259,3        4096     1 6111 /var/log/nginx/access.log
 command: |
   awk '/\(deleted\)/ {print $1, $2, $7 / 1024 / 1024 / 1024 " GB"}' lsof.txt
 expected_output: |
   java 1234 10 GB
 explanation: |
-  The `java` process (PID 1234) still has the deleted log open for writing (`5w`: file descriptor 5, writing), so its 10 GB stay allocated until the process closes it. The nginx line isn't deleted (NLINK 1), so the pattern skips it. To get the space back without restarting Java, empty the file through the descriptor: `: > /proc/1234/fd/5`. The lesson for next time: truncate a live log, don't `rm` it.
+  The `java` process (PID 1234) still has the deleted log open for writing (`5w`: file descriptor 5, writing), so its 10 GB stay allocated until the process closes it. `lsof +L1` prints only files whose link count (the NLINK column) is 0, so every line below the header is a deleted file that something still holds open; the `/\(deleted\)/` pattern is what keeps the header line out. To get the space back without restarting Java, empty the file through the descriptor: `: > /proc/1234/fd/5`. The lesson for next time: truncate a live log, don't `rm` it.
 skills: [disk-full]

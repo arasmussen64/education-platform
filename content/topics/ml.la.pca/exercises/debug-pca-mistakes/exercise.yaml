@@ -1,6 +1,6 @@
 id: debug-pca-mistakes
 stage: debug
-rev: 1
+rev: 2
 title: "A PCA that points the wrong way"
 prompt: |
   `report(X)` should print the share of variance the first component explains and the component itself (first entry positive):
@@ -10,5 +10,9 @@ prompt: |
   direction [0.772 0.635]
   ```
 
-  It has two bugs. Run it: the share is too high and the direction is wrong. One bug is in how the covariance is built (what should happen to the data first?); the other is in which column of the eigenvectors is taken (remember `eigh`'s order).
+  Instead it prints a share of 0.996 and the direction `[ 0.566 -0.824]`. It has two bugs. Run it, fix what you find, and run it again.
+hints:
+  - "Fix one thing at a time, and compare each line of `report` with the steps of PCA: center the data, build the covariance, find its eigenvectors, take the top one."
+  - "A covariance measures spread around the mean, so the mean comes off each column first: `X - X.mean(axis=0)`, as in the lesson."
+  - "`eigh` lists the eigenvalues in ascending order, with the eigenvectors in the same order, so the first component is the last column, `vectors[:, -1]`. The share line already uses `values[-1]`."
 skills: [covariance, components]

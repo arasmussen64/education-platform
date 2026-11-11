@@ -6,13 +6,13 @@ EXPECTED = 'thresholds 1.7 1.05\nA (39, 2, 22, 137) [0.88  0.951 0.639 0.765]\nB
 
 
 def test_the_output():
-    """Prints honest thresholds, both reports, both intervals, the paired comparison and the verdict."""
+    """Prints the thresholds, both reports, both intervals, the paired comparison and the verdict."""
     printed = run()
     assert printed == EXPECTED, f"Expected this:\n{EXPECTED}\nYour program printed:\n{printed}"
 
 
 def test_thresholds_come_from_validation():
-    """The thresholds are chosen on the validation data (the first line reads 'thresholds 1.7 1.05'), and perfectly separated validation scores put the threshold between the classes."""
+    """The first line reads 'thresholds 1.7 1.05', and perfectly separated scores put the threshold between the classes."""
     assert run().startswith("thresholds 1.7 1.05\n")
     choose_threshold = function("choose_threshold")
     assert 0.8 <= choose_threshold(np.array([0, 0, 1, 1]), np.array([0.2, 0.8, 1.2, 1.8])) < 1.2

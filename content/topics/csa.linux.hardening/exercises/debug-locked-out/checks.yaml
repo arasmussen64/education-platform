@@ -1,29 +1,65 @@
-# The checks for "Hardened, and locked out": the config is valid, ben can
-# log in with his key, and the server stayed hardened (passwords off, the
-# right group, keys on).
+# The checks for "Hardened, and locked out": the config is valid, the four
+# things the hardening was meant to do are in the configuration and in the
+# server that is running, and ben can log in with his key. Each description
+# is the state the server must end in; none says what was wrong.
+#
+# A check that finds something wrong prints what it found and exits 0, so
+# the learner's terminal shows the reason beside the failed check.
 checks:
   - id: config-valid
-    description: "sshd -t accepts the configuration (the bad number is fixed)."
+    description: "sshd -t accepts the configuration."
     command: sudo sshd -t && echo "valid"
     expect:
       contains: "valid"
-  - id: group-allows-ben
-    description: "AllowGroups is ssh-users, the group ben is in."
-    command: sudo sshd -T | grep -i '^allowgroups'
-    expect:
-      matches: "(?i)^allowgroups ssh-users"
-  - id: pubkey-on
-    description: "Key authentication is on again."
-    command: sudo sshd -T | grep -i '^pubkeyauthentication'
-    expect:
-      matches: "(?i)^pubkeyauthentication yes"
   - id: still-hardened
-    description: "Passwords are still off: the lock-out wasn't fixed by weakening the server."
-    command: sudo sshd -T | grep -i '^passwordauthentication'
+    description: "The configuration (sshd -T) does the four things the hardening was meant to do: password logins off, root logins off, only the ssh-users group allowed, three tries."
+    # What is printed on a failure doesn't say which of the four is missing:
+    # this is a debug, and finding that is the learner's work.
+    command: |
+      settings=$(sshd -T 2>/dev/null) || { echo "sshd -T can't read the configuration"; exit 0; }
+      all=yes
+      for wanted in "passwordauthentication no" "permitrootlogin no" "maxauthtries 3"; do
+        echo "$settings" | grep -iqx "$wanted" || all=no
+      done
+      allowed=$(echo "$settings" | grep -i '^allowgroups ' | paste -sd' ')
+      [ "$allowed" = "allowgroups ssh-users" ] || all=no
+      if [ "$all" = yes ]; then echo "hardened"; else echo "sshd -T does not show all four"; fi
     expect:
-      matches: "(?i)^passwordauthentication no"
+      equals: "hardened"
   - id: ben-can-log-in
     description: "ben can log in with his key."
-    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 ben@localhost whoami
     expect:
       equals: "ben"
+  - id: running-server-keys-only
+    description: "The SSH server that is running offers a key as the only way in: asked without one, it names publickey and nothing else."
+    # sshd -T reads the files. This asks the running server itself, which
+    # keeps the settings it read when it started until it is reloaded. A
+    # client that brings no key and may not ask for a password is turned
+    # away with the list of ways in the server still offers.
+    command: |
+      answer=$(ssh -o BatchMode=yes -o PubkeyAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ben@localhost true 2>&1)
+      case "$answer" in
+        *"Permission denied ("*)
+          offered=$(echo "$answer" | sed -n 's/.*Permission denied (\([^)]*\)).*/\1/p')
+          echo "${offered:-nothing}"
+          ;;
+        *) echo "no answer from the SSH server" ;;
+      esac
+    expect:
+      equals: "publickey"
+  - id: settings-loaded
+    description: "The running SSH service has read its settings as they are now: it was reloaded or restarted after the last change to the files under /etc/ssh."
+    # The service's last change of state (a start, a reload, a restart)
+    # against the newest change under /etc/ssh. A service that isn't running
+    # yet reads the files when the next connection starts it.
+    command: |
+      if ! systemctl is-active --quiet ssh; then
+        echo "up to date"
+        exit 0
+      fi
+      loaded=$(date -d "$(systemctl show ssh -p StateChangeTimestamp --value --timestamp=us)" +%s.%6N)
+      changed=$(find /etc/ssh/sshd_config /etc/ssh/sshd_config.d -printf '%T@\n' | sort -n | tail -1)
+      awk -v loaded="$loaded" -v changed="$changed" 'BEGIN { if (loaded + 0 >= changed + 0) print "up to date"; else print "the files changed after ssh last read them" }'
+    expect:
+      equals: "up to date"

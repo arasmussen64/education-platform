@@ -1,14 +1,16 @@
 id: mcq-steal-time
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A small burstable cloud instance ran fine for an hour of load testing, then slowed to a crawl while `top` showed `st` climbing past 50%. What happened?
 choices:
-  - "The disk filled up"
-  - "The instance used up its CPU credits (or a neighbour got busy), and the hypervisor now takes its CPU away for half the time; steal time measures exactly that, and the fix is a bigger or non-burstable instance"
-  - "The kernel's scheduler crashed"
-  - "Too many processes were niced"
-answer: 1
+  - "Its disk filled with test output, so half of every second now goes to waiting for writes"
+  - "Its cgroup quota ran out, so the kernel now stops every process for half of each period"
+  - "It spent its CPU credits, so the hypervisor now takes its virtual CPU away half the time"
+  - "Its programs were niced during the test, so half of their CPU time now counts as stolen"
+answer: 2
 explanation: |
-  Burstable instances earn credits while idle and spend them to run above a baseline; when the credits are gone, the hypervisor holds the VM to its baseline, and the time it withholds shows up as `st`. Nothing inside the VM can fix that: no nice value, no cgroup. Pick an instance type with the CPU you actually need, or accept the baseline. Steal from a noisy neighbour looks the same and has the same answer.
+  Burstable instances earn credits while idle and spend them to run above a baseline; when the credits are gone, the hypervisor holds the VM to its baseline, and the time it withholds shows up as `st`, steal. Nothing inside the VM can fix that: no nice value, no cgroup. Pick an instance type with the CPU you actually need, or accept the baseline. Steal from a noisy neighbour looks the same and has the same answer.
+
+  Each of the other stories has a column or counter of its own, and it isn't `st`. Time spent waiting for the disk is `wa`. Time used by niced programs is `ni`. And a cgroup quota that runs out is counted in that group's `cpu.stat` as `nr_throttled`; it is the kernel inside the VM doing the stopping, not the hypervisor outside it.
 skills: [load-average]

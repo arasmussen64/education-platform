@@ -1,14 +1,14 @@
 id: mcq-restart-policy
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A service has `Restart=on-failure` and `RestartSec=5`. Which is true?
 choices:
-  - "If it exits with a non-zero status or is killed by a signal, systemd starts it again five seconds later; if it exits cleanly with 0, it stays stopped"
-  - "It restarts every five seconds whatever happens"
-  - "It restarts after any exit, including a clean one"
-  - "It restarts once, then gives up"
-answer: 0
+  - "It is started again five seconds after any exit, whether the exit was clean or a failure"
+  - "It is restarted if it fails within its first five seconds, and left stopped if it fails later"
+  - "It is given five seconds to start, and is marked failed, with no restart, if it takes longer"
+  - "It is started again five seconds after a failed exit, and stays stopped after a clean exit"
+answer: 3
 explanation: |
-  `on-failure` restarts after an unclean exit (a non-zero status, a signal, a timeout) and leaves a clean exit alone, which is right for a program that may legitimately finish. `Restart=always` restarts even after exit 0, right for a server that should never stop. `RestartSec` is the pause between attempts. systemd does give up if a unit fails too often too quickly (`StartLimitBurst`), which is what "start request repeated too quickly" means in the journal.
+  `on-failure` restarts the service after an unclean exit (a non-zero status, being killed by a signal, a timeout) and leaves a clean exit with status 0 alone, which is right for a program that may legitimately finish. Restarting after any exit is `Restart=always`, right for a server that should never stop. `RestartSec` is the pause before each restart: it isn't a window in which failures count, and it isn't a time limit for starting. systemd does give up if a unit fails too often too quickly, but that's a separate setting (`StartLimitBurst`), and it's what "start request repeated too quickly" means in the journal.
 skills: [supervision, unit-files]

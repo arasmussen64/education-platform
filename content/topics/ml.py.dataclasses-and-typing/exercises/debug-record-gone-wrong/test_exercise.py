@@ -10,7 +10,7 @@ def test_the_output():
 
 
 def test_the_record():
-    """Ticket is a dataclass whose default price is the number 45.0."""
+    """Ticket is a record of event, price and row: a new ticket's price is 45.0, and two tickets with the same fields are equal."""
     Ticket = function("Ticket")
     assert Ticket.__dataclass_fields__.keys() == {"event", "price", "row"}
     assert Ticket("Play").price == 45.0

@@ -1,14 +1,16 @@
 id: mcq-namespaces-which
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   Two containers on one host both listen on port 8080 without conflict, and each sees its main process as PID 1. Which namespaces make those two things possible?
 choices:
-  - "The net namespace gives each its own interfaces and ports; the pid namespace gives each its own process numbering"
-  - "The mnt namespace for ports; the uts namespace for PIDs"
-  - "cgroups for both"
-  - "The user namespace for both"
-answer: 0
+  - "The net namespace for the ports, and the user namespace for the process numbering"
+  - "The net namespace for the ports, and the pid namespace for the process numbering"
+  - "The uts namespace for the ports, and the pid namespace for the process numbering"
+  - "Neither is a namespace's doing: each container's cgroup gives it its own ports and PIDs"
+answer: 1
 explanation: |
-  Each namespace type wraps one kind of global resource. Network: interfaces, addresses, routes and port numbers, so 8080 inside container A is unrelated to 8080 inside B (the runtime maps host ports onto them). Pid: the process-ID table, so each container has its own PID 1. mnt is for mounts and the root filesystem, uts for the hostname, ipc for shared memory, user for ID mapping. cgroups limit resources; they don't isolate names.
+  Each namespace type wraps one kind of global resource. Network: interfaces, addresses, routes and port numbers, so 8080 inside container A is unrelated to 8080 inside B (the runtime maps host ports onto them). Pid: the process-ID table, so each container has its own PID 1.
+
+  The user namespace maps user IDs, so that root inside can be an ordinary user outside; it has nothing to do with process numbers. The uts namespace gives a container its own hostname; it has nothing to do with ports. mnt is for mounts and the root filesystem, ipc for shared memory. And cgroups limit how much a group may use; they don't give anything its own names or numbers.
 skills: [namespaces]

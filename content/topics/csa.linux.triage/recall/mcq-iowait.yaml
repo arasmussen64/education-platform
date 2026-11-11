@@ -1,14 +1,14 @@
 id: mcq-iowait
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   `vmstat 1` shows `wa` at 40% and `id` at 50%, `iostat -xz 1` shows one disk at 98% `%util` with `await` of 35 ms, and several processes sit in state `D` in `ps`. What does that add up to, and what's next?
 choices:
-  - "A CPU problem: 40% of the CPU is busy waiting"
-  - "A saturated disk: processes are blocked waiting for I/O (that's what `wa` and state `D` mean), the disk is busy all the time with long waits; find who is writing with `pidstat -d 1` or `iotop`, and check whether the volume is at its IOPS limit"
-  - "A memory problem: the disk is being used as swap"
-  - "Nothing; 50% idle means the server has spare capacity"
-answer: 1
+  - "A saturated CPU: 40% of its time goes to waiting processes; find the busiest with `pidstat 1`"
+  - "A memory shortage: `wa` counts time spent swapping, and state `D` means a process is out of memory"
+  - "A saturated disk: processes are blocked waiting for I/O; find out who is writing with `pidstat -d 1`"
+  - "Nothing yet: with `id` at 50% the server has spare capacity, and `%util` only matters at 100%"
+answer: 2
 explanation: |
-  `wa` is CPU time spent idle *while a process waits for the disk*, and `D` is the uninterruptible-sleep state of a process in the middle of an I/O: both say the disk is the bottleneck, and `iostat` confirms it with utilisation near 100% and long waits. It would be swap only if `si`/`so` were non-zero. Idle CPU doesn't help a process that is waiting for a block to be written. The fix is less I/O, a faster or bigger-IOPS volume, or spreading the writes.
+  `wa` is CPU time spent idle *while a process waits for the disk*, and `D` is the uninterruptible sleep of a process in the middle of an I/O: both say the disk is the bottleneck, and `iostat` confirms it with utilisation near 100% and long waits. `pidstat -d 1` or `iotop` says who is writing, and it's worth checking whether the volume is at its IOPS limit. The CPU isn't saturated: `wa` is a kind of idle time, so the CPUs are free 90% of the time, and that idle CPU does nothing for a process waiting for a block to be written. Neither `wa` nor `D` is about memory; it would be swapping only if `si` and `so` in `vmstat` were non-zero. The fix is less I/O, a faster or bigger-IOPS volume, or spreading the writes.
 skills: [disk-io]

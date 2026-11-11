@@ -1,9 +1,9 @@
 id: debug-a-shaky-pipeline
 stage: debug
-rev: 1
+rev: 2
 title: "Three numeric bugs in a pipeline"
 prompt: |
-  This is the pipeline's numeric core on its data, and it should print:
+  This is the pipeline's numeric core on its data: `weekly` turns each day's clicks into a week's, `mean_loss` averages a hundred thousand float32 losses, and `softmax` turns each row of logits into probabilities. It is the pipeline's fast path, so none of the three may loop over the data in Python. It should print:
 
   ```
   weekly: [140, 350, 700, 840]
@@ -11,13 +11,14 @@ prompt: |
   softmax: [[0.269, 0.731], [0.269, 0.731]]
   ```
 
-  It has three bugs, one in each function. Run it:
-
-  1. **The weekly clicks are negative:** `[-116, 94, -68, 72]`. The clicks column is an **int8**, one byte per value with a range of -128 to 127, and `clicks * 7` stays int8: 20 times 7 is 140, which wraps round to -116, silently, because array arithmetic in a fixed width wraps. Widen the column before multiplying (`astype(np.int64)`).
-  2. **The mean loss is `0.099986`, not `0.1`:** `mean_loss` adds a hundred thousand float32 tenths to a float32 running total, one at a time. Once the total is in the thousands, each tenth's low bits are dropped in the same direction every time, and the drift is visible in the fifth digit. It is also the pipeline's hot loop. Sum as one array operation (NumPy adds pairwise) and accumulate in float64 (`sum(dtype=np.float64)`).
-  3. **The first softmax row is `[nan, nan]`:** `exp(1000)` is beyond the largest float, so it overflows to infinity, and infinity over infinity is NaN. Subtract each row's largest logit before the exponential (`logits.max(axis=1, keepdims=True)`); the ratios don't change and every exponent is at most 0.
-
-  The checks also feed `weekly` an int8 127, hold `mean_loss` to a millionth on two hundred thousand float32 tenths with no Python loop over them, and give `softmax` logits of 5,000 and -5,000.
+  Instead every line is wrong: the weekly clicks are `[-116, 94, -68, 72]`, the mean loss is `0.099986`, and the first softmax row is `[nan, nan]`. It has three bugs. Run it, then run the checks, which give each function a harder input: an int8 click count of 127, two hundred thousand float32 tenths that must average to 0.1 within a millionth, and logits of 5,000 and -5,000.
+hints:
+  - "Each line of output comes from one function, and each function has one bug. Take them one at a time and run it after each fix."
+  - "20 clicks times 7 is 140, but it prints -116: 256 less. What dtype is the clicks column, what is the largest number it holds, and what dtype does `clicks * 7` come out in?"
+  - "Widen the column before multiplying: `clicks.astype(np.int64) * 7`."
+  - "A hundred thousand tenths should average to exactly 0.1. The running total is a float32, which keeps about seven digits: once the total is in the thousands, what happens to the low digits of each 0.1 added to it?"
+  - "Sum the whole array in one operation, accumulated in float64: `losses.sum(dtype=np.float64)`. That also removes the Python loop, the pipeline's hot spot."
+  - "`exp(1000)` overflows to infinity, and infinity over infinity is NaN. Subtracting each row's largest logit first, `logits - logits.max(axis=1, keepdims=True)`, leaves the probabilities unchanged and keeps every exponent at most 0."
 # Every test names the module skills it checks (ADR-0012), so a failed test
 # says which topics to revisit.
 test_skills:

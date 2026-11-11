@@ -7,6 +7,7 @@ of silently ignored.
 from __future__ import annotations
 
 import re
+from datetime import date
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
@@ -310,8 +311,108 @@ class PredictShellItem(Strict):
         return self
 
 
+# --- Estimate questions (ADR-0024) ------------------------------------------------
+
+# A number in an estimate: an int or a decimal, never infinite, and never
+# text that looks like a number ("28" in quotes reaches the browser as text).
+Number = (
+    Annotated[int, Field(strict=True)]
+    | Annotated[float, Field(strict=True, allow_inf_nan=False)]
+)
+# The name of a given number, used in the working: like vcpus or price_per_hour.
+GivenName = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$", max_length=40)]
+
+# The widest percentage tolerance: the loosest target the cloud track's
+# drills set is 30% ("within 30% before opening a calculator").
+WIDEST_PERCENT = 30
+
+
+class Tolerance(Strict):
+    """How close a typed number must be to the answer to count as right.
+    Exactly one of the two."""
+
+    # Within this much either side of the answer; 0 means exactly.
+    absolute: Number | None = None
+    # Within this percentage of the answer, either side.
+    percent: Number | None = None
+
+    @model_validator(mode="after")
+    def one_kind_in_range(self) -> Tolerance:
+        if (self.absolute is None) == (self.percent is None):
+            raise ValueError("give exactly one of absolute or percent")
+        if self.absolute is not None and self.absolute < 0:
+            raise ValueError("absolute can't be negative; 0 means exactly")
+        if self.percent is not None and self.percent <= 0:
+            raise ValueError(
+                "percent must be above 0; for an exact answer, use absolute: 0"
+            )
+        if self.percent is not None and self.percent > WIDEST_PERCENT:
+            raise ValueError(
+                f"percent can be at most {WIDEST_PERCENT}, the widest target the "
+                "track's drills set"
+            )
+        return self
+
+
+class Mistake(Strict):
+    """A wrong answer a learner is likely to give, and what went wrong."""
+
+    id: ItemId
+    value: Number
+    # The wrong sum, written over the item's given numbers like `working`.
+    working: Text
+    # Shown first when the learner's answer matches this value.
+    why: Text
+
+
+class EstimateItem(Strict):
+    """A number the learner works out and types, checked within a tolerance.
+
+    The browser works nothing out: the validator works out the answer and
+    every mistake from `given` (tools/arithmetic.py), and proves that the
+    tolerance accepts the one and none of the others.
+    """
+
+    id: ItemId
+    type: Literal["estimate"]
+    rev: Rev
+    # Holds every number the learner needs, and says how exact to be.
+    prompt: Text
+    # Shown after the number box, so the learner never types it.
+    unit: Text
+    answer: Number
+    tolerance: Tolerance
+    # The numbers the prompt states, by name, as the prompt writes them
+    # (30 for "30%"). A number the learner must know instead, like a rule's
+    # minimum, goes in the working as a plain number.
+    given: dict[GivenName, Number] = Field(min_length=1)
+    # The sum, over the given names, that gives the answer. Shown afterwards.
+    working: Text
+    mistakes: list[Mistake] = Field(min_length=1)
+    explanation: Text
+    skills: list[ItemId] = []
+    # For a prompt with prices: the day they were read, and the page that
+    # shows today's. Both or neither.
+    prices_as_of: date | None = None
+    prices_source: Annotated[str, Field(pattern=r"^https://")] | None = None
+
+    @model_validator(mode="after")
+    def fits_together(self) -> EstimateItem:
+        ids = [mistake.id for mistake in self.mistakes]
+        if len(set(ids)) != len(ids):
+            raise ValueError("mistake ids must all be different")
+        if (self.prices_as_of is None) != (self.prices_source is None):
+            raise ValueError("give both prices_as_of and prices_source, or neither")
+        if self.tolerance.percent is not None and self.answer == 0:
+            raise ValueError(
+                "a percentage of 0 is 0, so a percent tolerance needs an "
+                "answer that isn't 0; use absolute"
+            )
+        return self
+
+
 RecallItem = Annotated[
-    McqItem | PredictOutputItem | ParsonsItem | PredictShellItem,
+    McqItem | PredictOutputItem | ParsonsItem | PredictShellItem | EstimateItem,
     Field(discriminator="type"),
 ]
 recall_item = TypeAdapter(RecallItem)
@@ -416,6 +517,17 @@ class Expect(Strict):
         return self
 
 
+# How long a check's command may run, in seconds (ADR-0018, amended
+# 2026-11-11). Thirty is plenty for a check that reads what the learner made.
+# A check that has to run something slow to see it, such as booting a small
+# VM, asks for more with `timeout:`, up to five minutes. A lab's checks may
+# ask for ten minutes in all, because a learner whose lab is still broken
+# waits for every one of them.
+CHECK_SECONDS = 30
+CHECK_SECONDS_MAX = 300
+LAB_CHECK_SECONDS_MAX = 600
+
+
 class LabCheck(Strict):
     """One check of a lab: a command run inside the container, read-only."""
 
@@ -424,6 +536,26 @@ class LabCheck(Strict):
     description: Text
     command: Text
     expect: Expect | None = None
+    # Seconds the command may run; at the limit it is stopped and fails.
+    timeout: int = CHECK_SECONDS
+
+    @model_validator(mode="before")
+    @classmethod
+    def timeout_is_whole_seconds(cls, data: object) -> object:
+        """Says what a timeout must be. It looks at the value as YAML gave it,
+        because Pydantic would quietly read "30" (text) as 30 seconds and
+        true (YAML's yes) as 1."""
+        if not isinstance(data, dict) or "timeout" not in data:
+            return data
+        seconds = data["timeout"]
+        whole = isinstance(seconds, int) and not isinstance(seconds, bool)
+        if not whole or not 1 <= seconds <= CHECK_SECONDS_MAX:
+            raise ValueError(
+                f"{data.get('id', 'this check')}: timeout is a whole number of "
+                f"seconds from 1 to {CHECK_SECONDS_MAX}, such as timeout: 120 "
+                f"(a check without one gets {CHECK_SECONDS}); {seconds!r} isn't"
+            )
+        return data
 
 
 class LabChecks(Strict):
@@ -434,6 +566,22 @@ class LabChecks(Strict):
         ids = [check.id for check in self.checks]
         if len(set(ids)) != len(ids):
             raise ValueError("check ids must all be different")
+        return self
+
+    @model_validator(mode="after")
+    def fit_in_ten_minutes(self) -> LabChecks:
+        # Every check counts, so this also stops a lab at 20 checks that all
+        # have the usual 30 seconds; the message says how to get past that.
+        total = sum(check.timeout for check in self.checks)
+        if total > LAB_CHECK_SECONDS_MAX:
+            raise ValueError(
+                f"the checks' time limits add up to {total} seconds, over the "
+                f"{LAB_CHECK_SECONDS_MAX} a lab's checks may take in all (a check "
+                f"without a timeout counts {CHECK_SECONDS}): a learner whose lab "
+                "is still broken waits for every one. Lower the slow checks' "
+                "timeout, give quick checks a shorter one of their own (such as "
+                "timeout: 10), or use fewer checks"
+            )
         return self
 
 

@@ -1,34 +1,84 @@
-# The checks for "It works on the server, not from the office": the name,
-# the firewall (open for the API, still a firewall, fixed in its file), where
-# the API listens, and the request from the office that started it all.
+# The checks for "It works on the server, not from the office": the request
+# that started it all, the name, what answers it, and the two rules for the
+# repair (still a firewall, still there after a reboot). Each description is
+# the state the server must end in; none says what was wrong. The firewall
+# is judged by what the office can and can't reach, not by how its rules
+# are spelled.
+#
+# A check that finds something wrong prints what it found and exits 0, so
+# the learner's terminal shows the reason beside the failed check.
 checks:
-  - id: name-right
-    description: "From the office, shop.internal resolves to this server, 10.0.9.1."
-    command: ip netns exec office dig +short +time=2 +tries=1 shop.internal
-    expect:
-      equals: "10.0.9.1"
-  - id: api-port-open
-    description: "The firewall accepts the API's port, 8080, in the running rules and in /etc/nftables.conf."
-    command: nft list ruleset | grep -q 8080 && nft -c -f /etc/nftables.conf && grep -q 8080 /etc/nftables.conf && echo "8080 accepted, and in the file"
-    expect:
-      contains: in the file
-  - id: still-a-firewall
-    description: "The input policy is still drop, and the database port still gets no answer from the office."
-    command: |
-      nft list ruleset | grep -qE 'hook input .*policy drop' || { echo "policy is not drop"; exit 1; }
-      start=$(date +%s%N)
-      ip netns exec office nc -z -w 2 10.0.9.1 5432 && exit 1
-      ms=$(( ($(date +%s%N) - start) / 1000000 ))
-      test "$ms" -ge 1500 && echo "5432 dropped"
-    expect:
-      equals: "5432 dropped"
-  - id: api-listens-for-the-office
-    description: "The API listens on every address (or on the office side), not on 127.0.0.1 alone."
-    command: ss -Hltn sport = :8080 | awk '{print $4}'
-    expect:
-      matches: "^(0\\.0\\.0\\.0|10\\.0\\.9\\.1|\\*|\\[::\\]):8080$"
   - id: works-from-office
     description: "From the office, http://shop.internal:8080/ answers with the API's page."
     command: ip netns exec office curl -s -m 5 http://shop.internal:8080/
     expect:
       contains: shop api ok
+  - id: name-right
+    description: "Asked from the office, the shop's name server says shop.internal is this server's address there, 10.0.9.1."
+    command: ip netns exec office dig +short +time=2 +tries=1 shop.internal
+    expect:
+      equals: "10.0.9.1"
+  - id: api-is-the-service
+    description: "What answers the office on port 8080 is the shop-api service itself, running and enabled, so it is there after a reboot."
+    command: |
+      [ "$(systemctl is-active shop-api)" = active ] || { echo "shop-api.service is not running"; exit 0; }
+      [ "$(systemctl is-enabled shop-api)" = enabled ] || { echo "shop-api.service is not enabled"; exit 0; }
+      pid=$(systemctl show -p MainPID --value shop-api)
+      where=$(ss -Hltnp sport = :8080 | grep "pid=$pid," | awk '{print $4}')
+      case "$where" in
+        0.0.0.0:8080 | 10.0.9.1:8080 | "*:8080" | "[::]:8080") echo "the service answers" ;;
+        *) echo "it is not the shop-api service that answers the office on port 8080" ;;
+      esac
+    expect:
+      equals: "the service answers"
+  - id: still-a-firewall
+    description: "The firewall is still a firewall: its input policy is drop, SSH still answers from the office, and from the office the ports the office has no use for (the database's, and others the checker tries) get no answer at all."
+    # A dropped connection gets nothing back for the whole timeout; one the
+    # firewall lets in is answered within milliseconds, by the program
+    # listening or by the kernel's reset. So an accept-everything rule, or a
+    # port left open that nothing uses, shows up as a quick answer. What is
+    # printed on a failure repeats the rule and doesn't name the port: this
+    # is a debug, and finding which one is the learner's work. SSH is
+    # tried first, because a firewall rewritten in a hurry for the API alone
+    # locks the office's administrators out.
+    command: |
+      nft list ruleset | grep -qE 'hook input .*policy drop' || { echo "the input chain's policy is not drop"; exit 0; }
+      ip netns exec office nc -z -w 3 10.0.9.1 22 || { echo "from the office, SSH gets no answer"; exit 0; }
+      for port in 5432 8000 9999; do
+        start=$(date +%s%N)
+        ip netns exec office nc -z -w 2 10.0.9.1 $port
+        connected=$?
+        ms=$(( ($(date +%s%N) - start) / 1000000 ))
+        if [ "$connected" -eq 0 ] || [ "$ms" -lt 1500 ]; then
+          echo "from the office, a port other than 22, 8080 and UDP 53 gets an answer"
+          exit 0
+        fi
+      done
+      echo "still a firewall"
+    expect:
+      equals: "still a firewall"
+  - id: firewall-survives-reboot
+    description: "/etc/nftables.conf loads the same rules that are running now, and nftables.service is enabled, so a reboot brings this firewall back."
+    # The file is loaded into a throwaway network namespace (each namespace
+    # has a ruleset of its own, so nothing running is touched) and what it
+    # makes there is compared with the running rules, counters left out. The
+    # namespace gets interfaces with this machine's names, so a rule that
+    # names one still loads.
+    command: |
+      ns=labcheck-nft
+      ip netns del $ns 2>/dev/null
+      ip netns add $ns || { echo "could not make a scratch namespace"; exit 0; }
+      n=0
+      for link in $(ls /sys/class/net); do
+        [ "$link" = lo ] || ip -n $ns link add "$link" type veth peer name "peer$n" 2>/dev/null
+        n=$((n + 1))
+      done
+      from_file=$(ip netns exec $ns nft -f /etc/nftables.conf 2>&1 && ip netns exec $ns nft -s list ruleset)
+      ip netns del $ns
+      if [ "$from_file" != "$(nft -s list ruleset)" ]; then
+        echo "the running rules are not the ones /etc/nftables.conf loads"
+        exit 0
+      fi
+      systemctl is-enabled nftables
+    expect:
+      equals: "enabled"

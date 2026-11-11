@@ -1,14 +1,16 @@
 id: mcq-boot-debug
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A new cloud VM never answers on SSH, five minutes after launch. Where do you look first, given that you can't log in?
 choices:
-  - "Nowhere; terminate it and launch another"
-  - "The cloud console's serial console or boot log, which shows the kernel and systemd messages from outside the VM: a kernel panic, a filesystem waiting forever, or a cloud-init stage failing all appear there"
-  - "`journalctl -b` on your laptop"
-  - "The DNS records for the VM"
+  - "`journalctl -b` on your own laptop, pointed at the VM's address so it fetches the boot log"
+  - "The serial console or boot log in the cloud console, which shows the boot from outside"
+  - "`/var/log/cloud-init-output.log`, opened over SSH, because it records the whole first boot"
+  - "Nowhere: a VM that fails its first boot leaves nothing to read, so launch another one"
 answer: 1
 explanation: |
-  Everything the VM prints during boot goes to its serial console, and every cloud exposes it: EC2's "Get system log", Azure's boot diagnostics, Google's serial port output. It shows exactly how far the boot got. Once you can log in, `journalctl -b`, `systemd-analyze blame` and `cloud-init status --long` take over. Launching another VM may work by luck and teaches you nothing about why this one didn't.
+  Everything the VM prints during boot goes to its serial console, and every cloud shows it from outside the VM: EC2's "Get system log", Azure's boot diagnostics, Google's serial port output. It shows how far the boot got: a kernel panic, a filesystem waiting forever and a cloud-init stage failing all appear there.
+
+  `journalctl -b` reads the journal of the machine it runs on, so on your laptop it shows your laptop's boot, and it has no way to fetch another machine's. `/var/log/cloud-init-output.log` is the right file, but it lives on the VM, behind the SSH that isn't answering. Both take over once you can log in. And a failed boot does leave something to read, which is that boot log: launching another VM may work by luck and teaches you nothing about why this one didn't.
 skills: [boot-sequence, cloud-init]

@@ -1,6 +1,6 @@
 id: debug-nested-walk
 stage: debug
-rev: 1
+rev: 2
 title: "A nested walk"
 prompt: |
   This program should add up what each user has spent and print:
@@ -11,5 +11,10 @@ prompt: |
   Cy 0
   ```
 
-  It has two bugs. Run it, read the error, fix it, run it again. One is in how the JSON is read; the other shows up only for a user without an `orders` key.
+  Instead it stops with `AttributeError: 'str' object has no attribute 'read'`. It has two bugs, and the second shows only once the first is fixed. Run it, read the error, fix what you find, and run it again.
+hints:
+  - "The error comes from the line that turns the text into Python data. `.read()` is something a file has: which `json` function reads a file, and which one reads a string?"
+  - "`json.load(f)` reads from an open file; `json.loads(text)`, with an s for string, reads a string."
+  - "Next it prints Ada's line and stops with `KeyError: 'orders'`. Look at Bo in the data: what's missing, and what should a user like that count as?"
+  - "`user.get(\"orders\", [])` gives an empty list when the key is missing, so the loop runs zero times and the total stays 0."
 skills: [json-io, safe-walk]

@@ -3,14 +3,16 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "The runaway that's eating a CPU"
 prompt: |
-  This server is slow, and a process is eating a whole CPU, but not doing obvious work: most of its time is in the kernel (`sy` in `vmstat`, not `us`), which is the sign of a system-call storm. Find it, confirm what it's doing, stop it, and write down what you found.
+  This server is slow. One CPU is busy the whole time, yet no real work is getting done. The shop runs two services here, and one of them is healthy and must stay running.
 
-  Work the checklist: `vmstat 1` (notice `sy` is high), `pidstat 1` or `ps -eo pid,comm,%cpu --sort=-%cpu` to name the process, then the tool for a busy-in-the-kernel process, `sudo strace -c -f -p PID` for a couple of seconds, which counts its system calls and shows one call failing over and over. The culprit is the `shop-tailer` service (its `MainPID` comes from `systemctl show -p MainPID --value shop-tailer`); the other service, `shop-api`, is healthy and must stay running. Because the service is set to restart, killing the process alone brings it straight back, so stop it at the service with `sudo systemctl disable --now shop-tailer`: stopped now, and not started at boot. (A unit you stop on purpose isn't restarted, however it's set to restart; only an unexpected exit is.) Then save a one- or two-line note to `~/triage/finding.txt` naming the culprit and the system call it was storming on. Run the checks.
+  One process is behind it. Find it, and find out what it is doing with a whole CPU: a good part of its time goes on asking the kernel for the same thing, over and over, and being refused every time. Then stop it in a way that lasts: it must not be back a second later, and it must not start again at the next boot. Last, leave a note of a line or two for the next person in `~/triage/finding.txt`: the name of the service at fault, and the name of the system call that fails every time it is made.
+
+  Work down from the whole machine to the one process, as the first-minute checklist does. Then run the checks.
 hints:
-  - "`strace -c -f -p PID` prints a table when you stop it (Ctrl-C, or run it under `sudo timeout 3 strace -c -f -p PID`): the `calls` and `errors` columns show which call is being made, and failing, millions of times. Here it's `openat` (the C library's `open`), failing because the path isn't there."
-  - "`systemctl disable --now` is the fix, not `kill`: the unit has `Restart=always`, so a killed process is restarted within a second, but a unit stopped through systemd stays stopped. Confirm with `systemctl is-active shop-tailer` (it should read `inactive`) and check `shop-api` is still `active`."
-  - "The finding is for the next person: `printf 'culprit: shop-tailer\\ncause: a busy loop of failing openat calls on a missing queue path\\n' > ~/triage/finding.txt`."
+  - "Start with the whole machine and narrow down: `vmstat 1` for how the CPU time splits, `pidstat 1` or `ps -eo pid,comm,%cpu --sort=-%cpu` for which process, and `systemctl status PID` for the service that process belongs to."
+  - "To see what a process asks the kernel for, count its system calls for a few seconds: `sudo timeout 3 strace -c -f -p PID`. The table it prints has a `calls` and an `errors` column; one call fails every time it is made."
+  - "Killing the process isn't enough when its service is set to restart it. Stop the service itself, and take it out of the next boot as well: `sudo systemctl disable --now NAME`. Then check the other service is still `active`."
 skills: [first-minute, cpu-profiling, use-method]

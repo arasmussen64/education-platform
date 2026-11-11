@@ -1,14 +1,18 @@
 id: debug-top-k
 stage: debug
-rev: 1
+rev: 2
 title: "Top k, wrongly"
 prompt: |
-  `top_k(values, k)` should return the `k` largest readings, largest first, using a heap that never holds more than `k` values. The program should print:
+  `top_k(values, k)` should return the `k` largest readings, largest first, using a heap that never holds more than `k` values. The program prints the top three, the top one and all ten:
 
   ```
   [95, 95, 88]
   [95] [95, 95, 88, 66, 50, 41, 23, 12, 7, 3]
   ```
 
-  It has two bugs. Run it: the top three come out as `[3, 7, 12]`, because when the heap grows past `k` the program removes the **last element of the list** with `heap.pop()`, not the smallest; a heap's smallest is `heap[0]`, and only `heapq.heappop` removes it and repairs the heap. Fix that, and the right values appear in the wrong order, `[88, 95, 95]`: the heap list is not sorted, so the result must be sorted before it is returned.
+  Instead the top three come out as `[3, 7, 12]`, the three smallest, and all ten come out in no order at all. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which try longer streams.
+hints:
+  - "When the heap grows past `k`, the smallest value should leave it. Which value does `heap.pop()` remove?"
+  - "`heap.pop()` removes the last element of the list, not the smallest. The smallest is `heap[0]`, and only `heapq.heappop(heap)` removes it and repairs the heap."
+  - "A heap list is not sorted: only `heap[0]` is sure to be in its place. Sort the result, largest first, before returning it."
 skills: [heap]

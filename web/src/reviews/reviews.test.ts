@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Attempt } from '../followups/followUps.ts'
 import { progressOf } from '../progress/progress.ts'
-import { fakeContent, fakeTopic, MCQ } from '../test/fakeContent.tsx'
+import { ESTIMATE, fakeContent, fakeTopic, MCQ } from '../test/fakeContent.tsx'
 import { replayCard } from './fsrs.ts'
 import {
   chooseReviewItems,
@@ -227,6 +227,26 @@ describe('chooseReviewItems', () => {
     ]
     const third = chooseReviewItems(content, afterSecond)
     expect(third.sort()).toEqual([...first].sort())
+  })
+
+  it('counts an estimate as worked out, not picked (ADR-0024)', () => {
+    // Two quick checks and an estimate answered lately: by age alone the
+    // session would be the two quick checks.
+    const base = fakeContent(
+      fakeTopic({ review_pool: ['mcq-print', 'mcq-two', ESTIMATE.id] }),
+    )
+    const pool = {
+      ...base,
+      recall: {
+        ...base.recall,
+        'mcq-two': { ...MCQ, id: 'mcq-two' },
+        [ESTIMATE.id]: ESTIMATE,
+      },
+    }
+    expect(chooseReviewItems(pool, [attempt(ESTIMATE.id, day(5))])).toEqual([
+      ESTIMATE.id,
+      'mcq-print',
+    ])
   })
 
   it('leaves out items that no longer exist, and worked examples', () => {

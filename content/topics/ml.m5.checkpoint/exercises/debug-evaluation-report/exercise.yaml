@@ -1,9 +1,9 @@
 id: debug-evaluation-report
 stage: debug
-rev: 1
+rev: 2
 title: "Three bugs in an evaluation report"
 prompt: |
-  This is the checkpoint's program on its data, and it should print:
+  This is the checkpoint's program on its data. It picks a threshold for each model; then, on the test data, it counts each model's confusion table and works out its accuracy, precision, recall and F1, puts an interval on each accuracy, and compares the two models with a paired bootstrap before giving a verdict. It should print:
 
   ```
   thresholds 1.7 1.05
@@ -15,11 +15,12 @@ prompt: |
   verdict: A is better
   ```
 
-  It has three bugs, in three different places. None of them crashes; each makes a number lie. Run it and compare:
-
-  1. **The thresholds are chosen on the test set.** The first line prints `1.3 1.3` and model A's accuracy comes out as 0.915, flattering numbers that come from trying forty-one thresholds on the very examples being reported. The thresholds belong on the **validation** data, `y_val` and the validation scores.
-  2. **Precision and recall are swapped** in `metrics`: precision divides by everything flagged, `tp + fp`; recall by everything really positive, `tp + fn`.
-  3. **The comparison's interval is built from the wrong resamples:** `paired_bootstrap` resamples A's and B's correctness separately and subtracts, which throws away the pairing. It must resample the per-example **differences**. With that fixed, the `A minus B` line reads `0.145 [0.075 0.215]` instead of `0.145 [0.07 0.22]`.
+  Instead every line but the verdict comes out different: the thresholds print as `1.3 1.3`, and A's accuracy as 0.915. It has three bugs, and none of them crashes. Run it and compare, then run the checks, which try the functions on their own. You're done when it prints the lines above and every check passes.
+hints:
+  - "Start with the first line. A threshold must be chosen on data the report doesn't use, or the numbers flatter the model. Which data does the program hand `choose_threshold`?"
+  - "`y_val`, `score_a_val` and `score_b_val` are made and never used. Choosing the thresholds on the test data means trying forty-one thresholds on the very examples being reported."
+  - "Check `metrics` against the definitions: precision divides by everything flagged, `tp + fp`; recall by everything really positive, `tp + fn`."
+  - "The checks give `paired_bootstrap` the same model twice, and two identical models must differ by exactly zero. A paired bootstrap resamples the per-example differences, `diff`; resampling each model's correctness separately and subtracting throws the pairing away."
 # Every test names the module skills it checks (ADR-0012), so a failed test
 # says which topics to revisit.
 test_skills:
