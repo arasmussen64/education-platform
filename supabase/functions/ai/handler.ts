@@ -343,19 +343,30 @@ export function createHandler(services: Services) {
   // already under way when writing began to fail. A fresh copy starts empty,
   // and stops again after its own first uncounted call.
   const unrecorded: Spend[] = []
+  // The retry under way, if there is one. Every request waits for the same
+  // retry, so none can go ahead while it isn't yet known whether the
+  // waiting costs got written, and no cost is written twice.
+  let retrying: Promise<boolean> | null = null
 
   /** Writes the waiting spends down. True once none are left. */
-  async function recordUnrecorded(): Promise<boolean> {
+  function recordUnrecorded(): Promise<boolean> {
+    if (unrecorded.length === 0) return Promise.resolve(true)
+    retrying ??= writeUnrecorded().finally(() => {
+      retrying = null
+    })
+    return retrying
+  }
+
+  async function writeUnrecorded(): Promise<boolean> {
     while (unrecorded.length > 0) {
-      // Taken off the list first, so two requests at once can't write it twice.
-      const spend = unrecorded.shift() as Spend
       try {
-        await services.logCall(spend)
+        await services.logCall(unrecorded[0] as Spend)
       } catch (error) {
-        unrecorded.unshift(spend)
         console.error('An earlier call still could not be counted', error)
         return false
       }
+      // Off the list only once it's written.
+      unrecorded.shift()
     }
     return true
   }

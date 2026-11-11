@@ -249,6 +249,42 @@ Deno.test('if not even the cost can be written down, nothing more is spent until
   assert.equal(written.length, 2)
 })
 
+Deno.test('a request that comes while an unwritten cost is being retried waits for that retry', async () => {
+  let database: 'down' | 'slow' = 'down'
+  let finishRetry = () => {}
+  const retried = new Promise<void>((resolve) => (finishRetry = resolve))
+  const asked: string[] = []
+  const written: unknown[] = []
+  const { handle } = fakes({
+    grade: () => {
+      asked.push('grade')
+      return Promise.resolve(GRADED)
+    },
+    logCall: async (call) => {
+      if (database === 'down') throw new Error('db down')
+      // The retry is slow, and in the end it fails too.
+      await retried
+      written.push(call)
+      throw new Error('still down')
+    },
+  })
+  assert.deepEqual((await send(handle, post())).body, { status: 'unavailable' })
+
+  // Request A starts retrying the unwritten cost. Request B comes in while
+  // that retry is still under way: it mustn't take the cost as written.
+  database = 'slow'
+  const first = send(handle, post())
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  const second = send(handle, post())
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  finishRetry()
+  assert.deepEqual((await first).body, { status: 'unavailable' })
+  assert.deepEqual((await second).body, { status: 'unavailable' })
+  assert.deepEqual(asked, ['grade'])
+  // Both waited on the one retry: the cost was tried once, not twice.
+  assert.equal(written.length, 1)
+})
+
 const utf8Bytes = (text: string) => new TextEncoder().encode(text).length
 
 Deno.test('clipBytes cuts by bytes, between characters, its marker included', () => {
