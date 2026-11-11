@@ -37,6 +37,10 @@ asking it anything. If the image has /usr/local/lib/lab/teardown.sh, the
 checker runs it before removing the container, so a lab can let go of what it
 attached to Docker's machine (the loop devices behind its disks).
 
+Each check gets 30 seconds, or what its `timeout:` in checks.yaml says (up
+to 300). A check that runs out of time is stopped inside the container,
+with what it started (ADR-0018 says what can escape), and fails saying so.
+
 The checker only asks the container questions. It never changes it, except
 when `test` applies a solution to a fresh container of its own.
 """
@@ -59,7 +63,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
-from content_model import Exercise, Expect, LabCheck, LabChecks
+from content_model import CHECK_SECONDS, Exercise, Expect, LabCheck, LabChecks
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "content" / "topics"
@@ -68,8 +72,27 @@ CONTENT = ROOT / "content" / "topics"
 # apart from an old pass.
 CHECKER_VERSION = "1"
 
-# A check's command gets this long; a lab shouldn't need more.
-CHECK_TIMEOUT_SECONDS = 30
+# A check's command gets this long unless its checks.yaml gives it a
+# `timeout:` of its own (content_model.py says why 30); a docker command
+# this tool runs gets it too, unless it says otherwise.
+CHECK_TIMEOUT_SECONDS = CHECK_SECONDS
+# When a check runs out of time, the command is stopped inside the lab as
+# well as here. Killing `docker exec` leaves the command it started running
+# in the container (tried 2026-11-11: the command and what it had started
+# carried on), so a check that boots a VM would leave the VM running, slowing
+# every check after it and failing the one that says the VM is gone.
+# coreutils' `timeout`, which every lab image has, sends TERM at the limit to
+# the command and to everything it started that stayed in its process group,
+# then KILL to all of them this much later if the command itself is still
+# running. If the command ends on TERM, `timeout` ends too and sends no KILL,
+# so a child that ignores TERM is left running (tried 2026-11-11).
+STOP_GRACE_SECONDS = 5
+# And this tool waits this much longer again for Docker itself, in case
+# Docker is what has stuck.
+DOCKER_GRACE_SECONDS = 15
+# What `timeout` exits with when it stopped the command: 124 when TERM was
+# enough, 128 + 9 when it took KILL.
+STOPPED_BY_TIMEOUT = {124, 137}
 # A systemd lab's first layer installs a lot; on a busy CI runner, with
 # several builds at once, a quarter of an hour wasn't always enough.
 BUILD_TIMEOUT_SECONDS = 1800
@@ -565,20 +588,77 @@ def evaluate(expect: Expect | None, stdout: str, exit_status: int) -> tuple[bool
     return (True, "ok")
 
 
-def run_checks(lab: Lab, container: str) -> list[CheckResult]:
+def exec_within(
+    container: str, command: str, seconds: int
+) -> subprocess.CompletedProcess[str]:
+    """Runs a check's command in the container as root, stopped there by
+    coreutils' `timeout` once it has run for that many seconds."""
+    return docker(
+        "exec",
+        "-u",
+        "root",
+        "-w",
+        HOME,
+        container,
+        "timeout",
+        "-k",
+        str(STOP_GRACE_SECONDS),
+        str(seconds),
+        "bash",
+        "-c",
+        command,
+        timeout=seconds + STOP_GRACE_SECONDS + DOCKER_GRACE_SECONDS,
+        check=False,
+    )
+
+
+def out_of_time(seconds: int) -> str:
+    """Why a check failed when it ran out of time: for the learner and the author."""
+    return (
+        f"ran out of time: this check has {seconds} seconds, and was stopped "
+        "when they were up. Something it runs may be stuck, or the computer "
+        "may have been busy"
+    )
+
+
+def run_check(
+    container: str, check: LabCheck, clock: Callable[[], float] = time.monotonic
+) -> CheckResult:
+    """Runs one check within its time limit and says whether it passed."""
+    started = clock()
+    try:
+        completed = exec_within(container, check.command, check.timeout)
+    except subprocess.TimeoutExpired:
+        # Docker itself gave no answer, even after the grace it is given.
+        return CheckResult(
+            check.id, check.description, False, out_of_time(check.timeout)
+        )
+    # A check may exit 124 or 137 by itself, quickly (its own `timeout`, or a
+    # program the kernel killed); only after the whole limit was it stopped.
+    if (
+        completed.returncode in STOPPED_BY_TIMEOUT
+        and clock() - started >= check.timeout
+    ):
+        return CheckResult(
+            check.id, check.description, False, out_of_time(check.timeout)
+        )
+    passed, detail = evaluate(check.expect, completed.stdout, completed.returncode)
+    if not passed and completed.stderr.strip():
+        detail += f"; stderr: {completed.stderr.strip()[:300]}"
+    return CheckResult(check.id, check.description, passed, detail)
+
+
+def run_checks(
+    lab: Lab,
+    container: str,
+    each: Callable[[CheckResult], None] = lambda _: None,
+) -> list[CheckResult]:
+    """Runs every check in order; `each` hears about each result as it comes."""
     results: list[CheckResult] = []
     for check in lab.checks:
-        try:
-            completed = exec_in(container, check.command)
-        except subprocess.TimeoutExpired:
-            results.append(
-                CheckResult(check.id, check.description, False, "took too long")
-            )
-            continue
-        passed, detail = evaluate(check.expect, completed.stdout, completed.returncode)
-        if not passed and completed.stderr.strip():
-            detail += f"; stderr: {completed.stderr.strip()[:300]}"
-        results.append(CheckResult(check.id, check.description, passed, detail))
+        result = run_check(container, check)
+        each(result)
+        results.append(result)
     return results
 
 
@@ -886,12 +966,28 @@ def cmd_shell(args: argparse.Namespace) -> int:
     return status
 
 
+def say_now(line: str) -> None:
+    """Prints a line at once, even when the output goes to a pipe or a file."""
+    print(line, flush=True)
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     lab = load_lab(args.topic, args.exercise)
     running_container(lab)
-    results = run_checks(lab, lab.container)
-    print(f"{lab.exercise.title}\n")
-    print_results(results, show_detail=True)
+    say_now(f"{lab.exercise.title}\n")
+    slowest = max(check.timeout for check in lab.checks)
+    if slowest > CHECK_TIMEOUT_SECONDS:
+        # A check that boots a VM can be quiet for a minute or two, which
+        # would look like a tool that has stuck.
+        say_now(
+            "Some of these checks run something slow and may take up to "
+            f"{slowest} seconds each. Each line appears when its check is done.\n"
+        )
+    results = run_checks(
+        lab,
+        lab.container,
+        each=lambda result: print_results([result], show_detail=True, say=say_now),
+    )
     passed = sum(result.passed for result in results)
     print(f"\n{passed} of {len(results)} checks passed.")
     result = result_json(lab, results)

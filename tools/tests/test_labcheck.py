@@ -10,8 +10,9 @@ from pathlib import Path
 
 import labcheck
 import pytest
-from content_fixture import write
-from content_model import Expect
+import yaml
+from content_fixture import make_valid_tree, write
+from content_model import Expect, LabCheck, LabChecks
 from labcheck import (
     CHECKER_VERSION,
     CheckResult,
@@ -23,6 +24,8 @@ from labcheck import (
     run_arguments,
     wait_for_boot,
 )
+from pydantic import ValidationError
+from validate_content import validate
 
 LAB_YAML = """id: lab-hello
 stage: build
@@ -329,11 +332,14 @@ class FakeDocker:
         # What `docker ps` prints: name|state|lab|role per line.
         self.listed = listed
         self.calls: list[tuple[str, ...]] = []
+        # The options of each call, such as how long it may take.
+        self.options: list[dict[str, object]] = []
         # Verbs that fail when called, with what docker would say.
         self.failing: dict[str, str] = {}
 
     def __call__(self, *args: str, **options: object):
         self.calls.append(args)
+        self.options.append(options)
         name = args[-1]
         if args[0] in self.failing:
             if options.get("check", True):
@@ -361,12 +367,16 @@ class FakeDocker:
 
 
 def use_lab(
-    tmp_path: Path, monkeypatch, docker: FakeDocker, extra_yaml: str = ""
+    tmp_path: Path,
+    monkeypatch,
+    docker: FakeDocker,
+    extra_yaml: str = "",
+    checks: str = CHECKS,
 ) -> labcheck.Lab:
     """A lab on disk that every command finds, and the stand-in Docker."""
     folder = "content/topics/t.hello/exercises/lab-hello"
     write(tmp_path, f"{folder}/exercise.yaml", LAB_YAML + extra_yaml)
-    write(tmp_path, f"{folder}/checks.yaml", CHECKS)
+    write(tmp_path, f"{folder}/checks.yaml", checks)
     write(tmp_path, f"{folder}/Dockerfile", "FROM ubuntu:24.04\n")
     lab = load_lab("t.hello", "lab-hello", tmp_path / "content" / "topics")
     monkeypatch.setattr(labcheck, "load_lab", lambda topic, exercise: lab)
@@ -1128,3 +1138,279 @@ def test_a_contract_run_never_runs_the_stale_disk_helper(
     labcheck.start_container(lab, f"{NAME}-test")
     # CI and other test runs share one Docker: only `start` clears disks.
     assert not any("--pid=host" in call for call in docker.calls)
+
+
+# --- A check's own time limit (ADR-0018, amended 2026-11-11) ------------------------
+
+# The lab above with a third check that has to boot something slow.
+SLOW_CHECKS = (
+    CHECKS
+    + """  - id: guest-boots
+    description: The guest boots and reports two CPUs.
+    command: ~/bin/shop-vm | grep -qx cpus=2
+    timeout: 120
+"""
+)
+
+
+def checks_from(text: str) -> list[LabCheck]:
+    return LabChecks.model_validate(yaml.safe_load(text)).checks
+
+
+def one_check() -> dict[str, object]:
+    """A check as YAML gives it, before any timeout."""
+    return {"id": "guest-boots", "description": "It boots.", "command": "true"}
+
+
+def docker_exiting(status: int):
+    """A stand-in for labcheck.docker whose every command exits with that status."""
+    return lambda *args, **_: answer(status)
+
+
+def check_exec_calls(docker: FakeDocker) -> list[tuple[tuple[str, ...], object]]:
+    """The calls that ran a check's command, with the time each was given."""
+    return [
+        (call, options.get("timeout"))
+        for call, options in zip(docker.calls, docker.options, strict=True)
+        if call[0] == "exec" and "timeout" in call
+    ]
+
+
+def test_a_check_has_thirty_seconds_unless_it_asks_for_more() -> None:
+    assert [check.timeout for check in checks_from(SLOW_CHECKS)] == [30, 30, 120]
+    assert labcheck.CHECK_TIMEOUT_SECONDS == 30
+    for allowed in (1, 300):
+        check = {**one_check(), "timeout": allowed}
+        assert (
+            LabChecks.model_validate({"checks": [check]}).checks[0].timeout == allowed
+        )
+
+
+def test_a_timeout_is_whole_seconds_from_1_to_300_and_says_so() -> None:
+    # YAML reads 2.5 and 30.0 as numbers with a fraction, "30" as text and
+    # yes as true; none of them is read as some number of seconds.
+    for wrong in (0, 301, -5, 2.5, 30.0, "30", True, None):
+        check = {**one_check(), "timeout": wrong}
+        with pytest.raises(ValidationError) as caught:
+            LabChecks.model_validate({"checks": [check]})
+        message = caught.value.errors()[0]["msg"]
+        assert (
+            "guest-boots: timeout is a whole number of seconds from 1 to 300, "
+            "such as timeout: 120 (a check without one gets 30); "
+            f"{wrong!r} isn't"
+        ) in message
+
+
+def test_a_labs_checks_may_take_ten_minutes_in_all() -> None:
+    def lab_of(*timeouts: int | None) -> dict[str, object]:
+        checks = []
+        for number, seconds in enumerate(timeouts):
+            check = {**one_check(), "id": f"check-{number}"}
+            if seconds is not None:
+                check["timeout"] = seconds
+            checks.append(check)
+        return {"checks": checks}
+
+    LabChecks.model_validate(lab_of(300, 270, None))  # 600 seconds: allowed
+    # A check without a timeout counts its 30 seconds.
+    with pytest.raises(ValidationError, match="add up to 630 seconds, over the 600"):
+        LabChecks.model_validate(lab_of(300, 270, None, None))
+    # Twenty-one checks of 30 seconds each are too many as well, and the
+    # message says what to do when no check is a slow one.
+    with pytest.raises(
+        ValidationError,
+        match=r"give quick checks a shorter one of their own \(such as "
+        r"timeout: 10\), or use fewer checks",
+    ):
+        LabChecks.model_validate(lab_of(*[None] * 21))
+    LabChecks.model_validate(lab_of(*[10] * 21))  # 210 seconds: allowed
+
+
+def test_the_validator_tells_the_author_what_a_timeout_must_be(tmp_path: Path) -> None:
+    tree = make_valid_tree(tmp_path)
+    folder = "content/topics/t.hello/exercises/lab-report"
+    write(
+        tree,
+        f"{folder}/exercise.yaml",
+        "id: lab-report\nstage: write\nruntime: lab\nrev: 1\n"
+        "title: A report\nprompt: Make a report.\nskills: [print-text]\n",
+    )
+    write(tree, f"{folder}/Dockerfile", "FROM ubuntu:24.04\n")
+    write(tree, f"{folder}/solution.sh", "echo done > ~/report.txt\n")
+    write(tree, f"{folder}/checks.yaml", SLOW_CHECKS)
+    assert validate(tree, run=False).problems == []
+
+    write(tree, f"{folder}/checks.yaml", SLOW_CHECKS.replace("120", "2.5"))
+    assert validate(tree, run=False).problems == [
+        f"{folder}/checks.yaml: checks.2: Value error, guest-boots: timeout is a "
+        "whole number of seconds from 1 to 300, such as timeout: 120 (a check "
+        "without one gets 30); 2.5 isn't"
+    ]
+
+
+def test_a_check_runs_under_timeout_inside_the_lab_with_its_own_limit(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker, checks=SLOW_CHECKS)
+    labcheck.run_checks(lab, NAME)
+    ran = check_exec_calls(docker)
+    # As root in the learner's home, as before; now inside coreutils'
+    # timeout, which stops the command (and what it started) at the limit
+    # and, if the command is still running 5 seconds later, kills them all.
+    assert ran[0][0] == (
+        "exec",
+        "-u",
+        "root",
+        "-w",
+        "/home/learner",
+        NAME,
+        "timeout",
+        "-k",
+        "5",
+        "30",
+        "bash",
+        "-c",
+        "test -f /home/learner/hello.txt",
+    )
+    assert ran[2][0][6:10] == ("timeout", "-k", "5", "120")
+    # Docker itself is given the limit, the 5 seconds and 15 more.
+    assert [seconds for _, seconds in ran] == [50, 50, 140]
+
+
+def test_each_result_is_heard_as_soon_as_its_check_is_done(
+    tmp_path: Path, monkeypatch
+) -> None:
+    events: list[str] = []
+
+    class Noting(FakeDocker):
+        def __call__(self, *args: str, **options: object):
+            if args[0] == "exec":
+                events.append(f"ran {args[-1].split()[0]}")
+            return super().__call__(*args, **options)
+
+    lab = use_lab(tmp_path, monkeypatch, Noting(), checks=SLOW_CHECKS)
+    labcheck.run_checks(lab, NAME, each=lambda result: events.append(result.id))
+    assert events == [
+        "ran test",
+        "file-exists",
+        "ran cat",
+        "says-hello",
+        "ran ~/bin/shop-vm",
+        "guest-boots",
+    ]
+
+
+def test_a_check_stopped_at_its_limit_fails_saying_it_ran_out_of_time(
+    monkeypatch,
+) -> None:
+    check = checks_from(SLOW_CHECKS)[2]
+    for status in (124, 137):  # stopped by TERM, or by KILL 5 seconds later
+        monkeypatch.setattr(labcheck, "docker", docker_exiting(status))
+        clock = iter([0.0, 120.3]).__next__
+        result = labcheck.run_check(NAME, check, clock=clock)
+        assert not result.passed
+        assert result.detail == (
+            "ran out of time: this check has 120 seconds, and was stopped when "
+            "they were up. Something it runs may be stuck, or the computer may "
+            "have been busy"
+        )
+
+
+def test_a_check_that_exits_124_early_is_judged_on_what_it_did(monkeypatch) -> None:
+    # A check may use timeout itself, or run a program the kernel kills:
+    # 124 or 137 well before its limit is the check's own answer.
+    monkeypatch.setattr(labcheck, "docker", docker_exiting(124))
+    quick = iter([0.0, 2.0, 10.0, 12.0]).__next__
+    wants_124 = checks_from(
+        CHECKS.replace(
+            "    expect:\n      equals: hello", "    expect:\n      exit: 124"
+        )
+    )[1]
+    assert labcheck.run_check(NAME, wants_124, clock=quick).passed
+    plain = checks_from(CHECKS)[0]
+    result = labcheck.run_check(NAME, plain, clock=quick)
+    assert not result.passed and result.detail == "exit status 124"
+
+
+def test_check_says_when_checks_are_slow_and_goes_on_after_one_runs_out(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    class StuckGuest(FakeDocker):
+        def __call__(self, *args: str, **options: object):
+            if args[0] == "exec" and "~/bin/shop-vm" in args[-1]:
+                # Docker gave no answer, even in the time it was given.
+                raise subprocess.TimeoutExpired(["docker", *args], 140)
+            return super().__call__(*args, **options)
+
+    docker = StuckGuest({NAME: ("running", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker, checks=SLOW_CHECKS)
+    assert run_main("check", "t.hello", "lab-hello") == 1
+    out = capsys.readouterr().out
+    assert (
+        "Some of these checks run something slow and may take up to 120 seconds "
+        "each. Each line appears when its check is done."
+    ) in out
+    # A failed check with the reason, not a traceback, and the result to paste.
+    assert (
+        "  FAIL  The guest boots and reports two CPUs.\n        ran out of time" in out
+    )
+    assert "1 of 3 checks passed." in out
+    assert '{"id":"guest-boots","passed":false}' in out
+
+    # A lab whose checks all have the usual 30 seconds says nothing about time.
+    use_lab(tmp_path, monkeypatch, FakeDocker({NAME: ("running", IMAGE)}))
+    assert run_main("check", "t.hello", "lab-hello") == 1
+    assert "something slow" not in capsys.readouterr().out
+
+
+def test_a_contract_run_gives_each_check_its_own_limit(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker, checks=SLOW_CHECKS)
+    write(tmp_path, "content/topics/t.hello/exercises/lab-hello/solution.sh", "true\n")
+    labcheck.test_lab(lab, verbose=False)
+    limits = [call[9] for call, _ in check_exec_calls(docker)]
+    # The pristine container, then the solution's: three checks each.
+    assert limits == ["30", "30", "120", "30", "30", "120"]
+
+
+def test_a_checks_limit_reaches_the_docker_command_itself(monkeypatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **options: object):
+        seen["argv"], seen["timeout"] = argv, options["timeout"]
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    # The checker's real way of calling docker, over a stand-in for the
+    # program itself.
+    monkeypatch.setattr(labcheck, "docker", REAL_DOCKER)
+    monkeypatch.setattr(labcheck, "docker_command", lambda: "docker")
+    monkeypatch.setattr(labcheck.subprocess, "run", fake_run)
+    check = checks_from(SLOW_CHECKS)[2]
+    assert labcheck.run_check(NAME, check).passed
+    assert seen["argv"] == [
+        "docker",
+        "exec",
+        "-u",
+        "root",
+        "-w",
+        "/home/learner",
+        NAME,
+        "timeout",
+        "-k",
+        "5",
+        "120",
+        "bash",
+        "-c",
+        "~/bin/shop-vm | grep -qx cpus=2",
+    ]
+    assert seen["timeout"] == 140
+
+    def hung(argv: list[str], **options: object):
+        raise subprocess.TimeoutExpired(argv, options["timeout"])
+
+    monkeypatch.setattr(labcheck.subprocess, "run", hung)
+    result = labcheck.run_check(NAME, check)
+    assert not result.passed and result.detail.startswith("ran out of time")
