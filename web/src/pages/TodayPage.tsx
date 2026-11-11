@@ -41,7 +41,11 @@ import { usePlacements } from '../placement/usePlacements.ts'
 import { nextUp, stateOf, type TopicProgress } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
-import { type DueReview, dueReviews } from '../reviews/reviews.ts'
+import {
+  type DueReview,
+  dueReviews,
+  reviewsLeftToday,
+} from '../reviews/reviews.ts'
 
 // The daily plan (v1 spec, F12), in this order: reviews that are due
 // (ADR-0009), mistakes coming back as fresh questions until they're
@@ -222,8 +226,9 @@ function TrackHours({ title, time }: { title: string; time: PracticeTime }) {
 
 /**
  * The topics due for a review (ADR-0009, F11), most forgotten first, up to
- * the daily limit. Each gets a session; finishing one doesn't make it
- * disappear, because the list is fixed when it first loads.
+ * what's left of the day's limit: reviews finished earlier today count
+ * (ADR-0009, amended 2026-11-11). Each gets a session; finishing one doesn't
+ * make it disappear, because the list is fixed when it first loads.
  */
 function Reviews({
   topics,
@@ -235,8 +240,15 @@ function Reviews({
   now: string
 }) {
   const [due, setDue] = useState<DueReview[] | null>(null)
+  // True when topics are due but the day's reviews are already done.
+  const [limitReached, setLimitReached] = useState(false)
   if (progress.status === 'ready' && due === null) {
-    setDue(dueReviews(topics.filter(isOpen), progress.progress, now))
+    const open = topics.filter(isOpen)
+    const left = reviewsLeftToday(progress.attempts, now)
+    setDue(dueReviews(open, progress.progress, now, left))
+    setLimitReached(
+      left === 0 && dueReviews(open, progress.progress, now).length > 0,
+    )
   }
   const ids = useMemo(
     () => (due === null ? null : due.map((review) => review.topic.id)),
@@ -261,7 +273,9 @@ function Reviews({
         </p>
       ) : due.length === 0 ? (
         <p className="text-slate-600 dark:text-slate-400">
-          No reviews due today.
+          {limitReached
+            ? "That's today's reviews done. The rest come back tomorrow, the most forgotten first."
+            : 'No reviews due today.'}
         </p>
       ) : (
         <>

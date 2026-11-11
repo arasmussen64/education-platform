@@ -55,6 +55,23 @@ const skills = (followUps: FollowUp[]) =>
   followUps.map((followUp) => followUp.skillId)
 
 describe('openFollowUps', () => {
+  it("counts days on the learner's recorded day, not this device's", () => {
+    // 06:30 UTC on 7 November was still 6 November in Los Angeles, where the
+    // learner was. Whatever zone this device is in, the miss is on the 6th.
+    const miss: Attempt = {
+      id: 'attempt-recorded-day',
+      type: 'answer',
+      topic_id: TOPIC,
+      item_id: 'mcq-commas',
+      correct: false,
+      occurred_at: '2026-11-07T06:30:00.000Z',
+      local_day: '2026-11-06',
+    }
+    const [open] = openFollowUps([miss], itemsOf)
+    expect(open?.missedOn).toBe('2026-11-06')
+    expect(open?.due).toBe('2026-11-07')
+  })
+
   it('opens a follow-up after a wrong answer, due the next day', () => {
     const open = openFollowUps(
       [attempt('mcq-commas', false, '2026-11-06')],

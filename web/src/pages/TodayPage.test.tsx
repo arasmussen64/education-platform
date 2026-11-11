@@ -410,6 +410,22 @@ describe('reviews on the Today page', () => {
     expect(await screen.findByText('No reviews due today.')).toBeInTheDocument()
   })
 
+  it("waits for tomorrow once the day's reviews are done", async () => {
+    // Twenty review sessions already finished today, on other topics.
+    const doneToday = Array.from({ length: 20 }, (_, i) => ({
+      ...answer('review', true, daysAgo(0)),
+      type: 'review' as const,
+      topic_id: `py.elsewhere-${i}`,
+      rating: 'good' as const,
+      context: 'review' as const,
+    }))
+    renderToday([...learnedDaysAgo(10), ...doneToday])
+    expect(
+      await screen.findByText(/^That's today's reviews done\./),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/is due for a review/)).not.toBeInTheDocument()
+  })
+
   it('reviews a Learned topic once its review is due, with two items from its pool', async () => {
     renderToday(learnedDaysAgo(10))
     // The section shows once the due topics' content has loaded.

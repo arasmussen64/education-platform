@@ -113,6 +113,48 @@ describe('toAttempt', () => {
     expect(toAttempt(row(1, { type: 'code_run', correct: null }))).toBeNull()
     expect(toAttempt(row(1, { item_id: null }))).toBeNull()
   })
+
+  it("leaves out Checks saved as wrong that couldn't run", () => {
+    // Before 2026-11-11 these were saved with correct false.
+    const check = { type: 'code_check', correct: false }
+    expect(toAttempt(row(1, { ...check, outcome: 'failed' }))).toBeNull()
+    expect(
+      toAttempt(
+        row(2, {
+          ...check,
+          outcome: 'done',
+          status: 'error',
+          message: "The tests couldn't be loaded. SyntaxError",
+        }),
+      ),
+    ).toBeNull()
+    expect(
+      toAttempt(row(3, { ...check, outcome: 'done', status: 'ok', total: 0 })),
+    ).toBeNull()
+    // The learner's own code failing to load, or failing tests, still count.
+    expect(
+      toAttempt(
+        row(4, {
+          ...check,
+          outcome: 'done',
+          status: 'error',
+          message: 'Your code has a syntax error',
+        }),
+      ),
+    ).not.toBeNull()
+    expect(
+      toAttempt(row(5, { ...check, outcome: 'done', status: 'ok', total: 3 })),
+    ).not.toBeNull()
+    // Older Checks saved no outcome at all: they ran, as they always counted.
+    expect(toAttempt(row(6, check))).not.toBeNull()
+  })
+
+  it("keeps the learner's recorded day, when the event has one", () => {
+    expect(toAttempt(row(1, { local_day: '2026-11-06' }))?.local_day).toBe(
+      '2026-11-06',
+    )
+    expect(toAttempt(row(2))).not.toHaveProperty('local_day')
+  })
 })
 
 describe('localAttempt', () => {
@@ -123,6 +165,21 @@ describe('localAttempt', () => {
       data: { code: 'print()', status: 'ok', failing: ['test_tip'] },
     })
     expect(localAttempt(row)?.failing).toEqual(['test_tip'])
+  })
+
+  it("reads the recorded day, and leaves out a Check that couldn't run", () => {
+    const answer = eventRow({
+      type: 'answer',
+      correct: true,
+      data: { local_day: '2026-11-06', utc_offset_minutes: -480 },
+    })
+    expect(localAttempt(answer)?.local_day).toBe('2026-11-06')
+    const failed = eventRow({
+      type: 'code_check',
+      correct: false,
+      data: { code: 'print()', outcome: 'failed' },
+    })
+    expect(localAttempt(failed)).toBeNull()
   })
 })
 
