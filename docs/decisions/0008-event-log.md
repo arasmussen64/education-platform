@@ -49,6 +49,8 @@ Why 12 hours: a refusal is fixed by a person (applying a migration, deploying a 
 
 Still open: until a refused event is saved it exists in one browser only, so clearing that browser's site data loses it. And if `localStorage` itself can't be written (full, or switched off), an event can still be lost; that case isn't handled yet. (Handled since 2026-11-11: see the next amendment.)
 
+Since 2026-11-11 editor drafts, the code and explanations a learner has typed but not yet passed, share `localStorage` with the outbox (`web/src/drafts/drafts.ts`). They keep to 250,000 characters of storage in all, measured as saved (one draft may hold at most 50,000 characters of text), and drop their oldest first, so they can't crowd the outbox out. Drafts are never sent to the server and aren't events.
+
 ## Amendment (2026-11-11): events the device can't store are sent from memory
 
 Decided under the owner's delegation of 2026-11-11 and recorded in [docs/owner-queue.md](../owner-queue.md) under "Decided for you".
