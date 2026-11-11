@@ -1,19 +1,12 @@
-import { type Ref, useContext, useEffect, useId, useState } from 'react'
-import { useAuth } from '../auth/useAuth.ts'
+import { type Ref, useId } from 'react'
 import { PracticeItem } from '../components/PracticeItem.tsx'
 import { SECONDARY_BUTTON } from '../components/styles.ts'
 import type { TopicContent, Unstuck as WayThrough } from '../content/types.ts'
-import { EventLogContext } from '../events/eventLogContext.ts'
-import type { Attempt } from '../followups/followUps.ts'
-import {
-  fetchAttempts,
-  localAttempt,
-  mergeAttempts,
-} from '../followups/history.ts'
-import { chooseVersion } from './versions.ts'
+import { fetchAttempts } from '../followups/history.ts'
+import { furtherParts } from '../progress/progress.ts'
+import { type LoadAttempts, useFreshVersion } from './freshVersion.ts'
 
-/** Reads the learner's attempts in one topic. Tests pass a fake. */
-export type LoadAttempts = (topicId: string) => Promise<Attempt[]>
+export type { LoadAttempts }
 
 type Props = {
   content: TopicContent
@@ -46,6 +39,9 @@ export function Unstuck({
     loadAttempts,
   )
   const { example, steps, versions } = unstuck
+  // With further parts there's more than one build above, and all of this
+  // is for part 1 alone (ADR-0012, amended 2026-11-11).
+  const numbered = furtherParts(content.topic).length > 0
 
   return (
     <section aria-labelledby="unstuck" className="space-y-4">
@@ -58,30 +54,8 @@ export function Unstuck({
       >
         Stuck? Try it in steps
       </h2>
-      <div className="space-y-2 text-slate-600 dark:text-slate-400">
-        <p>
-          A checkpoint is the first time you put a whole module together, so
-          getting stuck is normal. When you are, take it in three parts:
-        </p>
-        <ol className="list-decimal space-y-1 pl-6">
-          <li>Study a solved program like the build, in a different story.</li>
-          <li>Build the checkpoint's program in steps, with hints.</li>
-          <li>
-            Prove it on a fresh version, from a blank editor. Passing it counts
-            the same as passing the build above.
-          </li>
-        </ol>
-        {/* Said before the button, so the learner knows when they choose. */}
-        <p>
-          The steps show most of the build's own program. So once you open them,
-          passing the build above no longer counts as your proof: a fresh
-          version does. A build you passed before opening them still counts.
-        </p>
-        <p>
-          Any test you miss, here or above, also brings its skill back for
-          practice on your Today page.
-        </p>
-      </div>
+      {/* Said before the button, so the learner knows when they choose. */}
+      {numbered ? <PartOneIntro /> : <BuildIntro />}
       <button
         type="button"
         aria-expanded={open}
@@ -132,51 +106,70 @@ export function Unstuck({
   )
 }
 
+/** The way through, and what opening the steps means for the proof. */
+function BuildIntro() {
+  return (
+    <div className="space-y-2 text-slate-600 dark:text-slate-400">
+      <p>
+        A checkpoint is the first time you put a whole module together, so
+        getting stuck is normal. When you are, take it in three parts:
+      </p>
+      <ol className="list-decimal space-y-1 pl-6">
+        <li>Study a solved program like the build, in a different story.</li>
+        <li>Build the checkpoint's program in steps, with hints.</li>
+        <li>
+          Prove it on a fresh version, from a blank editor. Passing it counts
+          the same as passing the build above.
+        </li>
+      </ol>
+      <p>
+        The steps show most of the build's own program. So once you open them,
+        passing the build above no longer counts as your proof: a fresh version
+        does. A build you passed before opening them still counts.
+      </p>
+      <p>
+        Any test you miss, here or above, also brings its skill back for
+        practice on your Today page.
+      </p>
+    </div>
+  )
+}
+
 /**
- * The fresh version to offer, chosen once from the learner's history so it
- * can't change while they work on it. Signed-out learners have no saved
- * history, so they get the first.
+ * The same, on a checkpoint with further parts (ADR-0012, amended
+ * 2026-11-11). There's more than one build above, and the way through is
+ * for part 1 alone, so it says so, and that the other parts still count
+ * whenever they pass. It doesn't say "three parts" for its three stages,
+ * since "part" names the proof checks above.
  */
-function useFreshVersion(
-  topicId: string,
-  versions: string[],
-  loadAttempts: LoadAttempts,
-): string | null {
-  const auth = useAuth()
-  const log = useContext(EventLogContext)
-  const [fetched, setFetched] = useState<Attempt[] | null>(null)
-  const [choice, setChoice] = useState<{ version: string | null } | null>(null)
-
-  useEffect(() => {
-    if (auth.status !== 'signed-in') return
-    let active = true
-    loadAttempts(topicId).then(
-      (attempts) => {
-        if (active) setFetched(attempts)
-      },
-      // Which version comes first is only a preference: without the
-      // history, offer the first.
-      () => {
-        if (active) setFetched([])
-      },
-    )
-    return () => {
-      active = false
-    }
-  }, [auth.status, loadAttempts, topicId])
-
-  const history = auth.status === 'signed-out' ? [] : fetched
-  if (choice === null && history !== null) {
-    // Checks from this visit may not have reached the server yet.
-    const local = log
-      .getLocalRows()
-      .map(localAttempt)
-      .filter((attempt) => attempt !== null)
-    setChoice({
-      version: chooseVersion(topicId, versions, mergeAttempts(history, local)),
-    })
-  }
-  return choice?.version ?? null
+function PartOneIntro() {
+  return (
+    <div className="space-y-2 text-slate-600 dark:text-slate-400">
+      <p>
+        A checkpoint is the first time you put a whole module together, so
+        getting stuck is normal. If you're stuck on part 1, the first build,
+        take it one stage at a time:
+      </p>
+      <ol className="list-decimal space-y-1 pl-6">
+        <li>Study a solved program like part 1, in a different story.</li>
+        <li>Build part 1's program in steps, with hints.</li>
+        <li>
+          Prove it on a fresh version, from a blank editor. Passing it counts
+          the same as passing part 1 above.
+        </li>
+      </ol>
+      <p>
+        The steps show most of part 1's own program. So once you open them,
+        passing part 1 above no longer counts as your proof: a fresh version
+        does. If you passed part 1 before opening them, it still counts. The
+        steps show nothing of the other parts, so they count whenever they pass.
+      </p>
+      <p>
+        Any test you miss, here or above, also brings its skill back for
+        practice on your Today page.
+      </p>
+    </div>
+  )
 }
 
 /** The look of a note beside the build. */
@@ -185,18 +178,28 @@ const NOTE =
 
 /**
  * Shown next to the build after a few failing Checks (ADR-0012): a
- * suggestion, so the learner decides whether to use it.
+ * suggestion, so the learner decides whether to use it. `numbered` is for a
+ * checkpoint with further parts, where the build is part 1 and "parts" names
+ * the proof checks (ADR-0012, amended 2026-11-11).
  */
-export function SuggestSteps({ onOpen }: { onOpen: () => void }) {
+export function SuggestSteps({
+  onOpen,
+  numbered = false,
+}: {
+  onOpen: () => void
+  numbered?: boolean
+}) {
   return (
     <p className={NOTE}>
-      Stuck on the build? That's normal on a checkpoint.{' '}
+      {numbered ? 'Stuck on part 1?' : 'Stuck on the build?'} That's normal on a
+      checkpoint.{' '}
       <button type="button" onClick={onOpen} className="font-medium underline">
         Try it in steps
       </button>
-      : a solved example, then the build in parts, with hints, then a fresh
-      version to prove it. Once you've opened the steps, that fresh version is
-      your proof instead of this build.
+      : a solved example, then{' '}
+      {numbered ? 'part 1 a piece at a time' : 'the build in parts'}, with
+      hints, then a fresh version to prove it. Once you've opened the steps,
+      that fresh version is your proof instead of this build.
     </p>
   )
 }
@@ -205,16 +208,21 @@ export function SuggestSteps({ onOpen }: { onOpen: () => void }) {
  * Shown above the build once the learner has opened the steps, until the
  * build is proved (ADR-0012, amended 2026-11-11): the steps showed most of
  * this program, so passing it here no longer proves it. A fresh version does.
+ * On a checkpoint with further parts (`numbered`) it names part 1, and says
+ * the other parts aren't affected, since some of them are builds below too.
  */
 export function ProveOnAFreshVersion({
   onGoToSteps,
+  numbered = false,
 }: {
   onGoToSteps: () => void
+  numbered?: boolean
 }) {
   return (
     <p className={NOTE}>
-      You've opened the steps, which show most of this program, so passing the
-      build below no longer counts as your proof. You can still practise on it.{' '}
+      You've opened the steps, which show most of this program, so passing{' '}
+      {numbered ? 'part 1' : 'the build'} below no longer counts as your proof.
+      You can still practise on it.{' '}
       <button
         type="button"
         onClick={onGoToSteps}
@@ -223,6 +231,7 @@ export function ProveOnAFreshVersion({
         Prove it on a fresh version
       </button>{' '}
       instead, at the end of the steps.
+      {numbered && ' Your other parts count whenever they pass.'}
     </p>
   )
 }

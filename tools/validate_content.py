@@ -10,7 +10,8 @@ It checks:
 - the topic map: tracks, modules, prerequisites, and no cycles;
 - that "ready" topics have everything a topic needs (the content definition of
   done in docs/specs/v1.md), and ready checkpoints a way through for a learner
-  who's stuck, with every test naming the skills it checks (ADR-0012);
+  who's stuck, with every test naming the skills it checks (ADR-0012), and
+  further parts (prove.more) that are builds or debugs like their own;
 - by running them through the shared harness, like the browser does: every
   reference solution passes its tests, every starter and known-wrong solution
   fails them, and every predict-the-output item prints what it claims;
@@ -546,6 +547,64 @@ def check_ready_checkpoint(
             )
 
 
+# --- Checkpoints: further parts (ADR-0012, amended 2026-11-11) --------------------
+
+# What a further part can be: one more build or debug, like the checkpoint's own.
+PART_STAGES = ("build", "debug")
+
+
+def check_more_parts(folder: TopicFolder, report: Report) -> None:
+    """A ready checkpoint's further parts (prove.more) are each a build or a
+    debug, their fresh versions are the same kind, a build part has a fresh
+    version, and every test of them names the skills it checks."""
+    topic_file = folder.path / "topic.yaml"
+    for part in folder.topic.prove.more:
+        stage = folder.stage_of(part.id)
+        if stage not in PART_STAGES:
+            report.add(
+                topic_file,
+                f"prove.more part {part.id!r} must be a build or debug exercise"
+                + (f", but it's a {stage}" if stage else ""),
+            )
+            continue
+        # The reason a build has fresh versions, a second try that can't be
+        # passed from memory, holds for every build. A second debug waits
+        # until learners are seen to need one, as ADR-0012 says.
+        if stage == "build" and not part.versions:
+            report.add(
+                topic_file,
+                f"prove.more part {part.id!r} is a build, so it needs at least 1 "
+                "fresh version in versions: the same skills in another story",
+            )
+        for version in part.versions:
+            if folder.stage_of(version) != stage:
+                report.add(
+                    topic_file,
+                    f"prove.more version {version!r} must be a {stage}, "
+                    f"like its part {part.id!r}",
+                )
+        for item_id in (part.id, *part.versions):
+            check_every_test_names_skills(folder, item_id, report)
+
+
+def check_every_test_names_skills(
+    folder: TopicFolder, item_id: str, report: Report
+) -> None:
+    """Every test of a checkpoint's proof exercise names the skills it checks,
+    so a failed one brings them back (ADR-0012)."""
+    if item_id not in folder.exercises:
+        return
+    exercise_folder, exercise = folder.exercises[item_id]
+    tests = test_names_of(exercise_folder, exercise) or []
+    missing = [test for test in tests if test not in exercise.test_skills]
+    if missing:
+        report.add(
+            exercise_folder / "exercise.yaml",
+            "every test needs the skills it checks in test_skills "
+            f"(ADR-0012), but these have none: {', '.join(missing)}",
+        )
+
+
 IMPORTS_NUMPY = re.compile(r"^\s*(import|from)\s+numpy\b", re.MULTILINE)
 
 
@@ -591,6 +650,7 @@ def check_references(folder: TopicFolder, report: Report) -> None:
 
     named = [*folder.topic.practice, *folder.topic.review_pool]
     named += [i for i in (folder.topic.prove.build, folder.topic.prove.debug) if i]
+    named += folder.topic.prove.more_items()
     unstuck = folder.topic.unstuck
     if unstuck is not None:
         named += [i for i in (unstuck.example,) if i]
@@ -1377,6 +1437,7 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
             check_ready_topic(folder, report)
             if folder.topic.kind == "checkpoint":
                 check_ready_checkpoint(folder, topics, place, report)
+                check_more_parts(folder, report)
         find_long_answers(folder, report.long_answers)
         for item_path_id, item in folder.recall.items():
             report.counts["recall items"] += 1

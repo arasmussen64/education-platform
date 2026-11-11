@@ -79,10 +79,39 @@ class Explain(Strict):
         return self
 
 
+class ProvePart(Strict):
+    """One more part of a checkpoint, after its build and debug (ADR-0012,
+    amended 2026-11-11): a build or debug exercise of its own."""
+
+    id: ItemId
+    # Fresh versions of this part, in other stories. A pass of any counts.
+    versions: list[ItemId] = []
+
+
 class Prove(Strict):
     build: ItemId | None = None
     debug: ItemId | None = None
+    # Checkpoints only: further parts, shown as Part 3, Part 4 and so on.
+    more: list[ProvePart] = []
     explain: Explain | None = None
+
+    def more_items(self) -> list[str]:
+        """Every exercise the further parts name: each part and its versions."""
+        return [item for part in self.more for item in (part.id, *part.versions)]
+
+    @model_validator(mode="after")
+    def parts_are_all_different(self) -> Prove:
+        # A pass of one exercise can only prove one part, so none is named twice.
+        named = [item for item in (self.build, self.debug) if item]
+        named += self.more_items()
+        repeated = sorted({item for item in named if named.count(item) > 1})
+        if repeated:
+            raise ValueError(
+                f"prove names {', '.join(repeated)} more than once; the build, "
+                "the debug and each further part and version must be different "
+                "exercises"
+            )
+        return self
 
 
 class Skill(Strict):
@@ -157,6 +186,25 @@ class Topic(Strict):
             raise ValueError(
                 "checkpoints don't declare skills: their tests name skills of "
                 "the module's topics, in test_skills"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def further_parts_stand_alone(self) -> Topic:
+        """prove.more is for checkpoints, and its exercises are proofs of their
+        own, never part of the build's way through (ADR-0012)."""
+        if self.prove.more and self.kind != "checkpoint":
+            raise ValueError(
+                "only checkpoints have prove.more; a topic proves itself with "
+                "one build, one debug and an explain"
+            )
+        unstuck = self.unstuck or Unstuck()
+        helps = {unstuck.example, *unstuck.steps, *unstuck.versions}
+        shared = sorted(helps.intersection(self.prove.more_items()))
+        if shared:
+            raise ValueError(
+                f"prove.more names {', '.join(shared)}, which unstuck names too; "
+                "a further part and its versions must be exercises of their own"
             )
         return self
 

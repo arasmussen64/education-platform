@@ -42,19 +42,49 @@ export type StepsOpened = {
   occurred_at: string
 }
 
+/**
+ * One more part of a checkpoint, after its build and debug (ADR-0012,
+ * amended 2026-11-11), and the exercises that prove it: the part itself, or
+ * any fresh version of it.
+ */
+export type FurtherPart = {
+  id: string
+  versions: string[]
+  /**
+   * Its number, as the page and the spec give it: the build is part 1 and
+   * the debug part 2, so the further parts start at 3.
+   */
+  number: number
+}
+
+/** A checkpoint's further parts (prove.more), in order. Other topics have none. */
+export function furtherParts(topic: Topic): FurtherPart[] {
+  return (topic.prove.more ?? []).map(({ id, versions = [] }, index) => ({
+    id,
+    versions,
+    number: index + 3,
+  }))
+}
+
 export type TopicProgress = {
   /** Any graded attempt at one of the topic's questions or exercises. */
   started: boolean
   /** When each proof check first passed. */
   passed: Partial<Record<Proof, string>>
   /**
+   * For a checkpoint with further parts: when each first passed, by the
+   * part's id. Left out for every other topic.
+   */
+  partsPassed?: Record<string, string>
+  /**
    * For a checkpoint: when the learner first opened its steps, if they have.
    * From then on only a fresh version proves its build (ADR-0012).
    */
   stepsOpenedAt?: string
   /**
-   * When the last of the three first passed: from then on, the topic is
-   * Learned (a checkpoint, Passed).
+   * When the last proof check first passed (the three, and a checkpoint's
+   * further parts): from then on, the topic is Learned (a checkpoint,
+   * Passed).
    */
   learnedAt: string | null
   /** The review sessions since then, oldest first. */
@@ -137,6 +167,61 @@ function hasFreshVersions(topic: Topic): boolean {
   return (topic.unstuck?.versions.length ?? 0) > 0
 }
 
+/**
+ * Which further part of a checkpoint, if any, passing this event proves: a
+ * pass of the part or of any fresh version of it. Unlike the main build, a
+ * part counts whenever it passed, steps opened or not: it has no steps of
+ * its own, and the build's steps don't show its program (ADR-0012, amended
+ * 2026-11-11).
+ */
+function partOf(topic: Topic, event: GradedEvent): string | undefined {
+  const itemId = event.item_id
+  if (!event.correct || event.type !== 'code_check' || itemId === null) {
+    return undefined
+  }
+  return furtherParts(topic).find(
+    (part) => part.id === itemId || part.versions.includes(itemId),
+  )?.id
+}
+
+/** A topic's progress before anything has happened in it. */
+function emptyProgress(topic: Topic): TopicProgress {
+  const entry: TopicProgress = {
+    started: false,
+    passed: {},
+    learnedAt: null,
+    reviews: [],
+    card: null,
+  }
+  // Only a checkpoint with further parts has their passes to note.
+  if (furtherParts(topic).length > 0) entry.partsPassed = {}
+  return entry
+}
+
+/** Notes `at` under `key`, unless an earlier time is there already. */
+function noteFirst<Key extends string>(
+  times: Partial<Record<Key, string>>,
+  key: Key,
+  at: string,
+) {
+  const earlier = times[key]
+  if (!earlier || at < earlier) times[key] = at
+}
+
+/**
+ * When the last of a topic's proof checks first passed: its build, debug
+ * and explain, and on a checkpoint every further part. Null until all have.
+ */
+function allPassedAt(topic: Topic, entry: TopicProgress): string | null {
+  const times = [
+    ...PROOFS.map((proof) => entry.passed[proof]),
+    ...furtherParts(topic).map((part) => entry.partsPassed?.[part.id]),
+  ]
+  const passed = times.filter((time) => time !== undefined)
+  // ISO times in UTC sort in time order, so the last is the latest.
+  return passed.length === times.length ? (passed.sort().at(-1) ?? null) : null
+}
+
 /** The first time each topic's steps were opened, by topic. */
 function firstOpenings(stepsOpened: StepsOpened[]): Map<string, string> {
   const first = new Map<string, string>()
@@ -160,10 +245,7 @@ export function progressOf(
   stepsOpened: StepsOpened[] = [],
 ): Map<string, TopicProgress> {
   const progress = new Map<string, TopicProgress>(
-    topics.map((topic) => [
-      topic.id,
-      { started: false, passed: {}, learnedAt: null, reviews: [], card: null },
-    ]),
+    topics.map((topic) => [topic.id, emptyProgress(topic)]),
   )
   const topicsById = new Map(topics.map((topic) => [topic.id, topic]))
   for (const [topicId, openedAt] of firstOpenings(stepsOpened)) {
@@ -186,23 +268,20 @@ export function progressOf(
     }
     entry.started = true
     const proof = proofOf(topic, event, entry.stepsOpenedAt)
-    const earlier = proof && entry.passed[proof]
-    if (proof && (!earlier || event.occurred_at < earlier)) {
-      entry.passed[proof] = event.occurred_at
+    if (proof) noteFirst(entry.passed, proof, event.occurred_at)
+    const part = partOf(topic, event)
+    if (part && entry.partsPassed) {
+      noteFirst(entry.partsPassed, part, event.occurred_at)
     }
   }
 
   for (const [topicId, entry] of progress) {
-    const times = PROOFS.map((proof) => entry.passed[proof]).filter(
-      (time) => time !== undefined,
-    )
-    // ISO times in UTC sort in time order, so the last is the latest.
-    entry.learnedAt =
-      times.length === PROOFS.length ? (times.sort().at(-1) ?? null) : null
+    const topic = topicsById.get(topicId)
+    entry.learnedAt = topic ? allPassedAt(topic, entry) : null
     entry.reviews.sort((a, b) => a.at.localeCompare(b.at))
     // The card starts when the topic becomes Learned (ADR-0009); reviews
     // from before then can't count.
-    if (entry.learnedAt && topicsById.get(topicId)?.kind === 'topic') {
+    if (entry.learnedAt && topic?.kind === 'topic') {
       entry.reviews = entry.reviews.filter(
         (review) => review.at >= (entry.learnedAt ?? ''),
       )

@@ -279,13 +279,44 @@ def checkpoint_exercise_yaml(item_id: str, stage: str) -> str:
     return text
 
 
+def add_checkpoint_exercise(root: Path, item_id: str, stage: str) -> None:
+    """One exercise of the checkpoint, with a passing solution and its tests."""
+    folder = f"{CHECKPOINT_DIR}/exercises/{item_id}"
+    write(root, f"{folder}/exercise.yaml", checkpoint_exercise_yaml(item_id, stage))
+    write(root, f"{folder}/solution.py", CORRECT)
+    write(root, f"{folder}/test_exercise.py", PASSING_TESTS)
+    if stage in ("fill_in", "debug"):
+        write(root, f"{folder}/starter.py", 'print("Helo!")\n')
+
+
 def make_ready_checkpoint(root: Path) -> Path:
     for item_id, stage in CHECKPOINT_EXERCISES.items():
-        folder = f"{CHECKPOINT_DIR}/exercises/{item_id}"
-        write(root, f"{folder}/exercise.yaml", checkpoint_exercise_yaml(item_id, stage))
-        write(root, f"{folder}/solution.py", CORRECT)
-        write(root, f"{folder}/test_exercise.py", PASSING_TESTS)
-        if stage in ("fill_in", "debug"):
-            write(root, f"{folder}/starter.py", 'print("Helo!")\n')
+        add_checkpoint_exercise(root, item_id, stage)
     write(root, f"{CHECKPOINT_DIR}/topic.yaml", READY_CHECKPOINT)
+    return root
+
+
+# --- A checkpoint with further parts (ADR-0012, amended 2026-11-11) ---
+
+# Part 3, a build with one fresh version, and Part 4, a debug with none.
+MORE_PARTS = """  more:
+    - id: build-badge
+      versions: [build-badge-b]
+    - id: debug-badge
+"""
+
+PART_EXERCISES = {
+    "build-badge": "build",
+    "build-badge-b": "build",
+    "debug-badge": "debug",
+}
+
+
+def make_checkpoint_with_parts(root: Path) -> Path:
+    """The ready checkpoint, with two further parts after its debug."""
+    make_ready_checkpoint(root)
+    for item_id, stage in PART_EXERCISES.items():
+        add_checkpoint_exercise(root, item_id, stage)
+    with_parts = READY_CHECKPOINT.replace("  explain:", MORE_PARTS + "  explain:")
+    write(root, f"{CHECKPOINT_DIR}/topic.yaml", with_parts)
     return root

@@ -589,6 +589,32 @@ describe('checkpoint tests (ADR-0012)', () => {
     ])
   })
 
+  it("reads a further part's tests the same way, whatever slot names it", () => {
+    // A checkpoint's further part (prove.more, ADR-0012 amended 2026-11-11)
+    // is one more exercise with test_skills, here a lab's, by check id.
+    // Follow-ups look tests up by exercise and never ask which slot of
+    // prove names it, so nothing about them changes for parts.
+    const withPart: ItemsOf = (topicId) =>
+      topicId === CHECKPOINT
+        ? {
+            ...BY_TOPIC[CHECKPOINT],
+            'build-domain': {
+              skills: [],
+              stage: 'build',
+              test_skills: { 'names-the-domain': [`${STRINGS}/fstrings`] },
+            },
+          }
+        : BY_TOPIC[topicId]
+    const missed = check(['names-the-domain'], '2026-11-06', 10, 'build-domain')
+    expect(openFollowUps([missed], withPart)).toEqual([
+      expect.objectContaining({
+        topicId: STRINGS,
+        skillId: 'fstrings',
+        missedItems: ['py.m1.checkpoint/build-domain'],
+      }),
+    ])
+  })
+
   it('looks up test skills in loaded content', () => {
     const checkpoint = fakeCheckpointContent()
     const contents = new Map([[checkpoint.topic.id, checkpoint]])

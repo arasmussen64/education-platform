@@ -10,6 +10,7 @@ import {
 import { flushSync } from 'react-dom'
 import { Link, useLoaderData } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
+import { MoreParts } from '../checkpoints/MoreParts.tsx'
 import { stepsOpenedEvent } from '../checkpoints/stepsOpened.ts'
 import {
   type LoadAttempts,
@@ -19,6 +20,7 @@ import {
 } from '../checkpoints/Unstuck.tsx'
 import { SUGGEST_STEPS_AFTER } from '../checkpoints/versions.ts'
 import { getTopic, placeOf, tracks } from '../content/content.ts'
+import { STAGES } from '../content/stages.ts'
 import type { Explain, Topic, TopicContent } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
 import { Markdown } from '../components/Markdown.tsx'
@@ -40,10 +42,12 @@ import type { Interleaved } from '../practice/interleave.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
 import { type ItemState, itemKey, itemStates } from '../progress/itemStates.ts'
 import {
+  furtherParts,
   type Proof,
   PROOFS,
   STATE_LABELS,
   stateOf,
+  type TopicProgress,
   type TopicState,
 } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
@@ -326,6 +330,9 @@ function CheckpointView({
   locked: boolean
 }) {
   const { unstuck } = content.topic
+  // With further parts, the build is part 1 of several, and the notes about
+  // the steps say so (ADR-0012, amended 2026-11-11).
+  const numbered = furtherParts(content.topic).length > 0
   const recordEvent = useRecordEvent()
   const [failedChecks, setFailedChecks] = useState(0)
   const [buildPassed, setBuildPassed] = useState(false)
@@ -391,24 +398,29 @@ function CheckpointView({
       <ProveIt
         content={content}
         progress={progress}
-        intro="Three checks show you can use everything in this module on your own: build a program from a blank editor, fix code with several bugs, and explain how it works. No hints here. If you get stuck on the build, there's a way through it below."
+        intro={checkpointProofIntro(content.topic)}
         explainWaitsForBuild
         onBuildCheck={(passed) => {
           if (passed) setBuildPassed(true)
           else setFailedChecks((count) => count + 1)
         }}
         beforeBuild={
-          freshVersionNeeded && <ProveOnAFreshVersion onGoToSteps={goToSteps} />
+          freshVersionNeeded && (
+            <ProveOnAFreshVersion onGoToSteps={goToSteps} numbered={numbered} />
+          )
         }
         afterBuild={
           <>
             {/* <output> is announced by screen readers when its text changes. */}
             <output className="sr-only">
-              {suggest ? 'Stuck on the build? You can try it in steps.' : ''}
+              {suggest
+                ? `Stuck on ${numbered ? 'part 1' : 'the build'}? You can try it in steps.`
+                : ''}
             </output>
-            {suggest && <SuggestSteps onOpen={goToSteps} />}
+            {suggest && <SuggestSteps onOpen={goToSteps} numbered={numbered} />}
           </>
         }
+        afterDebug={<MoreParts content={content} loadAttempts={loadAttempts} />}
       />
       {unstuck && (
         <Unstuck
@@ -422,6 +434,38 @@ function CheckpointView({
       )}
     </>
   )
+}
+
+const NUMBER_WORDS = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+]
+
+/** "three" for 3, as a sentence writes a small number; digits past nine. */
+function inWords(count: number): string {
+  return NUMBER_WORDS[count] ?? String(count)
+}
+
+/**
+ * What a checkpoint's proof checks are, above them. One with further parts
+ * (ADR-0012, amended 2026-11-11) counts them all, since its build and debug
+ * are parts 1 and 2 of several.
+ */
+function checkpointProofIntro(topic: Topic): string {
+  const further = furtherParts(topic).length
+  if (further === 0) {
+    return "Three checks show you can use everything in this module on your own: build a program from a blank editor, fix code with several bugs, and explain how it works. No hints here. If you get stuck on the build, there's a way through it below."
+  }
+  const parts = 2 + further
+  return `These ${inWords(parts + 1)} checks show you can use everything in this module on your own: ${inWords(parts)} parts to build or fix, and an explanation of how it all works. No hints here. If you get stuck on part 1, there's a way through it below.`
 }
 
 /** In place of a lesson: what the checkpoint brings together. */
@@ -700,6 +744,7 @@ function ProveIt({
   onBuildCheck,
   beforeBuild,
   afterBuild,
+  afterDebug,
   progress,
 }: {
   content: TopicContent
@@ -715,22 +760,28 @@ function ProveIt({
   beforeBuild?: ReactNode
   /** Shown right after the build. */
   afterBuild?: ReactNode
+  /** Shown right after the debug: a checkpoint's further parts. */
+  afterDebug?: ReactNode
   /** The learner's progress here, which the page loads once. */
   progress: ProgressState
 }) {
   const { build, debug, explain } = content.topic.prove
   if (!build && !debug && !explain) return null
+  // A checkpoint with further parts numbers them all, from its build as
+  // part 1 and its debug as part 2 (ADR-0012, amended 2026-11-11).
+  const numbered = furtherParts(content.topic).length > 0
   return (
     <section aria-labelledby="prove-it" className="space-y-4">
       <SectionHeading id="prove-it">Prove it</SectionHeading>
       <p className="text-slate-600 dark:text-slate-400">{intro}</p>
-      <ProofProgress topic={content.topic} state={progress} />
+      <ProofProgress content={content} state={progress} />
       {beforeBuild}
       {build && (
         <PracticeItem
           itemId={build}
           content={content}
           context="prove"
+          position={numbered ? 'Part 1' : undefined}
           placeId={provePlace('build')}
           onCheck={onBuildCheck}
         />
@@ -741,9 +792,11 @@ function ProveIt({
           itemId={debug}
           content={content}
           context="prove"
+          position={numbered ? 'Part 2' : undefined}
           placeId={provePlace('debug')}
         />
       )}
+      {afterDebug}
       {explain && (
         <div
           id={provePlace('explain')}
@@ -774,7 +827,8 @@ function ProveIt({
  * build from before the steps were first opened, on any day (ADR-0012,
  * amended 2026-11-11). A Check passed during this visit counts straight
  * away, because the progress includes it. Until the page knows, the check
- * stays closed and says why.
+ * stays closed and says why. A checkpoint's further parts don't hold it
+ * back: it waits for the build, part 1, alone.
  */
 function ExplainAfterBuild({
   topic,
@@ -785,6 +839,9 @@ function ExplainAfterBuild({
   explain: Explain
   progress: ProgressState
 }) {
+  // With further parts there's more than one build, so say which.
+  const yourBuild =
+    furtherParts(topic).length > 0 ? 'your part 1 build' : 'your build'
   switch (progress.status) {
     case 'ready': {
       const own = progress.progress.get(topic.id)
@@ -794,7 +851,7 @@ function ExplainAfterBuild({
       return (
         <ExplainClosed>
           <p>
-            Explain it back opens once your build passes.
+            Explain it back opens once {yourBuild} passes.
             {/* The main build stops counting once the steps are opened. */}
             {own?.stepsOpenedAt &&
               " Since you've opened the steps, that means a fresh version, at the end of them."}
@@ -806,7 +863,7 @@ function ExplainAfterBuild({
       return (
         <ExplainClosed>
           <p>
-            Explain it back opens once your build passes. Checking whether it
+            Explain it back opens once {yourBuild} passes. Checking whether it
             has…
           </p>
         </ExplainClosed>
@@ -815,7 +872,7 @@ function ExplainAfterBuild({
       return (
         <ExplainClosed>
           <p>
-            Explain it back opens once your build passes. Your progress here
+            Explain it back opens once {yourBuild} passes. Your progress here
             couldn't load, so the page can't tell whether it has.
           </p>
           <button
@@ -834,7 +891,7 @@ function ExplainAfterBuild({
       return (
         <ExplainClosed>
           <p>
-            Explain it back opens once your build passes.{' '}
+            Explain it back opens once {yourBuild} passes.{' '}
             <Link to="/sign-in" className="underline">
               Sign in
             </Link>{' '}
@@ -851,15 +908,55 @@ const PROOF_NAMES: Record<Proof, string> = {
   explain: 'Explain',
 }
 
+/** One line of "Your proof so far": a proof check, and when it first passed. */
+type ProofRow = { key: string; name: string; passedAt?: string }
+
 /**
- * Which of the three proof checks the signed-in learner has passed, and
- * when. A check passed on this page shows straight away.
+ * The proof checks to list, in page order. On a checkpoint with further
+ * parts, every part is listed by its number, its build and debug included,
+ * as the page numbers them (ADR-0012, amended 2026-11-11).
+ */
+function proofRows(
+  content: TopicContent,
+  own: TopicProgress | undefined,
+): ProofRow[] {
+  const passed = own?.passed ?? {}
+  const row = (proof: Proof, name = PROOF_NAMES[proof]): ProofRow => ({
+    key: proof,
+    name,
+    passedAt: passed[proof],
+  })
+  const parts = furtherParts(content.topic)
+  if (parts.length === 0) return PROOFS.map((proof) => row(proof))
+
+  /** "Part 3, build": its number, and what kind of exercise it is. */
+  const partName = (number: number, itemId: string) => {
+    const stage = content.exercises[itemId]?.stage
+    return stage
+      ? `Part ${number}, ${STAGES[stage].label.toLowerCase()}`
+      : `Part ${number}`
+  }
+  return [
+    row('build', 'Part 1, build'),
+    row('debug', 'Part 2, debug'),
+    ...parts.map((part) => ({
+      key: `part-${part.id}`,
+      name: partName(part.number, part.id),
+      passedAt: own?.partsPassed?.[part.id],
+    })),
+    row('explain'),
+  ]
+}
+
+/**
+ * Which proof checks the signed-in learner has passed, and when. A check
+ * passed on this page shows straight away.
  */
 function ProofProgress({
-  topic,
+  content,
   state,
 }: {
-  topic: Topic
+  content: TopicContent
   state: ProgressState
 }) {
   const labelId = useId()
@@ -879,7 +976,7 @@ function ProofProgress({
     )
   }
   if (state.status !== 'ready') return null
-  const passed = state.progress.get(topic.id)?.passed ?? {}
+  const rows = proofRows(content, state.progress.get(content.topic.id))
 
   return (
     <div className="text-sm">
@@ -887,17 +984,14 @@ function ProofProgress({
         Your proof so far:
       </p>
       <ul aria-labelledby={labelId} className="space-y-0.5">
-        {PROOFS.map((proof) => {
-          const when = passed[proof]
-          return (
-            <li key={proof}>
-              {/* An icon and words, never color alone. */}
-              <span aria-hidden="true">{when ? '✓ ' : '○ '}</span>
-              {PROOF_NAMES[proof]}:{' '}
-              {when ? `passed on ${shortDate(when)}` : 'not passed yet'}
-            </li>
-          )
-        })}
+        {rows.map(({ key, name, passedAt }) => (
+          <li key={key}>
+            {/* An icon and words, never color alone. */}
+            <span aria-hidden="true">{passedAt ? '✓ ' : '○ '}</span>
+            {name}:{' '}
+            {passedAt ? `passed on ${shortDate(passedAt)}` : 'not passed yet'}
+          </li>
+        ))}
       </ul>
     </div>
   )

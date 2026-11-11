@@ -28,7 +28,7 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0009](0009-reviews.md)                   | Reviews are per topic and graded automatically                           | Accepted |
 | [0010](0010-environments.md)              | Local Supabase in Docker for development; one cloud project for real use | Accepted |
 | [0011](0011-mistakes-come-back.md)        | Mistakes come back as fresh questions until relearned                    | Accepted |
-| [0012](0012-checkpoint-support.md)        | Getting unstuck on a checkpoint                                          | Accepted |
+| [0012](0012-checkpoint-support.md)        | Getting unstuck on a checkpoint                                          | Accepted; its amendment on further parts (2026-11-11) is Proposed |
 | [0013](0013-explain-grading.md)           | Grading explanations with Claude, through the AI proxy                   | Accepted |
 | [0014](0014-cloud-labs.md)                | Proving cloud skills with labs in the learner's own clouds               | Accepted |
 | [0015](0015-hint-only-tutor.md)           | The hint-only tutor                                                      | Accepted |
