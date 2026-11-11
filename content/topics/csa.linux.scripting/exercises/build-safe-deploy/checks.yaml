@@ -5,7 +5,8 @@
 # TMPDIR pointing at an empty folder beside it. The versions and the app's
 # files are made when the checks run, so nothing can be arranged by hand:
 # wrong/typed-in-state.sh proves it. The checks build on each other in
-# order: the first makes the folder, the last removes it.
+# order: the first makes the folder, cleans-up removes it. The last check,
+# a deploy interrupted while it copies, has a folder of its own.
 checks:
   - id: no-version-exits-2
     description: "Run with no version, it writes to stderr and exits 2."
@@ -140,6 +141,47 @@ checks:
         fi
       else
         result="left behind after the deploys: $found"
+      fi
+      cd / && rm -rf "$top"
+      echo "$result"
+    expect:
+      equals: "cleaned up"
+  - id: interrupted-cleans-up
+    description: "A deploy interrupted while it copies, as Ctrl+C would, leaves nothing behind, and was building in a temp directory when it stopped."
+    # A folder of its own, and a cp of the check's own first on the deploy's
+    # PATH: it notes the temp directories there are while it "copies", then
+    # sends SIGINT to its own process group, which is what Ctrl+C does. The
+    # deploy runs in the foreground in a session of its own (setsid), so the
+    # signal reaches it and nothing else; a job started with & would ignore
+    # SIGINT. A trap on ERR instead of EXIT never runs then
+    # (wrong/trap-on-err.sh), and a deploy that copies straight into the
+    # release has no temp directory to show (wrong/no-temp-dir.sh).
+    command: |
+      top=/tmp/labcheck-interrupt; home="$top/a home"; app="$home/app"; seen="$top/seen"
+      rm -rf "$top"; mkdir -p "$app/src" "$top/tmp" "$top/stub" "$seen"
+      echo "shop app, build 9.1" > "$app/src/app.txt"
+      ls -A /tmp | grep -v '^labcheck-' > "$top/tmp-before"
+      cat > "$top/stub/cp" <<'EOF'
+      #!/bin/sh
+      top=/tmp/labcheck-interrupt
+      { ls -A "$TMPDIR"; ls -A "$HOME" | grep -vx app; ls -A "$HOME/app" | grep -vx -e src -e releases -e current; ls -A /tmp | grep -v '^labcheck-' | grep -vxF -f "$top/tmp-before"; } > "$top/seen/temp" 2> /dev/null
+      touch "$top/seen/copying"
+      kill -INT 0
+      sleep 5
+      EOF
+      chmod 755 "$top/stub/cp"; chmod 644 "$top/tmp-before"
+      chown -R learner:learner "$home" "$top/tmp" "$seen"
+      cd "$home"
+      timeout 20 setsid setpriv --reuid=learner --regid=learner --init-groups env HOME="$home" TMPDIR="$top/tmp" PATH="$top/stub:$PATH" /home/learner/bin/deploy 9.1 > /dev/null 2>&1
+      left=$({ ls -A "$top/tmp"; ls -A "$home" | grep -vx app; ls -A "$app" | grep -vx -e src -e releases -e current; ls -A /tmp | grep -v '^labcheck-' | grep -vxF -f "$top/tmp-before"; } 2> /dev/null | head -n 3 | paste -sd' ')
+      if ! [ -e "$seen/copying" ]; then
+        result="deploy 9.1 never ran cp, so it couldn't be interrupted while it copied"
+      elif ! [ -s "$seen/temp" ]; then
+        result="while deploy 9.1 copied, it had made no temp directory to build in"
+      elif [ -n "$left" ]; then
+        result="a deploy interrupted while it copied left behind: $left"
+      else
+        result="cleaned up"
       fi
       cd / && rm -rf "$top"
       echo "$result"
