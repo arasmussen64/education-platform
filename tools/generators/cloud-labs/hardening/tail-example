@@ -1,0 +1,11 @@
+
+# An unhardened server: ssh still takes passwords and permits root, and a
+# debugging port is open to the world.
+COPY shop-debug /usr/local/bin/shop-debug
+COPY shop-debug.service /etc/systemd/system/shop-debug.service
+RUN chmod 755 /usr/local/bin/shop-debug \
+ && mkdir -p /home/learner/bin /etc/systemd/system/multi-user.target.wants \
+ && chown learner:learner /home/learner/bin \
+ && ln -s /etc/systemd/system/shop-debug.service /etc/systemd/system/multi-user.target.wants/shop-debug.service
+
+CMD ["/sbin/init"]

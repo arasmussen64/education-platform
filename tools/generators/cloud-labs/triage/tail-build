@@ -1,0 +1,13 @@
+
+# Three of the shop's services: the API and the database idle, the worker
+# pegging a CPU. One of them is the bottleneck.
+COPY spin /usr/local/bin/shop-worker
+COPY shop-worker.service /etc/systemd/system/shop-worker.service
+COPY shop-api-idle.service /etc/systemd/system/shop-api.service
+COPY shop-db-idle.service /etc/systemd/system/shop-db.service
+RUN chmod 755 /usr/local/bin/shop-worker \
+ && mkdir -p /home/learner/bin /etc/systemd/system/multi-user.target.wants \
+ && chown learner:learner /home/learner/bin \
+ && for unit in shop-worker shop-api shop-db; do ln -s /etc/systemd/system/$unit.service /etc/systemd/system/multi-user.target.wants/$unit.service; done
+
+CMD ["/sbin/init"]

@@ -1,0 +1,13 @@
+
+# The shop's server with everything done except SSH: shop-api is enabled and
+# running and the firewall is up and persisted; SSH still takes passwords.
+# That one part is the step.
+COPY shop-api /usr/local/bin/shop-api
+COPY shop-api.service /etc/systemd/system/shop-api.service
+COPY nftables-shop.conf /etc/nftables.conf
+RUN chmod 755 /usr/local/bin/shop-api \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants /etc/systemd/system/sysinit.target.wants \
+ && ln -s /etc/systemd/system/shop-api.service /etc/systemd/system/multi-user.target.wants/shop-api.service \
+ && ln -s /usr/lib/systemd/system/nftables.service /etc/systemd/system/sysinit.target.wants/nftables.service
+
+CMD ["/sbin/init"]

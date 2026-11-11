@@ -1,0 +1,13 @@
+#!/bin/bash
+# shop-logger: writes to the shop's log in a steady trickle, syncing each
+# line to disk so the writes really reach the device. A stand-in for a
+# service that logs every request. Shows up in iostat and in pidstat -d as
+# the process doing the writing.
+log=/var/lib/shop/app.log
+mkdir -p /var/lib/shop
+while :; do
+  echo "$(date +%s%N) request served" >> "$log"
+  sync "$log"
+  if [ "$(wc -l < "$log")" -gt 2000 ]; then : > "$log"; fi
+  sleep 0.02
+done

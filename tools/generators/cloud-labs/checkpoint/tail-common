@@ -1,0 +1,12 @@
+
+# Someone to keep logging in as (ben, in ssh-users, with his key), and
+# /run/sshd for sshd -t/-T, as in the hardening topic. The checkpoint pulls
+# the whole module together, so every lab here starts from this.
+RUN useradd -m -s /bin/bash ben \
+ && groupadd ssh-users && usermod -aG ssh-users ben \
+ && mkdir -p /home/ben/.ssh /home/learner/keys /home/learner/bin \
+ && ssh-keygen -q -t ed25519 -N '' -C ben@laptop -f /home/learner/keys/ben \
+ && cp /home/learner/keys/ben.pub /home/ben/.ssh/authorized_keys \
+ && chown -R ben:ben /home/ben/.ssh && chmod 700 /home/ben/.ssh && chmod 600 /home/ben/.ssh/authorized_keys \
+ && chown -R learner:learner /home/learner/keys /home/learner/bin && chmod 600 /home/learner/keys/ben \
+ && printf 'd /run/sshd 0755 root root -\n' > /etc/tmpfiles.d/sshd.conf

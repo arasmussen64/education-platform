@@ -1,0 +1,14 @@
+
+# A debugging port open to the world (9000) and the database correctly on
+# loopback (5432), so the audit has a door to flag and a safe one to pass
+# over. Plus an empty ~/bin.
+COPY shop-debug /usr/local/bin/shop-debug
+COPY shop-debug.service /etc/systemd/system/shop-debug.service
+COPY shop-db /usr/local/bin/shop-db
+COPY shop-db.service /etc/systemd/system/shop-db.service
+RUN chmod 755 /usr/local/bin/shop-debug /usr/local/bin/shop-db \
+ && mkdir -p /home/learner/bin /etc/systemd/system/multi-user.target.wants \
+ && chown learner:learner /home/learner/bin \
+ && for unit in shop-debug shop-db; do ln -s /etc/systemd/system/$unit.service /etc/systemd/system/multi-user.target.wants/$unit.service; done
+
+CMD ["/sbin/init"]

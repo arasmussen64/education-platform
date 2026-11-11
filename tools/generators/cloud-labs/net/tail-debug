@@ -1,0 +1,11 @@
+
+# Three reasons "it doesn't work from the office": the API bound to
+# localhost, a firewall that lets the API's old port through, and a stale
+# name. The firewall is loaded at boot, as a real one is.
+COPY shop-api-localhost.service /etc/systemd/system/shop-api.service
+COPY nftables-old-port.conf /etc/nftables.conf
+COPY shop-stale.conf /etc/dnsmasq.d/shop.conf
+RUN mkdir -p /etc/systemd/system/sysinit.target.wants \
+ && ln -s /usr/lib/systemd/system/nftables.service /etc/systemd/system/sysinit.target.wants/nftables.service
+
+CMD ["/sbin/init"]

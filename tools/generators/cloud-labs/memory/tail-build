@@ -1,0 +1,10 @@
+
+# The leaking indexer and the database, both running at boot.
+COPY leaky /usr/local/bin/leaky
+COPY shop-indexer.service shop-db.service /etc/systemd/system/
+RUN chmod 755 /usr/local/bin/leaky \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/shop-indexer.service /etc/systemd/system/multi-user.target.wants/shop-indexer.service \
+ && ln -s /etc/systemd/system/shop-db.service /etc/systemd/system/multi-user.target.wants/shop-db.service
+
+CMD ["/sbin/init"]

@@ -1,0 +1,12 @@
+
+# The report with its gaps, and a worker spinning under a quota at boot (the
+# spinner under its own name, so ps shows "shop-worker").
+COPY spin /usr/local/bin/shop-worker
+COPY shop-worker.service /etc/systemd/system/shop-worker.service
+COPY cpu-report.starter /home/learner/bin/cpu-report
+RUN chmod 755 /usr/local/bin/shop-worker /home/learner/bin/cpu-report \
+ && chown -R learner:learner /home/learner/bin \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/shop-worker.service /etc/systemd/system/multi-user.target.wants/shop-worker.service
+
+CMD ["/sbin/init"]

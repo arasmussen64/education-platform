@@ -1,0 +1,17 @@
+#!/usr/bin/python3
+"""shop-cache: the shop's cache (stand-in), with a bug: it accepts every
+connection and never closes its side, so once the other side hangs up the
+connection sits in CLOSE-WAIT for as long as the cache runs. Listens on
+port 6380."""
+
+import socket
+
+server = socket.socket()
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(("0.0.0.0", 6380))
+server.listen(64)
+print("shop-cache listening on 6380", flush=True)
+held = []
+while True:
+    connection, _ = server.accept()
+    held.append(connection)  # never closed: the leak
