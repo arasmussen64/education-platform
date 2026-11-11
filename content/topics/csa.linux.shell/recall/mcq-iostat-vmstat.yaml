@@ -4,11 +4,11 @@ rev: 2
 prompt: |
   A server is slow. You suspect either the disk or memory. Which pair of tools answers "is the disk saturated?" and "is the machine swapping?"
 choices:
-  - "`vmstat 1` for the disk; `iostat -x 1` for swapping"
+  - "`lsof -p <pid>` for the disk; `strace` for swapping"
   - "`iostat -x 1` for the disk; `vmstat 1` for swapping"
   - "`lsof -p <pid>` for the disk; `vmstat 1` for swapping"
-  - "`iostat -x 1` for the disk; `strace -p <pid>` for swapping"
+  - "`iostat -x 1` for the disk; `strace` for swapping"
 answer: 1
 explanation: |
-  `iostat -x 1` prints each disk's utilisation and wait times every second: a disk near 100% busy with long waits is saturated. `vmstat 1` prints memory, swap in and out (`si` and `so`), the run queue and CPU every second: steady non-zero `si` and `so` mean the machine is swapping. Swapped round, neither answers its question: `iostat` has no swap columns, and `vmstat 1` has no figure for how busy each disk is. `lsof` and `strace` look at one process, the files it has open and the system calls it makes, not at the machine's resources.
+  `iostat -x 1` prints each disk's utilisation and wait times every second: a disk near 100% busy with long waits is saturated. `vmstat 1` prints memory, swap in and out (`si` and `so`), the run queue and CPU every second: steady non-zero `si` and `so` mean the machine is swapping. `lsof` and `strace` look at one process, the files it has open and the system calls it makes, not at the machine's resources, so neither can tell you that a disk is saturated or that the machine is swapping.
 skills: [diagnose-tools]

@@ -7,8 +7,8 @@ choices:
   - "Device names can change between boots and the UUID can't; `nofail` keeps retrying the mount until it works"
   - "A UUID lets one line mount any disk of the same size; `nofail` lets the boot go on if it is missing"
   - "Device names can change between boots and the UUID can't; `nofail` lets the boot go on if it is missing"
-  - "The kernel can only mount by UUID at boot; `nofail` skips the check for errors that is run first"
+  - "A UUID lets one line mount any disk of the same size; `nofail` keeps retrying the mount until it works"
 answer: 2
 explanation: |
-  The kernel numbers disks in the order it finds them, which can differ after a reboot or when a disk is added, so an `fstab` entry by device name may mount the wrong disk, or none. The UUID is written into the filesystem and travels with it: it identifies that one filesystem, not a size or a kind of disk. Device names do work in `fstab`; they're just not safe. Without `nofail`, a missing filesystem stops the boot in an emergency shell; with it, the system comes up and you fix the disk from a normal login, which is what you want for any volume other than the root. `nofail` doesn't retry anything, and it has nothing to do with checking the filesystem for errors: that's the last number on the line.
+  The kernel numbers disks in the order it finds them, which can differ after a reboot or when a disk is added, so an `fstab` entry by device name may mount the wrong disk, or none. The UUID is written into the filesystem and travels with it: it identifies that one filesystem, not a size or a kind of disk, so no other disk matches it. Device names do work in `fstab`; they're just not safe. Without `nofail`, a missing filesystem stops the boot in an emergency shell; with it, the system comes up and you fix the disk from a normal login, which is what you want for any volume other than the root. `nofail` doesn't retry anything: all it changes is that a missing filesystem no longer holds up the boot.
 skills: [block-devices]
