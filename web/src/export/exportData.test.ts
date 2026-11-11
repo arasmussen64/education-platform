@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RefusedEvent } from '../events/outbox.ts'
+import type { EventRow } from '../events/types.ts'
 import { eventRow } from '../test/fakeEvents.ts'
 import {
   collectExport,
   EXPORT_FORMAT,
   exportFileName,
   PAGE_SIZE,
+  type ThisBrowsersEvents,
 } from './exportData.ts'
 
 const ADA = '11111111-1111-1111-1111-111111111111'
@@ -53,6 +56,14 @@ function saved(id: string, occurredAt = '2026-11-06T12:00:00.000+00:00') {
   return { ...eventRow({ id, occurred_at: occurredAt }), received_at: RECEIVED }
 }
 
+/** What this browser holds: events waiting to be sent, and refused ones. */
+function browser(
+  pending: EventRow[] = [],
+  refused: RefusedEvent[] = [],
+): ThisBrowsersEvents {
+  return { getPendingRows: () => pending, getRefusedEvents: () => refused }
+}
+
 beforeEach(() => {
   server.pages = []
   server.profile = null
@@ -68,7 +79,7 @@ describe('collectExport', () => {
       Array.from({ length: PAGE_SIZE }, (_, index) => saved(`event-${index}`)),
       [saved('the-last-one')],
     ]
-    const data = await collectExport(ADA, () => [])
+    const data = await collectExport(ADA, browser())
 
     expect(data.events).toHaveLength(PAGE_SIZE + 1)
     expect(server.ranges).toEqual([
@@ -82,7 +93,7 @@ describe('collectExport', () => {
 
   it('keeps reading when the server sends fewer rows than it was asked for', async () => {
     server.pages = [[saved('a'), saved('b')], [saved('c')]]
-    const data = await collectExport(ADA, () => [])
+    const data = await collectExport(ADA, browser())
     expect(data.events.map((event) => event.id)).toEqual(['a', 'b', 'c'])
   })
 
@@ -98,7 +109,7 @@ describe('collectExport', () => {
       eventRow({ id: 'b', occurred_at: '2026-11-06T11:00:00.000Z' }),
       eventRow({ id: 'c', occurred_at: '2026-11-06T10:00:00.000Z' }),
     ]
-    const data = await collectExport(ADA, () => pending)
+    const data = await collectExport(ADA, browser(pending))
 
     expect(data.events.map((event) => [event.id, event.received_at])).toEqual([
       ['a', RECEIVED],
@@ -107,13 +118,68 @@ describe('collectExport', () => {
     ])
   })
 
-  it('reads the outbox before asking the server, so no event can fall between them', async () => {
-    const readPending = vi.fn(() => {
-      server.calls.push('outbox')
-      return []
+  it('reads this browser before asking the server, so no event can fall between them', async () => {
+    await collectExport(ADA, {
+      getPendingRows: () => {
+        server.calls.push('outbox')
+        return []
+      },
+      getRefusedEvents: () => {
+        server.calls.push('refused')
+        return []
+      },
     })
-    await collectExport(ADA, readPending)
-    expect(server.calls[0]).toBe('outbox')
+    expect(server.calls.slice(0, 2)).toEqual(['outbox', 'refused'])
+  })
+
+  it('lists the events the server refused under their own key, with the reason and time', async () => {
+    server.pages = [[saved('a')]]
+    const refusedEvent = eventRow({ id: 'refused', context: 'placement' })
+    const data = await collectExport(
+      ADA,
+      browser(
+        [],
+        [
+          {
+            event: refusedEvent,
+            reason: '400 23514: violates check constraint',
+            at: '2026-11-10T08:30:00.000Z',
+            attempts: 2,
+          },
+        ],
+      ),
+    )
+
+    expect(data.refused_events).toEqual([
+      {
+        reason: '400 23514: violates check constraint',
+        last_tried_at: '2026-11-10T08:30:00.000Z',
+        attempts: 2,
+        event: refusedEvent,
+      },
+    ])
+    // They aren't part of the saved history.
+    expect(data.events.map((event) => event.id)).toEqual(['a'])
+  })
+
+  it('leaves a refused event out of that list once the server has it', async () => {
+    // It was accepted on another try while the file was being put together.
+    server.pages = [[saved('accepted-since')]]
+    const refusal = (id: string): RefusedEvent => ({
+      event: eventRow({ id }),
+      reason: '400 : bad',
+      at: '2026-11-10T08:30:00.000Z',
+      attempts: 1,
+    })
+    const data = await collectExport(
+      ADA,
+      browser([], [refusal('accepted-since'), refusal('still-refused')]),
+    )
+
+    expect(data.refused_events.map(({ event }) => event.id)).toEqual([
+      'still-refused',
+    ])
+    expect(data.events.map((event) => event.id)).toEqual(['accepted-since'])
   })
 
   it('includes the profile, the time, and the app that made the file', async () => {
@@ -125,7 +191,7 @@ describe('collectExport', () => {
       created_at: '2026-11-06T10:25:00+00:00',
     }
     const now = Date.parse('2026-11-07T09:15:00.000Z')
-    const data = await collectExport(ADA, () => [], now)
+    const data = await collectExport(ADA, browser(), now)
 
     expect(data).toMatchObject({
       format: EXPORT_FORMAT,
@@ -133,6 +199,7 @@ describe('collectExport', () => {
       user_id: ADA,
       profile: server.profile,
       events: [],
+      refused_events: [],
     })
     expect(data.content_build).toEqual(expect.any(String))
     expect(server.filters).toContainEqual(['id', ADA])
@@ -140,7 +207,7 @@ describe('collectExport', () => {
 
   it("fails when the server can't be read, so the page can say so", async () => {
     server.error = { message: 'TypeError: Failed to fetch' }
-    await expect(collectExport(ADA, () => [])).rejects.toThrow(
+    await expect(collectExport(ADA, browser())).rejects.toThrow(
       'Failed to fetch',
     )
   })
