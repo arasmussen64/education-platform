@@ -35,4 +35,12 @@ RUN bash /usr/local/lib/lab/make-rootfs.sh && rm /usr/local/lib/lab/make-rootfs.
 COPY box.starter /home/learner/bin/box
 RUN chmod 755 /home/learner/bin/box && chown -R learner:learner /home/learner/bin
 
+# A box that shares the machine's hostname renames the machine, and then
+# every sudo looks the new name up. Asking the name server about it took
+# about eight seconds a time on Docker Desktop (2026-11-11), so a box run,
+# with its seven sudo calls, took a minute. This lab needs no name server:
+# names come from /etc/hosts alone, and an unknown one fails at once, with
+# sudo's warning "unable to resolve host" as the only sign.
+RUN sed -i 's/^hosts:.*/hosts:          files/' /etc/nsswitch.conf
+
 CMD ["/sbin/init"]

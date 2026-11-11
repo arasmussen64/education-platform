@@ -1,9 +1,23 @@
 # The checks for "Write top-cpu": the busiest process is first, the default
-# is five lines, a count is respected, and each line is "name pct%".
+# is five lines, a count is respected, each line is "name pct%", and a busy
+# process the last check starts, under a name made when it runs, shows up.
+# Lines typed into the script can't know that process:
+# wrong/typed-in-answer.sh proves it.
+#
+# ps works out %CPU as CPU time over the process's whole life, so on a busy
+# machine a process born milliseconds earlier (ps itself) can top the list
+# for one run. The two checks that need a particular process in the list
+# take the first of a few runs that has it.
 checks:
   - id: busiest-first
     description: "The first line names the shop's worker, the process pegging a CPU."
-    command: /home/learner/bin/top-cpu | head -1
+    command: |
+      for try in 1 2 3 4 5; do
+        first=$(/home/learner/bin/top-cpu | head -n 1)
+        case "$first" in *shop-worker*) break ;; esac
+        sleep 1
+      done
+      echo "$first"
     expect:
       contains: "shop-worker"
   - id: default-is-five
@@ -21,3 +35,24 @@ checks:
     command: /home/learner/bin/top-cpu | head -1
     expect:
       matches: "^[^ ]+ [0-9]+([.][0-9]+)?%$"
+  - id: finds-a-new-process
+    description: "With another busy process running (the check starts it), top-cpu lists it too, with its CPU percentage."
+    # A copy of the spinner under a name of the check's own; a script with
+    # a direct shebang runs under its file's name, so ps calls it that.
+    command: |
+      name="check$(( $(date +%s%N) % 10000 ))"
+      dir=$(mktemp -d)
+      cp /usr/local/bin/shop-worker "$dir/$name"
+      "$dir/$name" &
+      spinner=$!
+      trap 'kill "$spinner" 2> /dev/null; rm -rf "$dir"' EXIT
+      sleep 2
+      found=""
+      for try in 1 2 3 4 5; do
+        found=$(/home/learner/bin/top-cpu | grep -E "^$name [0-9]+([.][0-9]+)?%$")
+        [ -n "$found" ] && break
+        sleep 1
+      done
+      if [ -n "$found" ]; then echo "found it"; else echo "a busy process, $name, isn't in the list"; fi
+    expect:
+      equals: "found it"

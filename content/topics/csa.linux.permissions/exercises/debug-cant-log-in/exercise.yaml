@@ -3,10 +3,21 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Ben can't get in"
 prompt: |
-  Ben, the new deployer, reports two problems. His key doesn't get him into the server: `ssh -i ~/keys/ben ben@localhost` ends in `Permission denied (publickey)`, and someone has already put his public key in his account. And on the one occasion it did work, `sudo systemctl restart shop-api` asked him for a password he doesn't have, although the deploy group is supposed to be allowed exactly that command.
+  Ben and Ana are the shop's deployers, the two members of the `deploy` group. Yesterday Ben's account was set up, with his public key in his `~/.ssh/authorized_keys`, and the deploy group was given one thing it may do as root without a password: `sudo systemctl restart shop-api`. Neither of them has a password; they work with keys. For this lab a copy of Ben's private key is at `~/keys/ben`, so you can test as him.
 
-  You're the administrator, and for this lab a copy of Ben's private key is at `~/keys/ben`, so you can test as him. There are three mistakes: one in the key file on the client side, one in Ben's account on the server side, and one in the sudo rule in `/etc/sudoers.d/`. `ssh -v` says what the client thinks; `journalctl -u ssh` says what the server thinks; `sudo -l -U ben` says what Ben may do; `sudo visudo -f FILE` edits a sudoers file safely. You're done when `ssh -i ~/keys/ben ben@localhost 'sudo -n systemctl restart shop-api'` works. Then run the checks.
+  None of it works. `ssh -i ~/keys/ben ben@localhost` asks for a password Ben doesn't have and ends in `Permission denied (publickey,password)`. And the restart, run as either deployer (`sudo -u ben sudo -n systemctl restart shop-api`, and the same with `ana`), stops at `sudo: a password is required`.
+
+  Three things are wrong. Fixing one can uncover the next, so try again after each fix and read what has changed. To see both ends of a login, `ssh -v` prints the client's side and `journalctl -u ssh -n 20` what the SSH server said about it. `sudo -l -U NAME` lists what someone may run with sudo, and `sudo visudo -f FILE` edits a sudo rule safely.
+
+  Fix it without giving anyone more than they need: the SSH server's settings stay as strict as they are, the deploy group gets that one command and no other, and Ana keeps everything she has.
+
+  You're done when `ssh -i ~/keys/ben ben@localhost 'sudo -n systemctl restart shop-api'` works. Then run the checks.
+hints:
+  - "Take the two symptoms one at a time, and ask both ends of each. For the login, `journalctl -u ssh -n 20` says why the server turned Ben away, and `ssh -v -i ~/keys/ben ben@localhost` shows what the client offered. For the restart, `sudo -l -U ben` lists what the rule really allows."
+  - "The server's log says `Authentication refused: bad ownership or modes for directory /home/ben/.ssh`. Look at it with `ls -ld /home/ben/.ssh` and at its group with `getent group deploy`: the group can write to the folder, and the group has Ana in it, so she could put a key of her own there. That's why sshd ignores the keys in it. `sudo chmod 700 /home/ben/.ssh`, the lesson's setting, makes the folder Ben's alone. Turning `StrictModes` off would get Ben in by making the server trust every such folder, so it isn't a fix."
+  - "Once the server accepts the folder, the client has a complaint of its own: `UNPROTECTED PRIVATE KEY FILE!` for `~/keys/ben`. It didn't show before, because ssh opens the private key only after the server has accepted the public one. A private key that other people can read is ignored: `chmod 600 ~/keys/ben`."
+  - "`sudo -l -U ben` shows the rule allows `systemctl restart shopapi`, a service that doesn't exist, and sudo matches a command word for word. Correct the name with `sudo visudo -f /etc/sudoers.d/deploy`, and keep it a rule for the `%deploy` group and for that one command."
 skills: [ssh-keys, chmod-chown, users-sudo]
