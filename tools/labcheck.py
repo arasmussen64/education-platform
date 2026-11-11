@@ -768,11 +768,15 @@ def cmd_start(args: argparse.Namespace) -> int:
     if found is None or args.fresh:
         print(f"Building {lab.image} (the first time takes a minute)...")
         build_image(lab)
-        clear_stale_disks(lab)
         if found is not None:
             # Only now, with the new image built: a build that fails leaves
             # the old container, and the work in it, where they were.
             print(f"Removing {lab.container} and the work in it, as --fresh asks.")
+            remove_container(lab.container)
+        # After the old container has gone, so its disks count as stale even
+        # when it couldn't run its teardown script: a paused container can't
+        # run anything, and it would leave two of each disk for the new one.
+        clear_stale_disks(lab)
         try:
             start_container(lab)
         except LabError, subprocess.TimeoutExpired, KeyboardInterrupt:

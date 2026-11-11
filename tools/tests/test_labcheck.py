@@ -351,6 +351,8 @@ class FakeDocker:
             return answer(0 if name in self.containers else 1, stdout=f"{up}\n".lower())
         if args[0] == "ps":
             return answer(stdout=self.listed)
+        if args[0] == "rm":
+            self.containers.pop(name, None)
         return answer()
 
     @property
@@ -442,8 +444,18 @@ def test_start_fresh_is_the_only_way_to_remove_a_lab_in_progress(
     docker = FakeDocker({NAME: ("running", IMAGE)})
     use_lab(tmp_path, monkeypatch, docker)
     assert run_main("start", "--fresh", "t.hello", "lab-hello") == 0
-    # The old container gets its teardown, is removed, and a new one runs.
-    assert docker.verbs == ["container", "build", "inspect", "exec", "rm", "run"]
+    # The old container gets its teardown, is removed, and a new one runs
+    # (start_container makes sure the name is free: by then it is).
+    assert docker.verbs == [
+        "container",
+        "build",
+        "inspect",
+        "exec",
+        "rm",
+        "inspect",
+        "rm",
+        "run",
+    ]
     out = capsys.readouterr().out
     assert "Removing lab-t.hello-lab-hello and the work in it, as --fresh asks" in out
     assert "the lab is running, as new" in out
@@ -997,6 +1009,30 @@ def test_start_clears_stale_disks_before_a_lab_with_disks_boots(
     order.clear()
     assert run_main("start", "t.hello", "lab-hello") == 0
     assert order == []
+
+
+def test_start_fresh_lets_go_of_stale_disks_only_once_the_old_lab_is_gone(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # A paused lab can't run its teardown script (Docker refuses to run
+    # anything in a paused container), so removing it leaves its disks
+    # attached. Cleared before the removal, they'd still be in use and be
+    # kept; the new lab would then boot beside two of each.
+    docker = FakeDocker({NAME: ("paused", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, "content/topics/t.hello/exercises/lab-hello/teardown.sh", "exit 0")
+    events: list[str] = []
+    monkeypatch.setattr(
+        labcheck,
+        "detach_stale_disks",
+        lambda lab: events.append(f"clear with {len(docker.containers)} left") or [],
+    )
+    monkeypatch.setattr(
+        labcheck, "start_container", lambda lab: events.append("start") or NAME
+    )
+    assert run_main("start", "--fresh", "t.hello", "lab-hello") == 0
+    assert ("rm", "-f", NAME) in docker.calls
+    assert events == ["clear with 0 left", "start"]
 
 
 def test_stopping_a_lab_that_had_already_stopped_clears_what_it_left(
