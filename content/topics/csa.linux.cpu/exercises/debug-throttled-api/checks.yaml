@@ -1,29 +1,36 @@
-# The checks for "The API that can't get a CPU": it runs, its quota is gone
-# or generous, it isn't throttled any more, its nice value is normal and its
-# weight is at least the default.
+# The checks for "The API that can't get a CPU": it runs, it keeps a CPU cap
+# with headroom for its work (more than one CPU, at most two, never none),
+# it isn't throttled any more, its nice value is normal and its weight is at
+# least the default.
+#
+# The cap check is what makes this a lab about choosing a limit. Without
+# it, an empty CPUQuota= "fixes" the throttling by taking the cap away,
+# which the prompt rules out on a shared machine; wrong/quota-removed.sh
+# proves that is caught.
 checks:
   - id: api-running
     description: "shop-api is running."
     command: systemctl is-active shop-api
     expect:
       equals: active
-  - id: quota-sane
-    description: "shop-api has no quota, or at least half a CPU."
+  - id: cap-kept
+    description: "shop-api still has a CPU cap, with headroom: more than one whole CPU, and at most two (its cgroup's cpu.max)."
+    # Read from the kernel's file, as a percentage of one CPU. systemd prints
+    # a quota of one and a half CPUs as "1.500000s", which bash can't do
+    # arithmetic on. With no quota the file starts with "max"; "no cap"
+    # isn't a number, so the comparison fails. More than 100, not 100: a
+    # one-CPU spinner under a quota of exactly one CPU is still throttled a
+    # few times every ten seconds (measured on Docker Desktop, 2026-11-10).
     command: |
-      v=$(systemctl show shop-api -p CPUQuotaPerSecUSec --value)
-      case "$v" in
-        infinity) echo 1000000 ;;
-        *ms) echo "${v%ms}" ;;
-        *s) echo $(( ${v%s} * 1000 )) ;;
-        *) echo "$v" ;;
-      esac
+      awk '{ if ($1 == "max") print "no cap"; else print $1 * 100 / $2 }' /sys/fs/cgroup/system.slice/shop-api.service/cpu.max
     expect:
-      gte: 500
+      gt: 100
+      lte: 200
   - id: not-throttled
-    description: "Its throttled-period count has stopped climbing."
+    description: "It is no longer held back: its count of throttled periods holds still."
     command: |
       first=$(awk '/^nr_throttled/ {print $2}' /sys/fs/cgroup/system.slice/shop-api.service/cpu.stat)
-      sleep 2
+      sleep 3
       second=$(awk '/^nr_throttled/ {print $2}' /sys/fs/cgroup/system.slice/shop-api.service/cpu.stat)
       test "$first" = "$second"
   - id: nice-normal
