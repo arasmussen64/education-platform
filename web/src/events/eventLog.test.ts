@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fakeEventsClient } from '../test/fakeEvents.ts'
+import { eventRow, fakeEventsClient } from '../test/fakeEvents.ts'
 import { createEventLog, FIRST_RETRY_MS, SESSION_IDLE_MS } from './eventLog.ts'
-import { createOutbox } from './outbox.ts'
+import { createOutbox, type KeyValueStore } from './outbox.ts'
 import { RETRY_REFUSED_AFTER_MS } from './sync.ts'
 import type { NewEvent } from './types.ts'
 
@@ -32,11 +32,47 @@ const REFUSED = {
   message: '400 23514: violates check constraint',
 } as const
 
+/** The status when everything is saved. */
+const nothingWaiting = {
+  pending: 0,
+  syncing: false,
+  refused: 0,
+  lostIfClosed: 0,
+}
+
+/** Storage the browser won't let the page read or write (site data blocked). */
+function blockedStorage(): KeyValueStore {
+  return {
+    getItem: () => {
+      throw new DOMException('denied', 'SecurityError')
+    },
+    setItem: () => {
+      throw new DOMException('denied', 'SecurityError')
+    },
+  }
+}
+
+/**
+ * localStorage when it's full: it can be read, and a value can be made
+ * shorter (as when sent events are forgotten), but never longer.
+ */
+function fullStorage(): KeyValueStore {
+  return {
+    getItem: (key) => localStorage.getItem(key),
+    setItem: (key, value) => {
+      if (value.length > (localStorage.getItem(key) ?? '').length) {
+        throw new DOMException('full', 'QuotaExceededError')
+      }
+      localStorage.setItem(key, value)
+    },
+  }
+}
+
 /** An event log with a fake server, clock and IDs (id-1, id-2, ...). */
-function setup(client = fakeEventsClient()) {
+function setup(client = fakeEventsClient(), storage?: KeyValueStore) {
   let time = Date.parse('2026-11-06T12:00:00.000Z')
   let lastId = 0
-  const outbox = createOutbox()
+  const outbox = createOutbox(storage)
   const log = createEventLog({
     outbox,
     client: () => client,
@@ -159,7 +195,7 @@ describe('the event log', () => {
     log.record(ANSWER)
     await vi.advanceTimersByTimeAsync(0)
     expect(client.send).toHaveBeenCalledTimes(1)
-    expect(log.getStatus()).toEqual({ pending: 1, syncing: false, refused: 0 })
+    expect(log.getStatus()).toEqual({ ...nothingWaiting, pending: 1 })
 
     // The first retry comes after 5 seconds...
     await vi.advanceTimersByTimeAsync(FIRST_RETRY_MS)
@@ -172,7 +208,7 @@ describe('the event log', () => {
     await vi.advanceTimersByTimeAsync(FIRST_RETRY_MS)
     expect(client.send).toHaveBeenCalledTimes(3)
     expect(outbox.count(ADA)).toBe(0)
-    expect(log.getStatus()).toEqual({ pending: 0, syncing: false, refused: 0 })
+    expect(log.getStatus()).toEqual(nothingWaiting)
   })
 
   it('tries again straight away when asked, e.g. when the connection returns', async () => {
@@ -234,6 +270,100 @@ describe('the event log', () => {
   })
 })
 
+describe("when this device can't store events", () => {
+  /** What an event with this ID looks like when it's sent. */
+  const sent = (id: string) => [expect.objectContaining({ id, user_id: ADA })]
+
+  it("still sends an event the device couldn't keep", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { log, client } = setup(fakeEventsClient(), blockedStorage())
+    log.setUser(ADA)
+    log.record(ANSWER)
+
+    await vi.waitFor(() =>
+      expect(client.send).toHaveBeenCalledWith(sent('id-2')),
+    )
+    await vi.waitFor(() => expect(log.getStatus().syncing).toBe(false))
+    expect(log.getStatus()).toEqual(nothingWaiting)
+  })
+
+  it('counts it as waiting, and as lost if the page closed, until it is sent', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { log, client } = setup(fakeEventsClient(OFFLINE), blockedStorage())
+    log.setUser(ADA)
+    log.record(ANSWER)
+    await vi.waitFor(() => expect(log.getStatus().syncing).toBe(false))
+
+    expect(log.getStatus()).toEqual({
+      ...nothingWaiting,
+      pending: 1,
+      lostIfClosed: 1,
+    })
+    // The export lists it with the rest of the unsent work.
+    expect(log.getPendingRows().map((row) => row.id)).toEqual(['id-2'])
+    expect(log.getLocalRows().map((row) => row.id)).toEqual(['id-2'])
+
+    // The connection returns.
+    client.send.mockResolvedValue({ ok: true })
+    await log.sync()
+    expect(client.send).toHaveBeenLastCalledWith(sent('id-2'))
+    expect(log.getStatus()).toMatchObject({ pending: 0, lostIfClosed: 0 })
+    log.stop()
+  })
+
+  it('sends what a full device already holds, and what it had no room for', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Saved on an earlier visit, before the storage filled up.
+    createOutbox().add(eventRow({ id: 'from-before', user_id: ADA }))
+    const { log, client } = setup(fakeEventsClient(OFFLINE), fullStorage())
+    log.setUser(ADA)
+    log.record(ANSWER)
+    await vi.waitFor(() => expect(log.getStatus().syncing).toBe(false))
+    expect(log.getStatus()).toMatchObject({ pending: 2, lostIfClosed: 1 })
+
+    client.send.mockResolvedValue({ ok: true })
+    await log.sync()
+    const ids = client.send.mock.calls.flatMap(([rows]) =>
+      rows.map((row) => row.id),
+    )
+    expect(ids).toEqual(expect.arrayContaining(['from-before', 'id-2']))
+    expect(log.getStatus()).toMatchObject({ pending: 0, lostIfClosed: 0 })
+    log.stop()
+  })
+
+  it('keeps events from while sign-in was loading, and sends them', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { log, client } = setup(fakeEventsClient(), blockedStorage())
+    log.record(ANSWER)
+    log.setUser(ADA)
+    await vi.waitFor(() =>
+      expect(client.send).toHaveBeenCalledWith(sent('id-2')),
+    )
+  })
+
+  it('keeps one the server refuses while the page is open, and tries it again', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { log, client, wait } = setup(
+      fakeEventsClient(REFUSED),
+      blockedStorage(),
+    )
+    log.setUser(ADA)
+    log.record(ANSWER)
+    await vi.waitFor(() => expect(log.getStatus().refused).toBe(1))
+    await vi.waitFor(() => expect(log.getStatus().syncing).toBe(false))
+    expect(log.getStatus()).toMatchObject({ pending: 0, lostIfClosed: 1 })
+    expect(log.getRefusedEvents()).toEqual([
+      expect.objectContaining({ reason: REFUSED.message, attempts: 1 }),
+    ])
+
+    client.send.mockResolvedValue({ ok: true })
+    wait(RETRY_REFUSED_AFTER_MS + 1000)
+    await log.sync()
+    expect(log.getStatus()).toMatchObject({ refused: 0, lostIfClosed: 0 })
+    expect(log.getRefusedEvents()).toEqual([])
+  })
+})
+
 describe('events the server refuses', () => {
   /** Records one answer that the server refuses, and waits for that. */
   async function refuseOneAnswer() {
@@ -249,7 +379,7 @@ describe('events the server refuses', () => {
 
   it('counts them apart from what is waiting, and lists them with the reason', async () => {
     const { log } = await refuseOneAnswer()
-    expect(log.getStatus()).toEqual({ pending: 0, syncing: false, refused: 1 })
+    expect(log.getStatus()).toEqual({ ...nothingWaiting, refused: 1 })
     expect(log.getRefusedEvents()).toEqual([
       {
         event: expect.objectContaining({ user_id: ADA, item_id: 'mcq-1' }),
@@ -277,7 +407,7 @@ describe('events the server refuses', () => {
     expect(client.send).toHaveBeenCalledWith([
       expect.objectContaining({ user_id: ADA, item_id: 'mcq-1' }),
     ])
-    expect(log.getStatus()).toEqual({ pending: 0, syncing: false, refused: 0 })
+    expect(log.getStatus()).toEqual(nothingWaiting)
     expect(log.getRefusedEvents()).toEqual([])
     // Subscribers heard, so the page's warning goes away.
     expect(seen.at(-1)).toBe(0)
@@ -330,7 +460,7 @@ describe('events the server refuses', () => {
     // next save, however long that takes.
     await vi.advanceTimersByTimeAsync(60 * 60 * 1000)
     expect(client.send).toHaveBeenCalledTimes(1)
-    expect(log.getStatus()).toEqual({ pending: 0, syncing: false, refused: 1 })
+    expect(log.getStatus()).toEqual({ ...nothingWaiting, refused: 1 })
   })
 
   it("never sends another learner's refused events", async () => {

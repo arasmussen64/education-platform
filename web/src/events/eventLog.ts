@@ -1,4 +1,9 @@
-import type { Outbox, RefusedEvent } from './outbox.ts'
+import {
+  createOutbox,
+  memoryStore,
+  type Outbox,
+  type RefusedEvent,
+} from './outbox.ts'
 import { type EventsClient, retryRefused, syncOutbox } from './sync.ts'
 import type { EventRow, NewEvent } from './types.ts'
 
@@ -12,6 +17,12 @@ export type EventLogStatus = {
    * They aren't part of `pending`.
    */
   refused: number
+  /**
+   * How many of those (waiting or refused) only this page holds, because
+   * the device's storage wouldn't take them: closing the page loses them.
+   * The log always fills it in; a test's fake may leave it out for none.
+   */
+  lostIfClosed?: number
 }
 
 /** Records learner events and gets them to the server (v1 spec, F6). */
@@ -34,15 +45,17 @@ export type EventLog = {
    */
   getLocalRows(): EventRow[]
   /**
-   * The signed-in learner's events still waiting in this device's outbox,
-   * read fresh each time, so it includes what other tabs recorded. The data
-   * export adds these, because the server doesn't have them yet.
+   * The signed-in learner's events still waiting to be sent: those in this
+   * device's outbox, read fresh each time so it includes what other tabs
+   * recorded, and those only this page holds. The data export adds these,
+   * because the server doesn't have them yet.
    */
   getPendingRows(): EventRow[]
   /**
    * The signed-in learner's events that the server refused, each with the
-   * reason, the time it was last tried and how often. Read fresh each time.
-   * The data export lists them, and the account page counts them.
+   * reason, the time it was last tried and how often: the device's, read
+   * fresh each time, and this page's. The data export lists them, and the
+   * account page counts them.
    */
   getRefusedEvents(): RefusedEvent[]
   /** Cancels any scheduled retry. */
@@ -84,25 +97,52 @@ export function createEventLog({
   let syncAgain = false
   let retryTimer: ReturnType<typeof setTimeout> | undefined
   let retryDelay = FIRST_RETRY_MS
-  let status: EventLogStatus = { pending: 0, syncing: false, refused: 0 }
+  let status: EventLogStatus = {
+    pending: 0,
+    syncing: false,
+    refused: 0,
+    lostIfClosed: 0,
+  }
   let localRows: EventRow[] = []
   const listeners = new Set<() => void>()
+  // Events the device's storage wouldn't take (it's full, or switched off)
+  // wait here instead, in memory, and are sent from here like any other.
+  // They last only as long as the page, so the status counts them apart.
+  const pageOnly = createOutbox(memoryStore())
 
   function notify() {
     for (const listener of listeners) listener()
   }
 
+  /** Keeps an event until it's sent: on the device if it can, else in memory. */
+  function keep(row: EventRow) {
+    if (!outbox.add(row)) pageOnly.add(row)
+  }
+
+  /** One learner's unsent events, from both places, oldest first in each. */
+  function pendingRows(user: string): EventRow[] {
+    return [...outbox.pending(user), ...pageOnly.pending(user)]
+  }
+
+  function refusedEvents(user: string): RefusedEvent[] {
+    return [...outbox.refused(user), ...pageOnly.refused(user)]
+  }
+
   function updateStatus() {
-    const pending = userId ? outbox.count(userId) : 0
-    const refused = userId ? outbox.refused(userId).length : 0
+    const pending = userId ? outbox.count(userId) + pageOnly.count(userId) : 0
+    const refused = userId ? refusedEvents(userId).length : 0
+    const lostIfClosed = userId
+      ? pageOnly.count(userId) + pageOnly.refused(userId).length
+      : 0
     if (
       pending === status.pending &&
       syncing === status.syncing &&
-      refused === status.refused
+      refused === status.refused &&
+      lostIfClosed === status.lostIfClosed
     ) {
       return
     }
-    status = { pending, syncing, refused }
+    status = { pending, syncing, refused, lostIfClosed }
     notify()
   }
 
@@ -150,13 +190,35 @@ export function createEventLog({
    * for the next save instead.
    */
   async function retryRefusedEvents(user: string): Promise<void> {
+    // Stops if the sign-in changes partway through, as it can when the
+    // learner signs out here or in another tab.
+    const stillSignedIn = () => userId === user
     try {
-      // Stops if the sign-in changes partway through, as it can when the
-      // learner signs out here or in another tab.
-      await retryRefused(outbox, client(), user, now(), () => userId === user)
+      for (const box of [outbox, pageOnly]) {
+        const result = await retryRefused(
+          box,
+          client(),
+          user,
+          now(),
+          stillSignedIn,
+        )
+        if (result === 'retry-later') return
+      }
     } catch (error) {
       console.error('Retrying refused events failed', error)
     }
+  }
+
+  /**
+   * Sends one learner's unsent events: the device's, then those only this
+   * page holds. A passing problem stops it, and the rest wait for a retry.
+   */
+  async function sendWaiting(user: string): Promise<'done' | 'retry-later'> {
+    for (const box of [outbox, pageOnly]) {
+      const result = await syncOutbox(box, client(), user, now())
+      if (result === 'retry-later') return result
+    }
+    return 'done'
   }
 
   const log: EventLog = {
@@ -169,7 +231,7 @@ export function createEventLog({
         return
       }
       const stored = { ...row, user_id: userId }
-      outbox.add(stored)
+      keep(stored)
       localRows = [...localRows, stored]
       notify()
       void log.sync()
@@ -182,10 +244,10 @@ export function createEventLog({
       clearTimeout(retryTimer)
       retryDelay = FIRST_RETRY_MS
       if (id) {
-        for (const row of waiting) outbox.add({ ...row, user_id: id })
+        for (const row of waiting) keep({ ...row, user_id: id })
       }
       if (id !== undefined) waiting = []
-      localRows = id ? outbox.pending(id) : []
+      localRows = id ? pendingRows(id) : []
       notify()
       updateStatus()
       void log.sync()
@@ -205,7 +267,7 @@ export function createEventLog({
 
       let result: 'done' | 'retry-later'
       try {
-        result = await syncOutbox(outbox, client(), user, now())
+        result = await sendWaiting(user)
       } catch (error) {
         console.error('Saving progress failed', error)
         result = 'retry-later'
@@ -238,9 +300,9 @@ export function createEventLog({
 
     getLocalRows: () => localRows,
 
-    getPendingRows: () => (userId ? outbox.pending(userId) : []),
+    getPendingRows: () => (userId ? pendingRows(userId) : []),
 
-    getRefusedEvents: () => (userId ? outbox.refused(userId) : []),
+    getRefusedEvents: () => (userId ? refusedEvents(userId) : []),
 
     stop() {
       clearTimeout(retryTimer)
