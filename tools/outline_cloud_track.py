@@ -125,13 +125,16 @@ MODULE_HEADING = re.compile(r"^### Module (\d+): (.+)$")
 CAPSTONE_HEADING = re.compile(r"^### Capstone (\d+): (.+)$")
 OTHER_HEADING = re.compile(r"^##+ ")
 # | 12 | Shell scripting | `csa.linux.scripting` | write Bash scripts ... |
+# A formatter pads the cells to line the columns up, so any run of spaces
+# may sit around each cell.
 TOPIC_ROW = re.compile(
-    r"^\| \d+ \| (?P<title>[^|]+?) \| `(?P<id>csa\.[a-z0-9.-]+)` \| (?P<text>.+?) \|$"
+    r"^\| +\d+ +\| +(?P<title>[^|]+?) +\| +`(?P<id>csa\.[a-z0-9.-]+)` +\| +"
+    r"(?P<text>.+?) +\|$"
 )
 # | Networking | `csa.deep.networking` | BGP traffic engineering, ... | Redesign ... |
 SPECIALTY_ROW = re.compile(
-    r"^\| (?P<title>[^|`]+?) \| `(?P<id>csa\.deep\.[a-z0-9-]+)` \| "
-    r"(?P<deep>[^|]+?) \| (?P<checkpoint>[^|]+?) \|$"
+    r"^\| +(?P<title>[^|`]+?) +\| +`(?P<id>csa\.deep\.[a-z0-9-]+)` +\| +"
+    r"(?P<deep>[^|]+?) +\| +(?P<checkpoint>[^|]+?) +\|$"
 )
 # **Checkpoint 3: the address plan and the outage** (`csa.m3.checkpoint`). Text…
 CHECKPOINT_LINE = re.compile(
