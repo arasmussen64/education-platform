@@ -1,14 +1,14 @@
 id: mcq-shellcheck
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A script starts with `#!/bin/sh`, uses `[[ ]]` and arrays, and fails on one server with "syntax error". A colleague suggests running ShellCheck. What would it tell you, and what's the right first line?
 choices:
-  - "ShellCheck can't help; it only checks spelling"
-  - "That `[[ ]]` and arrays are bash features not available in `sh` (on that server, `sh` is `dash`); the first line should be `#!/usr/bin/env bash`, and ShellCheck would also flag unquoted variables and other pitfalls with a code and a wiki page for each"
-  - "That the script needs `chmod 777`"
-  - "That scripts must start with `set -x`"
-answer: 1
+  - "`[[ ]]` and arrays need strict mode switched on first; keep `#!/bin/sh` and add `set -euo pipefail`"
+  - "Every variable inside `[[ ]]` must be quoted, or `sh` can't parse the line; `#!/bin/sh` can stay"
+  - "`[[ ]]` and arrays work in `sh` on some servers only; `#!/usr/bin/env sh` finds the right `sh`"
+  - "`[[ ]]` and arrays are bash features that a plain `sh` may not have; start with `#!/usr/bin/env bash`"
+answer: 3
 explanation: |
-  The shebang names the interpreter, and `/bin/sh` is a minimal POSIX shell on many systems (Debian and Ubuntu link it to `dash`), where bash-only syntax is a syntax error. `#!/usr/bin/env bash` finds bash wherever it's installed. ShellCheck knows which shell the shebang implies and reports exactly these mismatches, along with quoting mistakes, `set -e` traps and dozens of other pitfalls, each with a short explanation. Run it in your editor and in CI.
+  The shebang names the interpreter, and `/bin/sh` is a minimal POSIX shell on many systems (Debian and Ubuntu link it to `dash`), where bash-only syntax such as `[[ ]]` and arrays is a syntax error. `#!/usr/bin/env bash` finds bash wherever it's installed. ShellCheck knows which shell the shebang implies and reports exactly these mismatches, along with quoting mistakes, `set -e` traps and dozens of other pitfalls, each with a code and a wiki page. Strict mode doesn't add syntax to a shell. Quoting isn't the trouble here: `dash` doesn't know `[[` at all, quoted or not. And `#!/usr/bin/env sh` finds the very same `sh` as before. Run ShellCheck in your editor and in CI.
 skills: [tooling]
