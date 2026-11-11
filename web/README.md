@@ -54,6 +54,7 @@ src/
 ├── reviews/         reviews of Learned topics: the scheduler and the review session (ADR-0009)
 ├── supabase/        the Supabase client, its settings, and generated database types
 ├── test/            test setup and helpers (fake sign-in, fake Python, a sample topic)
+├── tooling/         helpers for the build itself, used by vite.config.ts (not part of the app)
 └── tutor/           the hint-only tutor, asked through the AI proxy (ADR-0015)
 ```
 
@@ -66,7 +67,7 @@ The lessons and exercises live in [`../content`](../content/README.md), as files
 - **YAML** files (topics, questions, exercises, a lab's `checks.yaml`) become plain data, through a small plugin in `vite.config.ts`.
 - A **lab** (an exercise with `runtime: lab`, [ADR-0018](../docs/decisions/0018-lab-checker-local-mode.md)) runs in a container on the learner's machine, not in the browser. The page shows the `tools/labcheck.py` commands, the checks, and a box for the checker's printed result, which `web/src/labs/result.ts` validates and `PracticeItem` saves as a `code_check` event marked `runtime: lab`.
 - **Lessons** (`lesson.mdx`) are [MDX](https://mdxjs.com): Markdown that can use components. `<Intro>`, `<Resource index={0} />` and `<Recap>` are drawn by `components/LessonView.tsx`.
-- **Python files** (starter code, solutions, tests) are loaded as text, with Vite's `?raw`.
+- **Python files** (starter code, solutions, tests) are loaded as text, with Vite's `?raw`. There are about 1,800 of them. While building, a second small plugin in `vite.config.ts` reads them 32 at a time: Vite's own loader opens them all at once, which is more open files than Cloudflare's build machine allows one program (the live site's build failed that way on 2026-11-11, "EMFILE: too many open files"). CI builds under the same low limit (`ulimit -n 1024` in the Build step), so a build that would fail on Cloudflare fails on the pull request first.
 
 `content/content.ts` finds the files with `import.meta.glob`. The tracks, and the topic outlines of the Python and machine-learning tracks, are bundled into the app, because the map and the Today page need them at once. The cloud track's outline-only topics are left out, and download as one piece the first time its map is shown or one of its topics opens: see `LAZY_TRACKS` in `content.ts`, and `content/outlines/`. Its Module 1 (`csa.linux.*`), which has real content, is bundled in like those tracks' topics, because the Today page and the follow-ups only look at bundled topics. A topic's lesson, questions and exercises download only when its page opens.
 

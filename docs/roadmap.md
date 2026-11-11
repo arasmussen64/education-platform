@@ -23,7 +23,7 @@ What comes after those two isn't decided. The unbuilt items of Phases 3 and 4 ar
 
 Content is no longer held to one module ahead of the owner's own learning, which was the rule until 2026-11-10. The owner learns at their own pace, on any track, and the build doesn't wait for it.
 
-**Waiting for the owner.** Things only the owner can do or decide are kept in [owner-queue.md](owner-queue.md), a short list. Open on 2026-11-10: applying the placement test's migration to the live database ([ADR-0021](decisions/0021-placement-test.md); the command is in [supabase/README.md](../supabase/README.md#commands)); confirming ADR-0020, 0021 and 0022, which were marked Accepted on the strength of the owner's request to build Phase 2; whether to rewrite the existing debug prompts that name their bugs; protecting `main` on GitHub; a license line for the public repository; and, optionally, asking GitHub Support to drop an erased commit.
+**Waiting for the owner.** Things only the owner can do or decide are kept in [owner-queue.md](owner-queue.md), a short list. Open on 2026-11-11: applying the placement test's migration to the live database ([ADR-0021](decisions/0021-placement-test.md)); confirming ADR-0020, 0021 and 0022, which were marked Accepted on the strength of the owner's request to build Phase 2; protecting `main` on GitHub; and, optionally, asking GitHub Support to drop an erased commit. Since 2026-11-11 the queue also lists, under "Decided for you", the product and content questions settled while the owner is away, by the owner's three tests: the best learning experience, the best memory retention, and free or inside the $150 Azure credit.
 
 **Decided by the owner on 2026-11-10.**
 
@@ -147,7 +147,7 @@ Principal-engineer level stays the long-term ceiling of the map. It takes years 
 
 ## Open questions
 
-- License: open source or proprietary? This matters if it becomes a company. The repository has been public since 2026-11-09 and its README still says "Not decided yet"; the license line for it is in the [owner queue](owner-queue.md).
+- License: open source or proprietary? This matters if it becomes a company. The repository has been public since 2026-11-09 and its README says "Not decided yet. All rights reserved for now."
 - Final product name ([ADR-0006](decisions/0006-working-name.md))
 - Hidden tests run in the browser, so a determined learner could peek. Fine for personal use; revisit before a public launch.
 - When and how to open it to other learners
