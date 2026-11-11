@@ -8,7 +8,9 @@ import {
   DAILY_REVIEW_LIMIT,
   describeGap,
   dueReviews,
+  earlierAnswers,
   memoryPercent,
+  planReview,
   ratingOf,
 } from './reviews.ts'
 
@@ -142,6 +144,107 @@ describe('chooseReviewItems', () => {
       fakeTopic({ review_pool: ['gone', 'example-hello', 'mcq-print'] }),
     )
     expect(chooseReviewItems(odd, [])).toEqual(['mcq-print'])
+  })
+})
+
+describe('picking up a review left half-way', () => {
+  // A pool of one quick check and one prediction; the prediction is the
+  // code-or-predict item every session must have.
+  const content = fakeContent(
+    fakeTopic({
+      prerequisites: [],
+      review_pool: ['mcq-print', 'predict-print'],
+    }),
+  )
+  const card = replayCard(day(0), [])
+  const due = card.due
+  const later = (minutes: number) =>
+    new Date(Date.parse(due) + minutes * 60_000).toISOString()
+  let lastId = 0
+  const answer = (
+    item: string,
+    correct: boolean,
+    when: string,
+    extra: Partial<Attempt> = {},
+  ): Attempt => ({
+    id: `attempt-${++lastId}`,
+    type: 'answer',
+    topic_id: content.topic.id,
+    item_id: item,
+    correct,
+    occurred_at: when,
+    context: 'review',
+    ...extra,
+  })
+
+  it('finds the first review answer to each item since the topic fell due', () => {
+    const answers = earlierAnswers(content, card, [
+      // Out of order on purpose: the earliest answer to an item counts.
+      answer('mcq-print', true, later(30)),
+      answer('mcq-print', false, later(10)),
+      answer('predict-print', true, later(20)),
+    ])
+    expect([...answers]).toEqual([
+      ['mcq-print', false],
+      ['predict-print', true],
+    ])
+  })
+
+  it('leaves out answers from before it was due, from practice, from other topics, and old ones with no context', () => {
+    const noContext = answer('mcq-print', false, later(5))
+    delete noContext.context
+    const answers = earlierAnswers(content, card, [
+      answer('mcq-print', false, new Date(Date.parse(due) - 1).toISOString()),
+      answer('mcq-print', false, later(1), { context: 'practice' }),
+      answer('mcq-print', false, later(2), { topic_id: 'py.other' }),
+      answer('gone', false, later(3)),
+      answer('review', true, later(4), { type: 'review', rating: 'good' }),
+      noContext,
+    ])
+    expect(answers.size).toBe(0)
+  })
+
+  it('keeps an answered item in the next session, with its answer, and asks the other', () => {
+    const history = [answer('predict-print', false, later(10))]
+    const plan = planReview(content, card, history)
+    expect(plan.items).toEqual(['predict-print', 'mcq-print'])
+    expect([...plan.answered]).toEqual([['predict-print', false]])
+  })
+
+  it('still asks a code or predict item when the earlier answer was the quick check', () => {
+    const plan = planReview(content, card, [
+      answer('mcq-print', false, later(10)),
+    ])
+    expect(plan.items).toEqual(['mcq-print', 'predict-print'])
+    expect([...plan.answered]).toEqual([['mcq-print', false]])
+  })
+
+  it('is complete as it starts when earlier visits answered both, using the first two answers', () => {
+    const three = fakeContent(
+      fakeTopic({
+        prerequisites: [],
+        review_pool: ['mcq-print', 'predict-print', 'write-hello'],
+      }),
+    )
+    const plan = planReview(three, card, [
+      answer('mcq-print', false, later(10)),
+      answer('write-hello', true, later(20), { type: 'code_check' }),
+      answer('predict-print', true, later(30)),
+    ])
+    expect(plan.items).toEqual(['mcq-print', 'write-hello'])
+    expect([...plan.answered]).toEqual([
+      ['mcq-print', false],
+      ['write-hello', true],
+    ])
+  })
+
+  it('starts fresh when nothing was answered since it fell due, or there is no card', () => {
+    const history = [answer('mcq-print', false, later(10))]
+    expect(planReview(content, card, []).answered.size).toBe(0)
+    expect(planReview(content, null, history)).toEqual({
+      items: chooseReviewItems(content, history),
+      answered: new Map(),
+    })
   })
 })
 
