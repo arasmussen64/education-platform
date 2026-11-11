@@ -733,6 +733,51 @@ def test_the_windows_nul_device_is_not_mistaken_for_a_console() -> None:
         assert labcheck.terminal_kind(stream) == labcheck.NOT_A_TERMINAL
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows named pipes")
+def test_a_git_bash_window_is_told_apart_by_the_name_of_a_real_pipe() -> None:
+    # The names are read from the handle by Windows itself, so this makes
+    # two real pipes: one named the way Git Bash names its window's, one not.
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateNamedPipeW.restype = wintypes.HANDLE
+    kernel32.CreateNamedPipeW.argtypes = (
+        [wintypes.LPCWSTR] + [wintypes.DWORD] * 6 + [wintypes.LPVOID]
+    )
+    kernel32.CreateFileW.restype = wintypes.HANDLE
+    kernel32.CreateFileW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    invalid = wintypes.HANDLE(-1).value
+    outbound, generic_read, open_existing = 0x2, 0x80000000, 3
+    pid = os.getpid()
+    for name, kind in (
+        (f"msys-1888ae32e00d56aa-pty0-from-master-{pid}", labcheck.GIT_BASH_WINDOW),
+        (f"labcheck-test-{pid}", labcheck.NOT_A_TERMINAL),
+    ):
+        path = rf"\\.\pipe\{name}"
+        server = kernel32.CreateNamedPipeW(path, outbound, 0, 1, 512, 512, 0, None)
+        assert server != invalid, ctypes.get_last_error()
+        try:
+            client = kernel32.CreateFileW(
+                path, generic_read, 0, None, open_existing, 0, None
+            )
+            assert client != invalid, ctypes.get_last_error()
+            with os.fdopen(msvcrt.open_osfhandle(client, os.O_RDONLY)) as stream:
+                assert labcheck.terminal_kind(stream) == kind
+        finally:
+            kernel32.CloseHandle(server)
+
+
 def test_the_shell_runs_docker_joined_to_the_terminal_without_its_tips(
     monkeypatch,
 ) -> None:
