@@ -5,7 +5,7 @@ checks:
     description: "The script has no ... left in it."
     command: "! grep -q '\\.\\.\\.' /home/learner/bin/cpu-report"
   - id: cpus-line
-    description: "The cpus line is nproc."
+    description: "The cpus line is the machine's number of CPUs."
     command: |
       test "$(/home/learner/bin/cpu-report shop-worker | grep '^cpus:')" = "cpus: $(nproc)"
   - id: load-line
@@ -15,11 +15,23 @@ checks:
       matches: "^load: [0-9]+\\.[0-9]+ [0-9]+\\.[0-9]+ [0-9]+\\.[0-9]+$"
   - id: top-process-line
     description: "The top process line names the busiest process: the shop's worker."
-    command: /home/learner/bin/cpu-report shop-worker | grep '^top process:'
+    # ps works out %CPU as CPU time over lifetime, so a process born a few
+    # milliseconds ago (ps itself, a subshell) can show 50% or 100% for an
+    # instant and sit above a worker that is held to 25%. On a busy machine
+    # that was two samples in twelve, and it failed the reference solution
+    # once (2026-11-11). So the check takes the first of up to five runs
+    # that names the worker; a script that sorts the wrong way never does.
+    command: |
+      for _ in 1 2 3 4 5; do
+        line=$(/home/learner/bin/cpu-report shop-worker | grep '^top process:')
+        case "$line" in "top process: shop-worker "*) break ;; esac
+        sleep 1
+      done
+      echo "$line"
     expect:
       matches: "^top process: shop-worker [0-9.]+%$"
   - id: throttled-line
-    description: "The throttled line is the worker's nr_throttled count from cpu.stat."
+    description: "The throttled line is the number of periods the worker's cgroup has been throttled in, as its cpu.stat counts them."
     # Read moments apart, the two counts can differ by a period or two.
     command: |
       script=$(/home/learner/bin/cpu-report shop-worker | awk -F': ' '/^throttled periods of shop-worker/ {print $2}')

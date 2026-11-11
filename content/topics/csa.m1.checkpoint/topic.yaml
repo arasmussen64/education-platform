@@ -2,7 +2,7 @@ id: csa.m1.checkpoint
 kind: checkpoint
 status: ready
 title: "Checkpoint 1: the broken server"
-summary: "Stand up a server to the runbook, and restore one that's broken five ways, pulling together the whole Linux module without weakening security."
+summary: "Stand up a server to the runbook from its goals alone, then restore one with seven faults: five that take it down, and two in the limits of a service that keeps getting killed and throttled. Nothing may be fixed by weakening security."
 prerequisites:
   - csa.linux.shell
   - csa.linux.processes
@@ -18,12 +18,13 @@ prerequisites:
   - csa.linux.scripting
   - csa.linux.triage
   - csa.linux.hardening
-estimated_minutes: 120
+estimated_minutes: 135
 rev: 1
 objectives:
-  - "Stand up a server to a runbook: run its service, put up a default-deny firewall that keeps the ports it needs, and harden SSH, without locking yourself out."
-  - "Restore a server broken several ways at once (a full disk, a failing service, wrong key permissions, a blocked port, a runaway process), using the right tool for each."
-  - "Fix an incident without weakening security: never turn the firewall off or passwords on to make something work."
+  - "Stand up a server to a runbook from its goals alone: its service running and enabled, a firewall that lets in only the ports the server serves and comes back after a reboot, and an SSH server that refuses passwords and root logins, without locking yourself out."
+  - "Restore a server with several things wrong at once, aiming for 45 minutes on your own clock: a data area with no room, an API that doesn't answer, a login that's refused and a CPU that's busy with nothing, using the right tool for each."
+  - "Find out from a service's cgroup metrics why it keeps getting killed and throttled, and give it memory and CPU limits that fit, without taking the limits away."
+  - "Fix an incident without weakening security, and so that the fix lasts: never turn the firewall off, passwords on or one of SSH's checks off to make something work, and leave nothing that a reboot would undo."
   - "Work from the evidence, the service's journal, the socket and cgroup listings, the firewall's ruleset, not by guessing."
 prove:
   build: build-stand-up-server

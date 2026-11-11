@@ -1,14 +1,14 @@
 id: mcq-deleted-open
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You run `rm /var/log/app/huge.log` to free 10 GB, but `df` shows no change. Why, and what frees the space?
 choices:
-  - "`rm` only marks files for deletion; run `sync` to finish"
-  - "A running process still has the file open, so the data stays until it closes; find it with `lsof +L1`, then truncate the file through `/proc/PID/fd/N` or restart the process"
-  - "The filesystem needs to be remounted to update `df`"
-  - "The space was never used; `df` was wrong"
-answer: 1
+  - "`rm` only marks the file as deleted; the data is cleared when `sync` next writes the change to the disk"
+  - "`df` shows figures saved at mount time; `mount -o remount /var` refreshes them and the space appears"
+  - "A process still has the file open, so its data stays; truncate it via `/proc/PID/fd/N` or restart it"
+  - "The log took up inodes, not bytes, so `df -h` can't show the change; `df -i` shows what was freed"
+answer: 2
 explanation: |
-  Deleting removes the name from the folder; the file's blocks belong to it until no program has it open. A log writer usually keeps its log open forever, so the 10 GB stay allocated and even keep growing, now invisibly. `lsof +L1` lists open-but-deleted files with the PID and descriptor; `: > /proc/PID/fd/N` empties the file in place, or restarting the process closes it. In future, `truncate -s 0 huge.log` (or `logrotate` with `copytruncate`) frees the space immediately and keeps the file the program expects.
+  Deleting removes the name from the folder; the file's blocks stay allocated until no program has it open. A log writer usually keeps its log open for as long as it runs, so the 10 GB stay in use and even keep growing, now invisibly. `lsof +L1` lists open-but-deleted files with the PID and the file descriptor; `: > /proc/PID/fd/N` empties the file in place, and restarting the process closes it. `sync` only pushes waiting writes to the disk; it frees nothing. `df` asks the filesystem for live figures every time it runs, so there's nothing to refresh. And a 10 GB file is one inode and 10 GB of blocks: `df -h` is the right place to look. Next time, `truncate -s 0 huge.log` (or `logrotate` with `copytruncate`) frees the space immediately and keeps the file the program expects.
 skills: [disk-full]

@@ -1,0 +1,17 @@
+id: build-join-the-domain
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Join the server to the domain"
+prompt: |
+  The shop runs an Active Directory domain, `ad.shop.test`, on one domain controller, `dc1` (10.0.9.10). This server, `lab`, is new and knows nothing about it: it asks the site's ordinary resolver for names, and that resolver has never heard of the domain. Make `lab` a member:
+
+  1. **`lab` finds the domain by name.** Through the resolver `lab` already uses, the domain's SRV records answer with `dc1`, and the site's own names (`intranet.shop.internal`) still resolve. Nothing about dc1 is typed into a hosts file or a Kerberos config.
+  2. **`lab` is joined**, with the domain's administrator account (`Administrator`, password `Shop-Admin-1`).
+  3. **Members of the domain group `linux-admins` can log in over SSH** with their domain passwords, and land in a home directory that is made for them on first login. Nobody else in the domain can log in.
+  4. **dc1 is left as strict as you found it.**
+
+  The people: `alice` (`Alice-Pass-1`) and `carol` (`Carol-Pass-1`) are in `linux-admins`; `bob` (`Bob-Pass-1`) is not. `on-dc COMMAND` runs a command on dc1.
+skills: [dc-discovery, domain-join]

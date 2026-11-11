@@ -1,9 +1,9 @@
 id: debug-derivative-report
 stage: debug
-rev: 1
+rev: 2
 title: "A slope that won't settle"
 prompt: |
-  This program should check the sigmoid's derivative rule against a numeric slope, and print:
+  This program checks the sigmoid's derivative rule against a numeric slope, the central difference. The first line tries the numeric slope on `x**2` at 3, where the true slope is exactly 6; each sigmoid line then shows the rule's value and the numeric slope side by side, and the two should agree. It should print:
 
   ```
   x**2 at 3: 6.0
@@ -11,5 +11,9 @@ prompt: |
   sigmoid at 2: 0.104994 0.104994
   ```
 
-  It has two bugs. Run it: the first line is off in the fourth or fifth decimal, which means the numeric slope itself is wrong. Look at `h`: a step of `1e-12` is so small that the two function values are nearly identical and rounding noise is no longer small next to their difference. Fix that, and the first line is right, but the rule's numbers still disagree with the numeric ones: the sigmoid's derivative is the output times one minus the **output**.
+  Instead even the first line is off, at 6.000533, and on both sigmoid lines the two numbers disagree. It has two bugs. Run it, compare each line with the one above, fix what you find, and run it again; then run the checks.
+hints:
+  - "The first line uses only `slope`, and the slope of `x**2` at 3 is exactly 6. What in `slope` could make it a little off?"
+  - "Smaller isn't better for the step `h`. At `1e-12` the two function values are so close that rounding noise is no longer small next to their difference, and the estimate is off in the fourth decimal; `1e-6` is the step this module uses."
+  - "The sigmoid's derivative is the output times one minus the output, `s * (1 - s)`. Compare that with what `d_sigmoid` returns."
 skills: [numeric-check, rules]

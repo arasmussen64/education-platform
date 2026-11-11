@@ -1,14 +1,18 @@
 id: mcq-imdsv2-why
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A web application on an instance has a feature that fetches any URL a user types in and shows the result. Why is the instance metadata service a problem, and how does IMDSv2 help?
 choices:
-  - "It isn't a problem; the metadata service only answers the cloud console"
-  - "An attacker types `http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE` and the app fetches the instance's credentials for them (server-side request forgery, the mechanism of a major 2019 breach). IMDSv2 requires a PUT with a TTL header to get a session token and that token on every GET, which a forged GET can't supply, so the request gets 401"
-  - "The metadata service is slow, and the app will time out"
-  - "IMDSv2 encrypts the metadata, so the attacker sees ciphertext"
-answer: 1
+  - "The app can be tricked into fetching the instance's credentials; IMDSv2 encrypts them, so an attacker sees only ciphertext"
+  - "It isn't one: the service answers only requests made on the instance, and the attacker is somewhere else; IMDSv2 adds logging"
+  - "The app can be tricked into reading the instance's user data and tags; IMDSv2 removes both from what the service hands out"
+  - "The app can be tricked into fetching the instance's credentials; IMDSv2 demands a session token that a plain GET lacks"
+answer: 3
 explanation: |
-  The metadata service trusts any request from the instance, and a vulnerable app makes requests on the attacker's behalf from the instance. IMDSv2 turns one request into a session: `PUT /latest/api/token` with `X-aws-ec2-metadata-token-ttl-seconds`, then `X-aws-ec2-metadata-token: …` on each `GET`. Web-app fetch features send GETs without custom headers, so they fail at the first step, and the token's hop limit of 1 stops it travelling through a proxy or container. Require v2 on every instance; it's a setting, not code.
+  The metadata service trusts any request made on the instance, and a vulnerable app makes requests on the attacker's behalf from the instance. The attacker types `http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE` and the app fetches the role's credentials for them. That is server-side request forgery, the mechanism of a major 2019 breach. So "it answers only requests made on the instance" is the problem, not the protection.
+
+  IMDSv2 turns one request into a session: `PUT /latest/api/token` with an `X-aws-ec2-metadata-token-ttl-seconds` header, then `X-aws-ec2-metadata-token: …` on each `GET`. A fetch feature sends a plain `GET` without custom headers, so it gets `401`, and the token's hop limit of 1 stops it travelling through a proxy or container.
+
+  IMDSv2 encrypts nothing and removes nothing: a request that carries a token still reads the credentials, the user data and the tags in plain text. The defence is only that the forged request can't get a token. Require v2 on every instance; it's a setting, not code.
 skills: [imds-v2]

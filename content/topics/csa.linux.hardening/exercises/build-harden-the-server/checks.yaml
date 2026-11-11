@@ -1,34 +1,118 @@
-# The checks for "Apply the baseline": SSH hardened, a default-deny firewall
-# that keeps SSH and survives a reboot, the debug door closed, and ben can
-# still log in.
+# The checks for "Apply the baseline": SSH hardened in its files and in the
+# server that is running, a default-deny firewall proved from the office
+# that keeps SSH and survives a reboot, the debug door closed for good, and
+# ben can still log in.
+#
+# A check that finds something wrong prints what it found and exits 0, so
+# the learner's terminal shows the reason beside the failed check.
 checks:
   - id: ssh-hardened
-    description: "Password and root logins are off."
+    description: "sshd's configuration (sshd -T) has password and root logins off, only the ssh-users group allowed, and a try limit of 3."
     command: |
-      t=$(sudo sshd -T)
-      echo "$t" | grep -iq '^passwordauthentication no' && echo "$t" | grep -iq '^permitrootlogin no' && echo "hardened"
+      settings=$(sshd -T 2>&1)
+      for wanted in "passwordauthentication no" "permitrootlogin no" "maxauthtries 3"; do
+        echo "$settings" | grep -iqx "$wanted" || { echo "sshd -T does not say: $wanted"; exit 0; }
+      done
+      allowed=$(echo "$settings" | grep -i '^allowgroups ' | paste -sd' ')
+      [ "$allowed" = "allowgroups ssh-users" ] || { echo "the groups allowed to log in are not ssh-users alone"; exit 0; }
+      echo "hardened"
     expect:
-      contains: "hardened"
+      equals: "hardened"
+  - id: running-server-refuses-passwords
+    description: "The SSH server that is running no longer offers password login: asked from the office without a key, it names publickey as the only way in."
+    # sshd -T reads the files. This asks the running server itself, which
+    # keeps the settings it read when it started until it is reloaded. A
+    # client that brings no key and may not ask for a password is turned
+    # away with the list of ways in the server still offers.
+    command: |
+      answer=$(ip netns exec office ssh -o BatchMode=yes -o PubkeyAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ben@10.0.9.1 true 2>&1)
+      case "$answer" in
+        *"Permission denied ("*)
+          offered=$(echo "$answer" | sed -n 's/.*Permission denied (\([^)]*\)).*/\1/p')
+          echo "${offered:-nothing}"
+          ;;
+        *) echo "no answer from the SSH server" ;;
+      esac
+    expect:
+      equals: "publickey"
+  - id: settings-loaded
+    description: "The running SSH service has read its settings as they are now: it was reloaded or restarted after the last change to the files under /etc/ssh."
+    # The service's last change of state (a start, a reload, a restart)
+    # against the newest change under /etc/ssh. A service that isn't running
+    # yet reads the files when the next connection starts it.
+    command: |
+      if ! systemctl is-active --quiet ssh; then
+        echo "up to date"
+        exit 0
+      fi
+      loaded=$(date -d "$(systemctl show ssh -p StateChangeTimestamp --value --timestamp=us)" +%s.%6N)
+      changed=$(find /etc/ssh/sshd_config /etc/ssh/sshd_config.d -printf '%T@\n' | sort -n | tail -1)
+      awk -v loaded="$loaded" -v changed="$changed" 'BEGIN { if (loaded + 0 >= changed + 0) print "up to date"; else print "the files changed after ssh last read them" }'
+    expect:
+      equals: "up to date"
   - id: firewall-default-deny
-    description: "The running firewall's input policy is drop, and it accepts SSH."
+    description: "The firewall's input policy is drop, and from the office SSH's port answers while port 9000 and a port nothing uses get no answer at all."
+    # A dropped connection gets nothing back for the whole timeout; one the
+    # firewall lets in is answered within milliseconds, by the program
+    # listening or by the kernel's reset.
     command: |
-      r=$(sudo nft list ruleset)
-      echo "$r" | grep -qE 'hook input .*policy drop' && echo "$r" | grep -q 'tcp dport 22 accept' && echo "default deny, ssh kept"
+      nft list ruleset | grep -qE 'hook input .*policy drop' || { echo "the input chain's policy is not drop"; exit 0; }
+      ip netns exec office nc -z -w 3 10.0.9.1 22 || { echo "port 22 does not answer from the office"; exit 0; }
+      for port in 9000 9999; do
+        start=$(date +%s%N)
+        ip netns exec office nc -z -w 2 10.0.9.1 $port && { echo "port $port is open from the office"; exit 0; }
+        ms=$(( ($(date +%s%N) - start) / 1000000 ))
+        test "$ms" -ge 1500 || { echo "port $port answered the office in $ms ms: the firewall let the packet in"; exit 0; }
+      done
+      echo "default deny, ssh kept"
     expect:
-      contains: "default deny, ssh kept"
+      equals: "default deny, ssh kept"
+  - id: loopback-and-replies
+    description: "The firewall still lets the server talk to itself (ping 127.0.0.1 answers) and get the replies to connections it starts (it reaches the office's monitoring endpoint, 10.0.9.2:9100)."
+    command: |
+      ping -c 1 -W 2 127.0.0.1 > /dev/null 2>&1 || { echo "the server can't reach itself on loopback"; exit 0; }
+      nc -z -w 3 10.0.9.2 9100 || { echo "no reply comes back from 10.0.9.2:9100"; exit 0; }
+      echo "loopback and replies accepted"
+    expect:
+      equals: "loopback and replies accepted"
   - id: firewall-persisted
-    description: "The rules are in /etc/nftables.conf (with policy drop) and nftables is enabled."
-    command: sudo nft -c -f /etc/nftables.conf && grep -q 'policy drop' /etc/nftables.conf && systemctl is-enabled nftables
+    description: "/etc/nftables.conf loads the same rules that are running now, and nftables.service is enabled, so a reboot brings this firewall back."
+    # The file is loaded into a throwaway network namespace (each namespace
+    # has a ruleset of its own, so nothing running is touched) and what it
+    # makes there is compared with the running rules, counters left out. The
+    # namespace gets interfaces with this machine's names, so a rule that
+    # names one still loads.
+    command: |
+      ns=labcheck-nft
+      ip netns del $ns 2>/dev/null
+      ip netns add $ns || { echo "could not make a scratch namespace"; exit 0; }
+      n=0
+      for link in $(ls /sys/class/net); do
+        [ "$link" = lo ] || ip -n $ns link add "$link" type veth peer name "peer$n" 2>/dev/null
+        n=$((n + 1))
+      done
+      from_file=$(ip netns exec $ns nft -f /etc/nftables.conf 2>&1 && ip netns exec $ns nft -s list ruleset)
+      ip netns del $ns
+      if [ "$from_file" != "$(nft -s list ruleset)" ]; then
+        echo "the running rules are not the ones /etc/nftables.conf loads"
+        exit 0
+      fi
+      systemctl is-enabled nftables
     expect:
       equals: "enabled"
   - id: debug-door-closed
-    description: "Nothing is listening on port 9000 any more."
+    description: "Nothing is listening on port 9000, and shop-debug won't start again at boot."
     command: |
-      sudo ss -ltn | grep -qE ':9000 ' && echo "still open" || echo "closed"
+      ss -ltn | grep -qE ':9000 ' && { echo "something still listens on 9000"; exit 0; }
+      [ "$(systemctl is-enabled shop-debug 2>/dev/null)" = enabled ] && { echo "shop-debug is still enabled"; exit 0; }
+      echo "closed"
     expect:
-      contains: "closed"
+      equals: "closed"
   - id: key-login-works
-    description: "ben can still log in with his key, through the firewall."
-    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    description: "ben can log in with his key, at localhost and from the office."
+    command: |
+      here=$(sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 ben@localhost whoami 2>/dev/null)
+      there=$(ip netns exec office sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 ben@10.0.9.1 whoami 2>/dev/null)
+      echo "at localhost: ${here:-no login}; from the office: ${there:-no login}"
     expect:
-      equals: "ben"
+      equals: "at localhost: ben; from the office: ben"

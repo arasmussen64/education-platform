@@ -5,7 +5,7 @@ checks:
     description: "The script has no ... left in it."
     command: "! grep -q '\\.\\.\\.' /home/learner/bin/memory-report"
   - id: available-line
-    description: "The available line is MemAvailable in MB."
+    description: "The available line is the memory a new program could use, in MB, as /proc/meminfo reports it."
     # The script and this check read MemAvailable a moment apart, and on a
     # busy machine the two readings differ by a few MB, so allow a little.
     # MemFree, the likely mistake, is hundreds of MB off.
@@ -29,6 +29,6 @@ checks:
     expect:
       matches: "^top process: memhog 1[45][0-9] MB$"
   - id: oom-kills-line
-    description: "The oom kills line counts the kernel's 'Killed process' lines."
+    description: "The oom kills line is how many times the kernel's log says it killed a process for running out of memory."
     command: |
       test "$(runuser -u learner -- /home/learner/bin/memory-report | grep '^oom kills:')" = "oom kills: $(journalctl -k --no-pager 2>/dev/null | grep -c 'Killed process')"

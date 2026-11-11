@@ -1,6 +1,6 @@
 id: debug-a-regularizer-that-backfired
 stage: debug
-rev: 1
+rev: 2
 title: "Two regularizers that backfired"
 prompt: |
   A one-hidden-layer network with dropout, trained with Adam and weight decay for 200 epochs. It should print:
@@ -10,5 +10,11 @@ prompt: |
   the first layer's weights shrank under decay: True | validation accuracy: 0.85
   ```
 
-  It has two bugs. Run it: evaluating the same network twice gives two different validation losses, because `evaluate` never switches the network to **eval mode**, so dropout is still drawing masks while the network is being measured; `evaluate` must call `net.eval()` before its forward pass (and `fit` already calls `net.train()` before each step). Fix that, and the first layer's weights have **grown** under decay instead of shrinking: `Adam.step` subtracts `weight_decay * param` from the gradient, pushing weights outwards. Weight decay adds it, a pull towards zero.
+  Instead the validation loss ends at 1.787, evaluating the same network twice gives two different answers, and the first layer's weights have not shrunk. It has two bugs. Run it, take the two wrong facts one at a time, then run the checks, which try the pieces on small cases.
+hints:
+  - "Each bug has its own symptom. The same network, evaluated twice on the same rows, should give the same answer: what in this network is random?"
+  - "Dropout draws a fresh mask on every forward pass in training mode. Which mode is the network in when `evaluate` runs it, given what `fit` switches on before each step?"
+  - "`evaluate` must call `net.eval()` before its forward pass."
+  - "Weight decay is a pull towards zero: it adds `weight_decay * param` to each gradient, so every step moves each weight a little towards 0. Which sign does `Adam.step` use?"
+  - "`grad = grad + self.weight_decay * param`."
 skills: [dropout, decay]

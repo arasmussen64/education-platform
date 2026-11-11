@@ -1,14 +1,14 @@
 id: mcq-key-pair
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   `ssh-keygen -t ed25519` created `~/.ssh/id_ed25519` and `~/.ssh/id_ed25519.pub`. To log in to a server with the key, what goes where?
 choices:
-  - "Copy `id_ed25519` to the server's `~/.ssh/`; keep `id_ed25519.pub` on your laptop"
-  - "Append the contents of `id_ed25519.pub` to `~/.ssh/authorized_keys` on the server (`ssh-copy-id` does this); `id_ed25519` never leaves your laptop"
-  - "Copy both files to the server, so it can compare them"
-  - "Email `id_ed25519` to the administrator so they can install it"
-answer: 1
+  - "Copy `id_ed25519` to the server's `~/.ssh/authorized_keys`; `id_ed25519.pub` stays on your laptop"
+  - "Copy both files to the server's `~/.ssh/`, so that it can check one against the other at login"
+  - "Put `id_ed25519.pub` in your laptop's `~/.ssh/authorized_keys`; the server reads it when you connect"
+  - "Append `id_ed25519.pub` to the server's `~/.ssh/authorized_keys`; `id_ed25519` stays on your laptop"
+answer: 3
 explanation: |
-  The `.pub` file is the public half: safe to share, and it belongs in the server's `authorized_keys`, one key per line. The private half proves you hold the key without ever being sent, and it should never be copied or mailed anywhere: anyone who has it *is* you. `ssh-copy-id user@host` appends the public key and fixes the permissions in one step.
+  The `.pub` file is the public half: safe to share, and it belongs in `authorized_keys` in your account *on the server*, one key per line; `ssh-copy-id user@host` appends it and fixes the permissions in one step. The file without `.pub` is the private half. It proves you hold the key without ever being sent, so it never leaves your laptop: anyone who has a copy *is* you, which rules out copying it, or both files, to the server. And an `authorized_keys` on your laptop only decides who may log in *to the laptop*; the server never reads it.
 skills: [ssh-keys]

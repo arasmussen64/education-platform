@@ -121,6 +121,7 @@ describe('TutorBox', () => {
       ['paused', /paused until next month/],
       ['not_allowed', /isn't switched on for your account/],
       ['unavailable', /isn't available right now/],
+      ['too_long', /too long for the tutor to read/],
       ['failed', /couldn't be reached/],
     ]
     for (const [status, message] of outcomes) {

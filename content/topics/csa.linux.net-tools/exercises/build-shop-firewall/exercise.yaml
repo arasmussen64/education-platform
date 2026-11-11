@@ -3,10 +3,10 @@ stage: build
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Build the shop server's firewall"
 prompt: |
-  Build the shop server's host firewall with nftables, prove it from the office, and make it survive a reboot. The server has none yet: `sudo nft list ruleset` prints the empty default, and `/etc/nftables.conf` holds the same empty ruleset, which `nftables.service` would load at boot if it were enabled. The rules:
+  Build the shop server's host firewall with nftables, prove it from the office, and make it survive a reboot. The server has none yet: `sudo nft list ruleset` prints nothing, and `/etc/nftables.conf` holds only a skeleton (a table with `input`, `forward` and `output` chains and no rules), which `nftables.service` would load at boot if it were enabled. The rules:
 
   1. **The `input` chain's policy is `drop`:** whatever no rule accepts is dropped silently, with no reset, the way a cloud security group drops.
   2. **The machine may talk to itself:** traffic arriving on `lo` is accepted. The API reaches its database on `127.0.0.1:5432`, and this machine asks its own name server.

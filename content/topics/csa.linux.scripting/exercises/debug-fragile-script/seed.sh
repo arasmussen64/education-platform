@@ -8,9 +8,8 @@ echo "startup ok" > /var/log/shop/app.log
 echo "disk slow" > "/var/log/shop/error report.log"
 cat > /home/learner/bin/archive-logs <<'BUGGY'
 #!/bin/bash
-# Archive the shop's logs into a tarball. It's fragile three ways: it fails
-# the second time it runs, it drops the log whose name has a space, and it
-# says nothing and succeeds when the logs aren't there.
+# Archive the shop's logs: copy them into ~/archive/logs and pack that
+# folder into ~/archive/logs.tgz.
 src=/var/log/shop
 dest=$HOME/archive
 mkdir $dest/logs

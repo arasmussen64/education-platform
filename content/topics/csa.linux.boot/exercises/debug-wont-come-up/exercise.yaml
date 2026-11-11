@@ -3,18 +3,21 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "The instance came up half-configured"
 prompt: |
-  A new web server "launched but isn't set up right", and cloud-init shows trouble: `cloud-init status --long` reports an error. The report tool isn't installed, its config isn't where the app expects it, and a readiness marker other systems wait for was never created. The user data that was meant to do all three is in `~/user-data.yaml` (it's also what this instance booted from). Three things in it are wrong:
+  A new web server for the shop "launched but isn't set up right". Its user data, the `#cloud-config` document attached at launch, is meant to do three things on first boot: install the shop's report tool (the package `shop-report`); write the tool's settings, the one line `SHOP_TIER=web`, to `/etc/shop/report.env`, which is where the tool reads them; and create an empty file, `/var/lib/shop/ready`, which the load balancer (the machine that shares requests out between the web servers) looks for before it sends this server any traffic.
 
-  - the package it installs is misspelled, so `apt` can't find it;
-  - the config file is written to `/etc/shop/report.conf`, but the app reads `/etc/shop/report.env`;
-  - the `runcmd` writes its marker into `/var/lib/shop-data/`, a directory that doesn't exist, so the command fails.
+  On the instance in this lab, none of that happened. `cloud-init status --long` reports errors, `dpkg -l shop-report` finds no such package, and neither `/etc/shop/report.env` nor `/var/lib/shop/ready` exists. A copy of the user data the instance was launched with is in `~/user-data.yaml`.
 
-  Find them in the evidence, not by guessing: read `/var/log/cloud-init-output.log` (the apt error and the failed command are there) and `cloud-init status --long`, and compare the user data against what the app needs. Fix all three in `~/user-data.yaml` with `nano`, then launch a fresh instance from it with `lab-launch ~/user-data.yaml` (editing and rebooting the same instance won't re-run the per-instance steps). Confirm `cloud-init status` is `done` with no errors, `dpkg -l shop-report` shows it installed, `/etc/shop/report.env` exists and `/var/lib/shop/ready` is there. Then run the checks.
+  Three separate things are wrong. Find each one in the evidence cloud-init leaves behind (the lesson names the three places to look) before you change anything.
+
+  Repair the user data, not this one server: the next server launched from `~/user-data.yaml` has to come up right by itself, with nobody logging in to finish the job. `lab-launch FILE` and `lab-reboot` stand in for the cloud console's Launch and Reboot buttons, as they did in the worked example.
+
+  You're done when the instance that is running was launched from your `~/user-data.yaml`, `cloud-init status` says `done` with no errors, and all three things are in place. Then run the checks.
 hints:
-  - "cloud-init installs packages by the names under `packages:`; a misspelled name is passed straight to apt, which fails. The right name is `shop-report`."
-  - "`write_files:` writes exactly the `path:` you give. The app reads `/etc/shop/report.env`, so that's the path it needs."
-  - "`runcmd` runs in order and a failing command is reported. `touch` can't create a file in a directory that doesn't exist; write the marker to `/var/lib/shop/ready` (the shop image has `/var/lib/shop`), or `mkdir -p` the directory first."
+  - "cloud-init says what went wrong in two places. `cloud-init status --long` lists the errors, and `/var/log/cloud-init-output.log` holds the output of every command it ran, apt's and `runcmd`'s included. Read the log from the top and stop at each complaint."
+  - "Then compare `~/user-data.yaml`, line by line, with the three things it is meant to do: the package's exact name (`apt-cache search shop` lists what the shop's repository has), the exact path of the settings file, the exact path of the marker (`ls /var/lib` shows which folders the image has)."
+  - "The package is `shop-report`. `write_files` writes exactly the `path:` it is given, and the tool reads `/etc/shop/report.env`. The marker belongs at `/var/lib/shop/ready`, in a folder the image already has. Making the folder that the broken command names would silence the error and leave the marker where nothing looks for it."
+  - "An instance that has already booted won't run its once-per-instance steps again, so fixing the file and using `lab-reboot` changes nothing on it. `lab-launch ~/user-data.yaml` launches a fresh instance from the repaired file."
 skills: [cloud-init, boot-sequence]

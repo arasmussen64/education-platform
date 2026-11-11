@@ -12,12 +12,12 @@ def test_the_output():
 
 
 def test_the_pieces():
-    """start_weights is random and scaled by the fan-in, RATE is 0.01, and evaluate leaves dropout off."""
+    """A 400-input layer starts with distinct random columns and a spread near 1 / sqrt(400), the script trains at the digit reader's rate, and a network with dropout gives the same answer when evaluated twice."""
     fit = function("fit")
     m = fit.__globals__
     W = m["start_weights"](np.random.default_rng(1), (400, 50), 400)
     assert W.shape == (400, 50) and 0.04 < W.std() < 0.06 and not np.allclose(W[:, 0], W[:, 1])
-    assert m["RATE"] == 0.01
+    assert m["RATE"] == 0.01, "The script doesn't train at the rate the digit reader uses."
     layer = m["Dropout"](0.5, seed=1)
     net = m["Sequential"]([layer])
     X = np.ones((50, 4))

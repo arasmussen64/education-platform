@@ -1,14 +1,16 @@
 id: mcq-purge-vs-remove
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You uninstalled a web server with `apt remove apache2`, and later reinstall it to find your old, broken configuration still in place. What happened, and what would have avoided it?
 choices:
-  - "`remove` keeps a package's configuration files (state `rc` in `dpkg -l`); `apt purge apache2` removes them too"
-  - "Reinstalling always restores the last configuration from a backup"
-  - "`apt remove` doesn't actually uninstall anything"
-  - "The configuration lives in the package, so it can't be removed"
-answer: 0
+  - "`remove` only marks a package for removal; `apt autoremove` is what really deletes its files"
+  - "`remove` keeps a package's configuration files; `apt purge apache2` would have deleted them too"
+  - "The reinstall restored the configuration from apt's cache; `apt clean` would have emptied it first"
+  - "The configuration is in your home folder, which no `apt` command touches; delete it there by hand"
+answer: 1
 explanation: |
   Debian packaging deliberately keeps configuration on `remove`, so that a reinstall keeps your settings; `dpkg -l` shows such packages as `rc`. When the settings are the problem, `purge` is the word (or `apt purge` of an `rc` package later). On dnf systems, `dnf remove` leaves modified config files behind as `.rpmsave` for the same reason.
+
+  `remove` really does uninstall the program straight away; `autoremove` is for something else, clearing dependencies that nothing needs any more. The reinstall restored nothing: the old files in `/etc/apache2` had never left the disk, and `apt clean` only empties the store of downloaded package files. A server's configuration lives under `/etc`, not in anyone's home folder.
 skills: [apt-dnf]

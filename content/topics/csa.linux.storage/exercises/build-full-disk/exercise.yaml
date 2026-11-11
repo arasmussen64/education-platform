@@ -9,9 +9,9 @@ prompt: |
   The shop has stopped taking orders: its data disk, mounted at `/srv/shop`, is almost full, and `/srv/shop/uploads` (a second, small volume) refuses every new file with "No space left on device" although it has space free. Put it right, in this order, and be careful: the log shipper, `log-shipper.service`, must keep running throughout.
 
   1. Find what's using `/srv/shop`. The rotated logs in `/srv/shop/logs/old/` are no longer needed: remove them.
-  2. `df` still counts more than `du` can find. Something deleted is being held open. Find it with `lsof +L1`, and free the space *without* stopping the process that holds it.
+  2. `df` still counts more than `du` can find. Something deleted is being held open. Find it with `sudo lsof +L1` (without `sudo` it only shows your own processes' files), and free the space *without* stopping the process that holds it.
   3. Work out why `/srv/shop/uploads` says it's full when it isn't, and fix it: the files in `uploads/tmp/` are leftovers and can go.
-  4. The team has enlarged the data volume to 300 MB in the cloud console; on the lab machine, `sudo lab-grow data1 300M` stands in for that. Make the filesystem on `/srv/shop` use the new space, while it stays mounted.
+  4. The team has enlarged the data volume to 300 MB in the cloud console; on the lab machine, `sudo lab-grow data1 300M` stands in for that. Make the filesystem on `/srv/shop` use the new space, while it stays mounted. Its disk is `/dev/lab/data1`. Only the disks labelled under `/dev/lab/` belong to the lab: the others `lsblk` lists belong to Docker on your own computer, and must be left alone.
   5. Save `df -h /srv/shop`, as it is when you're done, to `~/report/df.txt`.
 
   Then run the checks.

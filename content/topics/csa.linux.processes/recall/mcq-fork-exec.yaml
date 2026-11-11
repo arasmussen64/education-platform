@@ -1,14 +1,14 @@
 id: mcq-fork-exec
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You type `grep error app.log` at the shell. In what order do things happen?
 choices:
-  - "The shell loads `grep` into its own memory and runs it, then unloads it"
-  - "The shell forks a copy of itself; the copy execs `grep`, replacing its program; the shell waits for it to finish"
-  - "The shell execs `grep`, which replaces the shell, and a new shell starts when `grep` ends"
-  - "The kernel starts `grep` directly from PID 1, and the shell is told its PID"
-answer: 1
+  - "The shell forks a copy of itself, the copy execs `grep`, and the shell waits for the copy to finish"
+  - "The shell execs a copy of itself, the copy forks `grep`, and the shell waits for the copy to finish"
+  - "The shell execs `grep`, which replaces the shell, and a new shell is forked when `grep` has finished"
+  - "The shell loads `grep` into its own memory, runs it under the shell's own PID, then unloads it again"
+answer: 0
 explanation: |
-  New processes come from existing ones. `fork` makes a child that is a copy of the shell; in the child, `exec` replaces the copied program with `grep`, keeping the same PID; the parent shell `wait`s for the child's exit status. If the shell itself exec'd `grep`, your shell would be gone when `grep` finished, which is exactly what `exec grep ...` does if you type it. PID 1 starts services, not your commands.
+  New processes come from existing ones. `fork` makes a child that is a copy of the shell; in the child, `exec` replaces the copied program with `grep`, keeping the child's PID; the parent shell `wait`s for the child's exit status. The two words aren't interchangeable: fork is the step that copies and exec the step that swaps the program, so "execs a copy, which forks `grep`" has them backwards. If the shell itself exec'd `grep`, your shell would be gone when `grep` finished, and nothing would bring a new one: that's exactly what happens if you type `exec grep ...`. And a shell never loads another program into itself: `grep` runs in its own process, with its own PID.
 skills: [process-model]

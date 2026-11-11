@@ -1,14 +1,16 @@
 id: mcq-least-privilege-service
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A web application's unit file runs it as root "because it needs port 80". What should change, and what cheap extra protection does systemd offer?
 choices:
-  - "Nothing; web servers always run as root"
-  - "Run it as its own unprivileged user (`User=app`) and give it the port through a reverse proxy, `AmbientCapabilities=CAP_NET_BIND_SERVICE`, or a port above 1024; then add `ProtectSystem=strict`, `PrivateTmp=yes` and `NoNewPrivileges=yes` so even a compromised process can't write to the system or gain privileges"
-  - "Run it as root but change the port to 8080"
-  - "Run it as `nobody`, which has no restrictions"
+  - "Keep root, since ports below 1024 need it, and add `NoNewPrivileges=yes` to take root's powers away"
+  - "Run it as its own unprivileged user, and add sandboxing lines such as `ProtectSystem=strict`"
+  - "Run it as `nobody`, the user with the fewest rights, and add `Restart=always` in case it is attacked"
+  - "Keep root but move it to port 8080, and add `PrivateTmp=yes` so that root can't reach `/tmp`"
 answer: 1
 explanation: |
-  A bug in a root process is a root compromise; the same bug in `app` reaches only what `app` can. Binding a low port is the only thing root was needed for, and there are three ways around it. systemd's sandboxing options cost one line each and remove whole classes of damage: a read-only system, a private `/tmp`, no privilege escalation. `nobody` is shared by many services, which defeats the point of separate users.
+  A bug in a root process is a root compromise; the same bug in a process running as its own user (`User=app`) reaches only what `app` can. Binding a low port is the only thing root was needed for, and there are three ways around it: a reverse proxy in front, `AmbientCapabilities=CAP_NET_BIND_SERVICE` (the one piece of root's power that allows low ports), or a port above 1024. systemd's sandboxing options cost one line each and remove whole classes of damage: `ProtectSystem=strict` makes the system read-only to the service, `PrivateTmp=yes` gives it a private `/tmp`, and `NoNewPrivileges=yes` stops it gaining privileges.
+
+  None of those lines makes root safe: `NoNewPrivileges=yes` stops a process *gaining* powers, it doesn't remove the ones root starts with, and a private `/tmp` leaves root everything else. Moving to port 8080 removes the reason for root, so keeping root there is pointless. `nobody` is shared by many services, which defeats the point of separate users, and `Restart=always` restarts a crashed service; it protects nothing.
 skills: [baseline]

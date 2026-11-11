@@ -29,6 +29,8 @@ async function paste(text: string) {
   await userEvent.click(screen.getByRole('button', { name: 'Record result' }))
 }
 
+const RUN = 'python -m uv run python tools/labcheck.py'
+
 describe('a lab exercise', () => {
   it('says how to run it, names the checks, and waits for a result', () => {
     render(
@@ -37,12 +39,30 @@ describe('a lab exercise', () => {
         topicId={TOPIC}
       />,
     )
-    const commands = screen.getByText(/labcheck\.py start/)
-    expect(commands.textContent).toContain(
-      `tools/labcheck.py start ${TOPIC} build-report`,
-    )
-    expect(commands.textContent).toContain(`check ${TOPIC} build-report`)
-    expect(commands.textContent).toContain(`stop ${TOPIC} build-report`)
+    // One command per step, each with this lab's name filled in.
+    for (const verb of ['start', 'shell', 'check', 'stop', 'start --fresh']) {
+      expect(
+        screen.getByText(`${RUN} ${verb} ${TOPIC} build-report`),
+      ).toBeInTheDocument()
+    }
+    // The shell is the checker's own command now. A docker line pasted
+    // into Git Bash is what used to fail.
+    expect(document.body.textContent).not.toContain('docker exec')
+    // Running start again is safe, and --fresh is what resets.
+    expect(
+      screen.getByText(/Running this again keeps your work/),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/To throw your work away and begin the lab again/),
+    ).toBeInTheDocument()
+    // And a way to find and stop a forgotten lab.
+    expect(
+      screen.getByText(
+        (_, node) =>
+          node?.tagName === 'PRE' &&
+          node.textContent === `${RUN} status\n${RUN} stop --all`,
+      ),
+    ).toBeInTheDocument()
     const checks = screen.getByRole('region', {
       name: 'What the checker looks for',
     })
@@ -58,6 +78,35 @@ describe('a lab exercise', () => {
     expect(
       screen.queryByText(/Compare with a reference solution/),
     ).not.toBeInTheDocument()
+  })
+
+  it('says what a privileged lab may touch, and how to stop it', () => {
+    // exercise.yaml's `lab: { init: systemd }`, as the loader hands it on.
+    const booted = {
+      ...fakeLab({ id: 'build-report', stage: 'build' }),
+      lab: { init: 'systemd' },
+    }
+    render(<ExerciseView exercise={booted} topicId={TOPIC} />)
+    const note = screen.getByText(/This lab's container is privileged/)
+    expect(note).toHaveTextContent(
+      /reach the disks and settings of the machine Docker runs on, not only its own files/,
+    )
+    expect(note).toHaveTextContent(
+      /Stop it with the stop command, not from the Docker Desktop window/,
+    )
+  })
+
+  it('says a lab that is not privileged is sealed off', () => {
+    render(
+      <ExerciseView
+        exercise={fakeLab({ id: 'build-report', stage: 'build' })}
+        topicId={TOPIC}
+      />,
+    )
+    expect(
+      screen.getByText(/This lab's container is an ordinary one/),
+    ).toHaveTextContent(/can change files on the rest of your computer/)
+    expect(screen.queryByText(/privileged/)).not.toBeInTheDocument()
   })
 
   it('records a passing result, ticks the checks and shows the reference solution', async () => {
@@ -132,6 +181,40 @@ describe('a lab exercise', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       /isn't the checker's result/,
     )
+    expect(onActivity).not.toHaveBeenCalled()
+  })
+
+  it("refuses a result that does not name exactly this lab's checks", async () => {
+    const onActivity = vi.fn()
+    render(
+      <ExerciseView
+        exercise={fakeLab({ id: 'build-report', stage: 'build' })}
+        topicId={TOPIC}
+        onActivity={onActivity}
+      />,
+    )
+    // One made-up check that passed used to read as "All checks passed."
+    await paste(printed({ a: true }))
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /doesn't list the same checks as this lab has now/,
+    )
+    // A result from before a check was renamed: stale, so run check again.
+    await userEvent.clear(screen.getByLabelText("The checker's result"))
+    await paste(printed({ 'report-folder': true, 'failures-counted': true }))
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /run the check command again and paste the new line/,
+    )
+    // Only some of the checks, all passing, is not the lab passing.
+    await userEvent.clear(screen.getByLabelText("The checker's result"))
+    await paste(printed({ 'report-folder': true }))
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /doesn't list the same checks/,
+    )
+    expect(screen.queryByText('All checks passed.')).not.toBeInTheDocument()
+    expect(screen.queryByText('(passed)')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Compare with a reference solution'),
+    ).not.toBeInTheDocument()
     expect(onActivity).not.toHaveBeenCalled()
   })
 

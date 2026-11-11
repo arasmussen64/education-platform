@@ -7,6 +7,18 @@
 # not pass, the solution must, every known-wrong fix must not. The last job,
 # "Labs", is the one check everything else waits for; it passes only when
 # every share did.
+#
+# It also runs once a week on main, with nobody having changed anything.
+# Every lab's image is built from ubuntu:24.04 and whatever packages apt
+# serves that day, so a new base image or package can break a lab that no
+# pull request touched; the learner would otherwise be the one to find out,
+# mid-topic. The weekly run builds every image from nothing (a fresh machine
+# has no cache), so it sees what a learner building today would get. When it
+# fails, GitHub emails whoever last changed the schedule line below, and the
+# run shows red under the Actions tab. Two things to know: scheduled runs
+# are free on a public repository, and GitHub switches a schedule off after
+# 60 days with no activity in the repository (it says so by email, and one
+# click in the Actions tab switches it back on).
 name: Labs
 
 on:
@@ -17,6 +29,12 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/labs.yml"
+  schedule:
+    # Mondays at 04:23 UTC: an odd minute, because GitHub delays or drops
+    # scheduled runs at busy times such as the top of the hour.
+    - cron: "23 4 * * 1"
+  # And by hand: the "Run workflow" button under the Actions tab.
+  workflow_dispatch:
 
 permissions:
   contents: read

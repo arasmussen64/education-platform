@@ -3,14 +3,14 @@ stage: build
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Contain the leak"
 prompt: |
-  Something on the shop's server is eating memory: `free -m` shows `available` falling by the second. Two of the shop's services are running, `shop-indexer` and `shop-db`. Contain the problem the way a container would, without stopping the services:
+  Something on the shop's server is eating memory: in `free -m`, `available` falls second after second. About every forty seconds it jumps back up, and then the fall starts again. Two of the shop's services are running, `shop-indexer` and `shop-db`. Contain the problem the way a container would, without stopping the services:
 
-  1. Watch `free -m` for a few seconds, then find the process that holds the most memory and which service it belongs to (`ps -eo pid,comm,rss --sort=-rss`, `systemctl status`). Read how much its service's cgroup is using and has peaked at (`memory.current` and `memory.peak` under `/sys/fs/cgroup/system.slice/`), and save the peak, in bytes as the file reports it, to `~/report/peak.txt` before you change anything.
-  2. Give that service a hard limit of 128 MB and no swap, with a drop-in (`sudo systemctl edit shop-indexer` opens one; `MemoryMax=` and `MemorySwapMax=` under `[Service]`), then reload systemd and restart the service.
-  3. Confirm the kernel now kills it when it reaches the limit, and that systemd restarts it: `journalctl -u shop-indexer`, `systemctl show shop-indexer -p NRestarts`, and the kernel's line in `journalctl -k`.
+  1. Run `free -m` a few times, a second or two apart, and watch `available`. Then find the process that holds the most memory (`ps -eo pid,comm,rss --sort=-rss`) and the service it belongs to (`systemctl status PID`, with that process's PID, names it). Read how much that service's cgroup is using and has peaked at (`memory.current` and `memory.peak`, in the service's folder under `/sys/fs/cgroup/system.slice/`), and save the peak, in bytes as the file reports it, to `~/report/peak.txt` before you change anything.
+  2. Give that service a hard limit of 128 MB and no swap, with a drop-in (`sudo systemctl edit NAME` opens one for the service called NAME; `MemoryMax=` and `MemorySwapMax=` go under `[Service]`), then reload systemd and restart the service.
+  3. Confirm the kernel now kills it when it reaches the limit, and that systemd restarts it: `journalctl -u NAME`, `systemctl show NAME -p NRestarts`, and the kernel's line in `journalctl -k`.
   4. The database must be the last thing the kernel would ever kill: give `shop-db` an `OOMScoreAdjust=` of -900 in a drop-in, restart it, and check the running process's `/proc/PID/oom_score_adj`.
 
   Then run the checks.

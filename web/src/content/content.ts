@@ -19,9 +19,9 @@ import type {
 // The cloud track's hundreds of outline-only topics would make the first
 // download heavier for everyone, so they're left out here and load as one
 // piece when the map shows that track or one of its topics opens
-// (LAZY_TRACKS, below). Its Module 1, Linux, has real content, so its topics
-// are bundled in like the main track's: the Today page and the follow-ups
-// only look at bundled topics.
+// (LAZY_TRACKS, below). Its Modules 1 and 2 have real content, or are being
+// written, so their topics are bundled in like the main track's: the Today
+// page and the follow-ups only look at bundled topics.
 
 const topicFiles = import.meta.glob<Partial<Topic>>(
   [
@@ -32,9 +32,11 @@ const topicFiles = import.meta.glob<Partial<Topic>>(
 )
 const bundledCloudFiles = import.meta.glob<Partial<Topic>>(
   [
-    // Module 1 and its checkpoint: the cloud track's content so far.
+    // Modules 1 and 2 and their checkpoints: the cloud track's content so far.
     '../../../content/topics/csa.linux.*/topic.yaml',
     '../../../content/topics/csa.m1.checkpoint/topic.yaml',
+    '../../../content/topics/csa.hw.*/topic.yaml',
+    '../../../content/topics/csa.m2.checkpoint/topic.yaml',
   ],
   { eager: true, import: 'default' },
 )

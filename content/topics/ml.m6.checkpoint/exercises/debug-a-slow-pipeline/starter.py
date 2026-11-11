@@ -3,7 +3,7 @@ from collections import deque
 
 
 def dedupe(records, key):
-    """The first record for each value of the key field, in order: one pass with a set."""
+    """The first record for each value of the key field, in order, in one pass."""
     seen = []
     kept = []
     for record in records:

@@ -1,9 +1,9 @@
 id: debug-dice-report
 stage: debug
-rev: 1
+rev: 2
 title: "A dice simulation that can't roll a six"
 prompt: |
-  This program simulates 60,000 rolls of a die and the number of sixes in four rolls, and should print:
+  This program simulates 60,000 rolls of a die and prints the fraction that landed on each face, 1 to 6. Then it simulates 60,000 rounds of four rolls and prints a table: for each `k` from 0 to 4, the fraction of rounds with `k` sixes, then the chance the binomial formula gives for `k` sixes. The two columns should agree closely. It should print:
 
   ```
   faces [0.168 0.166 0.165 0.165 0.167 0.168]
@@ -14,5 +14,9 @@ prompt: |
   4 0.001 0.001
   ```
 
-  It has two bugs. Run it: the first line shows the die never lands on 6, because `rng.integers(low, high)` stops **before** `high`, so `roll` must ask for `integers(1, 7)`. Fix that, and `sixes_pmf` still disagrees with the simulation: it claims that no sixes in four rolls is certain (1.0 against the simulated 0.48), and only the `k = 2` row happens to agree. The chance of a pattern with `k` sixes is `(1/6)` for each six and `(5/6)` for each of the **other** `4 - k` rolls, not for `k` of them.
+  Instead the first line shows a die that never lands on 6, and the formula's chances are wrong: it gives 1.0 for no sixes at all, against the simulation's 0.48. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which try each function on its own.
+hints:
+  - "The first line counts the faces `roll` produced. Which face never comes up, and what range of numbers does `roll` ask for?"
+  - "`rng.integers(low, high)` stops before `high`, like `range`, so a die needs `integers(1, 7)`."
+  - "Work one row of the formula by hand. A pattern with `k` sixes in four rolls has chance `(1/6)` for each six and `(5/6)` for each of the other `4 - k` rolls. Compare the powers in `sixes_pmf` with that."
 skills: [simulate, histogram]

@@ -34,7 +34,30 @@ checks:
     expect:
       contains: reached
   - id: persisted
-    description: "/etc/nftables.conf holds the rules (it parses, with policy drop and connection tracking), and nftables.service is enabled."
-    command: nft -c -f /etc/nftables.conf && grep -q 'policy drop' /etc/nftables.conf && grep -q 'established' /etc/nftables.conf && systemctl is-enabled nftables
+    description: "/etc/nftables.conf loads the same rules that are running now, and nftables.service is enabled, so a reboot brings this firewall back."
+    # The checks above prove the running rules by what the office can and
+    # can't reach. This one ties the file to them: the file is loaded into a
+    # throwaway network namespace (each namespace has a ruleset of its own,
+    # so nothing running is touched) and what it makes there is compared
+    # with the running rules, counters left out. However a rule is spelled,
+    # the two listings are the same when the file is what was loaded. The
+    # namespace gets interfaces with this machine's names, so a rule that
+    # names one still loads.
+    command: |
+      ns=labcheck-nft
+      ip netns del $ns 2>/dev/null
+      ip netns add $ns || { echo "could not make a scratch namespace"; exit 0; }
+      n=0
+      for link in $(ls /sys/class/net); do
+        [ "$link" = lo ] || ip -n $ns link add "$link" type veth peer name "peer$n" 2>/dev/null
+        n=$((n + 1))
+      done
+      from_file=$(ip netns exec $ns nft -f /etc/nftables.conf 2>&1 && ip netns exec $ns nft -s list ruleset)
+      ip netns del $ns
+      if [ "$from_file" != "$(nft -s list ruleset)" ]; then
+        echo "the running rules are not the ones /etc/nftables.conf loads"
+        exit 0
+      fi
+      systemctl is-enabled nftables
     expect:
       equals: enabled

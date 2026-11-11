@@ -1,14 +1,16 @@
 id: mcq-huge-pages
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   Why would a database with a 60 GB memory area want huge pages, and what is the usual warning about transparent huge pages (THP)?
 choices:
-  - "Huge pages are faster disks; THP wears them out"
-  - "Mapping 60 GB in 4 KB pages means millions of page-table entries and frequent misses in the CPU's mapping cache; 2 MB pages cut both. THP hands them out automatically but can stall a process while the kernel compacts memory, so several databases advise turning THP off and reserving huge pages explicitly"
-  - "Huge pages are encrypted; THP disables the encryption"
-  - "Huge pages are only for swap"
-answer: 1
+  - "2 MB pages mean far fewer mappings to keep track of; THP can stall a process while the kernel compacts memory"
+  - "2 MB pages mean far fewer mappings to keep track of; THP must be reserved at boot and is never given back"
+  - "Bigger pages hold more table rows each, so a query reads fewer of them; THP makes them too big for small tables"
+  - "Huge pages let the 60 GB area live on disk instead of in RAM; THP can stall a process while it is read back in"
+answer: 0
 explanation: |
-  Every 4 KB page needs an entry in the page tables and a slot in the TLB, the CPU's cache of recent address translations; a 60 GB area in 4 KB pages is 15 million entries. 2 MB pages divide that by 512, and TLB misses drop with it. Transparent huge pages let the kernel do this on its own, but assembling 2 MB of contiguous memory can mean pausing a process, which shows up as latency spikes; that's why PostgreSQL, MongoDB and others suggest disabling THP and using explicitly reserved huge pages instead.
+  Every 4 KB page needs an entry in the page tables and a slot in the TLB, the CPU's cache of recent address translations; a 60 GB area in 4 KB pages is 15 million entries. 2 MB pages divide that by 512, and TLB misses drop with it. Transparent huge pages let the kernel do this on its own, but assembling 2 MB of contiguous memory can mean pausing a process, which shows up as latency spikes; that's why PostgreSQL's documentation, for one, discourages THP and recommends explicitly reserved huge pages instead. (Advice differs between databases and versions, so check the one you run.)
+
+  Reserving ahead of time is the *explicit* kind (`HugePages_Total` in `/proc/meminfo`); "transparent" means the opposite, that the kernel hands them out as it goes. These are pages of memory, the unit the kernel maps RAM in, and have nothing to do with a database's own pages of table rows. And huge pages are RAM, not disk: nothing about them moves the data out of memory.
 skills: [swap-paging]

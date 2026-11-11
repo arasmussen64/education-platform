@@ -1,14 +1,16 @@
 id: mcq-pids-limit
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A buggy container spawns processes without end (a fork bomb). What stops it from taking the whole host down?
 choices:
-  - "Nothing; a fork bomb in any container crashes the host"
-  - "The container's cgroup `pids.max` (Docker's `--pids-limit`, Kubernetes' pod PID limit): once the group has that many processes, `fork` fails inside the container and nothing else is affected"
-  - "The network namespace"
-  - "The image's layers, which are read-only"
-answer: 1
+  - "Its cgroup's `pids.max`: once the group holds that many processes, `fork` fails inside the container"
+  - "Its pid namespace: processes created inside it take no entries in the host's own process table"
+  - "Its cgroup's `cpu.max`: with CPU time capped, the bomb can never create processes fast enough to matter"
+  - "The runtime's seccomp filter, which blocks the `fork` system call for every process in a container"
+answer: 0
 explanation: |
-  Processes are a resource like CPU and memory, and the pids controller caps how many a cgroup may hold. When the limit is reached, new `fork` calls in that group fail with "resource temporarily unavailable", the bomb fizzles, and the host and the other containers never notice. Without the limit, the kernel's global process table fills and everyone suffers, which is why runtimes set a default and why it's worth setting deliberately.
+  Processes are a resource like CPU and memory, and the pids controller caps how many a cgroup may hold: `pids.max`, which Docker's `--pids-limit` and Kubernetes' pod PID limit write. When the limit is reached, new `fork` calls in that group fail with "resource temporarily unavailable", the bomb fizzles, and the host and the other containers never notice. Without the limit, the kernel's process table fills and everyone suffers. Docker sets no limit unless you ask for one (`pids.max` reads `max` in a plain `docker run`), so it's worth setting deliberately.
+
+  The pid namespace only renumbers: every process in a container is also a process on the host, with a host PID, so it fills the same table. A CPU cap slows the bomb down but puts no ceiling on how many processes it ends up with. And the seccomp filter doesn't block `fork`: a container that couldn't fork couldn't start a second process at all.
 skills: [cgroups-limits]

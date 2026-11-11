@@ -3,11 +3,11 @@ stage: fill_in
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Step 3 of the runbook: harden SSH"
 prompt: |
-  The checkpoint's build, with two of its three parts already done for you: `shop-api` is enabled and running, and the firewall is up and persisted. One part is left: SSH still takes passwords and permits root. Add a drop-in in `/etc/ssh/sshd_config.d/` with `PasswordAuthentication no` and `PermitRootLogin no`, check it with `sudo sshd -t`, apply it with `sudo systemctl reload ssh` (`restart` if the service isn't running), and prove `ssh -i ~/keys/ben ben@localhost` still works. Then run the checks, which test the whole server.
+  The checkpoint's build, with two of its three parts already done for you: `shop-api` is enabled and running, and the firewall is up and saved. One part is left: SSH still takes passwords and permits root. Add a drop-in in `/etc/ssh/sshd_config.d/` with `PasswordAuthentication no` and `PermitRootLogin no`, check it with `sudo sshd -t`, apply it with `sudo systemctl reload ssh` (`restart` if the service isn't running), and prove `ssh -i ~/keys/ben ben@localhost` still works. Then run the checks, which test the whole server: for SSH they ask the server that is running, not just its files.
 hints:
   - "Prove the key works *before* you change anything: `ssh -i ~/keys/ben ben@localhost whoami` should print `ben`."
-  - "The drop-in: `printf 'PasswordAuthentication no\\nPermitRootLogin no\\n' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf`, then `sudo sshd -t` (silent when valid), `sudo systemctl reload ssh` so the running `sshd` picks it up, and `sudo sshd -T | grep -iE 'password|root'` to read the settings in force."
-  - "Then the login again. Passwords off, root off, and the key still works: that's the whole point."
+  - "The drop-in: `printf 'PasswordAuthentication no\\nPermitRootLogin no\\n' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf`, then `sudo sshd -t` (silent when valid), `sudo systemctl reload ssh` so the running `sshd` picks it up, and `sudo sshd -T | grep -iE 'password|root'` to read the settings in the files."
+  - "Then the login again. Passwords off, root off, and the key still works: that's the whole point. If the check still says passwords are offered, the server that is running hasn't taken the new settings: reload it."

@@ -33,23 +33,43 @@ RUN useradd -m -s /bin/bash ben \
  && chown -R learner:learner /home/learner/keys /home/learner/bin && chmod 600 /home/learner/keys/ben \
  && printf 'd /run/sshd 0755 root root -\n' > /etc/tmpfiles.d/sshd.conf
 
-# The broken server, five ways at once: the data area is full (a tmpfs
-# filled at boot), the API's unit points at a binary that isn't there, ben's
-# .ssh is world-writable so sshd refuses his key, the firewall is
-# default-deny but never opened the API's port, and a worker is pegging a
-# CPU. SSH is otherwise correctly hardened, and that must stay.
-COPY shop-api /usr/local/bin/shop-api
-COPY spin /usr/local/bin/shop-worker
+# The office: a second machine on the far side of eth1 (a network namespace
+# joined to this one by a veth pair, made at boot by network.sh; from-office
+# runs a command there), so the firewall is proved from outside, as in the
+# networking topic. Identical in every checkpoint lab.
+COPY network.sh /usr/local/lib/lab/network.sh
+COPY lab-network.service /etc/systemd/system/lab-network.service
+COPY from-office /usr/local/bin/from-office
+RUN chmod 755 /usr/local/lib/lab/network.sh /usr/local/bin/from-office \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && ln -s /etc/systemd/system/lab-network.service /etc/systemd/system/multi-user.target.wants/lab-network.service
+
+# The broken server, seven faults at once. Five take the server down: the
+# data area is full (a tmpfs filled at boot by an export from 2019), the
+# API's unit names a program in a folder it isn't in, ben's .ssh is
+# world-writable so sshd refuses his key, the firewall is default-deny but
+# never opened the API's port, and a retired worker is pegging a CPU. Two
+# more are in the limits of shop-search, a service held to a memory limit
+# and a CPU quota the way a container is: the memory limit is below what
+# its index needs, so the kernel kills it every time it loads, and the CPU
+# quota is a quarter of what its queries use, so it is throttled in nearly
+# every period. SSH is otherwise correctly hardened and the firewall is
+# otherwise right, and both must stay that way. None of the files copied in
+# below says what is wrong with it, because the learner reads them in the
+# lab: the explanations live here and in solution.sh. The checksum of
+# shop-search is taken here so the checks can tell that the program still
+# does the work it came with: the fix is its limits, not less work.
+COPY shop-api shop-search shop-worker /usr/local/bin/
 COPY shop-api-broken.service /etc/systemd/system/shop-api.service
-COPY shop-worker.service /etc/systemd/system/shop-worker.service
+COPY shop-search.service shop-worker.service lab-disk.service /etc/systemd/system/
 COPY lab-disk.sh /usr/local/lib/lab/lab-disk.sh
-COPY lab-disk.service /etc/systemd/system/lab-disk.service
 COPY nftables-22only.conf /etc/nftables.conf
-RUN chmod 755 /usr/local/bin/shop-api /usr/local/bin/shop-worker /usr/local/lib/lab/lab-disk.sh \
+RUN chmod 755 /usr/local/bin/shop-api /usr/local/bin/shop-search /usr/local/bin/shop-worker /usr/local/lib/lab/lab-disk.sh \
+ && sha256sum /usr/local/bin/shop-search > /usr/local/lib/lab/shop-search.sha256 \
  && printf 'PasswordAuthentication no\nPermitRootLogin no\n' > /etc/ssh/sshd_config.d/90-hardening.conf \
  && chmod 0777 /home/ben/.ssh \
  && mkdir -p /etc/systemd/system/multi-user.target.wants /etc/systemd/system/sysinit.target.wants \
- && for unit in shop-api shop-worker lab-disk; do ln -s /etc/systemd/system/$unit.service /etc/systemd/system/multi-user.target.wants/$unit.service; done \
+ && for unit in shop-api shop-search shop-worker lab-disk; do ln -s /etc/systemd/system/$unit.service /etc/systemd/system/multi-user.target.wants/$unit.service; done \
  && ln -s /usr/lib/systemd/system/nftables.service /etc/systemd/system/sysinit.target.wants/nftables.service
 
 CMD ["/sbin/init"]

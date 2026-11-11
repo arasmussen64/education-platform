@@ -1,0 +1,75 @@
+# The checks for "Stand up the shop's domain". Checks that ask dc1 something
+# run inside its namespaces, the way on-dc does.
+checks:
+  - id: domain-answers
+    description: "dc1 is running as the domain controller for ad.shop.test and answers for it in DNS; its service starts at boot."
+    command: |
+      systemctl is-active dc1 > /dev/null || { echo "dc1.service isn't running"; exit 1; }
+      test "$(systemctl is-enabled dc1 2>/dev/null)" = enabled || { echo "dc1.service won't start at boot"; exit 1; }
+      dig +short +time=2 +tries=1 @10.0.9.10 _kerberos._tcp.ad.shop.test SRV
+    expect:
+      contains: "88 dc1.ad.shop.test."
+  - id: dc-forwards
+    description: "dc1 forwards names it doesn't hold to the site's resolver."
+    command: dig +short +time=2 +tries=1 @10.0.9.10 intranet.shop.internal
+    expect:
+      equals: "10.0.9.1"
+  - id: people
+    description: "dana and erin are in the Shop unit; linux-admins has dana in it and not erin."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      for user in dana erin; do
+        dc samba-tool user show "$user" 2>/dev/null | grep -qi "^dn: CN=[^,]*,OU=Shop,DC=ad,DC=shop,DC=test" || { echo "$user isn't in OU=Shop"; exit 1; }
+      done
+      dc samba-tool group listmembers linux-admins 2>/dev/null | sort | tr '\n' ' '
+    expect:
+      equals: "dana"
+  - id: password-rules
+    description: "The domain demands at least 14 characters and locks an account after 5 wrong passwords."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool domain passwordsettings show | awk -F': ' '/Minimum password length/ {len=$2} /Account lockout threshold/ {lock=$2} END {print (len >= 14 && lock == 5) ? "strict" : "length " len ", lockout " lock}'
+    expect:
+      equals: strict
+  - id: policy-linked
+    description: "A Group Policy object called Server baseline is linked to the Shop unit."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool gpo getlink 'OU=Shop,DC=ad,DC=shop,DC=test' -U Administrator --password='Shop-Admin-1' 2>/dev/null | grep -c 'Name *: Server baseline$'
+    expect:
+      equals: "1"
+  - id: finds-the-dc
+    description: "Asked through lab's own resolver, the domain's SRV record names dc1, and the site's own names still resolve."
+    command: |
+      test "$(dig +short +time=2 +tries=1 intranet.shop.internal)" = 10.0.9.1 || { echo "the site's names no longer resolve"; exit 1; }
+      dig +short +time=2 +tries=1 _ldap._tcp.ad.shop.test SRV
+    expect:
+      contains: "389 dc1.ad.shop.test."
+  - id: joined
+    description: "lab can prove who it is to the domain with the key it was given."
+    command: |
+      KRB5CCNAME=FILE:/tmp/check-machine-cc kinit -k 'LAB$@AD.SHOP.TEST' 2>&1 || exit 1
+      kdestroy -q -c FILE:/tmp/check-machine-cc
+      echo joined
+    expect:
+      equals: joined
+  - id: dana-logs-in
+    description: "dana logs in over SSH with her domain password, into her own home directory, holding a Kerberos ticket."
+    command: |
+      sshpass -p 'Dana-Pass-12345' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l dana@ad.shop.test 127.0.0.1 'test "$PWD" = "/home/dana@ad.shop.test" && klist -s && echo in'
+    expect:
+      equals: in
+  - id: erin-kept-out
+    description: "erin's password is right, and lab refuses her."
+    command: |
+      echo 'Erin-Pass-12345' | KRB5CCNAME=FILE:/tmp/check-erin-cc kinit erin@AD.SHOP.TEST > /dev/null 2>&1 || { echo "erin can't get a ticket at all"; exit 1; }
+      kdestroy -q -c FILE:/tmp/check-erin-cc
+      sssctl user-checks erin@ad.shop.test -a acct -s login 2>&1 | grep -q 'pam_acct_mgmt: Permission denied' || { echo "the access rule lets erin in"; exit 1; }
+      echo refused
+    expect:
+      equals: refused
+  - id: dc-still-strict
+    description: "dc1 refuses a password sent over an unencrypted LDAP connection."
+    command: ldapsearch -x -o nettimeout=5 -H ldap://10.0.9.10 -D 'dana@ad.shop.test' -w 'Dana-Pass-12345' -b 'DC=ad,DC=shop,DC=test' -s base dn 2>&1 | head -n 2
+    expect:
+      contains: "Strong(er) authentication required"

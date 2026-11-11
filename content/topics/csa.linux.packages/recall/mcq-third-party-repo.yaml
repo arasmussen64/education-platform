@@ -1,14 +1,16 @@
 id: mcq-third-party-repo
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A tool's install guide says: add our repository to `sources.list.d` and import our signing key, then `apt install`. What are you agreeing to?
 choices:
-  - "Nothing beyond downloading one package"
-  - "To trust that organisation with root on the server: their packages run install scripts as root, and every future update from them will too"
-  - "To let them read your other packages' configuration"
-  - "To pay for the software"
-answer: 1
+  - "Only to download that one tool: the signing key limits the repository to the package you asked for"
+  - "To let its owner log in to the server: importing the key adds it to root's `authorized_keys` file"
+  - "To trust its owner with root on the server: their packages run their install scripts as root"
+  - "Nothing risky: a signed package was reviewed by the distribution before `apt` installs it"
+answer: 2
 explanation: |
-  Repositories are signed so that only the key holder can publish to them, which is good: it stops tampering in transit. But it also means whoever holds that key can ship you anything, and package installation runs their scripts as root, now and at every update. That's acceptable for a vendor you'd trust anyway, and a reason to prefer the distribution's own repositories or a container image when you wouldn't.
+  Repositories are signed so that only the key holder can publish to them, which is good: it stops tampering in transit. But it also means whoever holds that key can ship you anything, and package installation runs their scripts as root, now and at every future update. That's acceptable for a vendor you'd trust anyway, and a reason to prefer the distribution's own repositories or a container image when you wouldn't.
+
+  The key puts no limit on what the repository may hold: `apt` will take any package, and any update, that carries its signature. A signature proves who published a package; it says nothing about anyone having reviewed it, and the distribution never sees a third party's packages. And a signing key is not an SSH key: importing it lets `apt` check signatures, it doesn't let anyone log in. They don't need to.
 skills: [repositories]

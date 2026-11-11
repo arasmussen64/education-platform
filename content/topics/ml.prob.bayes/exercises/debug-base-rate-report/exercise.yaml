@@ -1,9 +1,9 @@
 id: debug-base-rate-report
 stage: debug
-rev: 1
+rev: 2
 title: "A base-rate report with two mistakes"
 prompt: |
-  This program builds the table for 100,000 people and applies Bayes' rule to one positive test and then a second. It should print:
+  This program builds the table for 100,000 people, 1 percent of whom have a condition, and a test with sensitivity 0.95 and specificity 0.90: the true positives, then the false positives. Then it applies Bayes' rule to one positive test, and again after a second positive from an independent test. It should print:
 
   ```
   positives 950 9900
@@ -11,5 +11,9 @@ prompt: |
   after two positives 0.477
   ```
 
-  It has two bugs. Run it: the false positives come out as 89,100, nine tenths of the healthy, because `table` multiplies by the specificity, the fraction the test **clears**, where the false-positive rate is `1 - specificity`. Fix that, and the second line repeats the first: the second test must start from the posterior of the first, not from the original base rate.
+  Instead the false positives come out as 89100, and the chance after two positives is the same as after one. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which try `table` on other tests.
+hints:
+  - "Of the 99,000 healthy people, how many should a test with specificity 0.90 wrongly flag? Specificity is the fraction of the healthy that the test clears."
+  - "The false-positive rate is `1 - specificity`."
+  - "After the first positive the chance is 0.088. A second test updates that belief: it starts from the posterior of the first, not from the original base rate."
 skills: [bayes, update]

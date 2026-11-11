@@ -1,14 +1,14 @@
 id: mcq-systemctl-enable-start
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You've installed nginx on a server. You want it running now *and* after every reboot. Which pair of commands?
 choices:
-  - "`systemctl start nginx` only; starting a service also makes it start at boot"
-  - "`systemctl enable nginx` only; enabling a service also starts it now"
-  - "`systemctl start nginx` and `systemctl enable nginx` (or `systemctl enable --now nginx`)"
-  - "`nginx &` from your shell, then log out"
-answer: 2
+  - "`systemctl start nginx` alone: a service that has been started is also started at every boot"
+  - "`systemctl enable nginx` alone: enabling a service starts it now and at every boot from then on"
+  - "`systemctl restart nginx` and `systemctl start nginx`: one covers reboots, the other starts it now"
+  - "`systemctl start nginx` and `systemctl enable nginx`: one starts it now, the other at every boot"
+answer: 3
 explanation: |
-  `start` runs the service now; `enable` links its unit into a target so it starts at boot. They're separate on purpose: you can run something once without making it permanent, or install it for next boot without disturbing the machine now. `enable --now` does both. A program started with `&` from your shell belongs to your terminal, not to PID 1, and gets `HUP` when you log out.
+  `start` runs the service now; `enable` links its unit into a target so that it starts at boot. They're separate on purpose: you can run something once without making it permanent, or set it up for the next boot without disturbing the machine now. With `start` alone the service is gone after a reboot, and with `enable` alone it stays stopped until one; `systemctl enable --now nginx` does both in one command. `restart` has nothing to do with the machine rebooting: it stops the service and starts it again, now.
 skills: [init-systemd]

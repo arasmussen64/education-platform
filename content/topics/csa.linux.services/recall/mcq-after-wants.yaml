@@ -1,14 +1,14 @@
 id: mcq-after-wants
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   A unit has `After=network-online.target` but not `Wants=network-online.target`. What does that mean?
 choices:
-  - "If the network target is being started, this service waits for it; but nothing makes sure the network target is started at all"
-  - "The network target is started whenever this service is, and this service waits for it"
-  - "This service starts first, and the network target afterwards"
-  - "The service refuses to start unless the network target has already finished"
-answer: 0
+  - "Starting this service also starts the network target, and this service waits until it is up"
+  - "This service is started first, and the network target is started once this service is running"
+  - "It waits for the network target if that is starting too, but this line never starts the target"
+  - "This service refuses to start, with an error, unless the network target is already active"
+answer: 2
 explanation: |
-  `After=` is only about *order*: when both are being started, this one goes second. `Wants=` is about *dependency*: starting this service also pulls the other in. Without `Wants=`, on a machine where nothing else wants `network-online.target`, your service may start with no network and no waiting at all. That's why unit files usually carry both lines. "Refuses to start unless" is the stricter `Requires=`.
+  `After=` is only about *order*: when both are being started, this one goes second. `Wants=` is about *dependency*: starting this service also pulls the other one in. Without `Wants=`, on a machine where nothing else wants `network-online.target`, your service may start with no network and no waiting at all, which is why unit files usually carry both lines. "Also starts the network target" describes the two lines together, not `After=` alone. Starting this service first would be `Before=`. And `After=` never stops this service from starting: refusing unless the other unit is already active is a different, stricter setting, `Requisite=`.
 skills: [unit-files, supervision]

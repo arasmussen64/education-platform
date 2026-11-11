@@ -47,8 +47,11 @@ RUN bash /usr/local/lib/lab/make-repo.sh && rm /usr/local/lib/lab/make-repo.sh \
 
 # The user-data file with its gaps, in the learner's home, and a plain first
 # boot (meta-data only, no user data) so the learner's launch is the first
-# time anything is configured.
+# time anything is configured. The shop's image has the shop's data folder,
+# /var/lib/shop, as the prompt and its hints say, so the one command the
+# exercise asks for, touch /var/lib/shop/ready, has somewhere to write.
 COPY user-data-fill.starter /home/learner/user-data.yaml
-RUN chown learner:learner /home/learner/user-data.yaml
+RUN chown learner:learner /home/learner/user-data.yaml \
+ && mkdir -p /var/lib/shop
 
 CMD ["/sbin/init"]

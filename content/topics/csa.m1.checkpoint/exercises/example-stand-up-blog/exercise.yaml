@@ -3,7 +3,7 @@ stage: worked_example
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "A server stood up, start to finish"
 prompt: |
   A solved sibling of the checkpoint's build, in a different story: a fresh server for the company blog, with `blog-web` installed but not running, no firewall, and SSH still taking passwords. The walkthrough brings it up to the same runbook the checkpoint asks for, service, firewall, SSH, in the order that never locks you out, and writes down the result. Type each line yourself in the lab's shell and read what it prints before you type the next.
@@ -20,9 +20,9 @@ steps:
   - label: "Write the firewall"
     lines: "4-12"
     note: "The same shape as the hardening topic's firewall, in `/etc/nftables.conf`: an `input` chain with `policy drop`, accepting loopback, established and related traffic, SSH on 22, and the blog on 8000. Everything else is dropped. Writing it to the file is what lets it come back after a reboot."
-  - label: "Load it and keep it"
+  - label: "Load it, keep it, and try it from outside"
     lines: "13"
-    note: "`nft -f` loads the file into the running kernel; `systemctl enable nftables` makes the service load it at boot. Counting the `dport` rules confirms both ports are in. Your own `ssh` to `localhost` goes over loopback, which the first rule accepts, so you're not locked out."
+    note: "`nft -f` loads the file into the running kernel, so the rules that are running are exactly the ones that are saved; `systemctl enable nftables` makes the service load the same file at boot. Then the test that counts, from another machine: `from-office` runs a command on a second machine on the office network, where this server's address is `10.0.9.1`, and its `curl` reaches the blog through the firewall. Your own `ssh` to `localhost` goes over loopback, which the first rule accepts, so you're not locked out."
   - label: "Harden SSH"
     lines: "14"
     note: "A drop-in turning off password and root logins, then `sshd -t`, which is silent when the file is valid, then the reload. `sshd -t` only checks the file: the running `sshd`, started by `ssh.socket` at your first login in step 2, keeps its old settings until `sudo systemctl reload ssh`, so reload before you test."

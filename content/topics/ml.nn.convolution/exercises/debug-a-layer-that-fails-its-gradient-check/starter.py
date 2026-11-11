@@ -157,7 +157,7 @@ class Conv2D:
                 patch = self.X[:, i : i + h_out, j : j + w_out]
                 # Weight (i, j) was used at every position: its gradient sums them all.
                 self.dW[:, i, j] = (grad_out * patch[:, None]).sum(axis=(0, 2, 3))
-                # Each output gradient flows back to the input cells it read, through weight (i, j).
+                # Each output gradient flows back to the input cells it read.
                 grad_in[:, i : i + h_out, j : j + w_out] += (grad_out * self.W[None, :, j, i, None, None]).sum(axis=1)
         return grad_in
 
@@ -185,7 +185,6 @@ class MaxPool2D:
     def backward(self, grad_out):
         n, c, h_out, w_out = grad_out.shape
         s = self.size
-        # Only the cell that won its window affected the output, so only it gets the gradient.
         spread = grad_out[:, :, :, None, :, None] * np.ones((1, 1, 1, s, 1, s))
         return spread.reshape(n, c, h_out * s, w_out * s)
 

@@ -1,9 +1,9 @@
 id: debug-bits-report
 stage: debug
-rev: 1
-title: "Bits that aren't bits"
+rev: 2
+title: "A fair coin that isn't one bit"
 prompt: |
-  This program reports two entropies in bits and a KL divergence, and should print:
+  This program reports two entropies in bits, a fair coin's and a fair die's, and the KL divergence from a true distribution, `[0.7, 0.2, 0.1]`, to a belief about it, `[0.5, 0.3, 0.2]`. It should print:
 
   ```
   fair coin 1.0 bits
@@ -11,5 +11,9 @@ prompt: |
   kl 0.123
   ```
 
-  It has two bugs. Run it: a fair coin comes out as 0.693 "bits", which is its entropy in **nats**; the functions use `np.log` where bits need `np.log2`. Fix both logs, and the KL divergence comes out negative: it is the cross-entropy **minus** the entropy, the extra surprise a wrong belief costs, and can never be below zero.
+  Instead the coin comes out as about 0.693 "bits", the die as 1.792, and the KL divergence as -0.085. It has two bugs, and one of them is made in two places. Run it, fix what you find, and run it again; then run the checks.
+hints:
+  - "A fair coin is exactly 1 bit, and 0.693 is the natural log of 2. Which log gives an answer in bits?"
+  - "Bits need `np.log2`; `np.log` gives nats. Both `entropy` and `cross_entropy` take a log."
+  - "KL divergence is the extra surprise a wrong belief costs: the cross-entropy minus the entropy. It can never be below zero."
 skills: [surprise, kl]

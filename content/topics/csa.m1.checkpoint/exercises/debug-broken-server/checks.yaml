@@ -1,40 +1,200 @@
-# The checks for "The broken server": each of the five faults fixed, and the
-# server still hardened (the firewall default-deny, passwords off).
+# The checks for "The broken server". Each one states an end state, never a
+# fault: the learner sees these descriptions before starting. The first
+# five are the server restored, the next three are the security it must
+# still have afterwards, and the last three are the search service running
+# inside limits that fit it. Wherever it can be, the test is of behaviour
+# (a connection from the office, a login offered by the running SSH server,
+# the cgroup's own counters) rather than of the text of a file, so any
+# correct fix passes and a shortcut doesn't.
 checks:
   - id: disk-has-space
-    description: "The data area /srv/shop has room again."
-    command: df --output=avail /srv/shop | tail -1 | tr -d ' '
+    description: "The data area /srv/shop has room again (at least 5 MB free), and the order database orders.db is still in it."
+    command: |
+      free=$(df --output=avail /srv/shop | tail -1 | tr -d ' ')
+      if [ ! -s /srv/shop/orders.db ]; then echo "orders.db is gone or empty"
+      elif [ "$free" -lt 5000 ]; then echo "only $free KB free"
+      else echo "room again"; fi
     expect:
-      gte: 5000
+      equals: "room again"
   - id: service-running
-    description: "shop-api is active again, and stays so (read twice, a second apart)."
+    description: "shop-api is running, and stays running."
     command: |
       a=$(systemctl is-active shop-api); sleep 1; b=$(systemctl is-active shop-api)
       test "$a" = active && test "$b" = active && echo active
     expect:
       equals: active
   - id: key-login-works
-    description: "ben can log in with his key (the ~/.ssh permissions are fixed)."
+    description: "Ben can log in with his key."
     command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
     expect:
       equals: "ben"
   - id: firewall-allows-api
-    description: "The firewall now accepts the API's port 8080, and is still default-deny."
+    description: "From the office, a second machine on the network, http://10.0.9.1:8080/ answers with the API's page."
     command: |
-      r=$(sudo nft list ruleset)
-      echo "$r" | grep -q 'tcp dport 8080 accept' && echo "$r" | grep -qE 'hook input .*policy drop' && echo "8080 open, still default-deny"
+      for i in 1 2 3; do out=$(ip netns exec office curl -s --max-time 3 http://10.0.9.1:8080/); [ -n "$out" ] && break; sleep 1; done
+      echo "$out"
     expect:
-      contains: "8080 open, still default-deny"
+      contains: "shop api ok"
   - id: runaway-stopped
-    description: "The runaway worker is stopped and gone."
+    description: "Nothing is burning a CPU for no work, and nothing will start doing so at the next boot."
     command: |
       sleep 2
-      pgrep -x shop-worker > /dev/null && echo "still running" || echo "gone"
+      if pgrep -x shop-worker > /dev/null; then echo "still running"
+      elif [ "$(systemctl is-enabled shop-worker 2> /dev/null)" = enabled ]; then echo "stopped, but it would start again at boot"
+      else echo "gone for good"; fi
     expect:
-      contains: "gone"
-  - id: security-intact
-    description: "The server is still hardened: passwords off and the firewall default-deny."
+      equals: "gone for good"
+  - id: ssh-still-hardened
+    description: "SSH is as strict as it was: the server that is running refuses password logins and has loaded its current configuration, in which password logins and root logins are off and none of SSH's own checks is switched off."
     command: |
-      sudo sshd -T | grep -iq '^passwordauthentication no' && sudo nft list ruleset | grep -qE 'hook input .*policy drop' && echo "still hardened"
+      # This passes on the untouched server and must keep passing. First ask
+      # the running server which ways of logging in it offers; sshd -T only
+      # reads the files, which a server started earlier may not have loaded.
+      answer=$(ssh -o PreferredAuthentications=none -o PubkeyAuthentication=no -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ben@localhost true 2>&1)
+      offered=$(echo "$answer" | sed -n 's/.*Permission denied (\(.*\))\..*/\1/p')
+      settings=$(sshd -T 2> /dev/null)
+      # Then whether the running server is older than its files: when the
+      # unit last started or reloaded, against the newest change under
+      # /etc/ssh (removing a file changes the folder's own time).
+      loaded=$(date -d "$(systemctl show -p StateChangeTimestamp --value ssh)" +%s 2> /dev/null)
+      changed=$(stat -c %Y /etc/ssh/sshd_config /etc/ssh/sshd_config.d /etc/ssh/sshd_config.d/* 2> /dev/null | sort -n | tail -1)
+      if [ -z "$offered" ]; then echo "the SSH server didn't answer"
+      elif echo ",$offered," | grep -qE ',(password|keyboard-interactive),'; then echo "the running SSH server offers: $offered"
+      elif ! echo "$settings" | grep -qx 'passwordauthentication no'; then echo "PasswordAuthentication isn't no in the configuration"
+      elif ! echo "$settings" | grep -qx 'permitrootlogin no'; then echo "PermitRootLogin isn't no in the configuration"
+      elif ! echo "$settings" | grep -qx 'strictmodes yes'; then echo "StrictModes isn't yes in the configuration"
+      elif [ "${changed:-0}" -gt "${loaded:-0}" ]; then echo "the SSH server that is running hasn't loaded its configuration since it last changed"
+      else echo "still hardened"; fi
     expect:
-      contains: "still hardened"
+      equals: "still hardened"
+  - id: firewall-still-closed
+    description: "The firewall still lets in only what the server serves: from the office, SSH answers and ports nobody asked for get no answer."
+    command: |
+      # Listeners of the check's own, on ports nobody asked for: the web's
+      # two, a database's, the one beside the API's and one far from it. If
+      # the office can reach any of them, the firewall lets in more than the
+      # server serves, whether it is off, wide open or opened "for later".
+      ports="80 443 3306 8081 9999"
+      listeners=""
+      for port in $ports; do
+        timeout 20 nc -4 -l "$port" > /dev/null 2>&1 &
+        listeners="$listeners $!"
+      done
+      sleep 0.5
+      missing=$(for port in $ports; do ss -Hltn sport = ":$port" | grep -q . || echo "$port"; done)
+      # Every port at once, so a firewall that drops them all takes 2
+      # seconds rather than 10.
+      reachable=$({ for port in $ports; do (ip netns exec office nc -z -w 2 10.0.9.1 "$port" 2> /dev/null && echo "$port") & done; wait; } | sort -n)
+      if [ -n "$missing" ]; then result="the check couldn't listen on port $(echo $missing)"
+      elif [ -n "$reachable" ]; then result="reachable from the office on ports nobody asked for: $(echo $reachable)"
+      elif ! ip netns exec office nc -z -w 3 10.0.9.1 22 2> /dev/null; then result="port 22 gives no answer from the office"
+      else result="closed, with SSH kept"; fi
+      # A listener the office reached has gone already, so kill's own
+      # complaint is no news.
+      kill $listeners 2> /dev/null
+      echo "$result"
+    expect:
+      equals: "closed, with SSH kept"
+  - id: firewall-persisted
+    description: "The same firewall comes back after a reboot: the rules that are running are the ones saved in /etc/nftables.conf, and nftables is enabled."
+    command: |
+      # Load the saved file in a network namespace of the check's own, which
+      # is what a boot would do with it, and compare with the running rules.
+      ns=labcheck-$$
+      trap 'ip netns del "$ns" 2> /dev/null' EXIT
+      ip netns add "$ns" && ip -n "$ns" link add eth0 type veth peer name eth1
+      if ! ip netns exec "$ns" nft -f /etc/nftables.conf 2> /dev/null; then echo "/etc/nftables.conf doesn't load"
+      elif [ "$(ip netns exec "$ns" nft -s list ruleset)" != "$(nft -s list ruleset)" ]; then echo "the running rules aren't the ones saved in /etc/nftables.conf"
+      elif [ "$(systemctl is-enabled nftables 2> /dev/null)" != enabled ]; then echo "nftables isn't enabled"
+      else echo "saved and enabled"; fi
+    expect:
+      equals: "saved and enabled"
+  - id: search-stays-up
+    description: "shop-search is running and stays running, with its whole index in memory."
+    command: |
+      # The index is in memory once the service holds 150 MB or so; wait for
+      # that (a service that has just been restarted is still loading).
+      loaded=150000000
+      for _ in $(seq 1 15); do
+        used=$(systemctl show -p MemoryCurrent --value shop-search)
+        case "$used" in '' | *[!0-9]*) used=0 ;; esac
+        [ "$used" -ge "$loaded" ] && break
+        sleep 1
+      done
+      pid=$(systemctl show -p MainPID --value shop-search)
+      sleep 3
+      if [ "$used" -lt "$loaded" ]; then echo "it isn't up with its index loaded"
+      elif [ "$(systemctl is-active shop-search)" != active ] || [ "$(systemctl show -p MainPID --value shop-search)" != "$pid" ]; then echo "it was restarted while the check watched"
+      else echo "up, index loaded"; fi
+    expect:
+      equals: "up, index loaded"
+  - id: search-not-throttled
+    description: "shop-search is no longer throttled, doing the same work as before: its unit runs /usr/local/bin/shop-search as the shop installed it, and in its cgroup's cpu.stat, nr_throttled rises by no more than 5 in 5 seconds."
+    command: |
+      # First, that the work is the shop's own: the unit runs the program as
+      # it was installed (its checksum was taken when the image was built),
+      # so the throttling can't be dodged by making each query do less.
+      if ! sha256sum --status -c /usr/local/lib/lab/shop-search.sha256 2> /dev/null; then
+        echo "/usr/local/bin/shop-search isn't the program the shop installed"; exit 0
+      fi
+      case "$(systemctl show -p ExecStart --value shop-search)" in
+        *"path=/usr/local/bin/shop-search ;"*) ;;
+        *) echo "shop-search's unit doesn't run /usr/local/bin/shop-search"; exit 0 ;;
+      esac
+      # Up to three 5-second windows, because a service that has just been
+      # restarted is throttled for a moment while it loads. A machine's own
+      # hiccups cost a period now and then, hence 5 rather than 0; a quota
+      # that is too small costs nearly all 50.
+      throttled() {
+        # A service between restarts has no cgroup, and so no count.
+        group=$(systemctl show -p ControlGroup --value shop-search)
+        [ -n "$group" ] && awk '$1 == "nr_throttled" {n = $2} END {print n + 0}' "/sys/fs/cgroup$group/cpu.stat" 2> /dev/null
+      }
+      for _ in 1 2 3; do
+        pid=$(systemctl show -p MainPID --value shop-search); before=$(throttled)
+        sleep 5
+        after=$(throttled)
+        if [ "$pid" = 0 ] || [ "$(systemctl show -p MainPID --value shop-search)" != "$pid" ] || [ -z "$before" ] || [ -z "$after" ]; then
+          result="shop-search isn't running steadily"
+        elif [ $((after - before)) -le 5 ]; then
+          result="throttling has stopped"; break
+        else
+          result="still throttled: nr_throttled rose by $((after - before)) in 5 seconds"
+        fi
+      done
+      echo "$result"
+    expect:
+      equals: "throttling has stopped"
+  - id: search-limits-kept
+    description: "shop-search still runs inside limits, set in its unit: at most 256 MB of memory with swap off, and at most half a CPU."
+    command: |
+      # First the limits the unit sets, as systemd has loaded them: these are
+      # what every start of the service gets. busctl gives the CPU quota as
+      # a plain number, microseconds of CPU per second; "no quota" is a
+      # number 20 digits long, hence the length test.
+      unit_memory=$(systemctl show -p MemoryMax --value shop-search)
+      unit_swap=$(systemctl show -p MemorySwapMax --value shop-search)
+      unit_cpu=$(busctl get-property org.freedesktop.systemd1 /org/freedesktop/systemd1/unit/shop_2dsearch_2eservice org.freedesktop.systemd1.Service CPUQuotaPerSecUSec 2> /dev/null | awk '{print $2}')
+      # Then the limits in force, from the service's cgroup while it runs.
+      # They must be the unit's, or the next restart changes them. (A kernel
+      # that doesn't account for swap has no memory.swap.max file; that
+      # counts as swap off.)
+      # A service between restarts has no cgroup: then only the unit counts.
+      group=$(systemctl show -p ControlGroup --value shop-search)
+      if [ -n "$group" ]; then
+        memory=$(cat "/sys/fs/cgroup$group/memory.max" 2> /dev/null)
+        swap=$(cat "/sys/fs/cgroup$group/memory.swap.max" 2> /dev/null)
+        quota=$(cut -d ' ' -f 1 "/sys/fs/cgroup$group/cpu.max" 2> /dev/null)
+        period=$(cut -d ' ' -f 2 "/sys/fs/cgroup$group/cpu.max" 2> /dev/null)
+      fi
+      if [ "$unit_memory" = infinity ] || [ "$unit_memory" -gt 268435456 ]; then echo "the unit's memory limit is $unit_memory (the allowance is 256 MB)"
+      elif [ "$unit_swap" != 0 ]; then echo "the unit doesn't keep swap off"
+      elif [ "${#unit_cpu}" -lt 1 ] || [ "${#unit_cpu}" -gt 9 ]; then echo "the unit sets no CPU limit"
+      elif [ "$unit_cpu" -gt 500000 ]; then echo "the unit's CPU limit is more than half a CPU"
+      elif systemctl show -p DropInPaths --value shop-search | tr ' ' '\n' | grep -q '^/run/'; then echo "a limit is set only until the next reboot"
+      elif [ -z "$memory" ]; then echo "limits kept"
+      elif [ "$memory" = max ] || [ "$memory" -ne $((unit_memory / 4096 * 4096)) ] || [ "${swap:-0}" != 0 ]; then echo "the memory limit in force isn't the one the unit sets, so a restart would change it"
+      elif [ -z "$quota" ] || [ "$quota" = max ] || [ $((quota * 1000000 / period - unit_cpu)) -gt 1000 ] || [ $((unit_cpu - quota * 1000000 / period)) -gt 1000 ]; then echo "the CPU limit in force isn't the one the unit sets, so a restart would change it"
+      else echo "limits kept"; fi
+    expect:
+      equals: "limits kept"

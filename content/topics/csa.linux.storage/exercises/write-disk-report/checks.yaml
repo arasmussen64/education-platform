@@ -1,21 +1,33 @@
-# The checks for "Write disk-report": each line of the script's answer for
-# /srv/shop against the same question answered directly.
+# The checks for "Write disk-report": each line of the script's answer
+# against the same question answered directly, on two filesystems whose
+# answers all differ (/srv/shop: about 91% used, 1% of inodes, logs, one
+# deleted file; /srv/media: about 40% used, a third of its inodes, video,
+# two deleted files). A script that prints fixed lines, or always reports on
+# the same filesystem, is right for one of them at most:
+# wrong/typed-in-answers.sh proves it. The descriptions leave the answers
+# out, because the page shows them before any attempt.
 checks:
   - id: used-line
-    description: "The used line matches what df says for /srv/shop."
+    description: "The used line matches what df says, on /srv/shop and on /srv/media."
     command: |
-      test "$(runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^used:')" = "used: $(df --output=pcent /srv/shop | tail -n 1 | tr -d ' ')"
+      for m in /srv/shop /srv/media; do
+        test "$(runuser -u learner -- /home/learner/bin/disk-report "$m" | grep '^used:')" = "used: $(df --output=pcent "$m" | tail -n 1 | tr -d ' ')" || exit 1
+      done
   - id: inodes-line
-    description: "The inodes line matches what df -i says."
+    description: "The inodes line matches what df -i says, on both."
     command: |
-      test "$(runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^inodes:')" = "inodes: $(df --output=ipcent /srv/shop | tail -n 1 | tr -d ' ')"
+      for m in /srv/shop /srv/media; do
+        test "$(runuser -u learner -- /home/learner/bin/disk-report "$m" | grep '^inodes:')" = "inodes: $(df --output=ipcent "$m" | tail -n 1 | tr -d ' ')" || exit 1
+      done
   - id: biggest-line
-    description: "The biggest line names the logs folder, which holds the most."
-    command: runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^biggest:'
+    description: "The biggest line names the top-level folder that holds the most, on both."
+    command: |
+      echo "$(runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^biggest:') $(runuser -u learner -- /home/learner/bin/disk-report /srv/media | grep '^biggest:')"
     expect:
-      equals: "biggest: /srv/shop/logs"
+      equals: "biggest: /srv/shop/logs biggest: /srv/media/video"
   - id: deleted-line
-    description: "The deleted-but-open line counts the one log a process is still holding."
-    command: runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^deleted but open:'
+    description: "The deleted-but-open line counts the deleted files still held open on that filesystem and no other, on both."
+    command: |
+      echo "$(runuser -u learner -- /home/learner/bin/disk-report /srv/shop | grep '^deleted but open:') $(runuser -u learner -- /home/learner/bin/disk-report /srv/media | grep '^deleted but open:')"
     expect:
-      equals: "deleted but open: 1"
+      equals: "deleted but open: 1 deleted but open: 2"

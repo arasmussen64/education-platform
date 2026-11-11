@@ -35,7 +35,7 @@ EXPECTED = 'weekly: [140, 350, 700, 840]\nmean loss: 0.1\nsoftmax: [[0.269, 0.73
 
 
 def test_the_output():
-    """Prints the widened weekly clicks, a mean of 0.1 and two finite softmax rows."""
+    """Prints the weekly clicks, a mean of 0.1 and two finite softmax rows."""
     printed = run()
     assert printed == EXPECTED, f"Expected this:\n{EXPECTED}\nYour program printed:\n{printed}"
 

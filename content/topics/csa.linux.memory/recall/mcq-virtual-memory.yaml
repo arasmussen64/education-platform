@@ -1,14 +1,16 @@
 id: mcq-virtual-memory
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   Two processes on the same server both report that a variable lives at address `0x7f3a1c00`. How can that be?
 choices:
-  - "It can't; the kernel gives every process different addresses"
-  - "Each process has its own virtual address space, and the kernel maps each one's pages to different physical memory, so the same virtual address means different RAM in each process"
-  - "They share that memory, so one can read the other's variable"
-  - "One of them is swapped out"
-answer: 1
+  - "They share that page of physical memory, so each can read and change the other's variable"
+  - "The address is the variable's place in swap on disk, which all processes on a server share"
+  - "Each has its own virtual address space, so the same address is different RAM in each one"
+  - "The kernel gave both the same physical page, and keeps the values apart by swapping one out"
+answer: 2
 explanation: |
-  Addresses a program sees are virtual: private to that process and translated by the kernel and the CPU, page by page, into physical locations. Two processes using the same virtual address are looking at two different pages of RAM (unless they deliberately share memory). That translation is also what lets the kernel move a page to swap or drop a cached file page without the program noticing anything but a delay.
+  Addresses a program sees are virtual: private to that process and translated by the kernel and the CPU, page by page, into physical locations. Two processes using the same virtual address are looking at two different pages of RAM, so neither can read or change the other's variable (unless they deliberately set up shared memory).
+
+  The address says nothing about where the data physically is, in RAM or in swap: that translation is the kernel's business, and it is what lets the kernel move a page to swap, or drop a cached file page, without the program noticing anything but a delay. Swap is somewhere idle pages wait, not a trick for fitting two values into one page.
 skills: [virtual-memory]

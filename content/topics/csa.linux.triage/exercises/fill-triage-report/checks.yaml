@@ -8,24 +8,35 @@ checks:
     description: "The script has no ... left in it."
     command: "! grep -q '\\.\\.\\.' /home/learner/bin/triage-report"
   - id: cpus-line
-    description: "The cpus line is nproc."
+    description: "The cpus line is the machine's number of CPUs."
     command: |
       test "$(/home/learner/bin/triage-report | awk -F': ' '/^cpus:/ {print $2}')" = "$(nproc)" && echo "cpus match"
     expect:
       contains: "cpus match"
   - id: run-queue-is-the-runqueue
-    description: "The run-queue line is vmstat's first column, r, not the blocked column, b (the check hands the script a vmstat whose r is 7 and whose b is 3)."
+    description: "The run-queue line is vmstat's run-queue column and no other (the check hands the script a vmstat with fixed numbers, in which the run queue is 7)."
     command: |
       PATH=/usr/local/lib/lab-check:$PATH /home/learner/bin/triage-report | awk -F': ' '/^run-queue:/ {print $2}'
     expect:
       equals: "7"
   - id: busiest-is-the-worker
     description: "The busiest process is the shop's worker."
-    command: /home/learner/bin/triage-report | grep '^busiest:'
+    # ps works out %CPU as CPU time over lifetime, so on a busy machine a
+    # process born a few milliseconds ago (ps itself) can show 100% for an
+    # instant and sit above the worker (seen in the CPU report lab,
+    # 2026-11-11). So the check takes the first of up to five runs that
+    # names the worker; a script that sorts the wrong way never does.
+    command: |
+      for _ in 1 2 3 4 5; do
+        line=$(/home/learner/bin/triage-report | grep '^busiest:')
+        case "$line" in *shop-worker*) break ;; esac
+        sleep 1
+      done
+      echo "$line"
     expect:
       contains: "shop-worker"
   - id: busiest-cpu-is-a-high-percentage
-    description: "The busiest-cpu line is the worker's CPU percentage (field 2), near 100, not its name (field 1)."
+    description: "The busiest-cpu line is the worker's CPU percentage, a number near 100."
     command: |
       /home/learner/bin/triage-report | awk -F': ' '/^busiest-cpu:/ {print $2}'
     expect:

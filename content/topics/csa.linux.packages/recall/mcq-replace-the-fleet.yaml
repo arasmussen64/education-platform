@@ -1,14 +1,16 @@
 id: mcq-replace-the-fleet
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You run forty identical web servers in the cloud behind a load balancer, and a security update is out. Which approach do experienced teams prefer, and why?
 choices:
-  - "SSH to each server and run `apt upgrade`, because it's the fastest"
-  - "Build and test one new machine image with the update, then replace the servers from it a few at a time, because every server stays identical, the image is a tested artifact, and rollback is redeploying the old image"
-  - "Upgrade one server and copy its disk to the others"
-  - "Wait for the next release of the distribution"
-answer: 1
+  - "Build and test one new image, then replace the servers from it a few at a time, so they all stay identical"
+  - "Run `apt upgrade` on all forty at the same moment over SSH, so that no server stays exposed for longer"
+  - "Upgrade one server by hand and copy its disk over the other thirty-nine, so that they all stay identical"
+  - "Leave all forty alone until the distribution's next release, so that the update arrives fully tested"
+answer: 0
 explanation: |
-  Forty servers patched by hand are forty chances for one to end up different, and no way back if the update misbehaves. A new image is built once, tested once, and rolled out gradually (an autoscaling group or deployment tool does the replacing), with the old image a known-good fallback. It's also the only approach that scales to four hundred servers, or to servers that are created and destroyed automatically.
+  A new image is built once, tested once, and rolled out gradually (an autoscaling group or deployment tool does the replacing), with the old image a known-good fallback: rollback is redeploying it. It's also the only approach that scales to four hundred servers, or to servers that are created and destroyed automatically.
+
+  Forty servers patched in place are forty chances for one to end up different, and patching them all at the same moment means that if the update misbehaves, the whole service is down with no way back; that is why even in-place patching does one server first. A hand-upgraded server's disk carries everything else that was ever done to it by hand, and it was never tested as an image. And waiting for the next release leaves a known hole open for months: security updates come first.
 skills: [immutable]

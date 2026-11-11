@@ -2,7 +2,7 @@ import math
 
 
 def softmax(logits):
-    """exp(logits) scaled to sum to 1, with the largest logit pulled out so nothing overflows."""
+    """exp(logits) scaled to sum to 1, for logits of any size."""
     weights = [math.exp(x) for x in logits]
     total = sum(weights)
     return [w / total for w in weights]

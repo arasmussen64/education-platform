@@ -1,14 +1,14 @@
 id: mcq-pid1-systemd
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   What is special about PID 1 on a Linux server?
 choices:
-  - "It's the shell of the first user who logged in"
-  - "It's the kernel"
-  - "It's the init system, systemd on most distributions: the first process the kernel starts, which starts and supervises services and adopts orphaned processes"
-  - "It's the process using the most memory"
-answer: 2
+  - "It is the kernel itself, which is listed as the parent of every other process on the machine"
+  - "It is the first process the kernel starts; it starts the services and adopts orphaned processes"
+  - "It is the login shell of the first user to sign in, and every later session is forked from it"
+  - "It is the process that runs each command you type: your shell hands the command to it and waits"
+answer: 1
 explanation: |
-  The kernel starts exactly one program, and everything else descends from it. On nearly every modern distribution that program is systemd. It reads unit files, starts services in dependency order, restarts the ones that crash, groups them into targets, and becomes the parent of any process whose own parent has died, reaping it when it exits. The kernel itself isn't a process in this list, and PID 1 is often small.
+  The kernel starts exactly one program, and everything else descends from it. On nearly every modern distribution that program is systemd, the init system. It reads unit files, starts services in dependency order, restarts the ones that crash, groups them into targets, and becomes the parent of any process whose own parent has died, reaping it when it exits. The kernel itself isn't a process in the list: it's what starts PID 1. PID 1 is running long before anyone logs in, so it isn't a user's shell. And your commands are forked by your own shell, not handed to PID 1.
 skills: [init-systemd]
