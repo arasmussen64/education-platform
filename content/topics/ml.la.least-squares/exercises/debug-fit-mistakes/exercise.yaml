@@ -1,7 +1,7 @@
 id: debug-fit-mistakes
 stage: debug
-rev: 1
-title: "A fit that comes out backwards"
+rev: 2
+title: "A line through five points"
 prompt: |
   `fit_line(xs, ys)` should return the slope and the intercept of the least-squares line, and the program should print:
 
@@ -10,5 +10,10 @@ prompt: |
   intercept 1.15
   ```
 
-  It has two bugs. Run it: the first is a shape error in the normal equations (the two things handed to `np.linalg.solve` have to match: how many rows does the matrix have, and how many entries does the right-hand side have?). Fix that and it runs, but the two numbers come out the wrong way round: look at the order of the columns in the design matrix.
+  Instead it stops with a `ValueError` that starts `solve1: Input operand 1 has a mismatch in its core dimension 0`. It has two bugs, and the second shows only once the first is fixed. Run it, read the error, fix what you find, and run it again.
+hints:
+  - "Print the shapes of the two things handed to `np.linalg.solve`. With 5 points and 2 unknowns, the matrix should be 2 by 2 and the right-hand side 2 long."
+  - "The normal equations are `np.linalg.solve(A.T @ A, A.T @ b)`. `A @ A.T` is 5 by 5, one row and one column per point."
+  - "Once it runs, the two numbers come out swapped: slope 1.15, intercept 1.95. Which unknown goes with each column of the design matrix?"
+  - "`np.column_stack([np.ones(len(xs)), xs])` puts the ones first, so the first coefficient is the intercept and the second the slope."
 skills: [normal, design]
