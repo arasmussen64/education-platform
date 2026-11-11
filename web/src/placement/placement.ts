@@ -50,12 +50,18 @@ export type Verdict = 'pass' | 'fail' | 'open'
 
 /**
  * A probe's verdict from the answers so far, out of `size` questions: it
- * passes once more than half are right, and fails as soon as the questions
+ * passes once at least half are right, and fails as soon as the questions
  * left can't get it there, so a decided probe stops early. Once every
  * question is answered it's never open.
+ *
+ * "At least half" means a tie passes: one right and one wrong out of two,
+ * or two of four. ADR-0021 gives ties the benefit of the doubt, because a
+ * generous estimate is caught by the topic's proofs later, and a stingy one
+ * only costs a short lesson on something familiar. With two questions, a
+ * first right answer decides it, as the second could only make a tie.
  */
 export function verdict(results: boolean[], size: number): Verdict {
-  const needed = Math.floor(size / 2) + 1
+  const needed = Math.ceil(size / 2)
   const right = results.filter(Boolean).length
   const left = Math.max(0, size - results.length)
   if (right >= needed) return 'pass'

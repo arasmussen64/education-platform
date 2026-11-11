@@ -43,3 +43,16 @@ Every placement question offers an "I don't know this" answer beside its choices
 ## Amendment (2026-11-10): refused placement events are tried again
 
 The first consequence above says the outbox "reports them as refused". At the time it reported nothing and never re-sent them. Since 2026-11-10 the header and the account page say how many events are waiting, and the browser tries them again at most every 12 hours until the server accepts them, so placements recorded before the migration arrived are saved once it has ([ADR-0008](0008-event-log.md), amendment of the same date).
+
+## Amendment (2026-11-11): a tie passes, as decision 2 says
+
+Decision 2 says ties get the benefit of the doubt, but the code passed a probe only when more than half its answers were right, so a tie failed. An audit on 2026-11-11 found it mattered for 11 of the 100 ready regular topics: their review pools have only two recall questions, so one slip placed the learner before the topic. Six of the 11 are the math refresher (`ml.math.*`) that the placement test exists to route around; the others are `ml.py.classes`, `ml.py.dataclasses-and-typing`, `ml.py.writing-tests`, `py.arithmetic` and `py.values-and-types`. The Context's "a review pool of three or more recall questions" isn't true for them.
+
+Since 2026-11-11 a probe passes once at least half its answers are right (`needed = ceil(size / 2)` in `web/src/placement/placement.ts`).
+
+- **What changes.** Only probes of two questions: one right and one wrong now passes. A probe of three still needs two right, the math diagnostic is unchanged (every level has three questions), and a probe with nothing to ask still passes.
+- **Stopping early, both ways.** A decided probe still stops at once. With two questions, a first right answer now decides it, since the second could only make a tie; before, a first wrong answer decided it the other way. Either way such a probe rests on one question. That's the generous side of the trade-off decision 2 accepts: the topic's proofs catch an estimate that was too generous.
+- **Earlier results.** A finished placement is one event naming what it found, so results saved before this change are kept as they were and not worked out again.
+- **Alternative considered: keep the stricter rule and write a third recall question for each of the 11 topics.** More evidence per probe would be better, and the pools can still grow, but until then the rule should be the one this ADR states.
+
+Decided under the owner's delegation of 2026-11-11 and recorded in [docs/owner-queue.md](../owner-queue.md) under "Decided for you".
