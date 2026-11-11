@@ -156,6 +156,11 @@ def load(path: Path, shape: type[BaseModel] | TypeAdapter[Any], report: Report):
     except yaml.YAMLError as exc:
         report.add(path, f"isn't valid YAML: {exc}")
         return None
+    except ValueError as exc:
+        # YAML reads 2026-13-40 as a date (an estimate's prices_as_of), and a
+        # date that doesn't exist raises this rather than a YAML error.
+        report.add(path, f"has a value that can't be read: {exc}")
+        return None
     for text in doubled_apostrophes(data):
         match = DOUBLED_APOSTROPHE.search(text)
         snippet = text[max(0, match.start() - 12) : match.end() + 12] if match else text
@@ -1118,6 +1123,13 @@ def check_given(
                 path,
                 f"given {name!r} has the name of a function the working can call; "
                 "call it something else, like min_cores",
+            )
+        elif name in arithmetic.RESERVED_WORDS:
+            report.add(
+                path,
+                f"given {name!r} is a word Python keeps for itself, so a sum "
+                "can't use it as a name; call it something else, like "
+                f"{name}_count",
             )
         if abs(value) not in stated:
             report.add(

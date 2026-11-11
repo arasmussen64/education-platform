@@ -155,6 +155,32 @@ def test_a_given_may_not_take_a_function_name(tree: Path) -> None:
     )
 
 
+def test_a_given_may_not_take_a_word_python_keeps(tree: Path) -> None:
+    found = estimate_with(
+        tree,
+        ("hours: 730", "in: 730"),
+        ("(vm + disk) * hours", "(vm + disk) * in"),
+        ("vm * hours", "vm * in"),
+    )
+    assert any(
+        "given 'in' is a word Python keeps for itself, so a sum can't use it "
+        "as a name; call it something else, like in_count" in p
+        for p in found
+    ), found
+
+
+def test_a_date_that_doesnt_exist_is_reported_not_a_crash(tree: Path) -> None:
+    found = estimate_with(
+        tree, ("prices_as_of: 2026-11-10", "prices_as_of: 2026-13-40")
+    )
+    assert_refused(found, "has a value that can't be read: month must be in 1..12")
+
+
+def test_a_working_too_big_to_work_out_is_reported_not_a_crash(tree: Path) -> None:
+    found = estimate_with(tree, ("working: vm * hours", "working: (10 ** 100) ** 50"))
+    assert_one_problem(found, "gives a number too big to work out")
+
+
 @pytest.mark.parametrize(
     ("working", "message"),
     [

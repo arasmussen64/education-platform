@@ -15,6 +15,7 @@ numbers they would be 0.30000000000000004 and 8.
 from __future__ import annotations
 
 import ast
+import keyword
 import math
 from collections.abc import Callable, Mapping
 from fractions import Fraction
@@ -27,6 +28,13 @@ class NotArithmetic(ValueError):
 # Anything bigger than this as a power or a rounding place is a typo, and
 # 10 ** 100000000 would take a very long time to work out exactly.
 LARGEST_EXPONENT = 100
+
+# The most binary digits a number in a sum may have, on top or underneath:
+# about 300 decimal digits, far more than any estimate needs. Every part of a
+# sum is held to it, because a power of a power, ((10 ** 100) ** 100) ** 100
+# and so on, would otherwise grow too big to work out or even to print, and
+# the validator would hang.
+LARGEST_BITS = 1000
 
 ALLOWED = (
     "numbers, the given names, + - * / // % **, brackets, "
@@ -108,6 +116,10 @@ FUNCTIONS: dict[str, tuple[Callable[..., Fraction], range]] = {
     "abs": (absolute, range(1, 2)),
 }
 
+# Words Python keeps for itself (in, if, and, for...). A given named one of
+# them can't be read in a sum: "vcpus * in" isn't arithmetic to the parser.
+RESERVED_WORDS = frozenset(keyword.kwlist)
+
 BINARY: dict[type[ast.operator], Callable[[Fraction, Fraction], Fraction]] = {
     ast.Add: lambda a, b: a + b,
     ast.Sub: lambda a, b: a - b,
@@ -124,10 +136,12 @@ def evaluate(text: str, names: Mapping[str, Fraction]) -> Fraction:
     message for the author, if it isn't one."""
     try:
         tree = ast.parse(text.strip(), mode="eval")
+        return value_of(tree.body, names)
     except SyntaxError as exc:
         raise NotArithmetic(f"isn't a sum that can be read ({exc.msg})") from exc
-    try:
-        return value_of(tree.body, names)
+    except RecursionError as exc:
+        # Thousands of terms, or brackets inside brackets: never a real sum.
+        raise NotArithmetic("is nested too deeply to work out") from exc
     except ZeroDivisionError as exc:
         raise NotArithmetic("divides by zero") from exc
     except OverflowError as exc:
@@ -135,6 +149,20 @@ def evaluate(text: str, names: Mapping[str, Fraction]) -> Fraction:
 
 
 def value_of(node: ast.expr, names: Mapping[str, Fraction]) -> Fraction:
+    """The value of one part of the parsed sum, held to LARGEST_BITS, so the
+    next step never starts on a number too big to work out."""
+    value = part_value(node, names)
+    if bits_in(value) > LARGEST_BITS:
+        raise NotArithmetic("gives a number too big to work out")
+    return value
+
+
+def bits_in(value: Fraction) -> int:
+    """How many binary digits a number takes, on top or underneath."""
+    return max(abs(value.numerator).bit_length(), value.denominator.bit_length())
+
+
+def part_value(node: ast.expr, names: Mapping[str, Fraction]) -> Fraction:
     """The value of one part of the parsed sum, working down the tree."""
     match node:
         case ast.Constant(value=bool()):

@@ -71,6 +71,12 @@ def test_a_fractional_power_is_worked_out_as_a_float() -> None:
         ("round(a, 0.5)", "round's number of places must be a whole number"),
         ("(-8) ** 0.5", "a negative number to a fractional power isn't real"),
         ("10 ** 400.5", "gives a number too big to work out"),
+        # Each power is allowed, but together they'd take hours to work out.
+        ("(((10 ** 100) ** 100) ** 100) ** 100", "gives a number too big"),
+        ("(10 ** 100) ** 50", "gives a number too big to work out"),
+        ("((1 / 3) ** 100) ** 100", "gives a number too big to work out"),
+        ("+".join(["a"] * 5000), "is nested too deeply to work out"),
+        ("-" * 5000 + "a", "is nested too deeply to work out"),
     ],
 )
 def test_anything_but_arithmetic_is_refused(text: str, message: str) -> None:
