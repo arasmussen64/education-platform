@@ -12,5 +12,5 @@ answer: 0
 explanation: |
   Both chips are 64-bit Arm, so the file is accepted and starts. But an architecture grows: newer chips add instructions. Graviton3 (Neoverse V1 cores) has **SVE**, Arm's wide vector instructions; Graviton2 (Neoverse N1) doesn't. Told to use everything the build machine has, the compiler used SVE, and the first SVE instruction on a Graviton2 is one its CPU can't do: signal 4, `SIGILL`, exit status 128 + 4 = 132. The fix is to build for the oldest CPU in the fleet: no `-mcpu=native`, or a target the oldest chip meets (`-mcpu=neoverse-n1`).
 
-  A memory kill is signal 9, exit 137, and memory-sized, not chip-sized. A wrong architecture never starts at all (`Exec format error`). And a damaged file would fail on the Graviton3 too, not on every node of one generation.
+  A memory kill is signal 9, exit 137, and memory-sized, not chip-sized. A wrong architecture never starts at all (`Exec format error`). And a copy damaged on its way wouldn't be damaged the same way on every node, nor pick out exactly the nodes of one older chip.
 skills: [instruction-sets, rebuild-inventory]

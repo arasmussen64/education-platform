@@ -2,37 +2,39 @@ id: arch-saving-percent
 type: estimate
 rev: 1
 # Prices: Azure Retail Prices API (https://prices.azure.com/api/retail/prices),
-# armSkuName Standard_D2s_v6 and Standard_D2ps_v6, East US, Linux,
-# consumption, read 2026-11-11.
+# armSkuName Standard_D2as_v6 and Standard_D2ps_v6, East US, Linux,
+# consumption, read 2026-11-11 (and again by the topic's reviewer the same
+# day: 0.0908 and 0.0702). The pair isn't the lesson's Intel one, so the
+# answer can't be remembered from the lesson's 30%.
 prompt: |
-  The shop's web tier runs on Azure `Standard_D2s_v6` VMs (Intel, 2 vCPUs, 8 GiB). The same size on Cobalt 100, Microsoft's Arm chip, is `Standard_D2ps_v6`. On-demand list prices for Linux in East US, read on 2026-11-11:
+  The shop's web tier runs on Azure `Standard_D2as_v6` VMs (AMD, 2 vCPUs, 8 GiB). The same size on Cobalt 100, Microsoft's Arm chip, is `Standard_D2ps_v6`. On-demand list prices for Linux in East US, read on 2026-11-11:
 
   ```
-  Standard_D2s_v6     0.101  dollars an hour
+  Standard_D2as_v6    0.0908 dollars an hour
   Standard_D2ps_v6    0.0702 dollars an hour
   ```
 
   By what percentage of today's price would each VM's bill fall? Within half a percentage point.
 unit: "% less"
-answer: 30.5
+answer: 22.7
 tolerance: { absolute: 0.5 }
-given: { intel: 0.101, arm: 0.0702 }
-working: (intel - arm) / intel * 100
+given: { amd: 0.0908, arm: 0.0702 }
+working: (amd - arm) / amd * 100
 mistakes:
   - id: of-the-arm-price
-    value: 43.9
-    working: (intel - arm) / arm * 100
-    why: That's the saving as a share of the Arm price. A saving is a share of what you pay now, the Intel price.
+    value: 29.3
+    working: (amd - arm) / arm * 100
+    why: That's the saving as a share of the Arm price. A saving is a share of what you pay now, the AMD price.
   - id: share-still-paid
-    value: 69.5
-    working: arm / intel * 100
+    value: 77.3
+    working: arm / amd * 100
     why: That's the share of today's bill you'd still pay. The saving is the rest of it.
   - id: dollars-not-percent
-    value: 0.0308
-    working: intel - arm
+    value: 0.0206
+    working: amd - arm
     why: That's the saving in dollars an hour. Divide it by today's price and multiply by 100 for a percentage.
 explanation: |
-  0.101 minus 0.0702 = 0.0308 dollars an hour saved, and 0.0308 ÷ 0.101 × 100 = 30.5% of today's price. That's at the top of what Arm saves at list price on the three clouds: on AWS the same comparison is 19% (`m7i.large` to `m7g.large`), on Google 15% (`n4-standard-2` to `n4a-standard-2`). Equal vCPUs aren't equal hardware either: on most Intel sizes a vCPU is one of a core's two threads, on these Arm sizes a whole core, so only a measurement on your own work says what the move is worth.
+  0.0908 minus 0.0702 = 0.0206 dollars an hour saved, and 0.0206 ÷ 0.0908 × 100 = 22.7% of today's price. Against Azure's Intel size of the same generation, `Standard_D2s_v6` at 0.101, the same Arm VM saves 30.5%: what a move saves depends on what you move from. On Azure and Google Cloud, AMD's x86 sizes list below Intel's (on AWS it's the other way round). Equal vCPUs aren't always equal hardware either: on these Cobalt sizes a vCPU is a whole core, which isn't true of every x86 size, so only a measurement on your own work says what the move is worth.
 skills: [price-performance]
 prices_as_of: 2026-11-11
 prices_source: https://azure.microsoft.com/en-us/pricing/details/virtual-machines/linux/

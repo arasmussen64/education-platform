@@ -10,7 +10,7 @@ choices:
   - "The registry refused the arm64 layers the CI machine sent, so the build carried on with half an image"
 answer: 0
 explanation: |
-  Building the `arm64` half means running Arm programs (the Arm image's shell, its compiler) on an x86-64 machine. Docker Desktop builds under emulation without any setup, using the QEMU emulator it carries (Docker's "Multi-platform builds" page says so). A plain Linux machine has no emulator until someone installs one, so the kernel refuses the first Arm program with `exec format error`, the wrong-architecture message.
+  Building the `arm64` half means running Arm programs (the Arm image's shell, its compiler) on an x86-64 machine. Docker Desktop builds under emulation without any setup, using the QEMU emulator it carries (Docker's "Multi-platform builds" page says so). On plain Linux, Docker's build tool usually brings an emulator of its own (the same page says so), but this CI machine plainly has none in place, so the kernel refuses the first Arm program with `exec format error`, the wrong-architecture message.
 
   Three ways out, all in Docker's guide: install the emulator in the pipeline (`docker run --privileged --rm tonistiigi/binfmt --install all`, slow but simple); build each half on a machine of its own architecture; or cross-compile, so only x86-64 programs run during the build. None of the other stories would print this message: an old Docker, a missing layer or a refused push each fail with an error that says so, before anything runs.
 skills: [instruction-sets]
