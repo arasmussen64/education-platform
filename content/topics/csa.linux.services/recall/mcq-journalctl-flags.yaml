@@ -1,14 +1,14 @@
 id: mcq-journalctl-flags
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You want to watch a service's log live while you reproduce a bug, and see only what happened since the machine last booted. Which command?
 choices:
+  - "`journalctl -u app -b -n 50`"
+  - "`journalctl -u app --since today`"
   - "`journalctl -u app -b -f`"
-  - "`journalctl -u app -n 50`"
-  - "`journalctl -u app --since yesterday -p err`"
-  - "`systemctl status app -f`"
-answer: 0
+  - "`systemctl status app -b -f`"
+answer: 2
 explanation: |
-  `-u app` picks the unit, `-b` limits to the current boot, and `-f` follows new entries as they arrive, like `tail -f`. `-n 50` shows the last fifty lines and stops. `--since yesterday -p err` is a different question: errors from a time range. `systemctl status` shows a few recent lines but has no follow mode.
+  `-u app` picks the unit, `-b` limits it to the current boot, and `-f` follows new entries as they arrive, like `tail -f`. With `-n 50` in place of `-f` you get the last fifty lines of this boot, and then the command stops. `--since today` cuts by the clock, not by the boot, and doesn't follow either. `systemctl status` shows a few recent lines, but it has no follow mode and no `-b`.
 skills: [journalctl]

@@ -1,14 +1,14 @@
 id: mcq-reload-vs-restart
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You've changed nginx's configuration file and want it picked up without dropping the connections it's serving. Which command, and what's the difference from the alternative?
 choices:
-  - "`systemctl reload nginx`: asks the running service to reread its config; `restart` would stop and start it, closing connections"
-  - "`systemctl restart nginx`: the only way to apply a config change"
-  - "`systemctl daemon-reload`: rereads nginx's configuration"
-  - "`systemctl enable nginx`: enabling re-applies the config"
+  - "`systemctl reload nginx`: it rereads its config while running; `restart` would stop it first"
+  - "`systemctl restart nginx`: it keeps open connections; `reload` only rereads the unit file"
+  - "`systemctl daemon-reload`: it makes each service reread its config; `restart` would stop them"
+  - "`systemctl enable --now nginx`: it applies the new config at once; `restart` waits for a reboot"
 answer: 0
 explanation: |
-  `reload` runs the unit's `ExecReload=` (for nginx, a signal that makes it reread its config and start new worker processes gracefully), so the service never stops. `restart` is stop then start: fine for most things, but it drops whatever the service was doing. `daemon-reload` is about *systemd's* unit files, not the service's own config. Not every service supports reload; `systemctl` tells you if the unit has no `ExecReload`.
+  `reload` runs the unit's `ExecReload=` (for nginx, a signal that makes it reread its config and start new worker processes gracefully), so the service never stops. `restart` is stop, then start: fine for most things, but it closes the connections the service was handling. `daemon-reload` is about *systemd's* unit files, not a service's own config, and no service rereads anything because of it. `enable --now` enables a service and starts it if it's stopped; on one that's already running it applies nothing. Not every service supports reload; `systemctl` tells you if the unit has no `ExecReload`.
 skills: [systemctl, supervision]

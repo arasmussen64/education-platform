@@ -1,14 +1,14 @@
 id: mcq-journal-persistent
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   After a reboot, `journalctl -b -1` (the previous boot's log) says there is no such boot. Why, and what fixes it?
 choices:
-  - "The journal was kept only in memory; create `/var/log/journal` (or set `Storage=persistent` in `journald.conf`) so it's written to disk"
-  - "Logs are always deleted at reboot; use a text file instead"
-  - "`-b -1` means one boot in the future"
-  - "The service must be enabled for its logs to be kept"
-answer: 0
+  - "The journal is erased at every boot by design; only saving `journalctl -o json` to a file keeps it"
+  - "Logs are kept per service, and this one was not enabled; `systemctl enable` makes its log survive"
+  - "journald was not running during the last boot; `systemctl enable --now systemd-journald` fixes it"
+  - "The journal was kept only in memory; creating `/var/log/journal` makes journald write it to disk"
+answer: 3
 explanation: |
-  With `Storage=auto`, the default, journald writes to disk only if `/var/log/journal` exists; otherwise the journal lives in `/run`, which is memory, and is gone at reboot. Creating that directory (or setting `Storage=persistent`) keeps boots' logs, and `journalctl --list-boots` then shows them. Size is managed for you, and `--vacuum-time=2weeks` or `SystemMaxUse=` trims it.
+  With `Storage=auto`, the default, journald writes to disk only if `/var/log/journal` exists; otherwise the journal lives in `/run`, which is memory, and is gone at reboot. Creating that directory (or setting `Storage=persistent` in `journald.conf`) keeps each boot's log, and `journalctl --list-boots` then shows them. So losing the log isn't by design, only what happens when that directory is missing, and there's no need to copy the journal out by hand. Whether a service is enabled decides if it starts at boot; its output is logged either way. And journald always runs: it's one of the first things systemd starts. Once the journal is on disk its size is managed for you, and `--vacuum-time=2weeks` or `SystemMaxUse=` trims it.
 skills: [journalctl]
