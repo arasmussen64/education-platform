@@ -17,6 +17,11 @@ vi.mock('../followups/skillIndex.ts', async (importOriginal) => {
     await importOriginal<typeof import('../followups/skillIndex.ts')>()
   return { ...module, loadSkillIndex: vi.fn(module.loadSkillIndex) }
 })
+// No checkpoint's steps were ever opened.
+vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../checkpoints/stepsOpened.ts')>()),
+  fetchStepsOpened: vi.fn(async () => []),
+}))
 
 // Programs and print, a real topic, with the times given as days after it
 // was Learned. Nothing here reads the clock: stateOf is asked at a time.
