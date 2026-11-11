@@ -1,0 +1,39 @@
+id: join-read-the-output
+type: predict_shell
+rev: 1
+prompt: |
+  `join.txt` holds lines from `sudo realm join -v -U Administrator ad.shop.test` on the lab's `lab` (captured on 2026-11-11; the domain's SID and a temporary file's name are left out). The command picks out the account the join created and counts the keytab lines. What is printed?
+files:
+  join.txt: |2
+     * Resolving: _ldap._tcp.ad.shop.test
+     * Performing LDAP DSE lookup on: 10.0.9.10
+     * Successfully discovered: ad.shop.test
+     * Calculated computer account name from fqdn: LAB
+     * Authenticated as user: Administrator@AD.SHOP.TEST
+     * Looked up short domain name: SHOP
+     * Using fully qualified name: lab.ad.shop.test
+     * Generated 120 character computer password
+     * Using keytab: FILE:/etc/krb5.keytab
+     * A computer account for LAB$ does not exist
+     * Found well known computer container at: CN=Computers,DC=ad,DC=shop,DC=test
+     * Created computer account: CN=LAB,CN=Computers,DC=ad,DC=shop,DC=test
+     * Set computer password
+     * Added the entries to the keytab: LAB$@AD.SHOP.TEST: FILE:/etc/krb5.keytab
+     * Added the entries to the keytab: host/LAB@AD.SHOP.TEST: FILE:/etc/krb5.keytab
+     * Added the entries to the keytab: host/lab.ad.shop.test@AD.SHOP.TEST: FILE:/etc/krb5.keytab
+     * Added the entries to the keytab: RestrictedKrbHost/LAB@AD.SHOP.TEST: FILE:/etc/krb5.keytab
+     * Added the entries to the keytab: RestrictedKrbHost/lab.ad.shop.test@AD.SHOP.TEST: FILE:/etc/krb5.keytab
+     * /usr/sbin/update-rc.d sssd enable
+     * /usr/sbin/service sssd restart
+     * Successfully enrolled machine in realm
+command: |
+  grep 'Created computer account' join.txt | cut -d' ' -f6
+  grep -c 'Added the entries to the keytab' join.txt
+expected_output: |
+  CN=LAB,CN=Computers,DC=ad,DC=shop,DC=test
+  5
+explanation: |
+  Each line starts with a space and a `*`, so with a space as the separator, field 6 of the "Created computer account" line is the account's distinguished name: `LAB` (the machine's short name, in capitals) in the default `CN=Computers` container of `ad.shop.test`. That entry is the machine's account in the directory, with the 120-character password the join generated and set.
+
+  The five keytab lines are the names the machine can now prove it owns: `LAB$`, the computer account itself (the `$` marks a computer), and the service names `host/` and `RestrictedKrbHost/`, each under its short and its full name. All five share the account's keys, which the join wrote into `/etc/krb5.keytab`, so the file is the machine's password and only root may read it. The last lines show the join enabling and restarting SSSD, which is what turns the membership into logins.
+skills: [domain-join]

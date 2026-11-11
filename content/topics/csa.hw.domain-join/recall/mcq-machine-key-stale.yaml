@@ -1,0 +1,22 @@
+id: mcq-machine-key-stale
+type: mcq
+rev: 1
+prompt: |
+  On a domain member where nobody from the domain can log in, the names resolve and `kinit alice` gets alice a ticket with her password. But `id alice@ad.shop.test` says `no such user`, and SSSD's log keeps repeating this line (captured on the lab's `lab`, 2026-11-11):
+
+  ```text
+  ldap_child[737]: Failed to initialize credentials using keytab [MEMORY:/etc/krb5.keytab]: Preauthentication failed. Unable to create GSSAPI-encrypted LDAP connection.
+  ```
+
+  What is the fix that lasts?
+choices:
+  - "Leave the domain and join it again, and then put back the rule for who may log in"
+  - "Reset alice's password on the domain controller, and give her the new one to use"
+  - "Restart SSSD and clear its cache, so that it tries the domain controller once more"
+  - "Copy /etc/krb5.keytab over from another member server, whose keys are known to work"
+answer: 0
+explanation: |
+  The failing line is about the machine, not alice: SSSD signs in to the directory as the computer account, with the keys in `/etc/krb5.keytab`, and the domain says those keys are wrong (`Preauthentication failed`). Someone reset the computer account's password in the directory, or the machine was restored from an old copy, so the two no longer match. Until they do, the member can't ask the directory who anyone is, though every person's password still works with `kinit`. Joining again gives the account a new password and writes matching keys; joining also writes a fresh SSSD configuration, which lets every domain account in, so the access rule has to go back.
+
+  alice's password is fine, as her `kinit` shows. Restarting SSSD tries the same wrong keys again. Another server's keytab holds keys for that server's account, `OTHER$`, not for this one's, and handing a machine another's keys would let it pass itself off as that machine.
+skills: [domain-join]

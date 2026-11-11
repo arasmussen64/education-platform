@@ -1,0 +1,32 @@
+id: gpo-who-gets-what
+type: predict_shell
+rev: 1
+prompt: |
+  In a domain where alice is in `OU=Engineering,OU=Staff`, bob in `OU=Staff` and carol in the default `CN=Users` container, a GPO called `Lock screen 10 min` is linked to Staff and one called `Engineering tools` to Engineering. Each file holds `samba-tool gpo list` for one person (captured on the lab's dc1, 2026-11-11). The first command names the files that mention the lock-screen GPO; the second counts each file's GPOs. What is printed?
+files:
+  alice.txt: |
+    GPOs for user alice
+        Engineering tools {39929F04-46BD-460F-A116-87E9E08BB7DF}
+        Lock screen 10 min {6A2EECF7-B9FC-45E0-A395-3359C850E3E3}
+        Default Domain Policy {31B2F340-016D-11D2-945F-00C04FB984F9}
+  bob.txt: |
+    GPOs for user bob
+        Lock screen 10 min {6A2EECF7-B9FC-45E0-A395-3359C850E3E3}
+        Default Domain Policy {31B2F340-016D-11D2-945F-00C04FB984F9}
+  carol.txt: |
+    GPOs for user carol
+        Default Domain Policy {31B2F340-016D-11D2-945F-00C04FB984F9}
+command: |
+  grep -l 'Lock screen' alice.txt bob.txt carol.txt
+  grep -c '{' alice.txt bob.txt carol.txt
+expected_output: |
+  alice.txt
+  bob.txt
+  alice.txt:3
+  bob.txt:2
+  carol.txt:1
+explanation: |
+  `grep -l` prints only the names of the files with a match, and `grep -c` with several files prints each file's count after its name; every GPO line has a GUID in braces, so counting `{` counts GPOs.
+
+  A GPO reaches everything in the folder it's linked to, and in every folder inside that one. alice is in Engineering, which is inside Staff, so she gets both folders' GPOs and the domain's. bob is in Staff itself, so the Engineering GPO, linked further down, isn't his. carol is in `CN=Users`, a default container outside both folders, so she gets only the `Default Domain Policy`, which is linked to the whole domain. Policy follows the folders a person or a computer sits in, never their groups: carol could be in every group in the domain and still not get the lock screen.
+skills: [group-policy]
