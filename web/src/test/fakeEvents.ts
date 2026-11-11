@@ -1,10 +1,17 @@
 // Stand-ins for saving learner events, for tests.
 import { vi } from 'vitest'
-import type { EventLog } from '../events/eventLog.ts'
+import type { EventLog, EventLogStatus } from '../events/eventLog.ts'
 import type { EventsClient, SendResult } from '../events/sync.ts'
 import type { EventRow, NewEvent } from '../events/types.ts'
 
 const NO_ROWS: EventRow[] = []
+// One object, not a new one on every call: a component reading the status
+// re-renders whenever it gets a different object back.
+const NOTHING_WAITING: EventLogStatus = {
+  pending: 0,
+  syncing: false,
+  refused: 0,
+}
 
 /**
  * An event log that only collects what's recorded. Put it around a component
@@ -19,9 +26,10 @@ export function recordingEventLog() {
     setUser() {},
     async sync() {},
     subscribe: () => () => {},
-    getStatus: () => ({ pending: 0, syncing: false }),
+    getStatus: () => NOTHING_WAITING,
     getLocalRows: () => NO_ROWS,
     getPendingRows: () => NO_ROWS,
+    getRefusedEvents: () => [],
     stop() {},
   }
   return { log, events }

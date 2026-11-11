@@ -5,6 +5,10 @@ import { createOutbox } from './outbox.ts'
 const ADA = '11111111-1111-1111-1111-111111111111'
 const BOB = '33333333-3333-3333-3333-333333333333'
 
+const REFUSED_KEY = 'learner-events-rejected-v1'
+const NOON = Date.parse('2026-11-10T12:00:00.000Z')
+const HOUR = 60 * 60 * 1000
+
 const ids = (events: { id: string }[]) => events.map((event) => event.id)
 
 describe('the outbox', () => {
@@ -44,14 +48,116 @@ describe('the outbox', () => {
     const outbox = createOutbox()
     const bad = eventRow({ id: 'bad' })
     outbox.add(bad)
-    outbox.reject(bad, '400 23514: violates check constraint')
+    outbox.refuse(bad, '400 23514: violates check constraint', NOON)
     expect(outbox.pending(ADA)).toEqual([])
-    expect(outbox.rejected()).toEqual([
+    expect(outbox.refused(ADA)).toEqual([
       {
         event: bad,
         reason: '400 23514: violates check constraint',
-        at: expect.any(String),
+        at: '2026-11-10T12:00:00.000Z',
+        attempts: 1,
       },
+    ])
+  })
+
+  it('keeps one entry for an event refused again, with the new reason, the new time and the attempts counted', () => {
+    const outbox = createOutbox()
+    const bad = eventRow({ id: 'bad' })
+    const other = eventRow({ id: 'other' })
+    outbox.refuse(bad, '400 23514: violates check constraint', NOON)
+    outbox.refuse(other, '413 : too large', NOON)
+    outbox.refuse(bad, '403 42501: not allowed', NOON + 13 * HOUR)
+
+    expect(outbox.refused(ADA)).toEqual([
+      {
+        event: bad,
+        reason: '403 42501: not allowed',
+        at: '2026-11-11T01:00:00.000Z',
+        attempts: 2,
+      },
+      expect.objectContaining({ event: other, attempts: 1 }),
+    ])
+  })
+
+  it("lists only the given learner's refused events", () => {
+    const outbox = createOutbox()
+    outbox.refuse(eventRow({ id: 'ada' }), '400 : bad')
+    outbox.refuse(eventRow({ id: 'bob', user_id: BOB }), '400 : bad')
+    expect(outbox.refused(ADA).map(({ event }) => event.id)).toEqual(['ada'])
+    expect(outbox.refused(BOB).map(({ event }) => event.id)).toEqual(['bob'])
+  })
+
+  it('forgets a refused event once the server has accepted it, and no other', () => {
+    const outbox = createOutbox()
+    outbox.refuse(eventRow({ id: 'saved-now' }), '400 : bad')
+    outbox.refuse(eventRow({ id: 'still-refused' }), '400 : bad')
+    outbox.refuse(eventRow({ id: 'bob', user_id: BOB }), '400 : bad')
+
+    outbox.forgetRefused('saved-now')
+    expect(outbox.refused(ADA).map(({ event }) => event.id)).toEqual([
+      'still-refused',
+    ])
+    expect(outbox.refused(BOB)).toHaveLength(1)
+  })
+
+  it('counts one attempt for an event refused before attempts were counted', () => {
+    // What a browser holds from before refused events were retried.
+    const old = {
+      event: eventRow({ id: 'old' }),
+      reason: '400 : bad',
+      at: '2026-11-09T08:00:00.000Z',
+    }
+    localStorage.setItem(REFUSED_KEY, JSON.stringify([old]))
+    const outbox = createOutbox()
+    expect(outbox.refused(ADA)).toEqual([{ ...old, attempts: 1 }])
+
+    outbox.refuse(old.event, '400 : still bad', NOON)
+    expect(outbox.refused(ADA)[0]).toMatchObject({ attempts: 2 })
+  })
+
+  it('never drops an entry it cannot read while changing the others', () => {
+    const damaged = [null, { reason: 'no event here' }]
+    localStorage.setItem(REFUSED_KEY, JSON.stringify(damaged))
+    const outbox = createOutbox()
+    outbox.refuse(eventRow({ id: 'bad' }), '400 : bad')
+    outbox.refuse(eventRow({ id: 'saved-now' }), '400 : bad')
+    outbox.forgetRefused('saved-now')
+
+    expect(outbox.refused(ADA).map(({ event }) => event.id)).toEqual(['bad'])
+    const stored = JSON.parse(localStorage.getItem(REFUSED_KEY)!) as unknown[]
+    expect(stored.slice(0, 2)).toEqual(damaged)
+    expect(stored).toHaveLength(3)
+  })
+
+  it('keeps one entry for an event that storage holds twice', () => {
+    // Before retries existed, two tabs refused at the same moment could each
+    // add the same event.
+    const twice = eventRow({ id: 'twice' })
+    const old = {
+      event: twice,
+      reason: '400 : bad',
+      at: '2026-11-09T08:00:00.000Z',
+    }
+    const other = { ...old, event: eventRow({ id: 'other' }) }
+    localStorage.setItem(REFUSED_KEY, JSON.stringify([old, other, old]))
+    const outbox = createOutbox()
+    // It's one piece of work, so it's listed and counted once.
+    expect(outbox.refused(ADA).map(({ event }) => event.id)).toEqual([
+      'twice',
+      'other',
+    ])
+
+    // Refused again: both copies become one entry with the new time, so no
+    // copy is left looking overdue.
+    outbox.refuse(twice, '400 : still bad', NOON)
+    expect(JSON.parse(localStorage.getItem(REFUSED_KEY)!)).toEqual([
+      {
+        event: twice,
+        reason: '400 : still bad',
+        at: '2026-11-10T12:00:00.000Z',
+        attempts: 2,
+      },
+      other,
     ])
   })
 
