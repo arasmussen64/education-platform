@@ -1,6 +1,15 @@
-# The corrected user data: the package name spelled right, the config at the
-# path the app reads, and the marker in a directory that exists. Then a
-# fresh launch, because the per-instance steps only run on a new instance.
+# The three faults were all in the user data:
+# 1. The package name was misspelled (shop-reprot), so apt couldn't find it.
+#    cloud-init status --long and the output log both name it.
+# 2. write_files put the settings at /etc/shop/report.conf; the tool reads
+#    /etc/shop/report.env. Nothing errors for this one: it shows only when
+#    the file is compared with what it is meant to do.
+# 3. runcmd wrote the marker to /var/lib/shop-data/ready, a folder that
+#    doesn't exist ("touch: cannot touch ... No such file or directory" in
+#    the output log). The marker belongs at /var/lib/shop/ready, in the
+#    folder the image has.
+# The corrected user data, then a fresh launch, because the per-instance
+# steps only run on a new instance. In the lab you'd edit the file with nano.
 cat > ~/user-data.yaml <<'EOF'
 #cloud-config
 users:
@@ -16,7 +25,6 @@ write_files:
     content: |
       SHOP_TIER=web
 runcmd:
-  - mkdir -p /var/lib/shop
   - touch /var/lib/shop/ready
 EOF
 lab-launch ~/user-data.yaml

@@ -1,29 +1,46 @@
-# The checks for "The instance came up half-configured": after a fresh
-# launch from the fixed user data, cloud-init finished cleanly and all three
-# things it was meant to do are done.
+# The checks for "The instance came up half-configured": the running
+# instance is a fresh launch from the repaired user data, cloud-init
+# finished cleanly on it, and the three things the user data is meant to do
+# are done. Each description is the state to end in; none says what was
+# wrong.
+#
+# A check that finds something wrong prints what it found and exits 0, so
+# the learner's terminal shows the reason beside the failed check.
 checks:
   - id: cloud-init-clean
-    description: "cloud-init finished without errors (status: done, not error or degraded)."
+    description: "cloud-init on the running instance finished without errors (cloud-init status says done)."
     command: cloud-init status
     expect:
       equals: "status: done"
+  - id: launched-from-your-file
+    description: "The running instance is a fresh launch from ~/user-data.yaml as it is now, and that file itself does the three things: it names the package, the settings file and the marker."
+    # Rebooting the first instance leaves cloud-init saying "done" (the
+    # once-per-instance steps are skipped, so nothing fails), and a server
+    # repaired by hand has all three things in place; neither is a repaired
+    # user data. So: a new instance ID, the instance's own copy of its user
+    # data equal to the learner's file, and that file naming each of the
+    # three (comment lines left out).
+    command: |
+      [ "$(cat /etc/lab/instance-id)" = i-0a1b2c3d4e5f60001 ] && { echo "the running instance is still the first one"; exit 0; }
+      cmp -s /home/learner/user-data.yaml /var/lib/cloud/instance/user-data.txt || { echo "the running instance was not launched from ~/user-data.yaml as it is now"; exit 0; }
+      for needed in shop-report /etc/shop/report.env /var/lib/shop/ready; do
+        grep -v '^[[:space:]]*#' /home/learner/user-data.yaml | grep -Fqw -- "$needed" || { echo "~/user-data.yaml does not do all three things itself"; exit 0; }
+      done
+      echo "launched from the repaired file"
+    expect:
+      equals: "launched from the repaired file"
   - id: package-installed
-    description: "shop-report is installed: the package name is spelled right now."
+    description: "The report tool's package, shop-report, is installed."
     command: dpkg -l shop-report 2>/dev/null | grep '^ii' | awk '{print $2}'
     expect:
       equals: shop-report
-  - id: config-at-right-path
-    description: "The config is at /etc/shop/report.env, where the app reads it."
+  - id: settings-written
+    description: "/etc/shop/report.env holds the line SHOP_TIER=web."
     command: cat /etc/shop/report.env
     expect:
       contains: "SHOP_TIER=web"
   - id: marker-created
-    description: "runcmd created the readiness marker in a directory that exists."
+    description: "The readiness marker, /var/lib/shop/ready, exists."
     command: test -f /var/lib/shop/ready && echo "ready"
     expect:
       contains: ready
-  - id: no-stale-wrong-path
-    description: "The config isn't left at the old wrong path only."
-    command: test -f /etc/shop/report.env && echo "env present"
-    expect:
-      contains: env present
