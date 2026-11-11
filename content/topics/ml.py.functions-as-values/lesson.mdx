@@ -23,6 +23,31 @@ Every piece of this is something you've already done with numbers and lists; the
 - **`map` and `filter`** take a function and a sequence: `map(len, words)` applies, `filter(is_even, numbers)` keeps. Both give lazy iterators; wrap in `list()` to see them. A comprehension usually reads better.
 - **A decorator** is a function that takes a function and returns a wrapper. `@counted` above `def square(x):` means `square = counted(square)`: afterwards, `square` is the wrapper, which does its extra work and then calls the original. `*args` lets the wrapper accept whatever the original takes.
 - **A closure** is why the wrapper remembers the original: it was created inside the decorator, and keeps the variables it saw there.
+- **The wrapper pattern** is the shape nearly every decorator has. This one keeps a running total of everything the function it wraps has returned:
+
+```python
+def totalled(func):
+    def wrapper(*args):                          # take whatever arguments arrive
+        result = func(*args)                     # pass the same ones to the original
+        wrapper.total = wrapper.total + result   # the extra work: add to the total
+        return result                            # hand back what the original returned
+
+    wrapper.total = 0     # the total's starting value, set once, before any call
+    return wrapper        # no parentheses: return the function itself
+
+
+@totalled                 # the same as: area = totalled(area)
+def area(width, height):
+    return width * height
+
+
+print(area(2, 3))    # 6
+print(area(4, 5))    # 20
+print(area.total)    # 26
+```
+
+- **`*args`** in a `def` collects every argument the caller passes into one tuple: for `area(2, 3)`, `args` is `(2, 3)`. That's what lets one wrapper fit a function with one parameter or with five. In a call the star does the reverse: `func(*args)` spreads the tuple back out, so here it means `func(2, 3)`.
+- **A function can carry an attribute:** a value stored on the function under a name, written with a dot. `wrapper.total = 0` puts one on the wrapper, and the wrapper's own code can read and change it on every call. Because `area` now _is_ the wrapper, `area.total` reads the same value from outside. Each decorated function gets its own wrapper, and so its own total.
 - **In machine learning:** `model.compile(loss=my_loss)` passes a function you wrote (`loss="mse"` passes only a name, and the library looks the function up); evaluation functions are decorated (`@torch.no_grad()`); `sorted(results, key=lambda r: r.accuracy, reverse=True)` picks the best run.
 
 </Recap>
