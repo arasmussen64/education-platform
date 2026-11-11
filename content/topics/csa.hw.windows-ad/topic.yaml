@@ -1,15 +1,184 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.hw.windows-ad
 kind: topic
-status: planned
-title: 'Active Directory: domains, names and tickets'
-summary: Explain Active Directory Domain Services, how members find it through DNS and prove identity with Kerberos, and domain trusts.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+status: ready
+title: "Active Directory: domains, names and tickets"
+summary: "What an Active Directory domain holds and how it's arranged, how a member finds a domain controller through DNS, how Kerberos proves who someone is with tickets instead of passwords, and when two domains need a trust; then standing up a domain controller of your own."
+# Every Module 2 topic depends on Checkpoint 1 (the v1 spec's F10; the
+# Module 2 plan, section 2). What it builds on in Module 1, for the writer:
+# shell (grep, awk, cut, sort), permissions (users and groups, sudo),
+# services (systemctl, journalctl), net-tools (dig, the "office" namespace
+# pattern dc1 is made of) and hardening (a fix never weakens the server).
+prerequisites: [csa.m1.checkpoint]
+estimated_minutes: 290
 rev: 1
 objectives:
-- Explain Active Directory Domain Services, how members find it through DNS and prove identity with Kerberos, and domain trusts.
-- Stand up a domain controller.
+  - "Say what an Active Directory domain holds (users, groups, computers, organisational units, domain-wide settings such as the password rules) and how domains, forests and domain controllers fit together, and read a distinguished name right to left."
+  - "Explain how a member finds a domain controller through the domain's DNS SRV records, and fix a machine whose resolver has never heard of the domain with a conditional forwarder for the domain's zone and its reverse zone."
+  - "Explain how Kerberos proves identity with a ticket-granting ticket and service tickets, read `klist`, and name what each common `kinit` and Kerberos failure means, including the five-minute clock rule."
+  - "Say when two domains need a trust, which way it points, and whether it passes along to a third."
+  - "Stand up a domain controller: create the domain, forward what it can't answer, give its address a name, set the password rules, and start it at every boot."
+# Facts the lesson and the items rely on, each read on 2026-11-11:
+# - Kerberos tolerates 5 minutes of clock difference, and a user's first
+#   ticket lasts 10 hours, by default in a domain (Default Domain Policy):
+#   learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/maximum-tolerance-for-computer-clock-synchronization
+#   and .../maximum-lifetime-for-user-ticket. The lab's KDC (Samba 4.19) gave
+#   10-hour tickets too (klist, captured 2026-11-11).
+# - MIT Kerberos: clockskew 300 seconds; kdc_timesync on by default; rdns on
+#   by default: web.mit.edu/kerberos/krb5-latest/doc/admin/conf_files/krb5_conf.html
+#   (release 1.22.3). Tried in the lab: +6 minutes works with kdc_timesync
+#   on, fails with it off.
+# - Members find DCs with SRV records named _ldap._tcp.<domain>; the DC
+#   tells the client its site from its IP subnet: learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/dc-locator (dated 2025-07-10).
+# - The KDC runs on every DC and uses the directory as its account database;
+#   a TGT at sign-in, then a service ticket per service: learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview (dated 2026-09-14).
+# - The forest is a security boundary; domains in a forest trust each other
+#   two-way and transitively; an external trust is nontransitive; OUs carry
+#   Group Policy links and delegation, containers such as CN=Users don't:
+#   the Learn module's units 2 to 5 (each dated 2025-01-01, updated 2026-10-28).
+# - In a one-way trust, members of the trusted domain reach resources in the
+#   trusting one: learn.microsoft.com/en-us/entra/identity/domain-services/concepts-forest-trust (dated 2025-06-30).
+# - Samba: don't use .local; the realm can't be renamed after provisioning;
+#   Kerberos needs synchronised time on every member: the Samba wiki's
+#   "Setting up Samba as an Active Directory Domain Controller" (edited
+#   2026-06-01). Samba refuses a minimum password length over 14 ("must be
+#   in the range of 0 to 14", captured in the lab).
+# - .test never resolves on the internet: rfc-editor.org/rfc/rfc6761.html, 6.2.
+# - AWS Simple AD "is powered by a Samba 4 Active Directory Compatible
+#   Server" and "is no longer open to new customers":
+#   docs.aws.amazon.com/directoryservice/latest/admin-guide/directory_simple_ad.html
+# - Azure: a virtual network's custom DNS servers; renew each VM's DHCP lease
+#   after changing them; a DC in Azure forwards other names to 168.63.129.16:
+#   learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-name-resolution-for-vms-and-role-instances (dated 2025-07-24).
+# Every command output in the lesson, the labs and the recall items marked
+# "captured" is real output of the lab (Samba 4.19.5 on Ubuntu 24.04, MIT
+# Kerberos 1.20.1), captured on 2026-11-11; times will differ in a new run.
+#
+# Linked, never copied. Licences, each read on 2026-11-11: the Learn training
+# module is under Microsoft Learn's terms of use (its source repository isn't
+# public); the Windows Server documentation's repository
+# (MicrosoftDocs/windowsserverdocs) is CC BY 4.0; the Entra documentation's
+# repository (MicrosoftDocs/entra-docs) is MIT; MIT's dialogue carries a
+# notice permitting copying without fee; the Samba wiki is CC BY "unless
+# otherwise noted"; MIT's krb5 documentation is copyright MIT.
+resources:
+  - title: "Introduction to AD DS (Microsoft Learn training module): read units 2 to 5, about 40 minutes"
+    url: https://learn.microsoft.com/en-us/training/modules/introduction-to-ad-ds/
+    type: interactive
+    use: link
+    license: "Microsoft Learn terms of use (© Microsoft); linked, not copied"
+  - title: "Active Directory Domain Services overview (Microsoft Learn): the two-minute map of what a directory is"
+    url: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/virtual-dc/active-directory-domain-services-overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/windowsserverdocs); linked, not copied"
+  - title: "Locating Active Directory domain controllers (Microsoft Learn): read the DNS-based discovery tab and \"Closest Active Directory site\""
+    url: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/dc-locator
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/windowsserverdocs); linked, not copied"
+  - title: "Kerberos authentication overview in Windows Server (Microsoft Learn): the KDC, the ticket-granting ticket and service tickets"
+    url: https://learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/windowsserverdocs); linked, not copied"
+  - title: "How trusts work for Microsoft Entra Domain Services (Microsoft Learn): read from the top to the end of \"Forest trusts\", which is about Active Directory's trusts in general"
+    url: https://learn.microsoft.com/en-us/entra/identity/domain-services/concepts-forest-trust
+    type: reading
+    use: link
+    license: "MIT (MicrosoftDocs/entra-docs); linked, not copied"
+  - title: "Designing an Authentication System: a Dialogue in Four Scenes (MIT, 1988): optional, the story of why tickets look the way they do"
+    url: https://web.mit.edu/kerberos/dialogue.html
+    type: reading
+    use: link
+    license: "© MIT 1988, 1997, with a notice permitting use and copying without fee; linked, not copied"
+  - title: "Setting up Samba as an Active Directory Domain Controller (Samba wiki): optional, the reference behind the labs' domain controller"
+    url: https://wiki.samba.org/index.php/Setting_up_Samba_as_an_Active_Directory_Domain_Controller
+    type: reading
+    use: link
+    license: "CC BY (the Samba wiki's footer); linked, not copied"
+  - title: "krb5.conf (MIT Kerberos documentation): optional, look up clockskew, kdc_timesync and rdns"
+    url: https://web.mit.edu/kerberos/krb5-latest/doc/admin/conf_files/krb5_conf.html
+    type: reading
+    use: link
+    license: "© MIT; linked, not copied"
+  - title: "Azure Virtual Network name resolution (Microsoft Learn): optional, \"Name resolution that uses your own DNS server\" and \"Specify DNS servers\", a domain's DNS in a cloud network"
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-name-resolution-for-vms-and-role-instances
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+# The recall items read directory entries, SRV records, klist and kinit's
+# errors, all captured from the lab's own domain, with the text tools of
+# Module 1. The worked example, the fill-in, the write and both proofs are
+# labs on a machine that boots systemd: dc1 is Samba running as an Active
+# Directory domain controller in namespaces of its own on the far side of a
+# virtual cable, the way Module 1's "office" is made (ADR-0017, ADR-0018).
+# Joining a machine to the domain, Group Policy and Entra ID are the next
+# topic's (csa.hw.domain-join).
+practice:
+  - example-meet-the-domain
+  - dir-dn-parts
+  - dir-ldap-result
+  - mcq-ou-or-group
+  - mcq-domain-or-forest
+  - mcq-trust-direction
+  - mcq-trust-passes-along
+  - dir-password-settings
+  - mcq-password-policy
+  - dns-srv-fields
+  - dns-ports-services
+  - mcq-wrong-resolver
+  - mcq-cloud-network-dns
+  - krb-klist-lines
+  - krb-ticket-hours
+  - mcq-krb-next-ticket
+  - mcq-krb-skew
+  - mcq-krb-no-kdc
+  - mcq-krb-revoked
+  - mcq-krb-by-address
+  - fill-provision-dc
+  - write-domain-report
+prove:
+  build: build-stand-up-dc
+  debug: debug-tickets-refused
+  explain:
+    prompt: |
+      A company runs Active Directory on two servers in its office and is moving its forty application servers to VMs in the cloud. A colleague says: "The domain is just a list of usernames and passwords; any server can check a password against it." Explain, in your own words: what an Active Directory domain holds and how it's arranged, including the settings that apply to the whole domain; how a server in the cloud network finds a domain controller, and how a person's identity is proved to that server without their password crossing the network; the two things outside the directory that all of this depends on, and what goes wrong when each fails; and when two domains need a trust, and which way it points. If you can, add one thing a lab built on Samba couldn't show you about a Windows domain.
+    rubric:
+      - id: what-the-domain-does
+        required: true
+        description: "One directory of user, group and computer accounts with a DNS name, held by domain controllers that each keep a copy; arranged in organisational units, folders that carry settings and delegated rights (read right to left in a distinguished name), while groups carry permissions; settings such as the password rules apply to every account in the domain; a forest of one or more domains is the security boundary."
+      - id: finding-and-proving
+        required: true
+        description: "A member asks DNS for the domain's SRV records (_ldap._tcp, _kerberos._tcp under the domain's name), so it must use a resolver that knows the domain: the domain controllers' own DNS, or a conditional forwarder for the domain's zone and its reverse zone; identity is proved with Kerberos: once, with a key derived from the password, the KDC on a domain controller issues a ticket-granting ticket, then a service ticket for each service's name, which the service checks without calling the controller, and the password never crosses the network. DNS and time are the dependencies: no SRV answer means no KDC can be found, a missing reverse record means tickets are asked for the wrong name, and clocks more than five minutes apart are refused."
+      - id: trust
+        required: true
+        description: "Two domains in different forests need a trust before one accepts the other's logins: the domain that holds the resources trusts the domain that holds the accounts, so access flows the opposite way to the trust; it can be one-way or two-way, and an external trust doesn't pass along to a third domain, while domains inside one forest trust each other automatically."
+      - id: samba-limit
+        required: false
+        description: "The lab's domain controller was Samba: the protocols (DNS, Kerberos, LDAP) are the same, but Windows's own tools and a Windows member's sign-in and settings were never seen."
+    model_answer: |
+      A domain is much more than a list of passwords. It's a directory: one database of user, group and computer accounts, with a DNS name like ad.shop.test, and every domain controller holds a full copy of it. Accounts sit in organisational units, folders you read right to left in a distinguished name: CN=Alice Ng,OU=Engineering,OU=Staff,DC=ad,DC=shop,DC=test is Alice in Engineering, inside Staff, in ad.shop.test. Folders carry settings and who may manage them; groups carry permissions. Some settings, like the password rules, belong to the whole domain. One or more domains that share a schema make a forest, and the forest, not the domain, is the security boundary.
+
+      A cloud server finds a domain controller through DNS. It asks for the SRV record _ldap._tcp.ad.shop.test, which names a host and port, so it must ask a resolver that knows the domain: the network's DNS setting pointed at the controllers, or a conditional forwarder for the domain's zone and its reverse zone. Then Kerberos proves who someone is. They show their password once, as a key derived from it, to the KDC on a domain controller and get a ticket-granting ticket for about ten hours. For each service they trade it for a service ticket for that service's name, like ldap/dc1.ad.shop.test, and the service checks it by itself. The password never crosses the network.
+
+      The two outside dependencies are DNS and time. If the resolver can't answer the SRV records, nothing finds a KDC; if dc1's address has no reverse record, the client asks for a ticket for a name that doesn't exist. If clocks differ by more than five minutes, Kerberos refuses the request.
+
+      Two forests need a trust before one accepts the other's logins. The domain with the resources trusts the domain with the accounts, so access flows the opposite way to the trust, and an external trust doesn't pass along to a third domain.
+
+      Samba speaks the same protocols, but I never saw Windows's own tools or a Windows machine signing in.
+review_pool:
+  - dir-dn-parts
+  - mcq-trust-direction
+  - mcq-ou-or-group
+  - dns-srv-fields
+  - mcq-wrong-resolver
+  - krb-klist-lines
+  - krb-ticket-hours
+  - mcq-krb-by-address
+skills:
+  - id: directory-structure
+    description: "What a domain holds and how it's arranged: domains, forests, domain controllers, organisational units, users, groups and the domain-wide settings such as the password rules; reading a distinguished name and an LDAP search's answer; trusts, their direction and whether they pass along"
+  - id: dc-discovery
+    description: "How a member finds a domain controller: the domain's SRV records and their fields, the domain's own DNS, a conditional forwarder for its zone and its reverse zone, and what breaks when a machine asks a resolver that doesn't know the domain"
+  - id: kerberos-tickets
+    description: "The ticket-granting ticket and service tickets, principals, realms and service names, keytabs, `kinit` and `klist`, the five-minute clock rule, and reading Kerberos's common failures"

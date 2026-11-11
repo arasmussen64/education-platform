@@ -1,0 +1,38 @@
+# The checks for "Meet the domain": the domain's SRV record saved from lab's
+# own resolver (so the zone really is forwarded now, which also survives a
+# restart: the forwarder is a file in /etc), the two kinds of ticket, and the
+# clock-skew refusal.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence, not an exit status.
+checks:
+  - id: srv-through-own-resolver
+    description: "~/example/srv.txt holds the domain's LDAP SRV record naming dc1, and lab's own resolver gives that same answer."
+    # dc1's name server answers a second or so after dc1 says it's ready, so
+    # a check straight after a boot waits for it.
+    command: |
+      saved=$(cat /home/learner/example/srv.txt 2>/dev/null)
+      for _ in $(seq 1 10); do
+        now=$(dig +short +time=2 +tries=1 _ldap._tcp.ad.shop.test SRV)
+        [ -n "$now" ] && break
+        sleep 1
+      done
+      case "$saved" in
+        *"389 dc1.ad.shop.test.") ;;
+        *) echo "srv.txt doesn't hold the SRV record for dc1"; exit 0 ;;
+      esac
+      [ "$saved" = "$now" ] || { echo "lab's own resolver doesn't give that answer"; exit 0; }
+      echo same
+    expect:
+      equals: same
+  - id: both-tickets
+    description: "~/example/tickets.txt is a klist holding the first ticket (krbtgt/) and a service ticket for LDAP on dc1 (ldap/dc1)."
+    command: |
+      f=/home/learner/example/tickets.txt
+      grep -q 'krbtgt/AD.SHOP.TEST@AD.SHOP.TEST' "$f" && grep -q 'ldap/dc1.ad.shop.test' "$f" && echo both
+    expect:
+      equals: both
+  - id: skew-refused
+    description: "~/example/skew.txt holds Kerberos refusing a clock six minutes off."
+    command: cat /home/learner/example/skew.txt
+    expect:
+      contains: "Clock skew too great"

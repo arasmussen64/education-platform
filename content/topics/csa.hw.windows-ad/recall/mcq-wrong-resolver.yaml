@@ -1,0 +1,16 @@
+id: mcq-wrong-resolver
+type: mcq
+rev: 1
+prompt: |
+  On a new server, `dig _ldap._tcp.ad.shop.test SRV` answers `status: NXDOMAIN`, while `dig +short @10.0.9.10 _ldap._tcp.ad.shop.test SRV` gives `0 100 389 dc1.ad.shop.test.` (both captured on the lab's machine). Which fix lasts?
+choices:
+  - "Forward the zone ad.shop.test, and dc1's reverse zone, from the server's resolver to dc1"
+  - "Add dc1's address and name to the server's /etc/hosts file, so that the name always resolves there"
+  - "Open port 389 in the server's firewall, so the LDAP answers from dc1 can come back in"
+  - "Put dc1's address in the server's Kerberos settings as the KDC for the realm AD.SHOP.TEST"
+answer: 0
+explanation: |
+  The server's resolver has never heard of the domain (NXDOMAIN, "no such name"), while dc1 answers for it, so the resolver needs to send the domain's questions to dc1: a conditional forwarder, `server=/ad.shop.test/10.0.9.10` in dnsmasq, and the same for `9.0.10.in-addr.arpa` so dc1's address has a name. Every program on the server then finds the domain the way members are meant to, and a second controller added later is found by itself.
+
+  A hosts file holds names and addresses only; it can't hold an SRV record, so nothing that asks for the domain's services is helped, and it breaks the day dc1 moves. The firewall isn't the problem: `dig @10.0.9.10` got its answer. A KDC typed into Kerberos's settings lets `kinit` reach dc1 while LDAP and every other lookup still fail, and it has the same flaw as the hosts file.
+skills: [dc-discovery]

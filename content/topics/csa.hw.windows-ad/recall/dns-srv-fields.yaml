@@ -1,0 +1,15 @@
+id: dns-srv-fields
+type: predict_shell
+rev: 1
+prompt: |
+  `srv.txt` is the answer section for the SRV record `_ldap._tcp.ad.shop.test`. dc1's line is captured from the labs' domain; dc2's is made up, a second controller the lab doesn't have. Each line is the record's name, how many seconds it may be cached, `IN`, `SRV`, then priority, weight, port and host. The command picks the controller a member tries first and prints its host and port. What is printed?
+files:
+  srv.txt: |
+    _ldap._tcp.ad.shop.test. 900 IN SRV 10 100 389 dc2.ad.shop.test.
+    _ldap._tcp.ad.shop.test. 900 IN SRV 0 100 389 dc1.ad.shop.test.
+command: sort -k5,5n srv.txt | head -n 1 | awk '{print $8, $7}'
+expected_output: |
+  dc1.ad.shop.test. 389
+explanation: |
+  Field 5 is the priority, and a lower priority is tried first, so `sort -k5,5n` (sort by field 5 only, as numbers) puts dc1's line, priority 0, ahead of dc2's 10. Field 7 is the port, 389 for LDAP, and field 8 the host, with the final dot DNS uses for a full name. The weight, field 6, shares the work among servers with the same priority: two controllers at priority 0 with weights 100 and 50 would get about two thirds and one third of the members. A priority-10 controller is a spare, asked when the priority-0 ones don't answer.
+skills: [dc-discovery]

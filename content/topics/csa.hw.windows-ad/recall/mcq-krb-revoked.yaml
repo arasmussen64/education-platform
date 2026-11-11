@@ -1,0 +1,16 @@
+id: mcq-krb-revoked
+type: mcq
+rev: 1
+prompt: |
+  A nightly job's `kinit` with its keytab says `Client's credentials have been revoked while getting initial credentials` (captured in the lab). The keytab worked yesterday. What is the likeliest cause?
+choices:
+  - "The account is disabled, locked or expired in the directory; its keys may well still be right"
+  - "The keytab's keys are stale: the account's password was changed after it was exported"
+  - "The machine's resolver lost the domain's SRV records, so the KDC can't be reached"
+  - "Yesterday's ticket ran past its ten hours, and Kerberos never renews a ticket that has expired"
+answer: 0
+explanation: |
+  "Revoked" is the KDC saying it knows the account and won't serve it. In the lab, a disabled account, an account locked after too many wrong passwords, and an account whose expiry date had passed all gave exactly this error, with the right password. So look at the account on a domain controller (`samba-tool user show NAME` there), then enable it, unlock it or extend it, and the keytab works again as it is.
+
+  Stale keys give a different error, `Preauthentication failed`: the KDC can't match them. A KDC that can't be found gives `Cannot find KDC`, and no answer from the KDC at all. And `kinit` with a keytab never uses yesterday's ticket: it asks for a brand new one each time.
+skills: [kerberos-tickets]

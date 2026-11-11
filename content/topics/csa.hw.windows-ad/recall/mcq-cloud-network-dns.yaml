@@ -1,0 +1,16 @@
+id: mcq-cloud-network-dns
+type: mcq
+rev: 1
+prompt: |
+  A new VM in a cloud network can't find the company's domain: it asks the cloud provider's own resolver, which has never heard of it. The domain controllers are VMs on the same network. What fixes it for every VM on that network?
+choices:
+  - "Set the network's DNS servers to the domain controllers, then have each VM renew its lease"
+  - "Give the VM a public address, so it can ask the domain's name servers across the internet"
+  - "Open Kerberos's port 88 to the internet, so the VM can reach a KDC wherever it asks from"
+  - "Rename the VM to a name inside the domain, so its resolver treats the domain as its own"
+answer: 0
+explanation: |
+  A cloud network hands each VM its resolver when it gets its address (by DHCP, the protocol that gives a machine its address and settings when it starts). Point that setting at the domain controllers and every VM asks them; they answer for the domain and forward everything else on, so ordinary names still work. On Azure this is the virtual network's custom DNS servers, and Microsoft's page says to renew the DHCP lease on each VM after changing it (`ipconfig /renew` on Windows). AWS and Google Cloud have settings of their own for the same job, which later modules cover.
+
+  A public address changes nothing: the company's domain isn't on the internet's DNS at all, and a `.test` name never could be. Opening Kerberos to the internet puts the domain controllers in reach of everyone and still doesn't tell the VM where they are. A VM's own name has nothing to do with which resolver it asks.
+skills: [dc-discovery]

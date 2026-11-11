@@ -1,0 +1,30 @@
+id: krb-klist-lines
+type: predict_shell
+rev: 1
+prompt: |
+  `klist.txt` is what `klist` printed for alice after she got her first ticket, searched the directory, and asked for tickets for two more of dc1's services (captured on 2026-11-11). The first command counts the tickets; the second prints each one's service, the part of its name before the first `/`. What is printed?
+files:
+  klist.txt: |
+    Ticket cache: FILE:/tmp/krb5cc_1001
+    Default principal: alice@AD.SHOP.TEST
+
+    Valid starting     Expires            Service principal
+    11/11/26 17:24:39  11/12/26 03:24:39  krbtgt/AD.SHOP.TEST@AD.SHOP.TEST
+    	renew until 11/12/26 17:24:39
+    11/11/26 17:24:39  11/12/26 03:24:39  ldap/dc1.ad.shop.test@
+    	renew until 11/12/26 17:24:39
+    	Ticket server: ldap/dc1.ad.shop.test@AD.SHOP.TEST
+    11/11/26 17:24:47  11/12/26 03:24:39  host/dc1.ad.shop.test@AD.SHOP.TEST
+    	renew until 11/12/26 17:24:39
+    11/11/26 17:24:47  11/12/26 03:24:39  cifs/dc1.ad.shop.test@AD.SHOP.TEST
+    	renew until 11/12/26 17:24:39
+command: grep -c '^[0-9]' klist.txt; awk '/^[0-9]/ {split($5, name, "/"); print name[1]}' klist.txt
+expected_output: |
+  4
+  krbtgt
+  ldap
+  host
+  cifs
+explanation: |
+  Each ticket's line starts with its Valid starting date, so `grep -c '^[0-9]'` counts four; the indented `renew until` and `Ticket server` lines belong to the ticket above them. Field 5 is the ticket's principal, and `split` cuts it at the slashes. `krbtgt/AD.SHOP.TEST` is the ticket-granting ticket, the day pass from the KDC; the other three are service tickets, each for one service on one host: `ldap` (the directory), `host` (logging in to the machine) and `cifs` (file sharing). All three expire when the day pass does, ten hours after alice signed in. The `ldap/dc1.ad.shop.test@` line ends in a bare `@`; its `Ticket server:` line underneath gives the full name with the realm.
+skills: [kerberos-tickets]

@@ -1,0 +1,80 @@
+# The checks for "Write domain-report". Each runs the learner's script as the
+# learner and compares a line with the truth the check works out itself, for
+# two services and two groups, so no line can be typed in by hand. Two runs
+# change what the script sees without touching the learner's work: one in a
+# mount namespace of its own (a private view of the files) where the keytab
+# is the stale copy made before svc-report's password changed, and one with
+# Kerberos settings that ask for tickets of 3 hours 59 minutes 59 seconds.
+# (Not exactly three: the client asks for an end time by its own clock and
+# the KDC starts the ticket by its own, so an asked-for 3:00:00 sometimes
+# comes back as 2:59:59, which is 2 in whole hours; tried 25 times, 2 came
+# back so. And not 3:10: a script that subtracts only the hours of the two
+# times, as krb-ticket-hours does for a ticket of whole hours, is right for
+# 3:10 whenever the ticket starts before ten to the hour. With 3:59:59 it
+# says 4 unless the ticket starts in the first two seconds of an hour, and
+# a script that rounds to the nearest hour says 4 too.)
+# Every run is as the learner with no_new_privs set (setpriv), so sudo, and
+# with it on-dc, can't work inside the script: the members must come from the
+# directory, asked with the script's own ticket, as the prompt says.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence, not an exit status.
+checks:
+  - id: service-line
+    description: "The first line names the host and port the domain's SRV record gives for the service asked about: ldap, and kerberos too."
+    command: |
+      test -x /home/learner/bin/domain-report || { echo "~/bin/domain-report isn't executable"; exit 0; }
+      run() { runuser -u learner -- setpriv --no-new-privs /home/learner/bin/domain-report "$@" 2>/dev/null; }
+      truth() { dig +short +time=2 +tries=1 "_$1._tcp.ad.shop.test" SRV | awk -v s="$1" 'NR == 1 {sub(/\.$/, "", $4); print s ": " $4, $3}'; }
+      for pair in "ldap linux-admins" "kerberos stock-team"; do
+        set -- $pair
+        got=$(run "$1" "$2" | sed -n 1p)
+        want=$(truth "$1")
+        [ "$got" = "$want" ] || { echo "for $1, the first line is [$got], not [$want]"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: keytab-line
+    description: "The second line is keytab: ok while svc-report's keytab gets a ticket; given a keytab that no longer works, it is keytab: refused, nothing follows it, and the script exits with status 1."
+    command: |
+      ok=$(runuser -u learner -- setpriv --no-new-privs /home/learner/bin/domain-report ldap linux-admins 2>/dev/null | sed -n 2p)
+      [ "$ok" = "keytab: ok" ] || { echo "with the working keytab, the second line is [$ok]"; exit 0; }
+      stale=$(unshare --mount --propagation private bash -c 'mount --bind /var/lib/lab/stale.keytab /etc/svc-report.keytab && runuser -u learner -- setpriv --no-new-privs /home/learner/bin/domain-report ldap linux-admins 2>/dev/null; echo "exit $?"')
+      second=$(echo "$stale" | sed -n 2p)
+      [ "$second" = "keytab: refused" ] || { echo "with a stale keytab, the second line is [$second]"; exit 0; }
+      [ "$(echo "$stale" | sed -n 3p)" = "exit 1" ] || { echo "with a stale keytab, the script went on or didn't exit 1: [$(echo "$stale" | tr '\n' '|')]"; exit 0; }
+      echo right
+    expect:
+      equals: right
+  - id: members-line
+    description: "The third line is the group's name and its members' account names, sorted, for linux-admins and for stock-team, found by the script itself, with no sudo."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      for pair in "ldap linux-admins" "kerberos stock-team"; do
+        set -- $pair
+        got=$(runuser -u learner -- setpriv --no-new-privs /home/learner/bin/domain-report "$1" "$2" 2>/dev/null | sed -n 3p)
+        members=$(dc samba-tool group listmembers "$2" 2>/dev/null | sort | tr '\n' ' ')
+        want="$2: ${members% }"
+        [ "$got" = "$want" ] || { echo "for $2, the third line is [$got], not [$want]"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: hours-line
+    description: "The fourth line is the ticket's lifetime in whole hours: the domain's usual one, and three when Kerberos settings ask for tickets of a second under four hours."
+    command: |
+      KRB5CCNAME=FILE:/tmp/check-hours-cc kinit -k -t /etc/svc-report.keytab svc-report@AD.SHOP.TEST > /dev/null 2>&1 || { echo "the keytab gets no ticket"; exit 0; }
+      line=$(KRB5CCNAME=FILE:/tmp/check-hours-cc klist | grep 'krbtgt/')
+      KRB5CCNAME=FILE:/tmp/check-hours-cc kdestroy -q
+      usual=$(( ($(date -d "$(echo "$line" | awk '{print $3, $4}')" +%s) - $(date -d "$(echo "$line" | awk '{print $1, $2}')" +%s)) / 3600 ))
+      got=$(runuser -u learner -- setpriv --no-new-privs /home/learner/bin/domain-report ldap linux-admins 2>/dev/null | sed -n 4p)
+      [ "$got" = "ticket hours: $usual" ] || { echo "the fourth line is [$got], not [ticket hours: $usual]"; exit 0; }
+      conf=$(mktemp)
+      printf '[libdefaults]\n    default_realm = AD.SHOP.TEST\n    dns_lookup_kdc = true\n    dns_lookup_realm = false\n    ticket_lifetime = 3h59m59s\n' > "$conf"
+      chmod 644 "$conf"
+      short=$(runuser -u learner -- env KRB5_CONFIG="$conf" setpriv --no-new-privs /home/learner/bin/domain-report ldap linux-admins 2>/dev/null | sed -n 4p)
+      rm -f "$conf"
+      [ "$short" = "ticket hours: 3" ] || { echo "asked for tickets of 3 hours 59 minutes 59 seconds, the fourth line is [$short]"; exit 0; }
+      echo right
+    expect:
+      equals: right

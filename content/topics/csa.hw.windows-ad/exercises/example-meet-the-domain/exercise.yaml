@@ -1,0 +1,37 @@
+id: example-meet-the-domain
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Meet the domain"
+prompt: |
+  The lab has two machines. `lab` is the one your shell opens on, an ordinary Linux server. `dc1`, at 10.0.9.10, is the domain controller for the shop's domain, `ad.shop.test`: it holds the directory, answers DNS questions about the domain, and runs the KDC that hands out Kerberos tickets. Three people are in the directory: `alice` (password `Alice-Pass-1`) and `carol`, both in the group `linux-admins`, and `bob`. `lab` asks the site's ordinary resolver for names, a small name server on `lab` itself, and that resolver has never heard of the domain.
+
+  The walkthrough finds dc1 the way any member of a domain does, through DNS; tells the site's resolver where the domain's names live; gets a Kerberos ticket for alice and uses it; and shows the two things the domain refuses: a password sent in the clear, and a clock that's too far out. Type each line yourself in the lab's shell and read what it prints before you type the next.
+steps:
+  - label: "Ask for the domain's controllers"
+    lines: "1"
+    note: "The question every member starts with: which hosts offer LDAP for `ad.shop.test`? It is asked as an SRV record named `_ldap._tcp.ad.shop.test`. The answer says `status: NXDOMAIN`, \"no such name\", and has no answer section: the resolver this machine uses has never heard of the domain, so it asked the internet's DNS, which hasn't either. Every other step depends on this lookup, which is why names are the first thing to check when a domain stops working."
+  - label: "Ask dc1 itself"
+    lines: "2"
+    note: "`@10.0.9.10` sends the same question straight to dc1's own name server. `+short` prints only the answer: `0 100 389 dc1.ad.shop.test.`, which is priority 0, weight 100, port 389 (LDAP), and the host. The domain's DNS lives on its controllers. Asking dc1 directly proves that, but nothing else on this machine asks dc1, so it fixes nothing."
+  - label: "Forward the domain's two zones"
+    lines: "3-4"
+    note: "A conditional forwarder: a rule on the site's resolver that sends questions about one zone to another name server and leaves every other name alone. `server=/ad.shop.test/10.0.9.10` sends everything under `ad.shop.test` to dc1. The second line does the same for `9.0.10.in-addr.arpa`, the reverse zone, where the names of addresses in 10.0.9.x are kept, so that 10.0.9.10 has a name. `tee` writes the file as root and shows what it wrote; then the resolver is restarted to read it."
+  - label: "Ask again, through this machine's own resolver"
+    lines: "5-6"
+    note: "No `@` this time, so the question goes to the resolver every program on this machine uses, and the SRV record comes back: it's saved to `~/example/srv.txt`. `dig -x 10.0.9.10` asks the reverse question, the PTR record for that address, and gets `dc1.ad.shop.test.`. Kerberos needs that one, as the next steps show."
+  - label: "Prove who you are, once"
+    lines: "7-8"
+    note: "`kinit` asks the KDC on dc1 for alice's first ticket, the ticket-granting ticket. In the lab, type `kinit alice@AD.SHOP.TEST` and give the password when it asks: a password typed on a command line stays in the shell's history, and this line hands it over on standard input only so the walkthrough can run unattended. The realm is the domain's name in capitals; `kinit alice@ad.shop.test` fails with `KDC reply did not match expectations`. `klist` shows one ticket, `krbtgt/AD.SHOP.TEST@AD.SHOP.TEST`, valid for ten hours from now."
+  - label: "Use the ticket"
+    lines: "9-10"
+    note: "`ldapsearch` asks the directory for alice's entry. `-Y GSSAPI` signs in with Kerberos instead of a password (no password is asked for); `-H` names the server, `-b` where in the directory to start, and the filter in brackets says what to find. It prints alice's distinguished name and her group. `klist` now has a second line, `ldap/dc1.ad.shop.test`: the ticket for that one service, which the client fetched with the first ticket and handed to dc1. Saved to `~/example/tickets.txt`."
+  - label: "Send a password in the clear, and be refused"
+    lines: "11"
+    note: "`-x -D ... -w ...` is a simple bind: the password itself, sent over a plain, unencrypted connection. dc1 answers `Strong(er) authentication required` and `Transport encryption required`, and the command exits 8. The domain won't take a password that anyone on the network could read. The labs never turn that off."
+  - label: "Four minutes off, then six"
+    lines: "12-14"
+    note: "Kerberos refuses a request whose time is more than five minutes from the KDC's clock, which stops a copied request being replayed later. `faketime -f '+6m'` tells one command the time is six minutes ahead and changes nothing else; never set a lab's clock with `date`, because every container shares the clock of the machine underneath. Linux's Kerberos normally measures how far its clock is out and makes up for it, so `KRB5_CONFIG=` points this one command at a two-line settings file that turns that off (`kdc_timesync = 0`). Four minutes works; six gives `Clock skew too great`, saved to `~/example/skew.txt`. On a real machine that error means its time source is broken: the fix is the clock, never a longer tolerance."
+skills: [dc-discovery, kerberos-tickets]

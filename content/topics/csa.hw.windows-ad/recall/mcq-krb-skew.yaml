@@ -1,0 +1,16 @@
+id: mcq-krb-skew
+type: mcq
+rev: 1
+prompt: |
+  On a server, `kinit alice@AD.SHOP.TEST` says `kinit: Clock skew too great while getting initial credentials` (captured in the lab). The server's clock turns out to be seven minutes behind dc1's. What is the fix?
+choices:
+  - "Fix the server's time source, so that its clock agrees with the domain's within five minutes"
+  - "Reset alice's password on dc1, since the KDC has stopped accepting the one she typed"
+  - "Raise the domain's clock tolerance to an hour, so that a few minutes' drift never stops anyone"
+  - "Delete and recreate alice's account, since her tickets were made with the wrong time inside"
+answer: 0
+explanation: |
+  Every Kerberos request carries the time, and a KDC refuses one more than five minutes from its own clock (the default tolerance in a domain). That stops someone who copied a request from replaying it later. Seven minutes is over the line, and the cause is the server's clock, so the fix is its time source: machines keep their clocks agreed by asking a time server, and this one has stopped doing so.
+
+  The password is fine: the error is about time, and a wrong password says `Password incorrect`. Raising the tolerance hides the broken clock and widens the window in which a copied request still works. alice's account has nothing to do with it: any account fails on this server, and alice signs in fine from every machine whose clock is right.
+skills: [kerberos-tickets]

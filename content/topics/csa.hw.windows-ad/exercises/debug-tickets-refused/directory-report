@@ -1,0 +1,29 @@
+#!/bin/bash
+# Usage: directory-report GROUP...
+# The shop's nightly directory report: who is in each group. It signs in to
+# the domain as the service account named in its settings, with that
+# account's keytab, finds a domain controller through DNS, and asks the
+# directory over LDAP, signed in with Kerberos, for each group's members.
+set -euo pipefail
+# shellcheck source=/dev/null
+. /etc/directory-report.conf
+
+# A ticket cache of the report's own.
+export KRB5CCNAME=FILE:/run/directory-report.ccache
+kinit -k -t "$KEYTAB" "$ACCOUNT@$REALM"
+
+# The domain's LDAP servers, from its SRV records; the first one will do.
+server=$(dig +short "_ldap._tcp.$DOMAIN" SRV | awk 'NR == 1 {sub(/\.$/, "", $4); print $4}')
+if [ -z "$server" ]; then
+  echo "directory-report: no LDAP server found for $DOMAIN" >&2
+  exit 1
+fi
+base="DC=${DOMAIN//./,DC=}"
+
+for group in "$@"; do
+  members=$(ldapsearch -Q -LLL -Y GSSAPI -H "ldap://$server" -b "$base" \
+      "(&(objectClass=user)(memberOf=CN=$group,CN=Users,$base))" sAMAccountName |
+    awk '/^sAMAccountName:/ {print $2}' | sort | tr '\n' ' ')
+  echo "$group: ${members% }"
+done
+kdestroy -q

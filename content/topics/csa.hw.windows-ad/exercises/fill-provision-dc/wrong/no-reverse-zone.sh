@@ -1,0 +1,50 @@
+# Wrong: no reverse zone, so 10.0.9.10 has no name and a Kerberos
+# client that turns dc1's address back into a name asks for the wrong ticket.
+cat > ~/bin/stand-up-dc <<'EOF'
+#!/bin/bash
+# Stands up the shop's domain, ad.shop.test, on dc1: creates the domain,
+# starts dc1's service now and at every boot, gives dc1's address a name,
+# and sets the domain's password rules. It is meant for a dc1 that holds no
+# domain yet, and is run once.
+set -euo pipefail
+
+# A domain's name can't be changed once it exists, so stop before anything
+# is created if a gap is still unfilled (three underscores in a row).
+if grep -q '_\{3\}' "$0"; then
+  echo "stand-up-dc: fill in every gap first" >&2
+  exit 1
+fi
+if on-dc test -e /var/lib/samba/private/sam.ldb; then
+  echo "stand-up-dc: dc1 already holds a domain; start the lab again with --fresh to begin again" >&2
+  exit 1
+fi
+
+realm=AD.SHOP.TEST                # the domain's name the way Kerberos writes it
+short_name=SHOP                   # the domain's short name, the SHOP in SHOP\alice
+forwarder=10.0.9.1                # where dc1 sends the questions it can't answer itself
+reverse_zone=9.0.10.in-addr.arpa  # the zone that holds the names of the addresses 10.0.9.x
+admin_password='Shop-Admin-1'
+
+# 1. Create the domain on dc1: its directory, its Kerberos keys and its DNS
+#    zone. It takes a few seconds.
+on-dc samba-tool domain provision --quiet --realm="$realm" --domain="$short_name" \
+  --server-role=dc --dns-backend=SAMBA_INTERNAL --adminpass="$admin_password" \
+  --option="dns forwarder = $forwarder"
+
+# 2. Start dc1's service now, and at every boot from now on.
+sudo systemctl enable --now dc1
+# dc1's name server answers a moment after its service says it's ready.
+until dig +short +time=1 +tries=1 @10.0.9.10 _ldap._tcp.ad.shop.test SRV | grep -q dc1; do
+  sleep 1
+done
+
+# 3. Give dc1's address a name: a reverse zone for its network, and a PTR
+#    record in it for 10.0.9.10. A record's name is written relative to its
+#    zone, the way dc1 is the name of dc1.ad.shop.test inside ad.shop.test.
+
+# 4. The password rules for the whole domain.
+on-dc samba-tool domain passwordsettings set --min-pwd-length=12 --account-lockout-threshold=10
+
+on-dc samba-tool domain info 10.0.9.10
+EOF
+~/bin/stand-up-dc

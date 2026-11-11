@@ -1,0 +1,32 @@
+id: write-domain-report
+stage: write
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Write domain-report"
+prompt: |
+  The shop's domain is `ad.shop.test`, on `dc1`, and this machine already finds it: its resolver forwards the domain's zone and its reverse zone to dc1. The directory has a service account for reports, `svc-report`, whose keytab is in `/etc/svc-report.keytab` (a keytab holds an account's keys, so a program can sign in as it without anyone typing a password). The groups `linux-admins` and `stock-team` are in the default `CN=Users` folder.
+
+  Write a script, `~/bin/domain-report SERVICE GROUP`, that prints four lines about the domain, signed in as svc-report:
+
+  ```text
+  ldap: dc1.ad.shop.test 389
+  keytab: ok
+  linux-admins: alice carol
+  ticket hours: 10
+  ```
+
+  1. SERVICE, then the host and the port from the domain's SRV record for that service (`_SERVICE._tcp.ad.shop.test`), asked through this machine's own resolver, with the host's final dot left off. `domain-report kerberos ...` starts `kerberos: dc1.ad.shop.test 88`.
+  2. `keytab: ok` when the keytab gets a ticket for `svc-report@AD.SHOP.TEST`. When it doesn't, the script prints `keytab: refused` there, prints nothing more, and exits with status 1.
+  3. GROUP, then its members' account names (`sAMAccountName`), sorted, one space apart, from an LDAP search of dc1 signed in with that ticket.
+  4. `ticket hours:` and the lifetime of that ticket in whole hours, rounded down: its Expires time minus its Valid starting time.
+
+  Keep the ticket in a cache of the script's own (set `KRB5CCNAME`), so your own tickets are left alone. The checks run the script as you, in a way that stops `sudo` (and so `on-dc`) from working, for other services and groups as well, once with a keytab that no longer works, and once with Kerberos settings that ask for shorter tickets, so every line has to come from what the domain tells svc-report at that moment. Make the script executable, try it, and run the checks.
+hints:
+  - "Start with `#!/bin/bash`, `set -euo pipefail` and the arguments, `service=$1` and `group=$2`. `export KRB5CCNAME=FILE:/tmp/domain-report-$(id -u)` then keeps the script's tickets in a file of its own, and every `kinit`, `klist`, `ldapsearch` and `kdestroy` after it uses that file."
+  - "`dig +short _ldap._tcp.ad.shop.test SRV` prints `priority weight port host.`; in awk the port is `$3` and the host `$4`, and `sub(/\\.$/, \"\", $4)` drops a final dot. `awk -v service=\"$service\"` hands a shell variable to awk."
+  - "`kinit -k -t FILE PRINCIPAL` gets a ticket with a keytab instead of a password, and exits non-zero when it can't. `if ! kinit ...; then echo \"keytab: refused\"; exit 1; fi` does something only when it fails."
+  - "The members of a group, as an LDAP filter: `(&(objectClass=user)(memberOf=CN=GROUP,CN=Users,DC=ad,DC=shop,DC=test))`. With `ldapsearch -Q -LLL -Y GSSAPI -H ldap://dc1.ad.shop.test -b 'DC=ad,DC=shop,DC=test' FILTER sAMAccountName`, keep the `sAMAccountName:` lines' second field, `sort`, and `tr '\\n' ' '`; `${members% }` drops the space at the end."
+  - "In `klist`, the `krbtgt/` line starts with two dates and times: Valid starting (fields 1 and 2) and Expires (fields 3 and 4). `date -d \"11/11/26 07:51:28\" +%s` turns one into seconds, so `$(( (end - start) / 3600 ))` is the hours."
+skills: [dc-discovery, kerberos-tickets, directory-structure]

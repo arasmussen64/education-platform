@@ -1,0 +1,16 @@
+id: mcq-krb-next-ticket
+type: mcq
+rev: 1
+prompt: |
+  alice already holds her ticket-granting ticket. She now logs in over SSH, with Kerberos, to `files1.ad.shop.test`, a server in the domain. Which new line appears in her `klist`?
+choices:
+  - "`host/files1.ad.shop.test@AD.SHOP.TEST`, a service ticket for logging in to that server"
+  - "`krbtgt/AD.SHOP.TEST@AD.SHOP.TEST` again, a fresh day pass made just for that one server"
+  - "`alice/files1.ad.shop.test@AD.SHOP.TEST`, a ticket that names alice as a user of that server"
+  - "`ldap/dc1.ad.shop.test@AD.SHOP.TEST`, since every login has to ask the directory about alice"
+answer: 0
+explanation: |
+  For each service, the client shows the day pass to the KDC and gets a service ticket named for that service on that host: `service/host@REALM`. Logging in to a machine is the service `host`, so the new line is `host/files1.ad.shop.test@AD.SHOP.TEST`, and files1 reads it with its own key, without calling the domain controller.
+
+  The ticket-granting ticket is got once and used for every service; nothing makes a second one per server. A ticket is named for the service it opens, not for the person holding it: alice's name is inside it, as the ticket's client. And a login to files1 asks the KDC for a ticket to files1; an `ldap/dc1` ticket appears only when something searches the directory on dc1.
+skills: [kerberos-tickets]

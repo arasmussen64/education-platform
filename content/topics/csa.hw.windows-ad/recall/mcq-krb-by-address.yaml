@@ -1,0 +1,16 @@
+id: mcq-krb-by-address
+type: mcq
+rev: 1
+prompt: |
+  alice holds a ticket-granting ticket. On a machine where 10.0.9.10 has no reverse record, `ldapsearch -Y GSSAPI -H ldap://10.0.9.10 ...` fails with `Server not found in Kerberos database` (captured in the lab). What is wrong?
+choices:
+  - "Tickets are issued for service names, and with no name for the address, none matches"
+  - "dc1 is down, so the KDC couldn't find the LDAP server it was asked for a ticket to"
+  - "alice isn't allowed to search the directory, so the KDC won't give her an LDAP ticket"
+  - "The machine's clock is too far from dc1's, so the KDC won't issue any further tickets"
+answer: 0
+explanation: |
+  The KDC holds keys for service names like `ldap/dc1.ad.shop.test`. Given only an address, the LDAP client tries to turn it back into a name with a PTR record; with none, it asks for a ticket for `ldap/10.0.9.10`, a service name nothing in the domain has, and the KDC says so. Use the server's name (`ldap://dc1.ad.shop.test`), and give its address a reverse record, forwarded to this machine's resolver, because the client checks the name that way too.
+
+  dc1 being down would fail earlier: no KDC, no answer at all. Whether alice may search is decided by the directory after she has signed in, not by the KDC refusing a ticket. And a clock too far out says `Clock skew too great`, not that a server is missing.
+skills: [kerberos-tickets]

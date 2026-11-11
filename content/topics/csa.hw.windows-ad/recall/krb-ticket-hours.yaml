@@ -1,0 +1,16 @@
+id: krb-ticket-hours
+type: predict_shell
+rev: 1
+prompt: |
+  `klist.txt` holds alice's ticket-granting ticket (captured on 2026-11-11). Its two times are when it starts and when it expires. The command takes the hour of each, subtracts, and adds 24 when the result is below zero, because the ticket ends the next day. What is printed?
+files:
+  klist.txt: |
+    Valid starting     Expires            Service principal
+    11/11/26 17:23:31  11/12/26 03:23:31  krbtgt/AD.SHOP.TEST@AD.SHOP.TEST
+command: |
+  awk '/krbtgt\// {split($2, start, ":"); split($4, end, ":"); hours = end[1] - start[1]; if (hours < 0) hours += 24; print hours " hours"}' klist.txt
+expected_output: |
+  10 hours
+explanation: |
+  The ticket starts at 17:23:31 on 11 November and expires at 03:23:31 on the 12th: 3 minus 17 is -14, and adding 24 gives 10. Ten hours is the default lifetime of a user's first ticket in a domain (Windows's Default Domain Policy, and Samba's too): long enough for a working day, short enough that a stolen ticket goes stale overnight. Anything that needs the domain after that needs a new ticket, from a password, a keytab, or a renewal before `renew until`. Subtracting only the hours works here because both times have the same minutes and seconds; a ticket of 3 hours 50 minutes that starts at 17:20 ends at 21:10, and the hours alone say 4. In a script, turn both times into seconds with `date -d` and divide the difference by 3600, which works for any lifetime and across any number of days.
+skills: [kerberos-tickets]

@@ -1,0 +1,10 @@
+#!/bin/bash
+# Runs inside dc1's network namespace, in a hostname and mount namespace of
+# its own: gives dc1 its name and its own Samba files, then runs the command.
+set -euo pipefail
+hostname dc1
+for d in var/lib/samba var/cache/samba var/log/samba run/samba; do
+  mkdir -p "/srv/dc/$d" "/$d"
+  mount --bind "/srv/dc/$d" "/$d"
+done
+exec "$@"
