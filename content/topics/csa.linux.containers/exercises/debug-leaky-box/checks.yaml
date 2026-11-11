@@ -1,20 +1,73 @@
-# The checks for "The container that leaks": the box has its own hostname
-# and leaves the machine's alone, its shell can start processes, and its
-# pids limit holds.
+# The checks for "The container that leaks". Each runs boxes of its own,
+# under a name made when the check runs and with a program of its own, so
+# the box has to work for any name and any command, not only for "demo"
+# and the three the prompt names: the hostname is read on the lab machine
+# while a box is running, ps must list only the box's processes, and the
+# pids limit must stop a storm the check writes itself. Each description is
+# the state the box must end in; none says what was wrong.
+#
+# A box that shares the machine's hostname renames the machine. Each check
+# names the machine back to what it was if one of its own boxes renamed it,
+# so the checks after it aren't thrown by a name the check itself set.
+#
+# A check that finds something wrong prints what it found and exits 0, so
+# the learner's terminal shows the reason beside the failed check.
 checks:
   - id: own-hostname
-    description: "box demo hostname prints demo, and the lab machine is still lab."
-    command: echo "$(runuser -u learner -- /home/learner/bin/box demo hostname 2>/dev/null) $(hostname)"
+    description: "A box takes the name it's given (box NAME hostname prints NAME), and while a box is running the lab machine is still called lab."
+    command: |
+      name="check$(( $(date +%s%N) % 10000 ))"
+      before=$(hostname)
+      inside=$(runuser -u learner -- /home/learner/bin/box "$name" hostname 2>/dev/null)
+      runuser -u learner -- /home/learner/bin/box "$name" sleep 3 > /dev/null 2>&1 &
+      sleep 1.5
+      during=$(hostname)
+      wait
+      after=$(hostname)
+      [ "$after" = "$name" ] && hostname "$before"
+      if [ "$inside" != "$name" ]; then
+        echo "box $name hostname printed '$inside'"
+      elif [ "$during" != lab ] || [ "$after" != lab ]; then
+        echo "while a box was running, the lab machine was called $during"
+      else
+        echo "a name of its own"
+      fi
     expect:
-      equals: "demo lab"
-  - id: can-fork
-    description: "box demo ps works and shows PID 1."
-    command: runuser -u learner -- /home/learner/bin/box demo ps 2>&1
+      equals: "a name of its own"
+  - id: own-processes
+    description: "Inside a box, ps works and lists only the box's own processes, starting from PID 1."
+    # The lab machine runs a few dozen processes; a box that shares them
+    # lists them all.
+    command: |
+      name="check$(( $(date +%s%N) % 10000 ))"
+      before=$(hostname)
+      out=$(runuser -u learner -- /home/learner/bin/box "$name" ps 2>&1)
+      [ "$(hostname)" = "$name" ] && hostname "$before"
+      listed=$(echo "$out" | awk 'NR > 1 && $1 ~ /^[0-9]+$/' | wc -l)
+      if echo "$out" | grep -q "can't fork"; then
+        echo "ps in the box: can't fork"
+      elif ! echo "$out" | grep -Eq '^ *1 '; then
+        echo "ps in the box lists no PID 1"
+      elif [ "$listed" -gt 4 ]; then
+        echo "ps in the box lists $listed processes"
+      else
+        echo "only its own"
+      fi
     expect:
-      matches: "(?m)^ *1 "
-      not_contains: "can't fork"
+      equals: "only its own"
   - id: limit-holds
-    description: "box demo forkstorm is stopped by the pids limit around its twentieth process, not allowed all thirty: the box is in its cgroup."
-    command: runuser -u learner -- /home/learner/bin/box demo forkstorm 2>/dev/null | grep -c '^starting process'
+    description: "A box is held to its 20 processes: a program in it that tries to start thirty is stopped around the twentieth."
+    # The storm is the check's own, written here rather than the image's
+    # forkstorm, so editing that program changes nothing. Its processes
+    # sleep only five seconds: in a box they end with its PID 1, and in a
+    # box that isn't one they're gone soon after. A box that can't start
+    # the program at all isn't held to anything, so fewer than ten fails.
+    command: |
+      name="check$(( $(date +%s%N) % 10000 ))"
+      before=$(hostname)
+      started=$(runuser -u learner -- /home/learner/bin/box "$name" sh -c 'i=0; while [ $i -lt 30 ]; do i=$((i+1)); echo "starting process $i"; sleep 5 > /dev/null 2>&1 & done; sleep 1' 2>/dev/null | grep -c '^starting process')
+      [ "$(hostname)" = "$name" ] && hostname "$before"
+      echo "${started:-0} started"
     expect:
+      gte: 10
       lte: 22
