@@ -37,7 +37,7 @@ content/
 
 - Topic IDs look like `py.variables`. Item IDs are unique within their topic, so an item's full ID is `py.variables/fill-swap`.
 - IDs never change once published, because events refer to them.
-- Bump an item's `rev` when you change it meaningfully. To replace an item, add a new one and mark the old one `retired: true`.
+- Bump an item's `rev` when you change it meaningfully. Answers save the `rev` they were given (`item_rev`), so the versions can be told apart later, and answers to an earlier `rev` still count for progress and follow-ups ([ADR-0011](../decisions/0011-mistakes-come-back.md), amended 2026-11-11). To replace an item, add a new one and mark the old one `retired: true`.
 
 ### Track
 
@@ -134,7 +134,7 @@ skills: # what the topic teaches (ADR-0011)
     description: "Swap two values using a third name"
 ```
 
-**Skills.** Every recall item and exercise lists the skills it mainly tests (`skills: [assignment]`); worked examples may leave it out. A missed question comes back later as a _different_ question on the same skill ([ADR-0011](../decisions/0011-mistakes-come-back.md)). So in a ready topic, every skill needs at least 2 **follow-up candidates**: recall items, or fill-in, write and `review_code` exercises. Build and debug exercises name their skills too, but they're proof checks and never come back as follow-ups.
+**Skills.** Every recall item and exercise lists the skills it mainly tests (`skills: [assignment]`); worked examples may leave it out, and any skills a worked example lists are ignored: it shows its answer as it goes, so it neither opens nor closes a follow-up ([ADR-0011](../decisions/0011-mistakes-come-back.md), amended 2026-11-11). A missed question comes back later as a _different_ question on the same skill ([ADR-0011](../decisions/0011-mistakes-come-back.md)). So in a ready topic, every skill needs at least 2 **follow-up candidates**: recall items, or fill-in, write and `review_code` exercises. Build and debug exercises name their skills too, but they're proof checks and never come back as follow-ups.
 
 **Checkpoints** have no lesson, practice ladder, review pool or skills of their own. Instead, their tests name skills from the module's topics, and they have a way through for a learner who's stuck ([ADR-0012](../decisions/0012-checkpoint-support.md)):
 
@@ -323,7 +323,7 @@ Every table has row-level security: a learner can only read and write their own 
 | `item_rev`      | integer, nullable | the item's `rev` when it was answered                                                                                                                  |
 | `content_build` | text              | the git commit the content was built from                                                                                                              |
 | `session_id`    | uuid              | groups one study session                                                                                                                               |
-| `occurred_at`   | timestamptz       | browser time                                                                                                                                           |
+| `occurred_at`   | timestamptz       | browser time (UTC); the learner's own day and time zone are in `data`                                                                                  |
 | `received_at`   | timestamptz       | server time, default `now()`                                                                                                                           |
 | `data`          | jsonb             | details for that event type, at most 16 KB                                                                                                             |
 
@@ -336,25 +336,32 @@ Policies allow **insert** and **select** only. There is no update or delete poli
 | `code_run`                    | the learner presses Run, or Step through ([ADR-0022](../decisions/0022-step-through.md))           | `code`; `outcome` (`done`, `timeout` or `failed`); `output`, `error` and `waiting_for_input` (or `message`). From Step through, also `stepped: true`, `steps` (how many were recorded) and `truncated`                                                                                                                                                                     |
 | `code_check`                  | tests are run                                                                                      | `code`; `outcome`; `status`; `passed` and `total`; `failing` (test names); `message` if the tests couldn't run                                                                                                                                                                                                                                                             |
 | `explain_submit`              | an explanation is sent to be checked (item `explain`)                                              | the text and `status`; when graded, the `verdict`, each rubric item's result, the `questions`, `ai_call_id` and `model`. `correct` is set only when graded ([ADR-0013](../decisions/0013-explain-grading.md))                                                                                                                                                              |
-| `hint`                        | a hint is shown                                                                                    | `level` (how many hints of that source so far); `source` (`author` for a written hint, `tutor` for one from the AI tutor). For the tutor ([ADR-0015](../decisions/0015-hint-only-tutor.md)): `rung` (`nudge`, `concept`, `specific` or `step`), `replaced` (whether the proxy swapped Claude's reply for a safer hint), the learner's `question`, `ai_call_id` and `model` |
-| `review`                      | a review session's items have all had a first attempt (item `review`)                              | `rating` (`good`, `hard` or `again`) and `items`: each item's ID and whether its first attempt was correct. `correct` is whether the rating was Good ([ADR-0009](../decisions/0009-reviews.md))                                                                                                                                                                            |
+| `hint`                        | a hint is shown, or a checkpoint's steps are opened (see below the table)                          | `level` (how many hints of that source so far); `source` (`author` for a written hint, `tutor` for one from the AI tutor). For the tutor ([ADR-0015](../decisions/0015-hint-only-tutor.md)): `rung` (`nudge`, `concept`, `specific` or `step`), `replaced` (whether the proxy swapped Claude's reply for a safer hint), the learner's `question`, `ai_call_id` and `model` |
+| `review`                      | a review session's items all have a first answer, from this visit or earlier ones (item `review`)  | `rating` (`good`, `hard` or `again`) and `items`: each item's ID and whether its first attempt was correct. `correct` is whether the rating was Good ([ADR-0009](../decisions/0009-reviews.md))                                                                                                                                                                            |
 | `review`                      | a topic's review session ends                                                                      | item IDs; results; the rating                                                                                                                                                                                                                                                                                                                                              |
 | `answer`, context `placement` | a question is answered during the placement test ([ADR-0021](../decisions/0021-placement-test.md)) | the usual answer data, plus `run`, the run's id; for a diagnostic, `level` too; `dont_know: true` with a null `choice`, `prediction` or `program` when the learner chose "I don't know this" (counted as wrong). `topic_id` is the probed topic, or `diagnostic.<id>`                                                                                                      |
 | `placement`                   | a placement run ends (item `placement`, context `placement`)                                       | `run`; `kind` (`track` or `diagnostic`); `known`, the topics or levels in order that count as known; `next`, where to start, or null; `asked`, `correct`; `probes`, each topic or level probed with its questions and results. `topic_id` is the track's id or `diagnostic.<id>`; `correct` is null                                                                        |
 
+**A Check that couldn't run** is saved with `correct` null and counts nowhere ([ADR-0008](../decisions/0008-event-log.md), amendment of 2026-11-11). That's when its `outcome` is `failed` (Python didn't start, a package didn't load, the worker crashed), or its `status` is `error` because the exercise's own tests couldn't be loaded, or it ran no tests (`status` `ok` and `total` 0). Code that runs past its time limit (`outcome` `timeout`) still counts as wrong. The rule is `checkCorrect` in `web/src/events/checkGrade.ts`, and `savedCheckCouldNotRun` in the same file applies it to Checks already saved.
+
+**Opening a checkpoint's steps** is saved as a `hint` event with `source: "steps"` and no `level` ([ADR-0012](../decisions/0012-checkpoint-support.md), amended 2026-11-11). Its item is the checkpoint's build, and its context `prove`. It's saved the first time the steps open on each visit.
+
 How the browser fills in the other columns:
 
-- **`duration_ms`** (graded events): from the learner's first click or focus inside the item, or from their previous attempt at it, to this attempt. Time spent reading the lesson above doesn't count. The practice-hours tracker on the Today page adds these up, counting at most 30 minutes per attempt.
+- **`duration_ms`** (graded events): from the learner's first click or focus inside the item, or from their previous attempt at it, to this attempt. Time spent reading the lesson above doesn't count. The practice-hours tracker on the Today page adds these up, counting at most 30 minutes per attempt. A Check that couldn't run saves none, and its time carries on to the next attempt.
 - **`hints_used`**: how many hints were showing at the time.
 - **`session_id`**: a new study session starts when the app opens, and after 30 minutes without any events.
 - **`content_build`**: the git commit the app was built from.
 - **`occurred_at`**: the browser's clock when it happened. An event saved after time offline keeps its original time; `received_at` shows when it arrived.
+- **`data.local_day` and `data.utc_offset_minutes`** (every event since 2026-11-11, [ADR-0008](../decisions/0008-event-log.md), amended): the learner's calendar day when it happened, like `"2026-11-06"`, and how many minutes their clock was ahead of UTC (`-480` in Los Angeles in winter, `330` in India). An event's day is its `local_day` when it has one that could be right (the UTC day or one either side of it). Older events have neither, and their day is the day on the viewing device's clock (`dayOf` in `web/src/days.ts`).
 
 Code and output are cut to 6,000 and 2,000 characters, so every event fits the 16 KB limit. Signed-out visitors' events aren't recorded at all.
 
 #### Events the server refuses
 
-Every event waits in the browser's outbox (a list in `localStorage`) until the server confirms it. A send can fail in two ways:
+Every event waits in the browser's outbox (a list in `localStorage`) until the server confirms it. If the browser won't let the page write to `localStorage` (it's full, or site data is switched off), the event waits in a second outbox in the page's memory instead and is sent from there in the same way. While any are unsent, the header says "Not saved yet: this device can't keep it if the page closes", because closing the page would lose them ([ADR-0008](../decisions/0008-event-log.md), amendment of 2026-11-11).
+
+A send can fail in two ways:
 
 - **A passing problem:** no connection, an expired sign-in, a busy or broken server (HTTP status 0, 401, 408, 429 or 5xx). The event stays in the outbox and is sent again after 5 seconds, then 10, and so on up to every 5 minutes.
 - **A refusal:** any other status, which means the server wouldn't take the data itself. The usual cause is that the app is ahead of the database: it records a new kind of event before the migration that allows it has reached the server.
@@ -473,10 +480,12 @@ Learners insert and read their own reports, and nothing else: `status` isn't in 
 
 ## Derived progress
 
-Pure functions in `web/src/progress/progress.ts` compute progress from the topic outlines and the learner's graded events. `progressOf` finds when each proof check first passed, and `stateOf` gives a topic's state.
+Pure functions in `web/src/progress/progress.ts` compute progress from the topic outlines and the learner's graded events. `progressOf` finds when each proof check first passed, `withOpenFollowUps` notes which of each topic's skills are being relearned (see [Mistakes to revisit](#mistakes-to-revisit)), and `stateOf` gives a topic's state.
 
 - A proof check passes with a passing Check of the topic's build or debug, or with an `explain_submit` event whose `correct` is true. A pass on any of a checkpoint's fresh versions counts as its build.
-- Answers in the `placement` context are skipped: the placement test asks about topics the learner hasn't opened, and its answers must not make a topic In progress ([ADR-0021](../decisions/0021-placement-test.md)). The follow-ups skip them too.
+- Once the learner has opened a checkpoint's steps, a pass of its main build from after the first opening doesn't count; a fresh version's does. A checkpoint with no fresh version keeps counting its main build ([ADR-0012](../decisions/0012-checkpoint-support.md), amended 2026-11-11). The openings are `hint` events with `source: "steps"`, read alongside the graded events (`web/src/checkpoints/stepsOpened.ts`); only the earliest matters. History from before 2026-11-11 has none, so all its passes count.
+- A Check with no verdict (one that couldn't run) isn't a graded event, so it counts for nothing here. Checks saved as wrong before 2026-11-11 that couldn't run are left out when the history is read (`savedCheckCouldNotRun` in `web/src/events/checkGrade.ts`, used by `web/src/followups/history.ts`); the stored rows don't change.
+- Answers in the `placement` context are skipped: the placement test asks about topics the learner hasn't opened, and its answers must not make a topic In progress ([ADR-0021](../decisions/0021-placement-test.md)). The follow-ups skip them too, and so do the practice questions' Done and Tried marks on topic pages (`web/src/progress/itemStates.ts`). Practice hours count them.
 - The result doesn't depend on the order of the events, so an event that arrives late, say from another device's outbox, changes only what it adds. Tests check this; it's what lets the app update progress as events arrive instead of rebuilding it.
 - The app recalculates progress from the history each visit, like the follow-ups. The `topic_progress` cache comes when that gets slow.
 
@@ -484,9 +493,11 @@ Pure functions in `web/src/progress/progress.ts` compute progress from the topic
 
 ```text
 learned  = build passed AND debug passed AND explain passed   (any order, any time)
+fresh_at = the later of learned_at and the most recent review rated Again
 mastered = learned
-           AND a review rated Good happened at least 7 days after learned_at
+           AND a review rated Good happened at least 7 days after fresh_at
            AND the most recent review was not rated Again
+           AND none of the topic's skills has an open follow-up
 
 state =
   if not learned:
@@ -502,28 +513,33 @@ state =
 
 - "In progress" and "Relearning" are finer-grained versions of ADR-0002's Available and Fading states, shown to help the learner.
 - For gating, a prerequisite counts as learned in every learned state (Learned, Mastered, Fading, Relearning). A failed review never re-locks the topics built on it ([ADR-0002](../decisions/0002-mastery-and-gating.md)).
+- A failed review (rated Again) starts Mastered's week over; Hard doesn't, though its wrong item opens a follow-up, which holds Mastered back by itself ([ADR-0002](../decisions/0002-mastery-and-gating.md), amended 2026-11-11). The open follow-ups come from the same history, with the skill index described under [Mistakes to revisit](#mistakes-to-revisit). `useProgress` (`web/src/progress/useProgress.ts`) notes them on each topic's progress with `withOpenFollowUps`, and `stateOf` then shows such a topic as Learned rather than Mastered. A topic page reads only the history of the topic and its prerequisites, so a follow-up that a checkpoint's test opened or moved on can leave it showing a different state from the map and the Today page, which read the whole history.
 
 ### Checkpoints
 
-Locked → Available → In progress → Passed, once all three proof checks pass. A pass on any fresh version of the build counts as passing the build ([ADR-0012](../decisions/0012-checkpoint-support.md)). The page opens a checkpoint's explain check only after its build has passed (the same ADR, amended 2026-11-10); the calculation itself doesn't depend on the order. Checkpoints have no reviews.
+Locked → Available → In progress → Passed, once all three proof checks pass. A pass on any fresh version of the build counts as passing the build ([ADR-0012](../decisions/0012-checkpoint-support.md)). Once its steps have been opened, a pass of the main build no longer counts, only a fresh version's (the same ADR, amended 2026-11-11; see above). The page opens a checkpoint's explain check only after its build has passed (the same ADR, amended 2026-11-10); the calculation itself doesn't depend on the order. Checkpoints have no reviews.
 
 ### Mistakes to revisit
 
 Details are in [ADR-0011](../decisions/0011-mistakes-come-back.md). They're worked out by `web/src/followups/followUps.ts`, from the learner's `answer` and `code_check` events and the `skills` of each item, so nothing is stored for them:
 
 - Each item's outcome is judged per day. A question is missed if any answer to it that day was wrong. A code exercise is correct if any Check that day passed.
+- An event's day is the learner's own recorded day where the event has one (`local_day`, since 2026-11-11), else the day on the viewing device's clock.
 - A checkpoint's tests count for the skills they name ([ADR-0012](../decisions/0012-checkpoint-support.md)), in those skills' own topics. Each test is judged per day like code: missed if it failed in a Check and no Check that day passed it. The names of each Check's failing tests are in its event's `data.failing`. A Check whose tests couldn't run (`data.status` isn't `ok`) counts for none of them.
+- Worked examples are no evidence either way: a lab walkthrough's Check neither opens nor closes a follow-up ([ADR-0011](../decisions/0011-mistakes-come-back.md), amended 2026-11-11).
 - For each skill, day by day:
   - a missed day opens the follow-up (due the next day) and clears earlier progress;
-  - each correct day after it counts (due again 3 days later, then 7);
-  - 3 correct days close it.
+  - a right day counts only if it's on or after the day the follow-up is due, and one of its right answers is on an item other than those missed when it last opened. A missed item counts only when every follow-up candidate on the skill was missed. A counted day makes it due again 3 days later, then 7; a right day that doesn't count changes nothing;
+  - 3 counted days close it.
+- Answers to an item's earlier `rev` count like any other, misses included.
+- Each item's skills, stage and test skills come from the skill index built with the app (`virtual:skill-index`: `web/vite.config.ts` builds it from `content/`, and `web/src/followups/skillIndex.ts` reads it), so working out the follow-ups needs no topic content. Only items of topics that can be opened count. On the Today page, only the topics of the questions it shows download in full.
 
 ### Reviews
 
-Details are in [ADR-0009](../decisions/0009-reviews.md). The scheduler is `web/src/reviews/fsrs.ts`: the published FSRS-4.5 formulas and default parameters, a 90% target retention, and intervals capped at 365 days. The formulas are the platform's own code so they can be fitted to the owner's history in the ML capstone.
+Details are in [ADR-0009](../decisions/0009-reviews.md). The scheduler is `web/src/reviews/fsrs.ts`: the FSRS-4.5 formulas and default parameters, a 90% target retention, and intervals capped at 365 days. It follows FSRS-4.5 exactly, with the two limits of FSRS-4.5's own code (a lapse never raises stability, and stability stays between 0.01 and 36,500 days), and its tests check it against py-fsrs 2.5.1, the Python package's FSRS-4.5 release (the ADR's amendment of 2026-11-11). The formulas are the platform's own code so they can be fitted to the owner's history in the ML capstone.
 
 - A topic's card is replayed from its events each visit, like everything else here: it starts when the topic becomes Learned, which counts as a first review rated Good, and each `review` event after that updates it. Checkpoints have no cards.
 - The card holds a **stability** (days until the chance of remembering drops to 90%) and a **difficulty** (1 to 10). The next review is due `stability` days after the last one, rounded, at least 1.
-- Each review session rates the card from its items' **first** attempts: all correct is Good; some correct is Hard; none is Again.
-- States after Learned, in this order: **Relearning** if the most recent review was Again; **Fading** if the review is due; **Mastered** if a review rated Good happened at least 7 days after `learned_at`; otherwise **Learned**.
-- Today lists the topics whose review is due, the most forgotten first (lowest chance of remembering), up to 20 a day. A session asks 2 items from the topic's review pool, at least one of them code or predict-the-output, the ones answered longest ago first, so sessions rotate through the pool.
+- Each review session rates the card from the **first** answer to each of its items: all correct is Good; some correct is Hard; none is Again. Every answer to an item of the topic's review pool saved with the context `review` since the topic fell due counts, whether it was given in a review session or as a mistakes-to-revisit question on Today, so a session left half-way still counts. The next visit shows those items as answered on an earlier visit and asks the rest; if earlier visits answered every item, the session is saved as soon as it shows. Earlier answers never make up a session without a code or predict-the-output item when the pool has one. Practice answers don't count.
+- States after Learned, in this order: **Relearning** if the most recent review was Again; **Fading** if the review is due; **Mastered** if a review rated Good happened at least 7 days after the later of `learned_at` and the most recent review rated Again, and none of the topic's skills has an open follow-up; otherwise **Learned**.
+- Today lists the topics whose review is due, the most forgotten first (lowest chance of remembering), up to 20 a day. The review sessions already finished that day, on the learner's own calendar day, count against the 20 (`reviewsLeftToday` in `web/src/reviews/reviews.ts`). When they're used up while topics are still due, Today says the day's reviews are done, and the rest wait for the next day. A session asks 2 items from the topic's review pool, at least one of them code or predict-the-output, the ones answered longest ago first, so sessions rotate through the pool.
