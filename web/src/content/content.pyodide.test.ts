@@ -121,6 +121,12 @@ beforeAll(async () => {
     await pyodide.loadPackage([...PACKAGES], {
       messageCallback: () => undefined,
     })
+    // Import each package once now, so no exercise is timed doing it. The
+    // first "import numpy" takes about half a second on a quiet machine and
+    // a few seconds while other test files are running, and it would all
+    // land on whichever exercise happens to come first. (A learner's first
+    // Run on a page pays it too; the margin described above covers that.)
+    for (const name of PACKAGES) pyodide.runPython(`import ${name}`)
   }
 }, 180_000)
 

@@ -79,6 +79,9 @@ async function startPython(packages) {
   const pyodide = await loadPyodide()
   if (packages.length > 0) {
     await pyodide.loadPackage(packages, { messageCallback: () => undefined })
+    // Import each package once now, so the first exercise in the list isn't
+    // timed doing it (about half a second for NumPy). CI's test does the same.
+    for (const name of packages) pyodide.runPython(`import ${name}`)
   }
   for (const name of HARNESS_FILES) {
     const source = readFileSync(join(HARNESS, name), 'utf8')
