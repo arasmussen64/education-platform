@@ -102,7 +102,7 @@ function LabCommands({
         <CommandStep label="Start the lab." command={`${RUN} start ${lab}`}>
           Running this again keeps your work: a lab that is running is left as
           it is, and a lab that stopped when Docker or your computer restarted
-          is started again with everything in it.
+          is started again with your files as you left them.
         </CommandStep>
         <CommandStep
           label="Open a shell inside the lab, and do the work there."
@@ -148,8 +148,8 @@ function LabCommands({
             Desktop, that machine is a small Linux system that Docker Desktop
             keeps running inside your computer.) Inside it, change only what the
             lab asks for. Stop it with the stop command, not from the Docker
-            Desktop window: the stop command also cleans up what the lab set up
-            on that machine.
+            Desktop window: the stop command also cleans up anything the lab set
+            up on that machine.
           </>
         ) : (
           <>
