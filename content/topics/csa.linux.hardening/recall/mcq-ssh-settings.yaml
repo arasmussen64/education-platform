@@ -1,14 +1,16 @@
 id: mcq-ssh-settings
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   You're about to set `PasswordAuthentication no` and `PermitRootLogin no` on a server you reach only over SSH. What's the safe procedure?
 choices:
-  - "Edit the file, restart sshd, log out, log back in"
-  - "First confirm your key already logs you in; edit the file; run `sshd -t` to check it for errors; reload sshd; then, keeping your current session open, open a second session to prove you can still get in; only then close the first"
-  - "Reboot the server to apply the change"
-  - "Set the options over the cloud console's serial port instead"
-answer: 1
+  - "Edit the file, restart sshd, then log out and straight back in, so that a mistake shows up at once"
+  - "Edit the file, run `sshd -T` to apply the settings, then reboot so that every session picks them up"
+  - "Check your key logs you in, edit, run `sshd -t`, reload, and test a second session before closing the first"
+  - "Check your key logs you in, edit, reload, and close your session quickly so the old settings can't linger"
+answer: 2
 explanation: |
-  A typo in `sshd_config` can leave sshd unable to start, and turning passwords off before a key works locks you out: both are solved by testing before reloading and by never closing the session you came in on until a fresh one succeeds. `sshd -t` validates the file; a reload keeps existing connections alive; the second session is the proof. A reboot would be the lock-out itself if the config were wrong.
+  A typo in `sshd_config` can leave sshd unable to start, and turning passwords off before a key works locks you out. Both are solved by testing before reloading and by never closing the session you came in on until a fresh one succeeds. `sshd -t` validates the file; a reload keeps existing connections alive; the second session is the proof.
+
+  Logging out to see whether you can log back in is the lock-out itself if anything was wrong, and so is closing your session quickly: the open session is your only way back to fix a mistake. `sshd -T` (capital T) only prints the settings in effect; it applies nothing. And a reboot isn't needed, and with a broken config it would leave sshd down with nobody logged in.
 skills: [ssh-hardening]
