@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import testrunner from '../../../harness/testrunner.py?raw'
 import type { CheckOutcome } from '../python/runner.ts'
 import { allPassed, oneFailed, report } from '../test/fakePython.ts'
-import { checkCorrect, TESTS_NOT_LOADED } from './checkGrade.ts'
+import {
+  checkCorrect,
+  checkCouldNotRun,
+  savedCheckCouldNotRun,
+  TESTS_NOT_LOADED,
+} from './checkGrade.ts'
+import { checkEventData } from './payloads.ts'
 
 describe('how a Check is graded', () => {
   it('is right when every test ran and passed', () => {
@@ -64,5 +70,42 @@ describe('how a Check is graded', () => {
     // The harness and the app are two programs: if its message changes, this
     // test says so before a broken exercise counts against a learner.
     expect(testrunner).toContain(`"${TESTS_NOT_LOADED} This is a problem`)
+  })
+})
+
+describe('a Check that is already saved', () => {
+  /** One of each kind of outcome, run or not. */
+  const outcomes: [string, CheckOutcome][] = [
+    ['every test passed', allPassed('Greets')],
+    ['a test failed', oneFailed('Greets')],
+    ['the time limit', { kind: 'timeout' }],
+    [
+      "the learner's code couldn't be loaded",
+      report({ status: 'error', message: "Your code couldn't be loaded. x" }),
+    ],
+    ["Python didn't start", { kind: 'failed', message: 'No network' }],
+    [
+      "the tests couldn't be loaded",
+      report({ status: 'error', message: `${TESTS_NOT_LOADED} x` }),
+    ],
+    ['no tests', report({ status: 'ok', total: 0 })],
+  ]
+
+  it.each(outcomes)(
+    'is judged as it was when it happened: %s',
+    (_what, outcome) => {
+      // The data exactly as the page saves it.
+      const saved = checkEventData('print("hi")', outcome)
+      expect(savedCheckCouldNotRun(saved)).toBe(checkCouldNotRun(outcome))
+    },
+  )
+
+  it.each<[string, Record<string, unknown>]>([
+    ['a lab, which has no outcome', { runtime: 'lab', passed: 0, total: 2 }],
+    ['nothing at all', {}],
+    ['a total saved as text', { outcome: 'done', status: 'ok', total: '0' }],
+    ['a message that is not text', { outcome: 'done', status: 'error' }],
+  ])('counts as one that ran when its data says otherwise: %s', (_, data) => {
+    expect(savedCheckCouldNotRun(data)).toBe(false)
   })
 })

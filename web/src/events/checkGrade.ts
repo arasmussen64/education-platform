@@ -42,3 +42,34 @@ export function checkCouldNotRun(outcome: CheckOutcome): boolean {
 export function checkCorrect(outcome: CheckOutcome): boolean | undefined {
   return checkCouldNotRun(outcome) ? undefined : allChecksPassed(outcome)
 }
+
+/**
+ * The parts of a saved Check's data (checkEventData in payloads.ts) that
+ * say how it went. Data read back from storage could hold anything, so each
+ * part is unknown until it's looked at.
+ */
+export type SavedCheck = {
+  outcome?: unknown
+  status?: unknown
+  message?: unknown
+  total?: unknown
+}
+
+/**
+ * The same rule as checkCouldNotRun, for a Check that's already saved.
+ * Checks saved before 2026-11-11 were marked wrong even when they couldn't
+ * run, and the log is never rewritten, so the code that turns events into
+ * attempts can ask this to leave them out instead. Data it can't read
+ * counts as a Check that ran, as it always has.
+ */
+export function savedCheckCouldNotRun(data: SavedCheck): boolean {
+  if (data.outcome === 'failed') return true
+  if (data.outcome !== 'done') return false
+  if (data.status === 'error') {
+    return (
+      typeof data.message === 'string' &&
+      data.message.startsWith(TESTS_NOT_LOADED)
+    )
+  }
+  return data.status === 'ok' && data.total === 0
+}
