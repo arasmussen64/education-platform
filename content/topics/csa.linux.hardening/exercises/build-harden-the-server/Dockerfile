@@ -35,6 +35,15 @@ RUN useradd -m -s /bin/bash ben \
  && chown -R learner:learner /home/learner/keys && chmod 600 /home/learner/keys/ben \
  && printf 'd /run/sshd 0755 root root -\n' > /etc/tmpfiles.d/sshd.conf
 
+# sshd -t and sshd -T need the folder /run/sshd. systemd makes it when
+# ssh.service starts and, on this release, removes it again when the service
+# stops or fails to start; after that both commands only say "Missing
+# privilege separation directory". A learner is asked for sshd -t at just
+# those moments (before a restart, after a start that failed), so the lab
+# keeps the folder.
+RUN mkdir -p /etc/systemd/system/ssh.service.d \
+ && printf '# Part of the lab: keeps /run/sshd when ssh.service stops, so that\n# sshd -t and sshd -T always work.\n[Service]\nRuntimeDirectoryPreserve=yes\n' > /etc/systemd/system/ssh.service.d/keep-run-sshd.conf
+
 # An unhardened server with a debugging port open to the world (9000), for
 # the learner to lock down. nftables is installed with no ruleset and its
 # service off, as on a fresh server.
@@ -44,5 +53,18 @@ RUN chmod 755 /usr/local/bin/shop-debug \
  && mkdir -p /home/learner/bin /etc/systemd/system/multi-user.target.wants \
  && chown learner:learner /home/learner/bin \
  && ln -s /etc/systemd/system/shop-debug.service /etc/systemd/system/multi-user.target.wants/shop-debug.service
+
+# Somewhere to prove the baseline from: an "office" on the far side of eth1
+# (a network namespace joined by a veth pair, made at boot by network.sh, as
+# in the networking labs; from-office runs a command there), with the
+# office's monitoring endpoint at 10.0.9.2:9100 for this server to reach. A
+# login to localhost never leaves the machine, so it can't show what the
+# firewall lets in from outside; a connection from the office can.
+COPY network.sh /usr/local/lib/lab/network.sh
+COPY lab-network.service office-monitor.service /etc/systemd/system/
+COPY from-office office-monitor /usr/local/bin/
+RUN chmod 755 /usr/local/lib/lab/network.sh /usr/local/bin/from-office /usr/local/bin/office-monitor \
+ && chmod 644 /etc/systemd/system/lab-network.service /etc/systemd/system/office-monitor.service \
+ && for unit in lab-network office-monitor; do ln -s /etc/systemd/system/$unit.service /etc/systemd/system/multi-user.target.wants/$unit.service; done
 
 CMD ["/sbin/init"]

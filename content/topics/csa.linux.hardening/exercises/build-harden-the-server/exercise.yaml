@@ -3,19 +3,20 @@ stage: build
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "Apply the baseline"
 prompt: |
-  Put the whole baseline on this server, and don't lock yourself out. Four things:
+  Put the whole baseline on this server, and don't lock yourself out. As in the networking labs, the office network is on the far side of the server's second interface, `eth1`: from there this server is `10.0.9.1`, and `from-office COMMAND` runs a command as if from a laptop in the office. Before you change anything, prove that the key works: `ssh -i ~/keys/ben ben@localhost` logs you in as `ben`, who is in the `ssh-users` group. Then four things:
 
-  1. **Harden SSH.** A drop-in in `/etc/ssh/sshd_config.d/` with `PasswordAuthentication no`, `PermitRootLogin no`, `AllowGroups ssh-users`, `MaxAuthTries 3`. Check it with `sudo sshd -t`, then apply it with `sudo systemctl reload ssh` (`restart` if the service isn't running).
-  2. **A default-deny firewall.** Write `/etc/nftables.conf` with an `input` chain whose policy is `drop`, accepting only loopback, established and related connections, and new connections to SSH (`tcp dport 22`). Load it with `sudo nft -f /etc/nftables.conf` and enable it with `sudo systemctl enable nftables`, so it comes back on reboot. (Turning the firewall *off* to make something work is the thing a baseline forbids.)
+  1. **Harden SSH.** A drop-in file in `/etc/ssh/sshd_config.d/` with `PasswordAuthentication no`, `PermitRootLogin no`, `AllowGroups ssh-users`, `MaxAuthTries 3`. Check it with `sudo sshd -t`, then apply it with `sudo systemctl reload ssh` (`restart` if the service isn't running). `sudo sshd -T` reads the files, so it shows the new settings even before the reload; the SSH server that is already running only has them after it.
+  2. **A default-deny firewall.** No rules are loaded yet (`sudo nft list ruleset` prints nothing), and `/etc/nftables.conf` holds only a skeleton: a table with `input`, `forward` and `output` chains and no rules. Edit it so that the `input` chain's policy is `drop` and it accepts only loopback, established and related connections (the replies to connections this server starts itself), and new connections to SSH (`tcp dport 22`). Load it with `sudo nft -f /etc/nftables.conf` and enable it with `sudo systemctl enable nftables`, so it comes back on reboot. (Turning the firewall *off* to make something work is the thing a baseline forbids.)
   3. **Close the open door.** A debugging service, `shop-debug`, is listening on `0.0.0.0:9000`. Stop and disable it so it isn't listening and won't come back.
-  4. **Prove you can still get in:** `ssh -i ~/keys/ben ben@localhost` must still work (ben is in `ssh-users`).
+  4. **Prove it from outside.** `from-office ssh -i ~/keys/ben ben@10.0.9.1 whoami` still prints `ben` (answer `yes` the first time, when it asks about the server's key). `from-office nc -zv -w 3 10.0.9.1 9000` gets no answer and times out. And the server can still reach out: `nc -zv -w 3 10.0.9.2 9100` connects to the office's monitoring endpoint.
 
-  Check your work with `sudo sshd -T`, `sudo nft list ruleset`, `sudo ss -ltnp` and the login. Then run the checks.
+  Check your work with `sudo sshd -T`, `sudo nft list ruleset`, `sudo ss -ltnp` and the logins. Then run the checks.
 hints:
-  - "The firewall, in `/etc/nftables.conf`: `table inet filter { chain input { type filter hook input priority filter; policy drop; iif lo accept; ct state established,related accept; tcp dport 22 accept; } }` (plus `forward` drop and `output` accept chains). `nft -c -f /etc/nftables.conf` checks it without loading."
+  - "The firewall, in `/etc/nftables.conf`: `table inet filter { chain input { type filter hook input priority filter; policy drop; iif lo accept; ct state established,related accept; tcp dport 22 accept; } }` (plus `forward` drop and `output` accept chains), with `flush ruleset` on a line before it so loading the file replaces what was there. `nft -c -f /etc/nftables.conf` checks it without loading."
   - "`sudo systemctl stop shop-debug && sudo systemctl disable shop-debug` closes the door now and keeps it closed; confirm with `sudo ss -ltnp | grep 9000` showing nothing."
-  - "Loopback is allowed by `iif lo accept`, so your `ssh ... ben@localhost` keeps working through the firewall; that's why that rule comes first."
+  - "Loopback is allowed by `iif lo accept`, so your `ssh ... ben@localhost` keeps working through the firewall. The login from the office arrives on `eth1` instead, and it's `tcp dport 22 accept` that lets it in."
+  - "If `sudo sshd -T` shows the hardened settings but a check says the running server doesn't have them, the server was never told: `sudo systemctl reload ssh`."
 skills: [baseline, ssh-hardening, firewall-min, attack-surface]
