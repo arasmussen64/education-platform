@@ -1,14 +1,19 @@
 id: debug-a-broadcast-that-went-wrong
 stage: debug
-rev: 1
+rev: 2
 title: "A broadcast that went wrong"
 prompt: |
-  `center` should subtract each column's mean so that every column sums to 0, and `score` should give one weighted sum per row. The program should print:
+  `center` should subtract each column's mean so that every column sums to 0, and `score` should give one weighted sum per row, with one weight per column. The program should print:
 
   ```
   column sums after centering: [0. 0. 0.]
   scores: [-11.25  -6.75  -2.25   2.25   6.75  11.25]
   ```
 
-  It has two bugs. Run it: it crashes with `operands could not be broadcast together with shapes (6,3) (3,1)`, because the weights are reshaped into a `(3, 1)` column. Lined up from the right against `(6, 3)`, the column's 1 would stretch to match the 3 columns, but its 3 then has to match the 6 rows and can't; one weight per column is a `(3,)` vector. Fix that, and the column sums come out `[-6. 0. 6.]`: `center` subtracts the single grand mean from everything instead of each column's own mean. The mean needs an axis.
+  Instead the column sums come out `[-6.  0.  6.]`, and then it stops with `ValueError: operands could not be broadcast together with shapes (6,3) (3,1)`. It has two bugs. Run it, take the wrong line and the error one at a time, then run the checks, which try both functions on other shapes.
+hints:
+  - "Two separate problems: the first line's numbers are wrong, and the second line never prints. Fix one, run it, then the other."
+  - "Line the two shapes in the error up from the right, as broadcasting does: `(6, 3)` against `(3, 1)`. Which pair of sizes can't match, and which array has the odd shape?"
+  - "One weight per column of a `(6, 3)` matrix is a `(3,)` vector, which lines up with the columns. The `.reshape(-1, 1)` makes the weights a `(3, 1)` column: leave it out."
+  - "Column sums of `[-6. 0. 6.]` mean the same number was taken from every column. `X.mean()` is the mean of every entry at once; each column's own mean needs an axis, `X.mean(axis=0)`."
 skills: [broadcasting]

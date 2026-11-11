@@ -1,14 +1,19 @@
 id: debug-a-loop-that-does-not-learn
 stage: debug
-rev: 1
+rev: 2
 title: "A loop that doesn't learn"
 prompt: |
-  The module's loop on the three blobs for 20 epochs. It should print:
+  The module's loop on the three blobs for 20 epochs, then the accuracy on the validation rows. It should print:
 
   ```
   training loss: 0.446 -> 0.187 | converging
   validation accuracy after 20 epochs: 0.9 | above 0.6: True
   ```
 
-  It has two bugs. Run it: it crashes inside `accuracy` with a broadcasting error (shapes `(3,)` and `(240,)`), because `accuracy` takes `argmax(axis=0)`, which picks a row for each of the 3 classes instead of a class for each of the 240 rows; the largest logit per row is `argmax(axis=1)`. Fix that, and the program runs, but the training loss climbs and the curve reads diverging, because `SGD.step` **adds** the learning rate times the gradient, stepping uphill; gradient descent subtracts it.
+  Instead it stops inside `accuracy` with `ValueError: operands could not be broadcast together with shapes (3,) (240,)`. It has two bugs, and the second shows only once the first is fixed. Run it, read the traceback, fix what you find and run it again; then run the checks, which try the pieces on small arrays.
+hints:
+  - "One shape in the error is the 240 labels. Where does the other, 3, come from? Print the shape of `logits` and of what `accuracy` compares with the labels."
+  - "`logits` is `(rows, classes)`. `argmax(axis=0)` picks a row for each of the 3 classes; a class for each row is `argmax(axis=1)`."
+  - "Now it runs, but the training loss climbs and the curve reads diverging. Should a step move a parameter with its gradient or against it? Look at the sign in `SGD.step`."
+  - "Gradient descent subtracts the rate times the gradient: `param -= self.rate * grad`."
 skills: [loop, validation]

@@ -1,14 +1,19 @@
 id: debug-a-count-and-an-estimate
 stage: debug
-rev: 1
+rev: 2
 title: "A count and an estimate"
 prompt: |
-  `parameter_count` should count the small network's weights and biases, and `training_seconds` should estimate an epoch on a 10 TFLOP/s GPU at 30 percent utilization. The program should print:
+  `parameter_count` should count the small network's weights and biases, and `training_seconds` should estimate an epoch on a 10 TFLOP/s GPU at 30 percent utilization (it sustains 30 percent of its peak rate). The program should print:
 
   ```
   parameters: 235,146
   one epoch at 30 percent of 10 TFLOP/s: 28.2 ms
   ```
 
-  It has two bugs. Run it: the count is `234,752`, 394 short, because the biases are left out; each layer has `out` of them on top of its `in * out` weights. And the epoch comes out at `2.5 ms` instead of `28.2`: the utilization is **multiplied** in, making the machine faster, when it should scale the peak rate **down**; the time is the FLOPs over peak times utilization.
+  Instead the count is `234,752`, 394 short, and the epoch comes out at `2.5 ms`. It has two bugs. Check each function against its docstring, then run the checks, which try other values.
+hints:
+  - "Each line has its own cause. 394 is the sum of three numbers you can see in `LAYERS`: which three, and what does each layer have that many of?"
+  - "Each dense layer has `in * out` weights and `out` biases. The count adds only the weights."
+  - "A GPU at 30 percent of its peak needs longer than one at full peak, not less. At the full 10 TFLOP/s this epoch would take about 8.5 ms. Which way does the utilization move the answer, and what does Python do first in `flops / flop_rate * utilization`?"
+  - "Divide by the rate the GPU actually sustains: `flops / (flop_rate * utilization)`."
 skills: [parameters, time]

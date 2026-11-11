@@ -1,14 +1,20 @@
 id: debug-a-layer-that-fails-its-gradient-check
 stage: debug
-rev: 1
+rev: 2
 title: "A layer that fails its gradient check"
 prompt: |
-  A convolutional network checked two ways. It should print:
+  A convolutional network checked two ways: first a max pool's backward pass on one 4 by 4 block, then gradient checks of the whole network, for its parameters and for its input. It should print:
 
   ```
   pooling a 4x4: [[4.0, 8.0], [12.0, 16.0]] | cells that get gradient: 4
   gradient check of the parameters: passes | of the input: passes
   ```
 
-  It has two bugs. Run it: sixteen cells get gradient from the pool instead of four, and both gradient checks fail. `MaxPool2D.backward` spreads each pooled cell's gradient over its whole window instead of giving it to the cell that won (the mask the forward pass saved); only the winner affected the output, so only it should get the gradient. Fix that, and the parameters pass but the **input** check still fails: in `Conv2D.backward`, the line that sends each output gradient back onto the input cells it read uses weight `(j, i)` where the forward pass used weight `(i, j)`, so the kernel is transposed on the way back.
+  Instead sixteen cells get gradient from the pool, and both gradient checks fail. It has two bugs. Fix one at a time and run it after each change; then run the checks, which try the layers on small, lopsided cases.
+hints:
+  - "Start with the first line. Only one cell of each 2 by 2 window won the max, so only four cells affected the pooled output. How many does `MaxPool2D.backward` hand gradient to?"
+  - "`forward` saves `self.mask`, which marks the winner of each window. Does `backward` use it?"
+  - "`spread = self.mask * grad_out[:, :, :, None, :, None]` gives each window's gradient to its winner only."
+  - "Now the parameters pass but the input check fails. The parameter gradients use every layer's backward pass except one piece of it: the input gradient of the first layer, `Conv2D`. Compare the weight each line of `Conv2D.backward` uses with the one `forward` uses for the same `(i, j)`."
+  - "Forward multiplies the patch at offset `(i, j)` by `self.W[:, i, j]`, so its gradient goes back through the same weight: `self.W[None, :, i, j, None, None]`."
 skills: [conv-layer, shapes]

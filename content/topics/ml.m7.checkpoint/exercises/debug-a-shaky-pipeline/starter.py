@@ -7,7 +7,7 @@ def weekly(clicks):
 
 
 def mean_loss(losses):
-    """The mean, summed as one array operation and accumulated in float64."""
+    """The mean of the losses, as a float, to within a millionth however many there are."""
     total = np.float32(0)
     for loss in losses:
         total += loss
@@ -15,7 +15,7 @@ def mean_loss(losses):
 
 
 def softmax(logits):
-    """Row-wise softmax, with each row's largest logit subtracted first so that exp never overflows."""
+    """Row-wise softmax: each row's exponentials scaled to sum to 1, finite for logits of any size."""
     shifted = np.exp(logits)
     return shifted / shifted.sum(axis=1, keepdims=True)
 
