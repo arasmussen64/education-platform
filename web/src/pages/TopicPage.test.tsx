@@ -660,6 +660,50 @@ describe('a checkpoint page', () => {
       expectClosed()
     })
 
+    it("keeps what's typed once it's open, and can then be passed", async () => {
+      vi.mocked(gradeExplanation).mockResolvedValue({
+        status: 'graded',
+        grading: {
+          verdict: 'pass',
+          rubric: [{ id: 'parts', met: true }],
+          questions: [],
+        },
+        ai_call_id: 'call-1',
+        model: 'claude-haiku-5-5',
+      })
+      setFakeRunner(fakeRunner({ check: allPassed('Adds it all up') }))
+      renderSavingCheckpoint()
+      await progressLoaded()
+      await checkTheBuild()
+      await vi.waitFor(expectOpen)
+
+      const typed = 'It reads the prices, adds them up, then prints.'
+      await userEvent.type(screen.getByLabelText('Your explanation'), typed)
+
+      // Another Check changes the progress again. The open check must stay
+      // the same one, not start over with an empty box.
+      const debug = screen.getByRole('region', {
+        name: 'Debug: Cinema tickets',
+      })
+      await userEvent.click(
+        within(debug).getByRole('button', { name: 'Check' }),
+      )
+      await vi.waitFor(async () =>
+        expect(await progressLoaded()).toHaveTextContent(/Debug: passed on/),
+      )
+      expect(screen.getByLabelText('Your explanation')).toHaveValue(typed)
+
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Check my explanation' }),
+      )
+      await vi.waitFor(async () =>
+        expect(await progressLoaded()).toHaveTextContent(/Explain: passed on/),
+      )
+      // All three have passed, so the checkpoint has.
+      expect(screen.getByTestId('topic-state')).toHaveTextContent('Passed')
+      expectOpen()
+    })
+
     it('stays closed while the progress is loading, and says so', () => {
       const content = fakeCheckpointContent()
       renderTopic(content.topic, content, {
