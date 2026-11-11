@@ -39,7 +39,7 @@ attached to Docker's machine (the loop devices behind its disks).
 
 Each check gets 30 seconds, or what its `timeout:` in checks.yaml says (up
 to 300). A check that runs out of time is stopped inside the container,
-with whatever it started, and fails saying so.
+with what it started (ADR-0018 says what can escape), and fails saying so.
 
 The checker only asks the container questions. It never changes it, except
 when `test` applies a solution to a fresh container of its own.
@@ -81,9 +81,11 @@ CHECK_TIMEOUT_SECONDS = CHECK_SECONDS
 # in the container (tried 2026-11-11: the command and what it had started
 # carried on), so a check that boots a VM would leave the VM running, slowing
 # every check after it and failing the one that says the VM is gone.
-# coreutils' `timeout`, which every lab image has, sends the command and
-# everything it started TERM at the limit, then KILL this much later if any
-# of it is still there.
+# coreutils' `timeout`, which every lab image has, sends TERM at the limit to
+# the command and to everything it started that stayed in its process group,
+# then KILL to all of them this much later if the command itself is still
+# running. If the command ends on TERM, `timeout` ends too and sends no KILL,
+# so a child that ignores TERM is left running (tried 2026-11-11).
 STOP_GRACE_SECONDS = 5
 # And this tool waits this much longer again for Docker itself, in case
 # Docker is what has stuck.
