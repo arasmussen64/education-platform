@@ -1,0 +1,16 @@
+id: mcq-what-lower-precision-buys
+type: mcq
+rev: 1
+prompt: |
+  A team moves a model's weights and arithmetic from 32-bit numbers (FP32) to 16-bit ones (FP16). What do they get?
+choices:
+  - "About half the memory, slower multiplying on CUDA cores, and slightly more exact numbers"
+  - "About twice the memory, faster multiplying on Tensor Cores, and exactly the same numbers"
+  - "About half the memory, faster multiplying on Tensor Cores, and slightly less exact numbers"
+  - "About the same memory, slower multiplying on CUDA cores, and slightly less exact numbers"
+answer: 2
+explanation: |
+  Precision is how many bytes store each number. 16 bits are 2 bytes against FP32's 4, so the weights take about half the memory. Fewer bytes hold fewer digits, so each number is slightly less exact; for most models the answers barely change, which is why serving in 16 bits is normal. And the Tensor Cores multiply grids of numbers several times faster in fewer bits: NVIDIA's mixed-precision guide speaks of up to 3 times overall on the most arithmetic-heavy models.
+
+  Fewer bits can't make numbers more exact, or need more memory, and the memory can't stay the same when each number is half the size. The speed comes from the Tensor Cores, not from slower work on the CUDA cores.
+skills: [gpu-vs-cpu]

@@ -1,0 +1,16 @@
+id: mcq-batch-of-one
+type: mcq
+rev: 1
+prompt: |
+  A service sends its model one request at a time. GPU-Util sits at 8%, steady; the vCPUs, the disk and the card's memory all have room to spare. The team proposes a larger card. What is the better reading?
+choices:
+  - "The work arrives too small to keep the card busy: group requests into batches, or use a smaller card"
+  - "The card is too slow for the work: a larger card will bring the utilisation figure up to normal"
+  - "The CPUs are too few for the work: more vCPUs will feed the card faster and raise its utilisation"
+  - "The disk is too slow for the work: a local NVMe disk will feed the card and raise its utilisation"
+answer: 0
+explanation: |
+  Nothing before the card is busy, so nothing is starving it: the card is simply handed too little at a time. Each request is a small sum for thousands of units, done in a moment, and then the card waits for the next. Grouping requests into a batch, many inputs pushed through together, gives the card enough work at once; or a smaller, cheaper card does the same work for less.
+
+  A larger card would finish each small request even sooner and sit idle even longer. The CPUs and the disk have room to spare, so more of either would feed a card that already has nothing to wait for but requests.
+skills: [gpu-starvation]

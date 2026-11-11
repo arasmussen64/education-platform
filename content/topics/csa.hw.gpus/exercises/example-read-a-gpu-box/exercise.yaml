@@ -1,0 +1,43 @@
+id: example-read-a-gpu-box
+stage: worked_example
+runtime: lab
+rev: 1
+title: "Read a GPU box"
+prompt: |
+  There is no GPU in this lab, or in any lab of this topic: everything here is read or counted. A training server called box-1, with one GPU and 26 vCPUs, felt slow, and an on-call script saved what it showed during one minute of the run. The files are in `/srv/gpu/box-1/`, and its `README` says what each one is: what `nvidia-smi` printed once, a monitoring export of the card's utilisation and memory one line a second, and what `mpstat` and `iostat` saw on the host over the same minute. They are constructed, built to the real layouts with invented numbers, and nothing on this machine pretends to be a GPU.
+
+  The walkthrough reads the card's name and memory, turns the memory into GiB and a share, finds the program holding it, works out how busy the card was over the minute and how often it sat idle, looks at what the CPUs and the disk were doing, and saves a verdict. Type each line yourself in the lab's shell and read what it prints before you type the next.
+
+  The verdict goes in `~/example/verdict.txt`, four `key=value` lines: `avg-util` (the minute's mean utilisation, a whole number), `idle-seconds` (the seconds at 0%), `mem-used-pct` (the share of the card's memory in use, a whole number), and `starved-by`, one of `cpu`, `disk`, `never-loaded`, `too-small`, `sharing` or `none`.
+steps:
+  - label: "What the server saved"
+    lines: "1"
+    note: "The `README` first, then the `nvidia-smi` summary. Read the card's line: its name, `NVIDIA H100 80GB HBM3`, then under it the power it draws against its cap (`182W / 700W`), the memory in use against the total (`12450MiB / 81559MiB`) and `GPU-Util`, 54%. Below the card is the list of processes using it. This is one reading, taken in one second."
+  - label: "Which card, and how much memory"
+    lines: "2"
+    note: "`grep -o` prints only the part of a line that matches: digits followed by `MiB`, a slash, any spaces, digits and `MiB` again. That is the memory pair on its own, used and total, in MiB, which is how `nvidia-smi` counts. An H100 sold as \"80GB\" reports 81,559 MiB to programs: the label is a name, the total is a measurement."
+  - label: "In GiB, and as a share"
+    lines: "3"
+    note: "1,024 MiB make a GiB, so 81,559 MiB is a little under 80 GiB; bash's `$(( ))` keeps whole numbers only, so it prints 79 and drops the rest. The share is worked out the same way, multiplying before dividing so the whole-number division doesn't round it to 0: 15% of the card's memory is in use. Plenty of room, so memory isn't what's wrong here."
+  - label: "Who holds the memory"
+    lines: "4"
+    note: "`grep -A 5` prints the matching line and the five after it: the process table. One program, `python3` with PID 2817, holds 12,440 MiB, nearly all of what is in use. `C` in the Type column means a compute program, as opposed to `G`, a graphics one."
+  - label: "How busy, over the minute"
+    lines: "5"
+    note: "`gpu.csv` has a heading line, then one line a second: the second, the utilisation and the memory in use. `-F,` splits each line at the commas, `NR > 1` skips the heading, and the `END` block runs once the file is read. The mean over the minute is 18%, a third of the 54% the summary showed. Remember what GPU-Util measures: the share of each second in which some program was running on the card. So for most of this minute nothing was running at all."
+  - label: "One reading against the minute"
+    lines: "6"
+    note: "The last line alone says 54%, like the summary. Any one reading of a card that works in bursts is either a busy second or an idle one, and says nothing about the minute. The mean, and the count of idle seconds next, are what describe it."
+  - label: "How often idle"
+    lines: "7"
+    note: "40 of the 60 seconds were at 0%. `NR - 1` in the `END` block is the number of data lines: every line read, less the heading. An idle GPU is a waiting GPU, and the question now is what it waits for."
+  - label: "What the CPUs were doing"
+    lines: "8"
+    note: "Every one of the 26 vCPUs spent about 98% of the minute in `%usr`, running programs, with `%iowait` at 0: nothing waited on the disk, and nothing was stolen. The CPUs are flat out. In a training run they do the input preparation (reading, decoding and shaping each batch before the card gets it), and they can't keep up."
+  - label: "What the disk was doing"
+    lines: "9"
+    note: "`nvme0n2`, the data disk, is busy 11% of the time and answers each read in under a millisecond: it is not the limit. So the line stops at the second station, the CPUs: the disk hands over the data easily, the CPUs can't prepare it fast enough, and the GPU, last on the line, waits."
+  - label: "The verdict"
+    lines: "10-15"
+    note: "Four lines, each worked out from the files again rather than typed from memory. `printf \"%.0f\"` prints the mean rounded to a whole number. The verdict is `cpu`: more vCPUs for this GPU, more preparation workers, or data prepared ahead of time would help; a bigger GPU would wait just the same."
+skills: [read-nvidia-smi, gpu-starvation, vram-fit]

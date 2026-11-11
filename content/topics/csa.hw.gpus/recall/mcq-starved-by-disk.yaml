@@ -1,0 +1,16 @@
+id: mcq-starved-by-disk
+type: mcq
+rev: 1
+prompt: |
+  Another training job: GPU-Util sits steady near 15%. The vCPUs are 60% idle, with `%iowait` at 35%. `iostat -xz` shows the network disk the dataset is on at 100% `%util`, with `r_await` at 40 ms. What would help most?
+choices:
+  - "Add vCPUs to the instance, so that more of them are free to prepare input for the card"
+  - "Move to a card with Tensor Cores, so that each step of the arithmetic takes less time"
+  - "Put the dataset on a local NVMe disk or a faster disk tier, so reads stop being the limit"
+  - "Store the model's weights in 8 bits, so that each batch of input needs less card memory"
+answer: 2
+explanation: |
+  The line stops at its first station. The CPUs have time to spare and spend a third of it waiting on reads (`%iowait`), and the disk the data comes from is busy all the time with each read taking 40 ms, a network disk at its allowance ("Memory tiers and disks"). A local NVMe disk holding a copy of the dataset, or a faster disk tier, lets the reads keep up, and the card with them.
+
+  More vCPUs would only wait on the disk too. A faster card, or smaller weights, makes the card's own work quicker, and the card is already waiting most of the time; the job would finish no sooner.
+skills: [gpu-starvation]

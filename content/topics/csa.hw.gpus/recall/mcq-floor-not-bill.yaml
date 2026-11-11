@@ -1,0 +1,16 @@
+id: mcq-floor-not-bill
+type: mcq
+rev: 1
+prompt: |
+  Hugging Face's guide (read 2026-11-11) loads a model of more than 15 billion parameters stored in 4 bits. Parameters × half a byte comes to about 7.2 GiB; the most memory the card held while the model answered a short question was 9.5 GiB. What should a plan take from that?
+choices:
+  - "The sum is wrong for 4-bit models, so use the 16-bit figure whenever in doubt"
+  - "The card reports more memory in use than it has, so trust the sum, not the reading"
+  - "The sum is the most it can need, so a card that holds the sum is always enough"
+  - "The sum is the least it can need, so add a stated headroom before choosing a card"
+answer: 3
+explanation: |
+  Parameters × bytes each counts the weights, and nothing else. A running model also holds its inputs, the working numbers of its arithmetic, and parts that weren't shrunk to 4 bits, so the card holds more than the sum: here about a third more. The sum is the floor, not the bill, which is why a plan states its headroom ("25% on top of the weights") before it picks a card.
+
+  The sum isn't wrong for 4 bits, only incomplete, and falling back to the 16-bit figure would buy a card four times too big. The card's reading is the measurement, and it is higher than the sum, not lower; so a card that only just holds the sum will run out.
+skills: [vram-fit]

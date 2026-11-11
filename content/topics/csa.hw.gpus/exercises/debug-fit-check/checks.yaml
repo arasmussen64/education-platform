@@ -1,0 +1,157 @@
+# The checks for "The fit check": the learner's fit-check, run as the
+# learner, against the check's own reading of the same table: the cheapest
+# row whose one card (gpu_mem_gib) holds the weights and the headroom. The
+# README's two calls come first: last month's, which the faulty script sent
+# to an 80 GB card at $5.07 an hour where a $0.71 L4 runs it (9 16 15), and
+# to an 80 GB card that can't hold its 78.2 GiB of weights (42 16 10). Then
+# four models that each check makes up as it runs, so a script that knows
+# only the examples fails. The made-up
+# models keep what is needed at least 0.5 GiB from every card's size and
+# every instance's total, so no answer depends on a rounding, and each kind
+# is chosen so a fault left in shows:
+#   - large (76 to 86 GiB): only the 94 GB H100 holds it on one card, but
+#     the four L4s of a g6.12xlarge add up to 88 (wrong/still-sums-cards.sh);
+#   - mid (23 to 43 GiB, weights under 21.5): the 44 GiB L40S, where
+#     headroom taken away rather than added, or left out, picks a card the
+#     weights alone fit (wrong/headroom-still-backwards.sh,
+#     wrong/no-headroom.sh), and the last row that fits is dearer
+#     (wrong/still-not-cheapest.sh);
+#   - small (16.5 to 21.8 GiB): a 24 GB L4, the cheapest of several that
+#     fit, and not the first row that fits, which is AWS's dearer L4
+#     (wrong/first-that-fits.sh, which 9 16 15 catches too);
+#   - too big for any card (95 to 300 GiB): none.
+# The table must stay as it was (the learner has sudo): a table sorted so
+# that the last row is the cheapest would hide the third fault
+# (wrong/edited-the-table.sh).
+checks:
+  - id: executable
+    description: "~/bin/fit-check exists and can be run."
+    command: test -x /home/learner/bin/fit-check
+  - id: table-untouched
+    description: "The files in /srv/plan are as the lab laid them down: nothing changed, added or removed."
+    command: |
+      [ "$(cd /srv/plan && find . -type f | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/lib/lab/plan.sha256)" ] && echo untouched || echo changed
+    expect:
+      equals: untouched
+  - id: example-9-16-15
+    description: "fit-check 9 16 15 prints the cheapest instance that runs 9 billion parameters at 16 bits on one card with 15% headroom, and its price."
+    command: |
+      set -- 9 16 15
+      t=$(awk -F, -v p="$1" -v b="$2" -v h="$3" 'NR > 1 {n = p * 1000000000 * b / 8 / 1073741824 * (100 + h) / 100; if ($8 >= n) print $10, $4}' /srv/plan/gpus.csv | sort -n | head -n 1 | awk '{print $2, $1}')
+      got=$(runuser -u learner -- /home/learner/bin/fit-check "$@" 2>&1 | head -n 1)
+      read -r gi gp <<< "$got"; read -r ti tp <<< "${t:-none}"
+      if [ "$gi" = "$ti" ] && awk -v a="${gp:-x}" -v b="${tp:-x}" 'BEGIN {exit !((a == "x" && b == "x") || (a + 0 == b + 0 && a ~ /^[0-9.]+$/))}'; then echo right; else echo "fit-check $* printed: $got"; fi
+    expect:
+      equals: right
+  - id: example-42-16-10
+    description: "fit-check 42 16 10 prints the cheapest instance that runs 42 billion parameters at 16 bits on one card with 10% headroom, and its price."
+    command: |
+      set -- 42 16 10
+      t=$(awk -F, -v p="$1" -v b="$2" -v h="$3" 'NR > 1 {n = p * 1000000000 * b / 8 / 1073741824 * (100 + h) / 100; if ($8 >= n) print $10, $4}' /srv/plan/gpus.csv | sort -n | head -n 1 | awk '{print $2, $1}')
+      got=$(runuser -u learner -- /home/learner/bin/fit-check "$@" 2>&1 | head -n 1)
+      read -r gi gp <<< "$got"; read -r ti tp <<< "${t:-none}"
+      if [ "$gi" = "$ti" ] && awk -v a="${gp:-x}" -v b="${tp:-x}" 'BEGIN {exit !((a == "x" && b == "x") || (a + 0 == b + 0 && a ~ /^[0-9.]+$/))}'; then echo right; else echo "fit-check $* printed: $got"; fi
+    expect:
+      equals: right
+  - id: unseen-large-model
+    description: "For a large model it hasn't been shown, fit-check prints the cheapest instance that runs it on one card with its headroom."
+    command: |
+      set -- $(awk -F, -v kind=large -v seed="$(date +%N)" 'NR > 1 {g[NR] = $8; t[NR] = $6 * $8} END {
+        srand(seed); split("4 8 16", B, " ")
+        for (try = 0; try < 20000; try++) {
+          p = 1 + int(rand() * 200); b = B[1 + int(rand() * 3)]; h = 5 * (1 + int(rand() * 8))
+          w = p * 1000000000 * b / 8 / 1073741824; n = w * (100 + h) / 100; near = 0
+          for (i in g) { d = n - g[i]; if (d < 0) d = -d; e = n - t[i]; if (e < 0) e = -e; if (d < 0.5 || e < 0.5) near = 1 }
+          if (near || (p == 9 && b == 16) || (p == 42 && b == 16)) continue
+          if (kind == "large" && n >= 76 && n <= 86) ok = 1
+          else if (kind == "mid" && n >= 23 && n <= 43 && w <= 21.5) ok = 1
+          else if (kind == "small" && n >= 16.5 && n <= 21.8) ok = 1
+          else if (kind == "none" && n >= 95 && n <= 300) ok = 1
+          else ok = 0
+          if (ok) { print p, b, h; exit }
+        }
+      }' /srv/plan/gpus.csv)
+      t=$(awk -F, -v p="$1" -v b="$2" -v h="$3" 'NR > 1 {n = p * 1000000000 * b / 8 / 1073741824 * (100 + h) / 100; if ($8 >= n) print $10, $4}' /srv/plan/gpus.csv | sort -n | head -n 1 | awk '{print $2, $1}')
+      got=$(runuser -u learner -- /home/learner/bin/fit-check "$@" 2>&1 | head -n 1)
+      read -r gi gp <<< "$got"; read -r ti tp <<< "${t:-none}"
+      if [ "$gi" = "$ti" ] && awk -v a="${gp:-x}" -v b="${tp:-x}" 'BEGIN {exit !((a == "x" && b == "x") || (a + 0 == b + 0 && a ~ /^[0-9.]+$/))}'; then echo right; else echo "fit-check $* printed: $got"; fi
+    expect:
+      equals: right
+  - id: unseen-mid-model
+    description: "For a middle-sized model it hasn't been shown, fit-check prints the cheapest instance that runs it on one card with its headroom."
+    command: |
+      set -- $(awk -F, -v kind=mid -v seed="$(date +%N)" 'NR > 1 {g[NR] = $8; t[NR] = $6 * $8} END {
+        srand(seed); split("4 8 16", B, " ")
+        for (try = 0; try < 20000; try++) {
+          p = 1 + int(rand() * 200); b = B[1 + int(rand() * 3)]; h = 5 * (1 + int(rand() * 8))
+          w = p * 1000000000 * b / 8 / 1073741824; n = w * (100 + h) / 100; near = 0
+          for (i in g) { d = n - g[i]; if (d < 0) d = -d; e = n - t[i]; if (e < 0) e = -e; if (d < 0.5 || e < 0.5) near = 1 }
+          if (near || (p == 9 && b == 16) || (p == 42 && b == 16)) continue
+          if (kind == "large" && n >= 76 && n <= 86) ok = 1
+          else if (kind == "mid" && n >= 23 && n <= 43 && w <= 21.5) ok = 1
+          else if (kind == "small" && n >= 16.5 && n <= 21.8) ok = 1
+          else if (kind == "none" && n >= 95 && n <= 300) ok = 1
+          else ok = 0
+          if (ok) { print p, b, h; exit }
+        }
+      }' /srv/plan/gpus.csv)
+      t=$(awk -F, -v p="$1" -v b="$2" -v h="$3" 'NR > 1 {n = p * 1000000000 * b / 8 / 1073741824 * (100 + h) / 100; if ($8 >= n) print $10, $4}' /srv/plan/gpus.csv | sort -n | head -n 1 | awk '{print $2, $1}')
+      got=$(runuser -u learner -- /home/learner/bin/fit-check "$@" 2>&1 | head -n 1)
+      read -r gi gp <<< "$got"; read -r ti tp <<< "${t:-none}"
+      if [ "$gi" = "$ti" ] && awk -v a="${gp:-x}" -v b="${tp:-x}" 'BEGIN {exit !((a == "x" && b == "x") || (a + 0 == b + 0 && a ~ /^[0-9.]+$/))}'; then echo right; else echo "fit-check $* printed: $got"; fi
+    expect:
+      equals: right
+  - id: unseen-small-model
+    description: "For a small model it hasn't been shown, fit-check prints the cheapest instance that runs it on one card with its headroom."
+    command: |
+      set -- $(awk -F, -v kind=small -v seed="$(date +%N)" 'NR > 1 {g[NR] = $8; t[NR] = $6 * $8} END {
+        srand(seed); split("4 8 16", B, " ")
+        for (try = 0; try < 20000; try++) {
+          p = 1 + int(rand() * 200); b = B[1 + int(rand() * 3)]; h = 5 * (1 + int(rand() * 8))
+          w = p * 1000000000 * b / 8 / 1073741824; n = w * (100 + h) / 100; near = 0
+          for (i in g) { d = n - g[i]; if (d < 0) d = -d; e = n - t[i]; if (e < 0) e = -e; if (d < 0.5 || e < 0.5) near = 1 }
+          if (near || (p == 9 && b == 16) || (p == 42 && b == 16)) continue
+          if (kind == "large" && n >= 76 && n <= 86) ok = 1
+          else if (kind == "mid" && n >= 23 && n <= 43 && w <= 21.5) ok = 1
+          else if (kind == "small" && n >= 16.5 && n <= 21.8) ok = 1
+          else if (kind == "none" && n >= 95 && n <= 300) ok = 1
+          else ok = 0
+          if (ok) { print p, b, h; exit }
+        }
+      }' /srv/plan/gpus.csv)
+      t=$(awk -F, -v p="$1" -v b="$2" -v h="$3" 'NR > 1 {n = p * 1000000000 * b / 8 / 1073741824 * (100 + h) / 100; if ($8 >= n) print $10, $4}' /srv/plan/gpus.csv | sort -n | head -n 1 | awk '{print $2, $1}')
+      got=$(runuser -u learner -- /home/learner/bin/fit-check "$@" 2>&1 | head -n 1)
+      read -r gi gp <<< "$got"; read -r ti tp <<< "${t:-none}"
+      if [ "$gi" = "$ti" ] && awk -v a="${gp:-x}" -v b="${tp:-x}" 'BEGIN {exit !((a == "x" && b == "x") || (a + 0 == b + 0 && a ~ /^[0-9.]+$/))}'; then echo right; else echo "fit-check $* printed: $got"; fi
+    expect:
+      equals: right
+  - id: too-big-for-any-card
+    description: "For a model no single card in the table can hold, which it hasn't been shown, fit-check prints none."
+    command: |
+      set -- $(awk -F, -v kind=none -v seed="$(date +%N)" 'NR > 1 {g[NR] = $8; t[NR] = $6 * $8} END {
+        srand(seed); split("4 8 16", B, " ")
+        for (try = 0; try < 20000; try++) {
+          p = 1 + int(rand() * 200); b = B[1 + int(rand() * 3)]; h = 5 * (1 + int(rand() * 8))
+          w = p * 1000000000 * b / 8 / 1073741824; n = w * (100 + h) / 100; near = 0
+          for (i in g) { d = n - g[i]; if (d < 0) d = -d; e = n - t[i]; if (e < 0) e = -e; if (d < 0.5 || e < 0.5) near = 1 }
+          if (near || (p == 9 && b == 16) || (p == 42 && b == 16)) continue
+          if (kind == "large" && n >= 76 && n <= 86) ok = 1
+          else if (kind == "mid" && n >= 23 && n <= 43 && w <= 21.5) ok = 1
+          else if (kind == "small" && n >= 16.5 && n <= 21.8) ok = 1
+          else if (kind == "none" && n >= 95 && n <= 300) ok = 1
+          else ok = 0
+          if (ok) { print p, b, h; exit }
+        }
+      }' /srv/plan/gpus.csv)
+      got=$(runuser -u learner -- /home/learner/bin/fit-check "$@" 2>&1 | head -n 1)
+      [ "$got" = none ] && echo right || echo "fit-check $* printed: $got"
+    expect:
+      equals: right
+  - id: usage-when-wrong-arguments
+    description: "Run with no arguments, fit-check prints a usage message and exits with a non-zero status."
+    command: |
+      out=$(runuser -u learner -- /home/learner/bin/fit-check 2>&1 < /dev/null)
+      status=$?
+      if [ "$status" -ne 0 ] && echo "$out" | grep -qi usage; then echo right; else echo "exit $status, printed: $out"; fi
+    expect:
+      equals: right

@@ -1,0 +1,21 @@
+id: starve-idle-seconds
+type: predict_shell
+rev: 1
+prompt: |
+  The same kind of monitoring export as before (constructed): a heading, then one line a second. This time the command counts the seconds the card was idle, at 0%. `NR - 1` in the `END` block is the number of lines read, less the heading. What is printed?
+files:
+  gpu.csv: |
+    second,gpu_util_pct,mem_used_mib
+    1,0,30120
+    2,0,30120
+    3,60,30120
+    4,0,30120
+    5,0,30120
+    6,60,30120
+command: |
+  awk -F, 'NR > 1 && $2 == 0 {n++} END {print n, "of", NR - 1, "seconds idle"}' gpu.csv
+expected_output: |
+  4 of 6 seconds idle
+explanation: |
+  Four seconds in six the card ran nothing at all. An idle GPU is a waiting GPU: the model is loaded (the memory stays at 30,120 MiB) and the card is ready, so the next question is what it waits for. The host's own numbers answer it: CPUs flat out preparing the input, a disk at its limit, work that arrives too little at a time, or another program taking turns on the card.
+skills: [gpu-starvation]

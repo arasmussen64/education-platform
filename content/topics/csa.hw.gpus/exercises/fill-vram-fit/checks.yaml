@@ -1,0 +1,79 @@
+# The checks for "Finish vram-fit": no gaps left, and the script's three
+# lines against the check's own sum, for the two cases the prompt shows and
+# for one it doesn't, whose numbers the check makes up as it runs (so a
+# script that prints the shown answers whatever it is given fails).
+#
+# The made-up case never uses the shown cases' 16 bits or 25% headroom, so
+# a gap filled with those numbers rather than the variables fails it
+# (wrong/two-bytes-each.sh, wrong/headroom-always-25.sh). It keeps the
+# weights at 3 GiB or more, and at least 0.5 GiB from the shown cases' 13.0
+# (wrong/hard-coded.sh), and what is needed at
+# least 1 GiB from the card's size, so a script that counts GB of a
+# thousand million bytes is more than 0.1 out (wrong/decimal-gb.sh) and no
+# answer depends on a rounding. The first case fits its card without the
+# headroom and not with it (wrong/no-headroom.sh); a script that takes bits
+# for bytes is eight times too big (wrong/bits-as-bytes.sh).
+checks:
+  - id: no-gaps
+    description: "The script has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /home/learner/bin/vram-fit"
+  - id: seven-on-sixteen
+    description: "For 7 billion parameters at 16 bits on a 16 GiB card with 25% headroom, it prints the weights and what is needed (each to within 0.1 GiB) and whether it fits."
+    command: |
+      set -- 7 16 16 25
+      got=$(runuser -u learner -- /home/learner/bin/vram-fit "$@" 2>&1)
+      printf '%s\n' "$got" | awk -v p="$1" -v b="$2" -v c="$3" -v h="$4" -v raw="$(printf '%s' "$got" | tr '\n' ';')" '
+        /^weights: / {gw = $2; seen++}
+        /^needed: / {gn = $2; seen++}
+        /^fits: / {gf = $2; seen++}
+        END {
+          w = p * 1000000000 * b / 8 / 1073741824; n = w * (100 + h) / 100; f = (n <= c ? "yes" : "no")
+          dw = gw - w; dn = gn - n
+          if (seen == 3 && gw ~ /^[0-9]+(\.[0-9]+)?$/ && gn ~ /^[0-9]+(\.[0-9]+)?$/ && dw <= 0.1 && dw >= -0.1 && dn <= 0.1 && dn >= -0.1 && gf == f) print "right"
+          else print "vram-fit " p " " b " " c " " h " printed: " raw
+        }'
+    expect:
+      equals: right
+  - id: seven-on-twenty-two
+    description: "For the same model on a 22 GiB card with 25% headroom, it prints the weights and what is needed (each to within 0.1 GiB) and whether it fits."
+    command: |
+      set -- 7 16 22 25
+      got=$(runuser -u learner -- /home/learner/bin/vram-fit "$@" 2>&1)
+      printf '%s\n' "$got" | awk -v p="$1" -v b="$2" -v c="$3" -v h="$4" -v raw="$(printf '%s' "$got" | tr '\n' ';')" '
+        /^weights: / {gw = $2; seen++}
+        /^needed: / {gn = $2; seen++}
+        /^fits: / {gf = $2; seen++}
+        END {
+          w = p * 1000000000 * b / 8 / 1073741824; n = w * (100 + h) / 100; f = (n <= c ? "yes" : "no")
+          dw = gw - w; dn = gn - n
+          if (seen == 3 && gw ~ /^[0-9]+(\.[0-9]+)?$/ && gn ~ /^[0-9]+(\.[0-9]+)?$/ && dw <= 0.1 && dw >= -0.1 && dn <= 0.1 && dn >= -0.1 && gf == f) print "right"
+          else print "vram-fit " p " " b " " c " " h " printed: " raw
+        }'
+    expect:
+      equals: right
+  - id: unseen-model
+    description: "For a model, a card and a headroom it hasn't been shown, it prints all three lines right."
+    command: |
+      read -r p b c h <<< "$(awk -v seed="$(date +%N)" 'BEGIN {
+        srand(seed); split("4 8 32", B, " "); split("16 22 24 40 44 48 80 94", C, " "); split("10 15 20 30 40", H, " ")
+        for (i = 0; i < 10000; i++) {
+          p = 3 + int(rand() * 88); b = B[1 + int(rand() * 3)]; c = C[1 + int(rand() * 8)]; h = H[1 + int(rand() * 5)]
+          w = p * 1000000000 * b / 8 / 1073741824; n = w * (100 + h) / 100; d = n - c
+          if (d < 0) d = -d
+          e = w - 13.04; if (e < 0) e = -e
+          if (w >= 3 && n <= 120 && d >= 1 && e >= 0.5) { print p, b, c, h; exit }
+        }
+      }')"
+      got=$(runuser -u learner -- /home/learner/bin/vram-fit "$p" "$b" "$c" "$h" 2>&1)
+      printf '%s\n' "$got" | awk -v p="$p" -v b="$b" -v c="$c" -v h="$h" -v raw="$(printf '%s' "$got" | tr '\n' ';')" '
+        /^weights: / {gw = $2; seen++}
+        /^needed: / {gn = $2; seen++}
+        /^fits: / {gf = $2; seen++}
+        END {
+          w = p * 1000000000 * b / 8 / 1073741824; n = w * (100 + h) / 100; f = (n <= c ? "yes" : "no")
+          dw = gw - w; dn = gn - n
+          if (seen == 3 && gw ~ /^[0-9]+(\.[0-9]+)?$/ && gn ~ /^[0-9]+(\.[0-9]+)?$/ && dw <= 0.1 && dw >= -0.1 && dn <= 0.1 && dn >= -0.1 && gf == f) print "right"
+          else print "vram-fit " p " " b " " c " " h " printed: " raw
+        }'
+    expect:
+      equals: right

@@ -1,0 +1,26 @@
+id: mcq-cheapest-that-fits
+type: mcq
+rev: 1
+prompt: |
+  A model needs 18 GiB on one card, headroom included. The table gives each card's memory as the provider states it and converted to GiB (a GB is 1,000,000,000 bytes, a GiB 1,073,741,824).
+
+  | Instance | Card | Memory as stated | In GiB | Per hour |
+  | --- | --- | --- | --- | --- |
+  | `g4dn.xlarge` (AWS) | T4 | 16 GiB | 16.00 | $0.526 |
+  | `g2-standard-4` (Google Cloud) | L4 | 24 GB | 22.35 | $0.706832 |
+  | `g6.xlarge` (AWS) | L4 | 22 GiB | 22.00 | $0.8048 |
+  | `g5.xlarge` (AWS) | A10G | 22 GiB | 22.00 | $1.006 |
+  | `NC24ads_A100_v4` (Azure) | A100 | 80 GB | 74.51 | $3.673 |
+
+  On-demand prices for Linux, in US dollars, read 2026-11-11: AWS US East (N. Virginia), Azure East US, Google Cloud Iowa. Which is the cheapest instance that fits?
+choices:
+  - "`g4dn.xlarge`, at $0.526 an hour"
+  - "`g6.xlarge`, at $0.8048 an hour"
+  - "`g2-standard-4`, at $0.706832 an hour"
+  - "`NC24ads_A100_v4`, at $3.673 an hour"
+answer: 2
+explanation: |
+  Cross out the cards that are too small, then take the cheapest of the rest. The T4's 16 GiB can't hold 18, so the cheapest row is out. Of the cards that fit, Google's L4 at $0.706832 is cheapest; AWS's L4 is the same card for more, and the A100 fits four times over at five times the price.
+
+  The same L4 is 22 GiB in AWS's table and 24 GB in Google's: 24 GB is 22.35 GiB, so the two clouds describe the same card in different units, and AWS rounds down. Comparing in one unit is what makes the table fair.
+skills: [gpu-instance-choice]

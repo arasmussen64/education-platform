@@ -1,0 +1,46 @@
+# The checks for "Read a GPU box": each line of ~/example/verdict.txt
+# against the check's own reading of the same files, and that the files are
+# as the lab laid them down (the learner has sudo).
+#
+# The card works in bursts and the summary was taken in a busy second, so
+# a verdict built on one reading says 54 where the minute says 18
+# (wrong/last-sample.sh). The CPUs are flat out and the disk is quiet, so
+# the card is starved by its CPUs, not by nothing (wrong/blamed-the-gpu.sh).
+checks:
+  - id: avg-util
+    description: "avg-util is the card's mean utilisation over the minute in gpu.csv, as a whole number."
+    command: |
+      a=$(grep -m1 '^avg-util *=' /home/learner/example/verdict.txt | cut -d= -f2- | tr -d ' \r%')
+      t=$(awk -F, 'NR > 1 {s += $2; n++} END {printf "%.0f", s / n}' /srv/gpu/box-1/gpu.csv)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: idle-seconds
+    description: "idle-seconds is how many seconds of gpu.csv the card spent at 0%."
+    command: |
+      a=$(grep -m1 '^idle-seconds *=' /home/learner/example/verdict.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(awk -F, 'NR > 1 && $2 == 0 {n++} END {print n + 0}' /srv/gpu/box-1/gpu.csv)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: mem-used-pct
+    description: "mem-used-pct is the share of the card's memory in use in nvidia-smi.txt, as a whole number."
+    command: |
+      a=$(grep -m1 '^mem-used-pct *=' /home/learner/example/verdict.txt | cut -d= -f2- | tr -d ' \r%')
+      t=$(grep -o '[0-9]*MiB / *[0-9]*MiB' /srv/gpu/box-1/nvidia-smi.txt | tr -dc '0-9 ' | awk '{print $1 * 100 / $2}')
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+$/ && d < 1 && d > -1) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: starved-by
+    description: "starved-by names what kept the card waiting, from the list in the prompt."
+    command: |
+      a=$(grep -m1 '^starved-by *=' /home/learner/example/verdict.txt | cut -d= -f2- | tr -d ' \r' | tr 'A-Z' 'a-z')
+      [ "$a" = cpu ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: evidence-untouched
+    description: "The files in /srv/gpu are as the lab laid them down: nothing changed, added or removed."
+    command: |
+      [ "$(cd /srv/gpu && find . -type f | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/lib/lab/evidence.sha256)" ] && echo untouched || echo changed
+    expect:
+      equals: untouched

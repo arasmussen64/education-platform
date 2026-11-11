@@ -1,0 +1,42 @@
+id: est-job-cost
+type: estimate
+rev: 1
+# Prices: AWS's public on-demand price file for US East (N. Virginia),
+# Linux, published 2026-11-10, and the Azure Retail Prices API for East US;
+# both read 2026-11-11.
+#
+# 30 and 3 hours, not 20 and 2: with 20 and 2 the saving was $3.17 and the
+# difference of the hourly prices $3.15, so a learner who compared the
+# hours and dropped the sign was marked right.
+prompt: |
+  A team timed one job on two instances: 30 hours on a `g4dn.xlarge` (one T4) and 3 hours on an `NC24ads_A100_v4` (one A100).
+
+  | Instance | Per hour |
+  | --- | --- |
+  | `g4dn.xlarge` (AWS, US East) | $0.526 |
+  | `NC24ads_A100_v4` (Azure, East US) | $3.673 |
+
+  On-demand prices for Linux, read 2026-11-11. How many dollars cheaper is the whole job on the A100? Within 2%.
+unit: US dollars
+answer: 4.76
+tolerance: { percent: 2 }
+given: { t4_hours: 30, a100_hours: 3, t4_price: 0.526, a100_price: 3.673 }
+working: t4_hours * t4_price - a100_hours * a100_price
+mistakes:
+  - id: hourly-prices
+    value: -3.15
+    working: t4_price - a100_price
+    why: That compares the hourly prices. The job isn't an hour long on either; price the whole job.
+  - id: a100-run-only
+    value: 11.02
+    working: a100_hours * a100_price
+    why: That is what the run on the A100 costs, not how much it saves.
+  - id: t4-run-only
+    value: 15.78
+    working: t4_hours * t4_price
+    why: That is what the run on the T4 costs. The saving is the T4 run less the A100 run.
+explanation: |
+  On the T4: 30 × $0.526 = $15.78. On the A100: 3 × $3.673 = $11.019. The A100 run is $4.76 cheaper, though its hour costs seven times as much, because it finishes ten times sooner. Price the job, not the hour: a faster card can be the cheaper one.
+skills: [gpu-instance-choice]
+prices_as_of: 2026-11-11
+prices_source: https://aws.amazon.com/ec2/pricing/on-demand/

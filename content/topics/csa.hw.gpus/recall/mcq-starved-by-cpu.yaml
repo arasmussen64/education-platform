@@ -1,0 +1,16 @@
+id: mcq-starved-by-cpu
+type: mcq
+rev: 1
+prompt: |
+  A training job runs on an instance with 4 vCPUs and one GPU. GPU-Util swings between 0 and 50%, averaging 20%. `mpstat -P ALL` shows all four vCPUs at 99% `%usr`, with `%iowait` at 0, and the card's memory is a third used. What would help most?
+choices:
+  - "A larger card with more memory, so more of the input can be held on the card at a time"
+  - "The same card with more vCPUs, so the input is prepared as fast as the card takes it"
+  - "The same card with a faster disk, so the input is read as fast as the card can take it"
+  - "A second card of the same kind, so that the two cards can share the input between them"
+answer: 1
+explanation: |
+  The card waits four fifths of the time, and the host says for what: every vCPU is flat out running the program's own code, and nothing waits on the disk. In a training job the CPUs prepare each batch of input (reading, decoding and shaping it) before the card gets it, so here they are the slowest station on the line. More vCPUs for the same card, more preparation workers, or input prepared ahead of time would help.
+
+  The card isn't short of memory (two thirds is free), so a larger one would wait just the same. The disk isn't the limit, since nothing waits on it (`%iowait` 0). And a second card would double the appetite of a line whose CPUs already can't feed one.
+skills: [gpu-starvation]

@@ -1,0 +1,16 @@
+id: mcq-memory-full-util-zero
+type: mcq
+rev: 1
+prompt: |
+  For ten minutes, `nvidia-smi` on a server shows `39900MiB / 40537MiB` and GPU-Util 0%, with one process in its process table. What is the likeliest state of this server?
+choices:
+  - "The card has run out of memory and stopped: nothing can run on it until it is restarted"
+  - "The card is starved by a slow disk: its memory fills up while the data is still arriving"
+  - "A model is loaded and waiting for requests: its memory is held while nothing is computed"
+  - "A model is training at full speed: the memory in use is what the utilisation figure counts"
+answer: 2
+explanation: |
+  A loaded model holds its weights in the card's memory for as long as it runs, busy or not, and GPU-Util counts only the time a program is running on the card. Nearly full memory with 0% and a process still listed is a service that loaded its model and has had no requests for ten minutes. A fair question for the team is whether it needs a whole card.
+
+  A card that ran out of memory doesn't keep the program listed: the program fails with an out-of-memory error and lets go. Data arriving from a slow disk shows as low utilisation with the CPUs waiting on reads, not as memory filling up. And training at full speed shows high utilisation; memory in use is a separate figure that utilisation doesn't count.
+skills: [read-nvidia-smi]

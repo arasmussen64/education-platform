@@ -1,0 +1,21 @@
+id: smi-csv-average
+type: predict_shell
+rev: 1
+prompt: |
+  `gpu.csv` is a monitoring export from a GPU server (constructed): a heading line, then one line a second with the card's utilisation in % and its memory in use in MiB. `-F,` splits each line at the commas, `NR > 1` skips the heading, and the `END` block runs once the whole file is read. What is printed?
+files:
+  gpu.csv: |
+    second,gpu_util_pct,mem_used_mib
+    1,0,30120
+    2,0,30120
+    3,60,30120
+    4,0,30120
+    5,0,30120
+    6,60,30120
+command: |
+  awk -F, 'NR > 1 {s += $2; n++} END {print "average util:", s / n "%"}' gpu.csv
+expected_output: |
+  average util: 20%
+explanation: |
+  120 over 6 seconds is 20%. Any one reading would have said 0 or 60, and both are wrong about the minute; the mean says the card ran something for only a fifth of the time and waited the rest. The memory never moves: the model is loaded throughout, whether the card is busy or not.
+skills: [read-nvidia-smi]

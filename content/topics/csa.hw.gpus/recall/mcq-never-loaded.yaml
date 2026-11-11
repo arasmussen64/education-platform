@@ -1,0 +1,16 @@
+id: mcq-never-loaded
+type: mcq
+rev: 1
+prompt: |
+  A service was moved to a cheaper GPU instance and now answers nothing. `nvidia-smi` shows 0% and no processes, and the application's log ends with an out-of-memory error from the GPU a few seconds after it started. What happened?
+choices:
+  - "The model loaded but the CPUs can't feed it, so it sits idle: move to an instance with more vCPUs"
+  - "The model doesn't fit this card's memory, so it never loaded: store it in fewer bits, or use a bigger card"
+  - "The model loaded but its disk is too slow, so it sits idle: put the model's files on a local NVMe disk"
+  - "The model is still loading slowly from its disk, so it isn't ready yet: wait for the load to finish"
+answer: 1
+explanation: |
+  The log says it: the program asked the card for more memory than it has, and stopped. A GPU has no swap to fall back on, so a model that doesn't fit fails at once rather than running slowly. With nothing loaded, the process list is empty and utilisation is 0. The cheaper card has less memory; store the weights in fewer bits, or go back to a card that holds the model with its headroom.
+
+  A starved card still lists its program, with its memory in use: here nothing is listed. And a model that is still loading hasn't failed; the log would show no error.
+skills: [gpu-starvation]

@@ -1,0 +1,16 @@
+id: mcq-train-or-serve
+type: mcq
+rev: 1
+prompt: |
+  A model's weights are 9 GiB in 16 bits, and it is served comfortably from a card of 22 GiB. The team now wants to train it on the same card. Hugging Face's memory estimator (read 2026-11-11) puts training with the usual method at about 4 times the weights. What should they expect?
+choices:
+  - "It will fit: training uses the memory serving does, plus a little more for each batch"
+  - "It will fit: the card moves what doesn't fit into the VM's memory while it trains"
+  - "It won't fit: training always needs two cards, whatever the size of the model"
+  - "It won't fit: training wants about 36 GiB, so it needs a card of 40 GiB or more"
+answer: 3
+explanation: |
+  Serving only uses the weights; training changes them, and the usual method keeps several working numbers for every weight as it goes: about 4 × 9 = 36 GiB, far more than the card's 22. They need a card of about 40 GiB or more, or to train in a way that keeps fewer copies.
+
+  Training isn't serving plus a little: the extra copies are the bulk of it. A GPU can't borrow the VM's memory when its own runs out; the program stops with an out-of-memory error. And a model this small trains happily on one card that is big enough; two cards are for models or jobs too big for one.
+skills: [vram-fit]

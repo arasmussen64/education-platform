@@ -1,0 +1,16 @@
+id: mcq-gpu-or-not
+type: mcq
+rev: 1
+prompt: |
+  A team asks for a GPU instance "to make the nightly export faster". The export reads rows from a database one at a time and writes each to a file; a profile of it shows one CPU core at 100% and the rest idle. What do you tell them?
+choices:
+  - "A GPU will help: it has thousands of cores, so the export can give each row a core"
+  - "A GPU will not help: the work is one step after another, not one sum over many numbers"
+  - "A GPU will help once the rows are stored in 16 bits, so that its Tensor Cores can be used"
+  - "A GPU will not help yet: first the export needs a card with more memory than its file"
+answer: 1
+explanation: |
+  A GPU speeds up the same arithmetic done on many numbers at once. This export is a chain of small steps, read a row, write a row, each waiting for the one before, and almost none of it is arithmetic. One busy core with the rest idle says the program does one thing at a time; a GPU's thousands of units would have nothing to do. Making the program do several rows at once, or a faster single core, would help.
+
+  The rows aren't sums to share out, so there's nothing for the GPU's cores or Tensor Cores to do with them, whatever the number format. And the card's memory doesn't matter for work the card can't speed up.
+skills: [gpu-vs-cpu]

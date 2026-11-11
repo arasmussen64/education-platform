@@ -1,0 +1,22 @@
+id: fill-vram-fit
+stage: fill_in
+runtime: lab
+rev: 1
+title: "Finish vram-fit"
+prompt: |
+  Before anyone rents a GPU, the shop wants a quick answer to one question: will the model fit on the card? `~/bin/vram-fit PARAMS_BILLION BITS CARD_GIB HEADROOM_PCT` takes a model's size in billions of parameters, the bits each parameter is stored in, a card's memory in GiB and the headroom to leave on top of the weights, as a percentage of them, and prints three lines:
+
+  ```text
+  weights: 13.0 GiB
+  needed: 16.3 GiB
+  fits: no
+  ```
+
+  That is what `~/bin/vram-fit 7 16 16 25` should print: 7 billion parameters at 16 bits, a 16 GiB card, 25% headroom. On a 22 GiB card (`~/bin/vram-fit 7 16 22 25`) the same model fits.
+
+  Three lines of its `awk` program have `...` where the arithmetic belongs: the bytes one parameter takes, the step from bytes to GiB, and what the card must hold once the headroom is added. Until all three are filled in, `awk` refuses to run the program at all and prints a line like `awk: 2: unexpected character '.'` (the number counts lines of the `awk` program, not of the file). Fill them in with `nano ~/bin/vram-fit`, then try both cases above and check the first by hand. Then run the checks, which also try the script on a model, a card and a headroom you won't have seen.
+hints:
+  - "8 bits make a byte, so a parameter stored in `bits` bits takes `bits / 8` bytes."
+  - "A GiB is 1,024 × 1,024 × 1,024 = 1,073,741,824 bytes. The line already has all the bytes; divide them by that."
+  - "25% headroom means the card must hold the weights and a quarter again: the weights × (100 + 25) ÷ 100, with the variable `headroom` in place of 25."
+skills: [vram-fit]

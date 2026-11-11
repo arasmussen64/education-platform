@@ -1,0 +1,157 @@
+# The checks for "The GPU plan": one check per answer, so a failure points
+# at one skill, each working out its own truth from the files in /srv/plan
+# (the jobs' sizes are jobs.txt's, which the last check keeps as they were);
+# and one that the plan's files are as the lab laid them down (the learner
+# has sudo). The costs are worked out from the instance the learner chose,
+# so a wrong choice fails its own check and not the arithmetic's too.
+#
+# The numbers are chosen so the lazy routes fail and nothing sits on a
+# knife edge:
+#   - chat's weights alone fit a 22 GiB card and its headroom doesn't, so
+#     leaving the headroom out picks a cheaper instance (wrong/no-headroom.sh);
+#     its weights are 20.49 GiB and 22.00 in GB of a thousand million bytes
+#     (wrong/decimal-gb.sh); the cheapest row of all holds 16 GiB
+#     (wrong/cheapest-row.sh).
+#   - tune needs 44.70 GiB on one card, whether worked in GiB or GB: the
+#     44 GiB card is too small either way, an 80 GB card holds it either
+#     way, and no two cards that fit cost the same. The team's g6.12xlarge
+#     has 88 GiB in all but 22 on each card (wrong/summed-cards.sh).
+#   - big needs 2.7 A100 80GB cards in 16 bits, rounded up to 3 however its
+#     units are taken (wrong/one-big-card.sh, wrong/cards-rounded-down.sh).
+#   - embed's 6 GB is more than the 5 GB profile, and six of them would fit
+#     one card's memory if it weren't partitioned (wrong/embed-by-memory.sh).
+#   - layout 1 fits the memory slices and not the compute slices, layout 3
+#     the reverse once 3g.20gb is read as the four memory slices it takes
+#     (wrong/memory-only-mig.sh, wrong/names-as-slices.sh).
+#   - box-4's card idles in its last second, so one reading says 0 where
+#     the minute says 23.6 (wrong/last-second.sh); its disk is full up
+#     (wrong/blamed-the-gpu.sh).
+checks:
+  - id: weights-chat
+    description: "weights-gib.chat is the size of chat's weights in GiB, to within 0.1."
+    command: |
+      a=$(grep -m1 '^weights-gib\.chat *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r$,')
+      t=$(awk 'BEGIN {print 11 * 1000000000 * 16 / 8 / 1073741824}')
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.1 && d >= -0.1) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: instance-chat
+    description: "instance.chat is the cheapest instance in gpus.csv that can run chat as jobs.txt says."
+    command: |
+      a=$(grep -m1 '^instance\.chat *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r')
+      n=$(awk 'BEGIN {print 11 * 1000000000 * 16 / 8 / 1073741824 * 1.25}')
+      t=$(awk -F, -v n="$n" 'NR > 1 && $8 >= n {print $10, $4}' /srv/plan/gpus.csv | sort -n | head -n 1 | cut -d' ' -f2)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: monthly-chat
+    description: "monthly.chat is what a month of the instance in instance.chat costs, to within 1%."
+    command: |
+      a=$(grep -m1 '^monthly\.chat *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r$,')
+      i=$(grep -m1 '^instance\.chat *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r')
+      p=$(awk -F, -v i="$i" 'NR > 1 && $4 == i {print $10}' /srv/plan/gpus.csv)
+      [ -n "$p" ] || { echo "instance.chat names no instance in gpus.csv"; exit 0; }
+      awk -v a="$a" -v t="$(awk -v p="$p" 'BEGIN {print p * 730}')" 'BEGIN {d = (a - t) / t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.01 && d >= -0.01) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: needed-tune
+    description: "needed-gib.tune is what tune's card must hold, in GiB, to within 0.5."
+    command: |
+      a=$(grep -m1 '^needed-gib\.tune *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r$,')
+      t=$(awk 'BEGIN {print 6 * 1000000000 * 16 / 8 / 1073741824 * 4}')
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.5 && d >= -0.5) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: instance-tune
+    description: "instance.tune is the cheapest instance in gpus.csv that can run tune as jobs.txt says."
+    command: |
+      a=$(grep -m1 '^instance\.tune *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r')
+      n=$(awk 'BEGIN {print 6 * 1000000000 * 16 / 8 / 1073741824 * 4}')
+      t=$(awk -F, -v n="$n" 'NR > 1 && $8 >= n {print $10, $4}' /srv/plan/gpus.csv | sort -n | head -n 1 | cut -d' ' -f2)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: job-cost-tune
+    description: "job-cost.tune is what one training run costs on the instance in instance.tune, to within 1%."
+    command: |
+      a=$(grep -m1 '^job-cost\.tune *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r$,')
+      i=$(grep -m1 '^instance\.tune *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r')
+      p=$(awk -F, -v i="$i" 'NR > 1 && $4 == i {print $10}' /srv/plan/gpus.csv)
+      [ -n "$p" ] || { echo "instance.tune names no instance in gpus.csv"; exit 0; }
+      awk -v a="$a" -v t="$(awk -v p="$p" 'BEGIN {print p * 9}')" 'BEGIN {d = (a - t) / t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.01 && d >= -0.01) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: tune-on-g6-12xlarge
+    description: "tune-fits.g6.12xlarge says whether tune can run on the team's g6.12xlarge."
+    command: |
+      a=$(grep -m1 '^tune-fits\.g6\.12xlarge *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r' | tr 'A-Z' 'a-z')
+      n=$(awk 'BEGIN {print 6 * 1000000000 * 16 / 8 / 1073741824 * 4}')
+      t=$(awk -F, -v n="$n" 'NR > 1 && $4 == "g6.12xlarge" {print ($8 >= n ? "yes" : "no")}' /srv/plan/gpus.csv)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: cards-big-16bit
+    description: "cards-needed.big-16bit is how many A100 80GB cards big needs in 16 bits."
+    command: |
+      a=$(grep -m1 '^cards-needed\.big-16bit *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r')
+      c=$(awk -F, '$4 == "NC24ads_A100_v4" {print $8}' /srv/plan/gpus.csv)
+      t=$(awk -v c="$c" 'BEGIN {k = 90 * 1000000000 * 16 / 8 / 1073741824 * 1.2 / c; print (k > int(k) ? int(k) + 1 : k)}')
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: cards-big-4bit
+    description: "cards-needed.big-4bit is how many A100 80GB cards big needs in 4 bits."
+    command: |
+      a=$(grep -m1 '^cards-needed\.big-4bit *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r')
+      c=$(awk -F, '$4 == "NC24ads_A100_v4" {print $8}' /srv/plan/gpus.csv)
+      t=$(awk -v c="$c" 'BEGIN {k = 90 * 1000000000 * 4 / 8 / 1073741824 * 1.2 / c; print (k > int(k) ? int(k) + 1 : k)}')
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: cards-embed
+    description: "cards.embed is how many A100 40GB cards the six services need, each in a MIG instance of its own."
+    command: |
+      a=$(grep -m1 '^cards\.embed *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r')
+      most=$(awk '/^[0-9]g\./ && $2 * 5 >= 6 && $4 > m {m = $4} END {print m}' /srv/plan/mig-a100-40gb.txt)
+      t=$(( (6 + most - 1) / most ))
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: valid-layouts
+    description: "valid-layouts lists exactly the layouts in layouts.txt that one A100 40GB can hold."
+    command: |
+      a=$(grep -m1 '^valid-layouts *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r' | tr ',' '\n' | grep . | sort -n | paste -sd, -)
+      t=$(awk 'NR == FNR && /^[0-9]g\./ {m[$1] = $2; c[$1] = $3; next}
+        NR != FNR && /^[0-9]+ / {mem = 0; com = 0; for (i = 2; i <= NF; i++) {p = $i; sub(/,$/, "", p); mem += m[p]; com += c[p]} if (mem <= 8 && com <= 7) v = v (v == "" ? "" : ",") $1}
+        END {print (v == "" ? "none" : v)}' /srv/plan/mig-a100-40gb.txt /srv/plan/layouts.txt)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: starved-box-4
+    description: "starved-by.box-4 names what kept box-4's card waiting."
+    command: |
+      a=$(grep -m1 '^starved-by\.box-4 *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r' | tr 'A-Z' 'a-z')
+      [ "$a" = disk ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: starved-box-5
+    description: "starved-by.box-5 names what kept box-5's card waiting, if anything did."
+    command: |
+      a=$(grep -m1 '^starved-by\.box-5 *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r' | tr 'A-Z' 'a-z')
+      [ "$a" = none ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: avg-util-box-4
+    description: "avg-util.box-4 is box-4's mean utilisation over its minute, to within 1."
+    command: |
+      a=$(grep -m1 '^avg-util\.box-4 *=' /home/learner/plan/answers.txt | cut -d= -f2- | tr -d ' \r%')
+      t=$(awk -F, 'NR > 1 {s += $2; n++} END {print s / n}' /srv/plan/boxes/box-4/gpu.csv)
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 1 && d >= -1) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: plan-untouched
+    description: "The files in /srv/plan are as the plan began: nothing changed, added or removed."
+    command: |
+      [ "$(cd /srv/plan && find . -type f | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/lib/lab/plan.sha256)" ] && echo untouched || echo changed
+    expect:
+      equals: untouched

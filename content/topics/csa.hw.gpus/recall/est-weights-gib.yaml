@@ -1,0 +1,22 @@
+id: est-weights-gib
+type: estimate
+rev: 1
+prompt: |
+  A model has 7 billion parameters, each stored in 16 bits (2 bytes). `nvidia-smi` counts memory in MiB, and a GiB is 1,073,741,824 bytes. How many GiB do the weights take? Within 0.2.
+unit: GiB
+answer: 13.0
+tolerance: { absolute: 0.2 }
+given: { params_billion: 7, bits: 16, bytes: 2, gib: 1073741824 }
+working: params_billion * 1000000000 * bytes / gib
+mistakes:
+  - id: gigabytes
+    value: 14.0
+    working: params_billion * bytes
+    why: That is GB of a thousand million bytes. A GiB is about 7% bigger, so the same bytes are fewer GiB, and nvidia-smi's MiB are binary units too.
+  - id: thirty-two-bit
+    value: 26.1
+    working: params_billion * 1000000000 * 4 / gib
+    why: That is 4 bytes a parameter, the 32-bit size. These weights are stored in 16 bits, 2 bytes each.
+explanation: |
+  7 billion × 2 bytes = 14,000,000,000 bytes, and 14,000,000,000 ÷ 1,073,741,824 = 13.04 GiB. The label "14 GB" and `nvidia-smi`'s "about 13,350 MiB" describe the same weights; mixing the two units makes a card look 7% roomier or fuller than it is. All of it must be in the card's memory at once before the model runs.
+skills: [vram-fit]

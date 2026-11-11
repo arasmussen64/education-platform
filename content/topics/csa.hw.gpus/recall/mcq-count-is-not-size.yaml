@@ -1,0 +1,16 @@
+id: mcq-count-is-not-size
+type: mcq
+rev: 1
+prompt: |
+  AWS's table (read 2026-11-11) lists `g4dn.12xlarge` with 4 × NVIDIA T4 and "64 GiB (4 x 16 GiB)" of accelerator memory. A model's weights are 40 GiB, and the software that serves it runs it on one card. Does this instance work?
+choices:
+  - "Yes: the four cards pool their memory, so the instance offers the model all 64 GiB"
+  - "No: each card holds 16 GiB, and a model that runs on one card needs one of 40 or more"
+  - "Yes: the model loads onto the first card and overflows onto the others as it needs to"
+  - "No: four cards can never be used together, so only one card's worth is ever usable"
+answer: 1
+explanation: |
+  The 64 GiB is four separate cards' memory added up. A program running on one card can use that card's 16 GiB and no more: there is no pooling and no overflow. To use all four, the model would have to be split across the cards by software built for it, which is a different way to run it, and the cards would then exchange data constantly.
+
+  So the instance's total is the wrong number to compare with: compare the model with one card's memory, and look for a card of 40 GiB or more, plus headroom. Four cards can be used together, by a job written to split its work, which is why such instances exist; this software doesn't do that.
+skills: [gpu-instance-choice]

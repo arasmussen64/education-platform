@@ -1,0 +1,22 @@
+id: est-mig-room-left
+type: estimate
+rev: 1
+prompt: |
+  An A100 40GB has 8 memory slices and 7 compute slices, and already holds one `4g.20gb` instance, which takes 4 of each. A `1g.5gb` takes 1 of each. By the sums, what is the most `1g.5gb` instances that could be added? Exactly.
+unit: instances
+answer: 3
+tolerance: { absolute: 0 }
+given: { memory_slices: 8, compute_slices: 7, taken: 4 }
+working: min(memory_slices - taken, compute_slices - taken)
+mistakes:
+  - id: memory-only
+    value: 4
+    working: memory_slices - taken
+    why: That counts the memory slices left, 4. Only 3 compute slices are left, and each `1g.5gb` needs one.
+  - id: empty-card
+    value: 7
+    working: compute_slices
+    why: That is how many fit on an empty card. The `4g.20gb` already takes 4 of the compute slices.
+explanation: |
+  The card has 8 − 4 = 4 memory slices and 7 − 4 = 3 compute slices left, so at most 3 more `1g.5gb`. That is a ceiling from the sums, the first test of any layout; whether instances can be placed where the free slices are is for NVIDIA's table of placements to say.
+skills: [gpu-sharing]

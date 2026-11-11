@@ -1,0 +1,26 @@
+id: est-monthly-serving
+type: estimate
+rev: 1
+# Price: the Azure Retail Prices API, East US, pay-as-you-go, Linux, read
+# 2026-11-11.
+prompt: |
+  A model is served round the clock from one Azure `NC8as_T4_v3` at $0.752 an hour (on demand, Linux, East US, read 2026-11-11). Use 730 hours a month. What does a month cost? Within 1%.
+unit: US dollars a month
+answer: 548.96
+tolerance: { percent: 1 }
+given: { price: 0.752, hours: 730 }
+working: price * hours
+mistakes:
+  - id: thirty-days
+    value: 541.44
+    working: price * 720
+    why: That is 30 days of 24 hours, 720 hours. This track's month is 730 hours, a year's 8,760 hours divided by 12.
+  - id: one-day
+    value: 18.05
+    working: price * 24
+    why: That is one day. A month is 730 hours.
+explanation: |
+  $0.752 × 730 = $548.96 a month. Round the clock, every hour of a GPU instance is billed, busy or not; a service that is quiet at night might pay for itself to be smaller, or to be stopped, when its traffic falls.
+skills: [gpu-instance-choice]
+prices_as_of: 2026-11-11
+prices_source: https://azure.microsoft.com/pricing/details/virtual-machines/linux/

@@ -1,15 +1,331 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.hw.gpus
 kind: topic
-status: planned
-title: GPU basics
-summary: Explain CUDA cores versus tensor cores, VRAM as the constraint, NVLink and MIG partitioning.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+status: ready
+title: "GPU basics"
+summary: "What a GPU is good at and what is inside one; why its memory decides before its speed; reading nvidia-smi and telling what a GPU is waiting for; choosing a GPU instance on three clouds; and sharing one card with MIG or by taking turns."
+# Module 2's plan (docs/plans/cloud-module-2/MODULE-2-BRIEF.md, section 2):
+# this topic stands on "Cores, memory and noisy neighbours" (vCPUs, instance
+# tables, on-demand prices, regions, a month of 730 hours) and "Memory tiers
+# and disks" (GB against GiB, local NVMe against network disks and their
+# allowances, which is the disk that starves a GPU). Both stand on
+# Hypervisors (host, guest, passthrough) and so on Checkpoint 1. The Module
+# 1 topics it leans on are triage (mpstat, iostat, %iowait), shell and
+# scripting.
+prerequisites: [csa.hw.cores-memory, csa.hw.disks]
+# Counted: the lesson and recap 25 (3,400 words, a wide table among them);
+# the reading the lesson asks for 57 (the main resource 7, NVIDIA's
+# background sections 4, Hugging Face's guide to its first code 5 and the
+# estimator's tables 3, the nvidia-smi definitions 2, the MIG guide's
+# introduction and concepts 13, the time-slicing section 3, Google's GPU
+# page's four parts 8, five rows of AWS's table 5, Azure's NCasT4_v3 page 4,
+# TensorFlow's three parts 3); 30 quick questions at 1.5 minutes, 45; the
+# worked example 20; the fill-in 20; the write 25; the build 50; the debug
+# 40; the explain 15. 297, rounded to 300.
+estimated_minutes: 300
 rev: 1
 objectives:
-- Explain CUDA cores versus tensor cores, VRAM as the constraint, NVLink and MIG partitioning.
-- Read a GPU's utilization and say what's starving it.
+  - "Say why a GPU is fast at some work and no help with other work, what CUDA, CUDA cores and Tensor Cores are, and what lower precision trades."
+  - "Work out whether a model fits a card: parameters × bytes each, in GiB, plus the headroom the job needs, and how much more training needs than serving."
+  - "Read `nvidia-smi`: the card, its memory in use and total, GPU-Util and the process table, and say what GPU-Util does and doesn't measure."
+  - "From a GPU's utilisation and the host's CPU and disk numbers, say what is starving it, and what would help."
+  - "Choose a GPU instance from dated tables of the three clouds: a card that holds the model, the number of cards, vCPUs to feed them, and the price of the whole job."
+  - "Say how one card is shared: MIG partitions and their slice arithmetic, time-slicing and what it doesn't isolate, fractional cards, pass-through, and when NVLink matters."
+# Facts, each read on 2026-11-11, with where:
+# - CPU against GPU, CUDA first released in 2007: the main resource (NVIDIA
+#   Blog, published 2009-12-16, updated 2023-04-26; about 900 words).
+# - SMs, L2 cache and memory; an A100 has 108 SMs, a 40 MB L2 and 80 GB;
+#   FP16 on Tensor Cores or CUDA cores; Tensor Cores since Volta, for matrix
+#   multiply and accumulate:
+#   https://docs.nvidia.com/deeplearning/performance/dl-performance-gpu-background/index.html
+# - Lower precision needs less memory and runs faster on Tensor Cores; "up
+#   to 3x overall speedup on the most arithmetically intense model
+#   architectures"; FP16 16 bits against FP32's 32:
+#   https://docs.nvidia.com/deeplearning/performance/mixed-precision-training/index.html
+# - About 4 x X GB in float32, 2 x X GB in bfloat16/float16; inference
+#   dominated by the weights under 1,024 tokens; Llama-2-70b 140 GB;
+#   bigcode/octocoder (15.5 billion) measured 29.0 in 16 bits, 15.2 in 8
+#   bits and 9.5 in 4 bits, its code dividing by 1,024 three times:
+#   https://huggingface.co/docs/transformers/llm_tutorial_optimization
+# - bert-base-cased: float32 418.18 MB to load, 1.61 GB "Training using
+#   Adam" (about 4 times); inference adds up to about 20%:
+#   https://huggingface.co/docs/accelerate/usage_guides/model_size_estimator
+# - GPU-Util: "Percent of time over the past sample period during which one
+#   or more kernels was executing on the GPU", the sample period between 1
+#   second and 1/6 second: https://docs.nvidia.com/deploy/nvidia-smi/index.html
+# - The nvidia-smi summary's layout under driver 580.65.06, and the totals
+#   an H100 80GB HBM3 (81559MiB, 700 W cap) and an A100-SXM4-40GB (40537MiB,
+#   driver 450.80.02) report; MIG "up to seven separate GPU Instances",
+#   isolated paths through the memory system, fault isolation; the
+#   supported cards (A30, A100, H100, H200, B200 and others; no T4, L4, A10
+#   or L40S); the A100-40GB as 8 memory slices of 5 GB and 7 SM slices, and
+#   its profile table (1g.5gb 7, 1g.10gb 4, 2g.10gb 3, 3g.20gb 2, 4g.20gb 1,
+#   7g.40gb 1; 3g.20gb takes 4/8 of the memory); 4g.20gb with 3g.20gb
+#   allowed from driver R510; the 8-GPU example with 4g.20gb, 2g.10gb and
+#   1g.5gb on one card: NVIDIA's Multi-Instance GPU User Guide, Release 620,
+#   2026-11-04, https://docs.nvidia.com/datacenter/tesla/pdf/MIG_User_Guide.pdf
+#   (read as text). The web edition's index,
+#   https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/, loads;
+#   its sub-pages redirected on the 11th, so the PDF is linked.
+# - An A100 40GB reporting 40960MiB under driver 525.60.13: a user's post on
+#   NVIDIA's developer forum, 2025-02-05,
+#   https://forums.developer.nvidia.com/t/a100-sxm4-40gb-shows-in-nvidia-smi-but-not-accessible-in-cuda/322730
+# - Time-slicing: "there is no memory or fault-isolation between replicas";
+#   suits older cards without MIG:
+#   https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html
+# - NVLink: a direct GPU-to-GPU interconnect within a server; 900 GB/s
+#   (Hopper), 1,800 (Blackwell), 3 TB/s (Vera Rubin) per GPU, so no number
+#   is taught: https://www.nvidia.com/en-us/data-center/nvlink/
+# - AWS sizes and card memory: g4dn.xlarge 1 x T4 16 GiB, 125 GB NVMe;
+#   g4dn.12xlarge "64 GiB (4 x 16 GiB)"; g5.xlarge A10G 22 GiB; g6.xlarge L4
+#   22 GiB; g6.12xlarge "89 GiB (4 x 22 GiB)"; g6e.xlarge L40S 44 GiB;
+#   g6f.large 0.125 x L4, 2.79 GiB; p4d.24xlarge 8 x A100 40 GiB; p5.48xlarge
+#   8 x H100 80 GiB: https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html
+# - AWS prices, US East (N. Virginia), Linux, on demand: g4dn.xlarge 0.526,
+#   g4dn.12xlarge 3.912, g5.xlarge 1.006, g6.xlarge 0.8048, g6.12xlarge
+#   4.6016, g6e.xlarge 1.861, g6f.large 0.202 dollars an hour. AWS's public
+#   price file, https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/US%20East%20(N.%20Virginia)/Linux/index.json,
+#   published 2026-11-10.
+# - Azure sizes: NCasT4_v3 "up to 4 NVIDIA T4 GPUs with 16 GB of memory
+#   each" (NC4as 4 vCPUs, 28 GiB, 176 GiB temp disk; NC8as 8; NC64as 64 and
+#   4 cards); NVadsA10_v5 from 1/6 of an A10 (NV6ads, 6 vCPUs, 4 GB) to a
+#   whole one (NV36ads, 36 vCPUs, 440 GiB, 24 GB), for graphics and virtual
+#   desktops; NC_A100_v4 A100 PCIe 80 GB (NC24ads 24 vCPUs); NCads_H100_v5
+#   H100 NVL 94 GB (NC40ads 40 vCPUs): the series pages under
+#   https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/gpu-accelerated/
+# - Azure prices, East US, Linux, pay-as-you-go: NC4as_T4_v3 0.526,
+#   NC8as_T4_v3 0.752, NC64as_T4_v3 4.352, NV6ads_A10_v5 0.454,
+#   NV36ads_A10_v5 3.20, NC24ads_A100_v4 3.673, NC40ads_H100_v5 6.98 dollars
+#   an hour: https://prices.azure.com/api/retail/prices
+# - Google Cloud sizes: g2-standard-4 1 x L4 24 GB; a2-highgpu-1g A100
+#   40 GB; a2-ultragpu-1g A100 80 GB; "NVIDIA T4 GPUs reach end of support
+#   on August 1, 2027": https://docs.cloud.google.com/compute/docs/gpus
+#   (last updated 2026-11-10). Prices, Iowa: g2-standard-4 0.706832276,
+#   a2-highgpu-1g 3.673385, a2-ultragpu-1g 5.06879789 dollars an hour:
+#   https://cloud.google.com/products/compute/pricing/accelerator-optimized
+# - Pass-through, fractional sizes on G4, Spot, GPU quotas:
+#   https://docs.cloud.google.com/compute/docs/gpus/about-gpus
+# - "GPUs and TPUs are not included in the Free Tier offer"; a free-trial
+#   account can't add GPUs: https://docs.cloud.google.com/free/docs/free-cloud-features
+# - The naive pipeline leaves the model idle; prefetching overlaps:
+#   https://www.tensorflow.org/guide/data_performance (last updated
+#   2026-11-05). DataLoader's default num_workers=0, "the main training
+#   process has to wait for the data":
+#   https://docs.pytorch.org/tutorials/recipes/recipes/tuning_guide.html
+# - Google's Ops Agent reads GPU utilisation and memory from NVML, per GPU
+#   and per process: https://docs.cloud.google.com/compute/docs/gpus/monitor-gpus
+# The labs' gpus.csv carries the AWS, Azure and Google Cloud rows above with
+# two memory columns: the provider's figure as stated, and a GiB figure
+# worked out from it (the plan's 3.6). It corrects the 2026-11 price
+# fixture's AWS rows, which gave the A10G and L4 as 24 GB from AWS's
+# marketing pages.
+# Linked, never copied. Licences as each source states them, read
+# 2026-11-11: NVIDIA's blog, documentation and pages are copyright NVIDIA
+# Corporation; Hugging Face's Transformers and Accelerate documentation are
+# Apache-2.0 (the header of each page's source file); Google Cloud's pages
+# and TensorFlow's guide are CC BY 4.0 (each page's footer; code samples
+# Apache 2.0); Microsoft Learn's Azure pages are CC BY 4.0 (the LICENSE of
+# MicrosoftDocs/azure-compute-docs); the PyTorch tutorials are BSD-3-Clause
+# (the LICENSE of pytorch/tutorials); AWS's documentation is copyright
+# Amazon Web Services.
+resources:
+  - title: "CPU vs GPU: What's the Difference? (NVIDIA Blog): why a GPU's many cores suit parallel work, and what CUDA is"
+    url: https://blogs.nvidia.com/blog/whats-the-difference-between-a-cpu-and-a-gpu/
+    type: reading
+    use: link
+    license: "Copyright NVIDIA Corporation; linked, not copied"
+  - title: "GPU Performance Background User's Guide (NVIDIA): the sections \"Overview\" and \"GPU Architecture Fundamentals\", on SMs, memory, CUDA cores and Tensor Cores"
+    url: https://docs.nvidia.com/deeplearning/performance/dl-performance-gpu-background/index.html
+    type: reading
+    use: link
+    license: "Copyright NVIDIA Corporation; linked, not copied"
+  - title: "Optimizing LLMs for Speed and Memory (Hugging Face): the opening and \"Lower Precision\" down to its first block of code, on how much memory a model's weights take"
+    url: https://huggingface.co/docs/transformers/llm_tutorial_optimization
+    type: reading
+    use: link
+    license: Apache-2.0
+  - title: "Model memory estimator (Hugging Face Accelerate): the tables, on loading against training a model"
+    url: https://huggingface.co/docs/accelerate/usage_guides/model_size_estimator
+    type: reading
+    use: link
+    license: Apache-2.0
+  - title: "nvidia-smi documentation (NVIDIA): the definitions of GPU and memory utilisation (search the page for \"Percent of time\")"
+    url: https://docs.nvidia.com/deploy/nvidia-smi/index.html
+    type: reading
+    use: link
+    license: "Copyright NVIDIA Corporation; linked, not copied"
+  - title: "NVIDIA Multi-Instance GPU User Guide (PDF): the \"Introduction\" and \"Concepts\" chapters, on partitions, slices and profiles"
+    url: https://docs.nvidia.com/datacenter/tesla/pdf/MIG_User_Guide.pdf
+    type: reading
+    use: link
+    license: "Copyright NVIDIA Corporation; linked, not copied"
+  - title: "Time-Slicing GPUs in Kubernetes (NVIDIA GPU Operator): the section \"Understanding Time-Slicing GPUs\" and its comparison with MIG"
+    url: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html
+    type: reading
+    use: link
+    license: "Copyright NVIDIA Corporation; linked, not copied"
+  - title: "About GPU instances (Google Cloud): the opening, and the sections on Spot VMs, block storage, and restrictions and limitations"
+    url: https://docs.cloud.google.com/compute/docs/gpus/about-gpus
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Specifications for Amazon EC2 accelerated computing instances (AWS): the performance table's G and P rows, cards and accelerator memory"
+    url: https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "NCasT4_v3 size series (Azure): the opening and the size tables, T4 cards from one to four"
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/gpu-accelerated/ncast4v3-series
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Better performance with the tf.data API (TensorFlow): the opening, \"The naive approach\" and \"Prefetching\", on a model waiting for its input"
+    url: https://www.tensorflow.org/guide/data_performance
+    type: reading
+    use: link
+    license: "CC BY 4.0 (code samples Apache 2.0)"
+  - title: "GPU machine types (Google Cloud): the G2, A2 and A3 tables, and the T4's end of support"
+    url: https://docs.cloud.google.com/compute/docs/gpus
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "NVadsA10_v5 size series (Azure): partial A10 cards, from a sixth to a whole one, for graphics and virtual desktops"
+    url: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/gpu-accelerated/nvadsa10v5-series
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Train with mixed precision (NVIDIA): the introduction, on what lower precision buys"
+    url: https://docs.nvidia.com/deeplearning/performance/mixed-precision-training/index.html
+    type: reading
+    use: link
+    license: "Copyright NVIDIA Corporation; linked, not copied"
+  - title: "Performance Tuning Guide (PyTorch): \"Enable asynchronous data loading and augmentation\""
+    url: https://docs.pytorch.org/tutorials/recipes/recipes/tuning_guide.html
+    type: reading
+    use: link
+    license: BSD-3-Clause
+  - title: "NVLink and NVLink Switch (NVIDIA): a direct link between the GPUs of one server"
+    url: https://www.nvidia.com/en-us/data-center/nvlink/
+    type: reading
+    use: link
+    license: "Copyright NVIDIA Corporation; linked, not copied"
+  - title: "Monitor GPU performance on Linux VMs (Google Cloud): utilisation and memory per GPU and per process"
+    url: https://docs.cloud.google.com/compute/docs/gpus/monitor-gpus
+    type: reading
+    use: link
+    license: CC BY 4.0
+# There is no GPU to practise on, so nothing here runs on one. The quick
+# questions read nvidia-smi summaries and monitoring exports with the text
+# tools of Module 1, or ask for a number worked out from a dated table
+# (estimate questions, ADR-0024). The labs are all plain: saved evidence and
+# dated tables as files that say they are constructed, and the learner's
+# scripts and answers over them. No command in the labs pretends to be
+# nvidia-smi (the plan's 3.4).
+practice:
+  - example-read-a-gpu-box
+  - mcq-what-suits-a-gpu
+  - mcq-cuda-or-tensor-cores
+  - est-precision-gb
+  - mcq-what-lower-precision-buys
+  - est-weights-gib
+  - mcq-fits-which-card
+  - smi-memory-free
+  - est-training-memory
+  - mcq-floor-not-bill
+  - fill-vram-fit
+  - mcq-what-gpu-util-means
+  - smi-csv-average
+  - smi-biggest-process
+  - mcq-memory-full-util-zero
+  - starve-idle-seconds
+  - mcq-starved-by-cpu
+  - mcq-starved-by-disk
+  - mcq-not-starved
+  - mcq-never-loaded
+  - write-gpu-report
+  - mcq-cheapest-that-fits
+  - est-job-cost
+  - mcq-count-is-not-size
+  - mcq-vcpus-per-gpu
+  - est-weekend-bill
+  - mcq-no-free-gpu
+  - est-mig-per-card
+  - mcq-mig-valid-layout
+  - mcq-walls-or-turns
+  - mcq-which-cards-have-mig
+  - mcq-fraction-for-what
+  - mcq-when-nvlink-matters
+prove:
+  build: build-gpu-plan
+  debug: debug-fit-check
+  explain:
+    prompt: |
+      A team asks for "a GPU server". They want to serve a model with 7 billion parameters and, once a week, train a smaller one. Their trial server shows 20% GPU utilisation, and a second team would like to share the card. Explain, in your own words: why this work suits a GPU at all, and what CUDA cores and Tensor Cores each do; why you would ask about memory before speed, and how you would work out whether the model fits a card; what `nvidia-smi`'s utilisation figure does and doesn't tell you, and what 20% might mean; how you would choose an instance, and one way the three clouds differ; and how one card can be shared safely, and when a link between cards matters.
+    rubric:
+      - id: why-gpu
+        required: true
+        description: "A GPU has thousands of simple arithmetic units doing the same operation on many numbers at once, which suits multiplying large tables of numbers, what a model mostly does; CUDA cores do general arithmetic at any precision, Tensor Cores are specialised for multiplying grids (matrices) and are fastest at reduced precision (16 bits and below)."
+      - id: memory-first
+        required: true
+        description: "All of a model's weights must be in the card's own memory at once, with no swap to fall back on: parameters × bytes each (7 billion at 2 bytes is 14 GB, about 13 GiB); fewer bits halve or quarter it; the sum is a floor, so a stated headroom is added; training needs several times the weights (about 4); if it doesn't fit it doesn't run."
+      - id: utilisation
+        required: true
+        description: "GPU-Util is the share of time some program was running on the card, not the share of the card in use; 20% means the card mostly waits, and the host's numbers say for what: CPUs flat out preparing input, a disk at its limit, work arriving too small, or another program taking turns; near 100% with the host idle means the GPU itself is the limit."
+      - id: choosing
+        required: true
+        description: "Pick a card whose memory holds the model with its headroom, then the number of cards, enough vCPUs to feed it and a local disk if the data is large, then compare the cost of the whole job rather than the hourly price; and one correct difference between the clouds (their families and cards, fractional cards, how card memory is stated in GiB or GB, no free GPUs)."
+      - id: sharing
+        required: true
+        description: "MIG partitions a supported large card (A100, H100 and the like, not a T4 or L4) into up to seven instances with their own memory and fault isolation, in fixed profiles; time-slicing shares the whole card in turns with no memory or fault isolation, so one program running out of memory can take the other down."
+      - id: multi-gpu
+        required: false
+        description: "A model larger than one card's memory is split over several, which then exchange data constantly and need a fast card-to-card link (NVLink); separate jobs on separate cards don't."
+    model_answer: |
+      A model is a very large table of numbers, and serving or training it is mostly multiplying inputs by those tables: millions of the same small sum, none waiting for another. A CPU has a few powerful cores that do one thing after another; a GPU has thousands of simple arithmetic units doing the same sum on different numbers at once, so it finishes that kind of work far sooner, and is no help for work done step by step. Its CUDA cores do any arithmetic at the precision asked for; its Tensor Cores only multiply grids of numbers, and do it several times faster in 16 bits or fewer.
+
+      I'd ask about memory first, because every weight must be in the card's own memory at the same time, and a GPU has no swap: a model that doesn't fit stops with an out-of-memory error instead of running slowly. The sum is parameters times bytes each: 7 billion at 16 bits, 2 bytes, is 14 GB, about 13 GiB as nvidia-smi counts. That's the floor; the running model also needs room for its inputs and working numbers, so I'd add a stated headroom, say 25%, about 16.3 GiB, and compare that with the card's memory in GiB. Training keeps several copies of the weights, about four times their size, so the weekly training job needs its own sum.
+
+      GPU-Util is the share of time some program was running on the card, not how much of the card it used. 20% means the card waits four fifths of the time, and the host shows for what: every CPU flat out means the input preparation can't keep up; CPUs waiting on a disk at its limit means the data should be on a local NVMe disk; everything idle means the work arrives too small and should be batched.
+
+      To choose, I'd take the cards that hold the model with its headroom, then enough vCPUs to feed one, a local disk for the data, and compare the cost of the whole job, since a faster card can be cheaper. The clouds state card memory differently: AWS in GiB, Azure and Google in GB, so the same L4 is 22 on one and 24 on another.
+
+      To share the card safely the second team needs a MIG partition on a card that supports it, such as an A100: each partition has its own memory and a crash stays inside it. Taking turns by time-slicing shares all the memory, so one team running out could take the other down. A link like NVLink only matters when one model is split across several cards.
+review_pool:
+  - est-weights-gib
+  - mcq-fits-which-card
+  - smi-memory-free
+  - mcq-what-gpu-util-means
+  - smi-csv-average
+  - mcq-starved-by-cpu
+  - mcq-starved-by-disk
+  - mcq-cheapest-that-fits
+  - est-job-cost
+  - est-mig-per-card
+  - mcq-walls-or-turns
+  - mcq-cuda-or-tensor-cores
+  - mcq-gpu-or-not
+  - est-bytes-for-precision
+  - est-precision-from-32
+  - est-fit-with-headroom
+  - mcq-train-or-serve
+  - smi-used-pct
+  - mcq-two-owners
+  - mcq-batch-of-one
+  - mcq-which-station
+  - est-monthly-serving
+  - mcq-same-card-three-clouds
+  - est-mig-cards-for-teams
+  - est-mig-room-left
+  - mcq-pass-through-or-part
+skills:
+  - id: gpu-vs-cpu
+    description: "Why a GPU: the same arithmetic on many numbers at once; CUDA, CUDA cores against Tensor Cores; precision in bytes a number, and what lower precision buys"
+  - id: vram-fit
+    description: "Memory arithmetic: parameters × bytes each, GB against GiB against MiB, headroom, training against serving, and whether a model fits a card"
+  - id: read-nvidia-smi
+    description: "Read the card, memory in use and total, GPU-Util and the process table from `nvidia-smi` and a monitoring export; say what GPU-Util does and doesn't measure"
+  - id: gpu-starvation
+    description: "From utilisation and the host's CPU and disk numbers, say what is starving a GPU (input preparation, storage, memory, work too small, sharing) and what would help"
+  - id: gpu-instance-choice
+    description: "Choose an instance from providers' GPU tables: memory per card, number of cards, vCPUs, local disk, price for an hour and for a job; how the three clouds' families differ"
+  - id: gpu-sharing
+    description: "MIG partitions and their slice arithmetic, and what they isolate; time-slicing; fractional cloud GPUs; pass-through; NVLink and when more than one card is needed"

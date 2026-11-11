@@ -1,0 +1,16 @@
+id: mcq-vcpus-per-gpu
+type: mcq
+rev: 1
+prompt: |
+  A training job on an Azure `NC4as_T4_v3` (4 vCPUs, one T4, $0.526 an hour) is starved by its CPUs: all four are flat out and the card waits. Azure's size table and prices (East US, Linux, read 2026-11-11) also list `NC8as_T4_v3` (8 vCPUs, one T4, $0.752 an hour) and `NC64as_T4_v3` (64 vCPUs, four T4s, $4.352 an hour). Which change fits the diagnosis?
+choices:
+  - "`NC64as_T4_v3`: four cards, so each card needs only a quarter of the input prepared"
+  - "`NC4as_T4_v3` twice over: two small instances can share the preparation work"
+  - "`NC8as_T4_v3`: the same card, with twice the vCPUs to prepare its input"
+  - "`NC24ads_A100_v4`: a larger card needs less input prepared for each step"
+answer: 2
+explanation: |
+  The diagnosis is too few CPUs for one card, so the fix is more vCPUs for the same card: `NC8as_T4_v3` doubles them for about 43% more an hour, and the card stops waiting.
+
+  Four cards would need four times the input, prepared by 64 vCPUs, and cost over eight times as much; that is a different job. Two separate instances can't prepare input for one card in the other. And a faster card wants its input faster, not slower: an A100 would wait even longer.
+skills: [gpu-instance-choice]

@@ -1,0 +1,22 @@
+id: est-precision-from-32
+type: estimate
+rev: 1
+prompt: |
+  A model's weights take 28 GB stored in 32 bits. How many GB would the same weights take stored in 8 bits? Exactly.
+unit: GB
+answer: 7
+tolerance: { absolute: 0 }
+given: { size_32: 28, bits_from: 32, bits_to: 8 }
+working: size_32 * bits_to / bits_from
+mistakes:
+  - id: sixteen-bit
+    value: 14
+    working: size_32 / 2
+    why: That is the 16-bit size. 8 bits are a quarter of 32, so the weights take a quarter of the memory.
+  - id: multiplied
+    value: 112
+    working: size_32 * bits_from / bits_to
+    why: That divides the wrong way. Fewer bits a number means less memory, not more.
+explanation: |
+  The number of parameters stays the same; only the bytes each one takes change. 8 bits are a quarter of 32, so the weights take a quarter of the memory: 28 ÷ 4 = 7 GB. That is the same model at a quarter of the card memory, for slightly less exact numbers.
+skills: [gpu-vs-cpu]

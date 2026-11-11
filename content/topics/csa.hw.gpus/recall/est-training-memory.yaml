@@ -1,0 +1,22 @@
+id: est-training-memory
+type: estimate
+rev: 1
+prompt: |
+  Hugging Face's memory estimator (read 2026-11-11) lists a model whose weights are 418.18 MB in 32 bits needing 1.61 GB to train with the usual method: about 4 times the size of its weights. A team wants to train a model whose weights are 5 GiB. About how many GiB of card memory should they plan for? Within 10%.
+unit: GiB
+answer: 20
+tolerance: { percent: 10 }
+given: { weights: 5, times: 4 }
+working: weights * times
+mistakes:
+  - id: serving-size
+    value: 5
+    working: weights
+    why: That is enough to load the model and run it, not to train it. Training keeps several working copies alongside the weights.
+  - id: one-copy-more
+    value: 10
+    working: weights * 2
+    why: That allows one extra copy of the weights. The usual training method keeps more than one, about 4 times the weights in all.
+explanation: |
+  5 × 4 = 20 GiB. Training adjusts the weights, and the usual method (Adam) keeps working numbers for every weight as it goes, so the card must hold several copies' worth at once; the estimator's tables show about 4 times the weights in every precision. So a card that serves a model comfortably can be far too small to train it. The estimator also warns that running a model needs up to about 20% on top of its weights: the sums give the floor, and a plan adds headroom.
+skills: [vram-fit]
