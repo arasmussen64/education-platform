@@ -813,10 +813,15 @@ def cmd_start(args: argparse.Namespace) -> int:
             # A stopped container is a server that was switched off: what was
             # on its disk is still there, what was only in memory is not.
             print("It came back the way a server comes back from a reboot: the")
-            print("files and settings in it are as you left them. Whatever was")
-            print("only running, or only mounted, when it stopped may need doing")
-            print("again (in a lab with disks: sudo mount -a). Run the checks to")
-            print("see where you stand.\n")
+            print("files and settings in it are as you left them.")
+            if has_disks(lab):
+                print("Whatever was only running, or only mounted, when it stopped")
+                print("may need doing again (sudo mount -a mounts the disks again).")
+            else:
+                # Only the storage labs have taught mounting by then.
+                print("Whatever was only running when it stopped, such as a")
+                print("program you had started by hand, may need starting again.")
+            print("Run the checks to see where you stand.\n")
     print_next_steps(lab)
     print("To throw the work away and begin the lab again:\n")
     print(f"    {command('start --fresh', lab)}\n")

@@ -425,6 +425,23 @@ def test_start_starts_a_stopped_lab_again_and_keeps_it(
     assert "was stopped. Starting it again, with your work in it" in out
     assert "the lab is running again" in out
     assert "from a reboot" in out
+    # Mounting is for the labs with disks; this one has none.
+    assert "started by hand, may need starting again" in out
+    assert "mount" not in out
+
+
+def test_a_lab_with_disks_that_starts_again_says_how_to_mount_them(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    docker = FakeDocker({NAME: ("exited", IMAGE)})
+    use_lab(tmp_path, monkeypatch, docker, "lab:\n  init: systemd\n")
+    write(tmp_path, "content/topics/t.hello/exercises/lab-hello/teardown.sh", "exit 0")
+    monkeypatch.setattr(labcheck, "wait_for_boot", lambda name: "running")
+    monkeypatch.setattr(labcheck, "detach_stale_disks", lambda lab: [])
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    out = capsys.readouterr().out
+    assert "takes a minute or two to boot again" in out
+    assert "sudo mount -a mounts the disks again" in out
 
 
 def test_start_unpauses_a_paused_lab(tmp_path: Path, monkeypatch, capsys) -> None:
