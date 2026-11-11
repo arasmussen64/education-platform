@@ -8,13 +8,13 @@ checks:
     description: "The script has no ... left in it."
     command: "! grep -q '\\.\\.\\.' /home/learner/bin/triage-report"
   - id: cpus-line
-    description: "The cpus line is nproc."
+    description: "The cpus line is the machine's number of CPUs."
     command: |
       test "$(/home/learner/bin/triage-report | awk -F': ' '/^cpus:/ {print $2}')" = "$(nproc)" && echo "cpus match"
     expect:
       contains: "cpus match"
   - id: run-queue-is-the-runqueue
-    description: "The run-queue line is vmstat's first column, r, not the blocked column, b (the check hands the script a vmstat whose r is 7 and whose b is 3)."
+    description: "The run-queue line is vmstat's run-queue column and no other (the check hands the script a vmstat with fixed numbers, in which the run queue is 7)."
     command: |
       PATH=/usr/local/lib/lab-check:$PATH /home/learner/bin/triage-report | awk -F': ' '/^run-queue:/ {print $2}'
     expect:
@@ -25,7 +25,7 @@ checks:
     expect:
       contains: "shop-worker"
   - id: busiest-cpu-is-a-high-percentage
-    description: "The busiest-cpu line is the worker's CPU percentage (field 2), near 100, not its name (field 1)."
+    description: "The busiest-cpu line is the worker's CPU percentage, a number near 100."
     command: |
       /home/learner/bin/triage-report | awk -F': ' '/^busiest-cpu:/ {print $2}'
     expect:

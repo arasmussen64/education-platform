@@ -5,7 +5,7 @@ checks:
     description: "The script has no ... left in it."
     command: "! grep -q '\\.\\.\\.' /home/learner/bin/cpu-report"
   - id: cpus-line
-    description: "The cpus line is nproc."
+    description: "The cpus line is the machine's number of CPUs."
     command: |
       test "$(/home/learner/bin/cpu-report shop-worker | grep '^cpus:')" = "cpus: $(nproc)"
   - id: load-line
@@ -19,7 +19,7 @@ checks:
     expect:
       matches: "^top process: shop-worker [0-9.]+%$"
   - id: throttled-line
-    description: "The throttled line is the worker's nr_throttled count from cpu.stat."
+    description: "The throttled line is the number of periods the worker's cgroup has been throttled in, as its cpu.stat counts them."
     # Read moments apart, the two counts can differ by a period or two.
     command: |
       script=$(/home/learner/bin/cpu-report shop-worker | awk -F': ' '/^throttled periods of shop-worker/ {print $2}')
