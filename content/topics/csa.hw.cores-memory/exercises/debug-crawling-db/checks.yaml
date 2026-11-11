@@ -90,9 +90,11 @@ checks:
     command: |
       pid=$(systemctl show shop-db -p MainPID --value)
       awk '/^Cpus_allowed_list/ {print $2}' "/proc/$pid/status"
-    # Read from the process, not only from systemd: an emptied AllowedCPUs=
-    # leaves a running process on the CPUs it had until it restarts (tried
-    # on Docker Desktop, 2026-11-11). Any list but "0" has a CPU besides 0.
+    # Read from the process, not only from systemd. Whether an emptied
+    # AllowedCPUs= reaches a running process without a restart depends on the
+    # machine: on Docker Desktop it doesn't, on GitHub's Linux runners it does
+    # (both seen on 2026-11-11). Reading the process checks what is really so
+    # on either. Any list but "0" has a CPU besides 0.
     expect:
       matches: "^(?!0$)[0-9]"
   - id: batch-on-cpu-0
