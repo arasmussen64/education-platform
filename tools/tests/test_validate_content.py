@@ -44,8 +44,11 @@ def test_good_content_has_no_problems(tree: Path) -> None:
     assert report.counts["exercises"] == 6
     # 6 reference solutions + 2 starters + 1 wrong solution + 1 predict item
     # + 1 Parsons item + 1 shell item, and an empty program for each of the 2
-    # exercises with hidden tests
-    assert report.counts["runs"] == 14
+    # exercises with hidden tests; then the one other order of the Parsons
+    # lines that runs to the end (it prints Hello without the !)
+    assert report.counts["runs"] == 15
+    # 5 other orders of the 3 lines, and the decoy in place of each line
+    assert report.counts["arrangements"] == 8
 
 
 def test_hidden_tests_fail_instead_of_crashing(tree: Path) -> None:
@@ -80,6 +83,56 @@ def test_doubled_apostrophes_are_caught(tree: Path) -> None:
     assert_reported(
         tree, "keeps a doubled apostrophe", "it doesn''t add quotes", run=False
     )
+
+
+def explain_mcq(tree: Path, explanation: str) -> None:
+    """Give the fixture's multiple-choice item this explanation."""
+    write(
+        tree,
+        f"{TOPIC_DIR}/recall/mcq-print.yaml",
+        MCQ.replace("print shows its argument.", explanation),
+    )
+
+
+def test_explanations_never_name_a_choice_by_position(tree: Path) -> None:
+    explain_mcq(tree, "print shows its argument. The last choice is a trap.")
+    assert_reported(
+        tree,
+        "mcq-print.yaml: the explanation says 'last choice', but the app "
+        "shuffles the choices, so a position points at the wrong one; name the "
+        "choice by what it says",
+        run=False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("explanation", "phrase"),
+    [
+        ("The second option only looks right.", "second option"),
+        ("Not the First answer, which adds.", "First answer"),
+        ("So the first and last choices are False.", "first and last choices"),
+        ("The third\n  choice forgets the quotes.", "third choice"),
+    ],
+)
+def test_every_way_of_naming_a_position_is_caught(
+    tree: Path, explanation: str, phrase: str
+) -> None:
+    explain_mcq(tree, explanation)
+    assert_reported(tree, f"the explanation says {phrase!r}, but", run=False)
+
+
+@pytest.mark.parametrize(
+    "explanation",
+    [
+        "The last line names the error, and the first one is where it started.",
+        "Convert first, and the answer is then a number; the choice is yours.",
+        "It removes the option to wait, the first response instead of the last.",
+        "The other three choices each leave out the quotes.",
+    ],
+)
+def test_everyday_uses_of_first_and_last_are_fine(tree: Path, explanation: str) -> None:
+    explain_mcq(tree, explanation)
+    assert problems(tree, run=False) == []
 
 
 def test_ids_must_match_folders(tree: Path) -> None:
@@ -283,6 +336,112 @@ def test_parsons_decoys_must_differ_from_the_lines(tree: Path) -> None:
     text = (tree / item).read_text(encoding="utf-8")
     write(tree, item, text.replace("  - 'print(Greeting)'", "  - 'print(greeting)'"))
     assert_reported(tree, "different from every line", run=False)
+
+
+# --- Parsons items: only the author's order may work (ADR-0016) ------------------
+
+PARSONS_ITEM = f"{TOPIC_DIR}/recall/parsons-order.yaml"
+
+
+def parsons_yaml(lines: list[str], decoys: list[str]) -> str:
+    """A Parsons item for the fixture topic with these lines and decoys."""
+
+    def as_list(entries: list[str]) -> str:
+        return "".join(f"  - {entry!r}\n" for entry in entries)
+
+    return (
+        "id: parsons-order\ntype: parsons\nrev: 1\n"
+        "prompt: Put the lines in order.\n"
+        f"lines:\n{as_list(lines)}distractors:\n{as_list(decoys)}"
+        "explanation: A name must exist before it's used.\nskills: [print-text]\n"
+    )
+
+
+def test_parsons_lines_work_in_one_order_only(tree: Path) -> None:
+    # Neither of the first two lines needs the other, so they can swap.
+    lines = ["first = 'Hel'", "second = 'lo!'", "print(first + second)"]
+    write(tree, PARSONS_ITEM, parsons_yaml(lines, ["print(First + second)"]))
+    assert_reported(
+        tree,
+        "parsons-order.yaml: another order of the lines runs and prints the same "
+        "output, so a learner who builds it would be marked wrong: lines 1 and 2 "
+        "can swap places (\"first = 'Hel'\" and \"second = 'lo!'\"). Make each "
+        "line need the one before it, or join the lines that don't depend on "
+        "each other",
+    )
+
+
+def test_parsons_problems_name_the_simplest_other_order(tree: Path) -> None:
+    # The import can go anywhere before the line that uses it: two other orders.
+    lines = ["import math", "low = 2.5", "high = low + 1", "print(math.floor(high))"]
+    write(tree, PARSONS_ITEM, parsons_yaml(lines, ["print(math.floor(High))"]))
+    assert_reported(
+        tree,
+        "marked wrong: lines 1 and 2 can swap places ('import math' and "
+        "'low = 2.5'); 1 more order works too. Make each line",
+    )
+
+
+def test_parsons_problems_count_the_other_orders(tree: Path) -> None:
+    # None of the first three lines needs another, so all 6 orders of them
+    # work: the author's, the one that is named, and 4 more.
+    lines = ["a = 1", "b = 2", "c = 3", "print(a + b + c)"]
+    write(tree, PARSONS_ITEM, parsons_yaml(lines, ["print(a + b + C)"]))
+    assert_reported(
+        tree,
+        "marked wrong: lines 1 and 2 can swap places ('a = 1' and 'b = 2'); "
+        "4 more orders work too. Make each line",
+    )
+
+
+def test_a_parsons_decoy_must_not_work_in_place_of_a_line(tree: Path) -> None:
+    lines = ["greeting = 'Hello'", "greeting = greeting + '!'", "print(greeting)"]
+    write(tree, PARSONS_ITEM, parsons_yaml(lines, ["print(greeting.strip())"]))
+    assert_reported(
+        tree,
+        "parsons-order.yaml: the decoy 'print(greeting.strip())' can take the "
+        "place of line 3 ('print(greeting)') and the program still runs and "
+        "prints the same output, so a learner who uses the decoy would be "
+        "marked wrong. Change the decoy so the program crashes or prints "
+        "something else",
+    )
+
+
+def test_parsons_orders_are_compared_in_a_process_of_their_own(tree: Path) -> None:
+    # Run alone, the order import, print, start prints False. In a process
+    # where an earlier program left tracing switched on it would print True,
+    # like the author's order, and be reported by mistake.
+    lines = [
+        "import tracemalloc",
+        "tracemalloc.start()",
+        "print(tracemalloc.is_tracing())",
+    ]
+    write(tree, PARSONS_ITEM, parsons_yaml(lines, ["print(tracemalloc.tracing())"]))
+    assert problems(tree) == []
+
+
+def test_a_parsons_order_that_never_ends_is_not_a_working_order(tree: Path) -> None:
+    # With the last two lines before the second, the loop never ends. The
+    # check must give up on that order quickly, not wait for it.
+    lines = ["n = 3", "n = n - 1", "while n > 2:", "    print(n)"]
+    write(tree, PARSONS_ITEM, parsons_yaml(lines, ["n = N - 1"]))
+    assert problems(tree) == []
+
+
+def test_parsons_orders_that_affect_each_other_all_run_alone(tree: Path) -> None:
+    # This program crashes the second time it runs in the same process, so
+    # the quick first pass can't be trusted, and every one of the 5 other
+    # orders and 3 uses of the decoy is run in a process of its own.
+    lines = [
+        "import builtins",
+        "builtins.runs = getattr(builtins, 'runs', 0) + 1",
+        "print(1 // (builtins.runs == 1))",
+    ]
+    write(tree, PARSONS_ITEM, parsons_yaml(lines, ["print(builtins.run)"]))
+    report = validate(tree)
+    assert report.problems == []
+    # The 13 runs that aren't Parsons runs, the author's order, and the 8.
+    assert report.counts["runs"] == 13 + 1 + 8
 
 
 # --- Labs: exercises in containers (ADR-0018) -----------------------------------
@@ -698,3 +857,11 @@ def test_diagnostic_mistakes_are_caught(tree: Path) -> None:
         ),
     )
     assert_reported(tree, "names a topic that doesn't exist", run=False)
+    write(
+        tree,
+        "content/diagnostics/math.yaml",
+        DIAGNOSTIC.replace("explanation: Six.", "explanation: The first answer."),
+    )
+    assert_reported(
+        tree, "item 'count-2': the explanation says 'first answer'", run=False
+    )

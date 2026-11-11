@@ -1,22 +1,21 @@
 id: parsons-hops-by-queue
 type: parsons
-rev: 1
+rev: 2
 prompt: |
   Put the lines in order to count the hops from `a` to every node by breadth-first search, and print `{'a': 0, 'b': 1, 'c': 1, 'd': 2}`. One line is a decoy that doesn't belong.
 lines:
   - 'from collections import deque'
-  - 'graph = {"a": ["b", "c"], "b": ["d"], "c": ["d"], "d": []}'
-  - 'hops = {"a": 0}'
-  - 'queue = deque(["a"])'
+  - 'graph, queue = {"a": ["b", "c"], "b": ["d"], "c": ["d"], "d": []}, deque(["a"])'
+  - 'hops = {queue[0]: 0}'
   - 'while queue:'
   - '    node = queue.popleft()'
   - '    for neighbour in graph[node]:'
   - '        if neighbour not in hops:'
-  - '            hops[neighbour] = hops[node] + 1'
   - '            queue.append(neighbour)'
+  - '            hops[queue[-1]] = hops[node] + 1'
   - 'print(hops)'
 distractors:
-  - '            hops[neighbour] = hops[node]'
+  - '            hops[queue[-1]] = hops[node]'
 explanation: |
-  A neighbour discovered from `node` is one hop further than `node`, which is what the `+ 1` records; the decoy copies the distance instead, giving every node 0. The queue hands nodes out in discovery order, so `d`, reached from `b` before `c` gets to it, is correctly 2 hops away.
+  The second line names the graph and the queue at once, with the start node `a` waiting in the queue; `queue[0]` is that start node, which is 0 hops from itself. A neighbour that hasn't been seen joins the back of the queue, and `queue[-1]`, the node just added, is one hop further than `node`, which is what the `+ 1` records; the decoy copies the distance instead, giving every node 0. The queue hands nodes out in discovery order, so `d`, reached from `b` before `c` gets to it, is correctly 2 hops away.
 skills: [search]

@@ -14,6 +14,10 @@ It checks:
 - by running them through the shared harness, like the browser does: every
   reference solution passes its tests, every starter and known-wrong solution
   fails them, and every predict-the-output item prints what it claims;
+- that a Parsons item's lines work in one order only: no other order, and no
+  decoy put in place of a line, may run and print the same output (ADR-0016);
+- that a multiple-choice explanation never names a choice by its position,
+  because the app shuffles the choices;
 - by running every predict_shell item's command in real bash (ADR-0017), in
   a temporary folder holding the item's files, and checking what it prints.
 - the diagnostics the placement test walks (ADR-0021): their shape and ids.
@@ -34,10 +38,12 @@ import subprocess
 import sys
 import tempfile
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import parsons_orders
 import yaml
 from content_model import (
     FOLLOW_UP_STAGES,
@@ -65,6 +71,12 @@ PREDICT_KINDS = {"predict_output", "predict_shell"}
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS_CLI = ROOT / "harness" / "cli.py"
 RUN_TIMEOUT_SECONDS = 20
+# The quick first pass over a Parsons item's other orders (parsons_screen.py).
+PARSONS_SCREEN = Path(__file__).resolve().parent / "parsons_screen.py"
+SCREEN_TIMEOUT_SECONDS = 120
+# How many fresh Python processes run at once when other orders are checked.
+# Each is a separate process, so they can't get in each other's way.
+ORDERS_AT_ONCE = 4
 
 
 @dataclass
@@ -756,7 +768,8 @@ def check_predict_output(path: Path, item: PredictOutputItem, report: Report) ->
 
 
 def check_parsons(path: Path, item: ParsonsItem, report: Report) -> None:
-    """The lines in order must make a program that runs, without input or error."""
+    """The lines in order must make a program that runs, without input or
+    error, and no other arrangement of them may do the same job."""
     report.counts["runs"] += 1
     program = "\n".join(item.lines) + "\n"
     try:
@@ -768,6 +781,130 @@ def check_parsons(path: Path, item: ParsonsItem, report: Report) -> None:
         report.add(path, f"the lines in order crash:\n{result['error']}")
     elif result["waiting_for_input"]:
         report.add(path, "the lines ask for input; a Parsons program must not")
+    else:
+        check_parsons_orders(path, item, result["output"], report)
+
+
+def programs_that_finish(authored: str, programs: list[str]) -> list[int]:
+    """Which of `programs` (by position) run to the end without an error.
+
+    A quick first pass: parsons_screen.py runs them all inside one fresh
+    Python process, in an empty temporary folder. Its answer is trusted only
+    to rule programs out; the ones it lets through are run again one by one.
+    """
+    job = json.dumps({"authored": authored, "programs": programs})
+    with tempfile.TemporaryDirectory() as workdir:
+        try:
+            completed = subprocess.run(
+                [sys.executable, "-I", str(PARSONS_SCREEN)],
+                input=job,
+                cwd=workdir,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=SCREEN_TIMEOUT_SECONDS,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RunFailed(
+                "trying the other orders of the lines took over "
+                f"{SCREEN_TIMEOUT_SECONDS}s"
+            ) from exc
+    # The answer is the last line it prints. No answer means it was stopped
+    # part-way, by a program that ends the whole process, say.
+    printed = completed.stdout.splitlines()
+    if completed.returncode != 0 or not printed:
+        raise RunFailed(
+            "trying the other orders of the lines crashed:\n" + completed.stderr.strip()
+        )
+    answer = json.loads(printed[-1])
+    if answer["carried_over"]:
+        # The programs affected each other, so the first pass can't be
+        # trusted: let every program through to be run on its own.
+        return list(range(len(programs)))
+    return answer["finished"]
+
+
+def prints_the_same(program: str, output: str) -> bool:
+    """Whether the program, run through the harness in a process of its own,
+    finishes without an error and prints exactly `output`."""
+    try:
+        result = run_harness("run", {"solution.py": program})
+    except RunFailed:
+        return False
+    return (
+        not result["error"]
+        and not result["waiting_for_input"]
+        and result["output"] == output
+    )
+
+
+def arrangements_that_work(
+    item: ParsonsItem, output: str, report: Report
+) -> list[parsons_orders.Arrangement]:
+    """The other arrangements of the item's lines that run without an error
+    and print exactly `output`, which is what the author's order prints."""
+    authored = "\n".join(item.lines) + "\n"
+    tried = parsons_orders.arrangements(item.lines, item.distractors)
+    report.counts["arrangements"] += len(tried)
+    finished = programs_that_finish(authored, [each.program for each in tried])
+
+    # Output is compared only here, one fresh process per program, because
+    # programs that share a process can change what each other prints.
+    candidates = [tried[position] for position in finished]
+    report.counts["runs"] += len(candidates)
+
+    def works(arrangement: parsons_orders.Arrangement) -> bool:
+        return prints_the_same(arrangement.program, output)
+
+    with ThreadPoolExecutor(ORDERS_AT_ONCE) as pool:
+        verdicts = list(pool.map(works, candidates))
+    return [each for each, ok in zip(candidates, verdicts, strict=True) if ok]
+
+
+def check_parsons_orders(
+    path: Path, item: ParsonsItem, output: str, report: Report
+) -> None:
+    """Only the author's order may work.
+
+    The app accepts the author's order and nothing else, so another order of
+    the same lines that runs and prints the same `output` is a working answer
+    that gets marked wrong. The same goes for the author's order with a decoy
+    in place of a line. Every order is tried for an item of up to 7 lines;
+    for a longer one, every swap of two lines and every move of a run of
+    lines (parsons_orders.py).
+    """
+    try:
+        working = arrangements_that_work(item, output, report)
+    except RunFailed as exc:
+        report.add(path, str(exc))
+        return
+
+    # One problem for all the orders, naming the simplest (they are listed
+    # simplest first), and one for each place a decoy works.
+    orders = [each for each in working if not each.uses_decoy]
+    if orders:
+        more = ""
+        if len(orders) == 2:
+            more = "; 1 more order works too"
+        elif len(orders) > 2:
+            more = f"; {len(orders) - 1} more orders work too"
+        report.add(
+            path,
+            "another order of the lines runs and prints the same output, so a "
+            "learner who builds it would be marked wrong: "
+            f"{orders[0].description}{more}. Make each line need the one before "
+            "it, or join the lines that don't depend on each other",
+        )
+    for each in working:
+        if each.uses_decoy:
+            report.add(
+                path,
+                f"{each.description} and the program still runs and prints the "
+                "same output, so a learner who uses the decoy would be marked "
+                "wrong. Change the decoy so the program crashes or prints "
+                "something else",
+            )
 
 
 # --- Running shell commands (ADR-0017) -----------------------------------------------
@@ -871,6 +1008,36 @@ def check_predict_shell(path: Path, item: PredictShellItem, report: Report) -> N
         )
 
 
+# --- Multiple-choice explanations ----------------------------------------------------
+
+# "The last choice", "the second option", "the first and last answers".
+POSITION = r"(?:first|second|third|fourth|last)"
+CHOICE_BY_POSITION = re.compile(
+    rf"\b{POSITION}(?:(?:,|,?\s+and|,?\s+or)\s+(?:the\s+)?{POSITION})*"
+    r"\s+(?:choice|option|answer)s?\b",
+    re.IGNORECASE,
+)
+
+
+def choice_named_by_position(item: McqItem) -> str | None:
+    """What's wrong, if the explanation points at a choice by where it sits.
+
+    The app shows the choices shuffled (choiceOrder in
+    web/src/components/scramble.ts), so "the last choice" is whichever one
+    happens to be shown last, not the one the author wrote last. Only the
+    words choice, option and answer are looked for: "the last line" and "the
+    first one" are everyday phrases about code.
+    """
+    match = CHOICE_BY_POSITION.search(item.explanation)
+    if match is None:
+        return None
+    phrase = " ".join(match.group(0).split())
+    return (
+        f"the explanation says {phrase!r}, but the app shuffles the choices, so "
+        "a position points at the wrong one; name the choice by what it says"
+    )
+
+
 # --- Putting it together ---------------------------------------------------------
 
 
@@ -896,6 +1063,10 @@ def check_diagnostics(
                     f"level {level.id!r} names a topic that doesn't exist: "
                     f"{level.topic!r}",
                 )
+            for item in level.items:
+                problem = choice_named_by_position(item)
+                if problem:
+                    report.add(path, f"item {item.id!r}: {problem}")
 
 
 def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
@@ -937,6 +1108,10 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
         for item_path_id, item in folder.recall.items():
             report.counts["recall items"] += 1
             item_path = folder.path / "recall" / f"{item_path_id}.yaml"
+            if isinstance(item, McqItem):
+                problem = choice_named_by_position(item)
+                if problem:
+                    report.add(item_path, problem)
             if isinstance(item, PredictOutputItem) and run:
                 check_predict_output(item_path, item, report)
             elif isinstance(item, ParsonsItem) and run:
@@ -973,6 +1148,11 @@ def main(argv: list[str] | None = None) -> int:
         f"{c['planned']} planned), {c['exercises']} exercises{labs_note}, "
         f"{c['recall items']} recall items; ran {c['runs']} programs"
         + (f" and {c['labs run']} labs" if c["labs run"] else "")
+        + (
+            f"; tried {c['arrangements']} other arrangements of Parsons lines"
+            if c["arrangements"]
+            else ""
+        )
         + "."
     )
     if report.problems:
