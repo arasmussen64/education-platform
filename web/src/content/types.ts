@@ -44,6 +44,20 @@ export type Explain = {
 /** Something a topic teaches. Items name the skills they test (ADR-0011). */
 export type Skill = { id: string; description: string }
 
+/**
+ * One more part of a checkpoint, after its build and debug (ADR-0012,
+ * amended 2026-11-11): a build or debug exercise of its own, shown as Part 3,
+ * Part 4 and so on.
+ */
+export type ProvePart = {
+  id: string
+  /**
+   * Fresh versions of it, in other stories: a pass of any counts as the
+   * part. topic.yaml may leave this out when there are none.
+   */
+  versions?: string[]
+}
+
 /** A checkpoint's way through for a learner who's stuck (ADR-0012). */
 export type Unstuck = {
   /** A solved project like the build, in a different story. */
@@ -68,7 +82,13 @@ export type Topic = {
   objectives: string[]
   resources: Resource[]
   practice: string[]
-  prove: { build?: string; debug?: string; explain?: Explain }
+  prove: {
+    build?: string
+    debug?: string
+    /** Checkpoints only: further parts, after the build and the debug. */
+    more?: ProvePart[]
+    explain?: Explain
+  }
   review_pool: string[]
   skills: Skill[]
   /** Checkpoints only. */
