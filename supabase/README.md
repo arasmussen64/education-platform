@@ -78,7 +78,7 @@ The key is set once, and again only when it changes: `npx supabase secrets set -
 
 ## Backups
 
-A workflow takes an encrypted data dump of the real project every night and commits it to a private backups repository ([ADR-0020](../docs/decisions/0020-automated-backups.md)); the owner's one-time setup is in [docs/setup.md](../docs/setup.md), under "Back up your learning data". CI's database job rehearses the restore on every pull request with `tools/backup_restore_check.sh`, which you can also run yourself against the local database (it resets it, then restores everything that was in it).
+**Built, not switched on.** A workflow (`.github/workflows/backup.yml`) is written to take an encrypted data dump of the real project every night and commit it to a private backups repository ([ADR-0020](../docs/decisions/0020-automated-backups.md)). It needs three secrets that only the owner can create, and until they exist the nightly run takes no backup: it says which secrets are missing and stops. The owner parked that setup on 2026-11-10 while the platform is still being built ([roadmap](../docs/roadmap.md#where-the-project-stands)). The one-time steps are in [docs/setup.md](../docs/setup.md), under "Back up your learning data". CI's database job rehearses the restore on every pull request with `tools/backup_restore_check.sh`, which you can also run yourself against the local database (it resets it, then restores everything that was in it).
 
 ## Rules
 

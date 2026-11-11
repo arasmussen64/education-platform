@@ -32,17 +32,26 @@ src/
 ├── main.tsx         starts the app
 ├── routes.tsx       every page and its address
 ├── auth/            who's signed in (see "Sign-in" below)
-├── components/      shared pieces, such as the page layout, the code runner and exercises
+├── checkpoints/     a checkpoint's way through for a stuck learner (ADR-0012)
+├── components/      shared pieces, such as the page layout, exercises, and the code runner
+│                    with Run, Check and Step through (ADR-0022)
 ├── content/         loading the lessons and exercises from ../content (see below)
 ├── events/          saving what the learner does (see "Saving progress")
+├── explain/         the explain-it-back check, graded through the AI proxy (ADR-0013)
 ├── export/          "Export my data": everything the learner has done, as one file (see below)
 ├── followups/       mistakes coming back as fresh questions (ADR-0011)
+├── labs/            reading the result a learner pastes from the lab checker (ADR-0018)
 ├── pages/           one file per page
 ├── place/           where the learner is on a topic page, and the place remembered for next time
-├── progress/        each topic's progress toward Learned (see below)
+├── placement/       the placement test: finding where to start, without ticking anything off (ADR-0021)
+├── practice/        the question from an earlier topic in each practice ladder (v1 spec, F5)
+├── progress/        each topic's progress toward Learned (see below), and practice hours
 ├── python/          running learner Python in the browser (see below)
+├── reports/         "Report a problem" (v1 spec, F15)
+├── reviews/         reviews of Learned topics: the scheduler and the review session (ADR-0009)
 ├── supabase/        the Supabase client, its settings, and generated database types
-└── test/            test setup and helpers (fake sign-in, fake Python, a sample topic)
+├── test/            test setup and helpers (fake sign-in, fake Python, a sample topic)
+└── tutor/           the hint-only tutor, asked through the AI proxy (ADR-0015)
 ```
 
 Tests live next to the code they test, named `*.test.ts` or `*.test.tsx`. They may use Node APIs (`tsconfig.test.json`); app code may not (`tsconfig.app.json`).
@@ -56,7 +65,7 @@ The lessons and exercises live in [`../content`](../content/README.md), as files
 - **Lessons** (`lesson.mdx`) are [MDX](https://mdxjs.com): Markdown that can use components. `<Intro>`, `<Resource index={0} />` and `<Recap>` are drawn by `components/LessonView.tsx`.
 - **Python files** (starter code, solutions, tests) are loaded as text, with Vite's `?raw`.
 
-`content/content.ts` finds the files with `import.meta.glob`. The tracks and the main track's topic outlines are bundled into the app, because the map and the Today page need them at once. The cloud track's outline-only topics are left out, and download as one piece the first time its map is shown or one of its topics opens: see `LAZY_TRACKS` in `content.ts`, and `content/outlines/`. Its Module 1 (`csa.linux.*`), which has real content, is bundled in like the main track's topics, because the Today page and the follow-ups only look at bundled topics. A topic's lesson, questions and exercises download only when its page opens.
+`content/content.ts` finds the files with `import.meta.glob`. The tracks, and the topic outlines of the Python and machine-learning tracks, are bundled into the app, because the map and the Today page need them at once. The cloud track's outline-only topics are left out, and download as one piece the first time its map is shown or one of its topics opens: see `LAZY_TRACKS` in `content.ts`, and `content/outlines/`. Its Module 1 (`csa.linux.*`), which has real content, is bundled in like those tracks' topics, because the Today page and the follow-ups only look at bundled topics. A topic's lesson, questions and exercises download only when its page opens.
 
 The dev server also shows `draft` topics, marked as drafts, so they can be tried while being written. The live site only shows `ready` ones.
 
@@ -121,7 +130,7 @@ Each topic's progress toward Learned (v1 spec, F8), by the rules in the [data mo
 | `pages/MapPage.tsx`       | Marks the topics the learner has started, and which proof checks they've passed there.                               |
 | `pages/TopicPage.tsx`     | "Your proof so far": each check, passed (and when) or not yet.                                                       |
 
-Like follow-ups, nothing is stored: progress is recalculated from the event log, so passes from before this existed count too. States and gating switch on once explanations are graded.
+Like follow-ups, nothing is stored: progress is recalculated from the event log, so passes from before this existed count too. States and gating have been on since 2026-11-08, when explanations began to be graded.
 
 **Your place in a topic.** A topic page can be long (Shell essentials has 24 practice items), so every topic page has an outline beside the content (above it on a narrow screen): the lesson's parts, every practice item with whether it's done, the three proof checks, and "Continue where you left off".
 
