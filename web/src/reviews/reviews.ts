@@ -57,8 +57,7 @@ export function reviewsLeftToday(
 ): number {
   const today = dayOf(now)
   const done = attempts.filter(
-    (attempt) =>
-      attempt.type === 'review' && dayOf(attempt.occurred_at) === today,
+    (attempt) => attempt.type === 'review' && dayOf(attempt) === today,
   ).length
   return Math.max(0, limit - done)
 }

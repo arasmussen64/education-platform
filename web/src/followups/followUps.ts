@@ -26,6 +26,11 @@ export type Attempt = {
   /** In ISO format, UTC, so comparing the text compares the times. */
   occurred_at: string
   /**
+   * The learner's own calendar day, recorded with every event since
+   * 2026-11-11 (ADR-0008). dayOf prefers it to the viewing device's clock.
+   */
+  local_day?: string
+  /**
    * How long the attempt took, when known: from the learner's first touch
    * of the item, or their previous attempt, to this one. The practice-hours
    * tracker adds these up (progress/practiceTime.ts).
@@ -164,7 +169,7 @@ function itemDays(attempts: Attempt[]): ItemDay[] {
   attempts = attempts.filter((attempt) => attempt.context !== 'placement')
   const byKey = new Map<string, ItemDay>()
   for (const attempt of attempts) {
-    const day = dayOf(attempt.occurred_at)
+    const day = dayOf(attempt)
     const key = `${attempt.topic_id}\n${attempt.item_id}\n${day}`
     const before = byKey.get(key)?.outcome
     const outcome =
@@ -209,7 +214,7 @@ function testDays(attempts: Attempt[], itemsOf: ItemsOf): TestDay[] {
     const tests =
       evidenceFrom(itemsOf, attempt.topic_id, attempt.item_id)?.test_skills ??
       {}
-    const day = dayOf(attempt.occurred_at)
+    const day = dayOf(attempt)
     for (const [test, skills] of Object.entries(tests)) {
       const key = [attempt.topic_id, attempt.item_id, test, day].join('\n')
       const passed =

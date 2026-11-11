@@ -1,3 +1,4 @@
+import { savedCheckCouldNotRun } from '../events/checkGrade.ts'
 import type { EventContext, EventRow } from '../events/types.ts'
 import { getSupabase } from '../supabase/client.ts'
 import type { Attempt } from './followUps.ts'
@@ -5,7 +6,7 @@ import type { Attempt } from './followUps.ts'
 /** Supabase returns at most 1,000 rows per request, so read in pages. */
 export const PAGE_SIZE = 1000
 
-/** What an attempt needs from an event: its columns, and two parts of a Check's data. */
+/** What an attempt needs from an event: its columns, and some of its data. */
 type Row = {
   id: string
   type: string
@@ -21,6 +22,14 @@ type Row = {
   failing?: unknown
   /** A review session's rating: "again", "hard" or "good". */
   rating?: unknown
+  /** How a Check went: "done", or "failed" when it couldn't run. */
+  outcome?: unknown
+  /** A Check's message, when its tests or the learner's code couldn't load. */
+  message?: unknown
+  /** How many tests a Check ran. */
+  total?: unknown
+  /** The learner's own calendar day, recorded since 2026-11-11. */
+  local_day?: unknown
 }
 
 function isTextList(value: unknown): value is string[] {
@@ -60,6 +69,10 @@ export function toAttempt(row: Row): Attempt | null {
   if (row.item_id === null || row.correct === null) return null
   // A review session without a rating can't be used, so it's left out.
   if (row.type === 'review' && !isRating(row.rating)) return null
+  // A Check that couldn't run says nothing about the learner's code. Those
+  // saved before 2026-11-11 were marked wrong; the log keeps them as they
+  // are, and here they're left out (ADR-0008, amended 2026-11-11).
+  if (row.type === 'code_check' && savedCheckCouldNotRun(row)) return null
   const attempt: Attempt = {
     id: row.id,
     type: row.type as Attempt['type'],
@@ -72,6 +85,7 @@ export function toAttempt(row: Row): Attempt | null {
   }
   if (typeof row.duration_ms === 'number') attempt.duration_ms = row.duration_ms
   if (isContext(row.context)) attempt.context = row.context
+  if (typeof row.local_day === 'string') attempt.local_day = row.local_day
   if (row.type === 'review' && isRating(row.rating)) {
     attempt.rating = row.rating
   }
@@ -100,6 +114,10 @@ export function localAttempt(row: EventRow): Attempt | null {
     status: data.status,
     failing: data.failing,
     rating: data.rating,
+    outcome: data.outcome,
+    message: data.message,
+    total: data.total,
+    local_day: data.local_day,
   })
 }
 
@@ -125,7 +143,7 @@ export async function fetchAttempts(topicId?: string): Promise<Attempt[]> {
     let query = getSupabase()
       .from('events')
       .select(
-        'id, type, topic_id, item_id, correct, occurred_at, duration_ms, context, status:data->>status, failing:data->failing, rating:data->>rating',
+        'id, type, topic_id, item_id, correct, occurred_at, duration_ms, context, status:data->>status, failing:data->failing, rating:data->>rating, outcome:data->>outcome, message:data->>message, total:data->total, local_day:data->>local_day',
       )
       .in('type', [...ATTEMPT_TYPES])
       .not('correct', 'is', null)

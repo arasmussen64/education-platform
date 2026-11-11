@@ -132,6 +132,24 @@ describe('reviewsLeftToday', () => {
     expect(reviewsLeftToday(history, now)).toBe(DAILY_REVIEW_LIMIT - 3)
   })
 
+  it("counts a review on the learner's recorded day", () => {
+    // Recorded as 6 November where the learner was, though it was already the
+    // 7th in UTC: it doesn't count against the 7th.
+    const late = {
+      id: 'review-late',
+      type: 'review' as const,
+      topic_id: 'py.variables',
+      item_id: 'review',
+      correct: true,
+      rating: 'good' as const,
+      occurred_at: '2026-11-07T06:30:00.000Z',
+      local_day: '2026-11-06',
+    }
+    expect(reviewsLeftToday([late], '2026-11-07T20:00:00.000Z')).toBe(
+      DAILY_REVIEW_LIMIT,
+    )
+  })
+
   it("leaves out answers, Checks and explanations: they aren't review sessions", () => {
     const at = reviewAt(9).occurred_at
     const others: Attempt[] = [
