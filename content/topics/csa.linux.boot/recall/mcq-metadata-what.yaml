@@ -12,5 +12,5 @@ answer: 0
 explanation: |
   The instance has an IAM role attached. The metadata service at `169.254.169.254` answers HTTP requests only from the instance itself, and among the things it serves (`instance-id`, `instance-type`, `placement/`, `tags/`, user data) is `iam/security-credentials/ROLE`: a temporary access key, secret and session token for that role. Every SDK checks there automatically and renews the credentials before they expire.
 
-  The point of the role is that no secret is ever written to disk, so neither a machine image nor cloud-init puts a key there, and rotation is free. S3 does not trust a request for where it comes from: every request must be signed with credentials, and the role's temporary ones are what sign it. Azure's managed identities and Google's service accounts attached to VMs work the same way through their metadata servers.
+  The point of the role is that no secret is ever written to disk, so neither a machine image nor cloud-init puts a key there, and rotation is free. S3 gives an EC2 address no special trust: a request to a private bucket must be signed with credentials, and the role's temporary ones are what sign it. Azure's managed identities and Google's service accounts attached to VMs work the same way through their metadata servers.
 skills: [metadata]

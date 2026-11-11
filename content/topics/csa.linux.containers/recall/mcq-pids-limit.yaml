@@ -10,7 +10,7 @@ choices:
   - "The runtime's seccomp filter, which blocks the `fork` system call for every process in a container"
 answer: 0
 explanation: |
-  Processes are a resource like CPU and memory, and the pids controller caps how many a cgroup may hold: `pids.max`, which Docker's `--pids-limit` and Kubernetes' pod PID limit write. When the limit is reached, new `fork` calls in that group fail with "resource temporarily unavailable", the bomb fizzles, and the host and the other containers never notice. Without the limit, the kernel's global process table fills and everyone suffers, which is why runtimes set a default and why it's worth setting deliberately.
+  Processes are a resource like CPU and memory, and the pids controller caps how many a cgroup may hold: `pids.max`, which Docker's `--pids-limit` and Kubernetes' pod PID limit write. When the limit is reached, new `fork` calls in that group fail with "resource temporarily unavailable", the bomb fizzles, and the host and the other containers never notice. Without the limit, the kernel's process table fills and everyone suffers. Docker sets no limit unless you ask for one (`pids.max` reads `max` in a plain `docker run`), so it's worth setting deliberately.
 
   The pid namespace only renumbers: every process in a container is also a process on the host, with a host PID, so it fills the same table. A CPU cap slows the bomb down but puts no ceiling on how many processes it ends up with. And the seccomp filter doesn't block `fork`: a container that couldn't fork couldn't start a second process at all.
 skills: [cgroups-limits]
