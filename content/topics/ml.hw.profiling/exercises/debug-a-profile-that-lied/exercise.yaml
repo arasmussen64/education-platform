@@ -1,13 +1,19 @@
 id: debug-a-profile-that-lied
 stage: debug
-rev: 1
+rev: 2
 title: "A profile that lied"
 prompt: |
-  The program profiles `run`, which calls `light` a thousand times and `heavy` once, and should name the function with the most own time and the number of calls to `light`:
+  The program profiles `run`, which calls `light` a thousand times and `heavy` once, and should name the function with the most own time (the time spent in its own lines, not in the functions it calls) and the number of calls to `light`:
 
   ```
   most own time: heavy | calls to light: 1000
   ```
 
-  It has two bugs. Run it: it crashes with `IndexError`, because the profiler is **disabled before** `run()` is called, so the table has no Python-level rows at all; the work has to happen between `enable` and `disable`. Fix that, and it names `light` as the hot spot: the rows are sorted by **calls** (the second value) when the question is about **own time** (the third). A thousand cheap calls are not a hot spot; one call that does 200,000 iterations is.
+  Instead it stops on its last line with `IndexError: list index out of range`. It has two bugs, and the second shows only once the first is fixed. Run it, print what the failing line reads, and fix what you find; then run it again.
+hints:
+  - "`rows[0]` is out of range, so `rows` is empty: the profile holds no rows for the program's own functions. Print `stats.stats` to see what it did record."
+  - "A profiler records only what runs between `enable()` and `disable()`. What runs between them here?"
+  - "Call `run()` after `profiler.enable()` and before `profiler.disable()`."
+  - "Now it names `light`. Each row is `(name, calls, own time)`: which value does the sort use, and which one is the question about?"
+  - "Sort by own time, the third value: `key=lambda row: row[2]`."
 skills: [cprofile, decide]
