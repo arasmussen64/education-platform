@@ -1,0 +1,29 @@
+id: build-disk-tier
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Rehearse the move to a disk tier"
+prompt: |
+  The shop's database, `shop-db`, is moving to a network disk tier. The tier, as the team wrote it down from the provider's page, is in `/srv/review/disk-tier.txt`. Before the move, rehearse it on the lab machine and write a short review.
+
+  1. Hold `shop-db`'s writes to its data disk, `/dev/lab/data`, to both of the tier's allowances, in a way that lasts after a reboot, and leave the database running under them.
+  2. Find out what the tier will give: how many writes a second for 4 KiB random writes, how many MiB a second for 1 MiB writes, and which of its two caps binds at 1 MiB. Measure them with `fio` under the same two caps, or work them out; either way the numbers must be the tier's, not the lab disk's.
+  3. Say which kind of disk each of three of the shop's needs belongs on, `local` or `network`: `orders`, the only copy of the orders database; `sort-scratch`, the nightly sort's scratch space, thrown away when the sort ends; and `cache`, the cache of product pictures, which the shop rebuilds from the database in ten minutes.
+
+  Write `~/review/answers.txt` with one `key=value` line for each of these keys, numbers as plain numbers (`700`, `4.5`):
+
+  ```text
+  disk-4k-iops=
+  disk-1m-mib-per-s=
+  disk-1m-binding=
+  disk-for.orders=
+  disk-for.sort-scratch=
+  disk-for.cache=
+  ```
+
+  `disk-1m-binding` is `iops` or `throughput`; the `disk-for` keys are `local` or `network`.
+
+  Only the disks labelled under `/dev/lab/` belong to the lab: the others `lsblk` lists belong to Docker on your own computer, and must be left alone. Point `fio` only at a file on `/srv/data`, never at a disk's own name (`--filename=/dev/...`), which would write over that whole disk. When you're done, run the checks.
+skills: [disk-caps, what-survives]
