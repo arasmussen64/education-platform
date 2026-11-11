@@ -42,11 +42,30 @@ The two stray files were erased from `main`'s history on 2026-11-10, but GitHub 
 - **Recommendation:** not worth the effort. Neither file held a key or a password, and no branch contains them any more.
 - **Holds up:** nothing.
 
+### 5. Optional: Module 2's runs in your clouds (about $1.45 in all)
+
+Module 2 is complete without them: every topic is proven locally, for free. These make parts of it real.
+
+- **(a) A budget alert on your Azure subscription.** Free. It e-mails you when spending passes a set amount, so a forgotten lab shows up as an e-mail rather than a bill. The steps are in the Active Directory lab's runbook, in [plans/cloud-module-2](plans/cloud-module-2/MODULE-2-BRIEF.md) section 7.
+- **(b) One sitting of the Azure Active Directory lab.** About $0.60 and three hours: real Windows Server, guardrails first, everything deleted at the end. Your run records the answers the checker's tests replay, and lets the lab count as a proof.
+- **(c) Capture runs for more genuine examples.** A free-tier Google `e2-micro`, and about $0.85 of Azure.
+- **Recommendation:** (a) and (b) when you have an evening; (c) only if you'd like the examples to be real rather than constructed.
+- **Holds up:** only the Azure lab's place among the proofs.
+
 ## Decided for you
 
 Made under your message of 2026-11-11. Say the word to overturn any of them.
 
 - **2026-11-11, debug exercises that name their bugs.** About 70 debug exercises (Python Modules 4 to 6, ML Module 3 onward, half of cloud Module 1) told the learner each bug and often the fix, which makes "debug unfamiliar code" ([ADR-0002](decisions/0002-mastery-and-gating.md)) closer to following instructions. **Decided:** rewrite them all so a prompt gives what the program should do, the symptom and how many bugs there are, with the specifics moved into hints. Order: cloud Module 1 first, then Python, then ML. **Why:** finding the bug is the skill being proven, and effort spent finding it is what makes it stick. **The cost:** the hard modules get harder, with the tutor off during proofs; the hints are still there outside a proof.
+- **2026-11-11, Module 2 has eight topics, not six.** "Cores, memory and noisy neighbours" is split into it and "Memory tiers and disks"; "Windows Server and Active Directory" into "Active Directory: domains, names and tickets" and "Joining machines, Group Policy and Entra ID". Why: shorter topics reach their proofs and first reviews sooner, and every proof tests what its topic just practised.
+- **2026-11-11, Module 2 is proven locally, for free.** Its Active Directory topics use a Samba domain controller in the lab's container. A real Windows Server lab in Azure (about $0.60 a three-hour sitting) is an optional extra, outside the proofs until you've run it once.
+- **2026-11-11, a new question type: estimate.** A typed number checked within a tolerance, for quick calculations (sizing, cost, memory). Why: producing a number is remembered better than picking one, and it needs no Python before Module 6. (being built as ADR-0024, proposed.)
+- **2026-11-11, a checkpoint can have more than two parts,** so Checkpoint 2 can hold all three the spec asks for. (being built as an amendment to ADR-0012.)
+- **2026-11-11, right-sizing is taught in Module 2** (a new skill in "Cores, memory and noisy neighbours"), because Checkpoint 2 needs it and nothing taught it.
+- **2026-11-11, checkpoint time targets are stated, not timed.** You hold yourself to them.
+- **2026-11-11, "Arm saves 20 to 40%" becomes "what Arm saves, from price lists".** AWS's own page now says "up to 20% less".
+
+The whole plan is in [plans/cloud-module-2](plans/cloud-module-2/README.md).
 
 ## Parked by you
 

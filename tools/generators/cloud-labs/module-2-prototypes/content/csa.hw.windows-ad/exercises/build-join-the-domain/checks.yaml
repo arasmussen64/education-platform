@@ -1,0 +1,49 @@
+# The checks for "Join the server to the domain". Each login check tries a
+# real SSH password login, so it proves authentication (Kerberos, through
+# SSSD) and authorisation (who is permitted) together.
+checks:
+  - id: finds-the-dc
+    description: "Asked through lab's own resolver, the domain's SRV record names dc1."
+    command: dig +short +time=2 +tries=1 _ldap._tcp.ad.shop.test SRV
+    expect:
+      contains: "389 dc1.ad.shop.test."
+  - id: site-names-resolve
+    description: "The site's own names still resolve."
+    command: dig +short +time=2 +tries=1 intranet.shop.internal
+    expect:
+      equals: "10.0.9.1"
+  - id: joined
+    description: "The directory holds a computer account for lab, and lab can prove who it is to the domain with the key it was given."
+    command: |
+      ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter samba-tool computer show LAB > /dev/null 2>&1 || { echo "no computer account"; exit 1; }
+      KRB5CCNAME=FILE:/tmp/check-machine-cc kinit -k 'LAB$@AD.SHOP.TEST' 2>&1 || exit 1
+      kdestroy -q -c FILE:/tmp/check-machine-cc
+      echo joined
+    expect:
+      equals: joined
+  - id: alice-logs-in
+    description: "alice, in linux-admins, logs in over SSH with her domain password, into her own home directory, holding a Kerberos ticket."
+    command: |
+      sshpass -p 'Alice-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l alice@ad.shop.test 127.0.0.1 'test "$PWD" = "/home/alice@ad.shop.test" && klist -s && echo in'
+    expect:
+      equals: in
+  - id: carol-logs-in
+    description: "So does carol, the group's other member."
+    command: |
+      sshpass -p 'Carol-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l carol@ad.shop.test 127.0.0.1 'test "$PWD" = "/home/carol@ad.shop.test" && klist -s && echo in'
+    expect:
+      equals: in
+  - id: bob-kept-out
+    description: "bob's password is right (the domain gives him a ticket), and lab still refuses him."
+    command: |
+      echo 'Bob-Pass-1' | KRB5CCNAME=FILE:/tmp/check-bob-cc kinit bob@AD.SHOP.TEST > /dev/null 2>&1 || { echo "bob can't get a ticket at all"; exit 1; }
+      kdestroy -q -c FILE:/tmp/check-bob-cc
+      if sshpass -p 'Bob-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l bob@ad.shop.test 127.0.0.1 true 2>/dev/null; then echo "bob got in"; exit 1; fi
+      echo refused
+    expect:
+      equals: refused
+  - id: dc-still-strict
+    description: "dc1 still refuses a password sent over an unencrypted LDAP connection."
+    command: ldapsearch -x -o nettimeout=5 -H ldap://10.0.9.10 -D 'alice@ad.shop.test' -w 'Alice-Pass-1' -b 'DC=ad,DC=shop,DC=test' -s base dn 2>&1 | head -n 2
+    expect:
+      contains: "Strong(er) authentication required"

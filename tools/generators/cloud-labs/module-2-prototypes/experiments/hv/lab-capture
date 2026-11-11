@@ -1,0 +1,78 @@
+#!/bin/bash
+# lab-capture: record what this Linux machine can see about the hypervisor
+# under it, as a folder of small text files. Run it as root on a real VM
+# (sudo ./lab-capture OUT_DIR) or in a lab container.
+#
+# It only reads. It leaves out everything that identifies the machine or its
+# owner: serial numbers, UUIDs, instance IDs, MAC and IP addresses, hostnames.
+#
+# A draft from the Module 2 design work (2026-11-11), tried on Docker Desktop
+# (a Hyper-V guest). Not yet run on a cloud VM.
+set -u
+out="${1:?usage: lab-capture OUT_DIR}"
+mkdir -p "$out/dmi"
+
+# Mask anything that looks like a MAC address, a UUID or an EC2 instance ID.
+scrub() {
+  sed -E \
+    -e 's/([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}/xx:xx:xx:xx:xx:xx/g' \
+    -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/UUID/g' \
+    -e 's/\bi-[0-9a-f]{8,17}\b/i-INSTANCE/g'
+}
+
+{
+  echo "kernel: $(uname -r)"
+  echo "machine: $(uname -m)"
+  echo "os: $(. /etc/os-release 2>/dev/null && echo "$PRETTY_NAME")"
+} > "$out/about.txt"
+
+{
+  echo "any: $(systemd-detect-virt 2>/dev/null || true)"
+  echo "vm: $(systemd-detect-virt --vm 2>/dev/null || true)"
+  echo "container: $(systemd-detect-virt --container 2>/dev/null || true)"
+} > "$out/detect-virt.txt"
+
+lscpu > "$out/lscpu.txt" 2>/dev/null
+grep -m1 -E '^(flags|Features)' /proc/cpuinfo > "$out/cpu-flags.txt" 2>/dev/null
+head -n 1 /proc/stat > "$out/stat-cpu.txt"
+
+# The boot messages that name the hypervisor and its devices. On a machine
+# that has been up for a long time the kernel's buffer may have lost them.
+dmesg 2>/dev/null | grep -i -E 'hypervisor detected|DMI:|paravirt|kvm-clock|hv_vmbus|hv_netvsc|hv_storvsc|hv_pci|virtio|\bena\b|nvme|mlx5|mana|\bgve\b|xen' \
+  | head -n 60 | scrub > "$out/dmesg-boot.txt"
+
+for f in sys_vendor product_name bios_vendor bios_version chassis_asset_tag board_vendor; do
+  [ -r "/sys/class/dmi/id/$f" ] && cat "/sys/class/dmi/id/$f" > "$out/dmi/$f"
+done
+
+lspci -nnk 2>/dev/null | scrub > "$out/lspci.txt"
+lsblk -d -n -o NAME,TYPE,SIZE,TRAN,MODEL 2>/dev/null | grep -v -E '^(loop|ram)' > "$out/lsblk.txt"
+
+# One line per network interface and per disk: its name and the kernel
+# driver behind it, which is what says how the hypervisor presents it.
+for n in /sys/class/net/*; do
+  name=$(basename "$n"); [ "$name" = lo ] && continue
+  drv=$(basename "$(readlink -f "$n/device/driver" 2>/dev/null)" 2>/dev/null)
+  echo "$name ${drv:-none}"
+done > "$out/net-drivers.txt"
+for b in /sys/block/*; do
+  name=$(basename "$b"); case "$name" in loop*|ram*|zram*) continue ;; esac
+  drv=$(basename "$(readlink -f "$b/device/driver" 2>/dev/null)" 2>/dev/null)
+  echo "$name ${drv:-none}"
+done > "$out/block-drivers.txt"
+
+lsmod 2>/dev/null | awk 'NR > 1 {print $1}' | grep -E '^(hv_|hyperv|virtio|ena$|nvme|mlx[45]_core|mana|gve|xen|kvm|vmw|vmxnet)' | sort > "$out/modules.txt"
+
+{
+  echo "current: $(cat /sys/devices/system/clocksource/clocksource0/current_clocksource 2>/dev/null)"
+  echo "available: $(cat /sys/devices/system/clocksource/clocksource0/available_clocksource 2>/dev/null)"
+} > "$out/clocksource.txt"
+
+for bus in vmbus virtio xen; do
+  echo "$bus $(ls "/sys/bus/$bus/devices" 2>/dev/null | wc -l)"
+done > "$out/buses.txt"
+
+( cd /sys/devices/system/cpu/vulnerabilities 2>/dev/null && grep . * ) > "$out/vulnerabilities.txt" 2>/dev/null
+
+[ -e /dev/kvm ] && echo "present" > "$out/dev-kvm.txt" || echo "absent" > "$out/dev-kvm.txt"
+echo "wrote $(ls "$out" | wc -l) entries to $out"

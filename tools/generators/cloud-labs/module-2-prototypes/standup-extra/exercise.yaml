@@ -1,0 +1,20 @@
+id: build-stand-up-the-domain
+stage: build
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Stand up the shop's domain"
+prompt: |
+  The shop has no directory yet. Two machines are ready: `dc1` (10.0.9.10), which has Samba's domain-controller software installed and nothing configured, and this server, `lab`. `on-dc COMMAND` runs a command on dc1; dc1's service is `dc1.service` here on `lab` (`sudo systemctl ... dc1`). The site's ordinary resolver runs on `lab` and forwards what it doesn't know.
+
+  Stand up a small Active Directory domain and make `lab` its first member:
+
+  1. **The domain** is `ad.shop.test` (short name `SHOP`), with dc1 as its domain controller and its DNS server; anything dc1 can't answer it forwards to the site's resolver, 10.0.9.1. The domain administrator's password is `Shop-Admin-1`. dc1's service is running, and starts again after a reboot.
+  2. **The people.** An organisational unit `Shop` holds two users, `dana` (`Dana-Pass-12345`) and `erin` (`Erin-Pass-12345`), and a group `linux-admins` with `dana` in it.
+  3. **The password rules for the whole domain:** at least 14 characters, and an account locks after 5 wrong passwords.
+  4. **A Group Policy object** called `Server baseline` is linked to the `Shop` unit.
+  5. **`lab` finds the domain through its own resolver** (the site's names still resolve, nothing about dc1 is typed into a hosts file or a Kerberos config) and **is joined**.
+  6. **Members of `linux-admins` can log in to `lab` over SSH** with their domain passwords, into a home directory made on first login. Nobody else in the domain can.
+  7. dc1 keeps refusing passwords sent over unencrypted LDAP, as it does out of the box.
+skills: [directory-structure, dc-discovery, domain-join, group-policy]
