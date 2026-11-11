@@ -1,0 +1,16 @@
+id: mcq-krb-no-kdc
+type: mcq
+rev: 1
+prompt: |
+  `kinit alice@AD.SHOP.TEST` says `kinit: Cannot find KDC for realm "AD.SHOP.TEST" while getting initial credentials` (captured in the lab). What does that tell you?
+choices:
+  - "This machine's resolver can't answer the domain's SRV records, so no KDC can be found"
+  - "alice's password was wrong, so the KDC refused to say which realm she belongs to"
+  - "alice's account is disabled, so the KDC no longer lists the realm as one it serves"
+  - "This machine's clock is too far from dc1's, so the KDC ignored the request it was sent"
+answer: 0
+explanation: |
+  Before anything else, Kerberos has to find a KDC for the realm, and it asks DNS: the SRV records `_kerberos._udp` and `_kerberos._tcp` under the domain's name. "Cannot find KDC" means that question got no answer, so no request was ever sent, and the password, the account and the clock haven't been tested yet. Check names first: `dig _kerberos._tcp.ad.shop.test SRV` through this machine's resolver, then the same `@` a domain controller.
+
+  A wrong password needs a KDC that was found, and says `Password incorrect`. A disabled account needs one too, and says `Client's credentials have been revoked`. A clock too far out says `Clock skew too great`. Each of those errors means the KDC was reached; this one means it wasn't.
+skills: [kerberos-tickets]

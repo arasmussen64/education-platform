@@ -1,0 +1,20 @@
+id: dns-ports-services
+type: predict_shell
+rev: 1
+prompt: |
+  `records.txt` holds four of the SRV records dc1 publishes for the domain, each `dig +short` answer labelled with its service (captured on 2026-11-11). The command lists them by port. What is printed?
+files:
+  records.txt: |
+    _ldap._tcp: 0 100 389 dc1.ad.shop.test.
+    _kerberos._tcp: 0 100 88 dc1.ad.shop.test.
+    _gc._tcp: 0 100 3268 dc1.ad.shop.test.
+    _kpasswd._tcp: 0 100 464 dc1.ad.shop.test.
+command: awk '{print $4, $1}' records.txt | sort -n
+expected_output: |
+  88 _kerberos._tcp:
+  389 _ldap._tcp:
+  464 _kpasswd._tcp:
+  3268 _gc._tcp:
+explanation: |
+  With the label first, the port is field 4. `sort -n` sorts as numbers, so 88 comes before 389 (as text, `3268` would come before `389`). A domain controller offers four services here: Kerberos's KDC on 88, where tickets come from; LDAP on 389, the directory; kpasswd on 464, for changing a password through Kerberos; and the global catalog on 3268, the index of every domain in the forest. A member finds each one by asking for its SRV record, which is why a member that can't ask the domain's DNS can find none of them.
+skills: [dc-discovery]

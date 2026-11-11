@@ -1,0 +1,16 @@
+id: mcq-trust-passes-along
+type: mcq
+rev: 1
+prompt: |
+  Domain A trusts domain B with an external trust, and B trusts domain C with another external trust. All three domains are in different forests. Can people with accounts in C open files in A?
+choices:
+  - "No: an external trust doesn't pass along, so A trusts only B, and C needs a trust of its own"
+  - "Yes: A trusts B and B trusts C, so A trusts C as well, just as it would inside one forest"
+  - "Only C's administrators can, because a trust carries the logins of Domain Admins alone"
+  - "Yes, but only from machines whose addresses A's domain controllers have been told about"
+answer: 0
+explanation: |
+  An external trust is nontransitive: it holds between the two domains that made it and goes no further. A accepts B's accounts; C's are a domain away, so if C's people need A's files, A has to trust C directly.
+
+  Passing along (transitivity) is how trusts work inside one forest, where every domain trusts every other automatically, and that's what makes the reasoning that A trusts C so tempting. A trust isn't limited to administrators either way: it lets a domain accept another's accounts, and what each person may then open is up to the permissions on the files. Nor is it about machines' addresses: Kerberos works on names and accounts.
+skills: [directory-structure]

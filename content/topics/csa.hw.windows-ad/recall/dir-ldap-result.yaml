@@ -1,0 +1,24 @@
+id: dir-ldap-result
+type: predict_shell
+rev: 1
+prompt: |
+  `result.ldif` is the answer dc1 gave to an LDAP search signed in with Kerberos, with the filter `(&(objectClass=user)(memberOf=CN=linux-admins,CN=Users,DC=ad,DC=shop,DC=test))` (captured on 2026-11-11). The command picks out the account names and puts them on one line. What is printed?
+files:
+  result.ldif: |
+    dn: CN=Carol Diaz,CN=Users,DC=ad,DC=shop,DC=test
+    sAMAccountName: carol
+    userPrincipalName: carol@ad.shop.test
+
+    dn: CN=Erin Moss,OU=Engineering,OU=Staff,DC=ad,DC=shop,DC=test
+    sAMAccountName: erin
+    userPrincipalName: erin@ad.shop.test
+
+    dn: CN=Alice Ng,OU=Engineering,OU=Staff,DC=ad,DC=shop,DC=test
+    sAMAccountName: alice
+    userPrincipalName: alice@ad.shop.test
+command: grep '^sAMAccountName' result.ldif | cut -d' ' -f2 | sort | paste -sd' ' -
+expected_output: |
+  alice carol erin
+explanation: |
+  The filter asks for entries that are users `&` (and) list `linux-admins` in their `memberOf`, the groups they belong to. Each answer is an entry: its `dn:` line, then the attributes asked for, then a blank line. `sAMAccountName` is the short login name, the `alice` in `SHOP\alice`; `userPrincipalName` is the same account written like an email address. `grep` keeps the three name lines, `cut` takes what follows the space, `sort` puts them in order, and `paste -sd' ' -` joins them with spaces. The group's members live in two different folders: a group cuts across OUs, which is what makes it the right thing to give a permission to.
+skills: [directory-structure]
