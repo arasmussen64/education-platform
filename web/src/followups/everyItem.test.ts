@@ -7,6 +7,7 @@ import {
 } from '../content/content.ts'
 import { STAGES } from '../content/stages.ts'
 import type { TopicContent } from '../content/types.ts'
+import { furtherParts } from '../progress/progress.ts'
 import {
   type Attempt,
   chooseQuestion,
@@ -94,9 +95,10 @@ describe.each(readyTopics)('%s', (topicId) => {
   })
 })
 
-// The promise behind ADR-0012: a failed test in a ready checkpoint's builds
-// or debug brings back each skill it names, as a question from that skill's
-// own topic. New checkpoints are covered as soon as they're marked ready.
+// The promise behind ADR-0012: a failed test in a ready checkpoint's builds,
+// debug or further parts brings back each skill it names, as a question from
+// that skill's own topic. New checkpoints are covered as soon as they're
+// marked ready.
 
 const readyCheckpoints = readyTopics.filter(
   (id) => getTopic(id)?.kind === 'checkpoint',
@@ -133,6 +135,12 @@ describe('ready checkpoints', () => {
           prove.build,
           prove.debug,
           ...(unstuck?.versions ?? []),
+          // Further parts and their fresh versions (ADR-0012, amended
+          // 2026-11-11) are proofs too.
+          ...furtherParts(checkpoint.topic).flatMap((part) => [
+            part.id,
+            ...part.versions,
+          ]),
         ]) {
           const exercise = itemId ? checkpoint.exercises[itemId] : undefined
           if (!itemId || !exercise)
