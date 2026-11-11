@@ -21,7 +21,8 @@ type DraftStorage = Pick<Storage, 'getItem' | 'setItem'>
 const STORAGE_KEY = 'drafts-v1'
 
 /**
- * The most characters all the drafts together may take. localStorage holds
+ * The most characters all the drafts together may take once saved (see
+ * sizeOf; only a lone draft, the newest, may take more). localStorage holds
  * only a few million characters, and the event outbox (answers not yet sent
  * to the server, which matter far more than drafts) lives there too, so
  * drafts keep to a small share. When they'd go over, the oldest are dropped.
@@ -89,12 +90,13 @@ function withoutOldest(drafts: Drafts): Drafts {
   return Object.fromEntries(oldestFirst.slice(1))
 }
 
-/** How many characters of the learner's text the drafts hold. */
+/**
+ * How many characters the drafts take once saved. That's more than the
+ * learner's text alone: saving writes each line break as two characters
+ * (\n), and adds each draft's name, rev and time.
+ */
 function sizeOf(drafts: Drafts): number {
-  return Object.values(drafts).reduce(
-    (total, draft) => total + draft.text.length,
-    0,
-  )
+  return JSON.stringify(drafts).length
 }
 
 /**
@@ -123,8 +125,11 @@ export function saveDraft(
     ...readDrafts(storage),
     [idOf(key)]: { rev: key.rev, text, savedAt: now },
   }
-  // This draft is the newest, so in both loops below it's dropped last.
-  while (sizeOf(drafts) > DRAFTS_BUDGET) drafts = withoutOldest(drafts)
+  // This draft is the newest, so the loops below drop it last, and the
+  // budget never drops it at all.
+  while (sizeOf(drafts) > DRAFTS_BUDGET && Object.keys(drafts).length > 1) {
+    drafts = withoutOldest(drafts)
+  }
   // The browser can say storage is full before the drafts reach their
   // budget (the outbox shares it). Then older drafts make room, one at a
   // time; if even this one alone won't fit, it just isn't saved.

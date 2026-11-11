@@ -74,18 +74,42 @@ describe('drafts', () => {
 
   it('drops the oldest drafts when they would go over their budget', () => {
     const storage = fakeStorage()
-    const long = 'x'.repeat(MAX_DRAFT_CHARS)
-    const count = DRAFTS_BUDGET / MAX_DRAFT_CHARS + 1
-    for (let index = 0; index < count; index++) {
+    // Six of these fit in the budget, with room to spare; a seventh doesn't.
+    const long = 'x'.repeat(40_000)
+    for (let index = 0; index < 7; index++) {
       saveDraft({ ...LOOPS, itemId: `item-${index}` }, long, storage, index)
     }
     // The first one saved is the one that made room.
     expect(loadDraft({ ...LOOPS, itemId: 'item-0' }, storage)).toBeNull()
-    for (let index = 1; index < count; index++) {
+    for (let index = 1; index < 7; index++) {
       expect(loadDraft({ ...LOOPS, itemId: `item-${index}` }, storage)).toBe(
         long,
       )
     }
+  })
+
+  it('counts the room drafts take once saved, where a line break takes two characters', () => {
+    const storage = fakeStorage()
+    // 40,000 characters of code, but 60,000 once saved: four fit, not six.
+    const lines = 'a\n'.repeat(20_000)
+    for (let index = 0; index < 6; index++) {
+      saveDraft({ ...LOOPS, itemId: `item-${index}` }, lines, storage, index)
+    }
+    expect(storage.items.get('drafts-v1')!.length).toBeLessThanOrEqual(
+      DRAFTS_BUDGET,
+    )
+    expect(loadDraft({ ...LOOPS, itemId: 'item-1' }, storage)).toBeNull()
+    expect(loadDraft({ ...LOOPS, itemId: 'item-2' }, storage)).toBe(lines)
+    expect(loadDraft({ ...LOOPS, itemId: 'item-5' }, storage)).toBe(lines)
+  })
+
+  it('keeps the newest draft even when it alone takes more room than the budget', () => {
+    const storage = fakeStorage()
+    saveDraft(SWAP, 'a, b = b, a', storage, 1000)
+    // A character with no printable form takes six once saved (\u0001).
+    const odd = '\u0001'.repeat(MAX_DRAFT_CHARS)
+    saveDraft(LOOPS, odd, storage, 2000)
+    expect(loadDraft(LOOPS, storage)).toBe(odd)
   })
 
   it("doesn't keep a draft longer than any answer, nor let it push others out", () => {
