@@ -15,7 +15,7 @@ prompt: |
 
   Check your work with `sudo sshd -T`, `sudo nft list ruleset`, `sudo ss -ltnp` and the logins. Then run the checks.
 hints:
-  - "The firewall, in `/etc/nftables.conf`: `table inet filter { chain input { type filter hook input priority filter; policy drop; iif lo accept; ct state established,related accept; tcp dport 22 accept; } }` (plus `forward` drop and `output` accept chains), with `flush ruleset` on a line before it so loading the file replaces what was there. `nft -c -f /etc/nftables.conf` checks it without loading."
+  - "The firewall, in `/etc/nftables.conf`: `table inet filter { chain input { type filter hook input priority filter; policy drop; iif lo accept; ct state established,related accept; tcp dport 22 accept; }; }` (plus `forward` drop and `output` accept chains), with `flush ruleset` on a line before it so loading the file replaces what was there. `nft -c -f /etc/nftables.conf` checks it without loading."
   - "`sudo systemctl stop shop-debug && sudo systemctl disable shop-debug` closes the door now and keeps it closed; confirm with `sudo ss -ltnp | grep 9000` showing nothing."
   - "Loopback is allowed by `iif lo accept`, so your `ssh ... ben@localhost` keeps working through the firewall. The login from the office arrives on `eth1` instead, and it's `tcp dport 22 accept` that lets it in."
   - "If `sudo sshd -T` shows the hardened settings but a check says the running server doesn't have them, the server was never told: `sudo systemctl reload ssh`."

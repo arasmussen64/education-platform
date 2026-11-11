@@ -1,14 +1,16 @@
 id: mcq-mount-steps
 type: mcq
-rev: 2
+rev: 3
 prompt: |
-  A new empty 500G volume shows up as `/dev/nvme2n1`. In what order do you make it usable at `/data`, permanently?
+  A new empty 500G volume shows up as `/dev/nvme2n1`. In what order do you make it usable at `/data`, permanently, and prove the `fstab` line before any reboot?
 choices:
-  - "`mkfs.xfs` on the device, `mkdir /data`, `mount` it there, add its UUID to `/etc/fstab`, then `mount -a`"
+  - "`mkfs.xfs` on the device, `mkdir /data`, add its UUID to `/etc/fstab`, then `mount -a` mounts it from that line"
   - "`mkdir /data`, `mount` the device there, `mkfs.xfs` on the mounted folder, then add its UUID to `/etc/fstab`"
-  - "Add the device to `/etc/fstab`, `mkdir /data`, then reboot: an empty volume is formatted at its first mount"
+  - "`mkfs.xfs`, `mkdir /data`, `mount` it there, add its UUID to `/etc/fstab`, then `mount -a` tests that line"
   - "`mkfs.xfs` on the device, `mkdir /data`, then `mount` it there: a mounted volume is mounted again at each boot"
 answer: 0
 explanation: |
-  A filesystem has to exist before anything can be mounted, so `mkfs.xfs /dev/nvme2n1` comes first (it wipes the disk, so check `lsblk` twice). `mount /dev/nvme2n1 /data` makes it usable now; the `fstab` line makes it come back at boot, by the UUID that `blkid` prints, so a renamed device can't break it; and `mount -a` mounts everything in `fstab` that isn't mounted yet, which proves the line is right while you can still fix it. Mounting first fails, because an empty volume has no filesystem to mount, and `mkfs` works on a device, not on a folder. Nothing formats a disk for you, at boot or at any other time. And a mount made by hand lasts only until the next reboot: without the `fstab` line, `/data` comes back as an empty folder on the root disk.
+  A filesystem has to exist before anything can be mounted, so `mkfs.xfs /dev/nvme2n1` comes first (it wipes the disk, so check `lsblk` twice). The `fstab` line makes the volume come back at boot, by the UUID that `blkid` prints, so a renamed device can't break it. Then `mount -a` mounts everything in `fstab` that isn't mounted yet, so `/data` appearing proves the line is right while you can still fix it.
+
+  Mounting it by hand before `mount -a` takes that proof away: `mount -a` passes over a filesystem that is already mounted at that place, whatever the rest of its line says, and stays silent, so a wrong type or option goes unnoticed until the next boot (`umount /data` first; `findmnt --verify` catches a wrong type, but not a misspelled option). Mounting before `mkfs` fails, because an empty volume has no filesystem to mount, and `mkfs` works on a device, not on a folder. And a mount made by hand lasts only until the next reboot: without the `fstab` line, `/data` comes back as an empty folder on the root disk.
 skills: [block-devices]
