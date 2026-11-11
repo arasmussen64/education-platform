@@ -2,6 +2,57 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-11: The learning engine, cloud Module 1 hardened, and Module 2 planned and begun
+
+**The owner left for a long while** (2026-11-11): "Your job is to build as much as you can. If you need a question answered for me just use your best judgement and error on the side of whatever provides the best learning experience and optimal memory retention and is free or falls within the $150 azure budget." So product and content questions were decided by those three tests, in that order, and each is listed in the [owner queue](owner-queue.md) under _Decided for you_. Steps on the live site, settings on the owner's accounts and anything that spends money still wait under _Open_. Nothing was created in the owner's Azure subscription.
+
+**Part of the day ran on a different model.** Partway through, the account reached its usage limit for the model the session started on, and seven of thirteen running agents stopped mid-task. Nothing was lost: finished agents' results were in the workflow journal, their worktrees and scratch files were intact, and one agent whose summary was lost had already written its complete brief. The rest continued on Claude Opus 5.5, with three lab containers that stopped agents had left running cleaned up first.
+
+**The learning engine** (#210 to #215, #217). The audit's findings about how progress is worked out, fixed and documented:
+
+- Mastered now needs a good review a week after the last failed one, and waits while a skill is being relearned.
+- A follow-up closes only on due days, on a different question, and never on a worked example.
+- Once a checkpoint's steps are opened, its main build no longer counts as the blank-editor proof; a fresh version does.
+- Placement ties pass, as ADR-0021 always said.
+- Reviews follow FSRS-4.5 exactly, checked against the reference package, so some intervals got a few days shorter. A half-finished review still counts, and the 20-a-day limit is a calendar day.
+- A Check that couldn't run is no longer a wrong answer, an event the browser can't store waits in memory, and every event records the learner's own day and time zone.
+- Typed code and explanations are kept as drafts until the item passes.
+
+The five fixes were built separately, combined in one copy and tested together before any was merged; one conflict in the progress hook and one missing test stub were found that way. A sixth pull request wired their last steps together.
+
+**Cloud Module 1, hardened** (#209, #223 to #227, #233). Before writing Module 2, the audit's cloud findings:
+
+- The lab checker gained a `shell` command that runs Docker itself, so Git Bash can no longer mangle the path. `start` keeps a lab in progress, `status` and `stop --all` handle forgotten labs, a pasted result must name exactly the lab's checks, and the labs run in CI weekly.
+- Checkpoint 1 now proves what its spec promises: seven faults including the spec's missing cgroup part, every stated rule enforced by a known-wrong shortcut, SSH asked of the running server, the firewall tested from a second machine.
+- The debug prompts of eight topics give symptoms and a fault count, and limits can no longer be "fixed" by removing them.
+- Shell essentials teaches the scripts and `nano` its labs use.
+- In 102 of 108 multiple-choice questions the right answer had been the longest choice. 106 of the 108 are rewritten, and the validator now fails an answer over 1.5 times its longest wrong choice, and a topic where the right answer is the longest in more than half. Older Python and ML items are listed in a baseline that can only shrink.
+
+All 79 labs passed on the combined branches before any was merged.
+
+**Debug prompts in every track** (#218, #219, #228 to #230). 79 Python and ML debug prompts that named their bugs now give the program's purpose, its symptom and the bug count. Each rewritten debug was checked to be findable from its symptom, a Run and its Check messages alone, because the app shows no hints on a debug exercise (every debug is a proof).
+
+**The AI proxy** (#232). The budget cap counts every call that reached Claude and fails closed when it can't; the tutor reads programs up to 20,000 characters, where it used to fail on Module 8 and blame the connection; learner text can't break out of its place in a prompt. Live only after the owner pushes a migration, approves two test runs (about 2.5 cents) and deploys the function (owner queue).
+
+**Module 2, planned** (#216, #220, #221, #222, #231). Four designers researched and briefed the module and tried its labs on this machine; a critic checked their briefs against each other and wrote one plan, now kept in [plans/cloud-module-2](plans/cloud-module-2/README.md). Module 2 has eight topics, not six, all proven locally for free, with an optional Azure Active Directory lab at about $0.60 a sitting. The three platform pieces the plan needs are built: estimate questions (a typed number checked within a tolerance, ADR-0024, proposed), a lab check that may take up to 300 seconds, so a check can boot the learner's virtual machine itself (ADR-0018, amended, proposed), and checkpoints with more than two parts (ADR-0012, amended, proposed). Module 2's topics are bundled with the app. Five of its eight topics are being written as this entry is written.
+
+**Two things that went wrong, and what they taught.**
+
+- _The cloud outline tool would have emptied the track._ A formatter had padded the spec's tables, and the tool's pattern for a topic row expected single spaces, so it now found only 24 of 324 topics. Run on `main`, it would have rewritten the track without the other 300. The earlier docs pass had "checked" the tool by comparing its parse before and after, and both were broken. The fix is proven by the tool reproducing every existing outline byte for byte; a test pads the sample tables.
+- _Ubuntu's package archive couldn't be reached by name for about two hours_ (from about 15:00 UTC). No lab image could be built on GitHub or on this machine, so every pull request touching labs or `tools/` failed its Labs job. Local lab runs still passed, because the image layers were cached. Rather than merge past a red check, scripts re-ran the failed jobs until they passed and landed eleven pull requests in order.
+
+**Author notes:**
+
+- _Hints on debug exercises stay in the content though the app doesn't show them._ They may serve the tutor or a practice mode later.
+- _Checkpoint 1's 45-minute target is stated, not timed._ The same goes for Checkpoint 2.
+- _The answer-length baseline lists 72 older Python and ML items, one placement-test question and 16 topics_ that break the new rules, to be rewritten when those tracks are next touched.
+- _Four ML topics' explain prompts tell their debug's bugs as a teammate's story,_ and two ML checkpoints' debugs can be solved from the build prompt on the same page. Found by the debug reviewers; left for the ML track's next pass.
+- _In five ML checkpoints and Cloud Checkpoint 1, the steps and the solved example already show most of each fresh version's code_ (80 to 94% in ADR-0012's count of 2026-11-11), so a fresh version proves less after the steps than it should. Left for each track's next content pass.
+- _With two questions, a placement probe can pass on one lucky guess._ Eleven topics have only two questions to ask.
+- _Three cloud Module 1 debug labs still say where or what their faults are:_ `csa.linux.permissions/debug-cant-log-in`, `csa.linux.packages/debug-nightly-patch` and `csa.linux.containers/debug-leaky-box` were outside the ten rewritten today. The first also has no symptom for its server-side fault on Ubuntu 24.04, whose `sshd` accepts a `~/.ssh` writable by the user's own group (found in #227's review). They are the next debug rewrites.
+
+**Next:** Module 2's last three topics and its checkpoint (GPU basics, joining machines and Entra ID, Windows licensing, Checkpoint 2), once the first five land.
+
 ## 2026-11-10: An audit, nine fixes from it, and a short list for the owner
 
 **The owner asked** (2026-11-10): "Review this app, let me know where it stands and what's next." Ten reviewers each read one area: the web app's core, the learning rules, the AI proxy and the database, each track's content, the tooling, and the docs and process. Six sceptics then tried to refute the findings that mattered most, and a critic looked for what nobody had read. Of the 38 findings the sceptics tested, 28 held as written, 10 held in part and none was refuted.

@@ -235,15 +235,35 @@ These are the fundamentals every later module stands on. Most of the practice ru
 | 13  | Performance triage                     | `csa.linux.triage`      | find out why a server is slow with the USE method: utilization, saturation and errors; use `perf`, `strace`, `iostat` and `vmstat` to see where the time goes                                                                                                              |
 | 14  | Hardening                              | `csa.linux.hardening`   | apply a security baseline, then prove it with a benchmark scan                                                                                                                                                                                                             |
 
-**Checkpoint 1: the broken server** (`csa.m1.checkpoint`). You get a container with five planted faults:
+**Checkpoint 1: the broken server** (`csa.m1.checkpoint`). Two labs in local containers, a build and a debug, then the explain.
 
-- a full disk;
-- a service failing on a bad config;
-- a key with the wrong permissions;
-- a blocked port;
-- a runaway process.
+- **The build: stand up a server.** A fresh server, and only the runbook's goals:
+  - its service running, and enabled at boot;
+  - a default-deny nftables firewall that lets in only SSH and the service, saved so it comes back after a reboot;
+  - an SSH server that refuses password and root logins while the deploy user's key still works.
 
-Restore service within 45 minutes without weakening security. Turning the firewall off fails the check. A second part: a container that keeps getting killed and throttled. Find out why from its cgroup metrics and fix its limits.
+  The checks test behaviour. They try the firewall from a second machine on the network (a network namespace, "the office"), against listeners of their own on ports nobody asked for. For SSH, they ask the running server which logins it offers and whether it has loaded its current files. A worked example in another story, the build in four steps, and two fresh versions are the way through for a learner who's stuck ([ADR-0012](../decisions/0012-checkpoint-support.md)).
+
+- **The debug: the broken server.** Seven planted faults, which the learner is given only as symptoms and a count. Five take the server down:
+  - a full disk;
+  - a service failing on a bad config;
+  - a key with the wrong permissions;
+  - a blocked port;
+  - a runaway process.
+
+  The second part is two more faults. A service held to a memory limit and a CPU quota, the way a container is, keeps getting killed and throttled. Find out why from its cgroup metrics, and fix its limits inside a stated allowance; removing a limit is not a fix.
+
+- **The rules.** Restore service within 45 minutes without weakening security, without losing data, and without leaving a fix that a reboot would undo. The 45 minutes is a target the learner times themselves against; nothing enforces it. Each shortcut fails a check, and a known-wrong fix in CI proves it. The shortcuts proved are:
+  - no firewall, or one opened wide or for ports nobody asked for;
+  - a rule loaded but not saved;
+  - password logins back on;
+  - `StrictModes` off;
+  - SSH settings changed but never reloaded;
+  - a worker stopped but still enabled;
+  - the order database deleted;
+  - a limit removed, raised past the allowance, or set only until the next reboot;
+  - the search program edited to do less work.
+- **The explain.** A teammate restored a server by turning the firewall off and passwords on. Say what's wrong with that, and how the real causes are found.
 
 ### Module 2: Virtualization, hardware and Windows
 
