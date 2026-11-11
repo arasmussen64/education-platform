@@ -1,22 +1,47 @@
 # The checks for "The slow guest". The first boots the learner's VM itself,
 # as learner, with ~/bin/shop-vm exactly as it now stands, and keeps what
 # the guest printed in /var/tmp/labcheck (outside the learner's files, and
-# emptied first, so an old run never counts). The checks after it read that,
-# so the VM boots once per run of the checks rather than once per check. A
-# log the learner wrote is never read. Booting under emulation took 5 to 10
+# emptied first, so an old run never counts), with the owner of every VM
+# process it saw. The checks after it read that, so the VM boots once per
+# run of the checks rather than once per check. A log the learner wrote is
+# never read, and a launcher that prints a report without starting a VM, or
+# starts it as root, fails real-vm. Booting under emulation took 5 to 10
 # seconds on the owner's PC; the 120 leaves room for a busy CI machine.
 checks:
   - id: guest-boots
     description: "~/bin/shop-vm, started by learner without sudo, boots the VM, and the guest reports on itself and switches off."
     timeout: 120
+    # While the launcher runs, this also notes the owner of every VM process
+    # that wasn't there before it started, for real-vm below.
     command: |
       out=/var/tmp/labcheck
-      rm -rf "$out"; mkdir -p "$out"; chmod 700 "$out"
-      runuser -u learner -- /home/learner/bin/shop-vm < /dev/null > "$out/console.log" 2>&1
+      rm -rf "$out"; mkdir -p "$out"; chmod 700 "$out"; : > "$out/vm-users"
+      before=" $(pgrep -d ' ' -x qemu-system-x86) "
+      runuser -u learner -- /home/learner/bin/shop-vm < /dev/null > "$out/console.log" 2>&1 &
+      launcher=$!
+      while kill -0 "$launcher" 2> /dev/null; do
+        for p in $(pgrep -x qemu-system-x86); do
+          case "$before" in *" $p "*) continue ;; esac
+          ps -o user= -p "$p" >> "$out/vm-users"
+        done
+        sleep 0.2
+      done
+      wait "$launcher"
       tr -d '\r' < "$out/console.log" | sed -n '/=== guest report/,/=== end/p' > "$out/report.txt"
       grep -q '^=== end' "$out/report.txt" && echo "the guest reported and switched off"
     expect:
       contains: "the guest reported"
+  - id: real-vm
+    description: "The report came from a real VM that ~/bin/shop-vm started, and that VM ran as learner, not as root."
+    timeout: 10
+    command: |
+      users=$(sort -u /var/tmp/labcheck/vm-users | paste -sd ' ')
+      if [ -z "$users" ]; then echo "no VM was started"
+      elif [ "$users" = learner ]; then echo "a VM ran as learner"
+      else echo "the VM ran as $users"
+      fi
+    expect:
+      equals: "a VM ran as learner"
   - id: two-cpus
     description: "The guest has 2 CPUs."
     timeout: 10
