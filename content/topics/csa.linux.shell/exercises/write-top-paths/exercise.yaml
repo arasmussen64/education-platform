@@ -1,14 +1,14 @@
 id: write-top-paths
 stage: write
 runtime: lab
-rev: 1
+rev: 2
 title: "Write top-paths"
 prompt: |
-  Write a script, `~/bin/top-paths`, that takes two arguments, a log file in the `METHOD PATH STATUS BYTES` format and a number N, and prints the N most requested paths, biggest first, one per line as `COUNT PATH` (the count, a space, the path). For example, `~/bin/top-paths /var/log/shop/access.log 2` prints two lines.
+  Write a script, `~/bin/top-paths`, that takes two arguments, a log file in the `METHOD PATH STATUS BYTES` format and a number N, and prints the N most requested paths, biggest first, one per line: the count, then the path. For example, `~/bin/top-paths /var/log/shop/access.log 2` prints two lines, each shaped like `87 /some/page`. The spaces that `uniq -c` puts in front of a count don't matter.
 
-  Start the file with `#!/usr/bin/env bash`, make it executable with `chmod +x`, and try it on both `/var/log/shop/access.log` and `/var/log/shop/old-access.log` with different values of N. Then run the checks.
+  Work out the pipeline at the prompt first, on `/var/log/shop/access.log`, one stage at a time. Then create the script with `nano ~/bin/top-paths` (the folder `~/bin` is already there): start it with `#!/usr/bin/env bash`, and put the pipeline in it with the script's two arguments in place of the file name and the number. Save it, and make it executable with `chmod +x ~/bin/top-paths`. Try it on both `/var/log/shop/access.log` and `/var/log/shop/old-access.log` with different values of N. Then run the checks.
 hints:
   - "The arguments arrive as `$1` (the log) and `$2` (N). Give them names: `log=\"$1\"` and `n=\"$2\"`."
   - "The pipeline is the one from the lesson: take the path field with `awk '{print $2}'`, then `sort`, `uniq -c`, `sort -rn`, and `head -n \"$n\"`."
-  - "`uniq -c` pads the count with spaces. A final `awk '{print $1, $2}'` prints count and path with one space between."
+  - "`uniq -c` pads the count with spaces. The checks don't mind them; to tidy the output anyway, a final `awk '{print $1, $2}'` prints count and path with one space between."
 skills: [count-and-sort, pipes-redirects]
