@@ -1,0 +1,107 @@
+# The checks for "Join the server to the domain". The login checks try a
+# real SSH password login, so they prove authentication (the domain says the
+# password is right) and authorisation (lab lets that person in) together.
+# Checks that ask dc1's own tools run inside its namespaces, the way on-dc
+# does; the rest ask from lab, as any member would.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence, not an exit status.
+checks:
+  - id: finds-the-dc
+    description: "Asked through lab's own resolver, the domain's SRV record names dc1, 10.0.9.10 has the name dc1.ad.shop.test, and the site's own names still resolve."
+    # dc1's name server answers a second or so after its service says it's
+    # ready, so a check straight after a boot waits for it.
+    command: |
+      for _ in $(seq 1 10); do
+        srv=$(dig +short +time=2 +tries=1 _ldap._tcp.ad.shop.test SRV)
+        [ -n "$srv" ] && break
+        sleep 1
+      done
+      [ "$srv" = "0 100 389 dc1.ad.shop.test." ] || { echo "asked through lab's own resolver, the domain's LDAP SRV record is [$srv]"; exit 0; }
+      name=$(dig +short +time=2 +tries=1 -x 10.0.9.10)
+      [ "$name" = "dc1.ad.shop.test." ] || { echo "asked through lab's own resolver, 10.0.9.10 has the name [$name]"; exit 0; }
+      [ "$(dig +short +time=2 +tries=1 intranet.shop.internal)" = 10.0.9.1 ] || { echo "the site's own names no longer resolve"; exit 0; }
+      echo found
+    expect:
+      equals: found
+  - id: found-through-dns
+    description: "lab finds dc1 through DNS alone: the site's resolver gets the domain's zone and its reverse zone from dc1, and nothing about dc1 is typed in by hand (lab's hosts file names only lab, and its Kerberos and SSSD settings name no server)."
+    # The site's resolver is dnsmasq on lab itself (127.0.0.1). Asked for a
+    # zone's own SOA record, it passes on dc1's answer only when it forwards
+    # that zone to dc1. A record for dc1 typed into the resolver
+    # (host-record=, ptr-record=, srv-host=) answers dc1's name and address
+    # but leaves the zone unforwarded, and so does pointing /etc/resolv.conf
+    # at dc1, which the next boot undoes.
+    command: |
+      if grep -Eq '(^|[[:space:]])(10\.0\.9\.10|dc1(\.ad\.shop\.test)?)([[:space:]]|$)' /etc/hosts; then echo "lab's hosts file names dc1"; exit 0; fi
+      if grep -Eqis '^[[:space:]]*(kdc|admin_server|kpasswd_server)[[:space:]]*=' /etc/krb5.conf /etc/krb5.conf.d/*; then echo "lab's Kerberos settings name a server"; exit 0; fi
+      if grep -Eqis '^[[:space:]]*(ad_server|ad_backup_server|krb5_server|krb5_backup_server|ldap_uri|ldap_backup_uri)[[:space:]]*=' /etc/sssd/sssd.conf /etc/sssd/conf.d/*.conf; then echo "lab's SSSD settings name a server"; exit 0; fi
+      for zone in ad.shop.test 9.0.10.in-addr.arpa; do
+        for _ in $(seq 1 5); do
+          soa=$(dig +short +time=2 +tries=1 @127.0.0.1 "$zone" SOA)
+          [ -n "$soa" ] && break
+          sleep 1
+        done
+        case "$soa" in
+          "dc1.ad.shop.test. "*) ;;
+          *) echo "the site's resolver doesn't get the zone $zone from dc1"; exit 0 ;;
+        esac
+      done
+      echo "through DNS"
+    expect:
+      equals: "through DNS"
+  - id: joined
+    description: "The directory holds a computer account for lab, and lab can sign in to the domain as itself with the key the join gave it."
+    command: |
+      dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
+      dc samba-tool computer show LAB > /dev/null 2>&1 || { echo "the directory has no computer account for lab"; exit 0; }
+      KRB5CCNAME=FILE:/tmp/check-machine-cc kinit -k 'LAB$@AD.SHOP.TEST' > /dev/null 2>&1 || { echo "lab can't sign in to the domain with the keys in /etc/krb5.keytab"; exit 0; }
+      kdestroy -q -c FILE:/tmp/check-machine-cc
+      echo member
+    expect:
+      equals: member
+  - id: alice-logs-in
+    description: "alice, in linux-admins, logs in over SSH with her domain password, into her own home directory, holding a Kerberos ticket."
+    command: |
+      result=$(sshpass -p 'Alice-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l alice@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/alice@ad.shop.test" ]; then echo "alice logged in, into $PWD"; elif ! klist -s; then echo "alice logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
+      echo "${result:-alice could not log in over SSH}"
+    expect:
+      equals: in
+  - id: carol-logs-in
+    description: "So does carol, the group's other member."
+    command: |
+      result=$(sshpass -p 'Carol-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l carol@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/carol@ad.shop.test" ]; then echo "carol logged in, into $PWD"; elif ! klist -s; then echo "carol logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
+      echo "${result:-carol could not log in over SSH}"
+    expect:
+      equals: in
+  - id: bob-kept-out
+    description: "bob's password is right (the domain gives him a ticket), and lab refuses him: its own rule for domain accounts, which every way in asks, says no, and so does SSH."
+    command: |
+      echo 'Bob-Pass-1' | KRB5CCNAME=FILE:/tmp/check-bob-cc kinit bob@AD.SHOP.TEST > /dev/null 2>&1 || { echo "bob's password gets him no ticket, so the refusal can't be told from a typo"; exit 0; }
+      kdestroy -q -c FILE:/tmp/check-bob-cc
+      sssctl user-checks bob@ad.shop.test -a acct -s login 2>&1 | grep -q 'pam_acct_mgmt: Permission denied' || { echo "lab's own rule for domain accounts doesn't refuse bob"; exit 0; }
+      if sshpass -p 'Bob-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l bob@ad.shop.test 127.0.0.1 true 2>/dev/null; then echo "bob logged in over SSH"; exit 0; fi
+      echo refused
+    expect:
+      equals: refused
+  - id: dc-still-strict
+    description: "dc1 still refuses a password sent over an unencrypted LDAP connection."
+    command: ldapsearch -x -o nettimeout=5 -H ldap://10.0.9.10 -D 'alice@ad.shop.test' -w 'Alice-Pass-1' -b 'DC=ad,DC=shop,DC=test' -s base dn 2>&1 | head -n 2
+    expect:
+      contains: "Strong(er) authentication required"
+  # A setting made only for this boot passes every check above until the
+  # next reboot: a drop-in or an environment file under /run (what
+  # systemctl edit --runtime writes), or systemctl set-environment, which
+  # hands a variable to every service until the machine restarts.
+  # wrong/runtime-only.sh proves it is caught.
+  - id: fixes-last
+    description: "It all lasts past a reboot: the site's resolver and SSSD start at boot, and nothing in their settings or SSH's was added only until the next boot."
+    command: |
+      for unit in dnsmasq sssd; do
+        [ "$(systemctl is-enabled "$unit" 2>/dev/null)" = enabled ] || { echo "$unit won't start at the next boot"; exit 0; }
+      done
+      runtime=$(systemctl show dnsmasq ssh ssh.socket sssd -p FragmentPath -p DropInPaths -p EnvironmentFiles --value | tr ' ' '\n' | grep '^/run/' | grep -v '^/run/systemd/generator' | tr '\n' ' ')
+      [ -z "$runtime" ] || { echo "settings that last only until the next boot: $runtime"; exit 0; }
+      if systemctl show-environment | grep -Eq '^(DNSMASQ_OPTS|SSHD_OPTS|KRB5_CONFIG)='; then echo "a setting handed to every service only until the next boot: $(systemctl show-environment | grep -E '^(DNSMASQ_OPTS|SSHD_OPTS|KRB5_CONFIG)=' | cut -d= -f1)"; exit 0; fi
+      echo lasts
+    expect:
+      equals: lasts
