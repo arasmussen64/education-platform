@@ -1,0 +1,16 @@
+id: mcq-vcpu-is-a-thread
+type: mcq
+rev: 1
+prompt: |
+  AWS's instance table (read 2026-11-11) lists `m5.xlarge` with 4 vCPUs, 2 CPU cores and 2 threads per core. A build runs four compute-heavy processes on it at once. What do the four processes run on?
+choices:
+  - "Four physical cores, one for each vCPU, so each process has a whole core to itself"
+  - "Two physical cores, with two of the processes on the two hardware threads of each"
+  - "One physical core, which the hypervisor slices four ways among the four processes"
+  - "Eight physical cores, of which the hypervisor shows only half to the guest system"
+answer: 1
+explanation: |
+  On most x86 cloud sizes a vCPU is one hardware thread, and a core presents two. So 4 vCPUs are 2 cores, and the four processes share them two to a core. Two threads on one core get more done than one, because one can use the core's parts while the other waits, but they share the core's arithmetic units and its first caches, so well short of twice as much. Four processes that all want to compute get much less than four cores' worth of work done.
+
+  The table says it outright (2 cores, 2 threads per core), and inside the VM `lscpu` says the same: `Core(s) per socket` × `Socket(s)` is the cores, and `Thread(s) per core` how many vCPUs share each one. "One vCPU, one core" is true on Arm sizes and a few AMD sizes, not here. The hypervisor doesn't slice one core four ways for a fixed-size instance, and it doesn't hide cores the guest is paying for.
+skills: [vcpu-to-core]

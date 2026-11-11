@@ -1,0 +1,30 @@
+id: est-cores-three-rows
+type: estimate
+rev: 1
+prompt: |
+  A team runs 4 of each of these, from AWS's instance table (read 2026-11-11):
+
+  | Size | vCPUs | Threads per core |
+  | --- | --- | --- |
+  | `m7i.xlarge` (Intel) | 4 | 2 |
+  | `m7g.xlarge` (Graviton, Arm) | 4 | 1 |
+  | `m7a.xlarge` (AMD) | 4 | 1 |
+
+  How many physical cores do the twelve instances have in all? Exactly.
+unit: cores
+answer: 40
+tolerance: { absolute: 0 }
+given: { count: 4, vcpus: 4, intel_threads: 2, graviton_threads: 1, amd_threads: 1 }
+working: count * vcpus / intel_threads + count * vcpus / graviton_threads + count * vcpus / amd_threads
+mistakes:
+  - id: all-cores
+    value: 48
+    working: 3 * count * vcpus
+    why: That counts every vCPU as a core. On the Intel size two vCPUs share each core.
+  - id: all-halved
+    value: 24
+    working: 3 * count * vcpus / 2
+    why: That halves every size. The Graviton and AMD sizes have one thread per core, so their vCPUs are whole cores.
+explanation: |
+  The Intel instances have 4 ÷ 2 = 2 cores each, 8 for four of them. The Graviton and the AMD instances have 4 cores each, 16 for each four. 8 + 16 + 16 = 40. The threads-per-core column is what to read: Arm sizes and AMD's M7a have one, most Intel sizes two.
+skills: [vcpu-to-core]

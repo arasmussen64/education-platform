@@ -1,0 +1,16 @@
+id: mcq-three-clouds-burst
+type: mcq
+rev: 1
+prompt: |
+  A job needs a whole CPU for ten minutes every hour. You try it on a small burstable size of each cloud: AWS's `t3.micro`, Azure's `Standard_B2ts_v2` and Google Cloud's `e2-micro` (each provider's pages, read 2026-11-11). Which statement is right?
+choices:
+  - "On the Google `e2-micro`, credits bank for 24 hours as on AWS, so the job finds a full bucket waiting each hour"
+  - "On the Azure B-series size, bursting is billed per vCPU-hour once credits run out, so the job never slows"
+  - "On the Google `e2-micro`, a burst at 100% lasts about 30 seconds, so the job spends its ten minutes held back"
+  - "On the AWS `t3.micro` in standard mode, surplus credits are billed, so the job never drops to its baseline"
+answer: 2
+explanation: |
+  Google's shared-core sizes have no bucket you can see. An `e2-micro` sustains each of its 2 vCPUs for 12.5% of the time and bursts above that for seconds, set by a token bucket: about 30 seconds at 100%. A ten-minute job spends nearly all of it held to its share. AWS's and Azure's buckets hold a day's earnings, which is the model the wrong Google choice describes.
+
+  Azure has no paid overdraft: a B-series VM out of credits is "throttled back to its base CPU performance". AWS bills surplus credits only in unlimited mode; standard mode comes down to the baseline when the bucket is empty. Three clouds, three different answers to "what happens at zero".
+skills: [burst-credits]

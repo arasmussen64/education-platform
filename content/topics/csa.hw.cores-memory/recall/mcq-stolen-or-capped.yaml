@@ -1,0 +1,16 @@
+id: mcq-stolen-or-capped
+type: mcq
+rev: 1
+prompt: |
+  An API on a fixed-size VM is slow in bursts. `vmstat 5` shows `st` 0, `id` 70 and `r` 1. The service's `cpu.stat` shows `nr_throttled` rising by about 50 every 10 seconds. Whose doing is it, and what helps?
+choices:
+  - "A neighbour on the host is taking its CPU time: move the VM to a dedicated host or a bigger size"
+  - "The VM's burst credits have run out for now: switch its credit mode or wait for them to come back"
+  - "The service's own CPU quota stops it in each period: raise or remove that limit on the service"
+  - "The VM has too few vCPUs for the work it has: resize it to the next size up in the same family"
+answer: 2
+explanation: |
+  Three numbers settle it. `st` 0: the host isn't taking anything, so it isn't a neighbour and it isn't spent credits, which show as steal. `id` 70 with `r` 1: the machine has CPU to spare and almost nothing waiting for it, so it isn't too small. `nr_throttled` climbing: the service's own cgroup quota runs out early in a period, and the kernel stops it until the next one (Module 1's CPU topic).
+
+  The quota is a cap of the machine's own making, so the fix is on the machine: raise or remove the service's `CPUQuota=`. A bigger VM wouldn't help, because the quota would still stop the service at the same point.
+skills: [stolen-or-capped]

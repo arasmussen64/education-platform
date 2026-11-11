@@ -1,0 +1,26 @@
+id: est-vcpus-busy-hours
+type: estimate
+rev: 1
+prompt: |
+  A VM with 8 vCPUs sends a week of CPU metrics, each a percentage of its 8 vCPUs: the average is 30%, the 95th percentile 45%, and the largest sample 90%. The sizing policy says that at the 95th percentile the work may use no more than 60% of the new machine's vCPUs. What is the fewest vCPUs the new machine may have? Exactly.
+unit: vCPUs
+answer: 6
+tolerance: { absolute: 0 }
+given: { vcpus: 8, average: 30, p95: 45, peak: 90, policy: 60 }
+working: vcpus * p95 / policy
+mistakes:
+  - id: from-the-average
+    value: 4
+    working: vcpus * average / policy
+    why: That sizes on the average. Half the week is busier than that, so the busy hours would run the new machine past the policy's 60%.
+  - id: from-the-peak
+    value: 12
+    working: vcpus * peak / policy
+    why: That sizes on the single busiest sample. One burst then sets the size, and the machine waits idle the rest of the week.
+  - id: no-headroom
+    value: 3.6
+    working: vcpus * p95 / 100
+    why: That is how many vCPUs the busy hours keep busy. The policy wants them to fill only 60% of the new machine, which leaves room for growth and short bursts.
+explanation: |
+  At the 95th percentile the work keeps 45% of 8 = 3.6 vCPUs busy. That may be at most 60% of the new machine, so it needs 3.6 ÷ 0.6 = 6 vCPUs. Sizes come in steps of 2, 4 and 8, so the next size up is 8: this VM is already the right size. A 4-vCPU machine would run its busy hours at 90%.
+skills: [right-size]

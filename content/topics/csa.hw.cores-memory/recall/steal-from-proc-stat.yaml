@@ -1,0 +1,19 @@
+id: steal-from-proc-stat
+type: predict_shell
+rev: 1
+prompt: |
+  `before.txt` and `after.txt` are the first line of `/proc/stat` on a 2-vCPU burstable VM, a minute apart (constructed numbers). After `cpu` come ticks since boot: user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice. `paste` puts the two lines side by side, so field `i` of the first matches field `i + 11` of the second; the `awk` adds up how much the first eight counters grew, keeps the growth of the eighth, steal, and prints it as a share. What is printed?
+files:
+  before.txt: |
+    cpu  210000 0 30000 900000 4000 0 1000 55000 0 0
+  after.txt: |
+    cpu  212160 0 30240 900000 4000 0 1000 64600 0 0
+command: |
+  paste before.txt after.txt | awk '{for (i = 2; i <= 9; i++) {d = $(i + 11) - $i; t += d; if (i == 9) s = d}} END {print "steal:", s * 100 / t "%"}'
+expected_output: |
+  steal: 80%
+explanation: |
+  In the minute, user grew by 2,160 ticks, system by 240 and steal by 9,600; idle didn't grow at all. 2 vCPUs × 60 seconds × 100 ticks is 12,000, and 9,600 of them are steal: 80%. The VM wanted both vCPUs the whole time (no idle) and got 20% of them. That is a burstable VM held to a 20% baseline with its credits spent: the hypervisor runs it a fifth of the time and counts the rest as stolen. Nothing inside the VM can win that time back; a fixed-size instance, or unlimited mode, can.
+
+  The totals since boot say much less: steal is 55,000 of 1.2 million ticks before, under 5%. One reading is history; the difference between two is now.
+skills: [stolen-or-capped, burst-credits]

@@ -1,0 +1,20 @@
+id: slice-lscpu-cores
+type: predict_shell
+rev: 1
+prompt: |
+  `lscpu.txt` holds five lines of `lscpu` from a cloud VM sold as 16 vCPUs. The `awk` splits each line at the colon and its spaces (`-F': *'`), keeps three of the numbers, and multiplies them at the end. What is printed?
+files:
+  lscpu.txt: |
+    CPU(s):                16
+    Thread(s) per core:    2
+    Core(s) per socket:    8
+    Socket(s):             1
+    NUMA node(s):          1
+command: |
+  awk -F': *' '/^Core\(s\) per socket/ {c = $2} /^Socket\(s\)/ {s = $2} /^Thread\(s\) per core/ {t = $2} END {print "physical cores:", c * s; print "hardware threads:", c * s * t}' lscpu.txt
+expected_output: |
+  physical cores: 8
+  hardware threads: 16
+explanation: |
+  Cores per socket times sockets is the physical cores: 8 × 1 = 8. Times threads per core is the hardware threads, which Linux counts as CPUs and the provider sold as vCPUs: 8 × 2 = 16, the same as the `CPU(s)` line. So "16 vCPUs" here is 8 cores, each running two threads. A job that wants a whole core per worker should run 8 workers, not 16.
+skills: [vcpu-to-core]

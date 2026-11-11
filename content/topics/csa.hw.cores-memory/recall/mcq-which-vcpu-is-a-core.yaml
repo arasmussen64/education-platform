@@ -1,0 +1,14 @@
+id: mcq-which-vcpu-is-a-core
+type: mcq
+rev: 1
+prompt: |
+  A compute-heavy job needs 8 physical cores, and you want to pay for 8 vCPUs, not 16. AWS's instance table (read 2026-11-11) gives each size's vCPUs, cores and threads per core. Which choice gives 8 whole cores from 8 vCPUs?
+choices:
+  - "An Intel size such as AWS `m7i.2xlarge`, where each of its 8 vCPUs is a whole core"
+  - "An Arm size such as AWS `m8g.2xlarge`, where each of its 8 vCPUs is a whole core"
+  - "A burstable size such as AWS `t3.2xlarge`, where each of its 8 vCPUs is a whole core"
+  - "Any 8-vCPU size at all, as every provider counts each vCPU as a whole core"
+answer: 1
+explanation: |
+  `m8g.2xlarge` runs on Graviton4: 8 vCPUs, 8 cores, 1 thread per core. `m7i.2xlarge` and `t3.2xlarge` are both 8 vCPUs on 4 cores with 2 threads each, because Intel's server chips present two threads per core and AWS counts each as a vCPU. Providers count threads, not cores, wherever the chip has two, so "8 vCPUs" is 4 cores on most x86 sizes and 8 on Arm (and on a few AMD families, such as AWS's M7a).
+skills: [vcpu-to-core]

@@ -1,0 +1,22 @@
+id: est-smt-off-vcpus
+type: estimate
+rev: 1
+prompt: |
+  On Azure, a hyper-threaded VM size has 2 threads per core, each one a vCPU (Microsoft's guidance, read 2026-11-11). A team creates a 16-vCPU hyper-threaded size with threads per core set to 1, for a job that wants whole cores. How many vCPUs does the VM's operating system then see? Exactly.
+unit: vCPUs
+answer: 8
+tolerance: { absolute: 0 }
+given: { vcpus: 16, threads: 2 }
+working: vcpus / threads
+mistakes:
+  - id: unchanged
+    value: 16
+    working: vcpus
+    why: Setting one thread per core takes away the second thread of every core, and each thread was a vCPU.
+  - id: doubled
+    value: 32
+    working: vcpus * threads
+    why: Turning hyper-threading off never adds vCPUs. Each core keeps one of its two threads.
+explanation: |
+  16 vCPUs on a hyper-threaded size are 8 cores of 2 threads. With one thread per core, the VM keeps 8 vCPUs, each now a whole core. Microsoft's page on the setting says the base price stays that of the full size, so it pays only when one thread per core makes the job faster.
+skills: [vcpu-to-core]

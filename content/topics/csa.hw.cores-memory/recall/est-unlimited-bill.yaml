@@ -1,0 +1,30 @@
+id: est-unlimited-bill
+type: estimate
+rev: 1
+prompt: |
+  A `t3.large` (2 vCPUs, a baseline of 30% a vCPU) runs both vCPUs at 100% for a whole month in unlimited mode. Use 730 hours a month.
+
+  | AWS, unlimited mode, read 2026-11-11 | Price |
+  | --- | --- |
+  | Surplus CPU credits, T3, Linux | $0.05 a vCPU-hour, the same in every region |
+
+  What is the month's charge for surplus credits, on top of the instance's hourly price? Within 1%.
+unit: US dollars
+answer: 51.10
+tolerance: { percent: 1 }
+given: { vcpus: 2, baseline: 30, hours: 730, rate: 0.05 }
+working: vcpus * (100 - baseline) / 100 * hours * rate
+mistakes:
+  - id: whole-cpu
+    value: 73.00
+    working: vcpus * hours * rate
+    why: That charges for all of each vCPU. The baseline's 30% is paid for in the hourly price; only the 70% above it is surplus.
+  - id: one-vcpu
+    value: 25.55
+    working: (100 - baseline) / 100 * hours * rate
+    why: That is one vCPU's worth. Both of its 2 vCPUs run above the baseline.
+explanation: |
+  Above the baseline it uses 2 × 70% = 1.4 vCPUs' worth every hour. 1.4 × 730 hours × $0.05 = $51.10 a month. AWS's own page puts it another way: a T3 that bursts at 100% all the time costs about 1.5 times an M5 of the same size, which is when a fixed-size instance is the better buy.
+skills: [burst-credits]
+prices_as_of: 2026-11-11
+prices_source: https://aws.amazon.com/ec2/pricing/on-demand/

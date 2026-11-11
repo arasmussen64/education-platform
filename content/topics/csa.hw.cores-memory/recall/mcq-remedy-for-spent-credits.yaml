@@ -1,0 +1,16 @@
+id: mcq-remedy-for-spent-credits
+type: mcq
+rev: 1
+prompt: |
+  A reporting job runs flat out for six hours a night on Azure's `Standard_B2s_v2` (2 vCPUs, base CPU performance 40%; Microsoft's Bsv2 table, read 2026-11-11). By its second hour the VM's "CPU Credits Remaining" metric is 0, and the job takes three times as long as it does on a laptop. Which change addresses the cause?
+choices:
+  - "Raise the job's priority with `nice`, since a higher priority gets more of the CPU"
+  - "Remove the CPU quota on the job's service, since the quota is what is throttling it"
+  - "Move the job to a fixed-size VM with the same vCPUs, since it needs CPU all night"
+  - "Add a second data disk to the VM, since the job is waiting on its disk's allowance"
+answer: 2
+explanation: |
+  A B-series VM out of credits is "throttled back to its base CPU performance", 40% of each vCPU here, by Azure, outside the VM. Six hours flat out is far above the baseline every night, so the bucket will always run dry; the fix is a size that gives a whole vCPU all the time, which a fixed-size VM does.
+
+  `nice` only orders the work inside the VM, and the VM as a whole is what's held back. Nothing in the story points at a cgroup quota or at a disk: the credit metric at 0 is the evidence.
+skills: [stolen-or-capped, burst-credits]

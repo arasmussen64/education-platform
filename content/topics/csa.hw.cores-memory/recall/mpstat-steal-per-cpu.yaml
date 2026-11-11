@@ -1,0 +1,26 @@
+id: mpstat-steal-per-cpu
+type: predict_shell
+rev: 1
+prompt: |
+  `mpstat.txt` is `mpstat -P ALL 5 1` on a slow 2-vCPU VM, in Ubuntu 24.04's layout (constructed numbers): one line per CPU, a line for all of them together, and the same again as `Average:` lines. `%steal` is the ninth field. The `awk` skips the `Average:` lines and keeps the lines whose second field is a CPU number. What is printed?
+files:
+  mpstat.txt: |
+    Linux 6.8.0-1017-aws (shop-report) 	11/04/26 	_x86_64_	(2 CPU)
+
+    09:14:05     CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
+    09:14:10     all   34.10    0.00    5.60    0.00    0.00    0.30   60.00    0.00    0.00    0.00
+    09:14:10       0   33.40    0.00    5.20    0.00    0.00    0.20   61.20    0.00    0.00    0.00
+    09:14:10       1   34.80    0.00    6.00    0.00    0.00    0.40   58.80    0.00    0.00    0.00
+
+    Average:     CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle
+    Average:     all   34.10    0.00    5.60    0.00    0.00    0.30   60.00    0.00    0.00    0.00
+    Average:       0   33.40    0.00    5.20    0.00    0.00    0.20   61.20    0.00    0.00    0.00
+    Average:       1   34.80    0.00    6.00    0.00    0.00    0.40   58.80    0.00    0.00    0.00
+command: |
+  awk '$1 != "Average:" && $2 ~ /^[0-9]+$/ {print "cpu" $2, $9}' mpstat.txt
+expected_output: |
+  cpu0 61.20
+  cpu1 58.80
+explanation: |
+  Both vCPUs lose about 60% of their time to the hypervisor, and neither is idle. When every vCPU is robbed alike, the limit is on the whole VM, which is what a burstable instance out of credits looks like: the host runs it only for its baseline share. One unlucky vCPU with high steal and the rest normal would point instead at a busy host. Either way, nothing inside the VM gets the time back.
+skills: [stolen-or-capped]

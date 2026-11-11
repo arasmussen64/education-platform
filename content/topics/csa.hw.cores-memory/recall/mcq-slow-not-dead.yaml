@@ -1,0 +1,16 @@
+id: mcq-slow-not-dead
+type: mcq
+rev: 1
+prompt: |
+  A cache service answers a hundred times slower than yesterday. It is `active`, the kernel log has no out-of-memory line, `st` is 0, and its `memory.events` shows `high` rising by hundreds a minute while `memory.current` stays level at 64 MB. What is happening?
+choices:
+  - "It has hit its `memory.max` wall, so the kernel keeps killing it and systemd restarts it"
+  - "It has used its CPU quota, so the kernel stops it for the rest of each 100 ms period"
+  - "It is over its `memory.high` throttle, so the kernel keeps slowing it to take pages back"
+  - "It is losing CPU to the host, so the kernel can only run it when a neighbour is idle"
+answer: 2
+explanation: |
+  `memory.high` is a throttle, not a wall. When a group goes over it, the kernel slows its processes down and makes them give memory back (to swap, if there is any), and counts each time as `high` in `memory.events`. The service stays alive, its memory stays pinned at the throttle, and every page it needs again has to be fetched back. That's how a service ends up a hundred times slower and still `active`. The fix is a `MemoryHigh=` above what it really uses, keeping a `MemoryMax=` wall if it needs one.
+
+  Hitting `memory.max` would leave an out-of-memory line and a restart. A CPU quota shows as `nr_throttled` in `cpu.stat`, and CPU taken by the host as `st`, which is 0.
+skills: [stolen-or-capped]

@@ -1,0 +1,22 @@
+id: est-minutes-to-empty
+type: estimate
+rev: 1
+prompt: |
+  Azure's `Standard_B2ts_v2` has 2 vCPUs, a base CPU performance of 20%, and starts with 60 credits (Microsoft's Bsv2 table, read 2026-11-11). Microsoft's formula for the credits banked each minute is ((base × vCPUs) − (CPU % × vCPUs)) ÷ 100, so a negative number is credits spent. A job runs both vCPUs at 100% from the moment the VM starts. After how many minutes are its credits gone? Within 1 minute.
+unit: minutes
+answer: 37.5
+tolerance: { absolute: 1 }
+given: { vcpus: 2, base: 20, start: 60, cpu: 100 }
+working: start / ((cpu * vcpus - base * vcpus) / 100)
+mistakes:
+  - id: ignores-earning
+    value: 30
+    working: start / (cpu * vcpus / 100)
+    why: That leaves out what it earns while it runs. It still banks its baseline, 0.4 a minute, so it loses 1.6 a minute, not 2.
+  - id: earning-rate
+    value: 150
+    working: start / (base * vcpus / 100)
+    why: That divides by what it earns, 0.4 a minute. What empties the bucket is the net loss, 2 spent less 0.4 earned.
+explanation: |
+  Each minute: ((20 × 2) − (100 × 2)) ÷ 100 = −1.6 credits. 60 ÷ 1.6 = 37.5 minutes. Then Azure throttles it back to its base performance, 20% of each vCPU, until it banks credits again.
+skills: [burst-credits]
