@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react'
 import { STAGES } from '../content/stages.ts'
 import type { TopicContent } from '../content/types.ts'
+import { checkCorrect } from '../events/checkGrade.ts'
 import {
   checkEventData,
   clip,
@@ -14,7 +15,6 @@ import { useRecordEvent } from '../events/useEvents.ts'
 import { labEventData } from '../labs/result.ts'
 import { PLACE_ATTRIBUTE } from '../place/useCurrentPlace.ts'
 import { type ItemState, ITEM_STATE_LABELS } from '../progress/itemStates.ts'
-import { allChecksPassed } from '../python/runner.ts'
 import { ReportProblem } from '../reports/ReportProblem.tsx'
 import { type ExerciseActivity, ExerciseView } from './ExerciseView.tsx'
 import { McqQuestion } from './McqQuestion.tsx'
@@ -180,6 +180,8 @@ export function PracticeItem({
     )
   const timer = useAttemptTimer()
   const [shown, setShown] = useState(false)
+  // True after a Check that couldn't run, until the next one that does.
+  const [checkNotRun, setCheckNotRun] = useState(false)
   const rev = (content.recall[itemId] ?? content.exercises[itemId])?.rev
   const about = {
     topic_id: content.topic.id,
@@ -260,17 +262,26 @@ export function PracticeItem({
         onCheck?.(passed)
         onGraded?.(passed)
       } else {
-        const passed = allChecksPassed(activity.outcome)
+        // Undefined when the Check couldn't run (see checkGrade.ts).
+        const correct = checkCorrect(activity.outcome)
+        const ran = correct !== undefined
         record({
           ...about,
           type: 'code_check',
-          correct: passed,
-          duration_ms: timer.lap(),
+          correct,
+          // A Check that couldn't run isn't an attempt, so the time so far
+          // carries on to the next one.
+          duration_ms: ran ? timer.lap() : null,
           hints_used: activity.hintsUsed,
           data: checkEventData(activity.code, activity.outcome),
         })
-        onCheck?.(passed)
-        onGraded?.(passed)
+        setCheckNotRun(!ran)
+        // It says nothing about the learner, so a review doesn't rate it and
+        // a checkpoint doesn't count it as a failed try.
+        if (ran) {
+          onCheck?.(correct)
+          onGraded?.(correct)
+        }
       }
     },
   })
@@ -323,6 +334,11 @@ export function PracticeItem({
       ) : (
         item.body
       )}
+      {/* <output> is announced by screen readers when its text changes. */}
+      <output className="block text-sm text-slate-600 dark:text-slate-400">
+        {checkNotRun &&
+          "That Check couldn't run, so it doesn't count for or against you. Press Check to try again."}
+      </output>
       <ReportProblem
         about={{ topicId: content.topic.id, itemId, itemRev: rev }}
       />
