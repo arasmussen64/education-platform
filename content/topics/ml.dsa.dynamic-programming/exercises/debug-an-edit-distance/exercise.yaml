@@ -1,9 +1,9 @@
 id: debug-an-edit-distance
 stage: debug
-rev: 1
+rev: 2
 title: "An edit distance that is too cheap"
 prompt: |
-  `edit_distance(a, b)` should print the distance for four pairs:
+  `edit_distance(a, b)` should be the fewest single-character inserts, deletes and substitutions that turn `a` into `b`, worked out with a table. The program prints it for four pairs:
 
   ```
   'kitten' -> 'sitting' 3
@@ -12,5 +12,9 @@ prompt: |
   'same' -> 'same' 0
   ```
 
-  It has two bugs. Run it: the empty string to `abc` costs 0 and kitten to sitting only 6, because the table's first row and column are never filled in: turning the first `i` characters into nothing costs `i` deletes, and nothing into the first `j` characters costs `j` inserts. Fix that, and `same` to `same` costs 4 and kitten to sitting 7: the diagonal step charges a substitution even when the two characters already match, and a match should cost nothing.
+  Instead every distance is wrong: the empty string to `abc` costs 0, and `same` to `same` costs 4. It has two bugs. Run it, fix what you find, and run it again; then run the checks, which try more pairs.
+hints:
+  - "Fill in the table's first row and column by hand: they hold the cost of turning the first `i` characters into nothing, and nothing into the first `j`. Does the program ever fill them?"
+  - "Turning `i` characters into nothing takes `i` deletes, and nothing into `j` characters takes `j` inserts: `table[i][0] = i` and `table[0][j] = j`."
+  - "`same` to `same` should cost 0. The diagonal step adds `cost` for a substitution: what should that be when `a[i - 1]` and `b[j - 1]` already match?"
 skills: [edit-distance]
