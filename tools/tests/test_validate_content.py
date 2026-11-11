@@ -1,5 +1,6 @@
 """The validator must accept good content and catch each kind of mistake."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -15,7 +16,7 @@ from content_fixture import (
     make_valid_tree,
     write,
 )
-from validate_content import validate
+from validate_content import main, validate
 
 TOPIC_DIR = "content/topics/t.hello"
 
@@ -865,3 +866,136 @@ def test_diagnostic_mistakes_are_caught(tree: Path) -> None:
     assert_reported(
         tree, "item 'count-2': the explanation says 'first answer'", run=False
     )
+
+
+# --- Multiple-choice answer lengths (mcq_lengths.py) --------------------------
+
+BASELINE = "tools/mcq_length_baseline.yaml"
+
+
+def write_mcq(tree: Path, item_id: str, right: str, *wrong: str) -> None:
+    """Add a multiple-choice item to the fixture's topic. The right answer is
+    written first; the validator doesn't care where it sits."""
+    write(
+        tree,
+        f"{TOPIC_DIR}/recall/{item_id}.yaml",
+        f"id: {item_id}\ntype: mcq\nrev: 1\nprompt: What does print do?\n"
+        f"choices: {json.dumps([right, *wrong])}\nanswer: 0\n"
+        "explanation: print shows its argument.\nskills: [print-text]\n",
+    )
+
+
+def test_a_right_answer_far_longer_than_the_wrong_ones_is_caught(tree: Path) -> None:
+    write_mcq(tree, "mcq-print", "It shows its argument on the screen", "Nothing", "x")
+    assert_reported(
+        tree,
+        "recall/mcq-print.yaml: the right answer is 35 characters and the "
+        "longest wrong choice 7: more than 1.5 times as long",
+        "Cut the right answer down to the claim itself",
+        run=False,
+    )
+
+
+def test_a_right_answer_a_little_longer_is_fine(tree: Path) -> None:
+    write_mcq(tree, "mcq-print", "It shows its argument", "It returns a string")
+    assert problems(tree, run=False) == []
+
+
+def test_a_topic_where_the_long_one_is_usually_right_is_caught(tree: Path) -> None:
+    # With the fixture's own item, whose right answer is its shortest choice,
+    # two more long right answers make two of three: too few items to judge.
+    write_mcq(tree, "mcq-long-1", "It shows the text", "It hides text")
+    write_mcq(tree, "mcq-long-2", "It shows the text", "It hides text")
+    assert problems(tree, run=False) == []
+    # A third makes three of four, which is more than half.
+    write_mcq(tree, "mcq-long-3", "It shows the text", "It hides text")
+    assert_reported(
+        tree,
+        "t.hello/topic.yaml: the right answer is the longest choice in 3 of the "
+        "topic's 4 multiple-choice items (mcq-long-1, mcq-long-2, mcq-long-3)",
+        run=False,
+    )
+    # Half is allowed: make one of them the shorter choice.
+    write_mcq(tree, "mcq-long-3", "It shows text", "It hides the text")
+    assert problems(tree, run=False) == []
+
+
+def test_the_baseline_tolerates_what_it_lists(tree: Path) -> None:
+    write_mcq(tree, "mcq-print", "It shows its argument on the screen", "Nothing")
+    for n in (1, 2, 3):
+        write_mcq(tree, f"mcq-long-{n}", "It shows the text", "It hides text")
+    assert len(problems(tree, run=False)) == 2
+    write(tree, BASELINE, "items:\n  - t.hello/mcq-print\ntopics:\n  - t.hello\n")
+    assert problems(tree, run=False) == []
+
+
+def test_a_fixed_baseline_entry_must_be_removed(tree: Path) -> None:
+    # The fixture's item doesn't break the rule, so listing it is a mistake.
+    write(tree, BASELINE, "items:\n  - t.hello/mcq-print\ntopics:\n  - t.hello\n")
+    assert_reported(
+        tree,
+        f"{BASELINE}: lists the item 't.hello/mcq-print', which no longer breaks",
+        f"{BASELINE}: lists the topic 't.hello', which no longer breaks",
+        "remove its line, or run: python -m uv run python "
+        "tools/validate_content.py --write-mcq-baseline",
+        run=False,
+    )
+
+
+def test_the_baseline_never_covers_the_cloud_track(tree: Path) -> None:
+    write(tree, BASELINE, "items:\n  - csa.linux.shell/mcq-pipes\n")
+    assert_reported(
+        tree,
+        f"{BASELINE}: lists 'csa.linux.shell/mcq-pipes', but nothing from the "
+        "cloud track (csa.*) may be on the baseline",
+        run=False,
+    )
+
+
+def test_a_baseline_that_cannot_be_read_is_reported(tree: Path) -> None:
+    write(tree, BASELINE, "items: t.hello/mcq-print\n")
+    assert_reported(tree, f"{BASELINE}: items must be a list of names", run=False)
+
+
+def test_diagnostic_items_follow_the_length_rule_too(tree: Path) -> None:
+    write(
+        tree,
+        "content/diagnostics/math.yaml",
+        DIAGNOSTIC.replace('choices: ["3", "4"]', 'choices: ["3", "4, two twos"]'),
+    )
+    assert_reported(
+        tree,
+        "diagnostics/math.yaml: item 'count-1': the right answer is 11 "
+        "characters and the longest wrong choice 1",
+        run=False,
+    )
+    write(tree, BASELINE, "items:\n  - diagnostics/math/count-1\n")
+    assert problems(tree, run=False) == []
+
+
+def test_the_baseline_command_writes_the_list_and_then_only_shrinks_it(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_mcq(tree, "mcq-print", "It shows its argument on the screen", "Nothing")
+    assert len(problems(tree, run=False)) == 1
+
+    assert main(["--root", str(tree), "--write-mcq-baseline"]) == 0
+    assert "It now lists 1 items and 0 topics." in capsys.readouterr().out
+    assert "  - t.hello/mcq-print\n" in (tree / BASELINE).read_text(encoding="utf-8")
+    assert problems(tree, run=False) == []
+
+    # The item is fixed and another one goes wrong. The fixed one comes off
+    # the list; the new one is never added, so it stays a problem.
+    write_mcq(tree, "mcq-print", "It shows its argument", "It returns a string")
+    write_mcq(tree, "mcq-new", "It shows its argument on the screen", "Nothing")
+    assert len(problems(tree, run=False)) == 2
+    assert main(["--root", str(tree), "--write-mcq-baseline"]) == 0
+    said = capsys.readouterr().out
+    assert "removed 1 entries" in said
+    assert "1 items or topics break a rule and aren't on the list" in said
+    assert (
+        (tree / BASELINE)
+        .read_text(encoding="utf-8")
+        .endswith("items: []\ntopics: []\n")
+    )
+    assert_reported(tree, "recall/mcq-new.yaml: the right answer is", run=False)

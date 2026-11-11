@@ -18,6 +18,10 @@ It checks:
   decoy put in place of a line, may run and print the same output (ADR-0016);
 - that a multiple-choice explanation never names a choice by its position,
   because the app shuffles the choices;
+- that a multiple-choice item's right answer doesn't stand out by its length:
+  not over 1.5 times the longest wrong choice, and not the longest choice in
+  more than half of a topic's items (mcq_lengths.py, which also explains the
+  baseline of older items and --write-mcq-baseline);
 - by running every predict_shell item's command in real bash (ADR-0017), in
   a temporary folder holding the item's files, and checking what it prints.
 - the diagnostics the placement test walks (ADR-0021): their shape and ids.
@@ -43,6 +47,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import mcq_lengths
 import parsons_orders
 import yaml
 from content_model import (
@@ -84,6 +89,9 @@ class Report:
     root: Path
     problems: list[str] = field(default_factory=list)
     counts: Counter[str] = field(default_factory=Counter)
+    # Every item and topic that breaks an answer-length rule, including the
+    # ones the baseline tolerates: what --write-mcq-baseline writes from.
+    long_answers: mcq_lengths.Offenders = field(default_factory=mcq_lengths.Offenders)
 
     def add(self, path: Path, message: str) -> None:
         where = path.relative_to(self.root).as_posix()
@@ -1038,6 +1046,40 @@ def choice_named_by_position(item: McqItem) -> str | None:
     )
 
 
+# --- Multiple-choice answer lengths (mcq_lengths.py) ---------------------------------
+
+
+def find_long_answers(folder: TopicFolder, found: mcq_lengths.Offenders) -> None:
+    """Note each of the topic's multiple-choice items whose right answer is
+    far longer than its wrong ones, and the topic itself if its right answers
+    are usually the longest. Whether they're problems is decided at the end,
+    once the baseline of older items has been read."""
+    items = [item for item in folder.recall.values() if isinstance(item, McqItem)]
+    for item in items:
+        problem = mcq_lengths.item_problem(item)
+        if problem:
+            key = mcq_lengths.item_key(folder.topic.id, item.id)
+            found.items[key] = (folder.path / "recall" / f"{item.id}.yaml", problem)
+    problem = mcq_lengths.topic_problem(items)
+    if problem:
+        found.topics[folder.topic.id] = (folder.path / "topic.yaml", problem)
+
+
+def report_long_answers(report: Report) -> None:
+    """Report the long answers the baseline doesn't tolerate, and the
+    baseline's own mistakes: an entry that's fixed, or one from the cloud
+    track."""
+    baseline_file = report.root / mcq_lengths.BASELINE
+    try:
+        baseline = mcq_lengths.read_baseline(baseline_file)
+    except mcq_lengths.BadBaseline as exc:
+        report.add(baseline_file, str(exc))
+        baseline = mcq_lengths.Baseline()
+    found = report.long_answers
+    for path, message in mcq_lengths.problems(found, baseline, baseline_file):
+        report.add(path, message)
+
+
 # --- Putting it together ---------------------------------------------------------
 
 
@@ -1067,6 +1109,15 @@ def check_diagnostics(
                 problem = choice_named_by_position(item)
                 if problem:
                     report.add(path, f"item {item.id!r}: {problem}")
+                # A level has too few items for the topic rule, so only the
+                # item rule applies to a diagnostic.
+                problem = mcq_lengths.item_problem(item)
+                if problem:
+                    key = mcq_lengths.diagnostic_key(diagnostic.id, item.id)
+                    report.long_answers.items[key] = (
+                        path,
+                        f"item {item.id!r}: {problem}",
+                    )
 
 
 def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
@@ -1105,6 +1156,7 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
             check_ready_topic(folder, report)
             if folder.topic.kind == "checkpoint":
                 check_ready_checkpoint(folder, topics, place, report)
+        find_long_answers(folder, report.long_answers)
         for item_path_id, item in folder.recall.items():
             report.counts["recall items"] += 1
             item_path = folder.path / "recall" / f"{item_path_id}.yaml"
@@ -1125,8 +1177,33 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
             check_exercise(exercise_folder, exercise, report, run, labs)
 
     check_diagnostics(content, topics, report)
+    report_long_answers(report)
     report.counts["topics"] = len(topics)
     return report
+
+
+def write_mcq_baseline(root: Path) -> int:
+    """Write tools/mcq_length_baseline.yaml from the content as it is now.
+
+    Nothing is run. The first time, the file lists every item and topic that
+    breaks an answer-length rule; after that, the command only removes the
+    entries that have been fixed (mcq_lengths.write_baseline).
+    """
+    found = validate(root, run=False).long_answers
+    baseline_file = root / mcq_lengths.BASELINE
+    try:
+        print(mcq_lengths.write_baseline(baseline_file, found))
+        baseline = mcq_lengths.read_baseline(baseline_file)
+    except mcq_lengths.BadBaseline as exc:
+        print(f"{mcq_lengths.BASELINE.as_posix()}: {exc}")
+        return 1
+    left = mcq_lengths.problems(found, baseline, baseline_file)
+    if left:
+        print(
+            f"{len(left)} items or topics break a rule and aren't on the list, "
+            "so they need fixing. Run the validator to see them."
+        )
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1137,8 +1214,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="also prove every lab's contract in Docker (slow; CI does this)",
     )
+    parser.add_argument(
+        "--write-mcq-baseline",
+        action="store_true",
+        help="write the list of older multiple-choice items whose answer length "
+        "the validator tolerates, or drop its fixed entries, and stop "
+        "(tools/mcq_lengths.py)",
+    )
     parser.add_argument("--root", type=Path, default=ROOT, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+
+    if args.write_mcq_baseline:
+        return write_mcq_baseline(args.root)
 
     report = validate(args.root, run=not args.no_run, labs=args.labs)
     c = report.counts
