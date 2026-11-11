@@ -3,18 +3,23 @@
 from pathlib import Path
 
 import pytest
+import yaml
 from content_fixture import (
     CHECKPOINT,
     CHECKPOINT_DIR,
+    CHECKPOINT_EXERCISES,
     MCQ,
     READY_CHECKPOINT,
     TOPIC,
     TRACK,
+    add_checkpoint_exercise,
     exercise_yaml,
+    make_checkpoint_with_parts,
     make_ready_checkpoint,
     make_valid_tree,
     write,
 )
+from content_model import Topic
 from validate_content import validate
 
 TOPIC_DIR = "content/topics/t.hello"
@@ -770,6 +775,152 @@ def test_topics_and_checkpoints_keep_to_their_own_fields(checkpoint: Path) -> No
         "only checkpoints have unstuck",
         run=False,
     )
+
+
+# --- Checkpoints: further parts (ADR-0012, amended 2026-11-11) ---------------
+
+
+@pytest.fixture
+def with_parts(tree: Path) -> Path:
+    return make_checkpoint_with_parts(tree)
+
+
+def set_parts(root: Path, more: str) -> None:
+    """Gives the ready checkpoint these further parts, written as YAML."""
+    write(
+        root,
+        f"{CHECKPOINT_DIR}/topic.yaml",
+        READY_CHECKPOINT.replace("  explain:", more + "  explain:"),
+    )
+
+
+def test_a_checkpoint_with_further_parts_has_no_problems(with_parts: Path) -> None:
+    # Its parts and their versions run like any other exercise.
+    report = validate(with_parts)
+    assert report.problems == []
+    assert report.counts["exercises"] == 6 + len(CHECKPOINT_EXERCISES) + 3
+
+
+def test_checkpoints_without_further_parts_need_none() -> None:
+    # Every checkpoint written before prove.more existed leaves it out.
+    topic = Topic.model_validate(yaml.safe_load(READY_CHECKPOINT))
+    assert topic.prove.more == []
+    assert topic.prove.more_items() == []
+
+
+def test_further_parts_must_exist(with_parts: Path) -> None:
+    set_parts(
+        with_parts,
+        "  more:\n    - id: build-gone\n      versions: [build-gone-b]\n",
+    )
+    assert_reported(
+        with_parts,
+        "names 'build-gone', which doesn't exist",
+        "names 'build-gone-b', which doesn't exist",
+        "prove.more part 'build-gone' must be a build or debug exercise",
+        run=False,
+    )
+
+
+def test_a_further_part_is_a_build_or_a_debug(with_parts: Path) -> None:
+    add_checkpoint_exercise(with_parts, "fill-extra", "fill_in")
+    set_parts(with_parts, "  more:\n    - id: fill-extra\n")
+    assert_reported(
+        with_parts,
+        "prove.more part 'fill-extra' must be a build or debug exercise, "
+        "but it's a fill_in",
+        run=False,
+    )
+
+
+def test_each_version_is_the_same_kind_as_its_part(with_parts: Path) -> None:
+    add_checkpoint_exercise(with_parts, "debug-badge-b", "debug")
+    set_parts(
+        with_parts,
+        "  more:\n    - id: build-badge\n      versions: [debug-badge-b]\n",
+    )
+    assert_reported(
+        with_parts,
+        "prove.more version 'debug-badge-b' must be a build, "
+        "like its part 'build-badge'",
+        run=False,
+    )
+
+
+def test_a_build_part_needs_a_fresh_version(with_parts: Path) -> None:
+    # A debug part needs none: the fixture's debug-badge has none.
+    set_parts(with_parts, "  more:\n    - id: build-badge\n    - id: debug-badge\n")
+    found = problems(with_parts, run=False)
+    assert found == [
+        f"{CHECKPOINT_DIR}/topic.yaml: prove.more part 'build-badge' is a build, "
+        "so it needs at least 1 fresh version in versions: the same skills in "
+        "another story"
+    ]
+
+
+def test_every_test_of_a_further_part_names_its_skills(with_parts: Path) -> None:
+    for item_id in ("build-badge-b", "debug-badge"):
+        replace_in(
+            with_parts,
+            f"{CHECKPOINT_DIR}/exercises/{item_id}/exercise.yaml",
+            "test_skills:\n  test_says_hello: [t.hello/print-text]\n",
+            "",
+        )
+    assert_reported(
+        with_parts,
+        "build-badge-b/exercise.yaml: every test needs the skills it checks",
+        "debug-badge/exercise.yaml: every test needs the skills it checks",
+        run=False,
+    )
+
+
+def test_a_further_part_names_real_skills(with_parts: Path) -> None:
+    # Checked whatever the checkpoint's status, like the build's own.
+    replace_in(
+        with_parts,
+        f"{CHECKPOINT_DIR}/exercises/build-badge/exercise.yaml",
+        "[t.hello/print-text]",
+        "[t.hello/print-txet]",
+    )
+    assert_reported(with_parts, "t.hello doesn't declare skill 'print-txet'", run=False)
+
+
+@pytest.mark.parametrize(
+    ("more", "message"),
+    [
+        (
+            "  more:\n    - id: build-card\n",
+            "prove names build-card more than once",
+        ),
+        (
+            "  more:\n    - id: build-badge\n      versions: [debug-badge]\n"
+            "    - id: debug-badge\n",
+            "prove names debug-badge more than once",
+        ),
+        (
+            "  more:\n    - id: build-badge\n      versions: [build-card-b]\n",
+            "prove.more names build-card-b, which unstuck names too",
+        ),
+        (
+            "  more:\n    - id: step-read\n",
+            "prove.more names step-read, which unstuck names too",
+        ),
+    ],
+)
+def test_a_further_part_is_an_exercise_of_its_own(
+    with_parts: Path, more: str, message: str
+) -> None:
+    set_parts(with_parts, more)
+    assert_reported(with_parts, message, run=False)
+
+
+def test_only_checkpoints_have_further_parts(tree: Path) -> None:
+    write(
+        tree,
+        f"{TOPIC_DIR}/topic.yaml",
+        TOPIC.replace("  explain:", "  more:\n    - id: write-hello\n  explain:"),
+    )
+    assert_reported(tree, "only checkpoints have prove.more", run=False)
 
 
 DIAGNOSTIC = """id: math
