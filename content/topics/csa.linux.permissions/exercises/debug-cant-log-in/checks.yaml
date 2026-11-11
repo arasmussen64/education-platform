@@ -32,14 +32,19 @@ checks:
       equals: "ben"
   - id: ssh-still-strict
     description: "The SSH server's settings are as strict as they were, in its files (sudo sshd -T) and in the server that is running."
-    # StrictModes off, or keys read from somewhere else, would get Ben in by
-    # loosening the server. sshd -T reads the files; the running server keeps
-    # what it read when it started, so it must have started (or reloaded)
-    # since the files last changed. Neither message says which part.
+    # StrictModes off, or Ben's keys read from somewhere else (another
+    # AuthorizedKeysFile, or an AuthorizedKeysCommand), would get Ben in by
+    # loosening the server. sshd -T reads the files, and -C asks for the
+    # settings a login by Ben from this machine gets, so a "Match User ben"
+    # block counts too: plain sshd -T shows only the settings outside every
+    # Match (wrong/keys-moved-for-ben.sh). The running server keeps what it
+    # read when it started, so it must have started (or reloaded) since the
+    # files last changed. Neither message says which part.
     command: |
-      settings=$(sshd -T 2>/dev/null) || { echo "sshd -T can't read the SSH server's settings"; exit 0; }
+      settings=$(sshd -T -C user=ben,host=localhost,addr=::1,laddr=::1,lport=22 2>/dev/null) || { echo "sshd -T can't read the SSH server's settings"; exit 0; }
       if ! echo "$settings" | grep -qx 'strictmodes yes' \
-        || ! echo "$settings" | grep -qx 'authorizedkeysfile .ssh/authorized_keys .ssh/authorized_keys2'; then
+        || ! echo "$settings" | grep -qx 'authorizedkeysfile .ssh/authorized_keys .ssh/authorized_keys2' \
+        || ! echo "$settings" | grep -qx 'authorizedkeyscommand none'; then
         echo "the SSH server's settings are not as strict as they were"
         exit 0
       fi
