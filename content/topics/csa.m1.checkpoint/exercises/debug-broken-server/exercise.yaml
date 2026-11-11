@@ -3,26 +3,45 @@ stage: debug
 runtime: lab
 lab:
   init: systemd
-rev: 1
+rev: 2
 title: "The broken server"
 prompt: |
-  It's an incident. The shop's server is down, and it's broken five ways at once. Restore it, and don't weaken security to do it (leaving the firewall open or turning passwords on fails the check). Work the module's tools; the five faults are:
+  It's an incident: the shop's server is broken, and you're the one who has to restore it. This is what the server is for:
 
-  1. **A full disk.** The data area `/srv/shop` is full (`df -h /srv/shop`). Something old is filling it; clear enough space that it's usable again.
-  2. **A service that won't start.** `shop-api` is `failed`; `systemctl status shop-api` and `journalctl -u shop-api` say why. Fix its unit and get it `active`.
-  3. **A login that's refused.** `ssh -i ~/keys/ben ben@localhost` fails even though the key is right; the problem is the permissions on ben's `~/.ssh` (`sshd` refuses a world-writable one). Fix them so he can log in.
-  4. **A blocked port.** The firewall is default-deny and never opened the API's port 8080 (`sudo nft list ruleset`). Add a rule for it, keeping the firewall default-deny, and save it to `/etc/nftables.conf`.
-  5. **A runaway process.** Something is pegging a CPU (`top`, `pidstat`); find it and stop it at its service, so it stays stopped (`systemctl disable --now`).
+  - **The API.** The `shop-api` service answers on port 8080, on this machine and for the rest of the network: `curl -s http://localhost:8080/` and `from-office curl -s http://10.0.9.1:8080/` should both print `shop api ok`. (`from-office` runs a command on a second machine on the office network, where this server's address is `10.0.9.1`.)
+  - **Logins.** Ben deploys the shop's code. He logs in over SSH with his key, and a copy of his private key is in your `~/keys` so you can test as him: `ssh -i ~/keys/ben ben@localhost`.
+  - **Data.** The shop keeps its files in the data area, `/srv/shop`: its order database, `orders.db`, and whatever its services save next.
+  - **Search.** The `shop-search` service keeps the shop's search index in memory and answers ten queries a second. It shares the machine with the API, so it runs inside a memory limit and a CPU limit of its own, the way a container does.
 
-  When all five are fixed and security is intact, run the checks.
+  Those two services are all this server is meant to run for the shop.
+
+  **What's wrong.** The API answers neither here nor from the office. Ben's login is refused, though his key is the right one. Nothing can be saved in `/srv/shop`: "No space left on device". One CPU is busy all the time, though the shop has no work for it. And `shop-search` keeps getting killed and restarted, and whenever it runs it is throttled: the kernel keeps pausing it part-way through its work, so everything it does is slow, on a machine with CPU to spare.
+
+  **There are seven faults:** five behind the first four symptoms, and two behind `shop-search`'s. Find each one from the evidence, with the tools of the whole module, and fix it at its cause. The rules of the fix:
+
+  - **Don't weaken security.** SSH stays as strict as it is: no password logins, no root logins, and none of its own checks switched off. The firewall stays a firewall: from outside, only SSH and the API may be reachable.
+  - **Don't lose data.** `orders.db` stays.
+  - **Keep the limits.** `shop-search` ends up inside limits that fit it, set in its unit: at most 256 MB of memory with swap off, and at most half a CPU. Taking a limit away is not a fix.
+  - **Make it last.** Everything you fix must still be fixed after a reboot.
+
+  **Time yourself.** A server like this should be back within 45 minutes. Note the time when you open the lab's shell (`date`), and aim to have the first four symptoms gone, with the rules kept, 45 minutes later. `shop-search` is the second part and isn't on the clock. Nothing stops you at 45 minutes: the target is yours to hold yourself to.
+
+  When you're done, run the checks.
 hints:
-  - "Disk: `du -sh /srv/shop/* | sort -h` finds the big file; `sudo rm` it. Service: the unit's `ExecStart` points at a binary that isn't there; `systemctl cat shop-api` shows it, fix the path, `daemon-reload`, `restart` (if systemd says the start request was repeated too quickly, `sudo systemctl reset-failed shop-api` first). Login: `sudo chmod 700 /home/ben/.ssh`."
-  - "Firewall: add `tcp dport 8080 accept` to the input chain in `/etc/nftables.conf` next to the `22` rule, then `sudo nft -f /etc/nftables.conf`. Keep `policy drop`. Runaway: `ps -eo comm,%cpu --sort=-%cpu | head` names it; `sudo systemctl disable --now` it (stopped now, and not started at boot)."
-  - "Don't fix the blocked port by flushing the firewall, and don't fix anything by turning `PasswordAuthentication` back on: the checks confirm the server is still hardened."
+  - "Take the symptoms one at a time, and start from what the system says about itself: `systemctl --failed` and `systemctl status NAME` for services, `journalctl -u NAME` for a service's own words (`journalctl -u ssh` for a refused login), `df -h` and `du` for space, `top` for the CPU, `sudo nft list ruleset` for the firewall, and for a service's limits `systemctl status NAME` and the files in `/sys/fs/cgroup/system.slice/NAME.service/`. After each fix, test the symptom again before you move on."
+  - "The API has two faults, one behind the other: fix the first and it answers on the server but still not from the office. For a login refused with the right key, the SSH server's log names the file or folder it doesn't trust. A fix belongs where the fault is: a permission is put right with `chmod`, never by telling `sshd` to stop checking."
+  - "Disk: `du -sh /srv/shop/* | sort -h` finds what is big and `ls -l /srv/shop` shows what is old; remove that, not `orders.db`. Service: `systemctl cat shop-api` shows the program its `ExecStart` names; compare it with where the program really is (`ls /usr/local/bin`), fix the unit, then `sudo systemctl daemon-reload` and `sudo systemctl restart shop-api` (if systemd says the start request was repeated too quickly, `sudo systemctl reset-failed shop-api` first). Login: `sudo chmod 700 /home/ben/.ssh`."
+  - "Firewall: the rule for port 8080 goes in the `input` chain in `/etc/nftables.conf`, beside the rule for 22; `sudo nft -f /etc/nftables.conf` then loads the file, so the running rules and the saved ones are the same. Keep `policy drop`. The busy CPU: `ps -eo pid,comm,%cpu --sort=-%cpu | head` names the process, `systemctl status PID` names its unit, and `sudo systemctl disable --now UNIT` stops it now and at every boot."
+  - "`shop-search`: `systemctl status shop-search` shows its memory beside its limit, and `journalctl -k` has the kernel's line for each kill. Raise `MemoryMax` in a drop-in (`sudo systemctl edit shop-search`) to a value inside the allowance, restart, and read `memory.peak` in its cgroup folder to see what it really needs. Then `cpu.stat` in the same folder: if `nr_throttled` climbs every second, the quota in `cpu.max` is below what the service uses, and the change in `usage_usec` over a few seconds says how much that is. Set `CPUQuota` well above it, still inside the allowance."
 test_skills:
   disk-has-space: [csa.linux.storage/disk-full, csa.linux.triage/disk-io]
   service-running: [csa.linux.services/systemctl, csa.linux.services/journalctl]
   key-login-works: [csa.linux.permissions/ssh-keys, csa.linux.permissions/read-modes]
   firewall-allows-api: [csa.linux.net-tools/firewall-path, csa.linux.hardening/firewall-min]
   runaway-stopped: [csa.linux.triage/first-minute, csa.linux.processes/signals]
-  security-intact: [csa.linux.hardening/ssh-hardening, csa.linux.hardening/baseline]
+  ssh-still-hardened: [csa.linux.hardening/ssh-hardening, csa.linux.hardening/baseline]
+  firewall-still-closed: [csa.linux.hardening/firewall-min, csa.linux.hardening/baseline]
+  firewall-persisted: [csa.linux.hardening/firewall-min]
+  search-stays-up: [csa.linux.memory/container-memory, csa.linux.memory/oom-killer]
+  search-not-throttled: [csa.linux.cpu/throttling, csa.linux.cpu/cgroups-v2]
+  search-limits-kept: [csa.linux.containers/cgroups-limits, csa.linux.memory/container-memory, csa.linux.cpu/cgroups-v2]

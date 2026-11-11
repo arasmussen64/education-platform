@@ -1,0 +1,47 @@
+#!/usr/bin/python3
+"""shop-search: the shop's search service (a stand-in for the lab).
+
+It loads its search index into memory and then answers ten queries a second
+for as long as it runs. A query is a short burst of work, then a wait for
+the next one. Every five seconds it tells the journal how its queries went.
+"""
+
+import time
+
+INDEX_MB = 150
+QUERY_CPU_SECONDS = 0.020
+PAUSE_SECONDS = 0.080
+REPORT_EVERY_SECONDS = 5
+
+print("loading the search index...", flush=True)
+index = bytearray(INDEX_MB * 1024 * 1024)
+# Touch every page, so the memory is really in use and not just reserved.
+for offset in range(0, len(index), 4096):
+    index[offset] = 1
+print("index loaded, answering queries", flush=True)
+
+queries = 0
+slowest = 0.0
+last_report = time.monotonic()
+while True:
+    asked = time.monotonic()
+    # One query: work until it has used its share of CPU time. If the CPU
+    # is taken away part-way, the clock on the wall keeps running, so the
+    # query takes longer to answer.
+    started = time.process_time()
+    while time.process_time() - started < QUERY_CPU_SECONDS:
+        pass
+    took = time.monotonic() - asked
+    queries += 1
+    slowest = max(slowest, took)
+    now = time.monotonic()
+    if now - last_report >= REPORT_EVERY_SECONDS:
+        print(
+            f"answered {queries} queries in the last {REPORT_EVERY_SECONDS} s, "
+            f"the slowest took {slowest * 1000:.0f} ms",
+            flush=True,
+        )
+        queries = 0
+        slowest = 0.0
+        last_report = now
+    time.sleep(PAUSE_SECONDS)
