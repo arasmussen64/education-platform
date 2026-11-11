@@ -1,14 +1,16 @@
 id: mcq-kernel-reboot
 type: mcq
-rev: 1
+rev: 2
 prompt: |
   `apt upgrade` installed a new kernel and a new OpenSSL library. `uname -r` still shows the old kernel version, and the web server is still using the old OpenSSL. Why?
 choices:
-  - "The upgrade failed silently"
-  - "A new kernel only runs after a reboot, and a running program keeps the library versions it loaded until it's restarted; `/var/run/reboot-required` and `needs-restarting` tell you which is which"
-  - "Kernels and libraries are never actually updated, only downloaded"
-  - "You must run `apt update` again to activate them"
-answer: 1
+  - "A new kernel runs only after a reboot, and a program keeps the library it loaded until it restarts"
+  - "`apt upgrade` only downloads kernels and libraries; `apt full-upgrade` is the one that installs them"
+  - "The package lists are out of date: running `apt update` again is what switches the new versions on"
+  - "Both are on hold: `apt-mark showhold` would list the kernel and OpenSSL as packages kept back"
+answer: 0
 explanation: |
-  Files on disk changed, but the running kernel was loaded at boot, and a process maps a library into memory when it starts; both keep the old code until restarted. Ubuntu drops `/var/run/reboot-required` for the kernel case (RHEL's `needs-restarting -r` says the same), and `needs-restarting` or `checkrestart` lists the services that still hold old libraries, so you can restart just those. Live-patching exists for kernels, but a planned reboot is the normal answer.
+  The files on disk changed, so the install did happen. But the running kernel was loaded at boot, and a process maps a library into memory when it starts; both keep the old code until restarted. Ubuntu drops `/var/run/reboot-required` for the kernel case (RHEL's `needs-restarting -r` says the same), and `needs-restarting` or `checkrestart` lists the services that still hold old libraries, so you can restart just those. Live-patching exists for kernels, but a planned reboot is the normal answer.
+
+  `apt upgrade` installs what it downloads; `full-upgrade` differs only in being allowed to remove packages to untangle dependencies. `apt update` refreshes the list of what is available and changes nothing that is installed. And a held package would not have been upgraded at all, which is not what happened here.
 skills: [patching]
