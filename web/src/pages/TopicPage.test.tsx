@@ -818,6 +818,21 @@ describe('a checkpoint page', () => {
       expect(notice()).not.toBeInTheDocument()
     })
 
+    it('says so in the suggestion after two failing Checks, whose button opens them at once', async () => {
+      setFakeRunner(fakeRunner({ check: oneFailed('Adds it all up') }))
+      const { events } = renderCheckpoint()
+      await checkTheBuild()
+      await checkTheBuild()
+      const suggestion = await screen.findByRole('button', {
+        name: 'Try it in steps',
+      })
+      expect(suggestion.closest('p')).toHaveTextContent(
+        "Once you've opened the steps, that fresh version is your proof instead of this build.",
+      )
+      // Nothing is saved until the learner chooses.
+      expect(events.filter((event) => event.type === 'hint')).toEqual([])
+    })
+
     it("saves the first opening on each visit, as a hint on the checkpoint's build", async () => {
       const { events } = renderCheckpoint()
       await openTheSteps()

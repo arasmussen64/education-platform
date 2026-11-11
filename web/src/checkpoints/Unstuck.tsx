@@ -195,7 +195,8 @@ export function SuggestSteps({ onOpen }: { onOpen: () => void }) {
         Try it in steps
       </button>
       : a solved example, then the build in parts, with hints, then a fresh
-      version to prove it.
+      version to prove it. Once you've opened the steps, that fresh version is
+      your proof instead of this build.
     </p>
   )
 }
