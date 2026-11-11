@@ -56,13 +56,16 @@ RUN chmod 755 /usr/local/lib/lab/network.sh /usr/local/bin/from-office \
 # every period. SSH is otherwise correctly hardened and the firewall is
 # otherwise right, and both must stay that way. None of the files copied in
 # below says what is wrong with it, because the learner reads them in the
-# lab: the explanations live here and in solution.sh.
+# lab: the explanations live here and in solution.sh. The checksum of
+# shop-search is taken here so the checks can tell that the program still
+# does the work it came with: the fix is its limits, not less work.
 COPY shop-api shop-search shop-worker /usr/local/bin/
 COPY shop-api-broken.service /etc/systemd/system/shop-api.service
 COPY shop-search.service shop-worker.service lab-disk.service /etc/systemd/system/
 COPY lab-disk.sh /usr/local/lib/lab/lab-disk.sh
 COPY nftables-22only.conf /etc/nftables.conf
 RUN chmod 755 /usr/local/bin/shop-api /usr/local/bin/shop-search /usr/local/bin/shop-worker /usr/local/lib/lab/lab-disk.sh \
+ && sha256sum /usr/local/bin/shop-search > /usr/local/lib/lab/shop-search.sha256 \
  && printf 'PasswordAuthentication no\nPermitRootLogin no\n' > /etc/ssh/sshd_config.d/90-hardening.conf \
  && chmod 0777 /home/ben/.ssh \
  && mkdir -p /etc/systemd/system/multi-user.target.wants /etc/systemd/system/sysinit.target.wants \

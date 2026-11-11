@@ -129,8 +129,18 @@ checks:
     expect:
       equals: "up, index loaded"
   - id: search-not-throttled
-    description: "shop-search is no longer throttled: in its cgroup's cpu.stat, nr_throttled rises by no more than 5 in 5 seconds."
+    description: "shop-search is no longer throttled, doing the same work as before: its unit runs /usr/local/bin/shop-search as the shop installed it, and in its cgroup's cpu.stat, nr_throttled rises by no more than 5 in 5 seconds."
     command: |
+      # First, that the work is the shop's own: the unit runs the program as
+      # it was installed (its checksum was taken when the image was built),
+      # so the throttling can't be dodged by making each query do less.
+      if ! sha256sum --status -c /usr/local/lib/lab/shop-search.sha256 2> /dev/null; then
+        echo "/usr/local/bin/shop-search isn't the program the shop installed"; exit 0
+      fi
+      case "$(systemctl show -p ExecStart --value shop-search)" in
+        *"path=/usr/local/bin/shop-search ;"*) ;;
+        *) echo "shop-search's unit doesn't run /usr/local/bin/shop-search"; exit 0 ;;
+      esac
       # Up to three 5-second windows, because a service that has just been
       # restarted is throttled for a moment while it loads. A machine's own
       # hiccups cost a period now and then, hence 5 rather than 0; a quota
