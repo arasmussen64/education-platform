@@ -8,7 +8,8 @@
 # The two folder checks read what the running service was started with
 # (its environment, in /proc) and what its unit will give it at the next
 # start, and need both to agree: a fix made to a file but never put into
-# effect, or the other way round, doesn't pass. They also need the folder
+# effect, or the other way round, doesn't pass; nor does one made under
+# /run, which a reboot forgets. They also need the folder
 # to be a real folder on the right disk, not a link from one disk to the
 # other: the local disk comes back empty at every boot, link and all.
 #
@@ -16,9 +17,13 @@
 # (wrong/cap-removed.sh), capping reads instead of writes
 # (wrong/cap-on-reads.sh), a cap set only until the next reboot
 # (wrong/runtime-only.sh), the sort left on the data disk
-# (wrong/scratch-still-on-data.sh) or stopped (wrong/sort-stopped.sh), and
+# (wrong/scratch-still-on-data.sh), held to a small cap of its own there
+# (wrong/sort-throttled.sh), stopped (wrong/sort-stopped.sh) or
+# moved out of the slice that shares the allowance
+# (wrong/sort-out-of-the-slice.sh), and
 # the spool moved to /tmp, which Ubuntu empties at every boot
-# (wrong/spool-to-tmp.sh).
+# (wrong/spool-to-tmp.sh), and the two folders moved only until the next
+# reboot, in drop-ins under /run (wrong/folders-runtime-only.sh).
 checks:
   - id: both-running
     description: "shop-db and shop-sort are both running."
@@ -60,7 +65,7 @@ checks:
     expect:
       equals: "held to the allowance"
   - id: sort-scratch-local
-    description: "shop-sort keeps its scratch files in a folder on the local disk, /dev/lab/scratch, and will again when it next starts."
+    description: "shop-sort keeps its scratch files in a folder on the local disk, /dev/lab/scratch, from settings that last after a reboot."
     command: |
       scratch=$(readlink -f /dev/lab/scratch)
       pid=$(systemctl show shop-sort -p MainPID --value)
@@ -73,16 +78,19 @@ checks:
         [ -n "$value" ] && next=$value
       done
       on=$(findmnt -n -o SOURCE -T "$running" 2>/dev/null)
+      # A drop-in or an environment file under /run ("systemctl edit
+      # --runtime") is gone after a reboot.
+      runtime=$({ systemctl show shop-sort -p DropInPaths --value | tr ' ' '\n'; systemctl show shop-sort -p EnvironmentFiles --value | awk '{print $1}'; } | grep -c '^/run/' || true)
       if [ -n "$running" ] && [ "$running" = "$next" ] && [ "$(realpath -m "$running")" = "${running%/}" ] \
-        && [ "$on" = "$scratch" ] && ls "$running"/sort-run-* > /dev/null 2>&1; then
+        && [ "$on" = "$scratch" ] && [ "$runtime" = 0 ] && ls "$running"/sort-run-* > /dev/null 2>&1; then
         echo "on the local disk"
       else
-        echo "the sort writes to [$running] (its unit says [$next] for the next start), which is on [$on]"
+        echo "the sort writes to [$running] (its unit says [$next] for the next start), which is on [$on]; settings from /run: $runtime"
       fi
     expect:
       equals: "on the local disk"
   - id: spool-on-data
-    description: "shop-db keeps its order spool in a folder on the data disk, /dev/lab/data, and will again when it next starts."
+    description: "shop-db keeps its order spool in a folder on the data disk, /dev/lab/data, from settings that last after a reboot."
     command: |
       data=$(readlink -f /dev/lab/data)
       pid=$(systemctl show shop-db -p MainPID --value)
@@ -98,11 +106,12 @@ checks:
       newest=$(ls -t "$running" 2>/dev/null | head -n 1)
       age=99
       [ -n "$newest" ] && age=$(( $(date +%s) - $(stat -c %Y "$running/$newest") ))
+      runtime=$({ systemctl show shop-db -p DropInPaths --value | tr ' ' '\n'; systemctl show shop-db -p EnvironmentFiles --value | awk '{print $1}'; } | grep -c '^/run/' || true)
       if [ -n "$running" ] && [ "$running" = "$next" ] && [ "$(realpath -m "$running")" = "${running%/}" ] \
-        && [ "$on" = "$data" ] && [ "$age" -le 5 ]; then
+        && [ "$on" = "$data" ] && [ "$age" -le 5 ] && [ "$runtime" = 0 ]; then
         echo "on the data disk"
       else
-        echo "the spool is [$running] (the unit says [$next] for the next start), on [$on]; newest order ${age}s old"
+        echo "the spool is [$running] (the unit says [$next] for the next start), on [$on]; newest order ${age}s old; settings from /run: $runtime"
       fi
     expect:
       equals: "on the data disk"
