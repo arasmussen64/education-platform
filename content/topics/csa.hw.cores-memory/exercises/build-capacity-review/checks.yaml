@@ -1,0 +1,130 @@
+# The checks for "The capacity review": one check per answer, so a failure
+# points at one skill, each working out its own truth from the evidence in
+# /srv/review rather than holding a number; and one that the evidence is as
+# the lab laid it down (the learner has sudo).
+#
+# The shapes are chosen so the lazy routes fail: CPU 40 of db-2 is past the
+# middle and still on node 0; the reporting server's steal since boot is a
+# tenth of its steal over the ten minutes; the admin tool's day empties its
+# bucket twice, so a walk without the floor at 0 counts the wrong minutes;
+# the web server's average, its 95th percentile and its peak each pick a
+# different size; and the ticket's VM has a little steal and high CPU
+# pressure, but nothing stolen to speak of and no limit.
+checks:
+  - id: cores-app-1
+    description: "cores.app-1 is app-1's number of physical cores."
+    command: |
+      a=$(grep -m1 '^cores.app-1=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(lscpu --sysroot /srv/review/machines/app-1 -p=CORE,SOCKET | grep -v '^#' | sort -u | wc -l)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: cores-db-2
+    description: "cores.db-2 is db-2's number of physical cores."
+    command: |
+      a=$(grep -m1 '^cores.db-2=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(lscpu --sysroot /srv/review/machines/db-2 -p=CORE,SOCKET | grep -v '^#' | sort -u | wc -l)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: cores-arm-2
+    description: "cores.arm-2 is arm-2's number of physical cores."
+    command: |
+      a=$(grep -m1 '^cores.arm-2=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(lscpu --sysroot /srv/review/machines/arm-2 -p=CORE,SOCKET | grep -v '^#' | sort -u | wc -l)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: numa-nodes
+    description: "numa-nodes.db-2 is the number of NUMA nodes db-2 has."
+    command: |
+      a=$(grep -m1 '^numa-nodes.db-2=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(lscpu --sysroot /srv/review/machines/db-2 -p=NODE | grep -v '^#' | sort -u | wc -l)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: node-of-cpu-40
+    description: "node-of-cpu-40.db-2 is the NUMA node that CPU 40 of db-2 is on."
+    command: |
+      a=$(grep -m1 '^node-of-cpu-40.db-2=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(lscpu --sysroot /srv/review/machines/db-2 -p=CPU,NODE | grep -v '^#' | awk -F, '$1 == 40 {print $2}')
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: steal-pct
+    description: "steal-pct is the share of the reporting server's ten minutes that was stolen, to within 0.5."
+    command: |
+      a=$(grep -m1 '^steal-pct=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r%')
+      t=$(paste /srv/review/stat-before.txt /srv/review/stat-after.txt | awk '{for (i = 2; i <= 9; i++) s += $(i + 11) - $i; print ($20 - $9) * 100 / s}')
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.5 && d >= -0.5) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: credits-empty
+    description: "credits-empty-minute is the first minute that ends with the admin tool's balance at 0 or less."
+    command: |
+      a=$(grep -m1 '^credits-empty-minute=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      c=/srv/review/burst/instance.conf
+      t=$(awk -F, -v v="$(grep '^vcpus=' $c | cut -d= -f2)" -v p="$(grep '^baseline_pct=' $c | cut -d= -f2)" \
+        -v b="$(grep '^start_credits=' $c | cut -d= -f2)" -v m="$(grep '^max_credits=' $c | cut -d= -f2)" 'NR > 1 {
+        b += v * p / 100 - v * $2 / 100
+        if (b <= 0 && e == "") e = $1
+        if (b < 0) b = 0
+        if (b > m) b = m
+      } END { print (e == "" ? "never" : e) }' /srv/review/burst/usage.csv)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: credits-held
+    description: "minutes-held-to-baseline is the number of minutes that end with the balance at 0 while the admin tool asked for more than its baseline."
+    command: |
+      a=$(grep -m1 '^minutes-held-to-baseline=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      c=/srv/review/burst/instance.conf
+      t=$(awk -F, -v v="$(grep '^vcpus=' $c | cut -d= -f2)" -v p="$(grep '^baseline_pct=' $c | cut -d= -f2)" \
+        -v b="$(grep '^start_credits=' $c | cut -d= -f2)" -v m="$(grep '^max_credits=' $c | cut -d= -f2)" 'NR > 1 {
+        b += v * p / 100 - v * $2 / 100
+        if (b < 0) b = 0
+        if (b > m) b = m
+        if (b == 0 && $2 > p) h++
+      } END { print h + 0 }' /srv/review/burst/usage.csv)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: size-web
+    description: "size.web is the cheapest size in sizes.csv that meets the shop's policy for the web server's week."
+    command: |
+      a=$(grep -m1 '^size.web=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      m=/srv/review/sizing/metrics.csv
+      p95=$(tail -n +2 $m | cut -d, -f2 | sort -n | awk '{v[NR] = $1} END {k = NR * 95 / 100; if (k > int(k)) k = int(k) + 1; print v[k]}')
+      peak=$(tail -n +2 $m | cut -d, -f3 | sort -n | tail -n 1)
+      t=$(awk -F, -v p95="$p95" -v peak="$peak" 'NR > 1 && p95 / 100 * 16 <= 0.70 * $2 && peak <= 0.75 * $3 {print $4, $1}' /srv/review/sizing/sizes.csv | sort -n | head -n 1 | cut -d' ' -f2)
+      [ "$a" = "$t" ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: ticket-cause
+    description: "ticket.cause names what is wrong with the ticket's VM."
+    command: |
+      a=$(grep -m1 '^ticket.cause=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = too-few-cpus ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: ticket-evidence
+    description: "ticket.evidence is the number that shows the cause, to within 0.5."
+    command: |
+      a=$(grep -m1 '^ticket.evidence=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      t=$(awk 'NR > 2 {s += $1; n++} END {print s / n}' /srv/review/ticket/vmstat.txt)
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.5 && d >= -0.5) print "right"; else print "answered " a}'
+    expect:
+      equals: right
+  - id: ticket-fix
+    description: "ticket.fix is the change that addresses the ticket's cause."
+    command: |
+      a=$(grep -m1 '^ticket.fix=' /home/learner/review/answers.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = more-vcpus ] && echo right || echo "answered '$a'"
+    expect:
+      equals: right
+  - id: evidence-untouched
+    description: "The evidence in /srv/review is as the review began: nothing changed, added or removed."
+    command: |
+      [ "$(cd /srv/review && find . -type f | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/lib/lab/review.sha256)" ] && echo untouched || echo changed
+    expect:
+      equals: untouched
