@@ -1,6 +1,6 @@
 id: debug-a-loss-that-overflowed
 stage: debug
-rev: 1
+rev: 2
 title: "A loss that went wrong"
 prompt: |
   The program computes the cross-entropy (the loss that scores a softmax's probabilities) of three examples from their logits (raw scores) and checks that each softmax sums to 1. It should print:
@@ -10,5 +10,10 @@ prompt: |
   probabilities sum to 1: True
   ```
 
-  It has two bugs. Run it: it crashes with `OverflowError: math range error`, because the softmax exponentiates the raw logits and `exp(1000)` is beyond the largest float (`math.exp` raises where NumPy's `exp` would give `inf`, and then `nan` in the division); subtract the largest logit from all of them first, which leaves the probabilities unchanged. Fix that, and the check prints `False`: it asks for the probabilities to sum to exactly `1.0`, and a sum of rounded floats lands a few last digits away. Compare with a tolerance, `math.isclose`.
+  Instead it stops with `OverflowError: math range error` before printing anything. It has two bugs, and the second shows only once the first is fixed. Run it, read the traceback, fix what you find and run it again; then run the checks, which also give `softmax` logits of 5,000.
+hints:
+  - "Read the traceback from the bottom: which line raised the error? Which of the three examples could give it a number too big to handle?"
+  - "`exp(1000)` is far beyond the largest float. A softmax doesn't change if you subtract the same number from every logit: which number keeps every exponent at most 0?"
+  - "Subtract the largest logit before exponentiating: `math.exp(x - max(logits))`."
+  - "Once it runs, the last line says `False`. A sum of rounded floats lands a few last digits from 1.0, so `==` fails. Compare with a tolerance: `math.isclose(sum(...), 1.0)`."
 skills: [special, epsilon]
