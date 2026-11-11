@@ -15,7 +15,10 @@ import {
 
 // The fake checkpoint's main build is "build-receipt", and its fresh
 // versions are "build-split" and "build-fuel".
-const CHECKPOINT: Topic = { ...fakeCheckpointContent().topic, prerequisites: [] }
+const CHECKPOINT: Topic = {
+  ...fakeCheckpointContent().topic,
+  prerequisites: [],
+}
 const AFTER = fakeTopic({
   id: 'py.booleans-and-comparisons',
   prerequisites: [CHECKPOINT.id],
