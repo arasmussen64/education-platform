@@ -1,0 +1,15 @@
+id: smi-used-pct
+type: predict_shell
+rev: 1
+prompt: |
+  `mem.txt` holds the memory pair from an `nvidia-smi` summary of an A100 40GB (constructed; 40,537 MiB is the total NVIDIA's guide shows that card reporting). `gsub(/MiB/, "")` deletes every `MiB` from the line, so its fields are the used figure, the `/` and the total. `int` drops the fraction. What is printed?
+files:
+  mem.txt: |
+    9800MiB / 40537MiB
+command: |
+  awk '{gsub(/MiB/, ""); print "used:", int($1 * 100 / $3) "%"}' mem.txt
+expected_output: |
+  used: 24%
+explanation: |
+  9,800 × 100 ÷ 40,537 = 24.2, cut to 24: about a quarter of the card. Three more programs of the same size would fill it, if the card were shared, and nothing would stop the fourth from failing to load. `$2` is the `/`, which is why the total is `$3`.
+skills: [read-nvidia-smi]

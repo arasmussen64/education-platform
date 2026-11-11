@@ -1,0 +1,16 @@
+id: mcq-two-owners
+type: mcq
+rev: 1
+prompt: |
+  The process table on one A100 40GB (40,537 MiB, MIG switched off) lists two programs from two different users, holding 18,000 MiB and 21,000 MiB. A third user wants to load a model of 4 GiB onto the same card. What will happen?
+choices:
+  - "It will load into a partition of its own, since the card divides its memory evenly by user"
+  - "It will load after the other two finish their turn, since the card queues programs for memory"
+  - "It will fail for lack of compute slices, since the two users already hold all seven of them"
+  - "It will fail for lack of memory, and nothing stops the first two from failing the same way"
+answer: 3
+explanation: |
+  The two programs hold 39,000 MiB of the card's 40,537, which leaves about 1.5 GiB: a 4 GiB model can't load. Without MIG the card's memory is one shared pool, first come, first served, with no walls; if either program grows, it can run the card out of memory and crash itself or its neighbour.
+
+  Nothing divides the memory by user or queues programs for it; taking turns (time-slicing) shares the card's time, not its memory. Compute slices exist only when MIG is on, and here it is off.
+skills: [read-nvidia-smi]

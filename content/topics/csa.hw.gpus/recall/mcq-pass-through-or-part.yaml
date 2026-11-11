@@ -1,0 +1,16 @@
+id: mcq-pass-through-or-part
+type: mcq
+rev: 1
+prompt: |
+  Google Cloud's page on GPU instances (read 2026-11-11) says that for most workloads it provides GPUs "in pass-through mode". What does that mean for a VM that has one?
+choices:
+  - "The VM gets a time-share of the card, and other VMs on the host use it in between"
+  - "The VM sees a software copy of the card, and the real card stays with the hypervisor"
+  - "The VM controls the whole card and its memory directly, and no other VM uses that card"
+  - "The VM controls one seventh of the card, and six other VMs hold the other partitions"
+answer: 2
+explanation: |
+  Pass-through hands the physical card straight to one VM, past the hypervisor, the way "Hypervisors" showed a network card's virtual function handed to a guest: the VM's own driver talks to the card, and its memory and arithmetic are the VM's alone. That is the usual way a cloud VM gets a GPU.
+
+  Sharing a card between VMs is something else, and has names of its own: taking turns is time-slicing, and a seventh of a card is a MIG partition or a fractional GPU size. A software copy of the card would be an emulated device, which no cloud sells for GPU work.
+skills: [gpu-sharing]

@@ -1,0 +1,22 @@
+id: est-fit-with-headroom
+type: estimate
+rev: 1
+prompt: |
+  A model has 13 billion parameters, stored in 16 bits (2 bytes each). The team wants 20% of headroom on top of the weights. A GiB is 1,073,741,824 bytes. How many GiB must the card hold? Within 0.3.
+unit: GiB
+answer: 29.1
+tolerance: { absolute: 0.3 }
+given: { params_billion: 13, bits: 16, bytes: 2, headroom: 20, gib: 1073741824 }
+working: params_billion * 1000000000 * bytes / gib * (100 + headroom) / 100
+mistakes:
+  - id: weights-alone
+    value: 24.2
+    working: params_billion * 1000000000 * bytes / gib
+    why: That is the weights alone. The plan wants 20% on top of them, for the model's inputs and working space.
+  - id: gigabytes
+    value: 31.2
+    working: params_billion * bytes * (100 + headroom) / 100
+    why: That is worked in GB of a thousand million bytes. In GiB, which nvidia-smi's MiB add up to, the same bytes come to about 7% less.
+explanation: |
+  13 billion × 2 bytes = 26,000,000,000 bytes, which is 24.2 GiB of weights. With 20% on top: 24.2 × 1.2 = 29.1 GiB. A card of 24 GB (22.35 GiB) can't hold even the weights; a 44 GiB card holds it with room to spare.
+skills: [vram-fit]

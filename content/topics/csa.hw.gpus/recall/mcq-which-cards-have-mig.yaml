@@ -1,0 +1,16 @@
+id: mcq-which-cards-have-mig
+type: mcq
+rev: 1
+prompt: |
+  A design shares cheap T4 cards between several tenants "with MIG for isolation". NVIDIA's list of cards that support MIG (read 2026-11-11) includes the A30, the A100, the H100, the H200 and the B200, and no T4. What follows?
+choices:
+  - "A T4 can be partitioned with MIG into two halves, giving each tenant 8 GB of its own"
+  - "A T4 can't be partitioned with MIG; tenants on it can only take turns, with no walls"
+  - "A T4 can be partitioned with MIG, but only into seven equal parts of about 2 GB each"
+  - "A T4 can't be shared at all; each tenant needs an instance with a whole card of its own"
+answer: 1
+explanation: |
+  MIG is a feature of the large data-centre cards, from the Ampere generation on (NVIDIA's list starts with the A30 and A100); the T4, like the L4 and the A10, isn't on it. Tenants on a T4 can still share it by taking turns (time-slicing), but then nothing walls one off from another, so the design's "isolation" isn't there.
+
+  No size of MIG partition exists on a T4, so there are no halves or sevenths of it to hand out. And a card without MIG can still be shared; it just can't be shared safely between tenants who mustn't disturb each other. For that, give each tenant a card, or move to a card that supports MIG.
+skills: [gpu-sharing]

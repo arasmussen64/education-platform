@@ -1,0 +1,16 @@
+id: mcq-fits-which-card
+type: mcq
+rev: 1
+prompt: |
+  A model's weights are 24.2 GiB in 16 bits. The only cards on offer have 22 GiB each (AWS's table lists the L4 so, read 2026-11-11). The team needs the model running this week, on one card. What works?
+choices:
+  - "Rent an instance with two of the cards, since 44 GiB in all is more than the model needs"
+  - "Add more memory to the VM, since the card borrows from it when its own memory runs out"
+  - "Keep it in 16 bits and wait, since the card frees memory once the model has warmed up"
+  - "Store the weights in 8 bits, about 12.1 GiB, and check its answers are still good enough"
+answer: 3
+explanation: |
+  Storing the weights in 8 bits (quantisation) halves them to about 12.1 GiB, which fits a 22 GiB card with room to spare. The price is slightly less exact numbers, so the team checks that the model's answers are still good enough before it goes live.
+
+  Two cards are not one card of 44 GiB: the job runs on one card, and a model split over two cards is a different and harder way to run it. A GPU has no swap: it can't borrow the VM's memory when its own runs out, and the program stops with an out-of-memory error instead. And memory isn't freed by warming up; the weights stay in the card's memory for as long as the model runs.
+skills: [vram-fit]

@@ -1,0 +1,22 @@
+id: est-precision-gb
+type: estimate
+rev: 1
+prompt: |
+  Hugging Face's rule of thumb (read 2026-11-11): the weights of a model with X billion parameters take about 4 × X GB in 32 bits, and about 2 × X GB in 16 bits. A model has 3 billion parameters. About how many GB do its weights take in 16 bits? Exactly.
+unit: GB
+answer: 6
+tolerance: { absolute: 0 }
+given: { per_billion_16: 2, params: 3 }
+working: per_billion_16 * params
+mistakes:
+  - id: thirty-two-bit
+    value: 12
+    working: 4 * params
+    why: That is the 32-bit size, 4 bytes a parameter. In 16 bits each parameter takes 2 bytes, half as much.
+  - id: one-byte-each
+    value: 3
+    working: 1 * params
+    why: That is the size at 1 byte a parameter, which is 8 bits. 16 bits are 2 bytes.
+explanation: |
+  16 bits are 2 bytes, so each billion parameters takes 2 billion bytes, 2 GB: 3 × 2 = 6 GB. The rule is the same sum as parameters × bytes each; Hugging Face states it per billion so it can be done in your head. Halve the bits and the memory halves: 3 GB in 8 bits, 1.5 in 4.
+skills: [gpu-vs-cpu]

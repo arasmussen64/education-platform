@@ -1,0 +1,18 @@
+id: smi-biggest-process
+type: predict_shell
+rev: 1
+prompt: |
+  `procs.csv` lists the programs on one A100 40GB card and the card memory each holds, as `nvidia-smi`'s process table shows them (constructed). `tail -n +2` drops the heading line, `sort -t, -k3 -rn` sorts on the third comma-separated field as numbers, largest first, and `head -n 1` keeps the first line. What is printed?
+files:
+  procs.csv: |
+    pid,name,used_mib
+    4630,python3,9120
+    4411,python3,18250
+    5102,tritonserver,11840
+command: |
+  tail -n +2 procs.csv | sort -t, -k3 -rn | head -n 1
+expected_output: |
+  4411,python3,18250
+explanation: |
+  Three programs share one card's memory, and the biggest holds 18,250 MiB. Together they hold 39,210 MiB, nearly all of the 40,537 MiB an A100 40GB reports: a fourth program of any size would fail to load, and one of these growing a little could take the others down with it, because nothing walls them off from each other. Without `-n`, `sort` would compare the numbers as text, digit by digit, and 9120 would come first.
+skills: [read-nvidia-smi]

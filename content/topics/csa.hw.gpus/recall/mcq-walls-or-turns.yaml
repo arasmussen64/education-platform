@@ -1,0 +1,16 @@
+id: mcq-walls-or-turns
+type: mcq
+rev: 1
+prompt: |
+  Two teams must share one A100, and one team's experiments often run out of GPU memory and crash. NVIDIA's pages (read 2026-11-11) compare the two ways to share a card: MIG partitions and time-slicing. Which protects the other team?
+choices:
+  - "Time-slicing: each team gets memory of its own, and a fault stays inside its own turn"
+  - "MIG: the teams share all of the card's memory, but each is held to half of the time"
+  - "MIG: each team gets memory of its own, and a fault stays inside its own partition"
+  - "Time-slicing: the card restarts a crashed program without the other one noticing"
+answer: 2
+explanation: |
+  MIG builds walls: each partition has memory and compute of its own, and NVIDIA's guide says a fault stays inside the partition it happened in. The careless team can fill its own memory and crash without touching the other's.
+
+  Time-slicing builds none. NVIDIA's time-slicing page says there is "no memory or fault-isolation" between the programs taking turns: they share all of the card's memory, so one that fills it takes the others down, and nothing restarts anyone. And MIG doesn't share memory or ration time: what it divides is the card itself.
+skills: [gpu-sharing]

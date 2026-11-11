@@ -1,0 +1,16 @@
+id: mcq-when-nvlink-matters
+type: mcq
+rev: 1
+prompt: |
+  Hugging Face's guide (read 2026-11-11) works out that a 70-billion-parameter model needs about 140 GB in 16 bits, and the largest single cards in this topic's tables hold 80 to 94 GB. A server has eight cards joined by NVLink, a fast direct link from card to card. Where does that link earn its price?
+choices:
+  - "Running eight separate small models, one on each of the eight cards in the server"
+  - "Running that one model on a single card, with the other seven cards switched off"
+  - "Running eight copies of a web server, each using one card to draw its own pages"
+  - "Running that one model across two or more cards, which then exchange data constantly"
+answer: 3
+explanation: |
+  The model doesn't fit one card, so it is split across several, and every step of its arithmetic then needs results from the other cards. That traffic is constant, and NVLink carries it far faster than the ordinary slot each card is plugged into (PCIe). Its speed changes with every generation, so look it up when it matters rather than remembering it.
+
+  Eight separate jobs, one to a card, never talk to each other, so the link sits unused. A 140 GB model can't run on one 80 GB card at all. And drawing web pages is no work for a GPU, let alone a reason for a link between eight of them.
+skills: [gpu-sharing]

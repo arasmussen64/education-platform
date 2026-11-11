@@ -1,0 +1,15 @@
+id: smi-memory-free
+type: predict_shell
+rev: 1
+prompt: |
+  `smi.txt` is the second line of one card in an `nvidia-smi` summary (constructed, in the layout NVIDIA's own guide shows for an H100 80GB): the temperature, the power drawn against the cap, the memory in use against the total, and GPU-Util. `awk -F'|'` splits the line at each `|`, so the memory pair is the third field; `split` cuts it at the `/`, and `gsub` removes everything but the digits from each half. What is printed?
+files:
+  smi.txt: |
+    | N/A   41C    P0            268W /  700W |   61250MiB /  81559MiB |     97%      Default |
+command: |
+  awk -F'|' '/MiB/ {split($3, m, "/"); gsub(/[^0-9]/, "", m[1]); gsub(/[^0-9]/, "", m[2]); print "free MiB:", m[2] - m[1]}' smi.txt
+expected_output: |
+  free MiB: 20309
+explanation: |
+  81,559 MiB less 61,250 in use leaves 20,309 MiB, which is 20,309 ÷ 1,024 = 19.8 GiB. A model of 7 billion parameters in 16 bits, 13.0 GiB of weights, would fit beside what is already loaded, with a little headroom; one of 24 GiB would not. The first field is empty, because the line starts with a `|`, which is why the memory is the third field and not the second.
+skills: [read-nvidia-smi, vram-fit]

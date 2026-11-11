@@ -1,0 +1,22 @@
+id: est-bytes-for-precision
+type: estimate
+rev: 1
+prompt: |
+  A model has 2 billion parameters, each stored in 8 bits. About how many GB do its weights take (a GB being a thousand million bytes)? Exactly.
+unit: GB
+answer: 2
+tolerance: { absolute: 0 }
+given: { params_billion: 2, bits: 8 }
+working: params_billion * bits / 8
+mistakes:
+  - id: bits-not-bytes
+    value: 16
+    working: params_billion * bits
+    why: That counts bits, not bytes. 8 bits make a byte, so an 8-bit parameter takes 1 byte.
+  - id: sixteen-bit
+    value: 4
+    working: params_billion * 2
+    why: That is the 16-bit size, 2 bytes a parameter. These are stored in 8 bits, 1 byte each.
+explanation: |
+  8 bits are 1 byte, so 2 billion parameters take 2 billion bytes: 2 GB. Storing the weights in 8 bits (quantisation) halves the 16-bit size and quarters the 32-bit one, at the price of slightly less exact numbers.
+skills: [gpu-vs-cpu]

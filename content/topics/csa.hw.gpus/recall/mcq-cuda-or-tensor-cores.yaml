@@ -1,0 +1,16 @@
+id: mcq-cuda-or-tensor-cores
+type: mcq
+rev: 1
+prompt: |
+  NVIDIA's performance guide (read 2026-11-11) says that 16-bit work can run on either Tensor Cores or CUDA cores, and that Tensor Cores were added to speed up matrix multiplication: multiplying grids of numbers. Two jobs share one card. One is a physics simulation that updates each point of a mesh with additions and comparisons on single 32-bit numbers, and multiplies no grids. The other is a model that multiplies large grids of numbers stored in 16 bits. Which units does each mostly use?
+choices:
+  - "The simulation runs on the Tensor Cores; the model's grid multiplying runs on the CUDA cores"
+  - "The simulation runs on the CUDA cores; the model's grid multiplying runs on the Tensor Cores"
+  - "Both run on the Tensor Cores, because the CUDA cores are there only to draw graphics"
+  - "Both run on the CUDA cores, because Tensor Cores are used only while a model is training"
+answer: 1
+explanation: |
+  CUDA cores are the general units: any arithmetic, one number at a time, at the precision the program asks for. Tensor Cores do one thing, multiply grids of numbers, and do it several times faster, most of all in fewer bits. So the simulation, which multiplies no grids, uses the CUDA cores and gains nothing from the Tensor Cores, while the model's 16-bit grid multiplying is what Tensor Cores were built for.
+
+  Swapping them gets both backwards. CUDA cores are not only for graphics: running ordinary programs' arithmetic on the GPU is what CUDA is. And Tensor Cores aren't only for training: serving a model is the same grid multiplying, so it uses them too.
+skills: [gpu-vs-cpu]

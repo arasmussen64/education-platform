@@ -1,0 +1,16 @@
+id: mcq-mig-valid-layout
+type: mcq
+rev: 1
+prompt: |
+  The same A100 40GB: 8 memory slices of 5 GB, 7 compute slices. A profile's name gives its compute slices and its memory: `2g.10gb` is 2 compute slices and 10 GB, so 2 memory slices. Which of these layouts can one card hold?
+choices:
+  - "`4g.20gb`, `2g.10gb` and `2g.10gb`"
+  - "`3g.20gb`, `3g.20gb` and `3g.20gb`"
+  - "`1g.10gb`, `3g.20gb` and `3g.20gb`"
+  - "`4g.20gb`, `2g.10gb` and `1g.5gb`"
+answer: 3
+explanation: |
+  Add up each layout's two kinds of slice. `4g.20gb`, `2g.10gb` and `1g.5gb` need 4 + 2 + 1 = 7 memory slices and 4 + 2 + 1 = 7 compute slices: it fits, and it is one of the layouts NVIDIA's guide shows working on an A100 40GB.
+
+  `4g.20gb` with two `2g.10gb` fits the memory exactly (8 slices) but needs 8 compute slices, one more than the card has. Three `3g.20gb` need 12 memory slices (60 GB) and 9 compute. A `1g.10gb` with two `3g.20gb` keeps to 7 compute slices but needs 2 + 4 + 4 = 10 memory slices, because each `3g.20gb` takes 20 GB, four slices, not three. The sums reject a layout; whether one that passes them can be placed is NVIDIA's table to say.
+skills: [gpu-sharing]

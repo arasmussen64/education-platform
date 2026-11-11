@@ -1,0 +1,26 @@
+id: est-weekend-bill
+type: estimate
+rev: 1
+# Price: the Azure Retail Prices API, East US, pay-as-you-go, Linux, read
+# 2026-11-11.
+prompt: |
+  An `NC24ads_A100_v4` was left running by mistake from Friday at 18:00 until Monday at 06:00. It costs $3.673 an hour (on demand, Linux, Azure East US, read 2026-11-11). What did the weekend cost? Within 1%.
+unit: US dollars
+answer: 220.38
+tolerance: { percent: 1 }
+given: { price: 3.673 }
+working: (6 + 2 * 24 + 6) * price
+mistakes:
+  - id: two-days
+    value: 176.30
+    working: 48 * price
+    why: That is Saturday and Sunday. Friday evening (6 hours to midnight) and Monday morning (6 hours from midnight) add 12 more.
+  - id: one-hour
+    value: 3.67
+    working: price
+    why: That is one hour. The instance ran for 60.
+explanation: |
+  Friday 18:00 to midnight is 6 hours, Saturday and Sunday are 48, and Monday to 06:00 is 6 more: 60 hours. 60 × $3.673 = $220.38, for nothing. A GPU instance bills for every hour it runs, busy or idle, which is why the habit to keep is deleting or stopping it when the job is done, and checking the bill the next morning.
+skills: [gpu-instance-choice]
+prices_as_of: 2026-11-11
+prices_source: https://azure.microsoft.com/pricing/details/virtual-machines/linux/

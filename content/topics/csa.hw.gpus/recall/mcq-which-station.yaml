@@ -1,0 +1,16 @@
+id: mcq-which-station
+type: mcq
+rev: 1
+prompt: |
+  Two trial runs of one training job, on the same card. Run A: GPU-Util 20%, the vCPUs 99% busy, `%iowait` 0. Run B, after the vCPUs were doubled: GPU-Util 45%, the vCPUs 50% busy, `%iowait` 40%. What limits run B?
+choices:
+  - "The CPUs: they are still the limit, since the card is under half used"
+  - "The disk: the CPUs now have time to spare and spend it waiting on reads"
+  - "The card: its figure more than doubled, so the card now sets the pace"
+  - "The memory: more vCPUs load more data, so the card's memory is now full"
+answer: 1
+explanation: |
+  Fixing one station on the line shows the next. In run A the CPUs were flat out, so doubling them helped: the card's figure more than doubled. In run B the CPUs are half idle and spend 40% of their time waiting on the disk (`%iowait`), so the disk is now what the line waits for. A local NVMe copy of the data, or a faster disk tier, is the next step.
+
+  Busy CPUs would show as `%usr`, not as waiting. A card at 45% is still waiting more than half the time, so it isn't what sets the pace. And nothing says the card's memory filled: the vCPUs prepare input, they don't fill the card's memory.
+skills: [gpu-starvation]
