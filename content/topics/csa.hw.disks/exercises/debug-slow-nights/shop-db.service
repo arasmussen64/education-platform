@@ -1,0 +1,17 @@
+[Unit]
+Description=shop-db: the shop's database
+Requires=lab-disks.service
+After=lab-disks.service
+
+[Service]
+EnvironmentFile=/etc/shop/shop.conf
+# Makes its folders, owned by the shop's account, before it starts.
+ExecStartPre=+/usr/bin/install -d -o shop -g shop ${DATA_DIR} ${SPOOL_DIR}
+ExecStart=/usr/local/bin/shop-db
+User=shop
+Slice=shop.slice
+# Keep count of its disk reads and writes (io.stat in its cgroup folder).
+IOAccounting=yes
+
+[Install]
+WantedBy=multi-user.target

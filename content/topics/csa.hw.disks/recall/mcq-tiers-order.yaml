@@ -1,0 +1,16 @@
+id: mcq-tiers-order
+type: mcq
+rev: 1
+prompt: |
+  A lookup makes 10,000 small random reads, one after another, each waiting for the one before. Using the lesson's rough figures (a read from memory about 100 ns, from a local NVMe disk about 20 µs, from a network SSD disk about 1 ms), about how long does the whole lookup take from each?
+choices:
+  - "1 ms from memory, 0.2 ms from the local disk, 10 ms from the network disk"
+  - "1 ms from memory, 0.2 s from the local disk, 10 s from the network disk"
+  - "1 s from memory, 200 s from the local disk, 10,000 s from the network disk"
+  - "0.1 ms from memory, 0.2 s from the local disk, 1 s from the network disk"
+answer: 1
+explanation: |
+  Multiply each figure by 10,000. Memory: 10,000 × 100 ns = 1,000,000 ns, which is 1 ms. The local disk: 10,000 × 20 µs = 200,000 µs, 0.2 s. The network disk: 10,000 × 1 ms = 10,000 ms, 10 s. Each step down the tiers is a jump of a hundred times or more, which is why a program that waits on its disk one read at a time feels the disk more than anything else.
+
+  The choice that ends in 10 ms reads each disk's figure in the unit below the right one (20 µs as 20 ns, 1 ms as 1 µs). The one that ends in 10,000 s does the opposite, a unit too big all through (100 ns as 100 µs, and so on). The one that starts at 0.1 ms has the local disk right but memory and the network disk each ten times too fast, which shrinks the gaps between the tiers. The units are the whole skill here: 1 ms is 1,000 µs, and 1 µs is 1,000 ns.
+skills: [storage-tiers]

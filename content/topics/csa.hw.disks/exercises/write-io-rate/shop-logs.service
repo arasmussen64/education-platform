@@ -1,0 +1,19 @@
+[Unit]
+Description=shop-logs: the shop's logger
+Requires=lab-disks.service
+After=lab-disks.service
+
+[Service]
+Environment=LOG_DIR=/srv/data/logs
+# Makes its folder, owned by the shop's account, before it starts.
+ExecStartPre=+/usr/bin/install -d -o shop -g shop ${LOG_DIR}
+ExecStart=/usr/local/bin/shop-logs
+User=shop
+# Keep count of its disk reads and writes (io.stat in its cgroup folder).
+IOAccounting=yes
+# Its allowance on the data disk: 500 writes a second and 40 MiB a second.
+IOWriteIOPSMax=/dev/lab/data 500
+IOWriteBandwidthMax=/dev/lab/data 41943040
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+id: io-stat-rate
+type: predict_shell
+rev: 1
+prompt: |
+  The folder holds three files copied from a service's cgroup folder, with made-up numbers in their real layout: `io.stat.t0` and `io.stat.t5`, its `io.stat` read five seconds apart, and its `io.max`. Each has one line for the disk, starting with the disk's device number, `7:2`. The command takes the growth in `wios`, the writes counted since the service started, divides it by the five seconds, and shows the write cap beside it. What is printed?
+files:
+  io.stat.t0: |
+    7:2 rbytes=0 wbytes=409600000 rios=0 wios=100000 dbytes=0 dios=0
+  io.stat.t5: |
+    7:2 rbytes=0 wbytes=412672000 rios=0 wios=100750 dbytes=0 dios=0
+  io.max: |
+    7:2 rbps=max wbps=max riops=max wiops=150
+command: |
+  a=$(grep -o 'wios=[0-9]*' io.stat.t0 | cut -d= -f2); b=$(grep -o 'wios=[0-9]*' io.stat.t5 | cut -d= -f2); echo "$(( (b - a) / 5 )) writes a second, cap $(grep -o 'wiops=[0-9]*' io.max | cut -d= -f2)"
+expected_output: |
+  150 writes a second, cap 150
+explanation: |
+  `grep -o` prints only the part of the line that matches, `wios=100000`, and `cut -d= -f2` keeps what comes after the `=`. The writes grew by 750 in five seconds, 150 a second, exactly the `wiops` cap in `io.max`. A rate that sits flat on its cap is the mark of a cap, the way `nr_throttled` climbing was the mark of a CPU quota: the service wants more and the kernel is holding it to 150. (The bytes grew by 3,072,000, which is 750 writes of 4,096 bytes: 4 KiB each.) `max` means no cap, so reads and bytes are free here.
+skills: [disk-caps]

@@ -1,0 +1,62 @@
+#!/usr/bin/python3
+# shop-db: the lab's stand-in for the shop's database. Part of the lab's
+# scenery. It keeps its tables in DATA_DIR and writes to them all the time,
+# 4 KiB at a time, straight to the disk (O_DIRECT, so the page cache can't
+# hide how fast the disk really is): checkout's busiest hour asks for 1,000
+# writes a second, and it takes whatever the disk will give it up to that.
+# It puts every order checkout takes into SPOOL_DIR, one small file each,
+# until it has filed it. Both folders come from /etc/shop/shop.conf. Every
+# 10 seconds it logs how many writes a second it got through.
+import mmap
+import os
+import time
+
+BLOCK = 4096
+BLOCKS = 8192  # a 32 MiB table file, written over and over
+WANTED = 1000  # writes a second checkout asks for
+KEEP_SECONDS = 600  # orders older than this have been filed
+
+data_dir = os.environ["DATA_DIR"]
+spool_dir = os.environ["SPOOL_DIR"]
+os.makedirs(data_dir, exist_ok=True)
+os.makedirs(spool_dir, exist_ok=True)
+
+flags = os.O_RDWR | os.O_CREAT | os.O_DIRECT
+fd = os.open(os.path.join(data_dir, "tables.db"), flags, 0o640)
+# Direct writes need memory aligned to the disk's blocks; an anonymous
+# mmap is aligned to a whole page.
+buffer = mmap.mmap(-1, BLOCK)
+buffer.write(b"o" * BLOCK)
+
+print(f"shop-db: tables in {data_dir}, order spool in {spool_dir}", flush=True)
+block = 0
+writes = 0
+paced = 0
+started = last_order = pace_from = time.monotonic()
+while True:
+    os.pwrite(fd, buffer, (block % BLOCKS) * BLOCK)
+    block += 1
+    writes += 1
+    paced += 1
+    now = time.monotonic()
+    # Never more than checkout asks for, however fast the disk is; and
+    # after a slow spell, carry on from now rather than catch up.
+    due = pace_from + paced / WANTED
+    if now < due:
+        time.sleep(due - now)
+        now = time.monotonic()
+    elif now > due + 1:
+        pace_from, paced = now, 0
+    if now - last_order >= 1:
+        last_order = now
+        order = int(time.time())
+        with open(os.path.join(spool_dir, f"order-{order}"), "w") as spooled:
+            spooled.write(f"order {order}: 1 item, paid\n")
+        for name in os.listdir(spool_dir):
+            number = name.removeprefix("order-")
+            if number.isdigit() and int(number) < order - KEEP_SECONDS:
+                os.remove(os.path.join(spool_dir, name))
+    if now - started >= 10:
+        print(f"shop-db: {writes / (now - started):.0f} writes a second", flush=True)
+        writes = 0
+        started = now

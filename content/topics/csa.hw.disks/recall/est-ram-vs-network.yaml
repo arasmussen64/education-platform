@@ -1,0 +1,24 @@
+id: est-ram-vs-network
+type: estimate
+rev: 1
+prompt: |
+  The lesson's rough figures: a read from memory takes about 100 ns, and one operation on a network SSD disk about 1 ms. About how many times longer does the disk operation take? Within 10% is close enough.
+unit: times longer
+answer: 10000
+tolerance: { percent: 10 }
+given: { memory_ns: 100, disk_ms: 1 }
+# 1,000,000 nanoseconds in a millisecond is what the learner must know, so
+# it is in the working rather than given.
+working: disk_ms * 1000000 / memory_ns
+mistakes:
+  - id: ms-as-microseconds
+    value: 10
+    working: disk_ms * 1000 / memory_ns
+    why: That takes a millisecond as 1,000 ns. 1,000 ns is a microsecond; a millisecond is 1,000 microseconds, 1,000,000 ns.
+  - id: ms-as-seconds
+    value: 10000000
+    working: disk_ms * 1000000000 / memory_ns
+    why: That takes a millisecond as 1,000,000,000 ns, which is a whole second. A millisecond is a thousandth of that, 1,000,000 ns.
+explanation: |
+  1 ms is 1,000,000 ns, so 1,000,000 ÷ 100 = 10,000: one operation on a network disk takes as long as ten thousand reads from memory. That gap is why databases keep what they use most in memory, and why a cache in memory in front of a disk pays for itself so quickly.
+skills: [storage-tiers]

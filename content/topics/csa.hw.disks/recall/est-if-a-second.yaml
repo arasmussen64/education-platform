@@ -1,0 +1,23 @@
+id: est-if-a-second
+type: estimate
+rev: 1
+prompt: |
+  Stretch time so that a read from the CPU's L1 cache, about 1 ns, takes one second. At the same stretch, how many days would one operation on a network disk, about 1 ms, take? A day is 86,400 seconds. Within 5% is close enough.
+unit: days
+answer: 11.6
+tolerance: { percent: 5 }
+given: { l1_ns: 1, disk_ms: 1, day: 86400 }
+# A millisecond being 1,000,000 ns is what the learner must know.
+working: disk_ms * 1000000 / l1_ns / day
+mistakes:
+  - id: ms-as-microseconds
+    value: 0.0116
+    working: disk_ms * 1000 / l1_ns / day
+    why: That takes a millisecond as 1,000 ns, which is a microsecond. A millisecond is 1,000,000 ns, so it stretches to 1,000,000 seconds.
+  - id: ms-as-seconds
+    value: 11574.1
+    working: disk_ms * 1000000000 / l1_ns / day
+    why: That takes a millisecond as 1,000,000,000 ns, which is a second. A millisecond is a thousandth of a second, 1,000,000 ns.
+explanation: |
+  The stretch multiplies everything by 1,000,000,000 (1 ns becomes 1 s). A millisecond is 1,000,000 ns, so it becomes 1,000,000 seconds, and 1,000,000 ÷ 86,400 is about 11.6 days. At the same stretch a read from memory (100 ns) takes under two minutes and a read from a local NVMe disk (tens of µs) several hours. These are orders of magnitude to reason with, not measurements of any particular machine.
+skills: [storage-tiers]

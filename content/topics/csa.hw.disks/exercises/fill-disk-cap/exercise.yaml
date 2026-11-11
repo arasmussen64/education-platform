@@ -1,0 +1,18 @@
+id: fill-disk-cap
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+rev: 1
+title: "Hold the database to a disk tier"
+prompt: |
+  The shop's database, `shop-db`, is moving to a smaller network disk tier, provisioned for 300 writes a second and 3 MiB a second. Before the move, the team wants to see how the database behaves under that allowance, so on the lab machine you hold its writes to those figures, the way the new disk will. Its tables are in `/srv/data/db`.
+
+  The drop-in is started for you: `sudo nano /etc/systemd/system/shop-db.service.d/tier.conf`. It has four gaps, each `...`: the name of a setting, the disk (twice) and the bytes a second. Fill them in. Until you put the new file into effect, systemd ignores the two half-written lines and the database runs with no cap at all. Then `sudo systemctl daemon-reload` and `sudo systemctl restart shop-db`, and see what systemd and the kernel now say (`systemctl show shop-db -p IOWriteIOPSMax -p IOWriteBandwidthMax`, and `io.max` in its cgroup folder). Then run the checks.
+
+  The lab has two disks, both labelled under `/dev/lab/`. The others `lsblk` lists belong to Docker on your own computer, and must be left alone.
+hints:
+  - "A cap on writes a second is `IOWriteIOPSMax=`. Its partner for reads, `IOReadIOPSMax=`, would leave writes alone."
+  - "`findmnt -T /srv/data/db` names the device the tables are on, and `ls -l /dev/lab/` shows which label points at that device."
+  - "To systemd, `3M` means 3,000,000 bytes, a megabyte to the base 1,000. A MiB is 1,048,576 bytes, so 3 MiB is 3 × 1,048,576. Write that number of bytes."
+skills: [disk-caps]

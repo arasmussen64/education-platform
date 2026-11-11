@@ -1,0 +1,16 @@
+id: mcq-local-disk-three-clouds
+type: mcq
+rev: 1
+prompt: |
+  A VM's host fails, and the provider starts the VM again on another host. What should you expect of the files on its local disk, on any of the three clouds (AWS's instance store page, Azure's temporary disk section and Google's Local SSD page, read 2026-11-11)?
+choices:
+  - "Count them as gone: the local disk was in the failed host, and it doesn't move with the VM"
+  - "Count them as safe: the provider copies a local disk to the new host before it starts the VM"
+  - "Count them as safe: a local disk is a network disk under another name, and it moves with the VM"
+  - "Count them as gone on AWS only: Azure and Google move local disks across along with the VM"
+answer: 0
+explanation: |
+  A local disk is physically inside one host. When the VM moves because that host failed, the disk can't come with it. AWS lists automatic recovery among the events after which instance store data doesn't persist; Azure says temporary-disk data may be lost in a maintenance event or a redeploy, which is what a move to another host is; Google says Local SSD data might be lost on a host error, if Compute Engine can't recover it within a time limit you can set (the Local SSD recovery timeout). None of the three promises the data, so you plan for it to be gone.
+
+  No provider copies a local disk across first: the speed of a local disk comes from not being on the network, and the failed host can't be read anyway. And none of the three keeps local disks while AWS alone loses them: the differences between the clouds are in the details (Google's recovery window, Azure keeping the temporary disk through a plain restart), not in the rule.
+skills: [what-survives]

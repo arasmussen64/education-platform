@@ -1,0 +1,16 @@
+id: mcq-queue-depth-at-a-cap
+type: mcq
+rev: 1
+prompt: |
+  A disk capped at 800 writes a second was measured twice with 4 KiB writes: at queue depth 1 it gave 800 writes a second at 1.25 ms each on average; at queue depth 8 it gave 801 at 10 ms each. A colleague wants to raise the queue depth further "to get more out of the disk". What do the numbers say?
+choices:
+  - "The disk is healthy, so a deeper queue will raise the rate once it passes sixteen"
+  - "The latency is the limit, so a deeper queue will bring each request's wait back down"
+  - "The block size is the limit, so a deeper queue helps only when the blocks get larger"
+  - "The cap sets the rate, so a deeper queue only makes each request wait longer in line"
+answer: 3
+explanation: |
+  The rate didn't move, 800 and 801, while the wait went up eight times, from 1.25 ms to 10 ms. That is a cap: the disk hands out 800 slots a second, and every extra request in flight just queues for one. With 8 in flight each waits for about 8 ÷ 800 of a second, 10 ms. Queue depth raises the rate only while the disk has room to spare; at its cap it only adds waiting, which is the worst thing for a database that waits on each write.
+
+  Nothing about the numbers says a deeper queue would start helping at sixteen, and the wait won't come down with more requests in line; it can only go up. Larger blocks would move more bytes for each of the 800 writes, until the bytes cap binds, but that's a change of block size, not of queue depth. To get more writes a second, the cap has to rise: a higher disk tier, more provisioned IOPS, or a VM with a bigger allowance.
+skills: [disk-caps]

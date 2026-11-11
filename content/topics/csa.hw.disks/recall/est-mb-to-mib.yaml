@@ -1,0 +1,23 @@
+id: est-mb-to-mib
+type: estimate
+rev: 1
+prompt: |
+  Azure's Premium SSD v2 includes a baseline of 125 MB/s at no charge, and Azure's page says its MB/s is 10^6 bytes a second (Azure's disk types page, read 2026-11-11). How many MiB a second is that? Within 0.5 is close enough.
+unit: MiB a second
+answer: 119.2
+tolerance: { absolute: 0.5 }
+given: { mb: 125 }
+# A MB is 1,000,000 bytes and a MiB 1,048,576: what the learner must know.
+working: mb * 1000000 / 1048576
+mistakes:
+  - id: same-thing
+    value: 125
+    working: mb
+    why: That takes MB and MiB as the same. A MiB is 1,048,576 bytes, about 5% more than a MB, so the same rate is a smaller number of MiB.
+  - id: multiplied
+    value: 131.1
+    working: mb * 1048576 / 1000000
+    why: That multiplies by 1,048,576 and divides by 1,000,000, the wrong way round. Bigger units make a smaller number.
+explanation: |
+  125 MB/s is 125,000,000 bytes a second, and 125,000,000 ÷ 1,048,576 = 119.2 MiB/s. AWS's gp3 includes 125 MiB/s, Azure's Premium SSD v2 125 MB/s: the same number, and AWS's is about 5% more. Azure quotes MB/s, AWS and Google quote MiB/s, and systemd reads `M` in a bandwidth as a million bytes; compare like with like before you call two disks equal, and give systemd a MiB figure in bytes.
+skills: [disk-caps]

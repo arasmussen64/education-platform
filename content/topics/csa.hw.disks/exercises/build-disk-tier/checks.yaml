@@ -1,0 +1,102 @@
+# The checks for "Rehearse the move to a disk tier": the database runs,
+# held to the tier's two write caps (700 writes and 5 MiB, 5,242,880
+# bytes, a second) by settings that last, and writes at that allowance;
+# and each key of the review is right, one check a key, so a failure
+# points at one answer. The tier's numbers are read from its file, so the
+# checks and the file can't disagree.
+# A key may have spaces around its "=" ("disk-4k-iops = 700"), as a
+# learner might type it.
+#
+# The wrong fixes: the cap on reads (wrong/cap-on-reads.sh), the database
+# stopped (wrong/stopped-the-db.sh), only the writes-a-second cap, with
+# the 1 MiB numbers measured without the bytes cap (wrong/iops-only.sh),
+# 5M, which systemd reads as 5,000,000 bytes (wrong/megabytes.sh), caps
+# set with --runtime, which a reboot forgets (wrong/runtime-only.sh), the
+# numbers measured without any cap (wrong/measured-without-a-cap.sh), and
+# every need on the local disk (wrong/everything-local.sh).
+checks:
+  - id: db-running
+    description: "shop-db is running."
+    command: |
+      a=$(systemctl show shop-db -p MainPID --value)
+      sleep 2
+      systemctl is-active --quiet shop-db && [ "$a" != 0 ] && [ "$a" = "$(systemctl show shop-db -p MainPID --value)" ]
+  - id: db-under-the-tier
+    description: "shop-db's own settings hold its writes to the data disk to the tier's two allowances, from files that last after a reboot, and the kernel holds it to them."
+    command: |
+      iops=$(sed -n 's/^iops=//p' /srv/review/disk-tier.txt)
+      bytes=$(( $(sed -n 's/^mib_per_s=//p' /srv/review/disk-tier.txt) * 1048576 ))
+      data=$(readlink -f /dev/lab/data)
+      dev=$(lsblk -dno MAJ:MIN "$data" | tr -d ' ')
+      said() {
+        systemctl show shop-db -p "$1" | while read -r line; do
+          set -- ${line#*=}
+          if [ -n "${1:-}" ] && [ "$(readlink -f "$1")" = "$data" ]; then echo "$2"; fi
+        done | sort -u | paste -sd' '
+      }
+      got_iops=$(said IOWriteIOPSMax)
+      got_bytes=$(said IOWriteBandwidthMax)
+      runtime=$(systemctl show shop-db -p DropInPaths --value | tr ' ' '\n' | grep -c '^/run/' || true)
+      kernel=$(grep "^$dev " "/sys/fs/cgroup$(systemctl show shop-db -p ControlGroup --value)/io.max")
+      if [ "$got_iops" = "$iops" ] && [ "$got_bytes" = "$bytes" ] && [ "$runtime" = 0 ] \
+        && echo "$kernel" | grep -Eq "wbps=$bytes .*wiops=$iops( |$)"; then
+        echo "under the tier"
+      else
+        echo "settings: writes a second [$got_iops], bytes a second [$got_bytes]; settings from /run: $runtime; kernel: [$kernel]"
+      fi
+    expect:
+      equals: "under the tier"
+  - id: db-at-the-allowance
+    description: "shop-db writes to the data disk at the tier's allowance and no faster."
+    command: |
+      iops=$(sed -n 's/^iops=//p' /srv/review/disk-tier.txt)
+      dev=$(lsblk -dno MAJ:MIN "$(readlink -f /dev/lab/data)" | tr -d ' ')
+      stat=/sys/fs/cgroup$(systemctl show shop-db -p ControlGroup --value)/io.stat
+      writes() { awk -v d="$dev" '$1 == d {for (i = 2; i <= NF; i++) if (sub(/^wios=/, "", $i)) print $i}' "$stat" 2>/dev/null; }
+      a=$(writes)
+      sleep 5
+      b=$(writes)
+      rate=$(( (${b:-0} - ${a:-0}) / 5 ))
+      if [ "$rate" -ge $(( iops * 85 / 100 )) ] && [ "$rate" -le $(( iops * 105 / 100 )) ]; then
+        echo "at the allowance"
+      else
+        echo "$rate writes a second, against an allowance of $iops"
+      fi
+    expect:
+      equals: "at the allowance"
+  - id: disk-4k-iops
+    description: "disk-4k-iops is what the tier gives for 4 KiB random writes, within 15%."
+    command: |
+      iops=$(sed -n 's/^iops=//p' /srv/review/disk-tier.txt)
+      mib=$(sed -n 's/^mib_per_s=//p' /srv/review/disk-tier.txt)
+      answer=$(sed -n 's/^ *disk-4k-iops *=//p' /home/learner/review/answers.txt | tr -d ' ' | tail -n 1)
+      awk -v a="$answer" -v i="$iops" -v m="$mib" 'BEGIN {
+        truth = i; if (m * 1024 / 4 < truth) truth = m * 1024 / 4
+        exit !(a ~ /^[0-9]+(\.[0-9]+)?$/ && a >= 0.85 * truth && a <= 1.15 * truth)
+      }'
+  - id: disk-1m-mib-per-s
+    description: "disk-1m-mib-per-s is what the tier gives for 1 MiB writes, in MiB a second, within 15%."
+    command: |
+      iops=$(sed -n 's/^iops=//p' /srv/review/disk-tier.txt)
+      mib=$(sed -n 's/^mib_per_s=//p' /srv/review/disk-tier.txt)
+      answer=$(sed -n 's/^ *disk-1m-mib-per-s *=//p' /home/learner/review/answers.txt | tr -d ' ' | tail -n 1)
+      awk -v a="$answer" -v i="$iops" -v m="$mib" 'BEGIN {
+        truth = m; if (i * 1 < truth) truth = i
+        exit !(a ~ /^[0-9]+(\.[0-9]+)?$/ && a >= 0.85 * truth && a <= 1.15 * truth)
+      }'
+  - id: disk-1m-binding
+    description: "disk-1m-binding names the cap that binds at 1 MiB."
+    command: |
+      iops=$(sed -n 's/^iops=//p' /srv/review/disk-tier.txt)
+      mib=$(sed -n 's/^mib_per_s=//p' /srv/review/disk-tier.txt)
+      truth=throughput; [ "$iops" -lt "$mib" ] && truth=iops
+      [ "$(sed -n 's/^ *disk-1m-binding *=//p' /home/learner/review/answers.txt | tr -d ' ' | tail -n 1)" = "$truth" ]
+  - id: disk-for-orders
+    description: "disk-for.orders is the kind of disk the only copy of the orders database belongs on."
+    command: test "$(sed -n 's/^ *disk-for\.orders *=//p' /home/learner/review/answers.txt | tr -d ' ' | tail -n 1)" = network
+  - id: disk-for-sort-scratch
+    description: "disk-for.sort-scratch is the kind of disk the sort's scratch space belongs on."
+    command: test "$(sed -n 's/^ *disk-for\.sort-scratch *=//p' /home/learner/review/answers.txt | tr -d ' ' | tail -n 1)" = local
+  - id: disk-for-cache
+    description: "disk-for.cache is the kind of disk the rebuildable cache belongs on."
+    command: test "$(sed -n 's/^ *disk-for\.cache *=//p' /home/learner/review/answers.txt | tr -d ' ' | tail -n 1)" = local

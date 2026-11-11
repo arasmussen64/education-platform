@@ -1,0 +1,23 @@
+id: est-lookup-time
+type: estimate
+rev: 1
+prompt: |
+  A nightly report reads 40,000 rows, each with a random read of its own from a network disk, one after another, at about 0.5 ms each. About how many seconds does the reading take? Within 10% is close enough.
+unit: seconds
+answer: 20
+tolerance: { percent: 10 }
+given: { reads: 40000, read_ms: 0.5 }
+# 1,000 milliseconds in a second is what the learner must know.
+working: reads * read_ms / 1000
+mistakes:
+  - id: ms-as-microseconds
+    value: 0.02
+    working: reads * read_ms / 1000000
+    why: That treats 0.5 ms as 0.5 µs. A millisecond is a thousandth of a second, so 40,000 × 0.5 ms is 20,000 ms, 20 s.
+  - id: left-in-milliseconds
+    value: 20000
+    working: reads * read_ms
+    why: That's the answer in milliseconds. 20,000 ms is 20 seconds.
+explanation: |
+  40,000 × 0.5 ms = 20,000 ms = 20 s. One read at a time, the disk's latency adds up row by row: the same rows from memory, at about 100 ns each, would take 4 ms. The fixes an architect reaches for are fewer reads (an index, a cache), reads in parallel (a deeper queue, which helps while the disk has room to spare), or a disk with lower latency.
+skills: [storage-tiers]

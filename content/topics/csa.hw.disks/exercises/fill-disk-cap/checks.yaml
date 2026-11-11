@@ -1,0 +1,57 @@
+# The checks for "Hold the database to a disk tier": the drop-in has no
+# gaps left; systemd's settings for shop-db hold its writes to the data
+# disk to 300 a second and 3 MiB (3,145,728 bytes) a second; the kernel has
+# them too, so they were put into effect; and the database is writing at
+# its new allowance. The settings are read by the disk they lead to, so
+# /dev/lab/data and the device it points at are both right.
+#
+# The wrong fixes: the cap on reads instead of writes
+# (wrong/cap-on-reads.sh), the logs disk instead of the data disk
+# (wrong/wrong-device.sh), 3M, which systemd reads as 3,000,000 bytes, not
+# 3 MiB (wrong/megabytes-not-mebibytes.sh), and the file saved but never
+# put into effect (wrong/forgot-restart.sh).
+checks:
+  - id: no-gaps
+    description: "The drop-in has no ... left in it."
+    command: "! grep -q '\\.\\.\\.' /etc/systemd/system/shop-db.service.d/tier.conf"
+  - id: writes-a-second
+    description: "shop-db's settings hold its writes to the disk its tables are on to 300 a second."
+    command: |
+      data=$(readlink -f /dev/lab/data)
+      systemctl show shop-db -p IOWriteIOPSMax | while read -r line; do
+        set -- ${line#*=}
+        if [ -n "${1:-}" ] && [ "$(readlink -f "$1")" = "$data" ]; then echo "$2"; fi
+      done | sort -u | paste -sd' '
+    expect:
+      equals: "300"
+  - id: bytes-a-second
+    description: "shop-db's settings hold its writes to the disk its tables are on to 3 MiB a second."
+    command: |
+      data=$(readlink -f /dev/lab/data)
+      systemctl show shop-db -p IOWriteBandwidthMax | while read -r line; do
+        set -- ${line#*=}
+        if [ -n "${1:-}" ] && [ "$(readlink -f "$1")" = "$data" ]; then echo "$2"; fi
+      done | sort -u | paste -sd' '
+    expect:
+      equals: "3145728"
+  - id: in-effect
+    description: "The kernel holds shop-db to both (the data disk's line in its cgroup's io.max)."
+    command: |
+      dev=$(lsblk -dno MAJ:MIN "$(readlink -f /dev/lab/data)" | tr -d ' ')
+      grep "^$dev " "/sys/fs/cgroup$(systemctl show shop-db -p ControlGroup --value)/io.max"
+    expect:
+      matches: "wbps=3145728 .*wiops=300( |$)"
+  - id: writing-at-the-allowance
+    description: "shop-db is running and writing about 300 times a second to the data disk."
+    command: |
+      systemctl is-active --quiet shop-db || { echo "not running"; exit 0; }
+      dev=$(lsblk -dno MAJ:MIN "$(readlink -f /dev/lab/data)" | tr -d ' ')
+      stat=/sys/fs/cgroup$(systemctl show shop-db -p ControlGroup --value)/io.stat
+      writes() { awk -v d="$dev" '$1 == d {for (i = 2; i <= NF; i++) if (sub(/^wios=/, "", $i)) print $i}' "$stat" 2>/dev/null; }
+      a=$(writes)
+      sleep 5
+      b=$(writes)
+      echo $(( (${b:-0} - ${a:-0}) / 5 ))
+    expect:
+      gte: 255
+      lte: 315
