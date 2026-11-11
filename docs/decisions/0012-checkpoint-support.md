@@ -81,3 +81,44 @@ Once the learner has opened a checkpoint's steps, a pass of its main build no lo
 - **Where it falls short.** Moving the proof to a fresh version helps only as far as the fresh versions differ from what the steps show. A count on 2026-11-11 of each fresh version's lines of code (comments left out) that appear nowhere in the solved example's or the steps' solutions found that in the six Python checkpoints and in ML Checkpoints 3 and 7, 40 to 94 percent of a fresh version is still the learner's to write. In ML Checkpoints 1, 4, 5, 6 and 8 and Cloud Checkpoint 1 only 6 to 20 percent is: their fresh versions share most of their code with what the steps show. In ML Checkpoints 4, 5, 6 and 8 the solved example alone holds most of it, and ML Checkpoint 8's example is its fresh versions with a different set of glyphs. ML Checkpoint 2 is in between, at 29 percent. For those checkpoints, fresh versions (or solved examples) that differ in more than their data are content work still to do; this rule is what makes that work count.
 
 Decided under the owner's delegation of 2026-11-11 and recorded in [docs/owner-queue.md](../owner-queue.md) under "Decided for you".
+
+## Amendment (2026-11-11): further parts after the build and the debug
+
+- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience and memory retention first, and free), and built on until the owner rules; see [docs/owner-queue.md](../owner-queue.md), "Decided for you".
+
+**Context.** A checkpoint's `prove` held one build, one debug and one explain, and `web/src/progress/progress.ts` passed a checkpoint on those three. The cloud track's spec gives several checkpoints more parts than that: Checkpoint 2 has three, and Checkpoints 3, 5 and 7 have two or three each. Checkpoint 1 met the same wall and, in its 2026-11-11 rewrite, folded its second part (a service killed and throttled) into its debug as two more faults, which works because both parts are one broken server. Checkpoint 2's parts can't be folded honestly: a sizing sheet in a plain lab, four slow VMs' recorded evidence, and an Active Directory domain stood up in a systemd lab with a second machine. Leaving the third part out would make the checkpoint narrower than its spec, which the 2026-11-10 audit recorded as a fault in Checkpoint 1.
+
+**Decision.**
+
+1. **The shape.** `prove` gains an optional `more`: a list of further parts, each `{id, versions}`. `id` names a build or debug exercise in the checkpoint's folder; `versions` lists fresh versions of it, in other stories, and may be left out when there are none. Only checkpoints have `more`.
+
+   ```yaml
+   prove:
+     build: build-the-right-machine # part 1
+     debug: debug-slow-vms # part 2
+     more:
+       - id: build-stand-up-the-domain # part 3
+         versions: [build-stand-up-the-domain-clinic]
+     explain: ...
+   ```
+
+2. **Passing.** A checkpoint is Passed once its build (or a fresh version, as the amendment above says), its debug, every part in `more` (the part itself or any of its versions) and its explain have passed, in any order. A part's Checks are `code_check` events in the `prove` context, like the build's, so there is no new event and no migration, and no saved event means anything new. Progress notes each part's first pass on its own (`partsPassed`, beside `passed`), so a checkpoint without parts, and every topic, has exactly the progress it had. Item 1's rules on what counts as a missed test hold for a part as for the build.
+3. **The steps rule is the build's alone.** A part's pass counts whenever it came, before or after the build's steps were first opened. That rule exists because the steps show most of the main build's own program; they show nothing of a part's, and a part has no steps of its own. If a part is ever given steps, the same rule comes with them.
+4. **The explain still opens once the main build passes** (the amendment of 2026-11-10), not once every part has. What that rule hides is a prompt that overlaps the build's code. Waiting for every part would hold a 20-minute explain behind the longest part for no gain. With parts, the closed check says "once your part 1 build passes", since there is more than one build. So the prompt is open while the further parts are still to do, and an author keeps a part's answer out of it, as the build's already is.
+5. **What the validator checks.** For a ready checkpoint: every part is a build or a debug; every version has the same stage as its part (its runtime may differ, so a cloud version of a lab part can come later); a build part has at least one fresh version, because the reason for fresh versions, a second try that can't be passed from memory, holds for every build; a debug part needs none, as "Debug and explain" above says; and every test of every part and version names its skills in `test_skills`. Whatever the checkpoint's status: every part and version exists; no exercise is named twice in `prove`; no part or version is also the solved example, a step or a fresh version of the build; and a topic has no `more`.
+6. **Support.** The four additions stay attached to the main build: one solved sibling, three or four steps, two fresh versions. A further part's practice is the module's topics, which its failed tests bring back on Today through `test_skills` (item 1). The follow-ups and the skill index read every checkpoint exercise's tests by exercise, whichever slot of `prove` names it, so nothing there changed. If learners are seen to get stuck on a part, steps for it are a later amendment.
+7. **The page.** A checkpoint with further parts numbers every part: the build is "Part 1", the debug "Part 2", and each further part follows the debug, in order, as "Part 3", "Part 4" with its own editor or lab, before the explain. "Your proof so far" lists them the same way ("Part 3, build"), and the intro above them counts the checks. Below a part with a fresh version, a note says that its missed skills come back on Today, and that a fresh version is a second try that isn't from memory; a button shows one, chosen as for the build (one the learner hasn't Checked yet, else the one Checked longest ago). It never opens by itself. A checkpoint without parts looks exactly as it did.
+
+**Alternatives considered.**
+
+- **Folding every part into the build or the debug,** as Checkpoint 1 did. Right when the parts are one system; wrong when they are different machines, because the combined lab is long, its image holds everything, and a failure in one part blocks proving the others.
+- **A list in place of `build` and `debug`** (`builds: [...]`, `debugs: [...]`). Cleaner in the long run, but it changes every existing checkpoint, the progress code and the event readers for no gain today.
+- **Leaving the third part to a topic's own build, and amending the spec.** Honest, and the fallback if this weren't built. But a checkpoint is where a module's skills are retrieved together weeks after they were learned, which is what the part is for.
+- **Showing a part's fresh version only after a failed Check of the part.** Closer to "a second try", but the page would have to read the history before it could draw the part, and a learner coming back days later to retry would find nothing to retry with until they failed again. A button that stays closed until asked keeps the learner in charge, as the steps do.
+- **No fresh version for a build part.** A retry of the same build can be passed from memory, which item 4 exists to prevent.
+
+**Consequences.**
+
+- One field in `Prove` (`tools/content_model.py`), a few validator checks, `partsPassed` in `progress.ts`, a component for the parts (`web/src/checkpoints/MoreParts.tsx`), and their tests. No migration.
+- Writers of Checkpoints 2, 3, 5 and 7 can match their spec. A checkpoint with three parts takes longer; its `estimated_minutes` says so.
+- The map's note on a checkpoint in progress ("Proof checks passed: build, debug and explain") doesn't count further parts yet, so it can list all three while a part is still to do. It should list the parts before a checkpoint with them is `ready`.
