@@ -1,6 +1,6 @@
 id: debug-similarity-report
 stage: debug
-rev: 1
+rev: 2
 title: "A similarity report"
 prompt: |
   `report(query, rows)` should print each row's cosine similarity to the query, rounded to 3 places, and the position of the most similar row:
@@ -10,5 +10,9 @@ prompt: |
   most similar: row 0
   ```
 
-  It has two bugs. Run it and check the numbers: with these rows the program runs, but the similarities are wrong, and the checks' rows will make the first bug a shape error. One bug is in the order of a matrix product; the other is a length taken over the wrong thing.
+  Instead the similarities come out as `[0.364 0.243 0.   ]`, and the check that tries two rows of three stops with a `ValueError`. It has two bugs. Run it, fix what you find, and run it again, then run the checks. You're done when every check passes.
+hints:
+  - "Row 0, `[2, 2, 0]`, points the same way as the query `[1, 1, 0]`, so its similarity is 1. Work out its dot product and the two lengths by hand, then print each part of the program's sum and see which differs."
+  - "`rows @ query` gives one dot product per row. `query @ rows` puts the query on the left, which pairs it with the columns of `rows` instead, and needs `rows` to have as many rows as the query has entries."
+  - "`np.linalg.norm(rows)` is one number, the length of the whole array flattened out. Each row needs its own length: `np.linalg.norm(rows, axis=1)`."
 skills: [dot, length]
