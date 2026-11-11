@@ -1,0 +1,252 @@
+# The checks for "The quote that comes out low". Each runs the learner's
+# script, as the learner, and compares its lines with a quote the check works
+# out itself from the same inventory (truth, below), so no check holds a
+# number. Three inventories: Harbour Dental's, the second customer's, and a
+# third the check writes as it runs (fresh, below), whose sizes, host and
+# Software Assurance are drawn at random each time around a shape every
+# charge shows in: a host with free slots, a Windows VM with Software
+# Assurance and one without, and a 2-vCPU SQL Server without it. A total
+# typed into the script can't pass the second and third.
+#
+# Each kind of line has a check of its own, so a failure points at one
+# charge (and one skill): SQL Server's minimum, who may use Azure Hybrid
+# Benefit, how a dedicated host is billed. Two more keep the shortcuts out:
+# the benefit must still be used where it is allowed, and the host must still
+# be quoted. A check that finds something wrong prints a sentence and exits
+# 0, so the learner sees the sentence, not an exit status.
+checks:
+  - id: quote-a-right
+    description: "The quote for inventory.csv totals what Harbour Dental's servers cost in a month, to the cent."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '
+          BEGIN {r["standard"] = 0.10; r["enterprise"] = 0.375}
+          $2 == "vm" {a = $8 * 730; t += a}
+          $2 == "vm" && $4 == "windows" {a = ($6 == "yes") ? 0 : ($9 - $8) * 730; t += a}
+          $5 != "none" && $2 != "host" {n = $3; if (n < 4) n = 4; a = ($7 == "yes") ? 0 : r[$5] * n * 730; t += a}
+          $2 == "host" {t += $8 * 730}
+          END {printf "%.4f\n", t}'
+      }
+      f=/home/learner/quote/inventory.csv
+      got=$(runuser -u learner -- /home/learner/quote/make-quote "$f" 2>/dev/null | awk '$1 == "total" {print $2}')
+      awk -v g="$got" -v t="$(truth "$f")" 'BEGIN {d = g - t; if (g ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.011 && d >= -0.011) print "right"; else print "the total is " g}'
+    expect:
+      equals: right
+  - id: quote-b-right
+    description: "The quote for inventory-b.csv totals what that customer's servers cost in a month, to the cent."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '
+          BEGIN {r["standard"] = 0.10; r["enterprise"] = 0.375}
+          $2 == "vm" {a = $8 * 730; t += a}
+          $2 == "vm" && $4 == "windows" {a = ($6 == "yes") ? 0 : ($9 - $8) * 730; t += a}
+          $5 != "none" && $2 != "host" {n = $3; if (n < 4) n = 4; a = ($7 == "yes") ? 0 : r[$5] * n * 730; t += a}
+          $2 == "host" {t += $8 * 730}
+          END {printf "%.4f\n", t}'
+      }
+      f=/home/learner/quote/inventory-b.csv
+      got=$(runuser -u learner -- /home/learner/quote/make-quote "$f" 2>/dev/null | awk '$1 == "total" {print $2}')
+      awk -v g="$got" -v t="$(truth "$f")" 'BEGIN {d = g - t; if (g ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.011 && d >= -0.011) print "right"; else print "the total is " g}'
+    expect:
+      equals: right
+  - id: quote-fresh-right
+    description: "The quote totals right, to the cent, for an inventory the check writes as it runs, which the script has never seen."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '
+          BEGIN {r["standard"] = 0.10; r["enterprise"] = 0.375}
+          $2 == "vm" {a = $8 * 730; t += a}
+          $2 == "vm" && $4 == "windows" {a = ($6 == "yes") ? 0 : ($9 - $8) * 730; t += a}
+          $5 != "none" && $2 != "host" {n = $3; if (n < 4) n = 4; a = ($7 == "yes") ? 0 : r[$5] * n * 730; t += a}
+          $2 == "host" {t += $8 * 730}
+          END {printf "%.4f\n", t}'
+      }
+      fresh() {
+        pick() { local a=($1); echo "${a[RANDOM % ${#a[@]}]}"; }
+        vm() {
+          awk -v n="$1" -v v="$2" -v o="$3" -v s="$4" -v a="$5" -v b="$6" 'BEGIN {
+            l = 0.048 * v; w = (o == "windows") ? 0.094 * v : l
+            printf "%s,vm,%d,%s,%s,%s,%s,%.3f,%.3f,-\n", n, v, o, s, a, b, l, w }'
+        }
+        h=$(pick '5.298:28 6.345:27 10.645:32')
+        echo "name,kind,vcpus,os,sql,win_sa,sql_sa,linux_hourly,windows_hourly,slots"
+        echo "hg-7,host,-,-,none,-,-,${h%%:*},${h%%:*},${h##*:}"
+        for i in $(seq "$(pick '1 2 3')"); do
+          echo "rec-$i,hosted,$(pick '2 4'),windows,$(pick 'none standard'),yes,$(pick 'yes no'),0,0,-"
+        done
+        vm f-web-1 "$(pick '2 4')" windows none yes no
+        vm f-web-2 "$(pick '2 4 8')" windows none no no
+        vm f-db-1 2 windows standard "$(pick 'yes no')" no
+        vm f-db-2 "$(pick '4 8')" windows enterprise "$(pick 'yes no')" "$(pick 'yes no')"
+        vm f-mail-1 "$(pick '2 4')" linux none no no
+      }
+      dir=$(mktemp -d); f="$dir/inventory-c.csv"
+      fresh > "$f"; chmod -R a+rX "$dir"
+      got=$(runuser -u learner -- /home/learner/quote/make-quote "$f" 2>/dev/null | awk '$1 == "total" {print $2}')
+      want=$(truth "$f")
+      rm -r "$dir"
+      awk -v g="$got" -v t="$want" 'BEGIN {d = g - t; if (g ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.011 && d >= -0.011) print "right"; else print "the total is wrong for an inventory the script had never seen"}'
+    expect:
+      equals: right
+  - id: sql-lines-right
+    description: "Every sql line, on all three inventories, is what that server's SQL Server costs in a month."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '
+          BEGIN {r["standard"] = 0.10; r["enterprise"] = 0.375}
+          $2 == "vm" {printf "compute %s %.4f\n", $1, $8 * 730}
+          $2 == "vm" && $4 == "windows" {a = ($6 == "yes") ? 0 : ($9 - $8) * 730; printf "windows %s %.4f\n", $1, a}
+          $5 != "none" && $2 != "host" {n = $3; if (n < 4) n = 4; a = ($7 == "yes") ? 0 : r[$5] * n * 730; printf "sql %s %.4f\n", $1, a}
+          $2 == "host" {printf "host %s %.4f\n", $1, $8 * 730}'
+      }
+      quote() { runuser -u learner -- /home/learner/quote/make-quote "$1" 2>/dev/null | awk '$1 ~ /^(compute|windows|sql|host)$/ {print $1, $2, $3}'; }
+      same() {
+        want=$(truth "$2" | awk -v k="$1" '$1 == k {print $2, $3}' | sort)
+        got=$(quote "$2" | awk -v k="$1" '$1 == k {print $2, $3}' | sort)
+        [ "$(echo "$want" | wc -l)" = "$(echo "$got" | wc -l)" ] || return 1
+        paste -d' ' <(echo "$want") <(echo "$got") | awk '{d = $2 - $4; if ($1 != $3 || d > 0.011 || d < -0.011) bad = 1} END {exit bad}'
+      }
+      fresh() {
+        pick() { local a=($1); echo "${a[RANDOM % ${#a[@]}]}"; }
+        vm() {
+          awk -v n="$1" -v v="$2" -v o="$3" -v s="$4" -v a="$5" -v b="$6" 'BEGIN {
+            l = 0.048 * v; w = (o == "windows") ? 0.094 * v : l
+            printf "%s,vm,%d,%s,%s,%s,%s,%.3f,%.3f,-\n", n, v, o, s, a, b, l, w }'
+        }
+        h=$(pick '5.298:28 6.345:27 10.645:32')
+        echo "name,kind,vcpus,os,sql,win_sa,sql_sa,linux_hourly,windows_hourly,slots"
+        echo "hg-7,host,-,-,none,-,-,${h%%:*},${h%%:*},${h##*:}"
+        for i in $(seq "$(pick '1 2 3')"); do
+          echo "rec-$i,hosted,$(pick '2 4'),windows,$(pick 'none standard'),yes,$(pick 'yes no'),0,0,-"
+        done
+        vm f-web-1 "$(pick '2 4')" windows none yes no
+        vm f-web-2 "$(pick '2 4 8')" windows none no no
+        vm f-db-1 2 windows standard "$(pick 'yes no')" no
+        vm f-db-2 "$(pick '4 8')" windows enterprise "$(pick 'yes no')" "$(pick 'yes no')"
+        vm f-mail-1 "$(pick '2 4')" linux none no no
+      }
+      dir=$(mktemp -d); fresh > "$dir/inventory-c.csv"; chmod -R a+rX "$dir"
+      result=right
+      for f in /home/learner/quote/inventory.csv /home/learner/quote/inventory-b.csv "$dir/inventory-c.csv"; do
+        same sql "$f" || { result="an sql line is wrong for $(basename "$f")"; break; }
+      done
+      rm -r "$dir"
+      echo "$result"
+    expect:
+      equals: right
+  - id: windows-lines-right
+    description: "Every windows line, on all three inventories, is what that server's Windows Server licence costs in a month."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '
+          BEGIN {r["standard"] = 0.10; r["enterprise"] = 0.375}
+          $2 == "vm" {printf "compute %s %.4f\n", $1, $8 * 730}
+          $2 == "vm" && $4 == "windows" {a = ($6 == "yes") ? 0 : ($9 - $8) * 730; printf "windows %s %.4f\n", $1, a}
+          $5 != "none" && $2 != "host" {n = $3; if (n < 4) n = 4; a = ($7 == "yes") ? 0 : r[$5] * n * 730; printf "sql %s %.4f\n", $1, a}
+          $2 == "host" {printf "host %s %.4f\n", $1, $8 * 730}'
+      }
+      quote() { runuser -u learner -- /home/learner/quote/make-quote "$1" 2>/dev/null | awk '$1 ~ /^(compute|windows|sql|host)$/ {print $1, $2, $3}'; }
+      same() {
+        want=$(truth "$2" | awk -v k="$1" '$1 == k {print $2, $3}' | sort)
+        got=$(quote "$2" | awk -v k="$1" '$1 == k {print $2, $3}' | sort)
+        [ "$(echo "$want" | wc -l)" = "$(echo "$got" | wc -l)" ] || return 1
+        paste -d' ' <(echo "$want") <(echo "$got") | awk '{d = $2 - $4; if ($1 != $3 || d > 0.011 || d < -0.011) bad = 1} END {exit bad}'
+      }
+      fresh() {
+        pick() { local a=($1); echo "${a[RANDOM % ${#a[@]}]}"; }
+        vm() {
+          awk -v n="$1" -v v="$2" -v o="$3" -v s="$4" -v a="$5" -v b="$6" 'BEGIN {
+            l = 0.048 * v; w = (o == "windows") ? 0.094 * v : l
+            printf "%s,vm,%d,%s,%s,%s,%s,%.3f,%.3f,-\n", n, v, o, s, a, b, l, w }'
+        }
+        h=$(pick '5.298:28 6.345:27 10.645:32')
+        echo "name,kind,vcpus,os,sql,win_sa,sql_sa,linux_hourly,windows_hourly,slots"
+        echo "hg-7,host,-,-,none,-,-,${h%%:*},${h%%:*},${h##*:}"
+        for i in $(seq "$(pick '1 2 3')"); do
+          echo "rec-$i,hosted,$(pick '2 4'),windows,$(pick 'none standard'),yes,$(pick 'yes no'),0,0,-"
+        done
+        vm f-web-1 "$(pick '2 4')" windows none yes no
+        vm f-web-2 "$(pick '2 4 8')" windows none no no
+        vm f-db-1 2 windows standard "$(pick 'yes no')" no
+        vm f-db-2 "$(pick '4 8')" windows enterprise "$(pick 'yes no')" "$(pick 'yes no')"
+        vm f-mail-1 "$(pick '2 4')" linux none no no
+      }
+      dir=$(mktemp -d); fresh > "$dir/inventory-c.csv"; chmod -R a+rX "$dir"
+      result=right
+      for f in /home/learner/quote/inventory.csv /home/learner/quote/inventory-b.csv "$dir/inventory-c.csv"; do
+        same windows "$f" || { result="a windows line is wrong for $(basename "$f")"; break; }
+      done
+      rm -r "$dir"
+      echo "$result"
+    expect:
+      equals: right
+  - id: host-line-right
+    description: "On the inventories that have a dedicated host, the host line is what the host costs in a month."
+    command: |
+      truth() {
+        tail -n +2 "$1" | awk -F, '
+          BEGIN {r["standard"] = 0.10; r["enterprise"] = 0.375}
+          $2 == "vm" {printf "compute %s %.4f\n", $1, $8 * 730}
+          $2 == "vm" && $4 == "windows" {a = ($6 == "yes") ? 0 : ($9 - $8) * 730; printf "windows %s %.4f\n", $1, a}
+          $5 != "none" && $2 != "host" {n = $3; if (n < 4) n = 4; a = ($7 == "yes") ? 0 : r[$5] * n * 730; printf "sql %s %.4f\n", $1, a}
+          $2 == "host" {printf "host %s %.4f\n", $1, $8 * 730}'
+      }
+      quote() { runuser -u learner -- /home/learner/quote/make-quote "$1" 2>/dev/null | awk '$1 ~ /^(compute|windows|sql|host)$/ {print $1, $2, $3}'; }
+      same() {
+        want=$(truth "$2" | awk -v k="$1" '$1 == k {print $2, $3}' | sort)
+        got=$(quote "$2" | awk -v k="$1" '$1 == k {print $2, $3}' | sort)
+        [ "$(echo "$want" | wc -l)" = "$(echo "$got" | wc -l)" ] || return 1
+        paste -d' ' <(echo "$want") <(echo "$got") | awk '{d = $2 - $4; if ($1 != $3 || d > 0.011 || d < -0.011) bad = 1} END {exit bad}'
+      }
+      fresh() {
+        pick() { local a=($1); echo "${a[RANDOM % ${#a[@]}]}"; }
+        vm() {
+          awk -v n="$1" -v v="$2" -v o="$3" -v s="$4" -v a="$5" -v b="$6" 'BEGIN {
+            l = 0.048 * v; w = (o == "windows") ? 0.094 * v : l
+            printf "%s,vm,%d,%s,%s,%s,%s,%.3f,%.3f,-\n", n, v, o, s, a, b, l, w }'
+        }
+        h=$(pick '5.298:28 6.345:27 10.645:32')
+        echo "name,kind,vcpus,os,sql,win_sa,sql_sa,linux_hourly,windows_hourly,slots"
+        echo "hg-7,host,-,-,none,-,-,${h%%:*},${h%%:*},${h##*:}"
+        for i in $(seq "$(pick '1 2 3')"); do
+          echo "rec-$i,hosted,$(pick '2 4'),windows,$(pick 'none standard'),yes,$(pick 'yes no'),0,0,-"
+        done
+        vm f-web-1 "$(pick '2 4')" windows none yes no
+        vm f-web-2 "$(pick '2 4 8')" windows none no no
+        vm f-db-1 2 windows standard "$(pick 'yes no')" no
+        vm f-db-2 "$(pick '4 8')" windows enterprise "$(pick 'yes no')" "$(pick 'yes no')"
+        vm f-mail-1 "$(pick '2 4')" linux none no no
+      }
+      dir=$(mktemp -d); fresh > "$dir/inventory-c.csv"; chmod -R a+rX "$dir"
+      result=right
+      for f in /home/learner/quote/inventory.csv "$dir/inventory-c.csv"; do
+        same host "$f" || { result="the host line is wrong for $(basename "$f")"; break; }
+      done
+      rm -r "$dir"
+      echo "$result"
+    expect:
+      equals: right
+  - id: benefit-still-used
+    description: "Where Harbour Dental may bring its own Windows Server licences to a VM on shared hardware, the quote still uses them: that VM's windows line is 0.00."
+    command: |
+      f=/home/learner/quote/inventory.csv
+      q=$(runuser -u learner -- /home/learner/quote/make-quote "$f" 2>/dev/null)
+      for s in $(tail -n +2 "$f" | awk -F, '$2 == "vm" && $4 == "windows" && $6 == "yes" {print $1}'); do
+        a=$(echo "$q" | awk -v s="$s" '$1 == "windows" && $2 == s {print $3}')
+        [ "$a" = "0.00" ] || { echo "$s is quoted a Windows licence of '$a'"; exit 0; }
+      done
+      echo right
+    expect:
+      equals: right
+  - id: host-still-quoted
+    description: "The quote for inventory.csv still has a line for its dedicated host, hg-1."
+    command: |
+      runuser -u learner -- /home/learner/quote/make-quote /home/learner/quote/inventory.csv 2>/dev/null | awk '$1 == "host" && $2 == "hg-1" && $3 > 0 {found = 1} END {print found ? "quoted" : "no host line"}'
+    expect:
+      equals: quoted
+  - id: inputs-untouched
+    description: "The README and the two inventories in ~/quote are as they were."
+    command: |
+      cd /home/learner/quote && sha256sum --quiet -c /usr/local/lib/lab/inputs.sha256 > /dev/null 2>&1 && echo untouched || echo changed
+    expect:
+      equals: untouched
