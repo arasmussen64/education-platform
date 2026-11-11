@@ -3,9 +3,11 @@ import { costOf, isPricedModel } from './cost.ts'
 import type { Grading } from './grading.ts'
 import {
   type CallLog,
+  clipBytes,
   createHandler,
   type Graded,
   type Hinted,
+  MAX_LOGGED_REQUEST_BYTES,
   readGradeRequest,
   readHintRequest,
   type Services,
@@ -87,7 +89,8 @@ function fakes(overrides: Partial<Services> = {}) {
     },
     logCall: (call) => {
       calls.push('logCall')
-      logged.push(call)
+      // These fakes never refuse a full row, so every row here is one.
+      logged.push(call as CallLog)
       return Promise.resolve('call-1')
     },
     capUsd: 10,
@@ -179,11 +182,96 @@ Deno.test('an answer that cannot be used is still logged, with its cost', async 
   assert.deepEqual(logged[0]?.response, { problem: 'Claude stopped early: refusal' })
 })
 
-Deno.test('the learner keeps their grading if logging fails', async () => {
-  const { handle } = fakes({ logCall: () => Promise.reject(new Error('db down')) })
+/** What the budget counts of the GRADED call: the minimal ai_calls row. */
+const GRADED_SPEND = {
+  user_id: 'ada',
+  action: 'grade_explanation',
+  model: 'claude-haiku-5-5',
+  input_tokens: 1500,
+  output_tokens: 1000,
+  cost_usd: 0.00065,
+}
+
+Deno.test('a call whose full log row is refused is still counted, in a minimal row', async () => {
+  const written: unknown[] = []
+  const { handle } = fakes({
+    logCall: (call) => {
+      // As Postgres would refuse a request that's too big for its column.
+      if ('request' in call) {
+        return Promise.reject(new Error('violates check constraint "ai_calls_request_check"'))
+      }
+      written.push(call)
+      return Promise.resolve('call-2')
+    },
+  })
   const { body } = await send(handle, post())
   assert.equal(body.status, 'graded')
-  assert.equal(body.ai_call_id, null)
+  assert.equal(body.ai_call_id, 'call-2')
+  // The user, action, model, tokens and cost: only that.
+  assert.deepEqual(written, [GRADED_SPEND])
+})
+
+Deno.test('if not even the cost can be written down, nothing more is spent until it is', async () => {
+  let database: 'down' | 'up' = 'down'
+  const asked: string[] = []
+  const written: unknown[] = []
+  const { handle } = fakes({
+    grade: () => {
+      asked.push('grade')
+      return Promise.resolve(GRADED)
+    },
+    hint: () => {
+      asked.push('hint')
+      return Promise.resolve(HINTED)
+    },
+    logCall: (call) => {
+      if (database === 'down') return Promise.reject(new Error('db down'))
+      written.push(call)
+      return Promise.resolve(`call-${written.length}`)
+    },
+  })
+
+  // 1. Claude answers, but nothing can be written: never a silent success.
+  assert.deepEqual((await send(handle, post())).body, { status: 'unavailable' })
+  // 2. While that cost is unwritten, no call reaches Claude (fail closed).
+  assert.deepEqual((await send(handle, post(HINT_BODY))).body, { status: 'unavailable' })
+  assert.deepEqual((await send(handle, post())).body, { status: 'unavailable' })
+  assert.deepEqual(asked, ['grade'])
+
+  // 3. Once the database is back, the missing cost is written first, so the
+  // budget counts it, and calls go on.
+  database = 'up'
+  const { body } = await send(handle, post())
+  assert.equal(body.status, 'graded')
+  assert.deepEqual(asked, ['grade', 'grade'])
+  assert.deepEqual(written[0], GRADED_SPEND)
+  assert.equal(written.length, 2)
+})
+
+const utf8Bytes = (text: string) => new TextEncoder().encode(text).length
+
+Deno.test('clipBytes cuts by bytes, between characters, its marker included', () => {
+  assert.equal(clipBytes('héllo', 6), 'héllo') // é is two bytes
+  // 12 bytes, cut to 10: the marker takes 8, "h" 1, and "é" (2) doesn't fit.
+  assert.equal(clipBytes('héllo world', 10), 'h…(cut)')
+  // The marker is 8 bytes, so 12 leaves room for 4: "ab", then the emoji's
+  // 4 bytes don't fit, and it's never cut in half.
+  assert.equal(clipBytes(`ab😀${'x'.repeat(20)}`, 12), 'ab…(cut)')
+  for (const max of [0, 5, 8, 9, 100]) {
+    assert.ok(utf8Bytes(clipBytes('中'.repeat(100), max)) <= max, `max ${max}`)
+  }
+})
+
+Deno.test('the logged request is cut by bytes, not characters, so its row always fits', async () => {
+  const { handle, logged } = fakes()
+  // 6,000 Chinese characters are 18,000 bytes, more than the request column
+  // of ai_calls takes (16,384 bytes, in its migration).
+  await send(handle, post({ ...HINT_BODY, code: '中'.repeat(6000) }))
+  const code = logged[0]?.request.code as string
+  assert.ok(utf8Bytes(JSON.stringify(logged[0]?.request)) <= MAX_LOGGED_REQUEST_BYTES)
+  assert.equal(MAX_LOGGED_REQUEST_BYTES, 16_384 - 1_024)
+  assert.ok(code.startsWith('中中中'))
+  assert.ok(code.endsWith('…(cut)'))
 })
 
 Deno.test('turns away bad requests before calling anything costly', async () => {
