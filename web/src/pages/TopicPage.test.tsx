@@ -14,6 +14,7 @@ import type { Attempt } from '../followups/followUps.ts'
 import {
   fakeCheckpointContent,
   fakeContent,
+  fakeExercise,
   fakeTopic,
 } from '../test/fakeContent.tsx'
 import { fakeEventsClient, recordingEventLog } from '../test/fakeEvents.ts'
@@ -951,6 +952,219 @@ describe('a checkpoint page', () => {
       renderCheckpoint({ history: [passedCheck('build-receipt', CHECKPOINT)] })
       expect(await progressLoaded()).toHaveTextContent(/Build: passed on/)
       expect(notice()).not.toBeInTheDocument()
+    })
+  })
+
+  // A checkpoint can have further parts after its build and debug, each a
+  // proof check of its own (ADR-0012, amended 2026-11-11).
+  describe('with further parts', () => {
+    const CHECKPOINT = 'py.m1.checkpoint'
+
+    /**
+     * The fake checkpoint with Part 3, a build with one fresh version, and
+     * Part 4, a debug with none.
+     */
+    function withParts(): TopicContent {
+      const content = fakeCheckpointContent()
+      const parts = [
+        fakeExercise({ id: 'build-badge', stage: 'build', title: 'Badges' }),
+        fakeExercise({ id: 'build-badge-b', stage: 'build', title: 'Cards' }),
+        fakeExercise({
+          id: 'debug-badge',
+          stage: 'debug',
+          title: 'Broken badges',
+          starter: 'print("Helo")',
+        }),
+      ]
+      return {
+        ...content,
+        topic: {
+          ...content.topic,
+          prove: {
+            ...content.topic.prove,
+            more: [
+              { id: 'build-badge', versions: ['build-badge-b'] },
+              { id: 'debug-badge' },
+            ],
+          },
+        },
+        exercises: {
+          ...content.exercises,
+          ...Object.fromEntries(parts.map((part) => [part.id, part])),
+        },
+      }
+    }
+
+    /** What the server says was tried, besides the module's topics. */
+    function historyOf(content: TopicContent, history: Attempt[]) {
+      return vi.fn((_topicId: string) =>
+        Promise.resolve([...unlocked(content.topic), ...history]),
+      )
+    }
+
+    /** Renders it, recording what the page saves. */
+    function renderParts(history: Attempt[] = []) {
+      const content = withParts()
+      return renderTopic(content.topic, content, {
+        loadAttempts: historyOf(content, history),
+      })
+    }
+
+    /**
+     * Renders it with a real event log, so a Check passed on the page
+     * counts toward its progress straight away.
+     */
+    function renderSavingParts(history: Attempt[]) {
+      const content = withParts()
+      render(
+        <AuthProvider auth={fakeAuth(fakeUser())}>
+          <EventsProvider client={fakeEventsClient()}>
+            <MemoryRouter>
+              <TopicView
+                topic={content.topic}
+                content={content}
+                loadAttempts={historyOf(content, history)}
+              />
+            </MemoryRouter>
+          </EventsProvider>
+        </AuthProvider>,
+      )
+    }
+
+    /** "Nov 6", as the page writes a date. */
+    const shortDate = (date: Date) =>
+      date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const proveIt = () => screen.getByRole('region', { name: 'Prove it' })
+    const rows = async () =>
+      within(await progressLoaded())
+        .getAllByRole('listitem')
+        .map((row) => row.textContent)
+
+    it('shows each part in order, numbered, after the debug and before the explain', () => {
+      renderParts()
+      expect(itemHeadings(proveIt())).toEqual([
+        'Build: Receipt',
+        'Debug: Cinema tickets',
+        'Build: Badges',
+        'Debug: Broken badges',
+        'Explain it back',
+      ])
+      for (const part of ['Part 1', 'Part 2', 'Part 3', 'Part 4']) {
+        expect(within(proveIt()).getByText(part)).toBeInTheDocument()
+      }
+      expect(proveIt()).toHaveTextContent(
+        "These five checks show you can use everything in this module on your own: four parts to build or fix, and an explanation of how it all works. No hints here. If you get stuck on part 1, there's a way through it below.",
+      )
+    })
+
+    it('lists every part in the proof so far, by its number', async () => {
+      renderParts([passedCheck('build-badge', CHECKPOINT)])
+      expect(await rows()).toEqual([
+        '○ Part 1, build: not passed yet',
+        '○ Part 2, debug: not passed yet',
+        `✓ Part 3, build: passed on ${shortDate(NOV_6)}`,
+        '○ Part 4, debug: not passed yet',
+        '○ Explain: not passed yet',
+      ])
+    })
+
+    it("counts a pass of a part's fresh version as the part", async () => {
+      renderParts([passedCheck('build-badge-b', CHECKPOINT)])
+      expect((await rows())[2]).toBe(
+        `✓ Part 3, build: passed on ${shortDate(NOV_6)}`,
+      )
+    })
+
+    it("offers a part's fresh version one click away, and saves it as proof", async () => {
+      setFakeRunner(fakeRunner({ check: allPassed('Makes cards') }))
+      const { events } = renderParts()
+      // Part 4 has no fresh version, so it offers none.
+      expect(
+        screen.queryByRole('button', { name: /fresh version of part 4/ }),
+      ).not.toBeInTheDocument()
+      const toggle = screen.getByRole('button', {
+        name: 'Try a fresh version of part 3',
+      })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      expect(
+        screen.queryByRole('heading', { name: 'Build: Cards' }),
+      ).not.toBeInTheDocument()
+
+      await userEvent.click(toggle)
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      expect(toggle).toHaveAccessibleName('Hide the fresh version of part 3')
+      const version = await screen.findByRole('region', {
+        name: 'Build: Cards',
+      })
+      expect(version).toHaveTextContent('Part 3, fresh version')
+      await userEvent.click(
+        within(version).getByRole('button', { name: 'Check' }),
+      )
+      await vi.waitFor(() =>
+        expect(events.at(-1)).toMatchObject({
+          type: 'code_check',
+          topic_id: CHECKPOINT,
+          item_id: 'build-badge-b',
+          context: 'prove',
+        }),
+      )
+    })
+
+    it('is Passed only once every part has passed, and a part passed on the page counts', async () => {
+      setFakeRunner(fakeRunner({ check: allPassed('Makes badges') }))
+      renderSavingParts([
+        passedCheck('build-receipt', CHECKPOINT),
+        passedCheck('debug-tickets', CHECKPOINT),
+        explainPassed(CHECKPOINT),
+        passedCheck('debug-badge', CHECKPOINT),
+      ])
+      await progressLoaded()
+      expect(screen.getByTestId('topic-state')).toHaveTextContent('In progress')
+
+      const part3 = screen.getByRole('region', { name: 'Build: Badges' })
+      await userEvent.click(
+        within(part3).getByRole('button', { name: 'Check' }),
+      )
+      await vi.waitFor(() =>
+        expect(screen.getByTestId('topic-state')).toHaveTextContent('Passed'),
+      )
+    })
+
+    it('keeps the explain closed until the part 1 build passes, and says which build', async () => {
+      // Another part passing doesn't open it.
+      renderParts([passedCheck('build-badge', CHECKPOINT)])
+      await progressLoaded()
+      expect(
+        screen.getByRole('region', { name: 'Explain it back' }),
+      ).toHaveTextContent(
+        'Explain it back opens once your part 1 build passes.',
+      )
+      expect(screen.queryByLabelText('Your explanation')).toBeNull()
+    })
+
+    it('opens the explain once the part 1 build passes, before the other parts have', async () => {
+      renderParts([passedCheck('build-receipt', CHECKPOINT)])
+      await progressLoaded()
+      expect(screen.getByLabelText('Your explanation')).toBeInTheDocument()
+    })
+
+    it('leaves a checkpoint without further parts as it was', async () => {
+      renderCheckpoint()
+      expect(within(proveIt()).queryByText('Part 1')).not.toBeInTheDocument()
+      expect(proveIt()).toHaveTextContent(
+        'Three checks show you can use everything in this module on your own: build a program from a blank editor, fix code with several bugs, and explain how it works.',
+      )
+      expect(
+        screen.queryByRole('button', { name: /Try a fresh version of part/ }),
+      ).not.toBeInTheDocument()
+      expect(await rows()).toEqual([
+        '○ Build: not passed yet',
+        '○ Debug: not passed yet',
+        '○ Explain: not passed yet',
+      ])
+      expect(
+        screen.getByRole('region', { name: 'Explain it back' }),
+      ).toHaveTextContent('Explain it back opens once your build passes.')
     })
   })
 })
