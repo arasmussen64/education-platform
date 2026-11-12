@@ -1,0 +1,211 @@
+#!/usr/bin/python3
+"""ike-log CASE [--iso] [--retransmit] [--seed N]: one strongSwan log of
+one connection attempt, as `journalctl -u strongswan@vpn` prints it (or
+with --iso, as `journalctl -o short-iso` does), for the write lab's checks.
+
+The lines are the ones this topic's labs captured from charon on the
+office's gateway (strongSwan 5.9.13, 2026-11-12), with the addresses,
+names, numbers, SPIs, times, host and pid chosen afresh from the seed, and
+three to eight harmless lines put in at random places. CASE is one of:
+up, ike-proposal, auth, esp-proposal, selectors, rekey, no-answer.
+--retransmit makes an "up" log lose its first packet and send it again.
+Not for the learner: the checks run it.
+"""
+
+import argparse
+import datetime
+import random
+
+IKE_ALGS = [
+    "AES_CBC_256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048",
+    "AES_CBC_256/HMAC_SHA2_384_192/PRF_HMAC_SHA2_384/ECP_384",
+    "AES_CBC_128/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_3072",
+]
+CONNS = ["cloud", "aws-1", "aws-2", "azure-hub", "hq", "dc-east", "provider", "gcp-vpn"]
+HOSTS = ["vpn", "gw1", "edge", "branch-gw", "office-vpn", "fw2"]
+FQDNS = ["branch.shop.test", "office.example.test", "gw1.shop.test"]
+INIT_REQ = "generating IKE_SA_INIT request 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(REDIR_SUP) ]"
+INIT_RESP = "parsed IKE_SA_INIT response 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(CHDLESS_SUP) N(MULT_AUTH) ]"
+AUTH_REQ = "generating IKE_AUTH request 1 [ IDi N(INIT_CONTACT) IDr AUTH SA TSi TSr N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N(MULT_AUTH) N(EAP_ONLY) N(MSG_ID_SYN_SUP) ]"
+
+
+def make(case, rng, retransmit):
+    local = (
+        f"198.51.100.{rng.randint(2, 254)}"
+        if rng.random() < 0.5
+        else f"192.0.2.{rng.randint(2, 254)}"
+    )
+    remote = f"203.0.113.{rng.randint(2, 254)}"
+    conn = rng.choice(CONNS)
+    child = conn + rng.choice(["-vti", "-net", "-all"])
+    n = rng.randint(1, 40)
+    m = rng.randint(1, 60)
+    lid = rng.choice(FQDNS) if case == "auth" and rng.random() < 0.5 else local
+    ike = rng.choice(IKE_ALGS)
+    sz_init = rng.choice([336, 464, 528])
+    sz_auth = rng.choice([288, 304, 320])
+
+    def spi():
+        return "c" + "".join(rng.choice("0123456789abcdef") for _ in range(7))
+
+    lines = []
+    if rng.random() < 0.6:
+        lines.append(
+            f"loaded IKE shared key with id 'ike-{conn}' for: '{lid}', '{remote}'"
+        )
+        lines.append(
+            f"{rng.choice(['added', 'replaced', 'updated'])} vici connection: {conn}"
+        )
+    lines += [
+        f"vici initiate CHILD_SA '{child}'",
+        f"initiating IKE_SA {conn}[{n}] to {remote}",
+        INIT_REQ,
+        f"sending packet: from {local}[500] to {remote}[500] ({sz_init} bytes)",
+    ]
+    if case == "no-answer" and rng.random() < 0.5:
+        # Nothing comes back even to IKE_SA_INIT: UDP 500 is dropped.
+        for i in range(1, rng.randint(3, 5) + 1):
+            lines.append(f"retransmit {i} of request with message ID 0")
+            lines.append(
+                f"sending packet: from {local}[500] to {remote}[500] ({sz_init} bytes)"
+            )
+        return lines
+    if case == "up" and retransmit:
+        lines.append("retransmit 1 of request with message ID 0")
+        lines.append(
+            f"sending packet: from {local}[500] to {remote}[500] ({sz_init} bytes)"
+        )
+    if case == "ike-proposal":
+        return lines + [
+            f"received packet: from {remote}[500] to {local}[500] (36 bytes)",
+            "parsed IKE_SA_INIT response 0 [ N(NO_PROP) ]",
+            "received NO_PROPOSAL_CHOSEN notify error",
+        ]
+    lines += [
+        f"received packet: from {remote}[500] to {local}[500] ({sz_init + 8} bytes)",
+        INIT_RESP,
+        f"selected proposal: IKE:{ike}",
+        f"authentication of '{lid}' (myself) with pre-shared key",
+        f"establishing CHILD_SA {child}{{{m}}}",
+        AUTH_REQ,
+        f"sending packet: from {local}[4500] to {remote}[4500] ({sz_auth} bytes)",
+    ]
+    if case == "no-answer":
+        # IKE_SA_INIT answered, then nothing on UDP 4500.
+        for i in range(1, rng.randint(3, 5) + 1):
+            lines.append(f"retransmit {i} of request with message ID 1")
+            lines.append(
+                f"sending packet: from {local}[4500] to {remote}[4500] ({sz_auth} bytes)"
+            )
+        return lines
+    if case == "auth":
+        return lines + [
+            f"received packet: from {remote}[4500] to {local}[4500] (80 bytes)",
+            "parsed IKE_AUTH response 1 [ N(AUTH_FAILED) ]",
+            "received AUTHENTICATION_FAILED notify error",
+        ]
+    established = [
+        f"authentication of '{remote}' with pre-shared key successful",
+        "peer supports MOBIKE",
+        f"IKE_SA {conn}[{n}] established between {local}[{local}]...{remote}[{remote}]",
+        f"scheduling rekeying in {rng.randint(12900, 14400)}s",
+        f"maximum IKE_SA lifetime {rng.randint(14500, 15800)}s",
+    ]
+    if case in ("esp-proposal", "selectors"):
+        notify = "NO_PROP" if case == "esp-proposal" else "TS_UNACCEPT"
+        word = "NO_PROPOSAL_CHOSEN" if case == "esp-proposal" else "TS_UNACCEPTABLE"
+        return lines + [
+            f"received packet: from {remote}[4500] to {local}[4500] (160 bytes)",
+            f"parsed IKE_AUTH response 1 [ IDr AUTH N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N({notify}) ]",
+            *established,
+            f"received {word} notify, no CHILD_SA built",
+            "failed to establish CHILD_SA, keeping IKE_SA",
+        ]
+    lines += [
+        f"received packet: from {remote}[4500] to {local}[4500] (240 bytes)",
+        "parsed IKE_AUTH response 1 [ IDr AUTH SA TSi TSr N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) ]",
+        *established,
+        "selected proposal: ESP:AES_GCM_16_256/NO_EXT_SEQ",
+        f"CHILD_SA {child}{{{m}}} established with SPIs {spi()}_i {spi()}_o and TS 0.0.0.0/0 === 0.0.0.0/0",
+    ]
+    if case == "up":
+        return lines
+    # rekey: about an hour later, the first rekey of the CHILD_SA fails,
+    # because the peer wants a DH group in it (perfect forward secrecy).
+    lines.append(("LATER", rng.randint(3200, 3500)))
+    if rng.random() < 0.5:
+        lines.append(f"vici rekey CHILD_SA '{child}'")
+    return lines + [
+        f"establishing CHILD_SA {child}{{{m + 1}}} reqid 1",
+        "generating CREATE_CHILD_SA request 2 [ N(REKEY_SA) SA No TSi TSr ]",
+        f"sending packet: from {local}[4500] to {remote}[4500] (208 bytes)",
+        f"received packet: from {remote}[4500] to {local}[4500] (80 bytes)",
+        "parsed CREATE_CHILD_SA response 2 [ N(NO_PROP) ]",
+        "received NO_PROPOSAL_CHOSEN notify, no CHILD_SA built",
+        "failed to establish CHILD_SA, keeping IKE_SA",
+        f"CHILD_SA rekeying failed, trying again in {rng.randint(10, 15)} seconds",
+    ]
+
+
+def harmless(rng, conn_hint):
+    k = rng.randint(1, 9)
+    hexes = ":".join(f"{rng.randint(0, 65535):x}" for _ in range(4))
+    return rng.choice(
+        [
+            f"vici client {k} connected",
+            f"vici client {k} registered for: list-sa",
+            f"vici client {k} requests: list-sas",
+            f"vici client {k} disconnected",
+            f"flags changed for fe80::{hexes} on wan",
+            f"loaded IKE shared key with id 'ike-{conn_hint}' for: '%any'",
+        ]
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "case",
+        choices=[
+            "up",
+            "ike-proposal",
+            "auth",
+            "esp-proposal",
+            "selectors",
+            "rekey",
+            "no-answer",
+        ],
+    )
+    parser.add_argument("--iso", action="store_true")
+    parser.add_argument("--retransmit", action="store_true")
+    parser.add_argument("--seed", type=int, default=None)
+    args = parser.parse_args()
+    rng = random.Random(args.seed)
+    lines = make(args.case, rng, args.retransmit)
+    for _ in range(rng.randint(3, 8)):
+        lines.insert(rng.randint(0, len(lines)), harmless(rng, rng.choice(CONNS)))
+    host = rng.choice(HOSTS)
+    pid = rng.randint(120, 9800)
+    when = datetime.datetime(
+        2026,
+        rng.randint(1, 12),
+        rng.randint(1, 28),
+        rng.randint(0, 22),
+        rng.randint(0, 59),
+        rng.randint(0, 59),
+    )
+    for line in lines:
+        if isinstance(line, tuple):
+            when += datetime.timedelta(seconds=line[1])
+            continue
+        if rng.random() < 0.2:
+            when += datetime.timedelta(seconds=1)
+        stamp = (
+            when.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+            if args.iso
+            else when.strftime("%b %d %H:%M:%S")
+        )
+        print(f"{stamp} {host} charon-systemd[{pid}]: {line}")
+
+
+main()

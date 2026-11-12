@@ -1,0 +1,31 @@
+id: write-ike-diagnose
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Write ike-diagnose"
+prompt: |
+  When a tunnel won't come up, the first question is which phase failed, and the initiator's own log usually says. Write a script that answers it: `~/bin/ike-diagnose LOGFILE`, from a blank file.
+
+  LOGFILE holds one strongSwan log of one connection attempt, from the end that started it, as `journalctl -u strongswan@vpn` prints it: each line is a date and time, the machine's name, `charon-systemd[PID]:` and then charon's message, such as `Nov 12 18:24:45 vpn charon-systemd[538]: received NO_PROPOSAL_CHOSEN notify error`. The script prints exactly one line, which says what happened:
+
+  | Print | When the log holds |
+  | --- | --- |
+  | `phase 1: no proposal chosen` | `received NO_PROPOSAL_CHOSEN notify error` (the peer refused the IKE proposal in IKE_SA_INIT) |
+  | `phase 1: authentication failed` | `received AUTHENTICATION_FAILED notify error` (the key or the identity, in IKE_AUTH) |
+  | `phase 2: no proposal chosen` | `received NO_PROPOSAL_CHOSEN notify, no CHILD_SA built` (the IKE_SA is up, the ESP proposal refused), and no failed rekey |
+  | `phase 2: traffic selectors unacceptable` | `received TS_UNACCEPTABLE notify, no CHILD_SA built` |
+  | `phase 2: rekey failed` | `CHILD_SA rekeying failed` (the tunnel came up, and its first rekey failed later) |
+  | `no answer from the peer` | `retransmit` lines, and no CHILD_SA established |
+  | `up` | a line saying a CHILD_SA (not just an IKE_SA) is `established`, and none of the above |
+
+  A log can hold lines of more than one row: a tunnel that came up and then failed its rekey has an established CHILD_SA, a NO_PROPOSAL_CHOSEN and the failed rekey, and a tunnel that came up after a lost packet was sent again has a `retransmit` too. So the order your script tests in matters: work out which test must come before which. Lines about other things (vici clients, keys loaded, addresses) can appear anywhere. If LOGFILE can't be read, the script prints a message on standard error, nothing on standard output, and exits with a status other than 0.
+
+  Create the file with `nano ~/bin/ike-diagnose`: start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/ike-diagnose`. Module 1's scripting is enough: `grep -F -- 'TEXT' "$1" > /dev/null` succeeds when the file holds a line with TEXT in it (`-F` reads TEXT as plain text, not a pattern), and `if ...; then ...; elif ...; then ...; else ...; fi` tries one test after another. Three sample logs are in `~/logs`, three different kinds: `~/bin/ike-diagnose ~/logs/monday.log` and so on. Then run the checks: they run your script on logs they make themselves, of every kind, with addresses, names and times it hasn't seen.
+hints:
+  - "Each row is one test of the log. Write them as one `if ... elif ... fi` chain, so exactly one line is printed."
+  - "A failed rekey log also holds `received NO_PROPOSAL_CHOSEN notify, no CHILD_SA built` and an established CHILD_SA, so its test comes before both of theirs. `up` and `no answer` are what is left when nothing went wrong in a way the other rows name, so they come last, `up` first."
+  - "\"A CHILD_SA is established\" is the line `CHILD_SA cloud-vti{1} established with SPIs ...`, and an IKE_SA's line is `IKE_SA cloud[1] established between ...`: `grep -E 'CHILD_SA .* established'` matches the first and not the second."
+  - "For the missing file: `[[ -r $1 ]]` is true when the file can be read; `echo \"...\" >&2` writes to standard error; `exit 1` stops with a failing status."
+skills: [read-ike-logs]
