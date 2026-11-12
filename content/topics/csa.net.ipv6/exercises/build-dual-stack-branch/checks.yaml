@@ -1,0 +1,141 @@
+# The checks for "A dual-stack branch". Each reads the network's real
+# state: r1's addresses on the branch's switch, the branch machines' own
+# addresses and routes, what web's test service saw, connections tried from
+# the internet, a packet too big for the ISP's narrow link. "lasts" builds a
+# fresh copy of every machine from its files and compares it with the
+# running one (netlab verify), and reads which services start at boot, so
+# a fix made only live fails. "slaac" waits for the branch's addresses
+# after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: router-address
+    description: "r1's interface on the branch's switch has the branch machines' IPv4 gateway address, 192.168.20.1/24, and the first address of the branch's IPv6 subnet."
+    command: |
+      lan=$(ip -n r1 -o addr show dev lan permanent 2> /dev/null)
+      echo "$lan" | grep ' inet 192\.168\.20\.1/24 ' > /dev/null || { echo "r1's lan doesn't have 192.168.20.1/24"; exit 0; }
+      echo "$lan" | grep ' inet6 2001:db8:c0de:25::1/64 ' > /dev/null || { echo "r1's lan doesn't have the first address of the branch's subnet"; exit 0; }
+      echo "r1's addresses"
+    expect:
+      equals: "r1's addresses"
+  - id: slaac
+    description: "h1 and h2 each have a global IPv6 address they made themselves, in the branch's subnet and none outside it, none typed in by hand, and a default route learned from r1's advertisements, pointing at r1's link-local address."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      own() { on "$1" ip -6 -o addr show dev eth0 scope global dynamic | awk '{print $4}'; }
+      both() { [ -n "$(own h1)" ] && [ -n "$(own h2)" ]; }
+      wait_for 10 both
+      in_subnet='import ipaddress, sys; sys.exit(ipaddress.ip_interface(sys.argv[1]).network != ipaddress.ip_network("2001:db8:c0de:25::/64"))'
+      r1ll=$(on r1 ip -6 -o addr show dev lan scope link | awk '{print $4}' | cut -d/ -f1 | head -n 1)
+      for h in h1 h2; do
+        addresses=$(own "$h")
+        [ -n "$addresses" ] || { echo "$h has no global IPv6 address it made itself"; exit 0; }
+        for a in $addresses; do
+          python3 -c "$in_subnet" "$a" || { echo "$h made $a, which isn't in the branch's subnet"; exit 0; }
+        done
+        if on "$h" ip -6 -o addr show dev eth0 scope global permanent | grep . > /dev/null; then
+          echo "$h has an IPv6 address typed in by hand"; exit 0
+        fi
+        route=$(on "$h" ip -6 route show default)
+        echo "$route" | grep 'proto ra' > /dev/null || { echo "$h's IPv6 default route wasn't learned from a router advertisement"; exit 0; }
+        echo "$route" | grep "via $r1ll " > /dev/null || { echo "$h's IPv6 default route doesn't point at r1's link-local address"; exit 0; }
+      done
+      echo slaac
+    expect:
+      equals: slaac
+  - id: own-address
+    description: "Over IPv6, h1 reaches web with its own address: web sees h1's address, not a translated one."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      mine=$(on h1 ip -6 -o addr show dev eth0 scope global | awk '{print $4}' | head -n 1 | cut -d/ -f1)
+      [ -n "$mine" ] || { echo "h1 has no global IPv6 address"; exit 0; }
+      seen=$(on h1 nc -6 -w 3 2001:db8:80::80 8080 < /dev/null 2> /dev/null)
+      if [ "$seen" = "$mine" ]; then echo own; else echo "web sees h1 as '${seen:-nothing}', not as h1's own $mine"; fi
+    expect:
+      equals: own
+  - id: v4-nat
+    description: "Over IPv4, h1 reaches web, which sees r1's address on the internet, 198.51.100.10."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      seen=$(on h1 nc -4 -w 3 203.0.113.80 8080 < /dev/null 2> /dev/null)
+      if [ -n "$seen" ]; then echo "$seen"; else echo "h1 doesn't reach web over IPv4"; fi
+    expect:
+      equals: "198.51.100.10"
+  - id: egress-only
+    description: "Nobody on the internet can open a connection to the branch or to r1: from web, connections to h1's and h2's IPv6 addresses, and to r1's addresses of both families, get no answer."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      opened=$(mktemp)
+      listeners=() probes=() targets=()
+      for h in h1 h2; do
+        address=$(on "$h" ip -6 -o addr show dev eth0 scope global | awk '{print $4}' | head -n 1 | cut -d/ -f1)
+        [ -n "$address" ] && targets+=("$h=$address=22,80,8080")
+      done
+      targets+=("r1=2001:db8:ffff:9::2=22,8080" "r1=2001:db8:c0de:25::1=22,8080" "r1=198.51.100.10=22,8080")
+      # Servers of the check's own on each machine, both families, so a
+      # port the firewall lets through answers; then every probe at once,
+      # each given 2 seconds.
+      for m in h1 h2 r1; do on "$m" timeout 8 holdserver 22 80 8080 > /dev/null 2>&1 & listeners+=($!); done
+      sleep 1
+      for t in "${targets[@]}"; do
+        IFS== read -r m address ports <<< "$t"
+        for p in ${ports//,/ }; do
+          { on web nc -z -w 2 "$address" "$p" 2> /dev/null && echo "$m:$address:$p" >> "$opened"; } &
+          probes+=($!)
+        done
+      done
+      wait "${probes[@]}" 2> /dev/null
+      kill "${listeners[@]}" 2> /dev/null
+      wait 2> /dev/null
+      found=$(sort "$opened" | tr '\n' ' ')
+      rm -f "$opened"
+      if [ -z "$found" ]; then echo closed; else echo "from the internet, web opened connections to $found"; fi
+    expect:
+      equals: closed
+  - id: ptb
+    description: "No MTU has changed, and h1 is told the path's MTU when it sends a packet too big for the ISP's narrow link."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for want in h1:eth0:1500 h2:eth0:1500 r1:lan:1500 r1:wan:1500 isp:cust:1500 isp:core:1400 core:edge:1400; do
+        IFS=: read -r m dev mtu <<< "$want"
+        got=$(ip -n "$m" -o link show "$dev" 2> /dev/null | grep -o 'mtu [0-9]*' | cut -d' ' -f2)
+        [ "$got" = "$mtu" ] || { echo "$m's $dev has an MTU of ${got:-nothing}, not $mtu"; exit 0; }
+      done
+      # A full-size packet to an address of web's that h1 hasn't sent to
+      # before (so nothing it learned earlier counts). IPv6 routers never
+      # fragment: the ISP's router answers "packet too big", with its link's
+      # MTU, and ping prints it only if h1 got the answer.
+      to=2001:db8:80::1$((RANDOM % 900 + 100))
+      out=$(on h1 ping -6 -c 1 -W 2 -M do -s 1452 "$to" 2>&1)
+      if echo "$out" | grep -E 'mtu ?= ?1400' > /dev/null; then echo told; else echo "h1 sent a packet too big for the path and wasn't told the path's MTU"; fi
+    expect:
+      equals: told
+  - id: hosts-untouched
+    description: "The branch's machines' own settings, and the topology, are as the lab gave them, with no file added."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      changed=$(intact) || { echo "$changed"; exit 0; }
+      now=$(find /etc/netns/h1 /etc/netns/h2 -type f | LC_ALL=C sort)
+      added=$(LC_ALL=C comm -13 /etc/netlab/branch-files <(echo "$now") | tr '\n' ' ')
+      [ -z "$added" ] || { echo "new files in the branch's machines: $added"; exit 0; }
+      echo untouched
+    expect:
+      equals: untouched
+  - id: lasts
+    description: "Every machine is as its files build it, r1's router advertisements and firewall start at every boot, and radvd@r1 is the only radvd running, so a restart keeps everything."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for svc in radvd@r1 nftables@r1; do
+        [ "$(systemctl is-enabled "$svc" 2> /dev/null)" = enabled ] || { echo "$svc doesn't start at boot"; exit 0; }
+        systemctl is-active --quiet "$svc" || { echo "$svc isn't running: journalctl -u $svc says why"; exit 0; }
+      done
+      for pid in $(pgrep -x radvd); do
+        grep 'radvd@r1\.service' "/proc/$pid/cgroup" > /dev/null 2>&1 || { echo "a radvd is running that radvd@r1 didn't start"; exit 0; }
+      done
+      # netlab verify builds a copy of every machine (chk-r1 ...) from its
+      # files and compares each with the running machine: addresses,
+      # routes, the firewall nftables@r1 loads, forwarding and every
+      # setting its sysctl.d makes.
+      netlab verify || true
+    expect:
+      equals: verified
