@@ -1,0 +1,62 @@
+#!/bin/bash
+# report-cases: the "unseen-servers" check of "Handshake report". It makes
+# a certificate authority of its own and four throwaway servers on random
+# ports of 127.0.0.1, each with two certificates whose names are made up
+# now, and a version, an ALPN choice and a stapled answer or none, so that
+# every value of every line is in play. Then it runs the learner's script
+# against each server twice, once naming the second certificate's first
+# name and once naming nothing, and compares the four lines with what each
+# server was made to do. It prints "same", or the first difference.
+set -u
+. /usr/local/lib/lab/tls-servers
+script=/home/learner/bin/handshake-report
+dir=$(mktemp -d)
+chmod 755 "$dir"
+cleanup() {
+  pkill -f "s_server -accept 127.0.0.1:2[0-9]*[0-9] -cert $dir/" 2> /dev/null
+  rm -rf "$dir"
+}
+trap cleanup EXIT
+
+name() { printf '%s%04d.check.test' "$1" $((RANDOM % 10000)); }
+
+make_ca "$dir" "Check CA"
+base=$((20000 + RANDOM % 9000))
+# version, ALPN the server will speak ("none": no ALPN at all), stapled
+cases=("1.3 h2 yes" "1.2 http/1.1 no" "1.3 none no" "1.2 h2 yes")
+for i in 0 1 2 3; do
+  read -r version alpn stapled <<< "${cases[$i]}"
+  d1=$(name a) d2=$(name b) c1=$(name c) c2=$(name d)
+  make_leaf "$dir" "d$i" "$d1" "$d2"
+  make_leaf "$dir" "c$i" "$c1" "$c2"
+  opts=("-tls${version/./_}" -servername "$c1" -cert2 "$dir/c$i.pem" -key2 "$dir/c$i.key")
+  case $alpn in
+    h2) opts+=(-alpn h2,http/1.1) ;;
+    http/1.1) opts+=(-alpn http/1.1) ;;
+  esac
+  if [ "$stapled" = yes ]; then
+    make_staple "$dir" "d$i"
+    opts+=(-status_file "$dir/d$i.ocsp")
+  fi
+  port=$((base + i))
+  serve "$port" "$dir" "d$i" "${opts[@]}"
+  listening "$port" || { echo "the check's own server on port $port didn't start"; exit 0; }
+  # openssl's test server speaks ALPN only for its first certificate:
+  # a client whose name picks the second one negotiates none.
+  for ask in "$c1" ""; do
+    if [ -n "$ask" ]; then
+      want="protocol: TLSv$version|alpn: none|certificate-name: $c1|stapled: $stapled"
+      how="localhost $port $ask"
+    else
+      want="protocol: TLSv$version|alpn: $alpn|certificate-name: $d1|stapled: $stapled"
+      how="localhost $port"
+    fi
+    # shellcheck disable=SC2086
+    got=$(cd /home/learner && sudo -u learner timeout 15 "$script" $how 2>&1 | tr '\n' '|' | sed 's/|$//')
+    if [ "$got" != "$want" ]; then
+      echo "on a server made for this check, handshake-report $how printed \"${got//|/; }\"; the handshake was \"${want//|/; }\""
+      exit 0
+    fi
+  done
+done
+echo same

@@ -1,0 +1,63 @@
+id: write-handshake-report
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Handshake report"
+prompt: |
+  From a blank file, write `~/bin/handshake-report`, a bash script that makes one TLS handshake and says, in four lines, what it ended with. It's the first thing to run when a client says "TLS doesn't work": which version, which HTTP protocol, which certificate, and whether the OCSP answer came with it.
+
+  It's run as `handshake-report HOST PORT [NAME]`: the server's address or name, its port, and the name to ask for in SNI, which is HOST when there's no NAME. It prints exactly these four lines, in this order:
+
+  ```
+  protocol: TLSv1.3
+  alpn: h2
+  certificate-name: www.shop.test
+  stapled: yes
+  ```
+
+  - `protocol:` the TLS version the handshake ended with, as openssl names it: `TLSv1.3` or `TLSv1.2`.
+  - `alpn:` the protocol the server chose from the two the script offers, `h2` and `http/1.1`, or `none` when the server chose none.
+  - `certificate-name:` the first name in the subjectAltName of the certificate the server sent: the server's own certificate, not any other.
+  - `stapled:` `yes` if the server stapled an OCSP answer that says `successful`, otherwise `no`.
+
+  The script doesn't judge whether the certificate can be trusted: these servers' certificates come from authorities of their own, which a certificate report would check (topic 32's lab). One run of `openssl s_client -connect HOST:PORT -servername NAME -alpn h2,http/1.1 -status < /dev/null` gives everything, if you keep what it prints with `out=$(... 2>&1)` and read it:
+
+  - `New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384`: the version is the second word, with a comma after it.
+  - `ALPN protocol: h2`, or `No ALPN negotiated`.
+  - With `-status`: `OCSP response: no response sent`, or an `OCSP Response Data:` block with `OCSP Response Status: successful (0x0)` in it.
+  - The server's own certificate, from `-----BEGIN CERTIFICATE-----` to `-----END CERTIFICATE-----`, comes straight after the line `Server certificate`. A stapled OCSP answer is printed before it and may carry a certificate of its own, its signer's, so the first certificate in the output isn't always the server's.
+  - `openssl x509 -noout -ext subjectAltName` reads a certificate on its standard input and prints `X509v3 Subject Alternative Name:` and, on the next line, `DNS:www.shop.test, DNS:shop.test`.
+
+  `sed -n '/^START$/,/^END$/p'` prints the lines from one that matches the first pattern to one that matches the second, and `awk -F'DNS:'` splits a line at each `DNS:`. Make the file with `nano ~/bin/handshake-report`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/handshake-report`. ShellCheck must have nothing to say about it (`shellcheck ~/bin/handshake-report`), and it does its own work with openssl and the shell. The lab runs two example servers on this machine to try it on, on ports 8443 and 9443:
+
+  ```
+  ~/bin/handshake-report localhost 8443
+  ~/bin/handshake-report localhost 9443 api.shop.test
+  ~/bin/handshake-report localhost 9443
+  ```
+
+  which should print:
+
+  ```
+  protocol: TLSv1.3
+  alpn: h2
+  certificate-name: www.shop.test
+  stapled: yes
+  protocol: TLSv1.2
+  alpn: none
+  certificate-name: api.shop.test
+  stapled: no
+  protocol: TLSv1.2
+  alpn: none
+  certificate-name: legacy.shop.test
+  stapled: no
+  ```
+
+  The checks also run it on four servers of their own, made as they run, with names made up then.
+hints:
+  - "One shape that works: keep s_client's whole output in a variable, then take each line's value out of it with awk (`/^New, / {print $2}`, with the comma taken off by `sub(\",\", \"\", $2)`, and `/^ALPN protocol: / {print $3}`), and give `alpn` the value `none` when awk found nothing (`${alpn:-none}`)."
+  - "For the name: `printf '%s\\n' \"$out\" | sed -n '/^Server certificate$/,/^-----END CERTIFICATE-----$/p' | sed 1d` is the server's certificate alone (`sed 1d` drops the first line, `Server certificate` itself). Hand it to `openssl x509 -noout -ext subjectAltName`, and take the first name from the line holding `DNS:` (awk with `-F'DNS:'`, then `split($2, part, \",\")`)."
+  - "With `set -euo pipefail`, a `grep` that finds nothing stops the script: use it inside `if` (`if printf '%s\\n' \"$out\" | grep 'OCSP Response Status: successful' > /dev/null; then`). openssl exits non-zero when a handshake fails, so end the s_client line with `|| true`."
+skills: [tls-handshake, tls-server-config, http-versions]

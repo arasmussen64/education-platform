@@ -1,0 +1,66 @@
+# tls-servers: helpers that make throwaway TLS servers with openssl, for
+# the lab's own example servers and for the checks. Sourced, not run.
+# shellcheck shell=bash
+
+# make_ca DIR: a certificate authority of its own in DIR (ca.pem, ca.key)
+# and an empty list of what it has issued, for its OCSP answers.
+make_ca() {
+  local dir=$1
+  mkdir -p "$dir"
+  openssl ecparam -name prime256v1 -genkey -noout -out "$dir/ca.key"
+  openssl req -x509 -new -key "$dir/ca.key" -subj "/CN=${2:-Test CA}" -days 3650 -out "$dir/ca.pem" \
+    -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign,digitalSignature" 2> /dev/null
+  : > "$dir/index.txt"
+  # Several certificates share the subject "Test server", which openssl's
+  # index refuses unless it is told subjects needn't be unique.
+  echo 'unique_subject = no' > "$dir/index.txt.attr"
+}
+
+# make_leaf DIR NAME SAN...: a server certificate NAME.pem and key NAME.key
+# in DIR, signed by DIR's CA, for the names SAN... in that order. Its
+# subject's CN is "Test server", which is no name at all: a client goes by
+# the names in the certificate's subjectAltName.
+make_leaf() {
+  local dir=$1 name=$2 san="" s
+  shift 2
+  for s in "$@"; do san+="${san:+,}DNS:$s"; done
+  openssl ecparam -name prime256v1 -genkey -noout -out "$dir/$name.key"
+  openssl req -new -key "$dir/$name.key" -subj "/CN=Test server" -out "$dir/$name.csr"
+  printf '%s\n' "subjectAltName=$san" 'extendedKeyUsage=serverAuth' > "$dir/$name.ext"
+  openssl x509 -req -in "$dir/$name.csr" -CA "$dir/ca.pem" -CAkey "$dir/ca.key" -CAcreateserial \
+    -days 3650 -extfile "$dir/$name.ext" -out "$dir/$name.pem" 2> /dev/null
+  rm -f "$dir/$name.csr" "$dir/$name.ext"
+  printf 'V\t%s\t\t%s\tunknown\t/CN=Test server\n' 361231000000Z \
+    "$(openssl x509 -in "$dir/$name.pem" -noout -serial | cut -d= -f2)" >> "$dir/index.txt"
+}
+
+# make_staple DIR NAME: DIR/NAME.ocsp, the CA's signed OCSP answer for
+# NAME.pem ("good"), which a server can staple as it is.
+make_staple() {
+  local dir=$1 name=$2
+  openssl ocsp -issuer "$dir/ca.pem" -cert "$dir/$name.pem" -no_nonce -reqout "$dir/$name.req" 2> /dev/null
+  openssl ocsp -index "$dir/index.txt" -CA "$dir/ca.pem" -rsigner "$dir/ca.pem" -rkey "$dir/ca.key" \
+    -reqin "$dir/$name.req" -respout "$dir/$name.ocsp" > /dev/null 2>&1
+  rm -f "$dir/$name.req"
+}
+
+# serve PORT DIR DEFAULT [OPTIONS...]: an openssl test server on
+# 127.0.0.1:PORT with certificate DEFAULT, and any of openssl s_server's
+# OPTIONS (-tls1_2, -alpn h2, -status_file F, -servername N -cert2 F
+# -key2 F). It runs in the background until it is killed.
+serve() {
+  local port=$1 dir=$2 default=$3
+  shift 3
+  openssl s_server -accept "127.0.0.1:$port" -cert "$dir/$default.pem" -key "$dir/$default.key" -quiet "$@" \
+    < /dev/null > /dev/null 2>&1 &
+}
+
+# listening PORT: true once something answers on 127.0.0.1:PORT.
+listening() {
+  local i
+  for i in $(seq 1 50); do
+    if (exec 3<> "/dev/tcp/127.0.0.1/$1") 2> /dev/null; then return 0; fi
+    sleep 0.1
+  done
+  return 1
+}

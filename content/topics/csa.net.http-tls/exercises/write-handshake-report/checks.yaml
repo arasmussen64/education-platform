@@ -1,0 +1,48 @@
+# The checks of "Handshake report": the script is there, runnable, clean
+# and does its own work; it gives the prompt's answers for the lab's two
+# example servers; and it gives the right four lines for four servers it
+# has never seen, made as the check runs with names made up then
+# (report-cases), so a script that knows answers by heart fails.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/handshake-report exists, is executable, starts with a shebang, ShellCheck has nothing to say about it, and it does its own work with openssl and the shell."
+    command: |
+      f=/home/learner/bin/handshake-report
+      [ -f "$f" ] || { echo "there is no ~/bin/handshake-report"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/handshake-report isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/handshake-report's first line isn't a shebang"; exit 0; }
+      if grep 'shellcheck disable' "$f" > /dev/null; then echo "~/bin/handshake-report switches ShellCheck's warnings off"; exit 0; fi
+      if grep -E 'python|perl|/usr/local/lib/lab' "$f" > /dev/null; then
+        echo "~/bin/handshake-report hands the work to another program: openssl and the shell are this lab's tools"
+        exit 0
+      fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say: $(echo "$said" | grep -m 1 'SC[0-9]')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: example-servers
+    description: "On the lab's two example servers it prints the four lines the prompt shows, for each of the prompt's three runs."
+    command: |
+      . /usr/local/lib/lab/tls-servers
+      listening 8443 && listening 9443 || { echo "the lab's example servers aren't running"; exit 0; }
+      run() { cd /home/learner && sudo -u learner timeout 15 /home/learner/bin/handshake-report "$@" 2>&1 | tr '\n' '|' | sed 's/|$//'; }
+      check() {
+        local want=$1
+        shift
+        got=$(run "$@")
+        [ "$got" = "$want" ] || { echo "handshake-report $* printed \"${got//|/; }\", not \"${want//|/; }\""; exit 0; }
+      }
+      check "protocol: TLSv1.3|alpn: h2|certificate-name: www.shop.test|stapled: yes" localhost 8443
+      check "protocol: TLSv1.2|alpn: none|certificate-name: api.shop.test|stapled: no" localhost 9443 api.shop.test
+      check "protocol: TLSv1.2|alpn: none|certificate-name: legacy.shop.test|stapled: no" localhost 9443
+      echo same
+    expect:
+      equals: same
+  - id: unseen-servers
+    description: "On four servers it has never seen, made as the check runs with names made up then, with each TLS version, each ALPN answer and a staple or none, it prints the right four lines, with a name asked for and without."
+    timeout: 60
+    command: /usr/local/lib/lab/report-cases
+    expect:
+      equals: same
