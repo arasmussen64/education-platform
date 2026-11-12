@@ -1,0 +1,16 @@
+id: mcq-why-short
+type: mcq
+rev: 1
+prompt: |
+  Public certificates may last 200 days today, 100 from March 2027 and 47 from March 2029. What is the main reason the browsers and CAs agreed to shorten them?
+choices:
+  - "Revocation doesn't reliably reach clients, so a short life limits how long a stolen key works"
+  - "Shorter certificates can use smaller keys, which makes every TLS handshake noticeably faster"
+  - "CAs charge for each certificate, so shorter lifetimes let them sell more of them every year"
+  - "Clients keep a certificate for its whole life, so a short one makes a site's changes spread"
+answer: 0
+explanation: |
+  When a key is stolen, the certificate should be revoked, but clients learn about revocations unreliably: many don't ask at all, and Let's Encrypt has stopped answering OCSP questions (topic 31). Whatever revocation misses, expiry catches, so a shorter life bounds the damage. It also forces automation: a certificate renewed by hand once a year is a forgotten outage waiting, and one renewed by ACME every few weeks has its renewal tested all the time.
+
+  A certificate's lifetime has nothing to do with its key's size or the handshake's speed. The largest public CA, Let's Encrypt, charges nothing. And clients don't keep server certificates: they're sent in every full handshake.
+skills: [acme-and-rotation]

@@ -1,0 +1,33 @@
+id: verify-code-meaning
+type: predict_shell
+rev: 1
+prompt: |
+  Each file is the end of one `openssl s_client -connect ... -servername NAME -verify_hostname NAME -CAfile root.pem` run against one of four servers, keeping the lines that start `verify error` or `Verify return code`, captured in this topic's lab on 2026-11-12 (OpenSSL 3.0.13). The command takes each file's verdict, the `Verify return code` line, and prints the file's name and the words in brackets. What is printed?
+files:
+  api.txt: |
+    verify error:num=20:unable to get local issuer certificate
+    verify error:num=21:unable to verify the first certificate
+    Verify return code: 21 (unable to verify the first certificate)
+  legacy.txt: |
+    verify error:num=10:certificate has expired
+    Verify return code: 10 (certificate has expired)
+  shop.txt: |
+    verify error:num=62:hostname mismatch
+    Verify return code: 62 (hostname mismatch)
+  www.txt: |
+    Verify return code: 0 (ok)
+command: |
+  grep 'Verify return code' *.txt | sed 's/:Verify return code: [0-9]* (/ /; s/)$//'
+expected_output: |
+  api.txt unable to verify the first certificate
+  legacy.txt certificate has expired
+  shop.txt hostname mismatch
+  www.txt ok
+explanation: |
+  `grep` over several files puts each file's name and a colon in front of the line it found, and only the `Verify return code` line matches, so the `verify error` complaints above it are left behind; `sed` swaps the colon, the words and the number for a space and drops the closing bracket. The four verdicts are the four you'll meet most:
+
+  - `0 (ok)`: the chain reached a root in the trust file, the dates are good and the name asked for is in the certificate's subjectAltName.
+  - `21 (unable to verify the first certificate)`, after `20 (unable to get local issuer certificate)`: openssl couldn't find who signed the server's certificate. Usually the server sent its certificate without the intermediate; it also happens when the certificate comes from a CA you don't trust. curl says `SSL certificate problem: unable to get local issuer certificate` for both.
+  - `10 (certificate has expired)`: the chain is fine and the date isn't.
+  - `62 (hostname mismatch)`: a good certificate, for another name; here the client asked for `shop.test` and got `www.shop.test`'s. openssl checks the name only when told to, with `-verify_hostname`; browsers and curl always do.
+skills: [cert-chains]

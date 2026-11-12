@@ -1,0 +1,22 @@
+id: est-renewals-a-year
+type: estimate
+rev: 1
+prompt: |
+  From March 2029 a public certificate may last at most 47 days. A team's ACME client renews each of its certificates every 30 days. How many renewals does one site's certificate go through in a year of 365 days, counting from the day it was first issued? Exactly.
+unit: renewals
+answer: 12
+tolerance: { absolute: 0 }
+given: { every: 30, days: 365, longest: 47 }
+working: days // every
+mistakes:
+  - id: at-expiry
+    value: 8
+    working: round(days / longest)
+    why: That renews only when each certificate runs out, every 47 days. The team renews every 30.
+  - id: counts-first-issue
+    value: 13
+    working: days // every + 1
+    why: That counts the first issue as a renewal. Renewals come on days 30, 60 and so on up to 360.
+explanation: |
+  Renewals fall on days 30, 60, 90, ... 360: 365 ÷ 30 = 12.17, so 12 in the year. With each certificate lasting 47 days, every renewal still has 17 days to spare. Twelve a year for each certificate on every server is why nobody renews by hand any more: a 200-day certificate of 2026, renewed at two-thirds, needs two or three renewals a year, a 47-day one of 2029 a dozen, and a renewal that fails without anyone noticing is an outage within weeks.
+skills: [acme-and-rotation]

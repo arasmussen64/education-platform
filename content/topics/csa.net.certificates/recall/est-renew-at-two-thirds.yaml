@@ -1,0 +1,23 @@
+id: est-renew-at-two-thirds
+type: estimate
+rev: 1
+prompt: |
+  A site's certificates last 45 days, as Let's Encrypt's will by default from February 2028. Its ACME client renews each one two-thirds of the way through its life, as Let's Encrypt advises for a client that doesn't ask the CA when to renew. On which day after a certificate is issued does the client renew it? Exactly.
+unit: days after issue
+answer: 30
+tolerance: { absolute: 0 }
+given: { lifetime: 45 }
+# Two-thirds is the rule the lesson teaches, so it isn't given.
+working: lifetime * 2 / 3
+mistakes:
+  - id: one-third
+    value: 15
+    working: lifetime / 3
+    why: That's a third of the way through. Two-thirds of the way leaves a third of the life, 15 days, to spare.
+  - id: at-expiry
+    value: 45
+    working: lifetime
+    why: That's the day it expires. Renewing then leaves no time at all if the CA or the network is down that day.
+explanation: |
+  45 × 2 ÷ 3 = 30: the client renews on day 30 and keeps 15 days, a third of the life, to retry in if the CA, the DNS or the network has a bad day. ACME Renewal Information (ARI, RFC 9773) lets the CA name the moment instead, which also lets it ask for early renewal before a mass revocation. certbot 2.9, Ubuntu 24.04's, uses a fixed 30 days before expiry by default (certbot 4.0 and later, a third of the lifetime): for a 45-day certificate the fixed rule renews on day 15, every time.
+skills: [acme-and-rotation]

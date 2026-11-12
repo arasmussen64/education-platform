@@ -1,0 +1,39 @@
+id: mtls-curl-outcomes
+type: predict_shell
+rev: 1
+prompt: |
+  The partners' API, `https://api.shop.test:8443/orders`, has `ssl_verify_client on` and trusts the Shop Partners CA for client certificates. Each file is what `curl -s` printed for one client, captured in this topic's lab on 2026-11-12: `none.html` from a client with no certificate, `shop-ca.html` from one with a certificate the shop's own CA issued to a server, and `warehouse.txt` (its first three lines) from the warehouse, whose certificate comes from the Shop Partners CA. The command prints each file's name and its first title or order line. What is printed?
+files:
+  none.html: |
+    <html>
+    <head><title>400 No required SSL certificate was sent</title></head>
+    <body>
+    <center><h1>400 Bad Request</h1></center>
+    <center>No required SSL certificate was sent</center>
+    <hr><center>nginx/1.24.0 (Ubuntu)</center>
+    </body>
+    </html>
+  shop-ca.html: |
+    <html>
+    <head><title>400 The SSL certificate error</title></head>
+    <body>
+    <center><h1>400 Bad Request</h1></center>
+    <center>The SSL certificate error</center>
+    <hr><center>nginx/1.24.0 (Ubuntu)</center>
+    </body>
+    </html>
+  warehouse.txt: |
+    order 1001 open
+    order 1002 open
+    order 1003 open
+command: |
+  for f in none.html shop-ca.html warehouse.txt; do
+    printf '%s: %s\n' "$f" "$(grep -m 1 -o -E '<title>[^<]*|^order [0-9]+' "$f" | sed 's/<title>//')"
+  done
+expected_output: |
+  none.html: 400 No required SSL certificate was sent
+  shop-ca.html: 400 The SSL certificate error
+  warehouse.txt: order 1001
+explanation: |
+  `grep -m 1 -o` prints the part that matched on the first matching line, and `sed` takes the `<title>` tag off. The three answers are the three cases of mutual TLS. A client that sends no certificate gets `400 No required SSL certificate was sent`: nginx finishes the TLS handshake anyway and refuses at the HTTP level (its own code for this is 496, which only `error_page` sees). A client whose certificate doesn't chain to the CA nginx trusts for clients gets `400 The SSL certificate error` (code 495), even though that certificate is perfectly good for a server and comes from the shop's own CA: trust for clients is a separate list, here the Shop Partners CA alone. The warehouse's certificate chains to it, so the API answers with the orders.
+skills: [mutual-tls]

@@ -1,0 +1,16 @@
+id: mcq-code-21
+type: mcq
+rev: 1
+prompt: |
+  A partner's sync job, which calls the shop's API with curl from a server, fails with `curl: (60) SSL certificate problem: unable to get local issuer certificate`, and `openssl s_client` from that server ends `Verify return code: 21 (unable to verify the first certificate)`. On a laptop, the same address opens in a browser with the padlock showing. What is the most likely cause?
+choices:
+  - "The API sends its own certificate without the intermediate, which the browser had already"
+  - "The API's certificate has expired, and the laptop's clock runs a few days behind the server's"
+  - "The certificate lacks the name curl asks for, which browsers find in the subject's CN instead"
+  - "The CA's root has been revoked, and browsers stopped checking revocation for public sites"
+answer: 0
+explanation: |
+  Code 21 comes after code 20, "unable to get local issuer certificate": openssl had the server's certificate and couldn't find who signed it. The usual cause is a server set up with the site's certificate alone (certbot's `cert.pem`) instead of the full chain (`fullchain.pem`). Browsers often hide the mistake: many keep intermediates they've seen before, and some fetch a missing one from an address in the certificate. curl, openssl, phones' apps and other servers do neither, so they fail where the browser didn't, which is how "it works in my browser" happens.
+
+  An expired certificate gives code 10 ("certificate has expired"), and a clock behind would make it look valid, not invalid. A name mismatch is code 62, and browsers don't use the CN for names at all. Nothing about revocation produces code 21.
+skills: [cert-chains]

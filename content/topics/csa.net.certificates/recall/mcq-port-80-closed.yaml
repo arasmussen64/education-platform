@@ -1,0 +1,16 @@
+id: mcq-port-80-closed
+type: mcq
+rev: 1
+prompt: |
+  A server's firewall lets the internet reach port 443 only, and its domain's DNS is with a provider that has no API. Which ACME challenge can its client still use to get a certificate for `api.shop.test` from Let's Encrypt?
+choices:
+  - "TLS-ALPN-01, which the CA checks in one TLS handshake on port 443"
+  - "HTTP-01, since the CA tries port 443 by itself when 80 is closed"
+  - "DNS-01, with one TXT record added by hand and left there for good"
+  - "None of them, since every challenge needs port 80 open to the CA"
+answer: 0
+explanation: |
+  TLS-ALPN-01 is done "via TLS on port 443": the client answers the CA's connection with a special certificate, chosen through ALPN. Let's Encrypt calls it "not suitable for most people" because few clients support it, but it's the one for a server that only opens 443 and can't automate its DNS.
+
+  HTTP-01 "can only be done on port 80": the CA follows a redirect from port 80 to 443, but it never starts on 443. DNS-01 needs a new TXT value for every order, so a record typed in once proves nothing the next time, which is why it's automated through an API.
+skills: [acme-and-rotation]

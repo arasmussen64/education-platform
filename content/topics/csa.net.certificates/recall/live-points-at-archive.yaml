@@ -1,0 +1,21 @@
+id: live-points-at-archive
+type: predict_shell
+rev: 1
+prompt: |
+  `live.txt` is `ls -l /etc/letsencrypt/live/www.shop.test/` on web, after certbot got the shop's certificate and then renewed it twice, captured in this topic's lab on 2026-11-12. The command prints, for the two files nginx's site reads, the name and where it leads. What is printed?
+files:
+  live.txt: |
+    total 4
+    -rw-r--r-- 1 root root 692 Nov 12 18:32 README
+    lrwxrwxrwx 1 root root  37 Nov 12 18:35 cert.pem -> ../../archive/www.shop.test/cert3.pem
+    lrwxrwxrwx 1 root root  38 Nov 12 18:35 chain.pem -> ../../archive/www.shop.test/chain3.pem
+    lrwxrwxrwx 1 root root  42 Nov 12 18:35 fullchain.pem -> ../../archive/www.shop.test/fullchain3.pem
+    lrwxrwxrwx 1 root root  40 Nov 12 18:35 privkey.pem -> ../../archive/www.shop.test/privkey3.pem
+command: |
+  awk '$9 == "fullchain.pem" || $9 == "privkey.pem" {print $9, "->", $11}' live.txt
+expected_output: |
+  fullchain.pem -> ../../archive/www.shop.test/fullchain3.pem
+  privkey.pem -> ../../archive/www.shop.test/privkey3.pem
+explanation: |
+  awk splits each line at its spaces: `$9` is the name and `$11` what the link leads to (`$10` is the arrow). Every file in `live/` is a link (the `l` at the start of `lrwxrwxrwx`) into `archive/`, where certbot keeps every certificate it has had: `fullchain1.pem` from the first issue, `fullchain2.pem` from the first renewal, and `fullchain3.pem` from the second, which `live/` leads to now. A server that reads the `live/` names, as nginx's site does, gets the newest at its next reload; one pointed at `archive/www.shop.test/fullchain1.pem` would read the first certificate for ever. The `README` beside them calls `fullchain.pem` "the certificate file used in most server software", warns that `cert.pem` (the site's certificate without the intermediate) "will break many server configurations", and asks you not to move or rename any of them.
+skills: [acme-and-rotation]

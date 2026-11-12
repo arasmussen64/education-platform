@@ -1,0 +1,16 @@
+id: mcq-san-not-cn
+type: mcq
+rev: 1
+prompt: |
+  A certificate's subject is `CN = www.shop.test` and its subjectAltName lists one name, `DNS:shop.test`. It was issued by a CA the browser trusts, and it hasn't expired. The browser asks for `https://www.shop.test/`. What happens?
+choices:
+  - "It refuses with a name error, since browsers match only the names in the subjectAltName"
+  - "It accepts it, since the CN names the site and the subjectAltName only adds further names"
+  - "It accepts it, since shop.test in the subjectAltName also covers every name below shop.test"
+  - "It refuses it as untrusted, since a CA must make the CN and the subjectAltName the same"
+answer: 0
+explanation: |
+  Browsers, curl and openssl's `-verify_hostname` check the name asked for against the subjectAltName's DNS names only, and ignore the subject's CN once a subjectAltName exists (browsers have ignored the CN since about 2017). `www.shop.test` isn't in the list, so the browser shows a name error (code 62 in openssl, "hostname mismatch").
+
+  `shop.test` covers exactly `shop.test`: only a wildcard, `*.shop.test`, covers names one label below, and even that doesn't cover `shop.test` itself. The CN and the subjectAltName needn't agree, and the trust in the issuer is fine: what fails is the name. ACME CAs often leave the CN out of the subject entirely.
+skills: [cert-chains]
