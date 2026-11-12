@@ -1,15 +1,284 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.transport
 kind: topic
-status: planned
+status: ready
 title: TCP and UDP
-summary: Read a TCP handshake and teardown in a capture.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Read a TCP conversation in a capture, from the settings its SYN offers to the goodbye or the slammed door; work out what one connection can carry over a long path, and why window scaling matters; know how long TCP waits before it gives up; keep quiet connections alive through the clouds' NAT gateways, load balancers and firewalls; and see how UDP differs."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2
+# and 5, topic 28) and its designer's brief (csa.net.transport.md). Through
+# csa.net.nat this builds on csa.net.routing (sysctl and /etc/sysctl.d,
+# stateful firewalls), csa.net.cidr and csa.net.layers (TTL, ICMP, MTU and
+# MSS, the network labs' machines, on, netlab), and csa.m1.checkpoint; for
+# the writer, Module 1's net-tools (tcpdump's flags, ss and its states,
+# TIME-WAIT, ephemeral ports, nftables and ct state, conntrack). From
+# csa.net.nat it uses NAT, masquerading, the managed NAT gateways, SNAT
+# ports and a NAT's idle timeout. It defines load balancer, security group
+# and connection pool in a sentence each (the plan's section 3.7).
+prerequisites: [csa.net.nat]
+# Worked out: the lesson about 25 minutes (3,200 words at 130 a minute),
+# reading 45 (HPBN's two chapters' sections 20, Cloudflare's post 12, the
+# three cloud pages 10, the kernel's and tcp(7)'s entries 3), 23 recall
+# items at 1.5 each 35, then the worked example 30, the fill-in 25, the
+# write 35, the build 50, the debug 45 and the explain 20: 310, less the
+# overlap of the labs' reading with the lesson's: 300.
+estimated_minutes: 300
 rev: 1
 objectives:
-- Read a TCP handshake and teardown in a capture.
-- Explain window scaling, timeouts and keepalives, and why idle connections get cut.
+  - "Read a TCP conversation in `tcpdump` output: the settings each SYN offers (MSS, SACK, timestamps, window scale), bytes counted by `seq` and `ack`, the goodbye and who said it first, a reset against a goodbye, keepalive probes, and a reset forged by a box in the middle, told apart by its TTL."
+  - "Explain flow control and the receive window, why window scaling exists and what a box that strips it does to a long path; work out a path's bandwidth-delay product and the most one connection can carry with a given window."
+  - "Say how long TCP waits before it gives up (a connection attempt, data nobody acknowledges, an idle connection), what the application is told each time, and why applications set shorter timeouts of their own."
+  - "Explain why quiet connections get cut in a cloud, name the three clouds' timers and what each box does when it forgets a connection, and fix it with keepalives that come sooner than the smallest timer on the path, switched on by the application and kept after a reboot."
+  - "Explain what UDP does and doesn't do, what a closed port and a firewall drop look like, why boxes give UDP short timers, and how a client that waits for pushes keeps its NAT mapping alive."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - Linux: tcp_keepalive_time "Default: 2hours", tcp_keepalive_probes 9,
+#   tcp_keepalive_intvl "75sec i.e. connection will be aborted after ~11
+#   minutes of retries"; tcp_syn_retries 6, "the final timeout for an active
+#   TCP connection attempt will happen after 131seconds"; tcp_retries2 15
+#   "yields a hypothetical timeout of 924.6 seconds and is a lower bound";
+#   tcp_window_scaling on; tcp_rmem's default 131072 and maximum "between
+#   131072 and 32MB, depending on RAM size"; ip_local_port_range 32768 to
+#   60999: https://docs.kernel.org/networking/ip-sysctl.html
+# - tcp(7), man-pages 6.19 (2026-04-19): "Keep-alives are sent only when the
+#   SO_KEEPALIVE socket option is enabled"; TCP_KEEPIDLE, TCP_KEEPINTVL,
+#   TCP_KEEPCNT per socket: https://man7.org/linux/man-pages/man7/tcp.7.html
+# - ss(8): -o prints timer:(<timer_name>,<expire_time>,<retrans>), names on,
+#   keepalive, timewait, persist, unknown; -i prints wscale and rtt in ms:
+#   https://man7.org/linux/man-pages/man8/ss.8.html
+# - RFC 9293 section 3.8.4: keep-alives are optional, off by default for each
+#   connection, sent only after an interval that defaults to no less than two
+#   hours, and one missing answer doesn't mean a dead connection; the window
+#   field is 16 bits: https://www.rfc-editor.org/rfc/rfc9293.html
+# - RFC 7323 section 2: the window scale option is sent only in a SYN, both
+#   sides must send it, the shift is at most 14 (windows of 2^30 = 1 GiB),
+#   otherwise both shifts are zero: https://www.rfc-editor.org/rfc/rfc7323.html
+# - RFC 9000 section 10.1.2: "sending packets every 30 seconds is necessary
+#   to prevent the majority of middleboxes from losing state" for UDP flows:
+#   https://www.rfc-editor.org/rfc/rfc9000.html
+# - AWS NAT gateway: a connection idle for 350 seconds or more times out, and
+#   the gateway "returns an RST packet to any resources behind the NAT
+#   gateway that attempt to continue the connection (it does not send a FIN
+#   packet)"; fix with traffic or keepalive under 350 seconds:
+#   https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-troubleshooting.html
+# - AWS Network Load Balancer: TCP idle timeout 350 s by default, 60 to 6,000;
+#   TLS listeners 350 s, can't be modified; on Nitro v6 instances the
+#   network interface's connection tracking defaults to 350 s, and a
+#   mismatch "causes the target's network interface to silently drop
+#   connection state":
+#   https://docs.aws.amazon.com/elasticloadbalancing/latest/network/update-idle-timeout.html
+# - AWS Application Load Balancer: idle timeout 60 s by default, 1 to 4,000;
+#   "Application Load Balancers do not support HTTP/2 PING frames. These do
+#   not reset the connection idle timeout"; send at least 1 byte of data:
+#   https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-load-balancer-attributes.html
+# - AWS security groups' connection tracking: TCP established 350 s on Nitro
+#   v6 instance types, 432,000 s (5 days) on others, 60 to 432,000; UDP 30 s,
+#   UDP stream 180 s; "configure TCP keep alives to be sent at intervals of
+#   less than 5 minutes":
+#   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-connection-tracking.html
+# - AWS's networking blog, 22 May 2026 (Lehwess and Pangle): Nitro V6 moved
+#   connection tracking from 432,000 s to 350 s; tcp_keepalive_time 240,
+#   intvl 60, probes 3; pools with maxIdleTime and maxLifetime; PostgreSQL's
+#   tcp_keepalives_* settings, Redis's tcp-keepalive default 300 s:
+#   https://aws.amazon.com/blogs/networking-and-content-delivery/best-practices-for-tcp-connection-management-on-ec2/
+# - Azure Load Balancer: by default it silently drops a flow at its idle
+#   timeout; TCP reset on idle sends resets both ways; 4 to 100 minutes for
+#   load-balancing and inbound NAT rules, 4 to 120 for outbound rules, 4 by
+#   default; application-layer keepalives where a proxy is in the path;
+#   keepalives not for mobile apps (ms.date 2024-07-31, updated 2026-08-19):
+#   https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-tcp-reset
+# - Azure NAT Gateway: TCP idle timeout 4 minutes by default, 4 to 120; UDP 4
+#   minutes, not configurable; a TCP reset for traffic on a flow that no
+#   longer exists; raising the timer holds SNAT ports longer, not
+#   recommended; "TCP keepalives appear as duplicate acknowledgements
+#   (ACKs)"; UDP keepalives needed on both sides; "These timer settings are
+#   subject to change" (ms.date 2025-11-04, updated 2026-10-13):
+#   https://learn.microsoft.com/en-us/azure/nat-gateway/nat-gateway-resource
+# - Azure Front Door: "a 90-second HTTP keep-alive timeout", not
+#   configurable (ms.date 2026-11-02, updated 2026-11-11):
+#   https://learn.microsoft.com/en-us/azure/frontdoor/front-door-faq
+# - Google Cloud NAT defaults: UDP mapping 30 s, TCP established 1,200 s (20
+#   minutes), TCP transitory 30 s, all configurable; "Timeout processing has a
+#   variance of up to five seconds":
+#   https://docs.cloud.google.com/nat/docs/tune-nat-configuration
+# - Google Cloud VPC firewall rules: "A firewall rule's tracking state is
+#   considered active if at least one packet is sent every 10 minutes":
+#   https://docs.cloud.google.com/firewall/docs/firewalls
+# - Google Cloud's global external Application Load Balancer: client HTTP
+#   keepalive 610 s by default, 5 to 1,200; backend keepalive "fixed at 10
+#   minutes (600 seconds)":
+#   https://docs.cloud.google.com/load-balancing/docs/https/request-distribution
+# Measured in this topic's labs on 2026-11-12 (Docker Desktop 29.8.2, kernel
+# 6.18.33.2-microsoft-standard-WSL2): one connection over the lab's 50
+# Mbit/s link with 50 ms each way, 42 to 44 Mbit/s; with window scaling off
+# at the receiver or stripped by a firewall, 4.8 to 5.0; with the receiver's
+# tcp_rmem capped at 174,760 bytes, 9.45. A reset forged by the NAT gateway
+# arrives with ttl 64 where the database's packets arrive with 63. After an
+# answered keepalive probe the next comes after the interval: with 5 s idle
+# and the default 75 s interval, one probe crossed a 15-second gateway and
+# the connection was cut. Every output marked "captured" is real output of
+# these labs that day; times and ports will differ in a new run.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: High Performance
+# Browser Networking (the pages' footer: "Copyright © 2013 Ilya Grigorik.
+# Published by O'Reilly Media, Inc. Licensed under CC BY-NC-ND 4.0");
+# Cloudflare's blog (no licence stated for its text); AWS's documentation and
+# blog (copyright Amazon Web Services); Microsoft Learn (the
+# MicrosoftDocs/azure-docs repository's LICENSE: CC BY 4.0); Google Cloud's
+# documentation (Google's developer site policies: content under CC BY 4.0
+# except as otherwise noted); the Linux kernel's ip-sysctl page (GPL-2.0, its
+# source's SPDX line); the Linux man-pages (free documentation); RFCs (the
+# IETF Trust's legal provisions).
+resources:
+  - title: "High Performance Browser Networking, chapter 2, \"Building Blocks of TCP\" (Ilya Grigorik): read \"Three-Way Handshake\", \"Flow Control\" with \"Window Scaling (RFC 1323)\", and \"Bandwidth-Delay Product\", about 10 minutes"
+    url: https://hpbn.co/building-blocks-of-tcp/
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 4.0 (the page's footer); linked, not copied"
+  - title: "When TCP sockets refuse to die (Marek Majkowski, Cloudflare blog, 2019): read \"SYN-SENT\", \"Idle ESTAB is forever\", \"Busy ESTAB socket is not forever\" and \"Summary\", about 12 minutes"
+    url: https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die/
+    type: reading
+    use: link
+    license: "No licence stated for the text (© Cloudflare); linked, not copied"
+  - title: "High Performance Browser Networking, chapter 3, \"Building Blocks of UDP\" (Ilya Grigorik): read \"Null Protocol Services\" and \"UDP and Network Address Translators\" up to \"NAT Traversal\", about 9 minutes"
+    url: https://hpbn.co/building-blocks-of-udp/
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 4.0 (the page's footer); linked, not copied"
+  - title: "Troubleshoot NAT gateways (AWS VPC user guide): read \"Internet connection drops after 350 seconds\""
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-troubleshooting.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Load Balancer TCP Reset and idle timeout (Microsoft Learn): the silent drop, TCP reset on idle, and when to use keepalives, about 7 minutes"
+    url: https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-tcp-reset
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Tune NAT configuration (Google Cloud NAT documentation): read the table of default timeouts"
+    url: https://docs.cloud.google.com/nat/docs/tune-nat-configuration
+    type: reading
+    use: link
+    license: "CC BY 4.0 (Google's developer documentation site policies); linked, not copied"
+  - title: "Best Practices for TCP Connection Management on EC2 (AWS Networking blog, 22 May 2026): optional, the whole post, about 15 minutes"
+    url: https://aws.amazon.com/blogs/networking-and-content-delivery/best-practices-for-tcp-connection-management-on-ec2/
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "IP Sysctl (the Linux kernel's documentation): look up tcp_keepalive_time, tcp_keepalive_intvl, tcp_keepalive_probes, tcp_syn_retries and tcp_retries2"
+    url: https://docs.kernel.org/networking/ip-sysctl.html
+    type: reading
+    use: link
+    license: "GPL-2.0 (its source's SPDX line); linked, not copied"
+  - title: "tcp(7), from the Linux man-pages project: look up TCP_KEEPIDLE, TCP_KEEPINTVL and TCP_KEEPCNT"
+    url: https://man7.org/linux/man-pages/man7/tcp.7.html
+    type: reading
+    use: link
+    license: "Linux man-pages project (free documentation; linked, not copied)"
+  - title: "RFC 9293, Transmission Control Protocol: section 3.8.4, \"TCP Keep-Alives\" (optional)"
+    url: https://www.rfc-editor.org/rfc/rfc9293.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "RFC 7323, TCP Extensions for High Performance: section 2, \"TCP Window Scale Option\" (optional)"
+    url: https://www.rfc-editor.org/rfc/rfc7323.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+# The recall items read captures and ss output from this topic's own labs,
+# with Module 1's text tools, and do the window and timer sums as estimates.
+# The worked example, the fill-in, the build and the debug are labs on the
+# network-lab base (ADR-0018's third amendment), on a fast clock: their
+# boxes forget quiet connections in seconds, and every prompt says what
+# the real timer is. The write lab is a plain lab on Module 3's plain line,
+# with ShellCheck added.
+practice:
+  - example-read-the-conversation
+  - cap-bytes-each-way
+  - mcq-who-closed-first
+  - mcq-who-sent-the-reset
+  - mcq-fin-or-reset
+  - mcq-what-are-these
+  - est-bdp-cross-region
+  - est-unscaled-ceiling
+  - est-scaled-window
+  - mcq-stripped-scale
+  - est-syn-classic
+  - est-dead-peer-keepalive
+  - est-default-keepalive
+  - mcq-which-error
+  - mcq-idle-forever
+  - est-smallest-idle
+  - mcq-probe-gap
+  - mcq-sysctl-alone
+  - mcq-reset-or-hang
+  - mcq-proxy-in-the-path
+  - ss-keepalive-timers
+  - udp-closed-or-dropped
+  - mcq-udp-what-it-gives
+  - mcq-udp-push-through-nat
+  - fill-keepalive-under-the-timeout
+  - write-syn-check
+prove:
+  build: build-quiet-path
+  debug: debug-slow-replication
+  explain:
+    prompt: |
+      A company moved an app from its data centre to a cloud, and two things broke. The first database query after a quiet lunch hour fails with "Connection reset by peer", and a nightly copy to another region runs at a tenth of the link's speed. Explain, in your own words: how you'd read a capture of the database connection to find out who sent the reset, and how a box in the middle can send one that looks like the database's; why quiet connections get cut in a cloud, what the NAT gateways or load balancers of two clouds do by default, and how keepalives fix it, including what has to be true of the application for the system's keepalive setting to matter; how the receive window and window scaling limit one connection over a long path, with the bandwidth-delay product worked out for an example of your own; and, if you can, how a UDP flow through the same NAT differs.
+    rubric:
+      - id: capture
+        required: true
+        description: "A capture shows the SYNs' options (MSS, SACK, timestamps, window scale), the data counted by seq and ack, and how the connection ends: FIN is a goodbye, RST a slammed door; the reset's TTL (tcpdump -v) tells who made it: one that arrives with a higher TTL than the server's own packets started closer, at a box in the middle that forgot the connection and answered in the server's name."
+      - id: idle-cuts
+        required: true
+        description: "Every stateful box on the path (NAT gateway, load balancer, firewall connection tracking) keeps a record of each connection and forgets one that stays quiet past its idle timer; the endpoints aren't told, and the next packet meets either a reset or a silent drop that ends in a timeout."
+      - id: keepalive-fix
+        required: true
+        description: "TCP keepalives that come sooner than the smallest idle timer on the path (both the idle time and the interval between probes); the application must switch keepalive on for its socket, or the system's setting does nothing; the setting is kept in a file so it survives a reboot; behind a proxy (a layer 7 load balancer), an application heartbeat of real data, since TCP probes stop at the proxy."
+      - id: window
+        required: true
+        description: "One connection carries at most one receive window per round trip, so throughput is at most window ÷ RTT; the path needs a window of at least the bandwidth-delay product, rate × RTT, worked with numbers; without window scaling the window stops at 65,535 bytes; a box that strips the option from the SYNs (seen by comparing captures on both sides) or a capped receive buffer caps the connection."
+      - id: clouds-differ
+        required: true
+        description: "Two correct cloud defaults and what they do: AWS's NAT gateway forgets after 350 seconds and resets the inside end; Azure's load balancer forgets after 4 minutes and drops silently unless TCP reset on idle is on, and its NAT gateway after 4 minutes; Google Cloud NAT keeps an established TCP connection 20 minutes and a UDP mapping 30 seconds."
+      - id: udp
+        required: false
+        description: "UDP has no connection, so boxes give its flows short timers (30 seconds is common) and drop pushes for a mapping they've forgotten; a client that waits for pushes sends keepalive datagrams of its own."
+    model_answer: |
+      To find who sent the reset I'd capture the database connection with tcpdump -nn -v on the app server. The SYN and SYN-ACK show what each side offered: mss 1460, sackOK, timestamps and wscale 10. Then the data, counted by seq and ack: ack 9 means "I have everything before byte 9". A connection that ends with FINs said goodbye; this one ended with an [R], a reset, the slammed door, answering the first query after lunch. With -v every packet shows its TTL. If the database's packets arrive with ttl 63, one router away, and the reset arrives with ttl 64, the reset was made one hop closer: the NAT gateway forgot the connection and answered in the database's name.
+
+      Quiet connections get cut because every stateful box on the path keeps a record of each connection and throws out records that stay quiet too long, without telling either end. AWS's NAT gateway forgets after 350 seconds and then resets the inside end when it sends; Azure's load balancer forgets after 4 minutes and by default drops the packets silently, so the app hangs until its own timeout, unless TCP reset on idle is turned on. Linux's keepalive starts after two hours, far too late. The fix is TCP keepalives that come sooner than the smallest timer on the path, say a first probe after 240 seconds and the gap between probes below it too. The system's tcp_keepalive_time only applies to sockets whose program switched keepalive on, so the database driver has to ask for it, and the setting goes in /etc/sysctl.d or the app's config so it survives a reboot. Behind a proxy like an Application Load Balancer the probes stop at the proxy, so the app needs a heartbeat of real data.
+
+      The nightly copy is one connection, and it can only have one receive window in flight per round trip: throughput is at most window divided by RTT. For a 100 Mbit/s link with an 80 ms round trip the path holds 100,000,000 ÷ 8 × 0.08 = 1,000,000 bytes, the bandwidth-delay product, so the window must reach a megabyte. Without window scaling it stops at 65,535 bytes, which over 80 ms is 6.5 Mbit/s. If the SYN leaving the server says wscale but the same SYN arriving at the far end doesn't, a firewall in between is stripping the option; a receiver whose buffers are capped would hold it down too.
+
+      UDP through the same NAT has no connection at all, so the NAT keeps its mapping only a short time, 30 seconds on Google Cloud NAT, and a client waiting for pushes has to send small keepalive datagrams to keep it.
+review_pool:
+  - cap-bytes-each-way
+  - mcq-who-sent-the-reset
+  - mcq-fin-or-reset
+  - mcq-stripped-scale
+  - est-bdp-cross-region
+  - est-unscaled-ceiling
+  - est-scaled-window
+  - est-dr-ceiling
+  - est-syn-classic
+  - est-dead-peer-keepalive
+  - est-default-keepalive
+  - est-retries-ceiling
+  - mcq-idle-forever
+  - est-smallest-idle
+  - mcq-sysctl-alone
+  - ss-keepalive-timers
+  - mcq-raise-the-timer
+  - est-probe-count
+  - udp-closed-or-dropped
+  - mcq-udp-push-through-nat
+  - mcq-when-udp
+skills:
+  - id: read-a-capture
+    description: "Read a TCP conversation in `tcpdump -nn` text: the SYN's options (`mss`, `sackOK`, `TS`, `wscale`), `seq` and `ack` as byte counts, data and its acknowledgement, the FIN exchange and who closed first, a reset against a goodbye, keepalive probes, and a reset forged by a box in the middle, found with `-v` by its TTL; comparing the same SYN on both sides of a box"
+  - id: window-math
+    description: "Flow control and the receive window; window scaling (a shift count in the SYNs only, both sides must offer it, and a box that strips it caps the window at 65,535 bytes); the bandwidth-delay product; throughput at most window ÷ RTT; the window field times 2 to the shift"
+  - id: tcp-timers
+    description: "How long TCP waits and what the application hears: a refused connection (at once), a connection attempt to a silent host (about 2 minutes on Linux), data nobody acknowledges (about 15 minutes), an idle connection with keepalive off (never), keepalive's defaults (2 hours, then 9 probes 75 seconds apart) and how long a dead peer takes to notice; why applications set shorter connect and read timeouts"
+  - id: idle-cuts
+    description: "Why quiet connections get cut: stateful boxes' idle timers and the three clouds' defaults; the two symptoms (a reset, or a silent drop ending in a timeout); keepalives sooner than the smallest timer on the path (idle time and interval both), switched on by the application, with the socket's timers or the system's, kept after a reboot; heartbeats where a proxy sits in the path; what raising a box's timer costs"
+  - id: udp-behaviour
+    description: "UDP's datagrams, with no handshake, acknowledgement, resending or order; a closed port answers with ICMP port unreachable, a firewall drop answers nothing, and `nc -u` can't tell them apart; boxes' short UDP timers; keepalive datagrams for a client that waits for pushes; when UDP is the right choice"
