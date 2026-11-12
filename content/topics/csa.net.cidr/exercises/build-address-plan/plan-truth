@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""plan-truth: how the checks of "Plan the cloud addresses" read the plan.
+
+  plan-truth form           every subnet listed once, each block written at
+                            its start
+  plan-truth big-enough     each subnet holds twice its machines plus its
+                            cloud's reserved addresses
+  plan-truth not-oversized  and is the smallest block that does
+  plan-truth no-overlaps    no two subnets overlap, and none touches the
+                            disaster-recovery site's 10.72.0.0/16
+  plan-truth summaries      each cloud's summary block in summary.txt
+                            keeps its rules
+
+Each prints "ok", or what is wrong. The right answers are worked out here
+with Python's ipaddress module, from the brief's numbers.
+"""
+
+import ipaddress
+import sys
+
+PLAN = "/home/learner/plan/plan.txt"
+SUMMARY = "/home/learner/plan/summary.txt"
+COMPANY = ipaddress.IPv4Network("10.64.0.0/12")
+DR_SITE = ipaddress.IPv4Network("10.72.0.0/16")
+# What each cloud keeps back of every subnet: AWS and Azure 5, Google 4.
+RESERVED = {"aws": 5, "azure": 5, "gcp": 4}
+# Each subnet: its cloud and how many machines it holds now.
+SUBNETS = {}
+for zone in "abc":
+    SUBNETS[f"aws-{zone}-web"] = ("aws", 254)
+    SUBNETS[f"aws-{zone}-app"] = ("aws", 120)
+    SUBNETS[f"aws-{zone}-data"] = ("aws", 25)
+SUBNETS.update(
+    {
+        "az-web": ("azure", 500),
+        "az-app": ("azure", 60),
+        "az-data": ("azure", 12),
+        "gcp-web": ("gcp", 62),
+        "gcp-app": ("gcp", 30),
+        "gcp-data": ("gcp", 6),
+    }
+)
+
+
+class Wrong(Exception):
+    """What is wrong, in a sentence for the learner."""
+
+
+def read(path, what):
+    """A file's lines as (name, block as written): blank lines and lines
+    that start with # are left out."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except OSError:
+        raise Wrong(f"there is no {path.replace('/home/learner', '~')}") from None
+    entries = []
+    for line in lines:
+        fields = line.split()
+        if not fields or fields[0].startswith("#"):
+            continue
+        if len(fields) != 2:
+            raise Wrong(f"a line of {what} isn't a name and a block: {line.strip()}")
+        entries.append((fields[0], fields[1]))
+    return entries
+
+
+def parse(name, text, what):
+    try:
+        return ipaddress.IPv4Network(text, strict=False)
+    except ValueError:
+        raise Wrong(f"{name}'s block in {what}, {text}, isn't an IPv4 address with a prefix length") from None
+
+
+def plan_blocks():
+    """Each subnet's block, read as a network even if host bits are set."""
+    entries = read(PLAN, "plan.txt")
+    blocks = {}
+    for name, text in entries:
+        if name in SUBNETS and name not in blocks:
+            blocks[name] = parse(name, text, "plan.txt")
+    missing = [name for name in SUBNETS if name not in blocks]
+    if missing:
+        raise Wrong(f"plan.txt has no line for {missing[0]}")
+    return blocks
+
+
+def need(name):
+    cloud, machines = SUBNETS[name]
+    return 2 * machines + RESERVED[cloud]
+
+
+def form():
+    entries = read(PLAN, "plan.txt")
+    names = [name for name, _ in entries]
+    for name in SUBNETS:
+        if names.count(name) != 1:
+            return f"plan.txt lists {name} {names.count(name)} times, not once"
+    for name in names:
+        if name not in SUBNETS:
+            return f"plan.txt lists {name}, which isn't one of the subnets asked for"
+    for name, text in entries:
+        parse(name, text, "plan.txt")
+        try:
+            ipaddress.IPv4Network(text)
+        except ValueError:
+            return f"{name}'s block, {text}, isn't written at its start: its address has host bits set"
+    return "ok"
+
+
+def big_enough():
+    blocks = plan_blocks()
+    for name, block in blocks.items():
+        if block.num_addresses < need(name):
+            return f"{name}'s block is too small for twice its machines plus its cloud's reserved addresses"
+    return "ok"
+
+
+def not_oversized():
+    blocks = plan_blocks()
+    for name, block in blocks.items():
+        if block.num_addresses // 2 >= need(name):
+            return f"{name}'s block is bigger than the smallest one that holds twice its machines plus its cloud's reserved addresses"
+    return "ok"
+
+
+def no_overlaps():
+    blocks = plan_blocks()
+    names = list(SUBNETS)
+    for i, first in enumerate(names):
+        if blocks[first].overlaps(DR_SITE):
+            return f"{first} overlaps the disaster-recovery site's 10.72.0.0/16"
+        for second in names[i + 1 :]:
+            if blocks[first].overlaps(blocks[second]):
+                return f"{first} and {second} overlap"
+    return "ok"
+
+
+def summaries():
+    blocks = plan_blocks()
+    entries = read(SUMMARY, "summary.txt")
+    names = [name for name, _ in entries]
+    for cloud in RESERVED:
+        if names.count(cloud) != 1:
+            return f"summary.txt lists {cloud} {names.count(cloud)} times, not once"
+    for name in names:
+        if name not in RESERVED:
+            return f"summary.txt lists {name}; its names are aws, azure and gcp"
+    summary = {}
+    for name, text in entries:
+        summary[name] = parse(name, text, "summary.txt")
+        try:
+            ipaddress.IPv4Network(text)
+        except ValueError:
+            return f"the {name} summary, {text}, isn't written at its start: its address has host bits set"
+    for cloud, block in summary.items():
+        if not block.subnet_of(COMPANY):
+            return f"the {cloud} summary, {block}, isn't inside the company's 10.64.0.0/12"
+        if block.overlaps(DR_SITE):
+            return f"the {cloud} summary, {block}, overlaps the disaster-recovery site's 10.72.0.0/16"
+        mine = [name for name, (c, _) in SUBNETS.items() if c == cloud]
+        for name in mine:
+            if not blocks[name].subnet_of(block):
+                return f"the {cloud} summary, {block}, doesn't contain {name}"
+        for name, (c, _) in SUBNETS.items():
+            if c != cloud and blocks[name].overlaps(block):
+                return f"the {cloud} summary, {block}, takes in {name}, which is another cloud's"
+        used = sum(blocks[name].num_addresses for name in mine)
+        if block.num_addresses < 2 * used:
+            return f"the {cloud} summary, {block}, has less room beside its subnets than they take up"
+    clouds = list(summary)
+    for i, first in enumerate(clouds):
+        for second in clouds[i + 1 :]:
+            if summary[first].overlaps(summary[second]):
+                return f"the {first} and {second} summaries overlap"
+    return "ok"
+
+
+CHECKS = {
+    "form": form,
+    "big-enough": big_enough,
+    "not-oversized": not_oversized,
+    "no-overlaps": no_overlaps,
+    "summaries": summaries,
+}
+
+
+def main():
+    check = CHECKS.get(sys.argv[1] if len(sys.argv) > 1 else "")
+    if check is None:
+        print(__doc__)
+        sys.exit(2)
+    try:
+        print(check())
+    except Wrong as wrong:
+        print(wrong)
+
+
+main()
