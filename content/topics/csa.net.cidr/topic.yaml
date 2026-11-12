@@ -17,7 +17,7 @@ rev: 1
 objectives:
   - "Read and write an IPv4 address as bits and a prefix length as a dotted mask, and say what an address and prefix means: which block, its first and last address, how many addresses, and how many a cloud lets you use."
   - "Do block arithmetic on sight: block sizes as powers of two, the block an address is in by the interesting octet, how many /x fit in a /y, and when blocks summarise into one prefix."
-  - "Split a block into subnets of different sizes (variable-length masks), biggest first so each starts on a multiple of its size, with room to grow, and summarise blocks into the shortest covering prefix, knowing what extra space it pulls in."
+  - "Split a block into subnets of different sizes (variable-length masks), biggest first so each starts on a multiple of its size, with room to grow, and summarise blocks into the smallest block that covers them, knowing what extra space it pulls in."
   - "Decide on sight whether two blocks overlap, say why an overlap breaks peering, VPNs and routing, and check a whole plan for overlaps with a bash script of your own."
   - "Use the RFC 1918 private ranges and the other special ranges correctly, and plan within each cloud's rules: the addresses AWS, Azure and Google Cloud keep back in every subnet, their size limits, and the ranges to avoid."
 # Facts the lesson and the items rely on, each read on 2026-11-12:
@@ -60,8 +60,9 @@ objectives:
 #   first specification. RFC 6598 (April 2012): 100.64.0.0/10, Shared
 #   Address Space for carrier-grade NAT; using it otherwise risks
 #   "problems". RFC 5737 (January 2010): the three documentation ranges.
-#   RFC 3927, 2.7: "A router MUST NOT forward a packet with an IPv4
-#   Link-Local source or destination address". All at rfc-editor.org.
+#   RFC 3927, section 7: "A router MUST NOT forward a packet with an IPv4
+#   Link-Local source or destination address" (2.7 says the same of
+#   every network device). All at rfc-editor.org.
 # - Captured on 2026-11-12 in the network-lab base (Ubuntu 24.04): ipcalc
 #   0.51 and sipcalc 1.1.6 output for 10.20.30.77/27 and 10.20.3.1/23;
 #   Linux given 10.20.3.1/23 makes the connected route 10.20.2.0/23; a host
@@ -208,7 +209,7 @@ prove:
 
       Two CIDR blocks either nest or don't touch, so I compare them on the shorter of the two prefixes: same leading bits, overlap. Overlapping networks can't be peered on any of the three clouds, a VPN can't route a range that exists on both ends, and renumbering a network in use is slow and risky. Three networks on 10.0.0.0/16 could never be joined, so the team should give each its own range now.
 
-      I'd choose from RFC 1918, 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16, and avoid what everyone else uses: 10.0.0.0/16, AWS's default 172.31.0.0/16, Docker's 172.17.0.0/16, home routers' 192.168.0.0/24 and 192.168.1.0/24, and anything on-premises. Each cloud keeps addresses back: AWS and Azure five per subnet, Google Cloud four, so a subnet for 120 machines with room to double needs 245 addresses on AWS, a /24. Before anyone builds, I'd write the plan down and run a script over it that checks every pair for overlaps and every block for its start and size, and check single blocks with ipcalc.
+      I'd choose from RFC 1918, 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16, and avoid what everyone else uses: 10.0.0.0/16, AWS's default 172.31.0.0/16, Docker's 172.17.0.0/16, home routers' 192.168.0.0/24 and 192.168.1.0/24, and anything on-premises. Each cloud keeps addresses back: AWS and Azure five per subnet, Google Cloud four, so a subnet for 100 machines with room to double needs 205 addresses on AWS, a /24. Before anyone builds, I'd write the plan down and run a script over it that checks every pair for overlaps and every block for its start and size, and check single blocks with ipcalc.
 review_pool:
   - est-mask-octet
   - est-wildcard-octet
@@ -237,7 +238,7 @@ skills:
   - id: block-math
     description: "A block's size, 2 to the power of its host bits; the block an address is in, by the interesting octet; blocks start on a multiple of their size; usable addresses classically and in each cloud (AWS and Azure keep 5, Google Cloud 4); the smallest prefix that holds a number of machines"
   - id: split-and-summarise
-    description: "How many /x fit in a /y; carving a block into subnets of different sizes, biggest first and aligned, with room to grow; summarising aligned, contiguous blocks into one prefix; the shortest prefix covering a set of blocks and the extra space it takes in"
+    description: "How many /x fit in a /y; carving a block into subnets of different sizes, biggest first and aligned, with room to grow; summarising aligned, contiguous blocks into one prefix; the smallest block covering a set of blocks and the extra space it takes in"
   - id: overlaps
     description: "Two blocks overlap exactly when they agree on the shorter prefix's bits; spotting it on sight; why overlaps break peering, VPNs and routing; finding every overlap in a plan with a script"
   - id: private-and-reserved
