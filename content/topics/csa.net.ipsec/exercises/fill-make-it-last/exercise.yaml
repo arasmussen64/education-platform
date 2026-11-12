@@ -1,0 +1,31 @@
+id: fill-make-it-last
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Make the tunnel last"
+prompt: |
+  The walkthrough's network: the office (192.168.10.10) behind its VPN gateway, `vpn` (198.51.100.10), the internet, and the provider's gateway, `cloud` (203.0.113.10), with the app (10.20.1.10) in the cloud network, 10.20.0.0/16. The provider's configuration sheet is `/srv/provider/vpn-config.txt`, and `cloud-vpn-status`, `cloud-vpn-log` and `cloud-maintenance` stand in for its console, as in the walkthrough. BGP's timers are scaled down as there (a keepalive every 3 seconds and a hold time of 9, where real gateways use 30 and 90, or 60 and 180).
+
+  Yesterday a colleague brought the office's tunnel up by hand, as the walkthrough does before its step 8, and it worked until vpn rebooted this morning. vpn's BGP is configured and saved, and it would run over the tunnel if there were one. The colleague had started on the two files that make the tunnel last, and left six values out, each written `___`:
+
+  - in vpn's network file, `/etc/network/up` (it stops at the first line that fails, so at boot it made no vti0):
+    1. the key of the tunnel interface, vti0: it must match the marks in the connection file;
+    2. vpn's inside address for vti0, from the sheet, with its length;
+  - in vpn's IPsec connection, `/etc/swanctl/conf.d/cloud.conf` (with a gap in it, the file doesn't load):
+    3. `keyingtries`: how many rounds of tries vpn makes to bring the tunnel up before it gives up, where the value you want means "never give up";
+    4. `start_action`: what the CHILD_SA does when the file is loaded, as at boot: bring the tunnel up;
+    5. `close_action`: what it does when the provider closes the tunnel, as its maintenance does: bring it up again at once;
+    6. `dpd_action`: what it does when dead peer detection finds the provider no longer answering: bring it up again on a fresh IKE_SA.
+
+  And the colleague only ever started vpn's IPsec service, `strongswan@vpn`, by hand: it isn't enabled, so nothing starts it at boot.
+
+  Fill in each gap with `on vpn nano /etc/network/up` and `on vpn nano /etc/swanctl/conf.d/cloud.conf` (replace each `___` and nothing else), enable the service with `sudo systemctl enable strongswan@vpn`, then reboot the network with `sudo netlab restart`, which rebuilds it from the files and starts every enabled service, as a reboot would. If the tunnel doesn't come up, `on vpn swanctl --list-sas` shows what vpn has, `journalctl -u strongswan@vpn` what charon said (a file that doesn't load is named there), and `journalctl -u netlab | grep vpn` whether the network file stopped. Then run the checks. The last one runs the provider's maintenance and watches the tunnel come back.
+hints:
+  - "Gap 1: `on vpn grep mark /etc/swanctl/conf.d/cloud.conf` shows the marks. The VTI's key is the number IPsec looks for on what is routed into vti0, so it must be the same number."
+  - "Gap 2: the sheet's line `Inside addresses` gives the /30 and which end is yours. `ip addr add` wants the address with its length, as 192.168.10.1/24 is written."
+  - "Gap 3: in swanctl.conf, 0 tries means \"keep trying until it works\"; the default, 1, gives up after one round."
+  - "Gaps 4 to 6 are words from the walkthrough's step 8. Two of them are the same word; the third is the one that starts again on a fresh IKE_SA."
+skills: [route-based-tunnel, bgp-over-tunnel]
