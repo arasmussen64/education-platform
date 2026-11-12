@@ -1,0 +1,33 @@
+# The network of "Steering traffic and cloud circuits": a company's router
+# with two private circuits to one cloud.
+#
+#   office 10.1.0.10 -- dc -- edge (AS 65001) ==dx1 169.254.30.0/30== cloud (AS 64512) -- vpc -- app 10.100.0.10
+#                                            \==dx2 169.254.20.0/30==/
+#
+# dx1 and dx2 stand in for two dedicated circuits, such as two AWS Direct
+# Connect connections: each is a cable with a BGP session over it. The
+# cloud's router is scenery, configured and saved, and follows a provider's
+# documented rules (the prompt quotes them); edge is the learner's. dx2's
+# addresses are the lower ones, so when everything else about two paths is
+# equal, the tie goes to dx2 on both routers: a lab that asks for dx1 can't
+# be passed by leaving things as they are. Each router's interfaces are
+# named after the cable or network at the far end. Addresses come from the
+# private ranges and the link-local block for circuits (169.254.0.0/16), as
+# the clouds use, and AS numbers from the private range (RFC 6996).
+machine office
+machine app
+machine edge router
+machine cloud router
+
+lan dc office:eth0=10.1.0.10/24 edge:lan=10.1.0.1/24
+link edge:dx1=169.254.30.1/30 cloud:dx1=169.254.30.2/30
+link edge:dx2=169.254.20.1/30 cloud:dx2=169.254.20.2/30
+lan vpc cloud:vpc=10.100.0.1/16 app:eth0=10.100.0.10/16
+
+route office default via 10.1.0.1
+route app default via 10.100.0.1
+
+run edge frr
+run cloud frr
+run office web-svc
+run app web-svc
