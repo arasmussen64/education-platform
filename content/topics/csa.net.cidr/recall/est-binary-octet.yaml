@@ -1,0 +1,24 @@
+id: est-binary-octet
+type: estimate
+rev: 1
+prompt: |
+  The eight bits 10110100 are one octet of an address, written in binary. What number is it in decimal? Exactly.
+unit: in decimal
+answer: 180
+tolerance: { absolute: 0 }
+given: { octet: 10110100 }
+# The place values, from the left: 128 64 32 16 8 4 2 1. The bits that are
+# 1 are in the 128, 32, 16 and 4 places.
+working: 128 + 32 + 16 + 4
+mistakes:
+  - id: read-backwards
+    value: 45
+    working: "45"
+    why: That reads the bits from the right, as if the last bit were worth 128. The leftmost bit is the biggest, 128, as in decimal, where the leftmost digit is worth the most.
+  - id: counted-ones
+    value: 4
+    working: "4"
+    why: That counts the bits that are 1. Each 1 is worth its place value, 128, 64, 32, 16, 8, 4, 2 or 1, and the number is their sum.
+explanation: |
+  Write the place values over the bits: 128 64 32 16 8 4 2 1 over 1 0 1 1 0 1 0 0. The 1s sit under 128, 32, 16 and 4, and 128 + 32 + 16 + 4 = 180. In bash, `echo $((2#10110100))` prints 180 too.
+skills: [binary-and-masks]

@@ -1,0 +1,24 @@
+id: est-smallest-prefix-google
+type: estimate
+rev: 1
+prompt: |
+  A Google Cloud subnet must hold 120 VMs, and Google keeps 4 addresses of every subnet's primary range. What is the prefix length of the smallest subnet that fits them? Exactly.
+unit: "bits: the N in /N"
+answer: 25
+tolerance: { absolute: 0 }
+given: { vms: 120, reserved: 4 }
+# 120 + 4 = 124 addresses; the smallest power of two at least that big is
+# 128 = 2 ** 7, so 7 host bits.
+working: 32 - 7
+mistakes:
+  - id: one-size-small
+    value: 26
+    working: "26"
+    why: A /26 holds 64 addresses, far too few for 124.
+  - id: one-size-big
+    value: 24
+    working: "24"
+    why: A /24's 256 fits, but so does a /25's 128, which is the smallest that does.
+explanation: |
+  The subnet needs 120 + 4 = 124 addresses. 64 is too small, 128 fits: 2⁷, so 7 host bits and 32 − 7 = 25. A /25 leaves 128 − 4 = 124 usable, exactly enough today and no room for one more VM, which is why plans leave room to grow.
+skills: [block-math]

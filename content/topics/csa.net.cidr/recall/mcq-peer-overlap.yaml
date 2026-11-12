@@ -1,0 +1,14 @@
+id: mcq-peer-overlap
+type: mcq
+rev: 1
+prompt: |
+  Two teams each built a cloud network on 10.0.0.0/16, the range many templates use, and now want to peer them (connect the two networks directly, so their machines reach each other by private address). What happens?
+choices:
+  - "The peering is refused unless both networks are in one account"
+  - "The peering works, and the cloud translates one side's addresses"
+  - "The peering is refused, because the two address ranges overlap"
+  - "The peering works, and each side's own addresses win where they clash"
+answer: 2
+explanation: |
+  An address must mean one machine for routing to work, and 10.0.0.5 would mean a machine on each side. So all three clouds refuse to peer networks whose ranges overlap: AWS ("You cannot create a VPC peering connection between VPCs that have matching or overlapping IPv4 or IPv6 CIDR blocks"), Azure ("You can't enable virtual network peering if address spaces overlap") and Google Cloud (no subnet range may match, contain or fit within one in the peered network). It doesn't matter whose accounts they are in, and peering translates nothing. One network must be renumbered, or the two joined another way, through address translation or a private endpoint, which Module 11 covers. Renumbering a network in use is slow and risky, which is why plans pick ranges before anything is built.
+skills: [overlaps]

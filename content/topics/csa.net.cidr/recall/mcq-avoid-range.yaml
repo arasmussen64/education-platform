@@ -1,0 +1,14 @@
+id: mcq-avoid-range
+type: mcq
+rev: 1
+prompt: |
+  A new cloud network will hold build servers that run Docker. Which range should it avoid, and why?
+choices:
+  - "`10.0.0.0/16`, which AWS keeps for the routers of every new VPC"
+  - "`192.168.0.0/16`, which all three clouds refuse for a network"
+  - "`172.17.0.0/16`, which Docker's default bridge usually takes"
+  - "`100.64.0.0/10`, which is kept for IPv6 and refused for IPv4"
+answer: 2
+explanation: |
+  Docker gives its default bridge network a range of its own, usually 172.17.0.0/16 (you saw `172.17.0.0/16 dev docker0` in Module 1's `ip route`). A build server on a cloud network in that range has two networks claiming the same addresses, and the containers can't reach the machines. AWS's documentation warns against the range too: AWS Cloud9 and SageMaker AI use it, for the same reason. `10.0.0.0/16` is allowed, though so many templates use it that it clashes later; AWS keeps 5 addresses of each subnet, not a range. `192.168.0.0/16` is one of the three private ranges the clouds recommend. And `100.64.0.0/10` is IPv4 shared address space, meant for carriers' address translation, which all three clouds accept in a network.
+skills: [private-and-reserved]

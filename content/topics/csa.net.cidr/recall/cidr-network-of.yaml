@@ -1,0 +1,17 @@
+id: cidr-network-of
+type: predict_shell
+rev: 1
+prompt: |
+  The worked example's two functions, then a /20's mask: 32 ones shifted left by 12 places and cut back to 32 bits. `&` (AND) keeps a bit only where both numbers have a 1; `~m` flips every bit of the mask, which gives the wildcard. What do the two `int2ip` lines print for 10.20.37.5/20?
+command: |
+  ip2int() { local a b c d; IFS=. read -r a b c d <<< "$1"; echo $(( (a << 24) | (b << 16) | (c << 8) | d )); }
+  int2ip() { echo "$(( $1 >> 24 & 255 )).$(( $1 >> 16 & 255 )).$(( $1 >> 8 & 255 )).$(( $1 & 255 ))"; }
+  n=$(ip2int 10.20.37.5); m=$(( (0xFFFFFFFF << (32 - 20)) & 0xFFFFFFFF ))
+  int2ip $(( n & m ))
+  int2ip $(( n | (~m & 0xFFFFFFFF) ))
+expected_output: |
+  10.20.32.0
+  10.20.47.255
+explanation: |
+  The /20 mask is `255.255.240.0`. AND with it clears the 12 host bits, which gives the block's first address: in the third octet, 37 is `00100101` and 240 is `11110000`, so what's left is `00100000`, 32, and the last octet becomes 0. OR with the wildcard, `0.0.15.255`, sets all 12 host bits: the third octet becomes `00101111`, 47, and the last 255. So 10.20.37.5 is in the block 10.20.32.0 to 10.20.47.255, 10.20.32.0/20. The interesting-octet method gets there faster: the block size in the third octet is 256 − 240 = 16, and the multiples of 16 around 37 are 32 and 48.
+skills: [binary-and-masks, block-math]

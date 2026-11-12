@@ -1,0 +1,12 @@
+id: cidr-ip2int
+type: predict_shell
+rev: 1
+prompt: |
+  An address is 32 bits, so it can be held as one number. `IFS=. read` splits the address at its dots into `a`, `b`, `c` and `d`. Inside `$(( ))`, `<<` shifts a number left by that many bits (`a << 24` multiplies `a` by 2 twenty-four times, which is 16,777,216), and `|` lays numbers side by side (a bit is 1 if it is 1 in either). What does the `echo` print?
+command: |
+  IFS=. read -r a b c d <<< 172.16.5.9; echo $(( (a << 24) | (b << 16) | (c << 8) | d ))
+expected_output: |
+  2886731017
+explanation: |
+  Each octet moves to its own eight bits: `172 << 24` is 172 × 16,777,216 = 2,885,681,152; `16 << 16` is 16 × 65,536 = 1,048,576; `5 << 8` is 5 × 256 = 1,280; and 9 stays. None of them share a bit, so OR adds them: 2,885,681,152 + 1,048,576 + 1,280 + 9 = 2,886,731,017. That's the worked example's `ip2int`, and `sipcalc` prints the same number as an address's "Host address (decimal)". As one number, an address can be masked and compared with plain arithmetic.
+skills: [binary-and-masks]

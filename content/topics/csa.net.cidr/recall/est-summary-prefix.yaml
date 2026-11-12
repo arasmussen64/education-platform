@@ -1,0 +1,24 @@
+id: est-summary-prefix
+type: estimate
+rev: 1
+prompt: |
+  These 4 subnets are to be advertised as one route that covers exactly them and nothing else: 172.20.12.0/24, 172.20.13.0/24, 172.20.14.0/24 and 172.20.15.0/24. What prefix length is that route? Exactly.
+unit: "bits: the N in /N"
+answer: 22
+tolerance: { absolute: 0 }
+given: { p: 24, count: 4 }
+# Four is 2 ** 2, so two fewer network bits; and 12 is a multiple of 4, so
+# the four fill one aligned block, 172.20.12.0/22.
+working: p - 2
+mistakes:
+  - id: subtracted-the-count
+    value: 20
+    working: p - count
+    why: That takes 4 bits away, which covers 16 /24s. Four /24s are 2², so the summary is 2 bits shorter.
+  - id: one-bit
+    value: 23
+    working: p - 1
+    why: A /23 covers only two /24s. Four need two more doublings, a /22.
+explanation: |
+  Each bit taken off the prefix doubles the block: a /23 is two /24s, a /22 four. These four start at 12, a multiple of 4, so together they are exactly 172.20.12.0/22 (12 to 15). Had they started at 13, no single /22 would cover exactly them, and the route would take in a neighbour too.
+skills: [split-and-summarise]

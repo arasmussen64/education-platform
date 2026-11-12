@@ -1,0 +1,25 @@
+id: cidr-ipcalc-read
+type: predict_shell
+rev: 1
+prompt: |
+  `ipcalc.txt` is what `ipcalc -b 10.20.30.77/27` printed (ipcalc 0.51 on Ubuntu 24.04, captured on 2026-11-12; the spaces at the ends of its lines are trimmed). The `awk` command picks three lines by how they start and prints a word and the second field of each. What does it print?
+files:
+  ipcalc.txt: |
+    Address:   10.20.30.77
+    Netmask:   255.255.255.224 = 27
+    Wildcard:  0.0.0.31
+    =>
+    Network:   10.20.30.64/27
+    HostMin:   10.20.30.65
+    HostMax:   10.20.30.94
+    Broadcast: 10.20.30.95
+    Hosts/Net: 30                    Class A, Private Internet
+command: |
+  awk '/^Network:/ {print "block", $2} /^Broadcast:/ {print "last", $2} /^Hosts\/Net:/ {print "usable", $2}' ipcalc.txt
+expected_output: |
+  block 10.20.30.64/27
+  last 10.20.30.95
+  usable 30
+explanation: |
+  `Network` is the block's first address with its prefix length, `Broadcast` its last address, and `Hosts/Net` the classic count of usable addresses: the block's 32 minus the first and the last. A cloud keeps back more of every subnet: in AWS or Azure this /27 gives 27 usable addresses, in Google Cloud 28. "Class A" is history: before CIDR, the first number decided a network's size, and 10 counted as class A. Since 1993 the prefix length says it, and ipcalc still prints the old label.
+skills: [block-math, private-and-reserved]

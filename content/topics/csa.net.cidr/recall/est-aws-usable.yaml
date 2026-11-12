@@ -1,0 +1,28 @@
+id: est-aws-usable
+type: estimate
+rev: 1
+prompt: |
+  An AWS subnet is a /26. How many of its addresses can you give to instances? Exactly.
+unit: addresses
+answer: 59
+tolerance: { absolute: 0 }
+given: { p: 26 }
+# AWS keeps 5 of every subnet: the first four and the last (its "Subnet
+# CIDR blocks" page, read 2026-11-12).
+working: 2 ** (32 - p) - 5
+mistakes:
+  - id: classic-two
+    value: 62
+    working: 2 ** (32 - p) - 2
+    why: That keeps back only the first and last addresses, the classic count. AWS keeps 5 of every subnet.
+  - id: google-four
+    value: 60
+    working: 2 ** (32 - p) - 4
+    why: That's Google Cloud's rule, 4 kept back. AWS keeps 5.
+  - id: all-of-them
+    value: 64
+    working: 2 ** (32 - p)
+    why: That's every address in the block. AWS keeps 5 of them back, whatever the subnet's size.
+explanation: |
+  A /26 holds 2⁶ = 64 addresses. AWS keeps 5: the network address, `.1` for the VPC's router, `.2` for its DNS server, `.3` for future use, and the last address. 64 − 5 = 59. Azure keeps 5 too; Google Cloud keeps 4. In a small subnet that's a lot: a /28's 16 addresses leave 11 on AWS.
+skills: [block-math, private-and-reserved]

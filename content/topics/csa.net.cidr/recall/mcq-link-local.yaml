@@ -1,0 +1,14 @@
+id: mcq-link-local
+type: mcq
+rev: 1
+prompt: |
+  Every cloud VM reaches its metadata service at 169.254.169.254, yet nothing on another network can reach that address. Why?
+choices:
+  - "It's private like 10.0.0.0/8, so only machines in the VM's own network can route to it"
+  - "It's link-local: no router forwards 169.254.0.0/16, so only the VM's own link answers"
+  - "It's a broadcast address, so only machines on the same switch as the VM ever hear it"
+  - "It's a documentation range, so the routers at the edge of every network drop it"
+answer: 1
+explanation: |
+  169.254.0.0/16 is the link-local range (RFC 3927): its addresses mean something only on one link, and "a router MUST NOT forward" a packet to or from one. So every VM's own link answers 169.254.169.254, the cloud's host on that link, and no packet for it ever leaves; that's why each VM gets its own answers and nobody else's. Private ranges like 10.0.0.0/8 are routed, within a network. A broadcast address is the last address of a block, not this one. The documentation ranges are 192.0.2.0/24, 198.51.100.0/24 and 203.0.113.0/24. The clouds refuse 169.254.0.0/16 as a network's range.
+skills: [private-and-reserved]

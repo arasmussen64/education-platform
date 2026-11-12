@@ -1,0 +1,24 @@
+id: est-subnets-for-zones
+type: estimate
+rev: 1
+prompt: |
+  A /16 VPC is split into equal subnets: one for each of 6 zones × 4 tiers, with room for the number of subnets to double. What prefix length does each subnet get? Exactly.
+unit: "bits: the N in /N"
+answer: 22
+tolerance: { absolute: 0 }
+given: { p: 16, zones: 6, tiers: 4 }
+# 6 x 4 = 24 subnets, 48 with room to double; 64 = 2 ** 6 is the first
+# power of two that reaches 48.
+working: p + 6
+mistakes:
+  - id: no-room
+    value: 21
+    working: p + 5
+    why: 32 subnets hold today's 24, but not the 48 that room to double asks for.
+  - id: one-too-far
+    value: 23
+    working: p + 7
+    why: 128 subnets would do, but 64 already hold 48, and each would be half the size.
+explanation: |
+  6 × 4 = 24 subnets, 48 with room to double. 32 is too few, 64 is enough: 2⁶, so 6 more network bits, 16 + 6 = 22. Each subnet is a /22 of 1,024 addresses (1,019 usable on AWS), and the /16 holds 64 of them.
+skills: [split-and-summarise]

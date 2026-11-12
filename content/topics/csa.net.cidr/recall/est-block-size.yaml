@@ -1,0 +1,23 @@
+id: est-block-size
+type: estimate
+rev: 1
+prompt: |
+  How many addresses does a /27 block hold, counting every one, the first and the last included? Exactly.
+unit: addresses
+answer: 32
+tolerance: { absolute: 0 }
+given: { p: 27 }
+# The host part is the 32 - p bits the prefix leaves; each one doubles it.
+working: 2 ** (32 - p)
+mistakes:
+  - id: usable-not-total
+    value: 30
+    working: 2 ** (32 - p) - 2
+    why: That's the classic usable count, without the first and last addresses. The block itself holds every one of them.
+  - id: host-bits
+    value: 5
+    working: 32 - p
+    why: That's how many host bits there are. Each one doubles the count, so 5 host bits make 2 × 2 × 2 × 2 × 2 = 32 addresses.
+explanation: |
+  An address has 32 bits; a /27 fixes the first 27, which leaves 5 host bits, and 5 bits can make 2⁵ = 32 different values. Worth knowing on sight: /24 is 256, /25 128, /26 64, /27 32, /28 16, /29 8, /30 4; each step down the list halves the block.
+skills: [block-math]

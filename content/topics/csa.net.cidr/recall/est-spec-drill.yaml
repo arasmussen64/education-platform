@@ -1,0 +1,24 @@
+id: est-spec-drill
+type: estimate
+rev: 1
+prompt: |
+  A /14 is split evenly into subnets of one size: one each for 4 regions × 3 zones × 3 tiers, with room for the number of subnets to double later. What prefix length does each subnet get? Exactly.
+unit: "bits: the N in /N"
+answer: 21
+tolerance: { absolute: 0 }
+given: { p: 14, regions: 4, zones: 3, tiers: 3 }
+# 4 x 3 x 3 = 36 subnets, 72 with room to double; the smallest power of two
+# at least 72 is 128 = 2 ** 7, so 7 more network bits.
+working: p + 7
+mistakes:
+  - id: no-room
+    value: 20
+    working: p + 6
+    why: Splitting into 64 holds the 36 subnets of today, but not the 72 that room to double asks for.
+  - id: one-too-far
+    value: 22
+    working: p + 8
+    why: 256 subnets would do, but 128 already hold 72. Going one bit further halves every subnet for no reason.
+explanation: |
+  4 × 3 × 3 = 36 subnets, and room to double makes 72. Splitting a block in two adds one network bit, so the question is which power of two first reaches 72: 64 doesn't, 128 does, and 128 is 2⁷. So each subnet has 14 + 7 = 21 network bits: a /21 of 2,048 addresses, and 128 of them fit in the /14.
+skills: [split-and-summarise]
