@@ -1,0 +1,16 @@
+id: mcq-cloud-propagation
+type: mcq
+rev: 1
+prompt: |
+  An AWS VPC (10.0.0.0/16) has a subnet whose route table holds two routes for the same prefix: a static route, `172.31.0.0/16` to a transit gateway, and a propagated route, `172.31.0.0/16` to a virtual private gateway, learned over BGP from a site-to-site VPN. Which route carries the subnet's traffic to 172.31.9.9?
+choices:
+  - "The static route to the transit gateway: for the same prefix, AWS puts static first"
+  - "The propagated route to the VPN, because a route learned over BGP is always preferred"
+  - "Both, shared by ECMP, because the two routes have exactly the same prefix length"
+  - "Neither: AWS refuses two routes with the same destination in one route table"
+answer: 0
+explanation: |
+  AWS chooses by longest prefix first; when two routes have the same prefix, a static route (one you added, to a transit gateway, NAT gateway, peering, instance and the like) beats a route from a prefix list, which beats a propagated one. AWS's page puts it plainly: "If the destination of a propagated route is identical to the destination of a static route, the static route takes priority."
+
+  BGP routes aren't preferred for being learned: in an AWS route table they come last of the three. Route tables don't share traffic between a static and a propagated route, and AWS does let them sit side by side, which is how the table can carry both. This is AWS's order; Azure and Google Cloud rank their route sources differently (the lesson has the three side by side).
+skills: [static-or-dynamic]

@@ -1,0 +1,26 @@
+id: lpm-not-in-the-longest
+type: mcq
+rev: 1
+prompt: |
+  A router's `ip route` prints this table (constructed: a real format, made-up routes):
+
+  ```
+  default via 192.0.2.1 dev wan
+  10.20.0.0/16 via 10.0.0.2 dev core
+  10.20.4.0/22 via 10.0.0.6 dev branch
+  10.20.5.0/24 via 10.0.0.10 dev lab
+  10.20.5.128/25 via 10.0.0.14 dev dmz
+  ```
+
+  A packet arrives for 10.20.7.200. Which next hop does the kernel send it to?
+choices:
+  - "10.0.0.6, through the /22 route, whose block runs from 10.20.4.0 up to 10.20.7.255"
+  - "10.0.0.10, through the /24 route for 10.20.5.0, whose numbers are the closest to it"
+  - "10.0.0.2, through the /16 route, the only route in the table that covers all of 10.20"
+  - "192.0.2.1, through the default route, since no specific route holds 10.20.7.200"
+answer: 0
+explanation: |
+  Work out each block, as in IPv4 and CIDR. A /22 leaves 32 - 22 = 10 bits for the hosts, 1,024 addresses, which is 4 in the third number: 10.20.4.0 to 10.20.7.255. 10.20.7.200 is inside it. The /24 holds only 10.20.5.0 to 10.20.5.255 and the /25 only 10.20.5.128 to 10.20.5.255, so neither holds this address, however close their numbers look. That leaves the default, the /16 and the /22, and the longest of those is the /22: through 10.0.0.6.
+
+  The /16 does hold the address, but a longer route holds it too, and the longer one wins. The default is only for an address nothing else holds. "Closest numbers" is the trap: a prefix is a block of addresses, and an address is either inside it or not.
+skills: [longest-prefix-match]

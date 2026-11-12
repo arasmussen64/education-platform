@@ -1,0 +1,16 @@
+id: mcq-cloud-forwarding-flag
+type: mcq
+rev: 1
+prompt: |
+  A firewall VM sits in the middle of a cloud network. The route tables send the spoke networks' traffic to it, Linux on it forwards (`net.ipv4.ip_forward = 1`), and the cloud's security rules allow the traffic. Yet none of the spokes' traffic gets through it. Which setting is missing, in each cloud?
+choices:
+  - "AWS: stop the source/destination check; Azure: enable IP forwarding on the NIC; Google: set canIpForward"
+  - "AWS: enable IP forwarding on the NIC; Azure: set canIpForward; Google: stop the source/destination check"
+  - "AWS: set canIpForward; Azure: stop the source/destination check; Google: enable IP forwarding on the NIC"
+  - "AWS: allow it in the security group; Azure: allow it in the NSG; Google: allow it in a firewall rule"
+answer: 0
+explanation: |
+  A cloud network normally delivers to a VM only packets addressed to it, and drops what it sends from addresses that aren't its own; a router or firewall VM handles other machines' packets, so each cloud has a switch for it. AWS: every instance "performs source/destination checks by default", and a NAT instance or firewall must have them stopped (Actions, Networking, Change source/destination check). Azure: a network interface that forwards traffic for addresses other than its own "must have the Azure Enable IP forwarding option enabled". Google Cloud: the instance needs IP forwarding (`--can-ip-forward`, the API's `canIpForward`), set when it's created or by updating it.
+
+  In all three, forwarding must also be on inside the operating system, which it is here. The security rules already allow the traffic, so they aren't it. A missing switch is a black hole with no log on the VM: the packets never reach it, or never leave the cloud's network.
+skills: [find-the-black-hole]

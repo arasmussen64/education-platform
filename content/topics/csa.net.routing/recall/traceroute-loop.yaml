@@ -1,0 +1,25 @@
+id: traceroute-loop
+type: predict_shell
+rev: 1
+prompt: |
+  `trace.txt` is a traceroute from the office to 10.2.77.1, an address no machine uses, in the lab "Floating statics" with r2's blackhole left out (captured, 2026-11-12). The command counts how often each address answers, one line per address, in sorted order. What is printed?
+files:
+  trace.txt: |
+    traceroute to 10.2.77.1 (10.2.77.1), 8 hops max, 60 byte packets
+     1  10.1.0.1  0.136 ms
+     2  10.0.12.2  0.073 ms
+     3  10.1.0.1  0.058 ms
+     4  10.0.12.2  0.050 ms
+     5  10.1.0.1  0.043 ms
+     6  10.0.12.2  0.035 ms
+     7  10.1.0.1  0.028 ms
+     8  10.0.12.2  0.022 ms
+command: awk 'NR > 1 {count[$2]++} END {for (a in count) print a, count[a]}' trace.txt | sort
+expected_output: |
+  10.0.12.2 4
+  10.1.0.1 4
+explanation: |
+  Two addresses taking turns, for as many hops as traceroute will try: a routing loop. 10.1.0.1 is r1 and 10.0.12.2 is r2, and each one's route for 10.2.77.1 points at the other: r1 sends the store's whole 10.2.0.0/16 to r2, and r2, which uses only 10.2.0.0/24, sends anything else by its default route back to r1. The packet bounces until its TTL runs out; a ping in the same lab got `From 10.0.12.2 icmp_seq=1 Time to live exceeded`.
+
+  `ip route get 10.2.77.1` on each of the two routers confirms it: r1 says `via 10.0.12.2`, r2 says `via 10.0.12.1`. The fix is a route that ends the loop: a blackhole on r2 for the store's 10.2.0.0/16, which leaves its own 10.2.0.0/24 working because that connected route is longer. The `awk` counts with an array, `count[address]++`; the `sort` puts the lines in order, because `for (a in count)` gives no order of its own.
+skills: [find-the-black-hole]

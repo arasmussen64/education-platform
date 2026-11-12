@@ -1,0 +1,26 @@
+id: lpm-kernel-table
+type: mcq
+rev: 1
+prompt: |
+  A router's `ip route` prints this table (constructed: a real format, made-up routes):
+
+  ```
+  default via 192.0.2.1 dev wan
+  10.20.0.0/16 via 10.0.0.2 dev core
+  10.20.4.0/22 via 10.0.0.6 dev branch
+  10.20.5.0/24 via 10.0.0.10 dev lab
+  10.20.5.128/25 via 10.0.0.14 dev dmz
+  ```
+
+  A packet arrives for 10.20.5.9. Which next hop does the kernel send it to?
+choices:
+  - "10.0.0.10, through the /24 route for 10.20.5.0, the longest prefix that holds the address"
+  - "10.0.0.14, through the /25 route for 10.20.5.128, the longest prefix in the whole table"
+  - "10.0.0.6, through the /22 route, the first route in the list that holds the address"
+  - "192.0.2.1, through the default route, since no line in the table names 10.20.5.9 itself"
+answer: 0
+explanation: |
+  Four of the five routes hold 10.20.5.9: the default (every address), the /16, the /22 (10.20.4.0 to 10.20.7.255) and the /24 (10.20.5.0 to 10.20.5.255). The kernel takes the longest of them, the smallest box the address is in: the /24, through 10.0.0.10.
+
+  The /25 is the longest prefix in the table, but it holds only 10.20.5.128 to 10.20.5.255, and .9 isn't among them: a route counts only if it holds the address. The order of the lines doesn't matter either: a routing table isn't read top to bottom and stopped at the first match, as a firewall's rules are. And a route never needs to name the address itself: that's what a prefix is for, and the default route exists for whatever nothing longer holds.
+skills: [longest-prefix-match]

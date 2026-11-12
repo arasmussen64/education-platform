@@ -1,0 +1,24 @@
+id: mcq-ecmp-one-dead-path
+type: mcq
+rev: 1
+prompt: |
+  At one site, some connections from a single laptop to the data centre time out and others, a moment later, work fine. On the site's router, `ip route` shows two next hops for the data centre's network (the format is captured from a lab router, 2026-11-12):
+
+  ```
+  10.3.0.0/24 nhid 56 proto static metric 20
+  	nexthop via 10.0.12.1 dev r1 weight 1
+  	nexthop via 10.0.23.2 dev r3 weight 1
+  ```
+
+  The router spreads connections over its next hops by a hash of each connection's addresses and ports. What is the likeliest cause?
+choices:
+  - "One of the two next hops leads into a dead path, and only connections hashed to it fail"
+  - "The two routes take turns packet by packet, so every connection loses half its packets"
+  - "The router switches to the second route and back each time a connection loses a packet"
+  - "The data centre's server answers only every other connection that reaches it from a site"
+answer: 0
+explanation: |
+  Two routes with the same prefix and the same distance are both installed, and the kernel shares traffic between them: equal-cost multipath, ECMP. It sends each connection, not each packet, one way or the other, chosen by a hash of its addresses (and here its ports too, Linux's `net.ipv4.fib_multipath_hash_policy = 1`), so a connection's packets stay together and arrive in order. If one path is dead, the connections hashed to it fail and the others work, which looks intermittent. With Linux's default policy, 0, only the addresses are hashed: then every connection between one laptop and one server takes the same path, and that pair fails all the time while other pairs work.
+
+  ECMP doesn't take turns packet by packet, nor does it move connections when they lose packets: nothing on the router notices a dead path, as with any static route. A server that refused connections would answer at once with a reset. To find the dead path, capture on each of the two outgoing interfaces while connections are made; `ip route get` can't tell you which way a given forwarded connection was hashed.
+skills: [find-the-black-hole]

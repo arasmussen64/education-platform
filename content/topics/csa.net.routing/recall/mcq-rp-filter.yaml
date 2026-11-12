@@ -1,0 +1,16 @@
+id: mcq-rp-filter
+type: mcq
+rev: 1
+prompt: |
+  There's no firewall now, but the paths are still asymmetric: the office's packets reach the data centre through r2, and the data centre's replies arrive at r1 on its interface from r3, while r1's own route to the data centre points at r2. r1 has `net.ipv4.conf.all.rp_filter = 1`. What does r1 do with the replies?
+choices:
+  - "Drops them: strict mode accepts a packet only on the interface r1 would use to reach its source"
+  - "Forwards them: reverse-path filtering applies only to packets addressed to r1 itself"
+  - "Forwards them and logs a warning, because mode 1 only reports the mismatches it finds"
+  - "Sends them back to r3, because the kernel returns packets that arrive on the wrong side"
+answer: 0
+explanation: |
+  Reverse-path filtering checks where a packet came in against the route back to its source. In strict mode (`rp_filter = 1`, after RFC 3704) a packet is accepted only if the router's own route to its source address leaves by the interface it arrived on. The replies' source is 10.3.0.10, r1 would reach it through r2, and they arrived from r3: dropped, silently, and counted in `nstat` as `TcpExtIPReversePathFilter`. Loose mode (`2`) only asks that some route back exists, and `0` doesn't check at all; the kernel uses the higher of the `all` and the interface's own value.
+
+  It applies to forwarded packets as well as to the router's own. It doesn't merely log, and nothing sends packets back. The purpose is to drop packets with forged source addresses, and the cost is that legitimate asymmetric paths die with them: make the routes symmetric, or use loose mode where asymmetry is by design.
+skills: [return-path]

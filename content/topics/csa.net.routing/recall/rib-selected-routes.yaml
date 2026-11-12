@@ -1,0 +1,24 @@
+id: rib-selected-routes
+type: predict_shell
+rev: 1
+prompt: |
+  `routes.txt` is r1's `show ip route` in the walkthrough "Follow the route", once every site had a route and a floating backup (captured with FRR 8.4.4 on Ubuntu 24.04, 2026-11-12; the code key above it is left out). The first command prints each selected static route's prefix and next hop; the second counts the static routes that wait unused. What is printed?
+files:
+  routes.txt: |
+    C>* 10.0.12.0/30 is directly connected, r2, 00:01:41
+    C>* 10.0.13.0/30 is directly connected, r3, 00:00:32
+    C>* 10.1.0.0/24 is directly connected, lan, 00:01:41
+    S   10.2.0.0/24 [200/0] via 10.0.13.2, r3, weight 1, 00:00:32
+    S>* 10.2.0.0/24 [1/0] via 10.0.12.2, r2, weight 1, 00:00:43
+    S>* 10.3.0.0/24 [1/0] via 10.0.13.2, r3, weight 1, 00:00:32
+    S   10.3.0.0/24 [200/0] via 10.0.12.2, r2, weight 1, 00:00:43
+command: awk '$1 == "S>*" {sub(",", "", $5); print $2, $5}' routes.txt; grep -c '^S ' routes.txt
+expected_output: |
+  10.2.0.0/24 10.0.12.2
+  10.3.0.0/24 10.0.13.2
+  2
+explanation: |
+  In FRR's table, the letter is where the route came from (`C` connected, `S` static), `>` marks the route FRR selected for that prefix, and `*` that it is in the kernel's table, which is what packets follow. `[1/0]` is distance and metric. So the two `S>*` lines are the routes in use, the direct ones at distance 1, and `sub(",", "", $5)` takes the comma off the next hop in field 5.
+
+  The two `S` lines with neither mark are the floating backups at distance 200: FRR holds them as candidates (this whole list is FRR's RIB, its routing information base) and installs one only if the direct route goes. The kernel's own table, its FIB (forwarding information base), which `ip route` shows, has only the winners. `grep -c '^S '` counts lines that start with `S` and a space, which the selected ones don't.
+skills: [static-routes]

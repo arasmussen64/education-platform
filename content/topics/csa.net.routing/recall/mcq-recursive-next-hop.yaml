@@ -1,0 +1,31 @@
+id: mcq-recursive-next-hop
+type: mcq
+rev: 1
+prompt: |
+  r1 has `ip route 10.2.0.0/24 10.0.12.2`, a floating backup `ip route 10.2.0.0/24 10.0.13.2 200`, and `ip route 10.0.0.0/8 blackhole` so that the shop's unused addresses die there. With the cable to 10.0.12.2 unplugged, the office can't reach the store, and `show ip route 10.2.0.0/24` on r1 prints (captured with FRR 8.4.4, 2026-11-12):
+
+  ```
+  Routing entry for 10.2.0.0/24
+    Known via "static", distance 1, metric 0, best
+    Last update 00:00:02 ago
+      10.0.12.2 (recursive), weight 1
+    *   unreachable (blackhole), weight 1
+
+  Routing entry for 10.2.0.0/24
+    Known via "static", distance 200, metric 0
+    Last update 00:00:48 ago
+      10.0.13.2, via r3, weight 1
+  ```
+
+  What went wrong?
+choices:
+  - "FRR looked 10.0.12.2 up again, found it inside the /8 blackhole, and kept the dead route"
+  - "The backup's distance of 200 is too high for FRR to install it while any route remains"
+  - "The blackhole for 10.0.0.0/8 is longer than the store's /24, so it wins outright"
+  - "FRR needs a restart before it notices that a cable has gone, so the old route stays"
+answer: 0
+explanation: |
+  A static route names a next hop, and FRR finds the way to that next hop in its own table. While the cable works, 10.0.12.2 is on a connected network. With the cable gone, FRR looks again, and 10.0.12.2 is inside 10.0.0.0/8, the blackhole: so the distance-1 route stays `best`, marked `(recursive)` (resolved through another route), and its packets go into the blackhole while the backup waits. (FRR won't resolve a next hop through the default route unless told to, which is why a default doesn't do this.)
+
+  The fix is to tie the route to its cable by naming the interface too: `ip route 10.2.0.0/24 10.0.12.2 r2`. Then, with the cable gone, the route is `inactive` and the backup takes over. Distance 200 is a fine backup distance; a /8 is shorter than a /24, not longer; and FRR noticed the cable at once, it just found another way to the next hop.
+skills: [static-routes]

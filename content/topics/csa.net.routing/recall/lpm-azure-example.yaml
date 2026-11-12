@@ -1,0 +1,28 @@
+id: lpm-azure-example
+type: mcq
+rev: 1
+prompt: |
+  This is part of a subnet's route table in Azure, from the "Routing example" on Microsoft's page "Azure virtual network traffic routing" (read 2026-11-12; the gateway's public address is left out there too). The virtual network is 10.0.0.0/16, 10.0.0.0/24 is this subnet, and 10.10.0.0/16 is the company's network on premises, behind a VPN gateway. The firewall VM is at 10.0.100.4.
+
+  ```
+  Source   State     Prefix         Next hop type             Next hop
+  Default  Invalid   10.0.0.0/16    Virtual network
+  User     Active    10.0.0.0/16    Virtual appliance         10.0.100.4
+  User     Active    10.0.0.0/24    Virtual network
+  Default  Invalid   10.10.0.0/16   Virtual network gateway
+  User     Active    10.10.0.0/16   Virtual appliance         10.0.100.4
+  User     Active    0.0.0.0/0      Virtual appliance         10.0.100.4
+  ```
+
+  A VM in this subnet sends a packet to 10.10.0.5, on premises. Which route carries it?
+choices:
+  - "The user route for 10.10.0.0/16, to the firewall VM at 10.0.100.4"
+  - "The gateway's route for 10.10.0.0/16, since on-premises routes come from the gateway"
+  - "The user route for 0.0.0.0/0, to the firewall, since 10.10.0.5 is outside the network"
+  - "The user route for 10.0.0.0/16, to the firewall, since 10.10 starts the way 10.0 does"
+answer: 0
+explanation: |
+  Longest prefix first: 10.10.0.5 is held by the two 10.10.0.0/16 routes and by 0.0.0.0/0, and the /16s are longer. Of the two /16s, the user-defined route (UDR) beats the gateway's route: in Azure, for the same prefix, a user route wins over a BGP route over a system route, and Azure marks the one that lost `Invalid`. So the packet goes to the firewall VM for inspection on its way to the office, which is what that route was written for.
+
+  The default route would carry it only if nothing longer held the address; here it would end at the same firewall, but by the wrong route. 10.0.0.0/16 holds 10.0.0.0 to 10.0.255.255, and 10.10.0.5 isn't in it: an address is in a prefix by its bits, not by how its text begins.
+skills: [longest-prefix-match]

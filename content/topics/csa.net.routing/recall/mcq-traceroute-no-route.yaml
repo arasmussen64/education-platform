@@ -1,0 +1,23 @@
+id: mcq-traceroute-no-route
+type: mcq
+rev: 1
+prompt: |
+  At the start of the walkthrough "Follow the route", `traceroute -n -w 1 -q 1 -m 4 10.3.0.10` from the office printed this (captured, 2026-11-12):
+
+  ```
+  traceroute to 10.3.0.10 (10.3.0.10), 4 hops max, 60 byte packets
+   1  10.1.0.1  0.352 ms !N
+  ```
+
+  What does it tell you?
+choices:
+  - "r1 has no route for 10.3.0.10 and says so with an ICMP network unreachable message"
+  - "r1 has a blackhole route for 10.3.0.10 and drops the packets there without a word"
+  - "10.3.0.10 is switched off, so r1 marks the last hop it could reach with !N"
+  - "r1 has forwarding switched off, and answers each packet it can't pass on with !N"
+answer: 0
+explanation: |
+  `!N` after a hop is traceroute's note that the router there answered "network unreachable" (ICMP type 3, code 0): it looked the address up and found no route, not even a default. On r1, `ip route get 10.3.0.10` said the same: `RTNETLINK answers: Network is unreachable`.
+
+  The other causes look different. A blackhole is silent: traceroute prints `*` from that hop on, and `ip route get` answers `Invalid argument`. A host that's down behind a router with a route doesn't make that router say !N: the trace goes on past it, and the last hop goes quiet. Forwarding switched off is silent too: the router drops the packets and only a counter (`IpInAddrErrors` in `nstat`) shows it. A reject route is the noisy one, with `!H`.
+skills: [find-the-black-hole]

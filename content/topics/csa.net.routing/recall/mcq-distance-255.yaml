@@ -1,0 +1,16 @@
+id: mcq-distance-255
+type: mcq
+rev: 1
+prompt: |
+  A colleague added a backup beside r1's route to the data centre, `ip route 10.3.0.0/24 10.0.13.2`, writing it as `ip route 10.3.0.0/24 10.0.12.2 255`, "so it's the least preferred". r1 has no default route. Then the cable to 10.0.13.2 fails. What happens to traffic for 10.3.0.0/24?
+choices:
+  - "Nothing takes over: FRR never installs a route at distance 255, so there is no route"
+  - "The backup takes over within a second, just as it would at any distance above 1"
+  - "The backup takes over once the primary's three-minute hold timer has run out"
+  - "It was never there: FRR refused the line when it was typed, with an error nobody read"
+answer: 0
+explanation: |
+  FRR's own manual, on zebra: "An admin distance of 255 indicates to Zebra that the route should not be installed into the Data Plane". FRR accepts the line and lists the route (`Known via "static", distance 255`), but never installs it, so when the direct route goes there is nothing for 10.3.0.0/24 and the packets are refused (without a default route) or follow whatever wider route there is. The lab "Floating statics" showed exactly that: the 255 route listed, not installed, and the traffic going wherever r2's default route took it.
+
+  The trap is that FRR's page on static routes shows a "high-distance blackhole" at 255 in an example, so its two pages disagree; the router agrees with the zebra page. Any distance from 2 to 254 makes a working backup. Static routes have no hold timer: that belongs to routing protocols.
+skills: [static-routes]
