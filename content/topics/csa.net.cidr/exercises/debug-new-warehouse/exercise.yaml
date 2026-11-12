@@ -1,0 +1,17 @@
+id: debug-new-warehouse
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The new warehouse"
+prompt: |
+  The shop's HQ router, r1, serves four networks: the store (the till), the office (the printer), the new warehouse (its scanners, of which scan is one) and the server room (the server, srv). The branch's router, r2, serves the branch (its kiosk) and reaches HQ over a link to r1. The address plan, `/etc/netlab/plan.txt`, is the source of truth for every address: the network must agree with it, and it must be a sound plan.
+
+  Since the warehouse was added, three things are reported. The till reaches its own router and nothing beyond the store: not the printer, the server, the scanners or the kiosk (`on till ping -c 1 10.1.2.30`). The scanners can't reach the office printer (`on scan ping -c 1 10.1.2.30`), though they reach the server and the kiosk. And the branch can't reach the server (`on kiosk ping -c 1 10.1.8.10`), though it reaches the office printer and the scanners.
+
+  There are three faults. Find each one from the evidence and fix it at its cause. The rules: HQ's networks stay inside 10.1.0.0/20, and the plan stays free of overlaps; every network keeps the size the plan gives it (the warehouse has room for 400 scanners); the networks that were in use before the warehouse (the store, the office, the server room, the branch and the link) keep their blocks, and their machines keep their addresses; the branch keeps one route for all of HQ, no wider than HQ's block; each host keeps just two routes, its own network and a default route; r1 answers ARP only for its own addresses; and every fix must survive a restart of the lab.
+
+  `on MACHINE COMMAND` runs a command on a machine (`on till ip route`), and `netlab show` lists the machines and their addresses. Each machine keeps its settings in its own `/etc`, and `sudo netlab restart` builds the network again from them, as a reboot would. The plan is a file on the lab machine: `sudo nano /etc/netlab/plan.txt`. `ipcalc` is there to check your sums.
+skills: [block-math, split-and-summarise, overlaps]

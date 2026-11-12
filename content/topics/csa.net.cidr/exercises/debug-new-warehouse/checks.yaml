@@ -1,0 +1,91 @@
+# The checks of "The new warehouse". Each reads the network's real state:
+# pings between the machines, ARP requests sent from the store and the
+# warehouse, the machines' addresses and routes, and the plan, which
+# plan-check (/usr/local/lib/lab/plan-check) reads with Python's ipaddress
+# module. "lasts" builds a fresh copy of every machine from its files and
+# compares it with the running one (netlab verify), so a fix made only live
+# fails. "reach" waits for the network after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: reach
+    description: "The till, a warehouse scanner (scan) and the branch's kiosk each reach the office printer, the server (srv) and one another."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      gateway() { on till ping -c 1 -W 1 10.1.1.1; }
+      wait_for 10 gateway
+      scan=$(/usr/local/lib/lab/plan-check address scan)
+      [ -n "$scan" ] || { echo "scan has no IPv4 address on its network"; exit 0; }
+      declare -A at=([till]=10.1.1.20 [printer]=10.1.2.30 [srv]=10.1.8.10 [kiosk]=10.1.16.20 [scan]=$scan)
+      # Every ping at once; each one that gets no answer leaves a line.
+      out=$(mktemp -d)
+      for pair in till:printer till:srv scan:printer scan:srv kiosk:printer kiosk:srv till:scan till:kiosk scan:kiosk; do
+        from=${pair%:*} to=${pair#*:}
+        { on "$from" ping -c 2 -i 0.2 -W 2 "${at[$to]}" > /dev/null 2>&1 || echo "$from can't reach $to" > "$out/$pair"; } &
+      done
+      wait
+      failed=$(cat "$out"/* 2> /dev/null | paste -sd ',' | sed 's/,/, /g')
+      rm -rf "$out"
+      if [ -z "$failed" ]; then echo reach; else echo "$failed"; fi
+    expect:
+      equals: reach
+  - id: plan-sound
+    description: "The plan in /etc/netlab/plan.txt lists each network once, each block written at its start and at the size the network needs, HQ's networks inside 10.1.0.0/20 and the branch and the link outside it, no two overlapping, and the networks that were in use before the warehouse keep their blocks."
+    command: /usr/local/lib/lab/plan-check sound
+    expect:
+      equals: sound
+  - id: network-matches-plan
+    description: "Every machine's address, and each of r1's and r2's, sits in its network's block in the plan with the plan's prefix length, and the machines that were in use before the warehouse keep their addresses."
+    command: /usr/local/lib/lab/plan-check matches
+    expect:
+      equals: matches
+  - id: no-workarounds
+    description: "Each host has two routes, its own network and one default route, and r1 answers ARP only for its own addresses."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for h in till printer scan srv kiosk; do
+        # The local table holds the kernel's entries for the host's own
+        # address; every other route counts.
+        routes=$(ip -n "$h" -4 route show table all | grep -v 'table local')
+        total=$(echo "$routes" | grep -c .)
+        default=$(echo "$routes" | grep -c '^default via ')
+        own=$(echo "$routes" | grep -c ' dev eth0 proto kernel scope link ')
+        if [ "$total" != 2 ] || [ "$default" != 1 ] || [ "$own" != 1 ]; then
+          echo "$h has routes besides its own network and one default route"; exit 0
+        fi
+      done
+      # ARP requests for machines on other networks, asked on the store's
+      # and the warehouse's switches: nobody there may answer for them.
+      for ask in till:10.1.2.30 till:10.1.8.10 till:10.1.16.20 scan:10.1.2.30 scan:10.1.1.20; do
+        from=${ask%:*} for_address=${ask#*:}
+        if on "$from" arping -c 1 -w 1 -I eth0 "$for_address" > /dev/null 2>&1; then
+          echo "asked from $from's network, something answers ARP for $for_address, which isn't on that network"; exit 0
+        fi
+      done
+      echo "no workarounds"
+    expect:
+      equals: "no workarounds"
+  - id: one-summary
+    description: "r2 has one route towards HQ, no wider than HQ's block in the plan."
+    command: /usr/local/lib/lab/plan-check summary
+    expect:
+      equals: "one summary"
+  - id: lasts
+    description: "Every machine is as its files build it, and in a fresh build from those files the till, scan and the kiosk reach the printer, the server and one another."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # netlab verify builds a copy of every machine (chk-till ...) from its
+      # files, compares each with the running machine, and then runs the
+      # pings below in the copy, which a fix made only live can't pass.
+      scan=$(/usr/local/lib/lab/plan-check address scan)
+      [ -n "$scan" ] || { echo "scan has no IPv4 address on its network"; exit 0; }
+      netlab verify -- bash -c '
+        declare -A at=([till]=10.1.1.20 [printer]=10.1.2.30 [srv]=10.1.8.10 [kiosk]=10.1.16.20 [scan]=$1)
+        for pair in till:printer till:srv scan:printer scan:srv kiosk:printer kiosk:srv till:scan till:kiosk scan:kiosk; do
+          from=${pair%:*} to=${pair#*:}
+          on "chk-$from" ping -c 2 -i 0.2 -W 2 "${at[$to]}" > /dev/null 2>&1 || { echo "built fresh from its files, $from cannot reach $to"; exit 0; }
+        done
+        echo lasts' _ "$scan" || true
+    timeout: 60
+    expect:
+      equals: lasts

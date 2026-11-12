@@ -1,0 +1,25 @@
+# The network of "The new warehouse": the shop's HQ, its four networks
+# behind one router, and the branch over a link.
+#
+#   till    --[store]------+
+#   printer --[office]-----+
+#   scan    --[warehouse]--+-- r1 ===(wan)=== r2 --[branch]-- kiosk
+#   srv     --[servers]----+
+#
+# Only the cables are here. Each machine's addresses and routes are its own
+# settings, in its /etc/network/up; the address plan they must agree with
+# is /etc/netlab/plan.txt.
+machine r1 router
+machine r2 router
+machine till
+machine printer
+machine scan
+machine srv
+machine kiosk
+
+lan store r1:store till:eth0
+lan office r1:office printer:eth0
+lan warehouse r1:warehouse scan:eth0
+lan servers r1:servers srv:eth0
+link r1:wan r2:wan
+lan branch r2:branch kiosk:eth0
