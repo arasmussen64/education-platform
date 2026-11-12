@@ -17,7 +17,7 @@ prompt: |
   - This week the app's rate limiter blocked every customer at once.
   - Since the office's network was renumbered on Friday, the office's PCs reach nothing on the internet, though the app still can.
 
-  There are **three faults**. The evidence worth reading: `on gw nft list ruleset`; `on gw conntrack -L`, whose two tuples show what each connection was translated to; `on gw conntrack -S`, whose `insert_failed` counts the SYNs gw had no port for (retries included); `on gw tcpdump -nn -i wan`; and the app's log, `on app tail /var/log/nginx/access.log`, which shows the address each request came from.
+  There are **three faults**. The evidence worth reading: `on gw nft list ruleset`; `on gw conntrack -L`, whose two tuples show what each connection was translated to; `on gw conntrack -S`, conntrack's counters (its `insert_failed` counts every attempt, retries included); `on gw tcpdump -nn -i wan`; and the app's log, `on app tail /var/log/nginx/access.log`, which shows the address each request came from.
 
   **The rules of the fix:** gw keeps dropping anything forwarded that no rule allows; the payment traffic keeps leaving from 198.51.100.3; nothing more is published to the internet; flushing conntrack's table (`conntrack -F`) is not a fix; the payment provider, inet and the network itself aren't yours to change; and the fix survives a reboot (`sudo netlab restart` tries one).
 skills: [port-exhaustion, nat-sizing, snat-and-dnat, nat-rules]
