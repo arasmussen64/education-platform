@@ -87,13 +87,58 @@ file_versions() {
     sed 's/^ssl_protocols//; s/;$//' | tr ' \t' '\n\n' | grep -v '^$' | sort -u
 }
 
-# resolver_set ADDRESS: true if a resolver line in nginx's files on web
-# names ADDRESS (nginx then asks it for the OCSP responder's address each
-# time it fetches an answer; without one it keeps the address it found
-# when it loaded its settings, which stapling alone doesn't show).
-resolver_set() {
-  on web nginx -T 2> /dev/null | sed 's/#.*//' | tr '\n\t' '  ' | grep -oE '(^|[ ;{}])resolver [^;]*;' |
-    grep -E " ${1//./\\.}([ :;]|$)" > /dev/null
+# stapling_resolver NAME ADDRESS: true if a server block for NAME has
+# stapling on and the resolver that block uses (its own resolver line, or
+# else one at the http level) names ADDRESS. nginx then asks ADDRESS for
+# the OCSP responder's address each time it fetches an answer; without a
+# resolver it keeps the address it found when it loaded its settings,
+# which stapling alone doesn't show. A resolver line in another site's
+# block doesn't count: stapling takes the resolver of the site's own
+# server. nginx -T prints each included file after nginx.conf, so a site
+# file's server blocks come out at the top level, and a statement there
+# outside any block is at the http level too.
+stapling_resolver() {
+  on web nginx -T 2> /dev/null | sed 's/#.*//' | tr '\n\t' '  ' | sed 's/[{};]/&\n/g' |
+    awk -v name="$1" -v addr="$2" '
+      function names_addr(list,    t, n, i) {
+        n = split(list, t, " ")
+        for (i = 1; i <= n; i++) { sub(/:[0-9]+$/, "", t[i]); if (t[i] == addr) return 1 }
+        return 0
+      }
+      {
+        s = $0; gsub(/^ +| +$/, "", s)
+        if (s ~ /\{$/) {
+          sub(/ *\{$/, "", s); split(s, w, " ")
+          depth++; ctx[depth] = w[1]
+          if (w[1] == "server" && !inside) { inside = depth; names = " "; st = ""; rv = "" }
+          next
+        }
+        if (s == "}") {
+          if (depth == inside) {
+            if (index(names, " " name " ")) { n++; sst[n] = st; srv[n] = rv }
+            inside = 0
+          }
+          depth--
+          next
+        }
+        sub(/;$/, "", s); k = split(s, w, " ")
+        value = ""
+        for (i = 2; i <= k; i++) if (w[i] !~ /=/) value = value " " w[i]
+        if (inside && depth == inside) {
+          if (w[1] == "server_name") names = names substr(value, 2) " "
+          if (w[1] == "ssl_stapling") st = w[2]
+          if (w[1] == "resolver") rv = value
+        } else if (!inside && (depth == 0 || ctx[depth] == "http")) {
+          if (w[1] == "ssl_stapling") hst = w[2]
+          if (w[1] == "resolver") hrv = value
+        }
+      }
+      END {
+        for (i = 1; i <= n; i++) {
+          if ((sst[i] != "" ? sst[i] : hst) == "on" && names_addr(srv[i] != "" ? srv[i] : hrv)) ok = 1
+        }
+        exit !ok
+      }'
 }
 
 # fresh_name: a name under shop.test that web has no site for.

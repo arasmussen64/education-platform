@@ -53,7 +53,8 @@ checks:
     timeout: 20
     command: |
       . /usr/local/lib/lab/tlscheck.sh
-      resolver_set 10.0.9.53 || { echo "no resolver line in nginx's files names the shop's name server for looking up the responder"; exit 0; }
+      stapling_resolver www.shop.test 10.0.9.53 ||
+        { echo "www.shop.test's server block has no stapling on with a resolver naming the shop's name server for looking up the responder"; exit 0; }
       stapled www.shop.test
     expect:
       equals: stapled

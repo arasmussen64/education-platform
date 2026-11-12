@@ -86,11 +86,12 @@ checks:
     expect:
       equals: chain
   - id: stapled
-    description: "www.shop.test staples the CA's good OCSP answer to its handshakes, from the second handshake after nginx starts, and nginx's files name the shop's resolver for looking up the responder."
+    description: "www.shop.test staples the CA's good OCSP answer to its handshakes, from the second handshake after nginx starts, and its server block takes the shop's resolver for looking up the responder."
     timeout: 20
     command: |
       . /usr/local/lib/lab/tlscheck.sh
-      resolver_set 10.0.9.53 || { echo "no resolver line in nginx's files names the shop's resolver, 10.0.9.53"; exit 0; }
+      stapling_resolver www.shop.test 10.0.9.53 ||
+        { echo "www.shop.test's server block has no stapling on with a resolver naming the shop's resolver, 10.0.9.53 (in that block, or at the http level)"; exit 0; }
       stapled www.shop.test
     expect:
       equals: stapled
