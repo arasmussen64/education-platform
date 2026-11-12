@@ -15,7 +15,7 @@ Run from the repository root:
     python -m uv run python tools/labcheck.py stop  --all
     python -m uv run python tools/labcheck.py test  csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py test  --all --jobs 4
-    python -m uv run python tools/labcheck.py test  --all --jobs 4 --shard 0/4
+    python -m uv run python tools/labcheck.py test  --all --jobs 4 --shard 0/8
 
 `start` builds the lab's image and starts its container. Run again, it keeps
 the work: a running lab is left alone, and a stopped one (after a restart of
@@ -1358,7 +1358,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     test.add_argument(
         "--shard",
-        help="with --all: this machine's share of the topics, as I/N (CI: 0/4 to 3/4)",
+        help="with --all: this machine's share of the topics, as I/N (CI: 0/8 to 7/8)",
     )
     test.set_defaults(run=cmd_test)
 
