@@ -56,9 +56,10 @@ checks:
     timeout: 40
     command: |
       . /usr/local/lib/netlab/checklib.sh
-      # 10.99.0.1, and an address outside the sites' 10.0.0.0/14 that is
-      # new at every run.
-      for a in 10.99.0.1 "10.$((4 + RANDOM % 250)).$((RANDOM % 256)).$((1 + RANDOM % 254))"; do
+      # 10.99.0.1; 10.2.200.1, unused although it sits next to the store's
+      # 10.2.0.0/24, inside the 10.0.0.0/14 that holds every site; and an
+      # address outside that /14 that is new at every run.
+      for a in 10.99.0.1 10.2.200.1 "10.$((4 + RANDOM % 250)).$((RANDOM % 256)).$((1 + RANDOM % 254))"; do
         if ip -n r1 route get "$a" > /dev/null 2>&1; then
           echo "r1 has somewhere to send $a, which no site uses: $(ip -n r1 route get "$a" | head -n 1)"
           exit 0
