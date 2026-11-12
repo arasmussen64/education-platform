@@ -1,0 +1,32 @@
+id: debug-errors-every-few-minutes
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Errors every few minutes"
+prompt: |
+  The shop's balancer, set up by a colleague who has since left. Every part of the shop is described here, the broken parts and the working ones alike; `netlab show` lists the machines.
+
+  - **The office**, `office` (10.0.9.2), is where the customers' requests come from.
+  - **The balancer**, `lb` (10.0.9.1 for the office), is HAProxy (`haproxy@lb`), with its settings in lb's `/etc/haproxy/haproxy.cfg` and its log in `journalctl -u haproxy@lb`. Its runtime API answers `echo "COMMAND" | on lb socat stdio /run/haproxy/admin.sock`. It balances the website across three web servers, with visitors kept on one server by a `SHOPSRV` cookie, and the stock service on port 7000, which isn't involved.
+  - **The web servers**, `web1`, `web2` and `web3` (10.0.1.11 to .13, port 8080, `shop-web@web1` and so on), answer `/` (the front page, which needs nothing else), `/orders` (which needs the database), `/health` (200 only when the server and the database both answer) and `/livez` (200 when the server itself can answer). Each page says which server made it. web3's latest version is broken and waits for its team to fix it: it must stay out of rotation until then.
+  - **The database**, `db` (`shop-db@db`), is shared by all three. Its team's maintenance job, `db-nightly.service`, restarts it on a timer; it is down for about 8 seconds each time. In this lab the job runs every 30 seconds.
+
+  What the on-call engineers have noticed:
+
+  - several times an hour (in this lab, about every half minute), for a few seconds, every customer gets `503 Service Unavailable`, "No server is available to handle this request", even for the front page;
+  - web2 keeps dropping out of rotation and coming back, all day;
+  - after every restart of the balancer, about one page in three fails with `500 Internal Server Error` until someone "runs the usual command".
+
+  `for i in $(seq 1 60); do on office curl -s -o /dev/null -w '%{http_code}\n' http://10.0.9.1/; sleep 1; done` shows a minute of what customers get, `journalctl -u haproxy@lb` what the balancer did, and `show stat` and `show servers state` its view of the servers.
+
+  There are three faults. The rules of the fix:
+
+  - **Change only the balancer's configuration**, lb's `/etc/haproxy/haproxy.cfg`: not the servers' programs or their files, not the database or its maintenance job, not web3.
+  - **The balancer still takes a web server that stops answering out of rotation within 15 seconds.**
+  - **Every fix lasts**: through a restart of the balancer and of the whole lab.
+
+  `on lb haproxy -c -f /etc/haproxy/haproxy.cfg` checks the file and `sudo systemctl reload haproxy@lb` loads it. You're done when a minute of requests brings no error, and the same holds after `sudo systemctl restart haproxy@lb`. Then run the checks. One of them starts the database's maintenance job itself, as its timer does, and one freezes two web servers for a few seconds.
+skills: [health-checks, read-the-balancer, drain-and-stick]
