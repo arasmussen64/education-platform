@@ -1,0 +1,24 @@
+id: debug-ipv6-half-works
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "IPv6 half works"
+prompt: |
+  The office runs dual stack. Its laptops, `h1` (192.168.10.11) and `h2` (192.168.10.12), get IPv4 from the office's router, `r1`, and are meant to configure IPv6 for themselves from r1's router advertisements, in the office's subnet, `2001:db8:42:a::/64`. r1 forwards both families, translates the office's IPv4 to its own address on the internet, 198.51.100.2, and lets nobody on the internet open a connection to the office. Beyond r1 are the office's internet provider, `isp`, a narrower link inside the provider's network (its MTU is 1400), and `web`, a server in the cloud (203.0.113.80 and `2001:db8:80::80`). web runs the lab's test service: port 8080 answers with the address your connection came from, and port 9000 counts the bytes you send it and answers with the count.
+
+  IPv4 works: `on h1 nc -4 -w 3 203.0.113.80 8080 < /dev/null` prints 198.51.100.2. IPv6 doesn't: the laptops can't reach anything over it, and `on h1 nc -6 -w 3 2001:db8:80::80 8080 < /dev/null` prints nothing.
+
+  There are three faults, and fixing one can change what you see. Fix each at its cause. The rules:
+
+  - no translation for IPv6: each laptop keeps its own address on the internet;
+  - the internet still can't open a connection to the office;
+  - the laptops configure themselves: type no addresses onto them;
+  - leave every MTU as it is;
+  - the topology is scenery, as in every network lab: leave it as it is;
+  - every fix survives a restart.
+
+  Each machine keeps its settings in its own `/etc`, and `sudo netlab restart` builds the network again from them, as a reboot would. Then run the checks.
+skills: [slaac-dual-stack, v6-egress, v6-address-types]

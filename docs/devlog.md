@@ -2,6 +2,24 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-12, evening: Module 3's wave 2
+
+The owner is still away; decisions follow their message of 2026-11-11. Wave 2's first half (IPv6, NAT, TCP and UDP) was written while wave 1 landed, with wave 1's lessons added to the writers' brief, and its second half (HTTP and TLS, load balancing, steering traffic) is being written now. Each topic lands in its own pull request, as before.
+
+**IPv6 is ready** (#264). It teaches the short form of an address and its nibble boundaries, the kinds of address (link-local with its zone index, unique local, multicast, no broadcast), a site's plan in /48s and /64s, SLAAC and dual stack (router advertisements, duplicate address detection, which family a client tries first, one firewall for both), and egress without NAT, with AWS's egress-only gateway, Azure as the cloud that translates, and why Packet Too Big must never be dropped. Its debug is the base's IPv6 probe, finished, so the probe leaves the probe topic. Five labs (38 known-wrong fixes) and 28 recall items. The review found that the lesson's "a host prefers IPv4 over a unique local address" is RFC 6724's table, which Windows follows, while Ubuntu 24.04 keeps the older one; that the debug's radvd fault could be mended by starting a second radvd beside the broken one; and that the write lab let `sipcalc` do the short form.
+
+**The base gets three fixes** with it (#264): a switch's ports no longer take IPv6 addresses of their own (they sent router solicitations that a capture showed as machines nobody has); `sysctl_saved` counts `net.ipv4.conf.all.forwarding` for `net.ipv4.ip_forward`, one setting under two names; and netlab says when the kernel refused a value in a machine's files, rather than that the machine lacks the setting.
+
+**Author notes:**
+
+- _IPv6 defines `sysctl` briefly too._ It comes before Routing on the suggested path and every one of its labs sets the router's forwarding in `/etc/sysctl.d`, so a few sentences there match Routing's paragraph.
+- _The plan's fact F9 was wrong:_ radvd 2.19 does warn about a /56 (`prefix length should be: 64`). The lesson teaches what the lab shows.
+- _IPv6's build moves the ISP's link out of the company's /48,_ so it can't be taken for one of the plan's subnets, and makes the router's IPv4 LAN address part of the build.
+- _IPv6's write lab is heavily scaffolded_ for a write from a blank file (its prompt and hints give most of the script's pieces); it meets the brief, and a later pass may thin the hints.
+- _No IPv6 video:_ none could be confirmed in a browser.
+
+**Next:** NAT, then TCP and UDP, each in its own pull request; wave 2's second half is being written.
+
 ## 2026-11-12, later: Module 3's first six topics
 
 The owner is still away; decisions follow their message of 2026-11-11. Wave 1 of Module 3 runs in two halves of three topics. In each, one agent writes a topic in its own worktree and a second reviews it cold: it reads the topic as the first learner, checks its facts at their sources again and attacks every lab check as a hurried learner would. Each topic then lands in its own pull request, after the three are combined and every one of their labs has passed its contract together.

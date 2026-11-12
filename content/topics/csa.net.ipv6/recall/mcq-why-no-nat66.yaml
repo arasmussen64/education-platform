@@ -1,0 +1,16 @@
+id: mcq-why-no-nat66
+type: mcq
+rev: 1
+prompt: |
+  Why do AWS and Google Cloud offer no NAT gateway that translates IPv6 addresses to other IPv6 addresses?
+choices:
+  - "IPv6 encrypts every packet with IPsec, so a translator can't rewrite one"
+  - "IPv6 headers carry an end-to-end checksum that a rewritten address breaks"
+  - "Every host has its own address, and a stateful filter protects it as well"
+  - "An IETF standard has forbidden NAT for IPv6 since the early 2000s"
+answer: 2
+explanation: |
+  NAT was invented to stretch IPv4's few addresses, and IPv6 has no shortage: every host can have a global address of its own. What NAT seemed to add, nobody outside opening a connection to you, came from its state table, and a stateful firewall that lets in only replies gives the same protection without rewriting anything (RFC 4864). AWS sells exactly that as the egress-only internet gateway, and Google's firewall denies incoming connections unless a rule allows them. Both offer translation from IPv6 to IPv4 (NAT64), for IPv6-only machines that must reach IPv4 sites.
+
+  IPsec is optional in IPv6, as in IPv4. The IPv6 header has no checksum at all; TCP's and UDP's checksums cover the addresses, as they do in IPv4, and every NAT already corrects them. And IPv6-to-IPv6 translation isn't forbidden: NPTv6, which swaps one prefix for another, is an experimental RFC, and nftables on a Linux router can masquerade IPv6 as it does IPv4. It just isn't needed.
+skills: [v6-egress]

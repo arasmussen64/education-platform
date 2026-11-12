@@ -1,0 +1,16 @@
+id: mcq-default-via-fe80
+type: mcq
+rev: 1
+prompt: |
+  A laptop's IPv6 default route is `default via fe80::4cc:c2ff:fe67:1ab1 dev eth0 proto ra`. Why does it point at a link-local address and not at the router's global one?
+choices:
+  - "The global address is still being checked by DAD, so the laptop takes the other one"
+  - "Routers send their advertisements from their link-local address, which renumbering never changes"
+  - "Link-local next hops are faster, because routers skip the routing lookup for them"
+  - "The router has no global address on that link, only the link-local one it made itself"
+answer: 1
+explanation: |
+  A router advertisement comes from the router's link-local address, and the laptop takes its default router from where the advertisement came: `proto ra` says the route was learned that way. That suits IPv6 well: a link-local address belongs to the link and never changes when the network is given a new prefix, so every host's default route survives renumbering. A next hop is always on the same link anyway, so a link-local address is all it needs, which is why the route also names the interface, `dev eth0`.
+
+  Duplicate address detection checks a host's own new address, not the router's, and it lasts about a second. Routers do the same lookup whatever the next hop's address. And a router usually does have a global address on the link (r1 has `2001:db8:42:a::1` in the labs); hosts just don't need it.
+skills: [v6-address-types, slaac-dual-stack]

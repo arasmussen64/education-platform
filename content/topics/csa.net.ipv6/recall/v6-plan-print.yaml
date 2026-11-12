@@ -1,0 +1,11 @@
+id: v6-plan-print
+type: predict_shell
+rev: 1
+prompt: |
+  A plan gives each subnet's fourth group one hex digit for the region, one for the zone and two for the tier. In `printf`'s format, `%x` writes a number in hex and `%02x` writes it in hex with at least two digits, a 0 in front if needed. What does this print for region 1, zone 3, tier 10?
+command: printf '2001:db8:abcd:%x%x%02x::/64\n' 1 3 10
+expected_output: |
+  2001:db8:abcd:130a::/64
+explanation: |
+  `%x` takes 1 and writes `1`, the next `%x` takes 3 and writes `3`, and `%02x` takes 10, which is `a` in hex, and pads it to `0a`. Side by side they make the fourth group, `130a`, which reads as region 1, zone 3, tier 0a, so `2001:db8:abcd:130a::/64`. Written with `%02d` instead, the tier would be `10`, which an address reads as hex: tier 16. Every number in an address plan is hex, and so is every printf in a script that writes one.
+skills: [v6-notation, v6-plan]

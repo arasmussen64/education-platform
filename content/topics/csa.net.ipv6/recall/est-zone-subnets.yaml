@@ -1,0 +1,26 @@
+id: est-zone-subnets
+type: estimate
+rev: 1
+prompt: |
+  A large company has a /40. Its plan gives one hex digit (4 bits) to the region, the next one (4 bits) to the site and the next (4 bits) to the zone. The bits after those, up to /64, number the subnets in a zone. How many /64 subnets does one zone get? Exactly.
+unit: subnets
+answer: 4096
+tolerance: { absolute: 0 }
+given: { org: 40, region: 4, site: 4, zone: 4, sub: 64 }
+working: 2 ** (sub - org - region - site - zone)
+mistakes:
+  - id: bits-not-subnets
+    value: 12
+    working: sub - org - region - site - zone
+    why: That's the number of bits left for subnets. 12 bits make 2 to the 12th subnets.
+  - id: as-if-a-48
+    value: 65536
+    working: 2 ** (sub - 48)
+    why: That's a whole /48's worth of subnets. The region, site and zone digits take 12 bits after the /40, which leaves 12, not 16.
+  - id: one-digit-too-many
+    value: 256
+    working: 2 ** (sub - org - region - site - zone - 4)
+    why: That takes one hex digit too many. The /40 and the three digits come to 52 bits, which leaves 12 bits for subnets.
+explanation: |
+  The /40 fixes 40 bits; region, site and zone take 4 more each, which brings it to a /52 for each zone. 64 − 52 = 12 bits remain: 2¹² = 4,096 subnets per zone, three hex digits of the address. Counting in bits keeps a plan honest: every field is one or more hex digits, so each one can be read straight off an address.
+skills: [v6-plan]

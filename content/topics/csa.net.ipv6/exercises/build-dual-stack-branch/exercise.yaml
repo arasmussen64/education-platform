@@ -1,0 +1,24 @@
+id: build-dual-stack-branch
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A dual-stack branch"
+prompt: |
+  The company is opening a branch, and its router, `r1`, has arrived with its line to the internet set up and nothing else. Its network file, `/etc/network/up`, gives its interface `wan` two addresses towards the ISP, `198.51.100.10/30` and `2001:db8:ffff:9::2/64`, and a default route of each family through the ISP. It has no addresses on the branch's switch, forwards nothing, advertises nothing and has no firewall. The ISP routes the company's IPv6 block, `2001:db8:c0de::/48`, to r1.
+
+  The branch's machines, `h1` and `h2`, are on the branch's switch with r1's interface `lan`. They have IPv4 addresses in `192.168.20.0/24`, as the branch's DHCP server gives them, with `192.168.20.1` as their gateway, and no IPv6 but their link-local addresses. Beyond the ISP are a narrower link inside its network (its MTU is 1400) and `web`, a server in the cloud (203.0.113.80 and `2001:db8:80::80`) running the lab's test service: port 8080 answers with the address your connection came from.
+
+  The company's address plan gives the branch the subnet `25` (in hex, like every group of an address) of its /48. Make the branch dual stack:
+
+  - r1 answers on the branch's switch at `192.168.20.1` and at the first address of the branch's IPv6 subnet;
+  - the branch's machines configure their IPv6 themselves, from r1's router advertisements;
+  - r1 forwards both families;
+  - r1 is the branch's firewall. Over IPv6, the branch's machines open connections to the internet with their own addresses, and nobody on the internet can open a connection to them, or to r1 itself over either family; whatever IPv6 needs in order to work must get through. Over IPv4, the branch's private addresses leave as r1's;
+  - leave the branch's machines' own settings, and the topology, as they are;
+  - everything survives a restart.
+
+  r1's settings are its files: its network file, `/etc/network/up`; its kernel settings, in a file of your own in `/etc/sysctl.d/`; its router advertisements, `/etc/radvd.conf`, which `radvd@r1` reads; and its firewall, `/etc/nftables.conf`, which `nftables@r1` loads. Edit them with nano (`on r1 nano /etc/radvd.conf`). Neither service is enabled yet: `sudo systemctl enable --now SERVICE` starts one now and at every boot. `sudo netlab restart` builds the network again from every machine's files, as a reboot would. Then run the checks.
+skills: [v6-plan, slaac-dual-stack, v6-egress, v6-notation]

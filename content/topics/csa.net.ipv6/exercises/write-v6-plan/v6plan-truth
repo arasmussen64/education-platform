@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""v6plan-truth: how the checks of "Write v6-plan" know the answers.
+
+  v6plan-truth plans        two sites made now: one whose first three groups
+                            are all non-zero, and a unique local one (fd...),
+                            one of them with more than ten tiers
+  v6plan-truth zero-groups  two sites made now whose prefix has a zero
+                            group: the third (2001:db8::/48's shape), or
+                            the second
+
+Each runs the learner's ~/bin/v6-plan as the learner, with random counts of
+regions (2 to 4), zones (2 or 3) and tiers (2 to 12), works out every line
+with Python's ipaddress module (whose str() is RFC 5952's short form), and
+prints "right", or the first difference. The script's answers can't be
+typed in ahead: the prefixes and counts are new at every check.
+"""
+
+import ipaddress
+import random
+import subprocess
+import sys
+
+SCRIPT = "/home/learner/bin/v6-plan"
+
+
+def group(rnd, digits=None):
+    """A random non-zero group of 1 to 4 hex digits, with no leading zero."""
+    digits = digits or rnd.choice([1, 2, 3, 4])
+    return f"{rnd.randrange(16 ** (digits - 1) if digits > 1 else 1, 16 ** digits):x}"
+
+
+def first(rnd):
+    """A first group from global unicast space, 2000 to 3fff."""
+    return f"{rnd.randrange(0x2000, 0x4000):x}"
+
+
+def site(groups):
+    """A /48 from its first three groups, in its short form."""
+    text = ":".join(groups) + "::"
+    return ipaddress.IPv6Network(f"{text}/48")
+
+
+def expected(prefix, regions, zones, tiers):
+    lines = []
+    base = int(prefix.network_address)
+    for r in range(regions):
+        for z in range(zones):
+            for t in range(tiers):
+                number = (r << 12) | (z << 8) | t
+                subnet = ipaddress.IPv6Network((base + (number << 64), 64))
+                lines.append(f"r{r:x}-z{z:x}-t{t:02x} {subnet}")
+    return lines
+
+
+def run(prefix, regions, zones, tiers):
+    """The script's lines, or None if it ran out of time; and its stderr."""
+    try:
+        done = subprocess.run(
+            ["runuser", "-u", "learner", "--", SCRIPT, str(prefix), str(regions), str(zones), str(tiers)],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return None, ""
+    return [line.strip() for line in done.stdout.splitlines() if line.strip()], done.stderr
+
+
+def compare(prefix, regions, zones, tiers):
+    """None if the script prints the plan exactly; else what differs."""
+    call = f"v6-plan {prefix} {regions} {zones} {tiers}"
+    got, stderr = run(prefix, regions, zones, tiers)
+    if got is None:
+        return f"{call} didn't finish within 8 seconds"
+    want = expected(prefix, regions, zones, tiers)
+    for i, line in enumerate(want):
+        if i >= len(got):
+            said = (stderr.strip().splitlines() or [""])[0]
+            return f"{call} printed {len(got)} lines, not {len(want)}" + (f" (and said: {said})" if said else "")
+        if got[i] != line:
+            return f"{call}: line {i + 1} should be '{line}', not '{got[i]}'"
+    if len(got) > len(want):
+        return f"{call} printed {len(got)} lines, not {len(want)}: the first extra one is '{got[len(want)]}'"
+    return None
+
+
+def main():
+    what = sys.argv[1] if len(sys.argv) > 1 else ""
+    rnd = random.SystemRandom()
+    if what == "plans":
+        sites = [
+            site([first(rnd), group(rnd), group(rnd)]),
+            site([f"fd{rnd.randrange(256):02x}", group(rnd, 4), group(rnd, 4)]),
+        ]
+    elif what == "zero-groups":
+        sites = [
+            site([first(rnd), group(rnd), "0"]),
+            site([first(rnd), "0", group(rnd)]),
+        ]
+    else:
+        print(__doc__)
+        sys.exit(2)
+    # One of the two plans always has more than ten tiers, so tier 10 (0a)
+    # and up appear.
+    big = rnd.randrange(2)
+    for i, prefix in enumerate(sites):
+        tiers = rnd.randint(11, 12) if i == big else rnd.randint(2, 12)
+        problem = compare(prefix, rnd.randint(2, 4), rnd.randint(2, 3), tiers)
+        if problem:
+            print(problem)
+            return
+    print("right")
+
+
+main()

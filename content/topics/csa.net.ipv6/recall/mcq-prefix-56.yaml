@@ -1,0 +1,16 @@
+id: mcq-prefix-56
+type: mcq
+rev: 1
+prompt: |
+  A branch router's radvd advertises `2001:db8:77::/56`. The laptops show only `fe80::` addresses, though they have a default route through the router. Why?
+choices:
+  - "A /56 holds too many addresses, so the laptops wait for DHCPv6 to give them one"
+  - "Laptops accept a new prefix only after the router itself has been restarted"
+  - "Hosts build an address only from a /64 prefix, so the laptops ignore this one"
+  - "Their privacy settings hide global addresses from the output of `ip -6 addr`"
+answer: 2
+explanation: |
+  A host's address is the advertised prefix followed by a 64-bit interface identifier, so the prefix must be a /64: RFC 4862 says one of any other length is ignored. The rest of the advertisement still counts, so the laptops take the router as their default router and even add a route for the /56, which is exactly the half-working state this shows. radvd itself warns about it: `lan prefix length should be: 64` is in its journal (`journalctl -u radvd@r1` in the labs). The fix is to advertise the LAN's own /64.
+
+  Whether hosts also ask a DHCPv6 server is a separate flag in the advertisement, not a matter of prefix size. Hosts take a new prefix from the next advertisement, with no restart of anything. And privacy (temporary) addresses are listed by `ip -6 addr` like any other.
+skills: [slaac-dual-stack]

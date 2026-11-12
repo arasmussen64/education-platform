@@ -1,0 +1,22 @@
+id: fill-radvd-conf
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Advertise the office's subnet"
+prompt: |
+  A new office, on the walkthrough's network with new numbers. The company's site is `2001:db8:77::/48`, and its address plan gives this office's LAN the subnet `1a`: the fourth group of the address, written in hex like every group. The ISP routes the whole site to r1, the office's router, and r1 is half set up: its addresses (its address on the office's switch is the first of the subnet) and its firewall are in place. What's missing is the IPv6 half of being the office's router. r1 doesn't forward IPv6, and it sends no router advertisements, so the laptops `h1` and `h2` have only their link-local IPv6 addresses.
+
+  Two of r1's files have gaps, each written `___`:
+
+  - `/etc/radvd.conf`, radvd's settings, with three: the interface to advertise on (r1's side of the office's switch: `netlab show` lists r1's two interfaces), whether to send advertisements, and the prefix to advertise, the office's subnet.
+  - `/etc/sysctl.d/90-forward.conf`, r1's kernel settings, with one: the value that makes r1 forward IPv6.
+
+  Edit them with `on r1 nano /etc/radvd.conf` and `on r1 nano /etc/sysctl.d/90-forward.conf`, replace each `___` and nothing else, and save. Then `sudo netlab restart` builds the network again from every machine's files, as a reboot would: r1's kernel settings are applied, and radvd starts from its file. `journalctl -u radvd@r1` shows what radvd made of the file (until the gaps are filled it can't start, and says so). Then look: `on h1 ip -6 addr show dev eth0` should show a global address, `on h1 ip -6 route` a default route learned from r1, and `on h1 nc -6 -w 3 2001:db8:80::80 8080 < /dev/null` h1's own global address, as web sees it. r1's addresses, its firewall and the topology are set up already: leave them as they are. Then run the checks.
+hints:
+  - "The interface is the one with r1's address in the office's subnet, `2001:db8:77:1a::1`: `netlab show` lists each machine's interfaces with their addresses."
+  - "The prefix is the site's first three groups and then the subnet's group, `1a`, as a /64: hosts build an address only from a /64. Groups are hex, so `1a` is written as it is: it is 26 in decimal, but `2001:db8:77:26::` is a different subnet."
+  - "radvd's switches are written on or off. A kernel setting that switches something on is 1."
+skills: [slaac-dual-stack, v6-plan]

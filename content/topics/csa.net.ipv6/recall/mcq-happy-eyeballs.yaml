@@ -1,0 +1,16 @@
+id: mcq-happy-eyeballs
+type: mcq
+rev: 1
+prompt: |
+  A web app's AAAA record points at an address that silently drops every packet; its A record works. What do users with dual-stack browsers see?
+choices:
+  - "Nothing loads, since a browser always uses IPv6 when a AAAA record exists"
+  - "Pages load, but each new connection starts a quarter of a second late"
+  - "Pages load at once, since browsers try IPv4 first and IPv6 only after it"
+  - "An error page, since the two records disagree and the browser gives up"
+answer: 1
+explanation: |
+  Clients prefer IPv6 (RFC 6724's default table puts it above IPv4), so a browser tries the AAAA address first. But it doesn't wait for that to fail: Happy Eyeballs (RFC 8305) starts an IPv4 attempt 250 milliseconds later and keeps whichever connects first. A broken IPv6 path costs each new connection about a quarter of a second, which nobody reports, and that is exactly why broken IPv6 can go unnoticed for months. A monitor that tests each family on its own catches it.
+
+  Browsers don't stick to IPv6 when it fails, and they don't try IPv4 first. Two records for one name aren't a disagreement: A and AAAA are the same name's addresses in each family.
+skills: [slaac-dual-stack]

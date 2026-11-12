@@ -1,0 +1,51 @@
+# The checks for "Meet IPv6": the evidence saved under ~/example, and h2
+# back as it was. The capture holds a host setting itself up (a router
+# solicitation, an advertisement, and duplicate address detection's
+# neighbour solicitation from ::); web saw the laptop's own IPv6 address,
+# and r1's address for IPv4. Addresses change with the MAC addresses at
+# every boot, so the IPv6 answer is checked by its subnet, not by value.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: capture
+    description: "~/example/slaac.txt holds a host setting itself up: a router solicitation, a router advertisement, and a neighbour solicitation sent from the unspecified address, ::."
+    command: |
+      f=/home/learner/example/slaac.txt
+      [ -s "$f" ] || { echo "~/example/slaac.txt is missing or empty"; exit 0; }
+      grep 'router solicitation' "$f" > /dev/null || { echo "slaac.txt has no router solicitation: the capture began after h2 had asked"; exit 0; }
+      grep 'router advertisement' "$f" > /dev/null || { echo "slaac.txt has no router advertisement"; exit 0; }
+      grep 'IP6 :: > ff02::1:ff.*neighbor solicitation' "$f" > /dev/null || { echo "slaac.txt has no neighbour solicitation from ::, duplicate address detection's"; exit 0; }
+      echo "a host setting itself up"
+    expect:
+      equals: "a host setting itself up"
+  - id: own-address
+    description: "~/example/whoami6.txt is the address web saw for a connection to web.shop.test from h1: an address in the office's subnet, 2001:db8:42:a::/64, h1's own."
+    command: |
+      f=/home/learner/example/whoami6.txt
+      [ -s "$f" ] || { echo "~/example/whoami6.txt is missing or empty"; exit 0; }
+      seen=$(head -n 1 "$f" | tr -d '[:space:]')
+      in_subnet='import ipaddress, sys
+      try:
+          a = ipaddress.ip_address(sys.argv[1])
+      except ValueError:
+          sys.exit(1)
+      sys.exit(not (a.version == 6 and a in ipaddress.ip_network("2001:db8:42:a::/64") and a != ipaddress.ip_address("2001:db8:42:a::1")))'
+      if python3 -c "$in_subnet" "$seen"; then echo "h1's own"; else echo "web saw '$seen', which isn't a laptop's address in the office's subnet"; fi
+    expect:
+      equals: "h1's own"
+  - id: translated
+    description: "~/example/whoami4.txt is the address web saw for the same connection over IPv4: r1's address on the internet, 198.51.100.2."
+    command: |
+      head -n 1 /home/learner/example/whoami4.txt 2> /dev/null | tr -d '[:space:]'
+    expect:
+      equals: "198.51.100.2"
+  - id: h2-back
+    description: "h2 has IPv6 on its eth0 again, with a global address it made itself."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(on h2 sysctl -n net.ipv6.conf.eth0.disable_ipv6)" = 0 ] || { echo "IPv6 is still switched off on h2's eth0"; exit 0; }
+      has() { on h2 ip -6 -o addr show dev eth0 scope global dynamic | grep . > /dev/null; }
+      wait_for 5 has || { echo "h2 has no global IPv6 address it made itself"; exit 0; }
+      echo back
+    expect:
+      equals: back

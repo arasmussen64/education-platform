@@ -1,0 +1,17 @@
+id: v6-short-form
+type: predict_shell
+rev: 1
+prompt: |
+  `v6sub` writes a plan's subnet in short form, given a site's /48 and a region, zone and tier. It splits the prefix into its first three groups (a group the short form left out comes out empty, and `${b:-0}` is then 0), makes the fourth group with `printf '%x'` (in hex, without leading zeros), writes all eight groups, then takes `:0` off the end for as long as it ends that way and adds `::/64`. What do the two calls print?
+command: |
+  v6sub() { p=${1%::/48}; IFS=: read -r a b c <<< "$p"; s="$a:${b:-0}:${c:-0}:$(printf '%x' $(( $2 * 4096 + $3 * 256 + $4 ))):0:0:0:0"; while [[ $s == *:0 ]]; do s=${s%:0}; done; echo "$s::/64"; }
+  v6sub 2001:db8::/48 1 0 10
+  v6sub 2001:db8:a::/48 0 0 0
+expected_output: |
+  2001:db8:0:100a::/64
+  2001:db8:a::/64
+explanation: |
+  `2001:db8::/48` has only two groups written, so `c` is empty and the third group is `0`. The fourth is 1 × 4096 + 0 × 256 + 10 = 4106, `100a` in hex. The eight groups are `2001:db8:0:100a:0:0:0:0`; the four zeros come off the end, and the `0` in the third place stays, because it's followed by a group that isn't zero: `2001:db8:0:100a::/64`. RFC 5952 agrees: a lone zero group is written `0`, never `::`.
+
+  For region 0, zone 0, tier 0 of `2001:db8:a::/48` the fourth group is 0 too, so it comes off the end with the other four, and the subnet is written exactly like the site: `2001:db8:a::/64`. Taking the zeros off the end is all the short form needs here, because a /64's last four groups are always zero, so the longest run of zeros is always the one at the end.
+skills: [v6-notation, v6-plan]

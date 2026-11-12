@@ -261,6 +261,12 @@ lan() {
   if ! ip netns list | grep -qx "$switches\( .*\)\?"; then
     ip netns add "$switches"
     ip -n "$switches" link set lo up
+    # A switch has no addresses. Without this its ports take IPv6
+    # link-local ones, and each port sends a router solicitation and a
+    # duplicate-address check of its own when a cable comes up, which a
+    # capture shows as a machine nobody has (found by the IPv6 topic). The
+    # bridge forwards IPv6 frames all the same.
+    ip netns exec "$switches" /usr/sbin/sysctl -qw net.ipv6.conf.all.disable_ipv6=1 net.ipv6.conf.default.disable_ipv6=1
   fi
   # "name" before a topology-given name, or ip reads one like "br" or "a"
   # as a keyword of its own (broadcast, address) and the boot fails.
@@ -408,12 +414,19 @@ apply_sysctls() {
 }
 
 retry_sysctls() {
-  local m=$1 setting
+  local m=$1 setting key
   while IFS= read -r setting; do
     [[ -n $setting ]] || continue
     if ! ip netns exec "$(ns "$m")" /usr/sbin/sysctl -qw "${setting#-}" 2> /dev/null; then
       if [[ $setting != -* ]]; then
-        say "$m: its /etc/sysctl.d sets ${setting%%=*}, which this machine doesn't have (an interface's setting needs the interface): left out"
+        key=${setting%%=*}
+        # The key exists but its value was refused (a gap, a word where a
+        # number goes), or the machine has no such key at all.
+        if ip netns exec "$(ns "$m")" test -e "/proc/sys/${key//.//}"; then
+          say "$m: its /etc/sysctl.d sets $key to '${setting#*=}', which the kernel refused: left out"
+        else
+          say "$m: its /etc/sysctl.d sets $key, which this machine doesn't have (an interface's setting needs the interface): left out"
+        fi
       fi
     fi
   done <<< "${UNSET[$m]:-}"
@@ -730,8 +743,17 @@ case $action in
     ;;
   saved-sysctl)
     # For checklib's sysctl_saved: the value MACHINE's files give KEY, if any.
+    # net.ipv4.ip_forward and net.ipv4.conf.all.forwarding are one setting
+    # under two names (writing either sets both), so a file that uses the
+    # other name counts, the last one in name order winning.
     [[ $# -eq 3 ]] || die "usage: netlab saved-sysctl MACHINE KEY"
-    saved_sysctls "$2" 2> /dev/null | sed 's/^-//' | awk -F= -v key="${3//\//.}" '$1 == key {value = substr($0, length($1) + 2)} END {if (value != "") print value}'
+    key=${3//\//.}
+    other=""
+    case $key in
+      net.ipv4.ip_forward) other=net.ipv4.conf.all.forwarding ;;
+      net.ipv4.conf.all.forwarding) other=net.ipv4.ip_forward ;;
+    esac
+    saved_sysctls "$2" 2> /dev/null | sed 's/^-//' | awk -F= -v key="$key" -v other="$other" '$1 == key || (other != "" && $1 == other) {value = substr($0, length($1) + 2)} END {if (value != "") print value}'
     ;;
   *)
     sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'

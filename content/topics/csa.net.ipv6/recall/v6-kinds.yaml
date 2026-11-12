@@ -1,0 +1,27 @@
+id: v6-kinds
+type: predict_shell
+rev: 1
+prompt: |
+  `addrs.txt` holds six IPv6 addresses, one a line. The loop names each one's kind with `case`, which tries its patterns in order and takes the first that matches (`*` stands for anything, and `|` means "or"). What does it print?
+files:
+  addrs.txt: |
+    fe80::1
+    fd12:3456:789a:1::10
+    ff02::1
+    2600:1f18:abcd::5
+    ::1
+    2001:db8::42
+command: |
+  while read -r a; do case $a in fe80:*) echo link-local;; fd*|fc*) echo unique-local;; ff*) echo multicast;; ::1) echo loopback;; 2001:db8:*) echo documentation;; 2*|3*) echo global;; esac; done < addrs.txt
+expected_output: |
+  link-local
+  unique-local
+  multicast
+  global
+  loopback
+  documentation
+explanation: |
+  `fe80::1` is link-local: every interface has an `fe80::` address, which works on its own link only. `fd12:3456:789a:1::10` is a unique local address, IPv6's private space (`fc00::/7`, in practice always `fd` and 40 random bits). `ff02::1` is multicast, here the group every node on the link belongs to. `2600:1f18:abcd::5` starts with 2, in the global unicast space, `2000::/3`, where every public address is. `::1` is the loopback, IPv6's `127.0.0.1`. `2001:db8::42` is from the documentation prefix, `2001:db8::/32`, which never appears on the internet and is the reason the labs use it.
+
+  The order of the patterns matters: `2001:db8:*` comes before `2*`, or documentation addresses would be called global. The same goes for the newer documentation prefix, `3fff::/20` (RFC 9637, 2024), which this loop would call global: a script that must be right puts it before `2*|3*` too.
+skills: [v6-address-types]

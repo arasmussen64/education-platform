@@ -60,7 +60,7 @@ sudo netlab restart
 
 # Look: wait for h1's own address, then ask web which address it sees.
 for _ in $(seq 1 15); do
-  on h1 ip -6 addr show dev eth0 scope global | grep -q dynamic && break
+  on h1 ip -6 addr show dev eth0 scope global | grep dynamic > /dev/null && break
   sleep 1
 done
 on h1 ip -6 addr show dev eth0 scope global

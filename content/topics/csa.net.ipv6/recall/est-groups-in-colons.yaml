@@ -1,0 +1,23 @@
+id: est-groups-in-colons
+type: estimate
+rev: 1
+prompt: |
+  An IPv6 address always has 8 groups. In `2001:db8::1`, how many groups of zeros does the `::` stand for? Exactly.
+unit: groups
+answer: 5
+tolerance: { absolute: 0 }
+given: { groups: 8 }
+# The written groups are 2001, db8 and 1: three of them.
+working: groups - 3
+mistakes:
+  - id: forgot-the-last
+    value: 6
+    working: groups - 2
+    why: That counts only the groups before the `::`. The `1` after it is a group too, so three are written and five are left for the `::`.
+  - id: two-colons-two-groups
+    value: 2
+    working: "2"
+    why: That reads `::` as two zero groups, one per colon. It stands for however many groups are missing, here five.
+explanation: |
+  Three groups are written: `2001`, `db8` and `1`. The address has 8, so `::` stands for the other 8 − 3 = 5, all zeros, in the place where it sits: `2001:0db8:0000:0000:0000:0000:0000:0001`. That's why an address may have only one `::`: with two, nobody could tell how to share the missing groups between them.
+skills: [v6-notation]

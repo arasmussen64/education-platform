@@ -1,0 +1,42 @@
+# The network of "A dual-stack branch": a new branch, its router, the ISP,
+# a narrow link inside the ISP, and a server in the cloud.
+#
+#   h1, h2 --[branch]-- r1 --- isp ==(1400-byte link)== core --- web
+#   192.168.20.0/24     wan                                      203.0.113.80
+#                       198.51.100.10/30                         2001:db8:80::80
+#                       2001:db8:ffff:9::2/64
+#
+# r1 arrives with only its line to the ISP set up (its /etc/network/up);
+# its LAN, forwarding, router advertisements and firewall are the
+# learner's. The ISP routes the company's 2001:db8:c0de::/48 to r1. The
+# branch machines' IPv4 is given here, as the branch's DHCP server would
+# give it; their IPv6 is to come from r1's advertisements.
+machine h1
+machine h2
+machine r1
+machine isp router
+machine core router
+machine web
+
+lan branch h1:eth0=192.168.20.11/24 h2:eth0=192.168.20.12/24 r1:lan
+link r1:wan isp:cust=198.51.100.9/30,2001:db8:ffff:9::1/64
+link isp:core=198.51.100.5/30,2001:db8:ffff:2::1/64 core:edge=198.51.100.6/30,2001:db8:ffff:2::2/64
+link core:srv=203.0.113.1/24,2001:db8:80::1/64 web:eth0=203.0.113.80/24,2001:db8:80::80/64
+mtu isp core 1400
+mtu core edge 1400
+
+route h1 default via 192.168.20.1
+route h2 default via 192.168.20.1
+route isp default via 198.51.100.6
+route isp default via 2001:db8:ffff:2::2
+route isp 2001:db8:c0de::/48 via 2001:db8:ffff:9::2
+route core 198.51.100.8/30 via 198.51.100.5
+route core 2001:db8:c0de::/48 via 2001:db8:ffff:2::1
+route core 2001:db8:ffff:9::/64 via 2001:db8:ffff:2::1
+route web default via 203.0.113.1
+route web default via 2001:db8:80::1
+# web also answers for 2001:db8:80::1000 to ::1fff, so a check can send to
+# an address nobody has sent to before.
+route web local 2001:db8:80::1000/116 dev lo
+
+run web web-svc
