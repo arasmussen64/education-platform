@@ -12,7 +12,7 @@ import labcheck
 import pytest
 import yaml
 from content_fixture import make_valid_tree, write
-from content_model import Expect, LabCheck, LabChecks
+from content_model import Expect, LabCheck, LabChecks, LabOptions
 from labcheck import (
     CHECKER_VERSION,
     CheckResult,
@@ -1513,3 +1513,137 @@ def test_the_validator_wants_a_labs_base_to_exist(tmp_path: Path) -> None:
         "can't read: write FROM lab-base-<name> alone on its line, with the name "
         "in lowercase letters, digits and hyphens (the bases are: net)"
     ]
+
+
+# --- The restart trial (ADR-0018, third amendment) ----------------------------------
+
+# Two checks that pass on exit status 0, so a stand-in Docker decides them.
+PLAIN_CHECKS = """checks:
+  - id: file-exists
+    description: hello.txt exists.
+    command: test -f /home/learner/hello.txt
+  - id: service-on
+    description: The service runs.
+    command: systemctl is-active hello
+"""
+TRIAL = "lab:\n  init: systemd\n  restart_trial: true\n"
+
+
+class Rebooting(FakeDocker):
+    """A stand-in Docker for contract runs. In each new container, every
+    check fails until a script has been applied; after `docker restart`, the
+    checks whose command holds one of `lost` fail again, as a fix that a
+    reboot loses would."""
+
+    def __init__(self, lost: tuple[str, ...] = ()) -> None:
+        super().__init__()
+        self.lost = lost
+        self.applied = False
+        self.restarted = False
+
+    def __call__(self, *args: str, **options: object):
+        super().__call__(*args, **options)
+        if args[0] == "run":
+            self.applied = self.restarted = False
+        elif args[0] == "cp":
+            self.applied = True
+        elif args[0] == "restart":
+            self.restarted = True
+        elif args[0] == "exec" and "timeout" in args:  # a check
+            lost = self.restarted and any(part in args[-1] for part in self.lost)
+            return answer(0 if self.applied and not lost else 1)
+        return answer()
+
+
+def trial_lab(tmp_path: Path, monkeypatch, docker: FakeDocker, options: str):
+    lab = use_lab(tmp_path, monkeypatch, docker, options, checks=PLAIN_CHECKS)
+    write(tmp_path, f"{LAB_DIR}/solution.sh", "sudo systemctl enable --now hello\n")
+    boots: list[str] = []
+    monkeypatch.setattr(labcheck, "wait_for_boot", boots.append)
+    return lab, boots
+
+
+def test_the_restart_trial_is_off_unless_a_lab_asks_for_it() -> None:
+    assert LabOptions().restart_trial is False
+    assert LabOptions(init="systemd", restart_trial=True).restart_trial is True
+    # Strictly true or false: a quoted "yes" or a 1 isn't quietly read as true.
+    for wrong in ("yes", "true", 1):
+        with pytest.raises(ValidationError):
+            LabOptions.model_validate({"restart_trial": wrong})
+
+
+def test_the_restart_trial_restarts_the_solved_lab_and_checks_it_again(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = Rebooting()
+    lab, boots = trial_lab(tmp_path, monkeypatch, docker, TRIAL)
+    said: list[str] = []
+    report = labcheck.test_lab(lab, say=said.append)
+    assert report.ok, report.problems
+    # The solution applied (cp, exec) and checked (exec, exec); then a
+    # restart, the wait for the boot, every check again, and the container
+    # removed (inspect, rm).
+    after_solution = docker.verbs[docker.verbs.index("cp") :]
+    assert after_solution == [
+        "cp",
+        "exec",
+        "exec",
+        "exec",
+        "restart",
+        "exec",
+        "exec",
+        "inspect",
+        "rm",
+    ]
+    assert ("restart", f"{NAME}-test") in docker.calls
+    assert boots[-1] == f"{NAME}-test"
+    assert "  restart trial: docker restart, then every check must pass again" in said
+
+
+def test_a_fix_that_a_restart_loses_breaks_the_contract_and_says_so(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = Rebooting(lost=("systemctl is-active hello",))
+    lab, _ = trial_lab(tmp_path, monkeypatch, docker, TRIAL)
+    report = labcheck.test_lab(lab, verbose=False)
+    assert report.problems == [
+        "the fix didn't survive a restart: after docker restart, service-on "
+        "fails: exit status 1"
+    ]
+    # A checker that stopped would be retried in the crowd; this is a broken
+    # contract, never retried.
+    assert not report.gave_up
+
+
+def test_no_restart_trial_without_the_option_or_before_the_solution_passes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = Rebooting()
+    lab, _ = trial_lab(tmp_path, monkeypatch, docker, "lab:\n  init: systemd\n")
+    assert labcheck.test_lab(lab, verbose=False).ok
+    assert "restart" not in docker.verbs
+
+    # The solution fails a check: the trial would prove nothing, so it waits.
+    docker = Rebooting()
+    lab, _ = trial_lab(tmp_path, monkeypatch, docker, TRIAL)
+    write(tmp_path, f"{LAB_DIR}/checks.yaml", CHECKS)  # says-hello wants "hello"
+    lab = load_lab("t.hello", "lab-hello", tmp_path / "content" / "topics")
+    said: list[str] = []
+    report = labcheck.test_lab(lab, say=said.append)
+    assert "restart" not in docker.verbs
+    assert any(
+        problem.startswith("after solution.sh, says-hello")
+        for problem in report.problems
+    )
+    assert "  restart trial: not run, since the solution doesn't pass yet" in said
+
+
+def test_a_plain_lab_is_restarted_without_waiting_for_a_boot(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = Rebooting()
+    lab, boots = trial_lab(
+        tmp_path, monkeypatch, docker, "lab:\n  restart_trial: true\n"
+    )
+    assert labcheck.test_lab(lab, verbose=False).ok
+    assert "restart" in docker.verbs and boots == []

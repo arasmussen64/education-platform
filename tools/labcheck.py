@@ -28,8 +28,12 @@ removes the ones `start` made.
 
 `test` is for authors and CI: the pristine container must not pass, the
 reference solution must pass, every known-wrong fix must fail at least one
-check. `--jobs` tests several labs at once; `--shard I/N` takes every Nth
-topic, which is how CI splits the run across machines.
+check. A lab whose exercise.yaml says `lab: { restart_trial: true }` also
+gets the restart trial: once its solution passes, the container is
+restarted (`docker restart`, then the wait for its boot) and every check
+must pass again, so a fix that a reboot loses is caught. `--jobs` tests
+several labs at once; `--shard I/N` takes every Nth topic, which is how CI
+splits the run across machines.
 
 A lab whose exercise.yaml says `lab: { init: systemd }` boots systemd as PID 1
 in a privileged container, and the checker waits for the boot to finish before
@@ -108,6 +112,9 @@ APPLY_TIMEOUT_SECONDS = 300
 # every lab's containers boot at once now that the shared layers are warmed
 # first. A healthy lab still boots in seconds.
 BOOT_TIMEOUT_SECONDS = 480
+# `docker restart` gives the container 10 seconds to stop before it kills
+# it, then starts it again; the restart trial's boot is waited for after.
+RESTART_TIMEOUT_SECONDS = 120
 
 # The learner's account inside every lab image.
 LEARNER = "learner"
@@ -150,6 +157,10 @@ class Lab:
     @property
     def init(self) -> str:
         return self.exercise.lab.init if self.exercise.lab else "none"
+
+    @property
+    def restart_trial(self) -> bool:
+        return bool(self.exercise.lab and self.exercise.lab.restart_trial)
 
 
 # --- Finding labs -------------------------------------------------------------------
@@ -1184,6 +1195,28 @@ class ContractReport:
         )
 
 
+def restart_trial(
+    lab: Lab, container: str, verbose: bool, say: Callable[[str], None]
+) -> list[str]:
+    """The restart trial (ADR-0018, third amendment): the container with the
+    solution in it is restarted, as Docker Desktop or the computer restarts
+    a learner's lab, and every check must pass again. Returns the problems:
+    each check that fails now, which means the fix didn't last."""
+    say("  restart trial: docker restart, then every check must pass again")
+    docker("restart", container, timeout=RESTART_TIMEOUT_SECONDS)
+    if lab.init == "systemd":
+        wait_for_boot(container)
+    again = run_checks(lab, container)
+    if verbose:
+        print_results(again, show_detail=True, say=say)
+    return [
+        f"the fix didn't survive a restart: after docker restart, {result.id} "
+        f"fails: {result.detail}"
+        for result in again
+        if not result.passed
+    ]
+
+
 def test_lab(
     lab: Lab,
     verbose: bool = True,
@@ -1221,6 +1254,11 @@ def test_lab(
                     )
             if verbose:
                 print_results(solved, show_detail=True, say=say)
+            if lab.restart_trial:
+                if all(result.passed for result in solved):
+                    problems += restart_trial(lab, scratch, verbose, say)
+                else:
+                    say("  restart trial: not run, since the solution doesn't pass yet")
 
         for wrong in sorted(lab.folder.glob("wrong/*.sh")):
             say(f"  {wrong.name}: at least one check must fail")
@@ -1403,7 +1441,18 @@ def main(argv: list[str] | None = None) -> int:
         help="with --all: also what an interrupted `test` run left behind",
     )
     stop.set_defaults(run=cmd_stop)
-    test = sub.add_parser("test", help="prove a lab's contract (authors and CI)")
+    test = sub.add_parser(
+        "test",
+        help="prove a lab's contract (authors and CI)",
+        description=(
+            "Prove a lab's contract: the pristine container must not pass every "
+            "check, solution.sh must pass every check, and each wrong/*.sh must "
+            "fail at least one. A lab with lab: { restart_trial: true } in its "
+            "exercise.yaml also gets the restart trial: once the solution "
+            "passes, the container is restarted (docker restart, then the wait "
+            "for its boot) and every check must pass again."
+        ),
+    )
     test.add_argument("topic", nargs="?")
     test.add_argument("exercise", nargs="?")
     test.add_argument("--all", action="store_true", help="every lab in content/")
