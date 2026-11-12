@@ -1,0 +1,24 @@
+id: debug-tunnel-down
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The tunnel is down"
+prompt: |
+  The office's VPN to the cloud. The office laptop, `office` (192.168.10.10), sits behind the office's VPN gateway, `vpn` (192.168.10.1 on `lan`, 198.51.100.10 on `wan`). vpn reaches the internet through the office's internet provider, `isp`, whose new line runs to `internet`, a router of the internet. Beyond that is the cloud provider's VPN gateway, `cloud` (203.0.113.10), and the shop's cloud network, 10.20.0.0/16, where the app, `app` (10.20.1.10), serves its pages on port 80 and counts the bytes of uploads on port 9000. The provider's configuration sheet is `/srv/provider/vpn-config.txt`; `cloud-vpn-status` shows the provider's view of the tunnel and `cloud-vpn-log` its VPN log. BGP's timers are scaled down, as in every lab of this topic (a keepalive every 3 seconds and a hold time of 9, where real gateways use 30 and 90, or 60 and 180).
+
+  How it is meant to work, and did for months: vpn runs a route-based tunnel to the provider, exactly as the sheet describes, with its tunnel interface `vti0` made by its network file (`/etc/network/up`), its connection in `/etc/swanctl/conf.d/` (`strongswan@vpn`), BGP over the tunnel in FRR (`frr@vpn`, saved in `/etc/frr/frr.conf`), and its firewall in `/etc/nftables.conf` (`nftables@vpn`), all loaded at boot.
+
+  Last night someone tidied vpn's configuration, and the office moved to its internet provider's new line. Since then nothing from the office reaches the cloud's app. There are three faults, all on vpn. Fixing one can change what you see. Find each from the evidence: `on vpn swanctl --list-sas`, `journalctl -u strongswan@vpn` (vpn's IPsec log), the provider's `cloud-vpn-status` and `cloud-vpn-log`, `on vpn vtysh -c 'show bgp summary'`, and tests from the office.
+
+  The rules of the fix:
+
+  - **Change only vpn.** The office laptop, the internet provider's routers and line, and the cloud provider's gateway aren't yours.
+  - **Keep the tunnel route-based, with BGP**: no static routes to the cloud, and none typed into the kernel.
+  - **Keep the sheet's proposals**, both phases.
+  - **Every fix lasts a reboot.**
+
+  You are done when, from the office, `on office curl -s -o /dev/null -w '%{size_download}\n' http://10.20.1.10/report.txt` prints `303030` within a few seconds and `head -c 400000 /dev/zero | on office nc -N 10.20.1.10 9000` prints `400000`. Then run the checks.
+skills: [read-ike-logs, tunnel-mtu, ipsec-building-blocks]
