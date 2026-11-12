@@ -1472,6 +1472,26 @@ def test_start_and_test_build_the_base_too(tmp_path: Path, monkeypatch) -> None:
     assert "lab-base-net" in docker.calls[1]
 
 
+def test_docker_builds_without_the_attestation_that_changes_an_images_id(
+    monkeypatch,
+) -> None:
+    # With buildx's default attestation, an unchanged base got a new ID at
+    # every build, and every lab on it rebuilt its own layers.
+    seen: list[dict[str, str]] = []
+
+    def run(argv: list[str], **options: object):
+        seen.append(options["env"])  # type: ignore[arg-type]
+        return answer()
+
+    monkeypatch.setattr(labcheck, "docker_command", lambda: "docker")
+    monkeypatch.setattr(labcheck.subprocess, "run", run)
+    monkeypatch.setenv("LAB_TEST_KEPT", "yes")
+    labcheck.docker("build", "-q", "-t", "lab-base-net", ".")
+    assert seen[0]["BUILDX_NO_DEFAULT_ATTESTATIONS"] == "1"
+    # The rest of the environment (PATH, Docker's own settings) is kept.
+    assert seen[0]["LAB_TEST_KEPT"] == "yes"
+
+
 def test_a_base_that_doesnt_exist_is_named_before_anything_is_built(
     tmp_path: Path, monkeypatch
 ) -> None:

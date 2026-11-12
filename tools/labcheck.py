@@ -227,6 +227,19 @@ def engine_is_down(message: str) -> bool:
     return any(says in message.lower() for says in ENGINE_DOWN_SAYS)
 
 
+def docker_environment() -> dict[str, str]:
+    """This process's environment, with Docker's default attestations off.
+
+    Docker's builder (buildx) stamps every image it builds with a record of
+    the build that holds its time, so an image built twice from the same
+    files gets a new ID each time. A lab built FROM a shared base would then
+    find a "new" base at every build, rebuild its own layers and leave the
+    old image behind untagged. Without the record, an unchanged base keeps
+    its ID and the lab comes from Docker's cache. Older builders ignore it.
+    """
+    return {**os.environ, "BUILDX_NO_DEFAULT_ATTESTATIONS": "1"}
+
+
 def docker(
     *args: str, timeout: int = CHECK_TIMEOUT_SECONDS, check: bool = True
 ) -> subprocess.CompletedProcess[str]:
@@ -238,6 +251,7 @@ def docker(
         errors="replace",
         timeout=timeout,
         check=False,
+        env=docker_environment(),
     )
     if check and completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip()
