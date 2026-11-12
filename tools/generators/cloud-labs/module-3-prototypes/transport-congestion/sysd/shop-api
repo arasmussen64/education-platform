@@ -1,0 +1,74 @@
+#!/usr/bin/python3
+"""shop-api: takes orders on 127.0.0.1:8080 and stores each with one query over
+a single pooled connection to orders-db. Settings: /etc/shop/api.conf."""
+import json, socket, threading, time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+def conf():
+    c = {}
+    for line in open("/etc/shop/api.conf"):
+        line = line.split("#", 1)[0].strip()
+        if "=" in line:
+            k, v = (x.strip() for x in line.split("=", 1))
+            c[k] = v
+    return c
+
+
+C = conf()
+lock = threading.Lock()
+pool = {"sock": None, "file": None}
+n = {"orders": 0}
+
+
+def connect():
+    s = socket.create_connection((C["db_host"], int(C["db_port"])), timeout=5)
+    if C.get("db_keepalive", "off") == "on":
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        for opt, key in ((socket.TCP_KEEPIDLE, "db_keepalive_idle"),
+                         (socket.TCP_KEEPINTVL, "db_keepalive_interval"),
+                         (socket.TCP_KEEPCNT, "db_keepalive_count")):
+            if C.get(key):
+                s.setsockopt(socket.IPPROTO_TCP, opt, int(C[key]))
+    s.settimeout(float(C.get("db_query_timeout", "5")))
+    pool["sock"], pool["file"] = s, s.makefile("rwb", buffering=0)
+    print("connected to orders-db from port %d" % s.getsockname()[1], flush=True)
+
+
+def query(text):
+    with lock:
+        if pool["sock"] is None:
+            connect()
+        t = time.time()
+        port = pool["sock"].getsockname()[1]
+        try:
+            pool["sock"].sendall(text.encode() + b"\n")
+            r = pool["file"].readline()
+            if not r:
+                raise ConnectionError("orders-db closed the connection")
+            return {"ok": True, "port": port, "seconds": round(time.time() - t, 3)}
+        except Exception as e:
+            print("order failed after %.1f s: %s" % (time.time() - t, e), flush=True)
+            pool["sock"].close()
+            pool["sock"] = None
+            return {"ok": False, "port": port, "error": str(e), "seconds": round(time.time() - t, 3)}
+
+
+class H(BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        if self.path == "/order":
+            n["orders"] += 1
+            body = query("order %d" % n["orders"])
+        else:
+            body = {"orders": n["orders"]}
+        b = json.dumps(body).encode() + b"\n"
+        self.send_response(200 if body.get("ok", True) else 502)
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+
+ThreadingHTTPServer(("127.0.0.1", 8080), H).serve_forever()

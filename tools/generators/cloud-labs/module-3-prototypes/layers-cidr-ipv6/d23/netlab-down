@@ -1,0 +1,6 @@
+#!/bin/bash
+pre=${1:-}
+for ns in $(ip netns list | awk '{print $1}'); do
+  if [ -n "$pre" ]; then case "$ns" in "$pre"*) ip netns del "$ns";; esac
+  else case "$ns" in chk-*) ;; *) ip netns del "$ns";; esac; fi
+done

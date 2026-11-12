@@ -1,0 +1,23 @@
+# FRRouting (zebra, staticd, bgpd, ospfd ... as /etc/frr/daemons says) on one
+# of the lab's machines: "systemctl status frr@r1". Replaces the package's own
+# frr@.service, which runs a second FRR on the same machine; here each
+# machine is a network namespace with its own /etc/frr (/etc/netns/r1/frr).
+[Unit]
+Description=FRRouting on %i
+After=netlab.service
+Requires=netlab.service
+
+[Service]
+Type=forking
+NotifyAccess=all
+PIDFile=/run/netlab/machines/%i/frr/watchfrr.pid
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/lib/frr/frrinit.sh start
+ExecStop=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/lib/frr/frrinit.sh stop
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/lib/frr/frrinit.sh reload
+Restart=on-abnormal
+RestartSec=2
+TimeoutSec=2m
+LimitNOFILE=1024
+
+[Install]
+WantedBy=multi-user.target

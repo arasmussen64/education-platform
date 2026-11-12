@@ -1,0 +1,42 @@
+#!/usr/bin/python3
+"""web-svc: the cloud's test server. Port 8080 answers each connection with
+the address it came from; port 9000 reads everything sent and answers with
+the byte count. Both on IPv4 and IPv6."""
+import socket
+import threading
+
+
+def serve(port, handle):
+    s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(("::", port))
+    s.listen(32)
+    while True:
+        c, a = s.accept()
+        threading.Thread(target=handle, args=(c, a), daemon=True).start()
+
+
+def whoami(c, a):
+    ip = a[0][7:] if a[0].startswith("::ffff:") else a[0]
+    c.sendall((ip + "\n").encode())
+    c.close()
+
+
+def sink(c, a):
+    n = 0
+    c.settimeout(30)
+    try:
+        while True:
+            b = c.recv(65536)
+            if not b:
+                break
+            n += len(b)
+        c.sendall(f"{n}\n".encode())
+    except OSError:
+        pass
+    c.close()
+
+
+threading.Thread(target=serve, args=(9000, sink), daemon=True).start()
+serve(8080, whoami)

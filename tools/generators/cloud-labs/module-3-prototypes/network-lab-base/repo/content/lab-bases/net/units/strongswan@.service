@@ -1,0 +1,18 @@
+# strongSwan (charon, managed with swanctl) on one of the lab's machines:
+# "systemctl status strongswan@vpn1". Its configuration is the machine's
+# /etc/swanctl (/etc/netns/vpn1/swanctl on the lab machine).
+[Unit]
+Description=strongSwan IPsec (charon) on %i
+After=netlab.service
+Requires=netlab.service
+
+[Service]
+Type=notify
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/charon-systemd
+ExecStartPost=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/swanctl --load-all --noprompt
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/swanctl --reload
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/swanctl --load-all --noprompt
+Restart=on-abnormal
+
+[Install]
+WantedBy=multi-user.target

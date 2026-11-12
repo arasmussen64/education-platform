@@ -1,0 +1,13 @@
+ip addr add 203.0.113.2/24 dev wan
+ip link add gre1 type gre local 203.0.113.2 remote 203.0.113.1 ttl 64
+ip addr add 10.255.0.2/30 dev gre1
+ip link set gre1 up
+ip link add lan type bridge
+ip link set p-web master lan
+ip link set p-files master lan
+ip link set lan up
+ip addr add 10.0.2.1/24 dev lan
+ip neigh replace 10.0.2.30 lladdr 02:4c:41:42:00:30 dev lan nud permanent
+ip addr add 10.0.3.1/24 dev prn
+ip link set prn down
+ip route add default dev gre1

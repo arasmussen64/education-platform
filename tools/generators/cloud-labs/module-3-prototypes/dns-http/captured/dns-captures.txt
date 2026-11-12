@@ -1,0 +1,74 @@
+
+; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> +trace www.shop.test
+;; global options: +cmd
+.			84680	IN	NS	a.root-servers.test.
+.			84680	IN	RRSIG	NS 13 0 86400 20261125182050 20261112010624 36506 . iOp2dhJa9rClEGHCXHw+QNCPiGc6vI4MwxzZEoTC7boorK0y3Ny2hOy1 ZTApv4vWCDwSoGzFneoFgyesXxh9XQ==
+;; Received 270 bytes from 127.0.0.1#53(127.0.0.1) in 0 ms
+
+test.			86400	IN	NS	ns1.nic.test.
+test.			86400	IN	DS	16167 13 2 5B294FE4D9C0E2AE208044BD8B30FDE93B2833CB82023171A7DA3672 50478720
+test.			86400	IN	RRSIG	DS 13 1 86400 20261125191937 20261112010627 36506 . qwex43bRUX9g2by+RyvFhgLBOQCIQm8FMHbUOeF+OfVsgZkHeGIUX7gD Y+bZToqOlj0VZmfvlcc6pE2/6yGW1A==
+;; Received 259 bytes from 10.0.9.11#53(a.root-servers.test) in 4 ms
+
+shop.test.		3600	IN	NS	ns2.shop.test.
+shop.test.		3600	IN	NS	ns1.shop.test.
+shop.test.		3600	IN	DS	9261 13 2 589E7DB94D10C3F51E9D873AA22C826D89216EEE4CEDD8F0DC8EF50D 0211F47E
+shop.test.		3600	IN	RRSIG	DS 13 2 3600 20261125223626 20261112010848 16167 test. ziJnaoWwSBPn4pIymnJdwhDAsSzMzDReJd6EvO/9JxRPbdZDz8jjDiVE mrOVQ/UiC9ax/cTw+O5h3oz0P4FfFw==
+;; Received 286 bytes from 10.0.9.12#53(ns1.nic.test) in 0 ms
+
+www.shop.test.		300	IN	CNAME	shop.test.
+www.shop.test.		300	IN	RRSIG	CNAME 13 3 300 20261125181319 20261112010733 9261 shop.test. w7WTnSCcOeGogK5VFnipTsSc2l10D1pZUCGIXsT7G8K2ZnpACebbbOsP cqmFn6l8NFk+qPIK45caf8mZpApHpQ==
+shop.test.		300	IN	A	10.0.9.40
+shop.test.		300	IN	RRSIG	A 13 2 300 20261126004003 20261112010733 9261 shop.test. 77KGpB+wURDyu3yEjSJGMwMB02JxShoy1Vx5JCMYIbEycFfY2g9cXptu 4epqTvV87KcSXw60cJ8qHd/1MaBVIg==
+shop.test.		300	IN	NS	ns1.shop.test.
+shop.test.		300	IN	NS	ns2.shop.test.
+shop.test.		300	IN	RRSIG	NS 13 2 300 20261126004003 20261112010733 9261 shop.test. jmoOxmrvSxmah/AYWGgoRSxXu/7iYxlmisJqyyTMKzQkbxybTAsnnCHB Kre8HBvdGMMceAqzdnNoPBTxlw/wTQ==
+;; Received 693 bytes from 10.0.9.14#53(ns2.shop.test) in 4 ms
+
+====
+
+; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> www.legacy.shop.test
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: SERVFAIL, id: 20291
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags:; udp: 1232
+; EDE: 7 (Signature Expired): (validation failure <www.legacy.shop.test. A IN>: signature expired from 10.0.9.13 for key legacy.shop.test. while building chain of trust)
+;; QUESTION SECTION:
+;www.legacy.shop.test.		IN	A
+
+;; Query time: 4 msec
+;; SERVER: 127.0.0.1#53(127.0.0.1) (UDP)
+;; WHEN: Thu Nov 12 02:38:13 UTC 2026
+;; MSG SIZE  rcvd: 192
+
+====
+
+; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> @10.0.9.11 +norecurse +dnssec api.shop.test
+; (1 server found)
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 37623
+;; flags: qr; QUERY: 1, ANSWER: 0, AUTHORITY: 3, ADDITIONAL: 2
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+; COOKIE: a2f3310278275de7010000006af52695fac045e90de5cefc (good)
+;; QUESTION SECTION:
+;api.shop.test.			IN	A
+
+;; AUTHORITY SECTION:
+test.			86400	IN	NS	ns1.nic.test.
+test.			86400	IN	DS	16167 13 2 5B294FE4D9C0E2AE208044BD8B30FDE93B2833CB82023171A7DA3672 50478720
+test.			86400	IN	RRSIG	DS 13 1 86400 20261125191937 20261112010627 36506 . qwex43bRUX9g2by+RyvFhgLBOQCIQm8FMHbUOeF+OfVsgZkHeGIUX7gD Y+bZToqOlj0VZmfvlcc6pE2/6yGW1A==
+
+;; ADDITIONAL SECTION:
+ns1.nic.test.		86400	IN	A	10.0.9.12
+
+;; Query time: 0 msec
+;; SERVER: 10.0.9.11#53(10.0.9.11) (UDP)
+;; WHEN: Thu Nov 12 02:38:13 UTC 2026
+;; MSG SIZE  rcvd: 259
+

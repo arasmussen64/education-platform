@@ -1,0 +1,31 @@
+# The network for "BGP over a route-based IPsec tunnel" (prototype).
+#
+#   host-a --[site-a]-- vpn-a ==(internet: isp)== vpn-b --[site-b]-- host-b
+#   10.1.0.10           10.1.0.1                   10.2.0.1           10.2.0.10
+#
+# vpn-a is the shop's VPN gateway, yours to configure. vpn-b stands in for a
+# cloud's VPN gateway (AS 64512, a private AS number) and isn't yours.
+machine host-a
+machine vpn-a router
+machine isp router
+machine vpn-b router
+machine host-b
+
+lan site-a host-a:eth0=10.1.0.10/24,2001:db8:a::10/64 vpn-a:eth1=10.1.0.1/24,2001:db8:a::1/64
+link vpn-a:eth0=198.51.100.2/30 isp:eth1=198.51.100.1/30
+link vpn-b:eth0=203.0.113.2/30 isp:eth2=203.0.113.1/30
+lan site-b host-b:eth0=10.2.0.10/24,2001:db8:b::10/64 vpn-b:eth1=10.2.0.1/24,2001:db8:b::1/64
+route host-a default via 10.1.0.1
+route host-a default via 2001:db8:a::1
+route host-b default via 10.2.0.1
+route host-b default via 2001:db8:b::1
+netem isp eth2 delay 20ms
+
+# The tunnel interfaces are scenery; the IPsec that protects them isn't.
+# A GRE tunnel whose packets IPsec protects (a VTI or XFRM interface is what
+# the clouds use; neither works with strongSwan on Docker Desktop's kernel).
+tunnel vpn-a vti0 vti local 198.51.100.2 remote 203.0.113.2 key 42 addr 169.254.10.1/30
+tunnel vpn-b vti0 vti local 203.0.113.2 remote 198.51.100.2 key 7 addr 169.254.10.2/30
+
+run vpn-a frr strongswan
+run vpn-b frr strongswan nftables

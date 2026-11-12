@@ -1,0 +1,11 @@
+[Unit]
+Description=The cloud's router (FRR in the cloud namespace) and its web app
+After=lab-network.service
+Before=strongswan.service frr.service
+Requires=lab-network.service
+[Service]
+Type=forking
+ExecStart=/usr/local/lib/lab/cloud-up.sh
+ExecStartPost=/bin/bash -c 'ip netns exec cloud setsid python3 -m http.server 80 --bind 10.20.1.10 --directory /srv/cloud/www >/dev/null 2>&1 < /dev/null &'
+[Install]
+WantedBy=multi-user.target

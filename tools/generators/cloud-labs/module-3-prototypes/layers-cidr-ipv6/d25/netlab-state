@@ -1,0 +1,14 @@
+#!/bin/bash
+# netlab-state NS: what a machine's configuration amounts to, comparable
+# between the live machine and a fresh build: links (state, MTU), the
+# addresses that were configured (not ones a router advertised, not
+# link-local), routes (not ones learned from advertisements, not the
+# kernel's own local, broadcast and anycast entries, not the PMTU cache),
+# pinned neighbours, the firewall, and the forwarding switches.
+ns=$1
+ip -n "$ns" -o link | awk '{name=$2; sub(/:$/, "", name); sub(/@.*/, "", name); for (i = 1; i <= NF; i++) if ($i == "mtu") m=$(i+1); st = ($0 ~ /[<,]UP[,>]/) ? "up" : "down"; print "link", name, st, "mtu", m}' | sort
+ip -n "$ns" -o addr show permanent | grep -v 'scope link' | awk '{print "addr", $2, $4}' | sort
+ip -n "$ns" route show table all | grep -Ev '^(anycast|local|broadcast|multicast) |^fe80::/64 |^ff00::/8 |proto ra|expires' | sort
+ip -n "$ns" neigh show nud permanent | sort
+ip netns exec "$ns" nft -s list ruleset
+ip netns exec "$ns" sysctl -n net.ipv4.ip_forward net.ipv6.conf.all.forwarding net.ipv4.ip_no_pmtu_disc

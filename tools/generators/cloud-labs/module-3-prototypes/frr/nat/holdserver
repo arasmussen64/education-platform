@@ -1,0 +1,9 @@
+#!/usr/bin/python3
+"""holdserver PORT...: accepts connections on each port and holds them open."""
+import selectors, socket, sys
+sel = selectors.DefaultSelector(); held = []
+for p in sys.argv[1:]:
+    l = socket.socket(); l.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1); l.bind(("0.0.0.0", int(p))); l.listen(4096); sel.register(l, selectors.EVENT_READ)
+while True:
+    for key, _ in sel.select():
+        c, _ = key.fileobj.accept(); held.append(c)

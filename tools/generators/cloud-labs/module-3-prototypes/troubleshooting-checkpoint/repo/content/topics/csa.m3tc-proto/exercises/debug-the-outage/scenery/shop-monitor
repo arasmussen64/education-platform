@@ -1,0 +1,20 @@
+#!/bin/bash
+# shop-monitor: the office's monitor. Every two seconds it loads a page of
+# the shop by name from pc, as a person in the office would, alternating the
+# small health page and the big catalogue, and writes one line per load to
+# /var/log/shop-monitor.log: the time, the page, the addresses it tried in
+# order, the HTTP status (000 when there was none), the seconds it took and
+# curl's exit status (0 is success; 6 no address, 7 no connection, 28 out of
+# time).
+log=/var/log/shop-monitor.log
+n=0
+while true; do
+  if (( n % 2 )); then page=/catalog; else page=/health; fi
+  out=$(curl -sv -o /dev/null --max-time 5 -w 'RESULT %{http_code} %{time_total}\n' "http://www.shop.test$page" 2>&1)
+  status=$?
+  tried=$(echo "$out" | awk '/Trying/ {sub(/:80\.\.\./, "", $3); printf "%s%s", sep, $3; sep=","}')
+  set -- $(echo "$out" | awk '/^RESULT/ {print $2, $3}')
+  printf '%s %-8s %-23s %s %8.3f exit=%s\n' "$(date +%H:%M:%S)" "$page" "${tried:--}" "${1:-000}" "${2:-0}" "$status" >> "$log"
+  n=$((n + 1))
+  sleep 2
+done

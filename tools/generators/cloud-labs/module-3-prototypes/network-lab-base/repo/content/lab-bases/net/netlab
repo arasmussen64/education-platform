@@ -1,0 +1,329 @@
+#!/bin/bash
+# netlab: builds a lab's network of machines inside the lab's one container.
+#
+# A "machine" here is a network namespace (its own interfaces, addresses,
+# routes, firewall and ports: the mechanism a container is made of), with
+# its own /etc for each program it runs (/etc/netns/MACHINE/, which
+# "ip netns exec" lays over /etc), its own /run and its own name. Machines
+# are joined by virtual cables (veth pairs) and switches (bridges, kept in a
+# namespace of their own called "switches", so the lab machine itself is on
+# no lab network). "on MACHINE COMMAND" runs a command on one.
+#
+# The network is described in /etc/netlab/topology, which is bash calling
+# the words defined below, one line each:
+#
+#   machine r1 router               a machine; a router forwards packets
+#   link r1:eth1=10.0.12.1/30 r2:eth1=10.0.12.2/30
+#                                   a cable between two machines' interfaces;
+#                                   addresses are comma-separated, v4 or v6
+#   lan office r1:eth2=10.0.1.1/24 host-a:eth0=10.0.1.10/24 ...
+#                                   a switch with several machines on it
+#   route host-a default via 10.0.1.1
+#                                   a route the machine is given (hosts only:
+#                                   a router's routes belong in FRR)
+#   dns host-a 10.0.1.53            the machine's resolver, written afresh at
+#                                   every boot the way a network's DHCP does
+#   sysctl r1 net.ipv4.conf.all.rp_filter=1
+#                                   a kernel setting (sysctl) on one machine
+#   netem isp eth1 delay 40ms loss 1%
+#                                   a link's delay and loss (tc netem), part of
+#                                   the scenery, on one end of a link
+#   mtu r1 eth1 1400                an interface's MTU
+#   tunnel vpn-b vti0 vti local 203.0.113.2 remote 198.51.100.2 key 42 addr 169.254.10.2/30
+#                                   a tunnel interface that is scenery
+#   run r1 frr                      the services a machine runs: frr,
+#                                   strongswan, named, unbound, nginx,
+#                                   haproxy, nftables
+#
+# Usage:
+#   netlab up        build the network (lab-network's netlab.service, at boot)
+#   netlab enable    at image build: enable each machine's services and give
+#                    each machine its own copy of their /etc and state folders
+#   netlab show      print the machines, their interfaces that are up, and
+#                    their addresses (the kernel adds placeholder tunnel
+#                    interfaces, gre0, sit0 and the like, to every machine
+#                    once those tunnel types are in use; they stay down)
+#   netlab seal F..  at image build: record checksums of scenery files the
+#                    learner mustn't change (checked by netlab intact)
+#   netlab intact    exit 0 if every sealed file is unchanged; else name them
+set -euo pipefail
+
+TOPOLOGY=${NETLAB_TOPOLOGY:-/etc/netlab/topology}
+SWITCHES=switches
+RUN_DIR=/run/netlab/machines
+STATE_DIR=/var/lib/netlab/machines
+SEALS=/usr/local/lib/netlab/scenery.sha256
+
+# What each service needs a machine-own copy of. /etc entries are laid over
+# /etc by "ip netns exec"; state folders are bound by lab-enter.
+declare -A ETC_OF=(
+  [frr]="frr"
+  [strongswan]="swanctl strongswan.conf strongswan.d"
+  [named]="bind"
+  [unbound]="unbound"
+  [nginx]="nginx"
+  [haproxy]="haproxy"
+  [nftables]="nftables.conf"
+)
+declare -A STATE_OF=(
+  [frr]="/var/log/frr /var/lib/frr"
+  [strongswan]=""
+  [named]="/var/cache/bind /var/lib/bind"
+  [unbound]="/var/lib/unbound"
+  [nginx]="/var/log/nginx /var/lib/nginx"
+  [haproxy]="/var/lib/haproxy"
+  [nftables]=""
+)
+
+PHASE=${1:-}
+MACHINES=()
+declare -A ROLE=()
+
+say() { echo "netlab: $*" >&2; }
+die() { say "$*"; exit 1; }
+
+# Split "r1:eth1=10.0.12.1/30,2001:db8::1/64" into M, IF and ADDRS.
+parse_end() {
+  local end=$1
+  M=${end%%:*}
+  local rest=${end#*:}
+  IF=${rest%%=*}
+  ADDRS=""
+  [[ $rest == *=* ]] && ADDRS=${rest#*=}
+  [[ -n ${ROLE[$M]:-} ]] || die "line names $M, which no 'machine' line declares"
+}
+
+add_addrs() { # machine interface addrs
+  local m=$1 dev=$2 a
+  [[ -z $3 ]] && return 0
+  IFS=, read -ra list <<< "$3"
+  for a in "${list[@]}"; do
+    if [[ $a == *:* ]]; then
+      ip -n "$m" -6 addr add "$a" dev "$dev" nodad
+    else
+      ip -n "$m" addr add "$a" dev "$dev"
+    fi
+  done
+}
+
+# --- The words a topology uses ----------------------------------------------
+
+machine() {
+  local name=$1 role=${2:-host}
+  [[ ${#name} -le 8 ]] || die "machine name $name is longer than 8 characters"
+  ROLE[$name]=$role
+  MACHINES+=("$name")
+  [[ $PHASE == up ]] || return 0
+  ip netns add "$name"
+  ip -n "$name" link set lo up
+  # Every setting a lab depends on is set here, not inherited: a new
+  # namespace copies the IPv4 settings of the machine Docker runs on, and
+  # Docker Desktop and a CI runner differ (rp_filter, ip_forward).
+  local fwd=0
+  [[ $role == router ]] && fwd=1
+  ip netns exec "$name" sysctl -qw \
+    net.ipv4.ip_forward=$fwd \
+    net.ipv6.conf.all.forwarding=$fwd \
+    net.ipv4.conf.all.rp_filter=0 \
+    net.ipv4.conf.default.rp_filter=0 \
+    net.ipv4.conf.all.accept_redirects=0 \
+    net.ipv4.conf.default.accept_redirects=0 \
+    net.ipv4.conf.all.send_redirects=0 \
+    net.ipv4.conf.default.send_redirects=0 \
+    net.ipv6.conf.all.accept_dad=0 \
+    net.ipv6.conf.default.accept_dad=0 \
+    net.ipv6.conf.all.accept_redirects=0 \
+    net.ipv6.conf.default.accept_redirects=0 \
+    net.ipv4.ip_local_port_range="32768 60999" \
+    net.ipv4.tcp_congestion_control=cubic \
+    net.ipv4.ping_group_range="0 2147483647"
+  # A router doesn't take router advertisements; a host does (IPv6 SLAAC).
+  if [[ $role == router ]]; then
+    ip netns exec "$name" sysctl -qw net.ipv6.conf.default.accept_ra=0 net.ipv6.conf.all.accept_ra=0
+  fi
+  mkdir -p "$RUN_DIR/$name"
+}
+
+link() {
+  [[ $PHASE == up ]] || return 0
+  parse_end "$1"; local m1=$M if1=$IF a1=$ADDRS
+  parse_end "$2"; local m2=$M if2=$IF a2=$ADDRS
+  local t1="nl$RANDOM" t2="nl$RANDOM"
+  ip link add "$t1" type veth peer name "$t2"
+  ip link set "$t1" netns "$m1"
+  ip link set "$t2" netns "$m2"
+  ip -n "$m1" link set "$t1" name "$if1"
+  ip -n "$m2" link set "$t2" name "$if2"
+  add_addrs "$m1" "$if1" "$a1"
+  add_addrs "$m2" "$if2" "$a2"
+  ip -n "$m1" link set "$if1" up
+  ip -n "$m2" link set "$if2" up
+}
+
+lan() {
+  [[ $PHASE == up ]] || return 0
+  local name=$1; shift
+  [[ ${#name} -le 15 ]] || die "lan name $name is longer than 15 characters"
+  ip netns list | grep -qx "$SWITCHES\( .*\)\?" || {
+    ip netns add "$SWITCHES"
+    ip -n "$SWITCHES" link set lo up
+  }
+  ip -n "$SWITCHES" link add "$name" type bridge stp_state 0
+  ip -n "$SWITCHES" link set "$name" up
+  local end port
+  for end in "$@"; do
+    parse_end "$end"
+    port="$M.$IF"
+    [[ ${#port} -le 15 ]] || die "port name $port is longer than 15 characters"
+    # Made with throwaway names on the lab machine, then moved and renamed:
+    # a machine's interfaces then have the names the topology gives them.
+    local a="nl$RANDOM" b="nl$RANDOM"
+    ip link add "$a" type veth peer name "$b"
+    ip link set "$a" netns "$M"
+    ip link set "$b" netns "$SWITCHES"
+    ip -n "$M" link set "$a" name "$IF"
+    ip -n "$SWITCHES" link set "$b" name "$port"
+    ip -n "$SWITCHES" link set "$port" master "$name" up
+    add_addrs "$M" "$IF" "$ADDRS"
+    ip -n "$M" link set "$IF" up
+  done
+}
+
+route() {
+  [[ $PHASE == up ]] || return 0
+  local m=$1; shift
+  if [[ $* == *:* ]]; then ip -n "$m" -6 route add "$@"; else ip -n "$m" route add "$@"; fi
+}
+
+dns() {
+  [[ $PHASE == up ]] || return 0
+  local m=$1; shift
+  mkdir -p "/etc/netns/$m"
+  { echo "# Written at every boot by netlab, as a network's DHCP would."
+    for s in "$@"; do echo "nameserver $s"; done; } > "/etc/netns/$m/resolv.conf"
+}
+
+sysctl() {
+  # In the topology, "sysctl MACHINE KEY=VALUE" sets a kernel setting on
+  # that machine; the real sysctl command is /usr/sbin/sysctl.
+  [[ $PHASE == up ]] || return 0
+  ip netns exec "$1" /usr/sbin/sysctl -qw "$2"
+}
+
+netem() {
+  [[ $PHASE == up ]] || return 0
+  local m=$1 dev=$2; shift 2
+  ip netns exec "$m" tc qdisc replace dev "$dev" root netem "$@"
+}
+
+mtu() {
+  [[ $PHASE == up ]] || return 0
+  ip -n "$1" link set "$2" mtu "$3"
+}
+
+# tunnel MACHINE NAME TYPE ARGS... [addr A,B]: a tunnel interface that is
+# part of the scenery (the cloud's side of a VPN, say):
+#   tunnel vpn-b vti0 vti local 203.0.113.2 remote 198.51.100.2 key 42 addr 169.254.10.2/30
+tunnel() {
+  [[ $PHASE == up ]] || return 0
+  local m=$1 name=$2 type=$3 addrs=""
+  shift 3
+  local args=()
+  while [[ $# -gt 0 ]]; do
+    if [[ $1 == addr ]]; then addrs=$2; shift 2; else args+=("$1"); shift; fi
+  done
+  ip -n "$m" link add "$name" type "$type" "${args[@]}"
+  # A route-based VPN's tunnel: the kernel must not drop what arrives on it
+  # for want of a policy (the IPsec policy is selected by the key, a mark).
+  case $type in vti) ip netns exec "$m" /usr/sbin/sysctl -qw "net.ipv4.conf.$name.disable_policy=1" ;; esac
+  add_addrs "$m" "$name" "$addrs"
+  ip -n "$m" link set "$name" up
+}
+
+declare -A RUNS=()
+run() {
+  local m=$1; shift
+  RUNS[$m]="${RUNS[$m]:-} $*"
+}
+
+# --- Phases -------------------------------------------------------------------
+
+load() {
+  [[ -f $TOPOLOGY ]] || die "no topology at $TOPOLOGY"
+  # Read without carriage returns: a topology saved on Windows with CRLF
+  # line endings would otherwise fail on its first line.
+  # shellcheck source=/dev/null
+  source <(tr -d '\r' < "$TOPOLOGY")
+}
+
+seed_machine_files() { # at image build: each machine's own /etc and state
+  local m=$1 svc e d
+  mkdir -p "/etc/netns/$m" "$STATE_DIR/$m"
+  [[ -e /etc/netns/$m/hosts ]] || printf '127.0.0.1 localhost\n127.0.1.1 %s\n::1 localhost ip6-localhost\n' "$m" > "/etc/netns/$m/hosts"
+  for svc in ${RUNS[$m]:-}; do
+    [[ -v ETC_OF[$svc] ]] || die "run $m $svc: netlab knows no service called $svc"
+    for e in ${ETC_OF[$svc]}; do
+      if [[ -d /etc/$e ]]; then
+        mkdir -p "/etc/netns/$m/$e"
+        # The lab's own files win; the package's defaults fill the gaps.
+        cp -an "/etc/$e/." "/etc/netns/$m/$e/"
+        chown --reference="/etc/$e" "/etc/netns/$m/$e"
+        chmod --reference="/etc/$e" "/etc/netns/$m/$e"
+      elif [[ -f /etc/$e && ! -e /etc/netns/$m/$e ]]; then
+        cp -a "/etc/$e" "/etc/netns/$m/$e"
+      fi
+    done
+    for d in ${STATE_OF[$svc]}; do
+      [[ -d $d ]] || continue
+      if [[ ! -d $STATE_DIR/$m$d ]]; then
+        mkdir -p "$STATE_DIR/$m$d"
+        cp -a "$d/." "$STATE_DIR/$m$d/"
+        chown --reference="$d" "$STATE_DIR/$m$d"
+        chmod --reference="$d" "$STATE_DIR/$m$d"
+      fi
+    done
+  done
+  # Files a learner edits on the machine stay theirs: FRR writes its config
+  # as frr:frr, and the config folder must be the frr user's to write in.
+  if [[ -d /etc/netns/$m/frr ]]; then chown -R frr:frr "/etc/netns/$m/frr"; fi
+}
+
+case $PHASE in
+  up)
+    load
+    # Interfaces may have been named in links before machines' sysctls took
+    # effect; IPv6 link-local addresses are ready at once (no DAD wait).
+    say "network up: ${#MACHINES[@]} machines (${MACHINES[*]})"
+    ;;
+  enable)
+    load
+    for m in "${MACHINES[@]}"; do
+      seed_machine_files "$m"
+      for svc in ${RUNS[$m]:-}; do
+        systemctl enable "$svc@$m.service" 2>/dev/null
+      done
+    done
+    say "enabled: $(for m in "${!RUNS[@]}"; do for s in ${RUNS[$m]}; do printf '%s@%s ' "$s" "$m"; done; done)"
+    ;;
+  show)
+    PHASE=show load
+    for m in "${MACHINES[@]}"; do
+      printf '%s (%s)%s\n' "$m" "${ROLE[$m]}" "${RUNS[$m]:+, runs:${RUNS[$m]}}"
+      ip -n "$m" -br addr show up 2>/dev/null | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "  %-6s %-5s %s\n", $1, $2, substr($0, index($0, $3))}' || echo "  (not up)"
+    done
+    ;;
+  seal)
+    shift
+    mkdir -p "$(dirname "$SEALS")"
+    sha256sum "$@" >> "$SEALS"
+    ;;
+  intact)
+    [[ -f $SEALS ]] || { echo "nothing sealed"; exit 0; }
+    if out=$(sha256sum --quiet -c "$SEALS" 2>&1); then echo intact; else
+      echo "changed: $(echo "$out" | awk -F: '/FAILED/ {print $1}' | tr '\n' ' ')"; fi
+    ;;
+  *)
+    sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'
+    exit 2
+    ;;
+esac

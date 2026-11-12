@@ -1,0 +1,40 @@
+--- tools/labcheck.py (main, 2026-11-11)
++++ tools/labcheck.py (shared lab bases, prototype)
+@@ -230,9 +230,37 @@
+     return completed
+ 
+ 
++# A lab may start from a shared base image instead of ubuntu:24.04: its
++# Dockerfile's first line says "FROM lab-base-<name>", and the base is
++# built from content/lab-bases/<name>/ first. Docker's cache makes that a
++# second's work when nothing in the base has changed, so the base is always
++# the one in the content tree, with no version to keep in step.
++LAB_BASES = ROOT / "content" / "lab-bases"
++BASE_FROM = re.compile(r"^FROM\s+lab-base-([a-z0-9-]+)\s*$", re.MULTILINE)
++
++
++def base_of(lab: Lab) -> str | None:
++    """The shared base a lab's Dockerfile starts from, or None."""
++    found = BASE_FROM.search((lab.folder / "Dockerfile").read_text(encoding="utf-8"))
++    return found.group(1) if found else None
++
++
++def build_base(name: str, quiet: bool = True) -> None:
++    folder = LAB_BASES / name
++    if not (folder / "Dockerfile").exists():
++        raise LabError(f"no lab base called {name} (expected {folder.as_posix()})")
++    args = ["build", "-t", f"lab-base-{name}", str(folder)]
++    if quiet:
++        args.insert(1, "-q")
++    docker(*args, timeout=BUILD_TIMEOUT_SECONDS)
++
++
+ def build_image(lab: Lab, quiet: bool = True) -> None:
+     if not (lab.folder / "Dockerfile").exists():
+         raise LabError(f"{lab.name} has no Dockerfile")
++    base = base_of(lab)
++    if base:
++        build_base(base, quiet)
+     args = ["build", "-t", lab.image, str(lab.folder)]
+     if quiet:
+         args.insert(1, "-q")

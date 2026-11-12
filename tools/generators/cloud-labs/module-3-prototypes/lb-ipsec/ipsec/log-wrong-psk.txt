@@ -1,0 +1,38 @@
+===== wrong-psk: lab (journalctl -u strongswan)
+loaded IKE shared key with id 'ike-cloud' for: '203.0.113.10'
+replaced vici connection: cloud
+initiating 'cloud-vti'
+initiating IKE_SA cloud[5] to 203.0.113.10
+generating IKE_SA_INIT request 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(REDIR_SUP) ]
+sending packet: from 198.51.100.10[500] to 203.0.113.10[500] (464 bytes)
+received packet: from 203.0.113.10[500] to 198.51.100.10[500] (472 bytes)
+parsed IKE_SA_INIT response 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(CHDLESS_SUP) N(MULT_AUTH) ]
+selected proposal: IKE:AES_CBC_256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048
+authentication of '198.51.100.10' (myself) with pre-shared key
+establishing CHILD_SA cloud-vti{3}
+generating IKE_AUTH request 1 [ IDi N(INIT_CONTACT) IDr AUTH SA TSi TSr N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N(ADD_4_ADDR) N(MULT_AUTH) N(EAP_ONLY) N(MSG_ID_SYN_SUP) ]
+sending packet: from 198.51.100.10[4500] to 203.0.113.10[4500] (304 bytes)
+vici initiate CHILD_SA 'cloud-vti'
+received packet: from 203.0.113.10[4500] to 198.51.100.10[4500] (80 bytes)
+parsed IKE_AUTH response 1 [ N(AUTH_FAILED) ]
+received AUTHENTICATION_FAILED notify error
+===== wrong-psk: cloud (journalctl -u lab-cloud)
+received packet: from 198.51.100.10[500] to 203.0.113.10[500] (464 bytes)
+parsed IKE_SA_INIT request 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(REDIR_SUP) ]
+198.51.100.10 is initiating an IKE_SA
+selected proposal: IKE:AES_CBC_256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048
+generating IKE_SA_INIT response 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(CHDLESS_SUP) N(MULT_AUTH) ]
+sending packet: from 203.0.113.10[500] to 198.51.100.10[500] (472 bytes)
+received packet: from 198.51.100.10[4500] to 203.0.113.10[4500] (304 bytes)
+parsed IKE_AUTH request 1 [ IDi N(INIT_CONTACT) IDr AUTH SA TSi TSr N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N(ADD_4_ADDR) N(MULT_AUTH) N(EAP_ONLY) N(MSG_ID_SYN_SUP) ]
+looking for peer configs matching 203.0.113.10[203.0.113.10]...198.51.100.10[198.51.100.10]
+selected peer config 'branch'
+tried 1 shared key for '203.0.113.10' - '198.51.100.10', but MAC mismatched
+peer supports MOBIKE
+generating IKE_AUTH response 1 [ N(AUTH_FAILED) ]
+sending packet: from 203.0.113.10[4500] to 198.51.100.10[4500] (80 bytes)
+===== wrong-psk: swanctl --initiate said
+initiate failed: establishing CHILD_SA 'cloud-vti' failed
+[NET] received packet: from 203.0.113.10[4500] to 198.51.100.10[4500] (80 bytes)
+[ENC] parsed IKE_AUTH response 1 [ N(AUTH_FAILED) ]
+[IKE] received AUTHENTICATION_FAILED notify error

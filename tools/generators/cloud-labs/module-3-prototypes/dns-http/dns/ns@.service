@@ -1,0 +1,11 @@
+[Unit]
+Description=Authoritative name server on %i
+After=lab-network.service
+Requires=lab-network.service
+[Service]
+Type=simple
+ExecStartPre=/bin/sh -c 'mkdir -p /var/lib/lab/dns/%i && cp -rn /etc/lab/dns/%i/. /var/lib/lab/dns/%i/ ; chown -R bind:bind /var/lib/lab/dns/%i'
+ExecStart=/usr/sbin/ip netns exec %i /usr/sbin/named -f -u bind -c /var/lib/lab/dns/%i/named.conf
+ExecReload=/usr/sbin/ip netns exec %i /usr/sbin/rndc reload
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,87 @@
+=== lab-network.service
+[Unit]
+Description=The lab's network
+DefaultDependencies=no
+After=local-fs.target systemd-sysctl.service
+Before=network.target multi-user.target
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/lab/network.sh
+[Install]
+WantedBy=multi-user.target
+=== orders-db.service
+[Unit]
+Description=orders-db, the managed database (on db1, beyond the NAT gateway)
+After=lab-network.service
+Requires=lab-network.service
+[Service]
+NetworkNamespacePath=/run/netns/db
+ExecStart=/usr/local/bin/orders-db
+Restart=always
+[Install]
+WantedBy=multi-user.target
+=== shop-api.service
+[Unit]
+Description=shop-api, the shop's order service
+After=lab-network.service orders-db.service
+[Service]
+ExecStart=/usr/local/bin/shop-api
+Restart=always
+[Install]
+WantedBy=multi-user.target
+=== backup-sink.service
+[Unit]
+Description=The DR site's backup receiver (on dr1, across the WAN)
+After=lab-network.service
+Requires=lab-network.service
+[Service]
+NetworkNamespacePath=/run/netns/dr
+ExecStart=/usr/bin/iperf3 -s
+Restart=always
+[Install]
+WantedBy=multi-user.target
+=== api.conf
+# shop-api's settings. Read when the service starts.
+db_host = 10.0.2.20
+db_port = 5432
+db_query_timeout = 5
+db_keepalive = off
+# db_keepalive_idle =
+# db_keepalive_interval =
+# db_keepalive_count =
+=== orders-db
+#!/usr/bin/python3
+"""orders-db: the cloud's managed database (stand-in). One line in, one line out."""
+import socket, threading
+s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("0.0.0.0", 5432)); s.listen(64)
+def serve(c):
+    f = c.makefile("rwb", buffering=0)
+    for line in f:
+        f.write(b"ok " + line)
+    c.close()
+while True:
+    c, _ = s.accept(); threading.Thread(target=serve, args=(c,), daemon=True).start()
+=== Dockerfile
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends systemd systemd-sysv dbus openssh-server apt-utils xfsprogs lvm2 lsof busybox-static iproute2 iputils-ping bind9-dnsutils tcpdump netcat-openbsd nftables conntrack traceroute dnsmasq sudo nano less curl python3 procps \
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -f /etc/systemd/system/multi-user.target.wants/dnsmasq.service \
+ && useradd -m -s /bin/bash -G adm,systemd-journal learner \
+ && echo 'learner ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/learner \
+ && chmod 440 /etc/sudoers.d/learner \
+ && useradd -r -s /usr/sbin/nologin shop
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends iperf3 \
+ && rm -rf /var/lib/apt/lists/*
+COPY network.sh gateway.nft /usr/local/lib/lab/
+COPY orders-db shop-api /usr/local/bin/
+COPY lab-network.service orders-db.service shop-api.service backup-sink.service /etc/systemd/system/
+COPY api.conf /etc/shop/api.conf
+RUN chmod 755 /usr/local/lib/lab/network.sh /usr/local/bin/orders-db /usr/local/bin/shop-api \
+ && mkdir -p /etc/systemd/system/multi-user.target.wants \
+ && for u in lab-network orders-db shop-api backup-sink; do ln -s /etc/systemd/system/$u.service /etc/systemd/system/multi-user.target.wants/$u.service; done
+CMD ["/sbin/init"]

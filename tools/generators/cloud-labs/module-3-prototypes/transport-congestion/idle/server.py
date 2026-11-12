@@ -1,0 +1,10 @@
+import socket, threading
+s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("0.0.0.0", 5432)); s.listen(16)
+def serve(c):
+    f = c.makefile("rwb", buffering=0)
+    for line in f:
+        f.write(b"ok " + line)
+    c.close()
+while True:
+    c, _ = s.accept(); threading.Thread(target=serve, args=(c,), daemon=True).start()
