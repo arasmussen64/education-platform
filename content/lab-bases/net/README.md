@@ -220,4 +220,4 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 
 ## Size and time
 
-On the owner's PC (2026-11-11): the first build of layer 2 about 45 s, a build with nothing changed about 2 s, a lab's own image on the base a few seconds; Docker reports the base image as given in the devlog entry that added it. A five-machine lab boots in 2 to 3 s, `sudo netlab restart` takes about 1.5 s, `netlab verify` about 1 s. Image size and the CI cost are in ADR-0018's third amendment.
+On the owner's PC (2026-11-11): the first build of layer 2 about 45 s, a build with nothing changed about 2 s, a lab's own image on the base a few seconds. Docker Desktop reports the image as 659 MB (467 MB on disk inside it; tshark's library is the largest part, about 125 MB). A five-machine lab boots in 2 to 3 s, `sudo netlab restart` takes about 1.5 s, `netlab verify` about 1 s, and the two probe labs' contract runs, restart trial included, about 3.5 minutes each. The CI cost is in ADR-0018's third amendment.
