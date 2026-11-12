@@ -1,0 +1,37 @@
+# The network of "CUBIC meets a lossy link": the office, the internet, the
+# shop's server, the long private link and the DR site.
+#
+#   office 192.0.2.10 --- isp --- shop eth0 203.0.113.10
+#                                 shop eth1 10.0.5.10 --- wan --- dr1 10.0.6.20
+#
+# isp stands for the internet between the office and the shop: 50 ms each
+# way, a 100 ms round trip. wan is the private link to the DR site: 50
+# Mbit/s towards dr1 with 25 ms each way (a 50 ms round trip), and 1% of the
+# packets towards dr1 lost at random; wan-set changes it for the
+# walkthrough's experiments. Both are scenery.
+machine office
+machine isp router
+machine shop
+machine wan router
+machine dr1
+
+link office:eth0=192.0.2.10/24 isp:office=192.0.2.1/24
+link isp:shop=203.0.113.1/24 shop:eth0=203.0.113.10/24
+link shop:eth1=10.0.5.10/24 wan:shop=10.0.5.1/24
+link wan:dr1=10.0.6.1/24 dr1:eth0=10.0.6.20/24
+
+route office default via 192.0.2.1
+route shop default via 203.0.113.1
+route shop 10.0.6.0/24 via 10.0.5.1
+route dr1 default via 10.0.6.1
+
+# The internet's delay, both ways.
+netem isp office delay 50ms limit 2000
+netem isp shop delay 50ms limit 2000
+# The private link: towards dr1, where the data goes, its speed, its delay
+# and its loss; back towards shop, where the acknowledgements go, the delay
+# only.
+netem wan dr1 rate 50mbit delay 25ms loss 1% limit 2000
+netem wan shop delay 25ms limit 2000
+
+run shop nftables

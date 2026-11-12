@@ -1,0 +1,91 @@
+# The checks of "CUBIC meets a lossy link": the three measurements the
+# walkthrough saves, the link put back as shipped, shop's BBR set for good,
+# the QUIC capture and the client's log it saves, the round trips it counts
+# from the office, and shop's firewall back to its file after the test that
+# blocked HTTP/3. A worked example's checks never open or close a follow-up
+# (ADR-0011), so they only confirm the walk was done.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: measured
+    description: "~/example holds the three measurements, CUBIC on the clean link and on the lossy one, and BBR on the lossy one, each with the receiver's rate, and BBR got more than twice what CUBIC got through the loss."
+    command: |
+      rate() { awk '/receiver$/ {r = $7} END {print r}' "/home/learner/example/$1.txt" 2> /dev/null; }
+      for run in cubic-clean cubic-lossy bbr-lossy; do
+        [ -n "$(rate "$run")" ] || { echo "~/example/$run.txt holds no receiver's rate"; exit 0; }
+      done
+      awk -v c="$(rate cubic-lossy)" -v b="$(rate bbr-lossy)" 'BEGIN {
+        if (b > 2 * c) print "measured"; else printf "BBR got %s Mbit/s through the loss and CUBIC %s: was the link lossy for both?\n", b, c }'
+    expect:
+      equals: measured
+  # The link's live shaping against a fresh build's (netlab verify's copy,
+  # from the sealed topology). A qdisc's handle is only a number: left out.
+  - id: link-as-shipped
+    description: "The private link is back as it was shipped: 50 Mbit/s towards dr1, 25 ms each way, and 1% loss."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      shaping() {
+        p=$1
+        {
+          ip netns exec "${p}wan" tc qdisc show dev dr1
+          ip netns exec "${p}wan" tc qdisc show dev shop
+        } | sed 's/netem [0-9a-f]*:/netem/'
+      }
+      live=$(shaping "")
+      fresh=$(netlab verify wan -- bash -c "$(declare -f shaping); shaping chk-")
+      if [ "$live" = "$fresh" ]; then echo "as shipped"; else echo "the link is set differently: now $(echo "$live" | tr '\n' ' ')"; fi
+    expect:
+      equals: "as shipped"
+  - id: bbr-for-good
+    description: "shop sends with BBR, and its /etc/sysctl.d says so."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      differs=$(sysctl_saved shop net.ipv4.tcp_congestion_control) || { echo "$differs"; exit 0; }
+      on shop sysctl -n net.ipv4.tcp_congestion_control
+    expect:
+      equals: bbr
+  - id: wire-captured
+    description: "~/example/quic-wire.txt holds the office's first QUIC datagram to shop, 1,200 bytes long, and shop's answer."
+    command: |
+      f=/home/learner/example/quic-wire.txt
+      [ -s "$f" ] || { echo "there is no ~/example/quic-wire.txt, or it is empty"; exit 0; }
+      grep '192\.0\.2\.10\.[0-9]* > 203\.0\.113\.10\.443: UDP, length 1200$' "$f" > /dev/null || { echo "it holds no 1,200-byte datagram from the office to shop's port 443"; exit 0; }
+      grep '203\.0\.113\.10\.443 > 192\.0\.2\.10\.[0-9]*: UDP, length' "$f" > /dev/null || { echo "it holds no answer from shop's port 443"; exit 0; }
+      echo captured
+    expect:
+      equals: captured
+  - id: client-log
+    description: "~/example/quic.log is gtlsclient's log of a whole HTTP/3 request: the handshake completed and the answer's status was 200."
+    command: |
+      f=/home/learner/example/quic.log
+      [ -s "$f" ] || { echo "there is no ~/example/quic.log, or it is empty"; exit 0; }
+      grep 'QUIC handshake has completed' "$f" > /dev/null || { echo "the log never says the handshake completed"; exit 0; }
+      grep '\[:status: 200\]' "$f" > /dev/null || { echo "the log holds no answer with status 200"; exit 0; }
+      echo logged
+    expect:
+      equals: logged
+  # Each of the three times within 20% of 1, 2 and 3 round trips of the
+  # office's 100 ms path.
+  - id: round-trips
+    description: "~/example/rtt.txt holds curl's three times from the office, about one, two and three round trips of its 100 ms path."
+    command: |
+      f=/home/learner/example/rtt.txt
+      [ -s "$f" ] || { echo "there is no ~/example/rtt.txt, or it is empty"; exit 0; }
+      awk 'NF == 3 {
+          ok = 1
+          for (i = 1; i <= 3; i++) if ($i < 0.08 * i || $i > 0.12 * i) ok = 0
+          print (ok ? "counted" : "the times " $0 " are not about 0.1, 0.2 and 0.3 seconds: were they taken from the office?")
+          found = 1; exit
+        }
+        END { if (!found) print "it holds no line of three times" }' "$f"
+    expect:
+      equals: counted
+  - id: firewall-back
+    description: "shop's firewall is back to the rules its /etc/nftables.conf loads."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      differs=$(nft_saved shop) || { echo "shop's running firewall isn't its file's: $(echo "$differs" | tr '\n' ' ')"; exit 0; }
+      echo back
+    expect:
+      equals: back

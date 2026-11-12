@@ -1,0 +1,26 @@
+# Caddy, the shop's web server, on a machine: "systemctl status caddy@shop",
+# "sudo systemctl reload caddy@shop", "journalctl -u caddy@shop". Its file
+# is the machine's /etc/caddy/Caddyfile. A reload makes Caddy read the file
+# again, and keeps the old settings if the new file has a mistake.
+[Unit]
+Description=Caddy web server on %i
+After=netlab.service nftables@%i.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+# Journal lines say which service and machine wrote them ("caddy@shop").
+SyslogIdentifier=%p@%i
+Type=notify
+# Caddy keeps its local certificate authority and certificates here.
+Environment=HOME=/var/lib/caddy XDG_DATA_HOME=/var/lib/caddy/.local/share XDG_CONFIG_HOME=/var/lib/caddy/.config
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/caddy run --config /etc/caddy/Caddyfile
+# Every machine trusts the shop's local certificate authority, as a
+# company's laptops trust its own (the lab's /etc/ssl is shared).
+ExecStartPost=/usr/local/sbin/trust-shop-ca
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
