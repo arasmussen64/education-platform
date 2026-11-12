@@ -2,7 +2,7 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
-## 2026-11-12, later: Module 3's first topics
+## 2026-11-12, later: Module 3's first six topics
 
 The owner is still away; decisions follow their message of 2026-11-11. Wave 1 of Module 3 runs in two halves of three topics. In each, one agent writes a topic in its own worktree and a second reviews it cold: it reads the topic as the first learner, checks its facts at their sources again and attacks every lab check as a hurried learner would. Each topic then lands in its own pull request, after the three are combined and every one of their labs has passed its contract together.
 
@@ -26,6 +26,10 @@ Built alongside it: the app bundles Module 3's topics, as it does Modules 1 and 
 
 It also fixed a check that caught a too-narrow blackhole only one run in two, a routing loop left by the debug's own reference fix, and check messages that named a fault's place on the first run.
 
+**Wave 1's second half** (BGP sessions, DNS, HTTP semantics) was written while the first half landed, with the first half's lessons added to the writers' brief, and lands the same way. Its labs weren't run again together before the pull requests: each writer and reviewer ran them, and CI runs every lab on each pull request.
+
+**BGP sessions and policy is ready** (#260), the first half of the spec's BGP topic. It teaches autonomous systems, a BGP session and its states, "no policy, no routes" (RFC 8212), prefix lists and route maps, route leaks and hijacks (with two real incidents, the 2019 Verizon leak and the 2021 Facebook withdrawal), BGP's decision order, and choosing the way out with local preference, with the three clouds' gateways side by side. Its labs share one topology: a shop's router with two ISPs and a cloud beyond them, the far routers sealed scenery, and ISP B sending one deliberate slip, a piece of the shop's own addresses. The build configures the shop's router from nothing and its last check unplugs ISP A's cable; the debug has three faults, a route leak among them. Five labs (42 known-wrong fixes) and 20 recall items. The review found one gap that mattered: export filters were tested only on the routes on show, so a filter that blocked just those passed. The checks now offer a route nobody has seen (below).
+
 **Author notes:**
 
 - _The build's narrow link moved._ The plan put the 1400-byte link next to the branch's router, where the cloud's router dropped the oversized packets before the branch's firewall ever saw the ICMP. It now sits beyond the ISP, so r3 can only learn the path MTU from ICMP that its own firewall lets in, which is the point of the lab.
@@ -41,7 +45,11 @@ It also fixed a check that caught a too-narrow blackhole only one run in two, a 
 - _The first check of each routing network lab may take 60 seconds:_ `wait_for 15` with `curl -m 2` can take 48, and a learner on a broken lab saw "ran out of time" instead of the check's own message. `wait_for`'s help now says it counts tries.
 - _Routing's main resource is a video nobody has watched_ (see the queue), and its second Practical Networking video is optional, to keep the topic's time.
 
-**Next:** wave 1's second half (DNS, HTTP semantics, BGP sessions), which is being written now.
+- _A check may offer a route of its own._ To test a BGP filter on routes the learner can't see, a check adds a kernel route on a scenery router, which redistributes it toward the shop through a route map limited to a fixed range, then removes it. It is a third exception to "checks only read", beside cutting a link and starting throwaway servers, and [ADR-0018](decisions/0018-lab-checker-local-mode.md)'s third amendment (Proposed) now says so. Listed under "Decided for you".
+- _BGP takes 295 minutes, not the plan's 285:_ its walkthrough has two more steps (the stolen /25 and the import filter that refuses it), so that everything the build asks for is shown first.
+- _BGP's three videos are linked without being watched_ (titles, channels, lengths and embedding confirmed automatically). Its build asks for the lab's fast timers, which no check reads; leaving them out changes nothing, since the ISPs offer the same hold time.
+
+**Next:** DNS and HTTP semantics, each in its own pull request; then wave 2's first half (IPv6, NAT, TCP and UDP), which is being written now, and its second (HTTP and TLS, load balancing, steering traffic).
 
 ## 2026-11-12: Module 3's platform, the network-lab base
 
