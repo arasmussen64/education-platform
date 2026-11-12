@@ -1,0 +1,59 @@
+# The checks of "NAT ports": the script is there, runnable and clean; then
+# it is run on a fixed listing made to catch the usual mistakes (TCP and UDP
+# to the same address and port, one address on two ports, a count exactly at
+# PORTS and one exactly at 80%, one just under 80%, ICMP lines and
+# conntrack's count line to skip, UDP lines without a state word, many
+# inside sources), and on three listings made up as the check runs, so a
+# script that knows the fixed answers by heart fails. Each answer is
+# compared with the checks' own (nat-truth, in /usr/local/lib/lab), line by
+# line. A check that finds something wrong prints what it found and exits 0,
+# so the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/nat-ports exists, is executable, starts with a shebang, and ShellCheck has nothing to say about it."
+    command: |
+      f=/home/learner/bin/nat-ports
+      [ -f "$f" ] || { echo "there is no ~/bin/nat-ports"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/nat-ports isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/nat-ports's first line isn't a shebang"; exit 0; }
+      if grep 'shellcheck disable' "$f" > /dev/null; then echo "~/bin/nat-ports switches ShellCheck's warnings off"; exit 0; fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say: $(echo "$said" | grep -m 1 'SC[0-9]')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: tricky-listing
+    description: "On a listing made to be tricky, it prints the right line for every destination: by protocol, address and port, a count at the limit as FULL, one at 80% as WARN, one just under 80% as neither, and nothing for ICMP or conntrack's own count line."
+    command: |
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      ports=$(/usr/local/lib/lab/nat-truth fixed "$dir/listing")
+      want=$(/usr/local/lib/lab/nat-truth answer "$dir/listing" "$ports")
+      got=$(timeout 10 /home/learner/bin/nat-ports "$dir/listing" "$ports" 2>&1)
+      if [ "$want" != "$got" ]; then
+        expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+        printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+        echo "the right line is \"${expected:-nothing more}\", and the script printed \"${printed:-nothing in its place}\""
+        exit 0
+      fi
+      echo right
+    expect:
+      equals: right
+  - id: unseen-listings
+    description: "On three listings it has never seen, made up as the check runs, it prints the right lines, busiest destination first."
+    command: |
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      for n in 1 2 3; do
+        ports=$(/usr/local/lib/lab/nat-truth make "$dir/listing$n")
+        want=$(/usr/local/lib/lab/nat-truth answer "$dir/listing$n" "$ports")
+        got=$(timeout 10 /home/learner/bin/nat-ports "$dir/listing$n" "$ports" 2>&1)
+        if [ "$want" != "$got" ]; then
+          expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+          printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+          echo "on a new listing with $ports ports, the right line is \"${expected:-nothing more}\", and the script printed \"${printed:-nothing in its place}\""
+          exit 0
+        fi
+      done
+      echo right
+    expect:
+      equals: right

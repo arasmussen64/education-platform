@@ -1,0 +1,22 @@
+id: est-gcp-vms-per-ip
+type: estimate
+rev: 1
+prompt: |
+  A Cloud NAT gateway uses static port allocation and gives every VM 256 ports. Each NAT address offers 64512 ports. How many VMs can one NAT address serve? Exactly.
+unit: VMs
+answer: 252
+tolerance: { absolute: 0 }
+given: { ports: 64512, per_vm: 256 }
+working: floor(ports / per_vm)
+mistakes:
+  - id: all-65536
+    value: 256
+    working: floor(65536 / per_vm)
+    why: "That counts all 65536 port numbers. Cloud NAT doesn't use ports 0 to 1023, which leaves the 64512 the question gives."
+  - id: default-64
+    value: 1008
+    working: floor(ports / 64)
+    why: "That's Google's own example, with the default of 64 ports per VM. This gateway gives each VM 256, four times as many, so a quarter as many VMs fit."
+explanation: |
+  With static allocation, each VM gets a fixed block of ports, so an address serves as many VMs as there are whole blocks in it: 64512 / 256 = 252. Google's page works the default the same way, "64,512 ports per address / 64 ports per VM = 1,008 VMs" (Cloud NAT's "IP addresses and ports", read 2026-11-12). More ports per VM let each VM hold more connections to one destination and fit fewer VMs on an address: the trade the setting makes.
+skills: [nat-sizing]

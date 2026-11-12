@@ -1,0 +1,16 @@
+id: mcq-ipv6-no-nat
+type: mcq
+rev: 1
+prompt: |
+  A dual-stack app's servers in an AWS VPC reach the internet over IPv6 as well as IPv4. Their IPv4 traffic goes out through a NAT gateway. What should carry their IPv6 traffic out?
+choices:
+  - "An egress-only internet gateway: out allowed, unasked-for traffic in refused, no translation"
+  - "The NAT gateway, doing NAT64, so the IPv6 servers share one public IPv4 address between them"
+  - "A NAT gateway that maps every server's IPv6 address onto one public IPv6 address of its own"
+  - "Nothing at all: servers with IPv6 addresses are meant to be reachable from anywhere by design"
+answer: 0
+explanation: |
+  Every IPv6 address is globally unique, so there's no shortage for NAT to hide (IPv6). What a NAT seemed to give, that nobody outside can open a connection in, came from its connection table, and a stateful filter gives the same without rewriting anything. AWS sells exactly that: an egress-only internet gateway "allows outbound communication over IPv6 from instances in your VPC to the internet, and prevents the internet from initiating an IPv6 connection with your instances"; it is stateful, IPv6 only, and free itself (AWS's page, read 2026-11-12). The servers keep their own addresses, so logs on the far side see the real server.
+
+  NAT64 is for IPv6-only machines reaching IPv4-only sites, not for dual-stack ones with IPv4 of their own. AWS has no IPv6-to-IPv6 NAT. And reachable from anywhere is a choice a filter makes, not a property of IPv6. The clouds differ here: Google's firewall blocks incoming traffic that no rule allows (its implied deny ingress, read 2026-11-12), and on Azure, outbound IPv6 through a StandardV2 NAT gateway or a load balancer's outbound rules leaves from translated public addresses.
+skills: [avoid-nat]

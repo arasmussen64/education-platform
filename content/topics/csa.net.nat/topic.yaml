@@ -1,17 +1,295 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.nat
 kind: topic
-status: planned
+status: ready
 title: NAT
-summary: Explain source and destination NAT.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "What source and destination NAT rewrite, where in a gateway's path each happens, and how connection tracking translates the replies back; writing a NAT gateway in nftables that keeps customers' addresses and survives a reboot; sizing NAT for connection counts per destination on AWS, Azure and Google Cloud; telling port exhaustion from other failures; and when to avoid NAT altogether."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2
+# and 5, topic 27) and its designer's brief (csa.net.nat.md). Through
+# csa.net.routing and csa.net.cidr this builds on csa.net.layers (the network
+# labs' machines, on, name@machine, ICMP) and csa.m1.checkpoint. For the
+# writer: Module 1's net-tools (ports, the ephemeral range, TIME-WAIT, the
+# nftables hooks, policy drop, ct state, conntrack -L, /etc/nftables.conf and
+# its scratch-namespace check, and one sentence each on masquerading and
+# DNAT); IPv4 and CIDR (the private ranges, 100.64.0.0/10, overlaps);
+# Routing (return paths, sysctl and /etc/sysctl.d/, forwarding); IPv6 (dual
+# stack, global addresses, the egress-only internet gateway, NAT64), for the
+# last skill. Words this topic defines: NAT, SNAT, masquerade, DNAT, PAT, the
+# 5-tuple and conntrack's two tuples, port exhaustion, idle timeout, port
+# hold-down, unique destination, endpoint-independent mapping, managed NAT
+# gateway, carrier-grade NAT, gateway and private endpoints (one sentence
+# each), and, in passing, rate limiter, FIN and load balancer (which
+# csa.net.transport and csa.net.load-balancing take further).
+prerequisites: [csa.net.routing, csa.net.ipv6]
+# Worked out: the lesson about 18 minutes (2,400 words at 130 a minute, its
+# table and code included); reading 44 (the main video 15, the nftables
+# wiki's NAT page 9, Azure's SNAT page 10, the named sections of AWS's and
+# Google's pages 10); 22 recall items in the ladder at 1.5 each, 33; then the
+# worked example 30, the fill-in 20, the write 30, the build 55, the debug 45
+# and the explain 20: 295, the designer's 290 within rounding.
+estimated_minutes: 290
 rev: 1
 objectives:
-- Explain source and destination NAT.
-- Size NAT for connection counts.
-- Diagnose port exhaustion.
-- Say when to avoid NAT entirely.
+  - "Explain what source NAT, masquerading and destination NAT change in a packet, where in a gateway's path each happens (prerouting before the routing decision, postrouting after it), and how connection tracking translates replies back with no rule of their own; read a `conntrack -L` entry's two tuples."
+  - "Write a NAT gateway's rules in nftables (source NAT limited to the outside interface, destination NAT for a published service, the forward rule that lets published traffic in), keep the client's real address visible to the published server, and make it all survive a reboot."
+  - "Size NAT for a connection count on AWS, Azure and Google Cloud: ports per public address, the per-destination rule, addresses needed, VMs per address on Google Cloud, and what port hold-down and idle timeouts do to the numbers."
+  - "Recognise port exhaustion from its evidence (new connections to one destination time out while others work; `insert_failed` in `conntrack -S`; each cloud's metric) and choose the remedy that fits."
+  - "Say when to avoid NAT (IPv6, private paths to cloud services, a load balancer for inbound services, logs that need real clients, the cost per gigabyte) and when it is the right tool (overlapping ranges, an allow-listed outbound address)."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - AWS NAT gateway: "Each IPv4 address can support up to 55,000 simultaneous
+#   connections to each unique destination", a unique destination being the
+#   destination address, port and protocol; up to 8 IPv4 addresses (1
+#   primary, 7 secondary), 2 Elastic IPs by default; ports 1024 to 65535;
+#   5 Gbps scaling to 100 Gbps; NAT64 for IPv6:
+#   https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-basics.html
+# - AWS: a connection idle for 350 seconds times out and the gateway returns
+#   an RST to an inside host that continues it; "Cannot initiate more
+#   connections": spread clients across gateways, "Limit the number of
+#   connections your clients can create to the destination", watch
+#   IdleTimeoutCount, add addresses:
+#   https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-troubleshooting.html
+# - AWS metrics: ErrorPortAllocation, "The number of times the NAT gateway
+#   could not allocate a source port"; IdleTimeoutCount after 350 seconds;
+#   ActiveConnectionCount, concurrent TCP connections:
+#   https://docs.aws.amazon.com/vpc/latest/userguide/metrics-dimensions-nat-gateway.html
+# - AWS regional NAT gateways: "up to 32 IP addresses per Availability Zone
+#   (compared to 8 for zonal NAT gateways)", each adding 55,000 connections
+#   to a popular destination; no private NAT:
+#   https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateways-regional.html
+# - AWS prices, the pricing page's US East (Ohio) example: $0.045 per NAT
+#   gateway-hour and $0.045 per GB processed; a regional gateway charged for
+#   each hour in each zone; public IPv4 $0.005 an hour; "There are no data
+#   processing or hourly charges for using Gateway Type VPC endpoints":
+#   https://aws.amazon.com/vpc/pricing/
+# - AWS gateway endpoints for S3 and DynamoDB, "no additional charge", a
+#   route with the service's prefix list in the chosen route tables:
+#   https://docs.aws.amazon.com/vpc/latest/privatelink/gateway-endpoints.html
+# - AWS egress-only internet gateway: IPv6 only, outbound allowed, inbound
+#   initiation prevented, stateful, no charge for the gateway:
+#   https://docs.aws.amazon.com/vpc/latest/userguide/egress-only-internet-gateway.html
+# - Azure NAT Gateway: "Each public IP address for a NAT gateway provides
+#   64,512 SNAT ports"; up to 16 public IPv4 (StandardV2 also 16 IPv6); "The
+#   same SNAT port can be used to connect to different destination endpoints
+#   at the same time"; TCP idle timeout 4 to 120 minutes (default 4), UDP 4
+#   minutes fixed; port reuse timers 65 s after a FIN, 16 s after an RST,
+#   30 s half open, 65 s for UDP; "up to 50,000 concurrent connections per
+#   public IP address to the same destination endpoint"; 2 million active
+#   connections (ms.date 2025-11-04, updated 2026-10-13):
+#   https://learn.microsoft.com/en-us/azure/nat-gateway/nat-gateway-resource
+# - Azure: SNAT ports picked at random from the inventory, reused for
+#   different destinations, a cool-down before reuse to the same one
+#   (ms.date 2024-04-29, updated 2025-06-19):
+#   https://learn.microsoft.com/en-us/azure/nat-gateway/nat-gateway-snat
+# - Azure metrics: SNAT Connection Count filtered by Failed, "A failed
+#   connection volume greater than zero can indicate SNAT port exhaustion";
+#   Total SNAT Connection Count; alert at 1.6 million of 2 million (ms.date
+#   2025-09-09, updated 2026-10-13):
+#   https://learn.microsoft.com/en-us/azure/nat-gateway/nat-metrics
+# - Azure NAT Gateway: no unsolicited inbound connections; StandardV2 zone
+#   redundant, IPv6 and NAT64; StandardV2's known issue disrupting IPv6
+#   outbound through load-balancer outbound rules; priced per hour and per
+#   GB processed, Standard and StandardV2 alike (ms.date 2026-08-31):
+#   https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview and
+#   https://azure.microsoft.com/en-us/pricing/details/azure-nat-gateway/
+# - Azure load-balancer outbound rules "explicitly define SNAT", IPv6 among
+#   them (ms.date 2026-01-08):
+#   https://learn.microsoft.com/en-us/azure/load-balancer/outbound-rules
+# - Azure's default system routes drop 100.64.0.0/10 (next hop None) unless
+#   the virtual network's address space uses it (ms.date 2026-03-31):
+#   https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview
+# - Google Cloud NAT: each NAT address "offers 64,512 TCP source ports and
+#   64,512 UDP source ports"; ports 0 to 1,023 unused; default minimum ports
+#   per VM 64 (static) and 32 (dynamic); "1,008 VMs" at 64 per VM; with
+#   static allocation "the number of ports allocated to each VM is fixed and
+#   doesn't change"; a tuple reused while "at least one piece of information
+#   in the destination 3-tuple changes" (last updated 2026-11-10):
+#   https://docs.cloud.google.com/nat/docs/ports-and-addresses
+# - Google Cloud NAT timeouts: UDP 30 s, ICMP 30 s, TCP established 1,200 s,
+#   TCP transitory 30 s, TCP TIME_WAIT 30 or 120 s (30 for gateways created
+#   after 2026-09-30); default maximum ports per VM, dynamic, 65,536 (last
+#   updated 2026-11-10): https://docs.cloud.google.com/nat/docs/tune-nat-configuration
+# - Google metrics: nat/dropped_sent_packets_count with reason
+#   OUT_OF_RESOURCES ("if Cloud NAT runs out of NAT IP addresses or ports");
+#   open_connections, allocated_ports, port_usage (last updated 2026-11-10):
+#   https://docs.cloud.google.com/nat/docs/monitoring
+# - Google Cloud NAT prices: $0.0014 an hour per VM up to 32 VMs, $0.044 an
+#   hour above 32; $0.045 per GiB processed; $0.005 an hour per external
+#   address: https://cloud.google.com/nat/pricing
+# - Google's firewall: the implied deny ingress blocks incoming traffic no
+#   rule allows: https://docs.cloud.google.com/firewall/docs/firewalls
+# - RFC 6598: "The Shared Address Space address range is 100.64.0.0/10", for
+#   carrier-grade NAT, with problems likely for other uses:
+#   https://www.rfc-editor.org/rfc/rfc6598
+# - RFC 4787, REQ-1: "A NAT MUST have an "Endpoint-Independent Mapping"
+#   behavior": https://www.rfc-editor.org/rfc/rfc4787
+# - AWS NAT instance: forwarding in /etc/sysctl.d/custom-ip-forwarding.conf,
+#   iptables MASQUERADE, source/destination checks stopped:
+#   https://docs.aws.amazon.com/vpc/latest/userguide/work-with-nat-instances.html
+# Captured in this topic's labs (nftables 1.0.9 and conntrack 1.4.8 on Ubuntu
+# 24.04, on the network-lab base, Docker Desktop 29.8.2), 2026-11-12: every
+# conntrack line and counter the lesson and items call captured; the port
+# range error without a protocol; "you are 10.1.0.1" with a masquerade that
+# names no interface; opened 10 of 15 through ten ports, and five more to
+# another destination port through the same ten; insert_failed=15 for five
+# failed connections; the forward chain dropping a published connection
+# without ct status dnat accept; hairpinning refused; and, with two
+# addresses in a snat range, one client to one destination using only the
+# first (10 of 15 again). Times and port numbers will differ in a new run.
+#
+# Linked or embedded, never copied. Licences, each read on 2026-11-12: the
+# three YouTube videos (embedding allowed, no licence stated beyond
+# YouTube's own; titles, lengths, dates and chapter lists read from their
+# pages, the videos not watched by a person yet); the nftables wiki (GNU FDL
+# 1.3 or later, the page's footer); Microsoft Learn (the
+# MicrosoftDocs/azure-docs repository's LICENSE: CC BY 4.0); AWS's
+# documentation (copyright Amazon Web Services); Google Cloud's
+# documentation (the pages' footer: CC BY 4.0).
+resources:
+  - title: "Dynamic PAT: Network Address Translation (Practical Networking, 2021, 15 minutes): packets before and after the translation, outbound and back, and why one address carries about 65,000 connections"
+    url: https://www.youtube.com/watch?v=2t8-WRZWCq8
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "Performing Network Address Translation (NAT) (the nftables wiki): Source NAT, Destination NAT and Masquerading, about 9 minutes"
+    url: https://wiki.nftables.org/wiki-nftables/index.php/Performing_Network_Address_Translation_(NAT)
+    type: reading
+    use: link
+    license: "GNU FDL 1.3 or later (the page's footer); linked, not copied"
+  - title: "Source Network Address Translation (SNAT) with Azure NAT Gateway (Microsoft Learn): SNAT ports shared on demand, reused for other destinations, and the cool-down, about 10 minutes"
+    url: https://learn.microsoft.com/en-us/azure/nat-gateway/nat-gateway-snat
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "NAT gateway basics (AWS VPC user guide): read the bullet on 55,000 connections per address to each unique destination"
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-basics.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Troubleshoot NAT gateways (AWS VPC user guide): read \"Internet connection drops after 350 seconds\" and \"Cannot initiate more connections\""
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/nat-gateway-troubleshooting.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Cloud NAT IP addresses and ports (Google Cloud documentation): read \"Ports\" and \"Ports and connections\", about a third of the page"
+    url: https://docs.cloud.google.com/nat/docs/ports-and-addresses
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "NAT Gateway Resource (Microsoft Learn): \"SNAT ports\", \"Timers\" and \"Performance\" (optional)"
+    url: https://learn.microsoft.com/en-us/azure/nat-gateway/nat-gateway-resource
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Tune NAT configuration (Google Cloud documentation): the table of NAT timeouts (optional)"
+    url: https://docs.cloud.google.com/nat/docs/tune-nat-configuration
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "NAT vs PAT, Static vs Dynamic: demystified! (Practical Networking, 2021, 7 minutes): the vocabulary, for when a vendor's names get in the way (optional)"
+    url: https://www.youtube.com/watch?v=KA56kj23RPU
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "Network Address Translation (Computerphile, 2013, 11 minutes): why NAT exists, in a conversation (optional)"
+    url: https://www.youtube.com/watch?v=01ajHxPLxAw
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "Enable private resources to communicate outside the VPC (AWS VPC user guide): a NAT instance built by hand, forwarding in sysctl.d and masquerading, the same job as the labs' gw (optional)"
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/work-with-nat-instances.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+# The recall items read conntrack, nft and conntrack -S output, most of it
+# captured from this topic's labs, with Module 1's text tools, and size NATs
+# with the clouds' real numbers. The worked example, the fill-in, the build
+# and the debug are labs on the network-lab base (gw a machine with its own
+# /etc/nftables.conf and /etc/sysctl.d, ADR-0018's third amendment); the
+# write lab is a plain lab on Module 3's plain line.
+practice:
+  - example-watch-the-translation
+  - conntrack-two-tuples
+  - mcq-hooks-for-nat
+  - mcq-replies-need-no-rule
+  - mcq-what-the-app-sees
+  - mcq-masquerade-or-snat
+  - mcq-dnat-needs-forward
+  - mcq-port-range-protocol
+  - nft-nat-ruleset
+  - est-linux-range
+  - est-aws-nat-ips
+  - est-gcp-vms-per-ip
+  - est-azure-snat-ports
+  - est-hold-down
+  - mcq-exhaustion-symptom
+  - conntrack-insert-failed
+  - count-per-destination
+  - mcq-more-addresses
+  - mcq-cloud-exhaustion-metric
+  - mcq-ipv6-no-nat
+  - mcq-private-path
+  - mcq-overlap-needs-nat
+  - est-nat-data-cost
+  - fill-nat-gateway
+  - write-nat-ports
+prove:
+  build: build-nat-gateway
+  debug: debug-lunchtime-timeouts
+  explain:
+    prompt: |
+      A team is moving 200 VMs into private subnets behind a cloud NAT gateway, and one of them calls a payment API thousands of times a minute. Explain, in your own words: what source NAT does to an outbound connection and how the replies find their way back; what destination NAT does and what the server behind it sees; what limits how many connections a NAT can carry, and how you'd size it for that API on one cloud of your choice; how port exhaustion would show itself and what you'd try first; and when you'd avoid NAT altogether.
+    rubric:
+      - id: snat-conntrack
+        required: true
+        description: "SNAT rewrites the source address (and port) of outgoing packets to the NAT's public address, after routing; the NAT records the mapping (conntrack on Linux) and reverses it on the replies, so replies need no rule of their own."
+      - id: dnat-client
+        required: true
+        description: "DNAT rewrites the destination before routing so traffic for a public address and port reaches an inside server, which still sees the client's real address unless something also source-NATs the inbound traffic (a masquerade rule not limited to the outside interface)."
+      - id: sizing
+        required: true
+        description: "Capacity is ports per public address per unique destination (address, port, protocol); one cloud's numbers stated correctly (AWS 55,000 connections per address per destination, up to 8 addresses on a zonal gateway; Azure 64,512 SNAT ports per address, up to 16, or its 50,000 per destination; Google 64,512 per address in per-VM blocks, 64 by default); a sum for the API's connections; and that ports stay held after a close (hold-down, TIME-WAIT) and while idle."
+      - id: exhaustion
+        required: true
+        description: "New connections to the busy destination time out while others work; the evidence (insert_failed in conntrack -S, or that cloud's metric: ErrorPortAllocation, SNAT Connection Count Failed, OUT_OF_RESOURCES); the first fix is reusing connections; then more addresses (or more ports per VM on Google), shorter idle timeouts."
+      - id: avoid
+        required: true
+        description: "At least one correct case for avoiding NAT (IPv6 with an egress-only gateway; a gateway or private endpoint for cloud services, with no ports and no per-GB NAT charge; a load balancer for inbound services) and one where NAT is right (overlapping ranges, an allow-listed outbound address)."
+    model_answer: |
+      When a VM in a private subnet opens a connection to the internet, the NAT gateway rewrites the packet's source, the VM's private address and port, to its own public address and a port it picks, after the routing decision. It writes the pair down, conntrack on a Linux gateway. The server answers to the public address and port; the gateway finds the pair and rewrites the destination back to the VM's address and port, so the replies need no rule of their own.
+
+      Destination NAT is the other way round: the gateway rewrites the destination of traffic arriving for one of its public ports, before routing, so it reaches an inside server. The source stays the client's, so the server's logs and rate limits see real clients, unless a source NAT rule also catches the inbound traffic, a masquerade without "only out of the internet interface", and then every client looks like the gateway.
+
+      What limits a NAT is ports per public address per destination: connections to the same address, port and protocol each need their own translated port, while connections to different destinations can share one. On AWS, each address carries up to 55,000 connections to one destination, and a zonal gateway takes up to 8 addresses. If the payment VM held, say, 120,000 connections to the API at once, 120,000 / 55,000 is 2.2, so 3 addresses. Ports also stay busy after a connection closes, for a hold-down or TIME-WAIT of about a minute, and while a connection sits idle until the idle timeout (350 seconds on AWS), so a connection per request at thousands a minute adds up fast.
+
+      Port exhaustion shows as new connections to that one API timing out while other sites and the connections already open keep working; on AWS the ErrorPortAllocation metric goes above zero, on Linux insert_failed climbs in conntrack -S. The first fix is to reuse connections, keep-alive or a pool, so far fewer are opened; then more addresses, and shorter idle timeouts.
+
+      I'd avoid NAT where there's a private path: a gateway endpoint for S3, which is free and needs no ports, instead of paying per gigabyte through the NAT. IPv6 traffic goes out through an egress-only gateway with no translation. NAT is the right tool when two networks overlap, or when a partner allow-lists one outbound address, as payment providers often do.
+review_pool:
+  - conntrack-two-tuples
+  - mcq-what-the-app-sees
+  - mcq-replies-need-no-rule
+  - mcq-dnat-needs-forward
+  - nft-nat-ruleset
+  - mcq-nat-forward-order
+  - est-aws-nat-ips
+  - est-gcp-vms-per-ip
+  - est-hold-down
+  - est-aws-gateways
+  - est-gcp-nat-ips-fleet
+  - mcq-exhaustion-symptom
+  - conntrack-insert-failed
+  - mcq-more-addresses
+  - mcq-first-remedy
+  - mcq-overlap-needs-nat
+  - est-nat-data-cost
+  - mcq-cgnat-range
+skills:
+  - id: snat-and-dnat
+    description: "What source NAT, masquerading and destination NAT each rewrite and where (`postrouting` after the routing decision, `prerouting` before it); conntrack's original and reply tuples; replies translated back with no rule; what a server behind the NAT sees, and why a masquerade rule that names no interface hides every customer's address"
+  - id: nat-rules
+    description: "Write nftables NAT: a `nat` table with `postrouting` (`priority srcnat`) and `prerouting` (`priority dstnat`) chains, `oifname \"wan\"` scoping, `masquerade` against `snat to ADDRESS[:PORTS]` (a port range needs a protocol match), `dnat to ADDRESS:PORT`, rule order, `ct status dnat accept` in the forward chain, the forward chain's drop as the real protection, and all of it saved in `/etc/nftables.conf` with forwarding in `/etc/sysctl.d/`"
+  - id: nat-sizing
+    description: "The arithmetic: ports per public address (64,512 on Azure and Google; AWS's 55,000 connections per address per unique destination), connections per destination, addresses needed, VMs per NAT address on Google Cloud, a Linux port range's size, ports held by hold-down and idle timeouts, and what NAT processing costs"
+  - id: port-exhaustion
+    description: "Tell port exhaustion from other failures: new connections to the busy destination time out while existing ones and other destinations work; `insert_failed` in `conntrack -S`, retries counted; AWS `ErrorPortAllocation`, Azure `SNAT Connection Count` Failed, Google `OUT_OF_RESOURCES`; remedies in order: reuse connections, more addresses (more ports per VM on Google), shorter idle timeouts, a private path"
+  - id: avoid-nat
+    description: "When NAT is the wrong tool: IPv6 with an egress-only gateway, gateway and private endpoints for cloud services (no ports, no per-GB NAT charge), a load balancer for inbound services, logs that must see real clients; when it is the right one: overlapping ranges, an allow-listed outbound address; carrier-grade NAT and why `100.64.0.0/10` is a poor range for a cloud network"

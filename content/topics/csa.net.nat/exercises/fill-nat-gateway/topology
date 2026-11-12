@@ -1,0 +1,32 @@
+# The network of "Fill in the gateway", the NAT labs' network: the shop's
+# private network behind its gateway, and a small internet.
+#
+#   office 10.1.0.10 --+                                          +-- srv 203.0.113.10
+#                      [shop]-- gw --[isp]-- inet --[internet]----+
+#   app 10.1.0.20 -----+   10.1.0.1  198.51.100.2  .1  203.0.113.1 +-- client 203.0.113.20
+#
+# gw forwards because its /etc/sysctl.d says so. Its firewall and NAT are its
+# /etc/nftables.conf, loaded at every boot by nftables@gw: the learner's file.
+# inet has no route to 10.0.0.0/8: private addresses aren't routed on the
+# internet. The app's web app is nginx on 8443; its database and SSH stand-ins
+# (5432, 22) are shop-backend.service.
+machine office
+machine app
+machine gw
+machine inet router
+machine srv
+machine client
+
+lan shop office:eth0=10.1.0.10/24 app:eth0=10.1.0.20/24 gw:lan=10.1.0.1/24
+lan isp gw:wan=198.51.100.2/24 inet:isp=198.51.100.1/24
+lan internet inet:pub=203.0.113.1/24 srv:eth0=203.0.113.10/24 client:eth0=203.0.113.20/24
+
+route office default via 10.1.0.1
+route app default via 10.1.0.1
+route gw default via 198.51.100.1
+route srv default via 203.0.113.1
+route client default via 203.0.113.1
+
+run gw nftables
+run app nginx
+run srv nginx

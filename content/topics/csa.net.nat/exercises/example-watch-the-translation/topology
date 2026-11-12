@@ -1,15 +1,16 @@
-# The network of "A NAT gateway": the shop's private network behind its
-# gateway, and a small internet.
+# The network of "Watch the translation", and of every NAT lab: the shop's
+# private network behind its gateway, and a small internet.
 #
-#   office 10.1.0.10 --+                                  +-- srv 203.0.113.10
-#                      [shop]-- gw ===(wan)=== inet --[internet]
-#   app 10.1.0.20 -----+     10.1.0.1  198.51.100.2   .1 / 203.0.113.1  +-- client 203.0.113.20
+#   office 10.1.0.10 --+                                          +-- srv 203.0.113.10
+#                      [shop]-- gw --[isp]-- inet --[internet]----+
+#   app 10.1.0.20 -----+   10.1.0.1  198.51.100.2  .1  203.0.113.1 +-- client 203.0.113.20
 #
 # gw is the shop's gateway, and its forwarding is its own business: its
 # /etc/sysctl.d turns it on (netlab's router role would do it for gw, as it
 # does for inet). Its firewall is its /etc/nftables.conf, loaded at every
 # boot by nftables@gw. inet has no route to 10.0.0.0/8: private addresses
-# aren't routed on the internet.
+# aren't routed on the internet. gw and inet meet on a switch, isp, the
+# provider's network.
 machine office
 machine app
 machine gw
@@ -18,7 +19,7 @@ machine srv
 machine client
 
 lan shop office:eth0=10.1.0.10/24 app:eth0=10.1.0.20/24 gw:lan=10.1.0.1/24
-link gw:wan=198.51.100.2/24 inet:isp=198.51.100.1/24
+lan isp gw:wan=198.51.100.2/24 inet:isp=198.51.100.1/24
 lan internet inet:pub=203.0.113.1/24 srv:eth0=203.0.113.10/24 client:eth0=203.0.113.20/24
 
 route office default via 10.1.0.1

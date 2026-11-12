@@ -1,0 +1,20 @@
+id: est-gcp-nat-ips-fleet
+type: estimate
+rev: 1
+prompt: |
+  A fleet of 1520 VMs sits behind one Cloud NAT gateway with static port allocation, at 128 ports per VM. How many NAT addresses does the gateway need, at least? Exactly.
+unit: NAT addresses
+answer: 4
+tolerance: { absolute: 0 }
+# 64512 ports per NAT address is a fact the learner must know (the lesson's
+# table): Cloud NAT's "IP addresses and ports" page, read 2026-11-12.
+given: { vms: 1520, per_vm: 128 }
+working: ceil(vms / floor(64512 / per_vm))
+mistakes:
+  - id: all-65536-or-rounded-down
+    value: 3
+    working: ceil(vms / floor(65536 / per_vm))
+    why: "Three addresses aren't enough. Each NAT address has 64512 usable ports (0 to 1023 aren't used), so it serves 64512 / 128 = 504 VMs, and three serve only 1512 of the 1520. Counting 65536 ports per address, or rounding 1520 / 504 down, both give 3."
+explanation: |
+  Each address holds 64512 / 128 = 504 blocks of 128 ports, so it serves 504 VMs. 1520 / 504 = 3.02, rounded up to 4 addresses. Counting ports gives the same answer: the fleet needs 1520 × 128 = 194560 ports, and three addresses hold only 3 × 64512 = 193536, so the last 8 VMs need a fourth address. A fleet that just tips over a multiple of 504 pays for a whole address more. Cloud NAT charges $0.005 an hour for each external address it uses (its pricing page, read 2026-11-12).
+skills: [nat-sizing]

@@ -1,0 +1,23 @@
+id: conntrack-insert-failed
+type: predict_shell
+rev: 1
+prompt: |
+  `stats.txt` is `conntrack -S` on gw, captured in the walkthrough's lab on 2026-11-12, just after `holdconns 15 203.0.113.10 9000` through a ten-port source NAT range printed `opened 10 of 15` (one line per CPU; trailing spaces trimmed). The command adds up the `insert_failed` counters. What is printed?
+files:
+  stats.txt: |
+    cpu=0   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0
+    cpu=1   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0
+    cpu=2   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0
+    cpu=3   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0
+    cpu=4   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0
+    cpu=5   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0
+    cpu=6   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0
+    cpu=7   	found=0 invalid=0 insert=0 insert_failed=15 drop=15 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0
+command: grep -o 'insert_failed=[0-9]*' stats.txt | cut -d= -f2 | awk '{s += $1} END {print s}'
+expected_output: |
+  15
+explanation: |
+  `grep -o` pulls out each `insert_failed=N`, `cut -d= -f2` keeps the number after the `=`, and awk adds them: 0 on seven CPUs, 15 on the one that handled the traffic. The kernel keeps these counters per CPU, so the totals are what to read.
+
+  `insert_failed` counts packets whose new connection conntrack couldn't add to its table: here, because the source NAT had no free port to translate them to, so gw dropped them (and `drop` went up with it). Five connections failed, but the count is 15: each one's SYN was sent again while it waited, and every attempt counts. So read the counter as "something is failing, and how fast", not as the number of failed connections. A count that climbs at the busy hour, with timeouts to one destination, is port exhaustion's fingerprint on Linux.
+skills: [port-exhaustion]

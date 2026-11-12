@@ -1,0 +1,15 @@
+# The app's database (5432) and SSH (22), as stand-ins: the base's
+# holdserver accepts connections on both and holds each one open, so a
+# port that answers from the internet shows up. "systemctl status shop-backend".
+[Unit]
+Description=The app's database and SSH stand-ins on app, ports 5432 and 22
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+ExecStart=/usr/sbin/ip netns exec app /usr/local/lib/netlab/lab-enter app /usr/local/bin/holdserver 5432 22
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

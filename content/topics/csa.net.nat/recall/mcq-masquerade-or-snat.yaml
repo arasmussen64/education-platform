@@ -1,0 +1,16 @@
+id: mcq-masquerade-or-snat
+type: mcq
+rev: 1
+prompt: |
+  When is `masquerade` the better choice than `snat to ADDRESS` on a Linux gateway?
+choices:
+  - "When the outside address can change, as on a line whose provider hands out new ones"
+  - "When there are several outside addresses to spread the connections out over evenly"
+  - "When the services published behind it must keep seeing their clients' own addresses"
+  - "When the gateway has to translate UDP and ICMP traffic as well as TCP connections"
+answer: 0
+explanation: |
+  `masquerade` translates to whatever address the outgoing interface has at that moment, looking it up for each new connection, so it keeps working when a provider gives the line a new address (home and small-office lines often get theirs handed out that way). `snat to 198.51.100.2` names a fixed address: right for a gateway whose public address is fixed, and needed when there is more than one and you must choose, as the build does for its payments address.
+
+  Several addresses are `snat to`'s job (`snat to 198.51.100.2-198.51.100.3`, or one rule per address), since masquerade uses just the interface's main one. Whether published services see their clients depends on not source-NATing inbound traffic (`oifname "wan"`), not on which statement you use. And both translate TCP, UDP and ICMP alike.
+skills: [nat-rules]

@@ -1,0 +1,18 @@
+id: est-aws-nat-ips
+type: estimate
+rev: 1
+prompt: |
+  Workers behind an AWS NAT gateway hold up to 150000 connections at once to one partner API (one address, port 443, TCP). Each IPv4 address on the gateway supports up to 55000 simultaneous connections to each unique destination. How many addresses must the gateway have, at least? Exactly.
+unit: addresses
+answer: 3
+tolerance: { absolute: 0 }
+given: { conns: 150000, per_ip: 55000 }
+working: ceil(conns / per_ip)
+mistakes:
+  - id: rounded-down
+    value: 2
+    working: floor(conns / per_ip)
+    why: "150000 / 55000 is about 2.7, and you can't have part of an address. Two addresses carry only 110000 connections to that API, so a third is needed: round up."
+explanation: |
+  One partner API is one unique destination (its address, port and protocol), so each address on the gateway adds 55000 connections to it. 150000 / 55000 = 2.73, rounded up to 3 addresses, which carry up to 165000. A zonal NAT gateway takes up to 8 addresses (1 primary and 7 secondary; 2 Elastic IP addresses, AWS's name for a public address you keep, by default until the quota is raised), and a regional one up to 32 per Availability Zone (AWS's "NAT gateway basics" and "Regional NAT gateways" pages, read 2026-11-12). Fewer new connections would be better still: reusing connections cuts the 150000.
+skills: [nat-sizing]

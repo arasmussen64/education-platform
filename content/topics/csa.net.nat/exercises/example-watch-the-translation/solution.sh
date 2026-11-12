@@ -18,6 +18,7 @@ on client curl -sS -m 3 http://198.51.100.2:443/
 on gw nft flush chain ip nat postrouting
 on gw nft add rule ip nat postrouting masquerade
 on client curl -sS -m 3 http://198.51.100.2:443/
+on app tail -n 2 /var/log/nginx/access.log
 on gw nft flush chain ip nat postrouting
 on gw nft add rule ip nat postrouting oifname "wan" masquerade
 on gw nft insert rule ip nat postrouting oifname "wan" ip protocol tcp tcp dport { 9000, 9001 } snat to 198.51.100.2:20000-20009
