@@ -1,0 +1,18 @@
+# The shop's web front: three machines on one switch.
+#
+#   office 10.0.9.2 ----+---- edge 10.0.9.10    www.shop.test: the edge cache
+#                       |
+#                       +---- origin 10.0.9.1   origin.shop.test: nginx, in
+#                                               front of shop-app and the
+#                                               order board
+#
+# The office's /etc/hosts gives the names; the edge reaches the origin by
+# its address.
+machine office
+machine edge
+machine origin
+
+lan shopnet office:eth0=10.0.9.2/24 edge:eth0=10.0.9.10/24 origin:eth0=10.0.9.1/24
+
+run edge nginx
+run origin nginx
