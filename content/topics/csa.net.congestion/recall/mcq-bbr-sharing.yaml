@@ -1,0 +1,14 @@
+id: mcq-bbr-sharing
+type: mcq
+rev: 1
+prompt: |
+  A team moves its backup servers to Linux's BBR, on a link it shares with other teams' traffic, which uses CUBIC. What's the risk?
+choices:
+  - "Their BBR flows may take more than their share and squeeze the CUBIC ones"
+  - "BBR backs off whenever it notices CUBIC flows, so the backups will stall"
+  - "Routers drop BBR's packets first, since BBR marks them as low priority"
+  - "Mixing algorithms on a link makes every flow fall back to Reno's rules"
+answer: 0
+explanation: |
+  BBR doesn't slow down for the losses that make CUBIC back off, so on a shared bottleneck BBR flows can keep more than their share while the CUBIC flows keep cutting their windows. Geoff Huston's tests (APNIC's blog, 2017) found BBR claiming the larger share on some paths. BBRv3, the IETF draft's version, reacts once loss passes 2% a round trip, partly to share better; mainline Linux's BBR is the first version. BBR doesn't watch for other algorithms, marks nothing as low priority, and nothing on a link makes the senders switch algorithm: each sender chooses its own.
+skills: [bbr-model]

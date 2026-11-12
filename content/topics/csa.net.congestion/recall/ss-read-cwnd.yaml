@@ -1,0 +1,21 @@
+id: ss-read-cwnd
+type: predict_shell
+rev: 1
+prompt: |
+  `sstni.txt` holds two transfers' lines from `ss -tni dst 10.0.6.20` on shop, captured on 2026-11-12 in this topic's lab "CUBIC meets a lossy link", four seconds into two separate runs across the same link (50 Mbit/s, a 50 ms round trip, 1% loss): the first with CUBIC, the second with BBR. Each connection is two lines, the second starting with a tab. The command prints each transfer's algorithm, its congestion window and the rate the receiver has been getting, in Mbit/s. What is printed?
+files:
+  sstni.txt: |
+    ESTAB 0      1957696     10.0.5.10:52380    10.0.6.20:5201
+    	 cubic wscale:10,10 rto:252 rtt:51.089/0.647 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:21 ssthresh:14 bytes_sent:5346053 bytes_retrans:52128 bytes_acked:5263518 segs_out:3695 segs_in:1153 data_segs_out:3693 send 4761573bps lastsnd:12 lastrcv:3768 lastack:12 pacing_rate 5713840bps delivery_rate 4561344bps delivered:3637 busy:3764ms unacked:21 retrans:0/36 rcv_space:14480 rcv_ssthresh:64088 notsent:1927288 minrtt:50 snd_wnd:2708480
+    ESTAB 0      4027832     10.0.5.10:46806    10.0.6.20:5201
+    	 bbr wscale:10,10 rto:252 rtt:51.766/0.618 mss:1448 pmtu:1500 rcvmss:536 advmss:1448 cwnd:452 ssthresh:244 bytes_sent:20252269 bytes_retrans:237472 bytes_acked:19742574 segs_out:13990 segs_in:2844 data_segs_out:13988 bbr:(bw:48746488bps,mrtt:50,pacing_gain:1,cwnd_gain:2) send 101146853bps lastrcv:3788 pacing_rate 48259024bps delivery_rate 41265096bps delivered:13637 busy:3788ms rwnd_limited:24ms(0.6%) unacked:188 retrans:0/164 rcv_space:14480 rcv_ssthresh:64088 notsent:3755608 minrtt:50 snd_wnd:19133440
+command: |
+  awk '/wscale/ {cc = $1; for (i = 1; i <= NF; i++) {if ($i ~ /^cwnd:/) cw = substr($i, 6); if ($i == "delivery_rate") r = $(i + 1)} printf "%s cwnd %s, %.1f Mbit/s\n", cc, cw, r / 1000000}' sstni.txt
+expected_output: |
+  cubic cwnd 21, 4.6 Mbit/s
+  bbr cwnd 452, 41.3 Mbit/s
+explanation: |
+  Only the detail lines hold `wscale`, so awk reads those two. Their first field is the algorithm; the loop finds `cwnd:` and keeps what follows the colon (`substr($i, 6)`), and takes the field after `delivery_rate`. awk reads `4561344bps` as the number 4561344, the digits it starts with, so dividing by 1,000,000 gives Mbit/s.
+
+  Across the same lossy link, CUBIC's window has been cut again and again, to 21 segments (with `ssthresh:14` from its last loss), and the receiver gets 4.6 Mbit/s. BBR gets 41.3 with the same loss, `retrans:0/164` against CUBIC's `0/36`. Its `bbr:(bw:48746488bps,mrtt:50,...)` is its model: 48,746,488 ÷ 8 × 0.05 = 304,666 bytes in flight would fill this path, about 210 segments, and `unacked:188` sits near it. Its `cwnd:452` is only a cap, `cwnd_gain` (2) times that.
+skills: [loss-based-cc, bbr-model]

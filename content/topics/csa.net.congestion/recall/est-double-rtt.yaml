@@ -1,0 +1,22 @@
+id: est-double-rtt
+type: estimate
+rev: 1
+prompt: |
+  A loss-based connection gets 12 Mbit/s between two regions 40 ms apart (the round trip). With the same loss rate, about how many Mbit/s would it get to a region 120 ms away? Exactly.
+unit: Mbit/s
+answer: 4
+tolerance: { absolute: 0 }
+given: { speed: 12, near: 40, far: 120 }
+working: speed * near / far
+mistakes:
+  - id: halved
+    value: 6
+    working: speed / 2
+    why: That halves it, as for twice the distance. 120 ms is three times 40, so the rate falls to a third.
+  - id: unchanged
+    value: 12
+    working: speed
+    why: The loss rate is the same, but the round trip isn't. One window per round trip, with three times the round trip, carries a third as much a second.
+explanation: |
+  The ceiling is about 1.2 × MSS ÷ (RTT × √p): with the same loss rate p, it falls in proportion to the round trip. Three times the round trip, a third of the rate: 12 × 40 ÷ 120 = 4 Mbit/s. In this topic's lab, doubling the round trip from 50 to 100 ms took CUBIC from about 5 Mbit/s to about 2, while BBR went from 45 to 41.
+skills: [loss-latency-math]

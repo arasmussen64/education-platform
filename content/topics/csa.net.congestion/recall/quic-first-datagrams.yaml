@@ -1,0 +1,21 @@
+id: quic-first-datagrams
+type: predict_shell
+rev: 1
+prompt: |
+  `quic.txt` is the first three lines `tcpdump -nn -i eth0 udp port 443` printed on shop, captured on 2026-11-12 in this topic's lab "CUBIC meets a lossy link", as the office (192.0.2.10) made one HTTP/3 request to the site on shop (203.0.113.10). The command prints, for each datagram, who sent it (the server sends from port 443) and its length. What is printed?
+files:
+  quic.txt: |
+    18:49:24.903845 IP 192.0.2.10.55698 > 203.0.113.10.443: UDP, length 1200
+    18:49:24.904534 IP 203.0.113.10.443 > 192.0.2.10.55698: UDP, length 1252
+    18:49:24.904557 IP 203.0.113.10.443 > 192.0.2.10.55698: UDP, length 269
+command: |
+  awk '{print ($3 ~ /\.443$/ ? "server" : "client"), $NF}' quic.txt
+expected_output: |
+  client 1200
+  server 1252
+  server 269
+explanation: |
+  The third field is the sender's address and port, so a sender ending `.443` is the server; `$NF` is the last field, the length.
+
+  The client's first datagram is exactly 1,200 bytes: QUIC requires the client to pad its first datagram to at least 1,200 (RFC 9000), which proves the path can carry datagrams that big. It also lets the server answer straight away with up to three times what it received, 3,600 bytes, before it has checked that the client's address is real; here it sent 1,252 + 269 = 1,521. Everything inside is encrypted: `tcpdump` shows the lengths and nothing else, not even that it's QUIC.
+skills: [quic-changes]

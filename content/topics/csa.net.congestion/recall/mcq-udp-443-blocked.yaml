@@ -1,0 +1,14 @@
+id: mcq-udp-443-blocked
+type: mcq
+rev: 1
+prompt: |
+  An office's firewall allows TCP 443 but drops UDP 443. What do the office's browsers do on a site that offers HTTP/3?
+choices:
+  - "Stay on HTTP/2 over TCP, and tell nobody"
+  - "Show a page saying the site refused them"
+  - "Keep retrying HTTP/3 until one gets in"
+  - "Ask the site for HTTP/3 carried on TCP"
+answer: 0
+explanation: |
+  The browser first reached the site over TCP, and it keeps that working while it tries HTTP/3. When the HTTP/3 attempt gets no answer, it falls back to HTTP/2 and says nothing: in this topic's lab, with UDP 443 dropped, `h3get` gave up after 5 seconds while `curl` over TCP answered "hello over HTTP/2.0". Google's load balancer documentation expects it: a connection that falls back to HTTP/2 isn't counted as a failure of the load balancer. HTTP/3 runs only on QUIC, so there's no HTTP/3 over TCP to ask for. The site works, only slower on lossy links, which is a fault nobody reports, so it's worth checking for: the server must listen on UDP 443, and every firewall on the path must let `udp dport 443` in.
+skills: [http3-in-practice]

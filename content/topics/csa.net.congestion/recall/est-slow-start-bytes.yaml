@@ -1,0 +1,23 @@
+id: est-slow-start-bytes
+type: estimate
+rev: 1
+prompt: |
+  A new connection starts with a congestion window of 10 segments of 1,448 bytes, and doubles it every round trip. At most how many bytes can it deliver in its first 4 round trips? Exactly.
+unit: bytes
+answer: 217200
+tolerance: { absolute: 0 }
+given: { start: 10, mss: 1448 }
+# Four round trips: windows of 10, 20, 40 and 80 segments.
+working: (start + 2 * start + 4 * start + 8 * start) * mss
+mistakes:
+  - id: last-round-only
+    value: 115840
+    working: 8 * start * mss
+    why: That's only the fourth round trip's window, 80 segments. The first three round trips delivered their windows too.
+  - id: no-doubling
+    value: 57920
+    working: 4 * start * mss
+    why: That keeps the window at 10 segments for all four round trips. In slow start it doubles each round trip.
+explanation: |
+  (10 + 20 + 40 + 80) × 1,448 = 150 × 1,448 = 217,200 bytes. So a 200 KB page needs four round trips however fast the link is: 400 ms to a server 100 ms away, on a 10 Mbit/s line or a 10 Gbit/s one. That's why moving content closer to users (a CDN's edge) or reusing an open connection helps small transfers more than a faster link does.
+skills: [loss-based-cc, loss-latency-math]

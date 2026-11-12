@@ -1,0 +1,14 @@
+id: mcq-migration
+type: mcq
+rev: 1
+prompt: |
+  A phone leaves Wi-Fi in the middle of a download and carries on over 5G, with a new IP address. The server allows connection migration. What happens to a QUIC connection, and to a TCP one?
+choices:
+  - "QUIC carries on, found by its connection ID; TCP's connection breaks"
+  - "Both break, since each is known by the phone's address and its port"
+  - "Both carry on, since the phone's own system moves its sockets over"
+  - "TCP carries on, found by its sequence numbers; QUIC's connection breaks"
+answer: 0
+explanation: |
+  A TCP connection is known by its two addresses and ports, so a new address means a new connection, and the download starts again. A QUIC connection is known by connection IDs carried in its packets (RFC 9000), so the server recognises it from the new address and the download carries on: connection migration. In this version of QUIC only clients migrate, and a server may refuse it. CloudFront supports HTTP/3 connection migration, and AWS's Network Load Balancer keeps a QUIC connection on one target by its connection ID. The phone's system can't move a TCP connection to a new address, and sequence numbers count bytes; they don't name a connection.
+skills: [quic-changes]

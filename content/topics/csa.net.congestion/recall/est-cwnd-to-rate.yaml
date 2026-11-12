@@ -1,0 +1,23 @@
+id: est-cwnd-to-rate
+type: estimate
+rev: 1
+prompt: |
+  `ss -tni` on a sender shows a connection with `cwnd:21`, `mss:1448` and `rtt:51.089` (milliseconds). If it sends one full window every round trip, how many Mbit/s is that? Within 3%.
+unit: Mbit/s
+answer: 4.76
+tolerance: { percent: 3 }
+given: { cwnd: 21, mss: 1448, rtt: 51.089 }
+# One window of bytes, as bits, per round trip in seconds, in millions.
+working: cwnd * mss * 8 / (rtt / 1000) / 1000000
+mistakes:
+  - id: bytes
+    value: 0.6
+    working: cwnd * mss / (rtt / 1000) / 1000000
+    why: That's megabytes a second. Rates on links are in megabits, so multiply by 8.
+  - id: seconds-not-ms
+    value: 0.005
+    working: cwnd * mss * 8 / rtt / 1000000
+    why: That divides by 51 as if it were seconds. ss shows the round trip in milliseconds, 0.051 s.
+explanation: |
+  21 × 1,448 = 30,408 bytes, 243,264 bits, every 0.051089 s: 4,761,574 bits a second, about 4.76 Mbit/s. It's ss's own `send 4761573bps` on the same line, which is exactly this sum (captured in this topic's lab, CUBIC across a 50 Mbit/s link that loses 1% of packets). A window of 21 segments is what CUBIC was cut down to by the random losses: on that link the window, not the link, sets the speed.
+skills: [loss-latency-math, loss-based-cc]

@@ -1,0 +1,14 @@
+id: mcq-bbr-retransmits
+type: mcq
+rev: 1
+prompt: |
+  In this topic's lab, across a 50 Mbit/s link that loses 1% of packets, one 6-second iperf3 test with CUBIC resent 31 packets and one with BBR resent 155, yet BBR delivered more than eight times as much (44.7 Mbit/s against 5.2). Why?
+choices:
+  - "BBR resends lost packets but keeps its rate; CUBIC slows down at each loss"
+  - "BBR's packets are smaller, so each one it loses costs less data to send again"
+  - "CUBIC's resent packets each wait out a timeout first, so none are counted"
+  - "BBR asks the receiver to rebuild lost packets from extra data it sends ahead"
+answer: 0
+explanation: |
+  Both resend every packet that's lost. CUBIC also cuts its window at each loss, so it spends most of the test sending slowly: fewer packets in flight, fewer lost, fewer resent. BBR keeps sending at the rate it measured, about 48 Mbit/s, so 1% of a much larger number of packets is lost and resent, and the rest arrive. Its cost is those retransmissions, not its speed. Both used the same 1,448-byte segments (`mss:1448` in `ss`). CUBIC's resends came from fast retransmit and were counted the same way, in iperf3's `Retr` column. Sending extra data so the receiver can rebuild losses (forward error correction) isn't something TCP does.
+skills: [bbr-model]

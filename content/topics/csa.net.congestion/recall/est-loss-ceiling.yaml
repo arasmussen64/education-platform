@@ -1,0 +1,24 @@
+id: est-loss-ceiling
+type: estimate
+rev: 1
+prompt: |
+  A loss-based TCP connection's average window is about 1.2 ÷ √p segments, where p is the share of packets lost, and it sends one window per round trip. With 1,460-byte segments, an 80 ms round trip and 1% loss, about how many Mbit/s can one connection carry? Within 10%.
+unit: Mbit/s
+answer: 1.75
+tolerance: { percent: 10 }
+given: { factor: 1.2, mss: 1460, rtt: 80, loss: 1 }
+# 1.2 × MSS ÷ (RTT × √p), in bits, with p = 1% = 0.01 and the round trip
+# in seconds (RFC 3649's 1.2/sqrt(p)).
+working: factor * mss * 8 / ((rtt / 1000) * (loss / 100) ** 0.5) / 1000000
+mistakes:
+  - id: no-root
+    value: 17.52
+    working: factor * mss * 8 / ((rtt / 1000) * (loss / 100)) / 1000000
+    why: That divides by the loss rate itself. The ceiling falls with its square root, and √0.01 is 0.1, not 0.01.
+  - id: bytes
+    value: 0.22
+    working: factor * mss / ((rtt / 1000) * (loss / 100) ** 0.5) / 1000000
+    why: That's megabytes a second. Multiply by 8 for megabits.
+explanation: |
+  √0.01 = 0.1, so the average window is 1.2 ÷ 0.1 = 12 segments, 17,520 bytes, 140,160 bits every 0.08 s: about 1.75 Mbit/s, on any link speed. That's Reno's shape; CUBIC does somewhat better on the same path (this topic's lab got about 5 Mbit/s at a 50 ms round trip, where this formula gives 2.8), but it falls the same way with distance and loss. BBR, which doesn't slow down for random loss, got about 45 there.
+skills: [loss-latency-math]

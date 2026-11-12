@@ -1,0 +1,14 @@
+id: mcq-hol-blocking
+type: mcq
+rev: 1
+prompt: |
+  A page loads six images at once over one HTTP/2 connection on TCP, and one packet carrying part of the first image is lost. What happens to the other five images until that packet is sent again?
+choices:
+  - "They wait, because TCP hands on nothing past a gap until it's filled"
+  - "They carry on, because in HTTP/2 each image has a TCP connection of its own"
+  - "They start again, because the browser opens a fresh connection for all six"
+  - "They carry on, because TCP hands on what arrived and fills the gap later"
+answer: 0
+explanation: |
+  That's head-of-line blocking. HTTP/2 multiplexes all six images as streams over one TCP connection on purpose, and TCP is a single numbered stream of bytes that it delivers in order: everything behind the gap waits in the receiver's pile, whichever image it belongs to, until the lost packet arrives again. Nothing restarts, and TCP never hands on data out of order; that's its promise (TCP and UDP's postcards). Over QUIC, each stream is numbered on its own, so only the first image would wait.
+skills: [quic-changes]

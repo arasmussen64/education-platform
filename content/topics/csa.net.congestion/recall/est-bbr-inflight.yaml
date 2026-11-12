@@ -1,0 +1,23 @@
+id: est-bbr-inflight
+type: estimate
+rev: 1
+prompt: |
+  `ss -tni` shows a BBR connection's model of its path as `bbr:(bw:48746488bps,mrtt:50,...)`: a bottleneck bandwidth of 48,746,488 bits a second and a shortest round trip of 50 ms. How many bytes is one bandwidth-delay product of that path, the data BBR aims to keep in flight? Within 3%.
+unit: bytes
+answer: 304666
+tolerance: { percent: 3 }
+given: { bw: 48746488, mrtt: 50 }
+# Bits a second to bytes a second, times the round trip in seconds.
+working: bw / 8 * mrtt / 1000
+mistakes:
+  - id: bits
+    value: 2437324
+    working: bw * mrtt / 1000
+    why: That's bits. Divide by 8 for bytes.
+  - id: one-way
+    value: 152333
+    working: bw / 8 * mrtt / 2000
+    why: That uses half the round trip. The data in flight has to last a whole round trip, out and back, before the first acknowledgement returns.
+explanation: |
+  48,746,488 ÷ 8 = 6,093,311 bytes a second, times 0.05 s = 304,666 bytes, about 210 segments of 1,448 bytes. BBR paces at its measured bandwidth and keeps about that much in flight: enough to fill the path, not so much that a queue builds. On the same line (captured in this topic's lab) `unacked:188`, the segments in flight, sits near it, and `cwnd:452` is BBR's cap of `cwnd_gain:2` times the product.
+skills: [bbr-model, loss-latency-math]

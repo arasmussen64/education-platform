@@ -1,0 +1,22 @@
+id: est-slow-start-window
+type: estimate
+rev: 1
+prompt: |
+  A new TCP connection starts with a congestion window of 10 segments and, in slow start, doubles it every round trip. If nothing is lost, how many segments is the window after 5 round trips? Exactly.
+unit: segments
+answer: 320
+tolerance: { absolute: 0 }
+given: { start: 10, rounds: 5 }
+working: start * 2 ** rounds
+mistakes:
+  - id: added
+    value: 60
+    working: start + rounds * start
+    why: That adds 10 segments a round trip. Slow start doubles the window each round trip; adding a little each time is congestion avoidance's shape, later.
+  - id: one-short
+    value: 160
+    working: start * 2 ** (rounds - 1)
+    why: That's four doublings. After 1 round trip the window is 20, after 2 it's 40, so after 5 it has doubled 5 times.
+explanation: |
+  10 × 2⁵ = 10 × 32 = 320 segments: 20, 40, 80, 160, 320. Each acknowledged segment adds one more to the window, so a full window acknowledged doubles it. With 1,448-byte segments, 320 segments is about 463 KB in flight, reached in five round trips: a quarter of a second at a 50 ms round trip. The growth is fast, but it's counted in round trips, which is why a short transfer to a far server is slow whatever the link's speed.
+skills: [loss-based-cc]

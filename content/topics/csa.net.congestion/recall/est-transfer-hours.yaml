@@ -1,0 +1,22 @@
+id: est-transfer-hours
+type: estimate
+rev: 1
+prompt: |
+  A 30 GB backup (30,000,000,000 bytes) crosses a path where its one connection gets 6 Mbit/s. How many hours does it take? Within 5%.
+unit: hours
+answer: 11.1
+tolerance: { percent: 5 }
+given: { size: 30, rate: 6 }
+working: size * 1000000000 * 8 / (rate * 1000000) / 3600
+mistakes:
+  - id: bytes
+    value: 1.39
+    working: size * 1000000000 / (rate * 1000000) / 3600
+    why: That treats 6 Mbit/s as 6 megabytes a second. A byte is 8 bits, so it takes 8 times as long.
+  - id: minutes
+    value: 667
+    working: size * 1000000000 * 8 / (rate * 1000000) / 60
+    why: That's minutes. Divide by 3,600 for hours.
+explanation: |
+  30,000,000,000 × 8 = 240,000,000,000 bits, at 6,000,000 a second = 40,000 seconds, ÷ 3,600 = 11.1 hours. A nightly backup that takes eleven hours doesn't fit in a night. At 45 Mbit/s, what BBR got across the lab's lossy link, it would take about 1.5 hours.
+skills: [loss-latency-math]

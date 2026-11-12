@@ -1,0 +1,14 @@
+id: mcq-loss-on-wifi
+type: mcq
+rev: 1
+prompt: |
+  A laptop on a Wi-Fi network that loses about 1% of packets at random downloads a file from a server on another continent. Nothing else is using the link. Why is the download, sent with CUBIC, so slow?
+choices:
+  - "CUBIC reads each random loss as congestion, so it keeps cutting its window"
+  - "Wi-Fi's smaller MTU makes TCP send many more packets for the same bytes"
+  - "The receive window can't grow past 64 KiB while lost packets are repaired"
+  - "Lost packets aren't sent again until a timeout starts a new slow start"
+answer: 0
+explanation: |
+  CUBIC is loss-based: it reads every lost packet as a sign of congestion and cuts its window to 0.7, though here nothing is congested and the losses are random. Its ceiling falls with the round trip and with the square root of the loss rate, about 1.2 × MSS ÷ (RTT × √p), so a far server and a lossy link together keep it at a few Mbit/s. Wi-Fi's MTU is 1,500 bytes, like Ethernet's. Window scaling isn't switched off by loss; the receive window stays as large as before. And fast retransmit resends a lost packet within about a round trip, when three duplicate acknowledgements arrive, with no timeout.
+skills: [loss-based-cc]

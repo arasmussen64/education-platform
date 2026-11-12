@@ -1,0 +1,14 @@
+id: mcq-bbr-measures
+type: mcq
+rev: 1
+prompt: |
+  What does Linux's BBR measure to decide how fast to send?
+choices:
+  - "The highest recent delivery rate and the shortest recent round trip"
+  - "How many packets each round trip lost, slowing down whenever any were"
+  - "The receiver's advertised window, sending that much every round trip"
+  - "The bottleneck router's queue length, from marks the router adds on"
+answer: 0
+explanation: |
+  The comment at the top of Linux's `tcp_bbr.c` gives the model: the bottleneck bandwidth, the highest delivery rate over the last ten round trips, and the minimum RTT, the shortest round trip over the last ten seconds. BBR paces at that rate and keeps about their product, one bandwidth-delay product, in flight; "the core algorithm does not react directly to packet losses or delays". Counting losses and slowing down is what loss-based algorithms such as CUBIC do. The receive window is a ceiling for every algorithm, not what BBR aims for. Routers that mark packets instead of dropping them exist (it's called ECN), but BBR's model doesn't need them, and the queue's length is just what BBR keeps short.
+skills: [bbr-model]

@@ -1,0 +1,24 @@
+id: est-parallel-streams
+type: estimate
+rev: 1
+prompt: |
+  One loss-limited connection gets 6 Mbit/s across a 100 Mbit/s path. A copy tool opens 8 such connections at once, each with its own congestion window. About how many Mbit/s does the copy get in all? Exactly.
+unit: Mbit/s
+answer: 48
+tolerance: { absolute: 0 }
+given: { one: 6, streams: 8, link: 100 }
+# Each connection is held down by its own losses, not by the link, until
+# together they fill it.
+working: min(streams * one, link)
+mistakes:
+  - id: link
+    value: 100
+    working: link
+    why: The link isn't what limits them. Each connection is still held at about 6 Mbit/s by its own losses; eight of them make 48, half the link.
+  - id: one
+    value: 6
+    working: one
+    why: That's one connection. Each of the eight has its own window, cut only by its own losses, so their rates add up.
+explanation: |
+  Each connection keeps its own congestion window and is cut back only by the losses it sees, so 8 × 6 = 48 Mbit/s, still under the link's 100. That's why copy tools and download managers open several connections across long, lossy paths. The other answer is one connection that doesn't slow down for random loss: BBR on the sender. The build lab's archive keeps its one connection, so there it's BBR.
+skills: [loss-latency-math]
