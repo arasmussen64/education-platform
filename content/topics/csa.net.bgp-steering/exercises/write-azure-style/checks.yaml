@@ -1,10 +1,10 @@
 # The checks of "dx1 first, the ExpressRoute way": edge's two sessions,
 # which circuit each side sends its traffic over (BGP's choice and why, and
 # the kernel's route, which shares the traffic over both circuits when two
-# paths tie), what the cloud accepted from edge, eBGP's policy rule, whether
-# the work is saved, the cloud's router as it was, and last, the backup
-# proved by unplugging dx1 and plugging it back in. sessions-up waits for BGP
-# after a boot; the rest read at once.
+# paths tie), what edge announced and the cloud accepted, eBGP's policy
+# rule, whether the work is saved, the cloud's router as it was, and last,
+# the backup proved by unplugging dx1 and plugging it back in. sessions-up
+# waits for BGP after a boot; the rest read at once.
 # A check that finds something wrong prints what it found and exits 0, so
 # the checker shows that sentence rather than an exit status.
 checks:
@@ -60,13 +60,19 @@ checks:
     expect:
       equals: dx1
   - id: announced-exactly
-    description: "The cloud accepts exactly one route from edge over each circuit, the office's 10.1.0.0/24."
+    description: "Over each circuit edge announces exactly one route, the office's 10.1.0.0/24, and the cloud accepts it."
+    # Both ends: what edge sends, and what the cloud kept. The cloud drops a
+    # route whose AS path already holds its own AS, so the cloud's own
+    # network sent back to it (a route map with no match line) shows only in
+    # what edge sends.
     command: |
       . /usr/local/lib/netlab/checklib.sh
-      for want in "169.254.30.1 dx1" "169.254.20.1 dx2"; do
+      for want in "169.254.30.2 169.254.30.1 dx1" "169.254.20.2 169.254.20.1 dx2"; do
         set -- $want
-        got=$(frr cloud "show bgp ipv4 unicast neighbors $1 routes json" | json "sorted(d.get('routes', {}))")
-        [ "$got" = '["10.1.0.0/24"]' ] || { echo "over $2 the cloud accepted $got from edge, not just the office's 10.1.0.0/24"; exit 0; }
+        sent=$(frr edge "show bgp ipv4 unicast neighbors $1 advertised-routes json" | json "sorted(d.get('advertisedRoutes', {}))")
+        [ "$sent" = '["10.1.0.0/24"]' ] || { echo "over $3 edge announces $sent, not just the office's 10.1.0.0/24"; exit 0; }
+        got=$(frr cloud "show bgp ipv4 unicast neighbors $2 routes json" | json "sorted(d.get('routes', {}))")
+        [ "$got" = '["10.1.0.0/24"]' ] || { echo "over $3 the cloud accepted $got from edge, not just the office's 10.1.0.0/24"; exit 0; }
       done
       echo exactly
     expect:
