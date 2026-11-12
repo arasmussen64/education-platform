@@ -1,0 +1,26 @@
+id: fill-nat-gateway
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Fill in the gateway"
+prompt: |
+  The walkthrough's network: `office` (10.1.0.10) and `app` (10.1.0.20) on the shop's private network, `gw` the shop's gateway (`lan` 10.1.0.1, `wan` 198.51.100.2, the shop's public address), and on the lab's internet `srv` (203.0.113.10, a web server that answers with the address each connection came from) and `client` (203.0.113.20), a customer. The shop's app listens on 10.1.0.20, port 8443, and answers with the address each request came from; the app machine also runs the shop's database on 5432 and SSH on 22, which must never be reachable from the internet. gw's forwarding is already on, in its `/etc/sysctl.d/`.
+
+  gw has been rebuilt from its saved firewall file, `/etc/nftables.conf`, and five words in it are missing, each marked `___`, in four places:
+
+  1. In the forward chain, the rule that lets in the first packet of a connection that gw's destination NAT rewrote: `ct status ___ accept`. The gap names that kind of rewrite.
+  2. In the prerouting chain, where the published port sends customers: `dnat to ___`. The gap is the app's address and port, written `ADDRESS:PORT`.
+  3. On the postrouting chain's `type` line, the hook the chain attaches to and its priority, one word each: `hook ___ priority ___`. The prerouting chain's line, just above it, has the same shape.
+  4. In the postrouting chain, the interface the masquerade rule is limited to, between the quotes: `oifname "___" masquerade`.
+
+  The rest of the file is right, and the network itself isn't yours to change. Until gaps 1, 2 and 3 are filled, `nft` refuses to load the file at all, which is why gw booted with no firewall and no NAT (`systemctl status nftables@gw` shows nft's errors). Gap 4 loads as it is: a rule may name an interface that doesn't exist, and it then simply never matches.
+
+  Edit the file with `on gw nano /etc/nftables.conf`, replace each `___` (and nothing else), and save. Check it with `on gw nft -c -f /etc/nftables.conf`, which prints nothing when the file is good, then load it with `sudo systemctl restart nftables@gw`, which is also what happens at every boot. Try it: `on office curl -m 3 http://203.0.113.10/` should answer `you are 198.51.100.2`, and `on client curl -m 3 http://198.51.100.2:443/` should answer `you are 203.0.113.20`. Then run the checks. One of them makes a throwaway machine of its own on the provider's network (the `isp` switch between gw and inet) that sends packets straight to the shop's private addresses, as anyone on that network could, and removes it when it's done.
+hints:
+  - "For gap 1: conntrack remembers, for each connection, which rewrites were done to it. The rule must accept connections whose destination was rewritten, and the prerouting chain's own rule uses nftables' word for that rewrite."
+  - "For gap 3: source NAT happens after the routing decision, as packets leave, and nft refuses a priority name that belongs to another hook (`invalid priority expression value in this context`)."
+  - "For gap 4: which of gw's two interfaces do packets for the internet leave through? `on gw ip -br addr` lists them."
+skills: [nat-rules, snat-and-dnat]
