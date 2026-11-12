@@ -1,0 +1,66 @@
+# The checks of "TLS on nginx": the live server, asked from the office as a
+# customer's laptop would ask it, for each requirement the gaps decide;
+# the files for the versions they name; and the scenery. The first check
+# waits for nginx on web after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: versions
+    description: "Both sites accept TLS 1.2 and TLS 1.3 and refuse TLS 1.1, and no ssl_protocols line in nginx's files names a version older than TLS 1.2."
+    # It waits up to about 30 seconds for nginx after a boot (10 tries of
+    # at most 3 seconds), so it gets 45 and prints its own sentence.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      wait_for 10 web_up || { echo "nothing answers HTTPS for www.shop.test on web: is nginx@web running? (on web nginx -t)"; exit 0; }
+      for name in www.shop.test api.shop.test; do
+        for v in 1.2 1.3; do
+          got=$(hello "$name" "$v")
+          [ "$got" = "TLSv$v" ] || { echo "a TLS $v handshake for $name is $got"; exit 0; }
+        done
+        got=$(hello "$name" 1.1)
+        [ "$got" = refused ] || { echo "a TLS 1.1 handshake for $name is accepted ($got)"; exit 0; }
+      done
+      old=$(file_versions | grep -v -x -e TLSv1.2 -e TLSv1.3 | tr '\n' ' ')
+      [ -z "$old" ] || { echo "an ssl_protocols line in nginx's files names $old"; exit 0; }
+      echo versions
+    expect:
+      equals: versions
+  - id: api-own-cert
+    description: "api.shop.test answers with its own certificate, which the office trusts, and serves the API's page."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      v=$(verified api.shop.test)
+      [ "$v" = ok ] || { echo "a handshake for api.shop.test: $v"; exit 0; }
+      on office curl -s --max-time 5 https://api.shop.test/ | grep 'api.shop.test' > /dev/null ||
+        { echo "https://api.shop.test/ doesn't serve the API's page from /srv/www/api"; exit 0; }
+      echo own
+    expect:
+      equals: own
+  - id: h2
+    description: "Both sites speak HTTP/2 to a client that offers it."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      for name in www.shop.test api.shop.test; do
+        got=$(http_version "$name")
+        [ "$got" = 2 ] || { echo "curl speaks HTTP/$got to $name"; exit 0; }
+      done
+      echo h2
+    expect:
+      equals: h2
+  - id: stapled
+    description: "www.shop.test staples the CA's good OCSP answer to its handshakes, from the second handshake after nginx starts, and nginx's files name the shop's resolver for looking up the responder."
+    timeout: 20
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      resolver_set 10.0.9.53 || { echo "no resolver line in nginx's files names the shop's name server for looking up the responder"; exit 0; }
+      stapled www.shop.test
+    expect:
+      equals: stapled
+  - id: scenery
+    description: "The network, the shop's certificate authority, the sites' certificates and the shop's resolver are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact
