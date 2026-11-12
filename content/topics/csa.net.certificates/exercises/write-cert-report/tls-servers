@@ -1,0 +1,73 @@
+# tls-servers: helpers that make certificate authorities, certificates and
+# throwaway TLS servers with openssl, for the lab's example servers and for
+# the checks. Sourced, not run.
+# shellcheck shell=bash
+
+# make_root DIR CN: a root CA of its own in DIR (root.pem, root.key), and
+# the files openssl's "ca" command keeps for what it issues.
+make_root() {
+  local dir=$1
+  mkdir -p "$dir"
+  openssl ecparam -name prime256v1 -genkey -noout -out "$dir/root.key"
+  openssl req -x509 -new -key "$dir/root.key" -subj "/CN=$2" -days 3650 -out "$dir/root.pem" \
+    -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" 2> /dev/null
+  : > "$dir/index.txt"
+  echo 'unique_subject = no' > "$dir/index.txt.attr"
+}
+
+# make_inter DIR CN ROOTDIR: an intermediate CA in DIR (inter.pem,
+# inter.key), signed by ROOTDIR's root, with openssl's "ca" files too.
+make_inter() {
+  local dir=$1
+  mkdir -p "$dir"
+  openssl ecparam -name prime256v1 -genkey -noout -out "$dir/inter.key"
+  openssl req -new -key "$dir/inter.key" -subj "/CN=$2" -out "$dir/inter.csr" 2> /dev/null
+  printf '%s\n' 'basicConstraints=critical,CA:TRUE,pathlen:0' 'keyUsage=critical,keyCertSign,cRLSign' > "$dir/inter.ext"
+  openssl x509 -req -in "$dir/inter.csr" -CA "$3/root.pem" -CAkey "$3/root.key" -CAcreateserial \
+    -days 1825 -extfile "$dir/inter.ext" -out "$dir/inter.pem" 2> /dev/null
+  rm -f "$dir/inter.csr" "$dir/inter.ext"
+  : > "$dir/index.txt"
+  echo 'unique_subject = no' > "$dir/index.txt.attr"
+}
+
+# make_leaf OUTDIR NAME CADIR CAPEM CAKEY HOURS SAN...: a server
+# certificate OUTDIR/NAME.pem and key OUTDIR/NAME.key, signed by CAPEM
+# (CADIR holds openssl ca's files for it), valid from now for HOURS hours,
+# for the names SAN... in that order. Its subject's CN is "Report test
+# server", which is no name at all: a client goes by the subjectAltName.
+make_leaf() {
+  local out=$1 name=$2 cadir=$3 capem=$4 cakey=$5 hours=$6 san="" s conf
+  shift 6
+  for s in "$@"; do san+="${san:+,}DNS:$s"; done
+  openssl ecparam -name prime256v1 -genkey -noout -out "$out/$name.key"
+  openssl req -new -key "$out/$name.key" -subj "/CN=Report test server" -out "$out/$name.csr" 2> /dev/null
+  conf=$out/$name.cnf
+  printf '%s\n' '[ca]' 'default_ca = this' '[this]' "database = $cadir/index.txt" "new_certs_dir = $cadir" \
+    'default_md = sha256' 'policy = any' 'copy_extensions = none' 'rand_serial = yes' \
+    '[any]' 'commonName = supplied' '[ext]' "subjectAltName = $san" 'extendedKeyUsage = serverAuth' \
+    'keyUsage = critical,digitalSignature' > "$conf"
+  openssl ca -batch -notext -config "$conf" -extensions ext -cert "$capem" -keyfile "$cakey" \
+    -startdate "$(date -u -d '-1 minute' +%Y%m%d%H%M%SZ)" -enddate "$(date -u -d "+$hours hours" +%Y%m%d%H%M%SZ)" \
+    -in "$out/$name.csr" -out "$out/$name.pem" > /dev/null 2>&1
+  rm -f "$out/$name.csr" "$conf"
+}
+
+# serve PORT CERT KEY [OPTIONS...]: an openssl test server on
+# 127.0.0.1:PORT with certificate CERT, and any of openssl s_server's
+# OPTIONS (-cert_chain F, -servername N -cert2 F -key2 F). It runs in the
+# background until it is killed.
+serve() {
+  local port=$1 cert=$2 key=$3
+  shift 3
+  openssl s_server -accept "127.0.0.1:$port" -cert "$cert" -key "$key" -quiet "$@" < /dev/null > /dev/null 2>&1 &
+}
+
+# listening PORT: true once something answers on 127.0.0.1:PORT.
+listening() {
+  local i
+  for i in $(seq 1 50); do
+    if (exec 3<> "/dev/tcp/127.0.0.1/$1") 2> /dev/null; then return 0; fi
+    sleep 0.1
+  done
+  return 1
+}

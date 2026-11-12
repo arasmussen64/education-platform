@@ -1,0 +1,52 @@
+# The checks of "Certificate report": the script is there, runnable, clean
+# and does its own work; it gives the right five lines for the lab's two
+# example servers; and it gives them for four servers it has never seen,
+# made as the check runs with names, issuers and lifetimes made up then
+# (report-cases), so a script that knows answers by heart fails.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/cert-report exists, is executable, starts with a shebang, ShellCheck has nothing to say about it, and it does its own work with openssl and the shell."
+    command: |
+      f=/home/learner/bin/cert-report
+      [ -f "$f" ] || { echo "there is no ~/bin/cert-report"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/cert-report isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/cert-report's first line isn't a shebang"; exit 0; }
+      if grep 'shellcheck disable' "$f" > /dev/null; then echo "~/bin/cert-report switches ShellCheck's warnings off"; exit 0; fi
+      if grep -E 'python|perl|/usr/local/lib/lab' "$f" > /dev/null; then
+        echo "~/bin/cert-report hands the work to another program: openssl and the shell are this lab's tools"
+        exit 0
+      fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say: $(echo "$said" | grep -m 1 'SC[0-9]')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: example-servers
+    description: "On the lab's two example servers it prints the right five lines, for each of the prompt's four runs."
+    command: |
+      . /usr/local/lib/lab/tls-servers
+      listening 8443 && listening 9443 || { echo "the lab's example servers aren't running"; exit 0; }
+      d=/usr/local/lib/lab/example
+      # The days left on an example certificate, rounded down, worked out now.
+      left() { echo $((($(date -d "$(openssl x509 -in "$d/$1.pem" -noout -enddate | cut -d= -f2)" +%s) - $(date +%s)) / 86400)); }
+      run() { cd /home/learner && sudo -u learner timeout 15 /home/learner/bin/cert-report "$@" 2>&1 | tr '\n' '|' | sed 's/|$//'; }
+      check() {
+        local want=$1
+        shift
+        got=$(run "$@")
+        [ "$got" = "$want" ] || { echo "cert-report $* printed \"${got//|/; }\", not \"${want//|/; }\""; exit 0; }
+      }
+      check "names: shop.test, www.shop.test|issuer: Report Lab Intermediate|days-left: $(left www)|chain: 2|verify: ok" localhost 8443 www.shop.test
+      check "names: shop.test, www.shop.test|issuer: Report Lab Intermediate|days-left: $(left www)|chain: 2|verify: hostname mismatch" localhost 8443
+      check "names: api.shop.test, partners.shop.test|issuer: Report Lab Intermediate|days-left: $(left api)|chain: 1|verify: unable to verify the first certificate" localhost 9443 api.shop.test
+      check "names: legacy.shop.test, old.shop.test|issuer: Report Lab Intermediate|days-left: $(left legacy)|chain: 1|verify: unable to verify the first certificate" localhost 9443
+      echo same
+    expect:
+      equals: same
+  - id: unseen-servers
+    description: "On four servers it has never seen, made as the check runs with names, issuers and lifetimes made up then, sending a full chain, a certificate alone, one certificate or another by the name asked for, and a chain to a root nobody trusts, it prints the right five lines, with a name asked for and without."
+    timeout: 60
+    command: /usr/local/lib/lab/report-cases
+    expect:
+      equals: same
