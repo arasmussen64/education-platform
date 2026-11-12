@@ -39,11 +39,12 @@ checks:
     expect:
       equals: waiting
   - id: unused-dies
-    description: "Packets for store addresses that no machine uses die at r2, without going round in circles."
+    description: "Packets for store addresses that no machine uses die at r2, without going round in circles, and r2 still sends everything that isn't the store's by its default route to r1."
     command: |
-      # Three addresses in the store's 10.2.0.0/16 outside the 10.2.0.0/24
-      # it uses: two fixed and one new at every run.
-      for a in 10.2.77.1 10.2.1.5 "10.2.$((2 + RANDOM % 250)).$((1 + RANDOM % 254))"; do
+      # Four addresses in the store's 10.2.0.0/16 outside the 10.2.0.0/24
+      # it uses: three fixed, from both halves of the /16, and one new at
+      # every run.
+      for a in 10.2.77.1 10.2.1.5 10.2.200.9 "10.2.$((2 + RANDOM % 250)).$((1 + RANDOM % 254))"; do
         if ip -n r2 route get "$a" > /dev/null 2>&1; then
           echo "r2 has somewhere to send $a, an address no machine uses: $(ip -n r2 route get "$a" | head -n 1)"
           exit 0
@@ -52,6 +53,13 @@ checks:
         case $answer in
           *"Time to live exceeded"*) echo "packets for $a go round in circles until their TTL runs out"; exit 0 ;;
         esac
+      done
+      # And what isn't the store's still follows r2's default route to r1:
+      # an address on the internet, and one in the data centre's 10.3.0.0/16
+      # outside the /24 that r2 has routes for.
+      for a in 192.0.2.10 10.3.200.1; do
+        hop=$(ip -n r2 route get "$a" 2>&1 | awk '{for (i = 1; i < NF; i++) if ($i == "via") {print $(i + 1); exit}}')
+        [ "$hop" = 10.0.12.1 ] || { echo "r2 doesn't send $a, which isn't the store's, by its default route to r1"; exit 0; }
       done
       echo "die at r2"
     expect:
