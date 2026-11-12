@@ -75,7 +75,7 @@ checks:
     expect:
       equals: synced 42 orders
   - id: partner-api-closed
-    description: "api.shop.test answers no one without a certificate from the Shop Partners CA: not a client with none, not one with a certificate the shop's own CA issued, and not one with a certificate from any other CA."
+    description: "api.shop.test answers no one without a certificate from the Shop Partners CA: not a client with none, not one with a certificate the shop's own CA issued, and not one with a certificate from any other CA. And the API's orders are served nowhere else: not over plain HTTP, and not on port 443."
     command: |
       . /usr/local/lib/lab/certcheck.sh
       dir=$(mktemp -d)
@@ -96,6 +96,14 @@ checks:
       case $got in 4*) ;; *) echo "api.shop.test answers a client whose certificate the shop's own CA issued (to a server) with \"$got\""; exit 0 ;; esac
       got=$(api_answer office "$dir/other.pem" "$dir/other.key")
       case $got in 4*) ;; *) echo "api.shop.test answers a client whose certificate comes from an unknown CA with \"$got\""; exit 0 ;; esac
+      # The same orders by another way in: plain HTTP (port 80) or the
+      # public site's port, for the API's name, with no certificate.
+      for url in http://api.shop.test/orders https://api.shop.test/orders; do
+        if on office curl -sk --max-time 5 "$url" | grep '^order 1001 ' > /dev/null; then
+          echo "$url gives the API's orders to a client without a certificate"
+          exit 0
+        fi
+      done
       echo closed
     expect:
       equals: closed
