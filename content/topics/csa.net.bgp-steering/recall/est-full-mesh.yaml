@@ -1,0 +1,22 @@
+id: est-full-mesh
+type: estimate
+rev: 1
+prompt: |
+  An AS has 12 routers that run BGP with each other, every router with every other one (a full mesh). How many iBGP sessions is that? Exactly.
+unit: sessions
+answer: 66
+tolerance: { absolute: 0 }
+given: { routers: 12 }
+working: routers * (routers - 1) / 2
+mistakes:
+  - id: both-ends
+    value: 132
+    working: routers * (routers - 1)
+    why: "That counts each session twice, once from each end. Each router has 11 sessions, but every session joins two routers, so halve it."
+  - id: one-router
+    value: 11
+    working: routers - 1
+    why: "That is one router's sessions, one with each of the other 11. Every router has as many, and each session is shared by two of them."
+explanation: |
+  Each of the 12 routers peers with the other 11: 12 x 11 = 132 ends of sessions, and every session has two ends, so 132 / 2 = 66. In general n(n - 1)/2, which grows with the square of n: 10 routers need 45, 20 need 190. That growth is why a full mesh stops being practical, and why route reflectors exist.
+skills: [route-reflection]

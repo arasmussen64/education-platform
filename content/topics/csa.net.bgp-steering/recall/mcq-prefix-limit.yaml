@@ -1,0 +1,16 @@
+id: mcq-prefix-limit
+type: mcq
+rev: 1
+prompt: |
+  A data centre announces 140 prefixes over a Direct Connect private virtual interface whose route limit is the default. What happens?
+choices:
+  - "AWS accepts the first 100 prefixes and quietly ignores the rest"
+  - "AWS accepts all 140 and raises an alarm in the Direct Connect console"
+  - "The session goes idle, and no routes pass until fewer are announced"
+  - "AWS summarises them into fewer, larger prefixes before it installs them"
+answer: 2
+explanation: |
+  AWS's quotas page: 100 routes per BGP session on a private or transit virtual interface by default (up to 1,000 with prefix controls), and above that "the BGP session will go into an idle state". Nothing passes in either direction, which is why the fix is to summarise, announce fewer, larger prefixes yourself (`aggregate-address ... summary-only` in FRR), or to raise the limit. The build's cloud does the same at 5: `Idle (PfxCt)` in its summary, and a new try a minute later.
+
+  Azure is the same at 4,000 on private peering: "The BGP session drops if the number of prefixes exceeds the limit". No provider keeps half a table or summarises for you.
+skills: [cloud-circuits]

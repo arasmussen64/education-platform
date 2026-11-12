@@ -1,0 +1,21 @@
+id: communities-table
+type: predict_shell
+rev: 1
+prompt: |
+  `table.txt` is the cloud's BGP table at the end of the walkthrough, `looking-glass cloud 'show bgp ipv4 unicast'` (captured; the key above the column names left out). edge sends the office's 10.1.0.0/24 over dx1 (to the cloud, from 169.254.30.1) with the community 7224:7300 and over dx2 (169.254.20.1) with 7224:7100. The command keeps the lines of the chosen paths and prints three of their columns, as `awk` counts them. What is printed?
+files:
+  table.txt: |2
+       Network          Next Hop            Metric LocPrf Weight Path
+    *> 10.1.0.0/24      169.254.30.1             0    300      0 65001 i
+    *                   169.254.20.1             0    100      0 65001 i
+    *> 10.100.0.0/16    0.0.0.0                  0         32768 i
+command: |-
+  grep '^\*>' table.txt | awk '{print $2, $3, $5}'
+expected_output: |
+  10.1.0.0/24 169.254.30.1 300
+  10.100.0.0/16 0.0.0.0 32768
+explanation: |
+  `*>` marks a chosen path, so `grep` keeps two lines: the office's prefix, with its path over dx1, and the cloud's own network. On the first, the fields are the mark, the network, the next hop, the metric (MED, 0), the local preference, 300, the weight and the path: the community 7224:7300 became local preference 300 on the cloud's side, and it beat dx2's 100, which came from 7224:7100.
+
+  The second line is the trap. The cloud's own network has no local preference shown, so its LocPrf column is blank, and `awk`, which splits on spaces, doesn't see blank columns: its fifth field is the weight, 32768, the value FRR gives routes a router announces itself. Reading a table by column position is only safe when every column is filled; the second path's line, which leaves out the network, shifts the fields too.
+skills: [inbound-steering]

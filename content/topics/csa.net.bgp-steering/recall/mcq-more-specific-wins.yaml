@@ -1,0 +1,16 @@
+id: mcq-more-specific-wins
+type: mcq
+rev: 1
+prompt: |
+  A shop announces 10.1.0.0/23 over both of its circuits to a cloud, and 10.1.0.0/24 over circuit 1 only. The cloud gives everything that arrives over circuit 2 a higher local preference. Over which circuit does the cloud send its traffic for 10.1.0.20?
+choices:
+  - "Circuit 2: its local preference is higher, and that is compared first"
+  - "Circuit 1: the /24 is longer, and prefix length comes before attributes"
+  - "Both: the /23 and the /24 hold the address, so the cloud shares the traffic"
+  - "Circuit 2: the /23 covers more addresses, so it is the stronger route"
+answer: 1
+explanation: |
+  The /23 and the /24 are different prefixes, so BGP never compares them: it chooses a best path for each one separately. Local preference picks circuit 2 for the /23; the /24 has only one path, over circuit 1. Then the kernel forwards 10.1.0.20 by longest-prefix match, as in Routing, and the /24 is longer. That is why a more specific prefix is the strongest inbound tool there is: it beats every attribute, because attributes only compare paths for the same prefix.
+
+  It is also why AWS's page names longest prefix first. A wider prefix doesn't win by covering more; and two different prefixes are never shared as equal paths.
+skills: [inbound-steering]

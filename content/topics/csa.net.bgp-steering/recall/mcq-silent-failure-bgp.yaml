@@ -1,0 +1,16 @@
+id: mcq-silent-failure-bgp
+type: mcq
+rev: 1
+prompt: |
+  A company has two circuits to a cloud, with BGP on each, a hold time of 9 seconds and no BFD. The provider's equipment on circuit 1 fails, and both routers' interfaces stay up. What happens to the traffic on circuit 1?
+choices:
+  - "It moves to circuit 2 within a second, just as when the cable is pulled"
+  - "It is lost for up to 9 seconds, and after that BGP moves it to circuit 2"
+  - "It is lost until someone clears the BGP session on one of the routers"
+  - "It moves after 9 seconds, but only on routers with graceful restart on"
+answer: 1
+explanation: |
+  Nothing on either router changes, so nothing reacts at once: no interface goes down, and the routes stay. BGP notices only when no keepalive has arrived for the hold time, then drops the session and its routes, and circuit 2's paths take over. The walkthrough measured it: 53 of 75 pings, sent every 0.2 seconds, were lost, about 10 seconds, and the session's last reset said `Hold Timer Expired`. With AWS's default hold time of 90 seconds it would be a minute and a half; BFD brings it under a second.
+
+  A pulled cable is the loud failure, noticed at once. Nobody needs to clear the session: the hold timer does it. Graceful restart does the opposite, keeping routes while a neighbour restarts, which is why AWS advises against using it with BFD.
+skills: [failure-detection]

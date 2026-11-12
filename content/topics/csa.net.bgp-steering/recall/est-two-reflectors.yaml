@@ -1,0 +1,22 @@
+id: est-two-reflectors
+type: estimate
+rev: 1
+prompt: |
+  The same AS of 12 routers is redesigned: 2 of them become route reflectors, which peer with each other, and each of the other 10 routers peers with both reflectors and with nothing else. How many iBGP sessions does the AS have now? Exactly.
+unit: sessions
+answer: 21
+tolerance: { absolute: 0 }
+given: { reflectors: 2, clients: 10 }
+working: clients * reflectors + 1
+mistakes:
+  - id: no-reflector-session
+    value: 20
+    working: clients * reflectors
+    why: "That counts the clients' sessions and leaves out the one between the two reflectors, which they need to pass each other their clients' routes."
+  - id: one-reflector
+    value: 11
+    working: clients + 1
+    why: "That gives each client one session. Here each client peers with both reflectors, so that either can fail."
+explanation: |
+  Each of the 10 clients has a session with each of the 2 reflectors: 10 x 2 = 20. The two reflectors also peer with each other, 1 more: 21, against the full mesh's 66. Two reflectors, not one, so the AS keeps working when one fails; a client that peers with both hears every route twice, and the cluster list and originator stop those copies looping.
+skills: [route-reflection]

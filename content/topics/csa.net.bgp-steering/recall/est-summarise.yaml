@@ -1,0 +1,24 @@
+id: est-summarise
+type: estimate
+rev: 1
+prompt: |
+  A site uses the 8 networks 10.40.0.0/24 to 10.40.7.0/24 (third numbers 0 to 7), and must announce them to a provider as one prefix that covers all of them and nothing more. How long is that prefix: what number goes after the slash? Exactly.
+unit: bits
+answer: 21
+tolerance: { absolute: 0 }
+given: { length: 24, networks: 8 }
+# 3 is the number of bits that count 8 networks (2 x 2 x 2 = 8), which the
+# learner works out from CIDR rather than reads.
+working: length - 3
+mistakes:
+  - id: minus-count
+    value: 16
+    working: length - networks
+    why: "That takes off one bit for each network. Each bit taken off doubles the block: 3 bits make 2 x 2 x 2 = 8 networks."
+  - id: plus-bits
+    value: 27
+    working: length + 3
+    why: "A longer prefix is a smaller block: a /27 is an eighth of one /24. To cover eight /24s the prefix gets shorter by 3 bits."
+explanation: |
+  Eight /24s side by side, starting at a multiple of 8 (0), make one block 8 times as big, and each bit taken off the length doubles the block: /23 is two /24s, /22 four, /21 eight. So 10.40.0.0/21 covers 10.40.0.0 to 10.40.7.255, exactly the eight networks: one route instead of eight, well inside a provider's limit (AWS's 100 on a private virtual interface).
+skills: [cloud-circuits]

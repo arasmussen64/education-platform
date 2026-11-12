@@ -1,0 +1,16 @@
+id: mcq-gcp-priority
+type: mcq
+rev: 1
+prompt: |
+  Google's Cloud Router advertises your VPC network's subnets with an advertised route priority of 100 over one VLAN attachment and 200 over another. What should your on-premises routers do with those two numbers?
+choices:
+  - "Read them as MED: send the traffic over the attachment that said 100"
+  - "Read them as local preference: send it over the one that said 200"
+  - "Ignore them: they only order routes inside Google's own VPC network"
+  - "Read them as weights, and share the traffic between both in that ratio"
+answer: 0
+explanation: |
+  Google's page: "you define a base advertised priority that is used as a value for the BGP MED attribute", 100 by default, with other regions' subnets getting the base plus an inter-region cost. MED is lower-is-better, so the attachment that said 100 is the one Google would like you to use. It is a hint, though: Google's page itself warns that your network's route selection "might not prioritize the lower-MED route", for example when your own local preference decides first.
+
+  Local preference is never sent between ASes, so a number from Google can't be one. Weights aren't sent either, and two different MEDs mean the paths aren't equal, so they aren't shared.
+skills: [cloud-circuits]

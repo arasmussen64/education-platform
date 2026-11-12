@@ -1,0 +1,16 @@
+id: mcq-med-scope
+type: mcq
+rev: 1
+prompt: |
+  When can MED (multi-exit discriminator) help you steer the traffic coming in to your network?
+choices:
+  - "To ask every network on the internet to prefer one of your two providers"
+  - "To make your own routers prefer one way out of your network over another"
+  - "To ask one neighbouring network to prefer one of your two links to it"
+  - "To ask a neighbour not to pass your routes on to any of its neighbours"
+answer: 2
+explanation: |
+  MED is a hint you send to one neighbour: "of my several links to you, the lower number is the one I'd like you to use". A router compares MEDs only between paths from the same neighbouring AS (FRR's "received from the same AS"), and only after local preference and AS path length are equal, so it helps only with two links to one network, and only if that network doesn't decide earlier. The walkthrough's cloud decided earlier, by local preference; AWS's page calls MED a low-priority attribute and doesn't recommend it.
+
+  Two providers can't compare each other's MEDs. Your own way out is local preference. Asking a neighbour to keep your routes to itself is the NO_EXPORT community.
+skills: [inbound-steering]

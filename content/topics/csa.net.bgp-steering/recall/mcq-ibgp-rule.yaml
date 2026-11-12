@@ -1,0 +1,25 @@
+id: mcq-ibgp-rule
+type: mcq
+rev: 1
+prompt: |
+  The fill-in's data centre before core was a route reflector. dc1 learns the cloud's 10.100.0.0/16 over eBGP and passes it to core over iBGP; access peers only with core and has no route to the cloud. core's `show bgp summary` (captured, the top lines left out):
+
+  ```
+  Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd   PfxSnt Desc
+  10.0.1.2        4      65001        87       107        0    0    0 00:00:22            4        0 access
+  10.0.2.2        4      65001        94       107        0    0    0 00:00:10            1        0 dc1
+  10.0.3.2        4      65001       100       106        0    0    0 00:00:22            1        0 dc2
+  ```
+
+  Why does core send access nothing?
+choices:
+  - "access refuses the routes, because their AS path holds its own AS"
+  - "core never passes a route learned over iBGP to an iBGP neighbour"
+  - "core holds new routes back until each session's hold time runs out"
+  - "dc1's routes need send-community before core may pass them on"
+answer: 1
+explanation: |
+  The sessions are up (each has an uptime) and core receives routes from all three (`PfxRcd`: 4 from access, 1 each from dc1 and dc2), but sends none (`PfxSnt` 0). That is the iBGP rule: a router doesn't pass a route it learned from one iBGP neighbour to another. eBGP catches loops with the AS path, but inside one AS the path doesn't change, so iBGP forbids passing routes on instead, and every router would have to peer with every other. Making access, dc1 and dc2 route-reflector clients of core is what lets core pass them on.
+
+  The AS path of the cloud's route is `64600`, which doesn't hold 65001. The hold time is how long a router waits for a silent neighbour, not a delay on routes, and FRR sends communities by default.
+skills: [route-reflection]

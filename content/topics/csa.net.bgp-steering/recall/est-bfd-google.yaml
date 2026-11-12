@@ -1,0 +1,22 @@
+id: est-bfd-google
+type: estimate
+rev: 1
+prompt: |
+  BFD is switched on for a Cloud Router BGP session and left at Google's defaults: an interval of 1000 ms and a multiplier of 5. How many seconds does it take to declare a silent failure? Exactly.
+unit: seconds
+answer: 5
+tolerance: { absolute: 0 }
+given: { interval: 1000, multiplier: 5 }
+working: interval * multiplier / 1000
+mistakes:
+  - id: milliseconds
+    value: 5000
+    working: interval * multiplier
+    why: "That is the right time in milliseconds; the box asks for seconds, and 5000 ms is 5 seconds."
+  - id: one-interval
+    value: 1
+    working: interval / 1000
+    why: "That is one interval. BFD waits until a multiplier's worth in a row are missing: 5 of them here."
+explanation: |
+  1000 ms x 5 = 5000 ms, 5 seconds: Google's own page gives the same sum, "Detection time = Agreed transmit interval * BFD multiplier". Slower than AWS's and Microsoft's 300 ms x 3, and still far better than waiting for a hold time; but on Google, BFD is off until you switch it on.
+skills: [failure-detection]
