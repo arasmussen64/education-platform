@@ -1,0 +1,46 @@
+#!/bin/bash
+# dnssec-setup ZONE@MACHINE[@PARENT]...: run once, while the lab's image is
+# built. BIND signs each zone itself (dnssec-policy default, inline-signing
+# yes); this gives each zone, ahead of time, the key BIND's default policy
+# would have made at its first start, so that the chain of trust can be
+# put together before anything runs. Each zone's DS record (the hash of its
+# key) goes into its parent's zone file, on machine PARENT, and the root
+# zone's DS into every resolver's /etc/unbound/root.key, its trust anchor.
+# A PARENT ending in ! gets a DS that matches no key of the zone: a zone
+# broken on purpose.
+#   dnssec-setup .@root test@tld@root shop.test@ns1@tld
+set -euo pipefail
+
+# The zone file on machine $2 of the zone above zone $1 (db.root for test).
+parent_file() {
+  local parent=root
+  if [[ $1 == *.* ]]; then parent=${1#*.}; fi
+  echo "/etc/netns/$2/bind/db.$parent"
+}
+
+for arg in "$@"; do
+  IFS=@ read -r zone machine parent <<< "$arg"
+  keys=/etc/netns/$machine/bind/keys
+  mkdir -p "$keys"
+  (cd "$keys" && dnssec-keygen -q -k default "$zone" > /dev/null)
+  chown -R bind:bind "$keys"
+  # BIND writes the signed copy and its journals beside the zone file.
+  chmod 2775 "/etc/netns/$machine/bind"
+  if [[ $zone == . ]]; then
+    for anchor in /etc/netns/*/unbound; do
+      dnssec-dsfromkey -2 "$keys"/K.+013+*.key > "$anchor/root.key"
+    done
+    continue
+  fi
+  [[ -n $parent ]] || continue
+  if [[ $parent == *! ]]; then
+    decoy=$(mktemp -d)
+    (cd "$decoy" && dnssec-keygen -q -k default "$zone" > /dev/null)
+    ds=$(dnssec-dsfromkey -2 "$decoy/K$zone".+013+*.key)
+    rm -rf "$decoy"
+    parent=${parent%!}
+  else
+    ds=$(dnssec-dsfromkey -2 "$keys/K$zone".+013+*.key)
+  fi
+  echo "$ds" >> "$(parent_file "$zone" "$parent")"
+done

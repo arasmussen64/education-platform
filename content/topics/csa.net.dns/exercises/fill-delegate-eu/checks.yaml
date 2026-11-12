@@ -1,0 +1,54 @@
+# The checks of "Delegate the European site". Each asks the real servers:
+# ns-eu, the shop's two servers without recursion, and a public resolver
+# that checks signatures. eu-authoritative waits for the name servers after
+# a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: eu-authoritative
+    description: "ns-eu, asked directly, answers for its own zone: www.eu.shop.test is 203.0.113.50, with the aa flag."
+    timeout: 75
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      ask() { on office dig +norecurse +time=1 +tries=1 @198.51.100.15 www.eu.shop.test A; }
+      up() { ask | grep 'status: NOERROR' > /dev/null && on office dig +norecurse +time=1 +tries=1 +short @198.51.100.13 shop.test SOA | grep . > /dev/null; }
+      wait_for 20 up
+      out=$(ask)
+      echo "$out" | grep '^;; flags: qr aa' > /dev/null || { echo "ns-eu doesn't answer www.eu.shop.test as its authority: $(echo "$out" | grep -o 'status: [A-Z]*' || echo 'no answer')"; exit 0; }
+      echo "$out" | awk '$1 == "www.eu.shop.test." && $4 == "A" {print $5}'
+    expect:
+      equals: "203.0.113.50"
+  - id: delegated
+    description: "Both of the shop's servers, ns1 and ns2, hand out the referral for eu.shop.test: its name server in AUTHORITY and that server's address, 198.51.100.15, in ADDITIONAL."
+    command: |
+      for server in ns1:198.51.100.13 ns2:198.51.100.14; do
+        out=$(on office dig +norecurse +time=2 +tries=1 @"${server#*:}" www.eu.shop.test A)
+        ns=$(echo "$out" | awk '/AUTHORITY SECTION/,/^$/' | awk '$4 == "NS" {print $5}')
+        glue=$(echo "$out" | awk '/ADDITIONAL SECTION/,/^$/' | awk -v n="$ns" '$1 == n && $4 == "A" {print $5}')
+        [ "$ns" = ns-eu.eu.shop.test. ] || { echo "${server%%:*} doesn't refer www.eu.shop.test to ns-eu.eu.shop.test (its AUTHORITY: ${ns:-nothing})"; exit 0; }
+        [ "$glue" = 198.51.100.15 ] || { echo "${server%%:*} names ns-eu.eu.shop.test without its address (no glue)"; exit 0; }
+      done
+      echo referred
+    expect:
+      equals: referred
+  - id: ds-matches
+    description: "shop.test holds a DS record for eu.shop.test that matches the key ns-eu publishes now."
+    command: |
+      want=$(on office dig +norecurse +noall +answer @198.51.100.15 eu.shop.test DNSKEY | awk '$4 == "DNSKEY" && $5 == 257' | dnssec-dsfromkey -2 -f - eu.shop.test 2> /dev/null | awk '{print toupper($4 " " $5 " " $6 " " $7)}')
+      [ -n "$want" ] || { echo "ns-eu publishes no key (DNSKEY with the flags 257) for eu.shop.test"; exit 0; }
+      got=$(on office dig +norecurse +noall +answer @198.51.100.13 eu.shop.test DS | awk '$4 == "DS" {print toupper($5 " " $6 " " $7 " " $8 $9)}')
+      [ -n "$got" ] || { echo "shop.test has no DS record for eu.shop.test"; exit 0; }
+      echo "$got" | grep -Fx "$want" > /dev/null || { echo "shop.test's DS record for eu.shop.test matches none of the keys ns-eu publishes"; exit 0; }
+      echo matches
+    expect:
+      equals: matches
+  - id: secure-through-isp
+    description: "A public resolver that checks signatures, isp1, finds www.eu.shop.test from the root down: 203.0.113.50, with the ad flag."
+    command: |
+      out=$(on isp1 dig +time=2 +tries=1 @198.51.100.21 www.eu.shop.test A)
+      got=$(echo "$out" | awk '$1 == "www.eu.shop.test." && $4 == "A" {print $5}')
+      [ "$got" = 203.0.113.50 ] || { echo "isp1 gives www.eu.shop.test no address ($(echo "$out" | grep -o 'status: [A-Z]*'); a resolver keeps a \"no such name\" it was given for the zone's negative TTL)"; exit 0; }
+      echo "$out" | grep '^;; flags:.* ad' > /dev/null || { echo "isp1 gives www.eu.shop.test without the ad flag"; exit 0; }
+      echo secure
+    expect:
+      equals: secure
