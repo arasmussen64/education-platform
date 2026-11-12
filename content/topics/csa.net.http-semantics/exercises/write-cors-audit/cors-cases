@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""cors-cases: the write lab's made-up APIs (a check's tool, not the
+learner's).
+
+    cors-cases make FILE      makes one case of each kind, with origins,
+                              methods and headers chosen at random, writes
+                              them to FILE, and prints one line a case:
+                              PATH, ORIGIN, METHOD, HEADER (or -) and
+                              CREDENTIALS (yes or no), separated by tabs
+    cors-cases serve FILE PORT
+                              answers on 127.0.0.1:PORT: OPTIONS to a case's
+                              path with that case's preflight answer, any
+                              other method with its answer to the request
+
+Each case changes one thing from an answer a browser would accept, so every
+rule of the CORS check gets a case in every run. Header names come in lower
+case in about half the answers, and always in one a browser accepts, since
+HTTP header names are case-insensitive. The checks run cors-verdict on the
+same answers for the right verdict, so nothing here decides one.
+"""
+
+import json
+import random
+import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+WORDS = ["toyshop", "books", "garden", "cafe", "florist", "bikes", "tickets", "bakery"]
+PREFLIGHTED = ["PUT", "DELETE", "PATCH"]
+# HEAD is simple too, but curl -X HEAD waits for a body that never comes.
+SIMPLE = ["GET", "POST"]
+UNSAFE = ["Content-Type: application/json", "X-Request-Id: {n}", "X-Basket-Token: {n}"]
+SAFE = ["", "Accept: application/json", "Accept-Language: en", "Content-Type: text/plain"]
+OTHER_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH"]
+OTHER_HEADERS = ["X-Requested-With", "Accept", "X-Client-Version", "Authorization"]
+
+
+def origin(unlike=""):
+    while True:
+        host = random.choice(["www", "app", "m", "pay"])
+        made = f"https://{host}.{random.choice(WORDS)}{random.randint(10, 99)}.test"
+        if made != unlike:
+            return made
+
+
+def name_of(header):
+    return header.split(":")[0]
+
+
+def listed(items, extra):
+    """A header's list: the items with some unrelated ones, in any order."""
+    chosen = list(dict.fromkeys(items + random.sample(extra, 2)))
+    random.shuffle(chosen)
+    return ", ".join(chosen)
+
+
+def case(kind):
+    o = origin()
+    cred = random.choice([True, False])
+    method = random.choice(PREFLIGHTED)
+    header = random.choice(UNSAFE + [""]).format(n=random.randint(1000, 9999))
+    if kind in ("star", "simple-allowed", "simple-refused"):
+        cred = kind != "star" and cred
+    if kind in ("star-with-credentials", "no-allow-credentials", "methods-star", "headers-star"):
+        cred = True
+    if kind in ("header-missing", "headers-star") and not header:
+        header = random.choice(UNSAFE).format(n=random.randint(1000, 9999))
+    if kind in ("simple-allowed", "simple-refused"):
+        method = random.choice(SIMPLE)
+        header = random.choice(SAFE)
+    pre = {
+        "Access-Control-Allow-Origin": o,
+        "Access-Control-Allow-Methods": listed([method], OTHER_METHODS),
+    }
+    if header:
+        name = random.choice([name_of(header), name_of(header).lower()])
+        pre["Access-Control-Allow-Headers"] = listed([name], OTHER_HEADERS[:3])
+    if cred or random.random() < 0.3:
+        pre["Access-Control-Allow-Credentials"] = "true"
+    act = {"Access-Control-Allow-Origin": o}
+    if "Access-Control-Allow-Credentials" in pre:
+        act["Access-Control-Allow-Credentials"] = "true"
+    if kind == "star":
+        pre["Access-Control-Allow-Origin"] = act["Access-Control-Allow-Origin"] = "*"
+        if random.random() < 0.5:
+            pre["Access-Control-Allow-Methods"] = "*"
+        if header and random.random() < 0.5:
+            pre["Access-Control-Allow-Headers"] = "*"
+    elif kind == "star-with-credentials":
+        pre["Access-Control-Allow-Origin"] = act["Access-Control-Allow-Origin"] = "*"
+    elif kind == "no-allow-credentials":
+        pre.pop("Access-Control-Allow-Credentials", None)
+        act.pop("Access-Control-Allow-Credentials", None)
+        if random.random() < 0.5:
+            pre["Access-Control-Allow-Credentials"] = random.choice(["false", "True"])
+    elif kind == "method-missing":
+        others = [m for m in OTHER_METHODS if m != method]
+        pre["Access-Control-Allow-Methods"] = ", ".join(random.sample(others, 2))
+    elif kind == "methods-star":
+        # With credentials, "*" is a method called *, not every method.
+        pre["Access-Control-Allow-Methods"] = "*"
+    elif kind == "header-missing":
+        pre["Access-Control-Allow-Headers"] = ", ".join(random.sample(OTHER_HEADERS[:3], 2))
+    elif kind == "headers-star":
+        pre["Access-Control-Allow-Headers"] = "*"
+    elif kind == "other-origin":
+        other = origin(o)
+        pre["Access-Control-Allow-Origin"] = act["Access-Control-Allow-Origin"] = other
+    elif kind == "no-allow-origin":
+        del pre["Access-Control-Allow-Origin"]
+    elif kind == "simple-allowed":
+        # A request a browser never preflights, so a broken preflight answer
+        # doesn't matter: only the answer to the request itself does.
+        del pre["Access-Control-Allow-Origin"]
+    elif kind == "request-refused":
+        del act["Access-Control-Allow-Origin"]
+    elif kind == "simple-refused":
+        act["Access-Control-Allow-Origin"] = origin(o)
+    lower = kind == "simple-allowed" or random.random() < 0.5
+    fix = (lambda name: name.lower()) if lower else (lambda name: name)
+    return {
+        "origin": o,
+        "method": method,
+        "header": header,
+        "credentials": cred,
+        "preflight": [[fix(k), v] for k, v in pre.items()],
+        "request": [[fix(k), v] for k, v in act.items()],
+    }
+
+
+KINDS = [
+    "allowed",
+    "star",
+    "star-with-credentials",
+    "no-allow-credentials",
+    "method-missing",
+    "methods-star",
+    "header-missing",
+    "headers-star",
+    "other-origin",
+    "no-allow-origin",
+    "simple-allowed",
+    "request-refused",
+    "simple-refused",
+]
+
+
+def make(path):
+    kinds = KINDS[:]
+    random.shuffle(kinds)
+    cases = {}
+    for number, kind in enumerate(kinds, 1):
+        made = case(kind)
+        made["path"] = f"/c{number}/api/basket"
+        cases[made["path"]] = made
+        cred = "yes" if made["credentials"] else "no"
+        print("\t".join([made["path"], made["origin"], made["method"], made["header"] or "-", cred]))
+    with open(path, "w") as out:
+        json.dump(cases, out)
+
+
+def serve(path, port):
+    with open(path) as source:
+        cases = json.load(source)
+
+    class Answers(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def answer(self, which, status):
+            length = int(self.headers.get("Content-Length") or 0)
+            if length:
+                self.rfile.read(length)
+            made = cases.get(self.path.split("?")[0])
+            body = b'{"basket": 3}\n' if made else b'{"error": "no such page"}\n'
+            self.send_response(status if made else 404)
+            for name, value in made[which] if made else []:
+                self.send_header(name, value)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+
+        def do_OPTIONS(self):
+            self.answer("preflight", 204)
+
+        def do_GET(self):
+            self.answer("request", 200)
+
+        do_HEAD = do_POST = do_PUT = do_DELETE = do_PATCH = do_GET
+
+        def log_message(self, format, *args):
+            pass
+
+    class Quiet(ThreadingHTTPServer):
+        def handle_error(self, request, client_address):
+            pass  # a client that hung up early is no news to the checks
+
+    Quiet(("127.0.0.1", port), Answers).serve_forever()
+
+
+if sys.argv[1] == "make":
+    make(sys.argv[2])
+else:
+    serve(sys.argv[2], int(sys.argv[3]))
