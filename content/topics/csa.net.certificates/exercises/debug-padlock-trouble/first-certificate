@@ -1,0 +1,16 @@
+#!/bin/bash
+# first-certificate: run once on web, at the lab's first boot
+# (first-certificate@web), after the CA and nginx have started: certbot
+# gets www.shop.test's certificate from the CA's ACME service, as when the
+# server was first set up. At later boots certbot already has it, and this
+# does nothing.
+if [ -d /etc/letsencrypt/live/www.shop.test ]; then
+  exit 0
+fi
+# The CA needs a moment after it starts (up to 30 seconds).
+for i in $(seq 1 60); do
+  curl -s -o /dev/null --max-time 1 https://ca.shop.test:9000/health && break
+  sleep 0.5
+done
+exec certbot certonly --server https://ca.shop.test:9000/acme/acme/directory --webroot -w /var/www/html \
+  -d www.shop.test -m ops@shop.test --agree-tos --no-eff-email -n -q

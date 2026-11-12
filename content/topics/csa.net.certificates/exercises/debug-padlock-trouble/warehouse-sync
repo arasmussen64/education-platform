@@ -1,0 +1,19 @@
+#!/bin/bash
+# warehouse-sync: the warehouse's nightly sync, which runs on partner
+# ("on partner warehouse-sync"). It fetches the shop's open orders from the
+# partners' API, https://api.shop.test:8443/orders, presenting the
+# warehouse's client certificate, and checks the shop's certificate against
+# the machine's trust store, as any careful client does. It prints how many
+# orders it got, or what went wrong. It belongs to the warehouse.
+set -u
+answer=$(curl -sS --max-time 10 --cert /etc/warehouse/warehouse.pem --key /etc/warehouse/warehouse.key \
+  -w '\n%{http_code}' https://api.shop.test:8443/orders 2>&1)
+code=$(printf '%s\n' "$answer" | tail -n 1)
+body=$(printf '%s\n' "$answer" | sed '$d')
+if [ "$code" = 200 ]; then
+  echo "synced $(printf '%s\n' "$body" | grep -c '^order ') orders"
+elif [ "$code" = 000 ]; then
+  echo "sync failed: $(printf '%s\n' "$body" | grep -m 1 '^curl:')"
+else
+  echo "sync failed: the API answered $code: $(printf '%s\n' "$body" | grep -m 1 -o '<title>[^<]*' | sed 's/<title>//')"
+fi

@@ -1,0 +1,35 @@
+id: debug-padlock-trouble
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Padlock trouble"
+prompt: |
+  The shop's web server, the Monday after a weekend's maintenance. Every machine is described here, the broken parts and the working ones alike; `netlab show` lists them.
+
+  - **`web`** (10.0.9.1) runs nginx for two sites on its one address: `www.shop.test`, the public shop, on port 443, and `api.shop.test`, the partners' API, on port 8443. Its settings are in its `/etc/nginx`: `nginx.conf`, and the sites in `sites-available/shop`, switched on by a link in `sites-enabled`; nginx logs to `/var/log/nginx/error.log`, with information as well as errors.
+  - **The shop's certificate** comes from the shop CA's ACME service through certbot, on web (`on web certbot ...`, its files in web's `/etc/letsencrypt`), and `certbot@web.timer` renews it. **The API's certificate** was issued by hand from the same CA for a year; its files are in web's `/etc/nginx/tls/api.shop.test/`, laid out as certbot lays out its own: `cert.pem`, `chain.pem`, `fullchain.pem` and `privkey.pem`. **The API admits only clients with a certificate from the Shop Partners CA**, whose certificate is web's `/etc/nginx/partners-ca.pem`.
+  - **`ca`** (10.0.9.5) runs the shop's CA, step-ca, at `https://ca.shop.test:9000`. Every machine trusts its root. **`resolver`** (10.0.9.53) is the shop's name server.
+  - **`partner`** (10.0.9.3) is the warehouse's server. Its nightly sync, `on partner warehouse-sync`, fetches the open orders from the API with the warehouse's client certificate, from the Shop Partners CA, in partner's `/etc/warehouse/`. The certificate, its key and the sync program belong to the warehouse.
+  - **`office`** (10.0.9.2) is a customer's laptop.
+
+  On the lab's fast clock the CA's certificates last 24 hours (a public CA's last 200 days at most today), and certbot's timer runs every four hours.
+
+  Since the weekend:
+
+  - customers' browsers say the shop's certificate has expired, though `on web certbot certificates` shows one that is valid for most of another day: try `on office curl -sv https://www.shop.test/ -o /dev/null`;
+  - the warehouse's sync fails: `on partner warehouse-sync`, and read what it prints.
+
+  There are three faults. Find them from what the clients see (`openssl s_client -connect HOST:PORT -servername NAME`, with `-showcerts`, from office or partner; `curl -v`) and from what web has (`openssl x509 -in FILE -noout -subject -issuer -dates`, certbot's files, nginx's error log), and fix each at its cause. Fixing one can change what you see.
+
+  The rules of the fix:
+
+  - **The warehouse's certificate, its key and its sync program stay as they are.**
+  - **The API keeps refusing everyone without a valid certificate from the Shop Partners CA.**
+  - **No client is told to skip checking certificates.**
+  - **Whatever you do survives the next renewal and a reboot.**
+
+  `on web nano FILE` edits a file, `on web nginx -t` checks nginx's files, and `sudo systemctl reload nginx@web` makes nginx read them again. `on web certbot renew --force-renewal --no-random-sleep-on-renew` renews now, as the timer does when a certificate is due. When customers get the shop with a good certificate and the sync works, run the checks.
+skills: [cert-chains, acme-and-rotation, mutual-tls]
