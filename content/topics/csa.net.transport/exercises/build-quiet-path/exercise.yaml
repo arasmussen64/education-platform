@@ -1,0 +1,25 @@
+id: build-quiet-path
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The quiet path"
+prompt: |
+  A fresh app server, `app`, is going live in a cloud network, and its connections have to survive the quiet hours. Everything on it is set up as shipped; nothing has been tuned. `netlab show` lists the machines.
+
+  - **shop-api** (`shop-api@app`) takes the shop's orders: `on app curl -s localhost:8080/order` sends one and prints the result, with the connection's `port` on app. It keeps a connection to the managed database, `db` (10.0.2.20, port 5432). Its settings are app's `/etc/shop/api.conf`; the file's comments list every setting it understands, and it reads them when it starts.
+  - **feed-client** (`feed-client@app`) takes the supplier's price updates over UDP from `feed` (10.0.2.40, port 5005), which pushes an update every 15 seconds to every address that has sent it anything. feed-client subscribes once, when it starts. Its settings are app's `/etc/shop/feed.conf`, and `journalctl -u feed-client@app` shows each update it gets.
+  - Every connection from app to the cloud network crosses the cloud's NAT gateway, `nat`, and the database sits behind a firewall of its own, on `db`. Both boxes track connections and forget quiet ones: find their timers, for TCP and for UDP, yourself. The standby database, `standby` (10.0.2.21), is stopped for maintenance, and its firewall drops every connection.
+  - nat, db, standby and feed are scenery: they stand for the cloud's own services. The lab's clock runs fast: the boxes forget in seconds what a cloud's NAT gateway or firewall forgets in minutes.
+
+  Make these true:
+
+  1. **Orders survive every quiet spell.** shop-api's database connection stays open through any length of quiet, kept alive by TCP keepalives that shop-api switches on for that connection, and a database that goes dark is noticed within 60 seconds of the last packet.
+  2. **The price updates keep arriving,** however long app has nothing to say to the feed.
+  3. **A dead standby is reported in seconds.** shop-api's health page, `on app curl -s localhost:8080/health/standby`, reports the standby down within 6 seconds, not after two minutes, using only shop-api's own settings.
+  4. **Nothing weakened, nothing temporary.** The boxes stay exactly as they are; shop-api keeps one connection open rather than opening one for each order; every other program on app keeps the system's connection behaviour; and everything survives a reboot.
+
+  Then run the checks.
+skills: [idle-cuts, tcp-timers, udp-behaviour]
