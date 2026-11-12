@@ -1,0 +1,59 @@
+# The checks of "Carve a network": the address library works on an address
+# the check picks, the plan the loop wrote, the two pieces of evidence the
+# walkthrough saved, and the network as it was at the start (h1 back on
+# its /24 and reaching h2, lanc with no address).
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: library
+    description: "~/bin/cidr-lib.sh turns an address into its 32-bit number and back: ip2int and int2ip agree with Python's reading of an address the check picks."
+    command: |
+      address="$((RANDOM % 223 + 1)).$((RANDOM % 256)).$((RANDOM % 256)).$((RANDOM % 256))"
+      want=$(python3 -c 'import ipaddress, sys; print(int(ipaddress.IPv4Address(sys.argv[1])))' "$address")
+      got=$(runuser -u learner -- bash -c '. /home/learner/bin/cidr-lib.sh && ip2int "$1"' _ "$address" 2> /dev/null)
+      [ "$got" = "$want" ] || { echo "ip2int $address prints '${got:-nothing}', not $want"; exit 0; }
+      back=$(runuser -u learner -- bash -c '. /home/learner/bin/cidr-lib.sh && int2ip "$1"' _ "$want" 2> /dev/null)
+      [ "$back" = "$address" ] || { echo "int2ip $want prints '${back:-nothing}', not $address"; exit 0; }
+      echo both
+    expect:
+      equals: both
+  - id: plan
+    description: "~/example/plan.txt lists three zones of a /20 each, from 10.20.0.0, one after another."
+    command: cat /home/learner/example/plan.txt 2> /dev/null || echo "there is no ~/example/plan.txt"
+    expect:
+      equals: |-
+        zone-0 10.20.0.0/20
+        zone-1 10.20.16.0/20
+        zone-2 10.20.32.0/20
+  - id: neigh
+    description: "~/example/neigh.txt holds h1's neighbour table with no answer from h2, 10.20.2.10 (FAILED or INCOMPLETE)."
+    command: |
+      if grep -E '^10\.20\.2\.10 .*(FAILED|INCOMPLETE)' /home/learner/example/neigh.txt > /dev/null 2>&1; then
+        echo "no answer"
+      else
+        echo "~/example/neigh.txt has no line for 10.20.2.10 marked FAILED or INCOMPLETE"
+      fi
+    expect:
+      equals: "no answer"
+  - id: moved
+    description: "~/example/moved.txt holds r1's routes, with the block the kernel made of 10.20.3.1/23 on lanc."
+    command: |
+      if grep -E '^10\.20\.2\.0/23 dev lanc ' /home/learner/example/moved.txt > /dev/null 2>&1; then
+        echo moved
+      else
+        echo "~/example/moved.txt has no route for the block 10.20.3.1/23 is in, on lanc"
+      fi
+    expect:
+      equals: moved
+  - id: as-it-was
+    description: "h1 is back on 10.20.1.10/24 and reaches h2, and lanc has no address again."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      h1=$(ip -n h1 -4 -o addr show dev eth0 | awk '{print $4}' | paste -sd ' ')
+      [ "$h1" = "10.20.1.10/24" ] || { echo "h1's addresses are '${h1:-none}', not just 10.20.1.10/24"; exit 0; }
+      on h1 ping -c 2 -i 0.2 -W 2 10.20.2.10 > /dev/null 2>&1 || { echo "h1 doesn't reach h2"; exit 0; }
+      lanc=$(ip -n r1 -4 -o addr show dev lanc | awk '{print $4}' | paste -sd ' ')
+      [ -z "$lanc" ] || { echo "lanc still has $lanc"; exit 0; }
+      echo "as it was"
+    expect:
+      equals: "as it was"
