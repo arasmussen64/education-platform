@@ -9,6 +9,11 @@
 checks:
   - id: store-reaches-dc
     description: "The store reaches the data centre's web server, and r2 sends that traffic over its own cable to r3."
+    # It waits for the routes after a boot: up to 16 tries of a 2-second
+    # request a second apart, more than the default 30 seconds when
+    # packets vanish without an answer, so it gets a minute and prints
+    # its own sentence rather than running out of time.
+    timeout: 60
     command: |
       . /usr/local/lib/netlab/checklib.sh
       web() { [ "$(on store curl -s -m 2 http://10.3.0.10/)" = "you are 10.2.0.10" ]; }

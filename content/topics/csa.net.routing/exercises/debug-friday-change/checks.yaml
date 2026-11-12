@@ -10,6 +10,11 @@
 checks:
   - id: office-internet
     description: "The office reaches the internet: the payment provider's web server at 203.0.113.10 answers it, and r1 sends all traffic for the internet to the ISP's router, 198.51.100.1, and nowhere else."
+    # It waits for the routes after a boot: up to 16 tries of a 2-second
+    # request a second apart, more than the default 30 seconds when
+    # packets vanish without an answer, so it gets a minute and prints
+    # its own sentence rather than running out of time.
+    timeout: 60
     command: |
       . /usr/local/lib/netlab/checklib.sh
       web() { [ "$(on office curl -s -m 2 http://203.0.113.10/)" = "you are 10.1.0.10" ]; }
