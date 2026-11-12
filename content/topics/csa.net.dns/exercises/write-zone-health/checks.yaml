@@ -1,0 +1,95 @@
+# The checks of "Is the zone in step?". Three of them run the learner's
+# ~/bin/zone-health, on the office machine, against zones the checker
+# brings up itself (zone-servers, with serials drawn at random at every
+# run), so an answer that was typed in for the zones the learner can see
+# fails: one where every server agrees, one where a serial differs, one
+# where a server doesn't hold the zone. Each runs it four times, because
+# the referral lists the servers in a different order each time. The last
+# runs it on shop.test against the shop's real servers. The servers start
+# and stop inside each check.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/zone-health exists and can be run."
+    command: |
+      f=/home/learner/bin/zone-health
+      [ -f "$f" ] || { echo "there is no ~/bin/zone-health"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/zone-health can't be run: chmod +x it"; exit 0; }
+      head -n 1 "$f" | grep -x '#!/bin/bash' > /dev/null || { echo "~/bin/zone-health's first line isn't #!/bin/bash"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: in-sync
+    description: "For a zone whose three servers all serve the same serial, it prints each server's line, sorted by name, and then: in sync."
+    command: |
+      trap '/usr/local/lib/lab/zone-servers stop' EXIT
+      zone=$(printf '%s\n' check-a.test check-b.test | shuf -n 1)
+      s=$((2026010100 + RANDOM % 8000))
+      /usr/local/lib/lab/zone-servers start "$zone" "$s" "$s" "$s"
+      if [ "$zone" = check-a.test ]; then
+        want=$(printf '%s\n' "east.check-a.test. 198.51.100.17 serial $s" "north.check-a.test. 198.51.100.16 serial $s" "west.check-a.test. 198.51.100.18 serial $s" "in sync")
+      else
+        want=$(printf '%s\n' "one.check-b.test. 198.51.100.18 serial $s" "three.check-b.test. 198.51.100.16 serial $s" "two.check-b.test. 198.51.100.17 serial $s" "in sync")
+      fi
+      for run in 1 2 3 4; do
+        got=$(on office timeout 10 /home/learner/bin/zone-health "$zone" 2>&1)
+        [ "$got" = "$want" ] || { printf 'for %s it printed:\n%s\nbut the servers say:\n%s\n' "$zone" "$got" "$want"; exit 0; }
+      done
+      echo right
+    timeout: 60
+    expect:
+      equals: right
+  - id: out-of-sync
+    description: "For a zone whose servers all answer for it but one serves another serial, it prints each server's line, sorted by name, and then: out of sync."
+    command: |
+      trap '/usr/local/lib/lab/zone-servers stop' EXIT
+      zone=$(printf '%s\n' check-a.test check-b.test | shuf -n 1)
+      s=$((2026010100 + RANDOM % 8000))
+      t=$((s + 1 + RANDOM % 50))
+      /usr/local/lib/lab/zone-servers start "$zone" "$s" "$t" "$s"
+      if [ "$zone" = check-a.test ]; then
+        want=$(printf '%s\n' "east.check-a.test. 198.51.100.17 serial $t" "north.check-a.test. 198.51.100.16 serial $s" "west.check-a.test. 198.51.100.18 serial $s" "out of sync")
+      else
+        want=$(printf '%s\n' "one.check-b.test. 198.51.100.18 serial $s" "three.check-b.test. 198.51.100.16 serial $s" "two.check-b.test. 198.51.100.17 serial $t" "out of sync")
+      fi
+      for run in 1 2 3 4; do
+        got=$(on office timeout 10 /home/learner/bin/zone-health "$zone" 2>&1)
+        [ "$got" = "$want" ] || { printf 'for %s it printed:\n%s\nbut the servers say:\n%s\n' "$zone" "$got" "$want"; exit 0; }
+      done
+      echo right
+    timeout: 60
+    expect:
+      equals: right
+  - id: broken
+    description: "For a zone one of whose servers doesn't hold it (it refuses the question, with no aa flag), it prints that server as not authoritative, the others' serials, sorted by name, and then: broken."
+    command: |
+      trap '/usr/local/lib/lab/zone-servers stop' EXIT
+      zone=$(printf '%s\n' check-a.test check-b.test | shuf -n 1)
+      s=$((2026010100 + RANDOM % 8000))
+      /usr/local/lib/lab/zone-servers start "$zone" "$s" "$s" -
+      if [ "$zone" = check-a.test ]; then
+        want=$(printf '%s\n' "east.check-a.test. 198.51.100.17 serial $s" "north.check-a.test. 198.51.100.16 serial $s" "west.check-a.test. 198.51.100.18 not authoritative" "broken")
+      else
+        want=$(printf '%s\n' "one.check-b.test. 198.51.100.18 not authoritative" "three.check-b.test. 198.51.100.16 serial $s" "two.check-b.test. 198.51.100.17 serial $s" "broken")
+      fi
+      for run in 1 2 3 4; do
+        got=$(on office timeout 10 /home/learner/bin/zone-health "$zone" 2>&1)
+        [ "$got" = "$want" ] || { printf 'for %s it printed:\n%s\nbut the servers say:\n%s\n' "$zone" "$got" "$want"; exit 0; }
+      done
+      echo right
+    timeout: 60
+    expect:
+      equals: right
+  - id: shop-test
+    description: "For shop.test it prints what the shop's own two servers say: each one's serial, and whether they agree."
+    command: |
+      s1=$(on office dig +norecurse +short @198.51.100.13 shop.test SOA | awk '{print $3}')
+      s2=$(on office dig +norecurse +short @198.51.100.14 shop.test SOA | awk '{print $3}')
+      verdict="in sync"; [ "$s1" = "$s2" ] || verdict="out of sync"
+      want=$(printf '%s\n' "ns1.shop.test. 198.51.100.13 serial $s1" "ns2.shop.test. 198.51.100.14 serial $s2" "$verdict")
+      got=$(on office timeout 10 /home/learner/bin/zone-health shop.test 2>&1)
+      [ "$got" = "$want" ] || { printf 'for shop.test it printed:\n%s\nbut the servers say:\n%s\n' "$got" "$want"; exit 0; }
+      echo right
+    expect:
+      equals: right

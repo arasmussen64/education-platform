@@ -1,0 +1,88 @@
+#!/bin/bash
+# zone-servers: the write lab's throwaway name servers, for its checks.
+#   zone-servers start ZONE SERIAL1 SERIAL2 SERIAL3
+#   zone-servers stop
+# start brings up three name servers, on throwaway machines chk-zh1 to
+# chk-zh3 plugged into the internet's switch at 198.51.100.16, .17 and .18,
+# where test. delegates check-a.test and check-b.test. The server at .16
+# serves ZONE with SERIAL1, .17 with SERIAL2 and .18 with SERIAL3; a serial
+# of - starts that server without the zone, so it refuses questions about
+# it. stop removes them. Part of the scenery.
+set -euo pipefail
+dir=/run/zone-servers
+
+stop() {
+  local i
+  for i in 1 2 3; do
+    if [ -f "$dir/$i/named.pid" ]; then kill "$(cat "$dir/$i/named.pid")" 2> /dev/null || true; fi
+  done
+  for i in 1 2 3; do
+    for _ in $(seq 1 30); do
+      [ -f "$dir/$i/named.pid" ] && kill -0 "$(cat "$dir/$i/named.pid")" 2> /dev/null || break
+      sleep 0.1
+    done
+    ip netns del "chk-zh$i" 2> /dev/null || true
+  done
+  rm -rf "$dir"
+}
+
+# The zone's name servers, NAME ADDRESS, as test. delegates them.
+servers_of() {
+  case $1 in
+    check-a.test) printf '%s\n' "north 198.51.100.16" "east 198.51.100.17" "west 198.51.100.18" ;;
+    check-b.test) printf '%s\n' "three 198.51.100.16" "two 198.51.100.17" "one 198.51.100.18" ;;
+    *) echo "zone-servers: no servers for $1" >&2; exit 2 ;;
+  esac
+}
+
+start() {
+  local zone=$1 i=0 serial address name
+  shift
+  stop
+  mkdir -p "$dir"
+  for serial in "$@"; do
+    i=$((i + 1))
+    address=198.51.100.$((15 + i))
+    ip netns add "chk-zh$i"
+    ip -n "chk-zh$i" link set lo up
+    ip link add "zh$i" type veth peer name "zh${i}p"
+    ip link set "zh$i" netns "chk-zh$i"
+    ip -n "chk-zh$i" link set "zh$i" name eth0
+    ip link set "zh${i}p" netns switches
+    ip -n switches link set "zh${i}p" master inet up
+    ip -n "chk-zh$i" addr add "$address/24" dev eth0
+    ip -n "chk-zh$i" link set eth0 up
+    ip -n "chk-zh$i" route add default via 198.51.100.1
+    # A machine that used this address a moment ago had another MAC.
+    ip -n edge neigh flush "$address" 2> /dev/null || true
+    mkdir -p "$dir/$i"
+    {
+      echo "options { directory \"$dir/$i\"; pid-file \"$dir/$i/named.pid\";"
+      echo "  session-keyfile \"$dir/$i/session.key\"; managed-keys-directory \"$dir/$i\";"
+      echo "  listen-on { $address; }; listen-on-v6 { none; }; recursion no; dnssec-validation no; };"
+      echo "controls { };"
+      if [ "$serial" != - ]; then echo "zone \"$zone\" { type primary; file \"$dir/$i/db\"; };"; fi
+    } > "$dir/$i/named.conf"
+    {
+      echo "\$TTL 300"
+      echo "@ IN SOA $(servers_of "$zone" | head -n 1 | cut -d' ' -f1).$zone. hostmaster.$zone. ( ${serial/-/1} 3600 600 1209600 300 )"
+      servers_of "$zone" | while read -r name address; do echo "@ IN NS $name"; echo "$name IN A $address"; done
+      echo "www IN A 203.0.113.80"
+    } > "$dir/$i/db"
+    chown -R bind:bind "$dir/$i"
+    ip netns exec "chk-zh$i" named -c "$dir/$i/named.conf" -u bind
+  done
+  # Wait until each one answers (with the zone, or refusing it).
+  for i in $(seq 1 "$#"); do
+    for _ in $(seq 1 30); do
+      ip netns exec "chk-zh$i" dig +norecurse +time=1 +tries=1 @198.51.100.$((15 + i)) "$zone" SOA 2> /dev/null | grep 'status:' > /dev/null && break
+      sleep 0.2
+    done
+  done
+}
+
+case ${1:-} in
+  start) shift; start "$@" ;;
+  stop) stop ;;
+  *) echo "usage: zone-servers start ZONE SERIAL1 SERIAL2 SERIAL3 | stop" >&2; exit 2 ;;
+esac

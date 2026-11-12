@@ -1,0 +1,38 @@
+id: write-zone-health
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Is the zone in step?"
+prompt: |
+  A zone's name servers must agree: if one of them serves an older copy, or doesn't hold the zone at all, some lookups go wrong and others don't. Write a script that checks a zone the way a resolver would find its servers.
+
+  The lab is the walkthrough's small internet without signatures: `root`, `tld` (`ns1.nic.test`, 198.51.100.12, the server for `test.`), the shop's `ns1` and `ns2`, and the office with its resolver. Every zone your script is asked about sits directly under `test.`.
+
+  Write `~/bin/zone-health ZONE`. Create it with `mkdir -p ~/bin`, then `nano ~/bin/zone-health`; its first line is `#!/bin/bash`; make it runnable with `chmod +x ~/bin/zone-health`. Run it on a machine with a network, `on office ~/bin/zone-health shop.test`: the lab's console is on none. It must:
+
+  1. Ask test.'s server, 198.51.100.12, without recursion (`dig +norecurse @198.51.100.12 ZONE NS`), which name servers ZONE is delegated to. The answer is a referral: the AUTHORITY section names the servers, and the ADDITIONAL section gives each one's address (`+noall +authority +additional` prints just those two sections).
+  2. Ask each of those servers, at its address and without recursion, for ZONE's SOA, and print one line per server, sorted by name:
+     - `NAME ADDRESS serial N`, when the answer has the `aa` flag (N is the SOA's serial, its third field in `dig +short`);
+     - `NAME ADDRESS not authoritative`, otherwise (a refusal, a referral, no answer).
+
+     NAME is the server's name as dig prints it, with its final dot.
+  3. Print one last line: `in sync` if every server is authoritative and they all give the same serial, `out of sync` if every server is authoritative but the serials differ, and `broken` if any server isn't authoritative.
+
+  For shop.test it prints:
+
+  ```
+  ns1.shop.test. 198.51.100.13 serial 2026111201
+  ns2.shop.test. 198.51.100.14 serial 2026111201
+  in sync
+  ```
+
+  `dig`'s header line `;; flags: qr aa; ...` holds the flags; `grep` finds one, `awk` picks fields, `sort` sorts lines. A name server lists a zone's servers in a different order from one answer to the next, so sort them yourself. The checks run your script on zones of their own, with servers they start on the lab's internet and serials drawn at random, so test it on shop.test and trust the rules above.
+hints:
+  - "`servers=$(dig +norecurse +noall +authority @198.51.100.12 \"$1\" NS | awk '$4 == \"NS\" {print $5}' | sort)` gives the names, sorted; a `for name in $servers` loop takes them one at a time."
+  - "Keep the whole referral in a variable and pick each server's address out of it with `awk -v n=\"$name\" '$1 == n && $4 == \"A\" {print $5}'`."
+  - "`if dig +norecurse @\"$address\" \"$1\" SOA | grep '^;; flags:.* aa' > /dev/null; then` is true only for an authoritative answer."
+  - "Count the servers and the authoritative ones as you go, and collect the serials; `sort -u | wc -l` counts how many different ones there are."
+skills: [records-and-zones, trace-resolution]
