@@ -77,8 +77,11 @@ def icmp_line(rng, src, dst):
     return f"icmp     1 {rng.randint(1, 30)} src={src} dst={dst} type=8 code=0 id={ident} src={dst} dst={GATEWAY} type=0 code=0 id={ident} mark=0 use=1"
 
 
-def write(path, rng, plan, icmps, sources):
-    """plan: (protocol, address, port, count) for each destination."""
+def write(path, rng, plan, icmps, sources, summary_first=None):
+    """plan: (protocol, address, port, count) for each destination.
+
+    summary_first: where conntrack's count line goes, True for the top and
+    False for the bottom; None leaves it to chance."""
     lines = []
     for proto, address, port, n in plan:
         make = tcp_line if proto == "tcp" else udp_line
@@ -88,7 +91,9 @@ def write(path, rng, plan, icmps, sources):
     summary = f"conntrack v1.4.8 (conntrack-tools): {len(lines)} flow entries have been shown."
     # Saved with 2>&1, the count line can come first: it is written to the
     # error stream, which isn't held back the way the listing is.
-    if rng.random() < 0.5:
+    if summary_first is None:
+        summary_first = rng.random() < 0.5
+    if summary_first:
         lines.insert(0, summary)
     else:
         lines.append(summary)
@@ -100,8 +105,10 @@ def fixed(path):
     # TCP and UDP to the same address and port (protocol matters); one
     # address on two ports (the port matters); a count exactly at PORTS
     # (FULL, not WARN); one exactly at 80%; one at 79.6% (rounded down, no
-    # WARN); every TCP state; ICMP lines and the count line to skip; many
-    # inside sources (the destination counts, not the source).
+    # WARN); every TCP state; ICMP lines and the count line to skip, the
+    # count line at the top, where the prompt's listing doesn't have it (so
+    # a script that only drops the last line fails); many inside sources
+    # (the destination counts, not the source).
     ports = 250
     plan = [
         ("tcp", "203.0.113.10", 443, 250),
@@ -111,7 +118,7 @@ def fixed(path):
         ("tcp", "203.0.113.53", 53, 7),
     ]
     sources = [f"10.1.0.{n}" for n in (10, 11, 12, 20, 21, 30)]
-    write(path, random.Random(27), plan, 5, sources)
+    write(path, random.Random(27), plan, 5, sources, summary_first=True)
     print(ports)
 
 
