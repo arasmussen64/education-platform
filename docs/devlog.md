@@ -37,6 +37,12 @@ It also fixed a check that caught a too-narrow blackhole only one run in two, a 
 
 Both now wait for real events (a log line, a serial that has stopped changing). The review also caught a security-weakening fix that passed (anyone allowed to copy the whole zone), a check with under half a second to spare, and a write-lab script that took any answer as authoritative.
 
+**HTTP semantics is ready** (#262). It teaches what a request and its answer mean, in four skills: methods and status codes (which requests may be retried by themselves, idempotency keys, a 502 against a 504), caching (a `Cache-Control` for each kind of page, revalidation, `Vary`, purging a CDN), CORS (with the cookie, defined here for the module) and API styles (REST, server-sent events, WebSockets, gRPC, and what each proxy on the path must carry). The labs put nginx as the shop's origin behind a CDN-like edge cache. The worked example makes Steam's 2015 caching mistake on purpose, so one customer gets another's account page, then mends it and purges. The base gains `cors-verdict`, a small helper that applies the Fetch standard's CORS rules to real answers, so a check can say what a browser would decide without running one. Five labs (44 known-wrong fixes) and 28 recall items. The review caught:
+
+- a preflight answer that echoed any origin and passed, though the browser would already have sent the customer's cookie;
+- a cache rule mended on one page while the storefront kept its own, which also passed;
+- nginx's `server`, `location` and `proxy_pass`, used but never defined.
+
 **Author notes:**
 
 - _The build's narrow link moved._ The plan put the 1400-byte link next to the branch's router, where the cloud's router dropped the oversized packets before the branch's firewall ever saw the ICMP. It now sits beyond the ISP, so r3 can only learn the path MTU from ICMP that its own firewall lets in, which is the point of the lab.
@@ -56,10 +62,13 @@ Both now wait for real events (a log line, a serial that has stopped changing). 
 - _DNS's keys are made when the lab's image is built, not at first boot,_ and its debug's expired signatures are signed then too (valid from 31 days ago to yesterday), so a cached image only leaves them more expired. Nothing changes at boot, so the scenery's zone files can be sealed.
 - _DNS's addresses follow the base's rules_ (the RFC 5737 documentation ranges), not the plan's single network, and the office sits behind a router of its own.
 - _DNS takes 315 minutes as planned_, though its writer counts about 328 (the lesson runs to about 3,100 words).
+- _HTTP semantics' order board pings every 70 seconds and its build holds a screen idle for 75,_ not the plan's 30 and 120. With the plan's numbers, nginx's 60-second default was already enough, so a build that left the timeout out could only be caught by reading nginx's configuration. The debug's idle check is 50 seconds, which still proves the fix and saves about 25 seconds a run.
+- _HTTP semantics is the heaviest topic in CI so far,_ about 35 minutes of container time, mostly wrong fixes that wait out the idle check. Module 3's topics take 15 to 35 minutes each against the plan's estimates of 12 to 20, so wave 2's writers are asked to make wrong fixes fail fast and to stay near 20.
+- _The debug's fix needs a CDN purge_ after the header fix, through a new scenery command, `edge-purge`, which every lab's prompt describes. web.dev's caching guide was dropped as a resource, because its licence couldn't be read.
 - _BGP takes 295 minutes, not the plan's 285:_ its walkthrough has two more steps (the stolen /25 and the import filter that refuses it), so that everything the build asks for is shown first.
 - _BGP's three videos are linked without being watched_ (titles, channels, lengths and embedding confirmed automatically). Its build asks for the lab's fast timers, which no check reads; leaving them out changes nothing, since the ISPs offer the same hold time.
 
-**Next:** HTTP semantics in its own pull request; then wave 2's first half (IPv6, NAT, TCP and UDP), which is being written now, and its second (HTTP and TLS, load balancing, steering traffic).
+**Next:** wave 2's first half (IPv6, NAT, TCP and UDP), which is being written now, then its second (HTTP and TLS, load balancing, steering traffic).
 
 ## 2026-11-12: Module 3's platform, the network-lab base
 
