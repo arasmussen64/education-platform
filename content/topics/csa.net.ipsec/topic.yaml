@@ -1,15 +1,316 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.ipsec
 kind: topic
-status: planned
+status: ready
 title: VPNs and IPsec
-summary: Build a route-based IPsec tunnel with BGP over it.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Connect an office to a cloud network with a route-based IPsec VPN: what IKE and ESP each do and what the two phases agree, building the tunnel from a provider's configuration sheet with a VTI, strong proposals and perfect forward secrecy, BGP over it, making it last a reboot and the provider's maintenance, reading both ends' logs to tell phase 1 from phase 2 failures, and the tunnel MTU problem behind big downloads that hang."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2
+# and 5, topic 37) and its designer's brief (csa.net.ipsec.md). Through
+# csa.net.bgp it builds on csa.net.routing, csa.net.cidr and csa.net.layers
+# (the network labs' machines, on, netlab, services as name@machine, a
+# machine's /etc/network/up; tunnels, MTU, MSS, MSS clamping and the path
+# MTU black hole), and on csa.m1.checkpoint; through csa.net.http-tls on
+# csa.net.dns, csa.net.congestion, csa.net.transport (the SYN's MSS) and
+# csa.net.nat (why a NAT can't carry a protocol without ports). For the
+# writer: csa.net.http-tls defines symmetric and public-key encryption, key
+# exchange (ECDHE), forward secrecy, cipher suite and handshake; csa.net.bgp
+# defines AS, eBGP, prefix list, route map, MED, local preference, weight
+# and the decision order. This topic defines VPN, IPsec, IKE, ESP, AH, SA,
+# SPI, IKE_SA and CHILD_SA, the four exchanges, proposal, AEAD, DH groups,
+# PFS, PSK and identity, traffic selectors, tunnel and transport mode,
+# policy-based and route-based, VTI and mark, XFRM interface, rekey,
+# lifetime, DPD, NAT traversal and MOBIKE, and the inside addresses.
+prerequisites: [csa.net.bgp, csa.net.http-tls]
+# Worked out: the lesson about 29 minutes (3,800 words with its tables, at
+# 130 a minute), reading 38 (strongSwan's IPsec introduction 10, four
+# sections of its strongSwan introduction 14, its route-based VPN page 6,
+# AWS's three pages 8), 23 quick items at 1.5 each 35, then the worked
+# example 35 (nine steps), the fill-in 20, the write 30, the build 55, the
+# debug 45 and the explain 20: 307. The plan gives 310.
+estimated_minutes: 310
 rev: 1
 objectives:
-- Build a route-based IPsec tunnel with BGP over it.
-- Debug phase 1 and phase 2 failures.
+  - "Say what IKE and ESP each do and what crosses the wire (UDP 500, UDP 4500, ESP as IP protocol 50), what phase 1 (the IKE_SA) and phase 2 (the CHILD_SA) agree, and read both in `swanctl --list-sas`."
+  - "Build a route-based IPsec tunnel with strongSwan from a provider's configuration sheet: a VTI whose key matches the CHILD_SA's marks, 0.0.0.0/0 selectors, the sheet's proposals with perfect forward secrecy and nothing weaker, and the pre-shared key kept private."
+  - "Run BGP over the tunnel between the inside addresses, sending only the office's prefix and accepting only the cloud's, and make tunnel and routing come back by themselves after a reboot and after the provider restarts its end."
+  - "Tell from the logs of both ends a phase 1 proposal mismatch, a wrong pre-shared key from a wrong identity, a phase 2 proposal or selector failure, a peer that never answers and a rekey that fails an hour in."
+  - "Work out a tunnel's MTU and MSS from ESP's overhead, recognise the black hole behind \"small pages load, big downloads hang\", and fix it with MSS clamping in both directions; say how AWS, Azure and Google Cloud's VPNs differ in tunnels, proposals, BGP limits and MTU."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - strongSwan 5.9: "IPsec Protocol" (ESP in transport and tunnel mode, the
+#   IKEv2 exchanges, NAT traversal on UDP 4500; it leaves AH out): footer
+#   "The content is provided under a CC BY 4.0 license":
+#   https://docs.strongswan.org/docs/5.9/howtos/ipsecProtocol.html
+# - strongSwan 5.9, route-based VPN: XFRM interfaces "since version 5.8.0",
+#   kernel "since 4.19", "XFRM interfaces provide a better solution than VTI
+#   devices"; for a VTI "the route installation by the IKE daemon must be
+#   disabled" (charon.install_routes = 0); disable_policy recommended "To
+#   avoid duplicate policy lookups"; the mark "has to match the mark
+#   configured for the connection"; 0.0.0.0/0 selectors on both ends:
+#   https://docs.strongswan.org/docs/5.9/features/routeBasedVpn.html
+# - strongSwan 5.9, swanctl.conf: keyingtries default 1, "A value of 0
+#   initiates a new sequence until the connection establishes or fails with
+#   a permanent error"; start_action none|trap|start, "start initiates the
+#   connection actively"; close_action none|trap|start, "does not provide
+#   any guarantee that the CHILD_SA is kept alive"; dpd_action
+#   clear|trap|restart, restart "immediately tries to re-negotiate the
+#   CHILD_SA under a fresh IKE_SA"; dpd_delay default 0s; dpd_timeout "has
+#   no effect on IKEv2 connections"; CHILD_SA rekey_time 1h, life_time 1.1 x
+#   rekey_time; IKE rekey_time 4h; mobike yes; a DH group in esp_proposals
+#   applies only on rekey or CREATE_CHILD_SA, "A proposal mismatch might
+#   therefore not immediately be noticed":
+#   https://docs.strongswan.org/docs/5.9/swanctl/swanctlConf.html
+# - RFC 7296 (IKEv2, STD 79, October 2014): the four exchanges; UDP 500 and
+#   4500: https://www.rfc-editor.org/rfc/rfc7296.html
+# - RFC 4555 (MOBIKE, June 2006), section 3.3: implementations supporting
+#   both "MUST change to port 4500 if the correspondent also supports both,
+#   even if no NAT was detected between them":
+#   https://www.rfc-editor.org/rfc/rfc4555.html
+# - AWS: two tunnels per connection, "It is important to configure both
+#   tunnels for redundancy"; each in a different Availability Zone; endpoints
+#   "evaluate proposals from your customer gateway starting with the lowest
+#   configured value from the list below, regardless of the proposal order
+#   from the customer gateway", restrict with modify-vpn-connection-options:
+#   https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNTunnels.html
+# - AWS: by default the customer gateway device brings the tunnels up;
+#   startup action start, IKEv2 only, AWS "will continuously try to
+#   establish a connection until one is made"; DPD timeout action default:
+#   the IKE session stops, the tunnel goes down, the routes are removed:
+#   https://docs.aws.amazon.com/vpn/latest/s2svpn/initiate-vpn-tunnels.html
+# - AWS: during tunnel endpoint updates "we set a lower outbound
+#   multi-exit discriminator (MED) value on the other tunnel"; use "the same
+#   Weight and Local Preference values for both tunnels":
+#   https://docs.aws.amazon.com/vpn/latest/s2svpn/routing-vpn-tunnel-updates.html
+# - AWS: MTU 1446 and MSS 1406 at most; by algorithm, AES-GCM-16 1446/1406
+#   without NAT-T and 1438/1398 with, AES-CBC with SHA1 or SHA2-256 1438/1398
+#   without and 1422/1382 with; use IKEv2; fragment before encryption:
+#   https://docs.aws.amazon.com/vpn/latest/s2svpn/cgw-best-practice.html
+# - AWS: 100 dynamic routes from a customer gateway to a connection on a
+#   virtual private gateway, not adjustable; "A Site-to-Site VPN connection
+#   does not support Path MTU Discovery":
+#   https://docs.aws.amazon.com/vpn/latest/s2svpn/vpn-limits.html
+# - AWS: virtual private gateway default ASN 64512, "You cannot change the
+#   ASN after you've created the virtual private gateway":
+#   https://docs.aws.amazon.com/vpn/latest/s2svpn/how_it_works.html
+# - AWS API: TunnelInsideCidr "A size /30 CIDR block from the
+#   169.254.0.0/16 range", with 169.254.0.0/30 to 169.254.5.0/30 and
+#   169.254.169.252/30 reserved; StartupAction default add; DPDTimeoutAction
+#   default clear; Phase2LifetimeSeconds default 3600:
+#   https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_VpnTunnelOptionsSpecification.html
+# - Azure: Static Routing = PolicyBased, Dynamic Routing = RouteBased;
+#   route-based default phase 1: IKEv1 and IKEv2, DH group 2 (1024 bit),
+#   AES256/SHA1 first, 28,800 s; phase 2 27,000 s; quick mode offers as
+#   initiator all with PFS None; "MSS clamping is done bidirectionally on the
+#   Azure VPN Gateway", 1360 bytes over the internet (IPv4); recommended IKE
+#   AES256/SHA256/DH2, IPsec AES256GCM (ms.date 2025-03-31, updated
+#   2026-10-13):
+#   https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-about-vpn-devices
+# - Azure: default ASN 65515; reserved 65515, 65517 to 65520; "Azure VPN
+#   Gateway supports up to 4,000 prefixes. The BGP session is dropped if the
+#   number of prefixes exceeds the limit."; keepalive 60 s, hold 180 s,
+#   "Azure VPN Gateways use fixed timer values" (ms.date 2026-06-04, updated
+#   2026-09-15): https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-vpn-faq
+# - Azure: BGP needs a route-based gateway, not policy-based or Basic;
+#   custom APIPA BGP addresses "in the range 169.254.21.0 through
+#   169.254.22.255"; with APIPA addresses "Azure VPN Gateway doesn't initiate
+#   the BGP peering session" (ms.date 2026-08-27):
+#   https://learn.microsoft.com/en-us/azure/vpn-gateway/bgp-howto
+# - Google Cloud: gateway MTU 1460 (1440 over Cloud Interconnect);
+#   prefragment on the peer; no fragmentation after encapsulation; MSS
+#   clamping; payload MTU 1406, or 1398 with NAT-T, for AEAD ciphers on IPv4
+#   (last updated 2026-11-10, CC BY 4.0):
+#   https://docs.cloud.google.com/network-connectivity/docs/vpn/concepts/mtu-considerations
+# - Google Cloud: HA VPN "Provides 99.99% SLA for most topologies, with a
+#   few exceptions"; one active interface has no availability SLA; two
+#   tunnels; "Only dynamic routing (BGP)"; IKEv1 and IKEv2, "Cloud VPN only
+#   supports a pre-shared key for authentication" (last updated 2026-11-10,
+#   CC BY 4.0): https://docs.cloud.google.com/network-connectivity/docs/vpn/concepts/overview
+# - Google Cloud: HA VPN BGP sessions use "IPv4 link-local addresses in the
+#   169.254.0.0/16 range as BGP peering addresses":
+#   https://docs.cloud.google.com/network-connectivity/docs/router/how-to/configuring-bgp
+# Every output marked "captured" in the lesson, the labs and the recall items
+# is real output of this topic's labs (strongSwan 5.9.13 and FRR 8.4.4 on
+# Ubuntu 24.04, on the network-lab base, Docker Desktop 29.8.2, kernel
+# 6.18.33.2-microsoft-standard-WSL2), captured on 2026-11-12: both ends'
+# logs for each failure in the lesson's table, swanctl --list-sas, the IKE
+# exchanges in tcpdump, ECP-384 in both phases with PFS shown after a rekey,
+# the provider's restart recovered with close_action = start and not
+# without, the MTU black hole on a 1,400-byte line and its fix with a clamp
+# in both directions, and a VTI whose key doesn't match its SA's mark
+# dropping packets as transmit errors. Times, SPIs and counters will differ
+# in a new run.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: strongSwan's
+# documentation (each page's footer: CC BY 4.0, the strongSwan Team); AWS's
+# documentation (copyright Amazon Web Services); Microsoft Learn (the
+# MicrosoftDocs/azure-docs repository: CC BY 4.0); Google Cloud's
+# documentation (each page's footer: CC BY 4.0); RFCs (the IETF Trust's
+# Legal Provisions). No free video that covers IKEv2 well enough was found.
+resources:
+  - title: "Introduction to the IPsec Protocol (strongSwan documentation): ESP in transport and tunnel mode and its packet, the IKEv2 exchanges, and NAT traversal on UDP 4500, about 10 minutes"
+    url: https://docs.strongswan.org/docs/5.9/howtos/ipsecProtocol.html
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the strongSwan Team, each page's footer); linked, not copied"
+  - title: "Introduction to strongSwan (strongSwan documentation): read \"Securing a Network\", \"IKE and IPsec Basics\", \"Authentication Basics\" and \"Routing\", about 14 minutes"
+    url: https://docs.strongswan.org/docs/5.9/howtos/introduction.html
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the strongSwan Team, each page's footer); linked, not copied"
+  - title: "Route-based VPN (strongSwan documentation): read the opening of \"XFRM Interfaces on Linux\" and \"VTI Devices on Linux\" with its configuration, about 6 minutes"
+    url: https://docs.strongswan.org/docs/5.9/features/routeBasedVpn.html
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the strongSwan Team, each page's footer); linked, not copied"
+  - title: "Best practices for an AWS Site-to-Site VPN customer gateway device (AWS documentation): IKEv2, fragmenting before encryption, and the MTU and MSS table by algorithm, about 5 minutes"
+    url: https://docs.aws.amazon.com/vpn/latest/s2svpn/cgw-best-practice.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "AWS Site-to-Site VPN tunnel initiation options (AWS documentation): who brings the tunnel up, and what happens after a dead peer, about 3 minutes"
+    url: https://docs.aws.amazon.com/vpn/latest/s2svpn/initiate-vpn-tunnels.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Routing during VPN tunnel endpoint updates (AWS documentation): the lower MED on the other tunnel, and why local preference must be equal, about 1 minute"
+    url: https://docs.aws.amazon.com/vpn/latest/s2svpn/routing-vpn-tunnel-updates.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Tunnel options for your AWS Site-to-Site VPN connection (AWS documentation): two tunnels per connection, and how its endpoints choose among your proposals (optional)"
+    url: https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNTunnels.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "About VPN devices for connections (Microsoft Learn, Azure VPN Gateway): the default IPsec/IKE parameter tables and \"Azure VPN Gateway TCP MSS Clamping\" (optional)"
+    url: https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-about-vpn-devices
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Azure VPN Gateway FAQ (Microsoft Learn): read the BGP section, the ASNs, the 4,000-prefix limit and the fixed timers (optional)"
+    url: https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-vpn-faq
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "MTU considerations for Cloud VPN (Google Cloud documentation): the gateway's MTU, prefragmentation and the payload MTU by cipher (optional)"
+    url: https://docs.cloud.google.com/network-connectivity/docs/vpn/concepts/mtu-considerations
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "Cloud VPN overview (Google Cloud documentation): read the HA VPN parts, its two interfaces, its SLA and BGP-only routing (optional)"
+    url: https://docs.cloud.google.com/network-connectivity/docs/vpn/concepts/overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "swanctl.conf (strongSwan documentation): every connection setting the labs use, as a reference"
+    url: https://docs.strongswan.org/docs/5.9/swanctl/swanctlConf.html
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the strongSwan Team, each page's footer); linked, not copied"
+  - title: "RFC 7296: Internet Key Exchange Protocol Version 2 (IKEv2), sections 1 to 1.3: the exchanges in the standard's own words (optional)"
+    url: https://www.rfc-editor.org/rfc/rfc7296.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+# The recall items read swanctl --list-sas and both ends' strongSwan logs,
+# captured from this topic's labs, and do the tunnel's MTU sums with AWS's
+# and the labs' numbers. The four network labs are on the network-lab base:
+# the office, its VPN gateway (vpn, the learner's), the internet, and a
+# provider's VPN gateway (cloud, sealed scenery, read through
+# cloud-vpn-status and cloud-vpn-log) with the shop's cloud network behind
+# it. The write lab is a plain lab: a script over logs the checks make.
+practice:
+  - example-first-tunnel
+  - mcq-ike-or-esp
+  - mcq-firewall-for-vpn
+  - mcq-why-4500
+  - predict-list-sas
+  - mcq-pfs-first-child
+  - est-pfs-drop
+  - mcq-route-or-policy
+  - mcq-narrow-selectors
+  - mcq-vti-mark
+  - mcq-inside-addresses
+  - mcq-gone-after-maintenance
+  - fill-make-it-last
+  - mcq-filter-what-you-accept
+  - mcq-two-tunnels-med
+  - mcq-azure-prefixes
+  - predict-cloud-proposals
+  - mcq-psk-or-identity
+  - mcq-retransmits
+  - predict-which-exchange
+  - mcq-hangs-at-big-pages
+  - mcq-clamp-direction
+  - est-gcm-inner-mtu
+  - est-mss-with-nat-t
+  - est-clamp-value
+  - write-ike-diagnose
+prove:
+  build: build-tunnel-to-the-cloud
+  debug: debug-tunnel-down
+  explain:
+    prompt: |
+      A company is connecting its office to a cloud network with a site-to-site IPsec VPN, BGP over it, and a colleague asks you to explain it before the change. Explain, in your own words: what IKE and ESP each do, and what phase 1 and phase 2 agree; why a route-based tunnel with BGP is the usual choice with the clouds, and one way a policy-based habit breaks it; how you would tell from the logs of both ends a proposal mismatch in phase 1, a wrong pre-shared key or identity, and a phase 2 failure; why big downloads can hang over a tunnel when small pages work, and the fix, with the arithmetic; what makes the tunnel come back after a reboot and after the provider's maintenance; and two ways AWS, Azure or Google Cloud's VPNs differ.
+    rubric:
+      - id: ike-esp
+        required: true
+        description: "IKE (UDP 500, then 4500) proves who each end is and agrees keys and algorithms; ESP (IP protocol 50) encrypts and carries the traffic, in tunnel mode inside a new header between the gateways; phase 1 builds the IKE_SA (proposal, Diffie-Hellman, authentication), phase 2 the CHILD_SA (ESP proposal, traffic selectors, an optional DH group for perfect forward secrecy); a firewall must allow UDP 500, UDP 4500 and ESP."
+      - id: route-based
+        required: true
+        description: "Route-based: 0.0.0.0/0 selectors and a tunnel interface (a VTI, whose key matches the SA's marks), so routing, which BGP fills, decides what is encrypted; new networks need no new negotiation, and BGP moves traffic between tunnels. Narrow, policy-based selectors leave out the BGP peers' inside addresses (or a new network), so the tunnel is up and BGP isn't."
+      - id: reading-logs
+        required: true
+        description: "NO_PROPOSAL_CHOSEN in IKE_SA_INIT is phase 1; after \"IKE_SA established\", in IKE_AUTH or CREATE_CHILD_SA, it is phase 2; AUTHENTICATION_FAILED is the key or the identity, which only the responder's log tells apart (a MAC mismatch against no matching peer configuration); TS_UNACCEPTABLE is the selectors; retransmits with no answer are the path; a failure about an hour in is a rekey, usually the PFS group."
+      - id: mtu
+        required: true
+        description: "ESP adds about 54 bytes with AES-GCM (more with NAT traversal or CBC), so full-size packets no longer fit; with DF set they are dropped where a link is smaller, and if the ICMP that would say so is blocked, big transfers hang while small ones work. Clamp the MSS on the tunnel interface in both directions to link MTU minus overhead minus 40 (1,306 on a 1,400-byte line), or use the provider's MSS table."
+      - id: lasting
+        required: true
+        description: "The tunnel interface made at boot (a network file or a unit), the services enabled and BGP saved; start_action = start at boot, close_action = start for the provider's maintenance (it deletes the tunnel as it stops), dead peer detection with dpd_action = restart, and keyingtries = 0; two tunnels where the cloud offers them."
+      - id: clouds
+        required: true
+        description: "Any two correct differences, for example: AWS has two tunnels per connection, maintains one at a time and lowers the MED on the other, so local preference must be equal, and picks from your proposals by its own order; Azure's route-based defaults start with DH group 2, its BGP timers are 60 and 180 seconds and fixed, it takes up to 4,000 prefixes, and it clamps the MSS to 1,360 on its side; Google's HA VPN has a 99.99% SLA only with two tunnels, routes only by BGP and has a gateway MTU of 1,460."
+      - id: vti-or-xfrm
+        required: false
+        description: "The lab used a VTI with marks; XFRM interfaces do the same job better on kernels from 4.19, where the kernel has them."
+    model_answer: |
+      A site-to-site VPN joins the office's network to the cloud's across the internet, encrypted, and IPsec does it with two protocols. IKE, on UDP port 500 and then 4500, is the conversation in which the two gateways prove who they are and agree keys and algorithms. ESP, IP protocol 50, carries the traffic: in tunnel mode each of the office's packets is encrypted whole and wrapped in a new header between the two gateways' outside addresses. Phase 1 builds the IKE_SA, which protects IKE itself: the two ends agree a proposal, do a Diffie-Hellman exchange and authenticate each other, with a pre-shared key or a certificate. Phase 2 builds a CHILD_SA for the traffic: an ESP proposal, the traffic selectors that say which addresses it carries, and, if the proposal names a DH group, fresh keys of its own at every rekey, perfect forward secrecy. A firewall in front of the gateway has to allow UDP 500, UDP 4500 and ESP.
+
+      With the clouds, the tunnel is usually route-based: the selectors are 0.0.0.0/0 both ways and a tunnel interface, on Linux a VTI whose key matches the CHILD_SA's marks, decides what is encrypted: whatever is routed into it. BGP runs between the two inside addresses, a link-local /30, and fills in the routes, so when the cloud adds a network the office learns it without anyone renegotiating anything, and with two tunnels BGP moves the traffic when one fails. A policy-based habit breaks it: if someone writes the two networks into the selectors, the provider narrows to them, the tunnel shows as up, and BGP's own packets, between the inside addresses, are in neither selector, so the session never comes up and nothing is routed.
+
+      The logs tell the failures apart. If the office's log says NO_PROPOSAL_CHOSEN in the IKE_SA_INIT response, the IKE proposal, phase 1, was refused. AUTHENTICATION_FAILED in IKE_AUTH means a wrong key or a wrong identity, and from our side the two look identical; the provider's log says which: a MAC mismatch for the key, no matching peer configuration for the identity. If the IKE_SA is established and then NO_PROPOSAL_CHOSEN or TS_UNACCEPTABLE comes back with no CHILD_SA built, phase 2 failed, on the ESP proposal or the selectors. Retransmits with no answer mean something on the path drops the packets, often UDP 4500. And a tunnel that works for about an hour after every restart and then stops is a rekey failing, typically because the two ends disagree about the PFS group, which the first CHILD_SA never compares.
+
+      Big downloads hang while small pages work because ESP makes packets bigger: with AES-GCM it adds 54 bytes, so a full-size 1,500-byte packet no longer fits a 1,500-byte path, and a smaller link on the way drops it, since TCP sets DF. If the "fragmentation needed" message is blocked, the sender never learns and keeps resending. The fix on our side is to clamp TCP's MSS on the tunnel interface, in both directions, because each end announces in its own SYN what it will accept: on a 1,400-byte line, 1,400 − 54 − 40 = 1,306 at most.
+
+      For it to come back by itself, the tunnel interface must be made at boot, the IPsec service enabled and BGP saved. In the connection, start_action = start brings it up at boot, close_action = start brings it back when the provider closes it for maintenance, dead peer detection with dpd_action = restart catches a provider that stops answering, and keyingtries = 0 keeps trying however long it takes.
+
+      The clouds differ. AWS gives every connection two tunnels and maintains them one at a time, lowering the MED on the other first, so the office must keep local preference equal on both or it ignores the hint. Azure's gateway keeps its BGP timers fixed at 60 and 180 seconds, drops the session above 4,000 prefixes, starts its default proposals with DH group 2, and clamps the MSS to 1,360 itself. Google's HA VPN gives its 99.99% SLA only with two tunnels, and routes only by BGP.
+review_pool:
+  - mcq-firewall-for-vpn
+  - predict-list-sas
+  - est-pfs-drop
+  - mcq-weak-default-accepted
+  - mcq-narrow-selectors
+  - mcq-gone-after-maintenance
+  - mcq-xfrm-or-vti
+  - mcq-install-routes
+  - mcq-filter-what-you-accept
+  - mcq-two-tunnels-med
+  - mcq-static-or-bgp
+  - mcq-azure-timers
+  - mcq-psk-or-identity
+  - predict-which-exchange
+  - mcq-ts-unacceptable
+  - est-gcm-inner-mtu
+  - est-clamp-value
+  - est-cbc-inner-mtu
+skills:
+  - id: ipsec-building-blocks
+    description: "IKE and ESP and what each carries; phase 1 (the IKE_SA) and phase 2 (the CHILD_SA); SAs and SPIs; proposals, DH groups and PFS, and why the first CHILD_SA doesn't negotiate its group; PSK and identities; lifetimes and rekeying; UDP 500, UDP 4500 and protocol 50; NAT traversal and MOBIKE; reading `swanctl --list-sas`"
+  - id: route-based-tunnel
+    description: "Policy-based against route-based; the VTI, its key and the CHILD_SA's marks (XFRM interfaces by name); 0.0.0.0/0 selectors and `install_routes = no`; the inside /30 of link-local addresses; building it with swanctl and making it last a reboot and a provider's restart (`start_action`, `close_action`, DPD, `keyingtries`)"
+  - id: bgp-over-tunnel
+    description: "BGP between the inside addresses; what to send and what to accept (prefix filters in and out, never a default route); learning routes rather than typing them; two tunnels, MED and local preference during a provider's maintenance; each cloud's ASN, timers and prefix limits"
+  - id: read-ike-logs
+    description: "Phase 1 and phase 2 failures from strongSwan's log on each end: proposal mismatches, a wrong key against a wrong identity, traffic selectors (unacceptable or narrowed), no answer, a rekey that fails; which end's log can tell you what"
+  - id: tunnel-mtu
+    description: "ESP's overhead and the inner MTU; MSS from MTU; what NAT traversal and AES-CBC add; the black hole when ICMP is blocked; MSS clamping in both directions on the tunnel interface; each cloud's MTU and MSS numbers"
