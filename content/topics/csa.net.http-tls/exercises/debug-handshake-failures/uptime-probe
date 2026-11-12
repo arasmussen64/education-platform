@@ -1,0 +1,17 @@
+#!/bin/bash
+# uptime-probe: the shop's uptime monitor, run on monitor. It is an old
+# tool: it connects to the shop's address, 10.0.9.1, without sending a
+# name, and checks that the certificate it is given is one it can trust
+# for www.shop.test. It belongs to the monitoring team, not to the shop.
+out=$(openssl s_client -connect 10.0.9.1:443 -noservername -verify_hostname www.shop.test < /dev/null 2>&1)
+if ! echo "$out" | grep -- '-----BEGIN CERTIFICATE-----' > /dev/null; then
+  echo "www.shop.test DOWN: no certificate ($(echo "$out" | grep -m 1 -o -E 'alert [a-z ]*|errno=[0-9]+' || echo 'no answer'))"
+  exit 1
+fi
+code=$(echo "$out" | grep -m 1 '^Verify return code' | sed 's/^Verify return code: //')
+if [ "$code" = "0 (ok)" ]; then
+  echo "www.shop.test up: certificate verified"
+  exit 0
+fi
+echo "www.shop.test DOWN: verify error $code"
+exit 1

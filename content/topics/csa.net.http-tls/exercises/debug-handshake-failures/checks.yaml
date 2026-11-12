@@ -1,0 +1,78 @@
+# The checks of "Handshake failures": each client's own view (the
+# warehouse's sync, the uptime monitor, a customer's laptop), the rules of
+# the fix, and the scenery. The first check waits for nginx on web after a
+# boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: partner-syncs
+    description: "The warehouse's sync, run on partner, gets the shop's orders from api.shop.test."
+    # It waits up to about 30 seconds for nginx after a boot (10 tries of
+    # at most 3 seconds), so it gets 45 and prints its own sentence.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      wait_for 10 web_up || { echo "nothing answers HTTPS for www.shop.test on web"; exit 0; }
+      said=$(on partner partner-sync 2>&1)
+      [ "$said" = "synced 42 orders" ] || { echo "on partner, partner-sync says: $said"; exit 0; }
+      echo synced
+    expect:
+      equals: synced
+  - id: monitor-up
+    description: "The uptime monitor, which connects to web's address without sending a name, is given a certificate it trusts for www.shop.test."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      out=$(on monitor timeout 5 openssl s_client -connect "$WEB:443" -noservername -verify_hostname www.shop.test < /dev/null 2>&1)
+      echo "$out" | grep -- '-----BEGIN CERTIFICATE-----' > /dev/null || { echo "a handshake without a name gets no certificate"; exit 0; }
+      echo "$out" | grep '^Verify return code: 0 (ok)' > /dev/null ||
+        { echo "without a name, the monitor is given a certificate that doesn't verify for www.shop.test: $(echo "$out" | grep -m 1 '^Verify return code')"; exit 0; }
+      said=$(on monitor uptime-probe 2>&1)
+      case $said in
+        "www.shop.test up"*) echo up ;;
+        *) echo "on monitor, uptime-probe says: $said" ;;
+      esac
+    expect:
+      equals: up
+  - id: each-own-cert
+    description: "www.shop.test and api.shop.test each answer, to a client that names them, with a certificate for their own name that the office trusts."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      for name in www.shop.test api.shop.test; do
+        v=$(verified "$name")
+        [ "$v" = ok ] || { echo "the certificate served for $name doesn't verify for that name: $v (it names $(names_on "$name"))"; exit 0; }
+      done
+      echo each
+    expect:
+      equals: each
+  - id: old-versions-off
+    description: "Both sites accept TLS 1.3 and refuse TLS 1.1, and no ssl_protocols line in nginx's files names a version older than TLS 1.2."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      for name in www.shop.test api.shop.test; do
+        got=$(hello "$name" 1.3)
+        [ "$got" = TLSv1.3 ] || { echo "a TLS 1.3 handshake for $name is $got"; exit 0; }
+        got=$(hello "$name" 1.1)
+        [ "$got" = refused ] || { echo "a TLS 1.1 handshake for $name is accepted ($got)"; exit 0; }
+      done
+      named=$(file_versions | tr '\n' ' ')
+      [ -n "$named" ] || { echo "nginx's files have no ssl_protocols line, so nginx 1.24 allows its own default, TLS 1.0 to 1.3"; exit 0; }
+      old=$(file_versions | grep -v -x -e TLSv1.2 -e TLSv1.3 | tr '\n' ' ')
+      [ -z "$old" ] || { echo "an ssl_protocols line in nginx's files names $old"; exit 0; }
+      echo turned-off
+    expect:
+      equals: turned-off
+  - id: stapled
+    description: "www.shop.test staples the CA's good OCSP answer to its handshakes, from the second handshake after nginx starts."
+    timeout: 20
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      stapled www.shop.test
+    expect:
+      equals: stapled
+  - id: scenery
+    description: "The warehouse's sync and the monitor's probe, the shop's certificate authority, the sites' certificates, the shop's resolver and the network are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact
