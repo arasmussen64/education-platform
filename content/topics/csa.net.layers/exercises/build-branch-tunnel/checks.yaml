@@ -2,7 +2,8 @@
 # answering), the price list arriving whole at the branch, the tunnel's MTU
 # (its value, and DF pings either side of it from the branch), r3 hearing
 # the internet path's MTU, the cloud starting a connection to the branch,
-# the firewall seen from the internet, the saved capture, the scenery, and
+# everything else going straight to the ISP (and the branch's own
+# connections there answered), the firewall seen from the internet, the saved capture, the scenery, and
 # a fresh build of every machine from its files (netlab verify), so a fix
 # made only live fails. "branch-reaches-web" waits for web's site after a
 # boot; the rest read at once.
@@ -69,6 +70,26 @@ checks:
       wait 2> /dev/null
     expect:
       equals: reaches
+  - id: internet-direct
+    description: "Only the cloud's network goes through the tunnel: r3 sends everything else to the ISP, and the branch's machine can make a connection to the internet and get its answers."
+    command: |
+      # r3's route for a few addresses that aren't the cloud's network, on
+      # the internet and in other private networks: each must leave on
+      # r3's line to the ISP, not into the tunnel.
+      for to in 192.0.2.$((1 + RANDOM % 250)) 10.0.3.$((1 + RANDOM % 250)) 10.$((1 + RANDOM % 250)).0.1 172.16.0.1; do
+        ip -n r3 route get "$to" 2> /dev/null | grep ' via 198.51.100.5 dev wan ' > /dev/null || { echo "r3 sends packets for $to somewhere other than its line to the ISP"; exit 0; }
+      done
+      # A connection from the branch to a listener of the check's own on
+      # the internet's side of the ISP: its answers come back in from the
+      # internet, so r3 has to let in what belongs to it.
+      port=$((20000 + RANDOM % 10000))
+      on isp timeout 8 nc -l -p "$port" > /dev/null 2>&1 &
+      sleep 0.3
+      if on branch nc -z -w 3 203.0.113.1 "$port" 2> /dev/null; then echo direct; else echo "the branch's machine can't make a connection to the internet"; fi
+      kill $(jobs -p) 2> /dev/null
+      wait 2> /dev/null
+    expect:
+      equals: direct
   - id: firewall-strict
     description: "From the internet, r3 and the branch's machine answer nothing new: ports on both get no answer at all."
     command: |
