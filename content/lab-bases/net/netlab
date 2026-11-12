@@ -72,7 +72,8 @@
 #                    each machine its own copy of their /etc and state folders
 #   netlab seal F..  at image build: record checksums of scenery files the
 #                    learner mustn't change (checked by netlab intact)
-#   netlab intact    exit 0 if every sealed file is unchanged; else name them
+#   netlab intact    "intact" if every sealed file is unchanged; else name
+#                    them and exit 1
 set -euo pipefail
 # Files are taken in name order the same way on every machine.
 export LC_ALL=C
@@ -719,6 +720,8 @@ case $action in
       echo intact
     else
       echo "changed: $(echo "$out" | awk -F: '/FAILED/ {print $1}' | tr '\n' ' ')"
+      # And fails, so a check that only runs "netlab intact" fails too.
+      exit 1
     fi
     ;;
   saved-sysctl)

@@ -132,7 +132,7 @@ The lab's Dockerfile copies it and runs `systemctl enable shop-api@app`. A unit 
 | `sudo netlab link M IF silent` | the cable stays plugged in, but everything M sends over it vanishes as it arrives at the far end (the far machine, or the switch for a lan port): a dead path nothing notices at once |
 | `sudo netlab link M IF restore` | plugged in and passing traffic again |
 | `sudo netlab verify [M...] [-- COMMAND...]` | build a throwaway copy of every machine from its files, without services, and compare (below) |
-| `netlab intact` | `intact`, or the sealed scenery files that changed |
+| `netlab intact` | `intact`, or the sealed scenery files that changed (and then exits 1) |
 
 `silent` drops arrivals with an nftables table of type `netdev` on the far interface (`netlab_silent_<interface>`); `restore` removes it. On a far machine that is the learner's, their own `nft flush ruleset` or a reload of `nftables@M` would remove it too.
 

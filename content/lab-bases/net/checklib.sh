@@ -89,7 +89,8 @@ frr_saved() {
 }
 
 # intact: the scenery the learner mustn't change (the topology, the other
-# side's configuration) is as the image had it.
+# side's configuration) is as the image had it: prints "intact", or names
+# the sealed files that changed and fails.
 intact() { /usr/local/lib/netlab/netlab intact; }
 
 # nft_saved MACHINE: exit 0 when the firewall running on the machine is the
