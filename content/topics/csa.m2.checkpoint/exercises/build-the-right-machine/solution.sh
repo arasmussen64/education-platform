@@ -17,11 +17,11 @@ cat workloads/w5/brief.txt
 metric-summary workloads/w5/metrics.csv
 
 # w1, orders-api: the 95th percentile, 27.2% of n4-standard-8's 8 vCPUs, is
-#   2.18 vCPUs, at most 60% of the new size: 2.18 / 0.6 = 3.64 vCPUs.
+#   2.18 vCPUs, at most 60% of the new size: 2.18 / 0.6 = 3.63 vCPUs.
 #   Memory: the peak, 11.2 GiB, at most 80%: 14.00 GiB.
 #   Its peaks are long, so no burstable size.
 #   x86 only; Google Cloud; Linux; 730 hours a month.
-awk -F, 'NR > 1 && $2 == "gcp" && $6 == "x86" && $7 >= 3.64 && $8 >= 14.00 && $12 == "" {print $13 * 730, $4}' prices.csv | sort -n | head -n 3
+awk -F, 'NR > 1 && $2 == "gcp" && $6 == "x86" && $7 >= 3.63 && $8 >= 14.00 && $12 == "" {print $13 * 730, $4}' prices.csv | sort -n | head -n 3
 
 # w2, ledger-db: the 95th percentile, 24.2% of D16s_v5's 16 vCPUs, is
 #   3.87 vCPUs, at most 60% of the new size: 3.87 / 0.6 = 6.45 vCPUs.

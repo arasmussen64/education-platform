@@ -10,11 +10,11 @@ cat workloads/w1/brief.txt
 metric-summary workloads/w1/metrics.csv
 
 # w1, orders-api: the 95th percentile, 27.2% of n4-standard-8's 8 vCPUs, is
-#   2.18 vCPUs, at most 60% of the new size: 2.18 / 0.6 = 3.64 vCPUs.
+#   2.18 vCPUs, at most 60% of the new size: 2.18 / 0.6 = 3.63 vCPUs.
 #   Memory: the peak, 11.2 GiB, at most 80%: 14.00 GiB.
 #   Its peaks are long, so no burstable size.
 #   x86 only; Google Cloud; Linux; 730 hours a month.
-awk -F, 'NR > 1 && $2 == "gcp" && $6 == "x86" && $7 >= 3.64 && $8 >= 14.00 && $12 == "" {print $13 * 730, $4}' prices.csv | sort -n | head -n 3
+awk -F, 'NR > 1 && $2 == "gcp" && $6 == "x86" && $7 >= 3.63 && $8 >= 14.00 && $12 == "" {print $13 * 730, $4}' prices.csv | sort -n | head -n 3
 
 # Today: 264.84 + 2265.92 + 147.17 + 661.14 + 73.58 = 3412.66 a month.
 # The new sizes: 1629.72. The saving: 3412.66 - 1629.72 = 1782.94.

@@ -20,19 +20,19 @@ metric-summary workloads/c3/metrics.csv
 awk -F, 'NR > 1 && $2 == "gcp" && $6 == "x86" && $7 >= 1.37 && $8 >= 6.75 && $12 == "" {print $13 * 730, $4}' prices.csv | sort -n | head -n 3
 
 # c2, records-db: the 95th percentile, 9.2% of r7i.2xlarge's 8 vCPUs, is
-#   0.74 vCPUs, at most 60% of the new size: 0.74 / 0.6 = 1.24 vCPUs.
+#   0.74 vCPUs, at most 60% of the new size: 0.74 / 0.6 = 1.23 vCPUs.
 #   Memory: the peak, 11.6 GiB, at most 80%: 14.50 GiB.
 #   Its peaks are long, so no burstable size.
 #   a size with a Windows price; AWS; Windows Server and SQL Server Standard; 730 hours a month.
-awk -F, 'NR > 1 && $2 == "aws" && $7 >= 1.24 && $8 >= 14.50 && $12 == "" && $14 != "" {print ($14 + 0.12 * ($7 < 4 ? 4 : $7)) * 730, $4}' prices.csv | sort -n | head -n 3
+awk -F, 'NR > 1 && $2 == "aws" && $7 >= 1.23 && $8 >= 14.50 && $12 == "" && $14 != "" {print ($14 + 0.12 * ($7 < 4 ? 4 : $7)) * 730, $4}' prices.csv | sort -n | head -n 3
 
 # c3, scan-reader: the 95th percentile, 30.8% of g5.xlarge's 4 vCPUs, is
 #   1.23 vCPUs, at most 60% of the new size: 1.23 / 0.6 = 2.05 vCPUs.
 #   Memory: the peak, 9.8 GiB, at most 80%: 12.25 GiB.
-#   GPU memory: the peak, 11.8 GiB, at most 90%: 13.12 GiB.
+#   GPU memory: the peak, 11.8 GiB, at most 90%: 13.11 GiB.
 #   Its peaks are long, so no burstable size.
 #   x86 only; any cloud; Linux; 90 hours a month.
-awk -F, 'NR > 1 && $6 == "x86" && $7 >= 2.05 && $8 >= 12.25 && $11 != "" && $11 >= 13.12 && $12 == "" {print $13 * 90, $4}' prices.csv | sort -n | head -n 3
+awk -F, 'NR > 1 && $6 == "x86" && $7 >= 2.05 && $8 >= 12.25 && $11 != "" && $11 >= 13.11 && $12 == "" {print $13 * 90, $4}' prices.csv | sort -n | head -n 3
 
 # Today: 264.84 + 1355.76 + 90.54 = 1711.14 a month.
 # The new sizes: 627.69. The saving: 1711.14 - 627.69 = 1083.45.
