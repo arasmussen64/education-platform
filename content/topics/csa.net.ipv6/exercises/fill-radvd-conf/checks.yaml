@@ -1,0 +1,73 @@
+# The checks for "Advertise the office's subnet": the laptops' own
+# addresses and default routes, a connection over IPv6 that web sees from
+# h1's own address, r1's forwarding and radvd lasting, and the scenery.
+# "slaac" waits for the laptops' addresses after a boot; the rest read at
+# once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: slaac
+    description: "h1 and h2 each have a global IPv6 address they made themselves, in the office's subnet from the address plan, and none outside it."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      own() { on "$1" ip -6 -o addr show dev eth0 scope global dynamic | awk '{print $4}'; }
+      both() { [ -n "$(own h1)" ] && [ -n "$(own h2)" ]; }
+      wait_for 10 both
+      in_subnet='import ipaddress, sys; sys.exit(ipaddress.ip_interface(sys.argv[1]).network != ipaddress.ip_network("2001:db8:77:1a::/64"))'
+      for h in h1 h2; do
+        addresses=$(own "$h")
+        [ -n "$addresses" ] || { echo "$h has no global IPv6 address it made itself"; exit 0; }
+        for a in $addresses; do
+          python3 -c "$in_subnet" "$a" || { echo "$h made $a, which isn't in the office's subnet"; exit 0; }
+        done
+      done
+      echo slaac
+    expect:
+      equals: slaac
+  - id: default-route
+    description: "Each laptop's IPv6 default route was learned from r1's advertisements and points at r1's link-local address."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      r1ll=$(on r1 ip -6 -o addr show dev lan scope link | awk '{print $4}' | cut -d/ -f1 | head -n 1)
+      for h in h1 h2; do
+        route=$(on "$h" ip -6 route show default)
+        [ -n "$route" ] || { echo "$h has no IPv6 default route"; exit 0; }
+        echo "$route" | grep 'proto ra' > /dev/null || { echo "$h's IPv6 default route wasn't learned from a router advertisement"; exit 0; }
+        echo "$route" | grep "via $r1ll " > /dev/null || { echo "$h's IPv6 default route doesn't point at r1's link-local address"; exit 0; }
+      done
+      echo "via r1"
+    expect:
+      equals: "via r1"
+  - id: reach
+    description: "Over IPv6, h1 reaches web with its own address: web sees h1's address, not a translated one."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      mine=$(on h1 ip -6 -o addr show dev eth0 scope global | awk '{print $4}' | head -n 1 | cut -d/ -f1)
+      [ -n "$mine" ] || { echo "h1 has no global IPv6 address"; exit 0; }
+      seen=$(on h1 nc -6 -w 3 2001:db8:80::80 8080 < /dev/null 2> /dev/null)
+      if [ "$seen" = "$mine" ]; then echo own; else echo "web sees h1 as '${seen:-nothing}', not as h1's own $mine"; fi
+    expect:
+      equals: own
+  - id: lasts
+    description: "r1 forwards IPv6 because its own files say so, so a restart keeps it; radvd@r1 starts at every boot and is the only radvd running."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(on r1 sysctl -n net.ipv6.conf.all.forwarding)" = 1 ] || { echo "r1 doesn't forward IPv6"; exit 0; }
+      sysctl_saved r1 net.ipv6.conf.all.forwarding || exit 0
+      [ "$(systemctl is-enabled radvd@r1 2> /dev/null)" = enabled ] || { echo "radvd@r1 doesn't start at boot"; exit 0; }
+      systemctl is-active --quiet radvd@r1 || { echo "radvd@r1 isn't running: journalctl -u radvd@r1 says why"; exit 0; }
+      # Every radvd process belongs to radvd@r1, so the advertisements come
+      # from r1's file and not from a radvd started by hand.
+      for pid in $(pgrep -x radvd); do
+        grep 'radvd@r1\.service' "/proc/$pid/cgroup" > /dev/null 2>&1 || { echo "a radvd is running that radvd@r1 didn't start"; exit 0; }
+      done
+      echo lasts
+    expect:
+      equals: lasts
+  - id: scenery
+    description: "The topology, r1's network file and r1's firewall are as the lab gave them."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact || true
+    expect:
+      equals: intact
