@@ -9,11 +9,15 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: office-internet
-    description: "The office reaches the internet: the payment provider's web server at 203.0.113.10 answers it."
+    description: "The office reaches the internet: the payment provider's web server at 203.0.113.10 answers it, and r1 sends all traffic for the internet to the ISP's router, 198.51.100.1, and nowhere else."
     command: |
       . /usr/local/lib/netlab/checklib.sh
       web() { [ "$(on office curl -s -m 2 http://203.0.113.10/)" = "you are 10.1.0.10" ]; }
       wait_for 15 web || { echo "the office doesn't reach 203.0.113.10"; exit 0; }
+      # Every next hop of r1's default route in the kernel, one a line: two
+      # would share the internet's traffic (ECMP), some of it elsewhere.
+      hops=$(ip -n r1 route show default | awk '{for (i = 1; i < NF; i++) if ($i == "via") print $(i + 1)}')
+      [ "$hops" = 198.51.100.1 ] || { echo "r1 doesn't send all of the internet's traffic to the ISP's router alone"; exit 0; }
       echo reached
     expect:
       equals: reached
@@ -33,7 +37,7 @@ checks:
     command: |
       for a in 10.2.0.10 10.2.200.10 10.2.130.7 "10.2.$((RANDOM % 256)).$((1 + RANDOM % 254))"; do
         hop=$(ip -n r1 route get "$a" 2>&1 | awk '{for (i = 1; i < NF; i++) if ($i == "via") {print $(i + 1); exit}}')
-        [ "$hop" = 10.0.14.2 ] || { echo "r1 doesn't send $a to r4: $(ip -n r1 route get "$a" 2>&1 | head -n 1)"; exit 0; }
+        [ "$hop" = 10.0.14.2 ] || { echo "r1 doesn't send every address in the store's 10.2.0.0/16 to r4"; exit 0; }
       done
       echo "all to r4"
     expect:
@@ -53,12 +57,20 @@ checks:
       . /usr/local/lib/netlab/checklib.sh
       # What r2 passes towards the office, and what crosses the emergency
       # link, while the office asks the stock app.
+      # What it prints on failure is the same whichever part fails, so it
+      # never says which direction or which router to look at.
+      fail() { echo "traffic between the office and the data centre doesn't all pass r2, both ways"; exit 0; }
       back=$(capture r2 r1 'tcp and src host 10.3.0.10 and dst host 10.1.0.10' 4 -- ip netns exec office curl -s -m 2 http://10.3.0.10:8080/)
-      [ -n "$back" ] || { echo "the data centre's answers to the office don't pass r2"; exit 0; }
+      [ -n "$back" ] || fail
       out=$(capture r2 r3 'tcp and src host 10.1.0.10 and dst host 10.3.0.10' 4 -- ip netns exec office curl -s -m 2 http://10.3.0.10:8080/)
-      [ -n "$out" ] || { echo "the office's requests to the data centre don't pass r2"; exit 0; }
+      [ -n "$out" ] || fail
       around=$(capture r1 r3 'host 10.1.0.10 and host 10.3.0.10' 4 -- ip netns exec office curl -s -m 2 http://10.3.0.10:8080/)
-      [ -z "$around" ] || { echo "traffic between the office and the data centre crosses the emergency link"; exit 0; }
+      [ -z "$around" ] || fail
+      # The rest of each network goes the same way as its one host: an
+      # office address and a data centre address that are new at every run.
+      hop() { ip -n "$1" route get "$2" 2>&1 | awk '{for (i = 1; i < NF; i++) if ($i == "via") {print $(i + 1); exit}}'; }
+      [ "$(hop r3 "10.1.0.$((11 + RANDOM % 240))")" = 10.0.23.1 ] || fail
+      [ "$(hop r1 "10.3.0.$((11 + RANDOM % 240))")" = 10.0.12.2 ] || fail
       echo "through r2"
     expect:
       equals: "through r2"

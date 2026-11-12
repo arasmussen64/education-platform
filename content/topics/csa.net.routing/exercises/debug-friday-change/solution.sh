@@ -8,6 +8,7 @@ on office curl -sS -m 3 http://203.0.113.10/
 on r1 ip route show default
 on r1 ip neigh show dev wan
 on r1 vtysh -c 'configure terminal' -c 'no ip route 0.0.0.0/0 198.51.100.254' -c 'ip route 0.0.0.0/0 198.51.100.1' -c 'end' -c 'write memory'
+on r1 ip route show default
 on office curl -sS -m 3 http://203.0.113.10/
 
 # 2. The stock app. Ping works and the app times out: r2's connection
@@ -28,8 +29,9 @@ on office curl -sS -m 3 http://10.3.0.10:8080/
 #    provider and the readers don't. r1's kernel refuses 10.2.200.10
 #    (Invalid argument: a blackhole), because a blackhole for 10.2.128.0/17,
 #    left from a migration, is a longer prefix than the store's /16. It
-#    goes; the blackhole for the shop's whole 10.0.0.0/8 stays, so unused
-#    internal addresses still die at r1.
+#    goes: r4 drops the store's own unused addresses now. The blackhole for
+#    the shop's whole 10.0.0.0/8 stays, so unused internal addresses still
+#    die at r1.
 on reader curl -sS -m 3 http://203.0.113.10/
 on r1 ip route get 10.2.200.10
 on r1 vtysh -c 'show ip route 10.2.200.10'

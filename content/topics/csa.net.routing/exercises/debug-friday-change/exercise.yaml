@@ -13,7 +13,7 @@ prompt: |
   - **The data centre**, 10.3.0.0/24, is behind `r3`. Its server `dc` (10.3.0.10) runs the stock app on port 8080 (`http://10.3.0.10:8080/`), which answers with the address each request came from and logs it (`on dc tail /var/log/nginx/access.log`).
   - **The inspection firewall**, `r2`, sits between r1 (10.0.12.0/30) and r3 (10.0.23.0/30). Its rules are its `/etc/nftables.conf`, loaded at every boot by `nftables@r2`: new connections from the office to the stock app, and pings, are let through, and anything else only as part of a conversation r2 has already seen start (`on r2 nft list ruleset`, `on r2 conntrack -L`).
   - **The emergency link**, 10.0.13.0/30, joins r1 and r3 directly, for when r2 is down.
-  - **The store**, 10.2.0.0/16, is behind `r4`, on 10.0.14.0/30 from r1. Its tills are on 10.2.0.0/24 (host `till`, 10.2.0.10) and its card readers on 10.2.200.0/24 (host `reader`, 10.2.200.10).
+  - **The store**, 10.2.0.0/16, is behind `r4`, on 10.0.14.0/30 from r1. Its tills are on 10.2.0.0/24 (host `till`, 10.2.0.10) and its card readers on 10.2.200.0/24 (host `reader`, 10.2.200.10); r4 drops packets for the store's addresses that no machine uses.
 
   Each router runs FRR with static routes (`on r1 vtysh`), and each router's interfaces are named after what is at the far end. The intended design: every packet between the office and the data centre passes r2, in both directions; the emergency link isn't used while r2's links are up; r1 sends everything for the store's 10.2.0.0/16 to r4; r1 sends everything that isn't internal to the ISP's router; r1 drops packets for internal addresses (in 10.0.0.0/8) that no site uses; and the card readers must reach the payment provider.
 
