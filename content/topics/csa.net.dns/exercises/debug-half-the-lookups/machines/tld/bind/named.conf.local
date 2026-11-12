@@ -1,0 +1,20 @@
+// The zone test., signed by BIND with its default DNSSEC policy (the key
+// is in /etc/bind/keys; the signed copy is written beside the zone file).
+zone "test" {
+  type primary;
+  file "/etc/bind/db.test";
+  dnssec-policy default;
+  inline-signing yes;
+  key-directory "/etc/bind/keys";
+};
+
+// broken.test, a zone kept broken on purpose: the DS record for it in
+// test. matches none of its keys, so every resolver that checks signatures
+// must refuse its answers (SERVFAIL). It shows that validation is on.
+zone "broken.test" {
+  type primary;
+  file "/etc/bind/db.broken.test";
+  dnssec-policy default;
+  inline-signing yes;
+  key-directory "/etc/bind/keys";
+};

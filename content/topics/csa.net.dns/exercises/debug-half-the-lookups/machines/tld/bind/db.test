@@ -1,0 +1,15 @@
+; The top-level domain test. Names without a final dot end in .test.
+$TTL 3600
+@                IN SOA ns1.nic.test. hostmaster.nic.test. ( 2026111201 1800 900 604800 3600 ) ; serial
+@                IN NS  ns1.nic
+ns1.nic          IN A   198.51.100.12
+a.root-servers   IN A   198.51.100.11
+; shop.test is delegated to the shop's two servers, with glue
+shop             IN NS  ns1.shop
+shop             IN NS  ns2.shop
+ns1.shop         IN A   198.51.100.13
+ns2.shop         IN A   198.51.100.14
+; broken.test is served here too, signed, with a DS that matches no key
+broken           IN NS  ns1.nic
+; the DS records of shop.test and broken.test are added below when the lab
+; is built

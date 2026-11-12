@@ -1,0 +1,22 @@
+// The shop's zone. ns1 is its primary: the zone file here is the master
+// copy. BIND signs it with its default DNSSEC policy (the key is in
+// /etc/bind/keys; the signed copy is written beside the zone file), and ns2,
+// the secondary, copies the signed zone from here. Only ns2 may copy it
+// (allow-transfer), and ns2 is told at once when it changes (also-notify).
+zone "shop.test" {
+  type primary;
+  file "/etc/bind/db.shop.test";
+  dnssec-policy default;
+  inline-signing yes;
+  key-directory "/etc/bind/keys";
+  allow-transfer { 198.51.100.14; };
+  also-notify { 198.51.100.14; };
+};
+
+// The payments site's zone, delegated from shop.test to ns1 alone. It is
+// signed by hand (db.pay.shop.test.unsigned says how), and BIND serves the
+// signed file.
+zone "pay.shop.test" {
+  type primary;
+  file "/etc/bind/db.pay.shop.test";
+};
