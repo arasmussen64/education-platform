@@ -17,6 +17,7 @@ A copy of this file is in csa.net.http-semantics's write lab; the test in
 tools/tests/test_cors_verdict.py fails if the two differ.
 """
 
+import re
 import sys
 
 SAFE_METHODS = {"GET", "HEAD", "POST"}
@@ -63,8 +64,12 @@ def listed(value):
 def verdict(preflight, actual, origin, method, header, credentials):
     name, _, value = header.partition(":")
     name, value = name.strip().lower(), value.split(";")[0].strip().lower()
+    # Safelisted headers need no preflight (Fetch's byte and length limits
+    # on their values are left out: the labs never come near them).
     unsafe = bool(name) and name not in SAFE_NAMES
     if name == "content-type" and value in SAFE_TYPES:
+        unsafe = False
+    if name == "range" and re.fullmatch(r"bytes=\d+-\d*", value):
         unsafe = False
     if method not in SAFE_METHODS or unsafe:
         # Not a simple request: the browser asks first, without credentials,
