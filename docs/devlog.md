@@ -10,6 +10,8 @@ The owner is still away; decisions follow their message of 2026-11-11. Wave 2's 
 
 **The base gets three fixes** with it (#264): a switch's ports no longer take IPv6 addresses of their own (they sent router solicitations that a capture showed as machines nobody has); `sysctl_saved` counts `net.ipv4.conf.all.forwarding` for `net.ipv4.ip_forward`, one setting under two names; and netlab says when the kernel refused a value in a machine's files, rather than that the machine lacks the setting.
 
+**NAT is ready** (#265). It teaches how a gateway rewrites addresses: source NAT and masquerading, destination NAT, why replies need no rule (conntrack keeps each connection both ways), where each happens in nftables, that NAT is not a firewall, what a NAT's capacity counts (connections per destination), how port exhaustion looks (timeouts, not refusals) and its remedies in order, and when to avoid NAT. The three clouds' NAT gateways are side by side, prices included. Its worked example is the base's NAT probe, finished. The build makes a NAT gateway from a fresh server: payments must leave from the one address the provider accepts, and a published app must still see each customer's own address. Five labs (44 known-wrong fixes) and 27 recall items. The review found that the provider's router, which is scenery, could be changed in its running firewall without any check noticing, and that the debug checked only the office's way out.
+
 **Author notes:**
 
 - _IPv6 defines `sysctl` briefly too._ It comes before Routing on the suggested path and every one of its labs sets the router's forwarding in `/etc/sysctl.d`, so a few sentences there match Routing's paragraph.
@@ -17,8 +19,10 @@ The owner is still away; decisions follow their message of 2026-11-11. Wave 2's 
 - _IPv6's build moves the ISP's link out of the company's /48,_ so it can't be taken for one of the plan's subnets, and makes the router's IPv4 LAN address part of the build.
 - _IPv6's write lab is heavily scaffolded_ for a write from a blank file (its prompt and hints give most of the script's pieces); it meets the brief, and a later pass may thin the hints.
 - _No IPv6 video:_ none could be confirmed in a browser.
+- _One of NAT's debug faults can be left unfixed and still pass._ The natural fix for fault 2 turns `iifname "wan" masquerade` into `oifname "wan" masquerade`, which then translates the office too, so the office's stale rule (fault 3) becomes dead config that no end-state check can tell from a mended one. Accepted: the learner has found the payments' fault and turned the rule round, and the leftover line is plain to anyone reading the file.
+- _A write lab's own answer tool is within the learner's reach_ in several Module 3 labs: the checks' tool sits in the image with the learner's `sudo`, so a script that calls it passes. TCP and UDP's reviewer closed it there (the tool is root's alone and the script runs without `sudo`); the other write and build labs get the same treatment next.
 
-**Next:** NAT, then TCP and UDP, each in its own pull request; wave 2's second half is being written.
+**Next:** TCP and UDP in its own pull request; wave 2's second half is being written.
 
 ## 2026-11-12, later: Module 3's first six topics
 
