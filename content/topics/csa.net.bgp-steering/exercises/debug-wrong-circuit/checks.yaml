@@ -1,8 +1,9 @@
 # The checks of "The backup circuit carries everything": the five sessions,
 # which circuit each side sends its traffic over (BGP's choice on core and
 # access, and the cloud's kernel route, which shares traffic over two paths
-# that tie), what the cloud accepted over each circuit, eBGP's policy rule,
-# whether every router of the data centre runs its own file and has no
+# that tie), what dc1 and dc2 announced and the cloud accepted over each
+# circuit, eBGP's policy rule, BFD's detection times, whether every router
+# of the data centre runs its own file and has no
 # routes typed into its kernel, the cloud's router as it was, and last, a
 # silent failure of circuit 1 that must be noticed within 3 seconds.
 # sessions-up waits for BGP after a boot or a restart of FRR; the rest read
@@ -74,13 +75,19 @@ checks:
     expect:
       equals: "circuit 1"
   - id: announced-summary
-    description: "Over each circuit the cloud accepts exactly one route from the data centre, its summary, 10.1.0.0/22."
+    description: "Over each circuit the data centre announces exactly one route, its summary, 10.1.0.0/22, and the cloud accepts it."
+    # Both ends: what dc1 and dc2 send, and what the cloud kept. The cloud
+    # drops a route whose AS path already holds its own AS, so the cloud's own
+    # network sent back to it (a route map with no match line) shows only in
+    # what the circuit's router sends.
     command: |
       . /usr/local/lib/netlab/checklib.sh
-      for want in "169.254.30.1 1" "169.254.20.1 2"; do
+      for want in "dc1 169.254.30.2 169.254.30.1 1" "dc2 169.254.20.2 169.254.20.1 2"; do
         set -- $want
-        got=$(frr cloud "show bgp ipv4 unicast neighbors $1 routes json" | json "sorted(d.get('routes', {}))")
-        [ "$got" = '["10.1.0.0/22"]' ] || { echo "over circuit $2 the cloud accepted $got from the data centre, not just its summary, 10.1.0.0/22"; exit 0; }
+        sent=$(frr "$1" "show bgp ipv4 unicast neighbors $2 advertised-routes json" | json "sorted(d.get('advertisedRoutes', {}))")
+        [ "$sent" = '["10.1.0.0/22"]' ] || { echo "over circuit $4 $1 announces $sent, not just the data centre's summary, 10.1.0.0/22"; exit 0; }
+        got=$(frr cloud "show bgp ipv4 unicast neighbors $3 routes json" | json "sorted(d.get('routes', {}))")
+        [ "$got" = '["10.1.0.0/22"]' ] || { echo "over circuit $4 the cloud accepted $got from the data centre, not just its summary, 10.1.0.0/22"; exit 0; }
       done
       echo summary
     expect:
