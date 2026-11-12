@@ -1,0 +1,14 @@
+id: mcq-vti-mark
+type: mcq
+rev: 1
+prompt: |
+  vpn's tunnel is up, and both SAs show `(0x0000002a)`, mark 42. But vpn's network file made vti0 with `key 43`, and BGP never comes up over it. What happens to a packet that routing sends into vti0?
+choices:
+  - "It is marked 43, no SA carries that mark, and vti0 drops it, counting an error"
+  - "It is marked 43, no SA carries that mark, and it crosses the internet in clear"
+  - "It is encrypted by the SA marked 42 all the same, since vti0 has only one tunnel"
+  - "It is sent back out through wan instead, as vti0 can't encrypt it, and then lost"
+answer: 0
+explanation: |
+  A VTI's key is the mark it puts on everything routed into it, and IPsec picks the SA whose `mark_out` equals that mark. With 43 on vti0 and 42 on the SAs, nothing matches: the kernel finds no SA for the packet and vti0 drops it, so `ip -s link show vti0` counts the loss among its transmit errors, and nothing leaves at all. A VTI never sends a packet in clear, and never sends it elsewhere: that is the point of tying the interface to an SA, and why the key and the marks must be the same number. Here BGP's own packets to 169.254.21.1 are the first to be dropped.
+skills: [route-based-tunnel]

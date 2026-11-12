@@ -1,0 +1,27 @@
+id: est-clamp-value
+type: estimate
+rev: 1
+prompt: |
+  The office's new line carries packets of at most 1400 bytes, and its routers send no "fragmentation needed". The tunnel uses AES-GCM without NAT traversal, which adds 54 bytes of ESP in all, with no padding at this size. What is the largest MSS that vpn may clamp TCP's SYNs to, so that every segment fits? Exactly.
+unit: bytes
+answer: 1306
+tolerance: { absolute: 0 }
+given: { line: 1400, esp: 54 }
+# 40 is the inner packet's IPv4 and TCP headers.
+working: line - esp - 40
+mistakes:
+  - id: forgot-esp
+    value: 1360
+    working: line - 40
+    why: That is the MSS of a 1400-byte line with no tunnel. Each segment is also wrapped in 54 bytes of ESP before it crosses the line.
+  - id: stopped-at-inner-packet
+    value: 1346
+    working: line - esp
+    why: That is the largest inner packet. The MSS is the TCP payload inside it, 40 bytes less for its IPv4 and TCP headers.
+  - id: aws-figure
+    value: 1406
+    working: "1406"
+    why: That is AWS's MSS for AES-GCM on a 1500-byte path. This line is 100 bytes smaller.
+explanation: |
+  1400 − 54 − 40 = 1306. Clamp to that or a little under (the debug's fix uses 1300, which leaves a margin), in both directions on the tunnel interface. Azure clamps on its own side to 1,360 bytes for IPv4 over the internet; on a path this narrow that would still be too big.
+skills: [tunnel-mtu]

@@ -1,0 +1,22 @@
+id: est-gcm-inner-mtu
+type: estimate
+rev: 1
+prompt: |
+  The office's line to the internet has an MTU of 1500 bytes. Its tunnel uses ESP in tunnel mode with AES-GCM, which puts around each inner packet an outer IPv4 header of 20 bytes, an ESP header of 8, an IV (initialisation vector) of 8, a trailer of 2 and an integrity check value of 16; at this size no padding is needed. What is the largest inner packet the tunnel can carry without fragmenting? Exactly.
+unit: bytes
+answer: 1446
+tolerance: { absolute: 0 }
+given: { line: 1500, outer: 20, esp: 8, iv: 8, trailer: 2, icv: 16 }
+working: line - outer - esp - iv - trailer - icv
+mistakes:
+  - id: outer-header-only
+    value: 1480
+    working: line - outer
+    why: That takes off the outer IPv4 header only, as for an IPIP tunnel. ESP adds its header, the IV, the trailer and the integrity check too, 34 bytes more.
+  - id: went-on-to-mss
+    value: 1406
+    working: line - outer - esp - iv - trailer - icv - 40
+    why: That is the MSS, the largest TCP payload, one step further. The question asks for the inner packet, IPv4 and TCP headers included.
+explanation: |
+  1500 − 20 − 8 − 8 − 2 − 16 = 1446: 54 bytes of ESP around each packet. It is AWS's figure for AES-GCM without NAT traversal (MTU 1446, MSS 1406). The overhead differs by cipher: AES-CBC needs a 16-byte IV and pads to 16-byte blocks, so it costs more.
+skills: [tunnel-mtu]

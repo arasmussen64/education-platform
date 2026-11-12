@@ -1,0 +1,14 @@
+id: mcq-gone-after-maintenance
+type: mcq
+rev: 1
+prompt: |
+  Every time the provider restarts its VPN gateway for maintenance, the office's tunnel stays down until someone types `swanctl --initiate`. vpn's connection has `keyingtries = 0`, `dpd_delay = 10s`, and in its CHILD_SA `start_action = start` and `dpd_action = restart`. Which line is missing?
+choices:
+  - "`close_action = start`: the provider closes the tunnel as it stops, and nothing else starts it again"
+  - "`mobike = no`: MOBIKE moves the tunnel elsewhere when the provider goes away, and it can't come back"
+  - "`rekey_time = 0`: a rekey that falls due during the restart fails, and a failed rekey ends the tunnel"
+  - "`dpd_timeout = 30s`: without it dead peer detection never decides that the provider has gone away"
+answer: 0
+explanation: |
+  When the provider's gateway stops, it tells vpn so: it deletes the IKE_SA and its CHILD_SA in an INFORMATIONAL exchange. `close_action` is what vpn does when the other end closes a CHILD_SA, and its default, `none`, does nothing, so the tunnel stays down (the walkthrough's provider restarts brought it back in about four seconds only with `close_action = start`). Dead peer detection doesn't help here: it watches for a peer that stops answering, and this one said goodbye first, so there is no SA left to watch. `start_action` acts only when the connection is loaded, at boot, and `keyingtries` only while a start is under way. MOBIKE doesn't move a tunnel away, a failed rekey is retried and leaves the SA in place, and `dpd_timeout` is an IKEv1 setting.
+skills: [route-based-tunnel]

@@ -1,0 +1,24 @@
+id: est-mss-with-nat-t
+type: estimate
+rev: 1
+prompt: |
+  A branch's VPN gateway sits behind its provider's NAT, so its tunnel uses NAT traversal: each ESP packet also gets a UDP header of 8 bytes (port 4500). The line's MTU is 1500, and ESP with AES-GCM adds an outer IPv4 header of 20 bytes, an ESP header of 8, an IV of 8, a trailer of 2 and an integrity check value of 16, with no padding needed. What is the largest MSS (TCP payload) a connection through the tunnel can use without fragmenting? Exactly.
+unit: bytes
+answer: 1398
+tolerance: { absolute: 0 }
+given: { line: 1500, udp: 8, outer: 20, esp: 8, iv: 8, trailer: 2, icv: 16 }
+# 40 is the inner packet's own IPv4 and TCP headers, which the learner knows
+# from Layers and packets.
+working: line - outer - udp - esp - iv - trailer - icv - 40
+mistakes:
+  - id: forgot-udp
+    value: 1406
+    working: line - outer - esp - iv - trailer - icv - 40
+    why: That is the MSS without NAT traversal. Behind a NAT, ESP is wrapped in UDP as well, 8 bytes more on every packet.
+  - id: stopped-at-inner-packet
+    value: 1438
+    working: line - outer - udp - esp - iv - trailer - icv
+    why: That is the largest inner packet. The MSS is the TCP payload inside it, 40 bytes less for its IPv4 and TCP headers.
+explanation: |
+  1500 − 20 − 8 (UDP) − 8 − 8 − 2 − 16 = 1438 for the inner packet, and 1438 − 40 = 1398 for TCP's payload: AWS's figures for AES-GCM with NAT traversal (MTU 1438, MSS 1398). The UDP header is NAT traversal's price, on every packet.
+skills: [tunnel-mtu]

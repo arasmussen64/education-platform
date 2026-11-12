@@ -1,0 +1,34 @@
+id: predict-which-exchange
+type: predict_shell
+rev: 1
+# vpn.log is captured: charon's log on the office's gateway for one attempt
+# with a mistyped key (journalctl -u strongswan@vpn -o cat), in the worked
+# example's lab (strongSwan 5.9.13, Ubuntu 24.04, 2026-11-12).
+prompt: |
+  `vpn.log` is charon's log, on the office's gateway, of one attempt to bring the tunnel up. The command picks out each response vpn received and the error notify it carried, if any. What does it print?
+files:
+  vpn.log: |
+    loaded IKE shared key with id 'ike-cloud' for: '198.51.100.10', '203.0.113.10'
+    replaced vici connection: cloud
+    vici initiate CHILD_SA 'cloud-vti'
+    initiating IKE_SA cloud[10] to 203.0.113.10
+    generating IKE_SA_INIT request 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(REDIR_SUP) ]
+    sending packet: from 198.51.100.10[500] to 203.0.113.10[500] (464 bytes)
+    received packet: from 203.0.113.10[500] to 198.51.100.10[500] (472 bytes)
+    parsed IKE_SA_INIT response 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(CHDLESS_SUP) N(MULT_AUTH) ]
+    selected proposal: IKE:AES_CBC_256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048
+    authentication of '198.51.100.10' (myself) with pre-shared key
+    establishing CHILD_SA cloud-vti{11}
+    generating IKE_AUTH request 1 [ IDi N(INIT_CONTACT) IDr AUTH SA TSi TSr N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N(MULT_AUTH) N(EAP_ONLY) N(MSG_ID_SYN_SUP) ]
+    sending packet: from 198.51.100.10[4500] to 203.0.113.10[4500] (288 bytes)
+    received packet: from 203.0.113.10[4500] to 198.51.100.10[4500] (80 bytes)
+    parsed IKE_AUTH response 1 [ N(AUTH_FAILED) ]
+    received AUTHENTICATION_FAILED notify error
+command: grep -oE 'parsed [A-Z_]+ response|N\((NO_PROP|AUTH_FAILED|TS_UNACCEPT)\)' vpn.log
+expected_output: |
+  parsed IKE_SA_INIT response
+  parsed IKE_AUTH response
+  N(AUTH_FAILED)
+explanation: |
+  Two exchanges, each a request and a response. IKE_SA_INIT's response is an ordinary one (its `N(...)` notifies are about NAT detection and features, none of the three errors the pattern names), and a proposal was selected: the IKE proposal is fine. IKE_AUTH's response carries only `N(AUTH_FAILED)`. So the failure is in phase 1's second exchange, where each end proves who it is with the key: a wrong pre-shared key or a wrong identity. vpn's log can't say which; the provider's can (`MAC mismatched` for the key, `no matching peer config found` for the identity). Had the IKE proposal been refused, `N(NO_PROP)` would have come back in IKE_SA_INIT instead.
+skills: [read-ike-logs]

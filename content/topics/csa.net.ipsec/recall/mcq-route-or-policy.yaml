@@ -1,0 +1,14 @@
+id: mcq-route-or-policy
+type: mcq
+rev: 1
+prompt: |
+  Which of these describes a **route-based** IPsec tunnel?
+choices:
+  - "Selectors of 0.0.0.0/0 both ways, and whatever is routed into the tunnel interface is encrypted"
+  - "Selectors that name each side's networks, and whatever is routed into the tunnel interface is encrypted"
+  - "Selectors of 0.0.0.0/0 both ways, and every packet the gateway forwards anywhere goes into the tunnel"
+  - "Selectors that name each side's networks, and traffic between those networks is encrypted wherever it goes"
+answer: 0
+explanation: |
+  In a route-based tunnel the selectors say "anything" (0.0.0.0/0 both ways) and a tunnel interface, here a VTI, decides what goes in: only packets that routing sends into `vti0` are marked and encrypted. Routing, which BGP can fill, then decides what crosses, so a new network needs a route, not a new negotiation. The selectors alone don't send every forwarded packet into the tunnel: with a VTI the SA's mark limits it to what is routed there, and the office's other traffic still goes out to the internet. Selectors that name the two networks, encrypting that traffic wherever the routes say it goes, are a **policy-based** tunnel; naming networks in the selectors of a route-based one leaves the BGP peers' own addresses out.
+skills: [route-based-tunnel]

@@ -1,0 +1,14 @@
+id: mcq-ike-or-esp
+type: mcq
+rev: 1
+prompt: |
+  The office's tunnel to the provider is up, with no NAT anywhere on the path. In what form do the office laptop's own packets to the app (10.20.1.10) cross the internet?
+choices:
+  - "Inside ESP packets, IP protocol 50, sent between the two gateways' outside addresses"
+  - "Inside IKE messages on UDP port 500, sent between the two gateways' outside addresses"
+  - "Inside UDP packets on port 4500, the port the gateways moved IKE to in IKE_AUTH"
+  - "As the laptop's own packets, 192.168.10.10 to 10.20.1.10, with their data encrypted"
+answer: 0
+explanation: |
+  IKE only agrees the keys and proves who each end is; the traffic itself travels in ESP. In tunnel mode, which every site-to-site VPN uses, the laptop's whole packet is encrypted and wrapped in a new IP header from 198.51.100.10 to 203.0.113.10, with protocol 50, so an observer on the internet sees only the two gateways' addresses and an SPI. Port 4500 carries ESP only when a NAT is in the way (NAT traversal wraps ESP in UDP then); here IKE moved to 4500 but ESP stays plain protocol 50, which `tcpdump -nn esp` on the internet's router shows. The laptop's own addresses never cross the internet in clear: that would be transport mode, which protects only the payload and is for two hosts talking to each other.
+skills: [ipsec-building-blocks]

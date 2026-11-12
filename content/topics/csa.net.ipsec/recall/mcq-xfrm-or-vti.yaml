@@ -1,0 +1,14 @@
+id: mcq-xfrm-or-vti
+type: mcq
+rev: 1
+prompt: |
+  strongSwan's documentation says that on Linux kernels from 4.19 on, XFRM interfaces "provide a better solution than VTI devices" for a route-based tunnel. When is a VTI still the one to use?
+choices:
+  - "On a kernel older than 4.19, or one built without XFRM interfaces, like the labs' kernel"
+  - "When BGP runs inside the tunnel, which an XFRM interface can't carry between its peers"
+  - "When the selectors are 0.0.0.0/0 both ways, which an XFRM interface can't negotiate"
+  - "When the provider is AWS, whose VPN gateways accept only peers that use VTI devices"
+answer: 0
+explanation: |
+  An XFRM interface does a VTI's job, routing into an interface to choose the SA, with an interface ID in place of the VTI's mark and fewer of a VTI's quirks; strongSwan supports them from 5.8.0, and the kernel from 4.19. A kernel must be built with them, and Docker Desktop's isn't: charon's log in the labs says `failed to create XFRM interface`, with `Unknown device type`, which is why the labs use a VTI. Both carry BGP and 0.0.0.0/0 selectors alike, and the provider can't tell which you use: it sees only IKE and ESP.
+skills: [route-based-tunnel]

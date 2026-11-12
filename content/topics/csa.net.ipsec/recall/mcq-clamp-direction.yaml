@@ -1,0 +1,14 @@
+id: mcq-clamp-direction
+type: mcq
+rev: 1
+prompt: |
+  To cure the hangs, vpn's firewall gets one rule in its forward chain: `oifname "vti0" tcp flags syn tcp option maxseg size set 1300`. Now the office's downloads from the app finish, but its uploads to the app still hang. Why?
+choices:
+  - "The app's SYN-ACKs come in from vti0 unclamped, so the office still sends full-size segments"
+  - "The clamp belongs on wan, where the encrypted packets leave, so it changes nothing for uploads"
+  - "Uploads go out in UDP, and an MSS clamp rewrites only TCP's SYNs, so uploads are untouched"
+  - "A value of 1300 is still too big for uploads, which carry ESP's integrity check on top of it"
+answer: 0
+explanation: |
+  Each side of a TCP connection announces in its own SYN the largest segment it will take, and the other side sends no bigger. The rule rewrites SYNs leaving through vti0: the office's SYN, which tells the app to send at most 1,300 bytes of data, so downloads fit. The app's answer, its SYN-ACK, arrives through vti0 and isn't touched, so the office still sends 1,460-byte segments, which don't fit the tunnel: uploads hang. A second rule, `iifname "vti0" tcp flags syn tcp option maxseg size set 1300`, clamps that direction too. On wan the packets are already ESP, with no TCP header a rule could read; uploads are TCP here; and 1,300 leaves room for ESP's overhead in both directions.
+skills: [tunnel-mtu]

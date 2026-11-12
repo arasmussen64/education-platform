@@ -1,0 +1,14 @@
+id: mcq-azure-prefixes
+type: mcq
+rev: 1
+prompt: |
+  A data centre's router announces 4,200 prefixes over BGP to an Azure VPN gateway, through a site-to-site tunnel. What happens?
+choices:
+  - "Azure drops the BGP session: its gateway takes up to 4,000 prefixes"
+  - "Azure takes the first 4,000 prefixes and quietly ignores the other 200"
+  - "Azure takes all 4,200, as its limit of 4,000 counts only IPv6 prefixes"
+  - "Azure takes all 4,200, and routes only the shortest prefix of each block"
+answer: 0
+explanation: |
+  Azure's VPN Gateway FAQ: "Azure VPN Gateway supports up to 4,000 prefixes. The BGP session is dropped if the number of prefixes exceeds the limit." So one prefix too many takes the whole session down, and with it every route through the tunnel: the same fuse as FRR's `maximum-prefix`. Announce summaries instead (one /16 for a data centre's /24s), which is the address planning from IPv4 and CIDR. Other clouds keep such limits too: an AWS virtual private gateway takes 100 routes from you, and a Google Cloud Router resets a session past 5,000.
+skills: [bgp-over-tunnel]

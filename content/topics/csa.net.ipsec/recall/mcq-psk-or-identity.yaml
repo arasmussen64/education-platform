@@ -1,0 +1,14 @@
+id: mcq-psk-or-identity
+type: mcq
+rev: 1
+prompt: |
+  vpn logs `parsed IKE_AUTH response 1 [ N(AUTH_FAILED) ]` and `received AUTHENTICATION_FAILED notify error`. The provider's log, for the same attempt, says `looking for peer configs matching 203.0.113.10[203.0.113.10]...198.51.100.10[branch.shop.test]` and `no matching peer config found`. What is wrong?
+choices:
+  - "vpn's identity isn't one the provider has configured, so its key was never even tried"
+  - "vpn's pre-shared key is wrong, so the provider's check of vpn's proof didn't match"
+  - "vpn's IKE proposal isn't one the provider accepts, so IKE_SA_INIT was refused"
+  - "vpn's selectors don't match any CHILD_SA the provider has, so IKE_AUTH was refused"
+answer: 0
+explanation: |
+  In IKE_AUTH each end sends its identity and a proof made with the key, and the responder first looks up the configuration for that identity. vpn called itself `branch.shop.test`, the provider knows only 198.51.100.10, so the lookup failed before any key was tried. A wrong key looks exactly the same from vpn's side, `AUTHENTICATION_FAILED` in IKE_AUTH, but the provider's log would say `selected peer config` and `tried 1 shared key ... but MAC mismatched`: only the responder can tell the two apart, which is why its log (a cloud's VPN logs) matters. A refused IKE proposal comes back in IKE_SA_INIT as NO_PROPOSAL_CHOSEN, and refused selectors as TS_UNACCEPTABLE after the IKE_SA is established.
+skills: [read-ike-logs]

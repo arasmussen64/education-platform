@@ -1,0 +1,14 @@
+id: mcq-narrow-selectors
+type: mcq
+rev: 1
+prompt: |
+  `cloud-vpn-status` shows the CHILD_SA `INSTALLED`, with the selectors `10.20.0.0/16` and `192.168.10.0/24`. But vpn's BGP session with the provider, 169.254.21.1, stays `Active`, and the office can't reach the app. Why?
+choices:
+  - "BGP's packets, from 169.254.21.2 to 169.254.21.1, aren't inside those selectors, so none is ever encrypted"
+  - "BGP needs a CHILD_SA of its own for TCP port 179, and this tunnel negotiated just the one for the networks"
+  - "The inside addresses are link-local, and the kernel never sends a link-local packet into an IPsec tunnel"
+  - "The selectors are fine: BGP is waiting out FRR's connect timer, which tries again only every two minutes"
+answer: 0
+explanation: |
+  The selectors name what the SA carries, and these name only the two networks. BGP's own session runs between the inside addresses, 169.254.21.x, which are in neither, so its packets match no SA and go nowhere: the tunnel looks up and nothing works, because the office's routes would have come from that session. This is the policy-based habit applied to a route-based tunnel; the provider narrowed its 0.0.0.0/0 to what vpn asked for. With 0.0.0.0/0 both ways, BGP's packets are encrypted like any other. One CHILD_SA carries every port, link-local addresses are ordinary addresses on vti0's own link, and the labs set the connect timer to 5 seconds (FRR's default is 120).
+skills: [route-based-tunnel]

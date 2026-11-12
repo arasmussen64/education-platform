@@ -1,0 +1,14 @@
+id: mcq-ts-unacceptable
+type: mcq
+rev: 1
+prompt: |
+  vpn's log shows `IKE_SA cloud[18] established between 198.51.100.10[198.51.100.10]...203.0.113.10[203.0.113.10]`, then `received TS_UNACCEPTABLE notify, no CHILD_SA built`. What does it mean?
+choices:
+  - "Phase 1 worked; the provider's selectors neither match nor contain the ones vpn asked for"
+  - "Phase 1 worked; the provider refused vpn's ESP proposal, and no CHILD_SA could be agreed"
+  - "Phase 1 failed; the provider couldn't verify vpn's identity, so no CHILD_SA was attempted"
+  - "Phase 1 worked; the provider's tunnel interface carries a different mark from vpn's own"
+answer: 0
+explanation: |
+  TS_UNACCEPTABLE answers the traffic selectors: the networks vpn proposed for the CHILD_SA. A responder narrows a request that contains its own selectors (asked for 0.0.0.0/0, it answers with what it has), but when vpn asks for 192.168.10.0/24 and the provider is configured for 192.168.20.0/24, there is nothing to agree on. The IKE_SA is established, so identities and keys were fine. A refused ESP proposal says NO_PROPOSAL_CHOSEN, not TS_UNACCEPTABLE, and marks are each gateway's own business, never sent in IKE. On a route-based tunnel, both ends' selectors are 0.0.0.0/0, and this can't happen.
+skills: [read-ike-logs]

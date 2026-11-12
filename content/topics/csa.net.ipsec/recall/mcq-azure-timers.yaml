@@ -1,0 +1,14 @@
+id: mcq-azure-timers
+type: mcq
+rev: 1
+prompt: |
+  An Azure VPN gateway uses BGP timers of 60 seconds (keepalive) and 180 seconds (hold time), and they can't be changed. The internet path between an office and Azure dies silently: no error, packets just vanish. How long can it take BGP to give up on the session and its routes?
+choices:
+  - "Up to 180 seconds, the hold time, before the session drops"
+  - "Up to 60 seconds, when the first keepalive fails to arrive in time"
+  - "Up to 3 seconds, as the tunnel's own SAs drop at once"
+  - "Up to 9 seconds, the hold time the labs use for BGP"
+answer: 0
+explanation: |
+  BGP gives up on a neighbour only when it has heard nothing for the hold time, here 180 seconds, so for up to three minutes the office keeps sending into a tunnel nobody reads. One missed keepalive proves nothing: the hold time is three keepalives long so that one lost packet doesn't drop the session. A silent failure doesn't drop the SAs at once either (dead peer detection takes its own time to decide), and the labs' 3 and 9 seconds are scaled down so that things happen while you watch. Azure's FAQ says the timers are fixed and that on-premises devices should match them; plan for a failover that takes up to that long.
+skills: [bgp-over-tunnel]

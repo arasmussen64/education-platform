@@ -1,0 +1,14 @@
+id: mcq-static-or-bgp
+type: mcq
+rev: 1
+prompt: |
+  A colleague says a static route on vpn, `ip route 10.20.0.0/16 169.254.21.1 vti0`, works as well as BGP over the tunnel. It does work today. Where does it fall short?
+choices:
+  - "When the cloud adds a network outside 10.20.0.0/16, nothing tells the office about it"
+  - "When the tunnel's SAs are rekeyed every hour, a static route is lost and isn't restored"
+  - "Nowhere at all: for a single tunnel, a static route and BGP do exactly the same job"
+  - "When traffic grows, as a static route can't carry more than one tunnel's worth of it"
+answer: 0
+explanation: |
+  A static route knows only what someone typed. When the cloud's team adds 10.40.0.0/16, BGP brings it to the office within seconds; the static route doesn't, and nobody notices until something can't connect. The same goes the other way: the cloud has to learn the office's network, which BGP announces and a static route on the office's side doesn't. With two tunnels, BGP also moves traffic when one fails silently, which a static route can't see. Rekeys don't touch routes at all (the SAs change, the interface and its routes stay), and a route has no bandwidth of its own. Google Cloud's HA VPN takes only BGP for this reason.
+skills: [bgp-over-tunnel]

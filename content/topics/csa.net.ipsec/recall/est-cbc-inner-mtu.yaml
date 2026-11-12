@@ -1,0 +1,22 @@
+id: est-cbc-inner-mtu
+type: estimate
+rev: 1
+prompt: |
+  A tunnel uses ESP with AES-CBC and HMAC-SHA2-256 instead of AES-GCM, on a line whose MTU is 1500 bytes. Around each inner packet go an outer IPv4 header of 20 bytes, an ESP header of 8, an IV of 16 and an integrity check value of 16. AES-CBC encrypts in blocks of 16 bytes, so the encrypted part, the inner packet plus padding plus a 2-byte trailer, must be a whole number of blocks. What is the largest inner packet the tunnel can carry without fragmenting? Exactly.
+unit: bytes
+answer: 1438
+tolerance: { absolute: 0 }
+given: { line: 1500, outer: 20, esp: 8, iv: 16, icv: 16, block: 16, trailer: 2 }
+working: floor((line - outer - esp - iv - icv) / block) * block - trailer
+mistakes:
+  - id: forgot-trailer
+    value: 1440
+    working: floor((line - outer - esp - iv - icv) / block) * block
+    why: The 1440 bytes of encrypted blocks hold the trailer too. Take its 2 bytes off to find the inner packet.
+  - id: gcm-figure
+    value: 1446
+    working: "1446"
+    why: That is AES-GCM's figure. AES-CBC's IV is 16 bytes, not 8, and its padding to whole blocks costs more.
+explanation: |
+  1500 − 20 − 8 − 16 − 16 = 1440 bytes are left for the encrypted part, which is exactly 90 blocks of 16. Of those, 2 are the trailer, so the largest inner packet is 1438, with no padding: AWS's figure for AES-CBC with SHA-1 or SHA2-256 without NAT traversal (MTU 1438, MSS 1398). One byte more and the encrypted part would need a 91st block.
+skills: [tunnel-mtu]
