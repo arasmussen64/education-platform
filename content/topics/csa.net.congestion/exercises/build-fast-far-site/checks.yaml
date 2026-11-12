@@ -17,16 +17,21 @@ checks:
     expect:
       gte: 25
   # netlab verify's copy of shop (chk-shop) is built from the topology and
-  # shop's own files, as a reboot would build it: the value there is the
-  # one shop would have after a reboot, whether a file sets it or not. Only
-  # isp, which is scenery, is compared, so the copy is read whatever else
-  # on shop has changed.
+  # shop's own files, as a reboot would build it: the values there are the
+  # ones shop would have after a reboot, whether a file sets them or not.
+  # Only isp, which is scenery, is compared, so the copy is read whatever
+  # else on shop has changed. Two things choose the algorithm a connection
+  # starts with: the system's setting, and a route's own (ip route ...
+  # congctl), so shop's routes are compared too.
   - id: speed-lasts
-    description: "The congestion control shop sends with now is the one its own files give it at boot, so a reboot keeps the archive's speed."
+    description: "The congestion control shop sends with now, and its routes, are the ones its own files give it at boot, so a reboot keeps the archive's speed."
     command: |
-      live=$(on shop sysctl -n net.ipv4.tcp_congestion_control)
-      fresh=$(netlab verify isp -- on chk-shop sysctl -n net.ipv4.tcp_congestion_control 2>&1) || { echo "the internet's router, isp, isn't as it was shipped"; exit 0; }
-      [ "$live" = "$fresh" ] || { echo "shop sends with $live now, and would send with $fresh after a reboot"; exit 0; }
+      state() { on "$1" sysctl -n net.ipv4.tcp_congestion_control; ip -n "$1" route show table main; }
+      live=$(state shop)
+      fresh=$(netlab verify isp -- bash -c "$(declare -f state); state chk-shop" 2>&1) || { echo "the internet's router, isp, isn't as it was shipped"; exit 0; }
+      live_cc=${live%%$'\n'*} fresh_cc=${fresh%%$'\n'*}
+      [ "$live_cc" = "$fresh_cc" ] || { echo "shop sends with $live_cc now, and would send with $fresh_cc after a reboot"; exit 0; }
+      [ "$live" = "$fresh" ] || { echo "shop's routes now aren't the ones its own files give it at boot"; exit 0; }
       echo lasts
     expect:
       equals: lasts
