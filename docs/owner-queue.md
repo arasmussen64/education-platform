@@ -33,13 +33,14 @@ The AI proxy is the small server program that talks to Claude for the tutor and 
 
 ### 3. Accept the decisions built on while you were away
 
-Four design decisions were made under your message of 2026-11-11 and built on. Each is marked _Proposed_ until you rule:
+Five design decisions were made under your message of 2026-11-11 and built on. Each is marked _Proposed_ until you rule:
 
 - [ADR-0024](decisions/0024-estimate-questions.md), estimate questions: a typed number, checked within a tolerance and proved by the validator.
 - [ADR-0012's amendment on further parts](decisions/0012-checkpoint-support.md#amendment-2026-11-11-further-parts-after-the-build-and-the-debug): a checkpoint can have a Part 3 and beyond.
 - [ADR-0018's first amendment of 2026-11-11](decisions/0018-lab-checker-local-mode.md#amendment-2026-11-11-a-shell-command-a-start-that-keeps-the-work-and-what-privileged-means): the lab checker's `shell` command, a `start` that keeps the work, `status` and `stop --all`, and a short-lived helper container that lets go of disks dead labs left attached. The helper sees the whole of Docker's machine (`--privileged --pid=host`), and `stop --all` leaves a test run's containers alone unless given `--tests`.
 - [ADR-0018's second amendment](decisions/0018-lab-checker-local-mode.md#amendment-2026-11-11-second-a-checks-own-time-limit): a lab check's own time limit, up to 300 seconds, and 600 for a lab's checks in all.
-- **Recommendation:** accept all four. A "yes" is enough; Claude records it in each status line.
+- [ADR-0018's third amendment](decisions/0018-lab-checker-local-mode.md#amendment-2026-11-11-third-shared-lab-bases-checks-that-cut-a-link-and-the-restart-trial): Module 3's labs start from one shared network-lab base that the checker builds first; a check may cut a link and restore it to prove a backup; and a lab may opt in to the restart trial, which restarts it after the solution passes and runs every check again. It costs CI time (about 30 minutes of restart trials per full run, spread over eight machines) and a 659 MB image on your PC.
+- **Recommendation:** accept all five. A "yes" is enough; Claude records it in each status line.
 - **Holds up:** nothing.
 
 ### 4. Confirm three design decisions marked accepted without your explicit yes
@@ -95,14 +96,16 @@ Module 3, networking, planned on 2026-11-11 ([plans/cloud-module-3](plans/cloud-
 
 - **2026-11-11, Module 3 has sixteen topics, not fourteen.** BGP is split into "BGP sessions and policy" and "Steering traffic and cloud circuits"; HTTP and TLS into "HTTP and TLS" and "Certificates and mutual TLS". **Why:** shorter topics reach their proofs and first reviews sooner, and the TLS handshake gets proofs of its own (in the one-topic design neither proof tested it).
 - **2026-11-11, Module 3 needs Module 1, not Module 2,** as the spec's map has it. Words Module 2 taught (DNS record, zone) are taught again where Module 3 first uses them.
-- **2026-11-11, one network-lab base.** Every network lab starts from one shared image in which each machine is a network namespace with its own `/etc`, built at boot from a short topology file, running real FRRouting, strongSwan, BIND, Unbound, nginx and HAProxy. The lab checker builds it first. **Why:** one way to reach a machine (`on r1`) and one way to restart its services (`systemctl restart frr@r1`) across sixteen topics, instead of seven home-made ones. Needs an amendment to [ADR-0018](decisions/0018-lab-checker-local-mode.md) (Proposed, to be added to Open item 3 when it's written).
-- **2026-11-11, every Module 3 lab is restarted in CI.** After the solution passes, the checker restarts the lab and runs every check again. **Why:** "the fix lasts a reboot" becomes something CI proves, not something each check has to fake. About 15 seconds a lab.
+- **2026-11-11, one network-lab base.** Every network lab starts from one shared image in which each machine is a network namespace with its own `/etc`, built at boot from a short topology file, running real FRRouting, strongSwan, BIND, Unbound, nginx and HAProxy. The lab checker builds it first. **Why:** one way to reach a machine (`on r1`) and one way to restart its services (`systemctl restart frr@r1`) across sixteen topics, instead of seven home-made ones. Built on 2026-11-12, with the third amendment to [ADR-0018](decisions/0018-lab-checker-local-mode.md) (Proposed: Open, item 3).
+- **2026-11-11, every Module 3 lab is restarted in CI.** After the solution passes, the checker restarts the lab and runs every check again. **Why:** "the fix lasts a reboot" becomes something CI proves, not something each check has to fake. About 15 seconds a lab. Built on 2026-11-12.
+- **2026-11-12, a habit-typed `systemctl restart frr` says what to type.** In a network lab each daemon runs once per machine (`frr@r1`), so the plain `frr` service does nothing. The plan said to mask the plain services, but a masked one only answers "Unit frr.service is masked". **Decided:** the plain services fail with a line pointing at `systemctl status frr`, which says to type `systemctl restart frr@<machine>`. **Why:** the advice appears exactly where the habit fails.
+- **2026-11-12, the probe labs show on the map for a while.** Six labs that try the network-lab base on GitHub's runners sit in a draft topic, "Network-lab base probes", which the live map lists under Module 3 as _soon_ until each lab moves into the topic it was written for. Nothing in it opens on the live site.
 - **2026-11-11, the route-based VPN is a VTI tunnel,** as AWS, Azure and Google Cloud build theirs. One designer found it broken in the base; the critic traced that to a strongSwan plugin and left the plugin out. GRE inside IPsec is the fallback if GitHub's runners refuse it.
 - **2026-11-11, a check may cut a link and restore it** to prove a backup route takes over, an exception to "checks only read".
 - **2026-11-11, labs run on a fast clock.** Idle timeouts, DNS TTLs, BGP timers and certificate lifetimes are scaled down in labs, and every prompt gives the real figure beside the lab's; quiz questions use the real figures.
 - **2026-11-11, Checkpoint 3 has three parts:** the address plan, the intermittent outage (three faults no topic's debug uses), and a third, connecting a data centre to a cloud over a circuit with a backup IPsec VPN and BGP.
 - **2026-11-11, the first lab download from outside Ubuntu's archive:** step-ca and step-cli (a small certificate authority that speaks ACME, for the certificates topic), pinned by version and checksum. **Why:** Let's Encrypt's own test server changes its root at every start, so a lab built on it couldn't survive a restart.
-- **2026-11-11, the Labs CI job goes from four shards to eight** when Module 3's labs land (about 90 labs). Public repositories' runners are free.
+- **2026-11-11, the Labs CI job goes from four shards to eight** (done on 2026-11-12, before Module 3's labs land). Public repositories' runners are free.
 
 The learning engine's rules, fixed after the audit (#210 to #215):
 
