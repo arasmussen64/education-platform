@@ -1,16 +1,244 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.cidr
 kind: topic
-status: planned
+status: ready
 title: IPv4 and CIDR
-summary: Split and summarize address blocks and check them for overlaps, by hand and in code.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Read an IPv4 address as 32 bits and a prefix length as a mask; work out any block's first and last address and size on sight; split a block into subnets of different sizes and summarise them again; tell whether two blocks overlap, and check a whole plan for it with a script of your own; and choose ranges by RFC 1918 and each cloud's rules."
+# Module 3's topics gate on Checkpoint 1 through each other (the Module 3
+# plan, docs/plans/cloud-module-3/MODULE-3-BRIEF.md, section 2): this one
+# through Layers and packets, whose ARP, ICMP and network-lab onboarding the
+# labs use. What it builds on, for the writer: csa.linux.net-tools (ip addr,
+# ip route, ip neigh; /24 used there without being explained),
+# csa.linux.permissions (perm-umask's $((0666 & ~0022)), a mask taking bits
+# away), csa.linux.boot (the metadata address 169.254.169.254),
+# csa.linux.scripting (while read, if, ShellCheck; arrays are new here).
+prerequisites: [csa.net.layers]
+estimated_minutes: 295
 rev: 1
 objectives:
-- Split and summarize address blocks and check them for overlaps, by hand and in code.
-- Do CIDR math on sight.
-- Use variable-length masks and the RFC 1918 private ranges.
+  - "Read and write an IPv4 address as bits and a prefix length as a dotted mask, and say what an address and prefix means: which block, its first and last address, how many addresses, and how many a cloud lets you use."
+  - "Do block arithmetic on sight: block sizes as powers of two, the block an address is in by the interesting octet, how many /x fit in a /y, and when blocks summarise into one prefix."
+  - "Split a block into subnets of different sizes (variable-length masks), biggest first so each starts on a multiple of its size, with room to grow, and summarise blocks into the shortest covering prefix, knowing what extra space it pulls in."
+  - "Decide on sight whether two blocks overlap, say why an overlap breaks peering, VPNs and routing, and check a whole plan for overlaps with a bash script of your own."
+  - "Use the RFC 1918 private ranges and the other special ranges correctly, and plan within each cloud's rules: the addresses AWS, Azure and Google Cloud keep back in every subnet, their size limits, and the ranges to avoid."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - AWS subnets /28 to /16; the first four addresses and the last reserved
+#   (network, VPC router, DNS at base plus two, future use, broadcast: "We
+#   do not support broadcast in a VPC"); a CIDR given with host bits is put
+#   in canonical form (100.68.0.18/18 becomes 100.68.0.0/18):
+#   docs.aws.amazon.com/vpc/latest/userguide/subnet-sizing.html
+# - AWS VPC blocks /16 to /28; RFC 1918 recommended; can't use 0.0.0.0/8,
+#   127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4; "Some AWS services use the
+#   172.17.0.0/16 CIDR range ... AWS Cloud9 and Amazon SageMaker AI";
+#   VPCs on one Direct Connect gateway must not have overlapping blocks:
+#   docs.aws.amazon.com/vpc/latest/userguide/vpc-cidr-blocks.html
+# - AWS: "You cannot create a VPC peering connection between VPCs that have
+#   matching or overlapping IPv4 or IPv6 CIDR blocks":
+#   docs.aws.amazon.com/vpc/latest/peering/vpc-peering-basics.html
+# - AWS's default VPC is 172.31.0.0/16 with a /20 default subnet in each
+#   Availability Zone:
+#   docs.aws.amazon.com/vpc/latest/userguide/default-vpc-components.html
+# - Azure (FAQ dated 2026-07-08): RFC 1918 recommended and 100.64.0.0/10
+#   "treated as a private IP address space"; can't add 224.0.0.0/4,
+#   255.255.255.255/32, 127.0.0.0/8, 169.254.0.0/16, 168.63.129.16/32;
+#   five reserved per subnet (network, .1 gateway, .2 and .3 for Azure DNS,
+#   broadcast); smallest IPv4 subnet /29, largest /2; subnets can't
+#   overlap; "You can't enable virtual network peering if address spaces
+#   overlap": learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-faq
+# - Google Cloud (last updated 2026-10-26): four unusable addresses in a
+#   subnet's primary range (network, default gateway, second-to-last
+#   "reserved by Google Cloud for potential future use", broadcast); the
+#   minimum range is eight addresses, the shortest mask /4, with the advice
+#   to stay at /8; valid ranges include RFC 1918, 100.64.0.0/10, the
+#   documentation ranges, 198.18.0.0/15, 240.0.0.0/4; prohibited 0.0.0.0/8,
+#   127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4, 255.255.255.255/32 and
+#   Google's own; subnets are regional: docs.cloud.google.com/vpc/docs/subnets
+# - Google Cloud peering: "No subnet IP range can exactly match, contain,
+#   or fit within another subnet IP range in a peered VPC network":
+#   docs.cloud.google.com/vpc/docs/vpc-peering
+# - RFC 1918 (February 1996, BCP 5): the three private blocks. RFC 4632
+#   (August 2006, BCP 122) obsoletes RFC 1519 (September 1993), CIDR's
+#   first specification. RFC 6598 (April 2012): 100.64.0.0/10, Shared
+#   Address Space for carrier-grade NAT; using it otherwise risks
+#   "problems". RFC 5737 (January 2010): the three documentation ranges.
+#   RFC 3927, 2.7: "A router MUST NOT forward a packet with an IPv4
+#   Link-Local source or destination address". All at rfc-editor.org.
+# - Captured on 2026-11-12 in the network-lab base (Ubuntu 24.04): ipcalc
+#   0.51 and sipcalc 1.1.6 output for 10.20.30.77/27 and 10.20.3.1/23;
+#   Linux given 10.20.3.1/23 makes the connected route 10.20.2.0/23; a host
+#   given a /16 asks ARP for a host on another network and gets no answer
+#   (INCOMPLETE, then FAILED). Every predict_shell output was run in Git
+#   Bash (bash 5.3.9) and in the base's bash 5.2.21 with mawk 1.3.4, with
+#   the same result.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: Beej's Guide to
+# Network Concepts is CC BY-NC-ND 3.0 (its foreword's "Copyright and
+# Distribution"); AWS's documentation is copyright Amazon Web Services;
+# Microsoft's Azure documentation is CC BY 4.0 (MicrosoftDocs/azure-docs's
+# LICENSE); Google Cloud's pages are CC BY 4.0 (each page's footer); RFCs
+# are under the IETF Trust's provisions; the videos are under YouTube's
+# standard licence, their titles and channel confirmed through YouTube's
+# own oEmbed answer; SubnettingPractice.com shows "© 2026
+# subnettingpractice.com" and no licence.
+resources:
+  - title: "Beej's Guide to Network Concepts, chapter 17, IP Subnets and Subnet Masks: sections 17.1 to 17.7, about 14 minutes"
+    url: https://beej.us/guide/bgnet0/html/split/ip-subnets-and-subnet-masks.html
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 3.0 (linked, not copied)"
+  - title: "Beej's Guide to Network Concepts, chapter 7, The Internet Protocol version 4: sections 7.5 and 7.6, special addresses and special subnets"
+    url: https://beej.us/guide/bgnet0/html/split/the-internet-protocol-version-4.html
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 3.0 (linked, not copied)"
+  - title: "Subnet CIDR blocks (AWS documentation): subnet sizes and the five reserved addresses"
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/subnet-sizing.html
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Azure Virtual Network FAQ (Microsoft Learn): read \"What address ranges can I use in my virtual networks?\", \"Are there any restrictions on using IP addresses within these subnets?\" and \"How small and how large can virtual networks and subnets be?\""
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-faq
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Subnets (Google Cloud documentation): read the parts on IPv4 subnet ranges, valid ranges and the unusable addresses in a primary range"
+    url: https://docs.cloud.google.com/vpc/docs/subnets
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "VPC CIDR blocks (AWS documentation): optional, the ranges a VPC can't use and the association restrictions table"
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/vpc-cidr-blocks.html
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "VPC Network Peering (Google Cloud documentation): optional, why overlapping subnet ranges can't be peered"
+    url: https://docs.cloud.google.com/vpc/docs/vpc-peering
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "RFC 1918, Address Allocation for Private Internets: optional, section 3, the three private ranges"
+    url: https://www.rfc-editor.org/rfc/rfc1918.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "What is Subnetting? (Practical Networking, Subnetting Mastery part 1 of 7, about 9 minutes): optional, the same ideas on a whiteboard"
+    url: https://www.youtube.com/watch?v=BWZ-MHIhqjM
+    type: video
+    use: link
+    license: "Standard YouTube licence (linked, not embedded)"
+  - title: "Drawing the Cheat Sheet (Practical Networking, Subnetting Mastery part 2 of 7, about 2 minutes): optional"
+    url: https://www.youtube.com/watch?v=ljS07YTEJ2I
+    type: video
+    use: link
+    license: "Standard YouTube licence (linked, not embedded)"
+  - title: "How to solve ANY Subnetting Problems in 60 seconds or less (Practical Networking, Subnetting Mastery part 3 of 7, about 6 minutes): optional"
+    url: https://www.youtube.com/watch?v=5-wlfAdcmFQ
+    type: video
+    use: link
+    license: "Standard YouTube licence (linked, not embedded)"
+  - title: "SubnettingPractice.com: optional, as many extra subnetting drills as you like"
+    url: https://subnettingpractice.com/
+    type: interactive
+    use: link
+    license: "© 2026 subnettingpractice.com; linked, not copied"
+# The browser has no network to look at, so the recall items are estimate
+# questions (ADR-0024), multiple choice, and bash arithmetic and ipcalc
+# output read with predict_shell. The worked example and the debug are
+# network labs on the shared base (content/lab-bases/net); the fill-in,
+# the write and the build are plain labs on the Module 3 plain first RUN
+# (content/README.md), with Python as the checks' tool (ADR-0018).
+practice:
+  - example-carve-a-network
+  - est-mask-octet
+  - est-binary-octet
+  - est-wildcard-octet
+  - cidr-ip2int
+  - cidr-network-of
+  - est-block-size
+  - est-aws-usable
+  - est-google-usable
+  - est-network-octet
+  - est-last-octet
+  - est-smallest-prefix
+  - mcq-aligned
+  - cidr-ipcalc-read
+  - est-how-many-in
+  - est-spec-drill
+  - est-summary-prefix
+  - est-summary-waste
+  - est-vpc-usable
+  - mcq-summary-or-not
+  - cidr-overlap-rule
+  - mcq-which-overlap
+  - mcq-peer-overlap
+  - mcq-not-private
+  - mcq-azure-first-vm
+  - mcq-avoid-range
+  - mcq-link-local
+  - fill-cidr-info
+  - write-cidr-overlaps
+prove:
+  build: build-address-plan
+  debug: debug-new-warehouse
+  explain:
+    prompt: |
+      A team is about to create its first three cloud networks, one on each cloud, and plans to use 10.0.0.0/16 for all three "because that's what the templates use". Explain, in your own words: what a prefix like /20 means in bits, and how you'd work out the first and last address and the size of any block; how you'd split a block into subnets of different sizes and summarise them again, and why blocks must start on a multiple of their size; how you tell on sight whether two blocks overlap, and what overlapping ranges break; which ranges you'd choose from and which you'd avoid, and how each cloud's reserved addresses change your sums; and how you'd check a whole plan before anyone builds it.
+    rubric:
+      - id: prefix-in-bits
+        required: true
+        description: "An address is 32 bits; /20 fixes the first 20 (the mask 255.255.240.0) and leaves 12 for hosts, 4,096 addresses; the block's first address is the address with its host bits cleared (AND with the mask), its last with them all set (OR with the wildcard), and a block's size is 2 to the power of its host bits."
+      - id: split-summarise
+        required: true
+        description: "Biggest subnets first, each starting on a multiple of its size; a /y holds 2^(x−y) blocks of /x; blocks that together fill an aligned block summarise to one shorter prefix (any other summary takes in space nobody asked for); leave room to grow, because a block can't grow into its neighbour."
+      - id: overlaps
+        required: true
+        description: "Blocks either nest or are apart, never half overlap, so compare them on the shorter prefix; the clouds refuse to peer overlapping networks, and overlaps break VPN and on-premises routing and are slow and risky to undo; three networks on 10.0.0.0/16 can never be peered."
+      - id: ranges
+        required: true
+        description: "RFC 1918's 10.0.0.0/8, 172.16.0.0/12 (to 172.31.255.255) and 192.168.0.0/16; avoid the ranges everyone else uses (10.0.0.0/16 from templates, 172.31.0.0/16 as AWS's default VPC, 172.17.0.0/16 as Docker's bridge, home routers' 192.168.0.0/24 and 192.168.1.0/24) and anything already used on-premises; AWS and Azure keep 5 addresses of every subnet and Google Cloud 4, so subnets are sized with them."
+      - id: check-the-plan
+        required: true
+        description: "Before anything is built, a script or tool checks every pair of blocks for overlaps and every block for its start and size (their own script, ipcalc, or a cloud's address management tool, which Module 11 covers)."
+      - id: cloud-detail
+        required: false
+        description: "Any correct cloud difference beyond the reserved counts: AWS subnets /16 to /28; Azure /29 to /2; Google Cloud /29 to /4 with advice to stay at /8, and regional subnets; AWS's warning about 172.17.0.0/16; Azure's 168.63.129.16."
+    model_answer: |
+      An IPv4 address is 32 bits, written as four octets of 8 bits each. A prefix like /20 says the first 20 bits name the network and the other 12 number the hosts in it, so a /20 holds 2 to the 12th, 4,096 addresses. Its mask is 20 ones then 12 zeros, 255.255.240.0. To find any address's block I keep its network bits and clear the host bits, which is an AND with the mask, and that's the block's first address; setting every host bit, an OR with the wildcard, gives its last. In my head I use the interesting octet: the octet where the mask isn't 255 or 0. For a /20 that's the third, where the block size is 256 minus 240, 16, so 10.20.37.5 sits in the block from 10.20.32.0 to 10.20.47.255.
+
+      To split a block, a /y holds 2^(x−y) blocks of /x, and I carve the biggest subnets first so each one starts on a multiple of its own size. A block has to: a /23 starts on an even third number, so given 10.20.3.1/23, Linux quietly uses 10.20.2.0/23, which takes in the /24 next door. Blocks that together fill an aligned block, like four /24s from 10.8.4.0, summarise to one prefix, 10.8.4.0/22; any other summary pulls in addresses nobody asked for. I'd leave room beside every subnet and every region's block, because a block can't grow into its neighbour.
+
+      Two CIDR blocks either nest or don't touch, so I compare them on the shorter of the two prefixes: same leading bits, overlap. Overlapping networks can't be peered on any of the three clouds, a VPN can't route a range that exists on both ends, and renumbering a network in use is slow and risky. Three networks on 10.0.0.0/16 could never be joined, so the team should give each its own range now.
+
+      I'd choose from RFC 1918, 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16, and avoid what everyone else uses: 10.0.0.0/16, AWS's default 172.31.0.0/16, Docker's 172.17.0.0/16, home routers' 192.168.0.0/24 and 192.168.1.0/24, and anything on-premises. Each cloud keeps addresses back: AWS and Azure five per subnet, Google Cloud four, so a subnet for 120 machines with room to double needs 245 addresses on AWS, a /24. Before anyone builds, I'd write the plan down and run a script over it that checks every pair for overlaps and every block for its start and size, and check single blocks with ipcalc.
+review_pool:
+  - est-mask-octet
+  - est-wildcard-octet
+  - cidr-ip2int
+  - est-prefix-from-mask
+  - est-aws-usable
+  - est-network-octet
+  - est-smallest-prefix
+  - mcq-aligned
+  - est-smallest-prefix-google
+  - est-broadcast-octet
+  - est-spec-drill
+  - est-summary-waste
+  - mcq-summary-or-not
+  - est-subnets-for-zones
+  - cidr-overlap-rule
+  - mcq-which-overlap
+  - mcq-peer-overlap
+  - mcq-not-private
+  - mcq-azure-first-vm
+  - mcq-avoid-range
+  - est-google-usable
+skills:
+  - id: binary-and-masks
+    description: "An octet in binary and back; a prefix length as a dotted mask and back; the wildcard; AND with the mask gives a block's first address and OR with the wildcard its last; an address as one 32-bit number in bash's `$(( ))` with `<<`, `>>`, `&` and `|`"
+  - id: block-math
+    description: "A block's size, 2 to the power of its host bits; the block an address is in, by the interesting octet; blocks start on a multiple of their size; usable addresses classically and in each cloud (AWS and Azure keep 5, Google Cloud 4); the smallest prefix that holds a number of machines"
+  - id: split-and-summarise
+    description: "How many /x fit in a /y; carving a block into subnets of different sizes, biggest first and aligned, with room to grow; summarising aligned, contiguous blocks into one prefix; the shortest prefix covering a set of blocks and the extra space it takes in"
+  - id: overlaps
+    description: "Two blocks overlap exactly when they agree on the shorter prefix's bits; spotting it on sight; why overlaps break peering, VPNs and routing; finding every overlap in a plan with a script"
+  - id: private-and-reserved
+    description: "RFC 1918's three ranges and their edges; shared address space, link-local, loopback, multicast and the documentation ranges; each cloud's reserved addresses, subnet size limits and refused ranges; the ranges to avoid"
