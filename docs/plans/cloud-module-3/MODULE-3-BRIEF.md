@@ -110,7 +110,7 @@ Module 1 taught `ip`, `ss`, `dig` with A and CNAME and the TTL column, `curl`, `
 
 ## 4. The network-lab base, final
 
-The design is [network-lab-base.md](network-lab-base.md) and its prototype (`prototypes/network-lab-base/repo/content/lab-bases/net/`), which kept two contracts under the real `labcheck`. Everything there stands except what this section changes.
+The design is [network-lab-base.md](network-lab-base.md) and its prototype (`prototypes/network-lab-base/base/`), which kept two contracts under the real `labcheck`. Everything there stands except what this section changes.
 
 ### 4.1 What stands
 

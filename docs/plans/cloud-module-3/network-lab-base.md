@@ -4,12 +4,12 @@ The one way every Module 3 lab builds a network of several machines inside its o
 
 **The prototype** (cite these paths) is in `<design folder>/prototypes/network-lab-base/`:
 
-- `repo/content/lab-bases/net/`: the base image (`Dockerfile`), the engine (`netlab`, 329 lines of bash), `lab-enter`, `on`, the eight unit templates in `units/`, and the checks' helpers (`checklib.sh`).
-- `repo/content/topics/csa.net.netlab-proto/exercises/proto-bgp-over-ipsec/`: a five-machine lab (two sites, an internet router, IPsec and BGP between the gateways). Full contract: solution, seven checks, four wrong fixes. **Keeps its contract under the real `labcheck test`** (`contract-run-4.log`).
-- `repo/content/topics/csa.net.netlab-proto/exercises/proto-services/`: a nine-machine lab (a DNS hierarchy of three BIND servers, an Unbound resolver, an HAProxy load balancer in front of two nginx servers, an nftables NAT router, a slow link). Eight checks, a planted fault, one wrong fix. **Keeps its contract** (`contract-run-all.log`).
-- `repo/tools/labcheck.py` with the one change the base needs (`labcheck-shared-base.diff`, 29 added lines), and `repo/tools/content_model.py`, an unchanged copy.
+- `base/`: the base image (`Dockerfile`), the engine (`netlab`, 329 lines of bash), `lab-enter`, `on`, the eight unit templates in `units/`, and the checks' helpers (`checklib.sh`).
+- `labs/proto-bgp-over-ipsec/`: a five-machine lab (two sites, an internet router, IPsec and BGP between the gateways). Full contract: solution, seven checks, four wrong fixes. **Keeps its contract under the real `labcheck test`** (`contract-run-4.log`).
+- `labs/proto-services/`: a nine-machine lab (a DNS hierarchy of three BIND servers, an Unbound resolver, an HAProxy load balancer in front of two nginx servers, an nftables NAT router, a slow link). Eight checks, a planted fault, one wrong fix. **Keeps its contract** (`contract-run-all.log`).
+- `labcheck-shared-base.diff`, the one change `tools/labcheck.py` needs (29 added lines).
 
-Run it from `prototypes/network-lab-base/repo/` with the repository's Python: `<repository>/.venv/Scripts/python.exe tools/labcheck.py test --all --jobs 2` (304 s for both labs), or `start`, `shell`, `check` as a learner would.
+The designer ran it as a copy of the repository: `<copy>/.venv/Scripts/python.exe tools/labcheck.py test --all --jobs 2` (304 s for both labs). The archive (`tools/generators/cloud-labs/module-3-prototypes/`) keeps the base and the labs, flattened into `base/` and `labs/` so their paths fit a Windows checkout, but not the copy's `tools/`; the base is built for real in `content/lab-bases/net/` (#253).
 
 ## 1. The plan in one screen
 
