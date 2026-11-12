@@ -3,8 +3,9 @@
 #      worth of work. It used its 5 ms up at the start of every 100 ms
 #      period and waited out the rest (nr_throttled climbed once per
 #      period). The cap has to stay on this shared machine, so it is raised
-#      to the two CPUs the machine's rule allows: the work needs one, and a
-#      quota of exactly one still throttles now and then.
+#      to the two CPUs the machine's rule allows (at least one and a half,
+#      at most two): the work needs one, and a quota of exactly one, or
+#      only just over it, still throttles now and then.
 #   2. Nice=19: the lowest priority, so under any contention it ran last.
 #   3. CPUWeight=1: the smallest possible share when CPUs are contended;
 #      100 is the default.
