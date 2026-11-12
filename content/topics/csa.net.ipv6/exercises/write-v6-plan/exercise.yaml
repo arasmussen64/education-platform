@@ -1,0 +1,26 @@
+id: write-v6-plan
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Write v6-plan"
+prompt: |
+  An IPv6 address plan is mostly counting in hex, which makes it a job for a script. Write one, `~/bin/v6-plan PREFIX REGIONS ZONES TIERS`, from a blank file.
+
+  PREFIX is a site's /48, written in its short form (`2001:db8:abcd::/48`). REGIONS, ZONES and TIERS say how many of each the plan numbers, each counted from 0. For every region, every zone in that region and every tier in that zone, in that order, the script prints one line, `rR-zZ-tTT SUBNET`: R and Z are one hex digit each, TT is two, and SUBNET is the /64 whose fourth group is R, Z and TT side by side, in RFC 5952's short form. So region 1, zone 3, tier 10 of `2001:db8:abcd::/48` is `r1-z3-t0a 2001:db8:abcd:130a::/64`, and `~/bin/v6-plan 2001:db8:abcd::/48 2 2 3` prints 12 lines, from `r0-z0-t00 2001:db8:abcd::/64` to `r1-z1-t02 2001:db8:abcd:1102::/64`. Nothing else.
+
+  For these subnets the short form needs only two of RFC 5952's rules, because a /64's last four groups (its interface identifier) are always zero, so the longest run of zero groups is always the one at the end: write every group without its leading zeros, then take the zero groups off the end and write `::` in their place. A zero group before a non-zero one stays as `0`: region 0, zone 0, tier 1 of `2001:db8::/48` is `2001:db8:0:1::/64`.
+
+  Three pieces of bash are new here:
+
+  - `$(( r * 4096 + z * 256 + t ))` makes the fourth group as one number. In hex each digit is worth 16 times the one to its right (4096, 256, 16 and 1), so the region lands in the first digit, the zone in the second and the tier in the last two. `printf '%x' N` writes a number in hex, in lower case and without leading zeros; `printf '%02x' N` pads it to two digits. (`printf '%x%x%02x' 1 3 10` prints `130a`, as in the quick question.)
+  - `p=${1%/*}` is the prefix without its `/48`, and `${p%::}` that without the `::` at its end. `IFS=: read -r g1 g2 g3 <<< "$p"` splits what's left at its colons. A group the short form left out comes out empty (`2001:db8::` gives no `g3`), and `${g3:-0}` is g3, or 0 when g3 is empty.
+  - `[[ $s == *:0 ]]` is true when `s` ends in `:0`, and `${s%:0}` is `s` without that ending.
+
+  Create the file with `nano ~/bin/v6-plan`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/v6-plan`. Read the counts as `$2`, `$3` and `$4` (the regions' loop is `for (( r = 0; r < $2; r++ ))`, as in the overlap script's loops). The sums are bash's: the lab has Python only for its checks, so a script that hands the work to Python doesn't count. Run `shellcheck ~/bin/v6-plan` (it should say nothing). Then run the checks: they run your script on sites and counts they make up themselves, with zero groups in the prefix and more than ten tiers.
+hints:
+  - "Three loops, one inside the other: regions outermost, then zones, then tiers. Inside the innermost, make the fourth group with `group=$(printf '%x' \"$(( r * 4096 + z * 256 + t ))\")`, then the whole address with every group in it: `s=\"$g1:${g2:-0}:${g3:-0}:$group:0:0:0:0\"`."
+  - "`while [[ $s == *:0 ]]; do s=${s%:0}; done` takes the zero groups off the end, one at a time. Only a group that is exactly 0 ends in `:0`: a group like `a0` ends in `a0`. Then print `\"$s::/64\"`."
+  - "The label is printf too: `printf 'r%x-z%x-t%02x %s::/64\\n' \"$r\" \"$z\" \"$t\" \"$s\"`. Tier 10 is `t0a`: hex, two digits."
+skills: [v6-plan, v6-notation]
