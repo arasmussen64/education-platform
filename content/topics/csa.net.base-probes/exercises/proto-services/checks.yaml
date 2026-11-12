@@ -1,8 +1,8 @@
 # The services probe's checks. Each reads real state: a resolver's answer,
 # a lookup traced from the root, HAProxy's own view of its servers, the NAT's
-# connection table, a capture decoded by tshark, and edge's running firewall
-# against its file. "resolves" waits for the name servers after a boot; the
-# rest read at once.
+# connection table, a capture decoded by tshark, and the resolver's and
+# edge's running configuration against their files. "resolves" waits for the
+# name servers after a boot; the rest read at once.
 # A check that finds something wrong prints what it found and exits 0, so
 # the checker shows that sentence rather than an exit status.
 checks:
@@ -67,6 +67,26 @@ checks:
     timeout: 20
     expect:
       equals: "www.shop.test"
+  - id: resolver-fix-saved
+    description: "The resolver's fix is in its /etc/unbound/unbound.conf, so a restart keeps it: an Unbound started from its files answers for the same zones itself as the running one."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # The zones the running resolver answers for itself, against those of
+      # an Unbound started from the resolver's files in netlab verify's
+      # throwaway copy (chk-resolver sees the resolver's own /etc). A fix
+      # made only live, with unbound-control, makes them differ.
+      live=$(on resolver unbound-control list_local_zones 2> /dev/null | sort)
+      fresh=$(netlab verify resolver -- bash -c '
+        on chk-resolver unbound -d -p > /dev/null 2>&1 &
+        for i in $(seq 1 50); do on chk-resolver unbound-control status > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-resolver unbound-control list_local_zones 2> /dev/null | sort
+        on chk-resolver unbound-control stop > /dev/null 2>&1
+        wait')
+      if [ -n "$live" ] && [ "$live" = "$fresh" ]; then echo saved; exit 0; fi
+      echo "the running resolver isn't the one its files start: after a restart it would answer for $(diff <(echo "$live") <(echo "$fresh") | sed -n 's/^> //p' | head -n 2 | tr '\n' ' ')itself"
+    timeout: 45
+    expect:
+      equals: saved
   - id: edge-firewall-saved
     description: "edge's running firewall and NAT are the ones its /etc/nftables.conf loads."
     command: |

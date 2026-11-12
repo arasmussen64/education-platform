@@ -1,8 +1,8 @@
 # The VTI probe's checks. Each reads the network's real state: the kernel's
 # IPsec SAs and routes, FRR's own answers, a ping between the sites, a
-# capture on the internet's router. "saved", "network-lasts" and
-# "cloud-side-untouched" compare that state with the files that make it
-# last. tunnel-up and bgp-up wait for convergence after a boot; the rest
+# capture on the internet's router. "saved", "network-lasts",
+# "tunnel-starts-itself" and "cloud-side-untouched" compare that state with
+# the files that make it last. tunnel-up and bgp-up wait for convergence after a boot; the rest
 # read at once.
 # A check that finds something wrong prints what it found and exits 0, so
 # the checker shows that sentence rather than an exit status.
@@ -92,8 +92,40 @@ checks:
     command: netlab verify vpn-a
     expect:
       equals: verified
+  - id: tunnel-starts-itself
+    description: "vpn-a's tunnel is in its files and starts by itself: an IPsec daemon started from them, as at boot, begins it with nothing typed."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # In netlab verify's throwaway copy (chk-vpn-a sees vpn-a's own /etc,
+      # and no service runs there), charon starts and loads vpn-a's files as
+      # a boot does. A connection with start_action = start begins at once
+      # (it can't finish: the copy has no routes from FRR); a tunnel started
+      # by hand, or loaded from a file elsewhere, doesn't begin at all.
+      began=$(netlab verify vpn-a -- bash -c '
+        on chk-vpn-a /usr/sbin/charon-systemd > /dev/null 2>&1 &
+        charon=$!
+        for i in $(seq 1 50); do on chk-vpn-a swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-vpn-a swanctl --load-all --noprompt > /dev/null 2>&1
+        sleep 1
+        on chk-vpn-a swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.2\["
+        kill "$charon" 2> /dev/null
+        wait "$charon" 2> /dev/null
+        true')
+      case $began in
+        [1-9]*) echo "starts itself" ;;
+        0) echo "an IPsec daemon started from vpn-a's files doesn't begin the tunnel by itself: it was started by hand, or isn't in /etc/swanctl/conf.d/" ;;
+        *) echo "$began" ;;
+      esac
+    expect:
+      equals: "starts itself"
   - id: cloud-side-untouched
-    description: "The cloud's gateway, the network and vpn-a's network files are as they were."
-    command: netlab intact
+    description: "The cloud's gateway (its files and its running routing), the network and vpn-a's network files are as they were."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact)
+      [ "$sealed" = intact ] || { echo "$sealed"; exit 0; }
+      # The sealed files can't show a change typed into vpn-b's vtysh.
+      changed=$(frr_saved vpn-b) || { echo "vpn-b's routing was changed live: $(echo "$changed" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      echo intact
     expect:
       equals: intact
