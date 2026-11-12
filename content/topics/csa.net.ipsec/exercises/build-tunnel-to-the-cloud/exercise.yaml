@@ -14,7 +14,7 @@ prompt: |
   1. it is route-based: a tunnel interface (a VTI) on vpn, and one CHILD_SA for 0.0.0.0/0 both ways, so routing decides what is encrypted;
   2. it uses the sheet's proposals for both phases, and nothing weaker, though the provider would accept something weaker;
   3. the office's network reaches the cloud's by BGP inside the tunnel, between the inside addresses: vpn announces the office's 192.168.10.0/24 and nothing else, and accepts from the provider only prefixes inside 10.0.0.0/8 no longer than /24, so never a default route. No static routes to the cloud, and none typed into the kernel;
-  4. the tunnel and BGP come back by themselves after a reboot of vpn and after the provider restarts its end;
+  4. the tunnel and BGP come back by themselves after a reboot of vpn (even if the provider doesn't answer at first) and after the provider restarts its end;
   5. the pre-shared key can be read only by root.
 
   The tools are the walkthrough's: `on vpn nano FILE` for vpn's files (the network file `/etc/network/up`, a connection in `/etc/swanctl/conf.d/`), `on vpn swanctl ...` (`--load-all`, `--list-sas`, `--initiate --child NAME`), `sudo systemctl restart strongswan@vpn`, `on vpn vtysh` for BGP (and `write memory`), `sudo netlab restart` to reboot the network, and the provider's three stand-ins. Then run the checks. Some of them act on the provider's side for a moment: one rekeys the tunnel from there, one offers new prefixes to see which vpn takes, and the last restarts the provider's gateway and watches the tunnel come back.

@@ -81,7 +81,7 @@ checks:
     expect:
       equals: rekeyed
   - id: learns-by-bgp
-    description: "vpn takes from the provider only prefixes inside 10.0.0.0/8 no longer than /24, by BGP, into vti0: a new one the provider offers arrives, and one outside 10.0.0.0/8, one longer than /24 and a default route don't."
+    description: "vpn takes from the provider only prefixes inside 10.0.0.0/8 no longer than /24, by BGP, into vti0: a new one the provider offers arrives, and one outside 10.0.0.0/8, one longer than /24 and the provider's default route are refused."
     timeout: 45
     command: |
       . /usr/local/lib/netlab/checklib.sh
@@ -98,13 +98,18 @@ checks:
       good="10.$a.$b.0/24" foreign="172.16.$b.0/24" long="10.$a.$(((b + 1) % 256)).128/25"
       trap 'for p in $good $foreign $long; do ip -n cloud route del blackhole "$p" 2> /dev/null; done' EXIT
       for p in $good $foreign $long; do ip -n cloud route add blackhole "$p" || { echo "the check couldn't offer $p"; exit 0; }; done
-      offered() { [ "$(frr cloud 'show bgp ipv4 unicast neighbors 169.254.44.2 advertised-routes json' | json "all(p in d.get('advertisedRoutes', {}) for p in '$good $foreign $long'.split())")" = True ]; }
+      offered() { [ "$(frr cloud 'show bgp ipv4 unicast neighbors 169.254.44.2 advertised-routes json' | json "all(p in d.get('advertisedRoutes', {}) for p in '0.0.0.0/0 $good $foreign $long'.split())")" = True ]; }
       wait_for 10 offered || { echo "the provider never offered the check's prefixes, so the check couldn't test them"; exit 0; }
       arrived() { [ "$(route "$good")" = '[["bgp", ["vti0"]]]' ]; }
       wait_for 15 arrived || { echo "a new prefix the provider offers, $good, doesn't arrive in vpn's routes by BGP through vti0"; exit 0; }
       for p in $foreign $long; do
         [ "$(route "$p")" = "[]" ] || { echo "vpn took $p from the provider, which isn't inside 10.0.0.0/8 at /24 or shorter"; exit 0; }
       done
+      # The provider's default route: vpn's own static default (distance 1)
+      # beats a BGP one (20) in the routing table, so what vpn's BGP accepted
+      # from the provider is read instead.
+      took=$(frr vpn 'show bgp ipv4 unicast neighbors 169.254.44.1 routes json' | json "'0.0.0.0/0' in d.get('routes', {})")
+      [ "$took" = False ] || { echo "vpn's BGP took the provider's default route, 0.0.0.0/0 (show bgp ipv4 unicast neighbors 169.254.44.1 routes)"; exit 0; }
       echo "only the cloud's"
     expect:
       equals: "only the cloud's"
@@ -159,31 +164,47 @@ checks:
     expect:
       equals: saved
   - id: tunnel-starts-itself
-    description: "vpn's tunnel is in its files and starts by itself: an IPsec daemon started from them, as at boot, begins it with nothing typed."
+    description: "vpn's tunnel is in its files and starts by itself: an IPsec daemon started from them, as at boot, begins it with nothing typed, and keeps trying while the provider doesn't answer."
     command: |
       . /usr/local/lib/netlab/checklib.sh
       # In netlab verify's throwaway copy (chk-vpn sees vpn's own /etc, and
       # no service runs there), charon starts and loads vpn's files as a
       # boot does. A CHILD_SA with start_action = start begins at once (it
-      # can't finish: the copy has no routes from FRR); a tunnel started by
-      # hand, or loaded from a file elsewhere, doesn't begin at all.
+      # can't finish: the copy has no routes from FRR, so nothing answers);
+      # a tunnel started by hand, or loaded from a file elsewhere, doesn't
+      # begin at all. This charon retransmits fast (STRONGSWAN_CONF adds
+      # that to the machine's own settings), so a try gives up after about
+      # 2 seconds: with keyingtries = 0 a new try is still under way 5
+      # seconds after loading, and with the default, 1, nothing is.
       began=$(netlab verify vpn -- bash -c '
-        on chk-vpn /usr/sbin/charon-systemd > /dev/null 2>&1 &
+        conf=$(mktemp /tmp/chk-strongswan-XXXXXX.conf)
+        printf "%s\n" "include /etc/strongswan.conf" "charon {" "  retransmit_tries = 1" "  retransmit_timeout = 1" "  retransmit_base = 1" "}" > "$conf"
+        chmod 644 "$conf"
+        on chk-vpn env STRONGSWAN_CONF="$conf" /usr/sbin/charon-systemd > /dev/null 2>&1 &
         charon=$!
         for i in $(seq 1 50); do on chk-vpn swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
         on chk-vpn swanctl --load-all --noprompt > /dev/null 2>&1
-        for i in $(seq 1 25); do
+        loaded=$SECONDS
+        n=0
+        for i in $(seq 1 10); do
           n=$(on chk-vpn swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.10\[")
           [ "$n" -ge 1 ] && break
           sleep 0.2
         done
-        echo "$n"
+        later=0
+        if [ "$n" -ge 1 ]; then
+          while [ $((SECONDS - loaded)) -lt 5 ]; do sleep 0.5; done
+          later=$(on chk-vpn swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.10\[")
+        fi
+        echo "$n $later"
         kill "$charon" 2> /dev/null
         wait "$charon" 2> /dev/null
+        rm -f "$conf"
         true')
       case $began in
-        [1-9]*) echo "starts itself" ;;
-        0) echo "an IPsec daemon started from vpn's files doesn't begin the tunnel by itself: it was started by hand, or isn't in /etc/swanctl/conf.d/" ;;
+        "0 0") echo "an IPsec daemon started from vpn's files doesn't begin the tunnel by itself: it was started by hand, or isn't in /etc/swanctl/conf.d/" ;;
+        [1-9]*" 0") echo "an IPsec daemon started from vpn's files begins the tunnel, but soon gives up when the provider doesn't answer, as at a boot when the provider isn't ready yet" ;;
+        [1-9]*" "[1-9]*) echo "starts itself" ;;
         *) echo "$began" ;;
       esac
     expect:
