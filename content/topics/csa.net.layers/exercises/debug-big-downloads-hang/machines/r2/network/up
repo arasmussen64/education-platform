@@ -1,0 +1,14 @@
+# r2's network settings, run at every boot: the cloud's router.
+ip addr add 203.0.113.2/24 dev wan
+# The tunnel to the office's router, r1, across the internet.
+ip link add gre1 type gre local 203.0.113.2 remote 203.0.113.1 ttl 64
+ip addr add 10.255.0.2/30 dev gre1
+ip link set gre1 up
+# The cloud's network: web and the file server.
+ip addr add 10.0.2.1/24 dev lan
+ip neigh replace 10.0.2.30 lladdr 02:4c:41:42:00:30 dev lan nud permanent
+# The cloud office's printer.
+ip addr add 10.0.3.1/24 dev prn
+ip link set prn down
+# Everything else, the internet included, leaves through the office.
+ip route add default dev gre1
