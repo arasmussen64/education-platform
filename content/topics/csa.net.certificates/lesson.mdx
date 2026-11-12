@@ -1,0 +1,113 @@
+<Intro>
+
+HTTP and TLS showed the server's Certificate message crossing the handshake, and named the certificate, its root and intermediate and its subjectAltName in one paragraph. This topic opens the certificate up. By the end you can read one and the chain a server sends, say why a client trusts it or which of the usual failures it hit, make a certificate authority of your own, get certificates automatically with ACME and make every renewal reach the server, and set up **mutual TLS**, where the client proves who it is too. The labs use the shop's web server, `web` (nginx, and certbot, which gets its certificates); `ca`, the shop's own certificate authority, step-ca, which speaks ACME like Let's Encrypt does; a customer's laptop, `office`; `partner`, the warehouse's server, which calls the shop's API with a certificate of its own; and `resolver`, the shop's name server.
+
+**What a certificate holds.** A certificate (the format is called **X.509**) is a small signed file that says "this public key belongs to whoever holds these names". `openssl x509 -in FILE -noout -text` shows all of it; the parts that matter:
+
+| Part | What it says | In `openssl x509` |
+| --- | --- | --- |
+| **subject** | whom it was issued to; its **CN** (common name) is where a site's name used to go | `subject=CN = www.shop.test`, or empty |
+| **subjectAltName** (SAN) | the names it's good for: the list clients check, ignoring the CN | `DNS:www.shop.test, DNS:shop.test` |
+| **issuer** | who signed it | `issuer=O = Shop Lab, CN = Shop Lab Intermediate CA` |
+| **validity** | from when to when | `notBefore=`, `notAfter=` |
+| **serial number** | the issuer's number for it, never used twice | `serial=BDD4500D...` |
+| **basic constraints** | whether it's a CA's certificate (`CA:TRUE`) that may sign others, and how many CAs may stand below it (`pathlen:0`: none) | `CA:TRUE, pathlen:0` |
+| **key usage**, **extended key usage** (EKU) | what the key may do: sign certificates, or prove a server (`serverAuth`) or a client (`clientAuth`) | `TLS Web Server Authentication` |
+| the public key, and the issuer's **signature** over all of the above | | |
+
+A name in the SAN matches exactly, except a **wildcard**: `*.shop.test` covers `api.shop.test` but not `shop.test` itself nor `a.b.shop.test`. The certificate is public: the server sends it to anyone. The matching **private key** (certbot's `privkey.pem`) is what must never leave the server, because whoever holds it can be the site.
+
+**Who signs whom: the chain.** A **certificate authority** (CA) is whoever signs certificates. At the top is a **root CA**, whose certificate signs itself, so nothing proves it but the fact that you already hold it: every operating system and browser ships a **trust store**, the list of roots it trusts (on Ubuntu, `/etc/ssl/certs/ca-certificates.crt`), and a company adds its own root to its managed machines. Roots are kept offline and sign a few **intermediate** CAs, which sign the sites' certificates (often called **leaf** certificates, the ends of the tree). A client checking `www.shop.test`'s certificate looks for the certificate whose subject is its issuer, checks the signature with that certificate's public key, and climbs until it reaches a root in its own store, the way DNSSEC's chain climbs to its trust anchor. So:
+
+- **The server sends its own certificate, then the intermediates:** the **full chain** (certbot's `fullchain.pem`). nginx takes the first certificate in the file as the server's own, to go with its key; the intermediate first gives `key values mismatch` and nginx won't start.
+- **Not the root.** A root sent by the server proves nothing (anyone can make one), and a client that trusts it has its own copy.
+
+**What a client checks, and what failure looks like.** The chain, the name asked for against the SAN, the dates, and the use (a server's certificate must allow `serverAuth`). `openssl s_client -connect HOST:443 -servername NAME -verify_hostname NAME` ends with a **verify return code**; captured in this topic's labs:
+
+| Code | openssl says | Usually |
+| --- | --- | --- |
+| 0 | `ok` | all good |
+| 20, then 21 | `unable to get local issuer certificate`, `unable to verify the first certificate` | the intermediate wasn't sent; or the certificate comes from a CA you don't trust and its root wasn't sent |
+| 19 | `self-signed certificate in certificate chain` | the chain ends in a root you don't trust, which the server sent |
+| 18 | `self-signed certificate` | a certificate that signed itself, made with `openssl req -x509` |
+| 10 | `certificate has expired` | what it says |
+| 62 | `hostname mismatch` | the name asked for isn't in the SAN (only with `-verify_hostname`; curl and browsers always check) |
+
+curl reports each as `curl: (60) SSL certificate problem:` and the same words (for 20 and 21, `unable to get local issuer certificate`), except a name mismatch: `curl: (60) SSL: no alternative certificate subject name matches target host name`. One trap: **a missing intermediate often works in a browser**. Browsers keep intermediates they've seen before, and some fetch a missing one from an address in the certificate, so a broken server looks fine on your laptop and fails for curl, phones' apps and partners' servers. Test from a strict client.
+
+**A CA of your own.** Names like `api.internal` or `.test` can't get a public certificate (no public CA can check them), so companies run **private CAs** for internal services, and give every client their root. With openssl it takes four steps, which the fill-in lab does:
+
+1. a root: a key, and `openssl req -x509` with `basicConstraints=critical,CA:TRUE`;
+2. an intermediate: a key, a **CSR** (certificate signing request: the public key and the names wanted, signed with the matching private key to prove the requester holds it), signed by the root with `CA:TRUE,pathlen:0`, so it can sign servers' certificates but no CA under it;
+3. the server's certificate: a CSR signed by the intermediate with the server's names in `subjectAltName=DNS:...` and `extendedKeyUsage=serverAuth`;
+4. the full chain: `cat server.pem intermediate.pem > fullchain.pem`.
+
+A private CA chooses its own lifetimes: the labs' hand-made certificates last a year or more. Public CAs can't.
+
+**Why public certificates are getting short.** When a key is stolen its certificate should be **revoked**, but clients learn about revocations unreliably (topic 31: OCSP, which Let's Encrypt stopped answering in 2025, and CRLs, published lists of revoked serials). Whatever revocation misses, expiry catches, so the browsers and CAs, meeting as the CA/Browser Forum, agreed a falling cap on how long a public certificate may last (its Baseline Requirements, version 2.3.1), by the date it's issued:
+
+| Issued | until 14 March 2026 | from 15 March 2026 | from 15 March 2027 | from 15 March 2029 |
+| --- | --- | --- | --- | --- |
+| Longest lifetime | 398 days | 200 days | 100 days | 47 days |
+
+Let's Encrypt, the largest public CA, issues 90-day certificates today, 45-day ones to those who ask since 13 May 2026, and moves its default to 64 days on 10 February 2027 and 45 days on 16 February 2028 (ISRG, December 2025); a 160-hour profile has been available since 15 January 2026. Nobody renews that often by hand: **renew automatically, about two-thirds of the way through each certificate's life**, keeping the last third to retry in if the CA or the network has a bad day. Better still, let the CA say when: **ARI** (ACME Renewal Information, RFC 9773) has the client ask, and lets the CA call for early renewal before a mass revocation.
+
+**ACME: a certificate without a person.** **ACME** (Automatic Certificate Management Environment, RFC 8555) is the protocol an **ACME client** (certbot, here) uses to ask a CA for certificates. It makes an **account key** pair and registers it once; places an **order** for some names; proves it controls each name with a **challenge**; sends a CSR for a key of the server's own; and downloads the certificate. A public CA checks a challenge from several places on the internet at once, so that someone who can fool one network path can't get your certificate, and publishes every certificate it issues in **Certificate Transparency** logs, public append-only lists in which you can spot a certificate for your name that you never asked for. A **CAA** record (DNS's) says which CAs may issue for your names. The three challenges:
+
+| Challenge | The CA checks | Wildcards | What it needs |
+| --- | --- | --- | --- |
+| **HTTP-01** | a file at `http://NAME/.well-known/acme-challenge/TOKEN`, on port 80 only (it follows redirects to ports 80 and 443) | no | port 80 open, and a server answering that path on every machine behind the name |
+| **DNS-01** | a TXT record at `_acme-challenge.NAME` | yes | a DNS provider with an API, and its credentials on the server (give them as little power as you can) |
+| **TLS-ALPN-01** | a special certificate offered on port 443, chosen through ALPN | no | a client that supports it, which few do |
+
+In the labs the CA is step-ca, which keeps its root across restarts and issues 24-hour certificates: the labs' fast clock, said in each prompt. (Pebble, Let's Encrypt's own test CA, makes a new root at every start, so its certificates stop verifying after a restart.)
+
+**certbot on a server.** `certbot certonly --webroot -w /var/www/html -d www.shop.test` answers HTTP-01 by writing the challenge file under `/var/www/html`, where the web server already serves it (`--server` names another CA than Let's Encrypt). certbot's files, in `/etc/letsencrypt`:
+
+- `live/www.shop.test/`: `cert.pem` (the site's certificate alone), `chain.pem` (the intermediates), `fullchain.pem` (the two, the site's first) and `privkey.pem`, each a link to the newest numbered file in `archive/www.shop.test/` (`cert1.pem`, `cert2.pem`, ...). The server reads the `live/` names, never `archive/` and never a copy: certbot's README there calls `cert.pem` one that "will break many server configurations";
+- `renewal/www.shop.test.conf`: how to renew, including how the name was proved.
+
+Renewing has three parts, and missing any one is an outage weeks later:
+
+1. **A timer.** Ubuntu's `certbot.timer` runs `certbot renew` twice a day, which renews each certificate that is due: in Ubuntu 24.04's certbot 2.9, one with less than 30 days left (certbot 4.0 and later, a third of its lifetime). Run unattended, it first waits a random time, up to eight minutes, so that millions of servers don't all ask at once.
+2. **A deploy hook.** A renewal changes files, never the running server, which keeps the certificate it read when it last started. `--deploy-hook "systemctl reload nginx"` (or `certbot reconfigure --cert-name NAME --deploy-hook ...` later) stores a command certbot runs after every certificate it gets, as `renew_hook` in the renewal file; a script in `renewal-hooks/deploy/` does the same for all of them.
+3. **A watch from outside.** Check the expiry of the certificate the server actually serves (`openssl s_client ... | openssl x509 -noout -enddate`), not the file.
+
+`certbot certificates` lists them, and `certbot renew --force-renewal --no-random-sleep-on-renew` renews now, to see the whole path work. In the labs certbot runs on web: `on web certbot ...`, its timer is `certbot@web.timer` (every four hours on the fast clock), and the hook is `systemctl reload nginx@web`. A habit-typed `systemctl reload nginx` reloads nothing there: the lab machine's plain nginx unit only says where nginx really runs.
+
+**Mutual TLS: the client proves who it is too.** In ordinary TLS only the server shows a certificate. With **mutual TLS** (mTLS) the server also asks for a **client certificate**: after its EncryptedExtensions it sends a **CertificateRequest**, which names the CAs it accepts (`openssl s_client` prints them as `Acceptable client certificate CA names`), and the client answers with a Certificate of its own and a CertificateVerify, a signature over the handshake that proves it holds the key. It's for clients you know in advance: partners' integrations, a company's services calling each other (a **service mesh**, software that carries every call between a company's services, can do it for all of them), devices. In nginx:
+
+- `ssl_client_certificate FILE`: the CA certificates trusted for clients, whose names are sent in the CertificateRequest (`ssl_trusted_certificate` trusts without sending the names);
+- `ssl_verify_client on`: refuse a client without a valid certificate. nginx finishes the handshake and refuses at the HTTP level: `400 No required SSL certificate was sent` for none, `400 The SSL certificate error` for one it couldn't verify, and the error log says why when it logs at `info` (`client SSL certificate verify error: (21:unable to verify the first certificate)`);
+- `optional` asks, checks a certificate that arrives, and **lets a client with none through**, so the API is open; `optional_no_ca` skips the CA check, for a program behind nginx that checks itself. `$ssl_client_verify` (`SUCCESS`, `FAILED:...`, `NONE`) and `$ssl_client_s_dn` tell the site who came.
+
+Two rules. **Trust a CA kept for clients alone.** Many CAs, the labs' included, put both `serverAuth` and `clientAuth` in every certificate they issue, so an API that trusts the company's server CA for clients lets in every web server's certificate, and anyone's who can get one from its ACME service. And **a client's certificate needs `clientAuth`**: nginx refuses one that says `serverAuth` only (tried in the labs).
+
+**Where the three clouds differ.** Their load balancers end TLS for you, so the certificate lives with them (each provider's pages, read 2026-11-12):
+
+| | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| Certificates they manage | AWS Certificate Manager renews its own certificates by itself when they're validated through DNS and in use by a service such as a load balancer or CloudFront (AWS's content delivery network); otherwise it emails. Certificates you import, or get through ACME, it doesn't renew | App Service (Azure's hosting for web apps) certificates, bought through Azure from GoDaddy (a public CA) and kept in Key Vault (Azure's store for keys and secrets), renew by themselves from 32 days before expiry, at most 198 days each; App Service also has free managed certificates | Certificate Manager's Google-managed certificates, from Google's own public CA or Let's Encrypt, are issued and renewed by themselves, proved through DNS or through the load balancer |
+| Mutual TLS at the load balancer | Application Load Balancer: **verify** mode checks the client's certificate against a trust store (a CA bundle you upload) and passes its subject, issuer, serial and dates to the servers behind it (its targets) in `X-Amzn-Mtls-Clientcert-*` headers; **passthrough** mode sends the whole chain, unchecked, in `X-Amzn-Mtls-Clientcert` for the targets to check | Application Gateway (v2): **strict** mode requires a valid certificate from the client CA chain you upload (root included) to an SSL profile, optionally checking the issuer's name and revocation by OCSP; **passthrough** mode asks but lets every client through, for the backend to check | Application Load Balancers: a **trust config** of trust anchors (roots) and intermediates; `REJECT_INVALID` refuses a missing or invalid certificate, `ALLOW_INVALID_OR_MISSING_CLIENT_CERT` lets the request through with the result in headers; client certificates must allow `clientAuth` |
+
+The lesson of both rows is the same as nginx's: what the platform manages, it renews; what you bring, you renew. And a "passthrough" or "allow invalid" mode is mutual TLS only if something behind it really checks.
+
+**Read now:** Let's Encrypt's "How It Works", the main resource below (about 5 minutes), then its "Challenge Types", Google's "Mutual TLS overview" to the end of "Client validation modes", certbot's user guide on where its certificates are and how renewal works, and nginx's three client-certificate directives. The rest are optional: ISRG's post on 45-day certificates, and AWS's and Azure's pages behind the table. The quick questions read openssl, curl and `ls` output from the labs and work out lifetimes and renewals. The labs replace a hand-made certificate with one from ACME and renew it, fill in a small CA and a partners-only API, write a script that reports on any server's certificate, set up both of the shop's sites with certificates that look after themselves, and fix a server whose customers see an expired padlock while the warehouse can't get in.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **A certificate** (X.509): a public key, the names it's for in the **subjectAltName** (clients ignore the CN), dates (`notBefore`, `notAfter`), a serial, **basic constraints** (`CA:TRUE`, `pathlen`), **key usage** and **EKU** (`serverAuth`, `clientAuth`), signed by its **issuer**. `openssl x509 -noout -subject -issuer -dates -ext subjectAltName`, or `-text`. The private key never leaves the server.
+- **The chain:** site's certificate (leaf) → **intermediate** → **root** in the client's **trust store**. The server sends the **full chain**, its own first, and not the root.
+- **Verify codes:** 0 ok; 20 then 21, the intermediate missing (or an unknown CA); 19, an untrusted root sent; 18, self-signed; 10, expired; 62, name not in the SAN. curl says `(60)`. Browsers hide a missing intermediate: test with curl or openssl.
+- **A private CA:** root (`req -x509`, `CA:TRUE`), intermediate (`CA:TRUE,pathlen:0`), server certificate from a **CSR** with `subjectAltName` and `serverAuth`, `cat leaf intermediate > fullchain.pem`. Clients must be given the root.
+- **Lifetimes:** revocation is unreliable, so public certificates are capped at 398 days, then 200 (from 15 March 2026), 100 (2027), 47 (2029). Let's Encrypt: 90 days, 45 by default from 2028. Renew at about **two-thirds**, or by **ARI**.
+- **ACME** (RFC 8555): account key, order, challenge, CSR, certificate. **HTTP-01** port 80, no wildcards; **DNS-01** a TXT record, wildcards, API credentials on the server; **TLS-ALPN-01** port 443. Certificate Transparency logs every public certificate; CAA limits who may issue.
+- **certbot:** `certonly --webroot -w DIR -d NAME`; serve `live/NAME/fullchain.pem` and `privkey.pem`, never `archive/` or a copy; a timer (`certbot.timer`; 30 days left in 2.9); a **deploy hook** that reloads the server (`--deploy-hook`, `renew_hook`, `certbot reconfigure`); watch the served expiry. Labs: `on web certbot`, `certbot@web.timer`, `systemctl reload nginx@web`.
+- **Mutual TLS:** CertificateRequest (acceptable CA names), the client's Certificate and CertificateVerify. nginx: `ssl_client_certificate` (a CA kept for clients), `ssl_verify_client on` (`optional` lets anyone in); `400 No required SSL certificate was sent`, `400 The SSL certificate error`; client certificates need `clientAuth`.
+- **Clouds:** ACM, Azure's App Service certificates and Google-managed certificates renew themselves; what you import, you renew. mTLS: AWS verify or passthrough, Azure strict or passthrough, Google `REJECT_INVALID` or `ALLOW_INVALID_OR_MISSING_CLIENT_CERT`.
+
+</Recap>
