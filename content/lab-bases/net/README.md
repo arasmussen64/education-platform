@@ -52,7 +52,7 @@ A machine's own file that sits straight in `/etc` (`nftables.conf`, `radvd.conf`
 
 What a machine doesn't have, which the first lesson says plainly: its own systemd (its services are units on the lab machine, `systemctl status frr@r1`, and their logs are in the lab machine's journal, `journalctl -u frr@r1`), its own process list (`ps` shows every machine's processes), and its own files outside the folders above (`/tmp`, `/home`, `/root` and the users are shared by all machines). Never use a file in `/tmp` as a machine's private state.
 
-Names: machines up to 8 characters, lans up to 15, `machine.interface` up to 15 (the kernel's limit on an interface name). `switches` and names starting `chk-` are netlab's own.
+Names: machines up to 8 characters, lans up to 15, `machine.interface` up to 15 (the kernel's limit on an interface name). `switches` and names starting `chk-` are netlab's own. A machine's name is also a folder in the repository (`machines/<name>/`), so it can't be one of Windows' reserved device names (`con`, `prn`, `aux`, `nul`, `com1` to `com9`, `lpt1` to `lpt9`): git on Windows can't check such a folder out, though Docker builds it.
 
 ## The topology file
 
@@ -171,7 +171,7 @@ Checks source `. /usr/local/lib/netlab/checklib.sh` and run as root on the lab m
 | --- | --- |
 | `frr M 'show ... json'` | FRR's own answer: `show bgp neighbors X json` (`bgpState`), `show ip route P json` (`protocol`, `selected`, `nexthops[].interfaceName`) |
 | `json EXPR` | JSON on stdin as `d`, through `python3` (`json "d['peers']['10.0.0.2']['state']"`) |
-| `wait_for SECONDS CMD...` | retries once a second, for something that needs a moment after a boot |
+| `wait_for TRIES CMD...` | tries CMD up to TRIES times, a second apart, for something that needs a moment after a boot. It counts tries, not seconds: with a command that can block (`curl -m 2`), keep TRIES times (its timeout + 1) under the check's limit (30 s unless it sets `timeout:`) |
 | `tcp_state FROM HOST PORT` | `open`, `refused` or `dropped`, by timing `nc -z -w 2` from machine FROM |
 | `pcap M IF FILTER SECONDS -- CMD...` | captures on M while CMD runs; prints the capture file's path (read it with `tcpdump -r`, remove it) |
 | `capture ...` | as `pcap`, but prints the packets as `tcpdump -nn -r` reads them, and removes the file |
@@ -196,7 +196,9 @@ From the Module 3 brief, sections 3.5 and 4.4.
 - **One wait per check run.** One check waits for convergence (30 s for BGP, 15 s for IPsec, 60 s for DNS after a boot); every later check reads at once. Seed fast timers (`timers bgp 3 9`, `timers connect 5`, OSPF hello 1 dead 4) and say in the lesson what the defaults are.
 - **No ties decided by time.** Every BGP lab makes the default winner deterministic (`bgp bestpath compare-routerid`, and addresses chosen so the wrong path wins without the learner's change).
 - **Never compare whole interface lists.** Placeholder tunnel interfaces (`gre0`, `ip_vti0` ...) appear in every new namespace once their type is in use on Docker's machine, which differs between machines and days.
-- **Seed files written by FRR.** Generate every `frr.conf` seed with `write memory` at authoring time, or `frr_saved` fails a pristine router (it compares with what FRR itself writes).
+- **Seed files written by FRR.** Generate every `frr.conf` seed with `write memory` at authoring time, or `frr_saved` fails a pristine router (it compares with what FRR itself writes). FRR writes static routes sorted by prefix length, keeping the file's order within one prefix, so a seed filled in by hand keeps that order.
+- **Static routes name their interface** when a wider route covers their next hop. FRR finds a static route's next hop through its own table, so when a cable goes, a summary or blackhole that still covers the next hop's address (not the default route, which next-hop tracking doesn't use) keeps the dead route installed, shown as `(recursive)`. `ip route P NH IFNAME` ties it to the cable (found by the routing topic, 2026-11-12).
+- **Read the route, not only the traffic,** where a wrong route can still carry it: with a default route through the backup path, a distance-255 backup passes any reachability test; and of two equal routes for one prefix, the kernel passes over a next hop whose neighbour entry has failed, so a forgotten old route stays wrong while traffic flows. Check the prefix's own kernel route as well.
 - **A resolver in front of servers that boot later** sets `infra-host-ttl: 60`, and every Unbound config has `local-zone: "test." nodefault` (Unbound otherwise answers every `.test` name with NXDOMAIN itself).
 - **Source ports a check chooses** come from above the ephemeral range (61000 and up), moving with the clock, never reused in a run.
 - **A path is proved by traffic**: capture on each outgoing interface; `ip route get` doesn't predict the ECMP path of forwarded connections.
@@ -216,7 +218,7 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 | veth, bridges, namespaces, per-namespace `ip_forward` and `rp_filter` | all | works | works (every probe) |
 | nftables NAT (`nf_nat`, `nft_chain_nat`, masquerade) | NAT, IPv6, transport | works | works (`example-nat-gateway`, `proto-services`) |
 | nftables `netdev` ingress (`netlab link ... silent`) | routing, BGP steering, checkpoint part 3 | works | untried: no probe cuts a link |
-| `ip_gre` | layers | works | works (`debug-big-downloads-hang`) |
+| `ip_gre` | layers | works | works (`debug-big-downloads-hang`, now `csa.net.layers`' debug) |
 | `xfrm_user`, `esp4`, `ip_vti` | IPsec, checkpoint part 3 | works (with the standard plugins only) | works (`proto-bgp-over-vti`) |
 | `sch_netem` | transport, congestion, troubleshooting, the `netem` word | works, delays egress only | works (`probe-bbr-throughput`, `proto-services`) |
 | `tcp_bbr` | congestion | works, loads from a machine's `sysctl.d` | works: BBR cleared 25 Mbit/s three times (`probe-bbr-throughput`) |

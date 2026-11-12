@@ -7,9 +7,13 @@
 # Checks run as root on the lab machine; "on M CMD" runs CMD on machine M.
 # The base's README (content/lab-bases/net/README.md) lists them all.
 
-# wait_for SECONDS COMMAND...: retries COMMAND once a second until it
-# succeeds or SECONDS have passed. For a session that needs a moment to
-# come up after a boot; never to wait out a race.
+# wait_for TRIES COMMAND...: tries COMMAND up to TRIES times, a second
+# apart, until it succeeds. For a session that needs a moment to come up
+# after a boot; never to wait out a race. TRIES counts tries, not seconds: a
+# command that can block (curl -m 2) makes each try that much longer, so keep
+# TRIES times (its timeout + 1) under the check's time limit (30 s unless the
+# check sets timeout:), or the learner sees "ran out of time" instead of the
+# check's own message.
 wait_for() {
   local limit=$1 i
   shift
@@ -109,7 +113,7 @@ nft_saved() {
   }
   ln -sfn "$m" "/etc/netns/$scratch"
   for dev in $(ip -n "$m" -o link | awk -F': ' '{sub(/@.*/, "", $2); print $2}'); do
-    [[ $dev == lo ]] || ip -n "$scratch" link add "$dev" type veth peer name "peer$n" 2> /dev/null
+    [[ $dev == lo ]] || ip -n "$scratch" link add name "$dev" type veth peer name "peer$n" 2> /dev/null
     n=$((n + 1))
   done
   from_file=$(ip netns exec "$scratch" nft -f /etc/nftables.conf 2>&1 && ip netns exec "$scratch" nft -s list ruleset)

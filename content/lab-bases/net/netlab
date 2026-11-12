@@ -262,7 +262,9 @@ lan() {
     ip netns add "$switches"
     ip -n "$switches" link set lo up
   fi
-  ip -n "$switches" link add "$name" type bridge stp_state 0
+  # "name" before a topology-given name, or ip reads one like "br" or "a"
+  # as a keyword of its own (broadcast, address) and the boot fails.
+  ip -n "$switches" link add name "$name" type bridge stp_state 0
   ip -n "$switches" link set "$name" up
   for end in "$@"; do
     parse_end "$end"
@@ -339,7 +341,7 @@ tunnel() {
       shift
     fi
   done
-  ip -n "$(ns "$m")" link add "$name" type "$type" "${args[@]}"
+  ip -n "$(ns "$m")" link add name "$name" type "$type" "${args[@]}"
   # A route-based VPN's tunnel: the kernel must not drop what arrives on it
   # for want of a policy (the IPsec policy is selected by the key, a mark).
   if [[ $type == vti ]]; then
