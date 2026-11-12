@@ -12,6 +12,13 @@ The review fixed eleven things, three of them shortcuts a check let through: a `
 
 Built alongside it: the app bundles Module 3's topics, as it does Modules 1 and 2's; and the base takes a name like `br` or `a` for a switch or a tunnel (netlab passed the name straight to `ip link add`, which read `br` as broadcast).
 
+**IPv4 and CIDR is ready** (#258). It teaches addressing as arithmetic a learner can do in their head: a prefix length as a mask, a block's first and last address and its size, why a block starts on a multiple of its size, splitting a block biggest first, summarising, the overlap rule (two blocks either nest or are apart), the private and special ranges, and the three clouds' address rules side by side, read on the day. Its build is a 15-subnet plan for AWS, Azure and Google inside one /12. Its debug is a shop's network where a new warehouse broke three things, with the plan on the router as the source of truth. Five labs (37 known-wrong fixes) and 30 recall items, 18 of them estimates. The review fixed eight things:
+
+- the debug's topology was sealed but never checked, so a fix moved into the scenery passed;
+- the write lab let a script hand its sums to Python;
+- the lesson used subnet, region, VPN and DNS before the learner's path defined them;
+- "the shortest prefix covering two blocks" was backwards.
+
 **Author notes:**
 
 - _The build's narrow link moved._ The plan put the 1400-byte link next to the branch's router, where the cloud's router dropped the oversized packets before the branch's firewall ever saw the ICMP. It now sits beyond the ISP, so r3 can only learn the path MTU from ICMP that its own firewall lets in, which is the point of the lab.
@@ -19,8 +26,12 @@ Built alongside it: the app bundles Module 3's topics, as it does Modules 1 and 
 - _Videos linked without being watched._ Ben Eater's videos are linked as optional, confirmed by their titles and channel; nobody has watched them. Cloudflare's MTU page refuses automated fetches (HTTP 403), so the brief's fallback replaced it.
 - _The write lab has no ShellCheck check_; the base doesn't carry ShellCheck, and Module 1's networking write lab has none either.
 - _Bundling Module 3 also bundles the draft probe topic_, which shows only on a dev server, so nothing changes on the live site until each topic is ready.
+- _CIDR's three plain labs add ShellCheck_ as a second `RUN` line, the same in all three, because its write lab lints the learner's script and the Module 3 plain line has no ShellCheck.
+- _CIDR's build drops the plan's sixth check_ (every subnet within each cloud's size limits): with the plan's numbers it could never fail on its own, so no known-wrong plan could prove it.
+- _One CIDR estimate sizes 450 VMs, not 500,_ because the build sizes 500 machines and ADR-0024 keeps a proof's numbers out of practice.
+- _The CIDR debug's printer was first called `prn`,_ a name Windows reserves, so git couldn't check its folder out. The base's README now warns about such names.
 
-**Next:** CIDR and Routing, each in its own pull request; then wave 1's second half (DNS, HTTP semantics, BGP sessions), which is being written now.
+**Next:** Routing in its own pull request; then wave 1's second half (DNS, HTTP semantics, BGP sessions), which is being written now.
 
 ## 2026-11-12: Module 3's platform, the network-lab base
 
