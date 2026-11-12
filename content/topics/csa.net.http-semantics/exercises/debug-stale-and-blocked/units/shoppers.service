@@ -1,0 +1,17 @@
+# The shop's customers, browsing from the office through the edge cache:
+# "systemctl status shoppers". The first visit, before the boot is over,
+# waits for the shop to answer and opens every page once.
+[Unit]
+Description=The shop's customers, browsing from the office
+After=netlab.service nginx@edge.service nginx@origin.service news-desk.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=shoppers
+ExecStartPre=/usr/sbin/ip netns exec office /usr/local/lib/netlab/lab-enter office /usr/local/bin/shoppers --first-visit
+ExecStart=/usr/sbin/ip netns exec office /usr/local/lib/netlab/lab-enter office /usr/local/bin/shoppers
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,25 @@
+#!/bin/bash
+# shoppers: the shop's customers, as traffic from the office. Every few
+# seconds someone opens the storefront, its script and style sheet, and
+# the price list, through the edge cache, as browsers do all day.
+# "systemctl status shoppers".
+# shoppers --first-visit: the morning's first customer, at boot, who waits
+# until the shop answers (about 15 seconds at most) and then opens every
+# page once, so the edge has seen the shop before anyone logs in.
+pages() {
+  for path in / /assets/app.3f9a.js /assets/style.81c2.css /news.html; do
+    curl -s -o /dev/null --max-time 5 "http://www.shop.test$path"
+  done
+}
+if [[ ${1:-} == --first-visit ]]; then
+  for i in $(seq 1 30); do
+    [[ $(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://www.shop.test/news.html) == 200 ]] && break
+    sleep 0.5
+  done
+  pages
+  exit 0
+fi
+while true; do
+  pages
+  sleep 3
+done

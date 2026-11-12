@@ -1,0 +1,139 @@
+# The checks of "Stale and blocked": the price list customers get from the
+# edge against the origin's newest, on the URL customers use and on one the
+# edge has never seen; the checkout's requests as a browser sends them, with
+# the decision made by cors-verdict, the base's model of a browser; origins
+# made up as the check runs; the shop's other caching rules; a staff screen
+# left idle past the board's ping; and the scenery as the lab began. The
+# first check waits for the shop's services after a boot; the rest read at
+# once, except the idle screen, which takes 50 seconds.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: price-list-fresh
+    description: "Customers get the newest price list through the edge, on the URL they use and on a new one, every cache asks the origin before using a copy of a page, and a browser's copy is checked with a cheap 304."
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      up() { [ -n "$(headers http://origin.shop.test/index.html | header etag)" ]; }
+      wait_for 20 up || { echo "the origin doesn't answer yet"; exit 0; }
+      # The price list customers get on the URL they use, once the origin
+      # has published a newer one than the edge first served (every 5 s).
+      before=$(page http://www.shop.test/news.html | version)
+      for i in $(seq 1 14); do
+        newest=$(page http://origin.shop.test/news.html | version)
+        [ "${newest:-0}" -gt "${before:-0}" ] && break
+        sleep 0.5
+      done
+      served=$(page http://www.shop.test/news.html | version)
+      [ "${served:-0}" -ge "${newest:-1}" ] || { echo "customers asking for /news.html get price list $served from the edge; the origin's newest is $newest"; exit 0; }
+      cc=$(headers http://origin.shop.test/news.html | header cache-control)
+      if echo "$cc" | grep -i no-store > /dev/null; then echo "the pages say \"Cache-Control: $cc\": no-store keeps them out of the browser too"; exit 0; fi
+      if ! echo "$cc" | grep -i no-cache > /dev/null && ! { echo "$cc" | grep -i 'max-age=0\b' > /dev/null && echo "$cc" | grep -i must-revalidate > /dev/null; }; then
+        echo "the pages say \"Cache-Control: ${cc:-nothing}\": a cache may use its copy without asking the origin"
+        exit 0
+      fi
+      k=$(fresh)
+      seen=$(page "http://www.shop.test/news.html?$k" | version)
+      for i in $(seq 1 14); do
+        now=$(page http://origin.shop.test/news.html | version)
+        [ "${now:-0}" -gt "${seen:-0}" ] && break
+        sleep 0.5
+      done
+      edge=$(page "http://www.shop.test/news.html?$k" | version)
+      [ "${edge:-0}" -ge "${now:-1}" ] || { echo "the origin has published price list $now, and the edge still serves $edge"; exit 0; }
+      etag=$(headers http://origin.shop.test/index.html | header etag)
+      status=$(headers -H "If-None-Match: $etag" http://origin.shop.test/index.html | head -n 1)
+      case $status in
+        *" 304 "*) echo fresh ;;
+        *) echo "asked with its own ETag, the storefront answers \"$status\", not 304" ;;
+      esac
+    expect:
+      equals: fresh
+  - id: checkout-works
+    description: "A browser lets the checkout pages on https://www.shop.test and https://shop.test PUT a JSON basket with the customer's cookie, and GET and DELETE it."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      for o in https://www.shop.test https://shop.test; do
+        for ask in "PUT|Content-Type: application/json" "DELETE|" "GET|"; do
+          method=${ask%%|*} header=${ask#*|}
+          said=$(cors "$dir" "$o" "$method" ${header:+"$header"} --credentials)
+          [ "$said" = allowed ] || { echo "a browser on a page from $o refuses its $method with the cookie${header:+ and $header}: $said"; exit 0; }
+        done
+      done
+      echo allowed
+    expect:
+      equals: allowed
+  - id: others-blocked
+    description: "A browser lets no page from any other origin read the API's answers: five kinds of origin, made up as the check runs, each refused for a PUT and for a plain GET."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      r=x$RANDOM$RANDOM
+      for o in "https://$r.example" "https://${r}shop.test" "https://shop.test.$r.example" "http://shop.test" "null"; do
+        said=$(cors "$dir" "$o" PUT 'Content-Type: application/json' --credentials)
+        case $said in blocked*) ;; *) echo "a page from $o may PUT to the basket API with the customer's cookie"; exit 0 ;; esac
+        said=$(cors "$dir" "$o" GET --credentials)
+        case $said in blocked*) ;; *) echo "a page from $o may read the customer's basket"; exit 0 ;; esac
+      done
+      echo blocked
+    expect:
+      equals: blocked
+  - id: assets-kept
+    description: "The edge answers a fingerprinted asset from its own copy the second time, and the assets may be kept for a year without being asked about on a reload."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      k=$(fresh)
+      first=$(headers "http://www.shop.test/assets/app.3f9a.js?$k" | header x-cache-status)
+      second=$(headers "http://www.shop.test/assets/app.3f9a.js?$k" | header x-cache-status)
+      [ "$second" = HIT ] || { echo "asked twice, the edge answered $first then $second: it kept no copy"; exit 0; }
+      cc=$(headers http://origin.shop.test/assets/style.81c2.css | header cache-control)
+      age=$(echo "$cc" | grep -o 'max-age=[0-9]*' | head -n 1 | cut -d= -f2)
+      [ "${age:-0}" -ge 31536000 ] || { echo "the assets say \"Cache-Control: $cc\": a year is 31536000 seconds"; exit 0; }
+      echo "$cc" | grep -i immutable > /dev/null || { echo "the assets say \"Cache-Control: $cc\": a browser would still ask about them on a reload"; exit 0; }
+      echo kept
+    expect:
+      equals: kept
+  - id: private-stays-private
+    description: "Each customer gets their own account page and basket through the edge, and no shared cache may keep either."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      k=$(fresh)
+      for path in account api/basket; do
+        alice=$(page -H 'Cookie: session=alice' "http://www.shop.test/$path?$k")
+        bob=$(page -H 'Cookie: session=bob' "http://www.shop.test/$path?$k")
+        case $bob in *bob*) ;; *) echo "bob asked for /$path and got: $bob"; exit 0 ;; esac
+        case $alice in *alice*) ;; *) echo "alice asked for /$path and got: $alice"; exit 0 ;; esac
+        cc=$(headers -H 'Cookie: session=alice' "http://origin.shop.test/$path" | header cache-control)
+        echo "$cc" | grep -i -e private -e no-store > /dev/null || { echo "/$path says \"Cache-Control: ${cc:-nothing}\": a shared cache may keep it"; exit 0; }
+      done
+      echo private
+    expect:
+      equals: private
+  - id: board-survives-quiet
+    description: "A staff screen left idle for 50 seconds, past the board's ping, is still connected, and the board still answers it."
+    timeout: 75
+    command: on office python3 /usr/local/lib/lab/ws-probe ws://www.shop.test/board/ 50
+    expect:
+      equals: survived 50 seconds of quiet
+  - id: board-pings
+    description: "The running order board pings every screen more often than every 120 seconds, as its settings file says."
+    command: |
+      running=$(journalctl -b -u order-board@origin -o cat | grep -e pinging -e 'not pinging' | tail -n 1)
+      every=$(echo "$running" | grep -o 'every [0-9]* seconds' | grep -o '[0-9]*')
+      [ -n "$every" ] || { echo "the running board says: ${running:-nothing}"; exit 0; }
+      [ "$every" -lt 120 ] || { echo "the running board pings every $every seconds, and the edge drops a connection idle for 120"; exit 0; }
+      saved=$(on origin cat /etc/order-board/board.conf | sed 's/#.*//' | awk -F= '$1 ~ /ping_interval/ {gsub(/ /, "", $2); print $2}' | tail -n 1)
+      [ "$saved" = "$every" ] || { echo "the running board pings every $every seconds, and its settings file says ${saved:-nothing}: the next restart changes it"; exit 0; }
+      echo pings
+    expect:
+      equals: pings
+  - id: edge-untouched
+    description: "The network and the edge cache's configuration are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact

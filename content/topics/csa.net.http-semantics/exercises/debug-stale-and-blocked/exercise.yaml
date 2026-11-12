@@ -1,0 +1,33 @@
+id: debug-stale-and-blocked
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Stale and blocked"
+prompt: |
+  The shop's website after Tuesday's deploy. Every part of it is described here, the broken parts and the working ones alike; `netlab show` lists the machines.
+
+  - **The edge cache**, `edge` (10.0.9.10), is `www.shop.test` and `shop.test` as customers reach them: a shared cache in front of the origin, which keeps a copy of whatever the origin's headers let a shared cache keep, and says `X-Cache-Status: HIT` or `MISS`. It passes WebSockets straight through, and drops a connection that has carried nothing for 120 seconds. It isn't the shop's to change; `sudo edge-purge` empties its cache.
+  - **The origin**, `origin` (10.0.9.1, `origin.shop.test`), is nginx (`nginx@origin`), with its settings in `/etc/nginx/sites-available/shop`. It serves the storefront, the price list and the fingerprinted assets from `/srv/www`, and passes `/account` and the basket API, `/api/`, to the shop's application (`shop-app@origin`, `journalctl -u shop-app@origin`) and `/board/` to the staff order board (`order-board@origin`).
+  - **The price list**, `/news.html`, is published afresh by `news-desk` every 5 seconds with a new version number (in a real shop, at each deploy), so the newest one is always on the origin: `on office curl -s http://origin.shop.test/news.html`.
+  - **The basket API** is called from the browser by the shop's two sites, `https://shop.test` and `https://www.shop.test`, with the customer's cookie: the new checkout page uses `PUT` with a JSON body (`Content-Type: application/json`), and `GET` and `DELETE` too.
+  - **The order board** is a WebSocket that staff screens keep open all day. It pings every screen every 45 seconds; its settings are `/etc/order-board/board.conf` on origin (`sudo systemctl restart order-board@origin` after a change).
+  - **The customers**, `office` (10.0.9.2), browse all day through the edge (`shoppers`).
+
+  Since the deploy:
+
+  - customers see an old price list for hours: `www.shop.test` serves a version long after the origin has published newer ones;
+  - the new checkout page on `https://www.shop.test` can't update the basket, and the browser's console says the CORS request was refused. There's no browser here: send the browser's requests with `curl`, as the walkthrough did;
+  - the order board on the staff screens disconnects after half a minute of quiet (in this lab's scaled time; at the shop it was a minute).
+
+  There are three faults. The rules of the fix:
+
+  - **The assets stay cached for a year**, and the account pages and the API are never kept by a shared cache.
+  - **The API admits no browser origin** beyond `https://shop.test` and `https://www.shop.test`.
+  - **The edge isn't yours to change**, apart from emptying its cache.
+  - **The board keeps pinging every screen**, more often than the edge's 120 seconds.
+
+  When the price list, the checkout and the board all work, run the checks. One of them keeps a WebSocket open and idle for 50 seconds.
+skills: [caching, cors, api-styles]
