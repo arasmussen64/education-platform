@@ -1,0 +1,121 @@
+# The checks of "Drain a server": each runs the learner's ~/bin/drain-server
+# as the learner, on a server it picks as it runs, while a download it starts
+# is in flight, watching HAProxy's own state for that server meanwhile. Each
+# puts every server back in rotation afterwards, as an operator would once
+# the patch is done. The first check waits for the balancer after a boot.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: waits-for-the-download
+    description: "drain-server drains the server first, waits until a visitor's download from it has finished, then puts it in maintenance; the download arrives whole."
+    timeout: 50
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      f=/home/learner/bin/drain-server
+      [ -x "$f" ] || { echo "there is no ~/bin/drain-server that can be run (chmod +x makes it one)"; exit 0; }
+      haproxy_ready || { echo "HAProxy on lb doesn't answer its runtime API"; exit 0; }
+      ready() { for m in web1 web2 web3; do api "set server web/$m state ready" > /dev/null; done; }
+      trap 'ready; kill $watch 2> /dev/null; rm -f /tmp/chk-drain.*' EXIT
+      ready
+      wait_up 15 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080 || { echo "not every web server is up: $(not_up 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080)"; exit 0; }
+      name=$(shuf -n 1 -e web1 web2 web3)
+      # A visitor whose cookie sends them to NAME downloads for 6 seconds.
+      { on office curl -s --max-time 20 -o /dev/null -w '%{http_code} %{size_download}' -H "Cookie: SHOPSRV=$name" 'http://10.0.9.1/slow?s=6' > /tmp/chk-drain.dl; ms > /tmp/chk-drain.end; } &
+      dl=$!
+      # NAME's administrative state, five times a second, all along.
+      ( while :; do api "show servers state web" | awk -v s="$name" '$4 == s {print $7}'; sleep 0.2; done ) > /tmp/chk-drain.states &
+      watch=$!
+      sleep 1
+      out=$(timeout 20 sudo -u learner -H "$f" "$name" 2> /dev/null)
+      rc=$?
+      returned=$(ms)
+      wait $dl
+      # The watcher takes a last look or two at the state the script left.
+      sleep 0.8
+      kill $watch 2> /dev/null
+      [ "$rc" = 124 ] && { echo "drain-server $name was still running after 20 seconds"; exit 0; }
+      [ "$rc" = 0 ] || { echo "drain-server $name exited with status $rc"; exit 0; }
+      [ "$(cat /tmp/chk-drain.dl)" = "200 60" ] || { echo "the visitor's 60-byte download from $name got: $(cat /tmp/chk-drain.dl)"; exit 0; }
+      # The states seen, each once in a row: 0 ready, 8 draining, 1 maintenance.
+      seen=$(uniq < /tmp/chk-drain.states | tr '\n' ',')
+      case ",$seen" in
+        *,8,*1,*) ;;
+        *,1,*) echo "$name went into maintenance without draining first (states seen: ${seen%,}), which sends a sticky visitor elsewhere mid-visit"; exit 0 ;;
+        *) echo "$name was never put in drain and then maintenance (states seen: ${seen%,})"; exit 0 ;;
+      esac
+      [ $((returned + 500)) -ge "$(cat /tmp/chk-drain.end)" ] || { echo "drain-server $name returned $(( ($(cat /tmp/chk-drain.end) - returned) / 1000 )) seconds before the visitor's download from it had finished"; exit 0; }
+      now=$(api "show servers state web" | awk -v s="$name" '$4 == s {print $7}')
+      [ "$now" = 1 ] || { echo "after drain-server $name, $name's administrative state is $now, not maintenance (1)"; exit 0; }
+      echo waited
+    expect:
+      equals: waited
+  - id: says-how-long
+    description: "For each web server in turn, drain-server prints one line, \"NAME drained in N s\", and leaves that server in maintenance."
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      f=/home/learner/bin/drain-server
+      [ -x "$f" ] || { echo "there is no ~/bin/drain-server that can be run"; exit 0; }
+      ready() { for m in web1 web2 web3; do api "set server web/$m state ready" > /dev/null; done; }
+      trap ready EXIT
+      for name in web1 web2 web3; do
+        ready
+        out=$(timeout 12 sudo -u learner -H "$f" "$name" 2> /dev/null)
+        rc=$?
+        [ "$rc" = 0 ] || { echo "drain-server $name, with no visitors on it, exited with status $rc"; exit 0; }
+        echo "$out" | grep -E "^$name drained in [0-9]+ s\$" > /dev/null || { echo "drain-server $name printed \"$(echo "$out" | head -n 2 | tr '\n' ' ')\""; exit 0; }
+        [ "$(echo "$out" | wc -l)" = 1 ] || { echo "drain-server $name printed $(echo "$out" | wc -l) lines, not one"; exit 0; }
+        now=$(api "show servers state web" | awk -v s="$name" '$4 == s {print $7}')
+        [ "$now" = 1 ] || { echo "after drain-server $name, $name isn't in maintenance (its administrative state is $now)"; exit 0; }
+      done
+      echo says
+    expect:
+      equals: says
+  - id: gives-up-in-time
+    description: "When a visitor is still downloading from the server after 10 seconds, drain-server stops waiting, puts the server in maintenance anyway, and says how many sessions it still had."
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      f=/home/learner/bin/drain-server
+      [ -x "$f" ] || { echo "there is no ~/bin/drain-server that can be run"; exit 0; }
+      ready() { for m in web1 web2 web3; do api "set server web/$m state ready" > /dev/null; done; }
+      trap 'ready; kill $dl 2> /dev/null' EXIT
+      ready
+      wait_up 15 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080 > /dev/null
+      name=$(shuf -n 1 -e web1 web2 web3)
+      # A visitor whose cookie sends them to NAME downloads for 30 seconds.
+      on office curl -s --max-time 40 -o /dev/null -H "Cookie: SHOPSRV=$name" 'http://10.0.9.1/slow?s=30' &
+      dl=$!
+      sleep 1
+      t0=$(ms)
+      out=$(timeout 16 sudo -u learner -H "$f" "$name" 2> /dev/null)
+      rc=$?
+      took=$((($(ms) - t0) / 1000))
+      [ "$rc" = 124 ] && { echo "with a visitor still downloading from $name, drain-server $name was still waiting after 16 seconds"; exit 0; }
+      [ "$rc" = 0 ] || { echo "drain-server $name exited with status $rc"; exit 0; }
+      [ "$took" -ge 9 ] || { echo "drain-server $name gave up after $took seconds, before 10 had passed"; exit 0; }
+      echo "$out" | grep -E "^$name still had [0-9]+ sessions?; set to maintenance anyway\$" > /dev/null || { echo "drain-server $name printed \"$(echo "$out" | head -n 2 | tr '\n' ' ')\""; exit 0; }
+      now=$(api "show servers state web" | awk -v s="$name" '$4 == s {print $7}')
+      [ "$now" = 1 ] || { echo "after drain-server $name, $name isn't in maintenance (its administrative state is $now)"; exit 0; }
+      echo "gave up"
+    expect:
+      equals: "gave up"
+  - id: unknown-name
+    description: "Given a name that isn't one of the web servers, drain-server prints an error on stderr only, exits with status 1, and changes nothing."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      f=/home/learner/bin/drain-server
+      [ -x "$f" ] || { echo "there is no ~/bin/drain-server that can be run"; exit 0; }
+      for m in web1 web2 web3; do api "set server web/$m state ready" > /dev/null; done
+      name=web$(shuf -n 1 -i 4-9)
+      out=$(timeout 12 sudo -u learner -H "$f" "$name" 2> /tmp/chk-unknown.err)
+      rc=$?
+      err=$(cat /tmp/chk-unknown.err); rm -f /tmp/chk-unknown.err
+      [ "$rc" = 1 ] || { echo "drain-server $name exited with status $rc"; exit 0; }
+      [ -z "$out" ] || { echo "drain-server $name printed \"$out\" on stdout"; exit 0; }
+      [ -n "$err" ] || { echo "drain-server $name printed nothing on stderr"; exit 0; }
+      states=$(api "show servers state web" | awk 'NF && NR > 2 {print $7}' | sort -u | tr '\n' ' ')
+      [ "$states" = "0 " ] || { echo "after drain-server $name, a web server is out of rotation"; exit 0; }
+      echo refused
+    expect:
+      equals: refused
