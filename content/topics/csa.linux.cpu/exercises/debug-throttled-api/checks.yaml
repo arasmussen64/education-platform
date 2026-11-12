@@ -1,5 +1,6 @@
 # The checks for "The API that can't get a CPU": it runs, it keeps a CPU cap
-# with headroom for its work (more than one CPU, at most two, never none),
+# with headroom for its work (at least one and a half CPUs, at most two,
+# never none),
 # it isn't throttled any more, its nice value is normal and its weight is at
 # least the default, and systemd's settings say so too, so a restart keeps it.
 #
@@ -14,17 +15,22 @@ checks:
     expect:
       equals: active
   - id: cap-kept
-    description: "shop-api still has a CPU cap, with headroom: more than one whole CPU, and at most two (its cgroup's cpu.max)."
+    description: "shop-api still has a CPU cap, with headroom: at least one and a half CPUs, and at most two (its cgroup's cpu.max)."
     # Read from the kernel's file, as a percentage of one CPU. systemd prints
     # a quota of one and a half CPUs as "1.500000s", which bash can't do
     # arithmetic on. With no quota the file starts with "max"; "no cap"
-    # isn't a number, so the comparison fails. More than 100, not 100: a
-    # one-CPU spinner under a quota of exactly one CPU is still throttled a
-    # few times every ten seconds (measured on Docker Desktop, 2026-11-10).
+    # isn't a number, so the comparison fails. At least 150, not just more
+    # than 100: a one-CPU spinner under a quota of exactly one CPU is still
+    # throttled a few times every ten seconds (measured on Docker Desktop,
+    # 2026-11-10), and one just over a CPU can be too, because the kernel
+    # hands out quota in slices of a few milliseconds. So a cap of 101% would
+    # pass this check and then fail not-throttled at random; the prompt's
+    # rule asks for half a CPU of headroom instead, and
+    # wrong/quota-just-over-one.sh proves a tight cap is caught here.
     command: |
       awk '{ if ($1 == "max") print "no cap"; else print $1 * 100 / $2 }' /sys/fs/cgroup/system.slice/shop-api.service/cpu.max
     expect:
-      gt: 100
+      gte: 150
       lte: 200
   - id: not-throttled
     description: "It is no longer held back: its count of throttled periods holds still."
@@ -48,8 +54,8 @@ checks:
     # The checks above read the kernel and the running process, which can be
     # changed on the spot (renice, or writing to cpu.max and cpu.weight)
     # while the unit still says 5%, 19 and 1, and the next restart brings
-    # every fault back. So systemd's view has to agree: a quota above one
-    # CPU and at most two, nice 0 or better, and a weight of at least 100
+    # every fault back. So systemd's view has to agree: a quota of at least
+    # one and a half CPUs and at most two, nice 0 or better, and a weight of at least 100
     # (or none set, which is 100). systemd prints the quota per second, as
     # "1.500000s" or "900ms"; awk turns it into a percentage of one CPU.
     # wrong/runtime-only.sh proves the on-the-spot fix is caught.
@@ -59,7 +65,7 @@ checks:
       w=$(systemctl show shop-api -p CPUWeight --value)
       awk -v q="$q" -v n="$n" -v w="$w" 'BEGIN {
         if (q ~ /^[0-9.]+ms$/) pct = q / 10; else if (q ~ /^[0-9.]+s$/) pct = q * 100; else pct = -1
-        ok = pct > 100 && pct <= 200 && n <= 0 && (w == "[not set]" || (w ~ /^[0-9]+$/ && w >= 100))
+        ok = pct >= 150 && pct <= 200 && n <= 0 && (w == "[not set]" || (w ~ /^[0-9]+$/ && w >= 100))
         print (ok ? "the unit agrees" : "the unit says: quota " q ", nice " n ", weight " w)
       }'
     expect:
