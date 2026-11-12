@@ -38,7 +38,7 @@ checks:
     expect:
       equals: verifies
   - id: what-they-say
-    description: "The API's certificate names api.shop.test and is for a server's use only, and the intermediate may sign servers' certificates but not another CA's."
+    description: "The API's certificate names api.shop.test and is for a server's use only, the warehouse's is for a client's use only, and the intermediate may sign servers' certificates but not another CA's."
     command: |
       . /usr/local/lib/netlab/checklib.sh
       leaf=$(on office timeout 5 openssl s_client -connect 10.0.9.1:8443 -servername api.shop.test < /dev/null 2> /dev/null | openssl x509 2> /dev/null)
@@ -47,6 +47,8 @@ checks:
         { echo "the API's certificate doesn't have api.shop.test among its names: $(printf '%s\n' "$leaf" | openssl x509 -noout -ext subjectAltName 2> /dev/null | tail -n 1)"; exit 0; }
       use=$(printf '%s\n' "$leaf" | openssl x509 -noout -ext extendedKeyUsage 2> /dev/null | tail -n 1 | sed 's/^ *//')
       [ "$use" = "TLS Web Server Authentication" ] || { echo "the API's certificate may be used for \"${use:-anything}\""; exit 0; }
+      use=$(openssl x509 -in /etc/netns/partner/warehouse/warehouse.pem -noout -ext extendedKeyUsage 2> /dev/null | tail -n 1 | sed 's/^ *//')
+      [ "$use" = "TLS Web Client Authentication" ] || { echo "the warehouse's certificate may be used for \"${use:-anything}\""; exit 0; }
       bc=$(openssl x509 -in /home/learner/ca/intermediate.pem -noout -ext basicConstraints 2> /dev/null | tail -n 1 | sed 's/^ *//')
       [ "$bc" = "CA:TRUE, pathlen:0" ] || { echo "the intermediate's basic constraints are \"${bc:-none}\""; exit 0; }
       echo right
