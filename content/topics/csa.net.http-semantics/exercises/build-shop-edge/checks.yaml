@@ -16,7 +16,7 @@ checks:
     timeout: 60
     command: |
       . /usr/local/lib/lab/httpcheck.sh
-      up() { [ -n "$(headers http://origin.shop.test/index.html | header etag)" ]; }
+      up() { [ -n "$(headers --max-time 1 http://origin.shop.test/index.html | header etag)" ]; }
       wait_for 20 up || { echo "the origin doesn't answer yet"; exit 0; }
       k=$(fresh)
       first=$(headers "http://www.shop.test/assets/app.3f9a.js?$k" | header x-cache-status)
@@ -33,12 +33,17 @@ checks:
     description: "The pages may be kept by a browser, every cache asks the origin before using a copy, the edge serves the newest price list, and a browser's copy is checked with a cheap 304."
     command: |
       . /usr/local/lib/lab/httpcheck.sh
-      cc=$(headers http://origin.shop.test/news.html | header cache-control)
-      if echo "$cc" | grep -i no-store > /dev/null; then echo "the pages say \"Cache-Control: $cc\": no-store keeps them out of the browser too"; exit 0; fi
-      if ! echo "$cc" | grep -i no-cache > /dev/null && ! { echo "$cc" | grep -i 'max-age=0\b' > /dev/null && echo "$cc" | grep -i must-revalidate > /dev/null; }; then
-        echo "the pages say \"Cache-Control: ${cc:-nothing}\": a cache may use its copy without asking the origin"
-        exit 0
-      fi
+      # Both pages, the price list and the storefront (/, which nginx
+      # answers with index.html).
+      for p in /news.html /; do
+        name="the price list"; [ "$p" = / ] && name="the storefront"
+        cc=$(headers "http://origin.shop.test$p" | header cache-control)
+        if echo "$cc" | grep -i no-store > /dev/null; then echo "$name says \"Cache-Control: $cc\": no-store keeps it out of the browser too"; exit 0; fi
+        if ! echo "$cc" | grep -i no-cache > /dev/null && ! { echo "$cc" | grep -i 'max-age=0\b' > /dev/null && echo "$cc" | grep -i must-revalidate > /dev/null; }; then
+          echo "$name says \"Cache-Control: ${cc:-nothing}\": a cache may use its copy without asking the origin"
+          exit 0
+        fi
+      done
       k=$(fresh)
       seen=$(page "http://www.shop.test/news.html?$k" | version)
       for i in $(seq 1 14); do
@@ -120,7 +125,7 @@ checks:
     expect:
       equals: answered
   - id: others-blocked
-    description: "A browser lets no page from any other origin read the API's answers: five kinds of origin, made up as the check runs, each refused for a PUT and for a plain GET."
+    description: "A browser lets no page from any other origin send the API a PUT or read its answers: five kinds of origin, made up as the check runs, each refused at the preflight of a PUT and for a plain GET."
     command: |
       . /usr/local/lib/lab/httpcheck.sh
       dir=$(mktemp -d)
@@ -129,6 +134,13 @@ checks:
       for o in "https://$r.example" "https://${r}shop.test" "https://shop.test.$r.example" "http://shop.test" "null"; do
         said=$(cors "$dir" "$o" PUT 'Content-Type: application/json' --credentials)
         case $said in blocked*) ;; *) echo "a page from $o may PUT to the basket API with the customer's cookie"; exit 0 ;; esac
+        # The preflight on its own: if it passes, the browser sends the PUT,
+        # cookie and all, whatever the answer to the PUT says afterwards.
+        # So cors-verdict is asked again with an answer to the request that
+        # allows everything, which leaves the preflight to decide.
+        printf 'HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: %s\r\nAccess-Control-Allow-Credentials: true\r\n\r\n' "$o" > "$dir/open"
+        said=$(python3 /usr/local/lib/netlab/cors-verdict "$dir/pre" "$dir/open" "$o" PUT 'Content-Type: application/json' --credentials)
+        case $said in blocked*) ;; *) echo "a page from $o gets past the preflight, so the browser sends its PUT, with the customer's cookie"; exit 0 ;; esac
         said=$(cors "$dir" "$o" GET --credentials)
         case $said in blocked*) ;; *) echo "a page from $o may read the customer's basket"; exit 0 ;; esac
       done
