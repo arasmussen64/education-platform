@@ -34,6 +34,7 @@ The owner is still away; decisions follow their message of 2026-11-11.
 **Author notes, continued:**
 
 - _vm-a's ticket keeps "Its CPU credit balance when this was saved: 0."_ Its cold reviewer flagged that it points at the cause. It stays: a real on-call snapshot of a burstable VM includes its credit balance, and the learner still has to show the cause with the stolen-CPU figure and choose the fix from the README's lists.
+- _Module 1's time estimates go from 90 to 120 minutes to 220 and 230_ (#256). One yardstick for every ready cloud topic (reading at 120 words a minute, a minute a question, 20 to 45 minutes a lab by kind, 15 for the explain) put Module 1's topics at about 200 and showed Module 2's writers and Shell essentials' rewrite at about 1.1 times it; Module 1 now uses the same scale. The checkpoints are left alone, because the yardstick counts their fresh versions, which a learner doesn't all do. The script is in the scratchpad, not the repository: it is a one-off yardstick, not a tool.
 - _Wave 1 runs in two halves, one after the other._ The machine ran critically short of memory while idle (Claude Code stopped a background watcher), and six writers each running labs and the web tests at once could exhaust it.
 
 **Next:** wave 1 of Module 3's topics (layers, CIDR, routing, DNS, HTTP semantics, BGP sessions), as two runs of three topics, each topic written in its own worktree and reviewed cold.
