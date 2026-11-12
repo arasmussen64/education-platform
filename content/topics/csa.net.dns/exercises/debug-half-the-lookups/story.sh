@@ -10,17 +10,20 @@ serial() { on office dig +norecurse +time=1 +tries=1 +short @"$1" shop.test SOA 
 signed() { on office dig +norecurse +time=1 +tries=1 +short @"$1" shop.test DNSKEY | grep '^257 ' > /dev/null; }
 
 # Wait until ns2 has ns1's signed copy of shop.test, and it has stayed the
-# same for three seconds (ns1 signs the zone in steps at its first start).
+# same for eight seconds (ns1 signs the zone in steps at its first start,
+# a few seconds apart, and tells ns2 after each).
 steady=0
+last=""
 for _ in $(seq 1 90); do
   s1=$(serial 198.51.100.13)
   s2=$(serial 198.51.100.14)
-  if [ -n "$s1" ] && [ "$s1" = "$s2" ] && signed 198.51.100.13 && signed 198.51.100.14; then
+  if [ -n "$s1" ] && [ "$s1" = "$s2" ] && [ "$s1" = "$last" ] && signed 198.51.100.13 && signed 198.51.100.14; then
     steady=$((steady + 1))
-    if [ "$steady" -ge 3 ]; then break; fi
+    if [ "$steady" -ge 8 ]; then break; fi
   else
     steady=0
   fi
+  last=$s1
   sleep 1
 done
 
@@ -35,4 +38,21 @@ done
 # The API moves to its new server: ns1 has the change, ns2 can't fetch it.
 sed -i -e 's/^api .*/api   60 IN A     203.0.113.51/' -e 's/2026111201/2026111202/' /etc/netns/ns1/bind/db.shop.test
 on ns1 rndc reload shop.test > /dev/null
+# Wait until ns1 serves the change, signed, and its serial has stayed the
+# same for eight seconds: its NOTIFY to ns2 has gone, and been refused, so
+# nothing is left that would bring ns2 up to date by itself before the
+# SOA's retry time.
+steady=0
+last=""
+for _ in $(seq 1 60); do
+  s1=$(serial 198.51.100.13)
+  if [ -n "$s1" ] && [ "$s1" = "$last" ] && [ "$s1" != "$(serial 198.51.100.14)" ]; then
+    steady=$((steady + 1))
+    if [ "$steady" -ge 8 ]; then break; fi
+  else
+    steady=0
+  fi
+  last=$s1
+  sleep 1
+done
 touch /var/lib/lab/story-done

@@ -26,6 +26,18 @@ checks:
       echo agree
     expect:
       equals: agree
+  - id: copies-stay-private
+    description: "ns1 hands a copy of a whole zone to nobody but the shop's own servers: a zone transfer asked for by a public resolver or by the office laptop is refused."
+    command: |
+      for from in isp1 office; do
+        for zone in shop.test pay.shop.test; do
+          out=$(on "$from" dig +time=2 +tries=1 @198.51.100.13 "$zone" AXFR 2>&1)
+          echo "$out" | grep -w SOA > /dev/null && { echo "ns1 hands $from a copy of the whole $zone zone"; exit 0; }
+        done
+      done
+      echo refused
+    expect:
+      equals: refused
   - id: every-lookup-works
     description: "Each of the three public resolvers gives customers api.shop.test's new address, 203.0.113.51, validated (the ad flag)."
     command: |
