@@ -1,0 +1,160 @@
+<Intro>
+
+TCP and UDP named a **load balancer** in one sentence: a box that spreads connections across several servers. This topic is that box. Every cloud architecture diagram has one in front of its servers, and most outages that start "the site went down although the servers were fine" end in one of its settings. Five ideas carry the topic: what kind of balancer a flow needs, how a balancer chooses a server, how it decides a server is broken, how to take a server out without hurting anyone, and how to read what the balancer is really doing.
+
+**The shop's balancer.** The labs' picture, which the rest of this lesson uses: the office laptops on one side; on the other, the shop's servers on a network of their own, `web1` to `web3` for the website, `api1` and `api2` for the API, `stock1` and `stock2` for the stock service, and a database, `db`, that the web servers share. Between them is `lb`, running **HAProxy**, a free and widely used load balancer. Customers only ever see one address, 10.0.9.1, the **virtual IP** (VIP): an address that belongs to the service rather than to any one server. Every request reaches exactly one server; the balancer decides which, and stops sending to one that is broken. The parts have a name in each product:
+
+| The part | HAProxy | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- | --- |
+| What clients connect to | frontend | listener | frontend IP and rule (Load Balancer), listener (Application Gateway) | forwarding rule (and, for a proxy, a target proxy) |
+| A group of servers | backend | target group | backend pool | backend service |
+| One server | server | target | backend instance | backend (an instance group or endpoint) |
+
+**Two ways to balance.** HAProxy's own guide, the main resource below, sorts balancers into two kinds. A **pass-through** balancer forwards *packets*: the client's connection runs all the way to the server, and the balancer only chooses, packet by packet or connection by connection, which server each goes to. It works at **layer 4**, the transport layer of Layers and packets: it sees addresses, ports and protocol, never what's inside. Some can even let the server answer the client directly, which is **direct server return**. A **proxy** accepts the client's connection itself and opens a second one of its own to the server, as nginx did in HTTP semantics. That's two connections, with the balancer in the middle of each, so it can read and change everything in between: in HTTP mode it is a **layer 7** balancer, the application layer. HAProxy can also be a layer 4 *proxy* (`mode tcp`): two connections still, but it passes the bytes along without reading them as HTTP. What each can do:
+
+| | Pass-through, layer 4 | Proxy, layer 4 (`mode tcp`) | Proxy, layer 7 (`mode http`) |
+| --- | --- | --- | --- |
+| Routes by path, host name, header or cookie | no | no: it decides on addresses and ports | yes |
+| Ends the TLS (holds the certificate) | no: TLS passes through to the servers | can, but usually passes it through | yes, usually |
+| The server sees the client's own address | yes | no, unless the PROXY protocol | no, unless `X-Forwarded-For` |
+| Works for protocols that aren't HTTP | yes | yes | no |
+| In the clouds | AWS Network Load Balancer, Azure Load Balancer, Google's passthrough Network Load Balancers | Google's proxy Network Load Balancers | AWS Application Load Balancer, Azure Application Gateway and Front Door, Google's Application Load Balancers |
+
+To route `/api/` to other servers, you need layer 7: the path is inside the HTTP request, and over HTTPS it's encrypted until something ends the TLS, so a layer 7 balancer holds the site's certificate. The other way round, a protocol whose **server speaks first** needs layer 4. The shop's stock service greets every new connection with `STOCK-SYNC 1.0 ready` before the client sends anything. Behind HAProxy in HTTP mode the client connects and gets nothing, ever: the proxy is waiting for an HTTP request before it even picks a server, and the client is waiting for the greeting. In `mode tcp` it works at once. The walkthrough shows both.
+
+**Who is asking.** A proxy's second connection comes from the proxy, so every server sees the balancer's address, as the NAT topic's server saw the gateway's. In the lab, `/whoami` reports `connection from 10.0.1.1`. A rate limiter or a log that counts clients then sees one client. Layer 7 proxies fix it with a header: HAProxy's `option forwardfor` adds **`X-Forwarded-For: 10.0.9.2`**, the client's address, to each request. A client can send an `X-Forwarded-For` of its own, so a server reads the value its own balancer added and ignores anything before it: HAProxy's is the last value; Google's Application Load Balancers add two, the client's address and then their own (their overview page, read 2026-11-12). For any TCP protocol, the **PROXY protocol** does the same job: the balancer sends a short header with the client's address at the start of the connection, and the server must be set up to expect it (HAProxy's `send-proxy`; AWS's Network Load Balancer uses version 2). Pass-through balancers need neither, with exceptions (each provider's page, read 2026-11-12):
+
+- **AWS:** the Network Load Balancer keeps the client's address for targets registered as instances, and for UDP; for targets registered by IP address over TCP or TLS it doesn't by default, and offers client IP preservation or proxy protocol v2. The Application Load Balancer adds `X-Forwarded-For`.
+- **Azure:** Load Balancer passes packets through, so the servers see the client.
+- **Google:** "Proxy load balancers don't preserve client IP addresses by default"; passthrough ones don't end the client's connection, and do.
+
+**Choosing a server.** **Round robin** takes the servers in turn. **Weighted** round robin gives a bigger server a bigger share (`weight 2` in HAProxy). **Least connections** sends each new connection to the server with the fewest open ones, good when requests vary a lot in length; AWS's Application Load Balancer calls its version **least outstanding requests** (round robin is its default, weighted random its third). **Hashing** picks a server from a number worked out from the request: the source address, or the whole **5-tuple** of the connection (Azure Load Balancer's default, and Google's). Hashing on the **source address** sends one client to one server every time, which is a kind of stickiness, and it misbehaves behind NAT: everyone behind one office's NAT address arrives from one address and lands on one server. AWS's Network Load Balancer page says it plainly ("all clients behind the same NAT device have the same source IP address"), and Azure's warns that clients behind proxies "might be seen as one unique client". **Slow start** gives a server that has just come back a small share at first and lets it grow, so a cold server isn't flooded.
+
+**Health checks.** An **active** health check is the balancer asking each server, every so often, "are you all right?": in HAProxy, `check` on a server line switches it on, `option httpchk GET /livez` makes it an HTTP request for `/livez`, and `http-check expect status 200` says which answer counts as healthy. A **passive** check watches real traffic instead and counts the errors (open-source nginx has only that kind: its active checks are part of its commercial subscription). Four numbers set an active check:
+
+- the **interval**, how often (`inter`, 2 seconds by default in HAProxy);
+- the **timeout**, how long one check waits for an answer (`timeout check`, or `inter` itself when that isn't set);
+- the **unhealthy threshold**, how many failed checks in a row take a server out (`fall`, 3 by default);
+- the **healthy threshold**, how many good checks in a row put it back (`rise`, 2 by default).
+
+**What to check** is the question that takes down whole fleets. David Yanacek's article, the second reading, names three kinds: a **liveness** check (is the process there and answering?), a **local health** check (is this server's own disk, memory and threads all right?), and a **dependency** check (can it reach what it needs: the database, another service?). The trap is a dependency that every server *shares*. In the lab, each web server's `/health` answers 200 only if the shared database answers too. The database restarts for a few seconds; within one interval, all three servers fail their checks together; after `fall` of them HAProxy has no server left, and it answers every request, even for the front page that needs no database, with `503 Service Unavailable`, "No server is available to handle this request". Yanacek's line is the moral: trouble arises when the check "fails for a non-critical reason" and that failure "is correlated across servers". (HAProxy's own guide, written for checking one server at a time, suggests a check may even confirm that "the database it relies on is still accessible": exactly the check that does it.) So check the server itself (`/livez`), and let the pages that need the database fail on their own while it's away. A cheap check matters too: AWS's Network Load Balancer checks from many nodes at once, so "targets receive more than the configured number of health checks".
+
+**The arithmetic.** How long does a broken server keep getting traffic? It depends on how it breaks, and on whether the balancer waits for one check to end before it schedules the next.
+
+- **HAProxy** waits `inter` after each check *ends* (measured in this topic's lab: a hung server's checks came every `inter` plus the timeout). A server that refuses connections fails each check at once, so it's out after about `fall × inter`: 3 × 2 = 6 seconds with the defaults. A server that **hangs** (it accepts the connection and never answers, like an overloaded or stuck one) makes each check last its whole timeout, so it's out after about `fall × (inter + timeout)`: 3 × (2 + 2) = 12 seconds, measured in the walkthrough. A recovered server is back after about `rise × inter`.
+- **The clouds' balancers** start each check on a fixed clock. AWS's Application Load Balancer page: "Each health check request is independent", and the target's answer time "does not affect the interval for the next health check request". So with its defaults (interval 30 s, timeout 5 s, unhealthy threshold 2, healthy threshold 5) a hung target is out after 2 × 30 + 5 = 65 seconds, and a recovered one waits 5 × 30 = 150 seconds.
+
+| Defaults, read 2026-11-12 | Interval | Timeout | Out after | Back after |
+| --- | --- | --- | --- | --- |
+| HAProxy | 2 s | `inter` | 3 failures | 2 successes |
+| AWS Application Load Balancer | 30 s | 5 s | 2 | 5 |
+| AWS Network Load Balancer (a TCP check by default) | 30 s | 10 s (6 s for HTTP checks) | 2 | 5 |
+| Azure Load Balancer | 5 s in the portal, 15 s from templates, the CLI and PowerShell | 30 s at most for HTTP | its threshold (an HTTP probe: the first answer that isn't 200) | its threshold (HTTP: the first 200) |
+| Azure Application Gateway (its default probe) | 30 s | 30 s | 3 | one good probe |
+| Google Cloud | 5 s | 5 s | 2 | 2 |
+
+Two of the clouds' rules surprise people. Azure Load Balancer's HTTP probe marks an instance down at the *first* answer that isn't 200, and up at the first 200: its threshold counts only probes that get no answer at all. And Azure says that when a probe keeps changing, "the load balancer waits longer before it puts the backend endpoint back in the healthy state".
+
+**When every server fails at once,** the products disagree (each page, read 2026-11-12):
+
+| Balancer | When every server fails its checks |
+| --- | --- |
+| HAProxy | answers 503, "No server is available", unless a server marked `backup` is left |
+| AWS Application and Network Load Balancers | **fail open**: send to all the targets anyway, as if all were healthy |
+| Azure Load Balancer (Standard) | sends no new flows; established TCP flows continue |
+| Google's Application Load Balancers | answer 503 (the classic one, 502) |
+| Google's proxy Network Load Balancers | end new client connections |
+| Google's passthrough Network Load Balancers | if a failover policy says to, drop all traffic; otherwise spread it across the unhealthy backends as a last resort. The global external one first sends traffic to the next-nearest region with healthy backends |
+
+Fail open is why the lab's deep check, which takes the shop down on HAProxy, would have kept it up on an AWS Application Load Balancer, by luck rather than design: had the servers really been broken, failing open would send customers to broken servers.
+
+**Flapping and hysteresis.** A server that fails a check now and then (a moment of overload, a disk slow for a second), checked with `fall 1 rise 1`, is taken out at the first failure and put back at the next success: it **flaps**, in and out every few seconds, and each time its visitors are moved. The cure is **hysteresis**, taking more evidence to change state than to keep it: several failures in a row to go down, and more than one success to come back. In the lab, one check in four failing flapped `fall 1` every few seconds, and `fall 2` never. The wrong cures blind the balancer: removing the check, or `fall 10`, keeps a hung server in rotation for half a minute or for ever.
+
+**Draining and stickiness.** To patch a server without cutting anyone off: **drain** it (no new visitors; open connections finish), wait until its sessions reach zero, then put it in **maintenance** (no traffic and no checks), patch, and make it ready again. In HAProxy those are `set server web/web2 state drain`, `maint` and `ready`, sent to its **runtime API**: commands it reads from its **stats socket**, a socket being an address on the machine that a program listens on (a file's path rather than a port). `echo "show stat" | socat stdio /run/haproxy/admin.sock` sends one: **socat** joins its input and output to the socket. The clouds drain by themselves when a server is removed, and differ on how long:
+
+| | AWS Application and Network Load Balancers | Azure Load Balancer | Google Cloud |
+| --- | --- | --- | --- |
+| Draining | the **deregistration delay**, 300 s by default; an Application Load Balancer finishes early when the target has nothing in flight, and AWS recommends at least 120 s for a Network Load Balancer | none to set: when an instance's probe fails, established TCP flows continue, and Azure suggests failing the probe on purpose to drain an instance | **connection draining**, 0 to 3,600 s; unset or 0 ends existing connections "as quickly as possible" |
+
+**Sticky sessions** (also called session affinity, or persistence) keep one visitor on one server, for a shop whose basket lives in one server's memory. By a **cookie**, HTTP semantics' small named value that a browser sends back on every request: HAProxy's `cookie SHOPSRV insert indirect nocache` adds one naming the server to a visitor's first answer and sends later requests that carry it to that server; AWS's Application Load Balancer uses its own cookie, `AWSALB`, which expires after 7 days. Or by the client's address: AWS's Network Load Balancer, Azure's "Client IP" (source and destination addresses) and "Client IP and protocol". Stickiness costs: uneven load, everyone behind one NAT on one server when it goes by address, and every basket on a server lost when that server dies. The real fix is architecture, not a setting: keep sessions somewhere every server can read.
+
+Draining meets stickiness differently in each product. HAProxy's drain "still allows it to be checked and to accept new persistent connections" (its management guide): a visitor whose cookie names the draining server keeps reaching it, in the lab too, until maintenance sends them elsewhere. An AWS Application Load Balancer that "receives a new request while the target is draining" routes it to a healthy target.
+
+**Reading the balancer.** HAProxy's `show stat` answers in CSV, one line per frontend, backend and server, with a header line naming the fields. The ones an operator reads first, numbered as `awk -F,` counts them:
+
+| `awk` field | Name | Means |
+| --- | --- | --- |
+| `$2` | `svname` | the server's name (or `FRONTEND`, `BACKEND`) |
+| `$5` | `scur` | the sessions open on it now |
+| `$8` | `stot` | the sessions it has had since HAProxy started |
+| `$18` | `status` | `UP`, `DOWN`, `DRAIN`, `MAINT`, or `UP 1/3` while it is counting failures |
+| `$23` | `chkdown` | how many times it has gone from UP to DOWN: a flapping server's climbs |
+
+`show servers state` lists each server as HAProxy holds it: column 6 the **operational state** (2 up, 0 down) and column 7 the **administrative state**, a sum of flags: 0 ready, 1 maintenance set through the API, 8 drain set through the API, and 4 maintenance because the configuration says so. Its log, in `journalctl -u haproxy@lb`, says why a server changed: `Server web/web3 is DOWN, reason: Layer4 connection problem, info: "Connection refused"` (nothing listening), `reason: Layer7 timeout` (connected, no answer: a hang), `reason: Layer7 wrong status, code: 503` (an answer, the wrong one), then `backend web has no server available!` and requests logged as `web/<NOSRV>`, sent nowhere.
+
+**Runtime against configuration.** Whatever the runtime API changes lives in the running HAProxy only. A reload or a restart reads the file again, and the server put in maintenance by hand is back in rotation: the lab's debug turns on it. What lasts is in `haproxy.cfg`: the server's line removed, or `disabled` on it, which starts it in maintenance with the configuration's flag, administrative state 5 (4 and 1).
+
+**Capacity when one fails.** If any one of N servers can fail, the other N − 1 must carry the peak: **N+1**. Four servers at 60% each at the peak lose one, and its share spreads over three: 4 × 60 ÷ 3 = 80% each. Size so that 80% (or whatever your limit is) is still acceptable, or add a server.
+
+**HAProxy's configuration, the whole shape.** The labs' file is sections, each a heading line and its settings indented under it:
+
+```text
+global
+    log stdout format raw local0                  # the log, to the journal
+    stats socket /run/haproxy/admin.sock mode 660 level admin
+
+defaults                                          # for every section below
+    mode http
+    log global
+    option httplog
+    timeout connect 2s
+    timeout client 30s
+    timeout server 30s
+
+frontend shop                                     # what clients connect to
+    bind 10.0.9.1:80
+    option forwardfor                             # X-Forwarded-For on every request
+    use_backend api if { path_beg /api/ }         # a rule: paths starting /api/
+    default_backend web                           # everything else
+
+backend web
+    balance roundrobin
+    cookie SHOPSRV insert indirect nocache        # sticky by a cookie
+    option httpchk GET /livez
+    http-check expect status 200
+    default-server inter 2s fall 3 rise 2         # for every server line below
+    server web1 10.0.1.11:8080 check cookie web1
+    server web2 10.0.1.12:8080 check cookie web2
+
+listen stock                                      # a frontend and backend in one
+    bind 10.0.9.1:7000
+    mode tcp                                      # layer 4: bytes, not HTTP
+    option tcplog
+    server stock1 10.0.1.31:7000 check
+```
+
+`use_backend NAME if { path_beg /api/ }` is an HAProxy **rule**: `path_beg` tests whether the path begins with the text after it. `insert` makes HAProxy add the cookie, `indirect` keeps it from reaching the servers, and `nocache` marks an answer that sets it as one no shared cache may keep, so a cache never hands every visitor the same cookie. `server NAME ADDRESS:PORT` names one server; `check` checks it, `cookie web1` is its cookie's value, and `disabled` would start it in maintenance. `option tcplog` gives a TCP proxy its own kind of log line, since `option httplog` from `defaults` can't log what it doesn't read. `haproxy -c -f /etc/haproxy/haproxy.cfg` checks a file without loading it, and names the line of anything it can't read.
+
+One more way to spread traffic sits in front of all of these: a DNS name that answers with different addresses (AWS Route 53, Azure Traffic Manager and Google Cloud DNS's routing policies), which Module 11 builds.
+
+**Read now:** the main resource below, HAProxy's Starter Guide, section 2 only, "Quick introduction to load balancing and load balancers" (about 1,850 words). Then David Yanacek's "Implementing health checks", from "Ways to measure health" to the end of "Real things that have gone wrong with health checks"; Google's "Choose a load balancer", its section "Proxy versus passthrough load balancing"; and AWS's page on Application Load Balancer health checks, its settings table and the fail-open paragraph. Sam Rose's interactive "Load Balancing" is optional and worth it for the algorithms. The rest under More resources are the other clouds' pages behind the tables above, and HAProxy's two manuals, which the labs open as references. The quick questions read `show stat`, `show servers state` and HAProxy's log, and ask for the sums. The labs give you the shop's balancer: you follow traffic through it and break servers on purpose, fill in a health policy, write a script that drains a server properly, build the whole balancer from an empty file, and mend one that errors every few minutes.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **Layer 4 or 7.** A pass-through balancer forwards packets, one connection end to end, and the server sees the client. A proxy holds two connections: at layer 7 it reads paths, headers and cookies and usually ends the TLS; at layer 4 (`mode tcp`) it passes bytes. Path rules and cookie stickiness need layer 7; protocols that aren't HTTP, and servers that speak first, need layer 4.
+- **The client's address:** a proxy hides it unless it adds `X-Forwarded-For` (read the value your own balancer added: HAProxy's is the last) or sends the PROXY protocol, which the server must expect.
+- **Choosing a server:** round robin, weighted, least connections (AWS: least outstanding requests), hashing on the source or the 5-tuple. Hashing on the source sends everyone behind one NAT to one server.
+- **Check the server, not its dependencies.** A check that asks something every server shares fails on all of them at once, and the balancer has nowhere to send even the pages that didn't need it.
+- **HAProxy's sums:** out after about `fall × inter` for a refused server, `fall × (inter + timeout)` for a hung one (the timeout is `inter` unless `timeout check` sets it); back after `rise × inter`. **ALB:** checks on a fixed clock, so a hung target is out after unhealthy × interval + timeout, 2 × 30 + 5 = 65 s, and back after 5 × 30 = 150 s.
+- **All servers failing:** HAProxy 503; AWS fails open; Azure Load Balancer sends no new flows and keeps established ones; Google's Application Load Balancers 503; its passthrough ones spread across unhealthy backends as a last resort, unless a failover policy drops them.
+- **Hysteresis against flapping:** more than one failure to go down, more than one success to come back; never cure flapping by removing or slowing the checks.
+- **Drain, wait, maintenance, patch, ready.** HAProxy's drain still takes sticky (persistent) visitors; maintenance moves them. AWS waits 300 s by default; Google drains only with a timeout set. Stickiness by cookie or address costs balance and loses sessions with a server.
+- **Runtime state is lost at a reload or restart;** what lasts is in `haproxy.cfg` (`disabled`, or the line removed).
+- **N+1:** losing one of N servers puts its load on N − 1: four at 60% become three at 80%.
+- **The commands:** `echo "show stat" | on lb socat stdio /run/haproxy/admin.sock` (`$2` name, `$5` scur, `$8` stot, `$18` status, `$23` chkdown), `show servers state` (column 6 operational, column 7 administrative: 0 ready, 1 maint, 8 drain, 4 from the configuration), `set server BACKEND/SERVER state drain|maint|ready`; `on lb haproxy -c -f /etc/haproxy/haproxy.cfg`; `sudo systemctl reload haproxy@lb`; `journalctl -u haproxy@lb`.
+
+</Recap>
