@@ -107,15 +107,27 @@ checks:
       echo arriving
     expect:
       equals: arriving
+  # The health page must really try the standby: a capture on nat's inside
+  # sees its SYN, so a page pointed somewhere that refuses at once, or an
+  # app whose own route or firewall refuses the standby, fails. The capture
+  # stops at the first SYN, so the check waits out its 10 seconds only when
+  # no SYN comes.
   - id: standby-in-seconds
-    description: "shop-api's health page reports the standby database down within 6 seconds."
+    description: "shop-api's health page tries the standby database and reports it down within 6 seconds."
     timeout: 20
     command: |
+      cap=$(mktemp)
+      on nat timeout 10 tcpdump -c 1 -nn -l -i inside 'tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn and dst host 10.0.2.21 and dst port 5432' > "$cap" 2> /dev/null &
+      sleep 1
       start=$(date +%s%N)
       answer=$(on app curl -s -m 8 localhost:8080/health/standby)
       ms=$((($(date +%s%N) - start) / 1000000))
+      wait
+      tried=$(grep -c 'Flags \[S\],' "$cap")
+      rm -f "$cap"
       case "$answer" in *'"standby": "down"'*) ;; *) echo "the health page answered [${answer:-nothing}] after $ms ms"; exit 0 ;; esac
       [ "$ms" -le 6000 ] || { echo "the health page took $ms ms to report the standby down"; exit 0; }
+      [ "$tried" -ge 1 ] || { echo "the health page reported the standby down, but no connection attempt to it (10.0.2.21, port 5432) crossed nat"; exit 0; }
       echo "in seconds"
     expect:
       equals: "in seconds"
