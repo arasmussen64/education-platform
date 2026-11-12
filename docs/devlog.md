@@ -43,7 +43,7 @@ Both now wait for real events (a log line, a serial that has stopped changing). 
 - a cache rule mended on one page while the storefront kept its own, which also passed;
 - nginx's `server`, `location` and `proxy_pass`, used but never defined.
 
-**Labs CI's shares are balanced** (#263). The Labs job dealt whole topics to its eight machines in turn, so a share that drew a long Module 3 topic and a Samba one held the whole run up: #262's shares took from 8.6 to 24.6 minutes. Each lab now goes, heaviest first, to the machine with the least work so far, weighed by how many fresh containers its contract starts (the pristine lab, the solution with its restart trial, one for each known-wrong fix), three times over for a network lab. It's a rough rule, not a measurement, and the first runs show how close it comes.
+**Labs CI's shares are balanced by each lab's time** (#263). The Labs job dealt whole topics to its eight machines in turn, so a share that drew a slow Module 3 topic and a Samba one held the whole run up: #262's shares took from 8.6 to 24.6 minutes. A first try weighed each lab by how many containers its contract starts, and did worse (10.6 to 29.3 minutes): the slowest labs, a QEMU boot and the Samba domains, are slow on every run, not because they run often. So `labcheck test` now prints each lab's time, `tools/lab-seconds.json` keeps the times from a CI run, and each lab goes, slowest first, to the machine with the least work so far, with each machine starting its slowest labs first. A new lab weighs the middle time until the file is refreshed.
 
 **Author notes:**
 

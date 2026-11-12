@@ -1195,6 +1195,9 @@ class ContractReport:
     # True when this is the second run, on its own, after the checker gave
     # up on the first in the crowd.
     retried: bool = False
+    # How long the contract took, printed in the summary so a CI run's logs
+    # can refresh tools/lab-seconds.json.
+    seconds: float = 0.0
 
     @property
     def ok(self) -> bool:
@@ -1302,6 +1305,7 @@ def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
     problem of that lab rather than ending the whole run.
     """
     log: list[str] = []
+    started = time.monotonic()
     try:
         report = test_lab(load_lab(topic_id, exercise_id), say=log.append)
     except LabError as error:
@@ -1319,6 +1323,7 @@ def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
             [f"{type(error).__name__}: {first_line(str(error))}"],
         )
     report.log = log
+    report.seconds = time.monotonic() - started
     return report
 
 
@@ -1350,37 +1355,45 @@ def warm_images(
             say(f"  {type(error).__name__}: {detail}")
 
 
-def lab_weight(topic: str, exercise: str, content: Path = CONTENT) -> int:
-    """Roughly how long a lab's contract takes, in made-up units, for
-    splitting CI's run. The contract starts a fresh container for the
-    pristine lab, for the solution (with its restart trial) and for each
-    known-wrong fix, and a network lab (one on a shared base, several
-    machines with real daemons) takes about three times as long a run as a
-    one-machine lab. Measured on 2026-11-12: Module 3's labs took 2 to 10
-    minutes each, Module 1's about one."""
-    folder = content / topic / "exercises" / exercise
-    wrong = folder / "wrong"
-    runs = 3 + (len(list(wrong.glob("*.sh"))) if wrong.is_dir() else 0)
-    dockerfile = folder / "Dockerfile"
-    on_a_base = dockerfile.is_file() and (
-        base_named_in(dockerfile.read_text(encoding="utf-8")) is not None
-    )
-    return runs * (3 if on_a_base else 1)
+# How long each lab's contract took in CI, in seconds ("topic/exercise":
+# seconds), for splitting the run evenly. `labcheck test` prints each lab's
+# time; the file is written from a full CI run's logs (see its "how" key)
+# and needs no care: a lab it doesn't list weighs the middle of the others.
+LAB_SECONDS = ROOT / "tools" / "lab-seconds.json"
+
+
+def lab_seconds(path: Path = LAB_SECONDS) -> dict[str, float]:
+    """The recorded contract times, or none if there's no file yet."""
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {lab: float(seconds) for lab, seconds in data.get("seconds", {}).items()}
+
+
+def weigher(known: dict[str, float]) -> Callable[[str, str], float]:
+    """A lab's weight: its recorded time, or the middle of the recorded
+    times for a lab with none (a new lab), or 1 when nothing is recorded."""
+    times = sorted(known.values())
+    middle = times[len(times) // 2] if times else 1.0
+    return lambda topic, exercise: known.get(f"{topic}/{exercise}", middle)
 
 
 def shard_of(
     targets: list[tuple[str, str]],
     shard: str,
-    weight: Callable[[str, str], int] = lab_weight,
+    weight: Callable[[str, str], float] | None = None,
 ) -> list[tuple[str, str]]:
-    """The labs one of N CI machines tests, for `--shard I/N`. Each lab goes,
-    heaviest first, to the machine with the least work so far (by
-    `weight`), so a long topic's labs spread over several machines. Whole
-    topics dealt out in turn left one long topic holding its share up: on
-    2026-11-12 (#262) the eight shares took from 8 to 24 minutes. Every
-    machine works the split out alike from the same checkout, so each lab
-    is tested exactly once. A topic's labs now share their topic layer's
-    build less often, which costs a few seconds a machine."""
+    """The labs one of N CI machines tests, for `--shard I/N`, slowest
+    first. Each lab goes, slowest first, to the machine with the least work
+    so far, by `weight` (the recorded times in tools/lab-seconds.json unless
+    given), so a long topic's labs spread over several machines; and each
+    machine starts its slowest labs first, so none is left to run alone at
+    the end. Whole topics dealt out in turn left one slow topic holding its
+    share up: on 2026-11-12 (#262) the eight shares took from 8 to 24
+    minutes. Every machine works the split out alike from the same checkout,
+    so each lab is tested exactly once."""
+    if weight is None:
+        weight = weigher(lab_seconds())
     try:
         index_text, count_text = shard.split("/", 1)
         index, count = int(index_text), int(count_text)
@@ -1389,13 +1402,14 @@ def shard_of(
     if count < 1 or not 0 <= index < count:
         raise LabError(f"--shard {shard} is out of range: I runs from 0 to N-1")
     weights = {target: weight(*target) for target in targets}
-    loads = [0] * count
+    loads = [0.0] * count
     machine_of: dict[tuple[str, str], int] = {}
     for target in sorted(targets, key=lambda t: (-weights[t], t)):
         lightest = min(range(count), key=lambda m: (loads[m], m))
         loads[lightest] += weights[target]
         machine_of[target] = lightest
-    return [target for target in targets if machine_of[target] == index]
+    mine = [target for target in targets if machine_of[target] == index]
+    return sorted(mine, key=lambda t: (-weights[t], t))
 
 
 def cmd_test(args: argparse.Namespace) -> int:
@@ -1413,7 +1427,12 @@ def cmd_test(args: argparse.Namespace) -> int:
         raise LabError("test needs a topic and an exercise, or --all")
     jobs = max(1, args.jobs)
     if jobs == 1:
-        reports = [test_lab(load_lab(topic, exercise)) for topic, exercise in targets]
+        reports = []
+        for topic, exercise in targets:
+            started = time.monotonic()
+            report = test_lab(load_lab(topic, exercise))
+            report.seconds = time.monotonic() - started
+            reports.append(report)
     else:
         # Docker runs the containers side by side; each lab's output is
         # printed whole when it finishes, so the runs don't interleave.
@@ -1441,7 +1460,7 @@ def cmd_test(args: argparse.Namespace) -> int:
         status = "ok" if report.ok else "BROKEN"
         if report.retried:
             status += " (on its own, after the checker gave up in the crowd)"
-        print(f"{status:6} {report.lab}")
+        print(f"{status:6} {report.lab} ({report.seconds:.0f} s)")
         for problem in report.problems:
             print(f"       - {problem}")
     print(f"\n{len(reports) - len(broken)} of {len(reports)} labs keep their contract.")

@@ -293,41 +293,44 @@ def test_a_timeout_while_proving_counts_as_the_checker_giving_up(monkeypatch) ->
 
 
 def test_shards_cover_every_lab_once_and_balance_the_work() -> None:
-    # One long topic (five labs of weight 6) and four short ones (two labs of
-    # weight 1 each), over four machines.
-    targets = [("long", f"lab{j}") for j in range(5)] + [
+    # One slow topic (five labs of 600 s) and four quick ones (two labs of
+    # 100 s each), over four machines.
+    targets = [("slow", f"lab{j}") for j in range(5)] + [
         (f"t{i}", f"lab{j}") for i in range(4) for j in range(2)
     ]
 
-    def weight(topic: str, exercise: str) -> int:
-        return 6 if topic == "long" else 1
+    def weight(topic: str, exercise: str) -> float:
+        return 600.0 if topic == "slow" else 100.0
 
     shards = [labcheck.shard_of(targets, f"{i}/4", weight) for i in range(4)]
-    # Every lab lands in exactly one shard, in the order it was listed.
+    # Every lab lands in exactly one shard.
     assert sorted(sum(shards, [])) == sorted(targets)
-    for shard in shards:
-        assert shard == [t for t in targets if t in shard]
-    # The long topic is spread out, and no machine has more than its share
-    # plus one lab: 38 units of work over four machines is 9.5 each.
-    assert all(sum(1 for t in shard if t[0] == "long") <= 2 for shard in shards)
+    # The slow topic is spread out, and the machines' work differs by no
+    # more than one slow lab: 3,800 s over four machines is 950 each.
+    assert all(sum(1 for t in shard if t[0] == "slow") <= 2 for shard in shards)
     loads = [sum(weight(*t) for t in shard) for shard in shards]
-    assert max(loads) - min(loads) <= 6
-    # Heaviest first, to the lightest machine (the lowest number on a tie).
-    assert shards[0][0] == ("long", "lab0") and ("long", "lab4") in shards[0]
+    assert max(loads) - min(loads) <= 600
+    # Slowest first, to the least-loaded machine (the lowest number on a
+    # tie), and each machine starts its slowest labs first.
+    assert shards[0][0] == ("slow", "lab0") and ("slow", "lab4") in shards[0]
+    for shard in shards:
+        assert [weight(*t) for t in shard] == sorted(
+            (weight(*t) for t in shard), reverse=True
+        )
 
 
-def test_a_lab_weighs_its_runs_and_more_on_a_shared_base(tmp_path) -> None:
-    plain = tmp_path / "t" / "exercises" / "plain"
-    (plain / "wrong").mkdir(parents=True)
-    (plain / "Dockerfile").write_text("FROM ubuntu:24.04\n", encoding="utf-8")
-    for name in ("a.sh", "b.sh"):
-        (plain / "wrong" / name).write_text("true\n", encoding="utf-8")
-    network = tmp_path / "t" / "exercises" / "network"
-    network.mkdir(parents=True)
-    (network / "Dockerfile").write_text("FROM lab-base-net\n", encoding="utf-8")
-    # Pristine, solution and restart trial, plus one run a known-wrong fix.
-    assert labcheck.lab_weight("t", "plain", tmp_path) == 5
-    assert labcheck.lab_weight("t", "network", tmp_path) == 9
+def test_a_lab_weighs_its_recorded_time_or_the_middle_one(tmp_path) -> None:
+    times = tmp_path / "lab-seconds.json"
+    assert labcheck.lab_seconds(times) == {}
+    assert labcheck.weigher({})("t", "new") == 1.0
+    times.write_text(
+        '{"seconds": {"t/a": 30, "t/b": 300, "u/c": 90}}', encoding="utf-8"
+    )
+    known = labcheck.lab_seconds(times)
+    weigh = labcheck.weigher(known)
+    assert weigh("t", "b") == 300.0
+    # A lab the file doesn't list yet (a new one) weighs the middle time.
+    assert weigh("v", "new") == 90.0
 
 
 def test_a_shard_that_isnt_i_of_n_is_refused() -> None:
