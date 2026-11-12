@@ -1,0 +1,21 @@
+# The network of "HTTP/3 for the office": the office, the internet and the
+# shop's web server.
+#
+#   office 192.0.2.10 --- isp --- shop 203.0.113.10
+#
+# isp stands for the internet between them: 50 ms each way, a 100 ms round
+# trip. It is scenery.
+machine office
+machine isp router
+machine shop
+
+link office:eth0=192.0.2.10/24 isp:office=192.0.2.1/24
+link isp:shop=203.0.113.1/24 shop:eth0=203.0.113.10/24
+
+route office default via 192.0.2.1
+route shop default via 203.0.113.1
+
+netem isp office delay 50ms limit 2000
+netem isp shop delay 50ms limit 2000
+
+run shop nftables

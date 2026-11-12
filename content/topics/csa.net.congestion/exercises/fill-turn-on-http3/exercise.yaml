@@ -1,0 +1,30 @@
+id: fill-turn-on-http3
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "HTTP/3 for the office"
+prompt: |
+  The shop's site runs on `shop` under Caddy (`caddy@shop`), behind shop's own firewall (`nftables@shop`). The office, `office`, reaches it across the internet, `isp`, with a 100 ms round trip. Every machine trusts the certificate the site gets from Caddy's own authority. The office should get the site over HTTP/3.
+
+  Two files on shop hold the change, and each has gaps, `...`:
+
+  - shop's **`/etc/nftables.conf`**, the firewall: its last rule is to let the site's HTTP/3 in. Every other rule is complete.
+  - shop's **`/etc/caddy/Caddyfile`**, Caddy's settings: the `protocols` line in its global options lists the HTTP versions the site speaks.
+
+  Until the gaps are filled, neither file loads. At boot, `nftables@shop` failed, so shop has no firewall at all right now, and `caddy@shop` failed, so the site is down. `on shop nft -c -f /etc/nftables.conf` checks the firewall's file without loading it and names the line it can't read; `journalctl -u caddy@shop` says why Caddy stopped.
+
+  Fill the gaps so that:
+
+  1. **the office gets the site over HTTP/3,** and the site tells browsers it offers it;
+  2. **the firewall lets in nothing new but what HTTP/3 needs;**
+  3. **it all lasts after a reboot.**
+
+  `on shop nano /etc/nftables.conf` and `on shop nano /etc/caddy/Caddyfile` open the files. `sudo systemctl restart nftables@shop` and `sudo systemctl restart caddy@shop` start the two once their files load (once they run, `reload` passes them a change). Then try it from the office: `on office curl -sI https://shop.test/` shows the site's headers over HTTPS, and `on office h3get https://shop.test/` asks for the page over HTTP/3. When the office gets it over HTTP/3, run the checks.
+hints:
+  - "HTTP/3 runs on QUIC, and QUIC runs on UDP. Once Caddy is running, `on shop ss -ulpn` shows the port it listens on."
+  - "Caddy names the HTTP versions h1, h2, h2c and h3; if a name is wrong, its journal lists the right ones."
+  - "The firewall's file loads only when every line can be read: `on shop nft -c -f /etc/nftables.conf` prints nothing when it's right."
+skills: [http3-in-practice, quic-changes]
