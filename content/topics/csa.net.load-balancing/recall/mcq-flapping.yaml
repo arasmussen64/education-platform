@@ -1,0 +1,16 @@
+id: mcq-flapping
+type: mcq
+rev: 1
+prompt: |
+  web2 goes DOWN and comes back UP every few seconds, all day, and its sticky visitors keep being moved. Its health check fails about one time in four, for a moment, and its backend says `default-server inter 2s fall 1 rise 1`. What's the fix?
+choices:
+  - "`fall 3 rise 2`: three failures in a row to go down, and two good checks to come back"
+  - "Remove `check` from web2's line, so a failed check can never take it out of rotation"
+  - "`inter 500ms`, so a failed check is followed sooner by a good one that puts web2 back"
+  - "`weight 2` on web2's line, so it catches up on its share of visitors while it's up"
+answer: 0
+explanation: |
+  With `fall 1 rise 1`, one failed check takes web2 out and the next good one puts it back, so a server that fails now and then flaps, and each flap moves its visitors. **Hysteresis** asks for more evidence to change state than to stay: several failures in a row to go down, and more than one success to come back. One failure in four never gives three in a row, so web2 stays in rotation, and a server that really dies is still out after three checks.
+
+  Removing the check stops the flapping and blinds the balancer: a web2 that hangs for real keeps its share for ever. Checking more often makes it flap faster, not less. And a bigger weight sends more visitors to a server that keeps dropping them.
+skills: [health-checks]

@@ -1,0 +1,16 @@
+id: mcq-cheap-check
+type: mcq
+rev: 1
+prompt: |
+  A team's servers behind an AWS Network Load Balancer answer HTTP health checks on a page that runs a report. Their CPUs are busy with health checks alone, far more of them than one every 30 seconds per server. Why, and what helps?
+choices:
+  - "The checks come from many of the balancer's nodes: make the check page a cheap answer"
+  - "The interval counts per zone, not per server: raise it to 300 seconds to have fewer"
+  - "Each failed check is retried ten times: lower the unhealthy threshold to stop retries"
+  - "The balancer checks every port of each server: give each one a single listening port"
+answer: 0
+explanation: |
+  AWS's page on Network Load Balancer health checks: they "are distributed and use a consensus mechanism to determine target health. Therefore, targets receive more than the configured number of health checks", and it suggests "a simpler destination on the targets, such as a static HTML file", or TCP checks. A check page should cost almost nothing, which a liveness check does anyway.
+
+  The interval is per target. A failed check isn't retried ten times: the unhealthy threshold counts consecutive failed checks at the normal interval. And the balancer checks one port, the traffic port unless you choose another.
+skills: [health-checks]

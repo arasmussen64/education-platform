@@ -1,0 +1,26 @@
+id: est-capacity-after-loss
+type: estimate
+rev: 1
+prompt: |
+  At the evening peak the shop's 4 web servers each run at 60% of their CPU. One of them fails, and the balancer spreads its share evenly over the others. What percentage of its CPU does each remaining server run at? Exactly.
+unit: "%"
+answer: 80
+tolerance: { absolute: 0 }
+given: { servers: 4, load: 60 }
+working: servers * load / (servers - 1)
+mistakes:
+  - id: shrank-it
+    value: 45
+    working: load * (servers - 1) / servers
+    why: "That shares the load as if it had shrunk. The total work, 4 × 60 = 240% of one server, stays the same and now falls on 3 servers."
+  - id: unchanged
+    value: 60
+    working: load
+    why: "The failed server's share doesn't vanish: its customers move to the others."
+  - id: added-a-quarter
+    value: 75
+    working: load + load / servers
+    why: "That adds a quarter of one server's load. The failed server's whole 60% is spread over the 3 that are left, 20% each."
+explanation: |
+  The total work is 4 × 60 = 240% of one server. Spread over the 3 that remain, it's 240 ÷ 3 = 80% each. That's **N+1** thinking: if any one of N servers can fail, the other N − 1 must carry the peak, so size for the load at N − 1, not at N. At 80% the shop may be slow but still up; at four servers running 80% each, losing one would mean 107%, and the survivors fall over one after another.
+skills: [failover-math]

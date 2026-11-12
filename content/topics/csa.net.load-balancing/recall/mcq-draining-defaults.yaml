@@ -1,0 +1,16 @@
+id: mcq-draining-defaults
+type: mcq
+rev: 1
+prompt: |
+  The same rolling deploy, which takes servers out and replaces them one at a time, cut customers' long downloads short on Google Cloud and not on AWS. Every draining setting was left at its default on both. Why?
+choices:
+  - "AWS waits 300 s for a removed target's requests; Google drains only once a timeout is set"
+  - "Google drains for 300 s by default, but AWS's Application Load Balancer waits for 600 s"
+  - "AWS keeps the downloads on the old target for ever; Google's backends refuse stickiness"
+  - "Google checks health every 5 s, so its balancer notices that a server is gone sooner"
+answer: 0
+explanation: |
+  AWS's Application and Network Load Balancers wait for a **deregistration delay** of 300 seconds by default before a removed target is finished with, so a download in flight has five minutes to end (an Application Load Balancer finishes early when the target has nothing left in flight). Google's **connection draining** is a timeout from 0 to 3,600 seconds, and when it's unset or 0, Google "ends existing connections on the removed instance or endpoint as quickly as possible".
+
+  Neither 300 for Google nor 600 for AWS is a default. AWS's delay ends after its 300 seconds, so it isn't for ever, and stickiness isn't the difference here. Google's 5-second checks change how fast a broken server is noticed, not what happens to the connections of one removed on purpose.
+skills: [drain-and-stick]

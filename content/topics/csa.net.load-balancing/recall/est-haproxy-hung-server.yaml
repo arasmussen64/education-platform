@@ -1,0 +1,26 @@
+id: est-haproxy-hung-server
+type: estimate
+rev: 1
+prompt: |
+  An API backend's servers are checked every 3 seconds (`inter 3s`), each check waits at most 1 second for an answer (`timeout check 1s`), and 2 failed checks in a row take a server out (`fall 2`). Just after a check it passed, one server hangs: its machine still accepts connections, and nothing ever answers. HAProxy waits `inter` after each check ends before it starts the next. How many seconds after that passing check does HAProxy mark the server DOWN? Exactly.
+unit: seconds
+answer: 8
+tolerance: { absolute: 0 }
+given: { inter: 3, timeout: 1, fall: 2 }
+working: fall * (inter + timeout)
+mistakes:
+  - id: refused-sum
+    value: 6
+    working: fall * inter
+    why: "That's a server that refuses connections, whose checks fail at once. A hung server makes each check wait its whole timeout before it fails, and the next check starts inter after that."
+  - id: fixed-clock-sum
+    value: 7
+    working: fall * inter + timeout
+    why: "That's the sum for a balancer that starts its checks on a fixed clock, as an AWS Application Load Balancer does. HAProxy waits inter after each check ends, so every failed check adds its timeout."
+  - id: one-check
+    value: 4
+    working: inter + timeout
+    why: "That's the first failed check. fall 2 needs two failures in a row."
+explanation: |
+  The first check after the hang starts at 3 s and gives up at 4 s; HAProxy waits another 3 s, so the second starts at 7 s and gives up at 8 s: `fall × (inter + timeout)` = 2 × (3 + 1) = 8 seconds. For those 8 seconds the hung server keeps its share of the requests, and each one waits. Without `timeout check`, a check waits `inter` itself, which is why the walkthrough's frozen web2 (`inter 2s fall 3`) took 3 × (2 + 2) = 12 seconds.
+skills: [failover-math]

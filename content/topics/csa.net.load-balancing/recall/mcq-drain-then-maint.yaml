@@ -1,0 +1,16 @@
+id: mcq-drain-then-maint
+type: mcq
+rev: 1
+prompt: |
+  web2 needs a security patch and a restart tonight. Its visitors' baskets live in web2's memory, kept there by a `SHOPSRV` cookie, and some may be halfway through a checkout. Which order takes web2 out without cutting anyone short?
+choices:
+  - "Drain it, wait until its sessions reach zero, set maintenance, then patch and restart"
+  - "Set maintenance first, wait until its sessions reach zero, then patch and restart it"
+  - "Stop its program: the balancer's checks notice in seconds and move visitors elsewhere"
+  - "Set its weight to 1 and restart it at once: the balancer sends it fewer visitors meanwhile"
+answer: 0
+explanation: |
+  **Drain** stops new visitors reaching web2 while those already on it finish (in HAProxy, sticky visitors keep reaching it); its sessions, `scur` in `show stat`, fall to zero; then **maintenance** takes it out completely, so the patch and the restart hurt nobody. `set server web/web2 state ready` puts it back afterwards. The write lab's script does exactly this.
+
+  Maintenance first sends the sticky visitors' next clicks to other servers, which don't have their baskets, halfway through a checkout. Stopping the program cuts every open download and request at once, and the checks only notice afterwards. A lower weight still sends web2 visitors, and restarting at once cuts whoever is on it.
+skills: [drain-and-stick]

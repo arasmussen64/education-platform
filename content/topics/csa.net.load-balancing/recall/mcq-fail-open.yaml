@@ -1,0 +1,16 @@
+id: mcq-fail-open
+type: mcq
+rev: 1
+prompt: |
+  Every server behind a cloud load balancer fails its health checks at the same moment. Which describes what that balancer then does, by its provider's documentation?
+choices:
+  - "An AWS Application Load Balancer sends requests to all of the targets anyway"
+  - "An Azure Standard Load Balancer sends new flows to all the instances anyway"
+  - "A Google Application Load Balancer keeps sending to the server that failed last"
+  - "An AWS Network Load Balancer resets every connection, the open ones included"
+answer: 0
+explanation: |
+  AWS's Application and Network Load Balancers **fail open**: "If a target group contains only unhealthy registered targets, the load balancer routes requests to all those targets, regardless of their health status." The idea is that a fault every server shares is more likely the check's than the servers', so sending to all of them beats sending to none; it is also how the deep check that takes the lab's shop down would have been hidden.
+
+  Azure's Standard Load Balancer does the opposite with new flows: "No new flows are sent to the backend pool", while established TCP flows continue. Google's Application Load Balancers answer `503` when every backend is unhealthy (the classic one, `502`). And a Network Load Balancer resets the connections of a target that becomes unhealthy only when it isn't failing open: with every target unhealthy, it fails open like the Application Load Balancer.
+skills: [health-checks]

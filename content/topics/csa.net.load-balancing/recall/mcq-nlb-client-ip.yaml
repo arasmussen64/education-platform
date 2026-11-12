@@ -1,0 +1,16 @@
+id: mcq-nlb-client-ip
+type: mcq
+rev: 1
+prompt: |
+  An AWS Network Load Balancer with a TCP listener sends traffic to targets registered by IP address. The app's log shows only the balancer's own private addresses, not the customers'. Why, and what fixes it?
+choices:
+  - "For IP targets over TCP it's off by default: turn on client IP preservation or proxy protocol v2"
+  - "Every Network Load Balancer hides it: switch to an Application Load Balancer for this TCP app"
+  - "TCP can't carry it: have the app read X-Forwarded-For, which the balancer adds to every packet"
+  - "The targets' security group rewrites it: allow the customers' addresses in that group"
+answer: 0
+explanation: |
+  AWS's page on Network Load Balancer target groups gives the defaults: client IP preservation is on for instance targets, and for IP targets with UDP, but **off for IP targets with TCP and TLS**, whose servers then see "the private IP addresses of the load balancer nodes". Turn on client IP preservation (with the target in the same VPC or a peered one), or turn on **proxy protocol v2**, which puts the client's address in a header at the start of each connection; the app must then expect that header.
+
+  A Network Load Balancer keeps the address in other cases, and an Application Load Balancer speaks only HTTP, not this app's TCP. `X-Forwarded-For` is an HTTP header, added to requests by layer 7 proxies, not to packets. And a security group only allows or drops packets, as a firewall does: it never rewrites an address.
+skills: [choose-the-balancer]

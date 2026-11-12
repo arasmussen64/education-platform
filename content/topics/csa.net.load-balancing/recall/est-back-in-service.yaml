@@ -1,0 +1,24 @@
+id: est-back-in-service
+type: estimate
+rev: 1
+# AWS's ALB health-check defaults, read 2026-11-12:
+# https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html
+prompt: |
+  A target behind an AWS Application Load Balancer was out of service, and was fixed just after a check it failed. Its target group has the default health check: a check every 30 seconds, 2 failed checks in a row to take a target out, and 5 good checks in a row to put it back. How many seconds after it was fixed does the target get traffic again? Exactly.
+unit: seconds
+answer: 150
+tolerance: { absolute: 0 }
+given: { interval: 30, unhealthy: 2, healthy: 5 }
+working: healthy * interval
+mistakes:
+  - id: unhealthy-threshold
+    value: 60
+    working: unhealthy * interval
+    why: "That's the unhealthy threshold, 2, used for coming back. Going back into service takes the healthy threshold, 5 good checks in a row."
+  - id: one-check
+    value: 30
+    working: interval
+    why: "One good check isn't enough for the Application Load Balancer: it waits for 5 in a row."
+explanation: |
+  The checks after the fix come at 30, 60, 90, 120 and 150 seconds, and the fifth good one in a row puts the target back: 5 × 30 = 150 seconds, two and a half minutes of a working server getting no traffic. AWS's defaults are slow to trust a target (5 good checks) and quicker to drop one (2 failures). HAProxy's `rise 2` trusts sooner; Google's healthy threshold is 2 as well.
+skills: [failover-math]

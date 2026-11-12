@@ -1,0 +1,16 @@
+id: mcq-azure-http-probe
+type: mcq
+rev: 1
+prompt: |
+  An Azure Load Balancer probes `/livez` over HTTP, with a probe threshold of 3. One probe gets a `500` answer from an instance that has been healthy all day. What happens to new flows for that instance?
+choices:
+  - "They stop at once: the threshold counts only probes that get no answer at all"
+  - "Nothing yet: it takes three failed probes in a row to mark the instance down"
+  - "They're halved until three good probes in a row have passed on the instance"
+  - "They continue, because Azure counts only timeouts and refusals as failures"
+answer: 0
+explanation: |
+  Azure's health probe page: "For HTTP probes, explicit responses will immediately mark the probe as up or down for 200 and non-200 responses, and will effectively reset the threshold. This means that the threshold value only applies to HTTP probes if the probe times out due to no response." So one `500` marks the instance down and new flows go elsewhere (established TCP flows to it continue), and one `200` marks it up again.
+
+  Three failures in a row is how the threshold works for TCP probes, and for HTTP probes that time out. Azure Load Balancer has no half share. And a non-200 answer counts at once, more than a timeout does, not less: an endpoint that flickers between 200 and 500 needs a steadier check.
+skills: [health-checks]

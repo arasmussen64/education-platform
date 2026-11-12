@@ -1,0 +1,16 @@
+id: mcq-speaks-first
+type: mcq
+rev: 1
+prompt: |
+  The shop's stock service works when a client connects straight to `stock1` on port 7000. Through HAProxy, in a `listen` section with `mode http`, the client connects and then waits for ever: no greeting, no error. The stock service's server sends its greeting first, before the client says anything. What's wrong?
+choices:
+  - "The HTTP proxy waits for a request before it picks a server, so it never reaches stock1"
+  - "The health check has marked stock1 down, so HAProxy has no server to connect it to"
+  - "Port 7000 is above 1024, so HAProxy needs to run as root to open a connection to it"
+  - "The listener's `timeout client` is too short, so HAProxy closes it before the greeting"
+answer: 0
+explanation: |
+  In `mode http` HAProxy is a layer 7 proxy: it reads the client's HTTP request to decide where it goes, and opens no connection to a server until it has one. This protocol's server speaks first, so the client waits for the greeting while HAProxy waits for a request, and neither ever comes. `mode tcp`, layer 4, joins the client to a server at once and passes the bytes either way, as the walkthrough showed.
+
+  A server marked down would get HAProxy's own `503` answer the moment a request arrived, not silence. Only ports below 1024 need special privilege, and that's for listening on them, not connecting. A client timeout that ran out would close the connection, which is an ending the client sees, not a wait for ever.
+skills: [choose-the-balancer]
