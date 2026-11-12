@@ -1,0 +1,21 @@
+id: build-tunnel-to-the-cloud
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A tunnel to the cloud"
+prompt: |
+  The shop is moving its app to a new cloud network, 10.30.0.0/16, where it answers at `app` (10.30.1.10). The office laptop, `office` (192.168.10.10), sits behind the office's VPN gateway, `vpn` (192.168.10.1 on its `lan`, 198.51.100.10 on its `wan`), and across the `internet` is the provider's VPN gateway, `cloud` (203.0.113.10). vpn is a fresh machine: FRR runs with only a default route, and strongSwan runs with no connection. The provider's side is configured, and isn't yours. Its configuration sheet is `/srv/provider/vpn-config.txt`; `cloud-vpn-status` shows its view of the tunnel, `cloud-vpn-log` its VPN log, and `cloud-maintenance` restarts its gateway, as its maintenance does. BGP's timers are scaled down in this lab, as the sheet says (a keepalive every 3 seconds and a hold time of 9, where real gateways use 30 and 90, or 60 and 180).
+
+  Build the office's half of the VPN, from the sheet, so that:
+
+  1. it is route-based: a tunnel interface (a VTI) on vpn, and one CHILD_SA for 0.0.0.0/0 both ways, so routing decides what is encrypted;
+  2. it uses the sheet's proposals for both phases, and nothing weaker, though the provider would accept something weaker;
+  3. the office's network reaches the cloud's by BGP inside the tunnel, between the inside addresses: vpn announces the office's 192.168.10.0/24 and nothing else, and accepts from the provider only prefixes inside 10.0.0.0/8 no longer than /24, so never a default route. No static routes to the cloud, and none typed into the kernel;
+  4. the tunnel and BGP come back by themselves after a reboot of vpn and after the provider restarts its end;
+  5. the pre-shared key can be read only by root.
+
+  The tools are the walkthrough's: `on vpn nano FILE` for vpn's files (the network file `/etc/network/up`, a connection in `/etc/swanctl/conf.d/`), `on vpn swanctl ...` (`--load-all`, `--list-sas`, `--initiate --child NAME`), `sudo systemctl restart strongswan@vpn`, `on vpn vtysh` for BGP (and `write memory`), `sudo netlab restart` to reboot the network, and the provider's three stand-ins. Then run the checks. Some of them act on the provider's side for a moment: one rekeys the tunnel from there, one offers new prefixes to see which vpn takes, and the last restarts the provider's gateway and watches the tunnel come back.
+skills: [route-based-tunnel, bgp-over-tunnel, ipsec-building-blocks]

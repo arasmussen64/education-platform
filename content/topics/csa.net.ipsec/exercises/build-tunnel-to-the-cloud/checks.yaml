@@ -1,0 +1,231 @@
+# The checks of "A tunnel to the cloud", read from both ends: the tunnel
+# and its algorithms as the provider sees them (so a weak proposal it
+# happens to accept is caught), a rekey started by the provider (so a phase
+# 2 proposal without perfect forward secrecy is caught), BGP inside the
+# tunnel, what vpn accepts (tested on prefixes the provider offers at check
+# time) and what it sends, the office's traffic crossing as ESP, routes
+# that come from BGP alone, the lasting files, the key's file mode, and the
+# provider's maintenance. tunnel-up and bgp-up wait for the tunnel and the
+# session after a boot; the rest read at once, except survives-a-rekey,
+# learns-by-bgp and the last, which change something on the provider's
+# side for a moment and wait for vpn's answer.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: tunnel-up
+    description: "The provider's gateway has an IPsec tunnel with vpn (198.51.100.10) whose CHILD_SA is installed for 0.0.0.0/0 both ways: a route-based tunnel."
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      route_based() {
+        on cloud swanctl --list-sas 2> /dev/null | awk '
+          /ESTABLISHED/ {ike = 1}
+          /: #[0-9]+, reqid/ {child = /INSTALLED/; l = r = 0}
+          child && $1 == "local" && $2 == "0.0.0.0/0" {l = 1}
+          child && $1 == "remote" && $2 == "0.0.0.0/0" {r = 1}
+          ike && l && r {ok = 1}
+          END {exit !ok}'
+      }
+      wait_for 20 route_based && { echo "route-based tunnel up"; exit 0; }
+      if on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null; then
+        echo "the provider's CHILD_SA isn't for 0.0.0.0/0 both ways: $(on cloud swanctl --list-sas | awk '$1 == "local" || $1 == "remote"' | tr -s ' ' | tr '\n' ';')"
+      else
+        echo "the provider's gateway has no CHILD_SA installed with vpn (cloud-vpn-status shows what it has)"
+      fi
+    expect:
+      equals: "route-based tunnel up"
+  - id: bgp-up
+    description: "vpn has a BGP session with the provider (169.254.44.1, AS 64600) inside the tunnel."
+    timeout: 45
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on vpn ip xfrm state | grep '^src ' > /dev/null || { echo "vpn has no IPsec SAs, so no session inside a tunnel"; exit 0; }
+      peer() { frr vpn 'show bgp neighbors 169.254.44.1 json' | json "d.get('169.254.44.1', {}).get($1)"; }
+      [ "$(peer "'bgpState'")" != None ] || { echo "vpn has no BGP neighbour 169.254.44.1 configured"; exit 0; }
+      # Up, and its first routes in the kernel, so the later checks can
+      # read at once.
+      settled() { [ "$(peer "'bgpState'")" = Established ] && ip -d -n vpn route show 10.30.0.0/16 | grep 'proto bgp' > /dev/null; }
+      wait_for 20 settled
+      echo "$(peer "'bgpState'") $(peer "'remoteAs'")"
+    expect:
+      equals: "Established 64600"
+  - id: the-sheets-proposals
+    description: "The tunnel uses the sheet's proposals, as the provider sees them: IKE with AES-256, SHA-384 and ECP-384, and ESP with AES-GCM-256."
+    command: |
+      sas=$(on cloud swanctl --list-sas 2> /dev/null)
+      ike=$(echo "$sas" | awk '/ESTABLISHED/ {getline; getline; getline; print $1; exit}')
+      [ "$ike" = "AES_CBC-256/HMAC_SHA2_384_192/PRF_HMAC_SHA2_384/ECP_384" ] || { echo "the IKE SA uses ${ike:-nothing}"; exit 0; }
+      esp=$(echo "$sas" | awk '/INSTALLED/ {print $NF; exit}')
+      case $esp in
+        ESP:AES_GCM_16-256 | ESP:AES_GCM_16-256/ECP_384) echo "the sheet's proposals" ;;
+        *) echo "the CHILD_SA uses ${esp:-nothing}" ;;
+      esac
+    expect:
+      equals: "the sheet's proposals"
+  - id: survives-a-rekey
+    description: "When the provider rekeys the CHILD_SA, the new one is installed with fresh keys from its own Diffie-Hellman exchange (ECP-384), and the office still reaches the app."
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null || { echo "there is no CHILD_SA to rekey"; exit 0; }
+      on office curl -s -m 2 -o /dev/null http://10.30.1.10/ || { echo "the office doesn't reach the app even before a rekey"; exit 0; }
+      # The provider starts a rekey, as it does on its own timer (every
+      # hour by default; this one now). A new CHILD_SA is negotiated with
+      # CREATE_CHILD_SA, with its own key exchange if both sides' ESP
+      # proposals name a DH group.
+      on cloud swanctl --rekey --child office-vti > /dev/null 2>&1
+      rekeyed() { on cloud swanctl --list-sas 2> /dev/null | grep 'INSTALLED, TUNNEL, ESP:AES_GCM_16-256/ECP_384' > /dev/null; }
+      wait_for 10 rekeyed || { echo "after the provider's rekey there is no CHILD_SA with its own ECP-384 key exchange: $(on cloud swanctl --list-sas | grep 'reqid' | tr -s ' ' | tr '\n' ';')"; exit 0; }
+      wait_for 5 on office curl -s -m 2 -o /dev/null http://10.30.1.10/ || { echo "after the rekey the office doesn't reach the app"; exit 0; }
+      echo rekeyed
+    expect:
+      equals: rekeyed
+  - id: learns-by-bgp
+    description: "vpn takes from the provider only prefixes inside 10.0.0.0/8 no longer than /24, by BGP, into vti0: a new one the provider offers arrives, and one outside 10.0.0.0/8, one longer than /24 and a default route don't."
+    timeout: 45
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on vpn ip xfrm state | grep '^src ' > /dev/null || { echo "vpn has no IPsec SAs, so no BGP inside a tunnel"; exit 0; }
+      route() { frr vpn "show ip route $1 json" | json "[(r['protocol'], [n.get('interfaceName') for n in r['nexthops']]) for r in d.get('$1', []) if r.get('selected')]"; }
+      [ "$(route 10.30.0.0/16)" = '[["bgp", ["vti0"]]]' ] || { echo "vpn's route to the cloud's 10.30.0.0/16 isn't one learned by BGP through vti0: $(route 10.30.0.0/16)"; exit 0; }
+      [ "$(route 0.0.0.0/0)" = '[["static", ["wan"]]]' ] || { echo "vpn's default route isn't its own, through the internet: $(route 0.0.0.0/0)"; exit 0; }
+      # The provider offers three prefixes it hasn't offered before, chosen
+      # now: blackhole routes on its machine, which its BGP hands to vpn
+      # (its route map OFFER passes only 10.0.0.0/8 /24s and /25s and
+      # 172.16.0.0/12 /24s). They are removed again on the way out, even if
+      # the check is stopped part way.
+      a=$((31 + RANDOM % 199)) b=$((RANDOM % 256))
+      good="10.$a.$b.0/24" foreign="172.16.$b.0/24" long="10.$a.$(((b + 1) % 256)).128/25"
+      trap 'for p in $good $foreign $long; do ip -n cloud route del blackhole "$p" 2> /dev/null; done' EXIT
+      for p in $good $foreign $long; do ip -n cloud route add blackhole "$p" || { echo "the check couldn't offer $p"; exit 0; }; done
+      offered() { [ "$(frr cloud 'show bgp ipv4 unicast neighbors 169.254.44.2 advertised-routes json' | json "all(p in d.get('advertisedRoutes', {}) for p in '$good $foreign $long'.split())")" = True ]; }
+      wait_for 10 offered || { echo "the provider never offered the check's prefixes, so the check couldn't test them"; exit 0; }
+      arrived() { [ "$(route "$good")" = '[["bgp", ["vti0"]]]' ]; }
+      wait_for 15 arrived || { echo "a new prefix the provider offers, $good, doesn't arrive in vpn's routes by BGP through vti0"; exit 0; }
+      for p in $foreign $long; do
+        [ "$(route "$p")" = "[]" ] || { echo "vpn took $p from the provider, which isn't inside 10.0.0.0/8 at /24 or shorter"; exit 0; }
+      done
+      echo "only the cloud's"
+    expect:
+      equals: "only the cloud's"
+  - id: sends-only-the-office
+    description: "vpn announces to the provider exactly one prefix, the office's 192.168.10.0/24, and the provider receives just that."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sent=$(frr vpn 'show bgp ipv4 unicast neighbors 169.254.44.1 advertised-routes json' | json "sorted(d.get('advertisedRoutes', {}))")
+      [ "$sent" = '["192.168.10.0/24"]' ] || { echo "vpn announces $sent to the provider, not just the office's 192.168.10.0/24"; exit 0; }
+      got=$(frr cloud 'show bgp ipv4 unicast neighbors 169.254.44.2 routes json' | json "sorted(d.get('routes', {}))")
+      [ "$got" = '["192.168.10.0/24"]' ] || { echo "the provider received $got from vpn"; exit 0; }
+      echo "only the office"
+    expect:
+      equals: "only the office"
+  - id: office-through-the-tunnel
+    description: "The office downloads the app's 303,030-byte report, and it crosses the internet encrypted: vpn's inbound IPsec SAs count at least that many bytes more."
+    command: |
+      inbound() { on vpn ip -s xfrm state 2> /dev/null | awk '/^src / {in_sa = ($2 == "203.0.113.10")} in_sa && /lifetime current:/ {getline; split($1, a, "("); n += a[1]} END {print n + 0}'; }
+      on office curl -s -m 2 -o /dev/null http://10.30.1.10/ || { echo "the office doesn't reach the app at all"; exit 0; }
+      before=$(inbound)
+      size=$(on office curl -s -m 8 -o /dev/null -w '%{size_download}' http://10.30.1.10/report.txt)
+      after=$(inbound)
+      [ "$size" = 303030 ] || { echo "the office got ${size:-nothing} bytes of the report, not 303030"; exit 0; }
+      [ $((after - before)) -ge 303030 ] || { echo "the report arrived, but vpn's IPsec SAs counted only $((after - before)) bytes coming in: it didn't come through the tunnel"; exit 0; }
+      echo "through the tunnel"
+    expect:
+      equals: "through the tunnel"
+  - id: routes-from-bgp
+    description: "vpn's routes to the cloud come from BGP alone: it has no route typed into the kernel and no static route but its default."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      typed=$(hand_routes vpn)
+      [ -z "$typed" ] || { echo "vpn has routes typed by hand, which the next boot loses: $(echo "$typed" | head -n 2 | tr '\n' ';')"; exit 0; }
+      statics=$(frr vpn 'show ip route static json' | json "sorted(d)")
+      [ "$statics" = '["0.0.0.0/0"]' ] || { echo "vpn's FRR has static routes besides its default: $statics"; exit 0; }
+      echo "from BGP"
+    expect:
+      equals: "from BGP"
+  - id: network-lasts
+    description: "vpn's interfaces, vti0 among them, are what its own files build at boot."
+    command: netlab verify vpn
+    expect:
+      equals: verified
+  - id: bgp-saved
+    description: "vpn's running FRR configuration is saved, and its IPsec and routing services start at every boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for s in strongswan@vpn frr@vpn; do
+        [ "$(systemctl is-enabled "$s")" = enabled ] || { echo "$s doesn't start at boot"; exit 0; }
+      done
+      frr_saved vpn && echo saved
+    expect:
+      equals: saved
+  - id: tunnel-starts-itself
+    description: "vpn's tunnel is in its files and starts by itself: an IPsec daemon started from them, as at boot, begins it with nothing typed."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # In netlab verify's throwaway copy (chk-vpn sees vpn's own /etc, and
+      # no service runs there), charon starts and loads vpn's files as a
+      # boot does. A CHILD_SA with start_action = start begins at once (it
+      # can't finish: the copy has no routes from FRR); a tunnel started by
+      # hand, or loaded from a file elsewhere, doesn't begin at all.
+      began=$(netlab verify vpn -- bash -c '
+        on chk-vpn /usr/sbin/charon-systemd > /dev/null 2>&1 &
+        charon=$!
+        for i in $(seq 1 50); do on chk-vpn swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-vpn swanctl --load-all --noprompt > /dev/null 2>&1
+        for i in $(seq 1 25); do
+          n=$(on chk-vpn swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.10\[")
+          [ "$n" -ge 1 ] && break
+          sleep 0.2
+        done
+        echo "$n"
+        kill "$charon" 2> /dev/null
+        wait "$charon" 2> /dev/null
+        true')
+      case $began in
+        [1-9]*) echo "starts itself" ;;
+        0) echo "an IPsec daemon started from vpn's files doesn't begin the tunnel by itself: it was started by hand, or isn't in /etc/swanctl/conf.d/" ;;
+        *) echo "$began" ;;
+      esac
+    expect:
+      equals: "starts itself"
+  - id: psk-private
+    description: "Every file in vpn's /etc/swanctl that holds the pre-shared key belongs to root and can't be read by anyone else."
+    command: |
+      found=0
+      while IFS= read -r f; do
+        found=1
+        mode=$(stat -c '%U %a' "$f")
+        case $mode in
+          "root "[0-7]00) ;;
+          *) echo "${f#/etc/netns/vpn} holds the pre-shared key and is $mode (owner, mode)"; exit 0 ;;
+        esac
+      done < <(grep -rl 'Hn4wB8vK2mQ9sX6tR3pL7zD5' /etc/netns/vpn/swanctl 2> /dev/null)
+      [ "$found" = 1 ] || { echo "no file in vpn's /etc/swanctl holds the pre-shared key"; exit 0; }
+      echo private
+    expect:
+      equals: private
+  - id: survives-maintenance
+    description: "When the provider's gateway restarts for maintenance, vpn brings the tunnel back by itself, and within 30 seconds BGP has the cloud's route again and the office reaches the app."
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      installed() { on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null; }
+      installed || { echo "there is no tunnel to begin with"; exit 0; }
+      on office curl -s -m 2 -o /dev/null http://10.30.1.10/ || { echo "the office doesn't reach the app to begin with"; exit 0; }
+      learned() { ip -d -n vpn route show 10.30.0.0/16 | grep 'proto bgp' > /dev/null; }
+      cloud-maintenance > /dev/null
+      end=$((SECONDS + 30))
+      while [ "$SECONDS" -lt "$end" ]; do
+        if installed && learned && on office curl -s -m 2 -o /dev/null http://10.30.1.10/; then
+          echo "back by itself"
+          exit 0
+        fi
+        sleep 1
+      done
+      if installed; then
+        echo "the tunnel came back, but within 30 seconds vpn had no BGP route to the cloud or the office didn't reach the app"
+      else
+        echo "30 seconds after the provider's gateway restarted, vpn hadn't brought the tunnel back"
+      fi
+    expect:
+      equals: "back by itself"
