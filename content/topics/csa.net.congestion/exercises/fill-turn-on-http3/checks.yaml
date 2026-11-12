@@ -1,0 +1,92 @@
+# The checks of "HTTP/3 for the office": HTTP/3 from the office, the site
+# telling browsers about it, shop's firewall still dropping what the site
+# doesn't serve, and both files being what runs, so a reboot keeps it all.
+# A fill-in's descriptions never hold a word a gap asks for, so they name
+# no protocol or port the gaps hold.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  # Tried twice, in case Caddy is still starting after a boot.
+  - id: h3-from-the-office
+    description: "The office gets the site over HTTP/3."
+    timeout: 20
+    command: |
+      for try in 1 2; do
+        out=$(on office h3get -m 5 https://shop.test/ 2>&1)
+        case "$out" in *"hello over HTTP/3.0"*) echo "over HTTP/3"; exit 0 ;; esac
+        sleep 1
+      done
+      echo "the office gets no answer over HTTP/3 from https://shop.test/"
+    expect:
+      equals: "over HTTP/3"
+  - id: advertised
+    description: "The site's answers over HTTPS tell browsers where it speaks HTTP/3."
+    command: |
+      headers=$(on office curl -sI -m 5 https://shop.test/ 2>&1)
+      if echo "$headers" | grep -i '^alt-svc:.*h3=":443"' > /dev/null; then echo advertised; else echo "the site's answers over HTTPS don't tell browsers where it speaks HTTP/3"; fi
+    expect:
+      equals: advertised
+  # Listeners of the check's own on shop, on ports the site doesn't serve:
+  # four that datagrams from the office must not reach (two of them the
+  # ports QUIC is often tried on, 4433 and 8443), and one TCP port that must
+  # give no answer at all, as a firewall's drop gives. The description names
+  # no port, since the gaps ask for one.
+  - id: only-what-it-serves
+    description: "shop's firewall still lets in nothing from the office but SSH and the site: datagrams sent to four ports the site doesn't serve, and connections to TCP port 8080, get nowhere."
+    timeout: 25
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      dir=$(mktemp -d)
+      cleanup() { kill $(jobs -p) 2> /dev/null; rm -rf "$dir"; }
+      trap cleanup EXIT
+      for port in 4433 5000 8443 9999; do
+        on shop timeout 14 socat -u UDP4-RECV:"$port" STDOUT > "$dir/dgram-$port" 2> /dev/null &
+      done
+      on shop holdserver 8080 > /dev/null 2>&1 &
+      # Each listener must be up before the office sends, or a datagram the
+      # firewall let in would find nobody and look like one it dropped.
+      for try in $(seq 1 25); do
+        [ "$(on shop ss -Huln | grep -cE ':(4433|5000|8443|9999) ')" -ge 4 ] && break
+        sleep 0.2
+      done
+      for port in 4433 5000 8443 9999; do
+        on office bash -c "echo probe | nc -u -w 1 203.0.113.10 $port" > /dev/null 2>&1
+      done
+      tcp=$(tcp_state office 203.0.113.10 8080)
+      sleep 1
+      for port in 4433 5000 8443 9999; do
+        [ -s "$dir/dgram-$port" ] && { echo "a datagram from the office reached shop's port $port"; exit 0; }
+      done
+      [ "$tcp" = dropped ] || { echo "from the office, shop's TCP port 8080 is $tcp"; exit 0; }
+      echo "only the site"
+    expect:
+      equals: "only the site"
+  - id: firewall-lasts
+    description: "The firewall running on shop is the one its /etc/nftables.conf loads at every boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(systemctl is-enabled nftables@shop 2> /dev/null)" = enabled ] || { echo "shop's firewall isn't loaded at boot"; exit 0; }
+      differs=$(nft_saved shop) || { echo "shop's running firewall isn't the one its /etc/nftables.conf loads at boot: $(echo "$differs" | tr '\n' ' ')"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  # Caddy's running configuration, from its admin endpoint on shop, against
+  # what its Caddyfile gives (caddy adapt turns the file into the same JSON
+  # Caddy runs), both with their keys sorted.
+  - id: site-lasts
+    description: "Caddy is running on shop, it serves the site its /etc/caddy/Caddyfile gives it, and it starts at every boot."
+    command: |
+      tidy() { python3 -c 'import json, sys
+      try:
+          print(json.dumps(json.load(sys.stdin), sort_keys=True))
+      except ValueError:
+          pass'; }
+      [ "$(systemctl is-enabled caddy@shop 2> /dev/null)" = enabled ] || { echo "Caddy doesn't start on shop at boot"; exit 0; }
+      live=$(on shop curl -s -m 3 http://localhost:2019/config/ | tidy)
+      [ -n "$live" ] || { echo "Caddy isn't running on shop"; exit 0; }
+      saved=$(on shop caddy adapt --config /etc/caddy/Caddyfile 2> /dev/null | tidy)
+      [ -n "$saved" ] || { echo "Caddy can't read shop's /etc/caddy/Caddyfile"; exit 0; }
+      [ "$live" = "$saved" ] || { echo "the site Caddy serves now isn't the one shop's /etc/caddy/Caddyfile gives it at boot"; exit 0; }
+      echo saved
+    expect:
+      equals: saved

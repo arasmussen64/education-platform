@@ -1,0 +1,17 @@
+#!/bin/bash
+# trust-shop-ca: run by caddy@shop each time it starts. Caddy makes its own
+# certificate authority the first time it runs (tls internal) and signs the
+# site's certificate with it; this adds that authority's root certificate
+# to the lab's trusted ones, so curl and h3get on every machine accept the
+# site's certificate without being told to skip the check. Scenery.
+root=/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+trusted=/usr/local/share/ca-certificates/shop-local-ca.crt
+for _ in $(seq 1 50); do
+  [[ -s $root ]] && break
+  sleep 0.2
+done
+[[ -s $root ]] || exit 0
+cmp -s "$root" "$trusted" && exit 0
+cp "$root" "$trusted"
+update-ca-certificates > /dev/null 2>&1
+exit 0

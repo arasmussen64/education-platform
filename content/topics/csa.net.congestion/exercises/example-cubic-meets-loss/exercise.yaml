@@ -1,0 +1,65 @@
+id: example-cubic-meets-loss
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "CUBIC meets a lossy link"
+prompt: |
+  This lab is a network of machines, like every lab from Layers and packets on. If you haven't done one yet, read the note "Before your first network lab" at the top of that topic's worked example, `example-follow-a-request`, first.
+
+  The shop's server, `shop`, does two jobs. It sends the nightly backups to the DR site's server, `dr1` (10.0.6.20), across a private link, `wan`; dr1's receiver is iperf3's server (`backup-sink@dr1`). And it runs the shop's site, `https://shop.test/`, with Caddy (`caddy@shop`) behind its own firewall (`nftables@shop`), for the office, `office`, which reaches it across the internet, `isp`, with a 100 ms round trip. Every machine trusts the certificate the site gets from Caddy's own authority.
+
+  Three tools are new. The link's speed, delay and loss are made by **netem**, the Linux kernel's network emulator, on wan; **`wan-set RATE DELAY LOSS`** is the link's console, which changes them for an experiment (`wan-set 50mbit 25ms 1%` is how the lab ships it). **`h3get URL`** makes one HTTP/3 request and prints the answer like `curl -i`; the lab needs it because Ubuntu's curl can't speak HTTP/3. **`gtlsclient`**, ngtcp2's example program, makes an HTTP/3 request too and logs every QUIC packet as it reads it, after decryption; it doesn't check the server's certificate, so it is for looking, never for trusting.
+
+  The walkthrough first measures one connection across the link three ways (clean, lossy, then lossy with BBR), reads the sender's own view of each in `ss`, doubles the distance, and sets BBR for good. Then it looks at the site's HTTP/3: how a browser learns of it, what the wire shows, what the client sees, how many round trips it saves, and what happens when a firewall drops it. Type each line yourself in the lab's shell and read what it prints before you type the next. A line ending in `&` runs in the background, so the next line can make traffic while it captures or reads; `wait` waits for it to finish. Each iperf3 run takes 6 seconds.
+steps:
+  - label: "The machines"
+    lines: "1"
+    note: "`shop` has two cables: `eth0` to the internet's router, `isp` (the office is behind it), and `eth1` to `wan`, the private link to `dr1`. `netlab show` lists what the topology runs: shop's firewall. Caddy (`caddy@shop`) and dr1's receiver (`backup-sink@dr1`) are units of the lab's own, so `systemctl status caddy@shop` shows them."
+  - label: "Read the path"
+    lines: "2-3"
+    note: "`tc qdisc show` lists the queueing rules on each of wan's interfaces: towards dr1, `rate 50Mbit delay 25ms loss 1% limit 2000` (the link's speed, 25 ms of delay, 1% of the packets dropped at random, and a queue of up to 2,000 packets); back towards shop, where the acknowledgements go, `delay 25ms` only. `ping` from shop confirms the round trip, about 50 ms (the first answer is slower, while the machines find each other's MAC addresses)."
+  - label: "A clean path first"
+    lines: "4-6"
+    note: "`wan-set 50mbit 25ms 0%` takes the loss away. One connection with shop's default congestion control then gets about 46 Mbit/s of the 50 (the `receiver` line at the end; `sender` counts what shop handed to its kernel, which runs ahead of what arrived). The `Cwnd` column is the sender's congestion window, growing every second, and `Retr` stays at 0: nothing lost, nothing sent again. `tee` shows the output and saves it in `~/example/cubic-clean.txt` as well."
+  - label: "Inside the sender: a full queue"
+    lines: "7"
+    note: "A second run in the background, and 4 seconds into it `ss -tni` on shop shows its connections to dr1. (dr1's receiver takes one test at a time and needs a moment after each before it listens again, so a line that starts a test straight after another begins with `sleep 1`; `wan-set` waits a second itself.) The one with the big `Send-Q` is the transfer (the other is iperf3's control connection). `cubic` is the algorithm. `cwnd:880` is the congestion window in segments of `mss:1448` bytes, `rtt:213` the round trip it measures now, and `minrtt:50` the smallest it has seen. The extra 160 ms is a queue: CUBIC kept adding to its window until the link's 2,000-packet queue was full, and every packet now waits in it. That's bufferbloat: the link is full, and so is the delay. `send` is cwnd × mss × 8 ÷ rtt, one window per round trip as a rate in bits a second; `delivery_rate` is what the receiver has been getting."
+  - label: "One packet in a hundred"
+    lines: "8-9"
+    note: "The loss back on: 1% of the packets towards dr1 vanish. The same connection now gets about 5 Mbit/s, a tenth of the link. `Retr` counts the packets sent again, about 30, and the `Cwnd` column stays at 15 to 42 KBytes, a few dozen segments. One second may even show `0.00 Bytes`: TCP hands the receiver nothing past a gap until the lost packet arrives again. CUBIC reads every lost packet as a sign of congestion and cuts its window to 0.7 of what it was, though here nothing is congested: the losses are random."
+  - label: "The window, cut again and again"
+    lines: "10"
+    note: "During a lossy run: `cwnd:21` and `ssthresh:14`, the slow-start threshold CUBIC lowered at the last loss, and `rtt:51` (no queue builds now). `send 4761573bps` is 21 × 1,448 × 8 ÷ 0.051: one window per round trip, about 4.8 Mbit/s, on a 50 Mbit/s link."
+  - label: "The same path, BBR"
+    lines: "11-13"
+    note: "`-C bbr` makes this one test use BBR: about 45 Mbit/s through the same loss, with about 150 packets sent again, five times CUBIC's. `ss` now shows `bbr` and BBR's model of the path, `bbr:(bw:48746488bps,mrtt:50,...)`: the highest delivery rate it has seen lately, about 48.7 Mbit/s, and the shortest round trip, 50 ms. Their product, 48,746,488 ÷ 8 × 0.05 = 304,666 bytes or about 210 segments, is the path's bandwidth-delay product, and `unacked:188`, the segments in flight, sits near it. `cwnd` (452 here) is only BBR's cap, `cwnd_gain` (2) times that product. `tcp_available_congestion_control` lists `bbr` now: the kernel loads it the first time something asks for it (on this computer something may have asked already)."
+  - label: "Twice the distance"
+    lines: "14-17"
+    note: "`wan-set 50mbit 50ms 1%`: the same loss on a 100 ms round trip. CUBIC falls to about 2 Mbit/s, roughly half: a loss-based algorithm sends one window per round trip, so twice the round trip halves the rate. BBR still gets about 41. The last line puts the link back as shipped."
+  - label: "Write the numbers down"
+    lines: "18"
+    note: "`awk` picks each saved file's `receiver` line and prints its seventh field, the rate, with `printf` and `%.1f` (a number with one decimal place); `FILENAME` is the file the line came from. 46.0 clean, 5.2 lossy, 44.7 with BBR through the same loss."
+  - label: "For good, on the sender"
+    lines: "19-21"
+    note: "Congestion control runs where data is sent from, so BBR for the backups is shop's setting. `net.ipv4.tcp_congestion_control = bbr` in a file in shop's own `/etc/sysctl.d/` sets it at every boot (as Routing showed for `ip_forward`), and `sysctl -p FILE` applies that file now. New connections use it at once, so the same iperf3 command without `-C` gets about 42 Mbit/s."
+  - label: "The site and its firewall"
+    lines: "22-23"
+    note: "The Caddyfile: its global options (the block in braces at the top) name the HTTP versions the site speaks, `protocols h1 h2 h3` (HTTP/1.1, HTTP/2 and HTTP/3, Caddy's default written out); the site block serves `shop.test` with a certificate from Caddy's own authority (`tls internal`) and answers with the version the request came over. `ss -tulpn` lists TCP and UDP sockets: Caddy listens on TCP 80 and 443, on **UDP** 443 for HTTP/3, and on 127.0.0.1:2019, its admin endpoint, reachable only from shop. shop's firewall lets in TCP 22, 80 and 443 and UDP 443."
+  - label: "HTTP/3 is offered over TCP first"
+    lines: "24-25"
+    note: "`curl -sI` asks for the headers over HTTPS on TCP: `HTTP/2 200` and `alt-svc: h3=\":443\"; ma=2592000`, the Alt-Svc header: \"this same site speaks HTTP/3 on UDP port 443; remember that for 2,592,000 seconds\", 30 days. A browser keeps that and tries HTTP/3 next time. `h3get` goes straight to HTTP/3: `HTTP/3 200` and `hello over HTTP/3.0`."
+  - label: "What the wire shows"
+    lines: "26-28"
+    note: "A capture on shop's `eth0` while h3get runs. All tcpdump can say is `UDP, length N`: everything inside is encrypted, and this tcpdump doesn't even name it QUIC. The office's first datagram is exactly 1,200 bytes: QUIC pads it to at least that, which proves the path carries datagrams that big. shop answers with 1,252 + 269 + 32 bytes, under three times what it has received, the most QUIC lets a server send before it has checked that the client's address is real."
+  - label: "What the client sees"
+    lines: "29-30"
+    note: "gtlsclient's log, cut down with `grep` and `sed`. Each line starts `I` and the milliseconds since the start. At 0 the client sends its Initial packet, its first TLS message inside a `CRYPTO` frame. At about 102 ms, one round trip later, the server's Initial and Handshake packets arrive, with its transport parameters: `max_idle_timeout=30000`, QUIC's own idle timer, 30 seconds, the smaller of the two sides'. \"QUIC handshake has completed\" follows, and at 104 the request goes out on stream `0x0`; the answer arrives at about 205, with `[:status: 200]`."
+  - label: "Count the round trips"
+    lines: "31"
+    note: "`curl -w` prints three times, in seconds, for HTTP/2 over TCP: the TCP connection made (0.100, one round trip), TLS done (0.203, two), and the first byte of the answer (0.304, three). Over QUIC, gtlsclient had the answer at 205 ms: one round trip sooner, because QUIC does the transport's handshake and the encryption's in one."
+  - label: "When UDP 443 is dropped"
+    lines: "32-36"
+    note: "A drop rule for UDP 443 at the top of shop's input chain, live, for one test. h3get gets no answer and gives up after 5 seconds; curl over TCP still gets `hello over HTTP/2.0`. A browser does what curl does here: it falls back to HTTP/2 and tells nobody, so a firewall that blocks UDP 443 makes a site slower on bad links, never broken. Reloading `nftables@shop` loads the file's rules again, and HTTP/3 works."

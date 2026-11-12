@@ -1,0 +1,105 @@
+#!/usr/bin/python3
+"""h3get: one HTTP/3 request, as a browser that knows a site speaks HTTP/3 makes it.
+
+Usage: h3get [-I] [-m SECONDS] URL
+
+Ubuntu 24.04's curl can't speak HTTP/3, so the labs use this small client,
+built on aioquic (a QUIC and HTTP/3 library for Python). It prints the
+answer the way curl -i does: the status line ("HTTP/3 200"), the headers, a
+blank line and the body; with -I, the status line and headers only. It
+checks the server's certificate against the machine's trusted authorities,
+as curl does. It exits 0 with an answer, and 1, with a line on stderr, when
+no answer came over HTTP/3 within SECONDS (5 unless -m says otherwise).
+Scenery: a lab's tool, not the learner's to change.
+"""
+
+import argparse
+import asyncio
+import sys
+from urllib.parse import urlparse
+
+from aioquic.asyncio.client import connect
+from aioquic.asyncio.protocol import QuicConnectionProtocol
+from aioquic.h3.connection import H3_ALPN, H3Connection
+from aioquic.h3.events import DataReceived, HeadersReceived
+from aioquic.quic.configuration import QuicConfiguration
+
+
+class Client(QuicConnectionProtocol):
+    """A QUIC connection that speaks HTTP/3 and keeps one answer."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.http = H3Connection(self._quic)
+        self.done = asyncio.Event()
+        self.headers = []
+        self.body = b""
+
+    def quic_event_received(self, event):
+        for answer in self.http.handle_event(event):
+            if isinstance(answer, HeadersReceived):
+                self.headers += answer.headers
+            elif isinstance(answer, DataReceived):
+                self.body += answer.data
+            if getattr(answer, "stream_ended", False):
+                self.done.set()
+
+
+async def fetch(url):
+    host, port = url.hostname, url.port or 443
+    config = QuicConfiguration(is_client=True, alpn_protocols=H3_ALPN, server_name=host)
+    async with connect(host, port, configuration=config, create_protocol=Client) as client:
+        stream = client._quic.get_next_available_stream_id()
+        path = url.path or "/"
+        if url.query:
+            path += "?" + url.query
+        request = [
+            (b":method", b"GET"),
+            (b":scheme", b"https"),
+            (b":authority", url.netloc.encode()),
+            (b":path", path.encode()),
+            (b"user-agent", b"h3get"),
+        ]
+        client.http.send_headers(stream, request, end_stream=True)
+        client.transmit()
+        await client.done.wait()
+        return client.headers, client.body
+
+
+async def fetch_within(url, seconds):
+    # A connection given up on leaves aioquic's own waiting behind it; its
+    # complaint about that ("Future exception was never retrieved") is noise.
+    asyncio.get_running_loop().set_exception_handler(lambda loop, context: None)
+    return await asyncio.wait_for(fetch(url), seconds)
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="h3get", description="One HTTP/3 request.")
+    parser.add_argument("-I", dest="head", action="store_true", help="print the status line and headers only")
+    parser.add_argument("-m", dest="seconds", type=float, default=5, help="give up after this many seconds (5)")
+    parser.add_argument("url")
+    args = parser.parse_args()
+    url = urlparse(args.url)
+    if url.scheme != "https" or not url.hostname:
+        parser.error("the URL must start with https://")
+    try:
+        headers, body = asyncio.run(fetch_within(url, args.seconds))
+    except asyncio.TimeoutError:
+        print(f"h3get: no answer over HTTP/3 from {url.hostname} port {url.port or 443} within {args.seconds:g} seconds", file=sys.stderr)
+        return 1
+    except (ConnectionError, OSError) as error:
+        print(f"h3get: the HTTP/3 connection to {url.hostname} failed: {error or type(error).__name__}", file=sys.stderr)
+        return 1
+    status = dict(headers).get(b":status", b"?").decode()
+    print(f"HTTP/3 {status}")
+    for name, value in headers:
+        if not name.startswith(b":"):
+            print(f"{name.decode()}: {value.decode()}")
+    if not args.head:
+        print()
+        sys.stdout.write(body.decode(errors="replace"))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

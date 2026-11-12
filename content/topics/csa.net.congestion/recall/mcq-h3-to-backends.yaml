@@ -1,0 +1,14 @@
+id: mcq-h3-to-backends
+type: mcq
+rev: 1
+prompt: |
+  You leave HTTP/3 on (its default) for a site behind Google Cloud's global external Application Load Balancer. What do your backend servers receive?
+choices:
+  - "Requests in their backend service's protocol, as HTTP/3 ends at the load balancer"
+  - "Requests over HTTP/3, so the backends must listen on UDP port 443 for them as well"
+  - "The clients' QUIC packets, passed on untouched and still encrypted end to end"
+  - "Nothing changes: the load balancer uses HTTP/3 only for its own health checks"
+answer: 0
+explanation: |
+  Google's page says HTTP/3 is supported "for connections between clients and the load balancer": the load balancer ends each QUIC connection and makes its own requests to the backends in the protocol their backend service is set to. Azure's Application Gateway does the same, with HTTP/1.1 to its backends. Passing QUIC packets through untouched is what AWS's Network Load Balancer does in its QUIC passthrough mode: a layer 4 box that doesn't end the connection, so there the targets do speak QUIC. And the page puts HTTP/3 between the clients and the load balancer, not in what it uses to check its backends.
+skills: [http3-in-practice]

@@ -1,0 +1,122 @@
+# The checks of "Fast from far away". The archive's speed is one fresh
+# 6-second transfer, which must reach 25 Mbit/s: the middle of the gap
+# between CUBIC's 1.4 to 7.4 and BBR's 41 to 43 measured on this path (50
+# Mbit/s, a 100 ms round trip, 1% loss; the Module 3 congestion designer,
+# 2026-11-11, and this lab, 2026-11-12, on Docker Desktop). Fixes that last
+# are read where they last: shop's congestion control against a fresh build
+# of its files, fw's firewall against its /etc/nftables.conf. The scenery
+# (the links, the archive job, the HTTP/3 client) is compared with what it
+# was shipped as.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: archive-speed
+    description: "The nightly archive reaches dr1 at 25 Mbit/s or more on its one connection, half the link's 50."
+    timeout: 45
+    command: archive-push 2>&1
+    expect:
+      gte: 25
+  # netlab verify's copy of shop (chk-shop) is built from the topology and
+  # shop's own files, as a reboot would build it: the values there are the
+  # ones shop would have after a reboot, whether a file sets them or not.
+  # Only isp, which is scenery, is compared, so the copy is read whatever
+  # else on shop has changed. Two things choose the algorithm a connection
+  # starts with: the system's setting, and a route's own (ip route ...
+  # congctl), so shop's routes are compared too.
+  - id: speed-lasts
+    description: "The congestion control shop sends with now, and its routes, are the ones its own files give it at boot, so a reboot keeps the archive's speed."
+    command: |
+      state() { on "$1" sysctl -n net.ipv4.tcp_congestion_control; ip -n "$1" route show table main; }
+      live=$(state shop)
+      fresh=$(netlab verify isp -- bash -c "$(declare -f state); state chk-shop" 2>&1) || { echo "the internet's router, isp, isn't as it was shipped"; exit 0; }
+      live_cc=${live%%$'\n'*} fresh_cc=${fresh%%$'\n'*}
+      [ "$live_cc" = "$fresh_cc" ] || { echo "shop sends with $live_cc now, and would send with $fresh_cc after a reboot"; exit 0; }
+      [ "$live" = "$fresh" ] || { echo "shop's routes now aren't the ones its own files give it at boot"; exit 0; }
+      echo lasts
+    expect:
+      equals: lasts
+  # Tried twice, in case Caddy is still starting after a boot.
+  - id: h3-from-the-office
+    description: "The office gets the site over HTTP/3."
+    timeout: 20
+    command: |
+      for try in 1 2; do
+        out=$(on office h3get -m 5 https://shop.test/ 2>&1)
+        case "$out" in *"hello over HTTP/3.0"*) echo "over HTTP/3"; exit 0 ;; esac
+        sleep 1
+      done
+      echo "the office gets no answer over HTTP/3 from https://shop.test/"
+    expect:
+      equals: "over HTTP/3"
+  - id: advertised
+    description: "The site's answers over HTTPS tell browsers it speaks HTTP/3 on UDP port 443."
+    command: |
+      headers=$(on office curl -sI -m 5 https://shop.test/ 2>&1)
+      if echo "$headers" | grep -i '^alt-svc:.*h3=":443"' > /dev/null; then echo advertised; else echo "the site's answers over HTTPS don't say it speaks HTTP/3 on port 443"; fi
+    expect:
+      equals: advertised
+  # Listeners of the check's own on shop, on ports the site doesn't serve:
+  # three UDP ports that datagrams from the office must not reach, and one
+  # TCP port that must give no answer at all, as a firewall's drop gives.
+  # shop has no firewall of its own, so fw is what must stop them.
+  - id: only-what-it-serves
+    description: "The site's firewall still lets nothing from the internet reach shop but SSH and the site: datagrams to UDP ports 4433, 5000 and 9999 and connections to TCP port 8080 get nowhere."
+    timeout: 25
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      dir=$(mktemp -d)
+      cleanup() { kill $(jobs -p) 2> /dev/null; rm -rf "$dir"; }
+      trap cleanup EXIT
+      for port in 4433 5000 9999; do
+        on shop timeout 12 socat -u UDP4-RECV:"$port" STDOUT > "$dir/udp-$port" 2> /dev/null &
+      done
+      on shop holdserver 8080 > /dev/null 2>&1 &
+      # Each listener must be up before the office sends, or a datagram the
+      # firewall let in would find nobody and look like one it dropped.
+      for try in $(seq 1 25); do
+        [ "$(on shop ss -Huln | grep -cE ':(4433|5000|9999) ')" -ge 3 ] && break
+        sleep 0.2
+      done
+      for port in 4433 5000 9999; do
+        on office bash -c "echo probe | nc -u -w 1 203.0.113.10 $port" > /dev/null 2>&1
+      done
+      tcp=$(tcp_state office 203.0.113.10 8080)
+      sleep 1
+      for port in 4433 5000 9999; do
+        [ -s "$dir/udp-$port" ] && { echo "a datagram from the office reached shop's UDP port $port"; exit 0; }
+      done
+      [ "$tcp" = dropped ] || { echo "from the office, shop's TCP port 8080 is $tcp"; exit 0; }
+      echo "only the site"
+    expect:
+      equals: "only the site"
+  - id: firewall-lasts
+    description: "The firewall running on fw is the one its /etc/nftables.conf loads at every boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(systemctl is-enabled nftables@fw 2> /dev/null)" = enabled ] || { echo "fw's firewall isn't loaded at boot"; exit 0; }
+      differs=$(nft_saved fw) || { echo "fw's running firewall isn't the one its /etc/nftables.conf loads at boot: $(echo "$differs" | tr '\n' ' ')"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  # The links' live shaping against a fresh build's (netlab verify's copy,
+  # from the sealed topology), so a change made live with tc shows. A
+  # qdisc's handle is only a number: left out. Each interface is named.
+  - id: links-and-job-as-shipped
+    description: "The private link and the internet are as they were shipped, and so are the archive job and the HTTP/3 client."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      shaping() {
+        p=$1
+        {
+          ip netns exec "${p}wan" tc qdisc show dev dr1
+          ip netns exec "${p}wan" tc qdisc show dev shop
+          ip netns exec "${p}isp" tc qdisc show dev office
+          ip netns exec "${p}isp" tc qdisc show dev fw
+        } | sed 's/netem [0-9a-f]*:/netem/'
+      }
+      live=$(shaping "")
+      fresh=$(netlab verify wan isp -- bash -c "$(declare -f shaping); shaping chk-")
+      if [ "$live" = "$fresh" ]; then echo "as shipped"; else echo "the links' shaping was changed: now $(echo "$live" | tr '\n' ' ')"; fi
+    expect:
+      equals: "as shipped"

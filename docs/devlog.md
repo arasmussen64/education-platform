@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-12, night: Module 3's wave 3
+
+The owner is still away; decisions follow their message of 2026-11-11. Wave 3 (congestion control and QUIC, certificates and mutual TLS, IPsec) was written while wave 2 landed, and lands the same way, a topic a pull request. Wave 4 (Network troubleshooting and Checkpoint 3) is being written, and the design of Module 4, security and identity foundations, has begun.
+
+**Congestion control and QUIC is ready** (#270). It teaches the sender's own limit, the congestion window, beside TCP and UDP's receive window: slow start, why loss-based algorithms cut their window at every lost packet (so one connection on a long path that loses a few packets at random is capped near 1.2 × MSS ÷ (RTT × √p)), bufferbloat, and BBR, which measures the bottleneck's rate and the shortest round trip instead. The setting matters only on the machine that sends, and lasts in `/etc/sysctl.d`. Then QUIC (one handshake for transport and encryption, streams that don't block each other, connection IDs, almost everything encrypted) and HTTP/3 (found through Alt-Svc or an HTTPS record, with a silent fallback to HTTP/2 when UDP 443 is blocked). In the worked example CUBIC manages 5 Mbit/s through 1% loss and BBR 45. Five labs (38 known-wrong fixes) and 27 recall items. The review found a live-only fix that passed (BBR set on the route, which the next boot rebuilds without it) and a first-run check message that named the debug's wrong port.
+
+**Author notes:**
+
+- _Congestion's build puts the firewall on a separate router,_ not on the server as the plan had it, so the build asks for UDP 443 on every firewall on the path and isn't a twin of the fill-in and the debug.
+- _Congestion's thresholds sit in the measured gaps:_ CUBIC managed 1.4 to 9 Mbit/s and BBR 41 to 45 on the lossy paths, so 25 Mbit/s is the line.
+- _Google's 2017 BBR blog post was dropped_ (it renders only in a browser, so neither its numbers nor its licence could be read again), and the lesson claims nothing about congestion control at the clouds' own edges that couldn't be re-read.
+
+**Next:** Certificates and mutual TLS, then IPsec, each in its own pull request; wave 4 is being written.
+
 ## 2026-11-12, evening: Module 3's wave 2
 
 The owner is still away; decisions follow their message of 2026-11-11. Wave 2's first half (IPv6, NAT, TCP and UDP) was written while wave 1 landed, with wave 1's lessons added to the writers' brief, and its second half (HTTP and TLS, load balancing, steering traffic) is being written now. Each topic lands in its own pull request, as before.

@@ -1,0 +1,26 @@
+id: debug-slow-from-far
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Slow from far away"
+prompt: |
+  Last month the shop moved its server, `shop`, to a cloud region on another continent. Every machine is described here, the broken parts and the working ones alike; `netlab show` lists them.
+
+  - **The site** is Caddy on shop (`caddy@shop`, its settings in shop's `/etc/caddy/Caddyfile`), serving `https://shop.test/` to the office and to customers. `on office curl -s https://shop.test/` asks for the page over HTTPS and prints which HTTP version answered; `on office h3get https://shop.test/` asks for it over HTTP/3. Every machine trusts the certificate the site gets from Caddy's own authority.
+  - **shop's firewall** is `nftables@shop`, its rules in shop's `/etc/nftables.conf`. It lets in SSH and the site, and drops everything else.
+  - **The nightly archive** goes from shop to the DR site's server, `dr1` (10.0.6.20), on one TCP connection across a private link, `wan`: 50 Mbit/s, a 50 ms round trip, and about 1% of the packets on their way to dr1 lost at random. dr1's receiver is iperf3's server, `backup-sink@dr1`. `archive-push` runs the archive's job now, for 6 seconds, and prints how many Mbit/s dr1 received. The job is another team's tool and the link isn't the shop's: both are scenery.
+  - **The office**, `office`, reaches shop across the internet, `isp`, with a 100 ms round trip.
+
+  Since the move, the archive runs at a tenth of the link's speed or less, and although the team turned HTTP/3 on for the site before the move, no browser in the office has used it once. There are three faults. Find each one from the evidence and fix it where it lives, on shop or dr1.
+
+  The rules of the fix:
+
+  - **shop's firewall still lets in only what the site serves.**
+  - **The link stays as it is, and the archive keeps its one connection.**
+  - **Every fix lasts after a reboot.**
+
+  When the archive reaches at least half the link's speed and the office gets the site over HTTP/3, run the checks.
+skills: [bbr-model, http3-in-practice]

@@ -1,0 +1,14 @@
+id: mcq-capture-shows
+type: mcq
+rev: 1
+prompt: |
+  You capture an HTTP/3 request with `tcpdump` on the server. What can you read in the capture?
+choices:
+  - "The addresses, UDP ports and each datagram's length, but not the request"
+  - "The URL and the headers, since QUIC encrypts only the body of a request"
+  - "TCP's three handshake packets, then encrypted data like any other HTTPS"
+  - "Nothing at all, since QUIC encrypts the IP and the UDP headers as well"
+answer: 0
+explanation: |
+  QUIC encrypts almost everything it sends, its own packet numbers and acknowledgements included, so the request and its headers are unreadable. What stays in the clear is what the network needs to carry the datagrams: the IP header with the addresses, and the UDP header with the ports and the length. In this topic's lab, tcpdump showed only lines like `192.0.2.10.55698 > 203.0.113.10.443: UDP, length 1200`; Ubuntu 24.04's tcpdump doesn't even name it QUIC. HTTP/3 runs on QUIC over UDP, so there's no TCP handshake at all. To see inside, you need the client's own log, as gtlsclient's showed.
+skills: [quic-changes]

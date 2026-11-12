@@ -1,0 +1,14 @@
+id: mcq-cubic-after-loss
+type: mcq
+rev: 1
+prompt: |
+  A CUBIC sender's congestion window is 100 segments when three duplicate acknowledgements tell it one packet was lost. What does it do next?
+choices:
+  - "Cuts the window to 70 segments, then regrows it on a curve that flattens near 100"
+  - "Cuts the window to 50 segments, then adds one segment for each round trip after"
+  - "Cuts the window to 1 segment and starts slow start again, doubling each round trip"
+  - "Keeps the window at 100 segments, since one lost packet isn't proof of congestion"
+answer: 0
+explanation: |
+  CUBIC's multiplicative decrease is 0.7 (RFC 9438), so 100 segments become 70; then the window grows along a cubic curve, quickly at first, slowly near the 100 where the loss happened, and faster again past it. Halving and then adding one segment a round trip is Reno's sawtooth, the older algorithm. Back to 1 segment is what follows a retransmission timeout, when the acknowledgements stop altogether, not a loss that fast retransmit repairs. Keeping the window whatever the loss is closer to BBR, which doesn't react directly to loss; CUBIC is loss-based, so it always cuts.
+skills: [loss-based-cc]

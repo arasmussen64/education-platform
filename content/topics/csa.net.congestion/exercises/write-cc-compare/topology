@@ -1,0 +1,27 @@
+# The network of "Compare the two": the shop's server and its two DR sites,
+# behind one private link.
+#
+#   shop 10.0.5.10 --- wan --- dr1 10.0.6.20   (50 Mbit/s, 1% loss)
+#                          \-- dr2 10.0.7.20   (20 Mbit/s, no loss)
+#
+# wan is scenery: 25 ms each way to both sites (a 50 ms round trip). The
+# link to dr1 carries 50 Mbit/s and loses 1% of the packets towards dr1 at
+# random; the link to dr2 carries 20 Mbit/s and loses none.
+machine shop
+machine wan router
+machine dr1
+machine dr2
+
+link shop:eth0=10.0.5.10/24 wan:shop=10.0.5.1/24
+link wan:dr1=10.0.6.1/24 dr1:eth0=10.0.6.20/24
+link wan:dr2=10.0.7.1/24 dr2:eth0=10.0.7.20/24
+
+route shop default via 10.0.5.1
+route dr1 default via 10.0.6.1
+route dr2 default via 10.0.7.1
+
+# Towards each site, where the data goes: its speed, its delay and (to dr1)
+# its loss. Back towards shop, where the acknowledgements go, the delay only.
+netem wan dr1 rate 50mbit delay 25ms loss 1% limit 2000
+netem wan dr2 rate 20mbit delay 25ms limit 2000
+netem wan shop delay 25ms limit 2000

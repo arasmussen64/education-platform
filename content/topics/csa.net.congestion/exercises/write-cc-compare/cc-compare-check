@@ -1,0 +1,67 @@
+#!/bin/bash
+# cc-compare-check SITE HOST SECONDS [lossy]: the checks of "Compare the two"
+# (checks.yaml), kept here so the two checks that run the script share one
+# reading of it. Runs the learner's ~/bin/cc-compare on shop, as root there,
+# the way the prompt runs it, against HOST for SECONDS; reads what SITE's
+# receiver (iperf3's server, backup-sink@SITE) logged for each test while
+# it ran; and prints "measured", or the first thing that's wrong. With
+# "lossy", the two rates must also show CUBIC first and BBR second across a
+# lossy link. Not in the learner's PATH: a check's tool, not theirs.
+site=$1 host=$2 seconds=$3 mode=${4:-}
+unit=backup-sink@$site
+# The receiver's journal from here on: the cursor marks its last line now.
+cursor=$(journalctl -u "$unit" -n 1 --show-cursor -o cat --no-pager 2> /dev/null | sed -n 's/^-- cursor: //p')
+out=$(on shop /home/learner/bin/cc-compare "$host" "$seconds" 2>&1)
+sleep 1
+if [[ -n $cursor ]]; then
+  log=$(journalctl -u "$unit" --after-cursor "$cursor" -o cat --no-pager 2> /dev/null | grep 'receiver$')
+else
+  log=$(journalctl -u "$unit" -o cat --no-pager 2> /dev/null | grep 'receiver$')
+fi
+OUT=$out LOG=$log SITE=$site MODE=$mode SECONDS_ASKED=$seconds python3 - << 'EOF'
+import os, re, sys
+
+out, log, site, mode = (os.environ[name] for name in ("OUT", "LOG", "SITE", "MODE"))
+asked = float(os.environ["SECONDS_ASKED"])
+lines = [line.strip() for line in out.strip().splitlines()]
+shapes = [r"cubic (\d+\.\d)", r"bbr (\d+\.\d)", r"bbr/cubic (\d+\.\d)"]
+found = [re.fullmatch(shape, line) for shape, line in zip(shapes, lines)]
+if len(lines) != 3 or not all(found):
+    sys.exit(print("the script printed something other than the three lines: " + " | ".join(lines)[:160]))
+cubic, bbr, ratio = (float(match.group(1)) for match in found)
+
+# iperf3's server ends each test with a line like
+# "[  5]   0.00-3.05   sec  6.88 MBytes  18.9 Mbits/sec   receiver".
+scale = {"bits": 1e-6, "Kbits": 1e-3, "Mbits": 1, "Gbits": 1e3}
+counted, lasted = [], []
+for line in log.splitlines():
+    match = re.search(r"0\.00-([\d.]+)\s+sec\s.*?([\d.]+) (bits|Kbits|Mbits|Gbits)/sec\s+receiver$", line)
+    if match:
+        lasted.append(float(match.group(1)))
+        counted.append(float(match.group(2)) * scale[match.group(3)])
+if len(counted) != 2:
+    sys.exit(print(f"{site}'s receiver counted {len(counted)} tests while the script ran, not two"))
+# The receiver's interval runs from the first byte to the last, a little
+# past the seconds asked for.
+for test, took in zip(("first", "second"), lasted):
+    if not asked <= took < asked + 1:
+        sys.exit(print(f"the {test} test lasted {took} s at the receiver, and the script was asked for {asked:g}"))
+for name, said, true in (("cubic", cubic, counted[0]), ("bbr", bbr, counted[1])):
+    # Within 10%, and 0.05 more for the rounding to one decimal.
+    if abs(said - true) > 0.1 * true + 0.05:
+        sys.exit(print(f"the script says {name} {said}, and {site}'s receiver counted {true:.2f} Mbit/s for that test"))
+if cubic == 0:
+    sys.exit(print("the script says cubic 0.0"))
+# The ratio of the two printed rates, or of the unrounded ones: either is
+# within 0.1, or 5%, of the printed rates' ratio.
+if abs(ratio - bbr / cubic) > max(0.1, 0.05 * bbr / cubic):
+    sys.exit(print(f"the third line says {ratio}, and {bbr} / {cubic} is {bbr / cubic:.1f}"))
+if mode == "lossy":
+    # Across the lossy link CUBIC gets 1.4 to 13.5 Mbit/s and BBR 41 to 46
+    # (measured 2026-11-11 and 12); both thresholds sit in those gaps.
+    if cubic >= 25:
+        sys.exit(print(f"across {site}'s lossy link the first test got {cubic} Mbit/s, which isn't what CUBIC gets there"))
+    if bbr < 2 * cubic:
+        sys.exit(print(f"across {site}'s lossy link the second test got {bbr} Mbit/s against the first's {cubic}, which isn't what BBR gets beside CUBIC"))
+print("measured")
+EOF

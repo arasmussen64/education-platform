@@ -1,0 +1,21 @@
+#!/bin/bash
+# wan-set RATE DELAY LOSS: the private link's console, as a provider's
+# portal would offer for a test link. Sets wan, the link between shop and
+# dr1: RATE towards dr1, DELAY each way (so the round trip is twice it),
+# and LOSS of the packets towards dr1 lost at random. For example
+# "wan-set 50mbit 25ms 1%", which is how the lab ships it.
+# Scenery: it changes only the link, and always exits 0, as a console does
+# whatever it was asked; the link's state is for tc and ping to show.
+if [[ $# -ne 3 ]]; then
+  echo "usage: wan-set RATE DELAY LOSS   (as shipped: wan-set 50mbit 25ms 1%)" >&2
+  exit 0
+fi
+if on wan tc qdisc change dev dr1 root netem rate "$1" delay "$2" loss "$3" limit 2000 \
+  && on wan tc qdisc change dev shop root netem delay "$2" limit 2000; then
+  # A second for packets already queued under the old settings to drain.
+  sleep 1
+  echo "wan: $1 towards dr1, $2 each way, $3 of the packets towards dr1 lost"
+else
+  echo "wan-set: the link didn't take those settings (RATE like 50mbit, DELAY like 25ms, LOSS like 1%)" >&2
+fi
+exit 0

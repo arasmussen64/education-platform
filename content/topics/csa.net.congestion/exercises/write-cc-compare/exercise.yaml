@@ -1,0 +1,27 @@
+id: write-cc-compare
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Compare the two"
+prompt: |
+  The shop's server, `shop`, sends backups to two DR sites over one private link, `wan`, with a 50 ms round trip to each: `dr1` (10.0.6.20), across 50 Mbit/s that loses about 1% of the packets on the way, and `dr2` (10.0.7.20), across 20 Mbit/s that loses none. Each site's backup receiver is iperf3's server (`backup-sink@dr1`, `backup-sink@dr2`), and `journalctl -u backup-sink@dr1` shows what it counted for each test. Before the team moves its backups to BBR, it wants a script that measures the difference to any site.
+
+  Write **`~/bin/cc-compare HOST SECONDS`**. It measures one TCP connection to `HOST` with CUBIC, then one with BBR, each for `SECONDS` seconds, and prints three lines: the rate the receiver counted for each test, in Mbit/s, and the second divided by the first, each number with one decimal:
+
+  ```text
+  cubic 5.4
+  bbr 44.6
+  bbr/cubic 8.3
+  ```
+
+  Run with anything but two arguments, it prints a usage line and exits with a non-zero status. A site's receiver takes one test at a time and needs a moment after each before it listens again, so the script waits a second (`sleep 1`) between its two tests.
+
+  The script runs on shop, the sender, where congestion control is chosen: `on shop ~/bin/cc-compare 10.0.6.20 4`. Your home folder is the same on the lab machine and on every machine, so `~/bin` is too, and `on` runs the script as root on shop, where `iperf3` inside it runs too. Start from a blank file with `nano ~/bin/cc-compare`, make it executable with `chmod +x ~/bin/cc-compare`, and try it on both sites. Then run the checks: they run it against each site themselves and compare its numbers with what that site's receiver counted.
+hints:
+  - "`iperf3 -c HOST -t SECONDS -C cubic -f m` runs one test with CUBIC; `-f m` gives every rate in Mbits/sec, however slow. Its output ends with two summary lines: the one ending `sender` counts what shop handed to its own kernel to send, the one ending `receiver` what the receiver got."
+  - "`awk '/receiver$/ {print $7}'` picks the receiver's rate: in `[  5]   0.00-4.05  sec  3.86 MBytes  8.00 Mbits/sec   receiver` the seventh field is the rate."
+  - "`awk -v c=\"$cubic\" -v b=\"$bbr\" 'BEGIN {printf \"%.1f\\n\", b / c}'` divides and prints one decimal: `-v` hands awk a value from the shell, and `BEGIN` runs before awk reads any input, so it needs none."
+skills: [bbr-model, loss-latency-math]

@@ -1,0 +1,14 @@
+id: mcq-receiver-bbr
+type: mcq
+rev: 1
+prompt: |
+  Customers upload backups to your server across long, lossy paths. You put `net.ipv4.tcp_congestion_control = bbr` in a file in the server's `/etc/sysctl.d` and reboot it. The uploads are no faster. Why?
+choices:
+  - "Congestion control runs at the sender, and the uploads' sender is the customer"
+  - "BBR applies only to connections made after the next kernel update is installed"
+  - "BBR also needs the fq queueing discipline, which the reboot didn't switch on"
+  - "BBR can't help on a lossy path, because each lost packet still halves its window"
+answer: 0
+explanation: |
+  Congestion control decides how fast data is sent, so it runs on the machine the data comes from. For an upload that's the customer's machine, with the customer's algorithm, usually CUBIC; the server only sends acknowledgements back. Setting BBR on the server helps its downloads, not its uploads (tried in this topic's lab: BBR set only on the receiver changed nothing). The setting applies to new connections at once, no kernel update needed. Linux's BBR paces by itself without fq: the kernel's comment says it falls back to "an internal pacing". And BBR doesn't halve on a loss; that's how it got 45 Mbit/s through 1% loss in the lab.
+skills: [bbr-model]

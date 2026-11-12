@@ -1,0 +1,18 @@
+# The shop's site, served by Caddy over HTTPS, with a certificate from
+# Caddy's own local certificate authority (tls internal), which every
+# machine in the lab trusts. skip_install_trust: the lab trusts that
+# authority itself, so Caddy needn't try to.
+{
+	skip_install_trust
+	# The HTTP versions the site speaks: HTTP/1.1, HTTP/2 and HTTP/3
+	# (Caddy's default, written out).
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+shop.test {
+	tls internal
+	respond "hello over {http.request.proto}
+"
+}

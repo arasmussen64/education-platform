@@ -1,0 +1,19 @@
+id: ngtcp2-idle
+type: predict_shell
+rev: 1
+prompt: |
+  `ngtcp2.txt` holds three lines of gtlsclient's log of one HTTP/3 request from the office to the shop's site, captured on 2026-11-12 in this topic's lab "CUBIC meets a lossy link", each cut to its first 140 characters: the client's first packet, and two of the transport parameters the server sent in its handshake. Each line starts with the milliseconds since the start. The command prints QUIC's idle timer for this connection, in seconds. What is printed?
+files:
+  ngtcp2.txt: |
+    I00000000 0x69c4df052eac605d87bb57584f3502ab56 pkt tx pkn=0 dcid=0xde3d42b315e1734e026f8cc06f3f4f8f08f9 scid=0x69c4df052eac605d87bb57584f350
+    I00000102 0x69c4df052eac605d87bb57584f3502ab56 cry remote transport_parameters initial_max_streams_bidi=100
+    I00000102 0x69c4df052eac605d87bb57584f3502ab56 cry remote transport_parameters max_idle_timeout=30000
+command: |
+  awk -F= '/max_idle_timeout/ {print $NF / 1000, "seconds"}' ngtcp2.txt
+expected_output: |
+  30 seconds
+explanation: |
+  awk splits the matching line at each `=`, so the last field is 30000, the timer in milliseconds, and 30000 ÷ 1000 is 30.
+
+  `max_idle_timeout` is QUIC's own idle timer: a connection that has been quiet that long is closed by each end, silently, and the timer in force is the smaller of the two sides' values. The parameters arrived at 102 ms, one round trip into the connection, with the server's first handshake packet. The other parameter says the server lets the client open up to 100 request streams at once. QUIC rides on UDP, so a NAT or firewall on the path may forget the flow sooner (30 seconds is common, TCP and UDP showed): a long-lived QUIC connection sends PING frames to keep itself and the boxes' state alive.
+skills: [quic-changes]
