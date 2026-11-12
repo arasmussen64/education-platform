@@ -1,0 +1,45 @@
+id: example-issue-and-rotate
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Issue and rotate"
+prompt: |
+  The shop's web server, `web` (10.0.9.1), runs nginx for `www.shop.test`. Its certificate was made by hand from the shop's certificate authority (CA) last time someone remembered, and lasts a year. You'll replace it with one from the CA's ACME service, the way a public site gets one from Let's Encrypt, and set things up so that it renews itself and nginx picks up every renewal. `ca` (10.0.9.5) runs that CA, step-ca, as `step-ca@ca`, at `https://ca.shop.test:9000`. `resolver` (10.0.9.53) is the shop's name server, which every machine asks, and `office` (10.0.9.2) is a customer's laptop. Every machine in the lab trusts the CA's root, as a company's own laptops trust its CA.
+
+  The network labs' basics (machines, `on MACHINE COMMAND`, services named `name@machine`) are in Layers and packets' first lab, `example-follow-a-request`; `netlab show` lists the machines.
+
+  **The lab's fast clock:** this CA's certificates last 24 hours, where a public CA's last months (Let's Encrypt's, 90 days; 200 days at most for any public CA today), and certbot's timer here runs every four hours, where Ubuntu's runs twice a day. certbot runs on web, as `on web certbot ...`, so its files are web's own `/etc/letsencrypt`.
+
+  The walkthrough reads the chain web serves now, asks the CA for a certificate with certbot, looks at what certbot keeps, serves the new certificate, makes renewals reach nginx, renews once by hand to watch it happen, and switches the timer on. Type each line yourself and read what it prints before you type the next.
+steps:
+  - label: "The machines"
+    lines: "1"
+    note: "Four machines on one switch. `netlab show` lists what each runs that the base knows (nginx on web, Unbound on resolver); the CA on ca is the lab's own service, `step-ca@ca`, and `systemctl status step-ca@ca` shows it."
+  - label: "The chain served now"
+    lines: "2-4"
+    note: "`-showcerts` prints every certificate the server sends, and the `grep` keeps three lines of each: `s:`, its **subject** (whom it's for), `i:`, its **issuer** (who signed it), and `v:`, its validity, from `NotBefore` to `NotAfter`. Certificate `0` is the site's own, for `CN = www.shop.test`, issued by `Shop Lab Intermediate CA`; certificate `1` is that intermediate's, issued by `Shop Lab Root CA`. The root's own certificate isn't sent: the office already has it, in its trust store, and that's where the walk up the chain ends, so `Verify return code: 0 (ok)`. Line 4 reads the site's certificate on its own: its subject and issuer, its dates (a year, because whoever made it by hand chose a year: a private CA picks any lifetime it likes), and its **subjectAltName**, the names it's good for, `DNS:www.shop.test`."
+  - label: "Ask the CA"
+    lines: "5"
+    note: "certbot is an ACME client. `--server` names the CA's ACME directory (Let's Encrypt is certbot's default; this is the shop's own), `--webroot -w /var/www/html` says how to prove control of the name, the HTTP-01 challenge: certbot writes a file the CA gave it a name for under `/var/www/html/.well-known/acme-challenge/`, and the CA fetches it over plain HTTP from `http://www.shop.test/`. The site's port-80 server answers that path from `/var/www/html` (`on web cat /etc/nginx/sites-available/shop` shows it) and sends everything else to HTTPS. `-m` gives an address for the account and `--agree-tos`, `--no-eff-email`, `-n` answer certbot's questions in advance. `Account registered.` is the account key certbot made and registered at its first use; then `Successfully received certificate.`, and `This certificate expires on` tomorrow. The line about a scheduled task is Ubuntu's settings speaking: on an ordinary server `certbot.timer` would already be on; here the timer is `certbot@web.timer`, still off until the last step."
+  - label: "What certbot keeps"
+    lines: "6-7"
+    note: "Everything is under web's `/etc/letsencrypt`. `live/www.shop.test/` holds four links: `cert.pem` (the site's certificate), `chain.pem` (the intermediate's), `fullchain.pem` (the two, the site's first) and `privkey.pem` (the key), each pointing at a numbered file in `archive/www.shop.test/`. A server reads the `live/` names, which always lead to the newest. Line 7 reads it: `subject=` is empty, because the CA puts the name only in the subjectAltName (marked `critical`: a client that can't read it must refuse the certificate), the issuer is the same intermediate, and it lasts 24 hours and a minute (step-ca dates it a minute back, for clocks a little behind). Its extended key usage says what it may be used for: `TLS Web Server Authentication`, and `TLS Web Client Authentication` too, which matters for mutual TLS later."
+  - label: "Serve it"
+    lines: "8-11"
+    note: "`sed -i` changes the site file's two paths from the hand-made files to certbot's `live/` names (`#` separates sed's parts here, since the paths are full of `/`); `grep` shows the result. `nginx -t` checks the files and `systemctl reload nginx@web` has nginx read them again. Then the office asks again and gets the new certificate: its serial number (`serial=`, a number the CA gives each certificate, never twice) and its 24-hour dates, saved to `~/example/first.txt`."
+  - label: "Make renewals reach nginx"
+    lines: "12-13"
+    note: "A renewal changes certbot's files, never the running nginx, which keeps the certificate it read when it last loaded its settings. A **deploy hook** is a command certbot runs after each certificate it gets: `certbot reconfigure` changes this certificate's renewal settings, after a trial renewal against the CA (`Simulating renewal`), and the hook goes into `/etc/letsencrypt/renewal/www.shop.test.conf` as `renew_hook = systemctl reload nginx@web`. It runs inside web, so it reloads web's nginx, and it says `nginx@web`, not `nginx`: on this lab machine the plain `nginx` unit only says where nginx really runs. The same file says how certbot proved control last time (`authenticator = webroot`, `webroot_path`), which is how it will do it again."
+  - label: "Renew now"
+    lines: "14-16"
+    note: "What the timer does when a certificate is due, done now: `renew` goes through the renewal settings, `--cert-name` picks this one, `--force-renewal` renews even though it isn't due, and `--no-random-sleep-on-renew` skips the random wait of up to eight minutes certbot takes when it runs unattended (so that a million servers don't all ask at the same second). `Congratulations, all renewals succeeded`. In `archive/` there are now two of everything, `cert1.pem` and `cert2.pem`, and the `live/` links point at the `2`s. The hook reloaded nginx, so the office's second look gets a new serial number, saved to `~/example/second.txt`."
+  - label: "Renew by itself"
+    lines: "17-18"
+    note: "`enable --now` switches certbot's timer on now and at every boot. `list-timers` shows when it runs next. certbot 2.9, Ubuntu 24.04's, renews a certificate once it has less than 30 days left (`renew_before_expiry`, commented in the renewal file, is that default), which for a 90-day certificate is two-thirds of the way through its life; a 24-hour certificate is always inside the window, so every run of the timer here renews it. certbot 4.0 and later renew at a third of the lifetime left instead."
+  - label: "What you saved"
+    lines: "19"
+    note: "Two serial numbers, before and after a renewal. Run the checks: they look at what web serves now, compare it with certbot's current certificate, look for your two serials among the certificates certbot got, and read the hook and the timer."
+skills: [cert-chains, acme-and-rotation]

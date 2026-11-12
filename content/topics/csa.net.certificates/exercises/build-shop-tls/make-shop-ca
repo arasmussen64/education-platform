@@ -1,0 +1,28 @@
+#!/bin/bash
+# make-shop-ca: the shop's own certificate authority (CA), made once, when
+# the lab's image is built. It is step-ca, a small CA server that speaks
+# ACME, the protocol certbot asks for certificates with: a root, which every
+# machine in the lab trusts (as a company's managed machines trust the
+# company's own CA), and an intermediate, which signs every certificate the
+# CA issues. step-ca runs on ca, as step-ca@ca, at https://ca.shop.test:9000,
+# and its ACME directory is https://ca.shop.test:9000/acme/acme/directory.
+# Unless told otherwise it issues certificates that last 24 hours: the
+# labs' fast clock, where a public CA's last months.
+#
+# Its files stay in /var/lib/step-ca on the lab machine (only ca runs it):
+# config/ca.json, certs/root_ca.crt and certs/intermediate_ca.crt, the keys
+# in secrets/ (protected by the password beside them), and db/, its record
+# of ACME accounts and orders.
+set -euo pipefail
+export STEPPATH=/var/lib/step-ca
+mkdir -p "$STEPPATH/secrets"
+(umask 077 && openssl rand -hex 24 > "$STEPPATH/secrets/password")
+step ca init --deployment-type standalone --name "Shop Lab" --dns ca.shop.test --address :9000 \
+  --provisioner ops@shop.test --password-file "$STEPPATH/secrets/password" --acme > /dev/null
+chmod 755 "$STEPPATH" "$STEPPATH/certs"
+chmod 644 "$STEPPATH/certs/root_ca.crt" "$STEPPATH/certs/intermediate_ca.crt"
+
+# Every machine's trust store: the file curl, openssl and certbot read by
+# default. The lab has no internet, so it holds the shop's root alone.
+cp "$STEPPATH/certs/root_ca.crt" /etc/ssl/certs/ca-certificates.crt
+chmod 644 /etc/ssl/certs/ca-certificates.crt

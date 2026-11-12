@@ -1,0 +1,23 @@
+id: est-24h-two-thirds
+type: estimate
+rev: 1
+prompt: |
+  The labs' CA issues certificates that last 24 hours. A client renews each certificate two-thirds of the way through its life. How many certificates does one site get through in 30 days? Exactly.
+unit: certificates
+answer: 45
+tolerance: { absolute: 0 }
+given: { hours: 24, days: 30 }
+# Two-thirds of 24 hours is a renewal every 16 hours.
+working: days * hours / (hours * 2 / 3)
+mistakes:
+  - id: one-a-day
+    value: 30
+    working: days
+    why: That's one a day, renewing each certificate as it runs out. Renewing at two-thirds means a new one every 16 hours.
+  - id: at-one-third
+    value: 90
+    working: days * hours / (hours / 3)
+    why: That renews every 8 hours, a third of the way through each certificate's life. Two-thirds is every 16.
+explanation: |
+  Two-thirds of 24 hours is 16, and 30 days is 720 hours: 720 ÷ 16 = 45 certificates. That's the point of very short certificates such as Let's Encrypt's 160-hour ones: revoking one hardly matters when it's gone in days, but only fully automatic renewal can keep up, and every renewal must reach the server, which is the deploy hook's job.
+skills: [acme-and-rotation]

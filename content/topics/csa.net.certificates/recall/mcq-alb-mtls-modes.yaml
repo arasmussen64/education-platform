@@ -1,0 +1,16 @@
+id: mcq-alb-mtls-modes
+type: mcq
+rev: 1
+prompt: |
+  An AWS Application Load Balancer can do mutual TLS in passthrough mode or in verify mode. What does it do with a client's certificate in passthrough mode?
+choices:
+  - "Sends the whole chain to the targets in a header, unchecked, for them to verify it"
+  - "Checks it against a trust store, then sends its subject and serial to the targets"
+  - "Leaves the TLS connection unopened, so that the targets do the whole handshake"
+  - "Accepts it only if it chains to one of the public CAs that AWS already trusts"
+answer: 0
+explanation: |
+  AWS's page: in passthrough mode "the load balancer sends the entire client certificate chain to the target, without verifying it", URL-encoded in the `X-Amzn-Mtls-Clientcert` header, and the targets must verify it. In verify mode the load balancer checks the certificate itself against a trust store (a CA bundle you upload) and passes its details on in `X-Amzn-Mtls-Clientcert-Subject`, `-Issuer`, `-Serial-Number`, `-Validity` and `-Leaf` headers.
+
+  An Application Load Balancer always ends the client's TLS connection itself, in both modes; a Network Load Balancer is the kind that can pass TLS through unopened. And verify mode trusts the CAs you give it, which for clients are usually your own or a partner's, not public ones.
+skills: [mutual-tls]

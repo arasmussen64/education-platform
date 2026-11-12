@@ -1,0 +1,24 @@
+id: est-days-left
+type: estimate
+rev: 1
+prompt: |
+  `openssl x509 -noout -enddate` on a server's certificate says `notAfter=Apr 10 12:00:00 2027 GMT`. It is now 12:00 GMT on 2 March 2027. How many whole days does the certificate have left? Exactly.
+unit: days
+answer: 39
+tolerance: { absolute: 0 }
+given: { today: 2, expiry_day: 10 }
+# March has 31 days, which the learner knows: the rest of March, then 10
+# days of April, both at 12:00.
+working: (31 - today) + expiry_day
+mistakes:
+  - id: thirty-day-month
+    value: 38
+    working: (30 - today) + expiry_day
+    why: That gives March 30 days. March has 31, so 29 of them are left after the 2nd.
+  - id: both-ends
+    value: 40
+    working: (31 - today) + expiry_day + 1
+    why: That counts the first day and the last both. From noon on 2 March to noon on 10 April is 29 days to the end of March and 10 more.
+explanation: |
+  From 12:00 on 2 March to 12:00 on 31 March is 29 days, and from there to 12:00 on 10 April another 10: 39. In a script, `date -d "Apr 10 12:00:00 2027 GMT" +%s` minus `date +%s`, divided by 86400 with `$(( ))`, gives the same, rounded down, which is how a certificate report counts. 39 days is more than a third of a 100-day certificate's life, the most a public CA may issue from March 2027, so an ACME client that renews at two-thirds wouldn't have renewed it yet.
+skills: [cert-chains]

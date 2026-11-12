@@ -1,16 +1,264 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.certificates
 kind: topic
-status: planned
+status: ready
 title: Certificates and mutual TLS
-summary: Build and read certificate chains.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "What a certificate says and how a client decides to trust one: the chain from a site's certificate through intermediates to a root, the names, dates and uses, and the verify failures by their codes; a certificate authority of your own with openssl; ACME and certbot, getting a certificate automatically and making every renewal reach the server, and why lifetimes are shrinking to 47 days; and mutual TLS, where the client proves who it is too, with the three clouds' managed certificates and load balancers side by side."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2,
+# 3.7 and 5, topic 32) and its designer's brief (csa.net.http-tls.md, the
+# chain, ACME and mutual-TLS parts). Through csa.net.http-tls this builds
+# on csa.net.dns (names, CAA, a signature, a hash, DNSSEC's chain of trust
+# and trust anchor), csa.net.congestion and csa.net.transport (RTT, the
+# handshake), the earlier Module 3 topics (machines, on, name@machine
+# services, Unbound) and Module 1 (curl, openssl's s_client, systemctl,
+# timers, journalctl, awk, grep, sed, SSH's key pair). csa.net.http-tls
+# defined symmetric and public-key encryption, key exchange, forward
+# secrecy, cipher suite, handshake, SNI, OCSP and stapling, nginx's files
+# and directives, and named a certificate, root and intermediate CA and
+# subjectAltName in one paragraph. This topic defines, for the module (the
+# plan's 3.7): certificate (X.509), subject, issuer, subjectAltName, CA,
+# root, intermediate, chain, trust store, validity, basic constraints, key
+# usage and extended key usage, CSR, private CA, ACME and its account,
+# order and challenges, Certificate Transparency, deploy hook, mutual TLS
+# and client certificate.
+prerequisites: [csa.net.http-tls]
+# Worked out: the lesson about 25 minutes (3,000 words with its tables),
+# the readings about 30 (Let's Encrypt's two pages 13, Google's mutual TLS
+# overview to "Client validation modes" 8, certbot's two sections 5, nginx's
+# directives 4), 14 recall items at 1.5 each 21, then the worked example
+# 30, the fill-in 30, the write 35, the build 50, the debug 40 and the
+# explain 20: about 280. The plan's 230 is kept (MODULE-3-BRIEF.md, topic
+# 32), as its split of the designer's 332 minutes set it.
+estimated_minutes: 280
 rev: 1
 objectives:
-- Build and read certificate chains.
-- Issue and rotate certificates automatically with ACME.
-- Set up mutual TLS.
+  - "Read a certificate (subject, issuer, subjectAltName, validity, basic constraints, key usage and extended key usage) and the chain a server sends; say how a client walks from a site's certificate through intermediates to a root in its trust store, why a server sends the intermediates and not the root, and name the common verify failures by their codes."
+  - "Make a certificate authority of your own with openssl: a root, an intermediate limited to signing servers' certificates, a server certificate with the right names and use, a full chain, and a client certificate from a separate CA."
+  - "Explain how ACME proves control of a name with its HTTP-01, DNS-01 and TLS-ALPN-01 challenges, get a certificate with certbot, and make it renew by itself and reach the server (the live/ names, a deploy hook, the timer); say why public certificates are shrinking from 398 days to 47 and when to renew."
+  - "Require client certificates on one service and not on another, trusting a separate CA for clients, and say what `optional` lets in; say how the three clouds manage certificates for their load balancers and how their load balancers do mutual TLS."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - The CA/Browser Forum's Baseline Requirements, version 2.3.1 (dated
+#   4 October 2026), section 1.2.2: the maximum validity of a subscriber
+#   certificate is 200 days from 2026-03-15, 100 days from 2027-03-15 and
+#   47 days from 2029-03-15:
+#   raw.githubusercontent.com/cabforum/servercert/main/docs/BR.md. Ballot
+#   SC-081v3 passed (25 issuers yes, 0 no, 5 abstaining; 4 consumers yes):
+#   "Eventual reduction of maximum validity period from 398 days to 47
+#   days", March 2026 to March 2029:
+#   cabforum.org/2025/04/11/ballot-sc081v3-introduce-schedule-of-reducing-validity-and-data-reuse-periods/
+# - Let's Encrypt today issues 90-day certificates; the tlsserver profile's
+#   45 days from 2026-05-13 (opt-in), the classic profile's 64 days from
+#   2027-02-10 and 45 days from 2028-02-16; renew with ARI, or at about
+#   two-thirds of the lifetime: isrg.org/post/from-90-to-45/ ("Decreasing
+#   Certificate Lifetimes to 45 Days", 2025-12-02). The shortlived profile,
+#   160 hours, generally available since 2026-01-15:
+#   letsencrypt.org/2026/01/15/6day-and-ip-general-availability.html.
+# - Let's Encrypt's "How It Works" (updated 2025-08-02): the account key
+#   pair, challenges checked from several network perspectives, the CSR
+#   signed by its own key and the account key, Certificate Transparency
+#   logs, revocation published in CRLs: letsencrypt.org/how-it-works/.
+#   "Challenge Types" (updated 2026-02-12): HTTP-01 "can only be done on
+#   port 80" and "cannot be used to issue wildcard certificates", follows
+#   up to 10 redirects to ports 80 or 443; DNS-01 at
+#   "_acme-challenge.<YOUR_DOMAIN>", wildcards, credentials on the server;
+#   TLS-ALPN-01 "via TLS on port 443", "not suitable for most people",
+#   "cannot be used to validate wildcard domains":
+#   letsencrypt.org/docs/challenge-types/.
+# - ACME is RFC 8555 (March 2019); ARI is RFC 9773 (June 2025), both
+#   Proposed Standards: rfc-editor.org/rfc/rfc8555.json, rfc9773.json.
+# - certbot: point the server at /etc/letsencrypt/live/$domain "rather
+#   than copying"; a certificate is ready for renewal "when less than 1/3rd
+#   of its lifetime remains" from certbot 4.0.0, a fixed 30 days before;
+#   a deploy hook runs "once for each successfully issued certificate,
+#   including on subsequent renewals"; renewal-hooks/deploy; certbot
+#   reconfigure: eff-certbot.readthedocs.io/en/stable/using.html. Ubuntu
+#   24.04's certbot 2.9.0: renew_before_expiry "30 days", a random sleep of
+#   up to 60 * 8 seconds, certbot.timer at 00:00 and 12:00 with a
+#   RandomizedDelaySec of 43200, the live/README's wording: read in the
+#   labs' image.
+# - nginx's ngx_http_ssl_module: ssl_verify_client on | off | optional |
+#   optional_no_ca, optional "requests the client certificate and verifies
+#   it if the certificate is present"; ssl_client_certificate's list "will
+#   be sent to clients", ssl_trusted_certificate's not; ssl_verify_depth 1
+#   by default; codes 495 and 496:
+#   nginx.org/en/docs/http/ngx_http_ssl_module.html.
+# - The clouds (the lesson's tables):
+#   AWS Certificate Manager renews its certificates automatically when they
+#   use DNS validation, and they're eligible when associated with a
+#   service such as Elastic Load Balancing or CloudFront; imported
+#   certificates and those issued through ACME aren't renewed by ACM:
+#   docs.aws.amazon.com/acm/latest/userguide/managed-renewal.html.
+#   ALB mutual TLS: passthrough ("sends the entire client certificate chain
+#   to the target, without verifying it", X-Amzn-Mtls-Clientcert) or verify
+#   (a trust store of CA bundles; X-Amzn-Mtls-Clientcert-Serial-Number,
+#   -Issuer, -Subject, -Validity, -Leaf); "Advertise CA subject name":
+#   docs.aws.amazon.com/elasticloadbalancing/latest/application/mutual-authentication.html.
+#   Azure App Service certificates: bought through Azure from GoDaddy,
+#   kept in Key Vault, renewed automatically from 32 days before
+#   expiration, "can't be issued for longer than 198 days"; App Service
+#   managed certificates are free (ms.date 2026-10-15):
+#   learn.microsoft.com/en-us/azure/app-service/configure-ssl-app-service-certificate.
+#   Application Gateway mutual authentication: passthrough mode (asks, but
+#   doesn't refuse a missing or invalid certificate) or strict mode (a
+#   trusted client CA chain, root included, in an SSL profile); verify
+#   client certificate DN off by default; OCSP revocation checks; Standard_v2
+#   and WAF_v2 only (ms.date 2026-04-27):
+#   learn.microsoft.com/en-us/azure/application-gateway/mutual-authentication-overview.
+#   Google Certificate Manager: Google-managed certificates from "the
+#   Public Certificate Authority and the Let's Encrypt CA", issued and
+#   renewed automatically, with DNS or load balancer authorization:
+#   docs.cloud.google.com/certificate-manager/docs/overview. Google's
+#   Application Load Balancers' mutual TLS: a trust config of trust anchors
+#   and intermediates, REJECT_INVALID or
+#   ALLOW_INVALID_OR_MISSING_CLIENT_CERT, client certificates with
+#   clientAuth: docs.cloud.google.com/load-balancing/docs/mtls.
+# Tried in this topic's labs (step-ca 0.30.2, step-cli 0.31.0, certbot
+# 2.9.0, nginx 1.24.0, OpenSSL 3.0.13, curl 8.5.0, faketime 0.9.10 on
+# Ubuntu 24.04), 2026-11-12: step-ca's ACME certificates last 24 hours and
+# a minute, have an empty subject, a critical subjectAltName and both
+# server and client authentication; certbot trusts the lab's CA through
+# Ubuntu's certifi, which reads /etc/ssl/certs/ca-certificates.crt, so no
+# REQUESTS_CA_BUNDLE is needed; nginx refuses a client certificate whose
+# extended key usage is serverAuth alone ("400 The SSL certificate error")
+# and accepts one with none; faketime gives openssl a clock two days back,
+# so a certificate can be made already expired; the verify codes 0, 10,
+# 18, 19, 20 then 21, and 62, with curl's (60) messages for each.
+# Every command output in the lesson, the labs and the recall items marked
+# "captured" is real output of those labs; dates, serials and keys differ
+# in a new run.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: Let's Encrypt's
+# and ISRG's pages are © Internet Security Research Group (their footers);
+# Google's documentation pages are CC BY 4.0 "except as otherwise noted"
+# (Google's site policies; the footer itself wasn't in the text fetched);
+# certbot's documentation is part of its repository, Apache 2.0
+# (certbot/certbot's LICENSE.txt, © Electronic Frontier Foundation and
+# others); nginx's documentation is © F5, Inc. (its footer); AWS's
+# documentation is © Amazon Web Services; Azure's is CC BY 4.0
+# (MicrosoftDocs/azure-docs). Cloudflare's "What is mutual TLS (mTLS)?",
+# the plan's mutual TLS reading, refused automated fetches on the day
+# (HTTP 403) and couldn't be confirmed another way, so Google's "Mutual TLS
+# overview" takes its place.
+resources:
+  - title: "How It Works (Let's Encrypt): what an ACME client and a CA do, from the account key to the certificate, about 5 minutes"
+    url: https://letsencrypt.org/how-it-works/
+    type: reading
+    use: link
+    license: "© Internet Security Research Group (the page's footer); linked, not copied"
+  - title: "Challenge Types (Let's Encrypt): HTTP-01, DNS-01 and TLS-ALPN-01, each with its pros and cons"
+    url: https://letsencrypt.org/docs/challenge-types/
+    type: reading
+    use: link
+    license: "© Internet Security Research Group (the page's footer); linked, not copied"
+  - title: "Mutual TLS overview (Google Cloud): read from the top to the end of \"Client validation modes\""
+    url: https://docs.cloud.google.com/load-balancing/docs/mtls
+    type: reading
+    use: link
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+  - title: "Certbot User Guide: read \"Where are my certificates?\" and \"Renewing certificates\""
+    url: https://eff-certbot.readthedocs.io/en/stable/using.html
+    type: reading
+    use: link
+    license: "Apache 2.0 (the certbot repository's LICENSE.txt); linked, not copied"
+  - title: "nginx's ngx_http_ssl_module: look up ssl_verify_client, ssl_client_certificate and ssl_trusted_certificate"
+    url: https://nginx.org/en/docs/http/ngx_http_ssl_module.html
+    type: reading
+    use: link
+    license: "© F5, Inc. (the page's footer); linked, not copied"
+  - title: "Decreasing Certificate Lifetimes to 45 Days (ISRG, 2025-12-02): optional, Let's Encrypt's schedule and its advice on when to renew"
+    url: https://isrg.org/post/from-90-to-45/
+    type: reading
+    use: link
+    license: "© Internet Security Research Group (the page's footer); linked, not copied"
+  - title: "Managed certificate renewal in AWS Certificate Manager (AWS): optional, which certificates AWS renews for you"
+    url: https://docs.aws.amazon.com/acm/latest/userguide/managed-renewal.html
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Mutual authentication with TLS in Application Load Balancer (AWS): optional, passthrough and verify modes and the headers each sends"
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/mutual-authentication.html
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Overview of mutual authentication on Azure Application Gateway (Microsoft Learn): optional, strict and passthrough modes"
+    url: https://learn.microsoft.com/en-us/azure/application-gateway/mutual-authentication-overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+# The recall items read openssl, curl and ls output captured from this
+# topic's labs, with the text tools of Module 1, and work out lifetimes and
+# renewals. The worked example, the fill-in, the build and the debug are
+# network labs on the base: web (nginx, certbot), ca (step-ca, the shop's
+# ACME CA), office (a customer's laptop), partner (the warehouse, with a
+# client certificate) and resolver (Unbound); the fill-in has no ca, since
+# its CA is made with openssl. The write is a plain lab whose servers are
+# openssl's test server on 127.0.0.1 (ADR-0018).
+practice:
+  - example-issue-and-rotate
+  - verify-code-meaning
+  - mcq-code-21
+  - mcq-san-not-cn
+  - x509-dates
+  - est-days-left
+  - fill-local-ca
+  - mtls-curl-outcomes
+  - mcq-optional
+  - mcq-separate-client-ca
+  - mcq-wildcard-challenge
+  - mcq-live-not-archive
+  - live-points-at-archive
+  - mcq-deploy-hook
+  - est-renew-at-two-thirds
+  - est-renewals-a-year
+  - write-cert-report
+prove:
+  build: build-shop-tls
+  debug: debug-padlock-trouble
+  explain:
+    prompt: |
+      A colleague says: "A certificate is a formality: we buy one a year, install it, and forget it." Explain, in your own words: what a certificate holds and how a client decides to trust a server's, with the ways that most often goes wrong in production and how each shows; why public certificates now last weeks rather than years, and how ACME proves that you control a name; what you must build so that certificates this short cause no outages; and when you'd make clients show certificates too, how the server decides which ones to accept, and the mistakes that leave mutual TLS open.
+    rubric:
+      - id: trust
+        required: true
+        description: "A certificate binds names (the subjectAltName, which clients check; not the CN) to a public key, with dates and permitted uses, signed by an issuer; the client walks from the site's certificate through the intermediates the server sends to a root it already has in its trust store, checking each signature, the name and the dates. Common failures: the intermediate not sent (openssl's 20 then 21; browsers may hide it), expired (10), a name not in the subjectAltName (62), a root the client doesn't trust (19, 18)."
+      - id: why-short-and-acme
+        required: true
+        description: "Revocation doesn't reach clients reliably, so short lifetimes limit how long a stolen key is useful: the public maximum falls from 398 days to 200 (March 2026), 100 (March 2027) and 47 (March 2029). ACME has a client with an account key ask a CA for an order, prove control of each name with a challenge (HTTP-01 on port 80, DNS-01 with a TXT record and the only one for wildcards, TLS-ALPN-01 on 443), then send a CSR and get the certificate."
+      - id: automation
+        required: true
+        description: "Renewal is automatic (a timer), early (about two-thirds of the way through, or when the CA says through ARI) and reaches the server: the server reads the client's current files (certbot's live/ names, never archive/ or a copy) and a deploy hook reloads it, since a renewal changes files and not the running process; the served certificate's expiry is monitored from outside."
+      - id: mtls
+        required: true
+        description: "Mutual TLS for partner and service-to-service APIs: the server sends a CertificateRequest and the client answers with its certificate and a CertificateVerify signature; the server trusts a CA kept for clients alone, since a server CA's certificates often allow client use; `optional` (or a broad trust list) lets clients without a valid certificate in; client certificates need clientAuth."
+      - id: clouds
+        required: false
+        description: "The clouds renew the certificates they manage for their load balancers (ACM when DNS-validated and in use, Azure's App Service certificates, Google-managed certificates) but not ones imported or got elsewhere; their load balancers verify client certificates against a trust store, or pass them through to the backends to check (AWS passthrough and verify, Azure passthrough and strict, Google's REJECT_INVALID and ALLOW_INVALID_OR_MISSING_CLIENT_CERT)."
+    model_answer: |
+      A certificate is anything but a formality: it's what lets a client tell your server from anyone else's. It holds a public key, the names it's good for in its subjectAltName (clients ignore the CN), its dates, what it may be used for, and a signature from its issuer. The client checks that signature, then the issuer's own certificate, an intermediate the server sends along, and so on up to a root it already holds in its trust store; the name it asked for must be in the list and the dates must be good. In production it goes wrong in a few ways: the server sends its certificate without the intermediate (openssl says 21, curl "unable to get local issuer certificate", and browsers often hide it because they've cached the intermediate), the certificate expires (10), the name isn't in it (62), or it comes from a root the client doesn't trust.
+
+      Certificates are getting short because revocation doesn't reliably reach clients, so a stolen key works until the certificate expires. The longest a public certificate may last went from 398 days to 200 in March 2026, and goes to 100 in March 2027 and 47 in March 2029. ACME automates getting one: the client registers an account key, orders the names, and proves control of each with a challenge, a file served on port 80 (HTTP-01), a TXT record (DNS-01, the only way for a wildcard) or a special certificate on 443 (TLS-ALPN-01); then it sends a CSR and gets the certificate.
+
+      So it has to be built in: a timer runs the ACME client, which renews about two-thirds of the way through each certificate's life, or when the CA says through ARI; the server reads the client's live files, not a copy or the archive; and a deploy hook reloads the server after every renewal, because a renewal changes files, not the running process. And something watches the expiry of the certificate actually served.
+
+      I'd require client certificates for partners' and internal service-to-service APIs. The server asks for one in the handshake, the client sends it with a signature proving it holds the key, and the server accepts only certificates from the CA I name for clients. That CA should be one kept for clients alone, because our server CA's certificates are often good for client use too, and `optional` lets anyone without a certificate straight in. On the clouds, the managed certificates renew themselves only when the cloud manages them, and the load balancers check client certificates against a trust store I upload, or pass them through for the backend to check.
+review_pool:
+  - verify-code-meaning
+  - est-days-left
+  - mcq-code-21
+  - mcq-ship-the-root
+  - est-renew-at-two-thirds
+  - est-200-days
+  - est-24h-two-thirds
+  - mcq-live-not-archive
+  - mcq-why-short
+  - mcq-port-80-closed
+  - mtls-curl-outcomes
+  - mtls-trace-request
+  - mcq-separate-client-ca
+  - mcq-alb-mtls-modes
+skills:
+  - id: cert-chains
+    description: "What a certificate holds (subject, issuer, subjectAltName, validity, serial, basic constraints, key usage and extended key usage) and how to read it with `openssl x509`; the chain from a site's certificate through intermediates to a root in a trust store, the full chain a server sends and why not the root; the verify codes (0, 10, 18, 19, 20 and 21, 62) and curl's (60); a CA of your own with openssl, a CSR"
+  - id: acme-and-rotation
+    description: "Why certificates are getting shorter (revocation's limits; 398, 200, 100 and 47 days); ACME's account key, order, challenges (HTTP-01, DNS-01, TLS-ALPN-01) and CSR, Certificate Transparency in a sentence; certbot's live/, archive/ and renewal files, its timer and renewal window, deploy hooks, and renewing at two-thirds or by ARI; the arithmetic of lifetimes and renewals; the clouds' managed certificates"
+  - id: mutual-tls
+    description: "Client certificates: the CertificateRequest and the client's Certificate and CertificateVerify; nginx's `ssl_client_certificate`, `ssl_trusted_certificate` and `ssl_verify_client` (`on` against `optional`), the answers a refused client gets, and a separate CA for clients; extended key usage clientAuth; where mutual TLS is used and how the three clouds' load balancers do it"

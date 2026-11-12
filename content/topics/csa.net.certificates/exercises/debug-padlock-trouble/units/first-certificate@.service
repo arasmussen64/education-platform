@@ -1,0 +1,17 @@
+# certbot's first certificate for the shop, on one of the lab's machines,
+# at the lab's first boot: "systemctl status first-certificate@web". At
+# later boots certbot already has it, and this does nothing.
+[Unit]
+Description=certbot's first certificate for www.shop.test on %i
+After=netlab.service step-ca@ca.service nginx@%i.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/lib/lab/first-certificate
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+id: mcq-separate-client-ca
+type: mcq
+rev: 1
+prompt: |
+  The shop's partners' API admits clients by certificate. A colleague suggests trusting the shop's own CA for them, the one whose ACME service issues the web servers' certificates, instead of running a second CA. What would that let in?
+choices:
+  - "Each certificate the shop's CA issues for client use, the web servers' own ones included"
+  - "Nothing new, since nginx also checks each client certificate's CN against its partners"
+  - "Nothing new, since a server's certificate can't be used by a client in TLS's handshake"
+  - "Every client of the web servers, which would then have to send certificates of their own"
+answer: 0
+explanation: |
+  The CA you name for clients is the whole test: nginx accepts any client certificate that chains to it and is allowed for client use. The lab's CA, like many, puts both server and client authentication in every certificate it issues, so the certificate and key on every web server would open the partners' API, and so would any certificate anyone gets from the ACME service for any name. A separate CA that signs only partners' certificates keeps the two apart; in the labs, a certificate from the shop's own CA gets `400 The SSL certificate error`.
+
+  nginx checks no names on a client certificate unless you write that yourself (`$ssl_client_s_dn`). A certificate marked for client use works for a client whoever it was made for. And what a site trusts for clients has no effect on the public site, which asks for no certificate.
+skills: [mutual-tls]

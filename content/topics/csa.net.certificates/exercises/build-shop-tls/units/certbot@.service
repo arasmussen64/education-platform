@@ -1,0 +1,14 @@
+# certbot's renewals on one of the lab's machines: "systemctl status
+# certbot@web". It runs what Ubuntu's certbot.service runs on a server,
+# "certbot -q renew", inside the machine, so it reads and writes the
+# machine's own /etc/letsencrypt and its hooks run there. certbot@web.timer
+# starts it.
+[Unit]
+Description=certbot's renewals on %i
+After=netlab.service step-ca@ca.service nginx@%i.service
+Requires=netlab.service
+
+[Service]
+Type=oneshot
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/certbot -q renew --no-random-sleep-on-renew

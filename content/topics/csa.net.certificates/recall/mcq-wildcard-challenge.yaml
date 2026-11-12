@@ -1,0 +1,16 @@
+id: mcq-wildcard-challenge
+type: mcq
+rev: 1
+prompt: |
+  The shop wants one certificate from Let's Encrypt for `*.shop.test`, to cover every site with a name one label below `shop.test` (here `shop.test` stands for the shop's real public domain: no public CA can check a `.test` name). Which ACME challenge can prove the shop controls that name?
+choices:
+  - "DNS-01, with a TXT record placed at `_acme-challenge.shop.test`"
+  - "HTTP-01, with a file under `/.well-known/acme-challenge/` on one site"
+  - "TLS-ALPN-01, with a special certificate on port 443 of one site"
+  - "Any of the three, once the zone has a CAA record naming the CA"
+answer: 0
+explanation: |
+  A wildcard covers names that may not exist yet, so the CA wants proof of control over the domain itself: only DNS-01 gives it, a TXT record the ACME client puts at `_acme-challenge.shop.test` (usually through the DNS provider's API, whose credentials then sit on the server, so give them as little power as the provider allows). Let's Encrypt's challenge page says it plainly: HTTP-01 "cannot be used to issue wildcard certificates", and TLS-ALPN-01 "cannot be used to validate wildcard domains".
+
+  A CAA record (DNS's) only says which CAs may issue for the name; it proves nothing about who's asking.
+skills: [acme-and-rotation]

@@ -1,0 +1,23 @@
+id: x509-dates
+type: predict_shell
+rev: 1
+prompt: |
+  `cert.txt` is `openssl x509 -in /etc/letsencrypt/live/www.shop.test/cert.pem -noout -subject -issuer -dates -ext subjectAltName,extendedKeyUsage` on web, run just after certbot got the certificate from the shop CA's ACME service, captured in this topic's lab on 2026-11-12 (trailing spaces taken off). The command splits each line at its `=` and prints two of the lines' first parts, each with what follows it in brackets. What is printed?
+files:
+  cert.txt: |
+    subject=
+    issuer=O = Shop Lab, CN = Shop Lab Intermediate CA
+    notBefore=Nov 12 18:31:21 2026 GMT
+    notAfter=Nov 13 18:32:21 2026 GMT
+    X509v3 Extended Key Usage:
+        TLS Web Server Authentication, TLS Web Client Authentication
+    X509v3 Subject Alternative Name: critical
+        DNS:www.shop.test
+command: |
+  awk -F= '/^(subject|notAfter)=/ {print $1 ": [" $2 "]"}' cert.txt
+expected_output: |
+  subject: []
+  notAfter: [Nov 13 18:32:21 2026 GMT]
+explanation: |
+  `-F=` splits each line at `=`, so `$1` is the field's name and `$2` what follows; the pattern keeps only the lines that start `subject=` and `notAfter=`. The subject is empty: the CA left the name out of it altogether and put it only in the subjectAltName, `DNS:www.shop.test`, which it marked `critical`, so a client that can't read that extension must refuse the certificate rather than guess. Clients go by the subjectAltName anyway. The dates are 24 hours and a minute apart (the CA dates `notBefore` a minute back, for clocks a little behind): the lab's ACME certificates last a day, where a public CA's last months. The extended key usage lists both server and client authentication, so this certificate would also be accepted as a client's by anyone who trusts this CA for clients.
+skills: [cert-chains]

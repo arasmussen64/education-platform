@@ -1,0 +1,96 @@
+id: mtls-trace-request
+type: predict_shell
+rev: 1
+prompt: |
+  `trace.txt` is `openssl s_client -connect api.shop.test:8443 -servername api.shop.test -cert warehouse.pem -key warehouse.key -tls1_3 -trace` on partner, against the partners' API, which asks every client for a certificate, captured in this topic's lab on 2026-11-12 (cut to each record's header and the line that starts each handshake message: the extensions, certificates and signatures are left out). `Sent Record` is a record the client sent, `Received Record` one it received. The command prints the names of the handshake messages the client sent, in order. What is printed?
+files:
+  trace.txt: |
+    CONNECTED(00000003)
+    Sent Record
+    Header:
+      Version = TLS 1.0 (0x301)
+      Content Type = Handshake (22)
+      Length = 242
+        ClientHello, Length=238
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = Handshake (22)
+      Length = 122
+        ServerHello, Length=118
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ChangeCipherSpec (20)
+      Length = 1
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 27
+      Inner Content Type = Handshake (22)
+        EncryptedExtensions, Length=6
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 99
+      Inner Content Type = Handshake (22)
+        CertificateRequest, Length=78
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 984
+      Inner Content Type = Handshake (22)
+        Certificate, Length=963
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 95
+      Inner Content Type = Handshake (22)
+        CertificateVerify, Length=74
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 69
+      Inner Content Type = Handshake (22)
+        Finished, Length=48
+    Sent Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ChangeCipherSpec (20)
+      Length = 1
+    Sent Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 493
+      Inner Content Type = Handshake (22)
+        Certificate, Length=472
+    Sent Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 95
+      Inner Content Type = Handshake (22)
+        CertificateVerify, Length=74
+    Sent Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 69
+      Inner Content Type = Handshake (22)
+        Finished, Length=48
+command: |
+  awk '/^Sent Record/ {sent = 1} /^Received Record/ {sent = 0} sent && /^    [A-Z][A-Za-z]+, Length/ {sub(",", "", $1); print $1}' trace.txt
+expected_output: |
+  ClientHello
+  Certificate
+  CertificateVerify
+  Finished
+explanation: |
+  `sent` is 1 from a `Sent Record` line until the next `Received Record`, so awk prints only the messages inside records the client sent, with the comma taken off each name. A TLS 1.3 handshake with a client certificate has one message more from the server and two more from the client. After its EncryptedExtensions the server sends a **CertificateRequest** (it carries the names of the CAs the server accepts for clients: `openssl s_client` prints them as `Acceptable client certificate CA names`), then its own Certificate, CertificateVerify and Finished. The client then answers with a **Certificate** of its own, the warehouse's, and a **CertificateVerify**, a signature over the handshake with the warehouse's private key, which proves it holds the key and didn't merely copy the certificate, and only then its Finished. All of it is encrypted (`ApplicationData (23)` outside), so an observer doesn't see whose certificate it was. A server that asks for no certificate sends no CertificateRequest, and the client sends only ClientHello and Finished.
+skills: [mutual-tls]

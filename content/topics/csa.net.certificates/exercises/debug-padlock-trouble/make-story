@@ -1,0 +1,44 @@
+#!/bin/bash
+# make-story: the weekend's maintenance on web, made once, when the lab's
+# image is built (after make-shop-ca and make-partners-ca). This is where
+# the faults are; the prompt doesn't say what they are.
+#
+# 1. A copy of an earlier certificate for www.shop.test, made by hand into
+#    web's /etc/nginx/certs/ and served from there. It was issued two days
+#    ago for one day (faketime sets openssl's clock back two days), so it
+#    expired yesterday. certbot's own certificate, in live/, is fresh
+#    (first-certificate@web gets it at the first boot), and its renewal
+#    settings have no hook that reloads nginx.
+# 2. api.shop.test's certificate, issued by hand from the shop's CA for a
+#    year and laid out as certbot lays out its files; nginx serves
+#    cert.pem, the site's certificate alone, without the intermediate.
+# 3. The API trusts the machine's own trust store, the shop's root, for
+#    client certificates, where the Shop Partners CA's is the one.
+set -euo pipefail
+s=/var/lib/step-ca
+web=/etc/netns/web/nginx
+mkdir -p "$web/certs" "$web/tls/api.shop.test"
+cd "$web/certs"
+openssl ecparam -name prime256v1 -genkey -noout -out www.key
+openssl req -new -key www.key -subj / -out www.csr 2> /dev/null
+printf '%s\n' 'subjectAltName=critical,DNS:www.shop.test' 'extendedKeyUsage=serverAuth,clientAuth' \
+  'keyUsage=critical,digitalSignature' > www.ext
+faketime '2 days ago' openssl x509 -req -in www.csr -CA "$s/certs/intermediate_ca.crt" \
+  -CAkey "$s/secrets/intermediate_ca_key" -passin "file:$s/secrets/password" -set_serial "0x$(openssl rand -hex 16)" \
+  -days 1 -extfile www.ext -out www-leaf.pem 2> /dev/null
+cat www-leaf.pem "$s/certs/intermediate_ca.crt" > www.pem
+rm -f www.csr www.ext www-leaf.pem
+chmod 600 www.key
+chmod 644 www.pem
+# It really has expired: openssl's own check says so.
+if openssl verify -CAfile "$s/certs/root_ca.crt" -untrusted "$s/certs/intermediate_ca.crt" www.pem > /dev/null 2>&1; then
+  echo "make-story: the copy of www's certificate hasn't expired" >&2
+  exit 1
+fi
+
+a=$web/tls/api.shop.test
+/usr/local/lib/lab/sign-by-hand api.shop.test 8760 "$a/fullchain.pem" "$a/privkey.pem"
+sed -n '1,/^-----END CERTIFICATE-----$/p' "$a/fullchain.pem" > "$a/cert.pem"
+cp "$s/certs/intermediate_ca.crt" "$a/chain.pem"
+chmod 600 "$a/privkey.pem"
+chmod 644 "$a/cert.pem" "$a/chain.pem" "$a/fullchain.pem"

@@ -1,0 +1,30 @@
+id: fill-local-ca
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A CA of your own"
+prompt: |
+  The shop's partners' API, `api.shop.test` on web's port 8443, is to use certificates from a certificate authority the shop runs itself for its internal services, made with openssl, and to admit only partners who show a client certificate from a second CA, the Shop Partners CA. `web` (10.0.9.1) runs nginx; `partner` (10.0.9.3) is the warehouse's server; `office` (10.0.9.2) a laptop that isn't a partner; `resolver` (10.0.9.53) the shop's name server. `netlab show` lists them.
+
+  Two files have lost values, each marked `___`:
+
+  - **`~/bin/make-shop-certs`**, on the lab machine: it makes the shop's root, an intermediate it signs, the API's certificate (signed by the intermediate), the full chain the API sends, the Shop Partners CA and the warehouse's certificate, all in `~/ca`, and then hands the files out to web's `/etc/nginx/tls/` and partner's `/etc/warehouse/`. Six `___`, in the extensions of three certificates and in the order of the full chain. Each `___` stops the script (openssl, or `cat`, says why) until it's filled.
+  - **web's `/etc/nginx/sites-available/partner-api`**: which certificate file the API sends, which CA it trusts for client certificates, and how strictly it asks for one. Three `___`, which keep nginx from reading its files, so it couldn't start at boot.
+
+  Fill in each `___` so that:
+
+  1. **The intermediate is a CA that may sign servers' certificates, but no CA under it.**
+  2. **The API's certificate is for the name its clients ask for, `api.shop.test`, and for a server's use only.**
+  3. **The API sends its own certificate followed by the intermediate's**, so a client that trusts only the shop's root can verify it.
+  4. **The warehouse's certificate is for a client's use only.**
+  5. **The API admits only clients with a certificate from the Shop Partners CA**, and refuses a client with none, or with one the shop's own CA signed.
+
+  Edit with `nano ~/bin/make-shop-certs` and `on web nano /etc/nginx/sites-available/partner-api`, replace each `___` (and nothing else), and run `~/bin/make-shop-certs` until it ends `made in ... and handed out`. `on web ls -l /etc/nginx/tls/` shows what web received. Then `on web nginx -t`, and start nginx: `sudo systemctl reset-failed nginx@web` (it has failed at boot often enough that systemd won't try again for a while) and `sudo systemctl restart nginx@web`. From the office, `openssl s_client -connect api.shop.test:8443 -servername api.shop.test -CAfile /home/learner/ca/root.pem -showcerts < /dev/null` shows the chain and its verdict; from partner, `curl --cacert /etc/warehouse/shop-root.pem --cert /etc/warehouse/warehouse.pem --key /etc/warehouse/warehouse.key https://api.shop.test:8443/` is the warehouse. `openssl x509 -in FILE -noout -text` shows everything in a certificate. Then run the checks.
+hints:
+  - "The extensions are written as openssl writes them in a file: `basicConstraints=critical,CA:TRUE,pathlen:N`, where N is how many CAs may stand below this one; `subjectAltName=DNS:NAME`; `extendedKeyUsage=` one of `serverAuth` (proving a server) and `clientAuth` (proving a client)."
+  - "A full chain starts with the server's own certificate and goes up: the file that signed it comes next. The script names its files after what they are: `api.pem`, `intermediate.pem`, `root.pem`."
+  - "In nginx, `ssl_certificate` takes the file with the chain, `ssl_client_certificate` the CA certificates trusted for clients (web has both CAs' in `/etc/nginx/tls/`), and `ssl_verify_client` is `on`, `off`, `optional` or `optional_no_ca`."
+skills: [cert-chains, mutual-tls]

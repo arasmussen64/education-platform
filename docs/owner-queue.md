@@ -109,7 +109,7 @@ Module 3, networking, planned on 2026-11-11 ([plans/cloud-module-3](plans/cloud-
 - **2026-11-11, a check may cut a link and restore it** to prove a backup route takes over, an exception to "checks only read".
 - **2026-11-11, labs run on a fast clock.** Idle timeouts, DNS TTLs, BGP timers and certificate lifetimes are scaled down in labs, and every prompt gives the real figure beside the lab's; quiz questions use the real figures.
 - **2026-11-11, Checkpoint 3 has three parts:** the address plan, the intermittent outage (three faults no topic's debug uses), and a third, connecting a data centre to a cloud over a circuit with a backup IPsec VPN and BGP.
-- **2026-11-11, the first lab download from outside Ubuntu's archive:** step-ca and step-cli (a small certificate authority that speaks ACME, for the certificates topic), pinned by version and checksum. **Why:** Let's Encrypt's own test server changes its root at every start, so a lab built on it couldn't survive a restart.
+- **2026-11-11, the first lab download from outside Ubuntu's archive:** step-ca and step-cli (a small certificate authority that speaks ACME, for the certificates topic), pinned by version and checksum. **Why:** Let's Encrypt's own test server changes its root at every start, so a lab built on it couldn't survive a restart. Built on 2026-11-12 (#272): the image build fetches them from GitHub's releases, and the pinned files are for amd64 machines, like yours; an ARM machine would need its own checksums.
 - **2026-11-11, the Labs CI job goes from four shards to eight** (done on 2026-11-12, before Module 3's labs land). Public repositories' runners are free.
 
 The learning engine's rules, fixed after the audit (#210 to #215):

@@ -1,0 +1,11 @@
+# Replaces Ubuntu's certbot.service on the lab machine, which is on no lab
+# network: certbot runs on web, as certbot@web (and certbot@web.timer), the
+# way the network-lab base's plain units send nginx to nginx@web. Started
+# by habit, it says so and fails.
+[Unit]
+Description=Not on this lab machine: certbot runs on web, as certbot@web
+CollectMode=inactive-or-failed
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo "certbot does not run on the lab machine here: it runs on web. Its renewals are certbot@web.service, started by certbot@web.timer (sudo systemctl enable --now certbot@web.timer), and by hand it is: on web certbot ..." >&2; exit 1'

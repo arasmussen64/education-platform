@@ -1,0 +1,14 @@
+id: mcq-live-not-archive
+type: mcq
+rev: 1
+prompt: |
+  nginx's site reads `ssl_certificate /etc/letsencrypt/archive/www.shop.test/fullchain1.pem` and the key beside it. certbot's timer renews the certificate, and its deploy hook reloads nginx. What does nginx serve after that?
+choices:
+  - "The first certificate, until it expires, since the renewal went into `fullchain2.pem`"
+  - "The new certificate, since certbot writes each renewal over `fullchain1.pem` in place"
+  - "Nothing at all, since certbot deletes `fullchain1.pem` and nginx fails at the reload"
+  - "The new certificate, since the hook points nginx at the newest file that certbot made"
+answer: 0
+explanation: |
+  certbot never rewrites a certificate it has saved: each one gets the next number in `archive/` (`cert1.pem`, `cert2.pem`, ...), old ones are kept, and the links in `live/www.shop.test/` move to the newest. A server reads the `live/` names and gets the newest at each reload; a server pointed into `archive/` reloads the same old file every time, and goes on serving it until the day it expires. A deploy hook only runs a command; it doesn't change what nginx's files say. certbot's own documentation asks you to point the server at `live/` rather than copy anything.
+skills: [acme-and-rotation]

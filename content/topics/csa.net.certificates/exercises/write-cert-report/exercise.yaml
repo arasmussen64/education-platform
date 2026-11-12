@@ -1,0 +1,73 @@
+id: write-cert-report
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Certificate report"
+prompt: |
+  From a blank file, write `~/bin/cert-report`, a bash script that asks a TLS server for its certificate and says, in five lines, what it says and whether a client would trust it. It's the first thing to run when a client says "the certificate is wrong": for which names, from whom, for how long, sent with what, and accepted or not.
+
+  It's run as `cert-report HOST PORT [NAME]`: the server's address or name, its port, and the name to ask for in SNI, which is HOST when there's no NAME. It prints exactly these five lines, in this order:
+
+  ```
+  names: shop.test, www.shop.test
+  issuer: Report Lab Intermediate
+  days-left: 89
+  chain: 2
+  verify: ok
+  ```
+
+  - `names:` the DNS names in the subjectAltName of the server's own certificate, sorted (as `sort` sorts them), joined by a comma and a space.
+  - `issuer:` the CN of that certificate's issuer: what follows `CN = ` in its issuer.
+  - `days-left:` the whole days from now until the certificate's `notAfter`, rounded down: 89 for 89 days and 23 hours.
+  - `chain:` how many certificates the server sent.
+  - `verify:` `ok` if a client that trusts only `/etc/lab/trust.pem` accepts the certificate for NAME, otherwise openssl's reason, the words in brackets in its `Verify return code` line.
+
+  One run of `openssl s_client -connect HOST:PORT -servername NAME -verify_hostname NAME -CAfile /etc/lab/trust.pem -showcerts < /dev/null` gives everything, if you keep what it prints with `out=$(... 2>&1)` and read it:
+
+  - With `-showcerts`, every certificate the server sent, each from `-----BEGIN CERTIFICATE-----` to `-----END CERTIFICATE-----`, the server's own first.
+  - `Verify return code: 21 (unable to verify the first certificate)`, or `Verify return code: 0 (ok)`: openssl's verdict, after everything it checked. The `verify error:num=...` lines above it are its complaints along the way, and aren't the verdict.
+  - `openssl x509 -noout -ext subjectAltName`, `-issuer` and `-enddate` read a certificate on their standard input and print `X509v3 Subject Alternative Name:` with `DNS:www.shop.test, DNS:shop.test` on the next line, `issuer=O = Shop Lab, CN = Shop Lab Intermediate CA`, and `notAfter=Feb 10 18:40:16 2027 GMT`.
+  - `date -d "Feb 10 18:40:16 2027 GMT" +%s` turns a date into seconds since 1970, `date +%s` is now, and `$(( ))` does whole-number arithmetic, dropping what's left over from a division.
+
+  `sed '/PATTERN/q'` prints lines up to the first that matches and stops; `grep -o` prints only what matched; `grep -c` counts matching lines; `tr '\n' ','` joins lines with commas. Make the file with `nano ~/bin/cert-report`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/cert-report`. ShellCheck must have nothing to say about it (`shellcheck ~/bin/cert-report`), and it does its own work with openssl and the shell. The lab runs two example servers on this machine to try it on, on ports 8443 and 9443:
+
+  ```
+  ~/bin/cert-report localhost 8443 www.shop.test
+  ~/bin/cert-report localhost 8443
+  ~/bin/cert-report localhost 9443 api.shop.test
+  ~/bin/cert-report localhost 9443
+  ```
+
+  which, on the day the lab starts, print the lines below (the lab makes their certificates afresh each time it starts, and `days-left` counts down from there):
+
+  ```
+  names: shop.test, www.shop.test
+  issuer: Report Lab Intermediate
+  days-left: 89
+  chain: 2
+  verify: ok
+  names: shop.test, www.shop.test
+  issuer: Report Lab Intermediate
+  days-left: 89
+  chain: 2
+  verify: hostname mismatch
+  names: api.shop.test, partners.shop.test
+  issuer: Report Lab Intermediate
+  days-left: 29
+  chain: 1
+  verify: unable to verify the first certificate
+  names: legacy.shop.test, old.shop.test
+  issuer: Report Lab Intermediate
+  days-left: 399
+  chain: 1
+  verify: unable to verify the first certificate
+  ```
+
+  The checks also run it on four servers of their own, made as they run, with names, issuers and lifetimes made up then.
+hints:
+  - "One shape that works: keep s_client's whole output in a variable, and take the server's certificate out of it with `sed -n '/^-----BEGIN CERTIFICATE-----$/,/^-----END CERTIFICATE-----$/p'` (every certificate), then `sed '/^-----END CERTIFICATE-----$/q'` (up to the end of the first). Hand that to `openssl x509` for the names, the issuer and the date."
+  - "For the names: `grep -o 'DNS:[^,]*'` gives one `DNS:name` a line; take the `DNS:` off with sed, `sort`, join with `tr '\\n' ','`, then turn the commas into `, ` and drop the last one with sed."
+  - "With `set -euo pipefail`, a `grep` that finds nothing stops the script, and so does openssl when the handshake fails: end such lines with `|| true`. The verdict's words are what's inside the brackets: `sed -n 's/^Verify return code: \\([0-9]*\\) (\\(.*\\))$/\\1 \\2/p'` gives `21 unable to verify the first certificate`."
+skills: [cert-chains]

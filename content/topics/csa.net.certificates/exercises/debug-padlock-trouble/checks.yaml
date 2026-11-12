@@ -1,0 +1,96 @@
+# The checks of "Padlock trouble": what customers, the warehouse and anyone
+# else get from web, from machines on the lab's network, and the scenery.
+# The first check waits for nginx on web after a boot; the rest read at
+# once, except the renewal, which renews www's certificate as the timer
+# would and watches nginx.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: www-valid
+    description: "www.shop.test serves certbot's current certificate, from the CA's ACME service, which the office trusts for that name."
+    # It waits up to about 30 seconds for nginx after a boot (10 tries of
+    # at most 3 seconds), so it gets 45 and prints its own sentence.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/certcheck.sh
+      wait_for 10 web_up || { echo "nothing answers HTTPS for www.shop.test on web"; exit 0; }
+      got=$(from_acme www.shop.test 443)
+      [ "$got" = acme ] || { echo "$got"; exit 0; }
+      [ -n "$(cert_name_serving www.shop.test 443)" ] || { echo "www.shop.test's certificate isn't one of certbot's current certificates on web"; exit 0; }
+      echo valid
+    expect:
+      equals: valid
+  - id: sync-works
+    description: "The warehouse's nightly sync, run on partner as it is, gets the shop's open orders."
+    command: |
+      . /usr/local/lib/lab/certcheck.sh
+      on partner warehouse-sync
+    expect:
+      equals: synced 42 orders
+  - id: api-chain
+    description: "api.shop.test sends its certificate followed by the intermediate that signed it, so a client that trusts only the shop's root can verify it."
+    command: |
+      . /usr/local/lib/lab/certcheck.sh
+      n=$(chain_count api.shop.test 8443)
+      [ "$n" -ge 2 ] || { echo "api.shop.test sends $n certificate(s)"; exit 0; }
+      v=$(verified api.shop.test 8443)
+      [ "$v" = ok ] || { echo "the certificate api.shop.test sends doesn't verify for that name: $v"; exit 0; }
+      echo chain
+    expect:
+      equals: chain
+  - id: api-still-closed
+    description: "api.shop.test still answers no one without a certificate from the Shop Partners CA: not a client with none, not one with a certificate the shop's own CA issued to a server, and not one with a certificate from any other CA."
+    command: |
+      . /usr/local/lib/lab/certcheck.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      /usr/local/lib/lab/sign-by-hand "intruder$RANDOM.shop.test" 1 "$dir/shop.pem" "$dir/shop.key"
+      openssl ecparam -name prime256v1 -genkey -noout -out "$dir/other-ca.key"
+      openssl req -x509 -new -key "$dir/other-ca.key" -subj "/CN=Someone Else's CA" -days 2 -out "$dir/other-ca.pem" 2> /dev/null
+      openssl ecparam -name prime256v1 -genkey -noout -out "$dir/other.key"
+      openssl req -new -key "$dir/other.key" -subj "/CN=warehouse.partners.test" -out "$dir/other.csr" 2> /dev/null
+      printf '%s\n' 'extendedKeyUsage=clientAuth' > "$dir/other.ext"
+      openssl x509 -req -in "$dir/other.csr" -CA "$dir/other-ca.pem" -CAkey "$dir/other-ca.key" -CAcreateserial -days 1 -extfile "$dir/other.ext" -out "$dir/other.pem" 2> /dev/null
+      chmod -R a+rX "$dir"
+      # The office trusts the shop's root; -k only so that a missing
+      # intermediate on the API's side doesn't hide what the API answers.
+      for c in none shop other; do
+        if [ "$c" = none ]; then
+          got=$(on office curl -sk --max-time 5 -o /dev/null -w '%{http_code}' https://api.shop.test:8443/)
+        else
+          got=$(on office curl -sk --max-time 5 -o /dev/null -w '%{http_code}' --cert "$dir/$c.pem" --key "$dir/$c.key" https://api.shop.test:8443/)
+        fi
+        case $c in
+          none) who="a client without a certificate" ;;
+          shop) who="a client with a certificate the shop's own CA issued to a server" ;;
+          other) who="a client with a certificate from an unknown CA" ;;
+        esac
+        case $got in 4*) ;; *) echo "api.shop.test answers $who with $got"; exit 0 ;; esac
+      done
+      echo closed
+    expect:
+      equals: closed
+  - id: timer-on
+    description: "certbot@web.timer is on now and at every boot."
+    command: |
+      [ "$(systemctl is-enabled certbot@web.timer 2> /dev/null)" = enabled ] || { echo "certbot@web.timer doesn't start at boot"; exit 0; }
+      [ "$(systemctl is-active certbot@web.timer 2> /dev/null)" = active ] || { echo "certbot@web.timer isn't running"; exit 0; }
+      echo running
+    expect:
+      equals: running
+  - id: renewal-reaches-nginx
+    description: "When certbot renews www.shop.test's certificate, as the timer does, nginx serves the new certificate within seconds, with nobody touching it."
+    # A renewal of about 3 seconds, and up to 10 seconds' wait for nginx.
+    timeout: 40
+    command: |
+      . /usr/local/lib/lab/certcheck.sh
+      reaches_nginx www.shop.test 443
+    expect:
+      equals: reaches
+  - id: scenery
+    description: "The network, the shop's certificate authority and every machine's trust in it, the Shop Partners CA, the warehouse's certificate and its sync program, and the resolver are as they were."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact

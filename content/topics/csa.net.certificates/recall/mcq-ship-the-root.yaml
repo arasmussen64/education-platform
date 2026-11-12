@@ -1,0 +1,16 @@
+id: mcq-ship-the-root
+type: mcq
+rev: 1
+prompt: |
+  nginx's `ssl_certificate` file for the shop holds the site's certificate, then the intermediate's. A colleague wants to add the root CA's certificate at the end "to complete the chain". What would that change for the shop's clients?
+choices:
+  - "Nothing useful: a client trusts a root only if it already holds it, so it only adds bytes"
+  - "Clients without the root would trust the site, since the server now vouches for the root"
+  - "Old clients would fail, since most of them refuse any chain that a server ends with a root"
+  - "Handshakes would get faster, since clients no longer have to fetch the root from the CA"
+answer: 0
+explanation: |
+  Trust ends at a root the client already has in its own trust store. A root sent by the server proves nothing (anyone can make a certificate that signs itself), so a client that doesn't hold it still refuses, with openssl's code 19, "self-signed certificate in certificate chain", and one that holds it uses its own copy. The extra certificate is just bytes in every handshake, which is why servers send the site's certificate and the intermediates and stop there.
+
+  Clients don't refuse a chain because it includes the root; they ignore it. And no client fetches a root from the CA during a handshake: roots come with the operating system or browser, or, for a company's own CA, are installed on its machines.
+skills: [cert-chains]

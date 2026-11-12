@@ -1,0 +1,16 @@
+id: mcq-optional
+type: mcq
+rev: 1
+prompt: |
+  The partners' API in nginx has `ssl_client_certificate` set to the Shop Partners CA's certificate and `ssl_verify_client optional;`. A client with no certificate at all asks for `/orders`. What does it get?
+choices:
+  - "The orders: `optional` checks a certificate that arrives, and lets a client with none in"
+  - "A 400 page: `optional` only lets in certificates from other CAs besides the partners'"
+  - "A failed handshake: `optional` makes nginx end TLS at once when no certificate is sent"
+  - "A 495 page: `optional` makes nginx tell a client without a certificate to send one"
+answer: 0
+explanation: |
+  nginx's documentation: `optional` "requests the client certificate and verifies it if the certificate is present". With no certificate, the request goes through and `$ssl_client_verify` is `NONE`, so the API is open to anyone who simply doesn't send one, unless the site itself checks that variable. `on` is the setting that requires a valid certificate: a client without one gets `400 No required SSL certificate was sent`.
+
+  `optional` doesn't widen which CAs count (that's `optional_no_ca`, which skips the CA check altogether), and nginx never ends the handshake for a missing certificate, with either setting: it refuses, or doesn't, at the HTTP level. 495 is nginx's own code for a certificate that failed its check, seen only by `error_page`.
+skills: [mutual-tls]

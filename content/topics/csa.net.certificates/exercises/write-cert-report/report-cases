@@ -1,0 +1,82 @@
+#!/bin/bash
+# report-cases: the "unseen-servers" check of "Certificate report". It makes
+# an intermediate of its own under the lab's trusted root and a root nobody
+# trusts, each named now, and four throwaway servers on random ports of
+# 127.0.0.1 whose certificates have names made up now (in an order that
+# isn't sorted) and lifetimes of a random number of days and a half, so
+# that rounding down and rounding up always differ:
+#   A: the full chain, trusted;        asked for its second name, and for no name
+#   B: the certificate alone;          asked for its name
+#   C: two certificates: by default the full chain, and for one name a
+#      certificate alone;              asked for that name, and for the first's second name
+#   E: a chain to the untrusted root, the root sent too
+# Then it runs the learner's script against each and compares the five
+# lines with what each server was made to send. It prints "same", or the
+# first difference.
+set -u
+. /usr/local/lib/lab/tls-servers
+script=/home/learner/bin/cert-report
+dir=$(mktemp -d)
+chmod 755 "$dir"
+cleanup() {
+  pkill -f "s_server -accept 127.0.0.1:2[0-9]*[0-9] -cert $dir/" 2> /dev/null
+  rm -rf "$dir"
+}
+trap cleanup EXIT
+
+name() { printf '%s%04d.check.test' "$1" $((RANDOM % 10000)); }
+ca=/usr/local/lib/lab/ca
+icn="Check Intermediate $((RANDOM % 9000 + 1000))"
+ocn="Other Root $((RANDOM % 9000 + 1000))"
+make_inter "$dir/i" "$icn" "$ca"
+make_root "$dir/o" "$ocn"
+i=$dir/i
+leaf() { make_leaf "$dir" "$1" "$i" "$i/inter.pem" "$i/inter.key" "$2" "${@:3}"; }
+
+base=$((20000 + RANDOM % 8000))
+ok="ok"
+first="unable to verify the first certificate"
+mismatch="hostname mismatch"
+selfroot="self-signed certificate in certificate chain"
+
+# check PORT WANT-NAMES WANT-ISSUER DAYS CHAIN VERIFY [NAME]
+check() {
+  local port=$1 how
+  local want="names: $2|issuer: $3|days-left: $4|chain: $5|verify: $6"
+  how="localhost $port${7:+ $7}"
+  # shellcheck disable=SC2086
+  got=$(cd /home/learner && sudo -u learner timeout 15 "$script" $how 2>&1 | tr '\n' '|' | sed 's/|$//')
+  if [ "$got" != "$want" ]; then
+    echo "on a server made for this check, cert-report $how printed \"${got//|/; }\"; the server sent a certificate for which the report is \"${want//|/; }\""
+    exit 0
+  fi
+}
+
+# A: the full chain, trusted, two names (z..., then a...).
+da=$((3 + RANDOM % 58)) a1=$(name z) a2=$(name a)
+leaf A $((da * 24 + 12)) "$a1" "$a2"
+serve $base "$dir/A.pem" "$dir/A.key" -cert_chain "$i/inter.pem"
+# B: the certificate alone.
+db=$((3 + RANDOM % 58)) b1=$(name b)
+leaf B $((db * 24 + 12)) "$b1"
+serve $((base + 1)) "$dir/B.pem" "$dir/B.key"
+# C: by default D, the full chain (y..., then d...); for c... its own, alone.
+dd=$((3 + RANDOM % 58)) dc=$((3 + RANDOM % 58)) d1=$(name y) d2=$(name d) c1=$(name c)
+leaf D $((dd * 24 + 12)) "$d1" "$d2"
+leaf C $((dc * 24 + 12)) "$c1"
+serve $((base + 2)) "$dir/D.pem" "$dir/D.key" -cert_chain "$i/inter.pem" -servername "$c1" -cert2 "$dir/C.pem" -key2 "$dir/C.key"
+# E: signed by the root nobody trusts, which it sends along.
+de=$((3 + RANDOM % 58)) e1=$(name e)
+make_leaf "$dir" E "$dir/o" "$dir/o/root.pem" "$dir/o/root.key" $((de * 24 + 12)) "$e1"
+serve $((base + 3)) "$dir/E.pem" "$dir/E.key" -cert_chain "$dir/o/root.pem"
+for p in 0 1 2 3; do
+  listening $((base + p)) || { echo "the check's own server on port $((base + p)) didn't start"; exit 0; }
+done
+
+check $base "$a2, $a1" "$icn" "$da" 2 "$ok" "$a2"
+check $base "$a2, $a1" "$icn" "$da" 2 "$mismatch"
+check $((base + 1)) "$b1" "$icn" "$db" 1 "$first" "$b1"
+check $((base + 2)) "$c1" "$icn" "$dc" 1 "$first" "$c1"
+check $((base + 2)) "$d2, $d1" "$icn" "$dd" 2 "$ok" "$d2"
+check $((base + 3)) "$e1" "$ocn" "$de" 2 "$selfroot" "$e1"
+echo same

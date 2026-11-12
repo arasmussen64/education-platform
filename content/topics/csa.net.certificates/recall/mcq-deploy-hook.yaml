@@ -1,0 +1,16 @@
+id: mcq-deploy-hook
+type: mcq
+rev: 1
+prompt: |
+  certbot's log shows every renewal of the shop's certificate succeeding, and nginx's site reads certbot's `live/` files. Yet a month after nginx last started, customers see the certificate expire. What is missing?
+choices:
+  - "A deploy hook that reloads nginx, so that the running server reads each new certificate"
+  - "A timer that runs certbot, since a successful renewal never changes the live/ files"
+  - "The archive/ paths in the site file, since live/ keeps leading to the first certificate"
+  - "A new account key for certbot, since each renewal must be signed by a fresh account"
+answer: 0
+explanation: |
+  A renewal changes certbot's files and nothing else. nginx reads its certificate when it starts or reloads and keeps it in memory, so a server that hasn't been reloaded since it started serves the certificate it started with, however many renewals certbot has saved since. The fix is a deploy hook, a command certbot runs after each certificate it gets: `--deploy-hook "systemctl reload nginx"` on an ordinary server (stored as `renew_hook` in the renewal file), `systemctl reload nginx@web` on the labs' web.
+
+  The log already shows renewals, so the timer runs; `live/` always leads to the newest certificate, and `archive/` paths are the mistake, not the cure; and certbot keeps one account key for all its orders.
+skills: [acme-and-rotation]
