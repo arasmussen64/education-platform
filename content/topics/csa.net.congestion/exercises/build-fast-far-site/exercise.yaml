@@ -1,0 +1,25 @@
+id: build-fast-far-site
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Fast from far away"
+prompt: |
+  The shop's servers have moved to a cloud region on another continent, and you're handed the new site as it came up from the cloud's standard image. `netlab show` lists the machines.
+
+  - **`shop`** runs the site: Caddy (`caddy@shop`, its settings in shop's `/etc/caddy/Caddyfile`, left at Caddy's defaults), serving `https://shop.test/`. Every machine trusts the certificate the site gets from Caddy's own authority. shop's kernel settings are the image's, so it sends with Linux's default congestion control. shop has no firewall of its own.
+  - **`fw`** is the site's firewall, a router between the internet and shop (`nftables@fw`, its rules in fw's `/etc/nftables.conf`). The image lets the internet reach shop's SSH, HTTP and HTTPS over TCP, lets out everything shop starts, and drops everything else.
+  - **The nightly archive** goes from shop to the DR site's server, `dr1` (10.0.6.20), whose receiver is iperf3's server (`backup-sink@dr1`), across a private link, `wan`: 50 Mbit/s, a 100 ms round trip, and about 1% of the packets on their way to dr1 lost at random. `archive-push` runs the nightly job now: one TCP connection for 6 seconds, with shop's own congestion control, and it prints how many Mbit/s dr1 received.
+  - **The office**, `office`, reaches the site across the internet, `isp`, with a 100 ms round trip. `on office curl -s https://shop.test/` asks for the page over HTTPS and prints which HTTP version answered; `on office h3get https://shop.test/` asks for it over HTTP/3.
+
+  The brief:
+
+  1. **The nightly archive reaches dr1 at least half as fast as the link,** 25 Mbit/s or more, on its one connection, every night, after reboots too.
+  2. **Office users get the site over HTTP/3,** and the site tells browsers it offers it.
+  3. **The site's firewall still lets in only what the site serves,** and the rules it runs are the ones its file loads at boot.
+  4. **The private link and the archive job stay as they are:** they stand for the provider's network and another team's tool.
+
+  You may change shop, fw and dr1. When the brief is met, run the checks. They measure the archive once more, try HTTP/3 from the office, and send the site's firewall a few things it must drop.
+skills: [bbr-model, http3-in-practice, quic-changes, loss-latency-math]
