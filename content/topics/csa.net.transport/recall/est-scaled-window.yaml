@@ -1,0 +1,22 @@
+id: est-scaled-window
+type: estimate
+rev: 1
+prompt: |
+  In a capture, a receiver's SYN-ACK offered `wscale 7`, and so did the sender's SYN. A later segment from the receiver shows `win 1465`. How many bytes may the sender have in flight, unacknowledged? Exactly.
+unit: bytes
+answer: 187520
+tolerance: { absolute: 0 }
+given: { shift: 7, field: 1465 }
+working: field * 2 ** shift
+mistakes:
+  - id: ignored-scale
+    value: 1465
+    working: field
+    why: That's the window field as it's written. With scaling agreed in the SYNs, the field is multiplied by 2 to the power of the shift.
+  - id: times-shift
+    value: 10255
+    working: field * shift
+    why: That multiplies by the shift itself. The shift is a power of two, 2^7, which is 128.
+explanation: |
+  The window field is 16 bits, so it can never say more than 65,535 on its own. With window scaling, each side announces a shift count in its SYN, and from then on its window field means that many bytes times 2 to the power of the shift: 1,465 × 2^7 = 1,465 × 128 = 187,520 bytes. The shift is never sent again after the SYN, which is why a capture that missed the handshake can't tell what `win 1465` means.
+skills: [window-math, read-a-capture]

@@ -1,0 +1,37 @@
+#!/usr/bin/python3
+"""price-feed: the supplier's price feed (a stand-in; part of the lab's
+scenery). It listens on UDP port 5005, remembers every address that sends
+it anything, and every 15 seconds pushes a numbered price update to each
+of them. It never answers a datagram itself, and nothing tells it when a
+subscriber has gone."""
+
+import socket
+import threading
+import time
+
+PUSH_EVERY = 15
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(("0.0.0.0", 5005))
+subscribers = set()
+
+
+def push():
+    number = 0
+    while True:
+        time.sleep(PUSH_EVERY)
+        number += 1
+        for address in list(subscribers):
+            try:
+                sock.sendto(b"price update %d\n" % number, address)
+            except OSError:
+                pass
+
+
+threading.Thread(target=push, daemon=True).start()
+while True:
+    try:
+        _, address = sock.recvfrom(2048)
+    except OSError:
+        continue
+    subscribers.add(address)

@@ -1,0 +1,195 @@
+# The checks of "The quiet path". Each reads what really happens (orders
+# over the connection shop-api holds, packets crossing nat, the feed's
+# updates in feed-client's journal, the standby's answer time), and the
+# last ones read where the fix lasts: the boxes as shipped, the system's
+# settings against a fresh build of app's files, and shop-api and
+# feed-client running the settings their files hold.
+# shop-api and the database's firewall decide the keepalive numbers: db
+# forgets a quiet connection after 11 seconds, nat after 18, so probes must
+# come sooner than 11; a dead database is noticed idle + interval × count
+# seconds after the last packet.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: keepalive-under-both
+    description: "shop-api's database connection has keepalive switched on, with probes that come sooner than either box on its path forgets it."
+    command: |
+      read -r switch idle interval count < <(python3 - << 'EOF'
+      settings = {}
+      for line in open("/etc/netns/app/shop/api.conf", encoding="utf-8"):
+          line = line.split("#", 1)[0].strip()
+          if "=" in line:
+              name, value = (part.strip() for part in line.split("=", 1))
+              settings[name] = value
+      print(*(settings.get(name) or "-" for name in ("db_keepalive", "db_keepalive_idle", "db_keepalive_interval", "db_keepalive_count")))
+      EOF
+      )
+      [ "$switch" = on ] || { echo "shop-api's settings leave keepalive off for its database connection"; exit 0; }
+      [ "$idle" = - ] && idle=$(on app sysctl -n net.ipv4.tcp_keepalive_time)
+      [ "$interval" = - ] && interval=$(on app sysctl -n net.ipv4.tcp_keepalive_intvl)
+      case "$idle$interval" in *[!0-9]*) echo "a keepalive setting isn't a whole number of seconds"; exit 0 ;; esac
+      [ "$idle" -lt 11 ] || { echo "the first probe comes after $idle s of quiet, later than one of the boxes forgets"; exit 0; }
+      [ "$interval" -lt 11 ] || { echo "the probes come $interval s apart, and after an answered probe the next waits that long, later than one of the boxes forgets"; exit 0; }
+      echo "under both"
+    expect:
+      equals: "under both"
+  - id: dead-db-noticed
+    description: "A database that goes dark is noticed within 60 seconds of the last packet."
+    command: |
+      read -r idle interval count < <(python3 - << 'EOF'
+      settings = {}
+      for line in open("/etc/netns/app/shop/api.conf", encoding="utf-8"):
+          line = line.split("#", 1)[0].strip()
+          if "=" in line:
+              name, value = (part.strip() for part in line.split("=", 1))
+              settings[name] = value
+      print(*(settings.get(name) or "-" for name in ("db_keepalive_idle", "db_keepalive_interval", "db_keepalive_count")))
+      EOF
+      )
+      [ "$idle" = - ] && idle=$(on app sysctl -n net.ipv4.tcp_keepalive_time)
+      [ "$interval" = - ] && interval=$(on app sysctl -n net.ipv4.tcp_keepalive_intvl)
+      [ "$count" = - ] && count=$(on app sysctl -n net.ipv4.tcp_keepalive_probes)
+      case "$idle$interval$count" in *[!0-9]*) echo "a keepalive setting isn't a whole number"; exit 0 ;; esac
+      noticed=$((idle + interval * count))
+      [ "$noticed" -le 60 ] || { echo "a database that goes dark is noticed $noticed s after the last packet"; exit 0; }
+      echo "in time"
+    expect:
+      equals: "in time"
+  # An order, 13 seconds of quiet (longer than db's firewall remembers,
+  # shorter than nat), and an order: the second must work over the same
+  # connection, and during the quiet only empty segments (probes and their
+  # answers, at least two) may cross nat's outside. The capture starts a
+  # second after the first order, so its last acknowledgement isn't counted.
+  - id: orders-after-quiet
+    description: "An order after 13 seconds of quiet works, over the same connection as the order before it, and only keepalive probes and their answers cross nat during the quiet."
+    timeout: 45
+    command: |
+      order() { on app curl -s -m 8 localhost:8080/order; }
+      first=$(order)
+      case "$first" in *'"ok": true'*) ;; *) echo "an order fails: $first"; exit 0 ;; esac
+      port1=$(echo "$first" | sed -n 's/.*"port": \([0-9]*\).*/\1/p')
+      cap=$(mktemp)
+      (sleep 1; on nat timeout 11 tcpdump -nn -l -i outside 'tcp port 5432' > "$cap" 2> /dev/null) &
+      sleep 13
+      second=$(order)
+      wait
+      port2=$(echo "$second" | sed -n 's/.*"port": \([0-9]*\).*/\1/p')
+      empty=$(grep -c 'length 0$' "$cap")
+      data=$(grep -c 'length [1-9][0-9]*$' "$cap")
+      rm -f "$cap"
+      case "$second" in *'"ok": true'*) ;; *) echo "the order after 13 s of quiet fails: $second"; exit 0 ;; esac
+      [ "$port1" = "$port2" ] || { echo "the order after the quiet spell went over a new connection (port $port1, then $port2)"; exit 0; }
+      [ "$empty" -ge 2 ] || { echo "no keepalive probes crossed nat during the quiet spell"; exit 0; }
+      [ "$data" -eq 0 ] || { echo "data crossed nat during the quiet spell ($data segments)"; exit 0; }
+      echo survives
+    expect:
+      equals: survives
+  # The feed pushes every 15 seconds and nat forgets a UDP mapping after 10:
+  # an update arrives only if feed-client's datagrams keep the mapping. For
+  # 21 seconds the check times every datagram from app to the feed as it
+  # reaches nat (the longest gap between two must be under 10 s, so there
+  # must be two), then looks for an update in feed-client's journal from
+  # those 21 seconds, which hold at least one push.
+  - id: feed-arrives
+    description: "The price feed's updates keep arriving at app, kept coming by datagrams from app that reach nat less than 10 seconds apart."
+    timeout: 40
+    command: |
+      since=$(date '+%Y-%m-%d %H:%M:%S')
+      cap=$(mktemp)
+      on nat timeout 21 tcpdump -tt -nn -l -i inside 'udp and src host 10.0.1.10 and dst port 5005' > "$cap" 2> /dev/null
+      arrived=$(journalctl -u feed-client@app --since "$since" --no-pager -o cat | grep -c 'price update')
+      sent=$(grep -c . "$cap")
+      gap=$(awk 'NR > 1 {d = $1 - last; if (d > most) most = d} {last = $1} END {printf "%.1f\n", most}' "$cap")
+      rm -f "$cap"
+      [ "$sent" -ge 2 ] || { echo "fewer than two datagrams from app reached nat in 21 s"; exit 0; }
+      awk -v gap="$gap" 'BEGIN {exit !(gap < 10)}' || { echo "app's datagrams to the feed reach nat up to $gap s apart"; exit 0; }
+      [ "$arrived" -ge 1 ] || { echo "no price update reached feed-client in 21 s"; exit 0; }
+      echo arriving
+    expect:
+      equals: arriving
+  # The health page must really try the standby: a capture on nat's inside
+  # sees its SYN, so a page pointed somewhere that refuses at once, or an
+  # app whose own route or firewall refuses the standby, fails. The capture
+  # stops at the first SYN, so the check waits out its 10 seconds only when
+  # no SYN comes.
+  - id: standby-in-seconds
+    description: "shop-api's health page tries the standby database and reports it down within 6 seconds."
+    timeout: 20
+    command: |
+      cap=$(mktemp)
+      on nat timeout 10 tcpdump -c 1 -nn -l -i inside 'tcp[tcpflags] & (tcp-syn|tcp-ack) == tcp-syn and dst host 10.0.2.21 and dst port 5432' > "$cap" 2> /dev/null &
+      sleep 1
+      start=$(date +%s%N)
+      answer=$(on app curl -s -m 8 localhost:8080/health/standby)
+      ms=$((($(date +%s%N) - start) / 1000000))
+      wait
+      tried=$(grep -c 'Flags \[S\],' "$cap")
+      rm -f "$cap"
+      case "$answer" in *'"standby": "down"'*) ;; *) echo "the health page answered [${answer:-nothing}] after $ms ms"; exit 0 ;; esac
+      [ "$ms" -le 6000 ] || { echo "the health page took $ms ms to report the standby down"; exit 0; }
+      [ "$tried" -ge 1 ] || { echo "the health page reported the standby down, but no connection attempt to it (10.0.2.21, port 5432) crossed nat"; exit 0; }
+      echo "in seconds"
+    expect:
+      equals: "in seconds"
+  # A fresh build of app's files (netlab verify's copy, chk-app) gives the
+  # value a reboot would.
+  - id: system-connects-unchanged
+    description: "Every other program on app still waits for a connection as long as the system did before: net.ipv4.tcp_syn_retries is 6, now and after a reboot."
+    command: |
+      live=$(on app sysctl -n net.ipv4.tcp_syn_retries)
+      fresh=$(netlab verify app -- on chk-app sysctl -n net.ipv4.tcp_syn_retries 2>&1) || { echo "app's settings now aren't the ones its files give it at boot"; exit 0; }
+      [ "$live" = 6 ] && [ "$fresh" = 6 ] || { echo "net.ipv4.tcp_syn_retries is $live now and $fresh after a reboot"; exit 0; }
+      echo unchanged
+    expect:
+      equals: unchanged
+  - id: one-connection
+    description: "shop-api keeps one connection to the database and sends every order over it."
+    command: |
+      held() { on app ss -tnH state established '( dst 10.0.2.20 and dport = :5432 )'; }
+      on app curl -s -m 8 localhost:8080/order > /dev/null
+      before=$(held)
+      on app curl -s -m 8 localhost:8080/order > /dev/null
+      on app curl -s -m 8 localhost:8080/order > /dev/null
+      after=$(held)
+      [ "$(echo "$before" | grep -c .)" -eq 1 ] && [ "$before" = "$after" ] || { echo "shop-api held [$(echo "$before" | awk '{print $3}' | tr '\n' ' ')] before two orders and [$(echo "$after" | awk '{print $3}' | tr '\n' ' ')] after them"; exit 0; }
+      echo "one connection"
+    expect:
+      equals: "one connection"
+  - id: boxes-as-they-were
+    description: "nat, the database's firewall and the standby are as they were shipped: their files, their running rules and their idle timers."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      for m in nat db standby; do
+        nft_saved "$m" > /dev/null || { echo "$m's running rules aren't the ones its /etc/nftables.conf loads"; exit 0; }
+      done
+      now=$(on nat sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established net.netfilter.nf_conntrack_udp_timeout net.netfilter.nf_conntrack_udp_timeout_stream | tr '\n' ' ')
+      [ "$now" = "18 10 10 " ] || { echo "nat's idle timers were changed"; exit 0; }
+      [ "$(on db sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established)" = 11 ] || { echo "the database firewall's idle timer was changed"; exit 0; }
+      echo "as shipped"
+    expect:
+      equals: "as shipped"
+  # shop-api and feed-client read their files only when they start, so each
+  # must have started after its file last changed; app's keepalive settings
+  # now must be the ones a reboot gives (a fresh build of app's files).
+  - id: lasts
+    description: "Everything the other checks read survives a reboot: shop-api and feed-client run the settings their files hold and start at boot, and app's keepalive settings come from its files."
+    command: |
+      for pair in shop-api:api.conf feed-client:feed.conf; do
+        unit=${pair%%:*}@app
+        file=/etc/netns/app/shop/${pair#*:}
+        [ "$(systemctl is-enabled "$unit" 2> /dev/null)" = enabled ] || { echo "$unit doesn't start at boot"; exit 0; }
+        started=$(systemctl show "$unit" -p ExecMainStartTimestamp --value --timestamp=unix | tr -d '@')
+        changed=$(stat -c %Y "$file")
+        [ -n "$started" ] && [ "$started" -ge "$changed" ] || { echo "$unit is running settings older than its file"; exit 0; }
+      done
+      keys="net.ipv4.tcp_keepalive_time net.ipv4.tcp_keepalive_intvl net.ipv4.tcp_keepalive_probes"
+      # shellcheck disable=SC2086 # three keys, one argument each
+      live=$(on app sysctl -n $keys | tr '\n' ' ')
+      # shellcheck disable=SC2086
+      fresh=$(netlab verify app -- on chk-app sysctl -n $keys 2>&1) || { echo "app's settings now aren't the ones its files give it at boot"; exit 0; }
+      fresh=$(echo "$fresh" | tr '\n' ' ')
+      [ "$live" = "$fresh" ] || { echo "app's keepalive settings are $live now, and $fresh after a reboot"; exit 0; }
+      echo lasts
+    expect:
+      equals: lasts

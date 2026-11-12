@@ -1,0 +1,14 @@
+# The cloud's managed database on a machine: "systemctl status orders-db@db".
+[Unit]
+Description=The orders database on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/orders-db
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

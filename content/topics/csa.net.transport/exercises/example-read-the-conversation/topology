@@ -1,0 +1,42 @@
+# The network of "Read the conversation": the shop's app server and its two
+# paths out.
+#
+#   app eth1 10.0.1.10 --- nat (inside 10.0.1.1 | outside 10.0.2.1) ---[cloud]--- db 10.0.2.20
+#   app eth2 10.0.5.10 --- edge (10.0.5.1 | 10.9.0.1) --- wan (10.9.0.2 | 10.0.6.1) --- dr 10.0.6.20
+#
+# nat is the cloud's NAT gateway, scenery: it translates app's address,
+# forgets a connection that has been quiet for 15 seconds (AWS's waits 350),
+# and resets whoever sends on a connection it has forgotten. db is the
+# cloud's managed database (orders-db@db, port 5432). edge is the shop's
+# router towards the private link to the DR site; wan is that link, 50
+# Mbit/s with 50 ms each way; dr runs the replication receiver
+# (repl-sink@dr, iperf3's server, port 5201).
+machine app
+machine nat router
+machine db
+machine edge router
+machine wan router
+machine dr
+
+link app:eth1=10.0.1.10/24 nat:inside=10.0.1.1/24
+lan cloud nat:outside=10.0.2.1/24 db:eth0=10.0.2.20/24
+link app:eth2=10.0.5.10/24 edge:inside=10.0.5.1/24
+link edge:outside=10.9.0.1/30 wan:edge=10.9.0.2/30
+link wan:dr=10.0.6.1/24 dr:eth0=10.0.6.20/24
+
+route app 10.0.2.0/24 via 10.0.1.1
+route app 10.0.6.0/24 via 10.0.5.1
+route db default via 10.0.2.1
+route edge 10.0.6.0/24 via 10.9.0.2
+route wan 10.0.5.0/24 via 10.9.0.1
+route dr default via 10.0.6.1
+
+# nat's idle timer: a connection quiet for 15 seconds is forgotten.
+sysctl nat net.netfilter.nf_conntrack_tcp_timeout_established=15
+
+# The private link: towards dr, where the data goes, 50 Mbit/s and 50 ms;
+# back towards app, where the acknowledgements go, the 50 ms only.
+netem wan dr rate 50mbit delay 50ms limit 2000
+netem wan edge delay 50ms limit 2000
+
+run nat nftables

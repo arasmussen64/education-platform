@@ -1,0 +1,22 @@
+id: est-smallest-idle
+type: estimate
+rev: 1
+prompt: |
+  An app's database connection crosses an Azure NAT gateway (TCP idle timeout 4 minutes), then a firewall appliance that forgets a flow after 300 seconds of quiet, and arrives at a database in another network whose firewall keeps tracking a flow while it sends at least one packet every 10 minutes. The keepalive's probes must come sooner than every one of them forgets: below how many seconds must the idle time before the first probe be? Exactly.
+unit: seconds
+answer: 240
+tolerance: { absolute: 0 }
+given: { nat: 4, appliance: 300, far: 10 }
+working: min(nat * 60, appliance, far * 60)
+mistakes:
+  - id: largest
+    value: 600
+    working: max(nat * 60, appliance, far * 60)
+    why: That's the longest timer. Every box on the path must keep the connection, so the shortest timer decides.
+  - id: minutes
+    value: 4
+    working: nat
+    why: That's the answer in minutes. The question asks for seconds.
+explanation: |
+  The timers are 240 seconds (4 minutes), 300 seconds and 600 seconds (10 minutes), and a quiet connection is cut by the first box to forget it, so probes must start below 240 seconds, the smallest. The gap between probes must be below it too: after an answered probe, Linux waits the interval before it checks again. AWS's blog suggests 240 seconds for its 350-second timers; behind an Azure NAT gateway's 4 minutes you'd want comfortably less, 180 say.
+skills: [idle-cuts]

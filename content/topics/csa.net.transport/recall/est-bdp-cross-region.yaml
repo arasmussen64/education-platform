@@ -1,0 +1,24 @@
+id: est-bdp-cross-region
+type: estimate
+rev: 1
+prompt: |
+  A replication link between two cloud regions carries 200 Mbit/s and has a round-trip time of 80 ms. How many bytes must one TCP connection be allowed to have in flight, unacknowledged, to fill it? Within 2%.
+unit: bytes
+answer: 2000000
+tolerance: { percent: 2 }
+given: { rate: 200, rtt: 80 }
+# Bits a second to bytes a second (divide by 8), then times the round trip
+# in seconds: the bandwidth-delay product.
+working: rate * 1000000 / 8 * rtt / 1000
+mistakes:
+  - id: bits-not-bytes
+    value: 16000000
+    working: rate * 1000000 * rtt / 1000
+    why: That's bits. A window is counted in bytes, so divide by 8.
+  - id: one-way
+    value: 1000000
+    working: rate * 1000000 / 8 * rtt / 2000
+    why: That's half the round trip. Each byte stays in flight until its acknowledgement comes back, so use the whole round trip.
+explanation: |
+  200 Mbit/s is 200,000,000 ÷ 8 = 25,000,000 bytes a second. In one round trip of 0.08 s the link carries 25,000,000 × 0.08 = 2,000,000 bytes, and that's how much is "on the wire" when the path is full: the bandwidth-delay product. A connection whose window is smaller sends its window, then waits for acknowledgements, and the link sits idle for part of every round trip. Without window scaling the window stops at 65,535 bytes, about 3% of this.
+skills: [window-math]

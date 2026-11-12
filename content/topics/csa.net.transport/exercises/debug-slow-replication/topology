@@ -1,0 +1,32 @@
+# The network of "Slow replication": the shop's app server, the site's
+# firewall, the private link and the DR site.
+#
+#   app eth0 10.0.5.10 --- edge (inside 10.0.5.1 | outside 10.9.0.1) --- wan (10.9.0.2 | 10.0.6.1) --- dr 10.0.6.20
+#
+# wan is the private link, scenery: 50 Mbit/s towards dr and 50 ms each way.
+# edge's idle timer, scenery too, stands for a managed firewall's: a
+# connection quiet for 10 seconds is forgotten. wan routes the shop's own
+# addresses back to edge, so only edge's firewall keeps the outside out.
+machine app
+machine edge router
+machine wan router
+machine dr
+
+link app:eth0=10.0.5.10/24 edge:inside=10.0.5.1/24
+link edge:outside=10.9.0.1/30 wan:edge=10.9.0.2/30
+link wan:dr=10.0.6.1/24 dr:eth0=10.0.6.20/24
+
+route app default via 10.0.5.1
+route edge 10.0.6.0/24 via 10.9.0.2
+route wan 10.0.5.0/24 via 10.9.0.1
+route dr default via 10.0.6.1
+
+sysctl edge net.netfilter.nf_conntrack_tcp_timeout_established=10
+
+# The private link: towards dr, where the data goes, 50 Mbit/s and 50 ms;
+# back towards edge, where the acknowledgements go, the 50 ms only.
+netem wan dr rate 50mbit delay 50ms limit 2000
+netem wan edge delay 50ms limit 2000
+
+run edge nftables
+run dr web-svc

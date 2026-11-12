@@ -1,0 +1,17 @@
+# The replication agent's status connection on a machine:
+# "systemctl status repl-agent@app". Its settings are the machine's own
+# /etc/repl/agent.conf.
+[Unit]
+Description=The replication agent on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+# Journal lines say which service and machine wrote them ("repl-agent@app").
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/repl-agent
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+id: mcq-probe-gap
+type: mcq
+rev: 1
+prompt: |
+  A program switches keepalive on for its connection with its own timers: `TCP_KEEPIDLE` 30 seconds and `TCP_KEEPINTVL` 75 seconds. The connection crosses a firewall that forgets a quiet connection after 60 seconds. The far end is healthy, and the connection then has nothing to say for ten minutes. What happens?
+choices:
+  - "A probe goes at 30 s; the next waits 75 s, so the firewall forgets first"
+  - "A probe goes every 30 s, each one answered, so the firewall never forgets"
+  - "No probe goes at all, because 75 s is more than the firewall's 60 s"
+  - "Probes go at 30 s and 60 s, and the second arrives a moment too late"
+answer: 0
+explanation: |
+  After a probe, Linux waits the interval before it looks at the connection again, even when the probe was answered at once. So the first probe goes after 30 s of quiet, and the next check comes 75 s later: on a quiet, healthy connection the probes come every idle time or every interval, whichever is longer, here every 75 s, and the firewall has forgotten the connection 60 s after the first probe. The lab showed the same with 5 s and the default 75 s behind a 15-second gateway: one probe, then the cut.
+
+  Both timers must be below the smallest idle timer on the path. With the clouds' timers (minutes) and Linux's default interval (75 s) that usually holds by itself, which is why it's easy to forget. The first probe does go out at 30 s, and the probes come every 30 s only when the interval is 30 s or less.
+skills: [idle-cuts, tcp-timers]

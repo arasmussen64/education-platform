@@ -1,0 +1,16 @@
+id: mcq-idle-forever
+type: mcq
+rev: 1
+prompt: |
+  A client holds an idle TCP connection, with keepalive off, to a server whose machine is then switched off at the wall. Nothing on the path forgets the connection. What does the client's socket do?
+choices:
+  - "Stays ESTAB until the client next sends, and only then do resends start"
+  - "Closes after 2 hours, when the system's keepalive timer has run out"
+  - "Moves to TIME-WAIT for a minute, then disappears from the `ss -tan` list"
+  - "Gets a reset from the server's network card as the machine powers off"
+answer: 0
+explanation: |
+  An idle connection with keepalive off sends nothing, so it has nothing to notice with: the socket stays `ESTAB` for as long as the client stays quiet, days if need be (Cloudflare's post calls it "Idle ESTAB is forever"). Only when the client next sends does TCP find out, by resending into the silence until it gives up, about 15 minutes later.
+
+  The system's two-hour keepalive timer only applies to sockets whose program switched keepalive on. `TIME-WAIT` follows a goodbye, and nobody said goodbye. And a machine that loses power sends nothing at all, reset or otherwise.
+skills: [tcp-timers]

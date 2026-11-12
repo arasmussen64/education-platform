@@ -1,0 +1,16 @@
+# The shop's order service on a machine: "systemctl status shop-api@app".
+# Its settings are the machine's own /etc/shop/api.conf.
+[Unit]
+Description=The shop's order service on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+# Journal lines say which service and machine wrote them ("shop-api@app").
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/shop-api
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

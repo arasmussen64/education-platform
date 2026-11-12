@@ -1,0 +1,130 @@
+# The checks of "Slow replication". The descriptions say what must be true
+# at the end, never what was wrong, and so do the sentences a failing
+# check prints: the terminal shows them at the first check.
+# The replication's speed is one fresh iperf3 transfer, which must reach
+# 25 Mbit/s: the middle of the gap between the faults' 5 to 9.5 and the
+# fixed link's 42 to 44 (measured 2026-11-12 on Docker Desktop). Fixes that
+# last are read where they last: edge's running firewall against its
+# /etc/nftables.conf, dr's receive buffers against a fresh build of its
+# files, app's keepalive timers against its /etc/sysctl.d. The scenery
+# (the link, edge's idle timer) is compared with what it was shipped as.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: replication-speed
+    description: "One replication connection from app to dr carries at least 25 Mbit/s of the link's 50."
+    command: |
+      on app iperf3 -c 10.0.6.20 -t 5 -J 2>&1 | python3 -c 'import json, sys
+      try:
+          print(int(json.load(sys.stdin)["end"]["sum_received"]["bits_per_second"] / 1e6))
+      except Exception:
+          print("no measurement: the transfer did not run")'
+    expect:
+      gte: 25
+  - id: scaling-reaches-dr
+    description: "A new connection from app arrives at dr still offering window scaling, and will after a reboot as well."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      syn=$(capture dr eth0 'tcp[tcpflags] & tcp-syn != 0 and dst port 9' 3 -- on app nc -z -w 2 10.0.6.20 9)
+      echo "$syn" | grep 'Flags \[S\],' > /dev/null || { echo "no connection from app reached dr"; exit 0; }
+      echo "$syn" | grep 'wscale' > /dev/null || { echo "a new connection from app arrives at dr without window scaling"; exit 0; }
+      [ "$(systemctl is-enabled nftables@edge 2> /dev/null)" = enabled ] || { echo "edge's firewall isn't loaded at boot"; exit 0; }
+      nft_saved edge > /dev/null || { echo "edge's running firewall isn't the one its /etc/nftables.conf loads at boot"; exit 0; }
+      echo offered
+    expect:
+      equals: offered
+  # A fresh build of the machines' files (netlab verify's copy, chk-dr)
+  # gives the value dr would have after a reboot, whether its files set it
+  # or leave it at the kernel's default.
+  - id: dr-buffers-last
+    description: "dr lets one connection's receive window grow past 1,000,000 bytes, and a reboot keeps it so."
+    command: |
+      live=$(on dr sysctl -n net.ipv4.tcp_rmem | tr -s ' \t' ' ')
+      fresh=$(netlab verify dr -- on chk-dr sysctl -n net.ipv4.tcp_rmem 2>&1) || { echo "dr's settings now aren't the ones its files give it at boot"; exit 0; }
+      fresh=$(echo "$fresh" | tr -s ' \t' ' ')
+      [ "$live" = "$fresh" ] || { echo "dr's receive buffers are $live now, and $fresh after a reboot"; exit 0; }
+      most=$(echo "$live" | awk '{print $3}')
+      [ "$most" -gt 1000000 ] || { echo "dr lets a connection's receive buffer grow to $most bytes at most"; exit 0; }
+      echo "lasts"
+    expect:
+      equals: lasts
+  - id: keepalive-from-files
+    description: "The keepalive timers in force on app are the ones its /etc/sysctl.d gives it, and they bring a probe sooner than edge forgets a quiet connection."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for key in net.ipv4.tcp_keepalive_time net.ipv4.tcp_keepalive_intvl; do
+        differs=$(sysctl_saved app "$key") || { echo "$differs"; exit 0; }
+      done
+      t=$(on app sysctl -n net.ipv4.tcp_keepalive_time)
+      i=$(on app sysctl -n net.ipv4.tcp_keepalive_intvl)
+      [ "$t" -lt 10 ] && [ "$i" -lt 10 ] || { echo "on a quiet connection app's probes come every $t s or every $i s, whichever is longer, and edge forgets after 10"; exit 0; }
+      echo "from the files"
+    expect:
+      equals: "from the files"
+  # A status check, 13 seconds of quiet (longer than edge remembers), and a
+  # status check: the second must work over the same connection, and during
+  # the quiet only empty segments (probes and their answers, at least two)
+  # may cross edge's outside. The capture starts a second after the first
+  # check, so its last acknowledgement isn't counted.
+  - id: status-after-quiet
+    description: "A status check after 13 seconds of quiet works, over the same connection as the check before it, and only keepalive probes and their answers cross edge during the quiet."
+    timeout: 40
+    command: |
+      status() { on app curl -s -m 8 localhost:8090/status; }
+      first=$(status)
+      case "$first" in *'"ok": true'*) ;; *) echo "a status check fails: $first"; exit 0 ;; esac
+      port1=$(echo "$first" | sed -n 's/.*"port": \([0-9]*\).*/\1/p')
+      cap=$(mktemp)
+      (sleep 1; on edge timeout 11 tcpdump -nn -l -i outside 'tcp port 8443' > "$cap" 2> /dev/null) &
+      sleep 13
+      second=$(status)
+      wait
+      port2=$(echo "$second" | sed -n 's/.*"port": \([0-9]*\).*/\1/p')
+      empty=$(grep -c 'length 0$' "$cap")
+      data=$(grep -c 'length [1-9][0-9]*$' "$cap")
+      rm -f "$cap"
+      case "$second" in *'"ok": true'*) ;; *) echo "the status check after 13 s of quiet fails: $second"; exit 0 ;; esac
+      [ "$port1" = "$port2" ] || { echo "the check after the quiet spell went over a new connection (port $port1, then $port2)"; exit 0; }
+      [ "$empty" -ge 2 ] || { echo "no keepalive probes crossed edge during the quiet spell"; exit 0; }
+      [ "$data" -eq 0 ] || { echo "data crossed edge during the quiet spell ($data segments)"; exit 0; }
+      echo survives
+    expect:
+      equals: survives
+  # Listeners of the check's own on app, which dr tries to reach through
+  # edge (wan routes app's addresses to edge): each must get no answer at
+  # all, as a firewall's drop gives. dr's test server answers with the
+  # address a connection came from: edge's, 10.9.0.1. Then edge's timer.
+  - id: edge-still-guards
+    description: "edge still lets nothing from outside start a connection in, still translates app's address, and still forgets a quiet connection after 10 seconds."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on app holdserver 22 8080 9999 > /dev/null 2>&1 &
+      holder=$!
+      trap 'kill "$holder" 2> /dev/null' EXIT
+      sleep 1
+      dir=$(mktemp -d)
+      for port in 22 8080 9999; do tcp_state dr 10.0.5.10 "$port" > "$dir/$port" & done
+      for job in $(jobs -p); do [ "$job" = "$holder" ] || wait "$job"; done
+      for port in 22 8080 9999; do
+        [ "$(cat "$dir/$port")" = dropped ] || { echo "from dr, app's port $port is $(cat "$dir/$port")"; rm -rf "$dir"; exit 0; }
+      done
+      rm -rf "$dir"
+      seen=$(on app nc -w 3 10.0.6.20 8080 < /dev/null)
+      [ "$seen" = 10.9.0.1 ] || { echo "dr sees app's connections come from ${seen:-nowhere}, not from edge's address"; exit 0; }
+      [ "$(on edge sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established)" = 10 ] || { echo "edge's idle timer was changed"; exit 0; }
+      echo guards
+    expect:
+      equals: guards
+  # The link's live shaping against a fresh build's (netlab verify's copy,
+  # from the sealed topology), so a change made live with tc shows. The
+  # qdisc's handle is only a number: left out.
+  - id: link-as-it-was
+    description: "The private link is as it was shipped: 50 Mbit/s towards dr and 50 ms each way."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      live=$(for dev in dr edge; do ip netns exec wan tc qdisc show dev "$dev"; done | sed 's/netem [0-9a-f]*:/netem/')
+      fresh=$(netlab verify wan -- bash -c 'for dev in dr edge; do ip netns exec chk-wan tc qdisc show dev "$dev"; done' | sed 's/netem [0-9a-f]*:/netem/')
+      if [ "$live" = "$fresh" ]; then echo "as shipped"; else echo "the link's shaping was changed: now $(echo "$live" | tr '\n' ' ')"; fi
+    expect:
+      equals: "as shipped"

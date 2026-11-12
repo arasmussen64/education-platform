@@ -1,0 +1,25 @@
+id: mcq-what-are-these
+type: mcq
+rev: 1
+prompt: |
+  During a quiet spell on a connection between app (10.0.1.10) and a database (10.0.2.20), a capture shows these lines and nothing else (captured in the lab "Read the conversation", 2026-11-12; options cut short). The last data app sent ended at byte 8, and the last it received at byte 11.
+
+  ```
+  15:07:43.588291 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 12, win 63, ... length 0
+  15:07:43.588753 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [.], ack 9, win 64, ... length 0
+  15:07:48.708340 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 12, win 63, ... length 0
+  15:07:48.708450 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [.], ack 9, win 64, ... length 0
+  ```
+
+  What are app's empty segments, 5 seconds apart?
+choices:
+  - "Keepalive probes: empty segments that make the other side answer"
+  - "Retransmissions of bytes the database never acknowledged in time"
+  - "Window updates telling the database that app's buffer has room"
+  - "Delayed acknowledgements of data that arrived five seconds before"
+answer: 0
+explanation: |
+  No new data, the same `ack 12` every time, and exactly 5 seconds of quiet between them: keepalive probes, here with a socket idle time and interval of 5 seconds. A probe re-sends the last byte's sequence number with no data, so the other side must answer with an acknowledgement (`ack 9`: "I have everything before byte 9"). Each probe and its answer are traffic, so every stateful box on the path starts its idle count again.
+
+  A retransmission carries data (a `length` above 0, the same `seq` range again) and its gaps grow. A window update would change `win`, which stays 63. And a delayed acknowledgement waits at most a fraction of a second, once, not every 5 seconds with nothing new to acknowledge.
+skills: [read-a-capture, idle-cuts]

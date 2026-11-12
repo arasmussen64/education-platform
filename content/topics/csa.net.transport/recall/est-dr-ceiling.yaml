@@ -1,0 +1,22 @@
+id: est-dr-ceiling
+type: estimate
+rev: 1
+prompt: |
+  A receiver's SYN-ACK arrives without `wscale`, so window scaling is off for the connection, and its window field reads 65,160 bytes. The round trip is 100 ms. At most how many Mbit/s can it receive on that one connection? Within 3%.
+unit: Mbit/s
+answer: 5.2128
+tolerance: { percent: 3 }
+given: { field: 65160, rtt: 100 }
+working: field * 8 / (rtt / 1000) / 1000000
+mistakes:
+  - id: megabytes
+    value: 0.6516
+    working: field / (rtt / 1000) / 1000000
+    why: That's megabytes a second. Multiply by 8 for megabits.
+  - id: seconds-not-ms
+    value: 0.0052
+    working: field * 8 / rtt / 1000000
+    why: That divides by 100 as if the round trip were 100 seconds. 100 ms is 0.1 s.
+explanation: |
+  Without scaling, the field is the window: 65,160 bytes at most in flight. One window per round trip is 65,160 × 8 = 521,280 bits every 0.1 s, so 5,212,800 bits a second, about 5.2 Mbit/s. The lab measured about 5 on its 50 Mbit/s link with scaling switched off at the receiver.
+skills: [window-math]

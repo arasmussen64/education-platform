@@ -1,0 +1,24 @@
+id: est-retries-ceiling
+type: estimate
+rev: 1
+prompt: |
+  A connection's peer vanishes while data is still unacknowledged. The kernel resends after 0.2 seconds, doubles the wait each time but never waits more than 120 seconds, and gives up at the end of the 16th wait. How many seconds after the first send does it give up? Within 1 second.
+unit: seconds
+answer: 924.6
+tolerance: { absolute: 1 }
+given: { start: 0.2, cap: 120 }
+# Ten waits double from 0.2 s up to 102.4 s (0.2 × (2^10 - 1) in all); the
+# next would be 204.8 s, more than the cap, so the other six are 120 s each.
+working: start * (2 ** 10 - 1) + 6 * cap
+mistakes:
+  - id: no-cap
+    value: 13107
+    working: start * (2 ** 16 - 1)
+    why: That lets the wait keep doubling. It stops growing at 120 seconds.
+  - id: fifteen-waits
+    value: 804.6
+    working: start * (2 ** 10 - 1) + 5 * cap
+    why: That's 15 waits. It gives up at the end of the 16th.
+explanation: |
+  The waits are 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8, 25.6, 51.2 and 102.4 seconds, which add up to 204.6; the next would be 204.8, over the cap, so the last six are 120 s each, 720 more: 924.6 seconds, about 15 minutes. That's the figure the kernel's documentation gives for `tcp_retries2` at its default of 15, as a lower bound. Fifteen minutes of a request hanging is why applications set read timeouts of their own.
+skills: [tcp-timers]

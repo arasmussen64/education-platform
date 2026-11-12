@@ -1,0 +1,72 @@
+#!/usr/bin/python3
+"""feed-client: takes the supplier's price updates (a stand-in; part of the
+lab's scenery).
+
+When it starts it subscribes to the feed by sending it one UDP datagram,
+then waits for the updates the feed pushes, and logs each one. Every
+keepalive_every seconds (0: never) it sends the feed a keepalive datagram.
+Its settings are /etc/shop/feed.conf, read when it starts; a later line for
+the same name wins.
+"""
+
+import socket
+import threading
+import time
+
+CONF = "/etc/shop/feed.conf"
+
+
+def read_conf():
+    settings = {}
+    with open(CONF, encoding="utf-8") as conf:
+        for line in conf:
+            line = line.split("#", 1)[0].strip()
+            if "=" in line:
+                name, value = (part.strip() for part in line.split("=", 1))
+                settings[name] = value
+    return settings
+
+
+SETTINGS = read_conf()
+HOST, PORT = SETTINGS.get("feed", "10.0.2.40:5005").rsplit(":", 1)
+try:
+    EVERY = float(SETTINGS.get("keepalive_every") or 0)
+except ValueError:
+    print(f"feed-client: keepalive_every = {SETTINGS.get('keepalive_every')} isn't a number of seconds, so none are sent", flush=True)
+    EVERY = 0
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.connect((HOST, int(PORT)))
+
+
+def keep_alive():
+    while EVERY > 0:
+        time.sleep(EVERY)
+        try:
+            sock.send(b"keepalive\n")
+        except OSError as error:
+            print(f"a keepalive datagram couldn't be sent: {error}", flush=True)
+
+
+# The feed may not be listening yet at boot, and nothing would say so (a
+# datagram to a closed port is lost), so the subscription is sent twice,
+# two seconds apart.
+for _ in range(2):
+    try:
+        sock.send(b"subscribe\n")
+    except OSError:
+        pass
+    time.sleep(2)
+if EVERY > 0:
+    print(f"feed-client: subscribed to the feed at {HOST}:{PORT}; a keepalive datagram every {EVERY:g} s", flush=True)
+else:
+    print(f"feed-client: subscribed to the feed at {HOST}:{PORT}; no keepalive datagrams", flush=True)
+threading.Thread(target=keep_alive, daemon=True).start()
+while True:
+    try:
+        data = sock.recv(2048)
+    except OSError as error:
+        print(f"feed-client: {error}", flush=True)
+        time.sleep(1)
+        continue
+    print(f"feed-client: {data.decode(errors='replace').strip()}", flush=True)

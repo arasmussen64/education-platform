@@ -1,0 +1,27 @@
+id: mcq-who-sent-the-reset
+type: mcq
+rev: 1
+prompt: |
+  app (10.0.1.10) keeps a connection to a database (10.0.2.20, port 5432) through a NAT gateway, the only router between them. A capture on app with `tcpdump -nn -v`, which prints each packet's TTL on the line above it (captured in the lab "Read the conversation", 2026-11-12; checksums left out):
+
+  ```
+  15:08:11.945449 IP (tos 0x0, ttl 64, id 32597, offset 0, flags [DF], proto TCP (6), length 60)
+      10.0.1.10.45902 > 10.0.2.20.5432: Flags [S], seq 1250026441, win 64240, ...
+  15:08:11.945492 IP (tos 0x0, ttl 63, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+      10.0.2.20.5432 > 10.0.1.10.45902: Flags [S.], seq 32934954, ack 1250026442, win 65160, ...
+  15:08:31.989076 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+      10.0.2.20.5432 > 10.0.1.10.45902: Flags [R], seq 32934966, win 0, length 0
+  ```
+
+  Twenty seconds after the handshake, app's next query was answered by that reset. Who most likely sent it?
+choices:
+  - "The NAT gateway, one hop away, pretending to be the database"
+  - "The database's kernel, because the database closed its socket"
+  - "A router beyond the database, which forwarded the reset onward"
+  - "The client's own kernel, which reset its socket after a timeout"
+answer: 0
+explanation: |
+  Every router lowers a packet's TTL by one. The database's own packets start at 64 and cross one router, the NAT gateway, so they arrive at app with 63, as the SYN-ACK did. The reset claims to come from 10.0.2.20.5432 but arrives with 64: it started one hop closer, at the gateway. A stateful box that has forgotten a connection answers the next packet in the server's name: AWS's NAT gateway sends exactly this reset to the inside end of a connection that has been idle for 350 seconds.
+
+  A reset from the database's kernel would carry 63, like its SYN-ACK. A router beyond the database would make it arrive with 62 or less, and the database is the far end anyway. And a reset that app's own kernel made would never show up arriving at app: a capture on `eth1` sees packets on the wire, and this one came in from nat.
+skills: [read-a-capture, idle-cuts]

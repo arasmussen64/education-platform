@@ -1,0 +1,15 @@
+# The DR site's replication receiver on a machine (iperf3's server, on
+# port 5201): "systemctl status repl-sink@dr".
+[Unit]
+Description=The replication receiver on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/iperf3 -s
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

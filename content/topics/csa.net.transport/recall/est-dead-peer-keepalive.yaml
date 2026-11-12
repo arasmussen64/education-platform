@@ -1,0 +1,22 @@
+id: est-dead-peer-keepalive
+type: estimate
+rev: 1
+prompt: |
+  A server uses AWS's suggested keepalive timers: the first probe after 240 seconds of quiet, then a probe every 60 seconds while they go unanswered, giving up after 3 unanswered probes. Its peer's machine loses power, so nothing ever answers again. How many seconds after the last packet does the server close the connection? Exactly.
+unit: seconds
+answer: 420
+tolerance: { absolute: 0 }
+given: { idle: 240, gap: 60, probes: 3 }
+working: idle + gap * probes
+mistakes:
+  - id: idle-only
+    value: 240
+    working: idle
+    why: That's when the first probe goes. The server then waits for answers to 3 probes, 60 seconds each.
+  - id: one-probe
+    value: 300
+    working: idle + gap
+    why: That gives up after one unanswered probe. It waits for all 3, 60 seconds each.
+explanation: |
+  The first probe goes at 240 s and gets no answer; the second at 300 s, the third at 360 s; 60 s after the third, at 420 s, the server gives up and the application's next read or write fails with "Connection timed out". In general, a dead peer is noticed idle time + interval × probes after the last packet. AWS's blog suggests these numbers because they start probing well inside its 350-second idle timers and still notice a dead peer in 7 minutes.
+skills: [tcp-timers, idle-cuts]

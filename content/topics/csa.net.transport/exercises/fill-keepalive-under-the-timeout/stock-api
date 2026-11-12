@@ -1,0 +1,23 @@
+#!/usr/bin/python3
+"""stock-api: the supplier's stock API (a stand-in; part of the lab's
+scenery). It listens on port 6000 and answers each line it is sent with one
+line, "stock ok " and the line, until the client closes the connection."""
+
+import socket
+import threading
+
+
+def serve(connection):
+    stream = connection.makefile("rwb", buffering=0)
+    for line in stream:
+        stream.write(b"stock ok " + line)
+    connection.close()
+
+
+listener = socket.socket()
+listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+listener.bind(("0.0.0.0", 6000))
+listener.listen(64)
+while True:
+    client, _ = listener.accept()
+    threading.Thread(target=serve, args=(client,), daemon=True).start()

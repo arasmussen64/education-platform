@@ -1,0 +1,14 @@
+# The supplier's price feed on a machine: "systemctl status price-feed@feed".
+[Unit]
+Description=The supplier's price feed on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/price-feed
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

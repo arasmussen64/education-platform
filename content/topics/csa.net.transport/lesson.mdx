@@ -1,0 +1,118 @@
+<Intro>
+
+Module 1 showed you a TCP handshake in `tcpdump` and the states in `ss`. This topic reads the rest of the conversation: what the first packets agree on, how bytes are counted, how a connection ends and who can end it, how much one connection can carry over a long path, how long TCP waits before it gives up, and the cloud problem behind a whole family of tickets: **quiet connections that get cut**. Then UDP, which does almost none of this. The labs use the shop's app server, `app`, with a connection to the cloud's managed database through the cloud's NAT gateway, and the nightly replication to a disaster-recovery site over a long private link.
+
+**What TCP promises, and how it counts.** IP delivers packets one at a time and promises nothing: a packet can be lost, arrive twice, or arrive after the one sent behind it. TCP turns that into a **byte stream** that arrives complete and in order. Picture a long letter sent as numbered postcards. The reader writes back "I've got everything up to card 7; send 7 next". Cards that go missing are sent again; cards that arrive early wait in a pile until the gap is filled. TCP numbers bytes, not cards: every byte a side sends has a **sequence number**, and the other side's **acknowledgement number** says "I have everything before byte N". Here is one order sent to the database by hand, captured on app in the worked example's lab (2026-11-12, options cut short):
+
+```text
+14:04:25.256442 IP 10.0.1.10.50730 > 10.0.2.20.5432: Flags [S], seq 3049429294, win 64240, options [mss 1460,sackOK,TS val 1782031648 ecr 0,nop,wscale 10], length 0
+14:04:25.256511 IP 10.0.2.20.5432 > 10.0.1.10.50730: Flags [S.], seq 2447611719, ack 3049429295, win 65160, options [mss 1460,sackOK,TS val 3390219376 ecr 1782031648,nop,wscale 10], length 0
+14:04:25.256523 IP 10.0.1.10.50730 > 10.0.2.20.5432: Flags [.], ack 1, win 63, ... length 0
+14:04:25.256568 IP 10.0.1.10.50730 > 10.0.2.20.5432: Flags [P.], seq 1:9, ack 1, win 63, ... length 8
+14:04:25.256575 IP 10.0.2.20.5432 > 10.0.1.10.50730: Flags [.], ack 9, win 64, ... length 0
+14:04:25.257111 IP 10.0.2.20.5432 > 10.0.1.10.50730: Flags [P.], seq 1:12, ack 9, win 64, ... length 11
+14:04:25.257133 IP 10.0.1.10.50730 > 10.0.2.20.5432: Flags [.], ack 12, win 63, ... length 0
+14:04:26.224537 IP 10.0.1.10.50730 > 10.0.2.20.5432: Flags [F.], seq 9, ack 12, win 63, ... length 0
+14:04:26.224720 IP 10.0.2.20.5432 > 10.0.1.10.50730: Flags [F.], seq 12, ack 10, win 64, ... length 0
+14:04:26.224740 IP 10.0.1.10.50730 > 10.0.2.20.5432: Flags [.], ack 13, win 63, ... length 0
+```
+
+Each side starts its numbering at a random number (the SYN's `seq 3049429294`), so tcpdump counts from the start of the conversation instead: **relative numbers** (`tcpdump -S` shows the real ones). `seq 1:9` with `length 8` is bytes 1 to 8, the 8 bytes of `order 1` and its newline, and the database's `ack 9` means it has all 8. Its answer, `seq 1:12`, is 11 bytes, and app's `ack 12` acknowledges them. A segment's **length** is the data it carries; an acknowledgement on its own carries none. A capture that starts in the middle of a connection shows the first packet it sees with the real numbers and counts from there.
+
+**The SYN carries the connection's settings.** Each side's SYN lists what it offers, in `options [...]`, and an option counts only if both sides offer it:
+
+- `mss 1460`: the **maximum segment size**, the most data this side will take in one segment: the link's MTU less 40 bytes of IPv4 and TCP headers, as Layers and packets showed.
+- `sackOK`: **selective acknowledgement**. Without it, a receiver can only say "everything before byte N"; with it, it can also say "and I have 2,001 to 4,000", so only the gap is sent again.
+- `TS val ... ecr ...`: the **timestamps** option, a number each side stamps on its segments and the other echoes back, used to measure round trips and to tell an old, delayed segment from a new one.
+- `wscale 10`: the **window scale** option, and its number is the **shift count**: from now on, count this side's window in units of 2^10, 1,024 bytes (below).
+- `nop`: one byte of padding.
+
+**Saying goodbye, and slamming the door.** Each side closes its own direction with a **FIN**, and each FIN is acknowledged, which often takes three packets: `[F.]`, `[F.]`, `[.]`, as above. A FIN counts as one byte in the numbering, so after app's FIN at `seq 9` the database acknowledges 10. Module 1 taught `TIME-WAIT`; the rule behind it is that the side that says goodbye first waits there, for 60 seconds on Linux, in case a late copy of the last packets is still on its way. Here app closed first, so app holds the `TIME-WAIT` socket. A goodbye is orderly: the other program reads the end of the stream. An **RST** (reset) is a slammed door: no goodbye, the connection is gone at once, and the program hears **"Connection reset by peer"**. A reset comes from the far end's kernel (the program aborted, or the connection no longer exists there), **or from any box in the middle that pretends to be the far end.** Here is the second kind, captured in the worked example with `tcpdump -nn -v`, which prints each packet's TTL on the line above it:
+
+```text
+15:08:11.945492 IP (tos 0x0, ttl 63, id 0, offset 0, flags [DF], proto TCP (6), length 60)
+    10.0.2.20.5432 > 10.0.1.10.45902: Flags [S.], seq 32934954, ack 1250026442, ...
+15:08:31.989076 IP (tos 0x0, ttl 64, id 0, offset 0, flags [DF], proto TCP (6), length 40)
+    10.0.2.20.5432 > 10.0.1.10.45902: Flags [R], seq 32934966, win 0, length 0
+```
+
+The database's SYN-ACK arrives with `ttl 63`: it started at 64 and crossed one router, the NAT gateway. The reset claims to come from the database too, but arrives with `ttl 64`: it started one hop closer. The gateway made it, in the database's name: the connection had been quiet for twenty seconds, and the gateway had forgotten it.
+
+**Flow control, the window and the round trip.** The **round-trip time** (RTT) is how long a packet takes to reach the other side and its answer to come back. In every segment, the receiver says how much more it can take: the **receive window**, `win`. The sender may have at most that much data **in flight**, sent but not yet acknowledged, and then it must wait. That's **flow control**: a fast sender can't drown a slow receiver. It also sets a ceiling: in one round trip, one connection can send at most one window, so **throughput ≤ window ÷ RTT**. The window is how many postcards may be in the post at once: if the reader allows 45 cards, and a card takes 50 ms to arrive and its answer 50 ms to come back, the writer can send 45 cards every 100 ms, however fast the post could carry them. One line on units, because every rate here is in bits and every window in bytes: a link is sold in **megabits a second** (Mbit/s, millions of bits); a window is counted in **bytes** (8 bits each), and a KiB is 1,024 bytes where a KB is 1,000.
+
+- The window field is 16 bits, so on its own it says 65,535 bytes at most. Over a 100 ms round trip that's 65,535 × 8 ÷ 0.1 = 5.2 Mbit/s, on any link.
+- **Window scaling** multiplies the field by 2 to the power of the shift count. The shift is agreed in the SYNs and never sent again, so a capture that missed the handshake can't tell what `win 63` means; with `wscale 10`, it's 63 × 1,024 = 64,512 bytes. Shifts go up to 14, windows up to 1 GiB (2^30 bytes, about a billion), and if either side's SYN doesn't offer it, neither side scales.
+- The **bandwidth-delay product** (BDP), rate × RTT, is how many bytes are in flight when a path is full: 50 Mbit/s × 100 ms = 50,000,000 ÷ 8 × 0.1 = 625,000 bytes. A connection needs a window at least that big to fill the path. The receiver's kernel grows the window as the connection runs, up to the largest receive buffer its `net.ipv4.tcp_rmem` allows: that setting is three numbers of bytes, the smallest buffer, the one a connection starts with, and the most the kernel may grow it to.
+- **A box that strips the option**, an old firewall's "TCP normalisation" for one, leaves both sides without scaling. In the lab, the SYN leaving app said `nop,wscale 10`, and the same SYN arriving at the DR site said `nop,nop,nop,nop`: something between them had replaced the option with padding. One connection then fell from 43 Mbit/s to 5 on the 50 Mbit/s link. Comparing the same SYN captured on both sides of a box is how you catch it.
+
+**How long TCP waits.** When nothing answers, TCP sends again, with a gap that doubles each time (**exponential backoff**) up to a limit, then gives up and tells the program. Linux's numbers (the kernel's documentation, read 2026-11-12, and the lab):
+
+| Situation | What TCP does | What the program hears, and when |
+| --- | --- | --- |
+| Connect to a port where nothing listens | the far kernel answers the SYN with a reset | "Connection refused", at once |
+| Connect to a host whose firewall drops SYNs | sends the SYN again, 1 second apart at first, then doubling (`tcp_syn_retries`, 6) | "Connection timed out" after about 2 minutes (131 s by the documentation; 134 measured) |
+| Data sent, the far end vanished | sends it again, from 0.2 s apart, doubling, at most 120 s apart (`tcp_retries2`, 15) | "Connection timed out" after at least 924.6 s, about 15 minutes |
+| Idle, far end vanished, keepalive off | nothing at all | nothing, ever, until the program next sends |
+| Idle, far end vanished, keepalive on with the defaults | a probe after 2 hours of quiet, then up to 9 probes 75 s apart | "Connection timed out" after 2 h 11 min |
+
+A program stuck for two minutes on one connect, or fifteen on one request, is an outage. So **programs set their own connect and read timeouts**, a few seconds each, and decide for themselves what a dead server means. The build lab's health check is that habit.
+
+**Keepalives.** A **keepalive probe** is an empty segment TCP sends on a quiet connection, re-sending its last byte's number with no data, so the other side must answer with an acknowledgement. The standard (RFC 9293) lets an implementation offer them, but says they must be **off by default** for each connection, and that the quiet before the first probe must be configurable and default to at least two hours. Linux follows it: a socket sends probes only if its program switched them on, with the socket option **`SO_KEEPALIVE`**. The program may also set the socket's own timers, **`TCP_KEEPIDLE`** (seconds of quiet before the first probe), **`TCP_KEEPINTVL`** (seconds between unanswered probes) and **`TCP_KEEPCNT`** (unanswered probes before giving up); for any it leaves out, the system's settings apply, `net.ipv4.tcp_keepalive_time`, `tcp_keepalive_intvl` and `tcp_keepalive_probes` (7,200, 75 and 9). They're `sysctl` settings, as Routing taught: `sysctl -w` sets one until the next boot, and a file in `/etc/sysctl.d/` sets it at every boot, a later file winning. Three things to keep straight:
+
+- **The system's setting does nothing for a program that never switches keepalive on.** Some drivers and libraries leave it off unless told (PostgreSQL's Java driver has `tcpKeepAlive`, off by default), and others switch it on but leave the timers at the system's two hours (PostgreSQL's own client library, libpq, has `keepalives` on and `keepalives_idle` at the system's value unless set). Read the driver's settings. `ss -tno` on the real connection shows the truth: `timer:(keepalive,119min,0)` is the two hours; no `timer:` at all is no keepalive.
+- **A dead peer is noticed idle + interval × count seconds after the last packet.**
+- **After a probe, Linux waits the interval before it looks again, even when the probe was answered.** So on a quiet, healthy connection the probes come every idle time or every interval, whichever is longer, and both must be below the smallest idle timer on the path. With the clouds' minutes that usually holds anyway; on the labs' fast clock it doesn't: 5 seconds' idle with the default 75-second interval sent one probe, and a 15-second gateway cut the connection.
+
+`ss -o` writes timers in its own way: `119min`, `4min59sec`, and, under ten seconds, `9.600ms`, which means 9.6 seconds.
+
+**Why quiet connections get cut.** A **load balancer** is a box that spreads connections across several servers (Module 3's load-balancing topic teaches them); a **security group** is a cloud's firewall in front of each virtual machine, which tracks connections like Module 1's `ct state`; a **connection pool** is a program keeping a few connections open and reusing them, so it doesn't pay for a new one per request. NAT gateways, load balancers and stateful firewalls all keep a record of every connection through them, and every one throws out records that stay quiet too long: its **idle timeout**, which the NAT topic met. Picture a cloakroom that throws out any coat not collected within six minutes: your ticket still looks fine in your pocket. Only when you come back do you find out, either straight away, because the attendant tells you (a **reset**: AWS's NAT gateway resets the inside end; Azure's NAT gateway resets whoever sends on a forgotten flow; Azure's load balancer with "TCP reset on idle" resets both ends), or after a long wait at an empty counter (a **silent drop**: Azure's load balancer by default, and many firewalls), which ends in the program's own timeout. Neither end is told when the record goes. A pooled database connection that sat quiet over lunch is the classic victim. On a Linux box (the labs' gateways and firewalls are Linux machines), the timer for an open TCP connection is the `sysctl` setting `net.netfilter.nf_conntrack_tcp_timeout_established`, and `conntrack -L` shows each record with the seconds it has left.
+
+The fixes, best first:
+
+1. **TCP keepalives that come sooner than the smallest idle timer on the path**, switched on by the program for its connection, with the timers in a file so they last. AWS's networking blog (2026-05-22) suggests 240 seconds' idle, 60 between probes and 3 probes for its 350-second timers.
+2. **A heartbeat** (a few bytes of real data the application sends) where a **proxy** sits in the path: a box that ends the client's TCP connection itself and opens its own to the server, as a layer 7 load balancer does. TCP probes stop at the proxy and don't count: AWS's Application Load Balancer counts data, and says it doesn't even count HTTP/2's PING frames.
+3. **A pool that closes connections before they've been idle that long**, and reconnects without fuss.
+4. **A longer timer on the box**, where it allows one, which costs: Azure's NAT gateway holds a connection's SNAT port for its whole timer, and advises against raising it.
+
+The three clouds' timers, as their pages give them (each read 2026-11-12; a blank cell is one this topic didn't read):
+
+| Box | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| NAT gateway, TCP | 350 s, fixed; then a reset to the inside end | 4 min by default, 4 to 120; a reset to whoever sends on a forgotten flow | 1,200 s (20 min) for an established connection, configurable |
+| NAT gateway, UDP | | 4 min, fixed | 30 s, configurable |
+| Layer 4 load balancer | Network Load Balancer: 350 s by default, 60 to 6,000 (TLS listeners 350, fixed) | Load Balancer: 4 min by default, 4 to 100 (outbound rules to 120); silent drop unless TCP reset on idle is on | |
+| Layer 7 load balancer | Application Load Balancer: 60 s by default, 1 to 4,000; HTTP/2 PINGs don't count | Front Door: 90 s HTTP keep-alive, fixed | external Application Load Balancer: client keepalive 610 s (5 to 1,200), backend 600 s, fixed |
+| The machine's own firewall | security groups: 350 s on Nitro v6 instance types, 5 days on others; UDP 30 s, 180 s for a flow of several exchanges | | VPC firewall: a connection stays tracked while it sends at least one packet every 10 minutes |
+
+Two details to remember: on AWS's Nitro v6 instance types (virtual machine types built on the sixth generation of AWS's Nitro hardware) the security group's tracking forgets a quiet connection after 350 seconds, where older types keep it five days (AWS's blog warns that long-lived pooled connections then drop unexpectedly), and Google says its NAT timers can vary by up to five seconds, so leave room.
+
+**UDP.** UDP sends one **datagram** and forgets it: no handshake, no acknowledgement, no resending, no ordering, and no flow control. It keeps one thing, the message boundary: a datagram arrives whole, as the piece it was sent as, or not at all. Here's what that looks like from app (captured in the worked example's lab): a datagram to a port where nothing listens, answered by the far kernel's ICMP "port unreachable", and one to a port a firewall drops, answered by nothing at all.
+
+```text
+15:09:13.968601 IP 10.0.1.10.60567 > 10.0.2.20.5301: UDP, length 3
+15:09:13.968663 IP 10.0.2.20 > 10.0.1.10: ICMP 10.0.2.20 udp port 5301 unreachable, length 39
+15:09:14.008681 IP 10.0.1.10.46072 > 10.0.2.20.5302: UDP, length 3
+```
+
+`nc -u` exited 0 both times: with nothing to wait for, the sender can't tell delivered from dropped. Boxes that track connections invent one for UDP, a **UDP mapping** in a NAT, and give it a short timer, because nothing ever says a UDP conversation is over: Linux's connection tracking keeps a one-way flow 30 seconds and a two-way one 120 by default (`net.netfilter.nf_conntrack_udp_timeout` and `nf_conntrack_udp_timeout_stream`), Google Cloud NAT 30 seconds, Azure's NAT gateway 4 minutes (and it says a keepalive must be sent from both sides), AWS's security groups 30 and 180. So a client that subscribes and then waits for pushes must send **keepalive datagrams** of its own, or the first push after the mapping expires finds nothing to go to. QUIC's standard puts it as experience: sending every 30 seconds keeps most middleboxes from losing UDP state. UDP is the right choice where its lack of guarantees is a feature: DNS (one question, one answer, asked again if lost), voice and video (a late frame is no better than a lost one), VPN tunnels (the packets inside carry their own TCP), and QUIC, the next topic, which builds TCP's guarantees and more on top of it.
+
+**The labs' fast clock.** A real NAT gateway forgets after 350 seconds or 4 minutes; the labs' boxes forget after 10 to 20 seconds, so a check can wait one out. Every prompt says what its number stands for, and the behaviour is the same, only sooner. The estimate questions use the real numbers.
+
+**Read now:** the main resource below, High Performance Browser Networking's chapter on TCP, the sections on the handshake, flow control with window scaling, and the bandwidth-delay product (about 10 minutes; skip congestion control, the next topic's). Then Cloudflare's "When TCP sockets refuse to die", the four sections named under More resources, for how long Linux really waits; the same book's chapter on UDP, up to NAT traversal; and the three cloud pages, short, for their timers. The AWS blog post is optional and practical; the kernel's and the man page's entries are references for the labs. The quick questions read captures and `ss` output from this topic's labs and ask for the window and timer sums. The labs read a whole conversation and catch a gateway forging a reset, fill in keepalive timers for two boxes at once, write a script that compares a SYN on both sides of a box, keep a quiet path alive for TCP and UDP from nothing, and fix a replication that crawls.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **TCP counts bytes:** `seq` numbers each byte, `ack N` means "everything before byte N"; tcpdump shows relative numbers (`-S` the real ones); `length` is the data a segment carries. A FIN counts as one.
+- **The SYN's options:** `mss` (largest segment this side takes: MTU − 40), `sackOK` (selective acknowledgement), `TS` (timestamps), `wscale N` (count this side's window in units of 2^N), `nop` padding. An option counts only if both SYNs offer it.
+- **FIN is goodbye, RST a slammed door.** The side that sends the first FIN waits in `TIME-WAIT`. A reset can come from the far kernel or from a box in the middle: `tcpdump -v` shows its TTL, and one higher than the server's own packets' was made closer to you.
+- **Window ÷ RTT:** one connection carries at most one receive window per round trip. The path needs the **bandwidth-delay product**, rate × RTT (in bytes: divide bits by 8). Without scaling the window stops at 65,535 bytes; a box that strips the option, or a receiver's capped `tcp_rmem`, caps the connection. Compare the same SYN on both sides of a box.
+- **How long TCP waits:** refused at once; a dropped SYN times out after about 2 minutes; unacknowledged data after about 15; an idle connection with keepalive off never notices. Programs set their own connect and read timeouts.
+- **Keepalives** are off until a program switches them on (`SO_KEEPALIVE`); its own timers (`TCP_KEEPIDLE`, `TCP_KEEPINTVL`, `TCP_KEEPCNT`) or the system's (`net.ipv4.tcp_keepalive_time` 7,200, `_intvl` 75, `_probes` 9), lasting in `/etc/sysctl.d/`. A dead peer is noticed idle + interval × count after the last packet. Probes on a quiet connection come every idle time or interval, whichever is longer. `ss -tno` shows `timer:(keepalive,...)`; `9.600ms` is 9.6 seconds.
+- **Quiet connections get cut** by every stateful box's idle timer, with a reset or a silent drop (on a Linux box, `net.netfilter.nf_conntrack_tcp_timeout_established`, `nf_conntrack_udp_timeout` and `_udp_timeout_stream`; `conntrack -L` shows the seconds left). Keepalives sooner than the smallest timer on the path; a heartbeat behind a proxy; pools that close idle connections; a longer timer costs ports. AWS NAT gateway and NLB 350 s; Azure Load Balancer and NAT gateway 4 min (the load balancer drops silently unless TCP reset is on); Google Cloud NAT 20 min for TCP, 30 s for UDP; ALB 60 s; Nitro v6 security groups 350 s.
+- **UDP:** datagrams, whole or not at all, nothing else promised. A closed port answers ICMP port unreachable, a drop answers nothing, and the sender can't tell. Boxes keep UDP mappings for seconds, so a client waiting for pushes sends keepalive datagrams (every 30 s or less).
+
+</Recap>

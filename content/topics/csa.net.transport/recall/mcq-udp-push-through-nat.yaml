@@ -1,0 +1,16 @@
+id: mcq-udp-push-through-nat
+type: mcq
+rev: 1
+prompt: |
+  A client behind Google Cloud NAT, which keeps a UDP mapping for 30 seconds by default, subscribes once to a feed by sending it one datagram. The feed then pushes an update to the client's address every 60 seconds. What happens, and what fixes it?
+choices:
+  - "No update arrives; the client sends a small datagram every 20 s or so"
+  - "Every update arrives; a UDP mapping lasts as long as the subscription"
+  - "Only the first update arrives; the NAT resets the flow after it passes"
+  - "Updates arrive late; raise the client's receive buffer so none are lost"
+answer: 0
+explanation: |
+  A NAT keeps a mapping (inside address and port to outside address and port) only while traffic keeps it fresh. 30 seconds after the subscription, with nothing sent since, Cloud NAT forgets the mapping; the first push, at 60 seconds, arrives for a mapping that no longer exists and is dropped, and so is every push after it. Keepalive datagrams from the client every 20 seconds or so refresh the mapping (Google says its timeouts can vary by up to five seconds, so leave room). RFC 9000, QUIC's, puts it as experience: sending every 30 seconds is needed to keep most middleboxes from losing UDP state.
+
+  The subscription means nothing to the NAT, which sees only packets. A NAT has no reset for UDP: it just drops. And a bigger buffer can't help packets that never reach the client.
+skills: [udp-behaviour, idle-cuts]

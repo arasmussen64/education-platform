@@ -1,0 +1,24 @@
+id: mcq-who-closed-first
+type: mcq
+rev: 1
+prompt: |
+  The last three lines of a capture of one connection between a client, 10.0.1.10, and a database, 10.0.2.20 (captured in the lab "Read the conversation", 2026-11-12; options cut short):
+
+  ```
+  15:07:55.512639 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [F.], seq 17, ack 23, ... length 0
+  15:07:55.512775 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [F.], seq 23, ack 18, ... length 0
+  15:07:55.512783 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 24, ... length 0
+  ```
+
+  Which machine has a socket in `TIME-WAIT` for the next minute?
+choices:
+  - "The client, 10.0.1.10: it sent the first FIN, and the side that closes first waits"
+  - "The server, 10.0.2.20: it sent the second FIN, so it waits for late copies of the ACK"
+  - "Both of them: each sent a FIN, and every side that sends a FIN waits in TIME-WAIT"
+  - "Neither: both FINs were acknowledged, so both sockets close the moment the ACK lands"
+answer: 0
+explanation: |
+  The side that says goodbye first, the **active closer**, waits in `TIME-WAIT`: on Linux for 60 seconds, long enough for any late copy of the connection's last packets to die out before the same pair of ports can be used again. Here the client's `[F.]` came first, so the client keeps the `TIME-WAIT` socket (`ss -tan` on 10.0.1.10 would show it).
+
+  The server sent its FIN second, in answer: it passes through `LAST-ACK` and its socket is gone the moment the client's final `[.]` (`ack 24`) arrives. So it isn't both of them, and it isn't neither: being acknowledged ends the server's part, not the client's wait.
+skills: [read-a-capture]

@@ -1,0 +1,40 @@
+# The network of "The quiet path": the shop's app server, the cloud's NAT
+# gateway, and three machines in the cloud network behind it.
+#
+#   app eth1 10.0.1.10 --- nat (inside 10.0.1.1 | outside 10.0.2.1) ---[cloud]--- db 10.0.2.20
+#                                                                         +-- standby 10.0.2.21
+#                                                                         +-- feed 10.0.2.40
+#
+# All but app are scenery. nat translates app's address; it forgets a quiet
+# TCP connection after 18 seconds and resets whoever sends on it afterwards
+# (AWS's NAT gateway waits 350), and forgets a UDP mapping after 10 seconds
+# (Google Cloud NAT waits 30). db is the managed database (orders-db@db,
+# port 5432), behind its own firewall, which forgets a quiet connection
+# after 11 seconds and then drops what arrives without a word. standby is
+# the standby database, stopped for maintenance: its firewall drops every
+# new connection. feed is the supplier's price feed (price-feed@feed, UDP
+# port 5005).
+machine app
+machine nat router
+machine db
+machine standby
+machine feed
+
+link app:eth1=10.0.1.10/24 nat:inside=10.0.1.1/24
+lan cloud nat:outside=10.0.2.1/24 db:eth0=10.0.2.20/24 standby:eth0=10.0.2.21/24 feed:eth0=10.0.2.40/24
+
+route app 10.0.2.0/24 via 10.0.1.1
+route db default via 10.0.2.1
+route standby default via 10.0.2.1
+route feed default via 10.0.2.1
+
+# The boxes' idle timers. A UDP flow is "a stream" once replies have been
+# seen; nat gives both kinds the same 10 seconds.
+sysctl nat net.netfilter.nf_conntrack_tcp_timeout_established=18
+sysctl nat net.netfilter.nf_conntrack_udp_timeout=10
+sysctl nat net.netfilter.nf_conntrack_udp_timeout_stream=10
+sysctl db net.netfilter.nf_conntrack_tcp_timeout_established=11
+
+run nat nftables
+run db nftables
+run standby nftables

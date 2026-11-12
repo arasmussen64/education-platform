@@ -1,0 +1,16 @@
+id: mcq-udp-what-it-gives
+type: mcq
+rev: 1
+prompt: |
+  Which of these does UDP itself do for an application?
+choices:
+  - "Keeps each datagram whole: one send arrives as one receive, or not at all"
+  - "Sends a datagram again once if no reply arrives within one round trip"
+  - "Delivers datagrams in the order they were sent, holding back early ones"
+  - "Tells the sender when a firewall on the path has dropped one of its datagrams"
+answer: 0
+explanation: |
+  The one thing UDP keeps is the message boundary: a datagram arrives whole, as the one piece it was sent as, or not at all (a TCP byte stream has no such edges). Everything else is the application's job, or a protocol's on top, like QUIC in the next topic.
+
+  UDP never resends: a lost datagram stays lost. It doesn't put datagrams back in order: a later one can arrive first. And it doesn't report drops: a firewall that drops a datagram answers nothing, and the only error UDP's machinery ever sends back is the ICMP "port unreachable" from a host where nothing listens, if nothing on the way filters that out too.
+skills: [udp-behaviour]

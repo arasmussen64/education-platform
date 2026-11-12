@@ -1,0 +1,35 @@
+id: cap-bytes-each-way
+type: predict_shell
+rev: 1
+prompt: |
+  `cap.txt` is a capture on app's `eth1` in the lab "Read the conversation" (captured 2026-11-12 with `tcpdump -nn`): shop-api's connection to the database (10.0.2.20, port 5432) from its first SYN to its goodbye, with an order, 16 seconds of quiet, and another order. The last number on each line is the segment's length: the bytes of data it carries. The command adds up the bytes each side sent, keyed by the sender's port (the fifth dot-separated part of the third column), and sorts them. What is printed?
+files:
+  cap.txt: |
+    15:07:38.466027 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [S], seq 368643383, win 64240, options [mss 1460,sackOK,TS val 3332120311 ecr 0,nop,wscale 10], length 0
+    15:07:38.466074 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [S.], seq 3664232380, ack 368643384, win 65160, options [mss 1460,sackOK,TS val 2096337508 ecr 3332120311,nop,wscale 10], length 0
+    15:07:38.466080 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 1, win 63, options [nop,nop,TS val 3332120311 ecr 2096337508], length 0
+    15:07:38.466169 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [P.], seq 1:9, ack 1, win 63, options [nop,nop,TS val 3332120311 ecr 2096337508], length 8
+    15:07:38.466176 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [.], ack 9, win 64, options [nop,nop,TS val 2096337508 ecr 3332120311], length 0
+    15:07:38.467119 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [P.], seq 1:12, ack 9, win 64, options [nop,nop,TS val 2096337509 ecr 3332120311], length 11
+    15:07:38.467136 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 12, win 63, options [nop,nop,TS val 3332120312 ecr 2096337509], length 0
+    15:07:43.588291 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 12, win 63, options [nop,nop,TS val 3332125434 ecr 2096337509], length 0
+    15:07:43.588753 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [.], ack 9, win 64, options [nop,nop,TS val 2096342631 ecr 3332120312], length 0
+    15:07:48.708340 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 12, win 63, options [nop,nop,TS val 3332130554 ecr 2096342631], length 0
+    15:07:48.708450 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [.], ack 9, win 64, options [nop,nop,TS val 2096347751 ecr 3332120312], length 0
+    15:07:53.828342 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 12, win 63, options [nop,nop,TS val 3332135674 ecr 2096347751], length 0
+    15:07:53.828387 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [.], ack 9, win 64, options [nop,nop,TS val 2096352871 ecr 3332120312], length 0
+    15:07:54.500708 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [P.], seq 9:17, ack 12, win 63, options [nop,nop,TS val 3332136346 ecr 2096352871], length 8
+    15:07:54.500808 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [P.], seq 12:23, ack 17, win 64, options [nop,nop,TS val 2096353543 ecr 3332136346], length 11
+    15:07:54.500811 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 23, win 63, options [nop,nop,TS val 3332136346 ecr 2096353543], length 0
+    15:07:55.512639 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [F.], seq 17, ack 23, win 63, options [nop,nop,TS val 3332137358 ecr 2096353543], length 0
+    15:07:55.512775 IP 10.0.2.20.5432 > 10.0.1.10.53800: Flags [F.], seq 23, ack 18, win 64, options [nop,nop,TS val 2096354555 ecr 3332137358], length 0
+    15:07:55.512783 IP 10.0.1.10.53800 > 10.0.2.20.5432: Flags [.], ack 24, win 63, options [nop,nop,TS val 3332137358 ecr 2096354555], length 0
+command: awk '{split($3, s, "."); bytes[s[5]] += $NF} END {for (p in bytes) print p, bytes[p]}' cap.txt | sort -n
+expected_output: |
+  5432 22
+  53800 16
+explanation: |
+  app, from port 53800, sent two orders of 8 bytes each (`seq 1:9`, then `seq 9:17`): 16 bytes. The database, from 5432, sent two answers of 11 bytes each (`seq 1:12`, then `seq 12:23`): 22 bytes. The numbers count bytes from the start of the conversation, so each side's last `seq` and the other side's `ack` agree: the database's `ack 17` means "I have everything before byte 17".
+
+  Everything else carries nothing: the handshake, the acknowledgements, the goodbye, and the three pairs of empty segments 5 seconds apart during the quiet. Those are keepalive probes, app's `ack 12` sent again with no data, each answered by the database's `ack 9`. A FIN carries no data either, but it counts as one in the numbering, which is why the last acknowledgements are `ack 18` and `ack 24`. `split($3, s, ".")` cuts `10.0.1.10.53800` at its dots, and the fifth part is the port; `$NF` is the line's last field.
+skills: [read-a-capture]

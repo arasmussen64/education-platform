@@ -1,0 +1,22 @@
+id: est-probe-count
+type: estimate
+rev: 1
+prompt: |
+  A connection crosses a NAT gateway that forgets it after 350 seconds of quiet. Its keepalive starts after 200 seconds of quiet and probes every 20 seconds while they go unanswered. You want a dead peer noticed no later than 300 seconds after the last packet. What's the largest probe count you can set? Exactly.
+unit: probes
+answer: 5
+tolerance: { absolute: 0 }
+given: { idle: 200, gap: 20, limit: 300 }
+working: (limit - idle) // gap
+mistakes:
+  - id: whole-limit
+    value: 15
+    working: limit // gap
+    why: That counts probes from the last packet. Probing only starts after the 200 seconds of quiet.
+  - id: nat-instead
+    value: 7
+    working: (350 - idle) // gap
+    why: That uses the NAT's 350 seconds. The limit you want is 300.
+explanation: |
+  A dead peer is noticed idle + interval × count seconds after the last packet, so 200 + 20 × count ≤ 300: count ≤ 100 ÷ 20 = 5. The NAT's 350 seconds decide when probing must start (200 is well inside it), not how many probes you can afford.
+skills: [idle-cuts, tcp-timers]

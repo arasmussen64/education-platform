@@ -1,0 +1,24 @@
+id: est-unscaled-ceiling
+type: estimate
+rev: 1
+prompt: |
+  A firewall strips the window scale option from every SYN, so the receiver's window can't grow past 65,535 bytes. The round trip is 40 ms. What's the most one connection can carry, in Mbit/s? Within 2%.
+unit: Mbit/s
+answer: 13.107
+tolerance: { percent: 2 }
+given: { window: 65535, rtt: 40 }
+# At most one window per round trip: bytes to bits (times 8), over the
+# round trip in seconds, in millions of bits.
+working: window * 8 / (rtt / 1000) / 1000000
+mistakes:
+  - id: bytes-a-second
+    value: 1.638
+    working: window / (rtt / 1000) / 1000000
+    why: That's megabytes a second. Links are measured in megabits, so multiply by 8.
+  - id: seconds-not-ms
+    value: 0.013
+    working: window * 8 / rtt / 1000000
+    why: That divides by 40 as if it were seconds. 40 ms is 0.04 s.
+explanation: |
+  The sender may have at most one window, 65,535 bytes, unacknowledged at a time, so it sends at most one window per round trip: 65,535 × 8 = 524,280 bits every 0.04 s, which is 13,107,000 bits a second, about 13.1 Mbit/s. That's the ceiling whatever the link's speed: on a 1 Gbit/s link this connection still gets 13. Halve the round trip and the ceiling doubles; that's why the same firewall can go unnoticed inside one region and hurt across an ocean.
+skills: [window-math]
