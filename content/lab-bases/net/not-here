@@ -1,0 +1,15 @@
+#!/bin/bash
+# not-here DAEMON: what the lab machine's plain DAEMON.service runs instead of
+# the daemon. On a network lab every daemon runs on a machine, as
+# DAEMON@MACHINE, so "sudo systemctl restart frr" typed out of habit would
+# otherwise start one on the lab machine itself, which is on no lab network.
+# This says what to type instead, and fails, so systemctl reports the
+# failure and points at "systemctl status", which shows this message.
+daemon=$1
+case $daemon in
+  nftables) example="sudo systemctl enable --now nftables@gw (each machine's firewall is its own /etc/nftables.conf)" ;;
+  bind9) daemon=named example="sudo systemctl restart named@ns1" ;;
+  *) example="sudo systemctl restart $daemon@r1, systemctl status $daemon@r1, journalctl -u $daemon@r1" ;;
+esac
+echo "$daemon doesn't run on the lab machine here: each machine runs its own, as $daemon@MACHINE. For example: $example. netlab show lists the machines and what each runs." >&2
+exit 1

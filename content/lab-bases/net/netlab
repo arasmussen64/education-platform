@@ -1,0 +1,718 @@
+#!/bin/bash
+# netlab: builds a lab's network of machines inside the lab's one container.
+#
+# A "machine" here is a network namespace (its own interfaces, addresses,
+# routes, firewall and ports: the mechanism a container is made of), with
+# its own /etc for each program it runs (/etc/netns/MACHINE/, which
+# "ip netns exec" lays over /etc), its own /run and its own name. Machines
+# are joined by virtual cables (veth pairs) and switches (bridges, kept in a
+# namespace of their own called "switches", so the lab machine itself is on
+# no lab network). "on MACHINE COMMAND" runs a command on one.
+#
+# The network is described in /etc/netlab/topology, which is bash calling
+# the words defined below, one line each:
+#
+#   machine r1 router               a machine; a router forwards packets
+#   link r1:eth1=10.0.12.1/30 r2:eth1=10.0.12.2/30
+#                                   a cable between two machines' interfaces;
+#                                   addresses are comma-separated, v4 or v6
+#   lan office r1:eth2=10.0.1.1/24 host-a:eth0=10.0.1.10/24 ...
+#                                   a switch with several machines on it
+#   route host-a default via 10.0.1.1
+#                                   a route the machine is given (hosts only:
+#                                   a router's routes belong in FRR)
+#   dns host-a 10.0.1.53            the machine's resolver, written afresh at
+#                                   every boot the way a network's DHCP does
+#   sysctl r1 net.ipv4.conf.all.rp_filter=1
+#                                   a kernel setting (sysctl) on one machine
+#   netem isp eth1 delay 40ms loss 1%
+#                                   a link's delay and loss (tc netem), part of
+#                                   the scenery, on one end of a link
+#   mtu r1 eth1 1400                an interface's MTU
+#   tunnel vpn-b vti0 vti local 203.0.113.2 remote 198.51.100.2 key 42 addr 169.254.10.2/30
+#                                   a tunnel interface that is scenery
+#   run r1 frr                      the services a machine runs: frr,
+#                                   strongswan, named, unbound, nginx,
+#                                   haproxy, nftables, radvd
+#
+# A machine's own settings, which last because they are files in it:
+#   /etc/sysctl.d/*.conf   its kernel settings, applied at every boot after
+#                          the topology's, in name order; only keys under
+#                          net. (anything else is left out, with a line in
+#                          the journal)
+#   /etc/network/up        ip commands run inside it at every boot, after the
+#                          topology and its sysctl files and before its
+#                          services: its own addresses, routes, tunnels
+#
+# Usage (as root, or with sudo):
+#   netlab up        build the network (netlab.service runs it at boot)
+#   netlab down      take it apart (netlab.service, when it stops)
+#   netlab restart   rebuild the network as a reboot would: every machine's
+#                    services stop, the network is built again from the
+#                    files, and every enabled service starts again
+#   netlab show      the machines, what each runs, and their interfaces that
+#                    are up (the kernel adds placeholder tunnel interfaces,
+#                    gre0, sit0 and the like, to every machine once those
+#                    tunnel types are in use; they stay down)
+#   netlab link M IF down|up|silent|restore
+#                    cut or restore M's cable on interface IF. down: the
+#                    cable is unplugged and both ends see it. silent: the
+#                    cable stays plugged in, but whatever M sends over it
+#                    vanishes at the far end, so nothing notices at once.
+#                    restore: plugged in and passing traffic again
+#   netlab verify [M...] [-- COMMAND...]
+#                    build a throwaway copy of every machine (chk-r1 and so
+#                    on) from its files, without services, and compare each
+#                    machine (or the ones named) with its copy: prints
+#                    "verified", or the first difference. With a COMMAND,
+#                    runs it while the copy exists (on chk-office ping ...)
+#                    instead of printing "verified". The copy is removed.
+#   netlab enable    at image build: enable each machine's services and give
+#                    each machine its own copy of their /etc and state folders
+#   netlab seal F..  at image build: record checksums of scenery files the
+#                    learner mustn't change (checked by netlab intact)
+#   netlab intact    exit 0 if every sealed file is unchanged; else name them
+set -euo pipefail
+# Files are taken in name order the same way on every machine.
+export LC_ALL=C
+
+TOPOLOGY=${NETLAB_TOPOLOGY:-/etc/netlab/topology}
+LIB=/usr/local/lib/netlab
+RUN_DIR=/run/netlab/machines
+STATE_DIR=/var/lib/netlab/machines
+SEALS=$LIB/scenery.sha256
+# The throwaway copy that netlab verify builds: chk-r1, chk-switches ...
+COPY_PREFIX=chk-
+
+# What each service needs a machine-own copy of. /etc entries are laid over
+# /etc by "ip netns exec"; state folders are bound by lab-enter.
+declare -A ETC_OF=(
+  [frr]="frr"
+  [strongswan]="swanctl strongswan.conf strongswan.d"
+  [named]="bind"
+  [unbound]="unbound"
+  [nginx]="nginx"
+  [haproxy]="haproxy"
+  [nftables]="nftables.conf"
+  [radvd]="radvd.conf"
+)
+declare -A STATE_OF=(
+  [frr]="/var/log/frr /var/lib/frr"
+  [strongswan]=""
+  [named]="/var/cache/bind /var/lib/bind"
+  [unbound]="/var/lib/unbound"
+  [nginx]="/var/log/nginx /var/lib/nginx"
+  [haproxy]="/var/lib/haproxy"
+  [nftables]=""
+  [radvd]=""
+)
+
+say() { echo "netlab: $*" >&2; }
+die() {
+  say "$*"
+  exit 1
+}
+need_root() { [[ $EUID -eq 0 ]] || die "this needs root: sudo netlab $*"; }
+
+# --- Reading the topology -----------------------------------------------------
+#
+# The words below run as the topology file is read. BUILD says whether they
+# only learn what it declares (empty), build the real network ("up") or build
+# netlab verify's copy ("copy", every name with chk- in front).
+
+BUILD=""
+PREFIX=""
+MACHINES=()
+declare -A ROLE=() RUNS=() FAR_END=()
+
+load_topology() {
+  BUILD=$1
+  PREFIX=""
+  [[ $BUILD == copy ]] && PREFIX=$COPY_PREFIX
+  MACHINES=()
+  ROLE=() RUNS=() FAR_END=()
+  [[ -f $TOPOLOGY ]] || die "no topology at $TOPOLOGY"
+  # Read without carriage returns: a topology saved on Windows with CRLF
+  # line endings would otherwise fail on its first line.
+  # shellcheck source=/dev/null
+  source <(tr -d '\r' < "$TOPOLOGY")
+}
+
+building() { [[ -n $BUILD ]]; }
+# The namespace that stands for a machine in what is being built.
+ns() { echo "$PREFIX$1"; }
+
+# Split "r1:eth1=10.0.12.1/30,2001:db8::1/64" into M, IF and ADDRS.
+parse_end() {
+  local end=$1 rest
+  M=${end%%:*}
+  rest=${end#*:}
+  IF=${rest%%=*}
+  ADDRS=""
+  if [[ $rest == *=* ]]; then ADDRS=${rest#*=}; fi
+  [[ -n ${ROLE[$M]:-} ]] || die "a line names $M, which no 'machine' line declares"
+}
+
+add_addrs() { # namespace interface addrs
+  local n=$1 dev=$2 a list
+  [[ -n $3 ]] || return 0
+  IFS=, read -ra list <<< "$3"
+  for a in "${list[@]}"; do
+    if [[ $a == *:* ]]; then
+      ip -n "$n" -6 addr add "$a" dev "$dev" nodad
+    else
+      ip -n "$n" addr add "$a" dev "$dev"
+    fi
+  done
+}
+
+# Names for the two ends of a veth pair while it is made on the lab machine,
+# before each moves into a machine and takes the topology's name there:
+# nl<netlab's process id>x<a count>, so no two are ever the same. (Set in
+# variables, not printed: a $(...) would count in a copy of the shell.)
+TEMP_COUNT=0
+temp_names() {
+  TEMP_A="nl$$x$((TEMP_COUNT += 1))"
+  TEMP_B="nl$$x$((TEMP_COUNT += 1))"
+}
+
+# Every setting a lab depends on is set here, not inherited: a new namespace
+# copies the IPv4 settings of the machine Docker runs on, and Docker Desktop
+# and a CI runner differ (rp_filter, ip_forward). ip_forward goes first,
+# because writing it resets some other settings to their defaults.
+set_defaults() { # namespace role
+  local n=$1 fwd=0
+  if [[ $2 == router ]]; then fwd=1; fi
+  ip netns exec "$n" /usr/sbin/sysctl -qw \
+    net.ipv4.ip_forward=$fwd \
+    net.ipv6.conf.all.forwarding=$fwd \
+    net.ipv4.conf.all.rp_filter=0 \
+    net.ipv4.conf.default.rp_filter=0 \
+    net.ipv4.conf.all.accept_redirects=0 \
+    net.ipv4.conf.default.accept_redirects=0 \
+    net.ipv4.conf.all.send_redirects=0 \
+    net.ipv4.conf.default.send_redirects=0 \
+    net.ipv6.conf.all.accept_dad=0 \
+    net.ipv6.conf.default.accept_dad=0 \
+    net.ipv6.conf.all.accept_redirects=0 \
+    net.ipv6.conf.default.accept_redirects=0 \
+    net.ipv4.ip_local_port_range="32768 60999" \
+    net.ipv4.tcp_congestion_control=cubic \
+    net.ipv4.ping_group_range="0 2147483647"
+  # A router doesn't take router advertisements; a host does (IPv6 SLAAC).
+  if [[ $2 == router ]]; then
+    ip netns exec "$n" /usr/sbin/sysctl -qw net.ipv6.conf.default.accept_ra=0 net.ipv6.conf.all.accept_ra=0
+  fi
+}
+
+# --- The words a topology uses ------------------------------------------------
+
+machine() {
+  local name=$1 role=${2:-host}
+  [[ ${#name} -le 8 ]] || die "machine name $name is longer than 8 characters"
+  # chk- names netlab verify's throwaway copy, and switches holds the lans.
+  [[ $name != "$COPY_PREFIX"* && $name != switches ]] || die "machine name $name is kept for netlab itself"
+  [[ $role == host || $role == router ]] || die "machine $name: the role is router, or nothing for a host, not $role"
+  ROLE[$name]=$role
+  MACHINES+=("$name")
+  building || return 0
+  ip netns add "$(ns "$name")"
+  ip -n "$(ns "$name")" link set lo up
+  set_defaults "$(ns "$name")" "$role"
+}
+
+link() {
+  parse_end "$1"
+  local m1=$M if1=$IF a1=$ADDRS
+  parse_end "$2"
+  local m2=$M if2=$IF a2=$ADDRS
+  # What netlab link needs: each end's far end.
+  FAR_END[$m1:$if1]=$m2:$if2
+  FAR_END[$m2:$if2]=$m1:$if1
+  building || return 0
+  temp_names
+  ip link add "$TEMP_A" type veth peer name "$TEMP_B"
+  ip link set "$TEMP_A" netns "$(ns "$m1")"
+  ip link set "$TEMP_B" netns "$(ns "$m2")"
+  ip -n "$(ns "$m1")" link set "$TEMP_A" name "$if1"
+  ip -n "$(ns "$m2")" link set "$TEMP_B" name "$if2"
+  add_addrs "$(ns "$m1")" "$if1" "$a1"
+  add_addrs "$(ns "$m2")" "$if2" "$a2"
+  ip -n "$(ns "$m1")" link set "$if1" up
+  ip -n "$(ns "$m2")" link set "$if2" up
+}
+
+lan() {
+  local name=$1 end port switches
+  shift
+  [[ ${#name} -le 15 ]] || die "lan name $name is longer than 15 characters"
+  for end in "$@"; do
+    parse_end "$end"
+    port="$M.$IF"
+    [[ ${#port} -le 15 ]] || die "port name $port is longer than 15 characters"
+    # A machine on a switch: its far end is its port on the switch.
+    FAR_END[$M:$IF]=switches:$port
+  done
+  building || return 0
+  switches=$(ns switches)
+  if ! ip netns list | grep -qx "$switches\( .*\)\?"; then
+    ip netns add "$switches"
+    ip -n "$switches" link set lo up
+  fi
+  ip -n "$switches" link add "$name" type bridge stp_state 0
+  ip -n "$switches" link set "$name" up
+  for end in "$@"; do
+    parse_end "$end"
+    port="$M.$IF"
+    # Made with throwaway names on the lab machine, then moved and renamed:
+    # a machine's interfaces then have the names the topology gives them.
+    temp_names
+    ip link add "$TEMP_A" type veth peer name "$TEMP_B"
+    ip link set "$TEMP_A" netns "$(ns "$M")"
+    ip link set "$TEMP_B" netns "$switches"
+    ip -n "$(ns "$M")" link set "$TEMP_A" name "$IF"
+    ip -n "$switches" link set "$TEMP_B" name "$port"
+    ip -n "$switches" link set "$port" master "$name" up
+    add_addrs "$(ns "$M")" "$IF" "$ADDRS"
+    ip -n "$(ns "$M")" link set "$IF" up
+  done
+}
+
+route() {
+  building || return 0
+  local m=$1
+  shift
+  if [[ $* == *:* ]]; then
+    ip -n "$(ns "$m")" -6 route add "$@"
+  else
+    ip -n "$(ns "$m")" route add "$@"
+  fi
+}
+
+dns() {
+  # Only for the real machines: the copy shares their /etc.
+  [[ $BUILD == up ]] || return 0
+  local m=$1 s
+  shift
+  mkdir -p "/etc/netns/$m"
+  {
+    echo "# Written at every boot by netlab, as a network's DHCP would."
+    for s in "$@"; do echo "nameserver $s"; done
+  } > "/etc/netns/$m/resolv.conf"
+}
+
+sysctl() {
+  # In the topology, "sysctl MACHINE KEY=VALUE" sets a kernel setting on
+  # that machine; the real sysctl command is /usr/sbin/sysctl.
+  building || return 0
+  ip netns exec "$(ns "$1")" /usr/sbin/sysctl -qw "$2"
+}
+
+netem() {
+  building || return 0
+  local m=$1 dev=$2
+  shift 2
+  ip netns exec "$(ns "$m")" tc qdisc replace dev "$dev" root netem "$@"
+}
+
+mtu() {
+  building || return 0
+  ip -n "$(ns "$1")" link set "$2" mtu "$3"
+}
+
+# tunnel MACHINE NAME TYPE ARGS... [addr A,B]: a tunnel interface that is
+# part of the scenery (the cloud's side of a VPN, say):
+#   tunnel vpn-b vti0 vti local 203.0.113.2 remote 198.51.100.2 key 42 addr 169.254.10.2/30
+tunnel() {
+  building || return 0
+  local m=$1 name=$2 type=$3 addrs="" args=()
+  shift 3
+  while [[ $# -gt 0 ]]; do
+    if [[ $1 == addr ]]; then
+      addrs=$2
+      shift 2
+    else
+      args+=("$1")
+      shift
+    fi
+  done
+  ip -n "$(ns "$m")" link add "$name" type "$type" "${args[@]}"
+  # A route-based VPN's tunnel: the kernel must not drop what arrives on it
+  # for want of a policy (the IPsec policy is selected by the key, a mark).
+  if [[ $type == vti ]]; then
+    ip netns exec "$(ns "$m")" /usr/sbin/sysctl -qw "net.ipv4.conf.$name.disable_policy=1"
+  fi
+  add_addrs "$(ns "$m")" "$name" "$addrs"
+  ip -n "$(ns "$m")" link set "$name" up
+}
+
+run() {
+  local m=$1 svc
+  shift
+  for svc in "$@"; do
+    [[ -v ETC_OF[$svc] ]] || die "run $m $svc: netlab knows no service called $svc"
+  done
+  RUNS[$m]="${RUNS[$m]:-} $*"
+}
+
+# --- A machine's own files: sysctl.d and the network file ---------------------
+
+# saved_sysctls MACHINE: prints "key=value" for every setting in the machine's
+# /etc/sysctl.d/*.conf, in the order they apply (files by name, lines in
+# order), with keys written with dots. Only keys under net. belong to a
+# machine; others are named on stderr and left out. A line that starts with
+# "-" (a setting that may fail quietly, as systemd-sysctl allows) keeps it.
+saved_sysctls() {
+  local m=$1 file line key value
+  for file in "/etc/netns/$m/sysctl.d/"*.conf; do
+    [[ -f $file ]] || continue
+    while IFS= read -r line || [[ -n $line ]]; do
+      line=${line#"${line%%[![:space:]]*}"}   # leading spaces off
+      [[ -z $line || $line == \#* || $line == \;* ]] && continue
+      [[ $line == *=* ]] || { say "$m: ${file##*/}: '$line' isn't KEY = VALUE: left out"; continue; }
+      key=${line%%=*}
+      value=${line#*=}
+      key=${key%"${key##*[![:space:]]}"}      # trailing spaces off
+      value=${value#"${value%%[![:space:]]*}"}
+      value=${value%"${value##*[![:space:]]}"}
+      key=${key//\//.}
+      if [[ ${key#-} != net.* ]]; then
+        say "$m: ${file##*/} sets ${key#-}, which isn't a network setting (net. ...): left out; only network settings belong to a machine"
+        continue
+      fi
+      echo "$key=$value"
+    done < <(tr -d '\r' < "$file")
+  done
+}
+
+# apply_sysctls MACHINE: applies the machine's sysctl.d settings in it, and
+# lists in UNSET[MACHINE] the ones that couldn't be set yet. A setting for an
+# interface that the network file makes (vti0, say) can't be set before the
+# file has run, so it is tried again afterwards, as a server's udev does when
+# an interface appears.
+declare -A UNSET=()
+apply_sysctls() {
+  local m=$1 setting
+  UNSET[$m]=""
+  while IFS= read -r setting; do
+    [[ -n $setting ]] || continue
+    if ! ip netns exec "$(ns "$m")" /usr/sbin/sysctl -qw "${setting#-}" 2> /dev/null; then
+      UNSET[$m]+="$setting"$'\n'
+    fi
+  done < <(saved_sysctls "$m")
+}
+
+retry_sysctls() {
+  local m=$1 setting
+  while IFS= read -r setting; do
+    [[ -n $setting ]] || continue
+    if ! ip netns exec "$(ns "$m")" /usr/sbin/sysctl -qw "${setting#-}" 2> /dev/null; then
+      if [[ $setting != -* ]]; then
+        say "$m: its /etc/sysctl.d sets ${setting%%=*}, which this machine doesn't have (an interface's setting needs the interface): left out"
+      fi
+    fi
+  done <<< "${UNSET[$m]:-}"
+}
+
+# run_network_file MACHINE: runs the machine's /etc/network/up inside it.
+# A file that stops at a failing command is reported in the journal and the
+# rest of the network still comes up, as a server still boots when one of its
+# interfaces is misconfigured.
+run_network_file() {
+  local m=$1
+  [[ -f /etc/netns/$m/network/up ]] || return 0
+  if ! ip netns exec "$(ns "$m")" "$LIB/network-up" "$m"; then
+    say "$m: its /etc/network/up didn't finish (the line above says where)"
+  fi
+}
+
+# --- Building and taking apart ------------------------------------------------
+
+namespace_exists() { ip netns list | grep -qx "$1\( .*\)\?"; }
+
+remove_namespace() {
+  if namespace_exists "$1"; then ip netns del "$1"; fi
+}
+
+# Builds what the topology and every machine's own files describe: the real
+# network ("up") or netlab verify's copy ("copy").
+build() {
+  local m
+  load_topology "$1"
+  for m in "${MACHINES[@]}"; do apply_sysctls "$m"; done
+  for m in "${MACHINES[@]}"; do run_network_file "$m"; done
+  for m in "${MACHINES[@]}"; do retry_sysctls "$m"; done
+}
+
+bring_up() {
+  local m
+  load_topology ""
+  # Anything left from an earlier start is taken away first, as a reboot
+  # would have: every machine's services stop before the network does.
+  for m in "${MACHINES[@]}" switches; do
+    if namespace_exists "$m"; then
+      say "removing $m, left from an earlier start"
+      ip netns del "$m"
+    fi
+  done
+  for m in "${MACHINES[@]}"; do mkdir -p "$RUN_DIR/$m"; done
+  build up
+  say "network up: ${#MACHINES[@]} machines (${MACHINES[*]})"
+}
+
+take_down() {
+  local m
+  load_topology ""
+  for m in "${MACHINES[@]}" switches; do remove_namespace "$m"; done
+  # A machine's /run is emptied, as a reboot empties a server's.
+  for m in "${MACHINES[@]}"; do rm -rf "${RUN_DIR:?}/$m"; done
+  say "network down"
+}
+
+# --- netlab verify: does each machine equal a fresh build of its files? -------
+
+remove_copy() {
+  local n
+  for n in $(ip netns list | awk '{print $1}'); do
+    case $n in "$COPY_PREFIX"*) ip netns del "$n" ;; esac
+  done
+  rm -f /etc/netns/"$COPY_PREFIX"*
+  rm -rf "${RUN_DIR:?}/$COPY_PREFIX"* "${STATE_DIR:?}/$COPY_PREFIX"*
+}
+
+build_copy() {
+  local m
+  load_topology ""
+  remove_copy
+  # chk-r1 sees r1's own /etc: its network file, sysctl files, firewall.
+  for m in "${MACHINES[@]}"; do ln -s "$m" "/etc/netns/$COPY_PREFIX$m"; done
+  build copy
+  # A firewall comes back at boot when its service is enabled. One that
+  # doesn't load leaves the copy without it, as it would leave the machine.
+  for m in "${MACHINES[@]}"; do
+    if [[ $(systemctl is-enabled "nftables@$m" 2> /dev/null) == enabled ]]; then
+      ip netns exec "$COPY_PREFIX$m" nft -f /etc/nftables.conf || say "$m: its /etc/nftables.conf doesn't load"
+    fi
+  done
+}
+
+# The settings worth comparing on a machine: forwarding, and whatever its
+# own sysctl files set.
+compared_sysctls() {
+  local setting
+  echo net.ipv4.ip_forward net.ipv6.conf.all.forwarding net.ipv4.ip_no_pmtu_disc
+  while IFS= read -r setting; do
+    [[ -n $setting ]] && echo "${setting%%=*}" | sed 's/^-//'
+  done < <(saved_sysctls "$1" 2> /dev/null)
+}
+
+verify() {
+  local wanted=() probe=() m differs keys errors status
+  while [[ $# -gt 0 ]]; do
+    if [[ $1 == -- ]]; then
+      shift
+      probe=("$@")
+      break
+    fi
+    wanted+=("$1")
+    shift
+  done
+  load_topology ""
+  trap remove_copy EXIT
+  # Built in a subshell of its own, so that a command that fails stops the
+  # build there and this can say so, rather than ending netlab mid-sentence.
+  errors=$(mktemp)
+  set +e
+  (
+    set -e
+    build_copy
+  ) > /dev/null 2> "$errors"
+  status=$?
+  set -e
+  if [[ $status -ne 0 ]]; then
+    echo "a fresh build of the machines' files fails: $(tail -n 2 "$errors" | tr '\n' ' ')"
+    rm -f "$errors"
+    exit 1
+  fi
+  rm -f "$errors"
+  [[ ${#wanted[@]} -gt 0 ]] || wanted=("${MACHINES[@]}")
+  for m in "${wanted[@]}"; do
+    [[ -n ${ROLE[$m]:-} ]] || die "verify: there is no machine called $m"
+    keys=$(compared_sysctls "$m" | tr '\n' ' ')
+    # shellcheck disable=SC2086 # the keys are separate arguments
+    if ! differs=$(diff <("$LIB/machine-state" "$m" $keys) <("$LIB/machine-state" "$COPY_PREFIX$m" $keys)); then
+      echo "$m differs from a fresh build of its files: $(echo "$differs" | grep '^[<>]' | head -n 3 | tr '\n' ' ')"
+      exit 1
+    fi
+  done
+  if [[ ${#probe[@]} -gt 0 ]]; then
+    "${probe[@]}"
+  else
+    echo verified
+  fi
+}
+
+# --- netlab link: cut a cable, loudly or silently -----------------------------
+
+# The nftables table that silences arrivals on one interface of the far end.
+silent_table() { echo "netlab_silent_${1//[^a-zA-Z0-9]/_}"; }
+
+link_command() {
+  local m=$1 dev=$2 action=$3 far far_ns far_dev
+  load_topology ""
+  [[ -n ${ROLE[$m]:-} ]] || die "link: there is no machine called $m (netlab show lists them)"
+  ip -n "$m" link show "$dev" > /dev/null 2>&1 || die "link: $m has no interface called $dev"
+  far=${FAR_END[$m:$dev]:-}
+  far_ns=${far%%:*}
+  far_dev=${far#*:}
+  case $action in
+    down | up)
+      ip -n "$m" link set "$dev" "$action"
+      ;;
+    silent)
+      [[ -n $far ]] || die "link: $m's $dev isn't a cable or a switch port in the topology, so it has no far end to go silent"
+      # Everything arriving at the far end from this cable is dropped as it
+      # arrives, before anything else sees it; the cable itself stays up.
+      printf 'table netdev %s {\n  chain arriving {\n    type filter hook ingress device "%s" priority -500; policy drop;\n  }\n}\n' \
+        "$(silent_table "$far_dev")" "$far_dev" | ip netns exec "$far_ns" nft -f -
+      ;;
+    restore)
+      ip -n "$m" link set "$dev" up
+      if [[ -n $far ]]; then
+        ip netns exec "$far_ns" nft delete table netdev "$(silent_table "$far_dev")" 2> /dev/null || true
+      fi
+      ;;
+    *)
+      die "link: the action is down, up, silent or restore, not $action"
+      ;;
+  esac
+}
+
+# --- At image build: each machine's own files ---------------------------------
+
+seed_machine_files() {
+  local m=$1 svc e d
+  mkdir -p "/etc/netns/$m" "$STATE_DIR/$m"
+  if [[ ! -e /etc/netns/$m/hosts ]]; then
+    printf '127.0.0.1 localhost\n127.0.1.1 %s\n::1 localhost ip6-localhost\n' "$m" > "/etc/netns/$m/hosts"
+  fi
+  # Every machine has its own folders for lasting settings, so a file made
+  # in one of them on a machine stays that machine's.
+  mkdir -p "/etc/netns/$m/sysctl.d" "/etc/netns/$m/network"
+  if [[ ! -e /etc/netns/$m/sysctl.d/README ]]; then
+    cp "$LIB/sysctl.d-README" "/etc/netns/$m/sysctl.d/README"
+  fi
+  for svc in ${RUNS[$m]:-}; do
+    for e in ${ETC_OF[$svc]}; do
+      if [[ -d /etc/$e ]]; then
+        mkdir -p "/etc/netns/$m/$e"
+        # The lab's own files win; the package's defaults fill the gaps.
+        cp -an "/etc/$e/." "/etc/netns/$m/$e/"
+        chown --reference="/etc/$e" "/etc/netns/$m/$e"
+        chmod --reference="/etc/$e" "/etc/netns/$m/$e"
+      elif [[ -f /etc/$e && ! -e /etc/netns/$m/$e ]]; then
+        cp -a "/etc/$e" "/etc/netns/$m/$e"
+      fi
+    done
+    for d in ${STATE_OF[$svc]}; do
+      [[ -d $d ]] || continue
+      if [[ ! -d $STATE_DIR/$m$d ]]; then
+        mkdir -p "$STATE_DIR/$m$d"
+        cp -a "$d/." "$STATE_DIR/$m$d/"
+        chown --reference="$d" "$STATE_DIR/$m$d"
+        chmod --reference="$d" "$STATE_DIR/$m$d"
+      fi
+    done
+  done
+  # Files a learner edits on the machine stay theirs: FRR writes its config
+  # as frr:frr, and the config folder must be the frr user's to write in.
+  if [[ -d /etc/netns/$m/frr ]]; then chown -R frr:frr "/etc/netns/$m/frr"; fi
+}
+
+enable_machines() {
+  local m svc enabled=""
+  load_topology ""
+  for m in "${MACHINES[@]}"; do
+    seed_machine_files "$m"
+    for svc in ${RUNS[$m]:-}; do
+      systemctl enable "$svc@$m.service" 2> /dev/null
+      enabled+="$svc@$m "
+    done
+  done
+  say "enabled: $enabled"
+}
+
+show_machines() {
+  local m
+  load_topology ""
+  for m in "${MACHINES[@]}"; do
+    printf '%s (%s)%s\n' "$m" "${ROLE[$m]}" "${RUNS[$m]:+, runs:${RUNS[$m]}}"
+    ip -n "$m" -br addr show up 2> /dev/null \
+      | awk '$1 != "lo" {sub(/@.*/, "", $1); printf "  %-6s %-5s %s\n", $1, $2, substr($0, index($0, $3))}' \
+      || echo "  (not up)"
+  done
+}
+
+# --- Commands -----------------------------------------------------------------
+
+action=${1:-}
+case $action in
+  up)
+    need_root up
+    bring_up
+    ;;
+  down)
+    need_root down
+    take_down
+    ;;
+  restart)
+    need_root restart
+    # Stopping netlab.service stops every machine's services first (they are
+    # PartOf it), then takes the network down; starting the boot target
+    # builds it again and starts every enabled service, as a boot does.
+    systemctl stop netlab.service
+    systemctl start multi-user.target
+    say "network rebuilt from the files; every enabled service is running again"
+    ;;
+  show)
+    show_machines
+    ;;
+  link)
+    need_root link
+    [[ $# -eq 4 ]] || die "usage: netlab link MACHINE INTERFACE down|up|silent|restore"
+    link_command "$2" "$3" "$4"
+    ;;
+  verify)
+    need_root verify
+    shift
+    verify "$@"
+    ;;
+  enable)
+    enable_machines
+    ;;
+  seal)
+    shift
+    mkdir -p "$(dirname "$SEALS")"
+    sha256sum "$@" >> "$SEALS"
+    ;;
+  intact)
+    [[ -f $SEALS ]] || {
+      echo "nothing sealed"
+      exit 0
+    }
+    if out=$(sha256sum --quiet -c "$SEALS" 2>&1); then
+      echo intact
+    else
+      echo "changed: $(echo "$out" | awk -F: '/FAILED/ {print $1}' | tr '\n' ' ')"
+    fi
+    ;;
+  saved-sysctl)
+    # For checklib's sysctl_saved: the value MACHINE's files give KEY, if any.
+    [[ $# -eq 3 ]] || die "usage: netlab saved-sysctl MACHINE KEY"
+    saved_sysctls "$2" 2> /dev/null | sed 's/^-//' | awk -F= -v key="${3//\//.}" '$1 == key {value = substr($0, length($1) + 2)} END {if (value != "") print value}'
+    ;;
+  *)
+    sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
+    exit 2
+    ;;
+esac

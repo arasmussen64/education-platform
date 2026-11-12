@@ -1,0 +1,19 @@
+# A machine's own firewall, loaded at boot from the machine's
+# /etc/nftables.conf (/etc/netns/r1/nftables.conf on the lab machine):
+# "systemctl status nftables@r1".
+[Unit]
+Description=nftables firewall on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+Before=frr@%i.service strongswan@%i.service named@%i.service unbound@%i.service nginx@%i.service haproxy@%i.service radvd@%i.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/nft -f /etc/nftables.conf
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/nft -f /etc/nftables.conf
+ExecStop=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/nft flush ruleset
+
+[Install]
+WantedBy=multi-user.target

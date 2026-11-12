@@ -1,0 +1,67 @@
+#!/bin/bash
+# machine-state NAMESPACE [SYSCTL-KEY...]: what a machine's network
+# configuration amounts to, written so that the live machine and a fresh
+# build of its files (netlab verify's copy) can be compared line by line.
+#
+# What it prints, and what it leaves out because it changes at every boot
+# or comes from a running program rather than the machine's files:
+#   links: name, up or down, MTU and the bridge it belongs to; not its MAC,
+#          and not the placeholder tunnel interfaces the kernel adds
+#   addresses: the configured ones; not link-local ones or those a router
+#          advertised
+#   routes: the kernel's, the topology's and the network file's; not the
+#          kernel's local, broadcast and anycast entries, not routes learned
+#          from router advertisements, and not routes a routing program
+#          installed (FRR's are compared by frr_saved instead)
+#   neighbours: the permanent ones (pinned MAC addresses)
+#   the firewall: nft -s list ruleset
+#   the kernel settings named (forwarding, by default)
+# Based on the layers designer's netlab-state (Module 3 prototypes).
+set -uo pipefail
+n=$1
+shift
+
+# Interfaces the kernel adds to every namespace once a tunnel type is in use
+# on Docker's machine; whether they are there depends on what ran before.
+placeholders='^(gre0|gretap0|erspan0|ip_vti0|ip6_vti0|sit0|tunl0|ip6tnl0|ip6gre0)$'
+
+ip -n "$n" -o link | awk -v skip="$placeholders" '{
+  name = $2; sub(/:$/, "", name); sub(/@.*/, "", name)
+  if (name ~ skip) next
+  mtu = ""; master = "-"
+  for (i = 1; i <= NF; i++) {
+    if ($i == "mtu") mtu = $(i + 1)
+    if ($i == "master") master = $(i + 1)
+  }
+  state = ($3 ~ /[<,]UP[,>]/) ? "up" : "down"
+  print "link", name, state, "mtu", mtu, "master", master
+}' | sort
+
+ip -n "$n" -o addr show permanent | grep -v 'scope link' | awk '{print "addr", $2, $4}' | sort
+
+# Routes, by the protocol the kernel records for each, as a number (-N),
+# because ip prints the same word, "static", for 4 (ip route add ... proto
+# static) and for FRR's static routes (196). Kept: 2, the kernel's own
+# routes to connected networks; 3, "boot", what ip route add makes (ip
+# leaves the protocol out for these); and 4. Any other is a routing
+# program's (FRR's BGP is 186, its static routes 196) or a router
+# advertisement's (9), and left out. With -N a route's type is a number
+# too, at the start of the line, and only ordinary (unicast) routes, which
+# have none, are kept: not the kernel's local, broadcast, anycast and
+# multicast entries.
+ip -N -n "$n" route show table all \
+  | grep -Ev '^fe80::/64 |expires' \
+  | awk '$1 !~ /^[0-9]+$/ {
+      proto = "3"
+      for (i = 1; i <= NF; i++) if ($i == "proto") proto = $(i + 1)
+      if (proto == "2" || proto == "3" || proto == "4") print "route", $0
+    }' | sort
+
+ip -n "$n" neigh show nud permanent | sed 's/^/neighbour /' | sort
+
+ip netns exec "$n" nft -s list ruleset | sed 's/^/nft /'
+
+for key in "$@"; do
+  value=$(ip netns exec "$n" /usr/sbin/sysctl -n "$key" 2> /dev/null | tr -s ' \t' ' ') || value="(none)"
+  echo "sysctl $key = ${value:-(none)}"
+done

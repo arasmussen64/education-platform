@@ -1,0 +1,14 @@
+#!/bin/bash
+# network-up MACHINE: runs a machine's network file, its /etc/network/up, at
+# boot. netlab runs it with "ip netns exec MACHINE", so it is already inside
+# the machine and /etc is the machine's own.
+#
+# The file is a list of commands, usually ip commands, run in order. The
+# first one that fails stops the file (bash -e), and this says which line it
+# was, for the journal: "journalctl -u netlab" shows it.
+set -eE
+machine=$1
+trap 'echo "netlab: $machine: /etc/network/up stopped at line $LINENO: $BASH_COMMAND" >&2' ERR
+# Read without carriage returns, in case the file was written on Windows.
+# shellcheck source=/dev/null
+source <(tr -d '\r' < /etc/network/up)

@@ -1,0 +1,20 @@
+#!/bin/bash
+# Usage: looking-glass MACHINE 'show ...'
+# Reads a router you don't run (an ISP's, the cloud's) the way networks let
+# the public read theirs, through a "looking glass": show commands only.
+#   looking-glass ispa 'show bgp ipv4 unicast 203.0.113.0/24'
+# It runs FRR's vtysh on that machine with the one command, and refuses
+# anything that isn't a show command, because the router isn't yours to
+# change.
+set -euo pipefail
+if [[ $# -ne 2 ]]; then
+  echo "usage: looking-glass MACHINE 'show ...'   (netlab show lists the machines)" >&2
+  exit 2
+fi
+machine=$1
+command=$2
+if [[ $command != "show "* || $command == *$'\n'* ]]; then
+  echo "looking-glass: only one show command at a time, such as 'show bgp summary': $machine's router isn't yours to change" >&2
+  exit 2
+fi
+exec on "$machine" vtysh -c "$command"

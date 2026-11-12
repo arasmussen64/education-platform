@@ -1,0 +1,47 @@
+#!/usr/bin/python3
+"""web-svc: a test server, over IPv4 and IPv6. Port 8080 answers each
+connection with the address it came from, so a check sees whether NAT
+changed it; port 9000 reads everything sent and answers with the byte count,
+so a check sees whether a big upload arrived whole. Run it on a machine as a
+machine-level unit (the base's README shows one), or from a check.
+From the IPv6 designer's prototype (Module 3)."""
+
+import socket
+import threading
+
+
+def serve(port, handle):
+    sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("::", port))
+    sock.listen(32)
+    while True:
+        connection, address = sock.accept()
+        threading.Thread(target=handle, args=(connection, address), daemon=True).start()
+
+
+def whoami(connection, address):
+    # An IPv4 caller arrives as ::ffff:198.51.100.2 on a dual-stack socket.
+    ip = address[0][7:] if address[0].startswith("::ffff:") else address[0]
+    connection.sendall((ip + "\n").encode())
+    connection.close()
+
+
+def sink(connection, address):
+    count = 0
+    connection.settimeout(30)
+    try:
+        while True:
+            data = connection.recv(65536)
+            if not data:
+                break
+            count += len(data)
+        connection.sendall(f"{count}\n".encode())
+    except OSError:
+        pass
+    connection.close()
+
+
+threading.Thread(target=serve, args=(9000, sink), daemon=True).start()
+serve(8080, whoami)
