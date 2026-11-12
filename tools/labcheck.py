@@ -1393,14 +1393,20 @@ def shard_of(
     weight: Callable[[str, str], float] | None = None,
 ) -> list[tuple[str, str]]:
     """The labs one of N CI machines tests, for `--shard I/N`, slowest
-    first. Each lab goes, slowest first, to the machine with the least work
-    so far, by `weight` (the recorded times in tools/lab-seconds.json unless
-    given), so a long topic's labs spread over several machines; and each
-    machine starts its slowest labs first, so none is left to run alone at
-    the end. Whole topics dealt out in turn left one slow topic holding its
-    share up: on 2026-11-12 (#262) the eight shares took from 8 to 24
-    minutes. Every machine works the split out alike from the same checkout,
-    so each lab is tested exactly once."""
+    first. A topic's labs stay together on one machine, and each topic goes,
+    slowest first (its labs' times added up, by `weight`: the recorded times
+    in tools/lab-seconds.json unless given), to the machine with the least
+    work so far; each machine then starts its slowest labs first, so none is
+    left to run alone at the end. Whole topics dealt out in turn, as before,
+    left one slow topic holding its share up: on 2026-11-12 (#262) the eight
+    shares took from 8 to 24 minutes.
+
+    Spreading a topic's labs over several machines balanced the work better
+    on paper, but on GitHub's runner csa.linux.net-tools'
+    debug-not-from-the-office then started with its name server's fault
+    already mended, twice (#263; not seen on Docker Desktop, cause not
+    found), so topics stay whole. Every machine works the split out alike
+    from the same checkout, so each lab is tested exactly once."""
     if weight is None:
         weight = weigher(lab_seconds())
     try:
@@ -1411,13 +1417,16 @@ def shard_of(
     if count < 1 or not 0 <= index < count:
         raise LabError(f"--shard {shard} is out of range: I runs from 0 to N-1")
     weights = {target: weight(*target) for target in targets}
+    topic_time: dict[str, float] = {}
+    for (topic, _), seconds in weights.items():
+        topic_time[topic] = topic_time.get(topic, 0.0) + seconds
     loads = [0.0] * count
-    machine_of: dict[tuple[str, str], int] = {}
-    for target in sorted(targets, key=lambda t: (-weights[t], t)):
+    machine_of: dict[str, int] = {}
+    for topic in sorted(topic_time, key=lambda t: (-topic_time[t], t)):
         lightest = min(range(count), key=lambda m: (loads[m], m))
-        loads[lightest] += weights[target]
-        machine_of[target] = lightest
-    mine = [target for target in targets if machine_of[target] == index]
+        loads[lightest] += topic_time[topic]
+        machine_of[topic] = lightest
+    mine = [target for target in targets if machine_of[target[0]] == index]
     return sorted(mine, key=lambda t: (-weights[t], t))
 
 

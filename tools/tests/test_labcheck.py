@@ -292,27 +292,26 @@ def test_a_timeout_while_proving_counts_as_the_checker_giving_up(monkeypatch) ->
     assert report.problems[0].startswith("labcheck: timed out:")
 
 
-def test_shards_cover_every_lab_once_and_balance_the_work() -> None:
-    # One slow topic (five labs of 600 s) and four quick ones (two labs of
-    # 100 s each), over four machines.
-    targets = [("slow", f"lab{j}") for j in range(5)] + [
-        (f"t{i}", f"lab{j}") for i in range(4) for j in range(2)
+def test_shards_keep_topics_whole_and_balance_the_work() -> None:
+    # Two slow topics (three labs of 300 s), six quick ones (two labs of
+    # 100 s), over four machines.
+    targets = [(f"slow{i}", f"lab{j}") for i in range(2) for j in range(3)] + [
+        (f"t{i}", f"lab{j}") for i in range(6) for j in range(2)
     ]
 
     def weight(topic: str, exercise: str) -> float:
-        return 600.0 if topic == "slow" else 100.0
+        return 300.0 if topic.startswith("slow") else 100.0
 
     shards = [labcheck.shard_of(targets, f"{i}/4", weight) for i in range(4)]
-    # Every lab lands in exactly one shard.
+    # Every lab lands in exactly one shard, and a topic's labs in the same one.
     assert sorted(sum(shards, [])) == sorted(targets)
-    # The slow topic is spread out, and the machines' work differs by no
-    # more than one slow lab: 3,800 s over four machines is 950 each.
-    assert all(sum(1 for t in shard if t[0] == "slow") <= 2 for shard in shards)
-    loads = [sum(weight(*t) for t in shard) for shard in shards]
-    assert max(loads) - min(loads) <= 600
-    # Slowest first, to the least-loaded machine (the lowest number on a
-    # tie), and each machine starts its slowest labs first.
-    assert shards[0][0] == ("slow", "lab0") and ("slow", "lab4") in shards[0]
+    for topic in {t for t, _ in targets}:
+        assert sum(1 for shard in shards if any(t == topic for t, _ in shard)) == 1
+    # 3,000 s of work over four machines: each slow topic (900 s) on a machine
+    # of its own, the quick ones (200 s each) filling up the other two.
+    loads = sorted(sum(weight(*t) for t in shard) for shard in shards)
+    assert loads == [600.0, 600.0, 900.0, 900.0]
+    # Each machine starts its slowest labs first.
     for shard in shards:
         assert [weight(*t) for t in shard] == sorted(
             (weight(*t) for t in shard), reverse=True
