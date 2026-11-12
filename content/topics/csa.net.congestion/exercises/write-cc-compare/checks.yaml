@@ -1,0 +1,47 @@
+# The checks of "Compare the two". The script runs on shop, as root there,
+# the way the prompt runs it. Its numbers are compared with what the
+# receiver itself counted for each of its two tests, from the receiver's
+# journal (iperf3's server logs a "receiver" line for each), so numbers the
+# script didn't measure fail. It is run against both sites: dr2's clean,
+# 20 Mbit/s link gives numbers nobody can know in advance, and dr1's lossy
+# one shows whether the two tests really used two algorithms, and which way
+# up the ratio is. The thresholds sit in the middle of the measured gaps
+# (on dr1, CUBIC 1.4 to 13.5 Mbit/s against BBR's 41 to 46; measured
+# 2026-11-11 and 12). /usr/local/lib/lab/cc-compare-check runs the script
+# and reads it, the same way for both sites.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: executable
+    description: "~/bin/cc-compare exists and can be run."
+    command: |
+      f=/home/learner/bin/cc-compare
+      [ -f "$f" ] || { echo "there is no ~/bin/cc-compare"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/cc-compare isn't executable"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: usage
+    description: "Run with anything but two arguments, the script prints a usage line and exits with a non-zero status."
+    command: |
+      for args in "" "10.0.7.20"; do
+        out=$(on shop /home/learner/bin/cc-compare $args 2>&1)
+        status=$?
+        [ "$status" -ne 0 ] || { echo "run with ${args:-no arguments}, it exits with status 0"; exit 0; }
+        echo "$out" | grep -i 'usage' > /dev/null || { echo "run with ${args:-no arguments}, it prints no usage line"; exit 0; }
+      done
+      echo "usage shown"
+    expect:
+      equals: "usage shown"
+  - id: rates-from-the-receiver
+    description: "Run against dr2 (10.0.7.20) for 3 seconds, the script makes two tests of 3 seconds each and prints three lines, cubic N, bbr N and bbr/cubic R, each number with one decimal: its two rates are what dr2's receiver counted for its two tests, in order, within 10%, and R is the second rate divided by the first."
+    timeout: 45
+    command: /usr/local/lib/lab/cc-compare-check dr2 10.0.7.20 3
+    expect:
+      equals: measured
+  - id: two-algorithms
+    description: "Run against dr1 (10.0.6.20) for 4 seconds, its two tests last 4 seconds each, its rates are again dr1's receiver's and R is again the second divided by the first, and the rates show CUBIC first and BBR second: across dr1's lossy link, BBR's rate is at least twice CUBIC's, and CUBIC's is under 25 Mbit/s."
+    timeout: 45
+    command: /usr/local/lib/lab/cc-compare-check dr1 10.0.6.20 4 lossy
+    expect:
+      equals: measured
