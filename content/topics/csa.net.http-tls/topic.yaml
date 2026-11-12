@@ -1,16 +1,251 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.http-tls
 kind: topic
-status: planned
+status: ready
 title: HTTP and TLS
-summary: Explain what HTTP/1.1, 2 and 3 change.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "HTTP on the wire and the TLS that protects it: what HTTP/2 changes over HTTP/1.1 and which one ALPN picks; the encryption and key exchange under TLS, a TLS 1.3 and a TLS 1.2 handshake read message by message, what an observer still sees and why SNI is sent in clear; and an nginx server set up for several sites on one address, with the right TLS versions, HTTP/2, a refusing default server and OCSP stapling, with the three clouds' load balancers side by side."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2,
+# 3.7 and 5, topic 31) and its designer's brief (csa.net.http-tls.md, the
+# HTTP-versions and handshake parts; certificates, chains, ACME and mutual
+# TLS are csa.net.certificates', HTTP/3 and QUIC csa.net.congestion's).
+# Through csa.net.dns this builds on csa.net.transport (RTT, the handshake
+# and the byte stream TCP promises), the earlier Module 3 topics (machines,
+# on, name@machine services, Unbound) and Module 1 (curl -v and -I, tcpdump,
+# systemctl reload, SSH's key pair, awk, grep and sed). DNS defined a
+# signature, a hash and, in a sentence, a certificate and a certificate
+# authority. From csa.net.congestion (not yet written, in the module's third
+# wave) it uses QUIC, a stream, head-of-line blocking at the transport,
+# 0-RTT (which, as that topic promises, this lesson's replay sentence
+# explains) and HTTP/3 as names it taught. This topic defines, for the
+# module (the plan's 3.7): symmetric and public-key encryption, key
+# exchange, forward secrecy, cipher suite and handshake; and for
+# csa.net.http-semantics: HTTP request and response, method, header, status
+# line, HTTP/2 streams and HTTPS.
+prerequisites: [csa.net.dns, csa.net.congestion]
+# Worked out: the lesson about 25 minutes (3,200 words with its tables),
+# the readings about 30 (The Illustrated TLS 1.3 Connection's sections 15,
+# MDN's three sections 7, nginx's three directives 4, Let's Encrypt's post
+# 5), 12 recall items at 1.5 each 18, then the worked example 30, the
+# fill-in 25, the write 35, the build 45, the debug 35 and the explain 20:
+# about 265. The plan's 175 is kept (MODULE-3-BRIEF.md, topic 31), as its
+# split of the designer's 332 minutes set it.
+estimated_minutes: 175
 rev: 1
 objectives:
-- Explain what HTTP/1.1, 2 and 3 change.
-- Read a TLS 1.2 and 1.3 handshake, including SNI and OCSP stapling.
-- Serve several sites on one address with the right protocol versions.
+  - "Say what HTTP/2 changes over HTTP/1.1 (one connection with many streams, binary frames, compressed headers) and the head-of-line blocking it moves down to TCP, read which version ALPN chose in `curl -v`, and count the round trips TCP and TLS 1.2 or 1.3 cost before a request can leave."
+  - "Explain symmetric and public-key encryption, key exchange and forward secrecy, and read a TLS 1.3 and a TLS 1.2 handshake message by message in `openssl s_client -trace`, saying which messages are encrypted."
+  - "Say what an observer on the network still sees of an HTTPS connection (addresses, ports and the name in SNI, and in TLS 1.2 the certificate), what ECH changes, and why SNI is sent at all."
+  - "Set up nginx for several sites on one address: a certificate per name chosen by SNI, a default server that refuses unknown names, TLS 1.2 and 1.3 only, HTTP/2, and OCSP stapling, read with `openssl s_client -status`; and say where the three clouds' load balancers differ."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - TLS 1.3 is RFC 9846 (July 2026, Proposed Standard), obsoleting RFC 8446,
+#   5246 (TLS 1.2's), 5077, 6961, 7627 and 8422: rfc-editor.org/rfc/rfc9846.json.
+#   Its section 1.3 (Major Differences from TLS 1.2): "All handshake messages
+#   after the ServerHello are now encrypted", and ChangeCipherSpec is kept
+#   only "when needed for middlebox compatibility"; section 2.3: 0-RTT has
+#   "no guarantees of non-replay between connections":
+#   rfc-editor.org/rfc/rfc9846.html.
+# - ECH is RFC 9849, "TLS Encrypted Client Hello", March 2026, Proposed
+#   Standard: rfc-editor.org/rfc/rfc9849.json. nginx 1.29.4 (2025-12-09)
+#   supports it with OpenSSL's ECH feature branch: nginx.org/en/CHANGES.
+# - TLS 1.0 and 1.1 are deprecated: RFC 8996, March 2021, Best Current
+#   Practice: rfc-editor.org/rfc/rfc8996.json.
+# - nginx: ssl_protocols' default is TLSv1.2 TLSv1.3 today; TLSv1.3 was
+#   added to the default in 1.23.4 and TLSv1 and TLSv1.1 left it in 1.27.3
+#   (2024-11-26); "now the ssl_protocols directive works in a virtual server
+#   different from the default server when using OpenSSL 1.1.1 or newer"
+#   only from 1.29.2 (2025-10-07): nginx.org/en/CHANGES and
+#   nginx.org/en/docs/http/server_names.html ("Virtual server selection").
+#   Ubuntu 24.04's nginx 1.24.0 and its nginx.conf ("ssl_protocols TLSv1
+#   TLSv1.1 TLSv1.2 TLSv1.3;"), and OpenSSL 3.0.13 refusing TLS 1.1 until
+#   the server's ciphers say SECLEVEL=0: tried in the labs' image.
+# - nginx's ssl_stapling: "the certificate of the server certificate issuer
+#   should be known" (the intermediates in ssl_certificate, or
+#   ssl_trusted_certificate), and "For a resolution of the OCSP responder
+#   hostname, the resolver directive should also be specified";
+#   ssl_reject_handshake appeared in 1.19.4: nginx.org/en/docs/http/ngx_http_ssl_module.html.
+#   The http2 directive appeared in 1.25.1, and listen's http2 parameter is
+#   deprecated: nginx.org/en/docs/http/ngx_http_v2_module.html and
+#   ngx_http_core_module.html. Tried in the labs (nginx 1.24.0): one listen
+#   line's http2 switches HTTP/2 on for every server on that port; a
+#   server block's own ssl_protocols is ignored unless it is the default
+#   server; with no resolver, stapling still works from the address nginx
+#   looked up when it loaded its settings (a warning, "no resolver
+#   defined"); with a resolver that doesn't answer, no staple and "could
+#   not be resolved (110: Operation timed out)" after 30 s; with only
+#   cert.pem, "ssl_stapling" ignored, issuer certificate not found; the
+#   first handshake after a start goes without a staple.
+# - Browsers open about six connections per site under HTTP/1.x, and
+#   pipelining was abandoned for HTTP/2's multiplexing: MDN, "Connection
+#   management in HTTP/1.x". HTTP/2 needs "only one connection per origin":
+#   hpbn.co/http2/.
+# - Let's Encrypt dropped OCSP URLs from certificates on 2025-05-07 and
+#   turned its OCSP responders off on 2025-08-06, for privacy; Must-Staple
+#   requests failed from 2025-01-30: letsencrypt.org/2024/12/05/ending-ocsp/.
+# - The clouds' load balancers (the lesson's table):
+#   AWS Application Load Balancer: a listener made in the console gets
+#   ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09 (TLS 1.2 and 1.3), one made
+#   with the CLI, CloudFormation or the CDK ELBSecurityPolicy-2016-08 (TLS
+#   1.0 to 1.2, no 1.3): docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html.
+#   A certificate list chosen by SNI; the default certificate for a client
+#   without SNI or with no matching name: .../https-listener-certificates.html.
+#   Azure Application Gateway: the default TLS policy for API versions from
+#   2023-02-01 is AppGwSslPolicy20220101 (1.2 and 1.3), before that
+#   AppGwSslPolicy20150501 (from 1.0); TLS 1.0 and 1.1 support ended on
+#   2025-08-31 (page dated 2026-08-18):
+#   learn.microsoft.com/en-us/azure/application-gateway/application-gateway-ssl-policy-overview.
+#   Multi-site listeners by host name with SNI; a basic listener takes what
+#   no multi-site listener matches, so multi-site ones go first (dated
+#   2026-09-02): learn.microsoft.com/en-us/azure/application-gateway/multiple-site-overview.
+#   Google Cloud's load balancers: with no SSL policy, "the COMPATIBLE
+#   profile selected, and the minimum TLS version set to 1.0":
+#   docs.cloud.google.com/load-balancing/docs/ssl-policies-concepts. Several
+#   certificates per target proxy chosen by SNI; a client without SNI or with
+#   no match gets the first, "the default (primary) certificate":
+#   docs.cloud.google.com/load-balancing/docs/ssl-certificates.
+# Every command output in the lesson, the labs and the recall items marked
+# "captured" is real output of this topic's labs (nginx 1.24.0, OpenSSL
+# 3.0.13, curl 8.5.0, tshark 4.2.2 on Ubuntu 24.04), captured on
+# 2026-11-12; dates, serials and keys differ in a new run.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: The Illustrated
+# TLS Connections are MIT (the repositories' LICENSE files, © Michael
+# Driscoll); MDN's prose is CC BY-SA 2.5 or later; nginx's documentation is
+# © F5, Inc. (its footer); Let's Encrypt's posts are © ISRG (its footer);
+# High Performance Browser Networking is CC BY-NC-ND 4.0 (its footer); AWS's
+# documentation is © Amazon Web Services; Azure's is CC BY 4.0
+# (MicrosoftDocs/azure-docs); Google's documentation pages are CC BY 4.0
+# "except as otherwise noted" (Google's site policies; the footer itself
+# wasn't in the text fetched). Cloudflare's "What happens in a TLS
+# handshake?", the plan's first choice, refused automated fetches on the
+# day and couldn't be confirmed another way, so The Illustrated TLS 1.3
+# Connection is the main resource, as the plan's fallback says.
+resources:
+  - title: "The Illustrated TLS 1.3 Connection: Every Byte Explained (Michael Driscoll): read \"Client Hello\", \"Server Hello\", \"Server Encrypted Extensions\", \"Server Certificate\", \"Server Certificate Verify\" and \"Server Handshake Finished\", skimming each section's byte-by-byte parts, about 15 minutes"
+    url: https://tls13.xargs.org/
+    type: interactive
+    use: link
+    license: "MIT (the illustrated-tls13 repository's LICENSE); linked, not copied"
+  - title: "Evolution of HTTP (MDN): read \"HTTP/1.1 – The standardized protocol\", \"HTTP/2 – A protocol for greater performance\" and \"HTTP/3 - HTTP over QUIC\""
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Evolution_of_HTTP
+    type: reading
+    use: link
+    license: "CC BY-SA 2.5 or later (MDN's prose); linked, not copied"
+  - title: "nginx's ngx_http_ssl_module: look up ssl_protocols, ssl_stapling and ssl_reject_handshake"
+    url: https://nginx.org/en/docs/http/ngx_http_ssl_module.html
+    type: reading
+    use: link
+    license: "© F5, Inc. (the page's footer); linked, not copied"
+  - title: "Ending OCSP Support in 2025 (Let's Encrypt, 2024-12-05): why the largest public CA stopped answering OCSP"
+    url: https://letsencrypt.org/2024/12/05/ending-ocsp/
+    type: reading
+    use: link
+    license: "© Internet Security Research Group (the page's footer); linked, not copied"
+  - title: "The Illustrated TLS 1.2 Connection (Michael Driscoll): optional, the same byte by byte for TLS 1.2"
+    url: https://tls12.xargs.org/
+    type: interactive
+    use: link
+    license: "MIT (the illustrated-tls12 repository's LICENSE); linked, not copied"
+  - title: "High Performance Browser Networking, \"HTTP/2\" (Ilya Grigorik): optional, \"Binary Framing Layer\" to \"One Connection Per Origin\", and \"Header Compression\""
+    url: https://hpbn.co/http2/
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 4.0 (the page's footer); linked, not copied"
+  - title: "Connection management in HTTP/1.x (MDN): optional, persistent connections, pipelining and the six connections a browser opens"
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Connection_management_in_HTTP_1.x
+    type: reading
+    use: link
+    license: "CC BY-SA 2.5 or later (MDN's prose); linked, not copied"
+  - title: "Server names (nginx): optional, \"Virtual server selection\", which settings come from the default server"
+    url: https://nginx.org/en/docs/http/server_names.html
+    type: reading
+    use: link
+    license: "© F5, Inc. (the page's footer); linked, not copied"
+  - title: "Security policies for your Application Load Balancer (AWS): optional, the TLS versions each policy allows, and the defaults"
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "SSL certificates for your Application Load Balancer (AWS): optional, the default certificate and the certificate list chosen by SNI"
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/https-listener-certificates.html
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "TLS policy overview for Azure Application Gateway (Microsoft Learn): optional, the predefined policies and the default"
+    url: https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-ssl-policy-overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "SSL policies overview (Google Cloud): optional, the profiles and the minimum TLS version, and what applies with no policy"
+    url: https://docs.cloud.google.com/load-balancing/docs/ssl-policies-concepts
+    type: reading
+    use: link
+    license: "CC BY 4.0, except as otherwise noted (Google's documentation terms); linked, not copied"
+# The recall items read curl, openssl and tshark output captured from this
+# topic's labs, with the text tools of Module 1. The worked example, the
+# fill-in, the build and the debug are network labs on the base: web
+# (nginx), office (a customer's laptop), ca (the shop CA's OCSP responder,
+# openssl's own) and resolver (Unbound), with partner and monitor in the
+# debug. The write is a plain lab whose servers are openssl's test server
+# on 127.0.0.1 (ADR-0018).
+practice:
+  - example-two-handshakes
+  - alpn-from-curl-v
+  - mcq-h2-hol
+  - est-rtt-tls12
+  - est-rtt-tls13
+  - trace-13-messages
+  - trace-12-in-clear
+  - mcq-what-observer-sees
+  - mcq-sni-why
+  - mcq-tls-versions
+  - stapling-status
+  - mcq-first-handshake-no-staple
+  - mcq-ocsp-today
+  - fill-nginx-tls
+  - write-handshake-report
+prove:
+  build: build-two-sites-one-address
+  debug: debug-handshake-failures
+  explain:
+    prompt: |
+      A colleague setting up a new web server says: "HTTPS is just encryption: pick any TLS settings and it'll work." Explain, in your own words: what a TLS 1.3 handshake does, message by message and in how many round trips, and how TLS 1.2's differs; what SNI is for, and what someone watching the network can still see of an HTTPS connection; which TLS versions a public server should allow, and why; what OCSP stapling does, why the first handshake after a restart goes without it, and why it matters less than it did; and what HTTP/2 changes over HTTP/1.1, including the problem it moves rather than solves.
+    rubric:
+      - id: handshake
+        required: true
+        description: "The ClientHello offers versions, cipher suites, a key share (and SNI, ALPN); the ServerHello picks and sends its key share, so both derive keys by key exchange (ECDHE), with forward secrecy because those keys are thrown away; the server's Certificate, its CertificateVerify (a signature with the certificate's private key, proving it holds it) and Finished, all encrypted in TLS 1.3, then the client's Finished: one round trip after TCP's. TLS 1.2 sends the certificate in clear and takes two round trips."
+      - id: sni-and-observer
+        required: true
+        description: "SNI names the site in the ClientHello so a server with several sites on one address can choose the certificate before anything is encrypted; an observer still sees the addresses, ports and that name (and in TLS 1.2 the certificate), but not the path, headers, cookies or page; ECH encrypts the name where both ends support it."
+      - id: versions
+        required: true
+        description: "TLS 1.2 and 1.3: 1.0 and 1.1 are deprecated (RFC 8996), and 1.3 alone shuts out clients that stop at 1.2; say it explicitly in the configuration rather than trusting a default (nginx 1.24 and some cloud defaults still allow 1.0), and in nginx 1.24 set it where the default server takes it."
+      - id: stapling
+        required: false
+        description: "The server fetches the CA's signed OCSP answer (not revoked) and attaches it to the handshake, saving the client a lookup that would tell the CA which site it visits; nginx fetches it on the first handshake that asks, so that one goes without; Let's Encrypt has stopped OCSP, so it matters with CAs that still run it."
+      - id: http-versions
+        required: true
+        description: "HTTP/1.1 carries one request at a time per connection, so browsers open about six; HTTP/2 multiplexes many streams on one connection with compressed headers, chosen by ALPN in the handshake; but TCP delivers bytes in order, so one lost packet stalls every stream, which HTTP/3 on QUIC removes."
+    model_answer: |
+      HTTPS is HTTP inside TLS, and TLS does three jobs, not one: it agrees keys with the server, proves the server is who it says, and then encrypts. In TLS 1.3 the client's ClientHello offers the versions and cipher suites it speaks and its half of a key exchange (an ECDHE key share), and names the site it wants in SNI and the HTTP versions it speaks in ALPN. The server's ServerHello picks a version and suite and sends its own key share. Each side combines its own throwaway private key with the other's public share and arrives at the same secret, which nobody watching can work out; the throwaway keys are deleted afterwards, which is forward secrecy: stealing the server's long-term key later doesn't open recorded traffic. Everything after the ServerHello is encrypted: the server's Certificate, its CertificateVerify, a signature over the handshake made with the private key behind that certificate, which proves it holds it, and its Finished. The client checks the certificate and sends its own Finished, and its request can go: one round trip after TCP's, two in all. TLS 1.2 takes two round trips for the handshake, three with TCP's, and sends the certificate in clear.
+
+      SNI is there because one address often serves many sites: the server must choose which certificate to send before anything is encrypted, long before the HTTP Host header arrives. So someone on the network still sees the addresses and ports and that name, and with TLS 1.2 the certificate too, but not the path, the headers, the cookies or the page. ECH encrypts the name, where both ends support it.
+
+      A public server should allow TLS 1.2 and 1.3: 1.0 and 1.1 have been deprecated since RFC 8996, and 1.3 alone would shut out older clients, like a partner's integration that stops at 1.2. Say it in the configuration; don't trust defaults: nginx 1.24 still allows 1.0 and 1.1 by default and Ubuntu's file names them, AWS's load balancer made from the CLI gets a policy from 2016, and Google's with no policy starts at 1.0. In nginx 1.24, the default server's ssl_protocols decides for the whole port.
+
+      OCSP stapling has the server fetch the CA's signed "not revoked" answer and attach it to the handshake, so the client needn't ask the CA itself, which costs a round trip and tells the CA what you're visiting. nginx fetches it when the first handshake asks, so that one goes without. Let's Encrypt stopped OCSP in 2025 for privacy, so it matters only with CAs that still run it.
+
+      HTTP/1.1 sends one request at a time on a connection, so browsers open about six per site. HTTP/2, chosen by ALPN, runs many streams on one connection with compressed headers. But TCP delivers bytes in order, so one lost packet stalls every stream: head-of-line blocking moved down to TCP, which HTTP/3 on QUIC removes.
+review_pool:
+  - est-rtt-tls13
+  - est-hundred-connections
+  - trace-12-in-clear
+  - keylog-decrypted
+  - mcq-what-observer-sees
+  - mcq-first-handshake-no-staple
+  - mcq-tls-versions
+skills:
+  - id: http-versions
+    description: "HTTP/1.1 against HTTP/2: requests, responses, methods, headers and status lines; persistent connections and six of them a site; streams multiplexed on one connection, binary frames and HPACK; head-of-line blocking at HTTP and at TCP; ALPN in `curl -v` and `curl -w '%{http_version}'`; HTTP/3 as QUIC's (topic 29); the round trips TCP and TLS 1.2 or 1.3 cost before a request"
+  - id: tls-handshake
+    description: "Symmetric and public-key encryption, key exchange (ECDHE) and forward secrecy, cipher suites; a TLS 1.3 and a TLS 1.2 handshake message by message in `openssl s_client -trace`, and which records are encrypted; what an observer still sees (SNI, and in TLS 1.2 the certificate), ECH, session tickets and 0-RTT's replay risk; key logs for reading your own traffic"
+  - id: tls-server-config
+    description: "Setting up a TLS server in nginx: a server block per name chosen by SNI, the default server and `ssl_reject_handshake`, `ssl_protocols` TLS 1.2 and 1.3 (decided by the default server in nginx 1.24), HTTP/2 with `listen ... http2`, the full chain, OCSP stapling with `ssl_stapling` and `resolver`, read with `openssl s_client -status`, and why the first handshake goes without; OCSP's decline; the clouds' load balancers' TLS policies and certificates by SNI"
