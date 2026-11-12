@@ -1,0 +1,15 @@
+# The shop's stock service, on one of the lab's machines:
+# "systemctl status stock-sync@stock1". The program is /usr/local/bin/stock-sync.
+[Unit]
+Description=The shop's stock service on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/stock-sync
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

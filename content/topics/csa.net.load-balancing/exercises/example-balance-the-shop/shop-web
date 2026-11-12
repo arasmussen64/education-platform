@@ -1,0 +1,157 @@
+#!/usr/bin/python3
+"""shop-web: one of the shop's web servers, a stand-in. On a machine whose
+name starts "api" it is an API server on port 8081; otherwise a web server
+on port 8080. "systemctl status shop-web@web1".
+
+  /            the front page, which needs nothing else
+  /orders      the order list, which needs the database (db, 10.0.1.20:5432)
+  /health      a deep check: 200 only if the database answers too
+  /livez       a shallow check: 200 if this server can answer at all
+  /slow?s=N    a download that takes N seconds (10 bytes a second)
+  /whoami      who this server thinks is asking: the connection's address,
+               and the X-Forwarded-For header, if the request had one
+  /api/...     (API servers) an answer from the API
+
+Every answer says which server made it, in an X-Served-By header.
+
+What the lab's checks read, in this machine's /run/shop/:
+  checks       how many health checks have arrived (a health check is a
+               request with no User-Agent header, as HAProxy's are)
+  db-failed    how many health checks it failed because the database
+               didn't answer
+Switches:
+  /run/shop/hiccup or /etc/shop/hiccup   while either exists, one health
+               check in four is answered 503 at once, the first one after
+               the switch goes on and every fourth after it (a server that
+               fails a check now and then)
+  /etc/shop/broken   every page answers 500, though /livez and /health
+               still pass (a broken deploy)
+"""
+
+import os
+import socket
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
+
+NAME = socket.gethostname()
+API = NAME.startswith("api")
+PORT = 8081 if API else 8080
+DB = ("10.0.1.20", 5432)
+RUN = "/run/shop"
+
+lock = threading.Lock()
+counts = {"checks": 0, "db-failed": 0, "hiccup": 0}
+
+
+def db_ok():
+    try:
+        with socket.create_connection(DB, timeout=0.5) as s:
+            return s.recv(16).startswith(b"ok")
+    except OSError:
+        return False
+
+
+def save(name):
+    """Writes one counter to /run/shop/NAME, whole, so a reader never sees half."""
+    tmp = f"{RUN}/.{name}"
+    with open(tmp, "w") as f:
+        f.write(f"{counts[name]}\n")
+    os.replace(tmp, f"{RUN}/{name}")
+
+
+def hiccup_on():
+    return os.path.exists(f"{RUN}/hiccup") or os.path.exists("/etc/shop/hiccup")
+
+
+class Shop(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    server_version = "shop-web"
+    sys_version = ""
+
+    def log_message(self, *args):
+        pass
+
+    def send(self, code, body):
+        data = body.encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("X-Served-By", NAME)
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(data)
+
+    def is_check(self):
+        return self.headers.get("User-Agent") is None
+
+    def check_answer(self, path):
+        """A health check's answer: the hiccup first, then the page itself."""
+        with lock:
+            counts["checks"] += 1
+            save("checks")
+            if hiccup_on():
+                counts["hiccup"] += 1
+                if counts["hiccup"] % 4 == 1:
+                    return 503, "hiccup\n"
+            else:
+                counts["hiccup"] = 0
+        return None
+
+    def do_GET(self):
+        u = urlparse(self.path)
+        path = u.path
+        if self.is_check():
+            early = self.check_answer(path)
+            if early:
+                return self.send(*early)
+        broken = os.path.exists("/etc/shop/broken")
+        if path == "/livez":
+            return self.send(200, "alive\n")
+        if path in ("/health", "/orders"):
+            if db_ok():
+                if path == "/health":
+                    return self.send(200, "ok: this server and its database\n")
+                if broken:
+                    return self.send(500, f"internal error on {NAME}\n")
+                return self.send(200, f"orders: 3 waiting, served by {NAME}\n")
+            if self.is_check():
+                with lock:
+                    counts["db-failed"] += 1
+                    save("db-failed")
+            return self.send(503, f"no database, on {NAME}\n")
+        if broken:
+            return self.send(500, f"internal error on {NAME}\n")
+        if path == ("/api/whoami" if API else "/whoami"):
+            xff = self.headers.get("X-Forwarded-For", "(none)")
+            body = f"served by {NAME}\nconnection from {self.client_address[0]}\nX-Forwarded-For: {xff}\n"
+            return self.send(200, body)
+        if path == "/slow" and not API:
+            secs = int(parse_qs(u.query).get("s", ["10"])[0])
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(secs * 10))
+            self.send_header("X-Served-By", NAME)
+            self.end_headers()
+            for _ in range(secs):
+                self.wfile.write(b"012345678\n")
+                self.wfile.flush()
+                time.sleep(1)
+            return None
+        if API:
+            if path.startswith("/api/"):
+                return self.send(200, f"api answer from {NAME}\n")
+            return self.send(404, f"not found on {NAME}: the API answers /api/ only\n")
+        if path == "/":
+            return self.send(200, f"shop front page, served by {NAME}\n")
+        return self.send(404, f"not found on {NAME}\n")
+
+    do_HEAD = do_GET
+
+
+os.makedirs(RUN, exist_ok=True)
+for name in ("checks", "db-failed"):
+    save(name)
+print(f"{NAME} listening on {PORT}", flush=True)
+ThreadingHTTPServer(("0.0.0.0", PORT), Shop).serve_forever()
