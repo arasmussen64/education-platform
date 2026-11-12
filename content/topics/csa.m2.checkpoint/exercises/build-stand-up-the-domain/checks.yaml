@@ -71,7 +71,7 @@ checks:
     expect:
       equals: linked
   - id: finds-the-dc
-    description: "Asked through lab's own resolver, the domain's SRV record names dc1, 10.0.9.10 has the name dc1.ad.shop.test, and the site's own names still resolve."
+    description: "Asked through lab's own resolver, the domain's SRV record names dc1, 10.0.9.10 has the name dc1.ad.shop.test (and dc1's own DNS gives that name too), and the site's own names still resolve."
     command: |
       for _ in $(seq 1 10); do
         srv=$(dig +short +time=2 +tries=1 _ldap._tcp.ad.shop.test SRV)
@@ -81,6 +81,10 @@ checks:
       [ "$srv" = "0 100 389 dc1.ad.shop.test." ] || { echo "asked through lab's own resolver, the domain's LDAP SRV record is [$srv]"; exit 0; }
       name=$(dig +short +time=2 +tries=1 -x 10.0.9.10)
       [ "$name" = "dc1.ad.shop.test." ] || { echo "asked through lab's own resolver, 10.0.9.10 has the name [$name]"; exit 0; }
+      # A PTR record typed into the site's resolver answers the line above
+      # without dc1 holding one, so dc1 is asked as well.
+      name=$(dig +short +time=2 +tries=1 @10.0.9.10 -x 10.0.9.10)
+      [ "$name" = "dc1.ad.shop.test." ] || { echo "asked dc1 itself, 10.0.9.10 has the name [$name]"; exit 0; }
       [ "$(dig +short +time=2 +tries=1 intranet.shop.internal)" = 10.0.9.1 ] || { echo "the site's own names no longer resolve"; exit 0; }
       echo found
     expect:
@@ -125,11 +129,19 @@ checks:
       echo member
     expect:
       equals: member
+  # dana is the only member the prompt names, so her home could have
+  # been made by hand before she ever logged in. The check also reads the
+  # login steps (PAM's session stack) for the module that makes a home at a
+  # first login, so whoever joins the group next gets one too.
   - id: dana-logs-in
-    description: "dana, in linux-admins, logs in over SSH with her domain password, into her own home directory, holding a Kerberos ticket."
+    description: "dana, in linux-admins, logs in over SSH with her domain password, into her own home directory, holding a Kerberos ticket, and lab makes each domain account's home at its first login, not by hand."
     command: |
       result=$(sshpass -p 'Dana-Pass-12345' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l dana@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/dana@ad.shop.test" ]; then echo "dana logged in, into $PWD"; elif ! klist -s; then echo "dana logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
-      echo "${result:-dana could not log in over SSH}"
+      [ -n "$result" ] || { echo "dana could not log in over SSH"; exit 0; }
+      [ "$result" = in ] || { echo "$result"; exit 0; }
+      grep -Eqs '^[[:space:]]*session[[:space:]].*pam_(mkhomedir|oddjob_mkhomedir)\.so' /etc/pam.d/common-session /etc/pam.d/sshd /etc/pam.d/login \
+        || { echo "dana's home is there, but lab makes no home at a first login: whoever joins linux-admins next logs in to none"; exit 0; }
+      echo in
     expect:
       equals: in
   # The people are the learner's own, so no check can bring in a member the
