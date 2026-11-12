@@ -1,0 +1,24 @@
+id: est-preflights
+type: estimate
+rev: 1
+prompt: |
+  A page from `https://www.shop.test` sends a JSON `PUT` to the basket API at `https://api.shop.test` every 10 seconds for an hour. The API's preflight answers say `Access-Control-Max-Age: 600`, and the browser is Chromium. How many preflights does the browser send in that hour? Exactly.
+unit: preflights
+answer: 6
+tolerance: { absolute: 0 }
+given: { every: 10, max_age: 600 }
+# An hour is 3600 seconds; Chromium's cap is 7200, above 600, so it doesn't
+# shorten the lifetime here.
+working: 3600 / max_age
+mistakes:
+  - id: no-caching
+    value: 360
+    working: 3600 / every
+    why: "That sends a preflight before every PUT. Access-Control-Max-Age lets the browser remember the answer for 600 seconds, so one preflight covers every PUT for 10 minutes."
+  - id: cap-as-lifetime
+    value: 1
+    working: ceil(3600 / 7200)
+    why: "That takes Chromium's cap, 2 hours, as the lifetime. The cap only limits what a server may ask for; here the server asked for 600 seconds."
+explanation: |
+  A JSON `PUT` isn't a simple request, so each needs a preflight, unless the browser still remembers one. `Access-Control-Max-Age: 600` lets it remember the answer for 10 minutes, so it sends one at the start and one more every 600 seconds: 3,600 / 600 = 6 in the hour, against 360 `PUT`s. Browsers cap the lifetime (Chromium at 7,200 seconds since version 76, Firefox at 86,400), and without the header the default is only 5 seconds, which here would mean a preflight before every `PUT`.
+skills: [cors]

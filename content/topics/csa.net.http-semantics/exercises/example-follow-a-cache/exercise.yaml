@@ -1,0 +1,64 @@
+id: example-follow-a-cache
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Follow a cache"
+prompt: |
+  The shop's website, in three machines. Customers reach it as `www.shop.test`, which is `edge` (10.0.9.10): an **edge cache**, a shared cache in front of the shop's server, as a CDN is. It keeps a copy of whatever the shop's headers let a shared cache keep and says what it did in a header of its own, `X-Cache-Status` (`MISS`: fetched from the origin; `HIT`: answered from its own copy). It isn't the shop's to change, any more than a CDN's servers are, and `sudo edge-purge` empties it, as a CDN's purge button does. Behind it is `origin` (10.0.9.1, `origin.shop.test`), the shop's own server: nginx, serving the pages and fingerprinted assets from `/srv/www` and passing `/account` and the basket API, `/api/`, to the shop's application (`shop-app@origin`), and `/board/`, the staff order board, to a WebSocket server (`order-board@origin`). Its settings are `/etc/nginx/sites-available/shop` on origin. The customers' browser is `office` (10.0.9.2).
+
+  The network labs' basics (machines, `on MACHINE COMMAND`, services named `name@machine`) are in Layers and packets' first lab, `example-follow-a-request`; `netlab show` lists the machines. Inside the lab the shop speaks plain HTTP, to keep the topic on what the headers mean; the browser origins are still written `https://www.shop.test`, because an origin includes its scheme and a real shop is served over HTTPS.
+
+  The walkthrough follows an asset into the edge cache and out again, revalidates a page, makes the mistake that once shared customers' account pages on purpose and mends it, sends a browser's preflight by hand, and opens a WebSocket through two proxies. Type each line yourself and read what it prints before you type the next.
+steps:
+  - label: "The machines"
+    lines: "1"
+    note: "Three machines on one switch: the office, the edge cache and the origin, each with its address. The edge and the origin each run nginx (`nginx@edge`, `nginx@origin`): the same program, with very different jobs."
+  - label: "Through the edge, twice"
+    lines: "2-3"
+    note: "`curl -sI` shows only the answer's status line and headers. The first request finds no copy at the edge, `X-Cache-Status: MISS`: the edge fetched the file from the origin, kept a copy and passed it on. The second, a moment later, is `HIT`: answered from that copy, without asking the origin at all. `Cache-Control: public, max-age=31536000, immutable` is why: any cache may keep it (`public`), for 31,536,000 seconds, a year (`max-age`), and a browser shouldn't even ask about it on a reload (`immutable`). That's safe because the file is **fingerprinted**: `3f9a` in its name comes from its content, so the next build is a new file with a new name, and this URL's content never changes. `ETag` and `Last-Modified` are its **validators**, which the next steps use. A CDN's answer from its copy also carries `Age`, how many seconds the copy has been kept; nginx's cache doesn't send it, though the HTTP caching standard says it should."
+  - label: "A page that asks first"
+    lines: "4-5"
+    note: "The price list says `Cache-Control: no-cache`, with its validator, an `ETag` such as `\"6af5a95a-c9\"` (nginx makes it from the file's modification time and size, so yours differs, and changes with every version). `no-cache` doesn't mean \"don't store\": it means \"don't use a stored copy without asking the origin first\". This edge never stores a `no-cache` answer at all (nginx's choice; the standard would let it store and ask), so each request is a `MISS`, and two fetches five seconds apart show two versions of the price list. News reaches the customer the moment it's published: in this lab the price list is published afresh every 5 seconds, in a real shop at each deploy."
+  - label: "Ask with the validator"
+    lines: "6-8"
+    note: "A browser that has a copy asks again with the copy's validator. The first line takes the storefront's `ETag` from the origin's headers (`awk -F': '` splits each header line at the colon and space, and `tolower` matches the name whatever its case). The second sends it back in `If-None-Match`, a **conditional request**: \"send the page only if its ETag isn't this one\". The page hasn't changed, so the answer is `HTTP/1.1 304 Not Modified`: a status line and a few headers, and no page. The browser reuses its copy. `tee` prints the line and saves it to `~/example/conditional.txt`."
+  - label: "Each customer's own page"
+    lines: "9-11"
+    note: "The account page is made by shop-app for the session cookie the request carries: alice's for alice, bob's for bob, each with the time it was made. Its header is `Cache-Control: private`: only a browser may keep it, never a shared cache, so the edge passes every request on (`MISS`)."
+  - label: "The mistake that shared a page"
+    lines: "12-15"
+    note: "On purpose, the account page's header becomes `public, max-age=60` (`sed -i` changes the line in the file), and nginx reloads its settings: it starts new workers with the new file and lets the old ones finish, which takes a moment, so the `sleep 1`. Alice asks; the edge keeps a copy, because nothing said it mustn't. Bob asks, and gets **alice's page**: the same time, to the millisecond. The edge keys its copies on the URL, and both asked for `/account`. A shared cache serving one customer's page to the next is what happened to Steam's store on Christmas Day 2015, when a caching change during a traffic spike showed some users other users' account pages."
+  - label: "Fixed, and still wrong"
+    lines: "16-18"
+    note: "The header is `private` again, and bob still gets alice's page. Changing the origin's headers changes what the edge does with *new* answers; the copy it already has stays good for its 60 seconds. (If a minute has passed since alice's request, the copy has run out and bob gets his own page.)"
+  - label: "Purge"
+    lines: "19-20"
+    note: "`edge-purge` empties the edge's cache, as a CDN's purge or invalidation does, and bob gets his own page. A purge reaches only the CDN: a copy already in a customer's browser stays there until its own lifetime runs out, and nothing on the server can take it back. That's why a long lifetime is only for URLs whose content never changes."
+  - label: "A preflight by hand"
+    lines: "21-23"
+    note: "What a browser sends before a page from `https://www.shop.test` may `PUT` JSON to the basket API: an `OPTIONS` request (`-X OPTIONS`), the **preflight**, saying who asks (`Origin`), which method it wants (`Access-Control-Request-Method: PUT`) and which headers it will add (`Access-Control-Request-Headers: content-type`). The origin answers `204 No Content`, a success with no body, and grants exactly that: `Access-Control-Allow-Origin: https://www.shop.test` (the asking origin, named), `Access-Control-Allow-Credentials: true` (the request may carry the customer's cookie), the methods and the header it may use, `Access-Control-Max-Age: 600` (the browser may remember this answer for 10 minutes) and `Vary: Origin` (the answer depends on who asked). The `awk` saves the allowed origin to `~/example/acao.txt`."
+  - label: "Another site asks"
+    lines: "24"
+    note: "The same preflight from a page on `https://evil.test`: still `204`, but no `Access-Control-Allow-Origin` at all. A browser refuses to send that page's `PUT`, and the page can't read the shop's answers. The rest of the answer doesn't matter without that header."
+  - label: "The request itself, and one without a browser"
+    lines: "25-26"
+    note: "The `PUT` a browser sends once the preflight has passed: the page's origin, alice's cookie and the JSON body. The answer carries `Access-Control-Allow-Origin` and `-Allow-Credentials` again, because the browser checks the real answer too before letting the page read it, and `Cache-Control: no-store`, so no cache keeps a copy of anyone's basket. The second `PUT` has no `Origin` and no preflight, as `curl` or a script on a server would send it, and it works just the same: **CORS is something browsers do**, to protect the people using them from other sites. It doesn't stop anyone else calling the API, which must check who is calling (here, the cookie) itself."
+  - label: "How the origin answers"
+    lines: "27-28"
+    note: "The whole site file. `map` (outside the `server` block) sets `$cors_origin` from the request's `Origin`: the origin itself for the two shop sites, and empty for anything else, and nginx leaves out a header whose value is empty. Each `location` block is one kind of page with its own `add_header Cache-Control`. In `/api/`, `if ($request_method = OPTIONS)` answers the preflight with its headers and `return 204`, so preflights never reach shop-app; `always` puts a header on every answer, errors included (without it, nginx adds headers only to successes and redirects). `/board/` passes the WebSocket upgrade on. The journal's last lines show shop-app got the two `PUT`s and no `OPTIONS`."
+  - label: "The upgrade"
+    lines: "29-30"
+    note: "A WebSocket starts as an ordinary HTTP request asking to change protocols: `Connection: Upgrade` and `Upgrade: websocket`, a version, and a random key. The board answers `HTTP/1.1 101 Switching Protocols` with `Sec-WebSocket-Accept`, and from then on the TCP connection carries WebSocket messages both ways. curl doesn't speak WebSocket, so it waits on the open connection until `--max-time 3` stops it. The answer passed through two proxies, the edge and the origin's nginx, each told to pass the `Upgrade` and `Connection` headers on: proxies drop them otherwise, because they describe one connection, not the whole path. `head -n 1` saves the status line to `~/example/upgrade.txt`."
+  - label: "The accept value by hand"
+    lines: "31"
+    note: "`Sec-WebSocket-Accept` is the key with a fixed string from the WebSocket standard, RFC 6455, joined on, then hashed with SHA-1 and written in base64: `s3pPLMBiTxaQ9kYGzzhZRbK+xOo=`, exactly what the board sent. The key here is RFC 6455's own example. The client checks the value, which proves the server really speaks WebSocket and isn't a cache replaying an old answer."
+  - label: "Who keeps the connection alive"
+    lines: "32"
+    note: "The board pings every screen every 30 seconds. Every proxy on the path drops a connection that has carried nothing for too long: the origin's nginx after `proxy_read_timeout` (300 s here; nginx's default is 60 s), the edge after 120 s. A ping counts as traffic, so a ping more often than the smallest of those keeps an idle screen connected: 30 is less than 120 and 300."
+  - label: "What you saved"
+    lines: "33"
+    note: "The 304, the allowed origin, the upgrade's status line and the two answers they came from. Run the checks: they compare each saved answer with what the lab answers now, and check that the account page is private again."
+skills: [caching, cors, api-styles]

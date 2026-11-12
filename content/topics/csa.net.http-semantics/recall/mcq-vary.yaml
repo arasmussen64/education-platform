@@ -1,0 +1,16 @@
+id: mcq-vary
+type: mcq
+rev: 1
+prompt: |
+  The shop's product API answers in English, French or German, chosen from each request's `Accept-Language` header. A CDN may keep its answers for 5 minutes. What must each answer also carry, so the CDN can keep them and still never hand a French customer the German answer?
+choices:
+  - "`Vary: Accept-Language`, so the CDN keeps one copy for each language asked for"
+  - "`Content-Language: fr`, so the CDN can see which language each copy holds"
+  - "`Cache-Control: private`, so the CDN never keeps a copy for anyone at all"
+  - "An `ETag` that differs by language, so the CDN checks each copy before use"
+answer: 0
+explanation: |
+  A cache keys its copies on the URL. `Vary` adds request headers to the key: with `Vary: Accept-Language`, a request is answered from a copy only if it sent the same `Accept-Language` as the request that made the copy (RFC 9111, section 4.1). So each language gets its own copy, and each is reused for its 5 minutes.
+
+  `Content-Language` says what language an answer is in, but the cache doesn't choose copies by it. `private` would stop the mixing by stopping the CDN keeping anything, which throws the caching away. A per-language `ETag` only matters once a copy is being checked: the wrong copy is picked first, and a fresh one isn't checked at all. The same rule, with `Vary: Origin`, applies to an API that names the asking origin in its CORS answer.
+skills: [caching]

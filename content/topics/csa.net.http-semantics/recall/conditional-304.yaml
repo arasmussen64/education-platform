@@ -1,0 +1,37 @@
+id: conditional-304
+type: predict_shell
+rev: 1
+prompt: |
+  Two answers from the shop's origin for its storefront, captured in this topic's lab (nginx 1.24, 2026-11-12) with `curl -sI`, carriage returns taken off. `first.txt` answers an ordinary request; `second.txt` answers the same request sent again with `If-None-Match` and the ETag from the first. For each file, the command prints the status code and the length of the body the answer announces in `Content-Length` (`curl -I` shows only the headers), or `no body`. What is printed?
+files:
+  first.txt: |
+    HTTP/1.1 200 OK
+    Server: nginx/1.24.0 (Ubuntu)
+    Date: Thu, 12 Nov 2026 12:19:59 GMT
+    Content-Type: text/html
+    Content-Length: 310
+    Last-Modified: Thu, 12 Nov 2026 11:49:15 GMT
+    Connection: keep-alive
+    ETag: "6af5a7bb-136"
+    Cache-Control: no-cache
+    Accept-Ranges: bytes
+  second.txt: |
+    HTTP/1.1 304 Not Modified
+    Server: nginx/1.24.0 (Ubuntu)
+    Date: Thu, 12 Nov 2026 12:19:59 GMT
+    Last-Modified: Thu, 12 Nov 2026 11:49:15 GMT
+    Connection: keep-alive
+    ETag: "6af5a7bb-136"
+    Cache-Control: no-cache
+command: |
+  for f in first.txt second.txt; do
+    awk -v f="$f" 'NR == 1 {code = $2} tolower($1) == "content-length:" {size = $2} END {print f, code, (size == "" ? "no body" : size " bytes")}' "$f"
+  done
+expected_output: |
+  first.txt 200 310 bytes
+  second.txt 304 no body
+explanation: |
+  The awk reads each file: the first line's second word is the status code, and a `Content-Length` line, whatever the case of its name, gives the body's size. The first answer is for the whole storefront, a body of 310 bytes, with its validator, `ETag: "6af5a7bb-136"` (nginx makes it from the file's modification time and size, in hexadecimal). The second request sent that ETag back in `If-None-Match`, a **conditional request**: "only if it has changed". It hadn't, so the answer is `304 Not Modified`, with no body at all: the browser reuses the copy it has. That's what makes `no-cache` cheap: every use is checked, and each check is a few hundred bytes of headers.
+
+  The other conditional pair works the same way with dates: `Last-Modified` in the answer, `If-Modified-Since` in the request. And `If-Match` is the same test turned round for changes: "change it only if it is still this version", answered `412 Precondition Failed` when someone else changed it first, so two people's edits don't silently overwrite each other.
+skills: [methods-and-status, caching]

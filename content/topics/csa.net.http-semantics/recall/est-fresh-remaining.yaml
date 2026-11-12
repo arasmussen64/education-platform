@@ -1,0 +1,22 @@
+id: est-fresh-remaining
+type: estimate
+rev: 1
+prompt: |
+  A browser gets the shop's product page from the CDN with `Cache-Control: max-age=600` and `Age: 420`: the CDN has had its copy for 420 seconds. For how many more seconds may the browser use its own copy without asking anyone? Exactly.
+unit: seconds
+answer: 180
+tolerance: { absolute: 0 }
+given: { max_age: 600, age: 420 }
+working: max_age - age
+mistakes:
+  - id: ignores-age
+    value: 600
+    working: max_age
+    why: "That starts the clock when the copy reached the browser. max-age counts from when the origin made the answer, and the CDN had already kept it for 420 of those seconds: Age says so."
+  - id: adds-age
+    value: 1020
+    working: max_age + age
+    why: "That adds the time the copy has already been kept to its lifetime. Age is time used up: it comes off max-age."
+explanation: |
+  `max-age` is the copy's whole lifetime, counted from when the origin made the answer, the same idea as a DNS record's TTL one layer up. `Age` is how much of it has gone already, while the copy sat in a shared cache. So the copy is fresh for 600 - 420 = 180 more seconds; after that it is stale, and the browser asks again (with its validator, if it has one, for a cheap 304).
+skills: [caching]

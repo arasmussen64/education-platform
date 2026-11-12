@@ -1,0 +1,188 @@
+# The checks of "The shop behind its edge". Caching: what the edge cache
+# really does with each kind of page, asked from the office, each on a URL
+# the edge has never seen (a fresh query string), and the headers each kind
+# carries. CORS: the requests a browser would send, preflight and request,
+# with the decision made by cors-verdict, the base's model of a browser (the
+# Fetch standard's rules), for the shop's two sites and for origins made up
+# as the check runs. The order board: an upgrade, and a screen left idle
+# past the board's 70-second ping. And the scenery as the lab began. The
+# first check waits for the shop's services after a boot; the rest read at
+# once, except the idle screen, which takes 75 seconds.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: assets-kept
+    description: "The edge answers a fingerprinted asset from its own copy the second time, and the assets may be kept for a year without being asked about on a reload."
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      up() { [ -n "$(headers --max-time 1 http://origin.shop.test/index.html | header etag)" ]; }
+      wait_for 20 up || { echo "the origin doesn't answer yet"; exit 0; }
+      k=$(fresh)
+      first=$(headers "http://www.shop.test/assets/app.3f9a.js?$k" | header x-cache-status)
+      second=$(headers "http://www.shop.test/assets/app.3f9a.js?$k" | header x-cache-status)
+      [ "$second" = HIT ] || { echo "asked twice, the edge answered $first then $second: it kept no copy"; exit 0; }
+      cc=$(headers http://origin.shop.test/assets/style.81c2.css | header cache-control)
+      age=$(echo "$cc" | grep -o 'max-age=[0-9]*' | head -n 1 | cut -d= -f2)
+      [ "${age:-0}" -ge 31536000 ] || { echo "the assets say \"Cache-Control: $cc\": a year is 31536000 seconds"; exit 0; }
+      echo "$cc" | grep -i immutable > /dev/null || { echo "the assets say \"Cache-Control: $cc\": a browser would still ask about them on a reload"; exit 0; }
+      echo kept
+    expect:
+      equals: kept
+  - id: pages-asked-about
+    description: "The pages may be kept by a browser, every cache asks the origin before using a copy, the edge serves the newest price list, and a browser's copy is checked with a cheap 304."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      # Both pages, the price list and the storefront (/, which nginx
+      # answers with index.html).
+      for p in /news.html /; do
+        name="the price list"; [ "$p" = / ] && name="the storefront"
+        cc=$(headers "http://origin.shop.test$p" | header cache-control)
+        if echo "$cc" | grep -i no-store > /dev/null; then echo "$name says \"Cache-Control: $cc\": no-store keeps it out of the browser too"; exit 0; fi
+        if ! echo "$cc" | grep -i no-cache > /dev/null && ! { echo "$cc" | grep -i 'max-age=0\b' > /dev/null && echo "$cc" | grep -i must-revalidate > /dev/null; }; then
+          echo "$name says \"Cache-Control: ${cc:-nothing}\": a cache may use its copy without asking the origin"
+          exit 0
+        fi
+      done
+      k=$(fresh)
+      seen=$(page "http://www.shop.test/news.html?$k" | version)
+      for i in $(seq 1 14); do
+        now=$(page http://origin.shop.test/news.html | version)
+        [ "${now:-0}" -gt "${seen:-0}" ] && break
+        sleep 0.5
+      done
+      edge=$(page "http://www.shop.test/news.html?$k" | version)
+      [ "${edge:-0}" -ge "${now:-1}" ] || { echo "the origin has published price list $now, and the edge still serves $edge"; exit 0; }
+      etag=$(headers http://origin.shop.test/index.html | header etag)
+      [ -n "$etag" ] || { echo "the storefront has no ETag"; exit 0; }
+      status=$(headers -H "If-None-Match: $etag" http://origin.shop.test/index.html | head -n 1)
+      case $status in
+        *" 304 "*) echo asked ;;
+        *) echo "asked with its own ETag, the storefront answers \"$status\", not 304" ;;
+      esac
+    expect:
+      equals: asked
+  - id: account-private
+    description: "Each customer gets their own account page through the edge, and no shared cache may keep it."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      k=$(fresh)
+      alice=$(page -H 'Cookie: session=alice' "http://www.shop.test/account?$k")
+      bob=$(page -H 'Cookie: session=bob' "http://www.shop.test/account?$k")
+      case $bob in *"for bob,"*) ;; *) echo "bob asked for his account page and got: $bob"; exit 0 ;; esac
+      case $alice in *"for alice,"*) ;; *) echo "alice asked for her account page and got: $alice"; exit 0 ;; esac
+      cc=$(headers -H 'Cookie: session=alice' http://origin.shop.test/account | header cache-control)
+      echo "$cc" | grep -i -e private -e no-store > /dev/null || { echo "the account page says \"Cache-Control: ${cc:-nothing}\": a shared cache may keep it"; exit 0; }
+      echo private
+    expect:
+      equals: private
+  - id: api-never-kept
+    description: "Each customer gets their own basket through the edge, and no cache may keep the API's answers."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      k=$(fresh)
+      alice=$(page -H 'Cookie: session=alice' "http://www.shop.test/api/basket?$k")
+      bob=$(page -H 'Cookie: session=bob' "http://www.shop.test/api/basket?$k")
+      case $bob in *'"customer": "bob"'*) ;; *) echo "bob asked for his basket and got: $bob"; exit 0 ;; esac
+      case $alice in *'"customer": "alice"'*) ;; *) echo "alice asked for her basket and got: $alice"; exit 0 ;; esac
+      cc=$(headers -H 'Cookie: session=alice' http://origin.shop.test/api/basket | header cache-control)
+      echo "$cc" | grep -i no-store > /dev/null || { echo "the API says \"Cache-Control: ${cc:-nothing}\": some cache may still keep it"; exit 0; }
+      echo never
+    expect:
+      equals: never
+  - id: shop-sites-may-call
+    description: "A browser lets pages from https://shop.test and https://www.shop.test call the basket API with the customer's cookie: GET, PUT with a JSON body, and DELETE."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      for o in https://shop.test https://www.shop.test; do
+        for ask in "PUT|Content-Type: application/json" "DELETE|" "GET|"; do
+          method=${ask%%|*} header=${ask#*|}
+          said=$(cors "$dir" "$o" "$method" ${header:+"$header"} --credentials)
+          [ "$said" = allowed ] || { echo "a browser on a page from $o refuses its $method with the cookie${header:+ and $header}: $said"; exit 0; }
+        done
+      done
+      echo allowed
+    expect:
+      equals: allowed
+  - id: preflight-by-nginx
+    description: "nginx answers the preflights itself with 204, which a browser may remember for 10 minutes, and no preflight reaches shop-app."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      before=$(journalctl -b -u shop-app@origin -o cat | grep -c '^OPTIONS')
+      for o in https://shop.test https://www.shop.test; do
+        answer=$(headers -X OPTIONS -H "Origin: $o" -H 'Access-Control-Request-Method: PUT' -H 'Access-Control-Request-Headers: content-type' http://www.shop.test/api/basket)
+        status=$(echo "$answer" | head -n 1)
+        case $status in *" 204 "*) ;; *) echo "the preflight from $o is answered \"$status\", not 204"; exit 0 ;; esac
+        age=$(echo "$answer" | header access-control-max-age)
+        [ "$age" = 600 ] || { echo "the preflight from $o says Access-Control-Max-Age: ${age:-nothing}, not 10 minutes in seconds"; exit 0; }
+      done
+      sleep 1
+      after=$(journalctl -b -u shop-app@origin -o cat | grep -c '^OPTIONS')
+      [ "$after" = "$before" ] || { echo "shop-app's journal shows the preflights reaching it"; exit 0; }
+      echo answered
+    expect:
+      equals: answered
+  - id: others-blocked
+    description: "A browser lets no page from any other origin send the API a PUT or read its answers: five kinds of origin, made up as the check runs, each refused at the preflight of a PUT and for a plain GET."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      r=x$RANDOM$RANDOM
+      for o in "https://$r.example" "https://${r}shop.test" "https://shop.test.$r.example" "http://shop.test" "null"; do
+        said=$(cors "$dir" "$o" PUT 'Content-Type: application/json' --credentials)
+        case $said in blocked*) ;; *) echo "a page from $o may PUT to the basket API with the customer's cookie"; exit 0 ;; esac
+        # The preflight on its own: if it passes, the browser sends the PUT,
+        # cookie and all, whatever the answer to the PUT says afterwards.
+        # So cors-verdict is asked again with an answer to the request that
+        # allows everything, which leaves the preflight to decide.
+        printf 'HTTP/1.1 200 OK\r\nAccess-Control-Allow-Origin: %s\r\nAccess-Control-Allow-Credentials: true\r\n\r\n' "$o" > "$dir/open"
+        said=$(python3 /usr/local/lib/netlab/cors-verdict "$dir/pre" "$dir/open" "$o" PUT 'Content-Type: application/json' --credentials)
+        case $said in blocked*) ;; *) echo "a page from $o gets past the preflight, so the browser sends its PUT, with the customer's cookie"; exit 0 ;; esac
+        said=$(cors "$dir" "$o" GET --credentials)
+        case $said in blocked*) ;; *) echo "a page from $o may read the customer's basket"; exit 0 ;; esac
+      done
+      echo blocked
+    expect:
+      equals: blocked
+  - id: vary-origin
+    description: "The API's answers that name the asking origin, the preflight's and the request's, tell caches they depend on it."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      cors "$dir" https://www.shop.test PUT 'Content-Type: application/json' --credentials > /dev/null
+      for which in pre act; do
+        name=preflight; [ "$which" = act ] && name=request
+        allow=$(tr -d '\r' < "$dir/$which" | header access-control-allow-origin)
+        vary=$(tr -d '\r' < "$dir/$which" | header vary)
+        [ -n "$allow" ] || { echo "the $name's answer names no allowed origin"; exit 0; }
+        echo "$vary" | grep -i -w origin > /dev/null || { echo "the $name's answer names the origin and says Vary: ${vary:-nothing}"; exit 0; }
+      done
+      echo varies
+    expect:
+      equals: varies
+  - id: board-opens
+    description: "A staff screen opens the order board's WebSocket through the edge and the origin, and the board answers it."
+    command: on office python3 /usr/local/lib/lab/ws-probe ws://www.shop.test/board/
+    expect:
+      equals: upgraded
+  - id: board-survives-quiet
+    description: "A staff screen left idle for 75 seconds, past the board's 70-second ping, is still connected, and the board still answers it."
+    timeout: 100
+    command: on office python3 /usr/local/lib/lab/ws-probe ws://www.shop.test/board/ 75
+    expect:
+      equals: survived 75 seconds of quiet
+  - id: scenery-kept
+    description: "The network, the edge cache's configuration and the order board's settings are as the lab began, and the board still pings every 70 seconds."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      said=$(intact)
+      [ "$said" = intact ] || { echo "$said" | tr '\n' ' '; exit 0; }
+      running=$(journalctl -b -u order-board@origin -o cat | grep pinging | tail -n 1)
+      [ "$running" = "pinging every screen every 70 seconds" ] || { echo "the running board says: ${running:-nothing}"; exit 0; }
+      echo intact
+    expect:
+      equals: intact

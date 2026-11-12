@@ -1,0 +1,24 @@
+#!/bin/bash
+# news-desk: publishes the shop's price list, /srv/www/news.html, afresh
+# every 5 seconds with a new version number (in this lab; a real shop's
+# changes at each deploy, or each morning). The file is written beside the
+# old one and moved over it, so the web server never serves half a page.
+# "systemctl status news-desk".
+set -euo pipefail
+while true; do
+  version=$(($(date +%s) / 5))
+  page=$(mktemp /srv/www/.news.XXXXXX)
+  cat > "$page" << EOF
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Today's prices</title></head>
+<body>
+<h1>Today's prices</h1>
+<p>Prices version $version, published at $(date +%H:%M:%S).</p>
+</body>
+</html>
+EOF
+  chmod 644 "$page"
+  mv "$page" /srv/www/news.html
+  sleep $((5 - $(date +%s) % 5))
+done

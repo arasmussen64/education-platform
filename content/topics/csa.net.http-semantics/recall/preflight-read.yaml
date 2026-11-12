@@ -1,0 +1,40 @@
+id: preflight-read
+type: predict_shell
+rev: 1
+prompt: |
+  Two answers to the same preflight for the shop's basket API (`OPTIONS`, `Access-Control-Request-Method: PUT`, `Access-Control-Request-Headers: content-type`), captured in this topic's lab (nginx 1.24, 2026-11-12) with `curl -si`, carriage returns taken off. One was sent with `Origin: https://www.shop.test`, the other with `Origin: https://evil.test`. For each, the command prints the allowed origin, or `none`. What is printed?
+files:
+  from-www.txt: |
+    HTTP/1.1 204 No Content
+    Server: nginx/1.24.0 (Ubuntu)
+    Date: Thu, 12 Nov 2026 12:19:59 GMT
+    Connection: keep-alive
+    Access-Control-Allow-Origin: https://www.shop.test
+    Access-Control-Allow-Credentials: true
+    Access-Control-Allow-Methods: GET, PUT, DELETE
+    Access-Control-Allow-Headers: Content-Type
+    Access-Control-Max-Age: 600
+    Vary: Origin
+  from-evil.txt: |
+    HTTP/1.1 204 No Content
+    Server: nginx/1.24.0 (Ubuntu)
+    Date: Thu, 12 Nov 2026 12:19:59 GMT
+    Connection: keep-alive
+    Access-Control-Allow-Credentials: true
+    Access-Control-Allow-Methods: GET, PUT, DELETE
+    Access-Control-Allow-Headers: Content-Type
+    Access-Control-Max-Age: 600
+    Vary: Origin
+command: |
+  for f in from-www.txt from-evil.txt; do
+    allowed=$(grep -i '^access-control-allow-origin:' "$f" | cut -d' ' -f2)
+    echo "$f ${allowed:-none}"
+  done
+expected_output: |
+  from-www.txt https://www.shop.test
+  from-evil.txt none
+explanation: |
+  `grep -i` finds the header whatever the case of its name (HTTP header names are case-insensitive, and some servers send them in lower case), `cut -d' ' -f2` keeps the value after the space, and `${allowed:-none}` prints `none` when there was nothing to keep. The shop's nginx answers `https://www.shop.test` with its own name, from an allow-list (a `map`), and evil.test with no `Access-Control-Allow-Origin` at all: nginx leaves out a header whose value is empty.
+
+  Both answers are `204` and carry every other CORS header, so the status code says nothing about whether a site is allowed: the browser's CORS check starts with the allow-origin header, and without it nothing else counts. From evil.test the `PUT` is never sent, and a page there can't read any answer from the API.
+skills: [cors]

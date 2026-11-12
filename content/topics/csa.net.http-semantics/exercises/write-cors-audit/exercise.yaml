@@ -1,0 +1,48 @@
+id: write-cors-audit
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "CORS audit"
+prompt: |
+  From a blank file, write `~/bin/cors-audit`, a bash script that tells you what a browser will decide about a cross-origin request, from the server's own answers, without a browser. It's the check you'd run before telling a partner "your page can call our API", or when a browser's console only says "CORS error".
+
+  It's run as `cors-audit URL ORIGIN METHOD [HEADER] [--credentials]`: the API's URL; the origin of the page making the call (`https://www.shop.test`); the method; at most one header the page adds, as `'Name: value'` in quotes; and `--credentials` when the page sends the customer's cookie (`credentials: "include"`). It prints one line: `allowed`, or `blocked: ` and one of six reasons, `no allow-origin`, `wildcard with credentials`, `origin not allowed`, `credentials not allowed`, `method not allowed` or `header not allowed`. Work it out the way a browser does, in this order:
+
+  1. **Does it need a preflight?** Not if the method is `GET`, `HEAD` or `POST` and there's no header, or the header is `Accept`, `Accept-Language` or `Content-Language`, or `Content-Type` with one of `application/x-www-form-urlencoded`, `multipart/form-data` or `text/plain` (anything after a `;` in the value doesn't count). That's a simple request: go straight to step 3.
+  2. **The preflight:** `curl -si -X OPTIONS` with `Origin: ORIGIN`, `Access-Control-Request-Method: METHOD`, and, for a header that isn't simple, `Access-Control-Request-Headers: ` and its name in lower case. A browser sends no cookie on a preflight. Its answer must pass the **CORS check**:
+     - no `Access-Control-Allow-Origin`: `no allow-origin`;
+     - `*` is fine without credentials, and with them `wildcard with credentials`;
+     - anything other than `*` or exactly ORIGIN: `origin not allowed`;
+     - with credentials, `Access-Control-Allow-Credentials` must be exactly `true`: otherwise `credentials not allowed`.
+
+     Then a method that isn't simple must be one of `Access-Control-Allow-Methods`'s comma-separated items, exactly, or that header must hold `*` and the request have no credentials: otherwise `method not allowed`. And a header that isn't simple must be one of `Access-Control-Allow-Headers`'s items, in any case, or `*` without credentials: otherwise `header not allowed`.
+  3. **The request itself:** `curl -si -X METHOD` with `Origin: ORIGIN`, the header if there is one, and with `--credentials` a cookie, `Cookie: session=audit`. Its answer must pass the CORS check too, with the same four reasons. If it does, `allowed`.
+
+  The first rule that fails decides the line. Header names arrive in any case, since HTTP header names are case-insensitive (`grep -i`, or awk's `tolower`); their values are compared exactly. `tr -d '\r'` takes off the carriage return that ends every header line curl prints, and `tr -d ' '` the spaces after the commas in a list; `case ",$list," in *",$item,"*)` asks whether an item is in a comma-separated list. A `for` loop over `"$@"` can pick out `--credentials` wherever it comes.
+
+  Make the file with `nano ~/bin/cors-audit`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/cors-audit`. ShellCheck must have nothing to say about it (`shellcheck ~/bin/cors-audit`). It does its own work with the shell and curl: Python is the checks' tool here, not the script's. The lab runs a stand-in for the shop's basket API on `http://127.0.0.1:8080/api/basket`, with the shop's CORS rules, to try it on:
+
+  ```
+  ~/bin/cors-audit http://127.0.0.1:8080/api/basket https://www.shop.test PUT 'Content-Type: application/json' --credentials
+  ~/bin/cors-audit http://127.0.0.1:8080/api/basket https://evil.test PUT 'Content-Type: application/json' --credentials
+  ~/bin/cors-audit http://127.0.0.1:8080/api/basket https://www.shop.test PATCH --credentials
+  ~/bin/cors-audit http://127.0.0.1:8080/api/basket https://shop.test GET --credentials
+  ```
+
+  which should print:
+
+  ```
+  allowed
+  blocked: no allow-origin
+  blocked: method not allowed
+  allowed
+  ```
+
+  The checks run it on APIs of their own, thirteen of them made up as the checks run, with every rule above in play.
+hints:
+  - "One shape that works: a function `header_value ANSWER NAME` that prints one header's value from what curl printed, whatever the case of its name (awk with `tolower` on both sides, or `grep -i`); another, `cors_check ANSWER`, that prints the reason the CORS check fails, or nothing; then the steps in order, each ending the script with `exit 0` once it has printed `blocked: ...`."
+  - "`answer=$(curl -si --max-time 5 -X OPTIONS -H \"Origin: $origin\" ... \"$url\")` keeps the whole answer in a variable, and `printf '%s\\n' \"$answer\"` hands it to a pipeline. With `set -euo pipefail`, a `grep` that finds nothing stops the script: awk, which never fails for finding nothing, is the easier tool inside `$(...)`."
+  - "`${header%%:*}` is the header's name and `${header#*:}` its value. For the lists, compare items without their spaces: `methods=$(header_value \"$answer\" Access-Control-Allow-Methods | tr -d ' ')`, then `case \",$methods,\" in *\",$method,\"*) ...`."
+skills: [cors]

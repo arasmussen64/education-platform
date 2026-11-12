@@ -1,0 +1,74 @@
+# The checks of "Follow a cache": the three answers the walkthrough saves,
+# each compared with what the lab really answers, and the account page
+# private again after the walkthrough's mistake made on purpose. The first
+# check waits for the shop's services after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: conditional-saved
+    description: "~/example/conditional.txt holds the status line of the origin's answer to a request that sent the storefront's validator back: 304."
+    # It waits up to about 40 seconds for the shop's services after a boot
+    # (20 tries, each given a second), so it gets a minute and prints its
+    # own sentence rather than running out.
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      up() { [ -n "$(headers --max-time 1 http://origin.shop.test/index.html | header etag)" ]; }
+      wait_for 20 up || { echo "the origin doesn't answer yet"; exit 0; }
+      f=/home/learner/example/conditional.txt
+      [ -s "$f" ] || { echo "there is no ~/example/conditional.txt, or it's empty"; exit 0; }
+      line=$(head -n 1 "$f" | tr -d '\r')
+      case $line in
+        "HTTP/1.1 304 "*) echo saved ;;
+        *) echo "~/example/conditional.txt holds \"$line\", not a 304 answer's status line" ;;
+      esac
+    expect:
+      equals: saved
+  - id: allow-origin-saved
+    description: "~/example/acao.txt holds the Access-Control-Allow-Origin value the API's preflight gives the page from https://www.shop.test."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      f=/home/learner/example/acao.txt
+      [ -s "$f" ] || { echo "there is no ~/example/acao.txt, or it's empty"; exit 0; }
+      want=$(headers -X OPTIONS -H 'Origin: https://www.shop.test' -H 'Access-Control-Request-Method: PUT' -H 'Access-Control-Request-Headers: content-type' http://www.shop.test/api/basket | header access-control-allow-origin)
+      got=$(tr -d '\r' < "$f")
+      [ "$got" = "$want" ] && [ -n "$want" ] && { echo saved; exit 0; }
+      echo "~/example/acao.txt holds \"$got\", and the preflight from https://www.shop.test answers \"$want\""
+    expect:
+      equals: saved
+  - id: upgrade-saved
+    description: "~/example/upgrade.txt holds the status line of the order board's answer to a WebSocket upgrade through the edge."
+    command: |
+      f=/home/learner/example/upgrade.txt
+      [ -s "$f" ] || { echo "there is no ~/example/upgrade.txt, or it's empty"; exit 0; }
+      line=$(head -n 1 "$f" | tr -d '\r')
+      case $line in
+        "HTTP/1.1 101 "*) echo saved ;;
+        *) echo "~/example/upgrade.txt holds \"$line\", not the status line of an upgrade's answer" ;;
+      esac
+    expect:
+      equals: saved
+  - id: account-private-again
+    description: "Each customer gets their own account page through the edge: the origin's account pages are private again."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      k=$(fresh)
+      alice=$(page -H 'Cookie: session=alice' "http://www.shop.test/account?$k")
+      bob=$(page -H 'Cookie: session=bob' "http://www.shop.test/account?$k")
+      case $bob in
+        *"for bob,"*) ;;
+        *) echo "bob asked for his account page and got: $bob"; exit 0 ;;
+      esac
+      case $alice in
+        *"for alice,"*) echo private ;;
+        *) echo "alice asked for her account page and got: $alice" ;;
+      esac
+    expect:
+      equals: private
+  - id: edge-untouched
+    description: "The network and the edge cache's configuration are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact

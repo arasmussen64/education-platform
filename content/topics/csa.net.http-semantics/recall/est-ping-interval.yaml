@@ -1,0 +1,22 @@
+id: est-ping-interval
+type: estimate
+rev: 1
+prompt: |
+  The shop's support chat is a WebSocket from the customer's browser, through an AWS Application Load Balancer with an idle timeout of 60 seconds, to nginx with `proxy_read_timeout 300s;`, to the chat server. What is the longest gap between messages, in seconds, that a quiet chat survives? Exactly.
+unit: seconds
+answer: 60
+tolerance: { absolute: 0 }
+given: { balancer: 60, nginx: 300 }
+working: min(balancer, nginx)
+mistakes:
+  - id: nginx-only
+    value: 300
+    working: nginx
+    why: "That's nginx's limit, and the load balancer in front of it drops the connection after 60 quiet seconds first. Every hop has its own idle timer, and the smallest one cuts the connection."
+  - id: added
+    value: 360
+    working: balancer + nginx
+    why: "The timers run at the same time, not one after the other: each hop starts counting at the last message. The first to run out, the smallest, decides."
+explanation: |
+  It's TCP and UDP's rule again, for a new kind of connection: each stateful hop on the path forgets a connection that has carried nothing for its own idle time, and the endpoints aren't asked. The load balancer's 60 seconds run out long before nginx's 300, so a chat quiet for more than a minute is cut. The fix is a WebSocket ping (from the server or the client) more often than every 60 seconds, which counts as traffic at every hop, or a longer idle timeout on the load balancer, which is one of its settings.
+skills: [api-styles]

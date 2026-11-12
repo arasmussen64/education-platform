@@ -1,0 +1,24 @@
+id: est-heuristic
+type: estimate
+rev: 1
+prompt: |
+  A file's answer has no `Cache-Control` and no `Expires`, only `Last-Modified`, which is 10 days before the answer's `Date`. A cache that follows the HTTP standard's typical heuristic decides for itself how long it may treat the file as fresh. For how many hours? Exactly.
+unit: hours
+answer: 24
+tolerance: { absolute: 0 }
+given: { days: 10 }
+# The 10% is a number to know (RFC 9111, section 4.2.2), so it is in the
+# working, not the prompt.
+working: days * 24 * 10 / 100
+mistakes:
+  - id: whole-age
+    value: 240
+    working: days * 24
+    why: "That treats the file as fresh for as long as it has gone unchanged. The heuristic takes a fraction of that time: typically 10%."
+  - id: one-percent
+    value: 2.4
+    working: days * 24 / 100
+    why: "That takes 1% of the time since it last changed. The typical fraction is 10%."
+explanation: |
+  With no lifetime from the server, a cache may guess one: RFC 9111 says it may use a fraction of the time since the file last changed, and "a typical setting of this fraction might be 10%". A file unchanged for 10 days (240 hours) gets 24 hours. That's why "we never set caching headers" still caches. Not every cache guesses the same: the labs' nginx edge keeps nothing without a lifetime, Azure Front Door picks one to three days at random, Cloud CDN's default mode gives static files an hour, and CloudFront uses its default TTL, 24 hours unless set.
+skills: [caching]

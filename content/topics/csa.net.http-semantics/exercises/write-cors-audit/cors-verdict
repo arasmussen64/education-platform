@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""cors-verdict: what a browser decides about one cross-origin request, given
+the server's answers. The rules are the Fetch standard's "CORS check" (4.10)
+and "CORS-preflight fetch" (4.8), https://fetch.spec.whatwg.org/, read on
+2026-11-12. A check's tool, never the learner's: it prints nothing in their
+shell, and the learner reads the same curl answers and reasons the same way.
+
+    cors-verdict PREFLIGHT ACTUAL ORIGIN METHOD [HEADER] [--credentials]
+
+PREFLIGHT and ACTUAL are files holding the server's answer to the preflight
+(OPTIONS) and to the request itself, as `curl -si` prints them; HEADER is the
+one request header the page adds, "Name: value". It prints "allowed" or
+"blocked: " and a reason: no allow-origin, origin not allowed, wildcard with
+credentials, credentials not allowed, method not allowed, header not allowed,
+or preflight not ok (a preflight answered with a status outside 200 to 299).
+A copy of this file is in csa.net.http-semantics's write lab; the test in
+tools/tests/test_cors_verdict.py fails if the two differ.
+"""
+
+import re
+import sys
+
+SAFE_METHODS = {"GET", "HEAD", "POST"}
+SAFE_NAMES = {"accept", "accept-language", "content-language"}
+SAFE_TYPES = {"application/x-www-form-urlencoded", "multipart/form-data", "text/plain"}
+
+
+def answer(path):
+    """The status and headers of a curl -si answer: names in lower case, and a
+    repeated header's values joined with ", ", as Fetch's "get" does."""
+    status, headers = 0, {}
+    with open(path, encoding="latin-1") as text:
+        for line in text.read().replace("\r", "").split("\n"):
+            if line.startswith("HTTP/"):
+                status, headers = int(line.split()[1]), {}
+            elif not line and status not in (0, 100):
+                break
+            elif ":" in line:
+                name, value = line.split(":", 1)
+                name, value = name.strip().lower(), value.strip()
+                headers[name] = f"{headers[name]}, {value}" if name in headers else value
+    return status, headers
+
+
+def cors_check(headers, origin, credentials):
+    """Fetch's CORS check: None when the answer may be read, or the reason."""
+    allowed = headers.get("access-control-allow-origin")
+    if allowed is None:
+        return "no allow-origin"
+    if allowed == "*" and not credentials:
+        return None
+    if allowed != origin:
+        return "wildcard with credentials" if allowed == "*" else "origin not allowed"
+    if credentials and headers.get("access-control-allow-credentials") != "true":
+        return "credentials not allowed"
+    return None
+
+
+def listed(value):
+    """A header's comma-separated list: Access-Control-Allow-Methods, -Headers."""
+    return [item.strip() for item in (value or "").split(",") if item.strip()]
+
+
+def verdict(preflight, actual, origin, method, header, credentials):
+    name, _, value = header.partition(":")
+    name, value = name.strip().lower(), value.split(";")[0].strip().lower()
+    # Safelisted headers need no preflight (Fetch's byte and length limits
+    # on their values are left out: the labs never come near them).
+    unsafe = bool(name) and name not in SAFE_NAMES
+    if name == "content-type" and value in SAFE_TYPES:
+        unsafe = False
+    if name == "range" and re.fullmatch(r"bytes=\d+-\d*", value):
+        unsafe = False
+    if method not in SAFE_METHODS or unsafe:
+        # Not a simple request: the browser asks first, without credentials,
+        # and the answer must pass the CORS check with the request's own mode.
+        status, headers = preflight
+        reason = cors_check(headers, origin, credentials)
+        if reason:
+            return reason
+        if not 200 <= status <= 299:
+            return "preflight not ok"
+        methods = listed(headers.get("access-control-allow-methods"))
+        if method not in SAFE_METHODS and method not in methods:
+            if credentials or "*" not in methods:
+                return "method not allowed"
+        names = [item.lower() for item in listed(headers.get("access-control-allow-headers"))]
+        if unsafe and name not in names:
+            # "*" never stands for Authorization, nor for anything with credentials.
+            if credentials or "*" not in names or name == "authorization":
+                return "header not allowed"
+    return cors_check(actual[1], origin, credentials)
+
+
+def main(argv):
+    credentials = "--credentials" in argv
+    args = [arg for arg in argv if arg != "--credentials"]
+    if len(args) not in (4, 5):
+        sys.exit(__doc__.split("\n\n")[1])
+    header = args[4] if len(args) == 5 else ""
+    reason = verdict(answer(args[0]), answer(args[1]), args[2], args[3], header, credentials)
+    print(f"blocked: {reason}" if reason else "allowed")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

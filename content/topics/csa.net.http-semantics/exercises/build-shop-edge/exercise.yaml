@@ -1,0 +1,19 @@
+id: build-shop-edge
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The shop behind its edge"
+prompt: |
+  The shop is putting its site behind an edge cache, and its origin server's settings have to be written for it. The machines are the walkthrough's: customers reach `www.shop.test`, the edge cache (`edge`: not yours to change; `sudo edge-purge` empties it), in front of the origin, nginx on `origin`, which serves the pages and fingerprinted assets from `/srv/www` and passes `/account` and the basket API, `/api/`, to `shop-app@origin` and the order board, `/board/`, to `order-board@origin`. The customers' browser is `office`. The origin's site file, `/etc/nginx/sites-available/shop`, so far has only its `location` blocks and where each one's answers come from, and no headers at all.
+
+  Make the origin serve the shop like this:
+
+  1. **Caching.** The fingerprinted assets may be kept by any cache for a year (31,536,000 seconds or more) and aren't asked about when a customer reloads the page. The pages may be kept by a browser, but every cache asks the origin before it uses a copy, so a change to the price list reaches customers at once (nginx sends an `ETag` and a `Last-Modified` for every file in `/srv/www`). The account page is never kept by a shared cache. The basket API's answers are never kept by any cache.
+  2. **CORS for the basket API.** Only pages from `https://shop.test` and `https://www.shop.test` may call it from a browser, with the customer's cookie, using `GET`, `PUT` and `DELETE` with a JSON body (`Content-Type: application/json`). A browser may remember the answer to its preflight for 10 minutes. No page from any other origin may read the API's answers. nginx answers the preflight itself, with `204 No Content`: preflights never reach shop-app, which doesn't answer them. Every answer that names the asking origin tells caches that it depends on it.
+  3. **The order board** works through the edge and the origin as a WebSocket, and a staff screen left idle stays connected for as long as it's open. The board pings every screen every 70 seconds; its settings, `/etc/order-board/board.conf`, are the board team's: leave them. The edge drops a connection that has carried nothing for 120 seconds.
+
+  Edit with `on origin nano /etc/nginx/sites-available/shop`, check with `on origin nginx -t`, and `sudo systemctl reload nginx@origin`. Try everything from the office with `curl`, as the walkthrough did; a copy the edge kept during your tries stays until its lifetime runs out, unless you purge it. Then run the checks. One of them keeps a WebSocket open and idle for 75 seconds, so the checks take a minute and a half.
+skills: [caching, cors, api-styles]

@@ -1,0 +1,22 @@
+id: est-origin-load
+type: estimate
+rev: 1
+prompt: |
+  An image with `Cache-Control: max-age=300` is requested 10,000 times a minute, spread over the CDN's 20 locations. Each location keeps its own copy and fetches a new one from the origin as soon as its copy is stale, and every location gets requests all the time. About how many requests for the image reach the origin in an hour? Within 10%.
+unit: requests
+answer: 240
+tolerance: { percent: 10 }
+given: { max_age: 300, rate: 10000, locations: 20 }
+working: locations * 3600 / max_age
+mistakes:
+  - id: no-cache
+    value: 600000
+    working: rate * 60
+    why: "That's every request in the hour, as if nothing were cached. Each location asks the origin once per 300-second lifetime, however many customers it serves."
+  - id: one-location
+    value: 12
+    working: 3600 / max_age
+    why: "That's one location's fetches. Each of the 20 locations keeps its own copy, so each fetches its own: 20 times as many."
+explanation: |
+  An hour is 3,600 seconds, so each location's copy runs out 3,600 / 300 = 12 times, and each time that location fetches the image once: 20 × 12 = 240 requests, against 600,000 customer requests. The request rate doesn't matter once every location is busy; the lifetime and the number of separate caches do. That's why a longer lifetime, or a CDN's shield (one location that the others ask), cuts an origin's load.
+skills: [caching]

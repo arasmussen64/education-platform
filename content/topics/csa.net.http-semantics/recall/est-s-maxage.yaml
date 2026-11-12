@@ -1,0 +1,22 @@
+id: est-s-maxage
+type: estimate
+rev: 1
+prompt: |
+  The shop's category pages are sent with `Cache-Control: max-age=60, s-maxage=3600`. For how many seconds may the CDN serve its copy without asking the origin? Exactly.
+unit: seconds
+answer: 3600
+tolerance: { absolute: 0 }
+given: { max_age: 60, s_maxage: 3600 }
+working: s_maxage
+mistakes:
+  - id: max-age-for-everyone
+    value: 60
+    working: max_age
+    why: "That's the lifetime for browsers. s-maxage overrides max-age for shared caches, and a CDN is one."
+  - id: added
+    value: 3660
+    working: max_age + s_maxage
+    why: "The two aren't added: each kind of cache uses one of them. A shared cache uses s-maxage, a browser max-age."
+explanation: |
+  RFC 9111: for a shared cache, the maximum age given by `s-maxage` "overrides the maximum age specified by either the max-age directive or the Expires header field". So the CDN keeps its copy an hour, sparing the origin, while each browser asks again after a minute (and gets the CDN's copy). It's the usual way to let the shop purge one place, the CDN, after a change, while browsers, which no purge reaches, keep copies for only a minute.
+skills: [caching]

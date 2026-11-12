@@ -1,0 +1,66 @@
+# The checks of "CORS audit": the script is there, runnable, clean and does
+# its own work; then it is run on the shop's stand-in API, started on a
+# port of the check's own, for six requests; and on thirteen made-up APIs,
+# one of each kind (cors-cases), with origins, methods, headers and the
+# case of the header names chosen at random as the check runs, so a script
+# that knows answers by heart fails. Each answer is compared with
+# cors-verdict's on the same server answers (cors-compare).
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/cors-audit exists, is executable, starts with a shebang, ShellCheck has nothing to say about it, and it decides for itself, with curl and the shell, without Python or the checks' own tools."
+    command: |
+      f=/home/learner/bin/cors-audit
+      [ -f "$f" ] || { echo "there is no ~/bin/cors-audit"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/cors-audit isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/cors-audit's first line isn't a shebang"; exit 0; }
+      if grep 'shellcheck disable' "$f" > /dev/null; then echo "~/bin/cors-audit switches ShellCheck's warnings off"; exit 0; fi
+      if grep -E 'python|perl|cors-verdict|cors-cases|cors-compare|/usr/local/lib/lab' "$f" > /dev/null; then
+        echo "~/bin/cors-audit hands the decision to another program: the shell and curl are this lab's tools"
+        exit 0
+      fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say: $(echo "$said" | grep -m 1 'SC[0-9]')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: shop-api
+    description: "On the shop's API it gives a browser's decision for six requests: the shop's own pages, another site, a method and a header the API doesn't allow."
+    command: |
+      port=$((20000 + RANDOM % 10000))
+      /usr/local/lib/lab/shop-api "$port" &
+      server=$!
+      trap 'kill "$server" 2> /dev/null; wait "$server" 2> /dev/null' EXIT
+      for i in $(seq 1 50); do curl -s -o /dev/null "http://127.0.0.1:$port/" && break; sleep 0.1; done
+      url=http://127.0.0.1:$port/api/basket
+      while IFS='|' read -r origin method header cred; do
+        said=$(/usr/local/lib/lab/cors-compare "$url" "$origin" "$method" "$header" "$cred")
+        [ "$said" = same ] || { echo "$said"; exit 0; }
+      done << 'EOF'
+      https://www.shop.test|PUT|Content-Type: application/json|yes
+      https://evil.test|PUT|Content-Type: application/json|yes
+      https://shop.test|DELETE|-|yes
+      https://www.shop.test|PATCH|-|yes
+      https://shop.test|GET|-|yes
+      https://www.shop.test|PUT|X-Debug: 1|yes
+      EOF
+      echo same
+    expect:
+      equals: same
+  - id: unseen-apis
+    description: "On thirteen APIs it has never seen, made up as the check runs, one for each rule of the CORS check, it gives the same decision as a browser."
+    command: |
+      dir=$(mktemp -d)
+      /usr/local/lib/lab/cors-cases make "$dir/cases.json" > "$dir/asks"
+      port=$((30000 + RANDOM % 10000))
+      python3 /usr/local/lib/lab/cors-cases serve "$dir/cases.json" "$port" &
+      server=$!
+      trap 'kill "$server" 2> /dev/null; wait "$server" 2> /dev/null; rm -rf "$dir"' EXIT
+      for i in $(seq 1 50); do curl -s -o /dev/null "http://127.0.0.1:$port/" && break; sleep 0.1; done
+      while IFS=$'\t' read -r path origin method header cred; do
+        said=$(/usr/local/lib/lab/cors-compare "http://127.0.0.1:$port$path" "$origin" "$method" "$header" "$cred")
+        [ "$said" = same ] || { echo "on a new API, $said"; exit 0; }
+      done < "$dir/asks"
+      echo same
+    expect:
+      equals: same

@@ -1,0 +1,16 @@
+id: mcq-502-or-504
+type: mcq
+rev: 1
+prompt: |
+  The shop's sales report goes through nginx to the shop's app. Since a change to the report, it fails with `504 Gateway Time-out` after exactly 60 seconds, every time, while the quick pages still work. What does the 504 tell you?
+choices:
+  - "nginx waited for the app's answer until its 60-second read timeout ran out"
+  - "The app answered, but with something nginx couldn't read as an HTTP answer"
+  - "The app crashed and closed the connection before sending any answer at all"
+  - "nginx refused the request itself, because the report's address is too long"
+answer: 0
+explanation: |
+  RFC 9110 gives the two codes to a gateway or proxy, here nginx in front of the app. **504 (Gateway Timeout)**: it "did not receive a timely response from an upstream server". **502 (Bad Gateway)**: it "received an invalid response from an inbound server". nginx's `proxy_read_timeout` is 60 seconds by default, so exactly 60 seconds, every time, is the timer running out: the app is still working on the report. Make the report faster, or raise the timeout for that one location, and remember that every other hop (a load balancer in front, say) has its own timer.
+
+  An answer nginx couldn't read, or a connection the app closed without answering, are both 502s, and they come quickly, not after a fixed minute. A request nginx refuses itself gets a 4xx code (414 for an address that's too long): the client's fault, not the server's.
+skills: [methods-and-status]

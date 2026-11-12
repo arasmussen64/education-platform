@@ -1,0 +1,16 @@
+id: mcq-retry-which
+type: mcq
+rev: 1
+prompt: |
+  The shop's mobile app uses a client library that sends a request again, by itself, when the connection drops before any answer arrives, so the app can't tell whether the server acted on the first one. For which of these requests is that automatic retry safe?
+choices:
+  - "`PUT /basket/items/42` with the body `{\"quantity\": 2}`"
+  - "`POST /orders` with the body `{\"basket\": \"b-1187\"}`"
+  - "`POST /payments` with the body `{\"amount\": 40}`"
+  - "`PATCH /basket/items/42` with the body `{\"add\": 1}`"
+answer: 0
+explanation: |
+  `PUT` sets the item to a whole new state: sending it twice leaves the quantity at 2, the same as sending it once. That's what **idempotent** means, and HTTP's standard, RFC 9110, says "PUT, DELETE, and safe request methods are idempotent", which is why such a request "can be repeated automatically if a communication failure occurs". Safe methods (`GET`, `HEAD`, `OPTIONS`) change nothing at all, so repeating them is harmless too.
+
+  `POST` promises neither: two `POST /orders` can make two orders, and two `POST /payments` can charge the card twice, which is why payment APIs add an idempotency key. The `PATCH` here says "add one", so a repeat adds a second; `PATCH` isn't idempotent by definition, though a `PATCH` that sets a value can happen to be. A library that retries a `POST` by itself turns a dropped connection into a double order.
+skills: [methods-and-status]

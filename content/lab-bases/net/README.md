@@ -181,6 +181,7 @@ Checks source `. /usr/local/lib/netlab/checklib.sh` and run as root on the lab m
 | `hand_routes M` | M's routes typed with `ip route add` (protocol `boot`), one a line, or nothing |
 | `bgp-best M PREFIX` | the path BGP chose: `via 192.0.2.2, localpref 100, med 0, path 65010 65100, chosen by Local Pref`, or `none` |
 | `intact` | the sealed scenery is unchanged |
+| `python3 /usr/local/lib/netlab/cors-verdict PRE ACT ORIGIN METHOD [HEADER] [--credentials]` | what a browser decides about a cross-origin request from the server's two answers (`curl -si` output of the preflight and of the request): `allowed`, or `blocked:` and the Fetch standard's reason; its cases are `tools/tests/test_cors_verdict.py` |
 
 And from `/usr/local/bin`, for learners and checks: `looking-glass M 'show ...'` (FRR's `vtysh` on a router that isn't yours, show commands only), `holdconns N HOST PORT [SECONDS]` (opens N connections at once with one 3-second deadline and holds them; prints `opened X of N`), `holdserver PORT...` (accepts connections, IPv4 and IPv6, and holds each one until the client closes it), `web-svc` (a test server: 8080 answers with the caller's address, 9000 counts the bytes sent).
 
@@ -204,6 +205,7 @@ From the Module 3 brief, sections 3.5 and 4.4.
 - **A path is proved by traffic**: capture on each outgoing interface; `ip route get` doesn't predict the ECMP path of forwarded connections.
 - **A check may cut a link to prove a backup works:** `netlab link` with the restore in an `EXIT` trap, waiting for the primary path to come back before it exits, last in `checks.yaml`, with a `timeout:` of 60 to 90. It changes nothing the learner made and leaves the lab as it found it (the exception to "checks only read" in ADR-0018's third amendment).
 - **A check may start throwaway servers, listeners, BIND instances or namespaces of its own** (`chk-...`), and removes them.
+- **A machine's own folder for a program the base doesn't know** (`csa.net.http-semantics` gives origin an `/etc/order-board`) needs an empty `/etc/order-board` on the lab machine too: `ip netns exec` lays the machine's copy over a folder that must exist. `/etc/network` and `radvd.conf` are made by the base already.
 - **A unit that failed at boot refuses an immediate restart.** A per-machine unit (`named@`, `unbound@` and the rest) that fails five times in a few seconds hits systemd's start limit, and `systemctl restart` is refused for about ten seconds. A solution or wrong fix that restarts such a unit runs `systemctl reset-failed UNIT` first (`csa.net.dns`' fill-in); a learner, who takes longer than that to fix a file, isn't affected.
 - **BIND sends a NOTIFY about 5 s after a zone changes** (`notify-delay`), so a check or script that edits a primary waits for the secondary before it reads it.
 - **`netlab verify` removes every `chk-*` namespace**, so a check that makes throwaway machines of its own doesn't run `verify` while they exist.
@@ -242,6 +244,7 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 | `lab-enter` | what makes a namespace a machine: its `/run`, state folders, hostname and no domain name (so FRR never writes `domainname localdomain`) |
 | `on` | `on MACHINE [COMMAND...]` |
 | `checklib.sh` | the check helpers |
+| `cors-verdict` | the Fetch standard's CORS check and preflight rules, for checks (its cases are `tools/tests/test_cors_verdict.py`; `csa.net.http-semantics`' write lab keeps an identical copy) |
 | `not-here`, `plain-units` | the plain daemon units that say what to type |
 | `units/` | `netlab.service` and the per-machine units |
 | `strongswan.d/` | charon's settings for every machine that runs strongSwan, and swanctl's plugin list |

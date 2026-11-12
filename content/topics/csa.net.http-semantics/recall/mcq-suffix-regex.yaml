@@ -1,0 +1,16 @@
+id: mcq-suffix-regex
+type: mcq
+rev: 1
+prompt: |
+  An API answers with an origin's own name in `Access-Control-Allow-Origin`, and the cookie allowed, whenever the request's `Origin` matches the regular expression `shop\.test$`. Which of these origins does that let in by mistake?
+choices:
+  - "`https://evilshop.test`, a domain anyone could register"
+  - "`https://shop.test.evil.example`, a subdomain of an evil site"
+  - "`https://api.shop.test`, the shop's own API on its own subdomain"
+  - "`null`, the origin that sandboxed frames and local files send"
+answer: 0
+explanation: |
+  `shop\.test$` means "ends with `shop.test`": `\.` is a real dot and `$` the end of the text. `https://evilshop.test` ends with `shop.test`, so a stranger's site is answered as if it were the shop's, cookies included. The usual fix is an exact list of origins (nginx's `map`, as the walkthrough's origin used), or a pattern anchored on both sides, `^https://(www\.)?shop\.test$`.
+
+  `https://shop.test.evil.example` doesn't end with `shop.test`, so the `$` keeps it out; dropping the `$` would let it in. `https://api.shop.test` does match, but it is the shop's own, so that's no mistake. `null` doesn't match this pattern; it is a separate trap, since sandboxed frames and files opened from disk send `null`, so an allow-list that includes it lets any site in through a sandboxed frame.
+skills: [cors]

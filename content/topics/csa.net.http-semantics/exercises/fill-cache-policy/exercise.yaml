@@ -1,0 +1,25 @@
+id: fill-cache-policy
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Cache policy"
+prompt: |
+  The shop from the walkthrough: customers reach `www.shop.test`, the edge cache (`edge`, not yours to change), in front of the shop's origin server, nginx on `origin`, with the customers' browser on `office`. The origin's site file, `/etc/nginx/sites-available/shop`, has lost six values, each marked `___`, and serves them as they are: the edge keeps nothing, every page goes back to the origin, and the order board's WebSocket doesn't open.
+
+  Fill in each `___` so that:
+
+  1. **The fingerprinted assets** (`/assets/`) may be kept by any cache, the edge included, for a year (31,536,000 seconds or more), and a browser doesn't even ask about them when the customer reloads the page.
+  2. **The pages** (the storefront and the price list, `.html`) may be kept by a browser, but every cache asks the origin before it uses a copy, so the price list the edge serves is always the newest. nginx already sends an `ETag` and a `Last-Modified` for every file it serves from `/srv/www`, so a browser can ask cheaply.
+  3. **The account page** (`/account`) may be kept by the customer's own browser, and by no shared cache.
+  4. **The basket API** (`/api/`) is kept by no cache at all.
+  5. **The order board** (`/board/`) passes the WebSocket upgrade on: `Upgrade` with the value the browser sent, and `Connection` with the value an upgrade needs. In nginx, `$http_` followed by a header's name in lower case is the value of that request header, as the walkthrough's `map` used `$http_origin`.
+
+  Edit with `on origin nano /etc/nginx/sites-available/shop`, replace each `___` (and nothing else), then `sudo systemctl reload nginx@origin`: nginx reads the file again only when it's reloaded or started. `on origin nginx -t` checks the file first, and `on office curl -sI http://www.shop.test/...` shows the headers a page now carries. A copy the edge kept before your change stays there until its lifetime runs out; `sudo edge-purge` empties the edge if you need it. Then run the checks.
+hints:
+  - "For the assets: a lifetime in seconds is `max-age=N`, and the directive that tells a browser not to revalidate a file on reload is in the walkthrough's second step. Directives are separated by commas, inside the one pair of quotes."
+  - "For the pages: one directive says \"you may store it, but ask before every reuse\". It's the most misread directive in HTTP: it doesn't mean \"don't store\"."
+  - "For the account page and the API: one directive keeps a page out of shared caches only, and another keeps it out of every cache. For the board: the browser's `Upgrade` header is `$http_upgrade`, and the `Connection` value is the word that names what the client asked for."
+skills: [caching, api-styles]

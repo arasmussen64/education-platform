@@ -1,0 +1,16 @@
+# The staff order board on one of the lab's machines, behind its nginx:
+# "systemctl status order-board@origin". Its settings are the machine's
+# /etc/order-board/board.conf, read when it starts.
+[Unit]
+Description=The staff order board on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/order-board
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

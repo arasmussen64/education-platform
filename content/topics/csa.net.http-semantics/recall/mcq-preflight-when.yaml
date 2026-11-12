@@ -1,0 +1,16 @@
+id: mcq-preflight-when
+type: mcq
+rev: 1
+prompt: |
+  A page from `https://www.shop.test` calls the shop's API at `https://api.shop.test`, a different origin. Which of these calls makes the browser send an `OPTIONS` preflight before the request itself?
+choices:
+  - "A `PUT` of the basket, with `Content-Type: application/json`"
+  - "A `GET` of the basket, with no headers beyond the browser's own"
+  - "A form's `POST`, with `Content-Type: application/x-www-form-urlencoded`"
+  - "A `HEAD` of the basket, to read its `Last-Modified` header"
+answer: 0
+explanation: |
+  A browser sends a cross-origin request straight out only when it is a **simple request**: `GET`, `HEAD` or `POST`, with no headers beyond a short safelist, and a `Content-Type`, if any, of `application/x-www-form-urlencoded`, `multipart/form-data` or `text/plain`. Those are the requests an ordinary HTML form or link could always send, so letting them go out reveals nothing new. Anything else is asked about first, with an `OPTIONS` naming the method and headers it wants.
+
+  The `PUT` fails twice over: `PUT` isn't a simple method, and `application/json` isn't a simple content type, so even a JSON `POST` is preflighted. The `GET`, the form `POST` and the `HEAD` are all simple. A simple request still needs the CORS headers on its answer before the page may read it; it only skips the asking first. And `www.shop.test` and `api.shop.test` are different origins, because the host is part of the origin with the scheme and the port.
+skills: [cors]
