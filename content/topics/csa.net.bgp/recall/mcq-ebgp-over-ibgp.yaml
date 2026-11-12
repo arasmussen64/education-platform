@@ -1,0 +1,16 @@
+id: mcq-ebgp-over-ibgp
+type: mcq
+rev: 1
+prompt: |
+  Two paths to a prefix are equal on everything up to and including MED. One was learned from a router in another AS (eBGP), the other from a router in the router's own AS (iBGP). Which does BGP choose?
+choices:
+  - "The iBGP path: iBGP's distance of 200 is preferred to eBGP's 20"
+  - "The path from the neighbour with the lower router ID, of either kind"
+  - "The eBGP path: an external path is preferred to an internal one"
+  - "The newer path, because it carries the most recent information"
+answer: 2
+explanation: |
+  Right after MED, BGP prefers a path learned over eBGP: it leaves the AS at this router, while an iBGP path means first crossing the AS to another of its routers. FRR's manual lists it as "external over internal".
+
+  The distance choice gets the numbers backwards: the lower distance wins, so eBGP's 20 beats iBGP's 200, the same answer by a different rule (distance only matters to the kernel, between two sources of a route for the same prefix). The router ID is a tie-break that comes later, and when paths tie to the end FRR keeps the older one, for stability, never the newer.
+skills: [best-path]

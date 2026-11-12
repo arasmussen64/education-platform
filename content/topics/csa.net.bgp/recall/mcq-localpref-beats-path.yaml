@@ -1,0 +1,16 @@
+id: mcq-localpref-beats-path
+type: mcq
+rev: 1
+prompt: |
+  Two paths to 203.0.113.0/24 reach a router. Path 1 has local preference 150 and the AS path `65010 65030 65040 65100`. Path 2 has local preference 100 and the AS path `65020 65100`. Everything else about them is equal. Which does BGP choose?
+choices:
+  - "Path 2: an AS path of two networks is shorter than an AS path of four"
+  - "Path 1: local preference is compared before the length of the AS path"
+  - "Both, shared: BGP balances traffic over paths with the same origin code"
+  - "Path 2: a local preference of 100 is the default, so it's the safe choice"
+answer: 1
+explanation: |
+  BGP compares paths one attribute at a time, in a fixed order, and stops at the first difference: weight (FRR's own), then local preference (highest wins), then whether the router made the route itself, then AS path length (shortest wins), then origin, then MED. Path 1's 150 beats path 2's 100 at the second step, so the AS paths are never compared. In the lab, edge chose ISP A's three-network path over ISP B's two-network one for exactly this reason, and FRR gave "Local Pref" as the reason.
+
+  100 is only the default, with nothing safe about it. Origin codes come after AS path length, and two eBGP paths from different neighbouring networks aren't shared by default.
+skills: [best-path]

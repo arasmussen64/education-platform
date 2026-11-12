@@ -1,0 +1,16 @@
+id: mcq-route-leak
+type: mcq
+rev: 1
+prompt: |
+  A shop is connected to ISP A and ISP B, and its router passes everything it learns from each ISP on to the other. Both ISPs accept whatever the shop sends them. What can happen?
+choices:
+  - "ISP A drops its session with the shop, because its own routes came back to it"
+  - "Nothing: an ISP never prefers a path that goes through one of its customers"
+  - "ISP B may send traffic for ISP A's customers through the shop's small links"
+  - "The shop's own prefix is withdrawn, because its AS path has grown too long"
+answer: 2
+explanation: |
+  That is a **route leak**: the shop has told ISP B "you can reach ISP A's customers through me". The lab showed it. ISP B received ISP A's customers' prefix from the shop with the AS path `65001 65010`, two networks long, shorter than its own path through the cloud and the transit network, so ISP B chose the shop. Its traffic for ISP A's customers would then cross the shop's small links, which were never meant to carry other people's traffic.
+
+  Real ISPs make it worse, not better: they usually prefer paths through their customers, who pay them, so a leaked path is attractive. A route that comes back to the network it started from is simply ignored (BGP throws away a path whose AS path already holds its own AS number), and no session drops; and a longer AS path never withdraws anything. The fix is the shop's export filter: announce only its own prefix. An ISP should filter what its customers send too. In the 2019 incident in the reading, both filters were missing: a company passed routes from one of its providers on to its other provider, Verizon, which accepted them and passed them to the rest of the internet.
+skills: [announce-and-filter]

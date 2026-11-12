@@ -1,0 +1,16 @@
+id: mcq-med-other-as
+type: mcq
+rev: 1
+prompt: |
+  Two paths to the same prefix have the same local preference, AS paths of the same length and the same origin. One came from AS 65010 with MED 50, the other from AS 65020 with MED 10. With FRR's default settings, does MED decide between them?
+choices:
+  - "Yes: the path with MED 10 wins, because a lower MED is preferred"
+  - "No: MED is compared only between paths from the same neighbouring AS"
+  - "Yes: the path with MED 50 wins, because a higher MED is preferred"
+  - "No: MED is compared only between paths learned inside one AS, by iBGP"
+answer: 1
+explanation: |
+  MED (multi-exit discriminator) is a hint a neighbouring network sends: "of my several links to you, use this one". A lower MED is preferred, but FRR compares MEDs only "where routes with a MED were received from the same AS", because two different networks' MEDs are numbers on two different scales. Here the paths came from two ASes, so MED is skipped and the next steps decide: eBGP over iBGP, then the tie-breaks. `bgp always-compare-med` would compare them anyway.
+
+  MED does come from outside the AS: it is an eBGP attribute, the one way a neighbour can suggest which of its links you use. The next topic uses it to steer traffic.
+skills: [best-path]

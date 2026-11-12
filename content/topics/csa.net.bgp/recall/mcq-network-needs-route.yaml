@@ -1,0 +1,16 @@
+id: mcq-network-needs-route
+type: mcq
+rev: 1
+prompt: |
+  A router's LAN is 198.51.100.0/24, a connected network. Its BGP configuration says `network 198.51.100.0/25`, and nothing else on it announces anything. Its route maps would let the shop's addresses out. What do its eBGP neighbours receive from it?
+choices:
+  - "198.51.100.0/25, because that prefix lies inside a network the router is connected to"
+  - "Nothing: FRR announces a `network` only when that exact prefix is in its routing table"
+  - "198.51.100.0/24, because FRR widens the prefix to the connected network that holds it"
+  - "Both halves of the /24, because a /25 is always announced together with its neighbour"
+answer: 1
+explanation: |
+  A `network` line is a request, not an order: FRR announces the prefix only if its routing table holds a route for exactly that prefix (FRR calls this the import check). The table holds the connected 198.51.100.0/24, which isn't 198.51.100.0/25, so nothing is announced, nobody on the internet has a route to the shop, and no error says so. In this topic's lab, `show bgp ipv4 unicast 198.51.100.0/25` lists the prefix with its next hop `0.0.0.0 (inaccessible)` and the word `invalid`, and the table shows it without the `*` that marks a valid path.
+
+  The fix is to announce the prefix the router really has: `network 198.51.100.0/24`. FRR never widens or splits a prefix by itself, and a prefix isn't announced because it fits inside a route the router holds. Switching the check off (`no bgp network import-check`) would announce the /25, a prefix that isn't the shop's whole network, and it is the wrong fix.
+skills: [announce-and-filter]

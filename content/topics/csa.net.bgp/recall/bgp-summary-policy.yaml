@@ -1,0 +1,24 @@
+id: bgp-summary-policy
+type: predict_shell
+rev: 1
+prompt: |
+  `summary.txt` is `show bgp summary` on the shop's router, captured in this topic's lab. For each neighbour line whose tenth column, `State/PfxRcd`, isn't a number, the command prints the neighbour's address and the tenth and eleventh columns, `State/PfxRcd` and `PfxSnt`. What is printed?
+files:
+  summary.txt: |
+    IPv4 Unicast Summary (VRF default):
+    BGP router identifier 198.51.100.1, local AS number 65001 vrf-id 0
+    BGP table version 11
+    RIB entries 7, using 1344 bytes of memory
+    Peers 2, using 1448 KiB of memory
+
+    Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd   PfxSnt Desc
+    192.0.2.2       4      65010       109        99        0    0    0 00:03:19            3        1 N/A
+    192.0.2.6       4      65020        73        67        0    0    0 00:02:30     (Policy) (Policy) N/A
+
+    Total number of neighbors 2
+command: awk '$1 ~ /^[0-9]+\./ && $10 !~ /^[0-9]+$/ {print $1, $10, $11}' summary.txt
+expected_output: |
+  192.0.2.6 (Policy) (Policy)
+explanation: |
+  Only ISP B's line has something other than digits in its tenth column. Both sessions are up: each has an uptime in `Up/Down`. ISP A's has accepted 3 prefixes and sent 1. ISP B's says `(Policy)` in both columns: the session is `Established`, but no route map lets anything in or out, so FRR discards every update both ways (RFC 8212's rule, which FRR follows by default; `show bgp neighbors 192.0.2.6` says "Inbound updates discarded due to missing policy"). In the lab this was ISP B's session with its route maps taken away. The fix is a route map in each direction, never `no bgp ebgp-requires-policy`, which would let everything through.
+skills: [bgp-sessions, announce-and-filter]

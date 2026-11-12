@@ -1,0 +1,16 @@
+id: mcq-max-prefix
+type: mcq
+rev: 1
+prompt: |
+  A provider's router has `neighbor 192.0.2.5 maximum-prefix 1000` for a customer who normally announces 3 prefixes. One day the customer's router leaks a full internet table, about a million routes, toward the provider. What happens?
+choices:
+  - "The provider accepts the first 1,000 prefixes and quietly ignores the rest"
+  - "The session is torn down once the customer sends more than 1,000 prefixes"
+  - "The provider accepts all of them, but installs only 1,000 in its kernel"
+  - "The customer's router stops sending at 1,000, because the limit is shared"
+answer: 1
+explanation: |
+  FRR's manual: "If this number is exceeded, the BGP session will be destroyed". The limit is a fuse: better to lose one customer's session than to take a million wrong routes and pass them on. `show bgp summary` then shows the neighbour `Idle (PfxCt)`, and the session stays down until someone resets it, or comes back by itself after a wait if the line ends `restart MINUTES`.
+
+  Nothing is half accepted: keeping the first 1,000 would leave a random, partial table. The limit lives only on the router that sets it; the customer's router doesn't know about it.
+skills: [announce-and-filter]

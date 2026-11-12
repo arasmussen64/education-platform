@@ -1,0 +1,17 @@
+id: localpref-table
+type: predict_shell
+rev: 1
+prompt: |
+  `paths.txt` lists the three paths a router holds for 203.0.113.0/24, one a line, as a script copied them out of `show bgp` (constructed for this question): the next hop, the local preference, or `-` where none was set, and the AS path. The command walks the lines and keeps the path with the highest local preference, treating `-` as the default, 100; between equal preferences it keeps the one with the shorter AS path. It prints the next hop it kept. What is printed?
+files:
+  paths.txt: |
+    192.0.2.10 - 65030 65040 65100
+    192.0.2.2 90 65010 65100
+    192.0.2.6 - 65020 65100
+command: |-
+  awk '{lp = ($2 == "-") ? 100 : $2; len = NF - 2; if (lp > best || (lp == best && len < shortest)) {best = lp; shortest = len; hop = $1}} END {print hop}' paths.txt
+expected_output: |
+  192.0.2.6
+explanation: |
+  The middle path was given local preference 90, below the default, the way a network marks a link it wants to use only as a backup, so it loses first, short AS path and all. The other two have no local preference set, which means 100, so they tie, and the AS path decides: two networks through 192.0.2.6 against three through 192.0.2.10. This is how BGP itself chooses: local preference first, and the AS path only between paths it couldn't separate. Two slips both lead to 192.0.2.2: taking `-` for 0, which makes 90 the highest, and skipping local preference, which leaves 192.0.2.2 and 192.0.2.6 tied on two networks each, with 192.0.2.2 kept for coming first.
+skills: [local-preference]

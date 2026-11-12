@@ -1,0 +1,16 @@
+id: mcq-rfc8212
+type: mcq
+rev: 1
+prompt: |
+  A new eBGP session in FRR is `Established`, but `show bgp summary` shows `(Policy)` in both of its prefix columns, and no routes move in either direction. Why?
+choices:
+  - "FRR waits for the first route refresh, which only applying a route map triggers"
+  - "An eBGP session starts out passive until one side sends the other its route map"
+  - "The neighbour's AS must first be listed in a route map before it can be trusted"
+  - "RFC 8212: an eBGP session sends and accepts nothing until a policy allows it"
+answer: 3
+explanation: |
+  RFC 8212 says a router must not accept routes from an eBGP neighbour, or send it any, unless an explicit policy says so, because routers that passed everything by default caused route leaks. FRR follows it by default (`bgp ebgp-requires-policy`): the session comes up, and `show bgp neighbors` says "Inbound updates discarded due to missing policy" and "Outbound updates discarded due to missing policy". The fix is a route map in each direction (`neighbor 192.0.2.2 route-map FROM-ISPA in` and one `out`) that says what may pass.
+
+  `no bgp ebgp-requires-policy` also makes routes move, by switching the protection off, so a session with no policy passes everything: the wrong fix. Route maps aren't sent between routers, and nothing about the session is passive or waiting for a refresh.
+skills: [announce-and-filter, bgp-sessions]

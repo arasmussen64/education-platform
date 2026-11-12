@@ -1,0 +1,16 @@
+id: mcq-tie-older-path
+type: mcq
+rev: 1
+prompt: |
+  Two eBGP paths to a prefix, from two different neighbouring networks, are equal on every attribute BGP compares, down to MED and eBGP over iBGP. With FRR's default settings, which one wins?
+choices:
+  - "The newer path, the one received last, since newer information always wins"
+  - "The older path, the one received first, so a restart can change the choice"
+  - "Both: FRR installs the two paths and shares the traffic between them"
+  - "The path from the neighbour with the lower AS number, whichever came first"
+answer: 1
+explanation: |
+  FRR keeps the external path it has already chosen (it reports the reason as "Older Path"), because switching between equal paths every time a new one arrives would move traffic for nothing. The catch is that "older" depends on which session came up first, which can differ after every restart, so the same network can send its traffic out of a different door from one day to the next. Every lab in this topic avoids such ties: the paths differ in length, and the routers have `bgp bestpath compare-routerid`, which settles a tie by the lowest router ID instead.
+
+  Equal paths are shared only when they come from the same neighbouring AS (or with `bgp bestpath as-path multipath-relax`), and AS numbers are never a tie-break.
+skills: [best-path]

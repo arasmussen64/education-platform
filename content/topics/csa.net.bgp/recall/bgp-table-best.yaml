@@ -1,0 +1,34 @@
+id: bgp-table-best
+type: predict_shell
+rev: 1
+prompt: |
+  `table.txt` is `show bgp ipv4 unicast` on the shop's router, captured in this topic's lab. In FRR's table, `>` in the first column marks the path BGP chose for each prefix, and a prefix is printed only on its first path's line: a second path's line starts with its status and goes straight on to its `Next Hop`. The command remembers the last prefix it saw and, for each chosen path, prints the prefix and the chosen next hop. What is printed?
+files:
+  table.txt: |
+    BGP table version is 11, local router ID is 198.51.100.1, vrf id 0
+    Default local pref 100, local AS 65001
+    Status codes:  s suppressed, d damped, h history, * valid, > best, = multipath,
+                   i internal, r RIB-failure, S Stale, R Removed
+    Nexthop codes: @NNN nexthop's vrf id, < announce-nh-self
+    Origin codes:  i - IGP, e - EGP, ? - incomplete
+    RPKI validation codes: V valid, I invalid, N Not found
+
+       Network          Next Hop            Metric LocPrf Weight Path
+    *> 10.10.0.0/16     192.0.2.2                0    200      0 65010 i
+    *> 10.20.0.0/16     192.0.2.2                     200      0 65010 65030 65100 65020 i
+    *                   192.0.2.6                0             0 65020 i
+    *> 198.51.100.0/24  0.0.0.0                  0         32768 i
+    *  203.0.113.0/24   192.0.2.6                              0 65020 65100 i
+    *>                  192.0.2.2                     200      0 65010 65030 65100 i
+
+    Displayed  4 routes and 6 total paths
+command: |-
+  awk '$2 ~ /\// {prefix = $2} $1 == "*>" {print prefix, (($2 ~ /\//) ? $3 : $2)}' table.txt
+expected_output: |
+  10.10.0.0/16 192.0.2.2
+  10.20.0.0/16 192.0.2.2
+  198.51.100.0/24 0.0.0.0
+  203.0.113.0/24 192.0.2.2
+explanation: |
+  For 10.20.0.0/16 and 203.0.113.0/24 the router holds two paths, one through ISP A (192.0.2.2) and one through ISP B (192.0.2.6), and both times ISP A's wins, once on the first line and once on the second. ISP B's paths are shorter (`65020 i` is one network, against four through ISP A), but the router gives ISP A's routes a local preference of 200 (the `LocPrf` column; empty means the default, 100), and local preference is compared before AS path length. 10.10.0.0/16 has only ISP A's path, since ISP B doesn't send it. 198.51.100.0/24 is the shop's own prefix: next hop `0.0.0.0` and weight 32768 mean this router announces it itself. The kernel installs only the chosen paths, so `ip route get 203.0.113.10` on this router says `via 192.0.2.2`.
+skills: [best-path]
