@@ -1,0 +1,22 @@
+id: est-full-frames
+type: estimate
+rev: 1
+prompt: |
+  A server sends a file of 1000000 bytes over a TCP connection whose MSS is 1460 bytes. How many packets does it take to carry the file's data, counting a last packet that isn't full? Exactly.
+unit: packets
+answer: 685
+tolerance: { absolute: 0 }
+given: { size: 1000000, mss: 1460 }
+working: ceil(size / mss)
+mistakes:
+  - id: divided-by-mtu
+    value: 667
+    working: ceil(size / 1500)
+    why: That divides by the MTU. Each packet's 1500 bytes include 40 bytes of IPv4 and TCP headers; only the 1460 of the MSS carry the file.
+  - id: rounded-down
+    value: 684
+    working: floor(size / mss)
+    why: 684 full packets carry 998,640 bytes; the remaining 1,360 bytes need one more packet.
+explanation: |
+  1000000 ÷ 1460 = 684.9, so 684 full packets and one more for the last 1,360 bytes: 685. On the wire that's 685 × 40 = 27,400 bytes of IPv4 and TCP headers on top of the file, and Ethernet's 14 bytes a frame besides.
+skills: [encapsulation-mtu]

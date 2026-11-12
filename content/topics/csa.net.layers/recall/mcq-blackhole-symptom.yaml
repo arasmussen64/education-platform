@@ -1,0 +1,16 @@
+id: mcq-blackhole-symptom
+type: mcq
+rev: 1
+prompt: |
+  After a new VPN tunnel goes live, users can log in to the intranet and small pages load, but downloading reports hangs at 0%, and `ping` to the report server works. What's the most likely cause?
+choices:
+  - "The ICMP that says fragmentation needed is dropped, so full-size packets vanish"
+  - "The VPN's encryption is too slow, so big transfers time out before finishing"
+  - "The server's TCP window is too small, so it can't send more than a few kilobytes"
+  - "DNS through the VPN is failing, so the browser can't find the download server"
+answer: 0
+explanation: |
+  Small things work and big things hang: the signature of a path MTU black hole. The tunnel's headers make the path's MTU smaller than 1500, the handshake's packets and small pages fit, and `ping` sends 84-byte packets. The download's first full-size packet doesn't fit; the router before the tunnel drops it and sends "fragmentation needed", and something on the way (often a firewall that drops all ICMP) throws that away. The sender keeps sending the same packet, which vanishes every time.
+
+  Slow encryption makes a download slow, not stuck at 0%. A small TCP window also makes a transfer slow, never stopped. And a DNS failure stops everything before it starts: the login and the small pages need names too.
+skills: [pmtud-blackholes]

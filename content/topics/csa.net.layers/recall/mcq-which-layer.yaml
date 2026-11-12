@@ -1,0 +1,16 @@
+id: mcq-which-layer
+type: mcq
+rev: 1
+prompt: |
+  From the office laptop, `ping 10.0.2.20` gets replies, but `nc -zv 10.0.2.20 5432` prints `Connection refused`. At which layer is the problem, and what does it mean?
+choices:
+  - "The transport layer: the machine is reachable, but nothing listens on that TCP port"
+  - "The link layer: the server's cable is faulty, so only small pings get through it"
+  - "The network layer: a router drops TCP but forwards ICMP, so pings work and connections fail"
+  - "The application layer: the database rejected the password, which nc reports as refused"
+answer: 0
+explanation: |
+  Work up the layers. The pings prove layers 1 to 3: the cable, the neighbour's MAC address and the route all work, both ways. `Connection refused` is the server's own kernel answering the SYN with a reset, which it does when nothing listens on that address and port (Module 1's `[R.]`): a layer 4 answer, and the problem is there.
+
+  A faulty cable doesn't pass small packets and fail big ones in a way that produces a refusal, and a router that dropped TCP would make `nc` wait and time out, not be refused: a refusal needs something to answer. And `nc -z` sends no password at all; it only asks whether the port answers.
+skills: [layer-model]

@@ -1,0 +1,16 @@
+id: mcq-never-block
+type: mcq
+rev: 1
+prompt: |
+  A security review wants the edge firewall to drop all ICMP, to "hide" the servers. Which ICMP message matters most to keep letting in, and why?
+choices:
+  - "Fragmentation needed, because without it every large transfer silently hangs"
+  - "Echo request, because without it monitoring can't tell that a server is up"
+  - "Redirect, because without it routers can't send hosts a shorter path to use"
+  - "Timestamp, because without it clocks drift and TLS certificates start failing"
+answer: 0
+explanation: |
+  "Fragmentation needed" (type 3, code 4) is how a sender learns that a packet was too big for a link on the path. Drop it and the handshake and small pages still work, but the first full-size packet vanishes every time it's sent again, and the transfer stalls: a path MTU black hole. IPv6's equivalent, Packet Too Big, matters even more, because IPv6 routers never fragment (topic 25).
+
+  Answering ping is a policy choice: plenty of servers don't, and monitoring can test the service itself instead. Redirects are a way for a router to change a host's routes, which careful hosts ignore anyway. ICMP timestamps have nothing to do with how clocks are kept (NTP does that) or with certificates.
+skills: [icmp-messages]

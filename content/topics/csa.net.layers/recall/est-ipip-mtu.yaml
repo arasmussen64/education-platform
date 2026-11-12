@@ -1,0 +1,22 @@
+id: est-ipip-mtu
+type: estimate
+rev: 1
+prompt: |
+  An IPIP tunnel wraps each IPv4 packet in nothing but a second, 20-byte IPv4 header. Two VMs in a Google Cloud network with its default MTU of 1460 bytes build one between them. What MTU should the tunnel interface have, so that nothing on it ever needs fragmenting? Exactly.
+unit: bytes
+answer: 1440
+tolerance: { absolute: 0 }
+given: { path: 1460, outer_ip: 20 }
+working: path - outer_ip
+mistakes:
+  - id: gre-overhead
+    value: 1436
+    working: path - 24
+    why: That takes off GRE's 24 bytes. IPIP has no tunnel header of its own, only the outer IPv4 header.
+  - id: path-itself
+    value: 1460
+    working: path
+    why: Each packet grows by 20 bytes inside the tunnel, so a 1460-byte packet becomes 1480 on a 1460-byte network.
+explanation: |
+  1460 − 20 = 1440. Over a 1500-byte link Linux gives a new IPIP tunnel 1480 for the same reason: the outer header is all it adds.
+skills: [encapsulation-mtu]

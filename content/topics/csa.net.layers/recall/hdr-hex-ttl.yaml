@@ -1,0 +1,22 @@
+id: hdr-hex-ttl
+type: predict_shell
+rev: 1
+prompt: |
+  `hex.txt` is the start of the worked example's hex dump of an echo request (`tcpdump -nn -xx`, captured 2026-11-12): tcpdump's summary line, then the frame in hex, 16 bytes a line. The `0x0010` line is the third line of the file. Its first group, `0054`, is the IPv4 header's total length; its fourth group, `4001`, holds the TTL (the first byte, `40`) and then the protocol number (`01`).
+
+  `set -- $(sed -n 3p hex.txt)` splits the third line into `$1` (the label, `0x0010:`), `$2` and so on, one group each. `${5:0:2}` is the first two characters of `$5`, `${5:2:2}` the next two, and `printf %d 0x54` prints a hexadecimal number in decimal. What is printed?
+files:
+  hex.txt: |
+    09:15:06.480324 IP 10.0.1.10 > 10.0.2.20: ICMP echo request, id 13489, seq 1, length 64
+    	0x0000:  bab1 65d2 b3ed 9a27 2da1 8336 0800 4500
+    	0x0010:  0054 d7c0 4000 4001 4bcb 0a00 010a 0a00
+    	0x0020:  0214 0800 3e38 34b1 0001 9a83 f56a 0000
+command: |
+  set -- $(sed -n 3p hex.txt); printf 'length=%d ttl=%d proto=%d\n' 0x$2 0x${5:0:2} 0x${5:2:2}
+expected_output: |
+  length=84 ttl=64 proto=1
+explanation: |
+  Two hex digits make one byte, and each digit is worth 16 times the one to its right: `0x0054` is 5 × 16 + 4 = 84 bytes, the whole IPv4 packet; `0x40` is 4 × 16 = 64, the TTL as the laptop sent it; and `0x01` is 1, ICMP's protocol number (TCP is 6, UDP 17, GRE 47).
+
+  The rest of the dump reads the same way. The first line is the Ethernet header: the destination MAC (`bab1 65d2 b3ed`, r1's), the source MAC (the laptop's), and `0800`, the EtherType for IPv4; then `45` starts the IPv4 header (version 4, a 20-byte header). On the third line, `d7c0` is the identification, `4000` the don't-fragment flag, `4bcb` the checksum, and `0a00 010a` the source address, 10.0.1.10.
+skills: [read-headers]

@@ -1,0 +1,16 @@
+id: hdr-udp-length
+type: predict_shell
+rev: 1
+prompt: |
+  `dns.txt` is a DNS question from the office laptop to 10.0.2.1, captured with `tcpdump -nn -v` in this topic's labs (2026-11-12): the IPv4 header on the first line, the UDP ports and the question on the second. The `awk` program, on the header line, turns brackets and commas into spaces, finds the field after the word `length`, and prints it with what's left after the IPv4 and UDP headers. What is printed?
+files:
+  dns.txt: |
+    09:15:41.795272 IP (tos 0x0, ttl 64, id 55597, offset 0, flags [none], proto UDP (17), length 82)
+        10.0.1.10.35213 > 10.0.2.1.53: 7865+ [1au] A? www.shop.test. (54)
+command: |
+  awk '/proto UDP/ {gsub(/[(),]/, " "); for (i = 1; i < NF; i++) if ($i == "length") n = $(i + 1); print "IP length", n, "so the DNS message is", n - 20 - 8}' dns.txt
+expected_output: |
+  IP length 82 so the DNS message is 54
+explanation: |
+  The IPv4 total length, 82, counts the IPv4 header (20 bytes), the UDP header (8 bytes) and the DNS message: 82 − 20 − 8 = 54, which tcpdump also prints in brackets at the end of the second line. UDP is protocol 17, and the destination port, 53, is DNS's. A DNS message this small fits anywhere; one with large answers can be bigger than a path's MTU, and UDP has no MSS to keep it small, which is why path MTU discovery matters for more than TCP.
+skills: [read-headers]

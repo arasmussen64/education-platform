@@ -1,0 +1,16 @@
+id: mcq-port-unreachable
+type: mcq
+rev: 1
+prompt: |
+  From the office, `nc -zu -w 2 HOST 53; echo $?` asks whether UDP port 53 answers, on two hosts. Neither runs anything on that port. Host A has no firewall; host B's firewall drops everything but its website. What does each print, after the line nc may print?
+choices:
+  - "A prints 1, since ICMP port unreachable came back; B prints 0, since nothing came back"
+  - "A prints 0, since nothing listens there; B prints 1, since its firewall refused it"
+  - "Both print 1, because nothing listens on UDP port 53 on either of the two hosts"
+  - "Both print 0, because UDP has no handshake, so nc can't tell anything about either"
+answer: 0
+explanation: |
+  Tried in this topic's labs (2026-11-12): r2, with no firewall, gave exit status 1, and web, whose firewall drops everything but port 80, gave 0, and `nc` even printed `Connection to 10.0.2.20 53 port [udp/domain] succeeded!`. UDP has no handshake, so `nc -zu` sends a little data and waits: if ICMP "port unreachable" (type 3, code 3) comes back, it knows nothing listens and fails; if nothing comes back, it can't tell an open port from a dropped one, and reports success.
+
+  So with UDP, silence proves nothing, and only the ICMP error is a clear answer. A dropping firewall sends nothing at all, so it can't make nc print 1. And nc can tell something: a host with no firewall answers a closed UDP port with ICMP.
+skills: [icmp-messages]

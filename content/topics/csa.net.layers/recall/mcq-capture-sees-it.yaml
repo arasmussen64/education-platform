@@ -1,0 +1,22 @@
+id: mcq-capture-sees-it
+type: mcq
+rev: 1
+prompt: |
+  During a stalled download from a web server, `tcpdump -nn -i eth0 icmp` on the server shows this, again and again (captured in this topic's labs, 2026-11-12):
+
+  ```text
+  IP 10.0.2.1 > 10.0.2.20: ICMP 10.0.1.10 unreachable - need to frag (mtu 1476), length 556
+  ```
+
+  Yet the download stays stuck. Why?
+choices:
+  - "tcpdump sees packets before the firewall does, and the firewall then drops this one"
+  - "The message is meant for the client, so the server's kernel ignores it"
+  - "The server lowered its MTU, but only connections opened later will use it"
+  - "tcpdump shows a copy, and the original packet was lost on the way in"
+answer: 0
+explanation: |
+  tcpdump captures a packet as it arrives on the interface, before the server's nftables rules decide its fate. The router (10.0.2.1) is telling the server (10.0.2.20) that its packet for the client, 10.0.1.10, was too big for a link with an MTU of 1476; but the server's firewall drops it, so the kernel never learns the smaller size and keeps sending the same full-size packet. Proof: `ip route get 10.0.1.10` on the server shows no remembered `mtu`. The fix is in the server's firewall: let in what is related to its connections, above any rule that drops ICMP.
+
+  The message is addressed to the server, and is about the server's own packet: 10.0.1.10 in it is that packet's destination. A server that took the message in would use the new size at once, for the connection that's open, which is how path MTU discovery recovers mid-download. And a capture is the packet itself arriving; it isn't lost afterwards on the way in.
+skills: [pmtud-blackholes]

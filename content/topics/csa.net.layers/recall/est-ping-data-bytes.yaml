@@ -1,0 +1,26 @@
+id: est-ping-data-bytes
+type: estimate
+rev: 1
+prompt: |
+  A capture of a ping shows the IPv4 header's total length as 84 bytes. The IPv4 header is 20 bytes and the ICMP header 8 bytes. How many bytes of data did ping put in the packet? Exactly.
+unit: bytes
+answer: 56
+tolerance: { absolute: 0 }
+given: { total: 84, ip: 20, icmp: 8 }
+working: total - ip - icmp
+mistakes:
+  - id: forgot-icmp
+    value: 64
+    working: total - ip
+    why: That takes off the IPv4 header only. The ICMP header, 8 bytes, is inside the packet too; 64 is what ping reports as "64 bytes from", the ICMP part.
+  - id: forgot-ip
+    value: 76
+    working: total - icmp
+    why: That takes off the ICMP header only. The total length counts the IPv4 header itself, 20 bytes.
+  - id: took-off-ethernet
+    value: 70
+    working: total - 14
+    why: That takes off an Ethernet header, 14 bytes, but the IPv4 total length never includes the frame around the packet; it counts the IPv4 header and everything after it.
+explanation: |
+  84 − 20 − 8 = 56: ping's default, which is why it says `56(84) bytes of data`. The frame on the wire is 14 bytes more again, `length 98` in `tcpdump -e`.
+skills: [read-headers, encapsulation-mtu]

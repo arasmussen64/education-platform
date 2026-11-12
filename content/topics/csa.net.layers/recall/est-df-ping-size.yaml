@@ -1,0 +1,26 @@
+id: est-df-ping-size
+type: estimate
+rev: 1
+prompt: |
+  `tracepath` to a server at the far end of a VPN tunnel reports `pmtu 1420`. What is the largest N for which `ping -M do -s N` to that server still gets replies? The IPv4 header is 20 bytes and the ICMP header 8. Exactly.
+unit: bytes of data
+answer: 1392
+tolerance: { absolute: 0 }
+given: { pmtu: 1420, ip: 20, icmp: 8 }
+working: pmtu - ip - icmp
+mistakes:
+  - id: forgot-icmp
+    value: 1400
+    working: pmtu - ip
+    why: That leaves room for the IPv4 header only. Ping's -s counts only the data after the 8-byte ICMP header.
+  - id: forgot-ip
+    value: 1412
+    working: pmtu - icmp
+    why: That leaves room for the ICMP header only. The path MTU counts the whole IPv4 packet, its 20-byte header included.
+  - id: pmtu-itself
+    value: 1420
+    working: pmtu
+    why: The path MTU is the whole packet. With -s 1420 ping builds a 1448-byte packet, which is too big.
+explanation: |
+  1420 − 20 − 8 = 1392: `ping -M do -s 1392` builds exactly a 1420-byte packet (it prints `1392(1420) bytes of data`), and `-s 1393` is refused. Azure's MTU guide does the same sum: "subtract 28 from the MTU setting". 1420 is the MTU Linux gives a new tunnel of WireGuard, a common kind of VPN.
+skills: [encapsulation-mtu, pmtud-blackholes]

@@ -1,0 +1,16 @@
+id: mcq-gateway-mac
+type: mcq
+rev: 1
+prompt: |
+  The office laptop (10.0.1.10/24, gateway 10.0.1.1) sends a packet to 10.0.2.20. Which destination MAC address does the frame leaving the laptop carry?
+choices:
+  - "The MAC address of 10.0.1.1, the gateway, which the laptop found with an ARP request"
+  - "The MAC address of 10.0.2.20, which the laptop found by asking ARP across the router"
+  - "The broadcast MAC address, so that every machine on the office's network receives it"
+  - "No MAC address at all, because packets for other networks travel at layer 3 only"
+answer: 0
+explanation: |
+  10.0.2.20 isn't on the laptop's network (10.0.1.0/24), so the laptop's route sends the packet to its gateway, and the frame is addressed to the gateway's MAC address, which ARP found. The IP header inside still says 10.0.2.20: the frame says "to the next hop", the packet says "to the end".
+
+  ARP is a broadcast on one network, and routers don't pass broadcasts on, so the laptop can't learn web's MAC address and has no use for it. Broadcast frames are for questions like ARP's, not for traffic. And every frame on an Ethernet network has a destination MAC address: layer 3 always travels inside layer 2, hop by hop.
+skills: [arp-neighbours]

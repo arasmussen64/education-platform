@@ -1,0 +1,16 @@
+id: mcq-icmp-related
+type: mcq
+rev: 1
+prompt: |
+  A server's firewall input chain is `policy drop` with two rules: `ct state established,related accept` and `tcp dport 443 accept`. A router on the path sends the server ICMP "fragmentation needed" about one of its HTTPS connections. What happens to that message?
+choices:
+  - "It's accepted: it quotes a tracked connection's packet, so it counts as related"
+  - "It's dropped: no rule mentions ICMP, so the chain's drop policy applies to it"
+  - "It's accepted: once a connection exists, every ICMP message counts as established"
+  - "It's dropped: related covers only FTP's data connections, never ICMP messages"
+answer: 0
+explanation: |
+  An ICMP error carries the start of the packet that caused it: the IPv4 header and at least the next 8 bytes, which hold the TCP ports. Connection tracking reads that quote, finds the connection it belongs to, and marks the error `related`, so the first rule lets it in. That one rule is why a careful firewall from Module 1 already lets path MTU discovery work.
+
+  It isn't `established`: only packets of the connection itself are, and an ICMP message nobody can match to a connection is dropped by the policy. `related` does also cover helper-tracked connections such as FTP's data connection, but ICMP errors are its everyday use. The trap is the other way round: a rule that drops ICMP placed before the `ct` rule wins, because rules are tried in order.
+skills: [icmp-messages, pmtud-blackholes]
