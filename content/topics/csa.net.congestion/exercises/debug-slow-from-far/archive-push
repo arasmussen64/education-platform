@@ -1,0 +1,30 @@
+#!/bin/bash
+# archive-push: sends the nightly archive from shop to the DR site, dr1, the
+# way the nightly job does: one TCP connection for 6 seconds, with shop's
+# own congestion control. Prints how many Mbit/s dr1 received ("43.7").
+# Scenery: another team's job, not the learner's to change.
+#
+# iperf3 does the sending; its JSON report holds what the receiver counted.
+# dr1's receiver takes one test at a time and answers "busy" to a second,
+# and needs a moment after a boot, so a failed try is tried again.
+set -uo pipefail
+
+received_mbits() {
+  python3 -c 'import json, sys
+try:
+    report = json.load(sys.stdin)
+    print(round(report["end"]["sum_received"]["bits_per_second"] / 1e6, 1))
+except (ValueError, KeyError):
+    pass'
+}
+
+for _ in 1 2 3; do
+  rate=$(on shop iperf3 -c 10.0.6.20 -t 6 -J --connect-timeout 3000 2> /dev/null | received_mbits)
+  if [[ -n $rate ]]; then
+    echo "$rate"
+    exit 0
+  fi
+  sleep 1
+done
+echo "archive-push: no measurement, the DR site's receiver didn't answer" >&2
+exit 1
