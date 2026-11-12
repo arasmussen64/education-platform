@@ -1,0 +1,13 @@
+#!/bin/bash
+# wait-for-names: run before nginx starts on web. nginx looks up the CA's
+# OCSP responder, ocsp.shop.test, while it reads its settings, and with no
+# answer it gives up stapling until it is next reloaded; so at boot it waits
+# (up to 15 seconds) until web can look the name up, as a real server
+# starts after its network's name service. It never stops nginx starting.
+for i in $(seq 1 30); do
+  if ip netns exec web /usr/local/lib/netlab/lab-enter web getent hosts ocsp.shop.test > /dev/null 2>&1; then
+    exit 0
+  fi
+  sleep 0.5
+done
+exit 0

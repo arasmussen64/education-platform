@@ -1,0 +1,18 @@
+# The shop CA's OCSP responder on one of the lab's machines: "systemctl
+# status ocsp-responder@ca". It is openssl's own small responder, answering
+# on port 8888 whether a certificate the CA issued is still good, signed by
+# the intermediate. Its answers say when to ask again: in an hour.
+[Unit]
+Description=The shop CA's OCSP responder on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/openssl ocsp -index /var/lib/lab/ca/index.txt -port 8888 -CA /var/lib/lab/ca/intermediate.pem -rsigner /var/lib/lab/ca/intermediate.pem -rkey /var/lib/lab/ca/intermediate.key -nmin 60
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

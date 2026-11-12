@@ -1,0 +1,75 @@
+# The checks of "Two handshakes": what the walkthrough saves, each compared
+# with what the lab really answers, and the lab as it began. The first
+# check waits for nginx on web after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: alpn-saved
+    description: "~/example/alpn.txt holds curl's line saying which protocol the server chose by ALPN, and it is the one the server chooses now."
+    # It waits up to about 30 seconds for nginx after a boot (10 tries of
+    # at most 3 seconds), so it gets 45 and prints its own sentence.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      wait_for 10 web_up || { echo "nothing answers HTTPS for www.shop.test on web"; exit 0; }
+      f=/home/learner/example/alpn.txt
+      [ -s "$f" ] || { echo "there is no ~/example/alpn.txt, or it's empty"; exit 0; }
+      saved=$(grep -o 'ALPN: server accepted [a-z0-9/.]*' "$f" | head -n 1)
+      now=$(on office curl -sv https://www.shop.test/ -o /dev/null 2>&1 | grep -o 'ALPN: server accepted [a-z0-9/.]*' | head -n 1)
+      [ -n "$saved" ] && [ "$saved" = "$now" ] && { echo saved; exit 0; }
+      echo "~/example/alpn.txt holds \"$(head -n 1 "$f")\", and curl now says \"$now\""
+    expect:
+      equals: saved
+  - id: tls13-saved
+    description: "~/example/tls13.txt holds the names of a TLS 1.3 handshake's messages, in order, from the walkthrough's trace."
+    command: |
+      f=/home/learner/example/tls13.txt
+      [ -s "$f" ] || { echo "there is no ~/example/tls13.txt, or it's empty"; exit 0; }
+      line=$(head -n 1 "$f" | tr -s ' ')
+      case $line in
+        "ClientHello ServerHello EncryptedExtensions Certificate CertificateVerify Finished Finished"*) echo saved ;;
+        *) echo "~/example/tls13.txt holds \"$line\", which isn't a TLS 1.3 handshake's messages" ;;
+      esac
+    expect:
+      equals: saved
+  - id: tls12-saved
+    description: "~/example/tls12.txt holds the names of a TLS 1.2 handshake's messages, in order, from the walkthrough's trace."
+    command: |
+      f=/home/learner/example/tls12.txt
+      [ -s "$f" ] || { echo "there is no ~/example/tls12.txt, or it's empty"; exit 0; }
+      line=$(head -n 1 "$f" | tr -s ' ')
+      case $line in
+        "ClientHello ServerHello Certificate ServerKeyExchange ServerHelloDone ClientKeyExchange Finished"*) echo saved ;;
+        *) echo "~/example/tls12.txt holds \"$line\", which isn't a TLS 1.2 handshake's messages" ;;
+      esac
+    expect:
+      equals: saved
+  - id: sni-saved
+    description: "~/example/api-subject.txt holds the subject of the certificate web's one address answers with when a client asks for api.shop.test."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      f=/home/learner/example/api-subject.txt
+      [ -s "$f" ] || { echo "there is no ~/example/api-subject.txt, or it's empty"; exit 0; }
+      now=$(handshake api.shop.test | grep '^subject=' | head -n 1)
+      saved=$(head -n 1 "$f")
+      [ -n "$now" ] && [ "$saved" = "$now" ] && { echo saved; exit 0; }
+      echo "~/example/api-subject.txt holds \"$saved\", and web now answers \"$now\" for api.shop.test"
+    expect:
+      equals: saved
+  - id: staple-saved
+    description: "~/example/staple.txt holds the stapled OCSP answer's status lines from a handshake after the first: successful, and the certificate good."
+    command: |
+      f=/home/learner/example/staple.txt
+      [ -s "$f" ] || { echo "there is no ~/example/staple.txt, or it's empty"; exit 0; }
+      grep 'OCSP Response Status: successful' "$f" > /dev/null || { echo "~/example/staple.txt has no successful OCSP answer in it: $(head -n 1 "$f")"; exit 0; }
+      grep 'Cert Status: good' "$f" > /dev/null || { echo "~/example/staple.txt doesn't say the certificate is good"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: lab-untouched
+    description: "The network, web's nginx settings, the shop's certificate authority, the certificates and the resolver are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact

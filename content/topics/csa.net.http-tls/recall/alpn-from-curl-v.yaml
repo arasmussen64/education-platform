@@ -1,0 +1,58 @@
+id: alpn-from-curl-v
+type: predict_shell
+rev: 1
+prompt: |
+  `run1.txt` and `run2.txt` are two runs of `curl -v https://www.shop.test/` from the office, one of them with `--http1.1`, captured in this topic's lab on 2026-11-12 (trimmed to the lines about the protocol and the HTTP exchange, with line endings made plain). The command prints the last word of the line saying which protocol the server accepted, then the second word of the response's status line, for each file in turn. What is printed?
+files:
+  run1.txt: |
+    * Connected to www.shop.test (10.0.9.1) port 443
+    * ALPN: curl offers http/1.1
+    * SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / X25519 / id-ecPublicKey
+    * ALPN: server accepted http/1.1
+    * using HTTP/1.x
+    > GET / HTTP/1.1
+    > Host: www.shop.test
+    > User-Agent: curl/8.5.0
+    > Accept: */*
+    >
+    < HTTP/1.1 200 OK
+    < Server: nginx/1.24.0 (Ubuntu)
+    < Date: Thu, 12 Nov 2026 16:05:23 GMT
+    < Content-Type: text/html
+    < Content-Length: 71
+    < Connection: keep-alive
+    <
+    * Connection #0 to host www.shop.test left intact
+  run2.txt: |
+    * Connected to www.shop.test (10.0.9.1) port 443
+    * ALPN: curl offers h2,http/1.1
+    * SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / X25519 / id-ecPublicKey
+    * ALPN: server accepted h2
+    * using HTTP/2
+    * [HTTP/2] [1] OPENED stream for https://www.shop.test/
+    * [HTTP/2] [1] [:method: GET]
+    * [HTTP/2] [1] [:scheme: https]
+    * [HTTP/2] [1] [:authority: www.shop.test]
+    * [HTTP/2] [1] [:path: /]
+    > GET / HTTP/2
+    > Host: www.shop.test
+    > User-Agent: curl/8.5.0
+    > Accept: */*
+    >
+    < HTTP/2 200
+    < server: nginx/1.24.0 (Ubuntu)
+    < date: Thu, 12 Nov 2026 16:05:23 GMT
+    < content-type: text/html
+    < content-length: 71
+    <
+    * Connection #0 to host www.shop.test left intact
+command: |
+  awk '/ALPN: server accepted/ {print $NF} /^< HTTP/ {print $2}' run1.txt run2.txt
+expected_output: |
+  http/1.1
+  HTTP/1.1
+  h2
+  HTTP/2
+explanation: |
+  ALPN is how the two sides agree on the protocol inside the TLS connection: curl lists what it speaks in its ClientHello (`curl offers h2,http/1.1`) and the server picks one (`server accepted h2`). In the first run curl offered only `http/1.1`, because `--http1.1` told it to, so that is what the server accepted, and the status line is HTTP/1.1's, `< HTTP/1.1 200 OK`, whose second word is the version (the first is the `<` curl puts in front of every line it received). In the second, `h2` is HTTP/2's name in ALPN, and HTTP/2's status line, `HTTP/2 200`, has no reason phrase. The `[HTTP/2] [1]` lines are the request going out as stream 1, its headers as fields with names in lower case (`:method`, `:path`), which is why the answer's header names are lower case too. `curl -w '%{http_version}'` prints just `1.1` or `2`.
+skills: [http-versions]

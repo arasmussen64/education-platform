@@ -1,0 +1,63 @@
+#!/bin/bash
+# make-shop-ca: the shop's own certificate authority (CA), made once, when
+# the lab's image is built. A root, which every machine in the lab trusts
+# (as a company's managed machines trust the company's own CA), signs an
+# intermediate; the intermediate signs one certificate for each of the
+# shop's sites, with the address of its OCSP responder written into it, and
+# signs the responder's answers. Topic 32 builds a CA like this by hand.
+#
+# The CA's own files stay in /var/lib/lab/ca; each site's files go into
+# web's /etc/nginx/tls/<name>/, laid out as certbot lays out a certificate:
+# cert.pem (the site's certificate), chain.pem (the intermediate's),
+# fullchain.pem (the two together, the site's first) and privkey.pem.
+# Keys are ECDSA (P-256), which keeps every handshake small to read.
+# A private CA chooses its own lifetimes: these are long, so a lab image
+# kept for years still works. Public certificates are capped far shorter.
+set -euo pipefail
+ca=/var/lib/lab/ca
+tls=/etc/netns/web/nginx/tls
+mkdir -p "$ca" "$tls"
+cd "$ca"
+
+key() { openssl ecparam -name prime256v1 -genkey -noout -out "$1"; }
+
+key root.key
+openssl req -x509 -new -key root.key -subj "/CN=Shop Lab Root CA" -days 7300 -out root.pem \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+
+key intermediate.key
+openssl req -new -key intermediate.key -subj "/CN=Shop Lab Intermediate" -out intermediate.csr
+printf '%s\n' 'basicConstraints=critical,CA:TRUE,pathlen:0' \
+  'keyUsage=critical,keyCertSign,cRLSign,digitalSignature' > intermediate.ext
+openssl x509 -req -in intermediate.csr -CA root.pem -CAkey root.key -CAcreateserial \
+  -days 5475 -extfile intermediate.ext -out intermediate.pem
+
+# The responder's list of what it has issued, in "openssl ca"'s format:
+# V (valid), the expiry date, no revocation date, the serial number, and
+# the subject. It answers "good" for these and "unknown" for anything else.
+: > index.txt
+for name in www.shop.test api.shop.test; do
+  dir=$tls/$name
+  mkdir -p "$dir"
+  key "$dir/privkey.pem"
+  openssl req -new -key "$dir/privkey.pem" -subj "/CN=$name" -out "$name.csr"
+  printf '%s\n' "subjectAltName=DNS:$name" 'extendedKeyUsage=serverAuth' \
+    'keyUsage=critical,digitalSignature' \
+    'authorityInfoAccess=OCSP;URI:http://ocsp.shop.test:8888' > "$name.ext"
+  openssl x509 -req -in "$name.csr" -CA intermediate.pem -CAkey intermediate.key -CAcreateserial \
+    -days 3650 -extfile "$name.ext" -out "$dir/cert.pem"
+  cp intermediate.pem "$dir/chain.pem"
+  cat "$dir/cert.pem" "$dir/chain.pem" > "$dir/fullchain.pem"
+  chmod 600 "$dir/privkey.pem"
+  chmod 644 "$dir/cert.pem" "$dir/chain.pem" "$dir/fullchain.pem"
+  serial=$(openssl x509 -in "$dir/cert.pem" -noout -serial | cut -d= -f2)
+  ends=$(date -u -d "$(openssl x509 -in "$dir/cert.pem" -noout -enddate | cut -d= -f2)" +%y%m%d%H%M%SZ)
+  printf 'V\t%s\t\t%s\tunknown\t/CN=%s\n' "$ends" "$serial" "$name" >> index.txt
+done
+rm -f ./*.csr ./*.ext
+chmod 600 root.key intermediate.key
+
+# Every machine's trust store: the file curl and openssl read by default.
+mkdir -p /etc/ssl/certs
+cp root.pem /etc/ssl/certs/ca-certificates.crt
+chmod 644 /etc/ssl/certs/ca-certificates.crt root.pem intermediate.pem index.txt

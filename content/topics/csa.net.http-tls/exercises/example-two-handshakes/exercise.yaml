@@ -1,0 +1,52 @@
+id: example-two-handshakes
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Two handshakes"
+prompt: |
+  The shop's web server, set up and working, for you to look at from the outside. `web` (10.0.9.1) runs nginx for two sites on its one address: `www.shop.test`, the public shop, and `api.shop.test`, the partners' API, each with its own certificate from the shop's certificate authority (CA). `ca` (10.0.9.5) runs that CA's OCSP responder, `http://ocsp.shop.test:8888`, and `resolver` (10.0.9.53) is the shop's name server, which every machine asks. `office` (10.0.9.2) is a customer's laptop. Every machine in the lab trusts the shop's CA, as a company's own laptops trust its CA: topic 32 shows how that's set up.
+
+  The network labs' basics (machines, `on MACHINE COMMAND`, services named `name@machine`) are in Layers and packets' first lab, `example-follow-a-request`; `netlab show` lists the machines.
+
+  The walkthrough asks for the same page over HTTP/1.1 and HTTP/2, reads a TLS 1.3 and a TLS 1.2 handshake message by message, captures what the wire shows of each, asks web's one address for two names and for names it has no site for, tries an old TLS version, and watches the first stapled OCSP answer after a restart. Type each line yourself and read what it prints before you type the next.
+steps:
+  - label: "The machines"
+    lines: "1"
+    note: "Four machines on one switch. `netlab show` lists what each runs that the base knows (nginx on web, Unbound on resolver); the OCSP responder on ca is the lab's own service, `ocsp-responder@ca`."
+  - label: "Which HTTP?"
+    lines: "2-4"
+    note: "`curl -v` tells the story of a request on standard error, so `2>&1` sends it into `grep`, and `-o /dev/null` throws the page away. In its ClientHello curl offers two protocols by **ALPN**, `h2,http/1.1` (`h2` is HTTP/2's name in ALPN), and the server picks `h2`. The `[HTTP/2] [1]` lines are the request going out as **stream 1**, its headers as name-value pairs with lower-case names (`:method: GET`, `:path: /`, the pseudo-headers that replace HTTP/1.1's first line); the status line comes back as `HTTP/2 200`, with no reason phrase. With `--http1.1` curl offers only `http/1.1`, the server accepts it, and the exchange is HTTP/1.1's: `GET / HTTP/1.1` and `HTTP/1.1 200 OK`. Either way the TLS connection is the same (the `SSL connection using TLSv1.3` line): ALPN only decides what runs inside it."
+  - label: "Save the choice"
+    lines: "5"
+    note: "The same request again, keeping only the line that says what the server chose. `tee` prints it and saves it to `~/example/alpn.txt`."
+  - label: "A TLS 1.3 handshake"
+    lines: "6-7"
+    note: "`openssl s_client` makes a TLS connection and prints what happened; `-servername www.shop.test` is the name it asks for (SNI), `-tls1_3` allows only TLS 1.3, and `-trace` prints every record and handshake message. `sleep 1 |` keeps the connection open for a second, so the two tickets the server sends after the handshake arrive before openssl closes. The trace is long, so it goes to `~/example/trace13.txt`, and line 7 keeps only the lines that start a handshake message (four spaces, a name, `, Length`) and joins their names: `ClientHello ServerHello EncryptedExtensions Certificate CertificateVerify Finished Finished NewSessionTicket NewSessionTicket`. The client's hello, the server's hello, then the server's encrypted extensions, certificate, the signature that proves it holds the certificate's key, and its Finished; the client's Finished; and the tickets, for resuming later. `less ~/example/trace13.txt` shows the whole of it: the ClientHello's `key_share` and `server_name`, the ServerHello's `key_share`, the certificates."
+  - label: "Where the certificate travels"
+    lines: "8"
+    note: "`grep -B4` prints the four lines before the Certificate message too: its record's header. `Content Type = ApplicationData (23)` is what the record says on the wire, and `Inner Content Type = Handshake (22)` is what openssl, one end of the connection, finds inside once it has decrypted it. In TLS 1.3 every handshake message after the ServerHello travels encrypted like that, the certificate included."
+  - label: "A TLS 1.2 handshake"
+    lines: "9-11"
+    note: "The same with `-tls1_2`: `ClientHello ServerHello Certificate ServerKeyExchange ServerHelloDone ClientKeyExchange Finished NewSessionTicket Finished`. The server's certificate comes straight after its hello, then its half of the key exchange (`ServerKeyExchange`, signed with the certificate's key), then `ServerHelloDone`; the client answers with its half and its Finished, and only after the server's Finished, a second round trip, may it send its request. The Certificate's record says `Content Type = Handshake (22)` and nothing more: in TLS 1.2 it crosses the network in clear."
+  - label: "What the wire shows"
+    lines: "12-15"
+    note: "Now from outside: `tcpdump` on web, in the background (`&`) for 4 seconds (`timeout 4`), prints every packet on port 443 with `-A`, its bytes as text, while the office fetches the page once with TLS 1.3 and once with TLS 1.2 (`--tls-max 1.2`); `wait` waits for tcpdump to finish. Then `grep -o ... | wc -l` counts how often the name appears. With TLS 1.3 it appears once: in the ClientHello's server name, sent before there's any key to hide it with. With TLS 1.2, three times: that SNI, then twice in the certificate (its subject and its list of names), which crossed in clear. Someone watching a network learns the site's name either way; with TLS 1.2 they get its certificate too. ECH, which encrypts the name as well, needs support at both ends, and these don't have it."
+  - label: "Two names, one address"
+    lines: "16-17"
+    note: "Both names resolve to 10.0.9.1, so the connections go to the same address, and only the name in the ClientHello differs. For `www.shop.test` the server sends a chain of two: `0`, the site's certificate (`s:`, its subject, and `i:`, who issued it, the shop's intermediate), and `1`, the intermediate's own, issued by the shop's root, which the office already trusts. For `api.shop.test`, a different certificate: `subject=CN = api.shop.test`, saved to `~/example/api-subject.txt`. nginx chose by SNI, before anything was encrypted, which is what SNI is for."
+  - label: "A name with no site"
+    lines: "18-20"
+    note: "A name web has no site for, `old.shop.test`, and no name at all (`-noservername`, as an old client sends): both are refused with `tlsv1 unrecognized name`, and no certificate is handed out. The site file shows why: the first server for port 443 says `default_server` and `ssl_reject_handshake on`, so any handshake that matches no `server_name` lands there and is refused. Without it, the default server would be the first site for the port, and every unknown name would get www's certificate: a name mismatch for the client, and a list of your sites for anyone who scans the address. The two sites' blocks each say `listen 443 ssl http2`, a `server_name` and their own `ssl_certificate`."
+  - label: "An old version"
+    lines: "21-22"
+    note: "A TLS 1.1 handshake, with openssl's own security level lowered (`DEFAULT@SECLEVEL=0`) so that it would accept 1.1 if the server did, gets `tlsv1 alert protocol version`: the server refused. nginx.conf's `ssl_protocols TLSv1.2 TLSv1.3` decides it, once for the whole address and port. Ubuntu's own nginx.conf names TLSv1 and TLSv1.1 there too; this one doesn't."
+  - label: "The staple"
+    lines: "23-26"
+    note: "nginx restarts. The first handshake asking for a staple (`-status`) gets `OCSP response: no response sent`: nginx fetches the OCSP answer from the CA's responder only when a handshake first asks for one, and that handshake goes on without it. A second later the answer is there and stapled: `OCSP Response Status: successful` (the responder answered), `Cert Status: good` (the certificate isn't revoked) and `Next Update`, an hour after it was made, when nginx will fetch a new one. Saved to `~/example/staple.txt`. The site file's two lines are what makes it happen: `ssl_stapling on`, and `resolver 10.0.9.53`, the name server nginx asks for `ocsp.shop.test`'s address each time it fetches an answer."
+  - label: "What you saved"
+    lines: "27"
+    note: "The ALPN line, the two handshakes' message lists (and the traces they came from), the captures, the api certificate's subject and the staple. Run the checks: they compare each saved line with what the lab answers now."
+skills: [http-versions, tls-handshake, tls-server-config]

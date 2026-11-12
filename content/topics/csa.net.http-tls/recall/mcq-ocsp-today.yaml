@@ -1,0 +1,16 @@
+id: mcq-ocsp-today
+type: mcq
+rev: 1
+prompt: |
+  A colleague wants OCSP stapling switched on for a site whose certificate was issued by Let's Encrypt in November 2026. What will stapling do for that site?
+choices:
+  - "Nothing, since Let's Encrypt has put no OCSP responder's address in its certificates since May 2025"
+  - "It saves every visitor a lookup, since browsers ask Let's Encrypt's responder about each site they visit"
+  - "It is required, since from 2025 browsers refuse any Let's Encrypt certificate that arrives without one"
+  - "It makes nginx check revocation through the CRLs that Let's Encrypt publishes instead of OCSP"
+answer: 0
+explanation: |
+  Let's Encrypt, the largest public CA, dropped OCSP URLs from its certificates on 7 May 2025 and turned its responders off on 6 August 2025, for privacy: a responder learns which sites each visitor's address is looking at. A certificate with no responder's address has nothing to staple; nginx warns and goes on without. Revocation is published in CRLs now, and certificates are made to last less and less long, which topic 32 covers.
+
+  So there's no lookup to save, and no browser requires a staple (the Must-Staple extension, which asked for that, is what Let's Encrypt stopped issuing first). Stapling has nothing to do with CRLs. It still matters with CAs that run OCSP, such as companies' own, like the labs'.
+skills: [tls-server-config]

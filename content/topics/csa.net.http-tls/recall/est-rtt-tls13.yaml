@@ -1,0 +1,24 @@
+id: est-rtt-tls13
+type: estimate
+rev: 1
+prompt: |
+  A phone on a mobile network opens a new HTTPS connection to the shop, a round-trip time of 120 ms away: TCP's handshake, then TLS 1.3, with nothing remembered from an earlier visit. How many milliseconds after its first packet can it send the HTTP request? Exactly.
+unit: ms
+answer: 240
+tolerance: { absolute: 0 }
+given: { rtt: 120 }
+# One round trip for TCP, one for TLS 1.3's handshake: the learner knows
+# the 2.
+working: 2 * rtt
+mistakes:
+  - id: tls12-count
+    value: 360
+    working: 3 * rtt
+    why: That's TLS 1.2, whose full handshake takes two round trips. TLS 1.3's takes one.
+  - id: one-in-all
+    value: 120
+    working: rtt
+    why: One round trip in all is QUIC's, which does the transport's handshake and TLS 1.3's together. Over TCP, TCP's own handshake comes first.
+explanation: |
+  2 × 120 = 240 ms: one round trip for TCP's SYN and SYN-ACK, one for TLS 1.3's ClientHello and the server's reply (ServerHello to Finished), after which the client sends its Finished and its request together. TLS 1.2 would need 360 ms, and HTTP/3 on QUIC 120. A resumed TLS 1.3 connection with 0-RTT can send the request along with its ClientHello, with the replay caveat in the lesson; this phone has nothing to resume.
+skills: [http-versions]

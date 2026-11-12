@@ -1,0 +1,16 @@
+id: mcq-h2-hol
+type: mcq
+rev: 1
+prompt: |
+  The shop's pages load over HTTP/2: one TCP connection carries the page and its 40 images, each request and its answer a stream of its own. On a train's patchy mobile link, the page sometimes freezes completely for a moment, then every image arrives at once. Why does one bad moment hold up every image, not just one?
+choices:
+  - "A lost TCP packet stops every stream until it is resent, since TCP hands over bytes only in order"
+  - "HTTP/2 sends the images one at a time, so each one waits for the one before it to finish arriving"
+  - "HPACK must resend the whole header table after a loss, and each stream waits until it is rebuilt"
+  - "The browser opens six connections, and all of them wait while the first renegotiates its ALPN"
+answer: 0
+explanation: |
+  HTTP/2 interleaves many streams on one TCP connection, but TCP promises one thing underneath: the bytes arrive complete and in order. When a packet is lost, everything sent after it waits in the receiver's buffer until the missing piece is resent, whichever stream those later bytes belong to. That's head-of-line blocking moved down a layer, from HTTP to TCP. HTTP/3 runs on QUIC instead (Congestion control and QUIC), which orders each stream on its own, so a loss holds up only its own stream.
+
+  One at a time on a connection is HTTP/1.1's way, which is what HTTP/2's streams replaced. HPACK compresses headers with a table both sides keep, but a lost packet doesn't make anyone resend it: TCP resends the packet. And HTTP/2 needs only one connection per site; ALPN is agreed once, in the handshake.
+skills: [http-versions]

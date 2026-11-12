@@ -1,0 +1,11 @@
+#!/bin/bash
+# partner-sync: the warehouse's nightly order sync, run on partner. It
+# fetches the shop's open orders from the partners' API. It is an old
+# integration: its TLS library goes no further than TLS 1.2. It belongs to
+# the warehouse, not to the shop.
+if ! out=$(curl -sS --max-time 10 --tlsv1.2 --tls-max 1.2 https://api.shop.test/orders 2>&1); then
+  echo "sync failed: $out"
+  exit 1
+fi
+n=$(echo "$out" | grep -o '"orders": *[0-9]*' | grep -o '[0-9]*$')
+echo "synced ${n:-0} orders"

@@ -1,0 +1,27 @@
+# The shop's web server, its clients and its neighbours, on one switch.
+#
+#   office    10.0.9.2    a customer's laptop
+#   partner   10.0.9.3    the warehouse's server, which syncs orders
+#   monitor   10.0.9.4    the shop's uptime monitor
+#   web       10.0.9.1    nginx: www.shop.test and api.shop.test
+#   ca        10.0.9.5    the shop CA's OCSP responder, ocsp.shop.test:8888
+#   resolver  10.0.9.53   the shop's name server (Unbound)
+#
+# Every machine asks the resolver for names.
+machine office
+machine partner
+machine monitor
+machine web
+machine ca
+machine resolver
+
+lan shopnet office:eth0=10.0.9.2/24 partner:eth0=10.0.9.3/24 monitor:eth0=10.0.9.4/24 web:eth0=10.0.9.1/24 ca:eth0=10.0.9.5/24 resolver:eth0=10.0.9.53/24
+
+dns office 10.0.9.53
+dns partner 10.0.9.53
+dns monitor 10.0.9.53
+dns web 10.0.9.53
+dns ca 10.0.9.53
+
+run resolver unbound
+run web nginx
