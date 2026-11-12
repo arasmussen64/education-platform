@@ -1,0 +1,24 @@
+#!/bin/bash
+# make-examples: the certificates of the lab's two example servers, made
+# afresh by start each time the lab starts, from the lab's intermediate
+# (seed.sh makes the CA once, with the image). Made at the start, not with
+# the image, so that their lifetimes count from the day the lab started,
+# however long ago Docker built and kept the image: the examples in the
+# prompt stay true, and none of them expires in a lab left for a month.
+#   www: www.shop.test's (and shop.test's), 90 days, sent with the
+#        intermediate (chain.pem), on port 8443;
+#   legacy: legacy.shop.test's (and old.shop.test's), 400 days, sent alone,
+#        on port 9443;
+#   api: api.shop.test's (and partners.shop.test's), 30 days, sent alone on
+#        port 9443 to a client that asks for api.shop.test.
+set -euo pipefail
+. /usr/local/lib/lab/tls-servers
+i=/usr/local/lib/lab/ca/inter
+d=/usr/local/lib/lab/example
+rm -rf "$d"
+mkdir -p "$d"
+make_leaf "$d" www "$i" "$i/inter.pem" "$i/inter.key" $((90 * 24)) www.shop.test shop.test
+make_leaf "$d" legacy "$i" "$i/inter.pem" "$i/inter.key" $((400 * 24)) legacy.shop.test old.shop.test
+make_leaf "$d" api "$i" "$i/inter.pem" "$i/inter.key" $((30 * 24)) partners.shop.test api.shop.test
+cp "$i/inter.pem" "$d/chain.pem"
+chmod -R a+rX "$d"

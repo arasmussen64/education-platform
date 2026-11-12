@@ -1,11 +1,13 @@
 #!/bin/bash
-# The lab's first program: starts the two example servers on 127.0.0.1 for
-# the learner to try cert-report on, then waits for ever, as every plain
-# lab does. It runs again when the lab is restarted.
+# The lab's first program: makes the example servers' certificates afresh
+# (make-examples), starts the two example servers on 127.0.0.1 for the
+# learner to try cert-report on, then waits for ever, as every plain lab
+# does. It runs again when the lab is restarted.
 #   8443: www.shop.test's certificate, followed by the intermediate's;
 #   9443: legacy.shop.test's certificate alone, and api.shop.test's alone
 #         for a client whose SNI asks for that name.
 . /usr/local/lib/lab/tls-servers
+sudo /usr/local/lib/lab/make-examples
 d=/usr/local/lib/lab/example
 serve 8443 "$d/www.pem" "$d/www.key" -cert_chain "$d/chain.pem"
 serve 9443 "$d/legacy.pem" "$d/legacy.key" -servername api.shop.test -cert2 "$d/api.pem" -key2 "$d/api.key"

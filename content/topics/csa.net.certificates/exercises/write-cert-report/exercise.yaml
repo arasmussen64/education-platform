@@ -40,7 +40,7 @@ prompt: |
   ~/bin/cert-report localhost 9443
   ```
 
-  which, the day the lab was built (`days-left` counts down from there), print:
+  which, on the day the lab starts, print the lines below (the lab makes their certificates afresh each time it starts, and `days-left` counts down from there):
 
   ```
   names: shop.test, www.shop.test
@@ -70,4 +70,4 @@ hints:
   - "One shape that works: keep s_client's whole output in a variable, and take the server's certificate out of it with `sed -n '/^-----BEGIN CERTIFICATE-----$/,/^-----END CERTIFICATE-----$/p'` (every certificate), then `sed '/^-----END CERTIFICATE-----$/q'` (up to the end of the first). Hand that to `openssl x509` for the names, the issuer and the date."
   - "For the names: `grep -o 'DNS:[^,]*'` gives one `DNS:name` a line; take the `DNS:` off with sed, `sort`, join with `tr '\\n' ','`, then turn the commas into `, ` and drop the last one with sed."
   - "With `set -euo pipefail`, a `grep` that finds nothing stops the script, and so does openssl when the handshake fails: end such lines with `|| true`. The verdict's words are what's inside the brackets: `sed -n 's/^Verify return code: \\([0-9]*\\) (\\(.*\\))$/\\1 \\2/p'` gives `21 unable to verify the first certificate`."
-skills: [cert-chains, mutual-tls]
+skills: [cert-chains]

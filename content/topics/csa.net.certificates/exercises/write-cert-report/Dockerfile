@@ -16,11 +16,12 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # The helpers that make certificate authorities, certificates and
-# throwaway TLS servers (the lab's example servers, which start runs, and
-# the checks' own), and the checks' comparison.
-COPY tls-servers report-cases start /usr/local/lib/lab/
+# throwaway TLS servers (the lab's example servers, whose certificates
+# make-examples makes afresh each time start runs, and the checks' own),
+# and the checks' comparison.
+COPY tls-servers report-cases start make-examples /usr/local/lib/lab/
 COPY seed.sh /tmp/seed.sh
-RUN chmod 755 /usr/local/lib/lab/report-cases /usr/local/lib/lab/start \
+RUN chmod 755 /usr/local/lib/lab/report-cases /usr/local/lib/lab/start /usr/local/lib/lab/make-examples \
  && chmod 644 /usr/local/lib/lab/tls-servers \
  && bash /tmp/seed.sh && rm /tmp/seed.sh
 
