@@ -1,23 +1,117 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
+# Checkpoint 2 ends Module 2, "Virtualization, hardware and Windows". Its
+# plan is docs/plans/cloud-module-2/MODULE-2-BRIEF.md, section 5: three parts
+# in three slots (prove.build, prove.debug and prove.more, ADR-0012 as
+# amended 2026-11-11), each a lab proven locally and for free.
+#
+# Facts, each read on 2026-11-11, with where (the labs' README.txt files say
+# the same to the learner):
+# - Every price in part 1's prices.csv, on-demand, for Linux and with
+#   Windows Server included: AWS's public price files for US East (N.
+#   Virginia), Linux, Windows and Windows with SQL Server Standard
+#   (https://b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/USD/current/ec2-ondemand-without-sec-sel/US%20East%20(N.%20Virginia)/Linux/index.json
+#   and its Windows siblings, published 2026-11-10T17:38:52Z); the Azure
+#   Retail Prices API, https://prices.azure.com/api/retail/prices, East US,
+#   pay-as-you-go; Google Cloud's
+#   https://cloud.google.com/products/compute/pricing/general-purpose and
+#   .../accelerator-optimized, Iowa (us-central1). Each matched the
+#   module's November fixture where both have a row.
+# - Licence rates: SQL Server Standard $0.12 a vCPU-hour on AWS (each
+#   "Windows with SQL Std" price is the Windows price plus 0.12 x the
+#   vCPUs, 4 at least: m7i.large $0.6728 against $0.1928); $0.10 on Azure
+#   (the "SQL Server Standard" licence meters: "1-4 vCPU VM" $0.40, 8 vCPUs
+#   $0.80, 16 vCPUs $1.60); $0.12 a core on Google Cloud, "Instances with
+#   fewer than 4 vCPUs will be charged for 4 vCPUs", and Windows Server
+#   $0.046 a visible vCPU (https://cloud.google.com/compute/disks-image-pricing).
+# - Sizes, memory and baselines: AWS's accelerated table (g4dn 16 GiB, g5
+#   and g6 22 GiB, g6e 44 GiB a card,
+#   https://docs.aws.amazon.com/ec2/latest/instancetypes/ac.html); AWS's
+#   burstable concepts page (t3.medium 24 credits an hour, t3.large 36:
+#   baselines 20% and 30%,
+#   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-credits-baseline-concepts.html);
+#   Microsoft Learn's size pages for Bsv2 (B2ts_v2 20%, B2ls_v2 30%,
+#   B2s_v2 40%, B4ls_v2 30%, B4s_v2 40%), Esv5, Dpsv6, NCasT4_v3 (16 GB T4,
+#   28 GiB), NC_A100_v4 (80 GB, 220 GiB) and NVadsA10_v5 (24 GB, 440 GiB),
+#   under https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/.
+#   Azure's first B-series (B1s, B2s, B2ms) is End of Life and is left out
+#   of the table; the burstable Azure rows are Bsv2.
+# - samba-tool refuses a domain minimum password length above 14 ("Minimum
+#   password length must be in the range of 0 to 14!"), tried in part 3's
+#   lab; the clinic's version asks for 12.
+#
+# Counted (estimated_minutes): part 1 60, part 2 40, part 3 60 (each the
+# target its prompt states, reading its README and briefs included) and the
+# explain 20: 180 of work, and about 20 more for starting the three labs
+# (part 3's domain controller takes a minute to provision), opening their
+# shells and running their checks. 200.
 id: csa.m2.checkpoint
 kind: checkpoint
-status: planned
-title: 'Checkpoint 2: the right machine'
-summary: Right-size five described workloads across the three clouds to a stated sizing policy, including a move to Arm and a GPU job.
+status: ready
+title: "Checkpoint 2: the right machine"
+summary: "Size five workloads across the three clouds to a stated policy, licences and hours included; find out from four slow VMs' evidence why each is slow and what would fix it; and stand up an Active Directory domain with a Linux server joined so that only one group may log in."
 prerequisites:
-- csa.hw.hypervisors
-- csa.hw.cpu-architectures
-- csa.hw.cores-memory
-- csa.hw.disks
-- csa.hw.gpus
-- csa.hw.windows-ad
-- csa.hw.domain-join
-- csa.hw.windows-licensing
-estimated_minutes: 480
+  - csa.hw.hypervisors
+  - csa.hw.cpu-architectures
+  - csa.hw.cores-memory
+  - csa.hw.disks
+  - csa.hw.gpus
+  - csa.hw.windows-ad
+  - csa.hw.domain-join
+  - csa.hw.windows-licensing
+estimated_minutes: 200
 rev: 1
 objectives:
-- Right-size five described workloads across the three clouds to a stated sizing policy, including a move to Arm and a GPU job. Code checks each choice and its monthly cost within 15%.
-- Diagnose four slow VMs from the evidence each one left, and choose the fix that fits each cause.
-- Stand up a small Active Directory domain and join a Linux server to it so that only one group may log in, and explain how Entra ID would differ. An optional Azure version joins a Windows and a Linux VM to a Windows Server domain controller.
+  - "Size five workloads across AWS, Azure and Google Cloud to a stated sizing policy, from a week of each one's metrics: the busy hours and the memory peak with headroom, the processor it can run on (a move to Arm where nothing stops it), a GPU's memory, burstable sizes only where they fit, then the cheapest size that does, aiming for 60 minutes on your own clock."
+  - "Cost each choice for a month, for the hours it runs, with Windows Server and SQL Server licences included, and work out what the new sizes save."
+  - "Find out why a VM is slow from the evidence it left, and choose the fix that fits each cause, aiming for 40 minutes on your own clock."
+  - "Stand up a small Active Directory domain on a Linux domain controller, with its DNS, password rules, people, a group and a Group Policy object, and join a Linux server to it so that only one group may log in, with every fix lasting past a reboot, aiming for 60 minutes on your own clock."
+  - "Explain what a vCPU is, how to tell the causes of a slow VM apart, what Arm and a GPU do and don't change, what a domain controller is for and how Entra ID differs, and what Windows costs in the cloud."
+prove:
+  build: build-the-right-machine
+  debug: debug-slow-vms
+  more:
+    - id: build-stand-up-the-domain
+      versions: [build-stand-up-the-domain-clinic]
+  explain:
+    prompt: |
+      A team's 4-vCPU Linux VM is slow at busy times. Their plan: move it to an 8-vCPU Arm instance with a GPU "to be safe", and put the company's new Windows domain controller on the same machine to save money.
+
+      In your own words: what a vCPU on a cloud VM really is, and what the hypervisor does and doesn't keep apart; how you would tell from the VM's own numbers whether it is short of CPU, held back by a limit of its own, losing CPU to the host, or short of memory, and why more vCPUs would fix only one of those; what moving to Arm needs and what it saves; what a GPU would and wouldn't change here; what a domain controller is for, and how Entra ID differs from Active Directory Domain Services; and what Windows on that machine would cost, and whether licences the company already owns could be used.
+    rubric:
+      - id: slice
+        required: true
+        description: "A vCPU is a share of a physical core handed out by a hypervisor: on most x86 sizes one of a core's two hardware threads, on Arm sizes a whole core. The hypervisor keeps guests apart in memory and devices, but they still share the hardware (caches, memory bandwidth, disks, network, and on burstable sizes the CPU itself), which is where steal and noisy neighbours come from."
+      - id: diagnose
+        required: true
+        description: "A different number for each cause: the run queue (vmstat's r) above the CPU count with no steal and no limit for a machine that is too small; throttled periods in the service's cpu.stat for a CPU quota of its own; steal (st, or /proc/stat's steal over an interval) for CPU the host withheld, as when a burstable size's credits run out; memory pressure (pressure/memory, swapping in vmstat, memory.events high climbing) for memory. Only the first is fixed by more vCPUs; a limit is raised, a burstable size is changed for a fixed one, and memory is added."
+      - id: arm
+        required: true
+        description: "Arm needs software built for it: compiled programs, native libraries and container images rebuilt for Arm, and anything that comes only as an x86 binary (a vendor's agent, say) checked or replaced. What it saves is price for the same work, not speed for free: at the same size, from about 1% (Google Cloud's C4A against N4) to about 30% (Azure's Dpsv6 against Dsv6) in November 2026's list prices."
+      - id: gpu
+        required: true
+        description: "A GPU helps only work written to use one, such as a model's arithmetic, and its memory, not its speed, decides whether a job fits on it. For a web service that's slow at busy times it changes nothing but the bill."
+      - id: directory
+        required: true
+        description: "A domain controller holds the directory (accounts, groups, organisational units, password rules and Group Policy), answers DNS for the domain so members can find it by its SRV records, and proves who people and machines are with Kerberos. Entra ID signs people in to web and SaaS applications with tokens over HTTPS (OpenID Connect, OAuth, SAML); it offers no Kerberos or LDAP for servers, no organisational units and no Group Policy, and devices are Entra joined and managed by MDM instead. A domain controller holds the keys to every account, so it shares a machine with nothing: putting it on an application's server is a risk, not a saving."
+      - id: licence
+        required: true
+        description: "Windows Server licence included costs about $0.046 a vCPU-hour on top of the machine on all three clouds, and the Arm sizes list no Windows price at all, so Windows (the domain controller) couldn't run on that Arm instance. Licences the company owns can be used on Azure if they carry Software Assurance (Azure Hybrid Benefit, then the Linux price); on AWS and Google Cloud, Windows Server doesn't move to shared VMs, only old licences onto dedicated hardware."
+      - id: method
+        required: false
+        description: "Measure first, from the VM's own numbers over its busy hours; change one thing; measure again; and size the replacement on a week of metrics, not on a hunch or a single bad afternoon."
+    model_answer: |
+      A vCPU isn't a processor of its own. A hypervisor shares out the physical machine, and on most x86 sizes a vCPU is one of a core's two hardware threads, so 4 vCPUs are two cores; on Arm sizes each vCPU is a whole core. The hypervisor keeps guests apart in memory and devices, but they still share the hardware underneath, caches, memory bandwidth, disks and the network, and on a burstable size even the CPU time itself, which is why a guest can lose time to the host.
+
+      So before anyone buys a bigger machine I'd look at the VM's own numbers at a busy time, because each cause has its own. If vmstat's run queue sits above 4 with no steal and no limit, it is simply too small. If the service's cgroup cpu.stat shows its throttled periods climbing, it's being held back by a CPU quota of its own, and the fix is to raise the quota. If st is high in vmstat or mpstat, or /proc/stat's steal counter grows fast over a minute, the host is withholding CPU, as it does when a burstable size has spent its credits; the fix is a fixed-size instance (or unlimited mode), not more vCPUs. If available memory is low, it's swapping, and pressure/memory and memory.events high are climbing, it's short of memory, and a memory limit or more memory is the fix. Only the first of those four is fixed by more vCPUs; the others would carry on on a machine twice the size.
+
+      Moving to Arm needs everything on the VM built for Arm: our own programs recompiled, native libraries and container images rebuilt, and anything a vendor ships only as an x86 binary checked first, because it won't run. What Arm saves is price for the same work, not free speed: anything from about 1% on Google Cloud to about 30% on Azure, at list prices for the same size. A GPU only helps work written for one, like a model's maths, and whether a job fits depends on the card's memory, not its speed; for a slow web service it changes nothing except the bill.
+
+      A domain controller holds the company's directory, its accounts, groups, organisational units, password rules and Group Policy, answers DNS for the domain so members find it through SRV records, and proves who people and machines are with Kerberos. Entra ID is a cloud identity service for signing people in to web and SaaS applications with tokens over HTTPS; it gives servers no Kerberos or LDAP, has no OUs or Group Policy, and manages devices through MDM instead. A domain controller holds the keys to everything, so it should never share a machine with an application. And it couldn't share this one anyway: Windows Server licence included costs about $0.046 a vCPU-hour on every cloud, and the Arm sizes have no Windows price at all. Licences the company owns could be used on Azure through Azure Hybrid Benefit if they have Software Assurance; on AWS and Google Cloud Windows Server can't be brought to shared VMs, only older licences to dedicated hardware. So: measure first, fix the cause the numbers show, and give the domain controller its own small Windows VM.
+# A way through for a learner who's stuck on part 1 (ADR-0012): a solved
+# sibling in another story, the build in four steps with the other rows
+# done for them, and fresh versions in other stories. Part 3's practice is
+# the two Active Directory topics, which its failed checks bring back on
+# Today; its fresh version is the second try.
+unstuck:
+  example: example-the-right-machine-clinic
+  steps: [step-size-from-the-metrics, step-count-the-licence, step-arm-and-gpu, step-the-whole-sheet]
+  versions: [build-the-right-machine-bakery, build-the-right-machine-print-shop]

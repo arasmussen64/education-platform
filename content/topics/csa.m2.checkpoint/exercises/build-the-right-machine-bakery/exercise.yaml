@@ -1,0 +1,37 @@
+id: build-the-right-machine-bakery
+stage: build
+runtime: lab
+rev: 1
+title: "The right machine for the bakery"
+prompt: |
+  A fresh version of part 1, in another story: a second try that can't be passed from memory. A bakery chain's cloud contracts are up for renewal, and before it signs, it wants each of its five workloads on the machine that fits it, and to know what a month of each will cost.
+
+  Everything is in `/srv/sizing/`:
+
+  - `README.txt`: the bakery's sizing policy, how a month is costed (Windows Server and SQL Server included), where every price came from, and what each file's columns mean. Read it first: the checks hold you to it.
+  - `prices.csv`: the sizes a workload may move to, on AWS, Azure and Google Cloud, with their list prices, read on 2026-11-11.
+  - `workloads/w1/` to `workloads/w5/`: for each workload a `brief.txt` (what it is, where it runs now, what it runs, the clouds it may move to, its licences, its hours and its peaks) and a `metrics.csv`, a week of its numbers from the machine it runs on now.
+  - `metric-summary FILE`, a command that prints each column's average, median, 95th percentile and largest value.
+
+  Fill in `~/sizing/answers.csv` (`nano ~/sizing/answers.csv`): for each workload, the size you choose, named as `prices.csv` names it, and what a month of it will cost; and on the last line, the saving: what the five cost a month today, on the machines they run on now, minus what your five rows add up to.
+
+  A size counts when it meets the policy and the workload's brief, and costs at most 15% more a month than the cheapest size that does. Every monthly cost, and the saving, is checked to within 15% of the check's own sum for the sizes you chose. There are no steps and no hints here, only the policy and the evidence.
+
+  **Time yourself.** A review like this should take about 60 minutes. Note the time when you open the lab's shell (`date`). Nothing stops you at 60 minutes: the target is yours to hold yourself to.
+
+  When every row is filled in, run the checks.
+test_skills:
+  sheet-complete: [csa.linux.shell/sed-awk]
+  data-untouched: [csa.linux.shell/navigate]
+  w1-fits: [csa.hw.cores-memory/right-size, csa.hw.cpu-architectures/rebuild-inventory]
+  w1-not-oversized: [csa.hw.cores-memory/right-size]
+  w2-fits: [csa.hw.cores-memory/right-size]
+  w2-not-oversized: [csa.hw.windows-licensing/sql-editions]
+  w3-fits: [csa.hw.cpu-architectures/price-performance, csa.hw.cpu-architectures/rebuild-inventory]
+  w3-not-oversized: [csa.hw.cores-memory/right-size]
+  w4-fits: [csa.hw.gpus/vram-fit]
+  w4-not-oversized: [csa.hw.gpus/gpu-instance-choice]
+  w5-fits: [csa.hw.cores-memory/burst-credits]
+  w5-not-oversized: [csa.hw.cores-memory/burst-credits]
+  estimates-right: [csa.hw.windows-licensing/licence-included]
+  saving-right: [csa.hw.windows-licensing/licence-included]

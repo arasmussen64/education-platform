@@ -1,0 +1,29 @@
+#!/bin/bash
+# Usage: metric-summary FILE
+# Sums up a metrics file the way a cloud's monitoring page does: for each
+# column after the first (the sample number), how many samples there are,
+# their average, the median, the 95th percentile and the largest.
+# The percentiles are nearest-rank ones: sort the samples from smallest to
+# largest, and take the one at position 50% (or 95%) of the count, rounded
+# up. The raw file is there for anyone who wants to check with sort and awk.
+set -euo pipefail
+
+if [ $# -ne 1 ] || [ ! -r "$1" ]; then
+  echo "usage: metric-summary FILE  (a CSV file with a header line)" >&2
+  exit 2
+fi
+file=$1
+header=$(head -n 1 "$file")
+columns=$(echo "$header" | awk -F, '{print NF}')
+
+printf '%-14s %8s %9s %9s %9s %9s\n' column samples average median p95 max
+for ((c = 2; c <= columns; c++)); do
+  name=$(echo "$header" | cut -d, -f"$c")
+  tail -n +2 "$file" | cut -d, -f"$c" | sort -n | awk -v name="$name" '
+    { v[NR] = $1; sum += $1 }
+    END {
+      k50 = NR * 50 / 100; if (k50 > int(k50)) k50 = int(k50) + 1
+      k95 = NR * 95 / 100; if (k95 > int(k95)) k95 = int(k95) + 1
+      printf "%-14s %8d %9.2f %9.2f %9.2f %9.2f\n", name, NR, sum / NR, v[k50], v[k95], v[NR]
+    }'
+done

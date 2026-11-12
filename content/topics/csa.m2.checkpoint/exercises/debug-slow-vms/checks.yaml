@@ -1,0 +1,107 @@
+# The checks for "Four slow VMs", part 2 of Checkpoint 2. Three for each
+# VM: its cause, the number that shows it, and its fix, each a check of its
+# own so a failure points at one skill. The evidence checks work out their
+# number from the VM's own files, the way the README says, rather than
+# holding it. The descriptions name what must be true, never what is wrong
+# with a VM: the learner sees them on the first run of the checks.
+# The shapes are chosen so the lazy readings fail: vm-a's load looks like
+# too few CPUs, vm-b's throttling since boot is a seventh of its minute's,
+# vm-c's disk waits look like a slow disk, and vm-d's average looks healthy.
+# A check that finds something wrong prints what it found, which fails the
+# comparison: it exits 0 so the checker shows that sentence.
+checks:
+  - id: vm-a-cause
+    description: "vm-a's cause is the one its evidence shows."
+    command: |
+      a=$(grep -m1 '^cause *=' /home/learner/diagnosis/vm-a.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = steal ] && echo right || echo "vm-a: cause '$a' isn't what its evidence shows"
+    expect:
+      equals: right
+  - id: vm-a-evidence
+    description: "vm-a's evidence is the number the README pairs with its cause, to within 1.0."
+    command: |
+      a=$(grep -m1 '^evidence *=' /home/learner/diagnosis/vm-a.txt | cut -d= -f2- | tr -d ' \r%')
+      t=$(paste /srv/tickets/vm-a/stat-before.txt /srv/tickets/vm-a/stat-after.txt | awk '{for (i = 2; i <= 9; i++) s += $(i + 11) - $i; print ($20 - $9) * 100 / s}')
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 1.0 && d >= -1.0) print "right"; else print "vm-a: evidence " a " is not the number its cause is shown by"}'
+    expect:
+      equals: right
+  - id: vm-a-fix
+    description: "vm-a's fix is the change that addresses its cause."
+    command: |
+      a=$(grep -m1 '^fix *=' /home/learner/diagnosis/vm-a.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = fixed-size-or-unlimited ] && echo right || echo "vm-a: fix '$a' doesn't address its cause"
+    expect:
+      equals: right
+  - id: vm-b-cause
+    description: "vm-b's cause is the one its evidence shows."
+    command: |
+      a=$(grep -m1 '^cause *=' /home/learner/diagnosis/vm-b.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = cpu-quota ] && echo right || echo "vm-b: cause '$a' isn't what its evidence shows"
+    expect:
+      equals: right
+  - id: vm-b-evidence
+    description: "vm-b's evidence is the number the README pairs with its cause, to within 1.0."
+    command: |
+      a=$(grep -m1 '^evidence *=' /home/learner/diagnosis/vm-b.txt | cut -d= -f2- | tr -d ' \r%')
+      c=/srv/tickets/vm-b/cgroup
+      t=$(awk '$1 == "nr_periods" {p[FILENAME] = $2} $1 == "nr_throttled" {n[FILENAME] = $2} END {print (n[ARGV[2]] - n[ARGV[1]]) * 100 / (p[ARGV[2]] - p[ARGV[1]])}' $c/cpu.stat.before $c/cpu.stat.after)
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 1.0 && d >= -1.0) print "right"; else print "vm-b: evidence " a " is not the number its cause is shown by"}'
+    expect:
+      equals: right
+  - id: vm-b-fix
+    description: "vm-b's fix is the change that addresses its cause."
+    command: |
+      a=$(grep -m1 '^fix *=' /home/learner/diagnosis/vm-b.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = raise-cpu-quota ] && echo right || echo "vm-b: fix '$a' doesn't address its cause"
+    expect:
+      equals: right
+  - id: vm-c-cause
+    description: "vm-c's cause is the one its evidence shows."
+    command: |
+      a=$(grep -m1 '^cause *=' /home/learner/diagnosis/vm-c.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = memory-pressure ] && echo right || echo "vm-c: cause '$a' isn't what its evidence shows"
+    expect:
+      equals: right
+  - id: vm-c-evidence
+    description: "vm-c's evidence is the number the README pairs with its cause, to within 0.5."
+    command: |
+      a=$(grep -m1 '^evidence *=' /home/learner/diagnosis/vm-c.txt | cut -d= -f2- | tr -d ' \r%')
+      t=$(awk '$1 == "some" {split($2, f, "="); print f[2]}' /srv/tickets/vm-c/pressure/memory)
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 0.5 && d >= -0.5) print "right"; else print "vm-c: evidence " a " is not the number its cause is shown by"}'
+    expect:
+      equals: right
+  - id: vm-c-fix
+    description: "vm-c's fix is the change that addresses its cause."
+    command: |
+      a=$(grep -m1 '^fix *=' /home/learner/diagnosis/vm-c.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = more-memory-or-raise-throttle ] && echo right || echo "vm-c: fix '$a' doesn't address its cause"
+    expect:
+      equals: right
+  - id: vm-d-cause
+    description: "vm-d's cause is the one its evidence shows."
+    command: |
+      a=$(grep -m1 '^cause *=' /home/learner/diagnosis/vm-d.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = single-thread ] && echo right || echo "vm-d: cause '$a' isn't what its evidence shows"
+    expect:
+      equals: right
+  - id: vm-d-evidence
+    description: "vm-d's evidence is the number the README pairs with its cause, to within 1.0."
+    command: |
+      a=$(grep -m1 '^evidence *=' /home/learner/diagnosis/vm-d.txt | cut -d= -f2- | tr -d ' \r%')
+      t=$(awk '$1 == "Average:" && $2 ~ /^[0-9]+$/ && $3 > m {m = $3} END {print m}' /srv/tickets/vm-d/mpstat.txt)
+      awk -v a="$a" -v t="$t" 'BEGIN {d = a - t; if (a ~ /^[0-9]+(\.[0-9]+)?$/ && d <= 1.0 && d >= -1.0) print "right"; else print "vm-d: evidence " a " is not the number its cause is shown by"}'
+    expect:
+      equals: right
+  - id: vm-d-fix
+    description: "vm-d's fix is the change that addresses its cause."
+    command: |
+      a=$(grep -m1 '^fix *=' /home/learner/diagnosis/vm-d.txt | cut -d= -f2- | tr -d ' \r')
+      [ "$a" = fix-the-program ] && echo right || echo "vm-d: fix '$a' doesn't address its cause"
+    expect:
+      equals: right
+  - id: evidence-untouched
+    description: "The evidence in /srv/tickets is as it was saved: nothing changed, added or removed."
+    command: |
+      [ "$(cd /srv/tickets && find . -type f | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/lib/lab/tickets.sha256)" ] && echo untouched || echo changed
+    expect:
+      equals: untouched

@@ -240,6 +240,32 @@ describe('more than one track', () => {
     ).toBeInTheDocument()
   })
 
+  it("numbers a checkpoint's parts in the proof checks passed, as its page does", async () => {
+    // Checkpoint 2 has a third part in prove.more (ADR-0012, amended
+    // 2026-11-11): passing the build and that part leaves the debug and the
+    // explain to do, and the note must not read as if only those were left.
+    const checkpoint = getTopic('csa.m2.checkpoint')!
+    const part3 = checkpoint.prove.more?.[0]
+    expect(part3).toBeDefined()
+    renderMap(
+      [
+        attempt(checkpoint.id, checkpoint.prove.build, 'code_check', true),
+        attempt(checkpoint.id, part3?.versions?.[0], 'code_check', true),
+      ],
+      { path: '/map/cloud-solutions-architect' },
+    )
+    const link = await screen.findByRole(
+      'link',
+      { name: checkpoint.title },
+      { timeout: 15_000 },
+    )
+    const item = link.closest('li')
+    if (!item) throw new Error(`No row for ${checkpoint.title}`)
+    expect(
+      await within(item).findByText('Proof checks passed: part 1 and part 3'),
+    ).toBeInTheDocument()
+  }, 20_000)
+
   it('says when there is no such track', () => {
     renderMap([], { path: '/map/nothing' })
     expect(

@@ -1,0 +1,26 @@
+id: example-the-right-machine-clinic
+stage: worked_example
+runtime: lab
+rev: 1
+title: "A sizing review, worked through"
+prompt: |
+  A solved sibling of the checkpoint's build, in another story: a clinic's three workloads, an appointment API that runs on far too big a machine, a Windows records server with SQL Server Standard, and a GPU job that reads scanned letters each night. The walkthrough sizes each one to the same kind of policy the checkpoint uses, in the same order every time: the brief, the numbers, the policy, the price list, the cheapest that fits, its cost for the hours it runs. Then it writes the sheet. Type each line yourself in the lab's shell and read what it prints before you type the next; the comment lines (starting with `#`) say what the numbers mean, and you can leave them out.
+steps:
+  - label: "Read the rules first"
+    lines: "6-7"
+    note: "`/srv/sizing/README.txt` is the whole job in one page: the sizing policy (the 95th percentile of CPU at most 60% of the new vCPUs, the memory peak at most 80% of the new memory, a GPU only for a job that uses one, with its memory peak at most 90% of the card's, burstable sizes only for short peaks that the baseline covers), how a month is costed with Windows Server and SQL Server, and what each column of each file means. Every number after this comes from applying it."
+  - label: "Each brief, and its week in four numbers"
+    lines: "8-13"
+    note: "For each workload, the brief first: which clouds it may move to, what it runs (the security agent in c1 comes only as an x86 program, so no Arm size can run it), its licences, how many hours a month it runs and whether its peaks are short. Then `metric-summary` turns a week of samples into the four numbers a sizing needs: c1's 95th percentile of CPU is 10.2% of the 8 vCPUs it runs on now, and its memory never goes above 5.4 GiB. The average, 4.6%, would undersize it; the largest, 33%, a single spike, would oversize it."
+  - label: "c1: the policy, then the price list"
+    lines: "15-20"
+    note: "10.2% of 8 vCPUs is 0.82 vCPUs in its busy hours; with at most 60% of the new size busy, that's 0.82 ÷ 0.6 = 1.37 vCPUs, so 2 will do. Memory: 5.4 ÷ 0.8 = 6.75 GiB, so 8. The `awk` line keeps only the rows of prices.csv on Google Cloud, x86, with at least those numbers and no burstable baseline (its peaks are long), prints a month's price beside each name, and `sort -n` puts the cheapest first: `n4-standard-2` at $66.21, against $264.84 for the machine it runs on now. `c4a-standard-2`, an Arm size, is 66 cents a month cheaper and can't run the agent."
+  - label: "c2: sized on memory, costed with its licences"
+    lines: "22-27"
+    note: "The database needs only 1.23 vCPUs at its busy hours, so 2, but 14.5 GiB of memory, so 16: a memory-optimised size. Its cost has three parts: `windows_hourly` (the machine with Windows Server), plus SQL Server Standard at $0.12 a vCPU on AWS, where a VM of fewer than 4 vCPUs pays for 4. `r7i.large` has 2 vCPUs and 16 GiB: ($0.2243 + 4 × $0.12) × 730 = $514.14. The 4-vCPU floor is why a 2-vCPU size saves less on SQL Server than you'd think, and still wins here."
+  - label: "c3: GPU memory first, and the hours it runs"
+    lines: "29-35"
+    note: "A GPU job needs its model to fit the card: 11.8 GiB at most 90% of the card is 13.11 GiB, and the `gpu_mem_gib` column has every card in GiB, though AWS states its T4 as 16 GiB and Azure the same card as 16 GB (14.90 GiB). Both T4s hold it, on any cloud, and both cost $0.526 an hour: for 90 hours a month, $47.34, a tie, and either is right. The A10G it runs on now fits too, at nearly twice the price."
+  - label: "Add it up and write the sheet"
+    lines: "37-46"
+    note: "Today's three machines, costed the same way (c2 with both licences, c3 for its 90 hours), come to $1,711.14 a month; the new ones to $627.69; the saving is $1,083.45. `cat > ~/sizing/answers.csv <<'EOF'` writes every line up to `EOF` into the sheet: the header, one row per workload with its size and a month of it, and the saving. Then run the checks: each workload's fit, its price against the cheapest that fits, every monthly cost and the saving."
