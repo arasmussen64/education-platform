@@ -7,6 +7,9 @@ Requires=netlab.service
 PartOf=netlab.service
 
 [Service]
+# Journal lines say which service and machine wrote them ("unbound@resolver"),
+# not "ip", the program that enters the machine.
+SyslogIdentifier=%p@%i
 Type=notify
 ExecStartPre=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/install -d -m 755 /run/haproxy
 ExecStartPre=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/haproxy -c -q -f /etc/haproxy/haproxy.cfg

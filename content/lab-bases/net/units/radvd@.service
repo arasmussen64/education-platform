@@ -8,6 +8,9 @@ Requires=netlab.service
 PartOf=netlab.service
 
 [Service]
+# Journal lines say which service and machine wrote them ("unbound@resolver"),
+# not "ip", the program that enters the machine.
+SyslogIdentifier=%p@%i
 Type=simple
 ExecStartPre=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/radvd --configtest --config /etc/radvd.conf
 ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/radvd --nodaemon --config /etc/radvd.conf --pidfile /run/radvd.pid --logmethod stderr_clean

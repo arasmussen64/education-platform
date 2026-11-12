@@ -1,6 +1,7 @@
 # The base's test server, web-svc, on one of the lab's machines: port 8080
 # answers each connection with the address it came from, port 9000 counts
-# the bytes it was sent. "systemctl status web-svc@web".
+# the bytes it was sent. "run web web-svc" in the topology enables it;
+# "systemctl status web-svc@web".
 [Unit]
 Description=The test server on %i
 After=netlab.service
@@ -8,6 +9,9 @@ Requires=netlab.service
 PartOf=netlab.service
 
 [Service]
+# Journal lines say which service and machine wrote them ("web-svc@web"),
+# not "ip", the program that enters the machine.
+SyslogIdentifier=%p@%i
 ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/web-svc
 Restart=on-failure
 

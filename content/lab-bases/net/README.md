@@ -69,7 +69,7 @@ sysctl r1 net.ipv4.conf.all.rp_filter=1
 netem isp eth2 delay 20ms loss 1%    # delay and loss on one end of a link (egress only)
 mtu r1 eth1 1400
 tunnel cloud vti0 vti local 203.0.113.2 remote 198.51.100.2 key 7 addr 169.254.10.2/30
-run r1 frr                           # services: frr strongswan named unbound nginx haproxy nftables radvd
+run r1 frr                           # services: frr strongswan named unbound nginx haproxy nftables radvd web-svc
 ```
 
 At every boot `netlab up` sets every kernel setting a lab depends on explicitly, in every machine, because a new namespace copies the settings of the machine Docker runs on and Docker Desktop and a CI runner differ: `ip_forward` and IPv6 forwarding first (1 on a router, 0 on a host), then `rp_filter` 0, redirects off, `accept_dad` 0 (IPv6 addresses usable at once; a lab can turn it back on with a `sysctl` word), `accept_ra` off on routers, the ephemeral port range 32768 to 60999, CUBIC and `ping_group_range`. IPv6 addresses are added `nodad`. A `tunnel` line of type `vti` also sets the tunnel's `disable_policy`.
@@ -99,8 +99,11 @@ Each daemon runs as a systemd unit per machine on the lab machine, all after `ne
 | `haproxy@M` | HAProxy, after `haproxy -c` | `/etc/haproxy/haproxy.cfg`, stats socket `/run/haproxy/admin.sock` |
 | `nftables@M` | `nft -f /etc/nftables.conf`, before the machine's other services | the machine's firewall, exactly as Module 1 taught for one server: `systemctl enable nftables@gw` |
 | `radvd@M` | radvd, after `radvd --configtest` | `/etc/radvd.conf` |
+| `web-svc@M` | the base's test server, `web-svc` (8080 answers with the caller's address, 9000 counts the bytes sent) | none |
 
 So prompts say `sudo systemctl restart frr@r2`, `systemctl reload nginx@web`, `journalctl -u haproxy@lb`.
+
+A unit's journal lines carry its name and machine (`unbound@resolver[812]: ...`), set by `SyslogIdentifier=`; a daemon that logs to syslog itself still uses its own name (`bgpd`, `named`).
 
 **The plain units say what to type.** On the lab machine, `frr.service`, `strongswan`, `named` (and `bind9`), `unbound`, `nginx`, `haproxy`, `radvd` and `nftables` never start their daemon: a habit-typed `sudo systemctl restart frr` fails, systemd points at `systemctl status frr.service`, and that shows "Not on this lab machine: frr runs on each machine, as frr@MACHINE" and the line to type. (`reload` and `enable` on them only say the job doesn't apply; `status` always shows the advice.)
 
@@ -179,7 +182,7 @@ Checks source `. /usr/local/lib/netlab/checklib.sh` and run as root on the lab m
 | `bgp-best M PREFIX` | the path BGP chose: `via 192.0.2.2, localpref 100, med 0, path 65010 65100, chosen by Local Pref`, or `none` |
 | `intact` | the sealed scenery is unchanged |
 
-And from `/usr/local/bin`, for learners and checks: `looking-glass M 'show ...'` (FRR's `vtysh` on a router that isn't yours, show commands only), `holdconns N HOST PORT [SECONDS]` (opens N connections at once with one 3-second deadline and holds them; prints `opened X of N`), `holdserver PORT...` (accepts and holds connections, IPv4 and IPv6), `web-svc` (a test server: 8080 answers with the caller's address, 9000 counts the bytes sent).
+And from `/usr/local/bin`, for learners and checks: `looking-glass M 'show ...'` (FRR's `vtysh` on a router that isn't yours, show commands only), `holdconns N HOST PORT [SECONDS]` (opens N connections at once with one 3-second deadline and holds them; prints `opened X of N`), `holdserver PORT...` (accepts connections, IPv4 and IPv6, and holds each one until the client closes it), `web-svc` (a test server: 8080 answers with the caller's address, 9000 counts the bytes sent).
 
 The kernel's own state, from the lab machine: `ip -j -n M route`, `ip -j -n M addr`, `on M ip xfrm state`, `on M ss -tanH`, `on M conntrack -L`, `on M nft -j list ruleset`, `on M tc -j qdisc`, `on M sysctl -n KEY`. Daemons: `on resolver unbound-control ...`, `on lb sh -c 'echo "show stat" | socat stdio /run/haproxy/admin.sock'` (status is the 18th comma-separated field), `dig @server`, `on M rndc status`, `on M swanctl --list-sas`. Placeholder interfaces make whole interface lists unreliable, so checks name the interface they read.
 

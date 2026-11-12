@@ -9,6 +9,9 @@ PartOf=netlab.service
 Before=frr@%i.service strongswan@%i.service named@%i.service unbound@%i.service nginx@%i.service haproxy@%i.service radvd@%i.service
 
 [Service]
+# Journal lines say which service and machine wrote them ("unbound@resolver"),
+# not "ip", the program that enters the machine.
+SyslogIdentifier=%p@%i
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/nft -f /etc/nftables.conf

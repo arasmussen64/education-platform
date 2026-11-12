@@ -8,6 +8,9 @@ Requires=netlab.service
 PartOf=netlab.service
 
 [Service]
+# Journal lines say which service and machine wrote them ("unbound@resolver"),
+# not "ip", the program that enters the machine.
+SyslogIdentifier=%p@%i
 Type=notify
 ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/charon-systemd
 ExecStartPost=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/swanctl --load-all --noprompt
