@@ -2,7 +2,8 @@
 # why-not-cases CASE...: the checks' test of the learner's ~/bin/why-not.
 # Each CASE is WHERE:WANT. WHERE is "on" (the office's own network, shop)
 # or "off" (the back network, through r1); WANT is open, refused, dropped,
-# or no-arp (an address on the office's network that nobody owns).
+# or no-arp (an address on the office's network that nobody owns, from the
+# same range as the check's machines).
 #
 # For every case but no-arp, it plugs a throwaway machine of its own into
 # that network's switch (chk-why1 ...), at an address from .100 to .149,
@@ -67,7 +68,9 @@ for case in "$@"; do
     switch=back net=10.0.9 gw=10.0.9.1
   fi
   if [ "$want" = no-arp ]; then
-    pick 200 249
+    # From the same range as the check's machines, not the range the prompt
+    # gives for trying the script out: an address can't give the answer away.
+    pick 100 149
     addr=$net.$PICKED
     pick 20000 29999
     port=$PICKED
