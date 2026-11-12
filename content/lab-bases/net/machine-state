@@ -49,12 +49,21 @@ ip -n "$n" -o addr show permanent | grep -v 'scope link' | awk '{print "addr", $
 # too, at the start of the line, and only ordinary (unicast) routes, which
 # have none, are kept: not the kernel's local, broadcast, anycast and
 # multicast entries.
+# The numbers kept are then written back as words for whoever reads netlab
+# verify's message (scope 253 is "link", 254 "host").
 ip -N -n "$n" route show table all \
   | grep -Ev '^fe80::/64 |expires' \
   | awk '$1 !~ /^[0-9]+$/ {
       proto = "3"
       for (i = 1; i <= NF; i++) if ($i == "proto") proto = $(i + 1)
-      if (proto == "2" || proto == "3" || proto == "4") print "route", $0
+      if (proto != "2" && proto != "3" && proto != "4") next
+      line = " " $0 " "
+      sub(/ proto 2 /, " proto kernel ", line)
+      sub(/ proto 4 /, " proto static ", line)
+      sub(/ scope 253 /, " scope link ", line)
+      sub(/ scope 254 /, " scope host ", line)
+      gsub(/^ +| +$/, "", line)
+      print "route", line
     }' | sort
 
 ip -n "$n" neigh show nud permanent | sed 's/^/neighbour /' | sort

@@ -45,8 +45,9 @@
 #                          services: its own addresses, routes, tunnels
 #
 # Usage (netlab asks for sudo itself when it needs it):
-#   netlab up        build the network (netlab.service runs it at boot)
-#   netlab down      take it apart (netlab.service, when it stops)
+#   netlab up        build the network (netlab.service runs it at boot; typed
+#                    while the network is up, it says to use restart instead)
+#   netlab down      take it apart (netlab.service, when it stops; the same)
 #   netlab restart   rebuild the network as a reboot would: every machine's
 #                    services stop, the network is built again from the
 #                    files, and every enabled service starts again
@@ -496,13 +497,21 @@ build_copy() {
 }
 
 # The settings worth comparing on a machine: forwarding, and whatever its
-# own sysctl files set.
+# own sysctl files set, each once (two files may set the same key).
 compared_sysctls() {
   local setting
-  echo net.ipv4.ip_forward net.ipv6.conf.all.forwarding net.ipv4.ip_no_pmtu_disc
-  while IFS= read -r setting; do
-    [[ -n $setting ]] && echo "${setting%%=*}" | sed 's/^-//'
-  done < <(saved_sysctls "$1" 2> /dev/null)
+  {
+    printf '%s\n' net.ipv4.ip_forward net.ipv6.conf.all.forwarding net.ipv4.ip_no_pmtu_disc
+    while IFS= read -r setting; do
+      [[ -n $setting ]] && echo "${setting%%=*}" | sed 's/^-//'
+    done < <(saved_sysctls "$1" 2> /dev/null)
+  } | awk '!seen[$0]++'
+}
+
+# What diff prints, in words: "<" lines are only on the running machine,
+# ">" lines only in what its files build.
+in_words() {
+  sed -n 's/^< /now: /p; s/^> /from its files: /p'
 }
 
 verify() {
@@ -540,7 +549,7 @@ verify() {
     keys=$(compared_sysctls "$m" | tr '\n' ' ')
     # shellcheck disable=SC2086 # the keys are separate arguments
     if ! differs=$(diff <("$LIB/machine-state" "$m" $keys) <("$LIB/machine-state" "$COPY_PREFIX$m" $keys)); then
-      echo "$m differs from a fresh build of its files: $(echo "$differs" | grep '^[<>]' | head -n 3 | tr '\n' ' ')"
+      echo "$m differs from a fresh build of its files: $(echo "$differs" | in_words | head -n 3 | tr -s ' \t' ' ' | paste -sd ';' | sed 's/;/; /g')"
       exit 1
     fi
   done
@@ -659,13 +668,20 @@ show_machines() {
 # as "on" does: "netlab show" and "sudo netlab show" are the same.
 if [[ $EUID -ne 0 ]]; then exec sudo "$0" "$@"; fi
 
+# up and down belong to netlab.service, which systemd runs at boot and stop
+# (it sets INVOCATION_ID for them). Typed by hand while the network is up,
+# they would pull the network out from under the machines' running services.
+typed_while_up() {
+  [[ -z ${INVOCATION_ID:-} ]] && systemctl is-active --quiet netlab.service
+}
+
 action=${1:-}
 case $action in
-  up)
-    bring_up
-    ;;
-  down)
-    take_down
+  up | down)
+    if typed_while_up; then
+      die "the network is up already (netlab.service builds it at boot); to build it again from the files, as a reboot would, type: sudo netlab restart"
+    fi
+    if [[ $action == up ]]; then bring_up; else take_down; fi
     ;;
   restart)
     # Stopping netlab.service stops every machine's services first (they are
