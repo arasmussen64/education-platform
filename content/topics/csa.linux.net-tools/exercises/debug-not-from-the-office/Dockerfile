@@ -27,10 +27,14 @@ RUN apt-get update \
 # shop.internal and forwarding the rest), and the shop's services: the API
 # on 8080, the database on 127.0.0.1:5432, and the office's monitoring
 # endpoint at 10.0.9.2:9100, inside the office.
+# The API's unit and the name server's names come in below, already broken,
+# and only there: copying a working file first and the broken one over it
+# lost the broken one on GitHub's runner. The two name files were the same
+# size, a fresh checkout gave them the same time, and Docker's layer differ
+# then took the second copy for no change (#263).
 COPY network.sh /usr/local/lib/lab/network.sh
-COPY lab-network.service office-monitor.service shop-api.service shop-db.service /etc/systemd/system/
+COPY lab-network.service office-monitor.service shop-db.service /etc/systemd/system/
 COPY dnsmasq-lab.conf /etc/systemd/system/dnsmasq.service.d/lab.conf
-COPY shop.conf /etc/dnsmasq.d/shop.conf
 COPY office-resolv.conf /etc/netns/office/resolv.conf
 COPY from-office shop-api shop-db office-monitor /usr/local/bin/
 RUN chmod 755 /usr/local/lib/lab/network.sh /usr/local/bin/from-office /usr/local/bin/shop-api /usr/local/bin/shop-db /usr/local/bin/office-monitor \

@@ -1255,29 +1255,6 @@ def test_lab(
     try:
         say("  pristine container: the checks must not all pass")
         start_container(lab, scratch)
-        # TEMPORARY (#263): what the name server sees on GitHub's runner,
-        # where this lab starts with its fault already mended.
-        if lab.name == "csa.linux.net-tools/debug-not-from-the-office":
-            probe = (
-                'for f in /etc/dnsmasq.d/*; do echo "## $f"; cat "$f"; done; '
-                "echo '## ls'; ls -la --time-style=full-iso /etc/dnsmasq.d; "
-                "echo '## resolv'; cat /etc/resolv.conf; "
-                "echo '## office resolv'; ip netns exec office cat /etc/resolv.conf; "
-                "echo '## dig'; "
-                "ip netns exec office dig +time=2 +tries=1 shop.internal; "
-                "echo '## ps'; "
-                "ps -eo pid,args | grep -i -E 'dns|named|unbound' | grep -v grep; "
-                "echo '## addr'; ip -br addr; echo '## ss'; ss -ulpn; "
-                "echo '## mounts'; "
-                "grep -E 'netns|resolv|hosts|dnsmasq|/run' /proc/mounts; "
-                "echo '## netns'; ls -la /run/netns; ip netns list; "
-                "echo '## hosts'; cat /etc/hosts; "
-                "echo '## journal'; journalctl -b -u dnsmasq --no-pager | tail -20"
-            )
-            seen = exec_within(scratch, probe, 30)
-            say("  TEMPORARY probe of the pristine container:")
-            for line in (seen.stdout + seen.stderr).splitlines():
-                say(f"    | {line}")
         pristine = run_checks(lab, scratch)
         if all(result.passed for result in pristine):
             problems.append("every check passes before any work is done")
@@ -1424,12 +1401,10 @@ def shard_of(
     left one slow topic holding its share up: on 2026-11-12 (#262) the eight
     shares took from 8 to 24 minutes.
 
-    Spreading a topic's labs over several machines balanced the work better
-    on paper, but on GitHub's runner csa.linux.net-tools'
-    debug-not-from-the-office then started with its name server's fault
-    already mended, twice (#263; not seen on Docker Desktop, cause not
-    found), so topics stay whole. Every machine works the split out alike
-    from the same checkout, so each lab is tested exactly once."""
+    Keeping a topic whole builds the layers its labs share on one machine
+    only; spreading its labs out balanced the work hardly better. Every
+    machine works the split out alike from the same checkout, so each lab is
+    tested exactly once."""
     if weight is None:
         weight = weigher(lab_seconds())
     try:
