@@ -30,6 +30,13 @@ It also fixed a check that caught a too-narrow blackhole only one run in two, a 
 
 **BGP sessions and policy is ready** (#260), the first half of the spec's BGP topic. It teaches autonomous systems, a BGP session and its states, "no policy, no routes" (RFC 8212), prefix lists and route maps, route leaks and hijacks (with two real incidents, the 2019 Verizon leak and the 2021 Facebook withdrawal), BGP's decision order, and choosing the way out with local preference, with the three clouds' gateways side by side. Its labs share one topology: a shop's router with two ISPs and a cloud beyond them, the far routers sealed scenery, and ISP B sending one deliberate slip, a piece of the shop's own addresses. The build configures the shop's router from nothing and its last check unplugs ISP A's cable; the debug has three faults, a route leak among them. Five labs (42 known-wrong fixes) and 20 recall items. The review found one gap that mattered: export filters were tested only on the routes on show, so a filter that blocked just those passed. The checks now offer a route nobody has seen (below).
 
+**DNS is ready** (#261). It teaches how a name becomes an address. It covers the four kinds of server, one lookup traced from the root to the answer, reading `dig`'s flags, zone files and the serial that carries an edit to a secondary, TTLs and negative caching, a planned move done as a procedure (lower the TTL, wait out the old one, switch, check, raise it again), split-horizon and the clouds' private zones, and DNSSEC with what a broken chain looks like. The labs run a small signed internet (a root, `test.`, the shop's two name servers, three public resolvers, an office). In the build, a monitor logs what each server and resolver hands out every second, so the checks can tell from the log that the move waited out the old TTL and that nobody was sent back to the old address. Five labs (36 known-wrong fixes) and 32 recall items. The review found two labs whose contracts failed on a fresh run:
+
+- the build's solution changed the zone before BIND had loaded it, and had passed by luck;
+- the debug's setup ended before its fault was in place, so one wrong fix passed.
+
+Both now wait for real events (a log line, a serial that has stopped changing). The review also caught a security-weakening fix that passed (anyone allowed to copy the whole zone), a check with under half a second to spare, and a write-lab script that took any answer as authoritative.
+
 **Author notes:**
 
 - _The build's narrow link moved._ The plan put the 1400-byte link next to the branch's router, where the cloud's router dropped the oversized packets before the branch's firewall ever saw the ICMP. It now sits beyond the ISP, so r3 can only learn the path MTU from ICMP that its own firewall lets in, which is the point of the lab.
@@ -46,10 +53,13 @@ It also fixed a check that caught a too-narrow blackhole only one run in two, a 
 - _Routing's main resource is a video nobody has watched_ (see the queue), and its second Practical Networking video is optional, to keep the topic's time.
 
 - _A check may offer a route of its own._ To test a BGP filter on routes the learner can't see, a check adds a kernel route on a scenery router, which redistributes it toward the shop through a route map limited to a fixed range, then removes it. It is a third exception to "checks only read", beside cutting a link and starting throwaway servers, and [ADR-0018](decisions/0018-lab-checker-local-mode.md)'s third amendment (Proposed) now says so. Listed under "Decided for you".
+- _DNS's keys are made when the lab's image is built, not at first boot,_ and its debug's expired signatures are signed then too (valid from 31 days ago to yesterday), so a cached image only leaves them more expired. Nothing changes at boot, so the scenery's zone files can be sealed.
+- _DNS's addresses follow the base's rules_ (the RFC 5737 documentation ranges), not the plan's single network, and the office sits behind a router of its own.
+- _DNS takes 315 minutes as planned_, though its writer counts about 328 (the lesson runs to about 3,100 words).
 - _BGP takes 295 minutes, not the plan's 285:_ its walkthrough has two more steps (the stolen /25 and the import filter that refuses it), so that everything the build asks for is shown first.
 - _BGP's three videos are linked without being watched_ (titles, channels, lengths and embedding confirmed automatically). Its build asks for the lab's fast timers, which no check reads; leaving them out changes nothing, since the ISPs offer the same hold time.
 
-**Next:** DNS and HTTP semantics, each in its own pull request; then wave 2's first half (IPv6, NAT, TCP and UDP), which is being written now, and its second (HTTP and TLS, load balancing, steering traffic).
+**Next:** HTTP semantics in its own pull request; then wave 2's first half (IPv6, NAT, TCP and UDP), which is being written now, and its second (HTTP and TLS, load balancing, steering traffic).
 
 ## 2026-11-12: Module 3's platform, the network-lab base
 
