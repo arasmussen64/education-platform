@@ -42,6 +42,7 @@ The owner is still away; decisions follow their message of 2026-11-11. Wave 3 (c
 
 - _Congestion's build puts the firewall on a separate router,_ not on the server as the plan had it, so the build asks for UDP 443 on every firewall on the path and isn't a twin of the fill-in and the debug.
 - _Congestion's thresholds sit in the measured gaps:_ CUBIC managed 1.4 to 9 Mbit/s and BBR 41 to 45 on the lossy paths, so 25 Mbit/s is the line.
+- _DNS's write lab raced in CI a third time_ (#273's first run), even with ns2's short retry: ns2 still held no zone when the last check ran. If ns2 doesn't hold the zone yet, the check now has it fetch the zone (`rndc retransfer`, what ns2 would do on its own, sooner), then waits.
 - _IPsec's `keyingtries = 0` is taught and checked in the build_ by starting charon in `netlab verify`'s copy with fast retransmits, since `swanctl --list-conns` doesn't show it. DPD has no behavioural check: testing it needs a silent cut longer than charon's whole retransmit sequence. The fill-in accepts only the documented words for the connection's actions, not strongSwan's aliases.
 - _Certificates takes 280 minutes, not the plan's 230,_ its writer's own working, for the same reason as HTTP and TLS: the plan's figure came before the split gave the topic its own labs.
 - _Certificates' image fetches step-ca and step-cli from GitHub,_ pinned by version and checksum, as decided on 2026-11-11. The pinned files are for amd64 machines only; an ARM machine would need its own checksums added.
