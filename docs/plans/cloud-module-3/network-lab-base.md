@@ -131,9 +131,11 @@ Today every lab's Dockerfile starts `FROM ubuntu:24.04` and Docker's cache share
 LAB_BASES = ROOT / "content" / "lab-bases"
 BASE_FROM = re.compile(r"^FROM\s+lab-base-([a-z0-9-]+)\s*$", re.MULTILINE)
 
+
 def base_of(lab: Lab) -> str | None:
     found = BASE_FROM.search((lab.folder / "Dockerfile").read_text(encoding="utf-8"))
     return found.group(1) if found else None
+
 
 def build_base(name: str, quiet: bool = True) -> None:
     folder = LAB_BASES / name
@@ -143,6 +145,8 @@ def build_base(name: str, quiet: bool = True) -> None:
     if quiet:
         args.insert(1, "-q")
     docker(*args, timeout=BUILD_TIMEOUT_SECONDS)
+
+
 # ...and in build_image, before building the lab:  base = base_of(lab); if base: build_base(base, quiet)
 ```
 
