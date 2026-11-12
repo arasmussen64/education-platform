@@ -5,7 +5,7 @@
 # Module 1's firewall labs do); that gw forwards only what its rules allow
 # (tried from a throwaway machine of the check's own on the provider's
 # network, which sends straight to the shop's private addresses); that the
-# provider was left alone; and that the rules and forwarding come back at
+# provider and its router, inet, were left alone; and that the rules and forwarding come back at
 # every boot (the running rules against gw's file, the live forwarding
 # against gw's /etc/sysctl.d). The cheap checks come first. A check that
 # finds something wrong prints what it found and exits 0, so the checker
@@ -87,11 +87,16 @@ checks:
     expect:
       equals: "only what the rules allow"
   - id: provider-untouched
-    description: "The payment provider's firewall is as the lab began: its file unchanged, and running as its file says."
+    description: "The payment provider, srv, and the internet provider's router, inet, are as the lab began: their files unchanged, and running as their files say."
     command: |
       . /usr/local/lib/netlab/checklib.sh
       sealed=$(intact) || { echo "the lab's scenery has changed: $sealed"; exit 0; }
       differs=$(nft_saved srv) || { echo "srv's running firewall isn't its file's: $(echo "$differs" | head -n 2 | tr '\n' ' ')"; exit 0; }
+      # inet and srv against a fresh build of their files: their routes,
+      # addresses and firewalls. A translation added to inet by hand (one
+      # that turns 198.51.100.2 into the provider's 198.51.100.3, say) is
+      # in no file, so it shows here.
+      differs=$(netlab verify inet srv 2>&1) || { echo "$differs"; exit 0; }
       echo untouched
     expect:
       equals: untouched
