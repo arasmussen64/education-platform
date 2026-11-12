@@ -209,20 +209,20 @@ From the Module 3 brief, sections 3.5 and 4.4.
 
 ## Kernel needs
 
-The base asks Docker's machine's kernel for these. Each loads on demand when a privileged container first uses it. Seen on Docker Desktop 29.8.2 (kernel 6.18.33.2-microsoft-standard-WSL2) on 2026-11-11; **not yet run on a GitHub runner** (`ubuntu-24.04`, kernel 7.0): the CI spike settles each row, and the fallback is a `sudo modprobe` step in `.github/workflows/labs.yml`.
+The base asks Docker's machine's kernel for these. Each loads on demand when a privileged container first uses it. Seen on Docker Desktop 29.8.2 (kernel 6.18.33.2-microsoft-standard-WSL2) on 2026-11-11, and on GitHub's `ubuntu-26.04` runner (image 20261101.186.1) on 2026-11-12, where the six probe labs in `csa.net.base-probes` kept their contracts with no `modprobe` step (the CI spike, #253). A row still marked untried falls back to a `sudo modprobe` step in `.github/workflows/labs.yml` if the first lab that needs it fails there.
 
-| Need | Topics | Docker Desktop | Runner, and the fallback |
+| Need | Topics | Docker Desktop | GitHub's runner |
 | --- | --- | --- | --- |
-| veth, bridges, namespaces, per-namespace `ip_forward` and `rp_filter` | all | works | expected (Module 1 and 2 labs use namespaces in CI today) |
-| nftables NAT (`nf_nat`, `nft_chain_nat`, masquerade) | NAT, IPv6, transport | works | likely; if not, `sudo modprobe -a nf_nat nft_chain_nat` |
-| nftables `netdev` ingress (`netlab link ... silent`) | routing, BGP steering, checkpoint part 3 | works | untried |
-| `ip_gre` | layers | works | untried; fallback: the narrow link becomes a plain veth with MTU 1400 |
-| `xfrm_user`, `esp4`, `ip_vti` | IPsec, checkpoint part 3 | works (with the standard plugins only) | fallback: `sudo modprobe -a esp4 ip_vti xfrm_user`; last resort, GRE inside IPsec |
-| `sch_netem` | transport, congestion, troubleshooting, the `netem` word | works, delays egress only | may live in `linux-modules-extra`: install it and `modprobe` |
-| `tcp_bbr` | congestion | works, loads from a machine's `sysctl.d` | as netem |
+| veth, bridges, namespaces, per-namespace `ip_forward` and `rp_filter` | all | works | works (every probe) |
+| nftables NAT (`nf_nat`, `nft_chain_nat`, masquerade) | NAT, IPv6, transport | works | works (`example-nat-gateway`, `proto-services`) |
+| nftables `netdev` ingress (`netlab link ... silent`) | routing, BGP steering, checkpoint part 3 | works | untried: no probe cuts a link |
+| `ip_gre` | layers | works | works (`debug-big-downloads-hang`) |
+| `xfrm_user`, `esp4`, `ip_vti` | IPsec, checkpoint part 3 | works (with the standard plugins only) | works (`proto-bgp-over-vti`) |
+| `sch_netem` | transport, congestion, troubleshooting, the `netem` word | works, delays egress only | works (`probe-bbr-throughput`, `proto-services`) |
+| `tcp_bbr` | congestion | works, loads from a machine's `sysctl.d` | works: BBR cleared 25 Mbit/s three times (`probe-bbr-throughput`) |
 | nftables `reset tcp option window` | transport | works | untried |
-| IPv6 in namespaces, forwarding, SLAAC | IPv6, NAT | works | new namespaces should take kernel defaults |
-| `fib_multipath_hash_policy` per namespace | routing, checkpoint part 2 | works | expected |
+| IPv6 in namespaces, forwarding, SLAAC | IPv6, NAT | works | works (`debug-ipv6-half-works`) |
+| `fib_multipath_hash_policy` per namespace | routing, checkpoint part 2 | works | untried |
 
 ## Files here
 

@@ -2,6 +2,34 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-12: Module 3's platform, the network-lab base
+
+The owner is still away; decisions follow their message of 2026-11-11.
+
+**#252** fixed two known-wrong lab scripts that piped into `grep -q` under `set -o pipefail`. `grep -q` quits at its first match, so the command writing into the pipe can die of a broken pipe, and the script's result flipped at random. That made CI's Labs job fail now and then.
+
+**Module 3's platform is built** (#253), in the plan's order (P0 to P3). One agent built it, a second reviewed it cold and fixed what it found, and a third ported four more of the plan's labs onto it as probes.
+
+- **The network-lab base**, `content/lab-bases/net/`. Every network lab starts from it with `FROM lab-base-net`. Inside one container, each "machine" is a network namespace (its own addresses, routes, firewall and `/etc`), wired by the cables and switches a topology file lists. Each daemon runs once per machine (`frr@r1`, `unbound@resolver`). A machine's lasting settings are files in it (`/etc/sysctl.d`, `/etc/network/up`), and `netlab verify` builds a throwaway copy of every machine from its files to compare with the live one. That is how a check tells "fixed for good" from "fixed until the next reboot".
+- **The checker** builds the base before any lab on it, about 2 s when nothing changed, and the validator refuses a lab that names a missing base.
+- **The restart trial**: a lab that opts in is restarted after its solution passes, and every check must pass again.
+- **Estimate questions** read `10.20.30.77` as four numbers.
+- **Labs CI** runs on eight machines.
+- **Six probe labs** in a draft topic, `csa.net.base-probes`, tried the base on GitHub's runners (the plan's P2 spike) before any topic is written. All six kept their contracts, restart trial included, on the first run, on the `ubuntu-26.04` runner image with no `modprobe` step: BGP over a VTI IPsec tunnel, name servers with a load balancer and NAT, path MTU over GRE, radvd and IPv6, NAT port exhaustion, and BBR clearing 25 Mbit/s three times through netem. Their share (21 labs, four at a time) took 11 min 47 s, and the whole Labs run 14 minutes on eight machines, where four took about 20. Not yet tried on a runner: `netlab link ... silent`, which needs nftables' `netdev` hook, because no probe cuts a link; the routing topic's failover check will be the first.
+
+**Three small base fixes after the review:** journal lines now say which service and machine wrote them (`unbound@resolver[812]`, not `ip[812]`); `web-svc` is a service a topology can `run`, instead of a unit each lab ships; and `holdserver` closes a connection once the client has closed it, where it used to leave each one half-open.
+
+**Author notes:**
+
+- _The plain daemon units say what to type instead of being masked._ The plan said to mask `frr.service` and the rest, but a masked unit only says "masked". The replacements fail and point at `systemctl status`, which says to type `frr@<machine>`.
+- _The probe topic is listed on the live map_ as "soon" under Module 3. Drafts open only on a dev server, but the map lists every topic. It stays until every probe has moved into the topic it was written for (topics 23, 25, 27 and 29) or been replaced by a real lab (the services probe by DNS's and load balancing's labs, the VTI probe by IPsec's in wave 3), then it is deleted. `tools/outline_cloud_track.py` would drop it from the track file, so the topic must go before that script next runs.
+- _The cold review found a race_ in how a machine's state folders are made: two commands entering one machine at once both copied, and one died. It made a check fail about one run in five; a lock fixed it. It also found that buildx's default attestation stamped every build of the base with the time, so labs on it never came from Docker's cache. The checker now builds without it.
+- _Three shortcuts the probes' checks let through_, each now caught by a check and a known-wrong fix: a resolver fixed only with `unbound-control`, an IPsec tunnel started by hand (`swanctl --list-conns` can't show `start_action`), and the cloud's router changed only in its running state (`netlab intact` reads files). The pattern for proving a daemon's own configuration lasts is in the base's README: start the daemon in `netlab verify`'s copy from the machine's files, ask it, compare.
+- _Facts found while building that differ from the plan:_ radvd 2.19 does warn about a /56 prefix (`journalctl -u radvd@r1`), against the plan's fact F9; CUBIC reached 13.5 Mbit/s once on the 50 ms, 1% loss path (the plan says 3.3 to 7.2); `conntrack -S` counts retries in `insert_failed`. The writers of topics 25, 27 and 29 are told.
+- _Python's `write_text` writes CRLF on Windows,_ and Docker builds a lab from the working tree, so an edited `netlab` failed with exit 127 until its line endings were fixed. Writers are told.
+
+**Next:** wave 1 of Module 3's topics (layers, CIDR, routing, DNS, HTTP semantics, BGP sessions), as two runs of three topics, each topic written in its own worktree and reviewed cold.
+
 ## 2026-11-11, late: Cloud Module 3 is planned
 
 The owner is still away; decisions follow their message of 2026-11-11.
