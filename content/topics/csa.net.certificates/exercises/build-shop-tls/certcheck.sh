@@ -134,8 +134,10 @@ reaches_nginx() {
     echo "certbot couldn't renew the certificate called $certname: $said"
     return
   fi
-  live=$(live_serial "$certname")
   for i in 1 2 3 4 5 6 7 8 9 10; do
+    # certbot's current certificate, read afresh each time, in case the
+    # timer renewed it again meanwhile.
+    live=$(live_serial "$certname")
     after=$(served "$1" "$2" | serial_of)
     if [ -n "$live" ] && [ "$after" = "$live" ] && [ "$after" != "$before" ]; then
       echo reaches
