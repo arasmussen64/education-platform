@@ -9,12 +9,13 @@
 checks:
   - id: assets-kept
     description: "The edge answers a fingerprinted asset from its own copy the second time, and the asset may be kept for a year without being asked about on a reload."
-    # It waits up to 20 seconds for the shop's services after a boot, so it
-    # gets a minute and prints its own sentence rather than running out.
+    # It waits up to about 40 seconds for the shop's services after a boot
+    # (20 tries, each given a second), so it gets a minute and prints its
+    # own sentence rather than running out.
     timeout: 60
     command: |
       . /usr/local/lib/lab/httpcheck.sh
-      up() { [ -n "$(headers http://origin.shop.test/index.html | header etag)" ]; }
+      up() { [ -n "$(headers --max-time 1 http://origin.shop.test/index.html | header etag)" ]; }
       wait_for 20 up || { echo "the origin doesn't answer yet"; exit 0; }
       k=$(fresh)
       first=$(headers "http://www.shop.test/assets/app.3f9a.js?$k" | header x-cache-status)

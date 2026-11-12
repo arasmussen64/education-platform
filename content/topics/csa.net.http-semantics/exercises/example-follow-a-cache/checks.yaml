@@ -7,9 +7,13 @@
 checks:
   - id: conditional-saved
     description: "~/example/conditional.txt holds the status line of the origin's answer to a request that sent the storefront's validator back: 304."
+    # It waits up to about 40 seconds for the shop's services after a boot
+    # (20 tries, each given a second), so it gets a minute and prints its
+    # own sentence rather than running out.
+    timeout: 60
     command: |
       . /usr/local/lib/lab/httpcheck.sh
-      up() { [ -n "$(headers http://origin.shop.test/index.html | header etag)" ]; }
+      up() { [ -n "$(headers --max-time 1 http://origin.shop.test/index.html | header etag)" ]; }
       wait_for 20 up || { echo "the origin doesn't answer yet"; exit 0; }
       f=/home/learner/example/conditional.txt
       [ -s "$f" ] || { echo "there is no ~/example/conditional.txt, or it's empty"; exit 0; }
