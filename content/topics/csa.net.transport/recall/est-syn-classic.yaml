@@ -1,0 +1,24 @@
+id: est-syn-classic
+type: estimate
+rev: 1
+prompt: |
+  An older Linux client connects to an address whose firewall drops every SYN without an answer. It waits 1 second before it sends the SYN again, doubles the wait each time, sends it again 6 times, then waits once more, twice as long as the last wait, and gives up. How many seconds after the first SYN does `connect()` fail? Exactly.
+unit: seconds
+answer: 127
+tolerance: { absolute: 0 }
+given: { first: 1, resends: 6 }
+# The waits are 1, 2, 4, 8, 16, 32 (one before each resend) and then 64:
+# seven waits, doubling, which add up to 2^7 - 1.
+working: first * (2 ** (resends + 1) - 1)
+mistakes:
+  - id: last-resend
+    value: 63
+    working: first * (2 ** resends - 1)
+    why: That's when the last SYN goes out. The client then waits 64 seconds more for an answer before it gives up.
+  - id: count
+    value: 6
+    working: resends
+    why: That's how many times the SYN was sent again, not how long it took.
+explanation: |
+  The waits are 1, 2, 4, 8, 16 and 32 seconds before each of the 6 resends, so the last SYN leaves at 63 s, and then a last wait of 64 s: 127 s in all, when the application hears "Connection timed out". Current kernels resend the first few SYNs 1 second apart before doubling, and their documentation says the attempt fails after 131 seconds (the lab measured 134). Either way it's about two minutes of an application stuck on one connect, which is why applications set a connect timeout of their own, a few seconds.
+skills: [tcp-timers]

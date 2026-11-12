@@ -1,0 +1,16 @@
+id: mcq-raise-the-timer
+type: mcq
+rev: 1
+prompt: |
+  Database connections from an Azure virtual network are cut after quiet spells behind its NAT gateway (TCP idle timeout 4 minutes). Why does Microsoft advise against raising the gateway's idle timeout towards its maximum of 120 minutes as the fix?
+choices:
+  - "Each quiet flow holds its SNAT port for longer, so ports run out sooner"
+  - "Flows quiet for over 4 minutes are reset by the virtual network anyway"
+  - "A longer timer only applies to connections opened after a gateway restart"
+  - "Keepalive probes stop working once the timer is longer than one hour"
+answer: 0
+explanation: |
+  A NAT gateway holds a flow's SNAT port (the public address and port it translated to) for as long as it remembers the flow, quiet or not. Raise the timer and every idle connection keeps its port far longer, so a busy subnet runs out of ports sooner: the NAT topic's port exhaustion, reached from the other side. Azure's page recommends keepalives instead, which keep only the connections that are still wanted.
+
+  Nothing else in the network resets a quiet flow; the timer applies as soon as it's changed; and keepalives keep working whatever the timer, as long as they come before it.
+skills: [idle-cuts]

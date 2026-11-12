@@ -1,0 +1,16 @@
+id: mcq-when-udp
+type: mcq
+rev: 1
+prompt: |
+  For which of these workloads is plain UDP the right choice, rather than TCP?
+choices:
+  - "A video call, where a frame that arrives late is no better than one lost"
+  - "A database's replication stream, where every change must arrive in order"
+  - "A file download, where the user waits for the last byte before using it"
+  - "An API call that must not be applied twice if the network repeats it"
+answer: 0
+explanation: |
+  Real-time voice and video would rather skip a lost frame than wait a round trip for it to be sent again, so they run over UDP and cope with loss themselves. DNS (one question, one answer), VPN tunnels and QUIC (the next topic) use UDP for reasons of their own.
+
+  Replication needs every change, in order: TCP's guarantees. A download needs every byte, and TCP's flow control. And UDP makes repeats more likely, not less: an API that must not apply a request twice needs the request to be safe to repeat, whatever the transport.
+skills: [udp-behaviour]

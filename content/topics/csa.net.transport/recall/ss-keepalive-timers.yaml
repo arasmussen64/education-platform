@@ -1,0 +1,24 @@
+id: ss-keepalive-timers
+type: predict_shell
+rev: 1
+prompt: |
+  `ss.txt` is `ss -tno dst 10.0.2.20` on app, captured on 2026-11-12 in the lab "Read the conversation" (trailing spaces trimmed): four open connections to the database, each made a moment before with different keepalive settings. `-o` adds each connection's timer, `timer:(NAME,TIME LEFT,RETRIES)`, and a connection with no timer running shows none. ss writes a time under ten seconds oddly: `9.600ms` is 9.6 seconds. The command prints each connection's local address and port and what its keepalive timer says, or `off`. What is printed?
+files:
+  ss.txt: |
+    State Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+    ESTAB 0      0          10.0.1.10:51612    10.0.2.20:5432 timer:(keepalive,119min,0)
+    ESTAB 0      0          10.0.1.10:51626    10.0.2.20:5432 timer:(keepalive,9.600ms,0)
+    ESTAB 0      0          10.0.1.10:51630    10.0.2.20:5432
+    ESTAB 0      0          10.0.1.10:51642    10.0.2.20:5432 timer:(keepalive,4min59sec,0)
+command: |
+  awk 'NR > 1 {k = "off"; if (match($0, /keepalive,[^,]*/)) k = substr($0, RSTART + 10, RLENGTH - 10); print $4, k}' ss.txt
+expected_output: |
+  10.0.1.10:51612 119min
+  10.0.1.10:51626 9.600ms
+  10.0.1.10:51630 off
+  10.0.1.10:51642 4min59sec
+explanation: |
+  `match` finds `keepalive,` and whatever follows up to the next comma; `RSTART + 10` skips the ten characters of `keepalive,` itself. On a connection that was just made, or just probed, the time left is its idle time, so the four lines read: keepalive on with the system's two hours (119 minutes left), on with a socket idle time of 10 seconds, off altogether, and on with 300 seconds (4 minutes 59 left).
+
+  Behind a NAT gateway that forgets after 350 seconds, only the second and the fourth survive a quiet spell. The first has keepalive switched on, which looks reassuring in a configuration file, but with the system's default it would probe after two hours, long after the cut; the third will never probe at all. Reading `ss -tno` on the real connection is how you find out which kind you have.
+skills: [idle-cuts]

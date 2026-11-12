@@ -1,0 +1,23 @@
+id: mcq-stripped-scale
+type: mcq
+rev: 1
+prompt: |
+  The nightly replication from app to dr runs at 5 Mbit/s on a 50 Mbit/s private link with a 100 ms round trip. The same connection's SYN, captured on app as it left and on dr as it arrived (captured in the lab "Read the conversation", 2026-11-12):
+
+  ```
+  14:01:40.104980 IP 10.0.5.10.49948 > 10.0.6.20.5201: Flags [S], seq 2251606485, win 64240, options [mss 1460,sackOK,TS val 1479580928 ecr 0,nop,wscale 10], length 0
+  14:01:40.255343 IP 10.0.5.10.49948 > 10.0.6.20.5201: Flags [S], seq 2251606485, win 64240, options [mss 1460,sackOK,TS val 1479580928 ecr 0,nop,nop,nop,nop], length 0
+  ```
+
+  What explains both the capture and the speed?
+choices:
+  - "A box between them removes the window scale option from the SYNs"
+  - "dr's receive buffer is too small for a 100 ms round trip"
+  - "The link loses packets, so the sender keeps halving its rate"
+  - "app's congestion control is the wrong one for long paths"
+answer: 0
+explanation: |
+  The SYN left app offering `wscale 10` and arrived at dr with `nop`s in its place, the same sequence number, the same everything else: something on the way rewrote it, which is what a firewall's "TCP normalisation" does. A receiver that never saw the option doesn't offer it back, and without it in both SYNs both shifts are zero (RFC 7323), so the window stops at 65,535 bytes: 65,535 × 8 ÷ 0.1 s is 5.2 Mbit/s, whatever the link's speed. Comparing the same packet on both sides of a box is how it's caught.
+
+  A small receive buffer would also cap the speed, but it wouldn't touch the SYN: the option would arrive intact. Loss and the sender's congestion control (the next topic) change how fast data is sent, and neither rewrites a packet's options.
+skills: [window-math, read-a-capture]

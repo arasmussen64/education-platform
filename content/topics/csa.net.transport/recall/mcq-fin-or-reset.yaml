@@ -1,0 +1,16 @@
+id: mcq-fin-or-reset
+type: mcq
+rev: 1
+prompt: |
+  An application logs `Connection reset by peer` on the first database query after a quiet lunch hour. Which capture of that query fits the message?
+choices:
+  - "An `[R]` arrives in answer to the query, with no FIN anywhere before it"
+  - "An `[F.]` arrives from the server, the client answers with an `[F.]` of its own"
+  - "The query is sent again at 0.2, 0.4 and 0.8 s and nothing at all comes back"
+  - "An `[S]` goes out, an `[R.]` comes back, and no data is ever sent on the wire"
+answer: 0
+explanation: |
+  "Connection reset by peer" is what an application hears when a reset (`[R]`) arrives on a connection that was open: the door slammed, no goodbye. Who sent it is the next question (a server, or a box in the middle that forgot the connection).
+
+  A FIN from the server is a goodbye: the application would read the end of the stream, not a reset. Silent resends with a growing gap end, minutes later, in "Connection timed out". And a reset answering a SYN means nothing was listening: "Connection refused", before any connection existed.
+skills: [read-a-capture, idle-cuts]

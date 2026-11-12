@@ -1,0 +1,16 @@
+id: mcq-reset-or-hang
+type: mcq
+rev: 1
+prompt: |
+  The same app runs in two clouds. After a quiet hour, its first query fails at once with a reset behind AWS's NAT gateway, but hangs for the app's whole 30-second timeout behind an Azure load balancer with its default settings. Which change would make the Azure side fail at once, as AWS's does?
+choices:
+  - "Turn on TCP reset on idle for the Azure load balancer's rules"
+  - "Raise the Azure load balancer's idle timeout to 30 minutes"
+  - "Lower the client's `tcp_syn_retries` so it gives up sooner"
+  - "Send the query over UDP so that no connection has to be kept"
+answer: 0
+explanation: |
+  Azure's load balancer, by default, drops a forgotten flow's packets in silence, so the client resends its query into nothing until its own timeout runs out. With "TCP reset on idle" turned on for the rule, the load balancer sends a reset to both ends when it forgets a flow, so the client hears at once and can reconnect, the way AWS's NAT gateway behaves. Keepalives below the timer would avoid the cut altogether; this question is only about making the failure loud.
+
+  A longer idle timeout moves the problem to a longer quiet spell and keeps the same silent hang. `tcp_syn_retries` is about opening new connections, not queries on an open one. And a database protocol isn't going to run over UDP: the app needs TCP's guarantees.
+skills: [idle-cuts]

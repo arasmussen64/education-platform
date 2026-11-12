@@ -1,0 +1,24 @@
+id: udp-closed-or-dropped
+type: predict_shell
+rev: 1
+prompt: |
+  `udp.txt` is a capture on app's `eth1` (captured 2026-11-12 in the lab "Read the conversation", with `tcpdump -nn` and the filter `udp or icmp`) while app sent a datagram with `nc -u -w1` to port 5301 on the database machine, then to port 5302, and then both again. Nothing listens on 5301; on 5302, a firewall rule drops UDP. Both `nc` commands exited with status 0. The command counts each kind of line. What is printed? Include the padding before each count.
+files:
+  udp.txt: |
+    15:09:13.968601 IP 10.0.1.10.60567 > 10.0.2.20.5301: UDP, length 3
+    15:09:13.968663 IP 10.0.2.20 > 10.0.1.10: ICMP 10.0.2.20 udp port 5301 unreachable, length 39
+    15:09:14.008681 IP 10.0.1.10.46072 > 10.0.2.20.5302: UDP, length 3
+    15:09:15.050058 IP 10.0.1.10.41815 > 10.0.2.20.5301: UDP, length 3
+    15:09:15.050123 IP 10.0.2.20 > 10.0.1.10: ICMP 10.0.2.20 udp port 5301 unreachable, length 39
+    15:09:15.091085 IP 10.0.1.10.49592 > 10.0.2.20.5302: UDP, length 3
+command: |
+  grep -o '\.530[0-9]: UDP\|udp port [0-9]* unreachable' udp.txt | sort | uniq -c
+expected_output: |2
+        2 .5301: UDP
+        2 .5302: UDP
+        2 udp port 5301 unreachable
+explanation: |
+  Four datagrams went out, two to each port. The two to 5301, where nothing listens, were each answered by an ICMP "port unreachable" from the database machine's kernel, the UDP version of TCP's reset. The two to 5302, which a firewall drops, got no answer at all. And `nc` exited 0 both times: UDP has no handshake and no acknowledgement, so a sender that doesn't wait for an answer of the application's own can't tell "delivered" from "dropped" from "nobody home".
+
+  `grep -o` prints only the matching part of each line, one match per line; `\|` is grep's "or". Only a program that reads the ICMP error (a connected UDP socket sees it as "Connection refused" on its next send) or waits for a reply finds out; through a firewall that drops, nothing ever comes back.
+skills: [udp-behaviour]

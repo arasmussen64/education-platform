@@ -1,0 +1,22 @@
+id: est-default-keepalive
+type: estimate
+rev: 1
+prompt: |
+  With Linux's default keepalive settings (the first probe after 7,200 seconds of quiet, then up to 9 probes 75 seconds apart), how many minutes after the last packet does a socket with keepalive switched on notice that its peer is gone? Within 1 minute.
+unit: minutes
+answer: 131.25
+tolerance: { absolute: 1 }
+given: { idle: 7200, gap: 75, probes: 9 }
+working: (idle + gap * probes) / 60
+mistakes:
+  - id: idle-only
+    value: 120
+    working: idle / 60
+    why: That's when the first probe goes. Nine unanswered probes, 75 seconds apart, come after it.
+  - id: probes-only
+    value: 11.25
+    working: gap * probes / 60
+    why: That's only the probing. It starts after two hours of quiet.
+explanation: |
+  7,200 + 75 × 9 = 7,200 + 675 = 7,875 seconds, which is 131.25 minutes: two hours and eleven minutes. That's for a socket whose program switched keepalive on; one that didn't never notices at all while it stays quiet. Either way it's far too slow for a cloud, where NAT gateways and load balancers forget a quiet connection after 4 to 20 minutes.
+skills: [tcp-timers]

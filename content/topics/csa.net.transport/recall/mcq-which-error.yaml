@@ -1,0 +1,16 @@
+id: mcq-which-error
+type: mcq
+rev: 1
+prompt: |
+  A program on a Linux server connects to another server's address and port. The connect takes about 2 minutes and then fails. Which error did the program most likely get, and why?
+choices:
+  - "Connection timed out: the SYNs were sent again and again and never answered"
+  - "Connection refused: the host answered each of the SYNs with a reset at once"
+  - "Connection reset by peer: the host accepted it, then aborted the connection"
+  - "Network is unreachable: the client's own routing table has no route there"
+answer: 0
+explanation: |
+  Two minutes is the SYN retries running out: the kernel sends the SYN again with growing gaps (about 131 seconds in all on current kernels), and when nothing ever answers, the program hears "Connection timed out". That's the signature of a firewall or a security group dropping the SYN.
+
+  A refusal is instant: the far host's kernel answers the first SYN with a reset, because nothing listens on that port, and the program hears it in milliseconds. "Reset by peer" needs a connection that was already open. And "Network is unreachable" comes from the client's own routing table, before anything is sent, so it's instant too.
+skills: [tcp-timers]

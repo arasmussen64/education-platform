@@ -1,0 +1,16 @@
+id: mcq-proxy-in-the-path
+type: mcq
+rev: 1
+prompt: |
+  Clients reach an API through an AWS Application Load Balancer with its default 60-second idle timeout. The clients switch on TCP keepalive with a probe every 30 seconds, but their long-poll requests, which wait for news with nothing sent either way, still end after 60 seconds of silence. Why?
+choices:
+  - "The load balancer ends the client's TCP connection itself, so probes stop at it"
+  - "TCP keepalives are only sent on connections that have no request outstanding"
+  - "The load balancer counts only HTTP/2 PING frames as activity, not TCP probes"
+  - "A probe every 30 seconds is too slow to keep a 60-second idle timeout from firing"
+answer: 0
+explanation: |
+  An Application Load Balancer is a layer 7 load balancer: it ends the client's TCP connection itself and opens its own to the servers, so a client's keepalive probes are answered by the load balancer's network stack and never reach the app, and its idle timer counts data, not probes. That's why Azure's documentation says to use keepalives in the application itself (a heartbeat: a few bytes of real data) when a proxy is in the path. Here, the fix is to send at least a byte of data before 60 seconds pass, or raise the idle timeout (1 to 4,000 seconds).
+
+  Keepalives are sent whenever the connection is quiet, request or not. AWS's page says the opposite of the PING claim: Application Load Balancers don't support HTTP/2 PING frames, and they don't reset the idle timeout. And 30 seconds is well inside 60.
+skills: [idle-cuts]
