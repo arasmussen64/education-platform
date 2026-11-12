@@ -66,13 +66,19 @@ checks:
     expect:
       equals: sticky
   - id: client-address-passed
-    description: "Web and API servers both see the office laptop's address as the last X-Forwarded-For value."
+    description: "Web and API servers both see the address each request came from as the last X-Forwarded-For value, whichever laptop on the office's network sent it."
     command: |
       . /usr/local/lib/lab/lbcheck.sh
+      # A laptop at an address on the office's network chosen now (a second
+      # address on office's own cable, removed afterwards), so only a
+      # balancer that passes on each request's own address can name it.
+      laptop=10.0.9.$(shuf -n 1 -i 100-199)
+      on office ip addr add "$laptop/32" dev eth0 2> /dev/null
+      trap 'on office ip addr del "$laptop/32" dev eth0 2> /dev/null' EXIT
       for path in /whoami /api/whoami; do
-        xff=$(office "http://10.0.9.1$path" | awk -F': ' '$1 == "X-Forwarded-For" {print $2}')
+        xff=$(office --interface "$laptop" "http://10.0.9.1$path" | awk -F': ' '$1 == "X-Forwarded-For" {print $2}')
         last=$(echo "$xff" | awk -F', *' '{print $NF}')
-        [ "$last" = 10.0.9.2 ] || { echo "asked for $path, the server saw X-Forwarded-For: ${xff:-nothing}"; exit 0; }
+        [ "$last" = "$laptop" ] || { echo "asked for $path by a laptop at $laptop, the server saw X-Forwarded-For: ${xff:-nothing}"; exit 0; }
       done
       echo passed
     expect:
@@ -94,8 +100,24 @@ checks:
       echo greeted
     expect:
       equals: greeted
+  - id: back-after-two
+    description: "HAProxy checks every web and API server, and puts a recovered one back after two good checks in a row, no sooner."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      [ -n "$(api 'show info')" ] || { echo "HAProxy on lb isn't running"; exit 0; }
+      for a in 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080 10.0.1.21:8081 10.0.1.22:8081; do
+        m=$(machine_of "$a")
+        [ -n "$(field "$a" 2)" ] || { echo "HAProxy has no server for $m"; exit 0; }
+        [ -z "$(unchecked "$a")" ] || { echo "HAProxy doesn't check $m"; exit 0; }
+        # Field 6 is the server's rise, the good checks in a row it needs.
+        rises=$(field "$a" 6 | sort -u | tr '\n' ' ')
+        [ "$rises" = "2 " ] || { echo "$m is put back after ${rises% } good checks in a row, not two"; exit 0; }
+      done
+      echo two
+    expect:
+      equals: two
   - id: hung-server-out
-    description: "A web or API server that hangs (it accepts connections and never answers) is out of rotation within 15 seconds."
+    description: "A web or API server that hangs (it accepts connections and never answers) is out of rotation within 15 seconds, even when it hangs just after a good health check."
     timeout: 60
     command: |
       . /usr/local/lib/lab/lbcheck.sh
