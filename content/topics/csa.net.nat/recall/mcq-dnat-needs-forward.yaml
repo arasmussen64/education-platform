@@ -10,7 +10,7 @@ choices:
   - "The established,related rule has to come after the DNAT rule, in the same chain"
 answer: 0
 explanation: |
-  DNAT happens in prerouting and does its job: the customer's SYN now goes to 10.1.0.20:8443, so gw forwards it, and the forward chain must accept it. The first rule only accepts packets of connections already established; the second only what comes in on `lan`. The SYN arrived on `wan`, so the policy drops it, and the customer sees a timeout. `ct status dnat accept` accepts any connection that destination NAT rewrote, which is exactly the published ones and nothing else: the line people forget. (Writing `iifname "wan" ip daddr 10.1.0.20 tcp dport 8443 accept` works too.)
+  DNAT happens in prerouting and does its job: the customer's SYN now goes to 10.1.0.20:8443, so gw forwards it, and the forward chain must accept it. The first rule only accepts packets of connections already established; the second only what comes in on `lan`. The SYN arrived on `wan`, so the policy drops it, and the customer sees a timeout. `ct status dnat accept` accepts any connection that destination NAT rewrote, which is exactly the published ones and nothing else: the line people forget. (A rule by address, `iifname "wan" ip daddr 10.1.0.20 tcp dport 8443 accept`, lets the customers in too, but also anyone on the provider's network who sends straight to 10.1.0.20, port 8443, without going through the DNAT rule at all; `ct status dnat` accepts only what the DNAT rule rewrote.)
 
   Prerouting runs whatever the forward chain's policy is. DNAT can change the port as well (`:8443`), which the walkthrough showed. And the DNAT rule lives in another table and hook altogether; order within the forward chain doesn't involve it.
 skills: [nat-rules]

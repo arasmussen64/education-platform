@@ -10,7 +10,7 @@ choices:
   - "Flush the gateway's connection table on a timer to free the ports that it holds"
 answer: 0
 explanation: |
-  Every new connection to the same destination needs its own port, and a closed one keeps holding its port for a while afterwards (Azure's hold-down after a FIN is 65 seconds, Linux's TIME-WAIT 60), so a connection per request multiplies the ports in use. Keeping a few connections open and sending many requests over each (HTTP keep-alive, or a pool of connections that the code reuses) cuts the need by orders of magnitude, and saves a handshake per request too. AWS's troubleshooting page puts "limit the number of connections your clients can create to the destination" among its first remedies.
+  Every new connection to the same destination needs its own port, and a closed one keeps holding its port for a while afterwards (Azure's hold-down after a FIN is 65 seconds, Linux's TIME-WAIT 60), so a connection per request multiplies the ports in use. Keeping a few connections open and sending many requests over each (HTTP keep-alive, or a pool of connections that the code reuses) cuts the need by orders of magnitude, and saves a handshake per request too. AWS's troubleshooting page lists "limit the number of connections your clients can create to the destination" among its remedies for "Cannot initiate more connections", beside more gateways and more addresses.
 
   More addresses help on AWS and Azure, which share ports on demand, but they only buy time if the connections keep multiplying, and on Google they don't help a VM whose block is full. A longer idle timeout keeps ports held longer, the opposite of what's needed. Flushing the table breaks the connections in use and frees nothing for long.
 skills: [port-exhaustion]

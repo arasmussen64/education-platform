@@ -16,5 +16,5 @@ mistakes:
     working: ceil(vms / floor(65536 / per_vm))
     why: "Three addresses aren't enough. Each NAT address has 64512 usable ports (0 to 1023 aren't used), so it serves 64512 / 128 = 504 VMs, and three serve only 1512 of the 1520. Counting 65536 ports per address, or rounding 1520 / 504 down, both give 3."
 explanation: |
-  Each address holds 64512 / 128 = 504 whole blocks of 128 ports, so it serves 504 VMs. 1520 / 504 = 3.02, rounded up to 4 addresses. The last 8 VMs need a fourth address of their own; with static allocation a VM's block has to fit on an address, so a fleet that just tips over a multiple of 504 pays for a whole address more. Cloud NAT charges $0.005 an hour for each external address it uses (its pricing page, read 2026-11-12).
+  Each address holds 64512 / 128 = 504 blocks of 128 ports, so it serves 504 VMs. 1520 / 504 = 3.02, rounded up to 4 addresses. Counting ports gives the same answer: the fleet needs 1520 × 128 = 194560 ports, and three addresses hold only 3 × 64512 = 193536, so the last 8 VMs need a fourth address. A fleet that just tips over a multiple of 504 pays for a whole address more. Cloud NAT charges $0.005 an hour for each external address it uses (its pricing page, read 2026-11-12).
 skills: [nat-sizing]
