@@ -1,0 +1,101 @@
+# The checks of "A CA of your own": the gaps are filled, and the files web
+# and partner have are the script's; the API's chain verifies from the
+# office against the root the script made; its certificate and the
+# intermediate are what they should be; the warehouse gets in, and nobody
+# else does; and nginx starts at every boot. The second check waits for
+# nginx on web after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: gaps-filled
+    description: "No ___ is left in ~/bin/make-shop-certs or in web's site file, and the files web and partner hold are the ones the script made in ~/ca."
+    command: |
+      if grep -n '___' /home/learner/bin/make-shop-certs > /dev/null; then echo "~/bin/make-shop-certs still has a ___ on line $(grep -n '___' /home/learner/bin/make-shop-certs | head -n 1 | cut -d: -f1)"; exit 0; fi
+      if grep '___' /etc/netns/web/nginx/sites-available/partner-api > /dev/null; then echo "web's /etc/nginx/sites-available/partner-api still has a ___ in it"; exit 0; fi
+      ca=/home/learner/ca
+      [ -s "$ca/root.pem" ] || { echo "there is no ~/ca/root.pem: run ~/bin/make-shop-certs"; exit 0; }
+      for pair in api.pem:/etc/netns/web/nginx/tls/api.pem fullchain.pem:/etc/netns/web/nginx/tls/fullchain.pem \
+                  partners.pem:/etc/netns/web/nginx/tls/partners-ca.pem warehouse.pem:/etc/netns/partner/warehouse/warehouse.pem; do
+        cmp -s "$ca/${pair%%:*}" "${pair#*:}" || { echo "the copy of ${pair%%:*} on its machine isn't the one in ~/ca: run ~/bin/make-shop-certs again"; exit 0; }
+      done
+      echo filled
+    expect:
+      equals: filled
+  - id: chain-verifies
+    description: "From the office, with only the shop's root to trust, api.shop.test's certificate verifies for that name, and the API sends two certificates: its own, then the intermediate's."
+    # It waits up to about 20 seconds for nginx after a boot.
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      up() { on office timeout 2 openssl s_client -connect 10.0.9.1:8443 -servername api.shop.test < /dev/null 2>&1 | grep -- '-----BEGIN CERTIFICATE-----' > /dev/null; }
+      wait_for 6 up || { echo "nothing answers TLS on web's port 8443"; exit 0; }
+      out=$(on office timeout 5 openssl s_client -connect 10.0.9.1:8443 -servername api.shop.test -verify_hostname api.shop.test -CAfile /home/learner/ca/root.pem -showcerts < /dev/null 2>&1)
+      code=$(printf '%s\n' "$out" | grep -m 1 '^Verify return code')
+      [ "$code" = "Verify return code: 0 (ok)" ] || { echo "from the office, $code"; exit 0; }
+      n=$(printf '%s\n' "$out" | grep -c -- '-----BEGIN CERTIFICATE-----')
+      [ "$n" = 2 ] || { echo "the API sends $n certificate(s)"; exit 0; }
+      echo verifies
+    expect:
+      equals: verifies
+  - id: what-they-say
+    description: "The API's certificate names api.shop.test and is for a server's use only, and the intermediate may sign servers' certificates but not another CA's."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      leaf=$(on office timeout 5 openssl s_client -connect 10.0.9.1:8443 -servername api.shop.test < /dev/null 2> /dev/null | openssl x509 2> /dev/null)
+      [ -n "$leaf" ] || { echo "web sends no certificate on port 8443"; exit 0; }
+      printf '%s\n' "$leaf" | openssl x509 -noout -ext subjectAltName 2> /dev/null | grep -w 'DNS:api.shop.test' > /dev/null ||
+        { echo "the API's certificate doesn't have api.shop.test among its names: $(printf '%s\n' "$leaf" | openssl x509 -noout -ext subjectAltName 2> /dev/null | tail -n 1)"; exit 0; }
+      use=$(printf '%s\n' "$leaf" | openssl x509 -noout -ext extendedKeyUsage 2> /dev/null | tail -n 1 | sed 's/^ *//')
+      [ "$use" = "TLS Web Server Authentication" ] || { echo "the API's certificate may be used for \"${use:-anything}\""; exit 0; }
+      bc=$(openssl x509 -in /home/learner/ca/intermediate.pem -noout -ext basicConstraints 2> /dev/null | tail -n 1 | sed 's/^ *//')
+      [ "$bc" = "CA:TRUE, pathlen:0" ] || { echo "the intermediate's basic constraints are \"${bc:-none}\""; exit 0; }
+      echo right
+    expect:
+      equals: right
+  - id: partner-in
+    description: "The warehouse, on partner, with its certificate from the Shop Partners CA, gets the API's page."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      out=$(on partner curl -s --max-time 5 --cacert /etc/warehouse/shop-root.pem --cert /etc/warehouse/warehouse.pem --key /etc/warehouse/warehouse.key -w '\n%{http_code}' https://api.shop.test:8443/ 2>&1)
+      code=$(printf '%s\n' "$out" | tail -n 1)
+      [ "$code" = 200 ] || { echo "the API answers the warehouse with $code: $(printf '%s\n' "$out" | grep -m 1 -o '<title>[^<]*' | sed 's/<title>//')"; exit 0; }
+      printf '%s\n' "$out" | grep "The partners' API" > /dev/null || { echo "the API doesn't serve the warehouse its page from /srv/www/api"; exit 0; }
+      echo in
+    expect:
+      equals: in
+  - id: nobody-else
+    description: "The API answers no client without a certificate from the Shop Partners CA: not one with none, and not one whose certificate the shop's own intermediate signed."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      ca=/home/learner/ca
+      openssl ecparam -name prime256v1 -genkey -noout -out "$dir/c.key"
+      openssl req -new -key "$dir/c.key" -subj "/CN=intruder$RANDOM.shop.test" -out "$dir/c.csr" 2> /dev/null
+      printf '%s\n' 'extendedKeyUsage=clientAuth' > "$dir/c.ext"
+      openssl x509 -req -in "$dir/c.csr" -CA "$ca/intermediate.pem" -CAkey "$ca/intermediate.key" -CAcreateserial -CAserial "$dir/c.srl" -days 1 -extfile "$dir/c.ext" -out "$dir/c.pem" 2> /dev/null
+      cat "$dir/c.pem" "$ca/intermediate.pem" > "$dir/chain.pem"
+      chmod -R a+rX "$dir"
+      got=$(on office curl -sk --max-time 5 -o /dev/null -w '%{http_code}' https://api.shop.test:8443/)
+      case $got in 4*) ;; *) echo "the API answers a client without a certificate with $got"; exit 0 ;; esac
+      got=$(on office curl -sk --max-time 5 -o /dev/null -w '%{http_code}' --cert "$dir/chain.pem" --key "$dir/c.key" https://api.shop.test:8443/)
+      case $got in 4*) ;; *) echo "the API answers a client whose certificate the shop's intermediate signed with $got"; exit 0 ;; esac
+      echo closed
+    expect:
+      equals: closed
+  - id: lasts
+    description: "nginx on web starts at every boot, and its files pass its own test."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(systemctl is-enabled nginx@web 2> /dev/null)" = enabled ] || { echo "nginx@web doesn't start at boot"; exit 0; }
+      said=$(on web nginx -t 2>&1) || { echo "on web, nginx -t says: $(echo "$said" | grep -m 1 emerg)"; exit 0; }
+      echo lasts
+    expect:
+      equals: lasts
+  - id: scenery
+    description: "The network and the resolver are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact

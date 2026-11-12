@@ -1,0 +1,72 @@
+#!/bin/bash
+# make-shop-certs: a certificate authority of the shop's own, for its
+# internal services, made with openssl, and the certificates the partners'
+# API needs. It makes, in ~/ca:
+#   - the shop's root, "Shop Internal Root CA", which signs one intermediate;
+#   - the intermediate, "Shop Internal Intermediate", which signs the
+#     API's certificate;
+#   - a second root, the "Shop Partners CA", kept for partners' client
+#     certificates only, which signs the warehouse's.
+# Then it hands the files out: web gets the API's certificates, its key and
+# the Shop Partners CA's certificate; partner gets the warehouse's
+# certificate and key, and the shop's root, to check the API's certificate
+# with. Each run makes everything afresh.
+set -euo pipefail
+dir=$HOME/ca
+rm -rf "$dir"
+mkdir -p "$dir"
+cd "$dir"
+
+# key FILE: a new private key (ECDSA, P-256).
+key() { openssl ecparam -name prime256v1 -genkey -noout -out "$1"; }
+# sign CSR ISSUER ISSUER-KEY EXTENSIONS OUT DAYS: a certificate for the
+# request CSR, signed by ISSUER, with the extensions in the file EXTENSIONS.
+# openssl's complaint, if it has one, is shown, and the script stops.
+sign() {
+  local said
+  said=$(openssl x509 -req -in "$1" -CA "$2" -CAkey "$3" -CAcreateserial -extfile "$4" -days "$6" -out "$5" 2>&1) ||
+    { printf 'openssl could not make %s:\n%s\n' "$5" "$said" >&2; return 1; }
+}
+
+# The shop's root: a CA, signed by its own key.
+key root.key
+openssl req -x509 -new -key root.key -subj "/CN=Shop Internal Root CA" -days 3650 -out root.pem \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+
+# The intermediate: a CA that may sign certificates for servers, but not
+# for another CA under it.
+key intermediate.key
+openssl req -new -key intermediate.key -subj "/CN=Shop Internal Intermediate" -out intermediate.csr
+printf '%s\n' 'basicConstraints=critical,___' 'keyUsage=critical,keyCertSign,cRLSign' > intermediate.ext
+sign intermediate.csr root.pem root.key intermediate.ext intermediate.pem 1825
+
+# The API's certificate: for the name its clients ask for, and for a
+# server's use.
+key api.key
+openssl req -new -key api.key -subj "/CN=api.shop.test" -out api.csr
+printf '%s\n' 'subjectAltName=___' 'extendedKeyUsage=___' 'keyUsage=critical,digitalSignature' > api.ext
+sign api.csr intermediate.pem intermediate.key api.ext api.pem 365
+# What the API sends a client: its own certificate, then the one that
+# signed it.
+cat ___ ___ > fullchain.pem
+
+# The Shop Partners CA, a root of its own, and the warehouse's
+# certificate, for a client's use.
+key partners.key
+openssl req -x509 -new -key partners.key -subj "/CN=Shop Partners CA" -days 3650 -out partners.pem \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+key warehouse.key
+openssl req -new -key warehouse.key -subj "/CN=warehouse.partners.test" -out warehouse.csr
+printf '%s\n' 'subjectAltName=DNS:warehouse.partners.test' 'extendedKeyUsage=___' 'keyUsage=critical,digitalSignature' > warehouse.ext
+sign warehouse.csr partners.pem partners.key warehouse.ext warehouse.pem 365
+
+# Hand the files out ("install" copies a file and sets who may read it).
+on web install -m 644 "$dir/api.pem" /etc/nginx/tls/api.pem
+on web install -m 644 "$dir/fullchain.pem" /etc/nginx/tls/fullchain.pem
+on web install -m 600 "$dir/api.key" /etc/nginx/tls/api.key
+on web install -m 644 "$dir/root.pem" /etc/nginx/tls/shop-root.pem
+on web install -m 644 "$dir/partners.pem" /etc/nginx/tls/partners-ca.pem
+on partner install -m 644 "$dir/warehouse.pem" /etc/warehouse/warehouse.pem
+on partner install -m 600 "$dir/warehouse.key" /etc/warehouse/warehouse.key
+on partner install -m 644 "$dir/root.pem" /etc/warehouse/shop-root.pem
+echo "made in $dir, and handed out to web and partner"

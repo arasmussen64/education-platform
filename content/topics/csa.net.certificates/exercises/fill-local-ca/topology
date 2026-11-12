@@ -1,0 +1,21 @@
+# The shop's web server and its neighbours, on one switch.
+#
+#   office    10.0.9.2    a customer's laptop
+#   web       10.0.9.1    nginx: api.shop.test, the partners' API
+#   partner   10.0.9.3    the warehouse's server, a partner of the shop
+#   resolver  10.0.9.53   the shop's name server (Unbound)
+#
+# Every machine asks the resolver for names.
+machine office
+machine web
+machine partner
+machine resolver
+
+lan shopnet office:eth0=10.0.9.2/24 web:eth0=10.0.9.1/24 partner:eth0=10.0.9.3/24 resolver:eth0=10.0.9.53/24
+
+dns office 10.0.9.53
+dns web 10.0.9.53
+dns partner 10.0.9.53
+
+run resolver unbound
+run web nginx
