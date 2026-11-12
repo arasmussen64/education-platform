@@ -44,7 +44,7 @@
 #                          topology and its sysctl files and before its
 #                          services: its own addresses, routes, tunnels
 #
-# Usage (as root, or with sudo):
+# Usage (netlab asks for sudo itself when it needs it):
 #   netlab up        build the network (netlab.service runs it at boot)
 #   netlab down      take it apart (netlab.service, when it stops)
 #   netlab restart   rebuild the network as a reboot would: every machine's
@@ -112,7 +112,6 @@ die() {
   say "$*"
   exit 1
 }
-need_root() { [[ $EUID -eq 0 ]] || die "this needs root: sudo netlab $*"; }
 
 # --- Reading the topology -----------------------------------------------------
 #
@@ -655,18 +654,20 @@ show_machines() {
 
 # --- Commands -----------------------------------------------------------------
 
+# Every command reads or changes the machines' networks, which only root may
+# do. The learner has sudo, as on every lab, so netlab asks for it itself,
+# as "on" does: "netlab show" and "sudo netlab show" are the same.
+if [[ $EUID -ne 0 ]]; then exec sudo "$0" "$@"; fi
+
 action=${1:-}
 case $action in
   up)
-    need_root up
     bring_up
     ;;
   down)
-    need_root down
     take_down
     ;;
   restart)
-    need_root restart
     # Stopping netlab.service stops every machine's services first (they are
     # PartOf it), then takes the network down; starting the boot target
     # builds it again and starts every enabled service, as a boot does.
@@ -678,12 +679,10 @@ case $action in
     show_machines
     ;;
   link)
-    need_root link
     [[ $# -eq 4 ]] || die "usage: netlab link MACHINE INTERFACE down|up|silent|restore"
     link_command "$2" "$3" "$4"
     ;;
   verify)
-    need_root verify
     shift
     verify "$@"
     ;;
