@@ -1,0 +1,112 @@
+#!/usr/bin/python3
+"""route-truth: the checks' own answer for "Next hop" (not the learner's tool).
+
+  route-truth answer TABLE ADDRESS...   the route the kernel would choose for
+                                        each address, in next-hop's format
+  route-truth make TABLE                writes a new random table to TABLE and
+                                        prints twenty addresses to ask about
+
+A table is a routing table as "ip route" prints it, in four line shapes:
+"default via A dev D ...", "PREFIX via A dev D ...", "PREFIX dev D ..." and
+"blackhole PREFIX ...". A prefix without a length is a single address (/32).
+"""
+
+import ipaddress
+import random
+import sys
+
+
+def routes_of(path):
+    """Each line of the table as (network, what the route does)."""
+    routes = []
+    with open(path, encoding="utf-8") as table:
+        for line in table:
+            word = line.split()
+            if not word:
+                continue
+            if word[0] == "blackhole":
+                prefix, action = word[1], "blackhole"
+            elif len(word) > 1 and word[1] == "via":
+                prefix, action = word[0], f"via {word[2]} dev {word[4]}"
+            else:
+                prefix, action = word[0], f"dev {word[2]} (directly connected)"
+            if prefix == "default":
+                prefix = "0.0.0.0/0"
+            routes.append((ipaddress.ip_network(prefix), action))
+    return routes
+
+
+def answer(path, addresses):
+    routes = routes_of(path)
+    for text in addresses:
+        address = ipaddress.ip_address(text)
+        matching = [(net.prefixlen, action) for net, action in routes if address in net]
+        best = max(matching, key=lambda m: m[0])[1] if matching else "no route"
+        print(f"{text} {best}")
+
+
+def shown(net):
+    """A prefix as ip route shows it: a /32 without its length."""
+    return str(net.network_address) if net.prefixlen == 32 else str(net)
+
+
+def make(path):
+    rng = random.SystemRandom()
+    devices = ["core", "east", "west", "north", "branch", "lab", "dmz", "mgmt", "shop", "vpn"]
+    nets = set()
+    # Chains of nested prefixes around a few addresses, so most addresses
+    # asked about sit inside several routes at once.
+    while len(nets) < 12:
+        anchor = rng.randrange(10 << 24, 11 << 24)
+        for length in sorted(rng.sample(range(9, 33), rng.randint(2, 4))):
+            nets.add(ipaddress.ip_network((anchor, length), strict=False))
+    nets = sorted(nets, key=lambda n: rng.random())[:12]
+    lines = []
+    blackholes = set(rng.sample(range(12), 2))
+    for i, net in enumerate(nets):
+        if i in blackholes:
+            lines.append(f"blackhole {shown(net)} proto static metric 20")
+        elif net.prefixlen < 32 and rng.random() < 0.3:
+            src = net.network_address + 1
+            lines.append(f"{net} dev {rng.choice(devices)} proto kernel scope link src {src}")
+        else:
+            hop = f"10.255.{rng.randrange(256)}.{rng.randrange(1, 255)}"
+            lines.append(f"{shown(net)} via {hop} dev {rng.choice(devices)} proto static metric 20")
+    if rng.random() < 0.7:
+        lines.append(f"default via 192.0.2.{rng.randrange(1, 255)} dev wan proto static metric 20")
+    rng.shuffle(lines)
+    with open(path, "w", encoding="utf-8", newline="\n") as table:
+        table.write("\n".join(lines) + "\n")
+    asked = []
+    for _ in range(20):
+        roll = rng.random()
+        if roll < 0.7:
+            net = rng.choice(nets)
+            pick = rng.random()
+            if pick < 0.15:
+                address = net.network_address
+            elif pick < 0.3:
+                address = net.broadcast_address
+            else:
+                address = net.network_address + rng.randrange(net.num_addresses)
+        elif roll < 0.85:
+            address = ipaddress.ip_address(rng.randrange(10 << 24, 11 << 24))
+        else:
+            address = ipaddress.ip_address(rng.randrange(172 << 24, 173 << 24))
+        asked.append(str(address))
+    print(" ".join(asked))
+
+
+def main(argv):
+    if len(argv) >= 3 and argv[1] == "answer":
+        answer(argv[2], argv[3:])
+    elif len(argv) == 3 and argv[1] == "make":
+        make(argv[2])
+    else:
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

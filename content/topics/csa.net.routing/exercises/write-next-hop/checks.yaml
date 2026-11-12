@@ -1,0 +1,97 @@
+# The checks of "Next hop": the script is there, runnable and clean; then
+# it is run on two fixed tables chosen to catch the usual mistakes (the
+# first match, numbers that look close, one bit too few, the default, a
+# blackhole, a single address, nothing at all), and on three tables made up
+# as the check runs, so a script that knows the fixed answers by heart
+# fails. Each answer is compared with the checks' own (route-truth, in
+# /usr/local/lib/lab), line by line.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/next-hop exists, is executable, starts with a shebang, and ShellCheck has nothing to say about it."
+    command: |
+      f=/home/learner/bin/next-hop
+      [ -f "$f" ] || { echo "there is no ~/bin/next-hop"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/next-hop isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/next-hop's first line isn't a shebang"; exit 0; }
+      if grep 'shellcheck disable' "$f" > /dev/null; then echo "~/bin/next-hop switches ShellCheck's warnings off"; exit 0; fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say: $(echo "$said" | grep -m 1 'SC[0-9]')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: nested-routes
+    description: "For addresses inside several nested routes, it prints the route with the longest prefix, wherever that line sits in the table."
+    command: |
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      # The shorter prefixes come first, so taking the first match is wrong;
+      # 10.10.5.5 starts with the same text as 10.1.0.0/16 but isn't in it;
+      # 10.20.4.9 is one bit outside 10.20.5.0/24.
+      printf '%s\n' 'default via 192.0.2.1 dev wan proto static metric 20' \
+        '10.0.0.0/8 via 10.255.0.1 dev core proto static metric 20' \
+        '10.1.0.0/16 via 10.0.0.2 dev east proto static metric 20' \
+        '10.20.0.0/16 via 10.0.0.6 dev west proto static metric 20' \
+        '10.20.4.0/22 via 10.0.0.10 dev branch proto static metric 20' \
+        '10.20.5.0/24 via 10.0.0.14 dev lab proto static metric 20' \
+        '10.20.5.128/25 dev dmz proto kernel scope link src 10.20.5.129' > "$dir/table"
+      set -- 10.20.5.9 10.20.7.200 10.20.4.9 10.20.4.0 10.20.5.200 10.1.255.255 10.10.5.5 10.20.200.1
+      want=$(/usr/local/lib/lab/route-truth answer "$dir/table" "$@")
+      got=$(timeout 10 /home/learner/bin/next-hop "$dir/table" "$@" 2>&1)
+      if [ "$want" != "$got" ]; then
+        expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+        printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+        echo "the right line is \"$expected\", and the script printed \"${printed:-nothing in its place}\""
+        exit 0
+      fi
+      echo right
+    expect:
+      equals: right
+  - id: edges
+    description: "It prints the default route when nothing else holds the address, blackhole for a blackhole route, a single-address route over a wider one, and no route when nothing holds it at all."
+    command: |
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      printf '%s\n' '10.0.0.0/8 via 10.255.0.1 dev core proto static metric 20' \
+        'blackhole 10.30.0.0/16 proto static metric 20' \
+        '10.30.7.7 via 10.0.0.18 dev mgmt proto static metric 20' \
+        'default via 192.0.2.1 dev wan proto static metric 20' > "$dir/one"
+      printf '%s\n' '192.168.0.0/16 via 172.16.0.1 dev site proto static metric 20' \
+        '172.16.0.0/30 dev site proto kernel scope link src 172.16.0.2' > "$dir/two"
+      for run in "one 203.0.113.9 10.30.1.1 10.30.7.7 10.30.7.8 10.0.0.0" "two 8.8.8.8 192.168.40.1 172.16.0.1"; do
+        set -- $run
+        table=$dir/$1
+        shift
+        want=$(/usr/local/lib/lab/route-truth answer "$table" "$@")
+        got=$(timeout 10 /home/learner/bin/next-hop "$table" "$@" 2>&1)
+        if [ "$want" != "$got" ]; then
+          expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+          printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+          echo "the right line is \"$expected\", and the script printed \"${printed:-nothing in its place}\""
+          exit 0
+        fi
+      done
+      echo right
+    expect:
+      equals: right
+  - id: unseen-tables
+    description: "On three routing tables it has never seen, made up as the check runs, it gives the right route for twenty addresses each."
+    command: |
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      for n in 1 2 3; do
+        asked=$(/usr/local/lib/lab/route-truth make "$dir/table$n")
+        # shellcheck disable=SC2086 # twenty addresses, one argument each
+        want=$(/usr/local/lib/lab/route-truth answer "$dir/table$n" $asked)
+        # shellcheck disable=SC2086
+        got=$(timeout 10 /home/learner/bin/next-hop "$dir/table$n" $asked 2>&1)
+        if [ "$want" != "$got" ]; then
+          expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+          printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+          echo "on a new table, the right line is \"$expected\", and the script printed \"${printed:-nothing in its place}\""
+          exit 0
+        fi
+      done
+      echo right
+    expect:
+      equals: right

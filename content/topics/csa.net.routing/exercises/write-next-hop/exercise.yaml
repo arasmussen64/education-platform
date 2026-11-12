@@ -1,0 +1,45 @@
+id: write-next-hop
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Next hop"
+prompt: |
+  From a blank file, write `~/bin/next-hop`, a bash script that reads a routing table and says which route the kernel would choose for each address. It's longest-prefix match written down, the way you'd check a cloud route table or a colleague's router before a change.
+
+  It's run as `next-hop TABLE ADDRESS...`. TABLE is a file in the form `ip route` prints, and its lines have four shapes:
+
+  - `default via 192.0.2.1 dev wan ...`: the default route, 0.0.0.0/0;
+  - `10.40.0.0/16 via 10.255.0.5 dev east ...`: a route through a next hop, out of an interface;
+  - `10.40.9.0/24 dev shop ...`: a directly connected network, with no next hop;
+  - `blackhole 10.99.0.0/16 ...`: a blackhole route.
+
+  A prefix written without a `/` is a single address, a /32: that's how `ip route` shows one. A line may carry more words at the end (`proto static metric 20`, `proto kernel scope link src 10.40.9.1`), which the script ignores.
+
+  For each address, in the order given, it prints one line: `ADDRESS via A dev D` (the route's next hop and interface), `ADDRESS dev D (directly connected)`, `ADDRESS blackhole`, or `ADDRESS no route` when no line holds the address. The longest prefix that holds the address wins, wherever its line sits in the table.
+
+  The arithmetic is IPv4 and CIDR's: an address as one number, `IFS=. read -r a b c d <<< "$address"` then `n=$(( (a << 24) | (b << 16) | (c << 8) | d ))`; and an address is in a prefix of length L when the two numbers agree once the last 32 - L bits are shifted away, `(( (n >> (32 - L)) == (p >> (32 - L)) ))`, where p is the prefix's own address as a number. A shift of 32 leaves 0, so the default route holds every address. (In awk, the same test is `int(n / 2^(32 - L)) == int(p / 2^(32 - L))`, if you'd rather read the table with awk.) `while read -r -a word; do ...; done < "$table"` reads a file a line at a time into the array `word`, `${word[0]}` being its first word.
+
+  Make the file with `nano ~/bin/next-hop`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/next-hop`. ShellCheck must have nothing to say about it (`shellcheck ~/bin/next-hop`). Try it on the branch router's table:
+
+  ```
+  ~/bin/next-hop ~/tables/branch.txt 10.40.9.20 10.40.13.1 10.40.12.7 10.99.3.4 172.16.0.1
+  ```
+
+  which should print:
+
+  ```
+  10.40.9.20 dev shop (directly connected)
+  10.40.13.1 via 10.255.0.9 dev branch
+  10.40.12.7 via 10.255.0.13 dev mgmt
+  10.99.3.4 blackhole
+  172.16.0.1 via 192.0.2.1 dev wan
+  ```
+
+  The checks run it on tables of their own, three of them made up as the checks run.
+hints:
+  - "One shape that works: for each address, go through every line of the table, and keep the route with the longest prefix that holds the address so far (start with a length of -1 and the answer `no route`). Print the answer once the table has been read."
+  - "Work out the prefix and the answer from the line's first words: if `${word[0]}` is `blackhole`, the prefix is `${word[1]}`; if `${word[1]}` is `via`, the next hop is `${word[2]}` and the interface `${word[4]}`; otherwise `${word[2]}` is the interface of a connected network. `default` is 0.0.0.0/0."
+  - "`${prefix%/*}` is the part before the `/` and `${prefix#*/}` the length after it; `[[ $prefix == */* ]]` asks whether there is a `/` at all, and a prefix without one is a /32."
+skills: [longest-prefix-match]
