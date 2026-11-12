@@ -1,0 +1,124 @@
+# The checks of "IPv6 half works". Each reads the network's real state:
+# the laptops' own addresses, what web's test service saw and counted, a
+# packet too big for the ISP's narrow link, connections tried from the
+# internet. "lasts" builds a fresh copy of every machine from its files and
+# compares it with the running one (netlab verify), so a fix made only live
+# fails; "scenery" reads the topology's seal. "slaac" waits for the
+# laptops' addresses after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: slaac
+    description: "h1 and h2 each have an IPv6 address they made themselves, in the office's subnet, 2001:db8:42:a::/64, and none typed in by hand."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # An address a host made from a router advertisement is "dynamic"
+      # (it has a lifetime); one typed in is "permanent".
+      own() { on "$1" ip -6 -o addr show dev eth0 scope global dynamic | awk '{print $4}' | head -n 1; }
+      both() { [ -n "$(own h1)" ] && [ -n "$(own h2)" ]; }
+      wait_for 10 both
+      for h in h1 h2; do
+        address=$(own "$h")
+        [ -n "$address" ] || { echo "$h has no global IPv6 address it made itself"; exit 0; }
+        # Python's ipaddress says which network the address is in.
+        in_subnet='import ipaddress, sys; sys.exit(ipaddress.ip_interface(sys.argv[1]).network != ipaddress.ip_network("2001:db8:42:a::/64"))'
+        python3 -c "$in_subnet" "$address" || { echo "$h's address $address isn't in the office's subnet"; exit 0; }
+        if on "$h" ip -6 -o addr show dev eth0 scope global permanent | grep . > /dev/null; then
+          echo "$h has an IPv6 address typed in by hand"; exit 0
+        fi
+      done
+      echo slaac
+    expect:
+      equals: slaac
+  - id: reach
+    description: "Over IPv6, h1 reaches web with its own address: web sees h1's address, not a translated one."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      mine=$(on h1 ip -6 -o addr show dev eth0 scope global | awk '{print $4}' | head -n 1 | cut -d/ -f1)
+      [ -n "$mine" ] || { echo "h1 has no global IPv6 address"; exit 0; }
+      seen=$(on h1 nc -6 -w 3 2001:db8:80::80 8080 < /dev/null 2> /dev/null)
+      if [ "$seen" = "$mine" ]; then echo own; else echo "web sees h1 as '${seen:-nothing}', not as h1's own $mine"; fi
+    expect:
+      equals: own
+  - id: v4
+    description: "Over IPv4, h1 still reaches web, translated to r1's address on the internet, 198.51.100.2."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      seen=$(on h1 nc -4 -w 3 203.0.113.80 8080 < /dev/null 2> /dev/null)
+      if [ -n "$seen" ]; then echo "$seen"; else echo "h1 doesn't reach web over IPv4"; fi
+    expect:
+      equals: "198.51.100.2"
+  - id: upload
+    description: "A 2 MB upload from h1 to web over IPv6 arrives whole within 10 seconds."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      counted=$(on h1 timeout 10 nc -6 -N -w 8 2001:db8:80::80 9000 < /var/lib/lab/upload.bin 2> /dev/null)
+      echo "${counted:-nothing counted}"
+    expect:
+      equals: "2000000"
+  - id: ptb
+    description: "No MTU has changed, and h1 is told the path's MTU when it sends a packet too big for the ISP's narrow link."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for want in h1:eth0:1500 h2:eth0:1500 r1:lan:1500 r1:wan:1500 isp:cust:1500 isp:core:1400 core:edge:1400; do
+        IFS=: read -r m dev mtu <<< "$want"
+        got=$(ip -n "$m" -o link show "$dev" 2> /dev/null | grep -o 'mtu [0-9]*' | cut -d' ' -f2)
+        [ "$got" = "$mtu" ] || { echo "$m's $dev has an MTU of ${got:-nothing}, not $mtu"; exit 0; }
+      done
+      # A full-size packet to an address of web's that h1 hasn't sent to
+      # before (so nothing it learned earlier counts). IPv6 routers never
+      # fragment: the ISP's router answers "packet too big", with its link's
+      # MTU, and ping prints it only if h1 got the answer.
+      to=2001:db8:80::1$((RANDOM % 900 + 100))
+      out=$(on h1 ping -6 -c 1 -W 2 -M do -s 1452 "$to" 2>&1)
+      if echo "$out" | grep -E 'mtu ?= ?1400' > /dev/null; then echo told; else echo "h1 sent a packet too big for the path and wasn't told the path's MTU"; fi
+    expect:
+      equals: told
+  - id: egress-only
+    description: "Nobody on the internet can open a connection to the office: from web, connections to h1's and h2's IPv6 addresses get no answer."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      opened=$(mktemp)
+      listeners=() probes=()
+      targets=()
+      for h in h1 h2; do
+        address=$(on "$h" ip -6 -o addr show dev eth0 scope global | awk '{print $4}' | head -n 1 | cut -d/ -f1)
+        [ -n "$address" ] && targets+=("$h=$address")
+      done
+      # Listeners of the check's own, so a port the firewall lets through
+      # answers; then every probe at once, each given 2 seconds.
+      for t in "${targets[@]}"; do
+        for p in 22 80 8080; do on "${t%%=*}" timeout 6 nc -6 -l -p "$p" > /dev/null 2>&1 & listeners+=($!); done
+      done
+      sleep 0.5
+      for t in "${targets[@]}"; do
+        for p in 22 80 8080; do
+          { on web nc -6 -z -w 2 "${t#*=}" "$p" 2> /dev/null && echo "${t%%=*}:$p" >> "$opened"; } &
+          probes+=($!)
+        done
+      done
+      [ ${#probes[@]} -gt 0 ] && wait "${probes[@]}" 2> /dev/null
+      [ ${#listeners[@]} -gt 0 ] && kill "${listeners[@]}" 2> /dev/null
+      wait 2> /dev/null
+      found=$(sort "$opened" | tr '\n' ' ')
+      rm -f "$opened"
+      if [ -z "$found" ]; then echo closed; else echo "from the internet, web opened connections to $found"; fi
+    expect:
+      equals: closed
+  - id: lasts
+    description: "Every machine is as its files build it, so a restart keeps every fix."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # netlab verify builds a copy of every machine (chk-r1 ...) from its
+      # files and compares each with the running machine: addresses,
+      # routes, firewall, forwarding and every setting its sysctl.d makes.
+      netlab verify || true
+    expect:
+      equals: verified
+  - id: scenery
+    description: "The network itself, the topology file, is as the lab gave it."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact || true
+    expect:
+      equals: intact
