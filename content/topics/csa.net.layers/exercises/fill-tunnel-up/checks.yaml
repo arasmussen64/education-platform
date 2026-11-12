@@ -1,0 +1,56 @@
+# The checks for "Put the tunnel up": the tunnel itself (its far end, and
+# r2's end answering through it), its MTU, the price list arriving whole at
+# the office, the scenery untouched, and a fresh build of every machine
+# from its files doing the same (netlab verify), so a tunnel made only live
+# fails. "download" waits for web's site after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: tunnel-up
+    description: "r1 has a GRE tunnel from its own address on the internet to r2's, and r2's end of the tunnel answers r1 through it."
+    command: |
+      d=$(ip -d -n r1 link show gre1 2> /dev/null) || { echo "r1 has no interface called gre1"; exit 0; }
+      echo "$d" | grep ' gre remote 203.0.113.2 local 203.0.113.1 ' > /dev/null || { echo "r1's gre1 isn't a GRE tunnel from r1's address on the internet to r2's"; exit 0; }
+      on r1 ping -c 1 -W 2 10.255.0.2 > /dev/null 2>&1 && echo "the tunnel is up" || echo "r2's end of the tunnel doesn't answer r1 through it"
+    expect:
+      equals: "the tunnel is up"
+  - id: tunnel-mtu
+    description: "The tunnel's MTU on r1 leaves room for the tunnel's own headers on this 1500-byte path, and wastes none."
+    command: |
+      ip -n r1 -o link show gre1 2> /dev/null | grep -o 'mtu [0-9]*' || echo "r1 has no interface called gre1"
+    expect:
+      equals: "mtu 1476"
+  - id: download
+    description: "The office downloads web's price list, whole, within 15 seconds."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      site_answers() { on office curl -s -o /dev/null --max-time 3 http://10.0.2.20/; }
+      wait_for 10 site_answers
+      want=$(cat /var/lib/lab/pricelist.sha256)
+      got=$(on office curl -s --max-time 15 http://10.0.2.20/pricelist.csv | sha256sum | cut -d' ' -f1)
+      [ "$got" = "$want" ] && echo whole || echo "the price list doesn't reach the office whole within 15 seconds"
+    expect:
+      equals: whole
+  - id: scenery-untouched
+    description: "The cables, r2's settings and firewall, the laptop's and web's settings are as they were: only r1's network file is yours."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact || true
+    expect:
+      equals: intact
+  - id: lasts
+    description: "r1 is as its files build it, and in a fresh build of every machine from its files the office reaches web through the tunnel."
+    command: |
+      # netlab verify builds a copy of every machine (chk-office ...) from
+      # its files, compares each with the running machine, and then runs
+      # the probe below in the copy, which a tunnel made only live can't
+      # pass. The copy runs no services, so a listener of the check's own
+      # stands in for web's site.
+      netlab verify -- bash -c '
+        on chk-web timeout 6 nc -l -p 80 > /dev/null 2>&1 &
+        sleep 0.3
+        if on chk-office nc -z -w 2 10.0.2.20 80 2> /dev/null; then echo lasts; else echo "built fresh from its files, the office can'\''t reach web"; fi
+        kill $(jobs -p) 2> /dev/null' || true
+    timeout: 45
+    expect:
+      equals: lasts
