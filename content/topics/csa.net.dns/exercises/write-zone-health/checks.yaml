@@ -3,7 +3,8 @@
 # brings up itself (zone-servers, with serials drawn at random at every
 # run), so an answer that was typed in for the zones the learner can see
 # fails: one where every server agrees, one where a serial differs, one
-# where a server doesn't hold the zone. Each runs it four times, because
+# where a server refuses the zone and another refers the question
+# elsewhere (a lame server: NOERROR, but no aa). Each runs it four times, because
 # the referral lists the servers in a different order each time. The last
 # runs it on shop.test against the shop's real servers. The servers start
 # and stop inside each check.
@@ -16,7 +17,7 @@ checks:
       f=/home/learner/bin/zone-health
       [ -f "$f" ] || { echo "there is no ~/bin/zone-health"; exit 0; }
       [ -x "$f" ] || { echo "~/bin/zone-health can't be run: chmod +x it"; exit 0; }
-      head -n 1 "$f" | grep -x '#!/bin/bash' > /dev/null || { echo "~/bin/zone-health's first line isn't #!/bin/bash"; exit 0; }
+      head -n 1 "$f" | grep -Ex '#! ?(/usr)?/bin/bash|#! ?/usr/bin/env bash' > /dev/null || { echo "~/bin/zone-health's first line isn't #!/bin/bash"; exit 0; }
       echo ready
     expect:
       equals: ready
@@ -62,16 +63,16 @@ checks:
     expect:
       equals: right
   - id: broken
-    description: "For a zone one of whose servers doesn't hold it (it refuses the question, with no aa flag), it prints that server as not authoritative, the others' serials, sorted by name, and then: broken."
+    description: "For a zone two of whose servers don't hold it (one refuses the question, one answers with a referral elsewhere; neither sets the aa flag), it prints those two as not authoritative, the third one's serial, sorted by name, and then: broken."
     command: |
       trap '/usr/local/lib/lab/zone-servers stop' EXIT
       zone=$(printf '%s\n' check-a.test check-b.test | shuf -n 1)
       s=$((2026010100 + RANDOM % 8000))
-      /usr/local/lib/lab/zone-servers start "$zone" "$s" "$s" -
+      /usr/local/lib/lab/zone-servers start "$zone" "$s" ^ -
       if [ "$zone" = check-a.test ]; then
-        want=$(printf '%s\n' "east.check-a.test. 198.51.100.17 serial $s" "north.check-a.test. 198.51.100.16 serial $s" "west.check-a.test. 198.51.100.18 not authoritative" "broken")
+        want=$(printf '%s\n' "east.check-a.test. 198.51.100.17 not authoritative" "north.check-a.test. 198.51.100.16 serial $s" "west.check-a.test. 198.51.100.18 not authoritative" "broken")
       else
-        want=$(printf '%s\n' "one.check-b.test. 198.51.100.18 not authoritative" "three.check-b.test. 198.51.100.16 serial $s" "two.check-b.test. 198.51.100.17 serial $s" "broken")
+        want=$(printf '%s\n' "one.check-b.test. 198.51.100.18 not authoritative" "three.check-b.test. 198.51.100.16 serial $s" "two.check-b.test. 198.51.100.17 not authoritative" "broken")
       fi
       for run in 1 2 3 4; do
         got=$(on office timeout 10 /home/learner/bin/zone-health "$zone" 2>&1)

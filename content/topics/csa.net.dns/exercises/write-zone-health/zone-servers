@@ -7,7 +7,9 @@
 # where test. delegates check-a.test and check-b.test. The server at .16
 # serves ZONE with SERIAL1, .17 with SERIAL2 and .18 with SERIAL3; a serial
 # of - starts that server without the zone, so it refuses questions about
-# it. stop removes them. Part of the scenery.
+# it, and a serial of ^ starts it with a copy of test. instead, so it
+# answers them with a referral (NOERROR, no aa): a lame server. stop
+# removes them. Part of the scenery.
 set -euo pipefail
 dir=/run/zone-servers
 
@@ -61,14 +63,30 @@ start() {
       echo "  session-keyfile \"$dir/$i/session.key\"; managed-keys-directory \"$dir/$i\";"
       echo "  listen-on { $address; }; listen-on-v6 { none; }; recursion no; dnssec-validation no; };"
       echo "controls { };"
-      if [ "$serial" != - ]; then echo "zone \"$zone\" { type primary; file \"$dir/$i/db\"; };"; fi
+      case $serial in
+        -) ;;
+        ^) echo "zone \"test\" { type primary; file \"$dir/$i/db\"; };" ;;
+        *) echo "zone \"$zone\" { type primary; file \"$dir/$i/db\"; };" ;;
+      esac
     } > "$dir/$i/named.conf"
-    {
-      echo "\$TTL 300"
-      echo "@ IN SOA $(servers_of "$zone" | head -n 1 | cut -d' ' -f1).$zone. hostmaster.$zone. ( ${serial/-/1} 3600 600 1209600 300 )"
-      servers_of "$zone" | while read -r name address; do echo "@ IN NS $name"; echo "$name IN A $address"; done
-      echo "www IN A 203.0.113.80"
-    } > "$dir/$i/db"
+    if [ "$serial" = ^ ]; then
+      # test. as the real tld holds it, cut down to ZONE's delegation.
+      label=${zone%.test}
+      {
+        echo "\$TTL 300"
+        echo "@ IN SOA ns1.nic.test. hostmaster.nic.test. ( 1 3600 600 1209600 300 )"
+        echo "@ IN NS ns1.nic"
+        echo "ns1.nic IN A 198.51.100.12"
+        servers_of "$zone" | while read -r name address; do echo "$label IN NS $name.$label"; echo "$name.$label IN A $address"; done
+      } > "$dir/$i/db"
+    else
+      {
+        echo "\$TTL 300"
+        echo "@ IN SOA $(servers_of "$zone" | head -n 1 | cut -d' ' -f1).$zone. hostmaster.$zone. ( ${serial/-/1} 3600 600 1209600 300 )"
+        servers_of "$zone" | while read -r name address; do echo "@ IN NS $name"; echo "$name IN A $address"; done
+        echo "www IN A 203.0.113.80"
+      } > "$dir/$i/db"
+    fi
     chown -R bind:bind "$dir/$i"
     ip netns exec "chk-zh$i" named -c "$dir/$i/named.conf" -u bind
   done
