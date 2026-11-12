@@ -10,7 +10,7 @@ choices:
   - "240 seconds is too close to 350 for a probe to arrive in time"
 answer: 0
 explanation: |
-  `tcp_keepalive_time` is only the default for sockets that have keepalive switched on: a program has to ask for it, socket by socket (`SO_KEEPALIVE`), and most database drivers leave it off unless they're told (PostgreSQL's `keepalives` setting, for one). A socket that never asked sends no probes, whatever the system's timer says.
+  `tcp_keepalive_time` is only the default for sockets that have keepalive switched on: a program has to ask for it, socket by socket (`SO_KEEPALIVE`), and many drivers leave it off unless they're told (PostgreSQL's Java driver, for one, has `tcpKeepAlive` off by default). A socket that never asked sends no probes, whatever the system's timer says.
 
   The setting belongs to the client's machine, not the database server, and is read when a socket's keepalive timer is armed, so new connections use it without a restart of anything else. Probes are real traffic to a stateful box: Azure's NAT gateway documentation says they look like duplicate acknowledgements, and they reset its idle count like any packet. And 240 leaves 110 seconds to spare, plenty for a packet that crosses a network in milliseconds.
 skills: [idle-cuts]
