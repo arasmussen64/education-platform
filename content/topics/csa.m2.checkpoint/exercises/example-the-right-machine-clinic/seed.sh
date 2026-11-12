@@ -395,10 +395,11 @@ The sizing policy
              the machine it runs on now, is at most baseline_pct of the
              new size's vCPUs
   Then       among the sizes that meet all of that, on the clouds the
-             brief allows, that can run what the workload runs, and with
-             a price for its licences, the cheapest for the hours it runs.
-             Anything that costs at most 15% more than the cheapest is
-             accepted.
+             brief allows, with processors that can run what the workload
+             runs (and the ones its team has chosen, where the brief says
+             so), and with a price for its licences, the cheapest for the
+             hours it runs. Anything that costs at most 15% more than the
+             cheapest is accepted.
   The 95th percentile is the nearest-rank one: sort the samples from
   smallest to largest and take the one at position 95% of the count,
   rounded up. metric-summary prints it.
