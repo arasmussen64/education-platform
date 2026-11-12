@@ -19,6 +19,13 @@ Built alongside it: the app bundles Module 3's topics, as it does Modules 1 and 
 - the lesson used subnet, region, VPN and DNS before the learner's path defined them;
 - "the shortest prefix covering two blocks" was backwards.
 
+**Routing is ready** (#259). It teaches how a router picks a route and why the reply picks its own. It covers longest-prefix match, administrative distance, FRR's candidate routes against the kernel's table, static routes with floating backups and blackholes, asymmetric paths and a stateful firewall, `sysctl` (owned here for the module), and where packets vanish, with the three clouds' route orders side by side. The fill-in's and the build's checks unplug a cable to prove a backup takes over, the first checks that cut one. Five labs (36 known-wrong fixes) and 29 recall items. The review fixed eleven things. Two were shortcuts:
+
+- in the debug, adding the right default route beside Friday's broken one passed, because the kernel quietly skips a next hop that never answers ARP;
+- in the fill-in, deleting both the default route and the blackhole passed.
+
+It also fixed a check that caught a too-narrow blackhole only one run in two, a routing loop left by the debug's own reference fix, and check messages that named a fault's place on the first run.
+
 **Author notes:**
 
 - _The build's narrow link moved._ The plan put the 1400-byte link next to the branch's router, where the cloud's router dropped the oversized packets before the branch's firewall ever saw the ICMP. It now sits beyond the ISP, so r3 can only learn the path MTU from ICMP that its own firewall lets in, which is the point of the lab.
@@ -30,8 +37,11 @@ Built alongside it: the app bundles Module 3's topics, as it does Modules 1 and 
 - _CIDR's build drops the plan's sixth check_ (every subnet within each cloud's size limits): with the plan's numbers it could never fail on its own, so no known-wrong plan could prove it.
 - _One CIDR estimate sizes 450 VMs, not 500,_ because the build sizes 500 machines and ADR-0024 keeps a proof's numbers out of practice.
 - _The CIDR debug's printer was first called `prn`,_ a name Windows reserves, so git couldn't check its folder out. The base's README now warns about such names.
+- _Static routes are taught and built with their interface named_ (`ip route 10.2.0.0/24 10.0.12.2 r2`). The plan's own build failed without it: FRR kept a dead route through a covering blackhole. Listed under "Decided for you", with the base's README rules it led to.
+- _The first check of each routing network lab may take 60 seconds:_ `wait_for 15` with `curl -m 2` can take 48, and a learner on a broken lab saw "ran out of time" instead of the check's own message. `wait_for`'s help now says it counts tries.
+- _Routing's main resource is a video nobody has watched_ (see the queue), and its second Practical Networking video is optional, to keep the topic's time.
 
-**Next:** Routing in its own pull request; then wave 1's second half (DNS, HTTP semantics, BGP sessions), which is being written now.
+**Next:** wave 1's second half (DNS, HTTP semantics, BGP sessions), which is being written now.
 
 ## 2026-11-12: Module 3's platform, the network-lab base
 
