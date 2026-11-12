@@ -1,0 +1,205 @@
+# The checks of "Primary, backup and the VPN": edge's three sessions (and
+# whether the cloud tore one down for too many prefixes), what the cloud
+# accepted over each, which way each side sends its traffic (BGP's choice,
+# and the kernel's route for every office network, which shares traffic
+# over two paths that tie), BFD on both circuits, eBGP's policy rule,
+# whether the work is saved, the cloud's router as it was, then the backups
+# proved by unplugging the circuits one after the other, and last, a silent
+# failure of dx1 that must be noticed within 3 seconds. sessions-up waits
+# for BGP after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sessions-up
+    description: "edge has BGP sessions up with the cloud over dx1 (169.254.30.2), dx2 (169.254.20.2) and the VPN (169.254.10.2)."
+    # Each session must be Established for 3 seconds, long enough for the
+    # first exchange of routes to finish. Up to 40 tries a second apart, so it
+    # gets a minute and prints its own sentence rather than running out of
+    # time. A session the cloud tore down for too many prefixes fails at once.
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      peer() { frr edge 'show bgp summary json' | json "(lambda p: '%s %s' % (p.get('state'), p.get('peerUptimeMsec', 0) >= 3000))(d.get('ipv4Unicast', {}).get('peers', {}).get('$1', {}))"; }
+      # The cloud's own word for a session it tore down for too many prefixes.
+      limit() { frr cloud "show bgp neighbors $1 json" | json "d.get('$1', {}).get('prefixesConfigExceedMax') is True"; }
+      sessions="169.254.30.2=169.254.30.1=dx1 169.254.20.2=169.254.20.1=dx2 169.254.10.2=169.254.10.1=vpn"
+      all() {
+        for s in $sessions; do
+          IFS== read -r far near name <<< "$s"
+          [ "$(peer "$far")" = "Established True" ] && continue
+          [ "$(limit "$near")" = True ] && return 0
+          return 1
+        done
+      }
+      wait_for 40 all
+      for s in $sessions; do
+        IFS== read -r far near name <<< "$s"
+        if [ "$(limit "$near")" = True ] && [ "$(peer "$far")" != "Established True" ]; then
+          echo "the cloud tore down the session over $name: edge sent it more than the 5 prefixes it accepts on a session; it tries again a minute after the teardown"
+          exit 0
+        fi
+        got=$(peer "$far")
+        case $got in
+          "Established True") ;;
+          *) echo "edge has no BGP session up with the cloud over $name ($far): FRR says ${got%% *}"; exit 0 ;;
+        esac
+      done
+      echo up
+    expect:
+      equals: up
+  - id: announced-within-limit
+    description: "Over each session the cloud accepted at most 5 prefixes from edge, all inside 10.1.0.0/21, and between them they cover all eight office networks."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      all=""
+      for s in "169.254.30.1 dx1" "169.254.20.1 dx2" "169.254.10.1 vpn"; do
+        set -- $s
+        got=$(frr cloud "show bgp ipv4 unicast neighbors $1 routes json" | json "' '.join(sorted(d.get('routes', {})))")
+        [ -n "$got" ] || { echo "over $2 the cloud accepted nothing from edge"; exit 0; }
+        set -- $got
+        [ $# -le 5 ] || { echo "over the session the cloud accepted $# prefixes from edge, more than 5"; exit 0; }
+        all="$all $got"
+      done
+      verdict=$(python3 -c '
+      import ipaddress, sys
+      office = ipaddress.ip_network("10.1.0.0/21")
+      got = [ipaddress.ip_network(p) for p in sys.argv[1:]]
+      outside = [str(p) for p in got if not p.subnet_of(office)]
+      missing = [str(n) for n in office.subnets(new_prefix=24) if not any(n.subnet_of(p) for p in got)]
+      print("outside " + " ".join(outside) if outside else "missing " + " ".join(missing) if missing else "ok")
+      ' $all)
+      case $verdict in
+        ok) echo within ;;
+        outside*) echo "the cloud accepted from edge prefixes outside the office's 10.1.0.0/21: ${verdict#outside }" ;;
+        *) echo "no prefix the cloud accepted covers these office networks: ${verdict#missing }" ;;
+      esac
+    expect:
+      equals: within
+  - id: outbound-order
+    description: "edge sends the office's traffic to the cloud over dx1 alone, chosen by local preference, and the office reaches the cloud's app."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      best=$(bgp-best edge 10.100.0.0/16)
+      case $best in
+        "via 169.254.30.2, "*"chosen by Local Pref") ;;
+        *) echo "edge's chosen path to the cloud, 10.100.0.0/16, isn't dx1 by local preference: $best"; exit 0 ;;
+      esac
+      hops=$(ip -n edge route show 10.100.0.0/16 | grep -o 'via [0-9.]*' | sort | tr '\n' ' ')
+      [ "$hops" = "via 169.254.30.2 " ] || { echo "edge's kernel sends traffic for 10.100.0.0/16 $hops, not over dx1 alone"; exit 0; }
+      [ "$(on office nc -w 2 10.100.0.10 8080 < /dev/null 2> /dev/null)" = 10.1.0.10 ] || { echo "the office doesn't reach the cloud's app, 10.100.0.10"; exit 0; }
+      echo dx1
+    expect:
+      equals: dx1
+  - id: inbound-order
+    description: "The cloud sends its traffic for every one of the eight office networks over dx1 alone."
+    command: |
+      # The next hops of the cloud's kernel route that an address goes by:
+      # the longest BGP prefix that holds it, with every next hop it has.
+      hops() { ip -j -n cloud route show proto bgp | python3 -c '
+      import ipaddress, json, sys
+      a = ipaddress.ip_address(sys.argv[1])
+      routes = [r for r in json.load(sys.stdin) if r["dst"] != "default" and a in ipaddress.ip_network(r["dst"] if "/" in r["dst"] else r["dst"] + "/32")]
+      if not routes:
+          print("none")
+      else:
+          r = max(routes, key=lambda r: ipaddress.ip_network(r["dst"] if "/" in r["dst"] else r["dst"] + "/32").prefixlen)
+          print(" ".join(sorted(h["gateway"] for h in r["nexthops"])) if "nexthops" in r else r.get("gateway", "none"))
+      ' "$1"; }
+      for n in 0 1 2 3 4 5 6 7; do
+        got=$(hops "10.1.$n.10")
+        [ "$got" = 169.254.30.1 ] || { echo "the cloud sends traffic for 10.1.$n.0/24 via $got, not over dx1 alone (169.254.30.1)"; exit 0; }
+      done
+      echo dx1
+    expect:
+      equals: dx1
+  - id: bfd
+    description: "BFD watches edge's sessions over dx1 and dx2, and both BFD sessions are up."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for want in "169.254.30.2 dx1" "169.254.20.2 dx2"; do
+        set -- $want
+        state=$(frr edge 'show bfd peers json' | json "[p.get('status') for p in d if p.get('peer') == '$1'] or ['none']")
+        [ "$state" = '["up"]' ] || { echo "edge has no BFD session up with the cloud over $2 ($1): $state"; exit 0; }
+        bgp=$(frr edge "show bgp neighbors $1 json" | json "'peerBfdInfo' in d.get('$1', {})")
+        [ "$bgp" = True ] || { echo "edge's BGP session over $2 isn't watched by BFD"; exit 0; }
+      done
+      echo up
+    expect:
+      equals: up
+  - id: policy-kept
+    description: "edge's eBGP sessions still require a policy before they accept or send anything."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      frr edge 'show running-config' | grep 'no bgp ebgp-requires-policy' > /dev/null && { echo "edge's eBGP sessions no longer require a policy"; exit 0; }
+      echo kept
+    expect:
+      equals: kept
+  - id: saved
+    description: "edge's running FRR configuration is the one in its /etc/frr/frr.conf, so a restart gives the same routing."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      differs=$(frr_saved edge) || { echo "edge's running configuration isn't its file: $(echo "$differs" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: cloud-untouched
+    description: "The cloud's router is as it was: its file, and the routing it runs."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      frr_saved cloud > /dev/null || { echo "the cloud's routing was changed live"; exit 0; }
+      echo untouched
+    expect:
+      equals: untouched
+  - id: failover-order
+    description: "With dx1 unplugged, both directions move to dx2 within a few seconds; with dx2 unplugged too, both move to the VPN; once both are plugged in again, they go back to dx1."
+    # It unplugs the circuits itself (netlab link) and plugs them back in,
+    # even if it is stopped part way: the trap runs on the way out. A session
+    # comes back a few seconds after its cable does (both sides try again
+    # every 5).
+    timeout: 90
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      trap 'netlab link edge dx1 restore > /dev/null 2>&1; netlab link edge dx2 restore > /dev/null 2>&1' EXIT
+      edge_hops() { ip -n edge route show 10.100.0.0/16 2> /dev/null | grep -o 'via [0-9.]*' | sort | tr '\n' ' '; }
+      cloud_hop() { ip -n cloud route get "$1" 2> /dev/null | grep -o 'via [0-9.]*'; }
+      app() { [ "$(on office nc -w 1 10.100.0.10 8080 < /dev/null 2> /dev/null)" = 10.1.0.10 ]; }
+      both() { [ "$(edge_hops)" = "via $1 " ] && [ "$(cloud_hop 10.1.0.10)" = "via $2" ] && [ "$(cloud_hop 10.1.7.10)" = "via $2" ] && app; }
+      both 169.254.30.2 169.254.30.1 || { echo "before the test, traffic isn't on dx1 both ways"; exit 0; }
+      netlab link edge dx1 down
+      wait_for 8 both 169.254.20.2 169.254.20.1 || { echo "with dx1 unplugged, traffic doesn't use dx2 both ways (edge: $(edge_hops); the cloud: $(cloud_hop 10.1.0.10))"; exit 0; }
+      netlab link edge dx2 down
+      wait_for 8 both 169.254.10.2 169.254.10.1 || { echo "with dx1 and dx2 unplugged, traffic doesn't use the VPN both ways (edge: $(edge_hops); the cloud: $(cloud_hop 10.1.0.10))"; exit 0; }
+      netlab link edge dx1 restore
+      netlab link edge dx2 restore
+      wait_for 25 both 169.254.30.2 169.254.30.1 || { echo "with both circuits plugged back in, traffic doesn't go back to dx1 both ways"; exit 0; }
+      echo "dx1, then dx2, then the VPN"
+    expect:
+      equals: "dx1, then dx2, then the VPN"
+  - id: silent-failure
+    description: "When dx1 stops carrying edge's traffic with its cable still plugged in, both directions move to dx2 within 3 seconds; once dx1 is mended, they go back to it."
+    # It makes dx1 silent itself (netlab link: what edge sends over it
+    # vanishes at the cloud) and mends it again, even if it is stopped part
+    # way: the trap runs on the way out.
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      trap 'netlab link edge dx1 restore > /dev/null 2>&1' EXIT
+      edge_hops() { ip -n edge route show 10.100.0.0/16 2> /dev/null | grep -o 'via [0-9.]*' | sort | tr '\n' ' '; }
+      cloud_hop() { ip -n cloud route get "$1" 2> /dev/null | grep -o 'via [0-9.]*'; }
+      app() { [ "$(on office nc -w 1 10.100.0.10 8080 < /dev/null 2> /dev/null)" = 10.1.0.10 ]; }
+      both() { [ "$(edge_hops)" = "via $1 " ] && [ "$(cloud_hop 10.1.0.10)" = "via $2" ] && app; }
+      both 169.254.30.2 169.254.30.1 || { echo "before the test, traffic isn't on dx1 both ways"; exit 0; }
+      start=$(date +%s%N)
+      netlab link edge dx1 silent
+      moved=""
+      while [ $((($(date +%s%N) - start) / 1000000)) -lt 3000 ]; do
+        if both 169.254.20.2 169.254.20.1; then moved=yes; break; fi
+        sleep 0.2
+      done
+      [ -n "$moved" ] || { echo "3 seconds after dx1 went silent, traffic hadn't moved to dx2 both ways"; exit 0; }
+      netlab link edge dx1 restore
+      wait_for 25 both 169.254.30.2 169.254.30.1 || { echo "once dx1 was mended, traffic didn't go back to it within 25 seconds"; exit 0; }
+      echo "moved within 3 seconds"
+    expect:
+      equals: "moved within 3 seconds"

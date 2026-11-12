@@ -1,0 +1,23 @@
+id: build-primary-and-backup
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Primary, backup and the VPN"
+prompt: |
+  A company's router, `edge` (AS 65001), connects its office to one cloud three ways: two private circuits, `dx1` (the cloud's router at 169.254.30.2) and `dx2` (169.254.20.2), standing in for two AWS Direct Connect connections, and a VPN over the internet, `vpn` (169.254.10.2), standing in for a Site-to-Site VPN. The office has eight networks, 10.1.0.0/24 to 10.1.7.0/24, all on edge's interface `lan`; the office laptop, `office`, is 10.1.0.10. The cloud's network is 10.100.0.0/16, where `app` (10.100.0.10) answers on TCP port 8080 with the address that reached it. edge runs FRR with its three sessions configured and saved and nothing else: each is up and exchanges nothing, `(Policy)`, as eBGP requires (`on edge vtysh` opens its console). The cloud's router (AS 64512) isn't yours; `looking-glass cloud 'show ...'` reads it, its policy included (`'show running-config'`). Ties go the wrong way here: the VPN has the lowest addresses and dx1 the highest. BGP's timers are the labs' fast ones (a keepalive every 3 seconds and a hold time of 9, where AWS's side defaults to 30 and 90).
+
+  The cloud's router is modelled on AWS's documented behaviour ("Direct Connect routing policies and BGP communities", read 2026-11-12): longest prefix first; then local preference, set by the communities `7224:7100` (low), `7224:7200` (medium) and `7224:7300` (high), "evaluated before any AS_PATH attribute"; without one, a location in the associated Region gets medium preference and others "a lower value" (here dx2 is in the associated Region, 200, and dx1 isn't, 150); then AS path, then MED. Like AWS, it prefers its circuits to a VPN for the same prefix (it gives what arrives over the VPN local preference 50, whatever you send), and runs BFD on both circuits. Like Direct Connect, it accepts a limited number of routes on each session (scaled down: 5 here, where a private virtual interface takes 100 by default), and above that it takes the session down; it tries again a minute later.
+
+  Configure edge so that:
+
+  1. dx1 carries the office's traffic to the cloud and the cloud's traffic to the office while it's up; dx2 carries both when dx1 is down; the VPN carries both only when both circuits are down; and each comes back by itself;
+  2. edge announces all eight office networks and nothing else, within the cloud's limit of 5 prefixes on a session;
+  3. a circuit that fails silently, its cable still up, is noticed within 3 seconds;
+  4. its eBGP sessions still require a policy, and the cloud's router is left as it is;
+  5. it's saved.
+
+  If the cloud tears a session down for too many prefixes while you work, its looking glass shows `Idle (PfxCt)` and the session comes back a minute later; you can't hurry it. Then run the checks; the last two unplug the circuits one by one, and make dx1 silent, to watch the traffic move, and put everything back.
+skills: [inbound-steering, failure-detection, cloud-circuits]
