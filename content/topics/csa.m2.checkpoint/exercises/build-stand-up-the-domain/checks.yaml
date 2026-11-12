@@ -136,7 +136,7 @@ checks:
   - id: dana-logs-in
     description: "dana, in linux-admins, logs in over SSH with her domain password, into her own home directory, holding a Kerberos ticket, and lab makes each domain account's home at its first login, not by hand."
     command: |
-      result=$(sshpass -p 'Dana-Pass-12345' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l dana@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/dana@ad.shop.test" ]; then echo "dana logged in, into $PWD"; elif ! klist -s; then echo "dana logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
+      result=$(sshpass -p 'Dana-Pass-12345' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l dana@ad.shop.test 127.0.0.1 'if [ "$PWD" != "$HOME" ] || [ ! -O "$HOME" ]; then echo "dana logged in, into $PWD"; elif ! klist -s; then echo "dana logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
       [ -n "$result" ] || { echo "dana could not log in over SSH"; exit 0; }
       [ "$result" = in ] || { echo "$result"; exit 0; }
       grep -Eqs '^[[:space:]]*session[[:space:]].*pam_(mkhomedir|oddjob_mkhomedir)\.so' /etc/pam.d/common-session /etc/pam.d/sshd /etc/pam.d/login \

@@ -29,6 +29,13 @@ The owner is still away; decisions follow their message of 2026-11-11.
 - _Python's `write_text` writes CRLF on Windows,_ and Docker builds a lab from the working tree, so an edited `netlab` failed with exit 127 until its line endings were fixed. Writers are told.
 - _Wave 1's first launch failed at once:_ git couldn't make the writers' worktrees, because two prototype copies archived in #251 had paths up to 178 characters, and a worktree's own 80-character path put them past Windows' limit. The owner's checkout was only just short enough. The fix flattens those copies and adds a test that fails any path over 150 characters, so an archive can't do it again.
 
+**Two Module 2 follow-ups.** The Active Directory labs accept short user names: ten login checks wanted `/home/<user>@ad.shop.test` and failed a learner who set `use_fully_qualified_names = False`; they now ask for the account's own home, whatever it's called. Checkpoint 2's slow-VMs debug keeps vm-a's credit balance of 0 in its ticket (see the note below).
+
+**Author notes, continued:**
+
+- _vm-a's ticket keeps "Its CPU credit balance when this was saved: 0."_ Its cold reviewer flagged that it points at the cause. It stays: a real on-call snapshot of a burstable VM includes its credit balance, and the learner still has to show the cause with the stolen-CPU figure and choose the fix from the README's lists.
+- _Wave 1 runs in two halves, one after the other._ The machine ran critically short of memory while idle (Claude Code stopped a background watcher), and six writers each running labs and the web tests at once could exhaust it.
+
 **Next:** wave 1 of Module 3's topics (layers, CIDR, routing, DNS, HTTP semantics, BGP sessions), as two runs of three topics, each topic written in its own worktree and reviewed cold.
 
 ## 2026-11-11, late: Cloud Module 3 is planned
