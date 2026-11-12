@@ -1,0 +1,16 @@
+# When certbot@MACHINE runs: "systemctl list-timers certbot@web.timer".
+# Ubuntu's certbot.timer runs certbot twice a day, at a random moment in
+# each half-day; on the labs' fast clock, with certificates that last 24
+# hours instead of months, this one runs it every four hours, at a random
+# moment in the first ten minutes. Persistent: a run missed while the lab
+# was stopped happens when it starts again.
+[Unit]
+Description=Run certbot on %i every four hours (the labs' fast clock)
+
+[Timer]
+OnCalendar=*-*-* 00/4:00:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

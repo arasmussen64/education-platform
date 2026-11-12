@@ -1,0 +1,36 @@
+#!/bin/bash
+# make-partners-ca: the Shop Partners CA, made once, when the lab's image
+# is built. It is a second certificate authority, separate from the shop's
+# own, kept only for signing the certificates the shop's partners present
+# as clients, and it signs one: the warehouse's, for its server, partner.
+# A root of its own (no intermediate: it signs a handful of certificates),
+# made with openssl.
+#
+#   /var/lib/lab/partners/       the CA's own files (its key stays here)
+#   web's /etc/nginx/partners-ca.pem      the CA's certificate, for nginx
+#   partner's /etc/warehouse/warehouse.pem and warehouse.key
+#                                the warehouse's client certificate and key
+set -euo pipefail
+ca=/var/lib/lab/partners
+mkdir -p "$ca" /etc/netns/partner/warehouse /etc/netns/web/nginx
+cd "$ca"
+openssl ecparam -name prime256v1 -genkey -noout -out ca.key
+openssl req -x509 -new -key ca.key -subj "/CN=Shop Partners CA" -days 7300 -out ca.pem \
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
+
+# The warehouse's certificate: its name, and clientAuth, the one use a
+# partner's certificate has: proving who the client is.
+w=/etc/netns/partner/warehouse
+openssl ecparam -name prime256v1 -genkey -noout -out "$w/warehouse.key"
+openssl req -new -key "$w/warehouse.key" -subj "/CN=warehouse.partners.test" -out warehouse.csr
+printf '%s\n' 'subjectAltName=DNS:warehouse.partners.test' 'extendedKeyUsage=clientAuth' \
+  'keyUsage=critical,digitalSignature' > warehouse.ext
+openssl x509 -req -in warehouse.csr -CA ca.pem -CAkey ca.key -CAcreateserial -days 3650 \
+  -extfile warehouse.ext -out "$w/warehouse.pem" 2> /dev/null
+rm -f warehouse.csr warehouse.ext
+chmod 600 ca.key "$w/warehouse.key"
+chmod 644 ca.pem "$w/warehouse.pem"
+cp ca.pem /etc/netns/web/nginx/partners-ca.pem
+# "ip netns exec" lays partner's /etc/warehouse over a folder that must
+# exist on the lab machine.
+mkdir -p /etc/warehouse
