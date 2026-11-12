@@ -20,7 +20,10 @@ find "$1" -type f | sort | while read -r path; do
   esac
   case "$path" in
     *.jar)
-      if unzip -l "$path" | grep -q '\.so$'; then
+      # grep reads all of unzip's output (no -q): under pipefail, grep -q
+      # quitting at its first match can kill unzip with SIGPIPE and turn
+      # the test false at random.
+      if unzip -l "$path" | grep '\.so$' > /dev/null; then
         echo "$path"
       fi
       ;;

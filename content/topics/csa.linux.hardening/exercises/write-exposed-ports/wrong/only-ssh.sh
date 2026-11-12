@@ -2,7 +2,7 @@
 cat > ~/bin/exposed-ports <<'EOF'
 #!/bin/bash
 set -euo pipefail
-if sudo ss -ltnH | awk '{print $4}' | grep -qE ':22$'; then
+if sudo ss -ltnH | awk '{print $4}' | grep -E ':22$' > /dev/null; then
   echo "22 sshd allowed"
 fi
 EOF
