@@ -71,9 +71,13 @@ checks:
     expect:
       equals: "one summary"
   - id: lasts
-    description: "Every machine is as its files build it, and in a fresh build from those files the till, scan and the kiosk reach the printer, the server and one another."
+    description: "The cables in /etc/netlab/topology are as they were, every machine is as its own files build it, and in a fresh build from those files the till, scan and the kiosk reach the printer, the server and one another."
     command: |
       . /usr/local/lib/netlab/checklib.sh
+      # The topology is sealed scenery: a machine's setting moved into it
+      # would pass every other check while the machine's own file stays
+      # wrong.
+      intact > /dev/null || { echo "/etc/netlab/topology has changed: it holds the cables, and each machine's settings belong in its own /etc"; exit 0; }
       # netlab verify builds a copy of every machine (chk-till ...) from its
       # files, compares each with the running machine, and then runs the
       # pings below in the copy, which a fix made only live can't pass.
