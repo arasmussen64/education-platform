@@ -4,7 +4,7 @@
 # ipaddress module, whose short form is RFC 5952's.
 checks:
   - id: script
-    description: "~/bin/v6-plan exists, starts with #!/bin/bash, is executable, does its own sums in bash rather than handing them to Python, and ShellCheck has nothing to say about it, with no warning switched off."
+    description: "~/bin/v6-plan exists, starts with #!/bin/bash, is executable, does its own sums and writes its own short form in bash rather than handing them to Python or sipcalc, and ShellCheck has nothing to say about it, with no warning switched off."
     command: |
       f=/home/learner/bin/v6-plan
       [ -f "$f" ] || { echo "there is no ~/bin/v6-plan"; exit 0; }
@@ -12,6 +12,9 @@ checks:
       [ "$(head -n 1 "$f")" = "#!/bin/bash" ] || { echo "the first line isn't #!/bin/bash"; exit 0; }
       # Python is in the lab for the checks; the script's sums are bash's.
       if grep -v '^[[:space:]]*#' "$f" | grep -i 'python' > /dev/null; then echo "the script calls Python: its sums must be bash's"; exit 0; fi
+      # sipcalc and ipcalc are there to check a line by eye; the short form
+      # is the script's own.
+      if grep -v '^[[:space:]]*#' "$f" | grep -i 'ipcalc' > /dev/null; then echo "the script calls sipcalc or ipcalc: its short form must be its own"; exit 0; fi
       if grep -i 'shellcheck *disable' "$f" > /dev/null; then echo "a ShellCheck warning is switched off"; exit 0; fi
       shellcheck --norc "$f" > /dev/null 2>&1 || { echo "ShellCheck has something to say: run shellcheck ~/bin/v6-plan"; exit 0; }
       echo script
