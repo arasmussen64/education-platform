@@ -3,6 +3,12 @@ new topic can be checked in seconds instead of the full run. Every topic and
 track is still loaded, so prerequisites, tracks and skills are checked across
 the whole content tree; only the per-topic work (running code) is limited.
 
+The per-topic checks are the full validator's own (validate_content.check_topic),
+so the two can't drift apart. Two things stay with the full run only: the
+placement test's questions, and the answer-length list's entries for other
+topics. Labs are checked but not run in Docker (tools/labcheck.py test does
+that, and CI runs every lab).
+
 Run from the repository root: python -m uv run python <this file> <topic id>...
 """
 
@@ -12,6 +18,7 @@ import sys
 ROOT = pathlib.Path.cwd()
 sys.path.insert(0, str(ROOT / "tools"))
 
+import mcq_lengths  # noqa: E402
 import validate_content as vc  # noqa: E402
 
 
@@ -40,27 +47,15 @@ def main(ids: list[str]) -> int:
         if topic_id not in topics:
             report.problems.append(f"{topic_id}: no such topic (or it failed to load)")
             continue
-        folder = topics[topic_id]
-        place = places.get(topic_id)
-        vc.check_references(folder, report)
-        vc.check_packages(folder, report)
-        vc.check_test_skills(folder, topics, place, report)
-        if folder.topic.status == "ready":
-            vc.check_ready_topic(folder, report)
-            if folder.topic.kind == "checkpoint":
-                vc.check_ready_checkpoint(folder, topics, place, report)
-        for item_path_id, item in folder.recall.items():
-            report.counts["recall items"] += 1
-            item_path = folder.path / "recall" / f"{item_path_id}.yaml"
-            if isinstance(item, vc.PredictOutputItem):
-                vc.check_predict_output(item_path, item, report)
-            elif isinstance(item, vc.ParsonsItem):
-                vc.check_parsons(item_path, item, report)
-            elif isinstance(item, vc.PredictShellItem):
-                vc.check_predict_shell(item_path, item, report)
-        for exercise_folder, exercise in folder.exercises.values():
-            report.counts["exercises"] += 1
-            vc.check_exercise(exercise_folder, exercise, report, True, False)
+        vc.check_topic(
+            topics[topic_id],
+            topics,
+            places.get(topic_id),
+            report,
+            run=True,
+            labs=False,
+        )
+    report_long_answers(report)
 
     c = report.counts
     print(
@@ -74,6 +69,22 @@ def main(ids: list[str]) -> int:
         return 1
     print("No problems found.")
     return 0
+
+
+def report_long_answers(report: vc.Report) -> None:
+    """The named topics' answer-length problems. The full validator also
+    reports list entries that are fixed or misplaced; those are about other
+    topics here, so they're left to it."""
+    baseline_file = report.root / mcq_lengths.BASELINE
+    try:
+        baseline = mcq_lengths.read_baseline(baseline_file)
+    except mcq_lengths.BadBaseline as exc:
+        report.add(baseline_file, str(exc))
+        return
+    found = report.long_answers
+    for path, message in mcq_lengths.problems(found, baseline, baseline_file):
+        if path != baseline_file:
+            report.add(path, message)
 
 
 if __name__ == "__main__":
