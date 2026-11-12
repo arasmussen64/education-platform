@@ -1,16 +1,262 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.routing
 kind: topic
-status: planned
+status: ready
 title: Routing
-summary: Predict the next hop with longest-prefix match.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "How a router decides where each packet goes, and how the reply finds its own way back: longest-prefix match, static routes and floating backups in FRR, when a routing protocol is worth it, asymmetric paths, and finding where packets vanish, with the three clouds' route tables side by side."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2
+# and 5, topic 26) and its designer's brief (csa.net.routing.md). Through
+# csa.net.cidr this builds on csa.net.layers (ARP, ICMP, TTL, the network
+# labs' machines, on and netlab) and csa.m1.checkpoint; for the writer,
+# Module 1's net-tools (ip route, traceroute, tcpdump, nftables, ct state,
+# conntrack, namespaces), scripting (the write lab) and hardening (a fix
+# never weakens security). IPv6 isn't needed: longest-prefix match is the
+# same there, which the lesson says in one sentence. This topic defines
+# sysctl and /etc/sysctl.d/ for the module (the plan's section 3.7).
+prerequisites: [csa.net.cidr]
+# Worked out: the lesson about 23 minutes (3,000 words at 130 a minute),
+# reading 37 (the main video 15, the Systems Approach's two sections 12, the
+# cloud pages' sections 10), 24 recall items at 1.5 each 36, then the worked
+# example 30, the fill-in 20, the write 30, the build 55, the debug 45 and
+# the explain 20: 296.
+estimated_minutes: 300
 rev: 1
 objectives:
-- Predict the next hop with longest-prefix match.
-- Compare static and dynamic routing.
-- Spot asymmetric routes and black holes.
+  - "Read a routing table (Linux's `ip route`, FRR's `show ip route`, an AWS, Azure or Google Cloud route table) and say where a packet to a given address goes and why: the longest matching prefix, the default route only when nothing else matches, and which source wins when two routes have the same prefix."
+  - "Write static routes in FRR, with floating backups, blackhole and reject routes, tie each to its interface, save them, and tell the router's candidate routes (its RIB) from the ones the kernel forwards with (its FIB)."
+  - "Say when static routes are enough and when a routing protocol is needed, from what each does when a link fails loudly or silently, and how the clouds mix static route tables with routes learned over BGP."
+  - "Remember that the reply is a separate routing decision, recognise an asymmetric path, and explain what it breaks (a stateful firewall, strict reverse-path filtering) and how to fix it."
+  - "Find where packets disappear with traceroute, `ip route get`, `ip neigh`, tcpdump and counters, and name the cause from the evidence, including a router whose forwarding is off and a cloud VM that isn't allowed to forward."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - FRR 8.4's administrative distances (connected 0, static 1, eBGP 20,
+#   OSPF 110, IS-IS 115, RIP 120, iBGP 200) and "An admin distance of 255
+#   indicates to Zebra that the route should not be installed into the Data
+#   Plane"; next-hop tracking "doesn't resolve nexthops via the default route
+#   by default" (ip nht resolve-via-default, off):
+#   https://docs.frrouting.org/en/stable-8.4/zebra.html
+# - FRR's static routes: ip route NETWORK GATEWAY|IFNAME [DISTANCE], blackhole
+#   (silent) and reject (ICMP unreachable); its example's "null0 255"
+#   blackhole, which disagrees with the zebra page:
+#   https://docs.frrouting.org/en/stable-8.4/static.html
+# - AWS route priority: longest prefix, then static, then prefix-list, then
+#   propagated (Direct Connect BGP, VPN static, VPN BGP); "If the destination
+#   of a propagated route is identical to the destination of a static route,
+#   the static route takes priority"; more specific routes win "irrespective
+#   of whether they are propagated routes, static routes, or routes that
+#   reference prefix lists":
+#   https://docs.aws.amazon.com/vpc/latest/userguide/route-tables-priority.html
+# - Azure: longest prefix, then user-defined over BGP over system; "System
+#   routes for traffic related to virtual network, virtual network peerings,
+#   or virtual network service endpoints are preferred routes. They're
+#   preferred, even if BGP routes are more specific"; None drops traffic;
+#   400 UDRs per route table by default; a NIC that forwards for other
+#   addresses "must have the Azure Enable IP forwarding option enabled", and
+#   the OS may need forwarding too; the "Routing example" table for Subnet1
+#   (ms.date 2026-03-31, updated 2026-09-16):
+#   https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview
+# - Google Cloud's routing order: subnet routes used exclusively when they
+#   match, and no static route may exactly match or fit within a subnet
+#   route; then the most specific destination; then priority; no ECMP across
+#   preference categories; an empty route set drops the packet with ICMP
+#   type 3 code 0 (last updated 2026-10-26):
+#   https://docs.cloud.google.com/vpc/docs/routes
+# - Google Cloud: a VM used as a next hop needs canIpForward (--can-ip-forward,
+#   at creation or by updating the instance) and forwarding in the guest
+#   (last updated 2026-11-07): https://docs.cloud.google.com/vpc/docs/using-routes
+# - AWS: "Each EC2 instance performs source/destination checks by default
+#   ... Therefore, you must disable source/destination checks on the NAT
+#   instance": https://docs.aws.amazon.com/vpc/latest/userguide/work-with-nat-instances.html
+# - Linux: ip_forward "its change resets all configuration parameters to
+#   their default state"; rp_filter 0 none, 1 strict (RFC 3704), 2 loose, the
+#   higher of conf/all and the interface used; fib_multipath_hash_policy 0
+#   layer 3, 1 layer 4: https://docs.kernel.org/networking/ip-sysctl.html
+# - Azure on asymmetric routing: stateful devices drop the flows they didn't
+#   see start; the two fixes are routing and source NAT (ms.date 2026-03-12):
+#   https://learn.microsoft.com/en-us/azure/expressroute/expressroute-asymmetric-routing
+# Every output marked "captured" in the lesson, the labs and the recall items
+# is real output of this topic's labs (FRR 8.4.4 on Ubuntu 24.04, on the
+# network-lab base, Docker Desktop 29.8.2), captured on 2026-11-12: the
+# missing route (!N, Network is unreachable), the reply dying at r3, floating
+# statics in show ip route, the loud and silent cuts, forwarding off in
+# nstat, a reject route's !H and a blackhole's silence, ECMP in ip route, a
+# loop in traceroute, a distance-255 route listed and not installed, a dead
+# next hop resolved through a blackhole ("(recursive)"), a default route via
+# a next hop whose neighbour entry is INCOMPLETE then FAILED, and a firewall's
+# [UNREPLIED] entry. Times will differ in a new run.
+#
+# Linked or embedded, never copied. Licences, each read on 2026-11-12: the
+# two Practical Networking videos on YouTube (embedding allowed, no licence
+# stated beyond YouTube's own; titles, lengths, dates and chapter lists read
+# from their pages, the videos not watched by a person yet); Computer
+# Networks: A Systems Approach (CC BY 4.0: the book's site and its
+# repository's LICENSE); FRR's documentation (the pages' footer "Copyright
+# 2017, FRR"; no separate documentation licence stated); Microsoft Learn
+# (the MicrosoftDocs/azure-docs repository's LICENSE: CC BY 4.0); AWS's
+# documentation (copyright Amazon Web Services); Google Cloud's documentation
+# (the pages' footer: CC BY 4.0); the Linux kernel's ip-sysctl page (its
+# source's SPDX line: GPL-2.0).
+resources:
+  - title: "Route Precedence: how does a router choose a path when multiple paths exist? (Practical Networking, 2020, 15 minutes): ECMP, metric, administrative distance and the most specific route, shown on Cisco routers"
+    url: https://www.youtube.com/watch?v=PDcwijVC4XE
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "Everything Routers do, Part 2: how routers forward packets (Practical Networking, 2021, 15 minutes): a packet's trip, router by router, with each one's routing and ARP tables (optional)"
+    url: https://www.youtube.com/watch?v=Ep-x_6kggKA
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "Computer Networks: A Systems Approach, section 3.3.4 \"Datagram Forwarding in IP\" and, in 3.3.5, \"IP Forwarding Revisited\" (Peterson and Davie): forwarding tables and the longest match, about 12 minutes"
+    url: https://book.systemsapproach.org/internetworking/basic-ip.html
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the book's site and its repository's LICENSE); linked, not copied"
+  - title: "Computer Networks: A Systems Approach, the opening of section 3.4 \"Routing\" and 3.4.1 \"Network as a Graph\": forwarding against routing, and why static routes fall short (optional, about 9 minutes)"
+    url: https://book.systemsapproach.org/internetworking/routing.html
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the book's site and its repository's LICENSE); linked, not copied"
+  - title: "STATIC (FRR 8.4 user guide): the ip route command, with distances, blackhole and reject routes; mind that its 255-distance example is never installed"
+    url: https://docs.frrouting.org/en/stable-8.4/static.html
+    type: reading
+    use: link
+    license: "Copyright 2017, FRR (the page's footer); linked, not copied"
+  - title: "Zebra (FRR 8.4 user guide): read \"Administrative Distance\", the table of route sources, as a reference"
+    url: https://docs.frrouting.org/en/stable-8.4/zebra.html
+    type: reading
+    use: link
+    license: "Copyright 2017, FRR (the page's footer); linked, not copied"
+  - title: "Azure virtual network traffic routing (Microsoft Learn): read \"How Azure selects routes for traffic routing\" and the \"Routing example\""
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-udr-overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "How route priority works (AWS VPC user guide): longest prefix, then static, prefix-list and propagated routes"
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/route-tables-priority.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Routes (Google Cloud VPC documentation): read \"Routing order\""
+    url: https://docs.cloud.google.com/vpc/docs/routes
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "IP Sysctl (the Linux kernel's documentation): look up ip_forward, rp_filter and fib_multipath_hash_policy"
+    url: https://docs.kernel.org/networking/ip-sysctl.html
+    type: reading
+    use: link
+    license: "GPL-2.0 (its source's SPDX line); linked, not copied"
+  - title: "Azure ExpressRoute: Asymmetric routing (Microsoft Learn): why stateful devices drop half-seen flows, and the routing and source NAT fixes (optional)"
+    url: https://learn.microsoft.com/en-us/azure/expressroute/expressroute-asymmetric-routing
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Enable private resources to communicate outside the VPC (AWS VPC user guide): read \"5. Disable source/destination checks\" (optional)"
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/work-with-nat-instances.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Use routes (Google Cloud VPC documentation): read \"Enable IP forwarding for instances\" (optional)"
+    url: https://docs.cloud.google.com/vpc/docs/using-routes
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+# The recall items read route tables, FRR's output, conntrack, nstat and
+# traceroute, most of it captured from this topic's own labs, with Module
+# 1's text tools. The worked example, the fill-in, the build and the debug
+# are labs on the network-lab base (FRR routers as machines, ADR-0018's third
+# amendment); the write lab is a plain lab on Module 3's plain line.
+practice:
+  - example-follow-the-route
+  - lpm-kernel-table
+  - lpm-not-in-the-longest
+  - rib-selected-routes
+  - mcq-distance-tie
+  - mcq-floating-static
+  - mcq-distance-255
+  - mcq-recursive-next-hop
+  - mcq-save-or-lose
+  - mcq-static-or-dynamic
+  - mcq-silent-failure
+  - mcq-cloud-propagation
+  - mcq-aws-longest-first
+  - mcq-azure-system-route
+  - mcq-asymmetric-ping-works
+  - conntrack-unreplied
+  - mcq-rp-filter
+  - sysctl-forwarding-file
+  - mcq-missing-return-route
+  - mcq-traceroute-no-route
+  - traceroute-loop
+  - nstat-forwarding-off
+  - est-loop-crossings
+  - mcq-ecmp-one-dead-path
+  - mcq-cloud-forwarding-flag
+  - fill-floating-statics
+  - write-next-hop
+  - lpm-three-addresses
+prove:
+  build: build-three-sites
+  debug: debug-friday-change
+  explain:
+    prompt: |
+      A colleague says: "Routing is simple: each router knows the whole path to every network, and if a link breaks, the network sorts itself out." Explain, in your own words: how a router decides where to send one packet, including what happens when several routes match and when two routes have the same prefix; why the reply is a separate decision, and what goes wrong when it takes a different path; when static routes are enough and when you'd want a routing protocol, including what each does when a link fails without going down; how you'd find where packets are disappearing, and two different causes you might find; and one way a cloud's route table chooses differently from a Linux router.
+    rubric:
+      - id: lpm
+        required: true
+        description: "Each router looks only at the destination address and knows only the next hop; the longest matching prefix wins, and the default route only when nothing else matches; for equal prefixes the route's source decides (administrative distance: connected before static before BGP), not the order of the lines."
+      - id: return-path
+        required: true
+        description: "Each router decides alone, so the reply is routed afresh and may take another path; a stateful firewall that sees only one direction drops the connection (ping can still work), and strict reverse-path filtering drops replies arriving on the 'wrong' interface; fix with symmetric routes, or source NAT at the firewall."
+      - id: static-dynamic
+        required: true
+        description: "Static routes suit a stub or a few routes, and need a floating backup at a higher distance to fail over; they react only to failures their own router sees (a link losing carrier), not to a path that dies silently; a routing protocol exchanges reachability with neighbours, notices one going quiet and reroutes, at the cost of more to run and understand."
+      - id: black-hole-hunt
+        required: true
+        description: "A method: traceroute from the source, then ip route get (or the table) on the last router that answers and the next, tcpdump on either side; and at least two causes told apart by their evidence (no route: !N or Network is unreachable; blackhole or forwarding off: silence, with nstat's IpInAddrErrors for forwarding; a next hop that never answers ARP: a FAILED neighbour; a missing return route: requests arrive, replies don't; a loop: two hops alternating and Time to live exceeded)."
+      - id: cloud-tables
+        required: true
+        description: "One correct cloud difference: AWS prefers a static route over a propagated one for the same prefix; Azure prefers user-defined, then BGP, then system routes, but keeps the virtual network's own routes even against a longer BGP route; Google Cloud uses subnet routes first and lets no static route match or fit inside one; or a VM must be allowed to forward (AWS's source/destination check, Azure's IP forwarding, Google's canIpForward)."
+      - id: floating
+        required: false
+        description: "Floating static routes and their traps: distance 255 is never installed, and a static route that names only its next hop can stay alive through a wider route (a blackhole) when its cable goes, so it names its interface too."
+    model_answer: |
+      Each router knows much less than that. It looks at one thing, the packet's destination address, finds the routes in its table whose prefix holds that address, and uses the longest one: a /24 beats a /16 beats the default route, which is only for addresses nothing else holds. The order of the lines doesn't matter. If two routes have exactly the same prefix, the source of the route decides: each kind has an administrative distance, connected 0, static 1, eBGP 20 in FRR, and the lowest wins. Then the router hands the packet to the next hop and forgets it. Nobody holds the whole path: it's a chain of separate decisions.
+
+      The reply is a new packet with its own destination, so every router on the way back decides again, and it may take another road. That breaks things that need to see both directions. A stateful firewall that sees the SYN but not the SYN-ACK drops the client's next packet as invalid, so the web app times out while ping still works, and conntrack shows the entry UNREPLIED. Strict reverse-path filtering drops replies that arrive on an interface the router wouldn't use to reach their source. The fixes are to make the routes symmetric, or to have the firewall source-NAT so the replies must come back through it, at the cost of the server no longer seeing the client's address.
+
+      Static routes are enough for a stub with one way out or a handful of routes that never change. For a second path you add a floating static route with a higher distance, say 200 (never 255, which FRR never installs), and it takes over when the first route's link goes down. But a static route only knows what its own router sees: if the path dies while the link stays up, it keeps sending traffic into the hole. A routing protocol has neighbours tell each other what they can reach, notices a neighbour going quiet and reroutes, which is worth it with redundant paths and changing networks.
+
+      To find where packets disappear I'd traceroute from the source to find the last hop that answers, then run ip route get on that router and the next, and tcpdump on the interfaces either side. A !N means a router has no route. Silence can be a blackhole route, where ip route get says Invalid argument, or forwarding switched off, where nstat's IpInAddrErrors climbs. If requests arrive at the server and replies leave but never get back, a router on the return path is missing its route. A FAILED entry in ip neigh means a route's next hop doesn't exist.
+
+      Clouds differ too. In AWS, a static route beats a propagated one for the same prefix, but a longer propagated route still wins. Azure keeps a virtual network's own routes even over a more specific route learned over BGP.
+review_pool:
+  - lpm-kernel-table
+  - lpm-three-addresses
+  - mcq-azure-system-route
+  - lpm-azure-example
+  - mcq-equal-prefix-gcp
+  - rib-selected-routes
+  - mcq-distance-255
+  - mcq-recursive-next-hop
+  - mcq-reject-or-blackhole
+  - mcq-silent-failure
+  - mcq-cloud-propagation
+  - mcq-asymmetric-ping-works
+  - conntrack-unreplied
+  - mcq-missing-return-route
+  - traceroute-loop
+  - nstat-forwarding-off
+  - est-loop-crossings
+  - est-loop-crossings-ttl128
+  - mcq-ecmp-one-dead-path
+skills:
+  - id: longest-prefix-match
+    description: "Predict the route and next hop for a destination from a real table: the longest matching prefix wins, the default only when nothing else holds the address, and an address can sit inside a short prefix and outside a longer one whose numbers look closer; for equal prefixes the route's source decides (FRR's distance; AWS, Azure and Google Cloud each in an order of their own)"
+  - id: static-routes
+    description: "Write static routes in FRR with their next hop and interface, floating backups at a higher distance (never 255), blackhole and reject routes, and save them with write memory; read FRR's RIB (`>*`, `[distance/metric]`) against the kernel's FIB (`ip route`, `ip route get`)"
+  - id: static-or-dynamic
+    description: "When static routes are enough and when a routing protocol is needed: what each does when a link fails loudly (carrier lost) or silently (link up, path dead), and how the clouds mix static route tables with routes propagated from gateways that speak BGP"
+  - id: return-path
+    description: "Every router decides alone, so a reply needs a route of its own back; asymmetric paths, why a stateful firewall that sees one direction drops the connection while ping works, and why strict reverse-path filtering drops replies; the two fixes"
+  - id: find-the-black-hole
+    description: "Find where packets die and why: no route, a blackhole, a reject route, forwarding off, a next hop that never answers ARP, a missing return route, a loop, ECMP with one dead path, a cloud VM not allowed to forward; with traceroute, `ip route get`, tcpdump, `ip neigh`, `nstat` and `sysctl`"
