@@ -34,12 +34,18 @@ checks:
     expect:
       equals: up
   - id: each-own-cert
-    description: "www.shop.test and api.shop.test each answer, to a client that names them, with a certificate for their own name that the office trusts."
+    description: "www.shop.test and api.shop.test each answer, to a client that names them, with the certificate the shop's CA issued for that name (the one in web's /etc/nginx/tls/<name>/), which the office trusts."
+    # The same certificate, not just one that verifies: a new one made with
+    # the CA's key for both names would hand api's clients a certificate for
+    # www as well.
     command: |
       . /usr/local/lib/lab/tlscheck.sh
       for name in www.shop.test api.shop.test; do
         v=$(verified "$name")
         [ "$v" = ok ] || { echo "the certificate served for $name doesn't verify for that name: $v (it names $(names_on "$name"))"; exit 0; }
+        issued=$(openssl x509 -in "/etc/netns/web/nginx/tls/$name/fullchain.pem" -noout -fingerprint -sha256)
+        served=$(handshake "$name" | openssl x509 -noout -fingerprint -sha256 2> /dev/null)
+        [ "$served" = "$issued" ] || { echo "the certificate served for $name isn't the one the CA issued for it, in /etc/nginx/tls/$name/ (it names $(names_on "$name"))"; exit 0; }
       done
       echo each
     expect:
@@ -62,11 +68,20 @@ checks:
     expect:
       equals: turned-off
   - id: stapled
-    description: "www.shop.test staples the CA's good OCSP answer to its handshakes, from the second handshake after nginx starts."
+    description: "www.shop.test staples the CA's good OCSP answer to its handshakes, from the second handshake after nginx starts, with each of the three things nginx's stapling needs in its files."
     timeout: 20
+    # The staple first, so that before any fix the check says only what a
+    # client sees. A staple without the shop's resolver (the line deleted,
+    # or traffic for the wrong address sent on by hand) is a half fix:
+    # nginx would keep the responder's first address for ever, or lose the
+    # staple at the next boot.
     command: |
       . /usr/local/lib/lab/tlscheck.sh
-      stapled www.shop.test
+      said=$(stapled www.shop.test)
+      [ "$said" = stapled ] || { echo "$said"; exit 0; }
+      stapling_resolver www.shop.test 10.0.9.53 ||
+        { echo "www.shop.test staples now, but its server block doesn't take the shop's name server, 10.0.9.53, as its resolver: nginx would never look the responder up again"; exit 0; }
+      echo stapled
     expect:
       equals: stapled
   - id: scenery
