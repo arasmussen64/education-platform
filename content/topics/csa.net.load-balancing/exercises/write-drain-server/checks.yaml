@@ -7,7 +7,7 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: waits-for-the-download
-    description: "drain-server drains the server first, waits until a visitor's download from it has finished, then puts it in maintenance; the download arrives whole."
+    description: "drain-server drains the server first, waits until a visitor's download from it has finished (and no longer), then puts it in maintenance and says how many seconds it waited; the download arrives whole."
     timeout: 50
     command: |
       . /usr/local/lib/lab/lbcheck.sh
@@ -26,6 +26,7 @@ checks:
       ( while :; do api "show servers state web" | awk -v s="$name" '$4 == s {print $7}'; sleep 0.2; done ) > /tmp/chk-drain.states &
       watch=$!
       sleep 1
+      began=$(ms)
       out=$(timeout 20 sudo -u learner -H "$f" "$name" 2> /dev/null)
       rc=$?
       returned=$(ms)
@@ -43,14 +44,22 @@ checks:
         *,1,*) echo "$name went into maintenance without draining first (states seen: ${seen%,}), which sends a sticky visitor elsewhere mid-visit"; exit 0 ;;
         *) echo "$name was never put in drain and then maintenance (states seen: ${seen%,})"; exit 0 ;;
       esac
-      [ $((returned + 500)) -ge "$(cat /tmp/chk-drain.end)" ] || { echo "drain-server $name returned $(( ($(cat /tmp/chk-drain.end) - returned) / 1000 )) seconds before the visitor's download from it had finished"; exit 0; }
+      end=$(cat /tmp/chk-drain.end)
+      [ $((returned + 500)) -ge "$end" ] || { echo "drain-server $name returned $(( (end - returned) / 1000 )) seconds before the visitor's download from it had finished"; exit 0; }
+      # Looking once a second, it is done within a second or so of the last
+      # session ending, and says how long it waited.
+      [ "$returned" -le $((end + 2500)) ] || { echo "drain-server $name returned $(( (returned - end) / 1000 )) seconds after the visitor's download from it had finished, so it went on waiting once $name had no sessions left"; exit 0; }
+      n=$(echo "$out" | sed -n "s/^$name drained in \([0-9][0-9]*\) s\$/\1/p")
+      [ -n "$n" ] || { echo "drain-server $name printed \"$(echo "$out" | head -n 2 | tr '\n' ' ')\", not \"$name drained in N s\""; exit 0; }
+      waited=$(( (returned - began + 500) / 1000 ))
+      [ "$n" -le $((waited + 2)) ] && [ "$n" -ge $((waited - 2)) ] || { echo "drain-server $name said \"$name drained in $n s\", and it waited about $waited seconds"; exit 0; }
       now=$(api "show servers state web" | awk -v s="$name" '$4 == s {print $7}')
       [ "$now" = 1 ] || { echo "after drain-server $name, $name's administrative state is $now, not maintenance (1)"; exit 0; }
       echo waited
     expect:
       equals: waited
   - id: says-how-long
-    description: "For each web server in turn, drain-server prints one line, \"NAME drained in N s\", and leaves that server in maintenance."
+    description: "For each web server in turn, with no visitors on it, drain-server is done at once, prints one line, \"NAME drained in N s\", and leaves that server in maintenance."
     timeout: 45
     command: |
       . /usr/local/lib/lab/lbcheck.sh
@@ -60,11 +69,15 @@ checks:
       trap ready EXIT
       for name in web1 web2 web3; do
         ready
+        t0=$(ms)
         out=$(timeout 12 sudo -u learner -H "$f" "$name" 2> /dev/null)
         rc=$?
+        took=$((($(ms) - t0) / 1000))
         [ "$rc" = 0 ] || { echo "drain-server $name, with no visitors on it, exited with status $rc"; exit 0; }
         echo "$out" | grep -E "^$name drained in [0-9]+ s\$" > /dev/null || { echo "drain-server $name printed \"$(echo "$out" | head -n 2 | tr '\n' ' ')\""; exit 0; }
         [ "$(echo "$out" | wc -l)" = 1 ] || { echo "drain-server $name printed $(echo "$out" | wc -l) lines, not one"; exit 0; }
+        # With no sessions on it, the first look finds none left.
+        [ "$took" -le 3 ] || { echo "with no visitors on it, drain-server $name took $took seconds to say \"$out\""; exit 0; }
         now=$(api "show servers state web" | awk -v s="$name" '$4 == s {print $7}')
         [ "$now" = 1 ] || { echo "after drain-server $name, $name isn't in maintenance (its administrative state is $now)"; exit 0; }
       done

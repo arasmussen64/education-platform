@@ -12,7 +12,7 @@ prompt: |
   `~/bin/drain-server NAME` takes the web server NAME out of rotation:
 
   1. **Drain it** through HAProxy's runtime API: `set server web/NAME state drain`.
-  2. **Wait until it has no sessions left**: its current sessions are the 5th field of its line in `show stat` (`scur`). Look once a second, for **at most 10 seconds**. (A real script waits as long as the longest download it must let finish, minutes; the lab's 10 seconds keep the checks quick.)
+  2. **Wait until it has no sessions left**: its current sessions are the 5th field of its line in `show stat` (`scur`). Look once a second, for **at most 10 seconds**, and stop as soon as there are none. (A real script waits as long as the longest download it must let finish, minutes; the lab's 10 seconds keep the checks quick.)
   3. **Put it in maintenance**: `set server web/NAME state maint`.
   4. **Print one line**: `NAME drained in N s`, with the seconds it waited, or, if it gave up at the limit, `NAME still had K sessions; set to maintenance anyway`, with the sessions still open. Then exit with status 0.
 
