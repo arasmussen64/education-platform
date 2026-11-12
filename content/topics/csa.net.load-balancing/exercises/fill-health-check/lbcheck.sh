@@ -136,12 +136,19 @@ unchecked() {
 # running and the database up as it found them.
 
 # hung_test SECONDS ADDRESS...: freezes the servers at those addresses at
-# once and passes if HAProxy marks every one of them DOWN within SECONDS
-# (and 2 more for the test's own looking, so a setting worked out to exactly
-# SECONDS still passes on a busy machine). Then it lets them run again and
-# waits for them to be back.
+# once and passes if HAProxy marks every one of them DOWN within SECONDS of
+# the last health check it answered. That is the slowest case a policy has
+# to cover, a server that hangs just after a good check: HAProxy's next
+# check is then a whole inter away, and each check after it waits its whole
+# timeout. Each server's program wrote its count of checks when that last
+# check arrived (its /run/shop/checks) and can write nothing once frozen, so
+# the file's time is that moment, and the result doesn't depend on when the
+# freeze fell. 0.75 s more is allowed for the test's own looking, which can
+# only make a server seem slower. Then it lets them run again and waits for
+# them to be back.
 hung_test() {
-  local limit=$1 a m t0 slow
+  local limit=$1 a m t0 now all pending slow took report=""
+  declare -A last down
   shift
   [ -n "$(api 'show info')" ] || { echo "HAProxy on lb isn't running"; return; }
   wait_up 15 "$@" || { echo "not every server is up before the test: $(not_up "$@")"; return; }
@@ -150,28 +157,47 @@ hung_test() {
   HUNG=()
   for a in "$@"; do HUNG+=("$(machine_of "$a")"); done
   trap 'thaw "${HUNG[@]}"' EXIT
-  t0=$(ms)
   freeze "${HUNG[@]}"
-  slow=""
-  while :; do
-    slow=""
-    for a in "$@"; do
-      field "$a" 2 | grep -v '^DOWN' > /dev/null && slow+="$(machine_of "$a") "
-    done
-    [ -z "$slow" ] && break
-    [ $(($(ms) - t0)) -gt $((limit * 1000 + 2000)) ] && break
-    sleep 0.25
+  t0=$(ms)
+  for m in "${HUNG[@]}"; do
+    last[$m]=$(on "$m" date -r /run/shop/checks +%s%3N 2> /dev/null) || last[$m]=$t0
   done
-  local took=$((($(ms) - t0 + 500) / 1000))
+  while :; do
+    all=$(servers)
+    now=$(ms)
+    pending=""
+    for a in "$@"; do
+      m=$(machine_of "$a")
+      [ -n "${down[$m]}" ] && continue
+      if echo "$all" | awk -v a="$a" '$1 == a {print $2}' | grep -v '^DOWN' > /dev/null; then
+        [ $((now - last[$m])) -le $((limit * 1000 + 750)) ] && pending+="$m "
+      else
+        down[$m]=$now
+      fi
+    done
+    [ -z "$pending" ] && break
+    sleep 0.1
+  done
   thaw "${HUNG[@]}"
   trap - EXIT
   wait_up 25 "$@" > /dev/null
+  slow=""
+  for m in "${HUNG[@]}"; do
+    if [ -z "${down[$m]}" ]; then
+      slow+="$m "
+      report+=" $m over $limit s"
+      continue
+    fi
+    took=$((down[$m] - last[$m]))
+    report+=" $m $((took / 1000)).$((took % 1000 / 100)) s"
+    [ "$took" -le $((limit * 1000 + 750)) ] || slow+="$m "
+  done
   if [ -n "$slow" ]; then
-    echo "frozen, so that they accepted connections and never answered, ${slow% } still had a share of the traffic after more than $limit seconds"
+    echo "frozen, so that they accepted connections and never answered, ${slow% } still had a share of the traffic more than $limit seconds after answering its last health check"
   else
     echo passed
   fi
-  echo "(every server was marked DOWN about $took seconds after it froze)" >&2
+  echo "(from the last check each answered to DOWN:$report)" >&2
 }
 
 # db_test ADDRESS...: stops the database for up to 16 seconds while the
