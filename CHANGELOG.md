@@ -44,6 +44,7 @@ Module 2, "Virtualization, hardware and Windows", is complete: eight topics and 
 ### Fixed (cloud Module 1's time estimates)
 
 - **Module 1's topics say how long they really take** (this pull request). Twelve said 90 or 100 minutes and Networking from the host 120, figures from before their lessons were rewritten and their labs hardened. Each has five labs, a build and a debug among them, and a lesson of 1,000 to 1,850 words. Module 2's topics, built the same way, say 220 to 312, and Shell essentials 240 after its rewrite. The twelve now say 220 and Networking from the host 230, from one yardstick applied to every topic: reading at 120 words a minute, a minute a question, and each lab by its kind. The page shows the figure as "About N minutes".
+- **Memory's fill-in lab no longer fails a right answer in CI** (this pull request). Its "oom kills" check counted the kernel's kills twice, once through the learner's script and once itself, and in CI the other memory labs running beside it add kills to the same shared kernel log in between, so a correct script failed now and then. The count must now lie between counts taken just before and just after the script runs. The check also has the kernel kill one throwaway program in a 32 MB limit first, so a script that always prints `oom kills: 0` fails even on a fresh machine, and a new known-wrong fix proves it.
 
 ### Fixed (cloud Module 2)
 

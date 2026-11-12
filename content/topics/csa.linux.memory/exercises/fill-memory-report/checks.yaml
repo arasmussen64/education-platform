@@ -30,5 +30,20 @@ checks:
       matches: "^top process: memhog 1[45][0-9] MB$"
   - id: oom-kills-line
     description: "The oom kills line is how many times the kernel's log says it killed a process for running out of memory."
+    # First a kill of the check's own (a throwaway program in a 32 MB limit),
+    # so a report that always says 0 can't pass on a machine with no kills
+    # yet. The kernel's log is shared by every container on the machine, and
+    # in CI other memory labs run alongside this one and add kills to it, so
+    # the report's count must lie between the counts taken just before and
+    # just after it runs; with only this lab running, both are one number.
     command: |
-      test "$(runuser -u learner -- /home/learner/bin/memory-report | grep '^oom kills:')" = "oom kills: $(journalctl -k --no-pager 2>/dev/null | grep -c 'Killed process')"
+      kills() { journalctl -k --no-pager 2>/dev/null | grep -c 'Killed process'; }
+      start=$(kills)
+      systemd-run --quiet --wait --collect -p MemoryMax=32M -p MemorySwapMax=0 /usr/local/bin/memhog 64 1 > /dev/null 2>&1
+      for _ in $(seq 50); do [ "$(kills)" -gt "$start" ] && break; sleep 0.1; done
+      before=$(kills)
+      line=$(runuser -u learner -- /home/learner/bin/memory-report | grep '^oom kills:')
+      after=$(kills)
+      n=${line#oom kills: }
+      case "$n" in '' | *[!0-9]*) exit 1 ;; esac
+      [ "$line" = "oom kills: $n" ] && [ "$n" -ge "$before" ] && [ "$n" -le "$after" ]
