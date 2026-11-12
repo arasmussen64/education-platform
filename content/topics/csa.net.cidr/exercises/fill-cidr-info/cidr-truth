@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""cidr-truth: how the checks of "Finish cidr-info" know the right answers.
+
+It makes twelve inputs at check time, one from each kind below with
+random numbers, so a script that knows only the prompt's examples can't
+pass; works out each one's five lines with Python's ipaddress module; runs
+the learner's ~/bin/cidr-info on it as the learner; and prints "right", or
+the first input whose answer differs and how.
+
+The kinds: no cloud, AWS, Azure and Google, at /16, /20, /23, /26, /28 and
+/29 (the clouds' limits allow each one used: AWS /16 to /28, Azure and
+Google up to /29), an address that is its block's first address and one
+that is its last.
+"""
+
+import ipaddress
+import random
+import subprocess
+
+SCRIPT = "/home/learner/bin/cidr-info"
+# What each cloud keeps back of a block, and the offset of the first address
+# a machine can be given: AWS and Azure the first four and the last, Google
+# the first two and the last two, the classic count the first and the last.
+KEPT = {"classic": (2, 1), "aws": (5, 4), "azure": (5, 4), "google": (4, 2)}
+KINDS = [
+    ("classic", 16, "any"),
+    ("classic", 29, "any"),
+    ("classic", 23, "first"),
+    ("aws", 20, "any"),
+    ("aws", 26, "any"),
+    ("aws", 28, "last"),
+    ("azure", 23, "any"),
+    ("azure", 29, "any"),
+    ("azure", 20, "first"),
+    ("google", 16, "any"),
+    ("google", 28, "any"),
+    ("google", 26, "last"),
+]
+
+
+def random_address(rnd):
+    """An address in one of the three private ranges."""
+    first = rnd.choice(["10", "172", "192"])
+    if first == "10":
+        rest = [rnd.randrange(256), rnd.randrange(256), rnd.randrange(256)]
+    elif first == "172":
+        rest = [rnd.randrange(16, 32), rnd.randrange(256), rnd.randrange(256)]
+    else:
+        rest = [168, rnd.randrange(256), rnd.randrange(256)]
+    return ipaddress.IPv4Address(".".join([first] + [str(r) for r in rest]))
+
+
+def expected(address, prefix, cloud):
+    block = ipaddress.IPv4Network(f"{address}/{prefix}", strict=False)
+    kept, first = KEPT[cloud]
+    return [
+        f"network {block.network_address}",
+        f"last {block.broadcast_address}",
+        f"addresses {block.num_addresses}",
+        f"usable {block.num_addresses - kept}",
+        f"first-usable {block.network_address + first}",
+    ]
+
+
+def main():
+    rnd = random.SystemRandom()
+    for cloud, prefix, where in KINDS:
+        address = random_address(rnd)
+        block = ipaddress.IPv4Network(f"{address}/{prefix}", strict=False)
+        if where == "first":
+            address = block.network_address
+        elif where == "last":
+            address = block.broadcast_address
+        argument = f"{address}/{prefix}"
+        command = [argument] if cloud == "classic" else [argument, cloud]
+        shown = " ".join(["cidr-info"] + command)
+        try:
+            run = subprocess.run(
+                ["runuser", "-u", "learner", "--", SCRIPT] + command,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            print(f"{shown} didn't finish within 5 seconds")
+            return
+        got = [line.rstrip() for line in run.stdout.splitlines()]
+        want = expected(address, prefix, cloud)
+        if run.returncode != 0 and not got:
+            # The first error is the one to fix; later ones follow from it.
+            error = (run.stderr.strip().splitlines() or ["no message"])[0]
+            print(f"{shown} stopped with exit status {run.returncode}: {error}")
+            return
+        if got != want:
+            for i, line in enumerate(want):
+                if i >= len(got) or got[i] != line:
+                    printed = got[i] if i < len(got) else "nothing"
+                    print(f"{shown}: line {i + 1} is '{printed}', but should be '{line}'")
+                    return
+            print(f"{shown} printed {len(got)} lines, not 5")
+            return
+    print("right")
+
+
+main()
