@@ -23,14 +23,14 @@ checks:
   - id: alice-logs-in
     description: "alice, in linux-admins, logs in over SSH with her domain password, into a home directory made at her first login, holding a Kerberos ticket."
     command: |
-      result=$(sshpass -p 'Alice-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l alice@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/alice@ad.shop.test" ]; then echo "alice logged in, into $PWD"; elif ! klist -s; then echo "alice logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
+      result=$(sshpass -p 'Alice-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l alice@ad.shop.test 127.0.0.1 'if [ "$PWD" != "$HOME" ] || [ ! -O "$HOME" ]; then echo "alice logged in, into $PWD"; elif ! klist -s; then echo "alice logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
       echo "${result:-alice could not log in over SSH}"
     expect:
       equals: in
   - id: carol-logs-in
     description: "So does carol, the group's other member."
     command: |
-      result=$(sshpass -p 'Carol-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l carol@ad.shop.test 127.0.0.1 'if [ "$PWD" != "/home/carol@ad.shop.test" ]; then echo "carol logged in, into $PWD"; elif ! klist -s; then echo "carol logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
+      result=$(sshpass -p 'Carol-Pass-1' ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PreferredAuthentications=password -o PubkeyAuthentication=no -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR -o ConnectTimeout=5 -l carol@ad.shop.test 127.0.0.1 'if [ "$PWD" != "$HOME" ] || [ ! -O "$HOME" ]; then echo "carol logged in, into $PWD"; elif ! klist -s; then echo "carol logged in, with no Kerberos ticket"; else echo in; fi' 2>/dev/null)
       echo "${result:-carol could not log in over SSH}"
     expect:
       equals: in
