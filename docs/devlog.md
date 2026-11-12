@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-12, late: Where we stopped
+
+Paused at the owner's request. Nothing is running: no workflows, no lab containers, no background checks.
+
+**Done.** Thirteen of Module 3's sixteen topics are on `main` (#257 to #262 and #264 to #270), each written by one agent, reviewed cold by another, and proven in CI with every lab's contract and restart trial. Also on `main`: the app bundles Module 3 (#257), Labs CI's shares are balanced by each lab's measured time (#263), and a Module 1 lab whose fault vanished on GitHub's runner is fixed at its root (#263, the same-size `COPY` trap).
+
+**Where we sit.**
+
+- **Two topics are finished and waiting to open:** Certificates and mutual TLS, and VPNs and IPsec, on the local branches `feat/m3-certificates` and `feat/m3-ipsec` (stacked, on `main` as of #270), with their docs written. Their docs name #272 and #273, since this note takes #271. Rebase them onto `main`, then open them in that order.
+- **Wave 4 stopped mid-writing,** unreviewed. Network troubleshooting has its five labs drafted (`feat/cloud-m3-troubleshooting`, one work-in-progress commit), but no lesson or recall items. Checkpoint 3 has parts 1 and 2 committed and part 3 drafted (`feat/cloud-m3-checkpoint`). A writer can't pick up another's half-finished context, so each needs a new writer started from its branch, then a cold review.
+- **Module 4's design is half done.** Five of its seven designers finished, so all eleven topic briefs are written. The identity-lab base's and the checkpoint's designers were stopped, and the critic hasn't run. Resuming the design run replays the five finished designers from cache. The unreviewed briefs, the workflow scripts and the two waiting PR texts are kept on a local branch, `wip/paused-2026-11-12`, which holds this machine's paths and must never be pushed.
+- **The draft probe topic** `csa.net.base-probes` still holds three probes (BBR, BGP over a VTI, the services). It goes once Checkpoint 3's part 3, which starts from the VTI probe, is written.
+
+**Next, in order:**
+
+1. Open Certificates (#272) and IPsec (#273).
+2. Finish wave 4: troubleshooting and Checkpoint 3, each written and reviewed; then delete the probe topic and its track entry, and mark Module 3 written.
+3. Resume Module 4's design: the two stopped designers and the critic, then the plan, as Module 3's was.
+
+**Author notes:**
+
+- _Labs CI's floor is now one lab:_ HTTP semantics' build, at about 21 minutes in a crowd, is the slowest single lab. Thinning its wrong fixes that wait out the 75-second idle check would shorten every pull request's wait.
+- _Memory ran short twice with ten agents at once:_ Docker's VM held most of it as file cache. Dropping that cache (`wsl -d docker-desktop sh -c "echo 1 > /proc/sys/vm/drop_caches"`) gave the VM room again without stopping anything. About six agents at once is the comfortable limit on this machine.
+
 ## 2026-11-12, night: Module 3's wave 3
 
 The owner is still away; decisions follow their message of 2026-11-11. Wave 3 (congestion control and QUIC, certificates and mutual TLS, IPsec) was written while wave 2 landed, and lands the same way, a topic a pull request. Wave 4 (Network troubleshooting and Checkpoint 3) is being written, and the design of Module 4, security and identity foundations, has begun.
