@@ -1,0 +1,46 @@
+# Checkpoint 3, part 2, version 2 (prototype): the shop's network.
+#
+#   office 10.10.0.0/24           dc 10.20.0.0/24                      cloud 10.30.0.0/24
+#   pc .10  resolver .53 -- r1 == r2 -- ns1 .53  app1 .11 -- r2 ==(tun1, tun2)== r3 -- app2 .11  ns2 .200
+#
+# r1 (AS 65010), r2 (AS 65020) and r3 (AS 65030, the cloud provider's) speak
+# BGP; r2 reaches r3 over two tunnels and shares traffic between them.
+machine pc
+machine resolver
+machine r1 router
+machine r2 router
+machine r3 router
+machine ns1
+machine app1
+machine app2
+machine ns2
+
+lan office pc:eth0=10.10.0.10/24 resolver:eth0=10.10.0.53/24 r1:eth1=10.10.0.1/24
+link r1:eth0=10.0.12.1/30 r2:eth0=10.0.12.2/30
+lan dc r2:eth1=10.20.0.1/24 ns1:eth0=10.20.0.53/24 app1:eth0=10.20.0.11/24
+link r2:tun1=10.0.23.1/30 r3:tun1=10.0.23.2/30
+link r2:tun2=10.0.24.1/30 r3:tun2=10.0.24.2/30
+lan cloud r3:eth1=10.30.0.1/24 app2:eth0=10.30.0.11/24 ns2:eth0=10.30.0.200/24
+
+route pc default via 10.10.0.1
+route resolver default via 10.10.0.1
+route ns1 default via 10.20.0.1
+route app1 default via 10.20.0.1
+route app2 default via 10.30.0.1
+route ns2 default via 10.30.0.1
+dns pc 10.10.0.53
+dns resolver 127.0.0.1
+
+# Traffic is shared between the two tunnels connection by connection (a hash
+# of the addresses and ports), as the clouds' VPN gateways do.
+sysctl r2 net.ipv4.fib_multipath_hash_policy=1
+sysctl r3 net.ipv4.fib_multipath_hash_policy=1
+
+run r1 frr
+run r2 frr nftables
+run r3 frr
+run ns1 named
+run ns2 named
+run resolver unbound
+run app1 nginx
+run app2 nginx nftables

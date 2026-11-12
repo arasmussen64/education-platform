@@ -1,0 +1,12 @@
+[Unit]
+Description=The cloud's VPN gateway (strongSwan in the cloud namespace)
+After=lab-network.service
+Before=strongswan.service frr.service
+Requires=lab-network.service
+[Service]
+Type=notify
+ExecStart=/usr/sbin/ip netns exec cloud /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/cloud-enter /usr/sbin/charon-systemd
+ExecStartPost=/usr/sbin/ip netns exec cloud /usr/bin/unshare --uts --mount --propagation private /usr/local/lib/lab/cloud-enter /usr/sbin/swanctl --load-all --noprompt
+Restart=on-abnormal
+[Install]
+WantedBy=multi-user.target

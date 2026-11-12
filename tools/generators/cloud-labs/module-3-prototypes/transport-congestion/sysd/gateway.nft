@@ -1,0 +1,12 @@
+table inet gateway {
+	chain forward {
+		type filter hook forward priority filter; policy drop;
+		ct state established,related accept
+		iifname "in0" tcp flags syn / syn,ack ct state new accept
+		iifname "in0" meta l4proto tcp reject with tcp reset
+	}
+	chain postrouting {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "out0" masquerade
+	}
+}

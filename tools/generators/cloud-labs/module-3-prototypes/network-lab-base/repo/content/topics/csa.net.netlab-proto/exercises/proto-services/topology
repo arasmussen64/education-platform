@@ -1,0 +1,37 @@
+# Prototype: names, a load balancer, NAT and a slow link, on nine machines.
+#
+#   office 10.10.0.0/24          internet 198.51.100.0/24           web 10.20.0.0/24
+#   client .10  resolver .53 --- edge (NAT) --- root .11 tld .12 ns1 .13 --- lb1 .80 --- web1 .11, web2 .12
+machine client
+machine resolver
+machine edge router
+machine root
+machine tld
+machine ns1
+machine lb1 router
+machine web1
+machine web2
+
+lan office client:eth0=10.10.0.10/24,2001:db8:10::10/64 resolver:eth0=10.10.0.53/24,2001:db8:10::53/64 edge:eth1=10.10.0.1/24,2001:db8:10::1/64
+lan inet edge:eth0=198.51.100.1/24,2001:db8:100::1/64 root:eth0=198.51.100.11/24 tld:eth0=198.51.100.12/24 ns1:eth0=198.51.100.13/24 lb1:eth0=198.51.100.80/24,2001:db8:100::80/64
+lan web lb1:eth1=10.20.0.1/24 web1:eth0=10.20.0.11/24 web2:eth0=10.20.0.12/24
+
+route client default via 10.10.0.1
+route client default via 2001:db8:10::1
+route resolver default via 10.10.0.1
+route web1 default via 10.20.0.1
+route web2 default via 10.20.0.1
+dns client 10.10.0.53
+dns resolver 127.0.0.1
+
+# The office's link to the internet is slow and a little lossy.
+netem edge eth0 delay 30ms
+
+run edge nftables
+run root named
+run tld named
+run ns1 named
+run resolver unbound
+run lb1 haproxy
+run web1 nginx
+run web2 nginx

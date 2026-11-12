@@ -1,0 +1,52 @@
+# Checkpoint 3, part 2 (prototype): the shop's network.
+#
+#   office 10.10.0.0/24           dc 10.20.0.0/24                cloud 10.30.0.0/24
+#   pc .10  resolver .53 -- r1 == r2 -- ns1 .53  app1 .11 -- r2 ==(tunnel, MTU 1400)== r3 -- app2 .11  ns2 .200
+#                            |
+#                          oldgw (the old VPN appliance, still plugged in)
+#
+# r1 (AS 65010), r2 (AS 65020) and r3 (AS 65030, the cloud provider's) speak BGP.
+machine pc
+machine resolver
+machine r1 router
+machine r2 router
+machine r3 router
+machine ns1
+machine app1
+machine app2
+machine ns2
+machine oldgw
+
+lan office pc:eth0=10.10.0.10/24 resolver:eth0=10.10.0.53/24 r1:eth1=10.10.0.1/24
+link r1:eth0=10.0.12.1/30 r2:eth0=10.0.12.2/30
+link r1:old0=10.0.99.1/30 oldgw:eth0=10.0.99.2/30
+lan dc r2:eth1=10.20.0.1/24 ns1:eth0=10.20.0.53/24 app1:eth0=10.20.0.11/24
+link r2:eth2=10.0.23.1/30 r3:eth0=10.0.23.2/30
+lan cloud r3:eth1=10.30.0.1/24 app2:eth0=10.30.0.11/24 ns2:eth0=10.30.0.200/24
+
+route pc default via 10.10.0.1
+route resolver default via 10.10.0.1
+route ns1 default via 10.20.0.1
+route app1 default via 10.20.0.1
+route app2 default via 10.30.0.1
+route ns2 default via 10.30.0.1
+dns pc 10.10.0.53
+dns resolver 127.0.0.1
+
+# The cloud link is a VPN tunnel: 100 bytes of every packet are its own.
+mtu r2 eth2 1400
+mtu r3 eth0 1400
+# Set, not inherited: TCP doesn't probe for a smaller MTU by itself.
+sysctl app2 net.ipv4.tcp_mtu_probing=0
+sysctl app1 net.ipv4.tcp_mtu_probing=0
+sysctl pc net.ipv4.tcp_mtu_probing=0
+sysctl r1 net.ipv4.fib_multipath_hash_policy=0
+
+run r1 frr
+run r2 frr
+run r3 frr
+run ns1 named
+run ns2 named
+run resolver unbound
+run app1 nginx
+run app2 nginx nftables

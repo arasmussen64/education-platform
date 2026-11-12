@@ -1,0 +1,23 @@
+map $http_origin $cors_origin {
+  default "";
+  "https://shop.test" $http_origin;
+  "https://www.shop.test" $http_origin;
+}
+server {
+  listen 8003;
+  location /api/ {
+    if ($request_method = OPTIONS) {
+      add_header Access-Control-Allow-Origin $cors_origin always;
+      add_header Access-Control-Allow-Methods "GET, PUT, DELETE" always;
+      add_header Access-Control-Allow-Headers "Content-Type" always;
+      add_header Access-Control-Allow-Credentials "true" always;
+      add_header Access-Control-Max-Age 600 always;
+      add_header Vary Origin always;
+      return 204;
+    }
+    add_header Access-Control-Allow-Origin $cors_origin always;
+    add_header Access-Control-Allow-Credentials "true" always;
+    add_header Vary Origin always;
+    return 200 "{\"basket\": 3}\n";
+  }
+}

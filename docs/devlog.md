@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-11, late: Cloud Module 3 is planned
+
+The owner is still away; decisions follow their message of 2026-11-11.
+
+**A phone fix** (#250). Long inline code, such as a CSV header in GPU basics' report lab, made a page wider than a 390-pixel phone, so the whole page scrolled sideways. Inline code now breaks where it has to. Every page checked fits.
+
+**Module 3, "Networking", is planned** ([plans/cloud-module-3](plans/cloud-module-3/README.md)), the way Module 2 was. Seven designers each took part of the module. One of them designed the shared lab base, and the others took two or three topics each. Each researched and re-checked their facts and resources and tried their labs in Docker. A critic then read the briefs against each other, re-fetched about 75 facts and 25 resources, re-ran the disputed experiments and wrote one brief that decides. The main results:
+
+- **Sixteen topics, not fourteen.** BGP and HTTP and TLS were each over 330 minutes, and are split.
+- **One network-lab base.** Every network lab starts from one image. Each machine in it is a network namespace with its own `/etc`, built at boot from a short topology file, and each daemon runs as a service per machine (`frr@r1`, `nginx@web`). Six designers had each built their own variant; all move to the base.
+- **The VPN is a VTI tunnel after all.** The base designer found strongSwan with a VTI dropping every packet, and the IPsec designer had it working. The critic reproduced both and found the cause, a strongSwan plugin (`forecast`) that the base's extra-plugins package loaded.
+- **Checkpoint 3 gets a third part:** a data centre connected to a cloud over a circuit and a backup IPsec VPN, with BGP.
+- **Nothing costs money.** Clouds' circuits, VPN gateways and load balancers are taught from their dated documentation and modelled in local routers, labelled as modelled.
+
+The spec's Module 3 section is replaced, later topics are renumbered by two, and the outlines are regenerated (`csa.net.bgp-steering` and `csa.net.certificates` are new). The prototypes are archived under `tools/generators/cloud-labs/module-3-prototypes/`, without the RFCs and pages the designers fetched.
+
+**Author notes:**
+
+- _The prototypes' full copies of `labcheck.py` and `content_model.py` were left out of the archive._ The one change that matters is kept as a diff (`network-lab-base/labcheck-shared-base.diff`), and P0 makes it for real.
+- _Cloudflare's Learning Center pages refuse automated fetches._ The designers fetched them by sending a browser's user agent; the critic didn't, and marked each such resource "a person confirms it in a browser", with a fallback where it's a main resource. Writers follow the critic.
+- _The brief's CI estimate (about 8.3 more hours of container time a full run) is the designers' estimates added up,_ not a measurement. The CI spike measures it before the shard count is set.
+
+**Next:** Module 3's platform work, in the brief's order: the shared lab base and the checker's change to build it (an ADR-0018 amendment, Proposed), the restart trial in the lab contract, estimate items that read dotted quads, then a CI spike that runs five probe labs on GitHub's runners before any topic is written. Then the topics, in four waves.
+
 ## 2026-11-11, later: Cloud Module 2 is written
 
 The owner is still away, so decisions were made under their message of 2026-11-11, as in the entry below.

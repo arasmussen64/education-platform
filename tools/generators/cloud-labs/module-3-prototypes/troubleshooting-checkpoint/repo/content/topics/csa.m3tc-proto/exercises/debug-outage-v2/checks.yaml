@@ -1,0 +1,154 @@
+# Prototype checks for Checkpoint 3, part 2, version 2. Each description
+# states an end state and none names a fault. A check that finds something
+# wrong prints why and exits 0. Where traffic is shared between the two
+# tunnels, the checks ask r2's kernel which tunnel a connection would take
+# (ip route get with ports) and choose their own source ports, so a
+# connection over each tunnel is tried every time: nothing is left to chance.
+checks:
+  - id: catalogue-everywhere
+    description: "From the office, the whole catalogue loads from every address either of the shop's name servers gives for www.shop.test, over each of the cloud tunnels."
+    timeout: 90
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      want=$(sha256sum /srv/www/catalog | cut -d' ' -f1)
+      wait_for 15 sh -c '[ -n "$(on pc dig +short +time=2 +tries=1 @10.20.0.53 www.shop.test A)" ]'
+      addrs=$( { on pc dig +short +time=2 +tries=1 @10.20.0.53 www.shop.test A; on pc dig +short +time=2 +tries=1 @10.30.0.200 www.shop.test A; } | grep -E '^[0-9.]+$' | sort -u)
+      [ -n "$addrs" ] || { echo "neither name server gives an address for www.shop.test"; exit 0; }
+      # Source ports from a range that moves with the clock, a range of its
+      # own for each address, and never one pc has in use: a port a recent
+      # connection left in TIME-WAIT can't be bound again (curl exit 45).
+      base=$((40000 + ($(date +%s) % 40) * 500))
+      n=0
+      for a in $addrs; do
+        n=$((n + 1)); lo=$((base + n * 120))
+        # One source port for each way r2 would send this connection.
+        ports=$(for p in $(seq $lo $((lo + 100))); do on pc ss -Htan "sport = :$p" | grep -q . && continue; on r2 ip route get "$a" from 10.10.0.10 iif eth0 ipproto tcp sport $p dport 80 2>/dev/null | head -n 1 | awk -v p=$p '{for (i = 1; i <= NF; i++) if ($i == "dev") print $(i + 1), p}'; done | sort -u -k1,1 | awk '{print $2}')
+        [ -n "$ports" ] || ports=$lo
+        for p in $ports; do
+          got=$(on pc curl -s --local-port $p --max-time 4 -H 'Host: www.shop.test' "http://$a/catalog" | sha256sum | cut -d' ' -f1)
+          [ "$got" = "$want" ] || { echo "from the office, the catalogue doesn't load in full from every address www.shop.test is given, over every path"; exit 0; }
+        done
+      done
+      echo "loads everywhere"
+    expect:
+      equals: "loads everywhere"
+  - id: by-name
+    description: "From the office, ten loads of http://www.shop.test/catalog in a row, by name through the office's resolver, each the whole catalogue in under a second."
+    timeout: 60
+    command: |
+      want=$(sha256sum /srv/www/catalog | cut -d' ' -f1)
+      for i in 1 2 3 4 5 6 7 8 9 10; do
+        t=$(/usr/local/bin/on pc curl -s -o /tmp/check-catalog --max-time 3 -w '%{time_total}' http://www.shop.test/catalog)
+        got=$(sha256sum /tmp/check-catalog 2>/dev/null | cut -d' ' -f1)
+        [ "$got" = "$want" ] || { echo "load $i of 10 by name didn't bring the whole catalogue"; exit 0; }
+        awk -v t="$t" 'BEGIN {exit !(t < 1.0)}' || { echo "load $i of 10 by name took $t seconds"; exit 0; }
+      done
+      rm -f /tmp/check-catalog
+      echo "ten of ten"
+    expect:
+      equals: "ten of ten"
+  - id: names-agree
+    description: "ns1 and ns2 serve the same, newer version of shop.test with the same answers, and ns2 is still a secondary that copies the zone from ns1."
+    command: |
+      s1=$(/usr/local/bin/on pc dig +short +time=2 +tries=1 @10.20.0.53 shop.test SOA | awk '{print $3}')
+      s2=$(/usr/local/bin/on pc dig +short +time=2 +tries=1 @10.30.0.200 shop.test SOA | awk '{print $3}')
+      echo "$s1" | grep -Eq '^[0-9]+$' && [ "$s1" = "$s2" ] || { echo "ns1 and ns2 don't serve the same version of shop.test"; exit 0; }
+      [ "$s1" -gt 2026101501 ] || { echo "shop.test's version is the one it had before the change of 3 November"; exit 0; }
+      a1=$(/usr/local/bin/on pc dig +short +time=2 +tries=1 @10.20.0.53 www.shop.test A | sort | tr '\n' ' ')
+      a2=$(/usr/local/bin/on pc dig +short +time=2 +tries=1 @10.30.0.200 www.shop.test A | sort | tr '\n' ' ')
+      [ "$a1" = "$a2" ] || { echo "ns1 and ns2 give different answers for www.shop.test"; exit 0; }
+      conf=$(/usr/local/bin/on ns2 named-checkconf -p 2>/dev/null | tr -s ' \n\t' ' ')
+      echo "$conf" | grep -q 'zone "shop.test" { type secondary;' || { echo "ns2 isn't a secondary for shop.test"; exit 0; }
+      echo "$conf" | grep -q 'primaries { 10.20.0.53; }' || { echo "ns2 doesn't copy shop.test from ns1"; exit 0; }
+      n=$(/usr/local/bin/on ns2 dig +time=3 +tries=1 @10.20.0.53 shop.test AXFR | grep -c 'IN[[:space:]]*SOA')
+      [ "$n" -ge 2 ] || { echo "ns1 won't let ns2 copy the zone"; exit 0; }
+      echo agree
+    expect:
+      equals: agree
+  - id: zone-private
+    description: "Nobody in the office can copy the whole zone from either name server."
+    command: |
+      for ns in 10.20.0.53 10.30.0.200; do
+        n=$(/usr/local/bin/on pc dig +time=3 +tries=1 @$ns shop.test AXFR | grep -c 'IN[[:space:]]*SOA')
+        [ "$n" -eq 0 ] || { echo "from the office, a name server hands over the whole zone"; exit 0; }
+      done
+      echo private
+    expect:
+      equals: private
+  - id: resolver-asks-both
+    description: "The office's resolver asks both of the shop's name servers, ns1 and ns2, about shop.test."
+    command: |
+      out=$(/usr/local/bin/on resolver unbound-control list_stubs 2>&1 | grep '^shop.test')
+      case "$out" in *10.20.0.53*10.30.0.200* | *10.30.0.200*10.20.0.53*) echo both ;; *) echo "the resolver's stub for shop.test is: $out" ;; esac
+    expect:
+      equals: both
+  - id: both-tunnels
+    description: "r2 shares traffic for the cloud between both tunnels, by the routes BGP gives it, and runs the routing configuration it has saved."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      r=$(on r2 ip route show 10.30.0.0/24)
+      echo "$r" | grep -q 'proto bgp' || { echo "r2's route to the cloud isn't BGP's"; exit 0; }
+      echo "$r" | grep -q 'dev tun1' && echo "$r" | grep -q 'dev tun2' || { echo "r2 doesn't send traffic for the cloud over both tunnels"; exit 0; }
+      frr_saved r2 > /dev/null || { echo "r2's running routing configuration isn't the one it has saved"; exit 0; }
+      echo both
+    expect:
+      equals: both
+  - id: office-admin-closed
+    description: "Nothing in the cloud can reach the office's SSH or remote-desktop ports: from app2 they get no answer at all."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on pc timeout 12 python3 -c 'import socket, time
+      s = [socket.create_server(("0.0.0.0", p)) for p in (22, 3389)]
+      time.sleep(11)' &
+      sleep 1
+      for p in 22 3389; do
+        st=$(tcp_state app2 10.10.0.10 $p)
+        [ "$st" = dropped ] || { kill %1 2>/dev/null; echo "from the cloud, an administration port in the office gets an answer"; exit 0; }
+      done
+      kill %1 2>/dev/null
+      echo closed
+    expect:
+      equals: closed
+  - id: r2-firewall-saved
+    description: "r2's firewall file loads the rules r2 is running, and its firewall service is enabled."
+    command: |
+      ns=labcheck-nft
+      ip netns del $ns 2>/dev/null; ip netns add $ns
+      for i in eth0 eth1 tun1 tun2; do ip -n $ns link add $i type dummy; done
+      from_file=$(ip netns exec $ns nft -f /etc/netns/r2/nftables.conf 2>&1 && ip netns exec $ns nft -s list ruleset)
+      ip netns del $ns
+      [ "$from_file" = "$(ip netns exec r2 nft -s list ruleset)" ] || { echo "r2's running rules aren't the ones its file loads"; exit 0; }
+      systemctl is-enabled nftables@r2
+    expect:
+      equals: enabled
+  - id: app2-web-for-the-shop
+    description: "app2 still has its firewall: its input policy is drop; its web server answers the office and the data centre; and from a network that is neither, its web server gets no answer at all."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on app2 nft list ruleset | grep -qE 'hook input .*policy drop' || { echo "app2's input policy isn't drop"; exit 0; }
+      [ "$(tcp_state pc 10.30.0.11 80)" = open ] || { echo "from the office, app2's web server doesn't answer"; exit 0; }
+      [ "$(tcp_state app1 10.30.0.11 80)" = open ] || { echo "from the data centre, app2's web server doesn't answer"; exit 0; }
+      start=$(date +%s%N)
+      on r2 nc -z -w 2 -s 10.0.23.1 10.30.0.11 80 && { echo "app2's web server answers a network that is neither the office nor the data centre"; exit 0; }
+      ms=$(( ($(date +%s%N) - start) / 1000000 ))
+      [ "$ms" -ge 1500 ] || { echo "app2's web server answers a network that is neither the office nor the data centre"; exit 0; }
+      echo guarded
+    expect:
+      equals: guarded
+  - id: app2-firewall-saved
+    description: "app2's firewall file loads the rules app2 is running, and its firewall service is enabled."
+    command: |
+      ns=labcheck-nft
+      ip netns del $ns 2>/dev/null; ip netns add $ns
+      ip -n $ns link add eth0 type dummy
+      from_file=$(ip netns exec $ns nft -f /etc/netns/app2/nftables.conf 2>&1 && ip netns exec $ns nft -s list ruleset)
+      ip netns del $ns
+      [ "$from_file" = "$(ip netns exec app2 nft -s list ruleset)" ] || { echo "app2's running rules aren't the ones its file loads"; exit 0; }
+      systemctl is-enabled nftables@app2
+    expect:
+      equals: enabled
+  - id: provider-untouched
+    description: "The network and the cloud provider's router r3 are as they were."
+    command: /usr/local/lib/netlab/netlab intact
+    expect:
+      equals: intact

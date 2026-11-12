@@ -1,0 +1,18 @@
+# HAProxy on one of the lab's machines: "systemctl status haproxy@lb1". Its
+# configuration is the machine's /etc/haproxy/haproxy.cfg.
+[Unit]
+Description=HAProxy on %i
+After=netlab.service
+Requires=netlab.service
+
+[Service]
+Type=notify
+ExecStartPre=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/install -d -m 755 /run/haproxy
+ExecStartPre=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/haproxy -c -q -f /etc/haproxy/haproxy.cfg
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/haproxy -Ws -f /etc/haproxy/haproxy.cfg -p /run/haproxy.pid
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/haproxy -c -q -f /etc/haproxy/haproxy.cfg
+ExecReload=/bin/kill -USR2 $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,43 @@
+# Topic 36 debug mechanisms (prototype).
+#   branch 10.40.0.0/24: client .10 -- br1 -- isp1 -- isp2 -- dc1 -- dc 10.20.0.0/24: lb .80, lbold (.80 too), api1 .11, api2 .12, api3 .13, db .50
+machine client
+machine br1 router
+machine isp1 router
+machine isp2 router
+machine dc1 router
+machine lb
+machine lbold
+machine api1
+machine api2
+machine api3
+machine db
+lan branch client:eth0=10.40.0.10/24 br1:eth1=10.40.0.1/24
+link br1:eth0=203.0.113.2/30 isp1:eth1=203.0.113.1/30
+link isp1:eth2=192.0.2.1/30 isp2:eth1=192.0.2.2/30
+link isp2:eth2=198.51.100.1/30 dc1:eth0=198.51.100.2/30
+lan dc dc1:eth1=10.20.0.1/24 lb:eth0=10.20.0.79/24,10.20.0.80/24 lbold:eth0=10.20.0.81/24 api1:eth0=10.20.0.11/24 api2:eth0=10.20.0.12/24 api3:eth0=10.20.0.13/24 db:eth0=10.20.0.50/24
+route client default via 10.40.0.1
+route br1 default via 203.0.113.1
+route isp1 10.40.0.0/24 via 203.0.113.2
+route isp1 default via 192.0.2.2
+route isp2 default via 192.0.2.1
+route isp2 10.20.0.0/24 via 198.51.100.2
+route dc1 default via 198.51.100.1
+route lb default via 10.20.0.1
+route lbold default via 10.20.0.1
+route api1 default via 10.20.0.1
+route api2 default via 10.20.0.1
+route api3 default via 10.20.0.1
+route db default via 10.20.0.1
+# The provider's link to the data centre loses packets toward it.
+netem isp2 eth2 loss 8%
+# isp1 answers traceroute's probes at most once every two seconds.
+sysctl isp1 net.ipv4.icmp_ratelimit=2000
+run lb haproxy
+run api1 nginx
+run api2 nginx
+run api3 nginx nftables
+# Every other router answers probes without a limit, so only isp1's shows.
+sysctl br1 net.ipv4.icmp_ratelimit=0
+sysctl isp2 net.ipv4.icmp_ratelimit=0
+sysctl dc1 net.ipv4.icmp_ratelimit=0

@@ -1,0 +1,21 @@
+#!/bin/bash
+# Usage: on MACHINE [COMMAND...]
+# Runs COMMAND on one of the lab's machines, as its administrator (root),
+# the way you would after logging in to it: "on r1 vtysh", "on host-a curl
+# http://10.0.2.10/", "on vpn1 swanctl --list-sas". With no command, opens a
+# shell there (type exit to come back). "netlab show" lists the machines.
+set -euo pipefail
+if [[ $# -lt 1 ]]; then
+  echo "usage: on MACHINE [COMMAND...]   (netlab show lists the machines)" >&2
+  exit 2
+fi
+m=$1
+shift
+if ! ip netns list 2>/dev/null | grep -q "^$m\( \|$\)" && ! sudo ip netns list | grep -q "^$m\( \|$\)"; then
+  echo "on: there is no machine called $m (netlab show lists them)" >&2
+  exit 2
+fi
+if [[ $EUID -eq 0 ]]; then
+  exec ip netns exec "$m" /usr/local/lib/netlab/lab-enter "$m" "$@"
+fi
+exec sudo ip netns exec "$m" /usr/local/lib/netlab/lab-enter "$m" "$@"

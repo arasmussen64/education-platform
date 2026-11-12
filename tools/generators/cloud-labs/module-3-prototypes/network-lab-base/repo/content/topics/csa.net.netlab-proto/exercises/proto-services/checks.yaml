@@ -1,0 +1,60 @@
+# Prototype checks: each reads real state (a resolver's answer, HAProxy's own
+# view of its servers, the NAT's connection table, a capture decoded by tshark).
+checks:
+  - id: resolves
+    description: "From the office, www.shop.test resolves through the office's resolver to the load balancer."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      wait_for 10 sh -c '[ -n "$(on client dig +short +time=2 +tries=1 www.shop.test)" ]'
+      on client dig +short +time=2 +tries=1 www.shop.test
+    expect:
+      equals: "198.51.100.80"
+  - id: trace
+    description: "A lookup traced from the root ends at shop.test's own server."
+    command: on client dig +trace +time=2 +tries=1 www.shop.test A | grep -E '^www\.shop\.test\.' | awk '{print $NF}' | tail -1
+    expect:
+      equals: "198.51.100.80"
+  - id: both-servers-up
+    description: "HAProxy on lb1 sees web1 and web2 healthy."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      up() { on lb1 sh -c 'echo "show stat" | socat stdio /run/haproxy/admin.sock' | awk -F, '$1 == "web" && $2 ~ /^web[12]$/ && $18 == "UP" {n++} END {print n+0}'; }
+      wait_for 10 test "$(up)" = 2
+      up
+    expect:
+      equals: "2"
+  - id: balanced
+    description: "Requests from the office to www.shop.test reach both web servers."
+    command: for i in 1 2 3 4; do on client curl -s --max-time 3 http://www.shop.test/; done | sort -u | tr '\n' ' '
+    expect:
+      equals: "hello from web1 hello from web2"
+  - id: ipv6-not-translated
+    description: "Over IPv6 the office's own address reaches the load balancer: no NAT."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      capture lb1 eth0 'ip6 and tcp port 80' 4 -- on client curl -s -6 --max-time 3 http://www.shop.test/ | grep -o '2001:db8:10::10\.[0-9]*' | head -1 | cut -d. -f1
+    expect:
+      equals: "2001:db8:10::10"
+  - id: ipv4-translated
+    description: "Over IPv4 the office leaves through edge's NAT, from edge's public address and its small port range."
+    command: |
+      on client curl -s --max-time 3 http://198.51.100.80/ > /dev/null
+      on edge conntrack -L -p tcp --dport 80 2>/dev/null | grep 'src=10.10.0.10' | grep -o 'dst=198.51.100.1 sport=80 dport=[0-9]*' | head -1 | awk -F'dport=' '$2 >= 40000 && $2 <= 40099 {print "translated"}'
+    expect:
+      equals: translated
+  - id: slow-link
+    description: "The office's link to the internet adds about 30 ms to a round trip."
+    command: on client ping -c 3 -q 198.51.100.13 | awk -F/ '/rtt/ {printf "%d\n", $5}'
+    expect:
+      gte: 28
+  - id: tshark-decodes
+    description: "tshark reads, in a capture on the resolver, its question to shop.test's own server."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on resolver unbound-control flush www.shop.test > /dev/null 2>&1
+      f=$(pcap resolver eth0 'udp port 53' 4 -- on client dig +short +time=2 +tries=1 www.shop.test)
+      tshark -r "$f" -Y 'dns.flags.response == 0 && ip.dst == 198.51.100.13' -T fields -e dns.qry.name 2>/dev/null | sort -u | head -1
+      rm -f "$f"
+    timeout: 20
+    expect:
+      equals: "www.shop.test"

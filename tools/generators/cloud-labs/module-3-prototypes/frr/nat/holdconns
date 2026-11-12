@@ -1,0 +1,14 @@
+#!/usr/bin/python3
+"""holdconns N HOST PORT [SECONDS]: opens N TCP connections at once and holds them; prints how many opened."""
+import socket, sys, time
+n, host, port = int(sys.argv[1]), sys.argv[2], int(sys.argv[3])
+hold = float(sys.argv[4]) if len(sys.argv) > 4 else 5
+socks, failed = [], 0
+for _ in range(n):
+    s = socket.socket(); s.settimeout(2)
+    try:
+        s.connect((host, port)); socks.append(s)
+    except OSError as e:
+        failed += 1; last = e
+print(f"opened {len(socks)} of {n}, failed {failed}" + (f" (last error: {last})" if failed else ""))
+time.sleep(hold)

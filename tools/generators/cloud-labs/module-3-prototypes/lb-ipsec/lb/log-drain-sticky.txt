@@ -1,0 +1,23 @@
+== sticky: one visitor with a cookie jar, 6 requests
+      6 web1
+SHOPSRV=web1
+== a long download pinned to web1, then drain web1
+
+web1 op_state=2 admin_state=8 cur_sessions=0
+web2 op_state=2 admin_state=0 cur_sessions=0
+web3 op_state=2 admin_state=0 cur_sessions=0
+ op_state= admin_state= cur_sessions=
+  new visitors (no cookie):
+      3 web2
+      3 web3
+  the sticky visitor:
+      3 web1
+  status=DRAIN scur=1
+slow download: 200 80 bytes
+
+  after maint, the sticky visitor:
+      2 web2
+      1 web3
+== reload haproxy: is web1 still in maintenance?
+  status=UP
+

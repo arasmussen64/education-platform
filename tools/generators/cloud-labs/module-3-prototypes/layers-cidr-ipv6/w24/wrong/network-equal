@@ -1,0 +1,26 @@
+#!/bin/bash
+# cidr-overlaps PLAN: prints each pair of blocks in PLAN that overlap, as
+# "first second" in the order they appear. Two blocks overlap exactly when
+# they agree on the first k bits, where k is the shorter of their two
+# prefix lengths: CIDR blocks either nest or don't touch at all.
+ip2int() {
+  local a b c d
+  IFS=. read -r a b c d <<< "$1"
+  echo $(( (a << 24) | (b << 16) | (c << 8) | d ))
+}
+names=() addrs=() lens=()
+while read -r name block; do
+  case "$name" in '' | \#*) continue ;; esac
+  names+=("$name")
+  addrs+=("$(ip2int "${block%/*}")")
+  lens+=("${block#*/}")
+done < "$1"
+n=${#names[@]}
+for (( i = 0; i < n; i++ )); do
+  for (( j = i + 1; j < n; j++ )); do
+    k=32
+    if (( addrs[i] >> (32 - lens[i]) << (32 - lens[i]) == addrs[j] >> (32 - lens[j]) << (32 - lens[j]) )); then
+      echo "${names[i]} ${names[j]}"
+    fi
+  done
+done

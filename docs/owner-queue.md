@@ -91,6 +91,19 @@ Made under your message of 2026-11-11. Say the word to overturn any of them.
 
 Module 2 is written (2026-11-11, #238 to #246). Its whole plan is in [plans/cloud-module-2](plans/cloud-module-2/README.md).
 
+Module 3, networking, planned on 2026-11-11 ([plans/cloud-module-3](plans/cloud-module-3/README.md); the full list of fifteen is in its brief, section 10). None of it costs money or touches a live service:
+
+- **2026-11-11, Module 3 has sixteen topics, not fourteen.** BGP is split into "BGP sessions and policy" and "Steering traffic and cloud circuits"; HTTP and TLS into "HTTP and TLS" and "Certificates and mutual TLS". **Why:** shorter topics reach their proofs and first reviews sooner, and the TLS handshake gets proofs of its own (in the one-topic design neither proof tested it).
+- **2026-11-11, Module 3 needs Module 1, not Module 2,** as the spec's map has it. Words Module 2 taught (DNS record, zone) are taught again where Module 3 first uses them.
+- **2026-11-11, one network-lab base.** Every network lab starts from one shared image in which each machine is a network namespace with its own `/etc`, built at boot from a short topology file, running real FRRouting, strongSwan, BIND, Unbound, nginx and HAProxy. The lab checker builds it first. **Why:** one way to reach a machine (`on r1`) and one way to restart its services (`systemctl restart frr@r1`) across sixteen topics, instead of seven home-made ones. Needs an amendment to [ADR-0018](decisions/0018-lab-checker-local-mode.md) (Proposed, to be added to Open item 3 when it's written).
+- **2026-11-11, every Module 3 lab is restarted in CI.** After the solution passes, the checker restarts the lab and runs every check again. **Why:** "the fix lasts a reboot" becomes something CI proves, not something each check has to fake. About 15 seconds a lab.
+- **2026-11-11, the route-based VPN is a VTI tunnel,** as AWS, Azure and Google Cloud build theirs. One designer found it broken in the base; the critic traced that to a strongSwan plugin and left the plugin out. GRE inside IPsec is the fallback if GitHub's runners refuse it.
+- **2026-11-11, a check may cut a link and restore it** to prove a backup route takes over, an exception to "checks only read".
+- **2026-11-11, labs run on a fast clock.** Idle timeouts, DNS TTLs, BGP timers and certificate lifetimes are scaled down in labs, and every prompt gives the real figure beside the lab's; quiz questions use the real figures.
+- **2026-11-11, Checkpoint 3 has three parts:** the address plan, the intermittent outage (three faults no topic's debug uses), and a third, connecting a data centre to a cloud over a circuit with a backup IPsec VPN and BGP.
+- **2026-11-11, the first lab download from outside Ubuntu's archive:** step-ca and step-cli (a small certificate authority that speaks ACME, for the certificates topic), pinned by version and checksum. **Why:** Let's Encrypt's own test server changes its root at every start, so a lab built on it couldn't survive a restart.
+- **2026-11-11, the Labs CI job goes from four shards to eight** when Module 3's labs land (about 90 labs). Public repositories' runners are free.
+
 The learning engine's rules, fixed after the audit (#210 to #215):
 
 - **2026-11-11, when the Mastered star comes.** A topic could be Mastered right after a failed review, because the week was counted from Learned, and open follow-ups didn't hold the star back though ADR-0011 said they should. **Decided:** a review rated Again starts the week over, and a topic isn't Mastered while one of its skills is being relearned. **Why:** "survives a delayed review" should mean a week survived. **The cost:** some stars turn back to Learned until a good review a week on, or until the follow-up closes ([ADR-0002](decisions/0002-mastery-and-gating.md), amended).

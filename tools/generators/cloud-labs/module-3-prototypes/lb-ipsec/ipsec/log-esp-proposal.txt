@@ -1,0 +1,68 @@
+===== esp-proposal: lab (journalctl -u strongswan)
+loaded IKE shared key with id 'ike-cloud' for: '203.0.113.10'
+replaced vici connection: cloud
+initiating 'cloud-vti'
+initiating IKE_SA cloud[7] to 203.0.113.10
+generating IKE_SA_INIT request 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(REDIR_SUP) ]
+sending packet: from 198.51.100.10[500] to 203.0.113.10[500] (464 bytes)
+received packet: from 203.0.113.10[500] to 198.51.100.10[500] (472 bytes)
+parsed IKE_SA_INIT response 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(CHDLESS_SUP) N(MULT_AUTH) ]
+selected proposal: IKE:AES_CBC_256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048
+authentication of '198.51.100.10' (myself) with pre-shared key
+establishing CHILD_SA cloud-vti{5}
+generating IKE_AUTH request 1 [ IDi N(INIT_CONTACT) IDr AUTH SA TSi TSr N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N(ADD_4_ADDR) N(MULT_AUTH) N(EAP_ONLY) N(MSG_ID_SYN_SUP) ]
+sending packet: from 198.51.100.10[4500] to 203.0.113.10[4500] (304 bytes)
+received packet: from 203.0.113.10[4500] to 198.51.100.10[4500] (160 bytes)
+parsed IKE_AUTH response 1 [ IDr AUTH N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N(NO_PROP) ]
+authentication of '203.0.113.10' with pre-shared key successful
+peer supports MOBIKE
+IKE_SA cloud[7] established between 198.51.100.10[198.51.100.10]...203.0.113.10[203.0.113.10]
+scheduling rekeying in 13892s
+maximum IKE_SA lifetime 15332s
+received NO_PROPOSAL_CHOSEN notify, no CHILD_SA built
+failed to establish CHILD_SA, keeping IKE_SA
+vici initiate CHILD_SA 'cloud-vti'
+establishing CHILD_SA cloud-vti{6}
+generating CREATE_CHILD_SA request 2 [ SA No KE TSi TSr ]
+sending packet: from 198.51.100.10[4500] to 203.0.113.10[4500] (352 bytes)
+received packet: from 203.0.113.10[4500] to 198.51.100.10[4500] (80 bytes)
+parsed CREATE_CHILD_SA response 2 [ N(NO_PROP) ]
+received NO_PROPOSAL_CHOSEN notify, no CHILD_SA built
+failed to establish CHILD_SA, keeping IKE_SA
+===== esp-proposal: cloud (journalctl -u lab-cloud)
+received packet: from 198.51.100.10[500] to 203.0.113.10[500] (464 bytes)
+parsed IKE_SA_INIT request 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(REDIR_SUP) ]
+198.51.100.10 is initiating an IKE_SA
+selected proposal: IKE:AES_CBC_256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048
+generating IKE_SA_INIT response 0 [ SA KE No N(NATD_S_IP) N(NATD_D_IP) N(FRAG_SUP) N(HASH_ALG) N(CHDLESS_SUP) N(MULT_AUTH) ]
+sending packet: from 203.0.113.10[500] to 198.51.100.10[500] (472 bytes)
+received packet: from 198.51.100.10[4500] to 203.0.113.10[4500] (304 bytes)
+parsed IKE_AUTH request 1 [ IDi N(INIT_CONTACT) IDr AUTH SA TSi TSr N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N(ADD_4_ADDR) N(MULT_AUTH) N(EAP_ONLY) N(MSG_ID_SYN_SUP) ]
+looking for peer configs matching 203.0.113.10[203.0.113.10]...198.51.100.10[198.51.100.10]
+selected peer config 'branch'
+authentication of '198.51.100.10' with pre-shared key successful
+peer supports MOBIKE
+authentication of '203.0.113.10' (myself) with pre-shared key
+IKE_SA branch[6] established between 203.0.113.10[203.0.113.10]...198.51.100.10[198.51.100.10]
+scheduling rekeying in 14257s
+maximum IKE_SA lifetime 15697s
+received proposals: ESP:AES_CBC_256/HMAC_SHA1_96/NO_EXT_SEQ
+configured proposals: ESP:AES_GCM_16_256/MODP_2048/NO_EXT_SEQ, ESP:AES_GCM_16_128/MODP_2048/NO_EXT_SEQ
+no acceptable proposal found
+failed to establish CHILD_SA, keeping IKE_SA
+generating IKE_AUTH response 1 [ IDr AUTH N(MOBIKE_SUP) N(ADD_4_ADDR) N(ADD_4_ADDR) N(NO_PROP) ]
+sending packet: from 203.0.113.10[4500] to 198.51.100.10[4500] (160 bytes)
+received packet: from 198.51.100.10[4500] to 203.0.113.10[4500] (352 bytes)
+parsed CREATE_CHILD_SA request 2 [ SA No KE TSi TSr ]
+received proposals: ESP:AES_CBC_256/HMAC_SHA1_96/MODP_1024/NO_EXT_SEQ
+configured proposals: ESP:AES_GCM_16_256/MODP_2048/NO_EXT_SEQ, ESP:AES_GCM_16_128/MODP_2048/NO_EXT_SEQ
+no acceptable proposal found
+failed to establish CHILD_SA, keeping IKE_SA
+generating CREATE_CHILD_SA response 2 [ N(NO_PROP) ]
+sending packet: from 203.0.113.10[4500] to 198.51.100.10[4500] (80 bytes)
+===== esp-proposal: swanctl --initiate said
+[NET] sending packet: from 198.51.100.10[4500] to 203.0.113.10[4500] (352 bytes)
+[NET] received packet: from 203.0.113.10[4500] to 198.51.100.10[4500] (80 bytes)
+[ENC] parsed CREATE_CHILD_SA response 2 [ N(NO_PROP) ]
+[IKE] received NO_PROPOSAL_CHOSEN notify, no CHILD_SA built
+[IKE] failed to establish CHILD_SA, keeping IKE_SA

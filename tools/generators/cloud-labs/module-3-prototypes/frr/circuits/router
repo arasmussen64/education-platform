@@ -1,0 +1,4 @@
+#!/bin/bash
+# Usage: router NAME [vtysh options]   opens router NAME's console (FRR's vtysh), with its own hostname
+pid=$(cat "/run/frr/$1/watchfrr.pid" 2>/dev/null) || { echo "router: no router called $1 is running" >&2; exit 1; }
+exec sudo nsenter --uts --target "$pid" vtysh -N "$1" "${@:2}"

@@ -1,0 +1,23 @@
+#!/bin/bash
+# netlab-up [PREFIX]: builds the lab's machines (network namespaces) from
+# /etc/netlab. With a PREFIX (a check's "chk-"), builds a throwaway copy
+# beside the real one, with no services, to compare against.
+set -euo pipefail
+pre=${1:-}
+cd /etc/netlab
+machines=$(awk '!/^#/ && NF {print $1; print $3}' links | sort -u)
+for m in $machines; do ip netns add "$pre$m"; ip -n "$pre$m" link set lo up; done
+n=0
+while read -r a ia b ib; do
+  case "$a" in ''|\#*) continue;; esac
+  n=$((n + 1))
+  ip link add "nl$n-$$" type veth peer name "nr$n-$$"
+  ip link set "nl$n-$$" netns "$pre$a" name "$ia"; ip link set "nr$n-$$" netns "$pre$b" name "$ib"
+  ip -n "$pre$a" link set "$ia" up; ip -n "$pre$b" link set "$ib" up
+done < links
+for m in $machines; do
+  [ -f "$m/sysctl.conf" ] && ip netns exec "$pre$m" sysctl -q -p "$m/sysctl.conf" > /dev/null
+  [ -f "$m/up" ] && ip netns exec "$pre$m" bash -e "$m/up"
+  [ -f "$m/nftables.conf" ] && ip netns exec "$pre$m" nft -f "$m/nftables.conf"
+done
+true

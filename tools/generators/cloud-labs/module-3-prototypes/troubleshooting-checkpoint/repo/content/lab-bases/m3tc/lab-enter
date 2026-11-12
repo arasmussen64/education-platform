@@ -1,0 +1,43 @@
+#!/bin/bash
+# lab-enter MACHINE [COMMAND...]
+# Runs inside "ip netns exec MACHINE", which has already put the command in
+# the machine's network namespace, in a mount namespace of its own, with
+# each file and folder of /etc/netns/MACHINE/ laid over /etc. This adds the
+# rest of what makes a machine: its own /run (so two machines' daemons don't
+# share pid files and sockets), its own state folders (/var/cache/bind and
+# the like), and its own name. Then it runs COMMAND, or a shell.
+# Used by "on" and by every per-machine service (frr@, strongswan@ ...), so
+# the learner and the daemons see the same machine.
+set -euo pipefail
+m=$1
+shift
+[[ $# -gt 0 ]] || set -- bash -l
+
+run=/run/netlab/machines/$m
+state=/var/lib/netlab/machines/$m
+mkdir -p "$run"
+
+# The machine's own /run, with the lab machine's systemd and journal still in
+# sight, so systemctl and journalctl work from inside a machine. Bound into
+# the machine's folder first, then the folder over /run, taking them along.
+for d in systemd log; do
+  mkdir -p "$run/$d"
+  mount --bind "/run/$d" "$run/$d"
+done
+mount --rbind "$run" /run
+
+# The machine's own state folders, made from the image's at first use.
+for d in /var/cache/bind /var/lib/bind /var/lib/unbound /var/log/frr /var/lib/frr \
+         /var/log/nginx /var/lib/nginx /var/lib/haproxy; do
+  [[ -d $d ]] || continue
+  if [[ ! -d $state$d ]]; then
+    mkdir -p "$state$d"
+    cp -a "$d/." "$state$d/"
+    chown --reference="$d" "$state$d"
+    chmod --reference="$d" "$state$d"
+  fi
+  mount --bind "$state$d" "$d"
+done
+
+# The machine's name, in a namespace of its own (the prompt reads root@r1).
+exec unshare --uts /bin/sh -c 'hostname "$0" && exec "$@"' "$m" "$@"
