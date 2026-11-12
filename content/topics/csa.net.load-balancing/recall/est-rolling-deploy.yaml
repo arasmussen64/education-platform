@@ -1,0 +1,24 @@
+id: est-rolling-deploy
+type: estimate
+rev: 1
+# AWS's deregistration delay, 300 s by default, read 2026-11-12:
+# https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html
+prompt: |
+  A rolling deploy replaces 12 servers behind an AWS Application Load Balancer one at a time. Each server is deregistered and waits out the full deregistration delay of 300 seconds (its long downloads keep it busy to the end), then its replacement takes 60 seconds to start and pass its checks before the next server begins. How many minutes does the deploy take? Exactly.
+unit: minutes
+answer: 72
+tolerance: { absolute: 0 }
+given: { servers: 12, delay: 300, start: 60 }
+working: servers * (delay + start) / 60
+mistakes:
+  - id: no-start-time
+    value: 60
+    working: servers * delay / 60
+    why: "That leaves out each replacement's 60 seconds to start, which come before the next server can be taken out."
+  - id: one-server
+    value: 6
+    working: (delay + start) / 60
+    why: "That's one server's turn. One at a time means twelve turns, one after another."
+explanation: |
+  Each server's turn is 300 + 60 = 360 seconds, 6 minutes, and twelve turns one after another make 72 minutes. The deregistration delay is most of it, which is why teams set it to the longest request they really have: a shorter delay cuts the deploy, at the risk of cutting a download that runs longer. Taking two servers out at a time halves the deploy if the other ten can carry the peak (N+1 again, with a bigger N).
+skills: [failover-math]

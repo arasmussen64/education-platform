@@ -1,0 +1,59 @@
+id: example-balance-the-shop
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Balance the shop"
+prompt: |
+  The shop's website runs on three web servers behind a load balancer, and this lab is that balancer and everything around it. The network labs' basics (machines, `on MACHINE COMMAND`, services named `name@machine`) are in Layers and packets' first lab, `example-follow-a-request`; `netlab show` lists the machines.
+
+  - **`office`** (10.0.9.2) is the shop's office, where the customers' requests come from in this lab. It reaches only the balancer, as customers reach only a cloud load balancer's address.
+  - **`lb`** is the balancer: HAProxy (`haproxy@lb`), at **10.0.9.1** for the office and 10.0.1.1 on the servers' network. Its settings are lb's `/etc/haproxy/haproxy.cfg`. `sudo systemctl reload haproxy@lb` makes it read them again, and `journalctl -u haproxy@lb` shows its log.
+  - **`web1`, `web2`, `web3`** (10.0.1.11 to .13) are the web servers, on port 8080; **`api1`, `api2`** (.21, .22) the API servers, on 8081; **`stock1`, `stock2`** (.31, .32) the stock service, on 7000; and **`db`** (.20) the database. Each server's program is a unit on the console: `shop-web@web1`, `stock-sync@stock1`, `shop-db@db`. Every page a web server sends says which server made it.
+
+  HAProxy has a **runtime API**: commands sent to its **stats socket**, `/run/haproxy/admin.sock` on lb, a socket being an address on the machine that a program listens on, as a port is on the network. **`socat`** is a tool that joins its input and output to a socket, so `echo "show stat" | on lb socat stdio /run/haproxy/admin.sock` sends HAProxy the command `show stat` and prints its answer.
+
+  The walkthrough sends traffic through the balancer, reads its real state, stops one server and freezes another to see how fast each is taken out, makes the balancer pass on who is asking, moves the stock service to layer 4, and drains a server under a sticky visitor. Type each line yourself and read what it prints before you type the next. A few lines wait on purpose: the `sleep`s, and the `until` loop, which repeats its test every half second until it succeeds.
+steps:
+  - label: "The machines"
+    lines: "1"
+    note: "Ten machines: the office, the balancer with one address on each network (`eth0` 10.0.9.1 for the office, `eth1` 10.0.1.1 for the servers), and eight servers on the servers' network. Only lb runs a service of the base's own, `haproxy`; the servers' programs are this lab's units."
+  - label: "The servers, one by one"
+    lines: "2"
+    note: "From lb, which is on their network, each web server answers on port 8080 with its own name: `shop front page, served by web1`, then `web2`, then `web3`. Three separate machines with the same program. The office can't do this: it has no route to 10.0.1.0/24, only to the balancer."
+  - label: "The balancer's configuration"
+    lines: "3"
+    note: "The file in sections. `global` is HAProxy's own settings: its log goes to its standard output, which the journal keeps, and the stats socket, with `level admin` so commands can change things. `defaults` apply to every section after them: `mode http`, the layer 7 mode, and three **timeouts**, how long HAProxy waits for a server to accept a connection, and for a client or a server to send something. A **`frontend`** is what clients connect to: `shop` listens on 10.0.9.1 port 80, sends every request whose path starts `/api/` to the backend `api`, and the rest to `web`. A **`backend`** is a group of servers: `web` takes them in turn (`balance roundrobin`), checks each one by asking `GET /livez` and expecting `200`, every 2 seconds (`inter 2s`), takes a server out after 3 failed checks in a row (`fall 3`) and puts it back after 2 good ones (`rise 2`). `default-server` sets those for every `server` line below it, and `check` switches checking on. The `cookie` line is for the end of the walkthrough. A **`listen`** section is a frontend and a backend in one: `stock`, port 7000 to stock1, in `mode http` like everything else."
+  - label: "Through the balancer"
+    lines: "4-5"
+    note: "Six requests from the office to the shop's one address are answered by web1, web2, web3, web1, web2, web3: **round robin**. The office never learns the servers' addresses. Four requests for `/api/whoami` go to api1 and api2 in turn: the balancer read each request's path and chose the backend by it, which only a layer 7 balancer can do, because the path is inside the HTTP request."
+  - label: "Its real state"
+    lines: "6-7"
+    note: "`show stat` answers with one comma-separated line per frontend, backend and server, under a header line naming the fields. `awk -F,` splits at the commas; the fields printed are the 2nd (the server's name), the 18th (`status`), the 23rd (`chkdown`, how many times it has gone from UP to DOWN) and the 8th (`stot`, the sessions it has served): each server `UP 0 2`, two requests each. `show servers state web` is the same servers as HAProxy keeps them: column 6 is the **operational state** (2 is up, 0 is down) and column 7 the **administrative state**, what an operator set (0 is ready, in rotation). The first line, `1`, is the format's version."
+  - label: "A server dies"
+    lines: "8-12"
+    note: "web3's program is stopped, so web3 refuses connections at once. HAProxy's log: `Server web/web3 is DOWN, reason: Layer4 connection problem, info: \"Connection refused\"`, with `2 active and 0 backup servers left`. **Layer 4** in its reason means the check never got as far as HTTP: the TCP connection itself was refused. Three checks two seconds apart failed, so it was out about 6 seconds after it died, and `show stat` says `DOWN` with one UP-to-DOWN change. The office's six requests now go to web1 and web2 only: nobody saw an error. `tee` prints the log line and saves it in `~/example/down.txt`."
+  - label: "And comes back"
+    lines: "13-14"
+    note: "web3's program starts again, and after two good checks, about 4 seconds, HAProxy puts it back: `web3 UP 1` (UP now, down once). That's **`rise 2`**: one good check isn't trusted."
+  - label: "A server hangs"
+    lines: "15-19"
+    note: "`systemctl kill -s STOP` freezes web2's program where it stands, the way an overloaded or stuck server hangs: web2's machine still accepts connections, and nothing ever answers. `$SECONDS` is the shell's count of seconds, so the difference is how long the `until` loop waited for `DOWN`: about 12 seconds here, twice as long as a refused server. HAProxy waits `inter` after each check *finishes*, and a check that gets no answer runs for its whole **timeout**, which is `inter` itself unless a `timeout check` line sets it: 3 checks × (2 s apart + 2 s waiting) = 12 s. The log says why: `Layer7 timeout, check duration: 2001ms`, the connection made and no HTTP answer in time. For those 12 seconds web2 kept its share of requests, and each of them waited. `kill -s CONT` lets it run on."
+  - label: "Who the server thinks is asking"
+    lines: "20-24"
+    note: "`/whoami` makes a web server say what it sees: the connection came from **10.0.1.1**, the balancer, and there's no `X-Forwarded-For` header. HAProxy in this mode is a **proxy**: it takes the office's connection and opens its own to the server, so the server sees the proxy's address, as the NAT topic's server saw the gateway's. `option forwardfor` makes HAProxy add **`X-Forwarded-For: 10.0.9.2`**, the client's address, to every request it passes on. The `sed` adds the line after both backends' `balance roundrobin`; `haproxy -c -f` checks the file before `reload` loads it (`&&` runs the reload only if the check passes). After it, web1 and api1 both report the office's address. A server reading the header uses its last value: a client can send an `X-Forwarded-For` of its own, and HAProxy adds the real one after it."
+  - label: "Layer 4 for a protocol that speaks first"
+    lines: "25-28"
+    note: "The stock service isn't HTTP, and its server **speaks first**: it greets every new connection with a banner before the client says anything. Through the `mode http` listener the office's `nc` gets nothing in 3 seconds and gives up: HAProxy is waiting for an HTTP request before it even picks a server, and the client is waiting for the banner. With the listener in **`mode tcp`**, HAProxy's layer 4 mode, it joins the two connections and passes the bytes either way without reading them, and the banner arrives: `STOCK-SYNC 1.0 ready stock1`. The `sed` changes `mode http` only from the `listen stock` line to the end of the file. `haproxy -c` warns that `option httplog`, from `defaults`, can't log a TCP proxy's requests and uses its TCP log instead: a warning, not an error, so the file is valid and loads."
+  - label: "Stickiness"
+    lines: "29-30"
+    note: "`cookie SHOPSRV insert indirect nocache` makes HAProxy add a **cookie** to the first answer a visitor gets, naming the server that answered (each server's `cookie web1` is the value), and send every later request carrying that cookie to the same server: a **sticky session**, for a shop whose basket lives in one server's memory. `nocache` stops shared caches keeping an answer that sets it, and `indirect` keeps the cookie from reaching the servers. curl's `-c` saves cookies in a file, the **cookie jar**, and `-b` sends them back: four visits, all to one server. The jar's line ends `SHOPSRV` and the server's name; `awk` prints the 7th field."
+  - label: "Drain"
+    lines: "31-35"
+    note: "To patch that server without hurting anyone, it is **drained**: `set server web/web1 state drain` (yours may be another server) takes it out of load balancing while its open connections finish. `show stat` says `DRAIN`. New visitors, with no cookie, now go to the other two. The sticky visitor still reaches the draining server: HAProxy's drain still accepts **persistent** connections, those a cookie points at. Only `state maint`, **maintenance**, sends them elsewhere. A careful operator drains, waits for the server's sessions to reach zero, then sets maintenance and patches; `state ready` puts it back. A state set through the runtime API lasts until HAProxy restarts or reloads: the configuration doesn't know about it."
+  - label: "What you saved"
+    lines: "36"
+    note: "The down reason, the seconds a hung server kept its share, the forwarded address and the stock service's banner (and the cookie jar and the whole whoami answer). Run the checks: they compare each one with what the lab does now, and check that every web server is back in rotation."
+skills: [choose-the-balancer, health-checks, read-the-balancer, drain-and-stick]

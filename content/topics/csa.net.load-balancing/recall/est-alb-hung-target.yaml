@@ -1,0 +1,29 @@
+id: est-alb-hung-target
+type: estimate
+rev: 1
+# AWS's ALB health-check defaults and "each health check request is
+# independent", read 2026-11-12:
+# https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html
+prompt: |
+  An AWS Application Load Balancer's target group has the default health check: a check every 30 seconds, each waiting 5 seconds for an answer, and 2 failed checks in a row to take a target out. The balancer starts each check on its own clock, whatever the last one did. Just after a check it passed, a target hangs: it accepts connections and never answers. How many seconds after that passing check is it taken out? Exactly.
+unit: seconds
+answer: 65
+tolerance: { absolute: 0 }
+given: { interval: 30, timeout: 5, unhealthy: 2 }
+working: unhealthy * interval + timeout
+mistakes:
+  - id: no-timeout
+    value: 60
+    working: unhealthy * interval
+    why: "The second failed check starts at 60 seconds, but it fails only when its 5-second timeout runs out, at 65."
+  - id: haproxy-sum
+    value: 70
+    working: unhealthy * (interval + timeout)
+    why: "That's HAProxy's habit, waiting the interval after each check ends. The Application Load Balancer starts its checks on a fixed clock, so only the last check's timeout adds."
+  - id: one-check
+    value: 35
+    working: interval + timeout
+    why: "That's the first failed check. The unhealthy threshold is 2 consecutive failures."
+explanation: |
+  The checks start at 30 and 60 seconds after the passing one. Each fails when its 5-second timeout runs out, at 35 and 65, and the second failure in a row takes the target out: 2 × 30 + 5 = 65 seconds. For more than a minute the hung target keeps its share of requests, and each one waits. AWS's defaults are slow on purpose (fewer false alarms, less load on the targets); a team that wants faster detection lowers the interval, down to 5 seconds.
+skills: [failover-math]

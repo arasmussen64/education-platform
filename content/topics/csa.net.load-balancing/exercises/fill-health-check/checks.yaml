@@ -1,0 +1,59 @@
+# The checks of "Health checks": HAProxy running the file as it is now, and
+# the shop's policy proved on the running balancer. Two of them read what
+# HAProxy reports about its own checks; two make something go wrong at check
+# time, on every web server at once, and watch what HAProxy does: the web
+# servers frozen (they accept connections and never answer), and the
+# database stopped for a few seconds. Each puts back what it changed. The
+# first check waits for the balancer after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: config-loaded
+    description: "HAProxy on lb is running, starts at every boot, and runs its configuration file as the file is now."
+    timeout: 40
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      if ! errors=$(on lb haproxy -c -q -f /etc/haproxy/haproxy.cfg 2>&1); then
+        echo "haproxy -c refuses lb's /etc/haproxy/haproxy.cfg: $(echo "$errors" | grep ALERT | head -n 1)"
+        exit 0
+      fi
+      haproxy_ready || { echo "HAProxy on lb isn't running: systemctl status haproxy@lb says why"; exit 0; }
+      [ "$(systemctl is-enabled haproxy@lb)" = enabled ] || { echo "haproxy@lb doesn't start at boot"; exit 0; }
+      running_is_saved || { echo "the file has changed since HAProxy last loaded it, so HAProxy isn't running what it says"; exit 0; }
+      echo loaded
+    expect:
+      equals: loaded
+  - id: one-failure-not-enough
+    description: "HAProxy checks every web server, never takes one out of rotation for a single failed check, and puts a recovered one back after two good checks."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      [ -n "$(api 'show info')" ] || { echo "HAProxy on lb isn't running"; exit 0; }
+      for m in web1 web2 web3; do
+        line=$(servers | awk -v a="$(address_of "$m")" '$1 == a')
+        [ -n "$line" ] || { echo "HAProxy has no server for $m"; exit 0; }
+        set -- $line
+        case $2 in no-check*) echo "HAProxy doesn't check $m"; exit 0 ;; esac
+        [ "${7:-0}" -ge 2 ] || { echo "one failed check takes $m out of rotation"; exit 0; }
+        [ "$6" = 2 ] || { echo "$m is put back after $6 good checks in a row, not two"; exit 0; }
+      done
+      echo steady
+    expect:
+      equals: steady
+  - id: hung-server-out
+    description: "A web server that hangs (it accepts connections and never answers) is out of rotation within 15 seconds, even when it hangs just after a good health check."
+    # Frozen servers take up to 15 seconds to go, then a few more to come
+    # back once they run again.
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      hung_test 15 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080 2> /dev/null
+    expect:
+      equals: passed
+  - id: db-restart-survived
+    description: "While the database restarts, every web server keeps passing its health checks and the front page keeps answering."
+    timeout: 40
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      db_test 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080
+    expect:
+      equals: passed

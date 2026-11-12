@@ -1,0 +1,22 @@
+id: est-haproxy-dead-server
+type: estimate
+rev: 1
+prompt: |
+  HAProxy checks a web server every 2 seconds (`inter 2s`) and takes it out of rotation after 3 failed checks in a row (`fall 3`). Just after a check it passed, the server's program crashes, and from then on its machine refuses every connection at once. How many seconds after that passing check does HAProxy mark it DOWN? Exactly.
+unit: seconds
+answer: 6
+tolerance: { absolute: 0 }
+given: { inter: 2, fall: 3 }
+working: fall * inter
+mistakes:
+  - id: one-check
+    value: 2
+    working: inter
+    why: "That's the first failed check. With fall 3, HAProxy waits for three failures in a row before it takes the server out, so a single bad moment never does."
+  - id: counted-the-timeout
+    value: 12
+    working: fall * (inter + inter)
+    why: "That's a server that hangs, each check waiting its whole timeout (inter, when timeout check isn't set) for an answer. A refused connection fails at once, so the checks come every inter."
+explanation: |
+  A refused connection fails a check at once, so the three failing checks come at 2, 4 and 6 seconds after the last good one: `fall × inter` = 3 × 2 = 6 seconds, as web3 did in the walkthrough. Until then the server keeps its share of requests, and each one sent to it fails at once. A server that hangs is the slow case: each check then waits its timeout too, and so does each customer's request.
+skills: [failover-math]

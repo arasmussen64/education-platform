@@ -1,0 +1,16 @@
+id: mcq-nat-and-source-hash
+type: mcq
+rev: 1
+prompt: |
+  The company's 300 office staff reach the internet through one NAT address. Its intranet runs on three servers behind a balancer that keeps each client on one server by the client's address (source IP affinity). What happens to the load when the whole office is at work?
+choices:
+  - "One server gets all 300, because every request arrives from the same address"
+  - "It spreads evenly, because each member of staff has a laptop of their own"
+  - "Each server gets about 100, because the hash uses the source ports as well"
+  - "The balancer notices the NAT address and uses round robin for it instead"
+answer: 0
+explanation: |
+  The NAT gateway rewrites every laptop's source address to its own, as the NAT topic showed, so the balancer sees one client, and affinity by address sends that one client to one server. AWS's Network Load Balancer page warns of exactly this ("all clients behind the same NAT device have the same source IP address"), and Azure's says clients behind proxies "might be seen as one unique client".
+
+  The laptops' own addresses never reach the balancer. A hash of the whole 5-tuple, ports included, would spread the connections (it's Azure Load Balancer's default), but source affinity is the 2-tuple, the addresses only, on purpose. No balancer recognises a NAT address. A cookie keeps visitors sticky without this problem, because each browser gets its own.
+skills: [drain-and-stick]

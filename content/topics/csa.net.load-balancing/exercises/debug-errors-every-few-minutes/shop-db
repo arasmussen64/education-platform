@@ -1,0 +1,18 @@
+#!/usr/bin/python3
+"""shop-db: the shop's database, a stand-in on port 5432: it answers "ok"
+to every connection and closes it. "systemctl status shop-db@db"."""
+
+import socket
+
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("0.0.0.0", 5432))
+s.listen(64)
+print("database ready on 5432", flush=True)
+while True:
+    c, _ = s.accept()
+    try:
+        c.sendall(b"ok\n")
+    except OSError:
+        pass
+    c.close()

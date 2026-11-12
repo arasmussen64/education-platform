@@ -1,0 +1,131 @@
+# The checks of "Errors every few minutes": what customers get while the
+# database's own maintenance job runs (the check starts the job itself, as
+# its timer does, so it needn't wait for it), web2 kept in rotation, web3
+# out for good, a hung server still taken out, and the scenery as it was.
+# Each puts back what it changed. The first check waits for the balancer
+# after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: web3-out-for-good
+    description: "web3 is out of rotation, and stays out when the balancer restarts: HAProxy runs its configuration file as the file is now, and the file keeps web3 out."
+    timeout: 40
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      haproxy_ready || { echo "HAProxy on lb isn't running"; exit 0; }
+      running_is_saved || { echo "the file has changed since HAProxy last loaded it, so HAProxy isn't running what it says"; exit 0; }
+      # Each line for web3 in show servers state: its administrative state,
+      # a sum of flags. 1 is maintenance now; 4 is maintenance because the
+      # configuration says so, which a restart keeps.
+      states=$(api "show servers state" | awk 'NF > 5 && $1 !~ /^#/ && $5 == "10.0.1.13" {print $7}')
+      [ -z "$states" ] && { echo out; exit 0; }
+      for s in $states; do
+        [ $((s % 2)) = 1 ] || { echo "web3 is in rotation (administrative state $s)"; exit 0; }
+        [ $((s / 4 % 2)) = 1 ] || { echo "web3 is out of rotation only until the balancer restarts (administrative state $s)"; exit 0; }
+      done
+      echo out
+    expect:
+      equals: out
+  - id: left-alone
+    description: "The servers' programs and files, the database and its maintenance job, and the network are as the lab began, and the job still runs on its timer."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      intact > /dev/null || { netlab intact; exit 0; }
+      [ "$(systemctl is-enabled db-nightly.timer)" = enabled ] || { echo "the database's maintenance timer doesn't start at boot"; exit 0; }
+      [ "$(systemctl is-active db-nightly.timer)" = active ] || { echo "the database's maintenance timer isn't running"; exit 0; }
+      for u in shop-web@web1 shop-web@web2 shop-web@web3 shop-db@db; do
+        [ "$(systemctl is-enabled "$u")" = enabled ] || { echo "$u doesn't start at boot"; exit 0; }
+      done
+      # A drop-in (systemctl edit) changes a unit without touching its file.
+      for u in db-nightly.service db-nightly.timer shop-db@db shop-web@web1 shop-web@web2 shop-web@web3 lab-story.service; do
+        d=$(systemctl show -p DropInPaths --value "$u")
+        [ -z "$d" ] || { echo "$u has been changed by $d"; exit 0; }
+      done
+      echo intact
+    expect:
+      equals: intact
+  - id: no-errors-through-a-db-restart
+    description: "While the database's maintenance job restarts it, every request from the office gets a working page, whatever SHOPSRV cookie it carries, and the web servers in rotation keep passing their health checks."
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      [ -n "$(api 'show info')" ] || { echo "HAProxy on lb isn't running"; exit 0; }
+      m=$(unchecked 10.0.1.11:8080 10.0.1.12:8080)
+      [ -z "$m" ] || { echo "HAProxy doesn't check $m, so nothing here would notice it fail"; exit 0; }
+      # The job's own run, now: first let a run already going finish (a
+      # oneshot job is "activating" while it runs).
+      for i in $(seq 1 12); do [ "$(systemctl show -p ActiveState --value db-nightly.service)" = activating ] || break; sleep 1; done
+      declare -A seen failed
+      for m in web1 web2 web3; do seen[$m]=$(checks_seen "$m"); failed[$m]=$(db_failed "$m"); done
+      systemctl start --no-block db-nightly.service
+      # The job stops the database within a moment of starting.
+      gone=""
+      for i in $(seq 1 15); do
+        on lb nc -z -w 1 10.0.1.20 5432 > /dev/null 2>&1 || { gone=yes; break; }
+        sleep 0.2
+      done
+      [ -n "$gone" ] || { echo "the database's maintenance job was started, and the database never went down: the job or the database isn't as the lab began"; exit 0; }
+      t0=$(ms)
+      n=0
+      while [ $(($(ms) - t0)) -lt 7000 ]; do
+        case $((n % 4)) in 0) cookie="" ;; *) cookie="SHOPSRV=web$((n % 4))" ;; esac
+        n=$((n + 1))
+        if [ -n "$cookie" ]; then page=$(served_by -H "Cookie: $cookie" http://10.0.9.1/); else page=$(served_by http://10.0.9.1/); fi
+        case $page in
+          status-*) echo "while the database restarted, a request${cookie:+ with the cookie $cookie} got ${page#status-}"; exit 0 ;;
+        esac
+        for m in web1 web2 web3; do
+          if [ "$(db_failed "$m")" -gt "${failed[$m]}" ]; then
+            echo "while the database restarted, $m failed a health check because the database didn't answer"
+            exit 0
+          fi
+        done
+        sleep 0.2
+      done
+      for m in web1 web2; do
+        [ "$(checks_seen "$m")" -ge $((${seen[$m]} + 2)) ] || { echo "$m had fewer than two health checks while the database restarted"; exit 0; }
+      done
+      echo answered
+    expect:
+      equals: answered
+  - id: web2-steady
+    description: "web2 stays in rotation and serves its share of the visitors: it isn't taken out and put back over and over."
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      [ -n "$(api 'show info')" ] || { echo "HAProxy on lb isn't running"; exit 0; }
+      a=10.0.1.12:8080
+      [ -z "$(unchecked "$a")" ] || { echo "HAProxy doesn't check web2"; exit 0; }
+      # Six of web2's checks, watched; if web1 went down in the same
+      # moments, something they share did it, which the database check
+      # covers, so the six are watched once more.
+      for try in 1 2; do
+        wait_up 10 "$a" || { echo "web2 isn't in rotation: $(not_up "$a")"; exit 0; }
+        before=$(field "$a" 4 | head -n 1)
+        others=$(field 10.0.1.11:8080 4 | head -n 1)
+        c0=$(checks_seen web2)
+        t0=$(ms)
+        until [ "$(checks_seen web2)" -ge $((c0 + 6)) ]; do
+          [ $(($(ms) - t0)) -gt 30000 ] && { echo "web2 had fewer than six health checks in 30 seconds"; exit 0; }
+          sleep 0.25
+        done
+        sleep 0.5
+        after=$(field "$a" 4 | head -n 1)
+        together=""
+        [ "$(field 10.0.1.11:8080 4 | head -n 1)" = "$others" ] && break
+        together=", and web1 with it"
+      done
+      [ "$after" = "$before" ] || { echo "web2 went out of rotation $((after - before)) times during its last six health checks$together"; exit 0; }
+      share=$(for i in $(seq 1 20); do served_by http://10.0.9.1/; done | grep -c '^web2$')
+      [ "$share" -ge 5 ] || { echo "web2 answered $share of 20 requests"; exit 0; }
+      echo steady
+    expect:
+      equals: steady
+  - id: hung-server-out
+    description: "A web server in rotation that hangs (it accepts connections and never answers) is out of rotation within 15 seconds, even when it hangs just after a good health check."
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      hung_test 15 10.0.1.11:8080 10.0.1.12:8080 2> /dev/null
+    expect:
+      equals: passed

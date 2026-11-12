@@ -1,0 +1,16 @@
+id: mcq-drain-keeps-sticky
+type: mcq
+rev: 1
+prompt: |
+  After `set server web/web1 state drain`, new visitors go only to web2 and web3, but a visitor whose cookie says `SHOPSRV=web1` still reaches web1 on every click. Why?
+choices:
+  - "HAProxy's drain still accepts persistent connections, the ones a cookie points at"
+  - "A drain takes effect only at the next reload, so web1 is still fully in rotation now"
+  - "The visitor's browser holds one TCP connection to web1 open, which drain can't move"
+  - "web1 failed its next check, and HAProxy keeps sticky visitors on a server that fails"
+answer: 0
+explanation: |
+  HAProxy's management guide: drain "only removes the server from load balancing but still allows it to be checked and to accept new persistent connections". A persistent connection is one the cookie sends to its server, so the sticky visitor stays on web1 until web1 is put in maintenance, which moves them. That's what you want while a visitor finishes a checkout, and why a drain script waits for the sessions to end.
+
+  The runtime API's changes take effect at once (it's a reload that undoes them). The browser's connection goes to the balancer, not to web1, and the balancer chooses a server for each request. A server that fails its checks enough to go DOWN loses its sticky visitors too. An AWS Application Load Balancer behaves differently: a new request for a target that's draining goes to a healthy target.
+skills: [drain-and-stick]

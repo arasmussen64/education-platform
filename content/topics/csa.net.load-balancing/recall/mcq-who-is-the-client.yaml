@@ -1,0 +1,16 @@
+id: mcq-who-is-the-client
+type: mcq
+rev: 1
+prompt: |
+  Since the shop moved behind HAProxy in `mode http`, its app's log shows every request coming from 10.0.1.1, the balancer's own address, and the app's rate limiter (which counts requests per client address) now blocks everyone at once. What fixes it?
+choices:
+  - "Have HAProxy add `X-Forwarded-For` (`option forwardfor`), and the app read the last value"
+  - "Switch the backend to `balance source`, so every client address keeps to one app server"
+  - "Give each app server a route back to the office, so the office's packets arrive directly"
+  - "Raise the rate limiter's threshold three times, once for each web server behind HAProxy"
+answer: 0
+explanation: |
+  A proxy takes the client's connection and opens its own to the server, so the server only ever sees the proxy's address. `option forwardfor` makes HAProxy add an `X-Forwarded-For` header with the client's address to every request it passes on; the app (or its rate limiter) reads that instead, and takes the last value, the one HAProxy added, since a client can send a header of its own. For a protocol that isn't HTTP the PROXY protocol does the same job.
+
+  `balance source` chooses servers by the client's address but doesn't tell the server what it is. A route doesn't change who opens the connection: the packets to the server come from the proxy whatever the routes say. Raising the threshold just lets abuse through, since every client still looks like one.
+skills: [choose-the-balancer]

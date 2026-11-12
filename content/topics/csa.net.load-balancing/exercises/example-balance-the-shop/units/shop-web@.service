@@ -1,0 +1,15 @@
+# One of the shop's web or API servers, on one of the lab's machines:
+# "systemctl status shop-web@web1". The program is /usr/local/bin/shop-web.
+[Unit]
+Description=The shop's web server on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/shop-web
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

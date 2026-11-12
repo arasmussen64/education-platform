@@ -1,0 +1,16 @@
+id: mcq-what-to-check
+type: mcq
+rev: 1
+prompt: |
+  The shop's web servers all use one shared database, and the front page doesn't need it. What should the balancer's health check test?
+choices:
+  - "That the server itself can answer: its own process, disk and threads, not the database"
+  - "That the database answers too, so no server stays in rotation while the database is down"
+  - "Only that the TCP port takes connections, because anything more can fail for no reason"
+  - "The shop's slowest page, so a server is taken out of rotation as soon as it slows at all"
+answer: 0
+explanation: |
+  Check the server, not what it shares: a liveness or local health check, in Yanacek's words (is the process answering; are this server's own disk and threads all right?). Then a database outage fails only the pages that need the database, and the balancer keeps every server for the pages that don't.
+
+  A check that asks the shared database fails on every server at once when the database does, and the balancer is left with nowhere to send the front page. A bare TCP connection succeeds even on a server that has hung: its machine still accepts the connection and nothing answers, which the walkthrough showed with a frozen web2. And the slowest page makes the check depend on load and on whatever that page uses, so a busy evening takes servers out when they are needed most.
+skills: [health-checks]

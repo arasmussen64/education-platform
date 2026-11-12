@@ -1,0 +1,22 @@
+id: est-n-plus-one
+type: estimate
+rev: 1
+prompt: |
+  At its peak the shop's API needs 420% of one server's CPU: the work of 4.2 servers running flat out. The policy says that even with any one server failed, the servers left must each run at 70% or less. What is the fewest servers that meets the policy? Exactly.
+unit: servers
+answer: 7
+tolerance: { absolute: 0 }
+given: { peak: 420, limit: 70 }
+working: ceil(peak / limit) + 1
+mistakes:
+  - id: no-spare
+    value: 6
+    working: ceil(peak / limit)
+    why: "Six servers at 70% carry the peak only while all six are up. The policy is about the moment one has failed, so one more is needed."
+  - id: no-headroom
+    value: 5
+    working: ceil(peak / 100)
+    why: "Five servers could carry 420% only flat out, at 84% each, and with no spare. The policy's 70% and a spare server both count."
+explanation: |
+  At 70% each, the peak needs 420 ÷ 70 = 6 servers running. With any one failed, 6 must still be left, so the shop runs 6 + 1 = 7: **N+1**. Seven servers at the peak run at 60% each (420 ÷ 7), and when one fails the six left run at exactly 70%.
+skills: [failover-math]

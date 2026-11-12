@@ -1,0 +1,16 @@
+id: mcq-deep-check
+type: mcq
+rev: 1
+prompt: |
+  HAProxy checks each of the shop's three web servers with `GET /health` every 2 seconds, `fall 3`. A server's `/health` answers 200 only if the database, which all three share, answers too. Every night the database restarts and is away for 20 seconds. What do customers see during the restart?
+choices:
+  - "Every page gets 503, even the front page that needs no database, for part of the 20 seconds"
+  - "Only the pages that read the database fail, and the front page keeps working all through it"
+  - "The servers drop out one at a time, so two of the three are always there to answer customers"
+  - "Nothing at all, because 20 seconds is too short for three failed checks in a row to happen"
+answer: 0
+explanation: |
+  The check tests something all three servers share, so when the database goes away, all three fail their checks together. After three failures in a row, about 6 seconds, HAProxy takes every server out and has nowhere to send anything: it answers every request, the front page's too, with `503 Service Unavailable`, "No server is available to handle this request", until the database is back and two good checks have passed. That's the lab's fleet going down, and Yanacek's warning about a check that "fails for a non-critical reason" with a failure "correlated across servers".
+
+  Without the deep check, only the pages that need the database would fail. The servers don't drop out in turn: they all test the same thing at about the same moment. And three checks two seconds apart take 6 seconds, well inside the 20.
+skills: [health-checks]

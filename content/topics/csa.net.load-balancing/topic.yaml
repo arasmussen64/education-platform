@@ -1,16 +1,319 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.load-balancing
 kind: topic
-status: planned
+status: ready
 title: Load balancing
-summary: Choose between layer 4 and layer 7.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Spread traffic across servers and keep it away from broken ones: layer 4 or layer 7, a proxy or a pass-through balancer, and what each can see; choosing a server; health checks that test the server and not what it shares, with the seconds a dead or hung server keeps its traffic; what each cloud does when every server fails; flapping and hysteresis; draining, stickiness and N+1; and reading HAProxy's own state and log."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2,
+# 3.7 and 5, topic 34) and its designer's brief (csa.net.load-balancing.md).
+# Through csa.net.http-semantics (proxy, upstream, 502 and 503, the cookie)
+# and csa.net.http-tls (HTTP requests and headers, TLS and its certificate,
+# SNI) this builds on csa.net.transport (a load balancer in one sentence,
+# connections and idle timers), csa.net.nat (a device that opens connections
+# in its own name hides the client's address; many people behind one NAT
+# address), csa.net.layers (layers 4 and 7; the network labs' machines, on
+# and name@machine services) and Module 1 (curl, nc, systemd units, signals,
+# journalctl, awk -F, and scripts with arguments).
+prerequisites: [csa.net.http-semantics]
+# Worked out: the lesson about 31 minutes (about 4,000 words with its tables
+# and the configuration, at 130 a minute), the assigned reading about 50
+# (HAProxy's Starter Guide section 2, 1,850 words, 14; Yanacek's sections,
+# about 3,300 words, 25; Google's proxy and passthrough section 6; AWS's ALB
+# health-check page's table and fail-open paragraph 5), 21 quick items at
+# 1.5 each 32, then the worked example 35, the fill-in 25, the write 35, the
+# build 60, the debug 45 and the explain 20: about 340. The plan's 315 is
+# kept (MODULE-3-BRIEF.md, topic 34): the lesson's tables stand in for the
+# clouds' own pages, which are under More resources and not assigned.
+estimated_minutes: 315
 rev: 1
 objectives:
-- Choose between layer 4 and layer 7.
-- Design health checks, draining and stickiness.
-- Explain how a bad health check takes down a fleet, and how failover flapping happens.
+  - "For a given flow, choose a layer 4 or a layer 7 balancer, a proxy or a pass-through one, and say what each can see and change: paths, headers, cookies, TLS, the client's address, protocols that aren't HTTP or whose server speaks first. Name each cloud's balancers by kind."
+  - "Configure HAProxy from an empty file: a frontend, backends with round robin and a path rule, a TCP listener, health checks, cookie stickiness and X-Forwarded-For, started at every boot."
+  - "Design a health check that tests the server and not what it shares, and work out how long a dead or a hung server keeps its traffic and how long a recovered one waits, for HAProxy and for the clouds' defaults; say what each cloud does when every server fails its checks at once."
+  - "Take a server out without hurting anyone (drain, wait, maintenance), and say how stickiness, by cookie or by address, and each cloud's draining settings change that; size a fleet so it survives losing one server."
+  - "Diagnose a misbehaving balancer from its runtime API and its log: a fleet taken down by a check on a shared dependency, a server flapping in and out, a server taken out by hand that comes back at the next restart."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - HAProxy 2.8 (Ubuntu 24.04's 2.8.30; the manuals at docs.haproxy.org/2.8
+#   are 2.8.31): fall defaults to 3, rise to 2, inter to 2000 ms; inter "also
+#   serves as a timeout for health checks ... if timeout check is not set";
+#   with it, min(timeout connect, inter) to connect and timeout check to
+#   read (configuration manual). set server ... state drain "only removes
+#   the server from load balancing but still allows it to be checked and to
+#   accept new persistent connections"; maint "disables any traffic to the
+#   server as well as any health checks"; show stat fields 4 scur, 7 stot,
+#   17 status, 21 chkfail, 22 chkdown, 23 lastchg (numbered from 0);
+#   srv_admin_state 0x01 forced maintenance, 0x04 maintenance because of the
+#   configuration, 0x08 forced drain (management guide, 9.1 and 9.3).
+#   option forwardfor: "the server must be configured to always use the last
+#   occurrence of this header only". disabled: the server starts "marked down
+#   in maintenance mode". balance source: "the same client IP address will
+#   always reach the same server". The Starter Guide, section 2: the two
+#   kinds of balancer, DSR, health checks that "may even validate that the
+#   server still works and that the database it relies on is still
+#   accessible", stickiness and the shopping cart.
+#   https://docs.haproxy.org/2.8/configuration.html,
+#   https://docs.haproxy.org/2.8/management.html,
+#   https://docs.haproxy.org/2.8/intro.html
+# - Tried in this topic's labs on the network-lab base (HAProxy 2.8.30,
+#   Docker Desktop, 2026-11-12): a reload resets show info's Start_time_sec
+#   and Uptime_sec (a new worker, a new Pid), which the checks compare with
+#   the file's modification time; HAProxy's check is "GET /livez HTTP/1.0"
+#   with no other header; a refused server is DOWN after about fall x inter
+#   (web3: 6 s), a frozen one after about fall x (inter + timeout) (web2:
+#   12 s with inter 2s fall 3, 7.8 s with timeout check 1s, its checks'
+#   SYNs every inter + timeout); the deep check took all three servers DOWN
+#   and the front page answered 503; a fast 503 on every fourth check
+#   flapped fall 1 and never fall 2; drain kept the sticky visitor; a
+#   download ran on through maint; a reload undid maint set through the
+#   API; disabled shows administrative state 5, and set server ... state
+#   ready then puts the server back in rotation until the next reload; a
+#   server-speaks-first service gave nothing through mode http.
+# - AWS ALB health checks: interval 30 s, timeout 5 s (instance and IP
+#   targets), healthy 5, unhealthy 2, path /, success code 200; "Each health
+#   check request is independent", the answer time "does not affect the
+#   interval for the next health check request"; fails open:
+#   https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html
+# - AWS NLB health checks: TCP by default, interval 30 s, timeout 6 s (HTTP)
+#   or 10 s (TCP, HTTPS), healthy 5, unhealthy 2, success 200-399; fails
+#   open; an unhealthy target's client connections get a TCP RST unless it
+#   fails open; "targets receive more than the configured number of health
+#   checks":
+#   https://docs.aws.amazon.com/elasticloadbalancing/latest/network/target-group-health-checks.html
+# - AWS ALB attributes: deregistration delay 300 s, done early with nothing
+#   in flight; a new request for a draining target goes to a healthy one;
+#   AWSALB, expiry 7 days, not configurable; round robin (default), least
+#   outstanding requests, weighted random:
+#   https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html
+# - AWS NLB attributes: client IP preservation on for instance targets and
+#   IP targets with UDP (and QUIC), off for IP targets with TCP and TLS;
+#   proxy protocol version 2; deregistration delay 300 s, at least 120 s
+#   recommended; "all clients behind the same NAT device have the same source
+#   IP address":
+#   https://docs.aws.amazon.com/elasticloadbalancing/latest/network/edit-target-group-attributes.html
+# - Azure Load Balancer health probes (ms.date 2026-09-04): TCP, HTTP, HTTPS;
+#   all instances probe down, "No new flows are sent to the backend pool",
+#   Standard keeps established TCP flows; interval 5 s by default in the
+#   portal, 15 s through ARM templates, the REST API, the CLI and PowerShell,
+#   minimum 5; HTTP probe timeout 30 s; HTTP explicit answers "immediately
+#   mark the probe as up or down"; a fluctuating probe makes it wait longer
+#   before marking up; fail the probe on purpose to drain; 168.63.129.16:
+#   https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-custom-probe-overview
+# - Azure Load Balancer distribution modes (ms.date 2026-05-19): 5-tuple hash
+#   by default; Client IP (2-tuple), Client IP and protocol (3-tuple);
+#   "Clients that run behind proxies might be seen as one unique client":
+#   https://learn.microsoft.com/en-us/azure/load-balancer/distribution-mode-concepts
+# - Azure Application Gateway's default probe (ms.date 2026-08-03): interval
+#   30 s, timeout 30 s, unhealthy threshold 3, 200 to 399 healthy, host
+#   127.0.0.1; one good probe marks a server healthy:
+#   https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-probe-overview
+# - Google Cloud (each page "Last updated 2026-11-10 UTC", CC BY 4.0 by its
+#   footer): health checks 5 s interval, 5 s timeout, thresholds 2 and 2;
+#   all backends unhealthy: Application Load Balancers 503, classic 502,
+#   proxy Network Load Balancers end new client connections, passthrough
+#   ones drop all traffic if their failover policy says so and otherwise
+#   spread it across unhealthy backends as a last resort, and the global
+#   external passthrough one fails over to the next-nearest region
+#   (https://docs.cloud.google.com/load-balancing/docs/health-check-concepts);
+#   connection draining 0 to 3,600 s, unset or 0 "as quickly as possible"
+#   (https://docs.cloud.google.com/load-balancing/docs/enabling-connection-draining);
+#   "Proxy load balancers don't preserve client IP addresses by default",
+#   passthrough ones "don't terminate client connections"
+#   (https://docs.cloud.google.com/load-balancing/docs/choosing-load-balancer);
+#   a five-tuple hash by default
+#   (https://docs.cloud.google.com/load-balancing/docs/backend-service); the
+#   external Application Load Balancer appends the client's and then its own
+#   address to X-Forwarded-For
+#   (https://docs.cloud.google.com/load-balancing/docs/https).
+# - nginx's active health checks: "This module is available as part of our
+#   commercial subscription":
+#   https://nginx.org/en/docs/http/ngx_http_upstream_hc_module.html
+# - David Yanacek, "Implementing health checks" (2019-12-05, now on
+#   builder.aws.com): liveness, local health and dependency checks; trouble
+#   when a check "fails for a non-critical reason" and the failure "is
+#   correlated across servers"; fail open.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: HAProxy's
+# documentation is part of HAProxy's source, GPL version 2 (its LICENSE:
+# GPL for all but the LGPL include files); Yanacek's article and AWS's
+# documentation are "© 2026, Amazon Web Services, Inc. or its affiliates.
+# All rights reserved."; Google Cloud's pages are CC BY 4.0 (their footers);
+# Microsoft Learn's Azure pages are CC BY 4.0 (the MicrosoftDocs/azure-docs
+# repository's LICENSE, as recorded by csa.hw.windows-ad and
+# csa.net.http-semantics); Sam Rose's essay states no licence (link only).
+# Matt Klein's "Introduction to modern network load balancing and proxying",
+# the brief's other candidate, wasn't used: the designer couldn't open it.
+resources:
+  - title: "HAProxy Starter Guide, section 2: \"Quick introduction to load balancing and load balancers\" (read only section 2)"
+    url: https://docs.haproxy.org/2.8/intro.html
+    type: reading
+    use: link
+    license: "GPL-2.0 (HAProxy's LICENSE covers its documentation); linked, not copied"
+  - title: "Implementing health checks, by David Yanacek (Amazon Builders' Library): read from \"Ways to measure health\" to the end of \"Real things that have gone wrong with health checks\""
+    url: https://builder.aws.com/content/3Ev53O39izHCtWLzp4XU6t8PC1O/implementing-health-checks
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Choose a load balancer (Google Cloud documentation): read the section \"Proxy versus passthrough load balancing\""
+    url: https://docs.cloud.google.com/load-balancing/docs/choosing-load-balancer
+    type: reading
+    use: link
+    license: "CC BY 4.0 (Google Cloud documentation's footer); linked, not copied"
+  - title: "Health checks for Application Load Balancer target groups (AWS): the settings table and the fail-open paragraph"
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Load Balancing, by Sam Rose: an interactive essay on round robin, weighted and least-connections balancing (optional)"
+    url: https://samwho.dev/load-balancing/
+    type: interactive
+    use: link
+    license: "No licence stated on the page; linked, not copied"
+  - title: "Edit target group attributes for your Application Load Balancer (AWS): \"Deregistration delay\" and \"Sticky sessions\""
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-target-group-attributes.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Health checks for Network Load Balancer target groups (AWS): the settings table and the fail-open paragraph"
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/target-group-health-checks.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Edit target group attributes for your Network Load Balancer (AWS): \"Client IP preservation\" and \"Proxy protocol\""
+    url: https://docs.aws.amazon.com/elasticloadbalancing/latest/network/edit-target-group-attributes.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Azure Load Balancer health probes (Microsoft Learn): \"Probe down behavior\", \"Probe interval & timeout\" and \"Probe threshold\""
+    url: https://learn.microsoft.com/en-us/azure/load-balancer/load-balancer-custom-probe-overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Azure Load Balancer distribution modes (Microsoft Learn): hash based, and session persistence"
+    url: https://learn.microsoft.com/en-us/azure/load-balancer/distribution-mode-concepts
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Health checks overview (Google Cloud documentation): the default settings, and what each load balancer does when every backend is unhealthy"
+    url: https://docs.cloud.google.com/load-balancing/docs/health-check-concepts
+    type: reading
+    use: link
+    license: "CC BY 4.0 (Google Cloud documentation's footer); linked, not copied"
+  - title: "Connection draining (Google Cloud documentation): the timeout, and what an unset one means"
+    url: https://docs.cloud.google.com/load-balancing/docs/enabling-connection-draining
+    type: reading
+    use: link
+    license: "CC BY 4.0 (Google Cloud documentation's footer); linked, not copied"
+  - title: "HAProxy 2.8 Management Guide, 9.3 \"Unix Socket commands\": show stat, show servers state, set server (a reference for the labs)"
+    url: https://docs.haproxy.org/2.8/management.html
+    type: reading
+    use: link
+    license: "GPL-2.0 (HAProxy's LICENSE covers its documentation); linked, not copied"
+  - title: "HAProxy 2.8 Configuration Manual: check, inter, fall, rise, option httpchk, http-check expect, cookie, option forwardfor, disabled (a reference for the labs)"
+    url: https://docs.haproxy.org/2.8/configuration.html
+    type: reading
+    use: link
+    license: "GPL-2.0 (HAProxy's LICENSE covers its documentation); linked, not copied"
+# The recall items read HAProxy's show stat, show servers state and log
+# (captured from this topic's labs, or constructed in HAProxy's real
+# formats, and labelled which), and ask for the failover sums. The worked
+# example, the fill-in, the write, the build and the debug are labs on the
+# network-lab base: the shop's balancer, HAProxy on lb, in front of three
+# web servers, two API servers, two stock servers and a database (ADR-0018's
+# third amendment).
+practice:
+  - example-balance-the-shop
+  - mcq-route-by-path
+  - mcq-speaks-first
+  - mcq-who-is-the-client
+  - mcq-which-is-pass-through
+  - predict-stat-columns
+  - mcq-deep-check
+  - mcq-what-to-check
+  - mcq-fail-open
+  - mcq-flapping
+  - predict-down-reasons
+  - est-haproxy-dead-server
+  - est-haproxy-hung-server
+  - est-alb-hung-target
+  - est-capacity-after-loss
+  - fill-health-check
+  - mcq-drain-then-maint
+  - mcq-drain-keeps-sticky
+  - mcq-nat-and-source-hash
+  - mcq-draining-defaults
+  - predict-servers-state
+  - mcq-maint-lost-at-restart
+  - est-n-plus-one
+  - write-drain-server
+prove:
+  build: build-shop-balancer
+  debug: debug-errors-every-few-minutes
+  explain:
+    prompt: |
+      A shop runs three web servers behind a load balancer, with cookie stickiness, and a stock service that isn't HTTP. Last night a routine restart of the database took the whole shop offline for half a minute, although the front page doesn't use the database, and all week the on-call engineer has watched one server "blinking" in and out. Explain, in your own words: whether the web traffic and the stock service each need a layer 4 or a layer 7 balancer, and why; what the health check should test, and why the database restart took every server out at once; how long a dead and a hung server keep getting traffic with the settings you would choose, with the numbers; why a server blinks in and out, and how to stop it without blinding the balancer; how you would take a server out for patching without hurting anyone, and how sticky sessions change that; and what any two of AWS, Azure and Google Cloud would have done differently when every server failed its check.
+    rubric:
+      - id: l4-l7
+        required: true
+        description: "A layer 7 balancer reads the HTTP request (paths, headers, cookies) and usually ends the TLS, so the web traffic with cookie stickiness needs it; the stock service isn't HTTP (and its server speaks first), so it needs layer 4 (mode tcp, or a pass-through balancer); a proxy hides the client's address unless it adds X-Forwarded-For or sends the PROXY protocol, while a pass-through balancer keeps it."
+      - id: what-to-check
+        required: true
+        description: "Check the server itself (liveness or local health), not the shared database: a check on something every server shares fails on every server at once when it blips, leaving the balancer nothing to send to, so even pages that don't need the database fail."
+      - id: timing
+        required: true
+        description: "With HAProxy, a server that refuses connections is out after about fall x inter, one that hangs after about fall x (inter + timeout), and a recovered one is back after about rise x inter, with any correct numbers (for example 3 x 2 = 6 s, 3 x (2 + 2) = 12 s, 2 x 2 = 4 s); or a cloud's sums, such as an ALB's 2 x 30 + 5 = 65 s for a hung target."
+      - id: flapping
+        required: true
+        description: "A check that fails now and then, acted on after one failure, flaps; require several failures in a row to go down and several successes to come back (hysteresis), rather than removing the checks or slowing them down, which would leave a hung server in rotation."
+      - id: drain
+        required: true
+        description: "Drain (no new visitors, open sessions finish), wait for its sessions to reach zero, then maintenance, patch, ready; a sticky visitor keeps reaching a draining HAProxy server until maintenance moves them; and state set through the runtime API must also go in the configuration (disabled) to last a restart."
+      - id: clouds
+        required: true
+        description: "Any two correct, for example: an AWS ALB or NLB fails open and sends to all targets; Azure Load Balancer sends no new flows and lets established TCP flows continue; Google's Application Load Balancers answer 503; or the defaults differ (ALB every 30 s, out after 2, back after 5; Google 5 s, 2 and 2; Azure Load Balancer every 5 or 15 s, and an HTTP probe down at the first non-200)."
+      - id: n-plus-one
+        required: false
+        description: "When one of N servers fails, the rest carry its share, so size the fleet for the peak on N - 1 servers (four at 60% become three at 80%)."
+    model_answer: |
+      The web traffic needs a layer 7 balancer. Stickiness by cookie means reading each request's cookie, which is inside the HTTP request, and over HTTPS inside the TLS, so the balancer ends the TLS and reads the request; it can then route by path and add X-Forwarded-For, because as a proxy it opens its own connections and the servers would otherwise see only its address. The stock service isn't HTTP, and its server speaks first: an HTTP proxy would wait for a request that never comes. So it needs layer 4, HAProxy's mode tcp or a pass-through balancer, which passes the bytes along without reading them (a pass-through one also keeps the client's address; a TCP proxy needs the PROXY protocol for that).
+
+      The health check should test the server itself: that its process answers, and its own disk and threads are fine, like the /livez page in the labs. Last night's check must have asked the database, which all three servers share. When the database restarted, every server failed its check at the same moment, the balancer took them all out, and it had nothing left to send even the front page to, so everyone got 503 for half a minute. With a shallow check, only the pages that need the database would have failed, and only while it was away.
+
+      I'd check every 2 seconds, out after 3 failures in a row, back after 2 good checks: inter 2s fall 3 rise 2 in HAProxy. A server that dies and refuses connections is out after about 3 x 2 = 6 seconds. One that hangs makes each check wait its timeout, which is inter unless timeout check is set, so it's out after about 3 x (2 + 2) = 12 seconds, and its customers wait meanwhile. A recovered server is back after about 2 x 2 = 4 seconds.
+
+      The blinking server fails a check now and then, and the balancer acts on a single failure (fall 1 rise 1), so it goes out and comes back again and again, moving its visitors each time. The fix is hysteresis: three failures in a row to go down, two successes to come back. Removing its check, or setting fall 10, would stop the blinking but leave a hung server in rotation for a long time.
+
+      To patch a server, I'd drain it so new visitors go elsewhere, wait until its sessions reach zero, put it in maintenance, patch it, and make it ready again. With sticky sessions, HAProxy's drain still sends a visitor whose cookie names that server back to it, so their basket survives until they finish, and only maintenance moves them. Anything set through the runtime API is lost at the next restart, so a server that must stay out goes in the configuration as disabled.
+
+      If every server fails its check at once, an AWS Application Load Balancer fails open and sends to all of them anyway, which would have hidden last night's mistake by luck. Azure Load Balancer sends no new flows and lets established TCP flows continue, and Google's Application Load Balancers answer 503, as HAProxy did. Finally, with three servers, losing one puts its share on two, so the fleet must carry the peak on two.
+review_pool:
+  - mcq-speaks-first
+  - mcq-which-is-pass-through
+  - mcq-l7-terminates-tls
+  - mcq-tls-stays-with-payments
+  - mcq-nlb-client-ip
+  - mcq-deep-check
+  - mcq-flapping
+  - mcq-fail-open
+  - mcq-azure-http-probe
+  - mcq-cheap-check
+  - est-alb-hung-target
+  - est-n-plus-one
+  - est-back-in-service
+  - est-flaps-per-hour
+  - est-rolling-deploy
+  - est-azure-probe-out
+  - mcq-drain-keeps-sticky
+  - mcq-nat-and-source-hash
+  - predict-stat-columns
+  - predict-servers-state
+  - mcq-maint-lost-at-restart
+skills:
+  - id: choose-the-balancer
+    description: "Layer 4 or layer 7, a proxy or a pass-through balancer, for a given flow: what each can see and do (paths, headers, cookies, ending or passing the TLS, protocols that aren't HTTP or whose server speaks first, the client's address through X-Forwarded-For or the PROXY protocol); choosing a server (round robin, weighted, least connections, hashing, and source hashing behind NAT); the clouds' balancers by kind"
+  - id: health-checks
+    description: "What a check should test (the server, not a shared dependency: liveness, local health, dependency checks); interval, timeout and the two thresholds; hysteresis against flapping; what HAProxy and each cloud do when every server fails at once (503, fail open, no new flows); the clouds' probe rules"
+  - id: failover-math
+    description: "The numbers: how long a refused or a hung server keeps its traffic and how long a recovered one waits, for HAProxy (it waits inter after each check ends) and for balancers that check on a fixed clock; flaps an hour from a failure rate; the load on the survivors and the servers N+1 needs; how long a rolling deploy waits on draining"
+  - id: drain-and-stick
+    description: "Drain, wait for the sessions to finish, maintenance, patch, ready; deregistration delay and connection draining on each cloud; sticky sessions by cookie or by the client's address, what they cost (uneven load, everyone behind one NAT on one server, sessions lost with a server), and how stickiness meets draining"
+  - id: read-the-balancer
+    description: "HAProxy's own state through its runtime API (show stat's status, scur, stot and chkdown; show servers state's operational and administrative states) and its log (DOWN and UP with their reasons, no server available, NOSRV); state set at runtime against the configuration, which wins at a reload or restart"

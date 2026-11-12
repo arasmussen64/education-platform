@@ -1,0 +1,29 @@
+#!/usr/bin/python3
+"""stock-sync: the shop's stock service, a stand-in on port 7000. It speaks
+first: as soon as a client connects it sends "STOCK-SYNC 1.0 ready NAME",
+then answers each line the client sends with "ok LINE".
+"systemctl status stock-sync@stock1"."""
+
+import socket
+import socketserver
+
+NAME = socket.gethostname()
+
+
+class Sync(socketserver.StreamRequestHandler):
+    def handle(self):
+        try:
+            self.wfile.write(f"STOCK-SYNC 1.0 ready {NAME}\n".encode())
+            for line in self.rfile:
+                self.wfile.write(b"ok " + line)
+        except OSError:
+            pass
+
+
+class Server(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
+print(f"{NAME}: stock-sync listening on 7000", flush=True)
+Server(("0.0.0.0", 7000), Sync).serve_forever()

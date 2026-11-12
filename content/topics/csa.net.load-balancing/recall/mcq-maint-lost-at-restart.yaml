@@ -1,0 +1,16 @@
+id: mcq-maint-lost-at-restart
+type: mcq
+rev: 1
+prompt: |
+  Last week web3, whose pages are broken, was put in maintenance with `set server web/web3 state maint` through HAProxy's runtime API. Since Sunday's restart of the balancer, a third of the shop's pages fail again. Why, and what keeps web3 out for good?
+choices:
+  - "API changes live only in the running HAProxy: mark web3 `disabled` in `haproxy.cfg`"
+  - "The restart cleared web3's check history: give it `fall 10` so it stays down longer"
+  - "The stats socket forgets its commands after a week: send the command every Sunday"
+  - "Maintenance lasts until web3's first good check: set its weight to 0 in the API too"
+answer: 0
+explanation: |
+  The runtime API changes the running process and nothing else: a reload or a restart reads `haproxy.cfg` again, and the file says nothing about maintenance, so web3 is back. What lasts is in the file: `disabled` on web3's `server` line starts it in maintenance at every start (its administrative state then has the configuration's flag, 4, as well as 1), or remove the line until web3 is mended.
+
+  web3's checks pass (its `/livez` works, its pages don't), so no `fall` keeps it out. The socket forgets nothing on a timer; the restart started a new process. Maintenance set through the API doesn't end at a check, and a weight set through the API is lost at the next restart just the same.
+skills: [read-the-balancer]

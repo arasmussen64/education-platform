@@ -1,0 +1,28 @@
+# The shop's balancer: the office on one side, the servers on the other.
+#
+#   office 10.0.9.2 ---- shop ---- lb 10.0.9.1    HAProxy: the shop's address
+#                                  lb 10.0.1.1
+#                                    |
+#                                 servers
+#       web1 .11, web2 .12, web3 .13   the web servers (port 8080)
+#       api1 .21, api2 .22             the API servers (port 8081)
+#       stock1 .31, stock2 .32         the stock service (port 7000)
+#       db .20                         the database (port 5432)
+#
+# The office reaches only the balancer; the servers' programs are units on
+# the lab machine (shop-web@web1, stock-sync@stock1, shop-db@db).
+machine office
+machine lb
+machine web1
+machine web2
+machine web3
+machine api1
+machine api2
+machine stock1
+machine stock2
+machine db
+
+lan shop office:eth0=10.0.9.2/24 lb:eth0=10.0.9.1/24
+lan servers lb:eth1=10.0.1.1/24 web1:eth0=10.0.1.11/24 web2:eth0=10.0.1.12/24 web3:eth0=10.0.1.13/24 db:eth0=10.0.1.20/24 api1:eth0=10.0.1.21/24 api2:eth0=10.0.1.22/24 stock1:eth0=10.0.1.31/24 stock2:eth0=10.0.1.32/24
+
+run lb haproxy

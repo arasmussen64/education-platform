@@ -1,0 +1,22 @@
+id: est-flaps-per-hour
+type: estimate
+rev: 1
+prompt: |
+  HAProxy checks a server every 2 seconds with `fall 1 rise 1`: one failed check takes it out, one good check puts it back. The server is fine, but now and then a check fails for no lasting reason: 1 check in 50, at random. About how many times an hour is the server taken out of rotation? Within 10%.
+unit: times an hour
+answer: 36
+tolerance: { percent: 10 }
+given: { interval: 2, one_in: 50 }
+working: 3600 / interval / one_in
+mistakes:
+  - id: every-check
+    value: 1800
+    working: 3600 / interval
+    why: "That's how many checks there are in an hour. Only 1 in 50 of them fails, and with fall 1 each failure is one trip out."
+  - id: fall-two
+    value: 0.72
+    working: 3600 / interval / one_in / one_in
+    why: "That's what fall 2 would give: two failures in a row, 1 chance in 2,500 per check. This server goes out at every single failure."
+explanation: |
+  An hour has 3,600 ÷ 2 = 1,800 checks, and 1 in 50 fails: 36 failures, each one a trip out of rotation and back, and every trip moves the server's visitors. With `fall 2` a server goes out only on two failures in a row, 1 chance in 50 × 50 = 2,500 for each check, so about 1,800 ÷ 2,500 = 0.7 times an hour; with `fall 3`, 1 chance in 125,000, about once every three days. That's hysteresis, in numbers.
+skills: [failover-math]

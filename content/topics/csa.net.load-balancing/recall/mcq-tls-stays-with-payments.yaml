@@ -1,0 +1,16 @@
+id: mcq-tls-stays-with-payments
+type: mcq
+rev: 1
+prompt: |
+  The payments team insists that TLS ends on its own servers, so that no card number is ever in the clear anywhere else, the balancer included. What does that mean for the balancer in front of the payments service?
+choices:
+  - "Balance at layer 4 and pass the TLS through, giving up path rules and cookies for it"
+  - "End the TLS at the balancer and open new TLS to the servers, so nothing is in the clear"
+  - "Balance at layer 7 by the request's path, and let the servers decrypt each request again"
+  - "Keep each card number on one payments server with cookie stickiness on the balancer"
+answer: 0
+explanation: |
+  If the TLS must end on the payments servers, the balancer can't read the requests: everything after the handshake is encrypted. So it balances on addresses and ports, at layer 4 (HAProxy's `mode tcp`, an AWS Network Load Balancer's TCP listener, Azure Load Balancer), and passes the TLS straight through. What it gives up is everything that needs the request: path rules, header rules, cookie stickiness.
+
+  Ending the TLS at the balancer, even with new TLS behind it, decrypts every request inside the balancer, which is what the team forbids. Routing by path needs the path, which only a balancer that ended the TLS can read. And cookie stickiness needs the cookie, inside the encrypted request too.
+skills: [choose-the-balancer]

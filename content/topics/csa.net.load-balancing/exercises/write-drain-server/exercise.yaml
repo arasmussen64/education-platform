@@ -1,0 +1,28 @@
+id: write-drain-server
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Drain a server"
+prompt: |
+  The shop from the walkthrough: the balancer `lb` (HAProxy, `haproxy@lb`) in front of `web1` to `web3`, in its backend `web`, with cookie stickiness (`SHOPSRV`) as at the end of the walkthrough. Every patch night someone takes a web server out by hand, and last month someone set one straight to maintenance and cut a customer's checkout short. Write the script that does it properly, from an empty file.
+
+  `~/bin/drain-server NAME` takes the web server NAME out of rotation:
+
+  1. **Drain it** through HAProxy's runtime API: `set server web/NAME state drain`.
+  2. **Wait until it has no sessions left**: its current sessions are the 5th field of its line in `show stat` (`scur`). Look once a second, for **at most 10 seconds**, and stop as soon as there are none. (A real script waits as long as the longest download it must let finish, minutes; the lab's 10 seconds keep the checks quick.)
+  3. **Put it in maintenance**: `set server web/NAME state maint`.
+  4. **Print one line**: `NAME drained in N s`, with the seconds it waited, or, if it gave up at the limit, `NAME still had K sessions; set to maintenance anyway`, with the sessions still open. Then exit with status 0.
+
+  Given a NAME that isn't one of the backend's servers (it has no line in `show stat`), it prints an error on stderr only, changes nothing, and exits with status 1. It leaves the server in maintenance when it's done: putting it back is the next step of the patch, `set server web/NAME state ready`.
+
+  Everything here is from Module 1's scripting and this topic's walkthrough: `name=$1`, a function, `$(...)`, `if`, `[ ... -gt 0 ]` to compare two numbers (`-lt` for less than), `$((waited + 1))` for arithmetic, `echo ... >&2` and `exit 1`. Two pieces are new. A **`while` loop** repeats its body as long as its test succeeds, and two tests joined by `&&` both have to: `while [ "$left" -gt 0 ] && [ "$waited" -lt 10 ]; do ...; done`. And `awk -v s="$name"` passes the shell's `$name` into awk as `s`, so `awk -F, -v s="$name" '$1 == "web" && $2 == s {print $5}'` prints that server's sessions.
+
+  Make the file with `mkdir -p ~/bin` and `nano ~/bin/drain-server`, start it with `#!/bin/bash`, and make it runnable with `chmod +x ~/bin/drain-server`. Send the runtime API its commands with `echo "COMMAND" | on lb socat stdio /run/haproxy/admin.sock`, as in the walkthrough, and try it: `on office curl -s -H 'Cookie: SHOPSRV=web2' 'http://10.0.9.1/slow?s=6'` in a second shell is a 6-second download pinned to web2. Then run the checks. They pick the servers and the downloads as they run, and put every server back to ready when they finish.
+hints:
+  - "Start with the function from the walkthrough's commands, `api() { echo \"$1\" | on lb socat stdio /run/haproxy/admin.sock; }`, and a second one that prints NAME's sessions with the awk line from the prompt. Then the unknown name is easy: if the sessions function prints nothing (`[ -z \"$(sessions)\" ]`), HAProxy has no such server."
+  - "The waiting is a counter, `waited=0`, and the loop: while there are sessions left and fewer than 10 seconds waited, `sleep 1` and add one to `waited`. After the loop, read the sessions once more: 0 means it drained, anything else means it gave up."
+  - "Run it as the checks do: in one shell start the pinned download from the prompt, and in another `~/bin/drain-server web2`. It should wait about 5 seconds and say so; `echo \"show servers state web\" | on lb socat stdio /run/haproxy/admin.sock` then shows web2's administrative state as 1, maintenance."
+skills: [drain-and-stick, read-the-balancer]

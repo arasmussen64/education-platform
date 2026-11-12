@@ -1,0 +1,16 @@
+id: mcq-route-by-path
+type: mcq
+rev: 1
+prompt: |
+  The shop wants one address for everything: requests whose path starts `/api/` should go to two API servers, and every other request to three web servers. The site is served over HTTPS. Which balancer can do that, and why?
+choices:
+  - "A layer 7 balancer that ends the TLS, because the path is inside the HTTP request"
+  - "A layer 4 balancer, because it can send each port it listens on to its own servers"
+  - "Any balancer, because the path is in the first packet of every new TCP connection"
+  - "No balancer: give the API its own DNS name, and let the browser choose its servers"
+answer: 0
+explanation: |
+  The path is part of the HTTP request, which a layer 4 balancer never reads: it decides on addresses and ports. Over HTTPS the request is encrypted until something ends the TLS, so the balancer that routes by path is a layer 7 one holding the site's certificate (HAProxy's `use_backend api if { path_beg /api/ }`, an Application Load Balancer's path rule).
+
+  Two ports would need two addresses or URLs the customers must know about, which isn't one address for everything. A TCP connection's first packet is the SYN, with no data at all: the request comes after the handshake. And a separate DNS name for the API is a real design, but it isn't what was asked: with one name, nothing but a layer 7 balancer can split the traffic by path.
+skills: [choose-the-balancer]

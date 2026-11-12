@@ -1,0 +1,16 @@
+id: mcq-l7-terminates-tls
+type: mcq
+rev: 1
+prompt: |
+  The shop's site is served only over HTTPS, and its balancer must keep each visitor on one server with a cookie. What must the balancer do to read the cookie, and what does it need for that?
+choices:
+  - "End the TLS itself, which means it holds the site's certificate and its private key"
+  - "Read the cookie from the TLS handshake, which carries it before any encryption starts"
+  - "Pass the TLS through and stick by the client's address, which works just as well"
+  - "Ask browsers to send the cookie in a header that TLS leaves outside the encryption"
+answer: 0
+explanation: |
+  The cookie travels in the HTTP request, which is inside the TLS. A balancer that reads it must be the TLS server the browser talks to: it ends the TLS, so it holds the site's certificate and private key, reads and routes the request, and opens its own connection (plain or TLS again) to the server. That's what layer 7 balancers such as an Application Load Balancer, Application Gateway or HAProxy in `mode http` usually do.
+
+  The handshake carries the name the browser wants (SNI) in the clear, never its cookies. Sticking by address is weaker, not as good: a whole office behind one NAT lands on one server. And no part of an HTTP request travels outside the TLS: that's the point of HTTPS.
+skills: [choose-the-balancer]
