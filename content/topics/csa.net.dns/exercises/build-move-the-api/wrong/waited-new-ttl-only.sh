@@ -3,6 +3,9 @@
 # fetched with the old TTL of 60, and hand out the old address long after
 # the switch.
 ttl_at() { on office dig +norecurse +noall +answer @"$1" api.shop.test A | awk '{print $2}'; }
+# The monitor has started, and logged both servers giving out the old TTL.
+log=/var/lib/lab/move.log
+until grep ' ns1 api 203.0.113.41 60$' $log > /dev/null 2>&1 && grep ' ns2 api 203.0.113.41 60$' $log > /dev/null 2>&1; do sleep 1; done
 on ns1 sed -i -e 's/^api .*/api    5 IN A     203.0.113.41/' -e 's/2026111201/2026111202/' /etc/bind/db.shop.test
 on ns1 rndc reload shop.test
 until [ "$(ttl_at 198.51.100.13)" = 5 ] && [ "$(ttl_at 198.51.100.14)" = 5 ]; do sleep 1; done

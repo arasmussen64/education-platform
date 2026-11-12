@@ -2,7 +2,9 @@
 # are asked for now; how the move went is read from the monitor's log,
 # /var/lib/lab/move.log, a line per answer: TIME SOURCE NAME ADDRESS TTL.
 # "The switch" is the first moment the shop's servers gave out the new
-# address after they last gave out the old one. new-address waits for the
+# address after they last gave out the old one (nobody-sent-back counts
+# from when both of them had it, since ns2 follows ns1 a second or more
+# later). new-address waits for the
 # name servers after a boot; the rest read at once.
 # A check that finds something wrong prints what it found and exits 0, so
 # the checker shows that sentence rather than an exit status.
@@ -38,7 +40,7 @@ checks:
         }
         END {
           if (moved == "") { print "the log shows no switch: the shop'\''s servers never gave out 203.0.113.51"; exit }
-          if (long == "") { print "the log never shows the old address with its old TTL"; exit }
+          if (long == "") { print "the log never shows the shop'\''s servers giving out the old address with its old TTL, so it can'\''t show the wait (the TTL was lowered before the monitor started): put api back as it was (the old address with a TTL of 60, and a higher serial), let the monitor log it, and do the move again"; exit }
           if (moved - long >= 60) print "waited"
           else printf "the switch came %d seconds after the shop'\''s servers last gave out the old address with a TTL longer than 5; the old TTL was 60\n", moved - long
         }' "$log"
@@ -62,21 +64,27 @@ checks:
     expect:
       equals: "switched at 5"
   - id: nobody-sent-back
-    description: "No public resolver gave out the old address more than 7 seconds (the move's TTL of 5, and 2 to spare) after the switch, and the log runs at least 10 seconds past it."
+    description: "No public resolver gave out the old address more than 7 seconds (the move's TTL of 5, and 2 to spare) after both of the shop's servers gave out the new one, and the log runs at least 10 seconds past that."
     command: |
       log=/var/lib/lab/move.log
       [ -s "$log" ] || { echo "the monitor's log, $log, is empty or missing"; exit 0; }
+      # The switch is complete once both servers give out the new address:
+      # ns2 follows ns1 a second or more later, and a resolver that asked
+      # ns2 in between was rightly given the old one, for the move's TTL.
       awk -v old=203.0.113.41 -v new=203.0.113.51 '
         FNR == NR {
           if (($2 == "ns1" || $2 == "ns2") && $3 == "api") {
-            if ($4 == old) moved = ""
-            else if ($4 == new && moved == "") moved = $1
+            if ($4 == old) first[$2] = ""
+            else if ($4 == new && first[$2] == "") first[$2] = $1 + 0
           }
           last = $1
           next
         }
+        FNR == 1 { some = first["ns1"] != "" || first["ns2"] != "" }
+        FNR == 1 && first["ns1"] != "" && first["ns2"] != "" { moved = first["ns1"] > first["ns2"] ? first["ns1"] : first["ns2"] }
         moved != "" && $2 ~ /^isp/ && $3 == "api" && $4 == old && $1 - moved > late { late = $1 - moved; who = $2 }
         END {
+          if (moved == "" && some) { print "only one of the shop'\''s servers ever gave out the new address, 203.0.113.51"; exit }
           if (moved == "") { print "the log shows no switch: the shop'\''s servers never gave out 203.0.113.51"; exit }
           if (last - moved < 10) { print "the log runs only " int(last - moved) " seconds past the switch: wait a few seconds and run the checks again"; exit }
           if (late > 7) printf "%s gave out the old address %d seconds after the switch\n", who, late

@@ -1,6 +1,9 @@
 # Wrong: the address is changed and the TTL raised to 3600 in one edit,
 # with no lowering and no wait. Resolvers that fetched the old address a
 # moment before keep handing it out for up to its old TTL.
+# The monitor has started, and logged both servers giving out the old TTL.
+log=/var/lib/lab/move.log
+until grep ' ns1 api 203.0.113.41 60$' $log > /dev/null 2>&1 && grep ' ns2 api 203.0.113.41 60$' $log > /dev/null 2>&1; do sleep 1; done
 on ns1 sed -i -e 's/^api .*/api 3600 IN A     203.0.113.51/' -e 's/2026111201/2026111202/' /etc/bind/db.shop.test
 on ns1 rndc reload shop.test
 on resolver tee -a /etc/unbound/unbound.conf <<'EOF'

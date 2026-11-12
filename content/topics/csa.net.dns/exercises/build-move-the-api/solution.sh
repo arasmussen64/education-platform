@@ -1,9 +1,15 @@
 # The reference move, step by step. Each edit of the zone file is made here
 # with sed (a learner uses nano): it sets api's line and raises the serial,
-# and rndc reload makes ns1 load it; ns1 then tells ns2 at once.
+# and rndc reload makes ns1 load it; ns1 then tells ns2, about 5 seconds
+# later.
 # ttl_at SERVER: the TTL a server gives out for api.shop.test, asked directly.
 ttl_at() { on office dig +norecurse +noall +answer @"$1" api.shop.test A | awk '{print $2}'; }
 answer_at() { on office dig +short @"$1" api.shop.test A; }
+
+# 0. The monitor has started, and logged both servers giving out the old
+# TTL of 60: a learner reads the prompt first, and the move starts later.
+log=/var/lib/lab/move.log
+until grep ' ns1 api 203.0.113.41 60$' $log > /dev/null 2>&1 && grep ' ns2 api 203.0.113.41 60$' $log > /dev/null 2>&1; do sleep 1; done
 
 # 1. Lower api's TTL from 60 to 5, with a higher serial.
 on ns1 sed -i -e 's/^api .*/api    5 IN A     203.0.113.41/' -e 's/2026111201/2026111202/' /etc/bind/db.shop.test
