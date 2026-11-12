@@ -1,0 +1,22 @@
+id: build-dual-homed
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The dual-homed shop"
+prompt: |
+  The shop's router, `edge` (AS 65001), joins the shop's network, 198.51.100.0/24 (the office at .10 and the shop's website, `shopweb`, at .200), to two internet providers: ISP A (`ispa`, AS 65010) at 192.0.2.2, on edge's cable `ispa`, and ISP B (`ispb`, AS 65020) at 192.0.2.6, on its cable `ispb`. ISP A is the cheaper contract. Beyond the ISPs are a transit network and the cloud, whose web server, `web`, is 203.0.113.10. edge runs FRR with BGP switched on and nothing configured: `on edge vtysh` opens its console. The ISPs', the transit network's and the cloud's routers aren't yours; read them with `looking-glass NAME 'show ...'`. ISP B has been known to send routes it shouldn't.
+
+  Configure edge from nothing so that:
+
+  1. it has BGP sessions with ISP A and ISP B, with the lab's fast timers, `timers bgp 3 9` (real routers default to 60 and 180 seconds);
+  2. it announces 198.51.100.0/24 to both ISPs, and nothing else, ever;
+  3. it accepts no route for any part of 198.51.100.0/24 from either ISP;
+  4. while both sessions are up, all of the shop's traffic to the internet leaves through ISP A, chosen by local preference; when the session with ISP A is down, the traffic leaves through ISP B, without anyone changing anything;
+  5. its eBGP sessions still require a policy;
+  6. all of it survives a restart: saved, with no routes typed into the kernel.
+
+  Then run the checks. The last one unplugs edge's cable to ISP A to watch the traffic move to ISP B, and plugs it back in.
+skills: [bgp-sessions, announce-and-filter, best-path, local-preference]
