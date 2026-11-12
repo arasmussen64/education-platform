@@ -1401,6 +1401,51 @@ def check_diagnostics(
                     )
 
 
+def check_topic(
+    folder: TopicFolder,
+    topics: dict[str, TopicFolder],
+    place: CheckpointPlace | None,
+    report: Report,
+    run: bool,
+    labs: bool,
+) -> None:
+    """Every check on one topic: the topic itself, its recall items and its
+    exercises. The full run calls it for each topic in turn, and
+    tools/generators/checks/validate_one.py calls it for the topics it's
+    given, so the quick check can't fall behind the full one (it once skipped
+    a checkpoint's further parts and the estimate checks)."""
+    report.counts[folder.topic.status] += 1
+    check_references(folder, report)
+    check_packages(folder, report)
+    check_test_skills(folder, topics, place, report)
+    if folder.topic.status == "ready":
+        check_ready_topic(folder, report)
+        if folder.topic.kind == "checkpoint":
+            check_ready_checkpoint(folder, topics, place, report)
+            check_more_parts(folder, report)
+    find_long_answers(folder, report.long_answers)
+    for item_path_id, item in folder.recall.items():
+        report.counts["recall items"] += 1
+        item_path = folder.path / "recall" / f"{item_path_id}.yaml"
+        if isinstance(item, McqItem):
+            problem = choice_named_by_position(item)
+            if problem:
+                report.add(item_path, problem)
+        if isinstance(item, EstimateItem):
+            check_estimate(item_path, item, report)
+        if isinstance(item, PredictOutputItem) and run:
+            check_predict_output(item_path, item, report)
+        elif isinstance(item, ParsonsItem) and run:
+            check_parsons(item_path, item, report)
+        elif isinstance(item, PredictShellItem) and run:
+            check_predict_shell(item_path, item, report)
+    for exercise_folder, exercise in folder.exercises.values():
+        report.counts["exercises"] += 1
+        if exercise.runtime == "lab":
+            report.counts["labs"] += 1
+        check_exercise(exercise_folder, exercise, report, run, labs)
+
+
 def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
     report = Report(root)
     content = root / "content"
@@ -1428,37 +1473,9 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
     places = checkpoint_places(tracks)
 
     for folder in topics.values():
-        place = places.get(folder.topic.id)
-        report.counts[folder.topic.status] += 1
-        check_references(folder, report)
-        check_packages(folder, report)
-        check_test_skills(folder, topics, place, report)
-        if folder.topic.status == "ready":
-            check_ready_topic(folder, report)
-            if folder.topic.kind == "checkpoint":
-                check_ready_checkpoint(folder, topics, place, report)
-                check_more_parts(folder, report)
-        find_long_answers(folder, report.long_answers)
-        for item_path_id, item in folder.recall.items():
-            report.counts["recall items"] += 1
-            item_path = folder.path / "recall" / f"{item_path_id}.yaml"
-            if isinstance(item, McqItem):
-                problem = choice_named_by_position(item)
-                if problem:
-                    report.add(item_path, problem)
-            if isinstance(item, EstimateItem):
-                check_estimate(item_path, item, report)
-            if isinstance(item, PredictOutputItem) and run:
-                check_predict_output(item_path, item, report)
-            elif isinstance(item, ParsonsItem) and run:
-                check_parsons(item_path, item, report)
-            elif isinstance(item, PredictShellItem) and run:
-                check_predict_shell(item_path, item, report)
-        for exercise_folder, exercise in folder.exercises.values():
-            report.counts["exercises"] += 1
-            if exercise.runtime == "lab":
-                report.counts["labs"] += 1
-            check_exercise(exercise_folder, exercise, report, run, labs)
+        check_topic(
+            folder, topics, places.get(folder.topic.id), report, run=run, labs=labs
+        )
 
     check_diagnostics(content, topics, report)
     report_long_answers(report)
