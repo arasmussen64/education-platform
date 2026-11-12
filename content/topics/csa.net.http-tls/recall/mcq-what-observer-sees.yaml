@@ -1,0 +1,16 @@
+id: mcq-what-observer-sees
+type: mcq
+rev: 1
+prompt: |
+  A customer opens `https://www.shop.test/account/orders` over TLS 1.3, on a café's Wi-Fi, from a browser that doesn't use ECH. The café's owner captures every packet. Besides the addresses and ports, what can the owner read in the capture?
+choices:
+  - "The name www.shop.test, in the ClientHello's server name extension"
+  - "The path /account/orders, in the first line of the HTTP request"
+  - "The shop's certificate, in the Certificate message after ServerHello"
+  - "The customer's session cookie, in the request's Cookie header"
+answer: 0
+explanation: |
+  The ClientHello is sent before any key exists, so it travels in clear, and its server name (SNI) says which site the customer wants: the walkthrough's capture showed `www.shop.test` exactly once, there. ECH (RFC 9849) encrypts that part too, when both the browser and the server support it.
+
+  In TLS 1.3 everything after the ServerHello is encrypted, the Certificate message included: in `-trace` its record says `ApplicationData (23)`, with `Inner Content Type = Handshake (22)` known only to the two ends. (In TLS 1.2 the certificate did cross in clear.) The HTTP request, its path and its headers, cookies among them, go inside the encrypted connection afterwards.
+skills: [tls-handshake]

@@ -1,0 +1,50 @@
+id: stapling-status
+type: predict_shell
+rev: 1
+prompt: |
+  `first.txt` and `second.txt` are the start of two runs of `openssl s_client -connect www.shop.test:443 -servername www.shop.test -status < /dev/null` from the office, a second apart, right after `sudo systemctl restart nginx@web`, captured in this topic's lab on 2026-11-12 (each cut where the certificate chain begins, with line endings made plain). The command picks out, from both files in turn, what openssl says about a stapled OCSP answer. What is printed?
+files:
+  first.txt: |
+    depth=2 CN = Shop Lab Root CA
+    verify return:1
+    depth=1 CN = Shop Lab Intermediate
+    verify return:1
+    depth=0 CN = www.shop.test
+    verify return:1
+    CONNECTED(00000003)
+    OCSP response: no response sent
+    ---
+  second.txt: |
+    depth=2 CN = Shop Lab Root CA
+    verify return:1
+    depth=1 CN = Shop Lab Intermediate
+    verify return:1
+    depth=0 CN = www.shop.test
+    verify return:1
+    CONNECTED(00000003)
+    OCSP response:
+    ======================================
+    OCSP Response Data:
+        OCSP Response Status: successful (0x0)
+        Response Type: Basic OCSP Response
+        Version: 1 (0x0)
+        Responder Id: CN = Shop Lab Intermediate
+        Produced At: Nov 12 16:05:26 2026 GMT
+        Responses:
+        Certificate ID:
+          Hash Algorithm: sha1
+          Issuer Name Hash: 06EBA4F52568CAA81AA99345051149A6133F98B7
+          Issuer Key Hash: FB3B81AC9B72DF7400A7D760E3D7F7AA01CE848B
+          Serial Number: 21D98044D40AA761AA7CA3808C6AF5C98FFF5B5C
+        Cert Status: good
+        This Update: Nov 12 16:05:26 2026 GMT
+        Next Update: Nov 12 17:05:26 2026 GMT
+command: |
+  grep -h -o -E 'no response sent|Response Status: [a-z]+|Cert Status: [a-z]+' first.txt second.txt
+expected_output: |
+  no response sent
+  Response Status: successful
+  Cert Status: good
+explanation: |
+  `-status` asks the server to staple an OCSP answer to the handshake. The first handshake after nginx started got none, `no response sent`, as the walkthrough's did; a second later the answer was there. `OCSP Response Status: successful` says the responder answered properly (it isn't about the certificate yet); `Cert Status: good` is the answer itself, for the certificate with that serial number: not revoked. `Responder Id` is who signed it (the intermediate, which issued the certificate), and `This Update` and `Next Update` say when it was made and when to ask again: an hour later, in the lab. A revoked certificate would say `Cert Status: revoked`; one the CA doesn't know, `unknown`.
+skills: [tls-server-config]

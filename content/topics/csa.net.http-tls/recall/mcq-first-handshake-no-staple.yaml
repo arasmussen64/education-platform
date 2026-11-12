@@ -1,0 +1,16 @@
+id: mcq-first-handshake-no-staple
+type: mcq
+rev: 1
+prompt: |
+  Right after `sudo systemctl restart nginx@web`, `openssl s_client -status` against `www.shop.test` says `OCSP response: no response sent`. The same command a second later shows `OCSP Response Status: successful` and `Cert Status: good`. What happened?
+choices:
+  - "nginx fetches the OCSP answer only once a handshake asks for it, so the first one went without"
+  - "The first handshake used TLS 1.3, which can't carry a staple, and the second fell back to 1.2"
+  - "openssl asks for a staple only on its second connection, once it has a session to resume"
+  - "The certificate was revoked for a moment during the restart, and the responder then took it back"
+answer: 0
+explanation: |
+  nginx doesn't fetch the OCSP answer when it starts. The first handshake that asks for a staple (`-status` sends the `status_request` extension) makes the worker process fetch one from the responder in the background, and that handshake goes on without it. Later handshakes to the same worker get the answer, until it needs fetching again. With several worker processes each fetches its own, which is why the labs' nginx runs one: on a busy server the first few tries can all come back empty.
+
+  TLS 1.3 carries a staple too, inside the Certificate message. `-status` asks on every connection. And a revoked certificate's answer would say `revoked`, not be missing.
+skills: [tls-server-config]

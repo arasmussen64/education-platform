@@ -1,0 +1,25 @@
+id: keylog-decrypted
+type: predict_shell
+rev: 1
+prompt: |
+  The office captured one `curl --tlsv1.3 https://www.shop.test/` with `tcpdump -w`, and curl wrote its session keys to a file as it ran (`SSLKEYLOGFILE=keys.txt curl ...`). `tshark` (Wireshark's command-line twin) then printed the handshake message types it could see in each packet, twice: `nokeys.txt` without the keys, `keys.txt` given them (`-o tls.keylog_file:keys.txt`). Captured in this topic's lab on 2026-11-12, tshark 4.2.2, with the empty lines (packets carrying no handshake message) left out. A packet with several messages lists their types with commas. The command prints, for each file, every type that appears, once each, in numeric order. What is printed?
+files:
+  nokeys.txt: |
+    1
+    2
+  keys.txt: |
+    1
+    2,8,11,15,20
+    20
+    4
+    4
+command: |
+  for f in nokeys.txt keys.txt; do tr ',' '\n' < "$f" | sort -n | uniq | paste -sd ' ' -; done
+expected_output: |
+  1 2
+  1 2 4 8 11 15 20
+explanation: |
+  Without the keys, an observer sees two handshake messages in TLS 1.3: type 1, ClientHello, and type 2, ServerHello, the two sent before any key exists. Everything after them is encrypted, so tshark can't even tell what kind of message it is. Given the session keys, it decrypts the rest: in one packet the server's 8 (EncryptedExtensions), 11 (Certificate), 15 (CertificateVerify) and 20 (Finished); the client's 20 (its Finished); and the two 4s (NewSessionTicket), which arrive after the request. With the keys it also shows the HTTP/2 headers: `:method GET`, `:path /`, `:authority www.shop.test`.
+
+  That's why a key log is how you debug your own TLS traffic (browsers and curl write one when `SSLKEYLOGFILE` is set), and why the file must be guarded like a password: anyone holding it can read those connections.
+skills: [tls-handshake]

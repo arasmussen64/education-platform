@@ -1,0 +1,28 @@
+id: est-hundred-connections
+type: estimate
+rev: 1
+prompt: |
+  A nightly job makes 50 HTTPS requests to a partner's API, one after another, each on a new connection with a full TLS 1.2 handshake. The round-trip time is 40 ms. Changed to open one connection and send all 50 requests on it, how many seconds of handshakes does the job save? Exactly.
+unit: seconds
+answer: 5.88
+tolerance: { absolute: 0 }
+given: { requests: 50, rtt: 40 }
+# Each new connection costs 3 round trips (TCP 1, TLS 1.2 2); one
+# connection is still needed, so 49 are saved.
+working: (requests - 1) * 3 * rtt / 1000
+mistakes:
+  - id: counts-all-fifty
+    value: 6
+    working: requests * 3 * rtt / 1000
+    why: That saves all 50 handshakes. The reused connection still needs one of its own, so 49 are saved.
+  - id: one-round-trip-each
+    value: 1.96
+    working: (requests - 1) * rtt / 1000
+    why: That counts one round trip a connection. TCP takes one and a full TLS 1.2 handshake two more, three in all.
+  - id: tls13-count
+    value: 3.92
+    working: (requests - 1) * 2 * rtt / 1000
+    why: That's two round trips a connection, TLS 1.3's count. These are full TLS 1.2 handshakes, three round trips each with TCP's.
+explanation: |
+  Each new connection costs 3 round trips before its request can go: 3 × 40 = 120 ms. One connection is still needed, so reuse saves 49 of them: 49 × 120 = 5,880 ms, 5.88 seconds a night. That's the reason HTTP clients keep connections open and pool them, and why HTTP/2's one connection per site matters: a page of many requests pays for one handshake, not dozens.
+skills: [http-versions]

@@ -1,0 +1,128 @@
+id: trace-13-messages
+type: predict_shell
+rev: 1
+prompt: |
+  `t13.txt` is `openssl s_client -connect www.shop.test:443 -servername www.shop.test -tls1_3 -trace` from the office, captured in this topic's lab on 2026-11-12, kept open a second so the server's tickets arrived (trimmed: the random numbers, most extension lists, the certificates' text and the tickets' bytes are left out). Each handshake message starts a line indented by four spaces with its name and `, Length=`. The command lists those names in order on one line (`paste -sd ' ' -` joins lines with spaces). What is printed?
+files:
+  t13.txt: |
+    CONNECTED(00000003)
+    Sent Record
+    Header:
+      Version = TLS 1.0 (0x301)
+      Content Type = Handshake (22)
+      Length = 242
+        ClientHello, Length=238
+          client_version=0x303 (TLS 1.2)
+          cipher_suites (len=8)
+            {0x13, 0x02} TLS_AES_256_GCM_SHA384
+            {0x13, 0x03} TLS_CHACHA20_POLY1305_SHA256
+            {0x13, 0x01} TLS_AES_128_GCM_SHA256
+            {0x00, 0xFF} TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+          extensions, length = 157
+            extension_type=server_name(0), length=18
+              0000 - 00 10 00 00 0d 77 77 77-2e 73 68 6f 70 2e 74   .....www.shop.t
+              000f - 65 73 74                                       est
+            extension_type=supported_versions(43), length=3
+              TLS 1.3 (772)
+            extension_type=key_share(51), length=38
+                NamedGroup: ecdh_x25519 (29)
+
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = Handshake (22)
+      Length = 122
+        ServerHello, Length=118
+          server_version=0x303 (TLS 1.2)
+          cipher_suite {0x13, 0x02} TLS_AES_256_GCM_SHA384
+          extensions, length = 46
+            extension_type=supported_versions(43), length=2
+                TLS 1.3 (772)
+            extension_type=key_share(51), length=36
+                NamedGroup: ecdh_x25519 (29)
+
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ChangeCipherSpec (20)
+      Length = 1
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 27
+      Inner Content Type = Handshake (22)
+        EncryptedExtensions, Length=6
+          extensions, length = 4
+            extension_type=server_name(0), length=0
+
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 964
+      Inner Content Type = Handshake (22)
+        Certificate, Length=943
+          context (len=0):
+          certificate_list, length=939
+            ASN.1Cert, length=505
+            ASN.1Cert, length=424
+
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 97
+      Inner Content Type = Handshake (22)
+        CertificateVerify, Length=76
+          Signature Algorithm: ecdsa_secp256r1_sha256 (0x0403)
+
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 69
+      Inner Content Type = Handshake (22)
+        Finished, Length=48
+
+    Sent Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ChangeCipherSpec (20)
+      Length = 1
+        change_cipher_spec (1)
+
+    Sent Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 69
+      Inner Content Type = Handshake (22)
+        Finished, Length=48
+
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 282
+      Inner Content Type = Handshake (22)
+        NewSessionTicket, Length=261
+            ticket_lifetime_hint=300
+
+    Received Record
+    Header:
+      Version = TLS 1.2 (0x303)
+      Content Type = ApplicationData (23)
+      Length = 282
+      Inner Content Type = Handshake (22)
+        NewSessionTicket, Length=261
+            ticket_lifetime_hint=300
+command: |
+  grep -E '^    [A-Z][A-Za-z]+, Length' t13.txt | awk '{print $1}' | tr -d , | paste -sd ' ' -
+expected_output: |
+  ClientHello ServerHello EncryptedExtensions Certificate CertificateVerify Finished Finished NewSessionTicket NewSessionTicket
+explanation: |
+  A TLS 1.3 handshake in order. The client's **ClientHello** offers versions (`supported_versions`, TLS 1.3), cipher suites, its half of the key exchange (`key_share`, X25519) and the name it wants (`server_name`, whose bytes spell `www.shop.test`). The server's **ServerHello** picks the version and suite and sends its own key share; from here both sides can work out the handshake keys. Then the server sends, encrypted: **EncryptedExtensions** (the rest of its answers), its **Certificate** (two in the list: the site's and the intermediate's), **CertificateVerify** (a signature over the handshake so far, made with the certificate's private key, which proves it holds that key) and its **Finished**. The client checks all that and sends its own **Finished**, and its request can follow at once: one round trip. The two **NewSessionTicket**s come afterwards, for resuming later.
+
+  The pattern skips the `ChangeCipherSpec` records (a record type, not a handshake message; TLS 1.3 sends one only so that old boxes in the middle aren't confused) and every line indented further, such as `ASN.1Cert, length=505`, whose `length` is lower case anyway.
+skills: [tls-handshake]

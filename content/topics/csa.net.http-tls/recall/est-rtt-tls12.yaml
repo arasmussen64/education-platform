@@ -1,0 +1,28 @@
+id: est-rtt-tls12
+type: estimate
+rev: 1
+prompt: |
+  A laptop opens a new HTTPS connection to a server whose round-trip time is 80 ms: TCP's handshake, then a full TLS 1.2 handshake. How many milliseconds after it sends its first packet can the laptop send its HTTP request? Exactly.
+unit: ms
+answer: 240
+tolerance: { absolute: 0 }
+given: { rtt: 80 }
+# One round trip for TCP's SYN and SYN-ACK, two for TLS 1.2's full
+# handshake: the learner knows the 3.
+working: 3 * rtt
+mistakes:
+  - id: tls13-count
+    value: 160
+    working: 2 * rtt
+    why: That's TCP and TLS 1.3, whose handshake takes one round trip. A full TLS 1.2 handshake takes two before the client may send data.
+  - id: tcp-only
+    value: 80
+    working: rtt
+    why: That's TCP's handshake alone. HTTPS can't send the request until the TLS handshake is over too.
+  - id: counts-the-answer
+    value: 320
+    working: 4 * rtt
+    why: That's when the answer can be back. The question asks when the request can leave, after the three handshake round trips.
+explanation: |
+  3 × 80 = 240 ms. TCP's SYN and SYN-ACK take one round trip (the client's ACK goes out with its ClientHello). TLS 1.2's full handshake takes two: ClientHello to ServerHelloDone, then ClientKeyExchange and Finished to the server's Finished. Only then may the request go, so 240 ms pass before the first byte of HTTP leaves, and 320 before the answer can start to arrive. TLS 1.3 saves one of those round trips.
+skills: [http-versions]
