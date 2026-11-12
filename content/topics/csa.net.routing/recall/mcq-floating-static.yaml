@@ -1,0 +1,23 @@
+id: mcq-floating-static
+type: mcq
+rev: 1
+prompt: |
+  r1's FRR has these two lines:
+
+  ```
+  ip route 10.3.0.0/24 10.0.13.2
+  ip route 10.3.0.0/24 10.0.12.2 200
+  ```
+
+  What does the second line do while the cable to 10.0.13.2 works?
+choices:
+  - "Nothing yet: FRR keeps it as a candidate and installs it only if the first one goes"
+  - "It shares the traffic with the first route, since both lead to the same network"
+  - "It replaces the first route, since in FRR the line typed later is the one that wins"
+  - "It sends one packet in two hundred through r2, to keep the backup path tested"
+answer: 0
+explanation: |
+  The `200` at the end is the route's distance; a static route's own is 1. Both lines are for the same prefix, so the lower distance wins and the second waits: `show ip route` shows it as `S` without `>*`, and the kernel's table doesn't have it. When the first route goes (its cable loses its link), FRR installs the second within a fraction of a second, and takes it out again when the first comes back. A route like this is a floating static route.
+
+  The two would share traffic only at equal distance. The order of the lines doesn't matter. And a distance isn't a ratio: no traffic at all goes the backup's way until it's needed, which is also why a backup path can be broken for months without anyone noticing.
+skills: [static-routes]

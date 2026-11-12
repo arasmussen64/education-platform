@@ -1,0 +1,29 @@
+id: mcq-reject-or-blackhole
+type: mcq
+rev: 1
+prompt: |
+  r1 drops traffic for two unused ranges, 10.99.0.0/16 and 10.98.0.0/16, with two different kinds of route. From the office behind it (captured in the walkthrough's lab, 2026-11-12):
+
+  ```
+  $ traceroute -n -q 1 -w 1 -m 3 10.99.0.1
+  traceroute to 10.99.0.1 (10.99.0.1), 3 hops max, 60 byte packets
+   1  10.1.0.1  0.065 ms !H
+  $ traceroute -n -q 1 -w 1 -m 3 10.98.0.1
+  traceroute to 10.98.0.1 (10.98.0.1), 3 hops max, 60 byte packets
+   1  *
+   2  *
+   3  *
+  ```
+
+  Which kind of route has r1 for each range?
+choices:
+  - "A reject route for 10.99.0.0/16, which answers; a blackhole for 10.98.0.0/16, which is silent"
+  - "A blackhole for 10.99.0.0/16, which answers; a reject route for 10.98.0.0/16, which is silent"
+  - "A blackhole for both ranges; r1 just limits how often it answers, so the second trace is quiet"
+  - "No route at all for 10.99.0.0/16, which r1 reports; a blackhole for 10.98.0.0/16, which is silent"
+answer: 0
+explanation: |
+  Both drop the packets, at r1. A reject route (FRR: `ip route 10.99.0.0/16 reject`) answers each one with an ICMP unreachable message, which traceroute marks `!H`; FRR lists it as `unreachable (ICMP unreachable)` and the kernel's table as `unreachable 10.99.0.0/16`. A blackhole (`ip route 10.98.0.0/16 blackhole`) drops in silence, so every hop is `*`; FRR lists it as `unreachable (blackhole)` and `ip route get` answers `Invalid argument`.
+
+  No route at all looks like the reject, with a different mark: `!N`, network unreachable, as at the start of the walkthrough. Rate limiting can hide some answers, but not every one from the first hop. Which to use: a reject route tells the sender at once (handy inside a company); a blackhole tells an attacker nothing, and costs the router nothing per packet.
+skills: [static-routes]

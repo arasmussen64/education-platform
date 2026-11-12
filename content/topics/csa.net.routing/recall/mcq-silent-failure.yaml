@@ -1,0 +1,16 @@
+id: mcq-silent-failure
+type: mcq
+rev: 1
+prompt: |
+  Two sites are joined by two links, with a static route over the first and a floating static route over the second. A fault in the carrier's equipment in the middle of the first link stops it carrying anything, but both routers' interfaces stay up. What happens to the traffic between the sites?
+choices:
+  - "It is lost until someone acts: both routers see their links up and keep the first route"
+  - "The backup takes over within a second, just as it does when the cable is pulled out"
+  - "The backup takes over after a minute or so, once the kernel notices that no replies come"
+  - "It is shared over both links until the first link's routers are restarted by hand"
+answer: 0
+explanation: |
+  A static route reacts only to what its own router can see: an interface losing its link. Here nothing changes on either router, so the first route stays installed and its traffic goes into the dead path for as long as the fault lasts: the walkthrough's `netlab link r1 r3 silent` did exactly this. A pulled cable is different: the interface goes down and the floating static takes over at once, the walkthrough's loud failure.
+
+  The kernel doesn't watch for replies and change routes, and a floating static is never shared with the route it backs up. Catching a silent failure takes something that talks across the link: a routing protocol whose neighbours stop hearing each other (BGP, a later topic, gives up after its hold timer), or a fast liveness check run beside it.
+skills: [static-or-dynamic]

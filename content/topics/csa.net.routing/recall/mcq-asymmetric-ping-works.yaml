@@ -1,0 +1,16 @@
+id: mcq-asymmetric-ping-works
+type: mcq
+rev: 1
+prompt: |
+  The office reaches the data centre through r2, a stateful firewall: its forward chain drops packets that are `ct state invalid`, accepts new connections from the office to the web server's port 80, and accepts pings. The data centre's replies, though, go straight to r1, never passing r2. Ping from the office works; the web app times out. Why?
+choices:
+  - "r2 saw the office's SYN but never the server's reply, so it drops what follows as invalid"
+  - "r2 lets ICMP through but has no rule for TCP port 80, so it drops all of the web traffic"
+  - "The server answers pings by itself, but its web server listens only on 127.0.0.1"
+  - "The way back has a smaller MTU, so the web pages are too big for it while pings are small"
+answer: 0
+explanation: |
+  A stateful firewall follows each conversation with connection tracking (Module 1's `ct state`). r2 sees the office's SYN and lets it through as new, but the server's SYN-ACK goes back by another road, so r2 never sees the conversation open. The office's next packet, the ACK that finishes the handshake, looks to r2 like part of a conversation that never started: `ct state invalid`, dropped. `conntrack -L` on r2 shows the entry stuck at `SYN_SENT ... [UNREPLIED]`, and the invalid-drop counter climbs.
+
+  Ping works because each echo request is new and allowed by itself, and the reply doesn't need r2. The question says a rule for port 80 exists. A server listening only on 127.0.0.1 would refuse the connection at once rather than time out (and the setup points at the path). An MTU problem stalls big transfers after the handshake, not the handshake itself. The fixes: make the return route pass r2, or have r2 rewrite the source (source NAT, the next topic) so replies must come back to it.
+skills: [return-path]

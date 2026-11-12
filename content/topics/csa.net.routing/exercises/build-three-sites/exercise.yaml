@@ -1,0 +1,23 @@
+id: build-three-sites
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Three sites and the internet"
+prompt: |
+  The shop's three sites again, and this time nobody has routed anything. The `office` (10.1.0.0/24, host 10.1.0.10) is behind `r1`, the `store` (10.2.0.0/24, host 10.2.0.10) behind `r2`, and the data centre (10.3.0.0/24, its web server `dc` at 10.3.0.10) behind `r3`. The routers are joined in a triangle: r1 and r2 share 10.0.12.0/30 (r1 .1, r2 .2), r1 and r3 share 10.0.13.0/30 (r1 .1, r3 .2), r2 and r3 share 10.0.23.0/30 (r2 .1, r3 .2). Each router's interfaces are named after what is at the far end. r1 is also the shop's edge: its `wan` interface, 198.51.100.2/24, leads to the ISP's router at 198.51.100.1, and beyond it is a web server on the internet, `web` (203.0.113.10). The shop uses only those addresses inside 10.0.0.0/8.
+
+  There is no NAT in this topic, so the ISP carries the shop's private addresses back to r1, as a provider's private network service would; on the real internet, the next topic's NAT would be needed. The ISP and the hosts are set up already. Each router runs FRR (`on r1 vtysh`), with no routes of its own yet.
+
+  Route the shop with static routes in FRR:
+
+  1. Every site reaches every other site over the direct cable between their two routers.
+  2. When the cable between two sites' routers fails, those two sites still reach each other through the third router within a few seconds, and go back to the direct cable when it returns.
+  3. All three sites reach the internet through r1 and the ISP's router, 198.51.100.1.
+  4. Packets for any address in 10.0.0.0/8 that no site uses die at r1, and never go to the ISP.
+  5. Everything survives a reboot of the routers, and no route is typed into a router's kernel by hand.
+
+  Then run the checks. The last one unplugs each cable between the routers in turn to see the backups take over, and plugs it back in.
+skills: [static-routes, longest-prefix-match, static-or-dynamic, return-path]

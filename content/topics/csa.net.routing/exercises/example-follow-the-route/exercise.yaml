@@ -1,0 +1,40 @@
+id: example-follow-the-route
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Follow the route"
+prompt: |
+  The shop has three sites, each with a router of its own: the `office` (10.1.0.10) behind `r1`, the `store` (10.2.0.10) behind `r2`, and the data centre's web server `dc` (10.3.0.10) behind `r3`. The three routers are joined in a triangle by three cables, each a tiny network of its own: r1 and r2 share 10.0.12.0/30 (r1 is .1, r2 is .2), r1 and r3 share 10.0.13.0/30, and r2 and r3 share 10.0.23.0/30. Each router's interfaces are named after what is at the far end of the cable, so on r1, `r2` is the cable to r2 and `lan` the one to the office. Each host's default route points at its own router. The routers know only their own networks so far: nobody has given them a single route.
+
+  Each router runs FRRouting (FRR), the routing software real networks run on Linux, as the service `frr@r1` and so on. You talk to it with its console, `vtysh`: `on r1 vtysh` opens it, and the prompt becomes `r1#`. As in the earlier labs, `on MACHINE COMMAND` runs a command on a machine and `netlab show` lists them all.
+
+  The walkthrough finds where the office's packets stop, gives the routers routes one at a time, and watches the reply take its own decision on the way back; it shows the longest prefix winning on a live router, gives every site a route and a backup, cuts a cable loudly and then silently, and saves the work. Type each line yourself and read what it prints before you type the next.
+steps:
+  - label: "See the gap"
+    lines: "1-3"
+    note: "`traceroute` from the office stops at hop 1 with `1  10.1.0.1  0.352 ms !N`: r1 answered, and `!N` means it sent back an ICMP \"network unreachable\". `show ip route` in r1's console lists only `C>*` lines, the connected routes a router has for every network it has an address on (10.0.12.0/30, 10.0.13.0/30 and 10.1.0.0/24): nothing for 10.3.0.0/24. `ip route get 10.3.0.10` asks r1's kernel what it would do with a packet to that address, and it answers `RTNETLINK answers: Network is unreachable`. `-n` keeps traceroute from looking up names, `-w 1 -q 1 -m 4` make it wait 1 second, send 1 probe a hop and stop after 4 hops."
+  - label: "Add a route on r1"
+    lines: "4-5"
+    note: "`-c` hands vtysh one command at a time, as if you had typed them at the `r1#` prompt: `configure terminal` starts changing the router, `ip route 10.3.0.0/24 10.0.13.2 r3` says \"to reach 10.3.0.0/24, hand the packet to 10.0.13.2 (r3, at the far end of the r1-r3 cable), out of interface `r3`\", and `end` stops. Naming the interface ties the route to that cable, so it goes when the cable goes; every route in this walkthrough names its interface. In the lab you can just as well type `on r1 vtysh` and then the three commands. The trace now gets past r1 and then shows only `*`: something further on is still missing."
+  - label: "The way back"
+    lines: "6-11"
+    note: "tcpdump watches the dc's cable in the background for four seconds (the `&`; `sleep 1` gives it a moment to start) while the office pings, and `wait` waits for it. The echo requests arrive and the dc answers each one, `10.3.0.10 > 10.1.0.10: ICMP echo reply`, then `10.3.0.1 > 10.3.0.10: ICMP net 10.1.0.10 unreachable`: r3 has no route to the office, so the reply dies there. The reply is a new packet with its own destination, and every router on the way back decides for it afresh. One route on r3 for the office's network, through r1 (10.0.13.1), and the ping and the web server both answer (`you are 10.1.0.10`)."
+  - label: "Longest prefix, live"
+    lines: "12-15"
+    note: "A second route on r1 for the top half of the dc's network, 10.3.0.128/25, through r2. Now 10.3.0.0/24 and 10.3.0.128/25 both hold 10.3.0.200, and the kernel picks the longer prefix, the smaller box: `10.3.0.200 via 10.0.12.2 dev r2`, while 10.3.0.10, outside the /25, still goes `via 10.0.13.2 dev r3`. The order the routes were typed in doesn't matter. `no ip route ...` takes the /25 away again: in FRR, `no` in front of a line removes it."
+  - label: "Every route, and a backup for each"
+    lines: "16-20"
+    note: "Each router gets a route to each other site over the direct cable, and a second route for the same site through the third router with a distance of 200 (the number at the end; a static route's own is 1). FRR keeps every route it is given as a candidate and uses the one with the lowest distance, so the second waits: in `show ip route`, `S>* 10.3.0.0/24 [1/0] via 10.0.13.2` is selected (`>`) and in the kernel (`*`), and `S   10.3.0.0/24 [200/0] via 10.0.12.2` has neither mark. `[200/0]` is distance and metric. `ip route`, the kernel's table, holds only the winners (`10.3.0.0/24 nhid 14 via 10.0.13.2 dev r3 proto static metric 20`; the kernel shows FRR's routes with a metric of 20). A route with a higher distance kept for when the first goes is a floating static route."
+  - label: "A loud failure"
+    lines: "21-24"
+    note: "`netlab link r1 r3 down` unplugs the r1-r3 cable: both ends lose their link at once, FRR drops the routes through it, and the backup takes over within a fraction of a second. The trace now goes `10.1.0.1`, `10.0.12.2` (r2), `10.0.23.2` (r3), `10.3.0.10`, and `show ip route 10.3.0.0/24` says `Known via \"static\", distance 200 ... best`. Plugged back in (`up`), the direct route wins again."
+  - label: "A silent failure"
+    lines: "25-28"
+    note: "`silent` leaves the cable plugged in but makes everything r1 sends over it vanish at the far end: a dead path that nothing on r1 can see, like a fault in a provider's equipment between two offices. The ping fails, `3 packets transmitted, 0 received`, and `show ip route 10.3.0.0/24` still prefers the dead direct route at distance 1. A static route reacts only to what its own router notices; a routing protocol, where routers keep talking to each other, would notice the silence and move. `restore` mends it."
+  - label: "Save"
+    lines: "29-30"
+    note: "Everything typed in vtysh lives in FRR's running configuration until it is saved: `write memory` writes it to `/etc/frr/frr.conf`, the file each router loads at boot. r1's file now holds its four `ip route` lines. The checks read each router's running configuration against its file, and look for routes typed into a kernel by hand with `ip route add`, which no file brings back."
+skills: [longest-prefix-match, static-routes, static-or-dynamic, return-path]

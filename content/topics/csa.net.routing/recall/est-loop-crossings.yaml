@@ -1,0 +1,22 @@
+id: est-loop-crossings
+type: estimate
+rev: 1
+prompt: |
+  A host sends a packet with a TTL of 64 towards an address that r1 and r2 each route to the other, so the packet loops between them. r1 is the host's first hop. Every router takes 1 off the TTL as it forwards a packet, and a router that receives a packet with a TTL of 1 drops it instead (and sends back "time exceeded"). How many times does the packet cross the cable between r1 and r2 before it is dropped? Exactly.
+unit: crossings
+answer: 63
+tolerance: { absolute: 0 }
+given: { ttl: 64 }
+working: ttl - 1
+mistakes:
+  - id: every-ttl
+    value: 64
+    working: ttl
+    why: "That counts one crossing for every TTL from 64 down to 1. The packet arrives at r1 from the host with 64, before it has crossed the r1-r2 cable at all; the router that receives it with 1 drops it rather than sending it on."
+  - id: round-trips
+    value: 32
+    working: ttl / 2
+    why: "That counts round trips, r1 to r2 and back. Each router takes 1 off at every hop, so each crossing of the cable costs 1, not each round trip."
+explanation: |
+  Follow the TTL. The packet reaches r1 from the host with 64. r1 forwards it to r2 with 63 (crossing 1); r2 sends it back with 62 (crossing 2); after n crossings it arrives with 64 - n. It is dropped by the router that receives it with 1, which happens after crossing 63: the arrival TTL is 64 - 63 = 1. That router is r2, since odd crossings land on r2, and in the lab "Floating statics" the ping came back `From 10.0.12.2 icmp_seq=1 Time to live exceeded`, from r2. A loop costs the packet its whole TTL, crossing after crossing, which is why a loop can fill a link.
+skills: [find-the-black-hole]

@@ -1,0 +1,16 @@
+id: mcq-azure-system-route
+type: mcq
+rev: 1
+prompt: |
+  An Azure virtual network uses 10.0.0.0/16. The office, on premises, announces 10.0.5.0/24 over BGP through the virtual network's VPN gateway: part of the office's address plan overlaps the virtual network's. A VM in the virtual network sends a packet to 10.0.5.20. Where does it go?
+choices:
+  - "It stays in the virtual network: Azure keeps its own network's route over a longer BGP one"
+  - "To the VPN gateway, because the /24 learned over BGP is longer than the network's /16"
+  - "Nowhere: Azure marks both routes invalid when they overlap and drops the packet"
+  - "To the internet, because neither route in the table is an exact match for 10.0.5.20"
+answer: 0
+explanation: |
+  Azure normally does what every router does: longest prefix first, then, for the same prefix, a user-defined route over a BGP route over a system route. But it makes one exception, in its own words: "System routes for traffic related to virtual network, virtual network peerings, or virtual network service endpoints are preferred routes. They're preferred, even if BGP routes are more specific." So the virtual network's own 10.0.0.0/16 wins over the office's longer /24, and the packet stays inside Azure, where 10.0.5.20 may be nobody, or some other VM.
+
+  That's why overlapping address plans hurt: part of the office becomes unreachable from the cloud, and no route table shows an error. Azure doesn't invalidate overlapping routes, and the internet route, 0.0.0.0/0, is only for addresses nothing longer holds. An exact match is never needed.
+skills: [longest-prefix-match]

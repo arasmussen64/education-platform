@@ -1,0 +1,135 @@
+# The checks of "The Friday change". They state end states, never what was
+# wrong. Each reads the network's real state: traffic from the sites, the
+# routers' forwarding decisions (ip route get), captures on r2 and on the
+# emergency link, r2's firewall against its sealed file, and whether every
+# router's routing lasts (running against saved, no route typed into a
+# kernel). office-internet waits for the routes after a boot; the rest read
+# at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: office-internet
+    description: "The office reaches the internet: the payment provider's web server at 203.0.113.10 answers it, and r1 sends all traffic for the internet to the ISP's router, 198.51.100.1, and nowhere else."
+    # It waits for the routes after a boot: up to 16 tries of a 2-second
+    # request a second apart, more than the default 30 seconds when
+    # packets vanish without an answer, so it gets a minute and prints
+    # its own sentence rather than running out of time.
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      web() { [ "$(on office curl -s -m 2 http://203.0.113.10/)" = "you are 10.1.0.10" ]; }
+      wait_for 15 web || { echo "the office doesn't reach 203.0.113.10"; exit 0; }
+      # Every next hop of r1's default route in the kernel, one a line: two
+      # would share the internet's traffic (ECMP), some of it elsewhere.
+      hops=$(ip -n r1 route show default | awk '{for (i = 1; i < NF; i++) if ($i == "via") print $(i + 1)}')
+      [ "$hops" = 198.51.100.1 ] || { echo "r1 doesn't send all of the internet's traffic to the ISP's router alone"; exit 0; }
+      echo reached
+    expect:
+      equals: reached
+  - id: store-internet
+    description: "The tills and the card readers both reach the payment provider."
+    command: |
+      for host in "till 10.2.0.10" "reader 10.2.200.10"; do
+        set -- $host
+        got=$(ip netns exec "$1" curl -s -m 2 http://203.0.113.10/)
+        [ "$got" = "you are $2" ] || { echo "the $1 ($2) doesn't reach the payment provider"; exit 0; }
+      done
+      echo reached
+    expect:
+      equals: reached
+  - id: store-routed
+    description: "r1 sends every address in the store's 10.2.0.0/16 to the store's router, r4."
+    command: |
+      for a in 10.2.0.10 10.2.200.10 10.2.130.7 "10.2.$((RANDOM % 256)).$((1 + RANDOM % 254))"; do
+        hop=$(ip -n r1 route get "$a" 2>&1 | awk '{for (i = 1; i < NF; i++) if ($i == "via") {print $(i + 1); exit}}')
+        [ "$hop" = 10.0.14.2 ] || { echo "r1 doesn't send every address in the store's 10.2.0.0/16 to r4"; exit 0; }
+      done
+      echo "all to r4"
+    expect:
+      equals: "all to r4"
+  - id: app-answers
+    description: "The stock app at 10.3.0.10:8080 answers the office, and sees the office's own address."
+    command: |
+      got=$(ip netns exec office curl -s -m 3 http://10.3.0.10:8080/)
+      [ -n "$got" ] || { echo "the stock app doesn't answer the office"; exit 0; }
+      echo "$got"
+    expect:
+      equals: "stock: you are 10.1.0.10"
+  - id: through-inspection
+    description: "Traffic between the office and the data centre passes r2 in both directions, and none of it crosses the emergency link."
+    timeout: 40
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # What r2 passes towards the office, and what crosses the emergency
+      # link, while the office asks the stock app.
+      # What it prints on failure is the same whichever part fails, so it
+      # never says which direction or which router to look at.
+      fail() { echo "traffic between the office and the data centre doesn't all pass r2, both ways"; exit 0; }
+      back=$(capture r2 r1 'tcp and src host 10.3.0.10 and dst host 10.1.0.10' 4 -- ip netns exec office curl -s -m 2 http://10.3.0.10:8080/)
+      [ -n "$back" ] || fail
+      out=$(capture r2 r3 'tcp and src host 10.1.0.10 and dst host 10.3.0.10' 4 -- ip netns exec office curl -s -m 2 http://10.3.0.10:8080/)
+      [ -n "$out" ] || fail
+      around=$(capture r1 r3 'host 10.1.0.10 and host 10.3.0.10' 4 -- ip netns exec office curl -s -m 2 http://10.3.0.10:8080/)
+      [ -z "$around" ] || fail
+      # The rest of each network goes the same way as its one host: an
+      # office address and a data centre address that are new at every run.
+      hop() { ip -n "$1" route get "$2" 2>&1 | awk '{for (i = 1; i < NF; i++) if ($i == "via") {print $(i + 1); exit}}'; }
+      [ "$(hop r3 "10.1.0.$((11 + RANDOM % 240))")" = 10.0.23.1 ] || fail
+      [ "$(hop r1 "10.3.0.$((11 + RANDOM % 240))")" = 10.0.12.2 ] || fail
+      echo "through r2"
+    expect:
+      equals: "through r2"
+  - id: inspection-intact
+    description: "r2's firewall is the one it had: its /etc/nftables.conf is unchanged, it is what r2 runs, and nftables@r2 loads it at every boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      [ "$(systemctl is-enabled nftables@r2 2> /dev/null)" = enabled ] || { echo "nftables@r2 isn't enabled"; exit 0; }
+      differs=$(nft_saved r2) || { echo "r2's running rules aren't the ones its file loads: $(echo "$differs" | head -n 2 | tr '\n' ' ')"; exit 0; }
+      echo intact
+    expect:
+      equals: intact
+  - id: unused-dropped
+    description: "Packets for internal addresses that no site uses still die at r1: they never reach the ISP, and never go round in circles."
+    timeout: 40
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # 10.99.0.1, and an address outside the shop's sites that is new at
+      # every run (the sites are 10.0.12.0/30 to 10.0.14.0/30, 10.1.0.0/24,
+      # 10.2.0.0/16 and 10.3.0.0/24).
+      for a in 10.99.0.1 "10.$((4 + RANDOM % 250)).$((RANDOM % 256)).$((1 + RANDOM % 254))"; do
+        if ip -n r1 route get "$a" > /dev/null 2>&1; then
+          echo "r1 has somewhere to send $a, which no site uses: $(ip -n r1 route get "$a" | head -n 1)"
+          exit 0
+        fi
+        answer=$(on office ping -c 1 -W 1 "$a" 2>&1)
+        case $answer in
+          *"Time to live exceeded"*) echo "packets for $a go round in circles until their TTL runs out"; exit 0 ;;
+        esac
+        seen=$(capture isp shop "dst host $a" 3 -- on till ping -c 2 -W 1 "$a")
+        [ -z "$seen" ] || { echo "packets for $a reach the ISP"; exit 0; }
+      done
+      echo "die at r1"
+    expect:
+      equals: "die at r1"
+  - id: saved
+    description: "Every router's running FRR configuration is the one it loads at boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in r1 r2 r3 r4; do
+        differs=$(frr_saved "$r") || { echo "$r's running configuration isn't saved: $(echo "$differs" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      done
+      echo saved
+    expect:
+      equals: saved
+  - id: no-hand-made-routes
+    description: "No router has a route typed into its kernel by hand, which the next boot would lose: their routes come from FRR."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in r1 r2 r3 r4; do
+        routes=$(hand_routes "$r")
+        [ -z "$routes" ] || { echo "$r has a route typed by hand: $(echo "$routes" | head -n 1)"; exit 0; }
+      done
+      echo none
+    expect:
+      equals: none

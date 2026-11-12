@@ -1,0 +1,16 @@
+id: mcq-missing-return-route
+type: mcq
+rev: 1
+prompt: |
+  A client at 10.8.0.5 can't connect to a web server: its connection times out. `tcpdump` on the server shows the client's SYNs arriving, one after another, and the server's SYN-ACKs leaving for 10.8.0.5 each time. Where is the fault most likely to be?
+choices:
+  - "On the way back: a router between them has no route to 10.8.0.0 and drops the replies"
+  - "On the server: its firewall drops the SYNs before the web server can accept them"
+  - "On the server: nothing listens on that port, so the SYNs are never answered at all"
+  - "On the way there: the client's router has no route to the server's network"
+answer: 0
+explanation: |
+  The capture rules out three of the four. SYN-ACKs leaving means the server's firewall let the SYNs in and something is listening (a closed port would answer each SYN with a reset, `[R.]`, and the client would see "connection refused" at once, not a timeout). SYNs arriving means the way there works. What's left is the way back: the replies leave and never reach the client, because a router on the return path has no route for 10.8.0.0 (or a blackhole for it, or a firewall that sees only half the conversation).
+
+  The method follows: from the server, `traceroute -n 10.8.0.5` shows where the replies' path stops, and `ip route get 10.8.0.5` on the last router that answers says what that router would do. Every router decides alone, so a route there says nothing about a route back.
+skills: [return-path, find-the-black-hole]

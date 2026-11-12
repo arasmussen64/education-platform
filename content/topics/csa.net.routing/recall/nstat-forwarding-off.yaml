@@ -1,0 +1,29 @@
+id: nstat-forwarding-off
+type: predict_shell
+rev: 1
+prompt: |
+  The office's pings to the store stopped getting answers. `before.txt` and `after.txt` are `nstat -az` for four of r2's counters, taken before and after five pings and a traceroute from the office (captured in the walkthrough's lab, 2026-11-12, with r2's forwarding switched off on purpose; `nstat` prints a `#kernel` line first, and the last column is a rate). The command prints how much each counter grew. What is printed?
+files:
+  before.txt: |
+    #kernel
+    IpInAddrErrors                  0                  0.0
+    IpForwDatagrams                 18                 0.0
+    IpOutNoRoutes                   0                  0.0
+    IcmpOutDestUnreachs             0                  0.0
+  after.txt: |
+    #kernel
+    IpInAddrErrors                  7                  0.0
+    IpForwDatagrams                 18                 0.0
+    IpOutNoRoutes                   0                  0.0
+    IcmpOutDestUnreachs             0                  0.0
+command: awk 'FNR == 1 {next} NR == FNR {before[$1] = $2; next} {print $1, $2 - before[$1]}' before.txt after.txt
+expected_output: |
+  IpInAddrErrors 7
+  IpForwDatagrams 0
+  IpOutNoRoutes 0
+  IcmpOutDestUnreachs 0
+explanation: |
+  Seven packets (five pings, two traceroute probes) arrived at r2 for an address that isn't r2's, and r2 counted each as an address error, `IpInAddrErrors`, instead of forwarding it: `IpForwDatagrams`, the packets it passed on, didn't move. With forwarding off, a Linux machine drops whatever isn't for itself, silently: no ICMP message (`IcmpOutDestUnreachs` flat), so the office's traceroute showed `*` from r2 on. `IpOutNoRoutes` flat says it wasn't a missing route either.
+
+  `sysctl net.ipv4.ip_forward` on r2 said 0. The lasting fix is `net.ipv4.ip_forward = 1` in r2's `/etc/sysctl.d/`, which every boot applies; `sysctl -w` alone is gone at the next boot. In the `awk`, `NR == FNR` is true only while reading the first file, so it remembers each counter, and the second file's lines subtract.
+skills: [find-the-black-hole]

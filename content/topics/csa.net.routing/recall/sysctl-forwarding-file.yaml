@@ -1,0 +1,28 @@
+id: sysctl-forwarding-file
+type: predict_shell
+rev: 1
+prompt: |
+  `sysctl.d/` is a router's `/etc/sysctl.d/` (constructed: real setting names, made-up files). At boot the files are applied in name order, and when two set the same key the later one wins. The first command lists the files in the order the shell's `*` gives them, which is name order; the second reads them in that order and prints the value that ends up set for each of two keys, the way the boot does. What is printed?
+files:
+  sysctl.d/10-network.conf: |
+    net.ipv4.ip_forward = 0
+    net.ipv4.conf.all.rp_filter = 2
+  sysctl.d/60-router.conf: |
+    # This machine is a router.
+    net.ipv4.ip_forward = 1
+  sysctl.d/99-lockdown.conf: |
+    net.ipv4.conf.all.rp_filter = 1
+command: |
+  printf '%s\n' sysctl.d/*.conf
+  cat sysctl.d/*.conf | awk -F' *= *' '/^net/ {value[$1] = $2} END {print "ip_forward", value["net.ipv4.ip_forward"]; print "rp_filter", value["net.ipv4.conf.all.rp_filter"]}'
+expected_output: |
+  sysctl.d/10-network.conf
+  sysctl.d/60-router.conf
+  sysctl.d/99-lockdown.conf
+  ip_forward 1
+  rp_filter 1
+explanation: |
+  `sysctl` reads and sets the kernel's settings, `net.ipv4.ip_forward` among them (1: forward packets between interfaces, as a router must; 0: drop what isn't for this machine). `sysctl -w` sets one until the next boot; the files in `/etc/sysctl.d/` are what every boot applies, in name order, so a later file wins. That's why packages and admins number them.
+
+  `10-network.conf` sets forwarding off and `rp_filter` to 2 (loose); `60-router.conf` sets forwarding on, and `99-lockdown.conf`, read last, sets `rp_filter` to 1 (strict). So the router ends up forwarding, with strict reverse-path filtering: the awk keeps overwriting `value[key]` line by line, as the boot does. Names compare character by character, so a file called `9-extra.conf` would come after `60-router.conf` and `10-network.conf` alike; two digits for every name avoids that surprise.
+skills: [find-the-black-hole, return-path]

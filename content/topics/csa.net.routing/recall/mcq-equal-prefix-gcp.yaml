@@ -1,0 +1,16 @@
+id: mcq-equal-prefix-gcp
+type: mcq
+rev: 1
+prompt: |
+  A Google Cloud VPC network has a subnet, 10.20.0.0/24. To have a firewall VM inspect the traffic between machines in that subnet, a colleague tries to add a static route for 10.20.0.0/24 with the firewall VM as its next hop. What happens?
+choices:
+  - "Google Cloud won't create it, and traffic in the subnet keeps using the subnet route"
+  - "It's created, and wins, because a route you write beats one Google Cloud made itself"
+  - "It's created, and the two share the traffic by ECMP, because their prefixes are equal"
+  - "It's created but waits, inactive, until someone deletes the subnet route by hand"
+answer: 0
+explanation: |
+  Google Cloud puts subnet routes first and won't let a static route compete with them: in its words, it "doesn't let you create a new static route if the destination of the new static route exactly matches or fits within the destination of an existing local, peering, or NCC subnet route". And a packet that matches a subnet route uses it, whatever else is in the table.
+
+  So no route you write takes traffic inside a subnet away from it, and inspecting it needs a different design (the machines in different subnets, or a firewall product inside the path). This differs from Azure, where a user-defined route can override the virtual network's own system route (Microsoft's routing example sends a subnet's traffic for the rest of its own virtual network through a firewall VM that way). Google also shares traffic between equal routes (ECMP) only within one kind of route, so no equal pair of a subnet route and a static route could share it either.
+skills: [longest-prefix-match]

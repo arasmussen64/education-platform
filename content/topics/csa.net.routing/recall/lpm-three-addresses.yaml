@@ -1,0 +1,74 @@
+id: lpm-three-addresses
+type: predict_shell
+rev: 1
+prompt: |
+  `next-hop` is the reference answer to the lab "Next hop": for each address after the table's name, it prints the route the kernel would choose from the table, as `ADDRESS via A dev D`, `ADDRESS dev D (directly connected)`, `ADDRESS blackhole` or `ADDRESS no route`. `routes.txt` is a router's table in `ip route`'s form (constructed). The command asks about three addresses. What is printed?
+files:
+  routes.txt: |
+    default via 192.0.2.1 dev wan
+    10.0.0.0/8 via 10.0.0.2 dev core
+    10.1.0.0/16 via 10.0.0.6 dev east
+    10.1.128.0/20 via 10.0.0.10 dev branch
+    10.1.130.0/24 dev lab proto kernel scope link src 10.1.130.1
+    blackhole 10.1.2.0/24 proto static metric 20
+    10.1.144.0/24 via 10.0.0.14 dev dmz
+  next-hop: |
+    #!/bin/bash
+    # next-hop TABLE ADDRESS...: for each address, the route the kernel would
+    # choose from TABLE, a routing table as "ip route" prints it. The longest
+    # prefix that holds the address wins; the order of the lines doesn't matter.
+    set -euo pipefail
+
+    # to_number ADDRESS: sets $number to the address as one 32-bit number, each
+    # octet moved to its place (IPv4 and CIDR's ip2int, without a subshell).
+    to_number() {
+      local a b c d
+      IFS=. read -r a b c d <<< "$1"
+      number=$(((a << 24) | (b << 16) | (c << 8) | d))
+    }
+
+    table=$1
+    shift
+    for address in "$@"; do
+      to_number "$address"
+      wanted=$number
+      best=-1
+      answer="no route"
+      while read -r -a word; do
+        [ "${#word[@]}" -gt 0 ] || continue
+        # Where the prefix is, and what the route does with a packet.
+        if [ "${word[0]}" = blackhole ]; then
+          prefix=${word[1]}
+          action=blackhole
+        elif [ "${word[1]:-}" = via ]; then
+          prefix=${word[0]}
+          action="via ${word[2]} dev ${word[4]}"
+        else
+          prefix=${word[0]}
+          action="dev ${word[2]} (directly connected)"
+        fi
+        [ "$prefix" != default ] || prefix=0.0.0.0/0
+        # A prefix written without a length is a single address: a /32.
+        [[ $prefix == */* ]] || prefix=$prefix/32
+        length=${prefix#*/}
+        to_number "${prefix%/*}"
+        # In the block when the first LENGTH bits agree: shift the rest away.
+        if (((wanted >> (32 - length)) == (number >> (32 - length)) && length > best)); then
+          best=$length
+          answer=$action
+        fi
+      done < "$table"
+      echo "$address $answer"
+    done
+command: bash next-hop routes.txt 10.1.2.3 10.1.141.7 172.16.0.1
+expected_output: |
+  10.1.2.3 blackhole
+  10.1.141.7 via 10.0.0.10 dev branch
+  172.16.0.1 via 192.0.2.1 dev wan
+explanation: |
+  10.1.2.3 is held by the default, the /8, the /16 and the blackhole's /24 (10.1.2.0 to 10.1.2.255); the /24 is longest, so it dies there. The blackhole beats the /16 that would have carried it on, which is what a blackhole for unused space is for.
+
+  10.1.141.7 is the trap. Its third number, 141, looks closest to the /24s at 130 and 144, but 10.1.130.0/24 holds only 10.1.130.x and 10.1.144.0/24 only 10.1.144.x. The /20 at 10.1.128.0 leaves 12 bits for hosts, 4,096 addresses or 16 in the third number: 10.1.128.0 to 10.1.143.255. 141 is inside, so the /20 is the longest route that holds it: via 10.0.0.10.
+
+  172.16.0.1 isn't inside 10.0.0.0/8 or anything under it, so only the default route holds it. In the script, the test is the line with the two shifts: shift away the last 32 - length bits of both numbers, and if what is left is equal, the address is in the block.
+skills: [longest-prefix-match]

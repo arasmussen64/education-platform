@@ -1,0 +1,16 @@
+id: mcq-aws-longest-first
+type: mcq
+rev: 1
+prompt: |
+  An AWS subnet's route table (its VPC is 10.0.0.0/16) holds a static route, `172.31.0.0/16` to a transit gateway (AWS's router for joining networks together), and a propagated route, `172.31.5.0/24` to a virtual private gateway (the VPC's end of a VPN), learned over BGP from a site-to-site VPN. Which route carries traffic to 172.31.5.9?
+choices:
+  - "The propagated /24 to the VPN: a longer prefix wins before the kind of route counts"
+  - "The static /16 to the transit gateway: in AWS a static route beats a propagated one"
+  - "Both, shared by ECMP, since each of them holds the address and leads somewhere valid"
+  - "The VPC's local route, since AWS sends every private address there before the rest"
+answer: 0
+explanation: |
+  Longest prefix comes first in AWS as everywhere: both routes hold 172.31.5.9, and the /24 is longer than the /16, so the propagated route wins. AWS's page says it outright: more specific routes always take priority "irrespective of whether they are propagated routes, static routes, or routes that reference prefix lists". Static over propagated only breaks a tie between routes with the same prefix.
+
+  There's no sharing between routes of different lengths. The local route covers only the VPC's own range, 10.0.0.0/16 here, not every private address. This is the trap in a hybrid network: a site that announces a more specific prefix over its VPN pulls that traffic away from a static route someone thought was in charge.
+skills: [longest-prefix-match]

@@ -1,0 +1,19 @@
+id: conntrack-unreplied
+type: predict_shell
+rev: 1
+prompt: |
+  `conntrack.txt` is three lines of `conntrack -L` on r2, the inspection firewall in the lab "The Friday change", captured on 2026-11-12 after the office had tried the stock app on port 8080 (once while the replies bypassed r2, then twice after the fix). The first command counts the connections r2 never saw a reply to; the second prints each one's state, its source and destination, and its destination port. What is printed?
+files:
+  conntrack.txt: |
+    tcp      6 92 SYN_SENT src=10.1.0.10 dst=10.3.0.10 sport=59882 dport=8080 [UNREPLIED] src=10.3.0.10 dst=10.1.0.10 sport=8080 dport=59882 mark=0 use=1
+    tcp      6 431999 ESTABLISHED src=10.1.0.10 dst=10.3.0.10 sport=39270 dport=8080 src=10.3.0.10 dst=10.1.0.10 sport=8080 dport=39270 [ASSURED] mark=0 use=1
+    tcp      6 118 TIME_WAIT src=10.1.0.10 dst=10.3.0.10 sport=39262 dport=8080 src=10.3.0.10 dst=10.1.0.10 sport=8080 dport=39262 [ASSURED] mark=0 use=1
+command: grep -c UNREPLIED conntrack.txt; awk '/UNREPLIED/ {print $4, $5, $6, $8}' conntrack.txt
+expected_output: |
+  1
+  SYN_SENT src=10.1.0.10 dst=10.3.0.10 dport=8080
+explanation: |
+  Each line is one connection the firewall tracks: the protocol, how many seconds until the entry expires, the TCP state, then the original direction (`src=10.1.0.10 dst=10.3.0.10 ... dport=8080`, the office to the stock app) and the reply direction it expects. `[UNREPLIED]` means r2 has never seen a packet going the reply's way. The first line is the broken try: the office's SYN passed r2 (`SYN_SENT`), and the server's SYN-ACK went back over another path, so r2 never saw it, and the office's next packet was dropped as invalid.
+
+  The other two are after the fix, with the replies passing r2: `ESTABLISHED` is a connection still open, `TIME_WAIT` one that just closed, and `[ASSURED]` means traffic went both ways. An `[UNREPLIED]` TCP entry on a firewall that should see both directions is the fingerprint of an asymmetric path.
+skills: [return-path]

@@ -1,0 +1,134 @@
+# The checks of "Three sites": traffic between the sites and to the
+# internet, each router's forwarding decision (FRR's chosen route for an
+# address, and the kernel's ip route get), addresses no site uses, whether
+# the routing lasts (running against saved, no route typed into a kernel),
+# and last, every backup proved by unplugging each cable between the
+# routers in turn and plugging it back in. sites-reach waits for the routes
+# after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sites-reach
+    description: "Every site reaches every other site: the office and the store reach the data centre's web server, and each pair of sites can ping each other."
+    # It waits for the routes after a boot: up to 16 tries of a 2-second
+    # request a second apart, more than the default 30 seconds when
+    # packets vanish without an answer, so it gets a minute and prints
+    # its own sentence rather than running out of time.
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      web() { [ "$(on "$1" curl -s -m 2 http://10.3.0.10/)" = "you are $2" ]; }
+      wait_for 15 web office 10.1.0.10 || { echo "the office doesn't reach the data centre's web server"; exit 0; }
+      web store 10.2.0.10 || { echo "the store doesn't reach the data centre's web server"; exit 0; }
+      for pair in "office 10.2.0.10" "office 10.3.0.10" "store 10.1.0.10" "store 10.3.0.10" "dc 10.1.0.10" "dc 10.2.0.10"; do
+        set -- $pair
+        on "$1" ping -c 1 -W 1 "$2" > /dev/null || { echo "$1 can't ping $2"; exit 0; }
+      done
+      echo reached
+    expect:
+      equals: reached
+  - id: direct-paths
+    description: "Each router sends the traffic for each other site over the direct cable to that site's router, and only that way."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for want in "r1 10.2.0.10 10.0.12.2" "r1 10.3.0.10 10.0.13.2" "r2 10.1.0.10 10.0.12.1" \
+                  "r2 10.3.0.10 10.0.23.2" "r3 10.1.0.10 10.0.13.1" "r3 10.2.0.10 10.0.23.1"; do
+        set -- $want
+        # FRR's chosen route for the address (the longest prefix holding
+        # it): every next hop it uses, so two routes sharing the traffic
+        # show as two.
+        hops=$(frr "$1" "show ip route $2 json" | json "sorted(n['ip'] for p in d.values() for r in p if r.get('selected') for n in r['nexthops'] if n.get('active') and 'ip' in n)")
+        [ "$hops" = "[\"$3\"]" ] || { echo "$1 sends $2 via $hops, not over the direct cable alone"; exit 0; }
+        kernel=$(ip -n "$1" route get "$2" 2>&1 | awk '{for (i = 1; i < NF; i++) if ($i == "via") {print $(i + 1); exit}}')
+        [ "$kernel" = "$3" ] || { echo "$1's kernel sends $2 via ${kernel:-nothing}"; exit 0; }
+      done
+      echo direct
+    expect:
+      equals: direct
+  - id: internet
+    description: "The office, the store and the data centre each reach the web server on the internet, 203.0.113.10."
+    command: |
+      for site in "office 10.1.0.10" "store 10.2.0.10" "dc 10.3.0.10"; do
+        set -- $site
+        got=$(ip netns exec "$1" curl -s -m 2 http://203.0.113.10/)
+        [ "$got" = "you are $2" ] || { echo "$1 doesn't reach the web server on the internet"; exit 0; }
+      done
+      echo reached
+    expect:
+      equals: reached
+  - id: unused-dies-at-r1
+    description: "Packets for addresses in 10.0.0.0/8 that no site uses die at r1: they never reach the ISP, and never go round in circles."
+    timeout: 40
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # 10.99.0.1; 10.2.200.1, unused although it sits next to the store's
+      # 10.2.0.0/24, inside the 10.0.0.0/14 that holds every site; and an
+      # address outside that /14 that is new at every run.
+      for a in 10.99.0.1 10.2.200.1 "10.$((4 + RANDOM % 250)).$((RANDOM % 256)).$((1 + RANDOM % 254))"; do
+        if ip -n r1 route get "$a" > /dev/null 2>&1; then
+          echo "r1 has somewhere to send $a, which no site uses: $(ip -n r1 route get "$a" | head -n 1)"
+          exit 0
+        fi
+        for from in office store; do
+          answer=$(on "$from" ping -c 1 -W 1 "$a" 2>&1)
+          case $answer in
+            *"Time to live exceeded"*) echo "packets from the $from for $a go round in circles until their TTL runs out"; exit 0 ;;
+          esac
+        done
+        seen=$(capture isp shop "dst host $a" 3 -- on store ping -c 2 -W 1 "$a")
+        [ -z "$seen" ] || { echo "packets for $a reach the ISP"; exit 0; }
+      done
+      echo "die at r1"
+    expect:
+      equals: "die at r1"
+  - id: saved
+    description: "Each router's running FRR configuration is the one it loads at boot, so a reboot keeps the routes."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in r1 r2 r3; do
+        differs=$(frr_saved "$r") || { echo "$r's running configuration isn't saved: $(echo "$differs" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      done
+      echo saved
+    expect:
+      equals: saved
+  - id: no-hand-made-routes
+    description: "No router has a route typed into its kernel by hand, which the next boot would lose: their routes come from FRR."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in r1 r2 r3; do
+        routes=$(hand_routes "$r")
+        [ -z "$routes" ] || { echo "$r has a route typed by hand: $(echo "$routes" | head -n 1)"; exit 0; }
+      done
+      echo none
+    expect:
+      equals: none
+  - id: backups-work
+    description: "With each cable between the routers unplugged in turn, the two sites it joined reach each other through the third router within a few seconds, and go back to the direct cable once it is plugged in again."
+    # It unplugs each cable itself (netlab link) and plugs it back in, even
+    # if it is stopped part way: the trap runs on the way out.
+    timeout: 90
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      cut=""
+      trap '[ -z "$cut" ] || netlab link $cut restore > /dev/null 2>&1' EXIT
+      hop() { ip -n "$1" route get "$2" 2> /dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "via") {print $(i + 1); exit}}'; }
+      # Each line: the cable (a router and its interface), the two sites'
+      # routers and hosts, and each router's next hop through the third
+      # router, then over the direct cable.
+      for test in "r1 r2  r1 office 10.1.0.10 10.0.13.2 10.0.12.2  r2 store 10.2.0.10 10.0.23.2 10.0.12.1" \
+                  "r1 r3  r1 office 10.1.0.10 10.0.12.2 10.0.13.2  r3 dc 10.3.0.10 10.0.23.1 10.0.13.1" \
+                  "r2 r3  r2 store 10.2.0.10 10.0.12.1 10.0.23.2  r3 dc 10.3.0.10 10.0.13.1 10.0.23.1"; do
+        set -- $test
+        cut="$1 $2"
+        ra=$3 ha=$4 aa=$5 a_round=$6 a_direct=$7 rb=$8 hb=$9 ab=${10} b_round=${11} b_direct=${12}
+        round() { [ "$(hop "$ra" "$ab")" = "$a_round" ] && [ "$(hop "$rb" "$aa")" = "$b_round" ] && on "$ha" ping -c 1 -W 1 "$ab" > /dev/null; }
+        direct() { [ "$(hop "$ra" "$ab")" = "$a_direct" ] && [ "$(hop "$rb" "$aa")" = "$b_direct" ] && on "$ha" ping -c 1 -W 1 "$ab" > /dev/null; }
+        netlab link $cut down
+        wait_for 8 round || { echo "with the $1-$2 cable unplugged, the $ha and the $hb don't reach each other through the third router"; exit 0; }
+        netlab link $cut restore
+        cut=""
+        wait_for 10 direct || { echo "with the $1-$2 cable plugged back in, the $ha and the $hb don't go back to it"; exit 0; }
+      done
+      echo "every backup works"
+    expect:
+      equals: "every backup works"

@@ -1,0 +1,16 @@
+id: mcq-save-or-lose
+type: mcq
+rev: 1
+prompt: |
+  On r2 you type `configure terminal`, then `ip route 10.9.0.0/24 10.0.12.1`, then `end`, and the new route works. That evening the lab machine restarts. What has happened to the route?
+choices:
+  - "It's gone: it lived only in FRR's running configuration until a `write memory`"
+  - "It's kept: FRR writes every change into `/etc/frr/frr.conf` as soon as it's typed"
+  - "It's kept: the kernel holds on to its routes when the routing software restarts"
+  - "It's gone, but only if one of r2's interfaces changed while the machine was down"
+answer: 0
+explanation: |
+  vtysh changes FRR's running configuration, the one in memory, and nothing else. `write memory` writes it into `/etc/frr/frr.conf`, the file FRR loads when it starts, at every boot; until then a restart of FRR, or of the machine, brings back whatever the file says. Real routers work the same way (running and startup configuration), which is why "did you save it?" is the first question after a change that vanished overnight.
+
+  The kernel's table is rebuilt at every boot, and FRR fills it from its configuration, so nothing is kept there either. Interfaces have nothing to do with it. The labs check exactly this: a router's running configuration against its saved file.
+skills: [static-routes]

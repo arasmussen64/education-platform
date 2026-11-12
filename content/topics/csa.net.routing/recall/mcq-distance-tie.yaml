@@ -1,0 +1,16 @@
+id: mcq-distance-tie
+type: mcq
+rev: 1
+prompt: |
+  An FRR router has two candidate routes for exactly the same prefix: a static route, `S 10.50.0.0/16 [1/0] via 10.0.0.2`, and a route a neighbouring network sent it over BGP (the routing protocol between networks, a later topic), `B 10.50.0.0/16 [20/0] via 192.0.2.6`. Which one does FRR hand to the kernel?
+choices:
+  - "The static route, because its distance of 1 is lower than the BGP route's 20"
+  - "The BGP route, because a route learned from a neighbour is newer than one typed in"
+  - "Both, sharing the traffic, because the two routes have the same prefix length"
+  - "The BGP route, because its next hop is on another network and so it reaches further"
+answer: 0
+explanation: |
+  The prefixes are the same length, so longest-prefix match can't choose, and the route's source decides: each source has an administrative distance (FRR calls it simply distance), the first number in the brackets, and the lowest wins. FRR's table: connected 0, static 1, eBGP (BGP from another network) 20, OSPF 110, iBGP (BGP inside one network) 200; 255 means "never install".
+
+  Being learned, or newer, counts for nothing. Two routes share traffic (ECMP) only when they tie on prefix length and on distance, and these don't. Where the next hop sits doesn't enter into it. Other systems keep their own tables: the clouds each rank route sources in a fixed order, which the lesson compares.
+skills: [longest-prefix-match]

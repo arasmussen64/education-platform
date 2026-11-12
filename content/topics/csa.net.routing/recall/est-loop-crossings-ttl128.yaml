@@ -1,0 +1,22 @@
+id: est-loop-crossings-ttl128
+type: estimate
+rev: 1
+prompt: |
+  A Windows host sends a packet with a TTL of 128 towards an address that 3 routers route in a circle: r1 sends it to r2, r2 to r3, and r3 back to r1. r1 is the host's first hop. Every router takes 1 off the TTL as it forwards a packet, and a router that receives a packet with a TTL of 1 drops it. How many times in all does the packet cross a cable between two of the looping routers before it is dropped? Exactly.
+unit: crossings
+answer: 127
+tolerance: { absolute: 0 }
+given: { ttl: 128, routers: 3 }
+working: ttl - 1
+mistakes:
+  - id: every-ttl
+    value: 128
+    working: ttl
+    why: "That counts one crossing for every TTL from 128 down to 1. The packet reaches r1 from the host with 128, before any crossing between the routers; the router that receives it with 1 drops it."
+  - id: one-cable
+    value: 42
+    working: floor((ttl - 1) / routers)
+    why: "That's about how often it crosses one of the three cables. The question asks for every crossing of any of them, in all."
+explanation: |
+  The number of routers in the loop doesn't change the sum. The packet reaches r1 with 128; each crossing between two looping routers takes 1 off, so after n crossings it arrives with 128 - n, and the router that receives it with 1 drops it: 128 - n = 1 gives n = 127. Spread over three cables, that's 42 or 43 crossings of each. Windows starts packets with a TTL of 128 and Linux with 64, so the same loop costs a Windows packet twice as many crossings.
+skills: [find-the-black-hole]
