@@ -107,7 +107,15 @@ checks:
       # MTU, and ping prints it only if h1 got the answer.
       to=2001:db8:80::1$((RANDOM % 900 + 100))
       out=$(on h1 ping -6 -c 1 -W 2 -M do -s 1452 "$to" 2>&1)
-      if echo "$out" | grep -E 'mtu ?= ?1400' > /dev/null; then echo told; else echo "h1 sent a packet too big for the path and wasn't told the path's MTU"; fi
+      if echo "$out" | grep -E 'mtu ?= ?1400' > /dev/null; then
+        echo told
+      elif ! on h1 ping -6 -c 1 -W 2 2001:db8:80::80 > /dev/null 2>&1; then
+        # Not even a small ping gets an answer, so the big one never got as
+        # far as the narrow link.
+        echo "h1's IPv6 ping to web gets no reply, so h1 can't be told the path's MTU either"
+      else
+        echo "h1 sent a packet too big for the path and wasn't told the path's MTU"
+      fi
     expect:
       equals: told
   - id: hosts-untouched
