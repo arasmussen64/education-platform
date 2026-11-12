@@ -1,0 +1,24 @@
+# Wrong: the announcement is fixed, and instead of mending the route
+# maps, they are all taken off the sessions and eBGP's policy
+# requirement is switched off: edge sends everything and takes
+# everything, ISP B's slip included.
+on edge vtysh << 'EOF' > /dev/null
+configure terminal
+router bgp 65001
+ address-family ipv4 unicast
+  no network 198.51.100.0/25
+  network 198.51.100.0/24
+exit
+exit
+router bgp 65001
+ no bgp ebgp-requires-policy
+ address-family ipv4 unicast
+  no neighbor 192.0.2.2 route-map FROM-ISPB in
+  no neighbor 192.0.2.2 route-map TO-ISPA out
+  no neighbor 192.0.2.6 route-map FROM-ISPA in
+  no neighbor 192.0.2.6 route-map TO-ISPB out
+exit
+exit
+end
+write memory
+EOF
