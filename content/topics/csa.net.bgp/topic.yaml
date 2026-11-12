@@ -85,7 +85,10 @@ objectives:
 #   https://docs.cloud.google.com/network-connectivity/docs/router/how-to/create-router-vpc-network ;
 #   "If a BGP peer advertises more than 5,000 prefixes, Cloud Router resets
 #   the BGP session" (last updated 2026-11-10):
-#   https://docs.cloud.google.com/network-connectivity/docs/router/quotas
+#   https://docs.cloud.google.com/network-connectivity/docs/router/quotas ;
+#   "Cloud Router sets the value of the hold timer to three times the value
+#   of the configured keepalive interval" (read by the topic's reviewer,
+#   2026-11-12): https://docs.cloud.google.com/network-connectivity/docs/router/how-to/managing-bgp-timers
 # Every output marked "captured" in the lesson, the labs and the recall items
 # is real output of this topic's labs (FRR 8.4.4 on Ubuntu 24.04, on the
 # network-lab base, Docker Desktop 29.8.2), captured on 2026-11-12: a session
@@ -224,7 +227,7 @@ prove:
         required: false
         description: "When a session drops (at once if the link goes down, after the hold time if the path dies silently), its routes are withdrawn and the next best path, through the other provider, takes over by itself; when it returns, the preferred path wins again."
     model_answer: |
-      The internet doesn't find anyone: tens of thousands of networks, each an autonomous system with its own number, tell their neighbours which addresses they can reach, and BGP is how they say it. Two routers become neighbours by opening a TCP connection on port 179. Each is configured with the other's address and AS number, and they exchange OPEN messages; if the AS number in the OPEN isn't the one configured, the session is refused with "bad peer AS". Then they exchange routes, prefixes with their AS paths, and keepalives every few seconds. If one hears nothing for the hold time, 180 seconds by default, it drops the session and forgets the routes it learned over it. Between two companies that's eBGP; between routers of one company it's iBGP.
+      The internet doesn't find anyone: tens of thousands of networks, each an autonomous system with its own number, tell their neighbours which addresses they can reach, and BGP is how they say it. Two routers become neighbours by opening a TCP connection on port 179. Each is configured with the other's address and AS number, and they exchange OPEN messages; if the AS number in the OPEN isn't the one configured, the session is refused with "bad peer AS". Then they exchange routes, prefixes with their AS paths, and keep sending keepalives, every 60 seconds by FRR's default. If one hears nothing for the hold time, 180 seconds by default, it drops the session and forgets the routes it learned over it. Between two companies that's eBGP; between routers of one company it's iBGP.
 
       What we announce and accept needs a filter each way. We should announce only our own prefix, and the network line only works if that exact prefix is in our routing table. If we passed one provider's routes to the other, we would be leaking: the second provider might send its traffic for the first one's customers through our small links, which is what happened in 2019 when a company passed one provider's routes to Verizon, which accepted them. Coming in, we should refuse our own prefix and anything inside it: if a provider sends a more specific route for half our addresses, by mistake or as a hijack, longest-prefix match makes it beat our own network, and our servers become unreachable from outside. FRR follows RFC 8212, so an eBGP session passes nothing at all until a route map allows it; turning that off is the wrong fix. A maximum-prefix limit is a fuse against a neighbour who suddenly sends a whole internet table.
 
