@@ -1,5 +1,6 @@
 # The checks of "A session with the cloud": edge's new session over the
-# private link, what the cloud accepted from edge, what edge accepts from the
+# private link, what the cloud accepted from edge (including whether a new
+# route ISP A offers at check time goes on to it), what edge accepts from the
 # cloud (including a prefix the cloud offers at check time, which the
 # learner has never seen), the path edge now uses to the cloud's web servers
 # and that it came from BGP, the ISP sessions as they were, whether the work
@@ -32,13 +33,32 @@ checks:
     expect:
       equals: up
   - id: cloud-gets-only-the-shop
-    description: "The cloud's router accepts exactly one route from edge over the private link: the shop's 198.51.100.0/24."
+    description: "The cloud's router accepts exactly one route from edge over the private link, the shop's 198.51.100.0/24, even when an ISP offers edge a route it hasn't sent before."
     command: |
       . /usr/local/lib/netlab/checklib.sh
-      # What the cloud's router took from edge on that session (it takes
-      # everything a customer sends).
-      got=$(frr cloud 'show bgp ipv4 unicast neighbors 169.254.30.1 routes json' | json "sorted(d.get('routes', {}))")
+      # 1. What the cloud's router took from edge on that session (it takes
+      #    everything a customer sends).
+      sent() { frr cloud 'show bgp ipv4 unicast neighbors 169.254.30.1 routes json' | json "sorted(d.get('routes', {}))"; }
+      got=$(sent)
       [ "$got" = '["198.51.100.0/24"]' ] || { echo "the cloud accepted $got from edge, not just the shop's 198.51.100.0/24"; exit 0; }
+      # 2. ISP A offers edge, for a few seconds, a route it has never sent
+      #    before, a new customer's /24 inside 10.11.0.0/16 chosen at random:
+      #    a kernel route on ISP A's router, which its BGP hands on. edge
+      #    takes it from ISP A, but mustn't pass it on to the cloud, so an
+      #    export filter that only refuses the ISP routes the learner has
+      #    seen fails. The check removes it again, even if it is stopped part
+      #    way (the trap runs on the way out).
+      prefix="10.11.$((RANDOM % 256)).0/24"
+      trap 'ip -n ispa route del blackhole "$prefix" 2> /dev/null' EXIT
+      ip -n ispa route add blackhole "$prefix" || { echo "the check couldn't offer a route from ISP A"; exit 0; }
+      advertised() { [ "$(frr ispa 'show bgp ipv4 unicast neighbors 192.0.2.1 advertised-routes json' | json "'$prefix' in d.get('advertisedRoutes', {})")" = True ]; }
+      wait_for 5 advertised || { echo "ISP A never offered $prefix to edge, so the check couldn't test it"; exit 0; }
+      # Passed on, it reaches the cloud in well under a second.
+      leaked() { [ "$(sent)" != '["198.51.100.0/24"]' ]; }
+      if wait_for 4 leaked; then
+        echo "edge passed $prefix, a route ISP A offered for the first time, on to the cloud"
+        exit 0
+      fi
       echo exactly
     expect:
       equals: exactly

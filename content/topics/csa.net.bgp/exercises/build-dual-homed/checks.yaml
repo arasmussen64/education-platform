@@ -1,7 +1,8 @@
 # The checks of "The dual-homed shop": edge's two sessions, what each ISP
-# accepted from it, what it accepts from them (including a route for part of
-# the shop's addresses that an ISP offers at check time, which the learner
-# has never seen), the path it chooses and why, traffic both ways, whether
+# accepted from it (including whether a new route ISP A offers at check time
+# goes on to ISP B), what it accepts from them (including a route for part of
+# the shop's addresses that an ISP offers at check time; the learner has
+# never seen either), the path it chooses and why, traffic both ways, whether
 # the work lasts (FRR's running configuration against its file, no routes
 # typed into the kernel), the far routers as they were, and last, the backup
 # proved by unplugging the cable to ISP A and plugging it back in.
@@ -33,16 +34,34 @@ checks:
     expect:
       equals: up
   - id: announced-exactly
-    description: "ISP A and ISP B each accept exactly one route from edge: the shop's 198.51.100.0/24."
+    description: "ISP A and ISP B each accept exactly one route from edge, the shop's 198.51.100.0/24, even when an ISP offers edge a route it hasn't sent before."
     command: |
       . /usr/local/lib/netlab/checklib.sh
-      # What each ISP's router took from edge (after its own filters, which
-      # take everything a customer sends).
+      # 1. What each ISP's router took from edge (after its own filters,
+      #    which take everything a customer sends).
       for isp in "ispa 192.0.2.1 A" "ispb 192.0.2.5 B"; do
         set -- $isp
         got=$(frr "$1" "show bgp ipv4 unicast neighbors $2 routes json" | json "sorted(d.get('routes', {}))")
         [ "$got" = '["198.51.100.0/24"]' ] || { echo "ISP $3 accepted $got from edge, not just the shop's 198.51.100.0/24"; exit 0; }
       done
+      # 2. ISP A offers edge, for a few seconds, a route it has never sent
+      #    before, a new customer's /24 inside 10.11.0.0/16 chosen at random:
+      #    a kernel route on ISP A's router, which its BGP hands on. edge may
+      #    take it, but mustn't pass it on to ISP B, so an export filter that
+      #    only refuses the routes the learner has seen fails. The check
+      #    removes it again, even if it is stopped part way (the trap runs on
+      #    the way out).
+      prefix="10.11.$((RANDOM % 256)).0/24"
+      trap 'ip -n ispa route del blackhole "$prefix" 2> /dev/null' EXIT
+      ip -n ispa route add blackhole "$prefix" || { echo "the check couldn't offer a route from ISP A"; exit 0; }
+      advertised() { [ "$(frr ispa 'show bgp ipv4 unicast neighbors 192.0.2.1 advertised-routes json' | json "'$prefix' in d.get('advertisedRoutes', {})")" = True ]; }
+      wait_for 5 advertised || { echo "ISP A never offered $prefix to edge, so the check couldn't test it"; exit 0; }
+      # Passed on, it reaches ISP B in well under a second (measured: 0.06 s).
+      leaked() { [ "$(frr ispb 'show bgp ipv4 unicast neighbors 192.0.2.5 routes json' | json "'$prefix' in d.get('routes', {})")" = True ]; }
+      if wait_for 4 leaked; then
+        echo "edge passed $prefix, a route ISP A offered for the first time, on to ISP B"
+        exit 0
+      fi
       echo exactly
     expect:
       equals: exactly
