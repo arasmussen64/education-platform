@@ -1,0 +1,16 @@
+id: mcq-cloud-floating-ip
+type: mcq
+rev: 1
+prompt: |
+  Two servers share a "floating" address: when one fails, a program on the other announces that it now has the address, with a gratuitous ARP (an ARP reply nobody asked for, broadcast to everyone). On a company's own network this works. Two VMs set up the same way in AWS, Azure or Google Cloud don't fail over. Why?
+choices:
+  - "The clouds' networks carry no broadcast, so the announcement never reaches a machine"
+  - "Cloud VMs have no MAC addresses of their own, so ARP can't name the new owner at all"
+  - "The clouds block every ARP packet to stop spoofing, so VMs never learn each other's MAC"
+  - "Gratuitous ARP needs IPv6, and the clouds' networks carry IPv4 unless you ask for both"
+answer: 0
+explanation: |
+  All three say so in their documentation: AWS reserves a subnet's broadcast address because "we do not support broadcast in a VPC"; Azure's virtual network FAQ says multicast and broadcast are blocked; Google's VPC networks "do not support broadcast or multicast". The provider's own network decides which VM an address belongs to, so a broadcast announcing a new owner goes nowhere. In a cloud you move the address through the provider's API (reassigning a secondary private address to the other VM, say), or put a load balancer in front of the two.
+
+  VMs do have MAC addresses, and ARP for the gateway works in every cloud: a VM's first packet depends on it. Gratuitous ARP is plain IPv4 ARP; IPv6 has its own neighbour discovery instead.
+skills: [arp-neighbours, layer-model]

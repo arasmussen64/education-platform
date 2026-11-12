@@ -1,0 +1,70 @@
+id: example-follow-a-request
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Follow one request"
+prompt: |
+  **Before your first network lab.** The labs from here on are small networks: several machines in one lab. They start, open, check and stop with the same four commands as every lab, and five things are new.
+
+  - **Machines.** The lab is still one container, but inside it the lab builds a network of **machines**. Each is a network namespace (Module 1's office was one) with its own interfaces, addresses, routes, firewall and ports, and its own settings in its own `/etc`. The machine your shell opens on, `learner@lab`, is the console: it's on none of the lab's networks. `netlab show` lists the machines and their addresses.
+  - **`on MACHINE COMMAND`** runs a command on a machine as its administrator (root): `on office ping 10.0.2.20`. `on MACHINE` alone opens a shell there, whose prompt says where you are (`root@r1`); `exit` comes back to the console.
+  - **The topology file**, `/etc/netlab/topology`, is the network's diagram in text: each machine, the cables and switches between them, and the services each runs. It's **scenery**, part of the lab you read and never change, like a cloud provider's own network; checks notice if it changes.
+  - **Services are `name@machine`.** A machine has no systemd of its own: its services are units on the console, named after the program and the machine. `systemctl status nginx@web`, `journalctl -u nginx@web` and `sudo systemctl restart nginx@web` are nginx on the machine `web`.
+  - **A machine's own settings are files in its `/etc`**, given by their path inside it: `on r1 nano /etc/network/up` edits r1's **network file**, the `ip` commands r1 runs at every boot to set its addresses, routes and tunnels. `sudo netlab restart` builds the whole network again from every machine's files, as a reboot would.
+
+  The machines share the console's processes, `/tmp` and home folders, so `~/example` is the same folder on all of them. The first start of your first network lab builds the network labs' base, about 650 MB, which takes a few minutes once; every network lab after it starts in seconds.
+
+  **This lab.** The shop's office laptop, `office` (10.0.1.10), reaches the shop's web server, `web` (10.0.2.20), in its cloud network. Between them are `r1`, the office's router, a link across the internet, and `r2`, the cloud's router. r1 and r2 carry the office's traffic across the internet inside a GRE tunnel. The walkthrough first looks around the lab, then follows one `ping` from the laptop to web: the frames on each side of the path, the same packet in hex and in words, the tunnel wrapping it, and the biggest packet the path carries. Type each line yourself in the lab's shell and read what it prints before you type the next. A line ending in `&` runs in the background, so the next line can make traffic while it captures; `wait` waits for it to finish.
+steps:
+  - label: "The machines"
+    lines: "1"
+    note: "`netlab show` lists the four machines: whether each is a router (it forwards packets between networks) or a host, what services it runs, and its interfaces that are up with their addresses. `fe80::...` addresses are IPv6 link-local ones, which every interface gives itself; topic 25 explains them. r1 and r2 each have a `gre1`: the two ends of the tunnel."
+  - label: "The network's diagram, in text"
+    lines: "2"
+    note: "The topology file. `machine` lines name the machines (`router` for the two that forward). `link office:eth0 r1:eth0` is a cable between office's `eth0` and r1's `eth0`; `lan cloud r2:lan web:eth0` is a switch called `cloud` with r2's `lan` and web's `eth0` plugged into it. `run web nginx` starts nginx on web. The addresses aren't here: they are each machine's own settings."
+  - label: "On a machine"
+    lines: "3"
+    note: "`on office` runs `ip -br addr` on the laptop: its `eth0` with 10.0.1.10/24. The interfaces marked DOWN with names like `gre0`, `sit0` and `tunl0` are **placeholder interfaces**: the kernel adds one of each to every machine once a tunnel of that type exists anywhere on Docker's machine. They do nothing, and the labs never use them."
+  - label: "A machine's services"
+    lines: "4"
+    note: "nginx on web, as a unit on the console called `nginx@web`: `active (running)`, with its processes. Its settings are web's own `/etc/nginx`, its log lines are in the console's journal (`journalctl -u nginx@web`), and `sudo systemctl reload nginx@web` would make it read them again. A habit-typed `sudo systemctl restart nginx`, with no machine, fails, and `systemctl status nginx` then says which unit to type."
+  - label: "A machine's own settings"
+    lines: "5"
+    note: "r1's network file, run at every boot: its two addresses, the GRE tunnel to r2's address on the internet, the tunnel's own address, and a route that sends everything for 10.0.0.0/16 (the cloud's addresses) into the tunnel. A real server keeps the same settings in netplan's or `/etc/network/interfaces` files; here it's a plain list of `ip` commands, which you can read line by line. Changing it means `on r1 nano /etc/network/up`, then `sudo netlab restart`."
+  - label: "Where packets go"
+    lines: "6-8"
+    note: "The laptop's routes: `default via 10.0.1.1` (r1 is its gateway) and 10.0.1.0/24 on `eth0` directly. r1's routes: 10.0.0.0/16 into `gre1`, so anything for web goes into the tunnel; 10.0.1.0/24 on `eth0`; 10.255.0.0/30, the tunnel's own two addresses, in `gre1`; 203.0.113.0/24, the internet link, on `wan`. The `curl` proves the whole path works, layer by layer, up to the application: web answers with its page."
+  - label: "Start from empty neighbour tables"
+    lines: "9"
+    note: "Each machine remembers the MAC addresses of the neighbours it has talked to (its neighbour table, `ip neigh`). Emptying all four makes the next ping find them again with ARP, so the capture shows it. The `for` loop runs the same command on each machine."
+  - label: "Capture both sides of one ping"
+    lines: "10-12"
+    note: "Two captures in the background, each for four seconds (`timeout 4` stops a command after that long): one on r1's `eth0`, the laptop's side, and one on r2's `lan`, web's side. `-e` prints each frame's MAC addresses, `-v` each IPv4 header's fields, and the filter keeps only ARP and ICMP. After a second, so both are listening, one ping from the laptop; `wait` waits for both captures to end."
+  - label: "Read the two sides"
+    lines: "13-14"
+    note: "The laptop's side starts with ARP: a request from the laptop's MAC to `ff:ff:ff:ff:ff:ff`, the broadcast address, `who-has 10.0.1.1 tell 10.0.1.10`, and r1's reply straight back, `10.0.1.1 is-at` r1's MAC. The laptop never asks for web's MAC: web isn't on its network. Then the echo request, from the laptop's MAC to r1's, with `ttl 64` and an `id`. On web's side, r2 asks ARP for web, and the same echo request leaves r2 from r2's MAC to web's, with the same `id` and the same addresses, 10.0.1.10 > 10.0.2.20, and `ttl 62`: two routers, two decrements. Each hop builds a new frame; the packet inside keeps its addresses. The echo replies show the same in the other direction: `ttl 64` leaving web, `ttl 62` reaching the laptop."
+  - label: "The same packet in hex"
+    lines: "15-16"
+    note: "`-xx` prints the whole frame as hexadecimal, two digits a byte, 16 bytes a line, and `-c 1` stops after one packet. The first 6 bytes are the destination MAC (r1's), the next 6 the source (the laptop's), then `0800`, the EtherType for IPv4. The IPv4 header starts with `45`: version 4, and a header of 5 four-byte words, 20 bytes. On the second line, `0054` is the total length (5 × 16 + 4 = 84), then the identification, `4000` (the don't-fragment flag), `40` the TTL (4 × 16 = 64) and `01` the protocol, ICMP. The header's last 8 bytes are the two addresses: `0a00 010a` is 10.0.1.10, and `0a00` at the end of the line with `0214` at the start of the next is 10.0.2.20."
+  - label: "And in words"
+    lines: "17-18"
+    note: "`tshark` is Wireshark's command-line twin. `-V` prints every field of one packet in words: the Ethernet II header with its two MAC addresses and `Type: IPv4 (0x0800)`, the IPv4 header with `Total Length: 84`, `Identification`, `Don't fragment: Set` and `Time to Live: 64`, then ICMP's `Type: 8 (Echo (ping) request)`. It's the hex dump above, read out. Its first line warns that it runs as root; in a lab that's expected. This lab sends three pings, because tshark takes a moment to start; `-c 1` keeps the first."
+  - label: "Encapsulation on the wire"
+    lines: "19-20"
+    note: "The same kind of ping, captured on r1's internet link, `wan`. Each packet is now two: an outer IPv4 header from 203.0.113.1 to 203.0.113.2 with `proto GRE (47)` and `length 108`, then `GREv0`, then the laptop's whole packet, 10.0.1.10 > 10.0.2.20 with `length 84`, its TTL already 63 because r1 lowered it before wrapping it. 108 − 84 = 24 bytes of tunnel: a 20-byte outer IPv4 header and a 4-byte GRE header. The internet only ever sees the two routers' public addresses."
+  - label: "Inside the tunnel"
+    lines: "21-22"
+    note: "The same capture on r1's `gre1`, the tunnel's own interface. Only the inner packets are there, 10.0.1.10 > 10.0.2.20 and the reply: the GRE header is added after a packet leaves `gre1` and taken off before one arrives. To see a tunnel's headers, capture on the link underneath."
+  - label: "The path's MTU"
+    lines: "23-24"
+    note: "`tracepath` sends the biggest packet its interface allows, with don't-fragment set, and lowers it each time a router says it's too big. It starts at `pmtu 1500` (the laptop's own link), and at r1 it learns `pmtu 1476`: the tunnel's MTU, 1500 − 24. `Resume: pmtu 1476 hops 3` is the path's MTU. The laptop's kernel remembers it for this destination: `ip route get` shows `cache expires 599sec mtu 1476`, about ten minutes."
+  - label: "Packets that fit, and one that doesn't"
+    lines: "25-27"
+    note: "`ping -M do` sets don't-fragment, and `-s N` sends N bytes of data in a packet N + 28 bytes long (20 bytes of IPv4 header, 8 of ICMP). `-s 1448` makes 1476: it fits and gets an answer. `-s 1449` makes 1477, and the laptop's kernel refuses it itself, `local error: message too long, mtu=1476`, from what it remembers. A destination it has nothing cached for, r2's 10.0.2.1, gets a full 1500-byte packet: r1 answers `Frag needed and DF set (mtu = 1476)`, ICMP's \"fragmentation needed\". Path MTU discovery is exactly this, done by every sender for every destination."
+  - label: "What you saved"
+    lines: "28"
+    note: "Five files: the two sides of one ping, the hex dump, the tunnel on the wire, and the path's MTU. Run the checks."
+skills: [layer-model, read-headers, arp-neighbours, encapsulation-mtu, pmtud-blackholes]

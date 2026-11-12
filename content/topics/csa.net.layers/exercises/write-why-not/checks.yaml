@@ -1,0 +1,41 @@
+# The checks for "Write why-not": the script is there and runs, then it is
+# tried from the office against machines the check builds for the purpose
+# (why-not-cases, in /usr/local/lib/lab/): on the office's own network,
+# behind r1, and a mix chosen at random, each at an address and on ports
+# picked when the check runs. srv's and far's ports are for trying the
+# script out; knowing them passes nothing here.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/why-not exists, is executable, and starts with a shebang line."
+    command: |
+      f=/home/learner/bin/why-not
+      [ -f "$f" ] || { echo "there is no ~/bin/why-not"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/why-not isn't executable (chmod +x)"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/why-not doesn't start with a shebang line"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: on-the-office-network
+    description: "For machines on the office's own network, it prints open, refused or dropped as each connection behaves, and no-arp for an address nobody owns."
+    command: /usr/local/lib/lab/why-not-cases on:open on:refused on:dropped on:no-arp
+    timeout: 60
+    expect:
+      equals: right
+  - id: behind-the-router
+    description: "For machines on the back network, behind r1, it prints open, refused or dropped as each connection behaves."
+    command: /usr/local/lib/lab/why-not-cases off:open off:refused off:dropped
+    timeout: 60
+    expect:
+      equals: right
+  - id: a-random-mix
+    description: "Four more cases, chosen at random from both networks, each get the right word."
+    command: |
+      all=(on:open on:refused on:dropped on:no-arp off:open off:refused off:dropped)
+      cases=()
+      for i in 1 2 3 4; do cases+=("${all[RANDOM % ${#all[@]}]}"); done
+      /usr/local/lib/lab/why-not-cases "${cases[@]}"
+    timeout: 60
+    expect:
+      equals: right

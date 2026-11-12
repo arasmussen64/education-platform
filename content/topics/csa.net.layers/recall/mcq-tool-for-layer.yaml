@@ -1,0 +1,16 @@
+id: mcq-tool-for-layer
+type: mcq
+rev: 1
+prompt: |
+  A server "can't be reached". You want to test layer 2 alone, on the server's own network: does the next box answer for its address at all?
+choices:
+  - "`ip neigh show` after a ping, to see whether the gateway's entry resolved"
+  - "`traceroute -n` to the gateway, to see whether the first hop shows a time"
+  - "`nc -zv` to the gateway on port 22, to see whether that port is open"
+  - "`dig` for the gateway's name, to see whether it resolves to an address"
+answer: 0
+explanation: |
+  Layer 2 is the link to the next box: does something answer ARP for its address? A ping makes the kernel ask, whether or not the ping itself is answered, and `ip neigh show` then says what happened: `REACHABLE` or `STALE` with a MAC address means it answered; `FAILED` or `INCOMPLETE` means nothing did.
+
+  `traceroute` tests layer 3, the routers on a path, and a firewall can silence it while ARP works. `nc -zv` tests a TCP port, layer 4, which a gateway may well not offer. `dig` asks DNS, an application, about a name; the answer says nothing about the link.
+skills: [layer-model]

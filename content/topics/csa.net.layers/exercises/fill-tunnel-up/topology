@@ -1,0 +1,20 @@
+# The network of "Put the tunnel up": the shop's office, the internet,
+# and the shop's cloud network. r2's end of the GRE tunnel is ready; r1's
+# is the learner's, in r1's /etc/network/up.
+#
+#   office --- r1 ==(wan: the internet)== r2 --[cloud]-- web
+#
+# Only the cables are here. Each machine's addresses, routes and tunnel
+# are its own settings, in its /etc/network/up; r2's firewall is its
+# /etc/nftables.conf.
+machine office
+machine r1 router
+machine r2 router
+machine web
+
+link office:eth0 r1:eth0
+link r1:wan r2:wan
+lan cloud r2:lan web:eth0
+
+run r2 nftables
+run web nginx

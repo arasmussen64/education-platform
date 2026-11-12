@@ -1,0 +1,30 @@
+id: write-why-not
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Write why-not"
+prompt: |
+  Write a script, `~/bin/why-not HOST PORT`, that says in one word why a TCP connection from the office to HOST on PORT works or doesn't, testing from the bottom layer up, the way the lesson works through a fault. It prints exactly one of:
+
+  - `no-arp`: the next hop never answered ARP. The next hop is HOST itself when HOST is on the office's own network, and the gateway when it isn't.
+  - `refused`: a reset came straight back (nothing listens on that port).
+  - `dropped`: nothing came back within 2 seconds.
+  - `open`: the connection was made.
+
+  The lab. The office, `office` (10.0.7.10), shares a network (10.0.7.0/24) with a server, `srv` (10.0.7.20), and the router `r1` (10.0.7.1). Behind r1 is a back-office network (10.0.9.0/24) with another server, `far` (10.0.9.30). srv and far each run a web server on port 80 and a firewall that drops ping and two other ports; nothing on the office's network owns 10.0.7.200 to 10.0.7.249. Run the script as the office would: `on office ~/bin/why-not 10.0.7.20 80`. (`on office` runs it as root on the office; `~/bin` is in your home folder, which every machine shares.)
+
+  The tools, in the order the script needs them:
+
+  - **The next hop:** `ip route get HOST` prints the route the kernel would use. When it contains `via ADDRESS`, that address is the next hop; otherwise HOST is on this network and is its own next hop. `awk '{for (i = 1; i < NF; i++) if ($i == "via") print $(i + 1)}'` prints the word after `via`, or nothing.
+  - **Layer 2:** `ping -c 1 -W 1 HOST > /dev/null` makes the kernel ask ARP for the next hop whether or not the ping is answered (srv and far drop pings). Then `ip neigh show NEXTHOP` shows the neighbour's state as its last word: `FAILED` or `INCOMPLETE` (or no line at all) means it never answered.
+  - **Layer 4:** `nc -z -w 2 HOST PORT` exits 0 when the connection is made. Without `-v` it prints nothing either way, and a refusal and a drop both exit 1, so time it: `start=$(date +%s%N)` before it reads the clock in nanoseconds, and `$((($(date +%s%N) - start) / 1000000))` after it is how many milliseconds it took. A reset comes back in a few; a drop takes the whole 2 seconds (count 1,500 or more as dropped).
+
+  Start the file with `mkdir -p ~/bin` and `nano ~/bin/why-not`, begin it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/why-not`. Try it against srv and far (ports 80, 22 and the ones their firewalls drop: `on srv nft list ruleset`), and against an address nobody owns. The checks build test machines of their own, with addresses and ports chosen as the checks run, so the script must test, not know. Then run the checks.
+hints:
+  - "Read the two arguments first: `host=$1` and `port=$2`. Then `hop=$(ip route get \"$host\" | awk ...)`, and if `$hop` is empty, `hop=$host`."
+  - "`state=$(ip neigh show \"$hop\" | awk '{print $NF}')` keeps the last word of the line. Test it with `if [ -z \"$state\" ] || [ \"$state\" = FAILED ] || [ \"$state\" = INCOMPLETE ]; then echo no-arp; exit 0; fi`: the script stops there, since there's no point testing a port behind a next hop that never answered."
+  - "For the port: `if nc -z -w 2 \"$host\" \"$port\" 2> /dev/null; then echo open; exit 0; fi`, then the milliseconds, then `if [ \"$ms\" -ge 1500 ]; then echo dropped; else echo refused; fi`."
+skills: [arp-neighbours, layer-model]

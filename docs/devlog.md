@@ -2,6 +2,26 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-12, later: Module 3's first topics
+
+The owner is still away; decisions follow their message of 2026-11-11. Wave 1 of Module 3 runs in two halves of three topics. In each, one agent writes a topic in its own worktree and a second reviews it cold: it reads the topic as the first learner, checks its facts at their sources again and attacks every lab check as a hurried learner would. Each topic then lands in its own pull request, after the three are combined and every one of their labs has passed its contract together.
+
+**Layers and packets is ready** (#257), the module's first topic. Its lesson follows one request from a laptop to a web server, across two routers and a GRE tunnel, and reads the lab's own capture of both sides of a router: the MAC addresses change at each hop, while the IP addresses and the packet's identification stay the same and the TTL drops by one. It reads a header byte by byte in hex, then covers ARP and the neighbour states, ICMP and the packet each error quotes, MTU and tunnel overheads, the three clouds' MTU rules side by side (read on the day), and the path MTU black hole: how to prove one and the fixes, best first. The first lab opens with the module's "Before your first network lab" note, which every later network lab links to. In the build the learner connects a branch office through a GRE tunnel and a firewall; the debug is the base's big-downloads probe, finished, so the probe leaves the probe topic. Five labs (37 known-wrong fixes between them) and 28 recall items.
+
+The review fixed eleven things, three of them shortcuts a check let through: a `why-not` script that recognised the addresses the checks used, which the prompt's own example range gave away; a firewall with no rule for returning traffic, which still reached the cloud through the tunnel while the branch silently lost the internet; and a route sending all of 10.0.0.0/8 into the tunnel. Each now fails a check and has a known-wrong fix. Two practice items had also named the debug's fault and where it was.
+
+Built alongside it: the app bundles Module 3's topics, as it does Modules 1 and 2's; and the base takes a name like `br` or `a` for a switch or a tunnel (netlab passed the name straight to `ip link add`, which read `br` as broadcast).
+
+**Author notes:**
+
+- _The build's narrow link moved._ The plan put the 1400-byte link next to the branch's router, where the cloud's router dropped the oversized packets before the branch's firewall ever saw the ICMP. It now sits beyond the ISP, so r3 can only learn the path MTU from ICMP that its own firewall lets in, which is the point of the lab.
+- _A forgotten GRE rule passed the plan's checks_, because conntrack tracks GRE and the cloud's replies counted as established. A check now clears r3's GRE conntrack entries before the cloud starts a connection to the branch, and the prompt says the cloud may start connections.
+- _Videos linked without being watched._ Ben Eater's videos are linked as optional, confirmed by their titles and channel; nobody has watched them. Cloudflare's MTU page refuses automated fetches (HTTP 403), so the brief's fallback replaced it.
+- _The write lab has no ShellCheck check_; the base doesn't carry ShellCheck, and Module 1's networking write lab has none either.
+- _Bundling Module 3 also bundles the draft probe topic_, which shows only on a dev server, so nothing changes on the live site until each topic is ready.
+
+**Next:** CIDR and Routing, each in its own pull request; then wave 1's second half (DNS, HTTP semantics, BGP sessions), which is being written now.
+
 ## 2026-11-12: Module 3's platform, the network-lab base
 
 The owner is still away; decisions follow their message of 2026-11-11.

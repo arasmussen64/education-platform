@@ -1,0 +1,27 @@
+id: mcq-traceroute-loop
+type: mcq
+rev: 1
+prompt: |
+  From the office laptop, a printer at 10.0.3.5 doesn't answer, and `traceroute -n -m 8 -q 1 -w 1 10.0.3.5` prints this (captured in this topic's labs, 2026-11-12). 10.0.1.1 is the office's router and 10.255.0.2 the cloud router's end of a tunnel. What does it show?
+
+  ```text
+   1  10.0.1.1  0.152 ms
+   2  10.255.0.2  0.118 ms
+   3  10.0.1.1  0.084 ms
+   4  10.255.0.2  0.075 ms
+   5  10.0.1.1  0.065 ms
+   6  10.255.0.2  0.055 ms
+   7  10.0.1.1  0.043 ms
+   8  10.255.0.2  0.030 ms
+  ```
+choices:
+  - "Two routers pass these packets back and forth until their TTL runs out"
+  - "Two routers share the load, and traceroute shows whichever one answered"
+  - "The printer is switched off, so the routers report their own addresses instead"
+  - "The tunnel drops traceroute's probes, so each hop is tried again and again"
+answer: 0
+explanation: |
+  traceroute sends packets with a TTL of 1, 2, 3 and so on, and each line is the router that brought one to zero and answered "time exceeded". On a working path each hop is a new router, ending at the destination. Here the same two alternate: r1 sends the packet into the tunnel, r2 sends it back, and so on, until the TTL runs out wherever it happens to be. A loop like this comes from routes: each router's best route for the printer's address points at the other. The next step is to read those two routers' routes for it, and to ask why the one that should lead to the printer isn't being used.
+
+  Routers sharing the load would each appear at the same hop number, not take turns down the list. A printer that's off would leave the last hops silent (`* * *`) or bring "host unreachable" from the last router, not a repeating pair. And a tunnel that dropped the probes would make the hops after it silent too.
+skills: [icmp-messages]

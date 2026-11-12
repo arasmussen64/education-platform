@@ -1,0 +1,21 @@
+id: arp-who-has
+type: predict_shell
+rev: 1
+prompt: |
+  `office-side.txt` is the worked example's capture on r1's side towards the laptop (`tcpdump -e -nn -v`, captured 2026-11-12), after every neighbour table was emptied and the laptop (10.0.1.10) pinged web (10.0.2.20) once. The `grep -o` prints only the parts of lines that match either pattern (`\|` means "or"): an ARP question, and an ARP answer. What is printed?
+files:
+  office-side.txt: |
+    09:14:49.647084 9a:27:2d:a1:83:36 > ff:ff:ff:ff:ff:ff, ethertype ARP (0x0806), length 42: Ethernet (len 6), IPv4 (len 4), Request who-has 10.0.1.1 tell 10.0.1.10, length 28
+    09:14:49.647098 ba:b1:65:d2:b3:ed > 9a:27:2d:a1:83:36, ethertype ARP (0x0806), length 42: Ethernet (len 6), IPv4 (len 4), Reply 10.0.1.1 is-at ba:b1:65:d2:b3:ed, length 28
+    09:14:49.647102 9a:27:2d:a1:83:36 > ba:b1:65:d2:b3:ed, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 64, id 51451, offset 0, flags [DF], proto ICMP (1), length 84)
+        10.0.1.10 > 10.0.2.20: ICMP echo request, id 13488, seq 1, length 64
+    09:14:49.647178 ba:b1:65:d2:b3:ed > 9a:27:2d:a1:83:36, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 62, id 12406, offset 0, flags [none], proto ICMP (1), length 84)
+        10.0.2.20 > 10.0.1.10: ICMP echo reply, id 13488, seq 1, length 64
+command: |
+  grep -o 'who-has [0-9.]* tell [0-9.]*\|[0-9.]* is-at [0-9a-f:]*' office-side.txt
+expected_output: |
+  who-has 10.0.1.1 tell 10.0.1.10
+  10.0.1.1 is-at ba:b1:65:d2:b3:ed
+explanation: |
+  The laptop wanted to reach 10.0.2.20, which isn't on its network, so it sends the packet to its gateway, and asks ARP only for the gateway's MAC address: "who has 10.0.1.1? Tell 10.0.1.10". It never asks for 10.0.2.20; ARP never crosses a router. The question goes to `ff:ff:ff:ff:ff:ff`, the broadcast address, so everything on the network hears it; the answer, "10.0.1.1 is at ba:b1:65:d2:b3:ed", comes straight back to the laptop's own MAC. Both are 42-byte frames with EtherType `0x0806`, ARP. Then the echo request goes to that MAC.
+skills: [arp-neighbours]

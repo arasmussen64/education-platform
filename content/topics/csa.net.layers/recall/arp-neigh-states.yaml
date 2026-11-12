@@ -1,0 +1,24 @@
+id: arp-neigh-states
+type: predict_shell
+rev: 1
+prompt: |
+  `neigh.txt` is constructed in the format of `ip neigh` on a router (the addresses and MACs are made up): one line per neighbour, its address, the interface, its MAC address when it has one (`lladdr`), and its state as the last word. The `awk` program reads the last field, `$NF`. What is printed?
+files:
+  neigh.txt: |
+    192.168.8.20 dev eth1 lladdr 62:9c:ad:01:8d:1c REACHABLE
+    192.168.8.21 dev eth1 lladdr 62:9c:ad:01:8d:21 STALE
+    192.168.8.22 dev eth1 lladdr 62:9c:ad:01:8d:22 DELAY
+    192.168.8.23 dev eth1 FAILED
+    192.168.8.24 dev eth1 INCOMPLETE
+    192.168.8.40 dev eth1 lladdr 02:00:5e:10:00:40 PERMANENT
+command: |
+  awk '$NF == "FAILED" || $NF == "INCOMPLETE" {print $1, "never answered"} $NF == "PERMANENT" {print $1, "pinned by hand to", $5}' neigh.txt
+expected_output: |
+  192.168.8.23 never answered
+  192.168.8.24 never answered
+  192.168.8.40 pinned by hand to 02:00:5e:10:00:40
+explanation: |
+  `REACHABLE` answered recently. `STALE` answered a while ago and is still used; the next packet sent to it moves it to `DELAY`, and if nothing proves it alive within a few seconds the kernel asks ARP again. `INCOMPLETE` is a question asked and not answered yet, and `FAILED` is one that was asked three times and never answered: a wrong address, a machine that is down, or one that isn't really on this network. Neither has a MAC address, so field 5 isn't printed for them.
+
+  `PERMANENT` is an entry someone typed in (`ip neigh replace ... nud permanent`). The kernel never checks it again: if that machine's network card is replaced, every frame for it goes to a MAC address that no longer exists, silently, until someone deletes the line.
+skills: [arp-neighbours]

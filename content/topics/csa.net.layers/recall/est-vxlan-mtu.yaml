@@ -1,0 +1,26 @@
+id: est-vxlan-mtu
+type: estimate
+rev: 1
+prompt: |
+  VXLAN carries a whole Ethernet frame (with its 14-byte header) inside UDP (an 8-byte header), with an 8-byte VXLAN header between them, in a new 20-byte IPv4 packet. Over a network whose MTU is 1500 bytes, what is the largest packet the overlay can carry inside (its MTU)? Exactly.
+unit: bytes
+answer: 1450
+tolerance: { absolute: 0 }
+given: { mtu: 1500, eth: 14, udp: 8, vxlan: 8, ip: 20 }
+working: mtu - eth - udp - vxlan - ip
+mistakes:
+  - id: forgot-inner-ethernet
+    value: 1464
+    working: mtu - udp - vxlan - ip
+    why: VXLAN carries the inner packet's whole Ethernet frame, so its 14-byte header comes out of the room too.
+  - id: udp-and-ip-only
+    value: 1472
+    working: mtu - udp - ip
+    why: That leaves out the VXLAN header and the inner Ethernet header, 22 bytes between them.
+  - id: added
+    value: 1550
+    working: mtu + eth + udp + vxlan + ip
+    why: The headers are added to each packet on the underlying network, so the room left inside is smaller, not bigger.
+explanation: |
+  1500 − 14 − 8 − 8 − 20 = 1450 bytes, which is exactly what Linux gives a new VXLAN interface over a 1500-byte link. The underlay is the real network the outer packets cross; the overlay is the network inside the tunnels. Underlays in data centres often use jumbo frames so the overlay can keep 1500.
+skills: [encapsulation-mtu]

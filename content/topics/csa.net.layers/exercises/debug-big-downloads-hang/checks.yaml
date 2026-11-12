@@ -1,4 +1,6 @@
-# The checks of "Big downloads hang". Each reads the network's real state:
+# The checks of "Big downloads hang" (from the network-lab base's CI
+# probe of the same name, which kept its contract on Docker Desktop and on
+# GitHub's runners on 2026-11-12). Each reads the network's real state:
 # a download and its checksum, connections and pings from the office, a
 # packet too big for the tunnel sent from web, the interfaces' MTUs. Then
 # "laptop-untouched" compares the sealed scenery with the image's, and
@@ -32,7 +34,7 @@ checks:
         [ "$got" = "$mtu" ] || { echo "$m's $dev has an MTU of ${got:-nothing}, not $mtu"; exit 0; }
       done
       for m in office r1 r2 web files printer; do
-        if ip -n "$m" route show table all | grep -q ' mtu '; then echo "a route on $m sets an MTU"; exit 0; fi
+        if ip -n "$m" route show table all | grep ' mtu ' > /dev/null; then echo "a route on $m sets an MTU"; exit 0; fi
       done
       [ "$(on web sysctl -n net.ipv4.ip_no_pmtu_disc)" = 0 ] || { echo "web doesn't do path MTU discovery"; exit 0; }
       # A full-size packet that mustn't be fragmented, from web to an office
@@ -41,7 +43,7 @@ checks:
       # tunnel's MTU, and ping prints it only if web's kernel got the answer.
       to=10.0.1.$((128 + RANDOM % 127))
       out=$(on web ping -c 1 -W 2 -M do -s 1472 "$to" 2>&1)
-      if echo "$out" | grep -Eq 'mtu ?= ?1476'; then echo told; else echo "web sent a packet too big for the tunnel and wasn't told the path's MTU"; fi
+      if echo "$out" | grep -E 'mtu ?= ?1476' > /dev/null; then echo told; else echo "web sent a packet too big for the tunnel and wasn't told the path's MTU"; fi
     expect:
       equals: told
   - id: strict
@@ -98,7 +100,7 @@ checks:
         on chk-office ping -c 1 -W 2 10.0.2.30 > /dev/null || { echo "built fresh, the office cannot reach the file server"; exit 0; }
         on chk-office ping -c 1 -W 2 10.0.3.5 > /dev/null || { echo "built fresh, the office cannot reach the printer"; exit 0; }
         out=$(on chk-web ping -c 1 -W 2 -M do -s 1472 10.0.1.$((128 + RANDOM % 127)) 2>&1)
-        echo "$out" | grep -Eq "mtu ?= ?1476" || { echo "built fresh, web is not told the path MTU"; exit 0; }
+        echo "$out" | grep -E "mtu ?= ?1476" > /dev/null || { echo "built fresh, web is not told the path MTU"; exit 0; }
         kill $(jobs -p) 2> /dev/null
         echo lasts' || true
     timeout: 45

@@ -1,0 +1,24 @@
+id: hdr-two-sides
+type: predict_shell
+rev: 1
+prompt: |
+  The worked example's two captures of one ping, from its lab (captured 2026-11-12): `office-side.txt` on r1's side towards the laptop, `cloud-side.txt` on r2's side towards web. Each holds the echo request with `tcpdump -e -v`: the frame's two MAC addresses and the IPv4 header's fields on one line, then the addresses and ICMP on the next.
+
+  The `awk` program keeps each line in `h`; on a line with `ICMP echo request` it takes the commas out of the line before (the header line), splits it into the array `f` at the spaces, and prints the file's name, field 13 (the TTL's value) and field 15 (the IP identification). What is printed?
+files:
+  office-side.txt: |
+    09:14:49.647102 9a:27:2d:a1:83:36 > ba:b1:65:d2:b3:ed, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 64, id 51451, offset 0, flags [DF], proto ICMP (1), length 84)
+        10.0.1.10 > 10.0.2.20: ICMP echo request, id 13488, seq 1, length 64
+  cloud-side.txt: |
+    09:14:49.647158 aa:5a:b3:66:05:d7 > 62:9c:ad:01:8d:1c, ethertype IPv4 (0x0800), length 98: (tos 0x0, ttl 62, id 51451, offset 0, flags [DF], proto ICMP (1), length 84)
+        10.0.1.10 > 10.0.2.20: ICMP echo request, id 13488, seq 1, length 64
+command: |
+  awk '/ICMP echo request/ {gsub(/,/, "", h); split(h, f, " "); print FILENAME, "ttl", f[13], "id", f[15]} {h = $0}' office-side.txt cloud-side.txt
+expected_output: |
+  office-side.txt ttl 64 id 51451
+  cloud-side.txt ttl 62 id 51451
+explanation: |
+  One packet, seen twice: the identification number, 51451, is the same on both sides, and so are the addresses, 10.0.1.10 > 10.0.2.20. What changed is the TTL, 64 as it left the laptop and 62 as it left r2: each router lowers it by one, so two routers handled it. The MAC addresses changed too: on the laptop's side the frame went from the laptop's MAC to r1's, on web's side from r2's to web's. Each hop builds a new frame around the same packet (and, because the TTL changed, works out the header's checksum again).
+
+  The fields counted from 1 after the commas are gone: the time, the source MAC, `>`, the destination MAC, `ethertype`, `IPv4`, `(0x0800)`, `length`, `98:`, `(tos`, `0x0`, `ttl` and then 13, its value; `id` is 14, its value 15.
+skills: [read-headers]

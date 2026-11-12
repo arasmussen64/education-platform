@@ -1,0 +1,16 @@
+id: mcq-mss-clamp
+type: mcq
+rev: 1
+prompt: |
+  Engineers "fix" a path MTU black hole by clamping the TCP MSS on the tunnel's routers: they rewrite the MSS in every new connection's SYN so its packets fit the tunnel. Downloads work again. What is still broken?
+choices:
+  - "Anything that isn't TCP, whose full-size packets still vanish"
+  - "Nothing: clamping removes the need for ICMP for every protocol"
+  - "New TCP connections, because clamping only changes connections already open"
+  - "Small packets, because the clamp now pads every one of them to the full MSS"
+answer: 0
+explanation: |
+  The MSS is a TCP option: clamping makes both ends of each TCP connection send smaller segments, so TCP never needs "fragmentation needed". Everything else still does: UDP that sends big answers (DNS with DNSSEC), QUIC (topic 29), and other tunnels' packets inside this one. The ICMP that path MTU discovery needs is still being dropped somewhere, and that's the cause. Clamping is a fine extra (Google's VPC networks clamp the MSS of traffic leaving them), never the fix.
+
+  It works on the SYN, the first packet of a connection, so it's new connections it changes, not open ones. And it only lowers the largest segment; it pads nothing.
+skills: [pmtud-blackholes]

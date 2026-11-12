@@ -1,0 +1,19 @@
+id: fill-tunnel-up
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Put the tunnel up"
+prompt: |
+  The network from the walkthrough, with one end of the tunnel missing. The office laptop, `office` (10.0.1.10), should reach the shop's web server, `web` (10.0.2.20), through a GRE tunnel from r1, the office's router, to r2, the cloud's router, across the internet link between them. r2's end of the tunnel is ready: its address in the tunnel is 10.255.0.2, and it sends the office's traffic back through it. The internet link carries packets of up to 1500 bytes, and carries no private addresses: r2 lets nothing from it into the cloud's network unless it came through a tunnel.
+
+  r1's end is yours. Its network file, `/etc/network/up`, has the tunnel's lines with four gaps, each a `___`: the tunnel's two ends on the internet (the `local` address is r1's own, `remote` is r2's), its MTU, and the interface the route for the cloud's addresses goes to. Fill them in so that the office reaches web through the tunnel, and give the tunnel the largest MTU that never needs a packet on it fragmented on this path. `netlab show` lists the machines and their addresses.
+
+  Edit the file with `on r1 nano /etc/network/up`, then build the network again from the files with `sudo netlab restart` (until every gap is filled, r1's file stops at its first gap, and `journalctl -u netlab` says which line). Try it: `on office curl -s -o /dev/null -w '%{size_download} bytes\n' http://10.0.2.20/pricelist.csv` should report about 2 MB. Change only r1's network file. Then run the checks.
+hints:
+  - "`netlab show` lists each machine's addresses: r1's on its `wan` interface is `local`, r2's on its `wan` is `remote`. `on r1 ip link show wan` prints the internet link's MTU."
+  - "GRE wraps each packet in a 20-byte outer IPv4 header and a 4-byte GRE header, so the tunnel's MTU is the link's less those 24 bytes. `ip -d link show gre1` on r2 (`on r2 ip -d link show gre1`) shows the MTU the kernel gave r2's end."
+  - "The last gap is the interface the route sends the cloud's addresses into: the tunnel's own name, the one the first line creates. A route `via 203.0.113.2` would send them across the internet unwrapped, and r2 drops those."
+skills: [encapsulation-mtu, layer-model]

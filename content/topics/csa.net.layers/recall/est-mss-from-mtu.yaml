@@ -1,0 +1,28 @@
+id: est-mss-from-mtu
+type: estimate
+rev: 1
+prompt: |
+  A link's MTU is 1500 bytes. A TCP connection over IPv4, with no IP or TCP options, may carry at most how many bytes of data in one packet (its MSS)? Exactly.
+unit: bytes
+answer: 1460
+tolerance: { absolute: 0 }
+# The 20-byte IPv4 header and the 20-byte TCP header are for the learner to
+# know (the lesson's overhead numbers), so they are in the working, not given.
+given: { mtu: 1500 }
+working: mtu - 20 - 20
+mistakes:
+  - id: ip-only
+    value: 1480
+    working: mtu - 20
+    why: That takes off the IPv4 header only. The TCP header, another 20 bytes, is inside the packet too.
+  - id: took-off-ethernet
+    value: 1446
+    working: mtu - 54
+    why: That takes off Ethernet's 14 bytes as well. The MTU counts the IP packet only; the frame around it is extra.
+  - id: mtu-itself
+    value: 1500
+    working: mtu
+    why: The MTU is the whole IP packet, headers included. The MSS is only the data inside it.
+explanation: |
+  1500 − 20 (IPv4) − 20 (TCP) = 1460, the MSS each side announces in its SYN on an ordinary Ethernet link. Options (timestamps, say) take a few bytes more of the TCP header out of it.
+skills: [encapsulation-mtu]

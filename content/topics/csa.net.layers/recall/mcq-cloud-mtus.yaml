@@ -1,0 +1,18 @@
+id: mcq-cloud-mtus
+type: mcq
+rev: 1
+prompt: |
+  An EC2 instance in a VPC has an MTU of 9001 bytes, and sends large files to a server on the internet through the VPC's internet gateway. What happens to its 9001-byte packets?
+choices:
+  - "Only 1500 bytes pass the gateway, so TCP's MSS or PMTUD must make each packet smaller"
+  - "They cross the internet at 9001 bytes, because AWS's backbone carries jumbo frames"
+  - "The gateway splits them into 1500-byte pieces, even when they're marked don't-fragment"
+  - "The connection is refused when it opens, so the instance falls back to 1500 bytes"
+answer: 0
+explanation: |
+  AWS's MTU page (read 2026-11-12): traffic over an internet gateway is limited to 1500 bytes, and packets over the limit "are fragmented, or they are dropped if the Don't Fragment flag is set". So the instance relies on the far end's MSS (a server on the internet announces 1460 in its SYN, and TCP sends nothing bigger) or on path MTU discovery, which needs "fragmentation needed" to reach the instance through its security group and network ACL.
+
+  The internet carries 1500, whoever's backbone a packet starts on. A packet marked don't-fragment is never split: it's dropped, and the sender is told. And nothing about MTU refuses a connection; the handshake's packets are small.
+
+  The other two clouds differ: Google's VPC networks default to 1460 and clamp TCP's MSS for traffic leaving the network; Azure uses 1500, with bigger MTUs only inside a virtual network.
+skills: [encapsulation-mtu]

@@ -1,0 +1,57 @@
+# The checks for "Follow one request": the captures saved under ~/example.
+# The two sides of one ping (the laptop asked ARP for its gateway, and the
+# same packet, by its IP identification number, left r2 two TTL lower), the
+# hex dump's EtherType, the GRE packet on the internet link with the inner
+# addresses inside it, and the path's MTU from tracepath.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: office-side
+    description: "~/example/office-side.txt holds the laptop's ARP request for its gateway, 10.0.1.1, the gateway's reply, and the echo request leaving the laptop with a TTL of 64."
+    command: |
+      f=/home/learner/example/office-side.txt
+      [ -s "$f" ] || { echo "~/example/office-side.txt is missing or empty"; exit 0; }
+      grep 'Request who-has 10.0.1.1 tell 10.0.1.10' "$f" > /dev/null || { echo "office-side.txt has no ARP request from 10.0.1.10 for 10.0.1.1"; exit 0; }
+      grep 'Reply 10.0.1.1 is-at' "$f" > /dev/null || { echo "office-side.txt has no ARP reply from 10.0.1.1"; exit 0; }
+      # The echo request's IPv4 header is the line before it (tcpdump -v).
+      awk '/ICMP echo request/ {print prev} {prev = $0}' "$f" | grep 'ttl 64,' > /dev/null || { echo "office-side.txt has no echo request with its IPv4 header (ttl 64)"; exit 0; }
+      echo "the laptop's side"
+    expect:
+      equals: "the laptop's side"
+  - id: same-packet
+    description: "~/example/cloud-side.txt holds the same echo request (the same IP identification number) leaving r2 towards web, with a TTL of 62."
+    command: |
+      cd /home/learner/example || { echo "there is no ~/example folder"; exit 0; }
+      [ -s cloud-side.txt ] || { echo "~/example/cloud-side.txt is missing or empty"; exit 0; }
+      # The IPv4 header line before each echo request holds "id N".
+      header() { awk '/ICMP echo request/ {print prev} {prev = $0}' "$1" | head -n 1; }
+      office=$(header office-side.txt | grep -o ' id [0-9]*')
+      cloud=$(header cloud-side.txt | grep -o ' id [0-9]*')
+      header cloud-side.txt | grep 'ttl 62,' > /dev/null || { echo "cloud-side.txt has no echo request with its IPv4 header (ttl 62)"; exit 0; }
+      if [ -n "$office" ] && [ "$office" = "$cloud" ]; then echo "one packet, seen twice"; else echo "the echo requests in the two files are different packets (their IP identification numbers differ)"; fi
+    expect:
+      equals: "one packet, seen twice"
+  - id: hex
+    description: "~/example/hex.txt is a hex dump of an echo request, whose first line's 13th and 14th bytes are the EtherType of IPv4, 0800."
+    command: |
+      f=/home/learner/example/hex.txt
+      grep 'ICMP echo request' "$f" > /dev/null 2>&1 || { echo "hex.txt holds no echo request"; exit 0; }
+      awk '$1 == "0x0000:" {print $8; exit}' "$f"
+    expect:
+      equals: "0800"
+  - id: encapsulated
+    description: "~/example/wan.txt shows a GRE packet between 203.0.113.1 and 203.0.113.2 carrying the laptop's packet to 10.0.2.20 inside it."
+    command: |
+      f=/home/learner/example/wan.txt
+      grep 'proto GRE (47)' "$f" > /dev/null 2>&1 || { echo "wan.txt has no GRE packet"; exit 0; }
+      grep '203.0.113.1 > 203.0.113.2: GRE' "$f" > /dev/null || { echo "wan.txt has no GRE packet from 203.0.113.1 to 203.0.113.2"; exit 0; }
+      grep '10.0.1.10 > 10.0.2.20' "$f" > /dev/null || { echo "wan.txt doesn't show the inner packet from 10.0.1.10 to 10.0.2.20"; exit 0; }
+      echo "a packet inside a packet"
+    expect:
+      equals: "a packet inside a packet"
+  - id: path-mtu
+    description: "~/example/pmtu.txt is tracepath's report of the path to web, ending with the path's MTU."
+    command: |
+      grep -o 'Resume: pmtu [0-9]*' /home/learner/example/pmtu.txt
+    expect:
+      equals: "Resume: pmtu 1476"

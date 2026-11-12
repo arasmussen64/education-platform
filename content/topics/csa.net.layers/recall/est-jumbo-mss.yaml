@@ -1,0 +1,23 @@
+id: est-jumbo-mss
+type: estimate
+rev: 1
+prompt: |
+  Two EC2 instances in the same VPC use jumbo frames, with an MTU of 9001 bytes. What MSS does a TCP connection between them get over IPv4, with no IP or TCP options? Exactly.
+unit: bytes
+answer: 8961
+tolerance: { absolute: 0 }
+# The 20-byte IPv4 and TCP headers are for the learner to know.
+given: { mtu: 9001 }
+working: mtu - 20 - 20
+mistakes:
+  - id: ip-only
+    value: 8981
+    working: mtu - 20
+    why: That takes off the IPv4 header only. TCP's own 20-byte header is inside the packet too.
+  - id: internet-mss
+    value: 1460
+    working: "1460"
+    why: 1460 is the MSS on a 1500-byte link. Inside a VPC, current instance types carry 9001-byte packets, so the MSS is far bigger.
+explanation: |
+  9001 − 20 − 20 = 8961. AWS's MTU page (read 2026-11-12): every instance type supports 1500, current generation types support 9001 jumbo frames, and traffic over an internet gateway, a VPN connection, or between Regions without a transit gateway is limited to 1500 (8500 over inter-Region VPC peering). So the same instance gets an MSS of 1460 for a connection to the internet.
+skills: [encapsulation-mtu]

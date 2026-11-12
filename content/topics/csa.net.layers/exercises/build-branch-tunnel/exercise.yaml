@@ -1,0 +1,22 @@
+id: build-branch-tunnel
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Connect the branch"
+prompt: |
+  The shop is opening a branch, and its network has to reach the shop's cloud network through a tunnel across the internet.
+
+  The machines. At the branch, `branch` (10.0.5.10) is one of the branch's machines, on the branch's network, 10.0.5.0/24, and `r3` (10.0.5.1 on that network, 198.51.100.6 on the internet) is its router, on a line to the branch's ISP. `isp` (198.51.100.5) is the ISP's router; in this lab it also stands for the rest of the internet, and like anyone on the internet it can send r3 packets addressed to the branch's private network. In the cloud, `r2` (203.0.113.2 on the internet) is the cloud's router, and `web` (10.0.2.20) is the shop's web server, on the cloud's network, 10.0.2.0/24, with its site and a price list of about 2 MB. r2's end of the tunnel is ready: a GRE tunnel to r3's address, 10.255.1.1/30 at r2's end, sending the branch's network, 10.0.5.0/24, into it. Today r3 has its two addresses and its route to the ISP, and nothing else.
+
+  Build r3's side:
+
+  1. A GRE tunnel called `gre1` from r3's address on the internet to r2's, with 10.255.1.2/30 at r3's end, so that the branch's machines reach the cloud's network, 10.0.2.0/24, through it. Only the cloud's network goes through the tunnel; everything else still goes to the ISP.
+  2. Find out how big a packet the internet path between r3 and r2 carries, and give the tunnel the largest MTU that never needs a packet on it fragmented.
+  3. r3 is also the branch's firewall. From the internet, it lets in only the tunnel's packets from r2 and what belongs to connections that the branch or r3 itself started, and it forwards nothing new from the internet into the branch. r3 must still be told the internet path's MTU when it sends a packet too big for it. The cloud's network may start connections to the branch's machines through the tunnel (the shop's monitoring does), and the branch's machines may start any connection.
+  4. Save one packet captured on r3's internet side that shows both the outer addresses and the addresses of the packet inside, as `~/build/tunnel.txt`.
+
+  Change only r3: its network file, `/etc/network/up` (`on r3 nano /etc/network/up`), and its firewall, `/etc/nftables.conf` (`on r3 nano /etc/nftables.conf`), which `nftables@r3` loads at every boot once it is enabled; it isn't yet. Everything must survive a restart of the lab: `sudo netlab restart` builds the network again from every machine's files, as a reboot would. Then run the checks.
+skills: [encapsulation-mtu, pmtud-blackholes, icmp-messages, read-headers]

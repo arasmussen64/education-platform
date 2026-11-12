@@ -1,0 +1,23 @@
+id: pmtud-tracepath
+type: predict_shell
+rev: 1
+prompt: |
+  `tracepath.txt` is `tracepath -n 10.0.2.20` from the worked example's office laptop (captured 2026-11-12). The first command prints each `pmtu N` it finds, once each, in sorted order; the second prints the fifth field of the `Resume` line. What is printed?
+files:
+  tracepath.txt: |
+     1?: [LOCALHOST]                      pmtu 1500
+     1:  10.0.1.1                                              0.114ms
+     1:  10.0.1.1                                              0.004ms
+     2:  10.0.1.1                                              0.009ms pmtu 1476
+     2:  10.255.0.2                                            0.028ms
+     3:  10.0.2.20                                             0.022ms reached
+         Resume: pmtu 1476 hops 3 back 3
+command: |
+  grep -o 'pmtu [0-9]*' tracepath.txt | sort -u; awk '/Resume/ {print "hops:", $5}' tracepath.txt
+expected_output: |
+  pmtu 1476
+  pmtu 1500
+  hops: 3
+explanation: |
+  tracepath starts with the biggest packet its own link allows, 1500 (`[LOCALHOST]`), with don't-fragment set. At hop 1, r1 (10.0.1.1) answers "time exceeded" as usual. At hop 2 the probe, still 1500 bytes, gets through r1's TTL check but is too big for r1's tunnel, so r1 answers "fragmentation needed" with the tunnel's MTU, 1476: that's why r1 is listed at hop 2 as well. From then on tracepath sends packets of 1476, and the hop-2 probe sent again at that size reaches r2's end of the tunnel (10.255.0.2). Hop 3 is web itself (`reached`). The `Resume` line is the summary: the path's MTU is 1476, and web is 3 hops away. `sort -u` sorts the lines and keeps one of each, which is why 1476 comes first.
+skills: [pmtud-blackholes]

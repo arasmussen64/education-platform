@@ -1,0 +1,28 @@
+id: debug-big-downloads-hang
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Big downloads hang"
+prompt: |
+  The shop's cloud network hangs off the office through a GRE tunnel across the internet, from r1, the office's router, to r2, the cloud's router. Everything the cloud sends anywhere other than its own networks goes back through the tunnel to the office (forced tunnelling: many companies do it on purpose, so that their office's firewall sees all of it).
+
+  The machines. `office` (10.0.1.10) is one of the office's forty laptops. On r2's cloud network are `web` (10.0.2.20), the shop's site and its price list, a file of about 2 MB, with a firewall of its own that lets in the website and nothing else from outside, not even ping; and `files` (10.0.2.30), the file server, which serves a web page. On a cable of its own from r2 is the cloud office's printer, `printer` (10.0.3.5).
+
+  Since the weekend, staff in the office report three things:
+
+  - the site's pages load, but downloading the price list never finishes: `on office curl -o /dev/null http://10.0.2.20/pricelist.csv` stops and waits;
+  - the file server can't be reached at all: `on office curl http://10.0.2.30/`;
+  - printing fails, and the printer doesn't answer: `on office ping 10.0.3.5`.
+
+  There are three faults. Find each one from the evidence, and fix it at its cause. The rules for the repair:
+
+  - don't change any interface's MTU, or set one on a route: the tunnel's is what the provider allows, and the networks are standard Ethernet;
+  - leave the office laptop's settings as they are (there are forty like it);
+  - web keeps answering nothing from outside but its website, not even ping;
+  - every fix must survive a restart of the lab.
+
+  `on MACHINE COMMAND` runs a command on a machine, and `netlab show` lists the machines. Each machine keeps its settings in its own `/etc`, and `sudo netlab restart` builds the network again from them, as a reboot would. Then run the checks.
+skills: [arp-neighbours, icmp-messages, pmtud-blackholes, read-headers]

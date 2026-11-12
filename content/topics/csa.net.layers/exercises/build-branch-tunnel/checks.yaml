@@ -1,0 +1,149 @@
+# The checks of "Connect the branch". The tunnel (its ends, r2's end
+# answering), the price list arriving whole at the branch, the tunnel's MTU
+# (its value, and DF pings either side of it from the branch), r3 hearing
+# the internet path's MTU, the cloud starting a connection to the branch,
+# everything else going straight to the ISP (and the branch's own
+# connections there answered), the firewall seen from the internet, the saved capture, the scenery, and
+# a fresh build of every machine from its files (netlab verify), so a fix
+# made only live fails. "branch-reaches-web" waits for web's site after a
+# boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: tunnel-up
+    description: "r3 has a GRE tunnel, gre1, from its address on the internet to r2's, 203.0.113.2, with 10.255.1.2/30 at r3's end, and r2's end, 10.255.1.1, answers r3 through it."
+    command: |
+      d=$(ip -d -n r3 link show gre1 2> /dev/null) || { echo "r3 has no interface called gre1"; exit 0; }
+      echo "$d" | grep ' gre remote 203.0.113.2 local 198.51.100.6 ' > /dev/null || { echo "r3's gre1 isn't a GRE tunnel from r3's address on the internet to 203.0.113.2"; exit 0; }
+      ip -n r3 -o addr show dev gre1 | grep ' 10.255.1.2/30 ' > /dev/null || { echo "r3's gre1 doesn't have 10.255.1.2/30"; exit 0; }
+      on r3 ping -c 1 -W 2 10.255.1.1 > /dev/null 2>&1 && echo "the tunnel is up" || echo "10.255.1.1 doesn't answer r3 through the tunnel"
+    expect:
+      equals: "the tunnel is up"
+  - id: branch-reaches-web
+    description: "The branch's machine fetches web's page and downloads its price list, whole, within 15 seconds."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      site_answers() { on branch curl -s -o /dev/null --max-time 3 http://10.0.2.20/; }
+      wait_for 10 site_answers || { echo "web's page doesn't answer the branch"; exit 0; }
+      want=$(cat /var/lib/lab/pricelist.sha256)
+      got=$(on branch curl -s --max-time 15 http://10.0.2.20/pricelist.csv | sha256sum | cut -d' ' -f1)
+      [ "$got" = "$want" ] && echo whole || echo "the price list doesn't reach the branch whole within 15 seconds"
+    expect:
+      equals: whole
+  - id: tunnel-mtu
+    description: "The tunnel's MTU leaves room for its own headers on this internet path and wastes none: from the branch, the largest packet that may not be fragmented reaches the cloud, and one a byte bigger is answered with fragmentation needed."
+    command: |
+      mtu=$(ip -n r3 -o link show gre1 2> /dev/null | grep -o 'mtu [0-9]*' | cut -d' ' -f2)
+      [ "$mtu" = 1376 ] || { echo "r3's tunnel has an MTU of ${mtu:-nothing}, which isn't the largest that never needs fragmenting on this path"; exit 0; }
+      # Two addresses web answers for that the branch hasn't sent to before,
+      # so nothing its kernel learned earlier counts.
+      a=10.0.2.$((128 + RANDOM % 60))
+      b=10.0.2.$((190 + RANDOM % 60))
+      on branch ping -c 1 -W 2 -M do -s 1348 "$a" > /dev/null 2>&1 || { echo "from the branch, a full-size packet for the tunnel doesn't reach the cloud"; exit 0; }
+      out=$(on branch ping -c 1 -W 2 -M do -s 1349 "$b" 2>&1)
+      if echo "$out" | grep -E 'mtu ?= ?1376' > /dev/null; then echo fits; else echo "from the branch, a packet a byte too big for the tunnel isn't answered with fragmentation needed"; fi
+    expect:
+      equals: fits
+  - id: r3-hears-the-path-mtu
+    description: "r3 is told the internet path's MTU when it sends a packet too big for that path."
+    command: |
+      # A full-size packet that mustn't be fragmented, from r3 to an
+      # address beyond the narrow link that r3 hasn't sent to before: the
+      # router before the narrow link says it's too big, and ping prints
+      # that only if r3's kernel got the message.
+      to=203.0.113.$((128 + RANDOM % 120))
+      out=$(on r3 ping -c 1 -W 2 -M do -s 1472 "$to" 2>&1)
+      if echo "$out" | grep -E 'mtu ?= ?1400' > /dev/null; then echo told; else echo "r3 sent a packet too big for the internet path and wasn't told the path's MTU"; fi
+    expect:
+      equals: told
+  - id: cloud-reaches-branch
+    description: "The cloud's network can start a connection to a machine at the branch through the tunnel, even when r3 hasn't sent the tunnel a packet for a while."
+    command: |
+      port=$((20000 + RANDOM % 10000))
+      on branch timeout 8 nc -l -p "$port" > /dev/null 2>&1 &
+      # r3's connection tracking forgets the tunnel's packets, as it does
+      # after a few quiet minutes, so the next one from r2 is new to r3.
+      on r3 conntrack -D -p gre > /dev/null 2>&1
+      sleep 0.3
+      if on web nc -z -w 3 10.0.5.10 "$port" 2> /dev/null; then echo reaches; else echo "a connection from web to the branch's machine gets no answer"; fi
+      kill $(jobs -p) 2> /dev/null
+      wait 2> /dev/null
+    expect:
+      equals: reaches
+  - id: internet-direct
+    description: "Only the cloud's network goes through the tunnel: r3 sends everything else to the ISP, and the branch's machine can make a connection to the internet and get its answers."
+    command: |
+      # r3's route for a few addresses that aren't the cloud's network, on
+      # the internet and in other private networks: each must leave on
+      # r3's line to the ISP, not into the tunnel.
+      for to in 192.0.2.$((1 + RANDOM % 250)) 10.0.3.$((1 + RANDOM % 250)) 10.$((1 + RANDOM % 250)).0.1 172.16.0.1; do
+        ip -n r3 route get "$to" 2> /dev/null | grep ' via 198.51.100.5 dev wan ' > /dev/null || { echo "r3 sends packets for $to somewhere other than its line to the ISP"; exit 0; }
+      done
+      # A connection from the branch to a listener of the check's own on
+      # the internet's side of the ISP: its answers come back in from the
+      # internet, so r3 has to let in what belongs to it.
+      port=$((20000 + RANDOM % 10000))
+      on isp timeout 8 nc -l -p "$port" > /dev/null 2>&1 &
+      sleep 0.3
+      if on branch nc -z -w 3 203.0.113.1 "$port" 2> /dev/null; then echo direct; else echo "the branch's machine can't make a connection to the internet"; fi
+      kill $(jobs -p) 2> /dev/null
+      wait 2> /dev/null
+    expect:
+      equals: direct
+  - id: firewall-strict
+    description: "From the internet, r3 and the branch's machine answer nothing new: ports on both get no answer at all."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # Listeners of the check's own on ports nobody asked for, so a port
+      # the firewall lets through answers.
+      for p in 22 80 8080; do on r3 timeout 15 nc -l -p "$p" > /dev/null 2>&1 & done
+      for p in 22 8080; do on branch timeout 15 nc -l -p "$p" > /dev/null 2>&1 & done
+      sleep 0.5
+      found=""
+      for p in 22 80 8080; do
+        state=$(tcp_state isp 198.51.100.6 "$p")
+        [ "$state" = dropped ] || found="$found r3's port $p is $state;"
+      done
+      for p in 22 8080; do
+        state=$(tcp_state isp 10.0.5.10 "$p")
+        [ "$state" = dropped ] || found="$found the branch's port $p is $state;"
+      done
+      kill $(jobs -p) 2> /dev/null
+      wait 2> /dev/null
+      if [ -z "$found" ]; then echo strict; else echo "from the internet:$found"; fi
+    timeout: 40
+    expect:
+      equals: strict
+  - id: capture-saved
+    description: "~/build/tunnel.txt shows a packet on r3's internet side between 198.51.100.6 and 203.0.113.2, of GRE, with a branch-to-cloud (or cloud-to-branch) packet inside it."
+    command: |
+      f=/home/learner/build/tunnel.txt
+      [ -s "$f" ] || { echo "~/build/tunnel.txt is missing or empty"; exit 0; }
+      grep -E '(198\.51\.100\.6 > 203\.0\.113\.2|203\.0\.113\.2 > 198\.51\.100\.6): GRE' "$f" > /dev/null || { echo "tunnel.txt has no GRE packet between 198.51.100.6 and 203.0.113.2"; exit 0; }
+      grep -E '10\.0\.5\.[0-9]+(\.[0-9]+)? > 10\.0\.2\.[0-9]+|10\.0\.2\.[0-9]+(\.[0-9]+)? > 10\.0\.5\.[0-9]+' "$f" > /dev/null || { echo "tunnel.txt doesn't show the packet inside, between the branch and the cloud"; exit 0; }
+      echo "outer and inner"
+    expect:
+      equals: "outer and inner"
+  - id: scenery-untouched
+    description: "The cables, the ISP's, r2's, web's and the branch machine's settings are as they were: only r3 is yours."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact || true
+    expect:
+      equals: intact
+  - id: lasts
+    description: "Every machine is as its files build it, and in a fresh build of every machine from its files the branch reaches web through the tunnel."
+    command: |
+      # netlab verify builds a copy of every machine (chk-branch ...) from
+      # its files, with r3's firewall if nftables@r3 is enabled, compares
+      # each with the running machine, and then runs the probe below in the
+      # copy. The copy runs no services, so a listener of the check's own
+      # stands in for web's site.
+      netlab verify -- bash -c '
+        on chk-web timeout 6 nc -l -p 80 > /dev/null 2>&1 &
+        sleep 0.3
+        if on chk-branch nc -z -w 2 10.0.2.20 80 2> /dev/null; then echo lasts; else echo "built fresh from its files, the branch can'\''t reach web"; fi
+        kill $(jobs -p) 2> /dev/null' || true
+    timeout: 45
+    expect:
+      equals: lasts

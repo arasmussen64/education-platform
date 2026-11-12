@@ -1,0 +1,17 @@
+# The network of "Follow one request": the shop's office, a GRE tunnel
+# across the internet, and the shop's cloud network.
+#
+#   office --- r1 ==(wan: the internet, GRE tunnel gre1 inside)== r2 --[cloud]-- web
+#
+# Only the cables are here. Each machine's addresses, routes and tunnel are
+# its own settings, in its /etc/network/up.
+machine office
+machine r1 router
+machine r2 router
+machine web
+
+link office:eth0 r1:eth0
+link r1:wan r2:wan
+lan cloud r2:lan web:eth0
+
+run web nginx

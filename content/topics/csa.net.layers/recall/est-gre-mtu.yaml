@@ -1,0 +1,26 @@
+id: est-gre-mtu
+type: estimate
+rev: 1
+prompt: |
+  Two VMs in a Google Cloud network with the default MTU of 1460 bytes build a GRE tunnel between them. GRE adds a 20-byte outer IPv4 header and a 4-byte GRE header to each packet. What MTU should the tunnel interface have, so that nothing on it ever needs fragmenting? Exactly.
+unit: bytes
+answer: 1436
+tolerance: { absolute: 0 }
+given: { path: 1460, outer_ip: 20, gre: 4 }
+working: path - outer_ip - gre
+mistakes:
+  - id: forgot-gre-header
+    value: 1440
+    working: path - outer_ip
+    why: That leaves room for the outer IPv4 header only. The GRE header, 4 bytes, sits between the two and takes room too.
+  - id: added
+    value: 1484
+    working: path + outer_ip + gre
+    why: The headers make each packet bigger on the path, so the tunnel's MTU must be smaller than the path's, not bigger.
+  - id: kernel-default
+    value: 1476
+    working: "1476"
+    why: 1476 is what Linux gives a new GRE tunnel over a 1500-byte link. Google's network carries 1460 by default, so the tunnel must be 24 bytes under that.
+explanation: |
+  1460 − 20 − 4 = 1436. Google's VPC networks default to 1460 and allow 1300 to 8896 (Google Cloud's MTU page, read 2026-11-12), and VPC networks support GRE version 0; Azure blocks GRE inside a virtual network altogether.
+skills: [encapsulation-mtu]

@@ -1,0 +1,21 @@
+id: icmp-ping-verdicts
+type: predict_shell
+rev: 1
+prompt: |
+  `ping.txt` holds four lines that `ping` printed in this topic's labs (captured 2026-11-12), one from each of four pings. The `awk` program gives each kind of line a verdict; on the "Frag needed" line it first takes the closing bracket off the end (`sub`), then prints the last field. What is printed?
+files:
+  ping.txt: |
+    64 bytes from 10.0.2.20: icmp_seq=1 ttl=62 time=0.132 ms
+    From 10.255.0.2 icmp_seq=1 Time to live exceeded
+    From 10.0.1.1 icmp_seq=1 Frag needed and DF set (mtu = 1476)
+    From 10.0.1.10 icmp_seq=1 Destination Host Unreachable
+command: |
+  awk '/bytes from/ {print "reply"} /Time to live/ {print "loop or too far, says", $2} /Frag needed/ {sub(/\)$/, ""); print "too big for the path, mtu", $NF} /Host Unreachable/ {print "no ARP answer, says", $2}' ping.txt
+expected_output: |
+  reply
+  loop or too far, says 10.255.0.2
+  too big for the path, mtu 1476
+  no ARP answer, says 10.0.1.10
+explanation: |
+  Four ICMP messages. An echo reply (type 0): web answered, and its `ttl=62` says two routers lowered the reply's TTL on the way back. Time exceeded (type 11): the TTL reached zero at 10.255.0.2, r2's end of the tunnel; with the default TTL of 64 and only two routers on the path, that's a loop: two routers sending the packet back and forth. Fragmentation needed (type 3, code 4) from r1, with the tunnel's MTU: the packet was bigger than 1476 and had DF set. And `Destination Host Unreachable` from the laptop's own address, 10.0.1.10: nothing went out at all, because nobody answered the laptop's ARP request for the address it pinged, one on its own network that nobody owns.
+skills: [icmp-messages]
