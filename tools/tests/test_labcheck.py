@@ -292,13 +292,44 @@ def test_a_timeout_while_proving_counts_as_the_checker_giving_up(monkeypatch) ->
     assert report.problems[0].startswith("labcheck: timed out:")
 
 
-def test_shards_split_the_topics_and_cover_every_lab() -> None:
-    targets = [(f"t{i}", f"lab{j}") for i in range(5) for j in range(2)]
-    shards = [labcheck.shard_of(targets, f"{i}/4") for i in range(4)]
-    # Every lab lands in exactly one shard, whole topics at a time.
+def test_shards_keep_topics_whole_and_balance_the_work() -> None:
+    # Two slow topics (three labs of 300 s), six quick ones (two labs of
+    # 100 s), over four machines.
+    targets = [(f"slow{i}", f"lab{j}") for i in range(2) for j in range(3)] + [
+        (f"t{i}", f"lab{j}") for i in range(6) for j in range(2)
+    ]
+
+    def weight(topic: str, exercise: str) -> float:
+        return 300.0 if topic.startswith("slow") else 100.0
+
+    shards = [labcheck.shard_of(targets, f"{i}/4", weight) for i in range(4)]
+    # Every lab lands in exactly one shard, and a topic's labs in the same one.
     assert sorted(sum(shards, [])) == sorted(targets)
-    assert shards[0] == [("t0", "lab0"), ("t0", "lab1"), ("t4", "lab0"), ("t4", "lab1")]
-    assert shards[3] == [("t3", "lab0"), ("t3", "lab1")]
+    for topic in {t for t, _ in targets}:
+        assert sum(1 for shard in shards if any(t == topic for t, _ in shard)) == 1
+    # 3,000 s of work over four machines: each slow topic (900 s) on a machine
+    # of its own, the quick ones (200 s each) filling up the other two.
+    loads = sorted(sum(weight(*t) for t in shard) for shard in shards)
+    assert loads == [600.0, 600.0, 900.0, 900.0]
+    # Each machine starts its slowest labs first.
+    for shard in shards:
+        assert [weight(*t) for t in shard] == sorted(
+            (weight(*t) for t in shard), reverse=True
+        )
+
+
+def test_a_lab_weighs_its_recorded_time_or_the_middle_one(tmp_path) -> None:
+    times = tmp_path / "lab-seconds.json"
+    assert labcheck.lab_seconds(times) == {}
+    assert labcheck.weigher({})("t", "new") == 1.0
+    times.write_text(
+        '{"seconds": {"t/a": 30, "t/b": 300, "u/c": 90}}', encoding="utf-8"
+    )
+    known = labcheck.lab_seconds(times)
+    weigh = labcheck.weigher(known)
+    assert weigh("t", "b") == 300.0
+    # A lab the file doesn't list yet (a new one) weighs the middle time.
+    assert weigh("v", "new") == 90.0
 
 
 def test_a_shard_that_isnt_i_of_n_is_refused() -> None:

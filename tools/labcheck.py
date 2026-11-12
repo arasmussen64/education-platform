@@ -32,8 +32,9 @@ check. A lab whose exercise.yaml says `lab: { restart_trial: true }` also
 gets the restart trial: once its solution passes, the container is
 restarted (`docker restart`, then the wait for its boot) and every check
 must pass again, so a fix that a reboot loses is caught. `--jobs` tests
-several labs at once; `--shard I/N` takes every Nth topic, which is how CI
-splits the run across machines.
+several labs at once; `--shard I/N` takes one machine's share of the labs,
+balanced by how long each lab's contract takes, which is how CI splits the
+run across machines.
 
 A lab whose exercise.yaml says `lab: { init: systemd }` boots systemd as PID 1
 in a privileged container, and the checker waits for the boot to finish before
@@ -634,6 +635,9 @@ class CheckResult:
     passed: bool
     # Why it failed, for the author and the learner's terminal; not sent.
     detail: str
+    # What the check's command printed (the start of it), for an author
+    # asking why a known-wrong fix passed.
+    output: str = ""
 
 
 def evaluate(expect: Expect | None, stdout: str, exit_status: int) -> tuple[bool, str]:
@@ -727,7 +731,8 @@ def run_check(
     passed, detail = evaluate(check.expect, completed.stdout, completed.returncode)
     if not passed and completed.stderr.strip():
         detail += f"; stderr: {completed.stderr.strip()[:300]}"
-    return CheckResult(check.id, check.description, passed, detail)
+    output = completed.stdout.strip()[:300]
+    return CheckResult(check.id, check.description, passed, detail, output)
 
 
 def run_checks(
@@ -1194,6 +1199,9 @@ class ContractReport:
     # True when this is the second run, on its own, after the checker gave
     # up on the first in the crowd.
     retried: bool = False
+    # How long the contract took, printed in the summary so a CI run's logs
+    # can refresh tools/lab-seconds.json.
+    seconds: float = 0.0
 
     @property
     def ok(self) -> bool:
@@ -1282,6 +1290,11 @@ def test_lab(
             failing = [result.id for result in wrong_results if not result.passed]
             if not failing:
                 problems.append(f"wrong/{wrong.name} passes every check")
+                # What each check saw, so a run on another machine (CI)
+                # shows why: the checks' own output is the evidence.
+                say("    it passes every check; what each one printed:")
+                for result in wrong_results:
+                    say(f"      {result.id}: {result.output or '(nothing)'}")
             else:
                 say(f"    fails {', '.join(failing)}")
     finally:
@@ -1301,6 +1314,7 @@ def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
     problem of that lab rather than ending the whole run.
     """
     log: list[str] = []
+    started = time.monotonic()
     try:
         report = test_lab(load_lab(topic_id, exercise_id), say=log.append)
     except LabError as error:
@@ -1318,6 +1332,7 @@ def test_quietly(topic_id: str, exercise_id: str) -> ContractReport:
             [f"{type(error).__name__}: {first_line(str(error))}"],
         )
     report.log = log
+    report.seconds = time.monotonic() - started
     return report
 
 
@@ -1349,11 +1364,49 @@ def warm_images(
             say(f"  {type(error).__name__}: {detail}")
 
 
-def shard_of(targets: list[tuple[str, str]], shard: str) -> list[tuple[str, str]]:
-    """The labs of every Nth topic, for `--shard I/N`. CI splits the run
-    across machines by topic rather than by lab, so each machine builds the
-    layer a topic's labs share only once; with about five labs a topic the
-    shares come out even enough."""
+# How long each lab's contract took in CI, in seconds ("topic/exercise":
+# seconds), for splitting the run evenly. `labcheck test` prints each lab's
+# time; the file is written from a full CI run's logs (see its "how" key)
+# and needs no care: a lab it doesn't list weighs the middle of the others.
+LAB_SECONDS = ROOT / "tools" / "lab-seconds.json"
+
+
+def lab_seconds(path: Path = LAB_SECONDS) -> dict[str, float]:
+    """The recorded contract times, or none if there's no file yet."""
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {lab: float(seconds) for lab, seconds in data.get("seconds", {}).items()}
+
+
+def weigher(known: dict[str, float]) -> Callable[[str, str], float]:
+    """A lab's weight: its recorded time, or the middle of the recorded
+    times for a lab with none (a new lab), or 1 when nothing is recorded."""
+    times = sorted(known.values())
+    middle = times[len(times) // 2] if times else 1.0
+    return lambda topic, exercise: known.get(f"{topic}/{exercise}", middle)
+
+
+def shard_of(
+    targets: list[tuple[str, str]],
+    shard: str,
+    weight: Callable[[str, str], float] | None = None,
+) -> list[tuple[str, str]]:
+    """The labs one of N CI machines tests, for `--shard I/N`, slowest
+    first. A topic's labs stay together on one machine, and each topic goes,
+    slowest first (its labs' times added up, by `weight`: the recorded times
+    in tools/lab-seconds.json unless given), to the machine with the least
+    work so far; each machine then starts its slowest labs first, so none is
+    left to run alone at the end. Whole topics dealt out in turn, as before,
+    left one slow topic holding its share up: on 2026-11-12 (#262) the eight
+    shares took from 8 to 24 minutes.
+
+    Keeping a topic whole builds the layers its labs share on one machine
+    only; spreading its labs out balanced the work hardly better. Every
+    machine works the split out alike from the same checkout, so each lab is
+    tested exactly once."""
+    if weight is None:
+        weight = weigher(lab_seconds())
     try:
         index_text, count_text = shard.split("/", 1)
         index, count = int(index_text), int(count_text)
@@ -1361,9 +1414,18 @@ def shard_of(targets: list[tuple[str, str]], shard: str) -> list[tuple[str, str]
         raise LabError(f"--shard wants I/N, like 0/4, not {shard!r}") from None
     if count < 1 or not 0 <= index < count:
         raise LabError(f"--shard {shard} is out of range: I runs from 0 to N-1")
-    topics = sorted({topic for topic, _ in targets})
-    mine = set(topics[index::count])
-    return [(topic, exercise) for topic, exercise in targets if topic in mine]
+    weights = {target: weight(*target) for target in targets}
+    topic_time: dict[str, float] = {}
+    for (topic, _), seconds in weights.items():
+        topic_time[topic] = topic_time.get(topic, 0.0) + seconds
+    loads = [0.0] * count
+    machine_of: dict[str, int] = {}
+    for topic in sorted(topic_time, key=lambda t: (-topic_time[t], t)):
+        lightest = min(range(count), key=lambda m: (loads[m], m))
+        loads[lightest] += topic_time[topic]
+        machine_of[topic] = lightest
+    mine = [target for target in targets if machine_of[target[0]] == index]
+    return sorted(mine, key=lambda t: (-weights[t], t))
 
 
 def cmd_test(args: argparse.Namespace) -> int:
@@ -1381,7 +1443,12 @@ def cmd_test(args: argparse.Namespace) -> int:
         raise LabError("test needs a topic and an exercise, or --all")
     jobs = max(1, args.jobs)
     if jobs == 1:
-        reports = [test_lab(load_lab(topic, exercise)) for topic, exercise in targets]
+        reports = []
+        for topic, exercise in targets:
+            started = time.monotonic()
+            report = test_lab(load_lab(topic, exercise))
+            report.seconds = time.monotonic() - started
+            reports.append(report)
     else:
         # Docker runs the containers side by side; each lab's output is
         # printed whole when it finishes, so the runs don't interleave.
@@ -1409,7 +1476,7 @@ def cmd_test(args: argparse.Namespace) -> int:
         status = "ok" if report.ok else "BROKEN"
         if report.retried:
             status += " (on its own, after the checker gave up in the crowd)"
-        print(f"{status:6} {report.lab}")
+        print(f"{status:6} {report.lab} ({report.seconds:.0f} s)")
         for problem in report.problems:
             print(f"       - {problem}")
     print(f"\n{len(reports) - len(broken)} of {len(reports)} labs keep their contract.")
