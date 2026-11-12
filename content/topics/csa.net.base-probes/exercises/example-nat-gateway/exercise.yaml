@@ -1,0 +1,42 @@
+id: example-nat-gateway
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A NAT gateway"
+prompt: |
+  A probe for the network-lab base's CI spike: the Module 3 topic NAT will use it as its worked example.
+
+  The shop's two machines, `office` (10.1.0.10) and `app` (10.1.0.20, the shop's web app, on port 8443), sit on a private network behind `gw`, the shop's gateway, whose address on the internet is 198.51.100.2. On the lab's small internet are `srv` (203.0.113.10: a web server that answers with the address each connection came from, and a server on ports 9000 and 9001 that holds every connection open) and `client` (203.0.113.20), a customer. The internet has no route back to private addresses such as 10.1.0.0/24. gw's firewall, its `/etc/nftables.conf`, lets the shop's machines out and nothing new in; `nftables@gw` loads it at every boot.
+
+  The walkthrough makes gw a NAT gateway: forwarding on for good, source NAT for the shop's machines going out, destination NAT to publish the app on gw's port 443, the classic mistake made on purpose, a NAT run out of ports, and the rules saved so that a reboot keeps them. Type each line yourself and read what it prints before you type the next. `on MACHINE COMMAND` runs a command on a machine.
+steps:
+  - label: "Try the internet from the office"
+    lines: "1-2"
+    note: "The office's request to srv times out (`curl: (28) Connection timed out`). A gateway's first job is to pass packets from one network to the other, and `net.ipv4.ip_forward = 0` says gw doesn't: it drops whatever arrives that isn't for gw itself. A fresh Linux server starts this way."
+  - label: "Forward, for good"
+    lines: "3-4"
+    note: "A setting made with `sysctl -w` lasts until the next boot; one in a file under `/etc/sysctl.d/` comes back at every boot. `tee` writes the line into gw's own `/etc/sysctl.d/90-gateway.conf` (as root on gw, so it may), and `sysctl -p FILE` applies that one file now, without waiting for a reboot."
+  - label: "Watch the packets leave"
+    lines: "5-7"
+    note: "`tcpdump` watches gw's internet side in the background (the `&`) for six seconds while the office tries again, and `wait` waits for it to finish. The curl still times out, and the capture shows why: the office's SYN leaves gw with its own source address, 10.1.0.10, is sent again a second later, and nothing comes back. srv answers to 10.1.0.10, and the internet has no route to it: private addresses aren't routed there."
+  - label: "Source NAT"
+    lines: "8-11"
+    note: "A `nat` table with a `postrouting` chain, which runs after the routing decision, as a packet leaves. `oifname \"wan\" masquerade` rewrites the source of everything leaving through `wan` to whatever address `wan` has: that's masquerading (`snat to ADDRESS` would name a fixed one). Now srv answers `you are 198.51.100.2`: it sees the gateway, not the office."
+  - label: "Read the translation"
+    lines: "12"
+    note: "conntrack, the connection table, is where gw remembers each translation. A line holds two tuples: the original, as the office sent it (`src=10.1.0.10 dst=203.0.113.10 ... dport=80`), and the reply, as srv answers it (`src=203.0.113.10 dst=198.51.100.2`). gw maps one to the other, so replies need no rule of their own. The other line is the try from the step before: its reply tuple still says `dst=10.1.0.10`, and it is `[UNREPLIED]`."
+  - label: "Publish the app"
+    lines: "13-17"
+    note: "Destination NAT happens in `prerouting`, before the routing decision, so gw routes the packet to its new destination: anything arriving on `wan` for port 443 goes to the app at 10.1.0.20:8443. The customer's first try still times out, because the `forward` chain's policy is drop and no rule accepts the first packet of a published connection. `ct status dnat accept`, the line people forget, accepts connections that destination NAT rewrote. Now the app answers `you are 203.0.113.20`: it sees the customer's own address, which its logs and its rate limiter need."
+  - label: "The classic mistake, on purpose"
+    lines: "18-22"
+    note: "The masquerade rule again, without `oifname \"wan\"`. Now it rewrites everything gw sends out, including the customer's connection on its way into the shop's network, and the app answers `you are 10.1.0.1`: every customer looks like the gateway's own address on the LAN. The last two lines put the right rule back."
+  - label: "Run a NAT out of ports"
+    lines: "23-29"
+    note: "A rule before the masquerade sends TCP to ports 9000 and 9001 through just ten source ports, 20000 to 20009 (a port range needs a protocol, so `ip protocol tcp` comes first). `holdconns` opens 15 connections at once to srv's port 9000 and holds them: `opened 10 of 15`. The other five time out, because gw drops their SYNs and nothing refuses them, which is how port exhaustion looks. `conntrack -S` counts each drop under `insert_failed`, retries included, so the count is more than five. Then five connections to port 9001 all open: a NAT keeps translations apart by the whole tuple, so another destination can use the same ten ports, and `conntrack -L` shows a port such as 20002 serving both 9000 and 9001. The clouds' NAT gateways count the same way, per destination. The last two lines take the ten-port rule away."
+  - label: "Make it last"
+    lines: "30-31"
+    note: "Rules typed with `nft` live until the next boot. The way to keep them: write `flush ruleset`, then everything `nft list ruleset` prints, into `/etc/nftables.conf`, which `nftables@gw` loads at every boot (the `>` writes into gw's own file). The ruleset now holds gw's whole job: the firewall with its `ct status dnat accept`, the masquerade, and the published port."
