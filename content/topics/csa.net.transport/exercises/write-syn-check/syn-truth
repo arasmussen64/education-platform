@@ -1,0 +1,163 @@
+#!/usr/bin/python3
+"""syn-truth: the checks' own answer for "SYN check" (not the learner's tool).
+
+  syn-truth answer BEFORE AFTER   what syn-check should print for two
+                                  captures, in tcpdump -nn text
+  syn-truth make DIR              writes a new pair, DIR/before.txt and
+                                  DIR/after.txt, made up as the check runs,
+                                  and prints what syn-check should print
+
+A capture's SYN is its first line with "Flags [S],". The answer is four
+lines, one for each of mss, sackOK, TS and wscale: the option's name, its
+value in BEFORE's SYN and in AFTER's ("yes" for sackOK and TS when they're
+there, "none" for an option that isn't).
+
+A made-up pair is a connection captured on both sides of a box, written the
+way tcpdump writes it: some ARP lines first (or not), the SYN, the SYN-ACK
+and the handshake's last ACK. The box rewrites options in the SYN the way
+nftables does (tried 2026-11-12): "reset tcp option window" leaves nop,nop,
+nop where "wscale N" was, "sack-perm" nop,nop where "sackOK" was,
+"timestamp" ten nops where "TS val V ecr 0" was, and "maxseg size set N"
+changes the mss. The server's SYN-ACK offers an option only if the SYN that
+reached it did.
+"""
+
+import random
+import re
+import sys
+
+NAMES = ("mss", "sackOK", "TS", "wscale")
+
+
+def options_of(path):
+    """The options of the capture's first SYN, as a dict of name to value."""
+    with open(path, encoding="utf-8", errors="replace") as capture:
+        for line in capture:
+            if "Flags [S]," in line:
+                found = re.search(r"options \[([^]]*)\]", line)
+                text = found.group(1) if found else ""
+                values = {}
+                mss = re.search(r"mss (\d+)", text)
+                scale = re.search(r"wscale (\d+)", text)
+                if mss:
+                    values["mss"] = mss.group(1)
+                if "sackOK" in text:
+                    values["sackOK"] = "yes"
+                if "TS val" in text:
+                    values["TS"] = "yes"
+                if scale:
+                    values["wscale"] = scale.group(1)
+                return values
+    return {}
+
+
+def answer(before, after):
+    return "\n".join(
+        f"{name} {before.get(name, 'none')} {after.get(name, 'none')}" for name in NAMES
+    )
+
+
+def option_text(mss, sack, stamp, scale, removed=(), echo=0):
+    """A SYN's options as Linux lays them out and tcpdump prints them, with
+    each option in `removed` replaced by the nops a box leaves behind: two
+    for sackOK, ten for the timestamps, three for the window scale."""
+    if sack and stamp:
+        layout = ["SACK", "TS"]
+    elif stamp:
+        layout = ["nop", "nop", "TS"]
+    elif sack:
+        layout = ["nop", "nop", "SACK"]
+    else:
+        layout = []
+    if scale is not None:
+        layout += ["nop", "WS"]
+    text = {
+        "SACK": "nop,nop" if "sackOK" in removed else "sackOK",
+        "TS": ",".join(["nop"] * 10) if "TS" in removed else f"TS val {stamp} ecr {echo}",
+        "WS": "nop,nop,nop" if "wscale" in removed else f"wscale {scale}",
+        "nop": "nop",
+    }
+    return ",".join([f"mss {mss}"] + [text[part] for part in layout])
+
+
+def make(folder):
+    pick = random.Random()
+    client = f"10.{pick.randint(1, 9)}.{pick.randint(0, 9)}.{pick.randint(10, 99)}"
+    server = f"10.{pick.randint(20, 29)}.{pick.randint(0, 9)}.{pick.randint(10, 99)}"
+    sport, dport = pick.randint(32768, 60999), pick.choice((443, 5432, 8443, 5201, 22))
+    seq = pick.randint(10**8, 4 * 10**9)
+    ack_seq = pick.randint(10**8, 4 * 10**9)
+    mss = pick.choice((1460, 1448, 1360, 8961, 1220))
+    sack = pick.random() < 0.85
+    stamp = pick.randint(10**6, 4 * 10**9) if pick.random() < 0.85 else None
+    scale = pick.choice((7, 8, 9, 10, 14)) if pick.random() < 0.9 else None
+    # What the box does to the SYN on its way: one or two things, or nothing.
+    choices = ["clamp", "sackOK", "TS", "wscale", "nothing"]
+    done = set(pick.sample(choices, pick.choice((1, 1, 2))))
+    removed = {name for name in done if name in ("sackOK", "TS", "wscale")}
+    arrived_mss = mss
+    if "clamp" in done:
+        arrived_mss = pick.choice([size for size in (1200, 1300, 1360, 1380, 1400, 1412) if size < mss] or [1200])
+    before = {"mss": str(mss)}
+    after = {"mss": str(arrived_mss)}
+    if sack:
+        before["sackOK"] = "yes"
+        if "sackOK" not in removed:
+            after["sackOK"] = "yes"
+    if stamp:
+        before["TS"] = "yes"
+        if "TS" not in removed:
+            after["TS"] = "yes"
+    if scale is not None:
+        before["wscale"] = str(scale)
+        if "wscale" not in removed:
+            after["wscale"] = str(scale)
+    # The server answers with its own options, offering each only if the
+    # SYN that reached it did; its window scale is its own, 10.
+    server_options = option_text(
+        1460,
+        "sackOK" in after,
+        pick.randint(10**6, 4 * 10**9) if "TS" in after else None,
+        10 if "wscale" in after else None,
+        echo=stamp,
+    )
+    clock = [pick.randint(0, 23), pick.randint(0, 59), pick.uniform(0, 50)]
+
+    def at(step):
+        clock[2] += step
+        return f"{clock[0]:02d}:{clock[1]:02d}:{clock[2]:09.6f}"
+
+    def side(syn_options, arp):
+        """One side's capture; arp is (asked for, asked by), or None."""
+        lines = []
+        if arp:
+            asked_for, asked_by = arp
+            mac = ":".join(f"{pick.randint(0, 255):02x}" for _ in range(6))
+            lines.append(f"{at(0)} ARP, Request who-has {asked_for} tell {asked_by}, length 28")
+            lines.append(f"{at(0.00002)} ARP, Reply {asked_for} is-at {mac}, length 28")
+        lines.append(f"{at(0.00001)} IP {client}.{sport} > {server}.{dport}: Flags [S], seq {seq}, win 64240, options [{syn_options}], length 0")
+        lines.append(f"{at(0.05)} IP {server}.{dport} > {client}.{sport}: Flags [S.], seq {ack_seq}, ack {seq + 1}, win 65160, options [{server_options}], length 0")
+        lines.append(f"{at(0.05)} IP {client}.{sport} > {server}.{dport}: Flags [.], ack 1, win 502, length 0")
+        return "\n".join(lines) + "\n"
+
+    client_gateway = client.rsplit(".", 1)[0] + ".1"
+    server_gateway = server.rsplit(".", 1)[0] + ".1"
+    before_arp = (client_gateway, client) if pick.random() < 0.6 else None
+    after_arp = (server, server_gateway) if pick.random() < 0.6 else None
+    before_text = side(option_text(mss, sack, stamp, scale), before_arp)
+    arrived = option_text(arrived_mss, sack, stamp, scale, removed)
+    after_text = side(arrived, after_arp)
+    with open(f"{folder}/before.txt", "w", encoding="utf-8", newline="\n") as out:
+        out.write(before_text)
+    with open(f"{folder}/after.txt", "w", encoding="utf-8", newline="\n") as out:
+        out.write(after_text)
+    print(answer(before, after))
+
+
+if __name__ == "__main__":
+    if len(sys.argv) == 4 and sys.argv[1] == "answer":
+        print(answer(options_of(sys.argv[2]), options_of(sys.argv[3])))
+    elif len(sys.argv) == 3 and sys.argv[1] == "make":
+        make(sys.argv[2])
+    else:
+        sys.exit(__doc__)

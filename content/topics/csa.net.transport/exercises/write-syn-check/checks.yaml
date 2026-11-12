@@ -1,0 +1,73 @@
+# The checks of "SYN check": the script is there, runnable and clean; it
+# gives the right four lines for the three pairs of captures in
+# /srv/captures, and for eight pairs made up as the check runs (so a
+# script that knows the three answers by heart fails), each compared with
+# the checks' own answer (syn-truth, in /usr/local/lib/lab); and anything
+# but two files gets a usage line and a non-zero exit.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: script-ready
+    description: "~/bin/syn-check exists, is executable, starts with a shebang, and ShellCheck has nothing to say about it."
+    command: |
+      f=/home/learner/bin/syn-check
+      [ -f "$f" ] || { echo "there is no ~/bin/syn-check"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/syn-check isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/syn-check's first line isn't a shebang"; exit 0; }
+      if grep 'shellcheck disable' "$f" > /dev/null; then echo "~/bin/syn-check switches ShellCheck's warnings off"; exit 0; fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say: $(echo "$said" | grep -m 1 'SC[0-9]')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
+  - id: seen-pairs
+    description: "For each pair in /srv/captures (clean, stripped, clamped), it prints the four options' values before and after the box."
+    command: |
+      for pair in clean stripped clamped; do
+        before=/srv/captures/$pair/before.txt
+        after=/srv/captures/$pair/after.txt
+        want=$(/usr/local/lib/lab/syn-truth answer "$before" "$after")
+        got=$(cd /tmp && timeout 10 /home/learner/bin/syn-check "$before" "$after" 2>&1)
+        if [ "$want" != "$got" ]; then
+          expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+          printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+          echo "for the $pair pair, the right line is \"$expected\", and the script printed \"${printed:-nothing in its place}\""
+          exit 0
+        fi
+      done
+      echo right
+    expect:
+      equals: right
+  - id: unseen-pairs
+    description: "For eight pairs of captures it has never seen, made up as the check runs, it prints the four options' values before and after the box."
+    command: |
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      for n in 1 2 3 4 5 6 7 8; do
+        mkdir "$dir/$n"
+        want=$(/usr/local/lib/lab/syn-truth make "$dir/$n")
+        got=$(cd /tmp && timeout 10 /home/learner/bin/syn-check "$dir/$n/before.txt" "$dir/$n/after.txt" 2>&1)
+        if [ "$want" != "$got" ]; then
+          expected=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^< //p' | head -n 1)
+          printed=$(diff <(echo "$want") <(echo "$got") | sed -n 's/^> //p' | head -n 1)
+          echo "on a new pair, the right line is \"$expected\", and the script printed \"${printed:-nothing in its place}\""
+          exit 0
+        fi
+      done
+      echo right
+    expect:
+      equals: right
+  - id: usage
+    description: "With anything other than two files, it prints a usage line and exits with a non-zero status."
+    command: |
+      f=/home/learner/bin/syn-check
+      one=/srv/captures/clean/before.txt
+      for args in "" "$one" "$one $one $one"; do
+        # shellcheck disable=SC2086 # the arguments are meant to split
+        said=$(cd /tmp && timeout 10 "$f" $args 2>&1)
+        status=$?
+        [ "$status" -ne 0 ] || { echo "with ${args:-no arguments}, it exits with status 0"; exit 0; }
+        echo "$said" | grep -i 'usage' > /dev/null || { echo "with ${args:-no arguments}, it prints no usage line"; exit 0; }
+      done
+      echo usage
+    expect:
+      equals: usage

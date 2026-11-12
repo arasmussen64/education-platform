@@ -1,0 +1,29 @@
+id: write-syn-check
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "SYN check"
+prompt: |
+  When a long transfer is slow and a box sits in the path (a firewall, a load balancer, a VPN gateway), the quickest test is to capture the same connection on both sides of the box and compare the settings its SYN offered. Write that comparison: a bash script, `~/bin/syn-check BEFORE AFTER`, from a blank file.
+
+  BEFORE and AFTER are two captures of the same connection in `tcpdump -nn`'s text, one taken before the box and one after it. The script finds the connection's SYN in each and prints exactly four lines, one for each option, in this order:
+
+  ```
+  mss 1460 1360
+  sackOK yes yes
+  TS yes yes
+  wscale 10 none
+  ```
+
+  Each line is the option's name, its value in BEFORE's SYN, and its value in AFTER's: the number for `mss` and `wscale`, `yes` for `sackOK` and `TS` (written `TS val ... ecr ...` in the SYN) when they're there, and `none` for an option that isn't. A box that removes an option leaves `nop`s in its place, so `wscale 10` arriving as `nop,nop,nop` is `wscale 10 none`. With anything other than two files, the script prints a usage line (one that has the word "usage" in it) and exits with a non-zero status.
+
+  Three pairs to try it on are in `/srv/captures/`: `clean`, `stripped` and `clamped`, each a folder with `before.txt` and `after.txt`, captured on this topic's lab network on 2026-11-12. Look at them first (`cat /srv/captures/clean/before.txt`): each starts with whatever the capture caught first, and each holds the SYN, its SYN-ACK and more.
+
+  Make the file with `nano ~/bin/syn-check`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/syn-check`. ShellCheck must have nothing to say about it (`shellcheck ~/bin/syn-check`). Then run the checks, which also try it on pairs it has never seen, made up as they run.
+hints:
+  - "The SYN is the first line with `Flags [S],`, comma included: a SYN-ACK is `Flags [S.]`. `grep -m 1 PATTERN FILE` stops at the first line that matches."
+  - "`grep -o 'wscale [0-9]*'` prints just that option from a line, and `cut -d ' ' -f 2` keeps its number; `[[ $line == *sackOK* ]]` asks whether a line holds `sackOK`."
+  - "A function called once for each file keeps the script short: one that prints a file's SYN line, used as `before=$(syn_line \"$1\")` and `after=$(syn_line \"$2\")`, then a loop over the four names."
+skills: [read-a-capture, window-math]
