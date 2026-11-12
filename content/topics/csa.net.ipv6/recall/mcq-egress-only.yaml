@@ -1,0 +1,16 @@
+id: mcq-egress-only
+type: mcq
+rev: 1
+prompt: |
+  What does an AWS egress-only internet gateway do?
+choices:
+  - "Translates the instances' IPv6 addresses to one public IPv6 address"
+  - "Lets instances open IPv6 connections out, and blocks connections in"
+  - "Lets IPv6-only instances reach IPv4 sites, by translating to IPv4"
+  - "Carries IPv4 and IPv6 out, and blocks connections in for both"
+answer: 1
+explanation: |
+  It's a stateful filter for IPv6, nothing more: instances keep their own global addresses ("IPv6 addresses are globally unique, and are therefore public by default", in AWS's words), connections they open go out, the replies come back, and nothing from the internet can start a connection to them. A subnet uses it through a route, `::/0` to the gateway. The gateway itself is free; data transfer is charged as usual.
+
+  It translates nothing. Reaching IPv4 sites from IPv6-only instances (NAT64) is the NAT gateway's job, and so is outbound-only IPv4: the egress-only gateway is "for use with IPv6 traffic only".
+skills: [v6-egress]

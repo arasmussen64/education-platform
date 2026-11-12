@@ -1,0 +1,16 @@
+id: mcq-ula-use
+type: mcq
+rev: 1
+prompt: |
+  When does a unique local address (`fd...`) make sense, and what's the catch?
+choices:
+  - "For every server: a ULA can't be reached from outside, so it needs no firewall at all"
+  - "For networks kept off the internet: by default, a host prefers IPv4 over a ULA"
+  - "For laptops only: routers refuse to forward ULAs between two subnets of one site"
+  - "Nowhere: ULAs were deprecated, and site-local addresses took their place in 2005"
+answer: 1
+explanation: |
+  A ULA is IPv6's private space: `fd` followed by 40 random bits, a /48 a site can use without asking anyone, routed inside the organisation and never on the internet. It suits networks that must never reach the internet (Google Cloud gives every network a ULA /48 for internal-only IPv6). The catch is in the default address-selection table (RFC 6724): a ULA destination ranks below IPv4, so a host with ULAs and IPv4 picks IPv4, and a dual-stack plan built on ULAs quietly runs on IPv4.
+
+  "Unreachable from outside" is routing, not protection: anything with a route to it, a VPN or a peered network, can reach it, so servers still need a firewall. Routers forward ULAs between subnets like any unicast address. And it's the other way round: site-local addresses (`fec0::/10`) were deprecated, in 2004, and ULAs (RFC 4193, 2005) replaced them.
+skills: [v6-address-types]

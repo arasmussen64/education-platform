@@ -1,0 +1,16 @@
+id: mcq-ip-table-not-inet
+type: mcq
+rev: 1
+prompt: |
+  A server's nftables rules are all in `table ip filter`, with `policy drop` on its input chain. The server also has a global IPv6 address. What can reach it over IPv6?
+choices:
+  - "Nothing: `policy drop` applies to every packet of both families"
+  - "Everything: a table of the `ip` family filters IPv4 packets only"
+  - "Only replies, because connection tracking spans both families"
+  - "Only ICMPv6, which the kernel lets through whatever the rules say"
+answer: 1
+explanation: |
+  An nftables table belongs to one family: `ip` sees IPv4 only, `ip6` IPv6 only, and `inet` both. A chain in a `table ip` never sees an IPv6 packet, so its policy never applies to one, and with no other table the server takes every IPv6 connection: wide open on the family nobody thought about. The fix is the table Module 1 used, `table inet filter`, which covers both with one set of rules.
+
+  Connection tracking does track both families, but a table's rules decide what is done with what it tracks, and this table never sees IPv6. Nothing passes rules by being ICMPv6; it is let through only when a rule accepts it (and it should be, as the lesson explains).
+skills: [slaac-dual-stack, v6-egress]

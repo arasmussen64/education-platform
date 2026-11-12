@@ -1,0 +1,14 @@
+id: slaac-eui64
+type: predict_shell
+rev: 1
+prompt: |
+  EUI-64 makes a 64-bit interface identifier from a 48-bit MAC address: it puts `ff:fe` in the middle and flips the second-lowest bit of the first byte. In bash, `^` flips bits (it's XOR), so `$(( 0x$a ^ 2 ))` is the first byte with the bit worth 2 flipped, and `%02x` writes it in hex with two digits. What does this print?
+command: |
+  m=12:5b:20:ac:a2:1a; IFS=: read -r a b c d e f <<< "$m"; printf '%02x%s:%sff:fe%s:%s%s\n' $(( 0x$a ^ 2 )) "$b" "$c" "$d" "$e" "$f"
+expected_output: |
+  105b:20ff:feac:a21a
+explanation: |
+  The first byte, `12`, is 0001 0010 in bits; flipping the bit worth 2 gives 0001 0000, `10`. Then come `5b`, `20`, the inserted `ff` and `fe`, and `ac`, `a2`, `1a`, grouped in fours: `105b:20ff:feac:a21a`. So on the subnet `2001:db8:42:a::/64` this card's address would be `2001:db8:42:a:105b:20ff:feac:a21a`, and its link-local one `fe80::105b:20ff:feac:a21a`.
+
+  The flipped bit says whether the MAC address is the card's own worldwide one. And because the MAC address shows in the address, the same laptop can be recognised on every network it joins, which is why most systems now use a stable random identifier for each network (RFC 7217) and temporary addresses for outgoing connections (RFC 8981) instead. The labs use EUI-64, a new namespace's default, which makes the link to the MAC easy to see.
+skills: [slaac-dual-stack]

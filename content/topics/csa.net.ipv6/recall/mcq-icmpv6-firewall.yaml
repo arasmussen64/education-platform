@@ -1,0 +1,16 @@
+id: mcq-icmpv6-firewall
+type: mcq
+rev: 1
+prompt: |
+  IPv4 uploads from a branch work. IPv6 uploads hang after the first few kilobytes, though IPv6 pages load. The branch router's forward chain starts with `meta l4proto ipv6-icmp drop`, "to be safe", above its `ct` rule. Why do the IPv6 uploads hang?
+choices:
+  - "Neighbour discovery runs through the forward chain, so the router loses its neighbours"
+  - "IPv6 sends TCP's acknowledgements as ICMPv6 messages, so the drop rule eats them"
+  - "Packet Too Big is dropped, and IPv6 routers never fragment, so big packets vanish"
+  - "ICMPv6 carries IPv6's DNS answers, so names stop resolving partway through"
+answer: 2
+explanation: |
+  An upload's first big packet is too big for some link on the path. IPv6 routers never fragment: the router before that link drops the packet and sends back an ICMPv6 Packet Too Big with the link's MTU. This rule drops that message on its way back to the laptop, so the laptop never learns, sends the same packet again and again, and the upload sits still: Layers and packets' path MTU black hole, on IPv6 only. Pages load because their packets are small. (The IPv4 version of the message is ICMP, which this rule doesn't match.) The fix is to delete the line: `ct state established,related accept` already lets in errors about the branch's own connections.
+
+  Neighbour discovery never leaves its link, so it reaches a router's input chain, not its forward chain. TCP's acknowledgements are TCP, and DNS answers are UDP or TCP, in IPv6 as in IPv4.
+skills: [v6-egress]

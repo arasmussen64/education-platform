@@ -1,0 +1,21 @@
+id: mcq-rs-ra-order
+type: mcq
+rev: 1
+prompt: |
+  These four ICMPv6 messages were captured on r1's LAN as the laptop h2 set up its IPv6 from nothing (the worked example's lab, 2026-11-12; times and lengths left out). In what order were they sent?
+
+  - **A** `:: > ff02::1:ff1c:3bf4: neighbor solicitation, who has 2001:db8:42:a:203c:6cff:fe1c:3bf4`
+  - **B** `fe80::203c:6cff:fe1c:3bf4 > ff02::2: router solicitation`
+  - **C** `:: > ff02::1:ff1c:3bf4: neighbor solicitation, who has fe80::203c:6cff:fe1c:3bf4`
+  - **D** `fe80::446:42ff:fe11:3dca > fe80::203c:6cff:fe1c:3bf4: router advertisement`
+choices:
+  - "B, D, C, A"
+  - "C, B, D, A"
+  - "C, A, B, D"
+  - "B, C, D, A"
+answer: 1
+explanation: |
+  A host starts with the one address it can make alone, its link-local one, and checks nobody has it first: duplicate address detection, a neighbour solicitation sent from `::` because the host has no address it may use yet (C). With that address, it asks for routers: a router solicitation from its link-local address to `ff02::2`, all routers (B). r1 answers it directly with an advertisement carrying the prefix (D). The host builds its global address from the prefix and checks that one too (A).
+
+  The router solicitation can't come first: it is sent from the link-local address, which the host may not use until duplicate address detection has passed. And the global address's check can't come before the advertisement, because the host doesn't know its prefix until then.
+skills: [slaac-dual-stack]
