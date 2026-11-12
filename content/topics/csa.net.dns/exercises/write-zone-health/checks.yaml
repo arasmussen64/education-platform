@@ -84,16 +84,17 @@ checks:
       equals: right
   - id: shop-test
     description: "For shop.test it prints what the shop's own two servers say: each one's serial, and whether they agree."
-    # ns2 copies shop.test from ns1 after a boot, and on a busy machine
-    # (CI, with three other labs) that took long enough once that ns2 still
-    # wasn't authoritative when this check ran, so the script was rightly
-    # told so and the check wrongly failed it. Wait until ns2 holds the zone
-    # (12 tries of a one-second dig), then compare.
-    timeout: 60
+    # ns2 copies shop.test from ns1 after a boot. On a busy machine (CI, with
+    # three other labs) ns2 can start before ns1 answers, and its first copy
+    # fails; ns2's options then try again within 10 seconds (the lab's fast
+    # clock; BIND's default is 500). Until ns2 holds the zone the script is
+    # rightly told it isn't authoritative, so wait for that (30 tries of a
+    # one-second dig, about a minute), then compare.
+    timeout: 90
     command: |
       . /usr/local/lib/netlab/checklib.sh
       ns2_holds_it() { on office dig +norecurse +time=1 +tries=1 @198.51.100.14 shop.test SOA | grep 'flags:.* aa' > /dev/null; }
-      wait_for 12 ns2_holds_it
+      wait_for 30 ns2_holds_it
       s1=$(on office dig +norecurse +short @198.51.100.13 shop.test SOA | awk '{print $3}')
       s2=$(on office dig +norecurse +short @198.51.100.14 shop.test SOA | awk '{print $3}')
       verdict="in sync"; [ "$s1" = "$s2" ] || verdict="out of sync"
