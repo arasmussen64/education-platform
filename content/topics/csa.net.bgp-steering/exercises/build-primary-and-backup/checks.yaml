@@ -1,9 +1,10 @@
 # The checks of "Primary, backup and the VPN": edge's three sessions (and
-# whether the cloud tore one down for too many prefixes), what the cloud
-# accepted over each, which way each side sends its traffic (BGP's choice,
-# and the kernel's route for every office network, which shares traffic
-# over two paths that tie), BFD on both circuits, eBGP's policy rule,
-# whether the work is saved, the cloud's router as it was, then the backups
+# whether the cloud tore one down for too many prefixes), what edge
+# announced and the cloud accepted over each, which way each side sends its
+# traffic (BGP's choice, and the kernel's route for every office network,
+# which shares traffic over two paths that tie), BFD on both circuits, eBGP's
+# policy rule, whether the work is saved with no routes typed by hand, the
+# cloud's router as it was, then the backups
 # proved by unplugging the circuits one after the other, and last, a silent
 # failure of dx1 that must be noticed within 3 seconds. sessions-up waits
 # for BGP after a boot; the rest read at once.
@@ -48,16 +49,28 @@ checks:
     expect:
       equals: up
   - id: announced-within-limit
-    description: "Over each session the cloud accepted at most 5 prefixes from edge, all inside 10.1.0.0/21, and between them they cover all eight office networks."
+    description: "Over each session edge announces only prefixes inside the office's 10.1.0.0/21, the cloud accepted at most 5 of them, and between them they cover all eight office networks."
+    # Both ends: what edge sends, and what the cloud kept. The cloud drops a
+    # route whose AS path already holds its own AS, so the cloud's own
+    # network sent back to it (a route map with no match line) shows only in
+    # what edge sends.
     command: |
       . /usr/local/lib/netlab/checklib.sh
+      outside() { python3 -c '
+      import ipaddress, sys
+      office = ipaddress.ip_network("10.1.0.0/21")
+      print(" ".join(p for p in sys.argv[1:] if not ipaddress.ip_network(p).subnet_of(office)))
+      ' "$@"; }
       all=""
-      for s in "169.254.30.1 dx1" "169.254.20.1 dx2" "169.254.10.1 vpn"; do
-        set -- $s
-        got=$(frr cloud "show bgp ipv4 unicast neighbors $1 routes json" | json "' '.join(sorted(d.get('routes', {})))")
-        [ -n "$got" ] || { echo "over $2 the cloud accepted nothing from edge"; exit 0; }
+      for s in "169.254.30.2 169.254.30.1 dx1" "169.254.20.2 169.254.20.1 dx2" "169.254.10.2 169.254.10.1 vpn"; do
+        read -r far near name <<< "$s"
+        sent=$(frr edge "show bgp ipv4 unicast neighbors $far advertised-routes json" | json "' '.join(sorted(d.get('advertisedRoutes', {})))")
+        out=$(outside $sent)
+        [ -z "$out" ] || { echo "over $name edge announces prefixes outside the office's 10.1.0.0/21: $out"; exit 0; }
+        got=$(frr cloud "show bgp ipv4 unicast neighbors $near routes json" | json "' '.join(sorted(d.get('routes', {})))")
+        [ -n "$got" ] || { echo "over $name the cloud accepted nothing from edge"; exit 0; }
         set -- $got
-        [ $# -le 5 ] || { echo "over the session the cloud accepted $# prefixes from edge, more than 5"; exit 0; }
+        [ $# -le 5 ] || { echo "over $name the cloud accepted $# prefixes from edge, more than 5"; exit 0; }
         all="$all $got"
       done
       verdict=$(python3 -c '
@@ -142,6 +155,18 @@ checks:
       echo saved
     expect:
       equals: saved
+  - id: no-hand-made-routes
+    description: "edge has no route typed into its kernel by hand, which the next boot would lose: its routes come from FRR."
+    # A network line for the summary is announced while any route for that
+    # prefix is in the table, one typed with ip route add included; after a
+    # reboot that route, and the announcement, would be gone.
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      routes=$(hand_routes edge)
+      [ -z "$routes" ] || { echo "edge has a route typed by hand: $(echo "$routes" | head -n 1)"; exit 0; }
+      echo none
+    expect:
+      equals: none
   - id: cloud-untouched
     description: "The cloud's router is as it was: its file, and the routing it runs."
     command: |
