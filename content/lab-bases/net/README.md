@@ -1,6 +1,6 @@
 # The network-lab base
 
-Every network lab (the Cloud Solutions Architect track's Module 3, and later modules that need several machines) starts `FROM lab-base-net`. This folder is that image. `tools/labcheck.py` builds it, tagged `lab-base-net`, before it builds any lab whose `Dockerfile` says `FROM lab-base-net`, for `start`, `test` and `check` alike ([ADR-0018](../../../docs/decisions/0018-lab-checker-local-mode.md), third amendment). When nothing here has changed, Docker's cache makes that a second or two.
+Every network lab (the Cloud Solutions Architect track's Module 3, and later modules that need several machines) starts `FROM lab-base-net`. This folder is that image. `tools/labcheck.py` builds it, tagged `lab-base-net`, before it builds any lab whose `Dockerfile` says `FROM lab-base-net`, for `start` and `test` alike (`check` builds nothing: it runs the checks in the lab that `start` made) ([ADR-0018](../../../docs/decisions/0018-lab-checker-local-mode.md), third amendment). When nothing here has changed, Docker's cache makes that a second or two.
 
 Read this before writing a network lab. The plan behind it is [docs/plans/cloud-module-3/MODULE-3-BRIEF.md](../../../docs/plans/cloud-module-3/MODULE-3-BRIEF.md), sections 3.5 and 4.
 
@@ -45,6 +45,8 @@ A **machine** is a network namespace (its own interfaces, addresses, routes, fir
 `on MACHINE [COMMAND...]` makes the learner root on a machine, as an administrator logged in to it (`on r1 vtysh`, `on office curl http://www.shop.test/`); with no command it opens a shell there. `netlab show` lists the machines, what each runs, and their interfaces that are up.
 
 The **lab machine** (the container itself) is the console: it is on no lab network. Switches (bridges) live in a namespace of their own, `switches`, so `on switches tcpdump -i office` works like a switch's mirror port. **No machine reaches the real internet**: a lab that needs "the internet" builds a small one (an ISP router, root and TLD name servers).
+
+A machine has its own copy of a file only when it has one in `/etc/netns/<m>/`: the lab gave it one (`machines/<m>/...`), or `netlab enable` copied the package's defaults there for a service the topology `run`s on it, or it is the `sysctl.d/` and `network/` every machine gets. Anywhere else, a program on the machine reads, **and writes**, the lab machine's own file, shared by every machine without a copy. So when a learner is to set up something the topology doesn't `run` there (a firewall they enable themselves with `systemctl enable --now nftables@gw`), give the machine its file: `machines/gw/nftables.conf`, even if it only says `flush ruleset`.
 
 What a machine doesn't have, which the first lesson says plainly: its own systemd (its services are units on the lab machine, `systemctl status frr@r1`, and their logs are in the lab machine's journal, `journalctl -u frr@r1`), its own process list (`ps` shows every machine's processes), and its own files outside the folders above (`/tmp`, `/home`, `/root` and the users are shared by all machines). Never use a file in `/tmp` as a machine's private state.
 
@@ -136,9 +138,25 @@ The lab's Dockerfile copies it and runs `systemctl enable shop-api@app`. A unit 
 
 ## netlab verify: does the machine equal a fresh build of its files?
 
-It builds a copy of every machine (`chk-r1` and so on) from the topology and the machines' own `sysctl.d`, network file and (where `nftables@M` is enabled) firewall, with no services; compares each machine, or the ones named, with its copy; prints `verified` or the first difference (`r2 differs from a fresh build of its files: < route 10.9.0.0/24 via ...`); and removes the copy. With `-- COMMAND`, it runs the command while the copy exists instead of printing `verified`, so a check can probe inside the copy (`netlab verify -- on chk-office ping -c 1 10.0.2.30`); the copy sees each machine's own `/etc`.
+It builds a copy of every machine (`chk-r1` and so on) from the topology and the machines' own `sysctl.d`, network file and (where `nftables@M` is enabled) firewall, with no services; compares each machine, or the ones named, with its copy; prints `verified` or the first difference, up to three lines of it, each marked `now:` (only on the running machine) or `from its files:` (only in the fresh build), as in `r2 differs from a fresh build of its files: now: route 10.9.0.0/24 via 10.0.12.1 dev eth1`; and removes the copy. It exits 1 when they differ. With `-- COMMAND`, it runs the command while the copy exists instead of printing `verified`, so a check can probe inside the copy (`netlab verify -- on chk-office ping -c 1 10.0.2.30`); the copy sees each machine's own `/etc`.
 
-What it compares: links (up or down, MTU, the bridge they're in), configured addresses, routes (the kernel's for connected networks, those `ip route add` makes, `proto static`), permanent neighbours, `nft -s list ruleset`, forwarding, and every key the machine's `sysctl.d` sets. What it leaves out because it changes every boot or comes from a running program: MACs, link-local addresses, addresses and routes from router advertisements, the kernel's local and broadcast entries, the PMTU cache, placeholder tunnel interfaces, and routes a routing program installed (FRR's, which `frr_saved` covers). So a machine whose addresses FRR configures (`ip address` in `frr.conf`) can't be verified: keep addresses in the topology or the network file. About a second for a dozen machines.
+What it compares: links (up or down, MTU, the bridge they're in), configured addresses, routes (the kernel's for connected networks, those `ip route add` makes, `proto static`), permanent neighbours, `nft -s list ruleset`, forwarding, and every key the machine's `sysctl.d` sets (a setting changed live that no file names isn't compared: `sysctl_saved` catches that). What it leaves out because it changes every boot or comes from a running program: MACs, link-local addresses, addresses and routes from router advertisements, the kernel's local and broadcast entries, the PMTU cache, placeholder tunnel interfaces, and routes a routing program installed (FRR's, which `frr_saved` covers). So a machine whose addresses FRR configures (`ip address` in `frr.conf`) can't be verified: keep addresses in the topology or the network file.
+
+The copy also proves that a daemon's own configuration lasts, when the daemon has no saved-versus-running helper: start the daemon in the copy from the machine's files, ask it, stop it, and compare with the running one. A fix made only live (with `unbound-control`, say) then fails:
+
+```bash
+# Does an Unbound started from the resolver's files answer for the same zones itself?
+live=$(on resolver unbound-control list_local_zones | sort)
+fresh=$(netlab verify resolver -- bash -c '
+  on chk-resolver unbound -d -p > /dev/null 2>&1 &
+  for i in $(seq 1 50); do on chk-resolver unbound-control status > /dev/null 2>&1 && break; sleep 0.2; done
+  on chk-resolver unbound-control list_local_zones | sort
+  on chk-resolver unbound-control stop > /dev/null 2>&1
+  wait')
+[ -n "$live" ] && [ "$live" = "$fresh" ] && echo saved
+```
+
+The daemon started in the copy must be stopped by the same command, before `verify` removes the copy. The same way, charon started on `chk-vpn` from the machine's files shows whether a tunnel begins by itself at boot (`start_action = start`) or was only started by hand with `swanctl --initiate`, which `swanctl --list-conns` can't show (the draft topic `csa.net.base-probes` has both checks, while it exists).
 
 ## Check helpers
 
@@ -220,4 +238,4 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 
 ## Size and time
 
-On the owner's PC (2026-11-11): the first build of layer 2 about 45 s, a build with nothing changed about 2 s, a lab's own image on the base a few seconds. Docker Desktop reports the image as 659 MB (467 MB on disk inside it; tshark's library is the largest part, about 125 MB). A five-machine lab boots in 2 to 3 s, `sudo netlab restart` takes about 1.5 s, `netlab verify` about 1 s, and the two probe labs' contract runs, restart trial included, about 3.5 minutes each. The CI cost is in ADR-0018's third amendment.
+On the owner's PC (2026-11-11): the first build of layer 2 about 45 s, a build with nothing changed about 2 s, a lab's own image on the base a few seconds. Docker Desktop reports the image as 659 MB (467 MB on disk inside it; tshark's library is the largest part, about 125 MB). A five-machine lab boots in 2 to 3 s, `sudo netlab restart` takes 1.5 to 2.5 s, `netlab verify` about 1 s for five machines and 2 to 5 s for nine, and the two probe labs' contract runs, restart trial included, 3 to 4.5 minutes each (2026-11-12: 195 s for the nine-machine one, 258 s for the VTI one). The CI cost is in ADR-0018's third amendment.
