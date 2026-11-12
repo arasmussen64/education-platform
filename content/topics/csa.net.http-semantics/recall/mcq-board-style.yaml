@@ -1,0 +1,16 @@
+id: mcq-board-style
+type: mcq
+rev: 1
+prompt: |
+  The warehouse's screens must show each new order the moment it arrives, and the screens never send anything back. Which way of carrying the orders fits best?
+choices:
+  - "Server-sent events, or a WebSocket: the server pushes each order as it comes"
+  - "REST polling: each screen asks `GET /orders` once a minute and redraws itself"
+  - "gRPC unary calls: the server calls each screen once for every new order"
+  - "A cached REST list: `GET /orders` with `max-age=60`, served by the CDN"
+answer: 0
+explanation: |
+  The flow goes one way, from the server to many screens, and must arrive at once: that's a push. **Server-sent events** (SSE) is exactly that, an HTTP answer that never ends, which the server adds a line to for each event; a browser reads it with `EventSource` and reconnects by itself. A **WebSocket** works too, and is the choice once the screens must also send something back. Either way, every proxy on the path must keep a quiet connection open longer than the gap between messages or pings.
+
+  Polling once a minute shows each order up to a minute late, and costs a request per screen per minute even when nothing happened. In gRPC, as in REST, the client starts every call, so a server can't call a screen. And a cached list makes polling later still: up to another minute on top.
+skills: [api-styles]

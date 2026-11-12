@@ -1,0 +1,16 @@
+id: mcq-idempotency-key
+type: mcq
+rev: 1
+prompt: |
+  A payment provider's API asks every client to send an `Idempotency-Key` header, a random value made once for each payment, with each `POST /payments`. What is it for?
+choices:
+  - "So a retried POST with the same key is recognised and not charged twice"
+  - "So the payment's body is encrypted with a key that only the API can read"
+  - "So the API can tell which of the customer's devices sent that payment"
+  - "So proxies on the path know that they may send the POST again by themselves"
+answer: 0
+explanation: |
+  `POST` isn't idempotent: if the connection drops after the payment went through but before the answer arrived, the client can't know whether to try again, and trying again may charge twice. With a key, the client sends the very same key on every try of one payment. The provider remembers the keys it has seen and answers a repeat with the first result instead of charging again, which makes that one `POST` safe to retry.
+
+  The key protects nothing: encryption is TLS's job. It names one payment, not a device. And it is for the provider's server, which keeps the keys: proxies and client libraries don't read it, and still never retry a `POST` by themselves.
+skills: [methods-and-status]

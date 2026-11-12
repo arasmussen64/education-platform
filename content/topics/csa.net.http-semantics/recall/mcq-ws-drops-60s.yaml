@@ -1,0 +1,16 @@
+id: mcq-ws-drops-60s
+type: mcq
+rev: 1
+prompt: |
+  The order board's WebSocket, behind nginx with the upgrade passed on and nothing else changed, drops after exactly one minute whenever nobody sends anything. What causes it, and what fixes it?
+choices:
+  - "nginx's `proxy_read_timeout`, 60 s by default: ping more often, or raise it"
+  - "TCP keepalive giving up after 60 s: set `tcp_keepalive_time` lower on the server"
+  - "The browser closing quiet WebSockets after a minute: reconnect after each close"
+  - "The upgrade lasting 60 s: have each screen send its upgrade again every minute"
+answer: 0
+explanation: |
+  nginx's WebSocket page: "By default, the connection will be closed if the proxied server does not transmit any data within 60 seconds"; `proxy_read_timeout` raises it, or the server sends WebSocket pings to reset the timer. A ping counts as traffic at every hop, so the rule is the one from TCP and UDP: send something more often than the smallest idle timer on the whole path. Raise nginx's timer above the ping interval, and check the load balancer in front too (an AWS Application Load Balancer's idle timeout is also 60 s by default).
+
+  TCP keepalive is off unless a program switches it on, and Linux's default waits two hours, so it doesn't cut anything at one minute; nor would it keep nginx's timer alive, since its probes carry no data. Browsers don't close quiet WebSockets, and an upgrade happens once, at the start: it has no lifetime.
+skills: [api-styles]

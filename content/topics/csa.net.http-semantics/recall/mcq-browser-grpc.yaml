@@ -1,0 +1,16 @@
+id: mcq-browser-grpc
+type: mcq
+rev: 1
+prompt: |
+  The shop's web team wants the storefront's pages to call the shop's internal gRPC service from the customer's browser. What does that need?
+choices:
+  - "gRPC-Web in the page, and a proxy such as Envoy translating it to gRPC"
+  - "Nothing extra: browsers speak HTTP/2, so they already speak gRPC too"
+  - "A WebSocket from the page to the service, with gRPC carried inside it"
+  - "Only CORS headers on the gRPC service, as for any cross-origin API call"
+answer: 0
+explanation: |
+  gRPC sends each call's final status in HTTP/2 **trailers**, headers that come after the body ("Status must be sent in Trailers even if the status code is OK", gRPC's HTTP/2 protocol document), and a browser gives a page's code no way to send gRPC's frames or read those trailers. **gRPC-Web** is a variant that a browser can carry, and a proxy turns it into real gRPC: grpc.io's web guide puts Envoy in front of the service for that, and notes the page may need CORS set up too, as for any cross-origin call.
+
+  Browsers do speak HTTP/2, but only for their own requests; the page can't drive it. A WebSocket would still need something at the far end turning its messages into gRPC calls, which is the job the gRPC-Web proxy does. And CORS only decides whether a page may read an answer: it doesn't make the browser speak gRPC.
+skills: [api-styles]

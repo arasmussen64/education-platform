@@ -1,0 +1,16 @@
+id: mcq-fingerprint
+type: mcq
+rev: 1
+prompt: |
+  Why can the shop send `Cache-Control: public, max-age=31536000, immutable` for `/assets/app.3f9a.js`, and not for `/news.html`?
+choices:
+  - "Each build gives the script a new name, so that URL's content never changes"
+  - "Scripts are small, so a year-old copy costs customers almost nothing to keep"
+  - "Browsers keep scripts apart and empty that store whenever a shop deploys"
+  - "The CDN checks scripts with the origin every hour, whatever the header says"
+answer: 0
+explanation: |
+  `3f9a` comes from the file's content: the build names each file after what's in it, so a changed script is a new file with a new name, and the pages that use it are updated to ask for the new name. The URL `/assets/app.3f9a.js` will hold the same bytes for ever, so a year's lifetime can never serve a wrong copy, and `immutable` tells a browser not to ask about it even when the customer reloads. That's called a **fingerprinted** (or versioned) URL.
+
+  `/news.html` keeps its name while its content changes, so a long lifetime would serve the old price list for as long as the copy lasts, in every browser that has it, where no purge can reach. Size has nothing to do with it, browsers have no deploy-time store to empty, and a CDN obeys the lifetime the origin gives (or its own settings), not an hourly check.
+skills: [caching]

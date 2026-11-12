@@ -1,0 +1,16 @@
+id: mcq-no-cache-means
+type: mcq
+rev: 1
+prompt: |
+  A page's answer says `Cache-Control: no-cache`, and carries an `ETag`. What may a browser do with it?
+choices:
+  - "Keep a copy, and ask the server whether it's still current before each use"
+  - "Keep no copy at all, so that every visit downloads the whole page again"
+  - "Keep a copy that only this browser may use, and that no shared cache keeps"
+  - "Keep a copy and use it without asking anyone until the browser is restarted"
+answer: 0
+explanation: |
+  `no-cache` is the most misread directive in HTTP. It doesn't say "don't store": RFC 9111 says such an answer "MUST NOT be used to satisfy any other request without forwarding it for validation". So the browser keeps its copy and asks each time with `If-None-Match` and the ETag, and while the page hasn't changed the answer is a `304 Not Modified` of a few hundred bytes. That's why it suits pages that change at every deploy: always current, and cheap to check.
+
+  Keeping nothing at all is `no-store`. Keeping it out of shared caches only is `private`. And nothing in HTTP ties a copy's life to the browser's: a lifetime comes from `max-age` or `Expires`. Caches differ in what they do with `no-cache`: the labs' nginx edge and Azure Front Door don't keep it at all, while Google's Cloud CDN keeps it and asks the origin before every use, as the standard allows.
+skills: [caching]

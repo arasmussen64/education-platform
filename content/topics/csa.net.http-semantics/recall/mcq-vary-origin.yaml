@@ -1,0 +1,16 @@
+id: mcq-vary-origin
+type: mcq
+rev: 1
+prompt: |
+  The basket API answers each allowed origin with that origin's own name in `Access-Control-Allow-Origin`, and some of its answers pass through a CDN that may keep them. Why must those answers also say `Vary: Origin`?
+choices:
+  - "Otherwise a cache could give one site's allowed answer to another site's page"
+  - "Otherwise the browser sends a preflight before every request, simple or not"
+  - "Otherwise the CDN strips the CORS headers before the answer reaches a browser"
+  - "Otherwise browsers refuse any answer that names an origin rather than `*`"
+answer: 0
+explanation: |
+  An answer that names `https://shop.test` is right for a page from `https://shop.test` only. A cache keys its copies on the URL, so without `Vary: Origin` the copy made for one origin's request is handed to the next request for that URL, whoever sent it: a page from `https://www.shop.test` gets an answer naming `https://shop.test` and is refused, or an allowed site's answer reaches the wrong one. `Vary: Origin` makes the request's `Origin` part of the key, so each origin gets its own copy. MDN's CORS guide asks for it whenever the allowed origin is chosen from a list.
+
+  Preflights depend on the method and headers, not on `Vary`. A CDN passes CORS headers on like any others. And browsers accept a named origin (with credentials they insist on one): it's `*` that they refuse with cookies.
+skills: [cors, caching]

@@ -1,0 +1,16 @@
+id: mcq-account-cache
+type: mcq
+rev: 1
+prompt: |
+  A shop sent its `/account` page with `Cache-Control: public, max-age=60`. Through the shop's CDN, bob opened his account page and saw alice's, made a moment before. What happened, and what is the fix?
+choices:
+  - "The CDN kept alice's page and served it to the next request; send `private`"
+  - "The app read alice's session cookie for bob's request; mend the app's sessions"
+  - "Bob's browser reused a copy of alice's page from its own cache; send `no-cache`"
+  - "Bob's cookie had run out, so the app showed the last page; renew the sessions"
+answer: 0
+explanation: |
+  `public, max-age=60` told every cache, shared ones included, that the answer could be reused for a minute. A CDN keys its copies on the URL, and alice and bob both asked for `/account`, so the copy made for alice's request answered bob's. The cookie that made the page personal was never part of the key. `private` (RFC 9111: "a shared cache MUST NOT store the response") keeps it in the customer's own browser only; `no-store` keeps it out of every cache. The fix also needs a purge: copies kept before it stay good for their minute.
+
+  The app did nothing wrong here: it made each page for the cookie it was sent, and the second request never reached it. Bob's browser has never seen alice's page, so it can't hold a copy. This is the walkthrough's mistake made on purpose, and Steam's on Christmas Day 2015, when a caching change during an attack served about 34,000 users' store pages to other users for 90 minutes (Valve's statement).
+skills: [caching]

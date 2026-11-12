@@ -1,0 +1,28 @@
+id: status-classes
+type: predict_shell
+rev: 1
+prompt: |
+  `access.log` is part of a shop's nginx access log (constructed: nginx's real "combined" format, made-up requests). In each line the ninth word is the answer's status code. The command counts the answers by class, the status code's first digit with `xx` after it. What is printed?
+files:
+  access.log: |
+    10.0.9.2 - - [12/Nov/2026:09:14:02 +0000] "GET /index.html HTTP/1.1" 200 310 "-" "curl/8.5.0"
+    10.0.9.2 - - [12/Nov/2026:09:14:03 +0000] "GET /assets/app.3f9a.js HTTP/1.1" 304 0 "-" "curl/8.5.0"
+    10.0.9.2 - - [12/Nov/2026:09:14:05 +0000] "PUT /api/basket HTTP/1.1" 200 56 "-" "curl/8.5.0"
+    10.0.9.2 - - [12/Nov/2026:09:14:07 +0000] "GET /report HTTP/1.1" 504 167 "-" "curl/8.5.0"
+    10.0.9.2 - - [12/Nov/2026:09:14:09 +0000] "DELETE /news.html HTTP/1.1" 405 157 "-" "curl/8.5.0"
+    10.0.9.2 - - [12/Nov/2026:09:14:10 +0000] "GET /api/basket HTTP/1.1" 429 171 "-" "curl/8.5.0"
+    10.0.9.2 - - [12/Nov/2026:09:14:12 +0000] "GET /account HTTP/1.1" 502 157 "-" "curl/8.5.0"
+    10.0.9.2 - - [12/Nov/2026:09:14:13 +0000] "GET / HTTP/1.1" 301 169 "-" "curl/8.5.0"
+    10.0.9.2 - - [12/Nov/2026:09:14:15 +0000] "GET /news.html HTTP/1.1" 200 201 "-" "curl/8.5.0"
+command: |
+  awk '{print substr($9, 1, 1) "xx"}' access.log | sort | uniq -c | awk '{print $2, $1}'
+expected_output: |
+  2xx 3
+  3xx 2
+  4xx 2
+  5xx 2
+explanation: |
+  `substr($9, 1, 1)` is the first digit of the status code, so each line becomes its class: `sort` puts the same classes together, `uniq -c` counts each run, and the last awk turns `3 2xx` round into `2xx 3`. The classes are HTTP's own grouping: **2xx** success (200, and 204 for an answer with no body), **3xx** go elsewhere or use your copy (301 a permanent redirect, 304 not modified), **4xx** the client's mistake, and **5xx** the server's.
+
+  The 4xx here are a method the page doesn't allow (`405 Method Not Allowed`, a `DELETE` of a static file) and a client sending too fast (`429 Too Many Requests`): sending the same again won't help. The 5xx are the ones an operator is paged for: `502 Bad Gateway`, the proxy got a bad answer from the app or none (it crashed, or closed the connection), and `504 Gateway Timeout`, the proxy gave up waiting (a slow app, or a proxy timeout shorter than the work).
+skills: [methods-and-status]

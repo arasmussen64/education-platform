@@ -1,0 +1,16 @@
+id: mcq-ws-no-upgrade
+type: mcq
+rev: 1
+prompt: |
+  Sent straight to the order board, a WebSocket upgrade gets `101 Switching Protocols`. Sent through the shop's nginx, whose `/board/` block has only a `proxy_pass` line, the same request gets `400 Bad Request` from the board. What is nginx missing?
+choices:
+  - "Lines passing `Upgrade` and `Connection` on, which nginx doesn't pass by itself"
+  - "A `proxy_read_timeout` long enough for the upgrade's handshake to complete"
+  - "TLS between nginx and the board, since a WebSocket runs only over HTTPS"
+  - "An `Access-Control-Allow-Origin` header naming the staff screens' origin"
+answer: 0
+explanation: |
+  `Upgrade` and `Connection` are **hop-by-hop** headers: they describe one connection, the client's to nginx, not the whole path, so a proxy doesn't pass them on (nginx's WebSocket page says so). nginx also speaks HTTP/1.0 to the server behind it unless told otherwise, and an upgrade needs HTTP/1.1. So the board saw an HTTP/1.0 `GET` with no upgrade in it. Three lines mend it: `proxy_http_version 1.1;` (needed before nginx 1.29.7, so in Ubuntu 24.04's 1.24), `proxy_set_header Upgrade $http_upgrade;` and `proxy_set_header Connection "upgrade";`. Captured in this topic's lab: without the three, the board answered `400 Bad Request`; with HTTP/1.1 and still no headers, `426 Upgrade Required`; with all three, `101`.
+
+  A timeout doesn't change an answer's status, and the handshake takes milliseconds. WebSockets run over plain HTTP (`ws://`) as well as HTTPS (`wss://`), and the walkthrough's upgrade was plain. CORS headers decide what a page may read; they don't make a proxy pass headers it drops.
+skills: [api-styles]

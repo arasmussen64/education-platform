@@ -1,0 +1,27 @@
+id: cache-control-parse
+type: predict_shell
+rev: 1
+prompt: |
+  `asset.txt` is the edge cache's answer for the shop's script, captured in this topic's lab (nginx 1.24, 2026-11-12) with `curl -sI`, carriage returns taken off. The command finds the `Cache-Control` line, takes its `max-age`, and prints it in days. What is printed?
+files:
+  asset.txt: |
+    HTTP/1.1 200 OK
+    Server: nginx/1.24.0 (Ubuntu)
+    Date: Thu, 12 Nov 2026 12:19:59 GMT
+    Content-Type: application/javascript
+    Content-Length: 98
+    Connection: keep-alive
+    Last-Modified: Thu, 12 Nov 2026 11:49:15 GMT
+    ETag: "6af5a7bb-62"
+    Cache-Control: public, max-age=31536000, immutable
+    X-Cache-Status: HIT
+    Accept-Ranges: bytes
+command: |
+  grep -i '^cache-control:' asset.txt | grep -o 'max-age=[0-9]*' | cut -d= -f2 | awk '{print $1 / 86400, "days"}'
+expected_output: |
+  365 days
+explanation: |
+  `grep -i` finds the header whatever the case of its name, `grep -o` keeps only `max-age=31536000`, `cut -d= -f2` the number after the `=`, and awk divides by the 86,400 seconds in a day: 365. A year is the usual lifetime for a fingerprinted file, whose name changes whenever its content does; `public` lets shared caches keep it too, and `immutable` tells a browser not to ask about it even when the customer reloads the page.
+
+  `X-Cache-Status: HIT` is the edge's own header: it answered from its copy, and the origin never heard of this request. The `Date` is when the edge sent the answer. A cache answering from its copy is also meant to send `Age`, how many seconds the copy has been kept (RFC 9111); this nginx edge doesn't, while CDNs' answers carry it.
+skills: [caching]

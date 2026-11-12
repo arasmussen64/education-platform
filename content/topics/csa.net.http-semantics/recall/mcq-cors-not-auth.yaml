@@ -1,0 +1,16 @@
+id: mcq-cors-not-auth
+type: mcq
+rev: 1
+prompt: |
+  A colleague says: "Our API's CORS allows only `https://www.shop.test`, so nobody else can call it." What's wrong with that?
+choices:
+  - "Only browsers apply CORS: a script or a server can call the API all the same"
+  - "Nothing: the API refuses every request whose Origin isn't on that list"
+  - "CORS covers only `GET`, so a `POST` from any other origin still gets through"
+  - "The list also needs `*`, or the shop's own mobile app is refused as well"
+answer: 0
+explanation: |
+  CORS is the API telling **browsers** which other sites' pages may read its answers, so a page on `evil.test`, running in a customer's browser beside the customer's cookies, can't read their basket. It protects the people using browsers from other websites. It doesn't protect the API: `curl`, a script or another server sends no `Origin` it must respect and ignores the answer's CORS headers, as the walkthrough's `PUT` without an `Origin` showed. The API still has to check who is calling, every time, with a session, a token or a key.
+
+  An API doesn't refuse a request for its `Origin` (the shop's nginx answered evil.test's preflight with `204`, minus the allow-origin header); the browser does the refusing. CORS covers every method, and a mobile app isn't a browser, so CORS never applies to it.
+skills: [cors]

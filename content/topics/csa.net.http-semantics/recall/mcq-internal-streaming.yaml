@@ -1,0 +1,16 @@
+id: mcq-internal-streaming
+type: mcq
+rev: 1
+prompt: |
+  Two of the shop's internal services exchange a steady stream of stock updates in both directions. The teams want a message format that both sides' code is checked against, and a time limit on every exchange. Which fits best?
+choices:
+  - "gRPC bidirectional streaming over HTTP/2, with the messages in protocol buffers"
+  - "Server-sent events from each service to the other, one JSON line per update"
+  - "REST, with each update a `POST` carrying JSON, retried until it succeeds"
+  - "WebSockets carrying JSON text, which each service's own code checks by hand"
+answer: 0
+explanation: |
+  **gRPC** describes a service and its messages in a **protocol buffers** file, from which both sides' code is generated, so a message that doesn't fit the contract fails at build time. Its four kinds of call are unary (one request, one answer), server streaming, client streaming and **bidirectional streaming**, where both sides send a stream at once over one HTTP/2 stream; and every call can carry a **deadline**, ending with `DEADLINE_EXCEEDED` when time runs out (grpc.io's "Core concepts"). That's all three needs.
+
+  Two SSE streams would work one way each, with no contract. REST with retried `POST`s has no streaming and, without an idempotency key, risks applying an update twice. WebSockets carry the stream, but the format is whatever each side's code decides it is. gRPC's price is that every hop must speak HTTP/2 and pass trailers, which internal service-to-service traffic usually can.
+skills: [api-styles]
