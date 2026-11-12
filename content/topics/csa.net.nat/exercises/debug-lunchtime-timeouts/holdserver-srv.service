@@ -1,0 +1,15 @@
+# srv's payment service, as a stand-in: the base's holdserver accepts
+# connections on port 443 and keeps every one open until the client closes
+# it, so each keeps its place in a NAT's table. "systemctl status holdserver-srv".
+[Unit]
+Description=The payment provider's service on srv, port 443
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+ExecStart=/usr/sbin/ip netns exec srv /usr/local/lib/netlab/lab-enter srv /usr/local/bin/holdserver 443
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

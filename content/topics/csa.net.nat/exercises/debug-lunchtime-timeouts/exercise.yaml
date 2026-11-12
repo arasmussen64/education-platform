@@ -1,0 +1,23 @@
+id: debug-lunchtime-timeouts
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Lunchtime timeouts"
+prompt: |
+  The shop's gateway, `gw`, in service, and three complaints about it in one week.
+
+  **How it's meant to work.** The NAT labs' network, with the shop's two public addresses on gw's `wan`, 198.51.100.2 and 198.51.100.3. The office's PCs are on the shop's network, 10.1.0.0/24 (`office` is one of them, 10.1.0.10), with the app at 10.1.0.20, and both reach the internet as 198.51.100.2. The app's card payments go to the payment provider, `srv` at 203.0.113.10, port 443, and leave from 198.51.100.3, the only address the provider accepts: it drops any other without a word. At the lunchtime peak the app holds up to 120 connections to the provider at once, and the business wants room for twice that. Customers reach the shop's app at 198.51.100.2, port 443 (the app itself listens on 10.1.0.20, port 8443), and the app's rate limiter counts requests per customer address, so the app must see each customer's own address. The app machine also runs the shop's database on 5432 and SSH on 22, which nobody on the internet may reach. gw's firewall and NAT are its `/etc/nftables.conf`, which `nftables@gw` loads at every boot; its forwarding is on, in its `/etc/sysctl.d/`. On the lab's internet, `srv` also runs a web server on port 80 that answers with the address each connection came from, and `client` (203.0.113.20) is a customer.
+
+  **What people report:**
+
+  - At lunchtime, card payments time out, while some still go through. `on app holdconns 120 203.0.113.10 443` opens as many connections to the provider as the peak does, and says how many opened.
+  - This week the app's rate limiter blocked every customer at once.
+  - Since the office's network was renumbered on Friday, the office's PCs reach nothing on the internet, though the app still can.
+
+  There are **three faults**. The evidence worth reading: `on gw nft list ruleset`; `on gw conntrack -L`, whose two tuples show what each connection was translated to; `on gw conntrack -S`, whose `insert_failed` counts the SYNs gw had no port for (retries included); `on gw tcpdump -nn -i wan`; and the app's log, `on app tail /var/log/nginx/access.log`, which shows the address each request came from.
+
+  **The rules of the fix:** gw keeps dropping anything forwarded that no rule allows; the payment traffic keeps leaving from 198.51.100.3; nothing more is published to the internet; flushing conntrack's table (`conntrack -F`) is not a fix; the payment provider, inet and the network itself aren't yours to change; and the fix survives a reboot (`sudo netlab restart` tries one).
+skills: [port-exhaustion, nat-sizing, snat-and-dnat, nat-rules]
