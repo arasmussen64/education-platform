@@ -1,0 +1,30 @@
+id: debug-wrong-circuit
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The backup circuit carries everything"
+prompt: |
+  The data centre from the fill-in, moved to new routers last week. One AS, 65001, with four routers that run BGP: `access` holds the data centre's four networks, 10.1.0.0/24 to 10.1.3.0/24 (the office laptop, `office`, is 10.1.0.10), and peers only with `core`; core is the route reflector for access, `dc1` and `dc2`; dc1 holds circuit 1 (`dx1`, the cloud's router at 169.254.30.2) and dc2 circuit 2 (`dx2`, 169.254.20.2). Static routes carry traffic for the inside cables. Each router's configuration is saved in its `/etc/frr/frr.conf`; `on dc1 vtysh` and the like open their consoles. The cloud (AS 64600, standing in for Microsoft's 12076) has `app` (10.100.0.10), which answers on TCP port 8080 with the address that reached it. The cloud's router isn't yours; `looking-glass cloud 'show ...'` reads it. BGP's timers are the labs' fast ones (a keepalive every 3 seconds and a hold time of 9; Microsoft's side uses 60 and 180).
+
+  How it is meant to work: circuit 1 carries the data centre's traffic in both directions while it's up, and circuit 2 takes over when it isn't. dc1 and dc2 each announce the data centre to the cloud as one summary, 10.1.0.0/22, and dc1 gives the cloud's routes local preference 200 so the data centre's traffic leaves through it. BFD watches both circuits, so a circuit that fails silently is noticed in about a second. The cloud's router is modelled on Azure ExpressRoute's documented behaviour (Microsoft Learn's "Routing requirements" and "Optimize routing", read 2026-11-12): "Microsoft doesn't honor any community values tagged to routes advertised to Microsoft"; to choose how its traffic reaches you, "Advertise your on-premises prefixes on the appropriate ExpressRoute circuits or use AS PATH prepending"; MED isn't among the tools named, and the cloud sets every MED it receives to 0. It shares its traffic over two equal paths, and runs BFD on both circuits.
+
+  Since the move:
+
+  - the cloud's monitoring shows about half of its connections to the data centre arriving over circuit 2 (`looking-glass cloud 'show ip route 10.1.0.10'`);
+  - the office's traffic to the cloud leaves over circuit 2 (`on office traceroute -n -q 1 10.100.0.10`), though circuit 1 and its session are up;
+  - last Tuesday, circuit 1's provider had a fault that left the link up, and it took about ten seconds before traffic moved to circuit 2 (to see a silent failure of circuit 1 yourself: `sudo netlab link dc1 dx1 silent`, then `sudo netlab link dc1 dx1 restore`).
+
+  There are three faults, on the data centre's routers. Fixing one can change what you see. Find each from the evidence: the routers' own `show` commands (`show bgp ipv4 unicast PREFIX`, `show bgp summary`, `show bfd peers`) and what the cloud sees through its looking glass.
+
+  The rules of the fix:
+
+  - **The cloud's router isn't yours.**
+  - **eBGP's policy requirement stays on.**
+  - **dc1 and dc2 announce the data centre's summary, 10.1.0.0/22, and nothing else.**
+  - **The fix lasts:** saved, with no routes typed into the kernel.
+
+  When both directions use circuit 1, run the checks; the last one makes circuit 1 silent to watch the traffic move, and mends it.
+skills: [inbound-steering, route-reflection, failure-detection]

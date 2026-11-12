@@ -1,0 +1,28 @@
+id: write-azure-style
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "dx1 first, the ExpressRoute way"
+prompt: |
+  The same company and the same two circuits as the walkthrough, but to another cloud. edge (AS 65001) has the office's network, 10.1.0.0/24 (`office` is 10.1.0.10), and two circuits to the cloud's router (AS 64600, standing in for Microsoft's 12076): `dx1`, with the cloud at 169.254.30.2, and `dx2`, at 169.254.20.2. The cloud's app, `app` (10.100.0.10), answers on TCP port 8080 with the address that reached it. edge's two sessions are configured and saved, with filters: it accepts only the cloud's 10.100.0.0/16 (prefix list `CLOUD`, route map `FROM-CLOUD`) and announces only the office's 10.1.0.0/24 (prefix list `OURS`, route map `TO-CLOUD`); `on edge vtysh -c 'show running-config'` shows them. The cloud's router isn't yours; `looking-glass cloud 'show ...'` reads it. Today each side shares its traffic over both circuits: the paths tie, and dx2 has the lower addresses.
+
+  The cloud's router is modelled on Azure ExpressRoute's documented behaviour (Microsoft Learn's "Routing requirements" and "Optimize routing", read 2026-11-12): "Microsoft doesn't honor any community values tagged to routes advertised to Microsoft"; to choose how Microsoft's traffic reaches you, "Advertise your on-premises prefixes on the appropriate ExpressRoute circuits or use AS PATH prepending"; for your traffic to Microsoft, local preference on your side. MED isn't among the tools Microsoft names, so this cloud sets every MED it receives to 0. Like Azure's, it accepts a limited number of prefixes on each session and drops the session above that (scaled down: 10 here, where Azure's private peering takes 4,000), and it runs BFD. BGP's timers are the labs' fast ones (a keepalive every 3 seconds and a hold time of 9; Microsoft's side uses 60 and 180).
+
+  In edge's console (`on edge vtysh`), make dx1 the circuit for both directions while it's up, and dx2 the backup:
+
+  1. edge sends the office's traffic to the cloud over dx1, chosen by local preference;
+  2. the cloud sends its traffic for the office over dx1, using only what this cloud honours, and with the office's 10.1.0.0/24 still the only prefix edge announces over each circuit;
+  3. when dx1 is down, both directions use dx2 by themselves, and dx1 again when it comes back;
+  4. eBGP's policy requirement stays on, and the cloud's router is left as it is;
+  5. saved, so a restart keeps it.
+
+  Then run the checks; the last one unplugs dx1 to watch both directions move to dx2, and plugs it back in.
+hints:
+  - "Your own traffic first: an inbound route map for dx1's session, accepting what `FROM-CLOUD` accepts (`match ip address prefix-list CLOUD`) and setting a local preference above the default 100."
+  - "For the cloud's traffic, the walkthrough's three tries show which tools are left when communities and MED are ignored and you may announce only one prefix: make one circuit's path longer. Which one? The cloud prefers the shorter AS path."
+  - "A route map for one session's outbound side must still let out only `OURS`, or edge starts announcing what it learned. Define each route map before you name it on a session, so it takes effect at once."
+  - "`looking-glass cloud 'show bgp ipv4 unicast 10.1.0.0/24'` shows the AS path the cloud received over each circuit and why it chose one; `on edge ip route show 10.100.0.0/16` shows whether edge still shares its traffic over both."
+skills: [inbound-steering, cloud-circuits]

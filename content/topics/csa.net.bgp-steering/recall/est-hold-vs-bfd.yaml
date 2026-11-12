@@ -1,0 +1,26 @@
+id: est-hold-vs-bfd
+type: estimate
+rev: 1
+prompt: |
+  An ExpressRoute circuit fails silently, just after a keepalive arrived. Microsoft's routers use a hold time of 180 seconds, so BGP alone notices when that runs out. With BFD at an interval of 300 ms and a multiplier of 3 as well, how many seconds sooner is the failure noticed? Within half a second.
+unit: seconds
+answer: 179.1
+tolerance: { absolute: 0.5 }
+given: { hold: 180, interval: 300, multiplier: 3 }
+working: hold - interval * multiplier / 1000
+mistakes:
+  - id: mixed-units
+    value: -720
+    working: hold - interval * multiplier
+    why: "That takes 900 milliseconds from 180 seconds. Put both in seconds first: BFD's 300 ms x 3 is 0.9 seconds."
+  - id: bfd-instant
+    value: 180
+    working: hold
+    why: "That treats BFD as instant. It still waits 300 ms x 3 = 0.9 seconds before it declares the path down, so the gain is the hold time less that."
+  - id: keepalive
+    value: 120
+    working: hold - 60
+    why: "That takes off the keepalive interval, 60 seconds. BFD replaces the wait for the whole hold time with its own 0.9 seconds."
+explanation: |
+  Without BFD, a failure just after a keepalive is noticed when the 180-second hold time runs out. With BFD, after 300 ms x 3 = 0.9 seconds. 180 - 0.9 = 179.1 seconds sooner: three minutes of lost traffic become under a second, which is why Microsoft's page recommends BFD and configures it on its side of every new peering.
+skills: [failure-detection]

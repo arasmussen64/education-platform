@@ -1,0 +1,16 @@
+id: mcq-azure-communities
+type: mcq
+rev: 1
+prompt: |
+  A design tags the routes sent over the backup ExpressRoute circuit with a low-preference community, as it does on Direct Connect with 7224:7100. What does Azure do with that community?
+choices:
+  - "Turns it into its own local preference, as AWS does with 7224:7100"
+  - "Refuses the routes, because ExpressRoute accepts no communities at all"
+  - "Honours it on Microsoft peering only, and ignores it on private peering"
+  - "Ignores it, so the backup needs a prepend or the primary more specifics"
+answer: 3
+explanation: |
+  Microsoft's routing requirements page: "Microsoft doesn't honor any community values tagged to routes advertised to Microsoft." The routes are accepted and the community does nothing, so the two circuits stay equal and Azure shares its traffic over both, as the write lab's cloud did. The tools Microsoft names for its traffic to you are "Advertise your on-premises prefixes on the appropriate ExpressRoute circuits or use AS PATH prepending".
+
+  The communities Azure does use are the ones it sends you, such as East US's 12076:50004 on the routes for that region, which your routers can match to set their own local preference. Communities are only honoured where the receiver documents them.
+skills: [cloud-circuits]

@@ -1,0 +1,22 @@
+id: est-bfd-750
+type: estimate
+rev: 1
+prompt: |
+  Microsoft's page says its routers sometimes set BFD's interval to 750 ms instead of 300. With a multiplier of 3, how many seconds does BFD then take to declare a silent failure? Exactly.
+unit: seconds
+answer: 2.25
+tolerance: { absolute: 0 }
+given: { interval: 750, multiplier: 3 }
+working: interval * multiplier / 1000
+mistakes:
+  - id: milliseconds
+    value: 2250
+    working: interval * multiplier
+    why: "That is the right time in milliseconds; the box asks for seconds, and 2250 ms is 2.25 seconds."
+  - id: one-interval
+    value: 0.75
+    working: interval / 1000
+    why: "That is one interval. BFD declares the path down only when 3 intervals in a row pass with nothing heard."
+explanation: |
+  750 ms x 3 = 2250 ms, 2.25 seconds. BFD uses the slower of the two sides' settings, so if Microsoft's side runs at 750, your 300 doesn't make it faster. Still well inside the 3 seconds the labs ask for, and nothing like the 180 seconds of Microsoft's hold time.
+skills: [failure-detection]

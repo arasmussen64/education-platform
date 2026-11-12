@@ -1,0 +1,22 @@
+id: est-sessions-saved
+type: estimate
+rev: 1
+prompt: |
+  An AS of 20 routers could run a full mesh of iBGP sessions, or 2 route reflectors that peer with each other and serve the other 18 routers, each of which peers with both reflectors and nothing else. How many fewer sessions does the reflector design need? Exactly.
+unit: sessions
+answer: 153
+tolerance: { absolute: 0 }
+given: { routers: 20, reflectors: 2, clients: 18 }
+working: routers * (routers - 1) / 2 - (clients * reflectors + 1)
+mistakes:
+  - id: no-reflector-session
+    value: 154
+    working: routers * (routers - 1) / 2 - clients * reflectors
+    why: "That leaves out the session between the two reflectors, which the design needs so each passes the other its clients' routes."
+  - id: mesh-both-ends
+    value: 343
+    working: routers * (routers - 1) - (clients * reflectors + 1)
+    why: "That counts the full mesh's sessions from both ends. 20 routers with 19 sessions each is 380 ends, and each session has two of them."
+explanation: |
+  The full mesh: 20 x 19 / 2 = 190 sessions. The reflector design: 18 clients x 2 reflectors = 36, plus the 1 between the reflectors, 37. 190 - 37 = 153 fewer. Adding a 21st router would cost the mesh 20 new sessions, one with every router already there, and the reflector design 2.
+skills: [route-reflection]

@@ -1,17 +1,302 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.bgp-steering
 kind: topic
-status: planned
+status: ready
 title: Steering traffic and cloud circuits
-summary: Steer incoming traffic with more-specific prefixes, AS-path prepending, MED and communities.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Making another network choose your way in, with a more specific prefix, AS-path prepending, MED and the communities a provider documents; why routers inside one AS don't pass each other's BGP routes on, and what a route reflector does about it; noticing a failed link fast with BFD; and making one circuit primary in both directions on Direct Connect, ExpressRoute and Cloud Interconnect, with a second circuit and a VPN as backups."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2
+# and 5, topic 36) and its designer's brief (csa.net.bgp-steering.md, with
+# frr-labs-common.md). The second half of the spec's old BGP topic; the
+# first is csa.net.bgp, which this builds on: sessions, network, prefix
+# lists, route maps, show bgp, the decision order, local preference, MED
+# named, maximum-prefix, looking-glass and RFC 8212. Through it, routing's
+# longest-prefix match, ECMP, the silent failure and floating statics, and
+# CIDR's summaries (eight /24s make one /21); and the network labs'
+# machines, on, netlab link and services as name@machine from
+# csa.net.layers. This topic defines AS-path prepending, communities,
+# route reflector and BFD for the module (the plan's section 3.7), and
+# inbound and outbound traffic engineering, aggregation, the iBGP rule,
+# next-hop-self, graceful restart (named) and the clouds' circuit words.
+prerequisites: [csa.net.bgp]
+# Worked out: the lesson about 24 minutes (3,150 words at 130 a minute),
+# reading 46 (AWS's routing page 12, the two NSRC traffic-engineering
+# videos 9, Microsoft's three pages' named parts 11, Google's advertised
+# routes 6, the NSRC route-reflector video 7, AWS's BGP settings 1), 18
+# recall items at 1.5 each 27, then the worked example 35 (nine steps,
+# three failures timed), the fill-in 20, the write 25, the build 60, the
+# debug 45 and the explain 20: 302. The plan gives 295, which is kept.
+estimated_minutes: 295
 rev: 1
 objectives:
-- Steer incoming traffic with more-specific prefixes, AS-path prepending, MED and communities.
-- Explain route reflection.
-- Detect failures fast with BFD.
-- Make one circuit primary in both directions on Direct Connect, ExpressRoute and Cloud Interconnect, and plan the backup.
+  - "Make another network choose your preferred way in, with a more specific prefix, AS-path prepending, MED (between links to one neighbour) and the communities a provider documents, and say which of them AWS, Azure and Google Cloud honour and in what order."
+  - "Explain why routers inside one AS don't pass each other's BGP routes on, what a route reflector and its clients do about it, and the next-hop trap that comes with it; work out how many sessions a full mesh and a pair of reflectors need."
+  - "Work out how long a failed link takes to notice: carrier loss at once, a silent failure only when the hold time runs out, and BFD's interval times its multiplier; set BFD up and prove it with a silent failure."
+  - "Design and build two circuits to a cloud with one primary in both directions, a second circuit and a VPN as backups, summarised to stay within the provider's prefix limit, on Direct Connect's, ExpressRoute's and Cloud Interconnect's documented rules."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - AWS Direct Connect, private and transit virtual interfaces: "AWS
+#   evaluates the longest prefix length first"; local preference communities
+#   7224:7100 (low), 7224:7200 (medium), 7224:7300 (high), "evaluated before
+#   any AS_PATH attribute"; without a community, Direct Connect locations
+#   associated with the same Region get medium and others "a lower value";
+#   then AS_PATH length; then MED, "AWS does not recommend using MED values
+#   given their lower priority in evaluation"; ECMP across virtual
+#   interfaces with the same AS_PATH length and attributes; active/passive
+#   with 7224:7300 on the primary and 7224:7100 on the passive; a route whose
+#   AS_PATH holds 7224 twice is a loop. Public virtual interfaces: AWS's ASN
+#   7224; a private ASN is replaced by 7224 and "any prepending you do will
+#   be stripped"; NO_EXPORT on every route AWS advertises; scope communities
+#   7224:9100, 9200 and 9300; AWS's own routes tagged 7224:8100 (the
+#   associated Region) and 7224:8200 (its continent):
+#   https://docs.aws.amazon.com/directconnect/latest/UserGuide/routing-and-bgp.html
+# - Direct Connect quotas: routes per BGP session on a private or transit
+#   virtual interface, "Default of 100 each for IPv4 and IPv6", up to 1,000
+#   with prefix controls; above that "the BGP session will go into an idle
+#   state"; 1,000 on a public virtual interface:
+#   https://docs.aws.amazon.com/directconnect/latest/UserGuide/limits.html
+# - Direct Connect BGP settings: default hold timer 90 s (minimum 3),
+#   keepalive 30 s; BFD minimum interval 300 ms, minimum multiplier 3;
+#   graceful restart 120 s, "We recommend that you do not configure graceful
+#   restart and BFD at the same time"; BGP TTL 1, no multihop:
+#   https://docs.aws.amazon.com/directconnect/latest/UserGuide/bgp-specific-settings.html
+#   Asynchronous BFD is on by default on AWS's side of every virtual
+#   interface, and takes effect once your router runs it (AWS's knowledge
+#   centre, "How do I enable BFD for my Direct Connect connection?"):
+#   https://repost.aws/knowledge-center/enable-bfd-direct-connect
+# - Azure ExpressRoute (ms.date 2026-08-27): Microsoft uses AS 12076
+#   (65515 to 65520 reserved); two /30s, the first address of each yours;
+#   "You must set up both BGP sessions for the availability SLA to be
+#   valid"; up to 4,000 IPv4 prefixes on private peering (10,000 with
+#   Premium), 100 IPv6, 200 per session on Microsoft peering; "The BGP
+#   session drops if the number of prefixes exceeds the limit"; "Microsoft
+#   doesn't honor any community values tagged to routes advertised to
+#   Microsoft"; regional communities such as East US 12076:50004:
+#   https://learn.microsoft.com/en-us/azure/expressroute/expressroute-routing
+# - ExpressRoute optimise routing (ms.date 2025-01-31): "Advertise your
+#   on-premises prefixes on the appropriate ExpressRoute circuits or use AS
+#   PATH prepending"; local preference on your side, "The default local
+#   preference is typically 100"; "The connection weight is considered
+#   before the AS Path length". Neither page names MED as a tool, so the
+#   labs' Azure-style cloud sets every MED it receives to 0:
+#   https://learn.microsoft.com/en-us/azure/expressroute/expressroute-optimize-routing
+# - ExpressRoute BFD (ms.date 2026-03-12): on the MSEEs "BGP keep-alive and
+#   hold-time are typically configured as 60 and 180 seconds", so a failure
+#   "can take up to three minutes" to detect; BFD configured by default on
+#   new peerings; MSEE intervals 300 ms, "In certain scenarios, the interval
+#   may be set at a higher value of 750 milliseconds"; the example "bfd
+#   interval 300 min_rx 300 multiplier 3":
+#   https://learn.microsoft.com/en-us/azure/expressroute/expressroute-bfd
+# - Google Cloud Router: "you define a base advertised priority that is used
+#   as a value for the BGP MED attribute", default base priority 100, other
+#   regions' subnets the base plus an inter-region cost, and "The route
+#   selection process in the on-premises network might not prioritize the
+#   lower-MED route":
+#   https://docs.cloud.google.com/network-connectivity/docs/router/concepts/advertised-routes ;
+#   learned routes: lowest MED preferred; in legacy best path selection (the
+#   default) "the dynamic route control plane doesn't use the AS path
+#   information", in standard mode it does; prefixes beyond the quota are
+#   dropped: https://docs.cloud.google.com/network-connectivity/docs/router/concepts/learned-routes ;
+#   BFD "disabled on Cloud Router BGP sessions" by default, 1000 ms
+#   intervals (1000 to 30000) and multiplier 5 (5 to 16), "Detection time =
+#   Agreed transmit interval * BFD multiplier", 5 seconds at the defaults:
+#   https://docs.cloud.google.com/network-connectivity/docs/router/concepts/bfd ;
+#   Partner Interconnect's 99.99% "requires at least four VLAN attachments
+#   across two metros" and two Cloud Routers:
+#   https://docs.cloud.google.com/network-connectivity/docs/interconnect/concepts/partner-overview ;
+#   Cloud Router's ASN 16550 with Partner Interconnect (as csa.net.bgp read
+#   it, 2026-11-12): https://docs.cloud.google.com/network-connectivity/docs/router/how-to/create-router-vpc-network
+# - RFC 4456 (April 2006): without reflection "all BGP speakers within a
+#   single AS must be fully meshed"; a route from a non-client is reflected
+#   to the clients, a route from a client to the non-clients and the other
+#   clients; ORIGINATOR_ID and CLUSTER_LIST stop loops; the reflector
+#   "SHOULD NOT modify ... NEXT_HOP, AS_PATH, LOCAL_PREF, and MED":
+#   https://www.rfc-editor.org/rfc/rfc4456
+# - RFC 1997 (August 1996): a community is 32 bits, by convention the AS
+#   number then a value; NO_EXPORT 0xFFFFFF01, NO_ADVERTISE 0xFFFFFF02:
+#   https://www.rfc-editor.org/rfc/rfc1997
+# - FRR 8.4: BFD's defaults detect-multiplier 3, receive-interval and
+#   transmit-interval 300 ms, "neighbor PEER bfd" and "bfd profile"
+#   (https://docs.frrouting.org/en/stable-8.4/bfd.html);
+#   route-reflector-client, aggregate-address ... summary-only ("Longer
+#   prefixes advertisements of more specific routes to all neighbors are
+#   suppressed"), set community, set as-path prepend, next-hop-self ("if it
+#   is learned via eBGP"), maximum-prefix
+#   (https://docs.frrouting.org/en/stable-8.4/bgp.html).
+# Every output marked "captured" in the lesson, the labs and the recall items
+# is real output of this topic's labs (FRR 8.4.4 on Ubuntu 24.04, on the
+# network-lab base, Docker Desktop 29.8.2), captured on 2026-11-12: two
+# equal paths installed as two next hops; MED, then a prepend, failing to
+# move the AWS-style cloud and a community moving it; 53 of 75 pings lost
+# and "Hold Timer Expired" in a silent failure without BFD, 5 of 25 with it;
+# show bfd peers; core's summary sending nothing before it reflected, and
+# "Originator" and "Cluster list" after; an "inaccessible" next hop; and
+# "Idle (PfxCt)" with "will restart in 56 seconds". Times and uptimes will
+# differ in a new run.
+#
+# Linked or embedded, never copied. Licences, each read on 2026-11-12: AWS's
+# documentation (copyright Amazon Web Services); Microsoft Learn (the
+# MicrosoftDocs/azure-docs repository: CC BY 4.0); Google Cloud's
+# documentation (the pages' footer: CC BY 4.0); the NSRC and LearnCantrill
+# videos (titles and channels from YouTube's oEmbed; embedded with YouTube's
+# official player, whose terms allow it; each watch page's licence field
+# read 2026-11-12: "Creative Commons Attribution license (reuse allowed)" on
+# the three NSRC videos, the standard licence on LearnCantrill's; lengths
+# 2:00, 6:39, 7:18 and 7:50; not yet watched by a person); FRR's documentation (the pages' footer "Copyright 2017, FRR");
+# RFCs (the IETF Trust's Legal Provisions).
+resources:
+  - title: "Direct Connect routing policies and BGP communities (AWS documentation): read \"Private virtual interface and transit virtual interface routing policies\" and its BGP communities, then skim the public virtual interface sections, about 12 minutes"
+    url: https://docs.aws.amazon.com/directconnect/latest/UserGuide/routing-and-bgp.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Inbound Traffic Engineering (NSRC, 2 minutes): what you can and can't change about how others reach you"
+    url: https://www.youtube.com/watch?v=M8zWe5NPHc0
+    type: video
+    use: embed
+    license: "Creative Commons Attribution (YouTube's licence field, read 2026-11-12; official embed)"
+  - title: "Outbound Traffic Engineering (NSRC, 7 minutes): choosing your way out, the half you control"
+    url: https://www.youtube.com/watch?v=YrRALAz2F3E
+    type: video
+    use: embed
+    license: "Creative Commons Attribution (YouTube's licence field, read 2026-11-12; official embed)"
+  - title: "Azure ExpressRoute: Routing requirements (Microsoft Learn): read \"Autonomous System numbers\", \"Route aggregation and prefix limits\" and the first paragraph of \"Support for BGP communities\""
+    url: https://learn.microsoft.com/en-us/azure/expressroute/expressroute-routing
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Optimize routing for Azure ExpressRoute (Microsoft Learn): read \"Suboptimal routing from Microsoft to customer\" and the note on connection weight"
+    url: https://learn.microsoft.com/en-us/azure/expressroute/expressroute-optimize-routing
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Azure ExpressRoute: Configure BFD (Microsoft Learn): read \"Need for BFD\" and \"BFD Timer Negotiation\""
+    url: https://learn.microsoft.com/en-us/azure/expressroute/expressroute-bfd
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Advertised routes (Google Cloud Router documentation): read the part on the base advertised priority, Google's MED"
+    url: https://docs.cloud.google.com/network-connectivity/docs/router/concepts/advertised-routes
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "BGP Scaling Techniques: Route Reflector Deployment (NSRC, 7 minutes): why a full mesh doesn't scale, and where reflectors go"
+    url: https://www.youtube.com/watch?v=GLHlODwn8vU
+    type: video
+    use: embed
+    license: "Creative Commons Attribution (YouTube's licence field, read 2026-11-12; official embed)"
+  - title: "BGP-specific settings (AWS Direct Connect documentation): the table of timers and BFD values, as a reference"
+    url: https://docs.aws.amazon.com/directconnect/latest/UserGuide/bgp-specific-settings.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "BFD (FRR 8.4 user guide): \"Peer / Profile Configuration\" and \"BGP BFD Configuration\", the commands the labs use, as a reference"
+    url: https://docs.frrouting.org/en/stable-8.4/bfd.html
+    type: reading
+    use: link
+    license: "Copyright 2017, FRR (the page's footer); linked, not copied"
+  - title: "BGP (FRR 8.4 user guide): \"Route Reflector\", \"Route Aggregation\" and \"Communities Attribute\", as a reference"
+    url: https://docs.frrouting.org/en/stable-8.4/bgp.html
+    type: reading
+    use: link
+    license: "Copyright 2017, FRR (the page's footer); linked, not copied"
+  - title: "BFD (Google Cloud Router documentation): its defaults and the detection-time sum (optional)"
+    url: https://docs.cloud.google.com/network-connectivity/docs/router/concepts/bfd
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "RFC 1997: BGP Communities Attribute, the short definition and the well-known communities (optional)"
+    url: https://www.rfc-editor.org/rfc/rfc1997
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "BGP Communities (LearnCantrill, 8 minutes): communities on AWS, told for the certification exams (optional)"
+    url: https://www.youtube.com/watch?v=1pKXkwf2FgM
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+# The recall items read BGP tables, BFD's numbers and the clouds' rules,
+# with Module 1's text tools where there is output to read. The five labs are
+# on the network-lab base: a company's router with two circuits to one cloud
+# (an AWS-style cloud in the walkthrough and the build, an Azure-style one in
+# the write), and a data centre of four routers with a route reflector in
+# the middle (the fill-in and the debug). The clouds' routers are sealed
+# scenery, read through looking-glass, each modelled on its provider's
+# documented rules, which every prompt quotes.
+practice:
+  - example-two-circuits
+  - mcq-who-decides-inbound
+  - mcq-more-specific-wins
+  - mcq-med-scope
+  - mcq-prepend-loses
+  - communities-table
+  - mcq-azure-communities
+  - mcq-gcp-priority
+  - mcq-ibgp-rule
+  - est-full-mesh
+  - est-two-reflectors
+  - est-sessions-saved
+  - mcq-next-hop-self
+  - est-bfd-aws
+  - est-bfd-google
+  - est-hold-vs-bfd
+  - mcq-silent-failure-bgp
+  - mcq-prefix-limit
+  - est-summarise
+  - fill-route-reflector
+  - write-azure-style
+prove:
+  build: build-primary-and-backup
+  debug: debug-wrong-circuit
+  explain:
+    prompt: |
+      Your company is connecting its data centre to one cloud with two dedicated circuits and a VPN, and to keep the network simple it has four routers that run BGP. Explain, in your own words: how you'd make one circuit carry the traffic in both directions and the other take over, and why the two directions need different tools; how this differs between two of AWS, Azure and Google Cloud; why the routers inside your company can't simply pass each other the cloud's routes, and what you'd do about it; how quickly a failed circuit would be noticed, with and without BFD, with numbers; and what happens if you announce more prefixes than the provider accepts.
+    rubric:
+      - id: two-directions
+        required: true
+        description: "Outbound is your own decision: local preference on the routes learned over the primary, higher than over the backup and the VPN. Inbound is the provider's decision, which you can only influence through what you announce: a more specific prefix first (longest match beats every attribute), then whatever the provider honours (its documented communities, AS-path prepending on the backup, MED toward one neighbour)."
+      - id: clouds-differ
+        required: true
+        description: "Two clouds correctly: AWS turns its communities 7224:7100, 7224:7200 and 7224:7300 into local preference, compared before AS path, and its own preference for a location in the associated Region defeats prepending alone; Azure honours no community you send, so you prepend on the backup or announce more specific prefixes on the primary (and connection weight sets the virtual networks' choice); Google tells you its preference as MED (the advertised route priority, base 100), and its own choice among your routes uses MED and, in standard best-path mode, AS path."
+      - id: reflection
+        required: true
+        description: "A router doesn't pass a route learned over iBGP to another iBGP neighbour, because iBGP has no AS path to catch loops; so either every router peers with every other, a full mesh of n(n-1)/2 sessions, or a route reflector (better two) passes its clients' routes on, marking them with an originator and a cluster list; and the routers inside must be able to reach the next hop, so the border routers set next-hop-self."
+      - id: detection
+        required: true
+        description: "A cut cable is noticed at once; a silent failure only when the hold time runs out (90 seconds by default on AWS's side, 180 on Microsoft's), with traffic lost meanwhile; BFD sends a packet every few hundred milliseconds and declares the path down after a number are missed, so 300 ms x 3 notices it in under a second (Google's BFD is off unless switched on, 1 s x 5 by default)."
+      - id: limits
+        required: false
+        description: "Announcing more prefixes than the provider accepts takes the session down (AWS: 100 by default on a private virtual interface, the session goes idle; Azure: 4,000 on private peering, the session drops), so summarise, for example eight /24s as one /21."
+    model_answer: |
+      The two directions are decided by two different routers. Which way our traffic leaves is our decision: I'd give the routes learned over the primary circuit a higher local preference than those over the backup, and the VPN's lowest, so our routers send everything over the primary while it's up and fall back by themselves. Which way the cloud's traffic comes back is the cloud's decision, made from what we announce, so the tools are indirect. The strongest is a more specific prefix: if the primary announces our network's two halves as well as the whole, longest-prefix match sends the traffic there whatever else the cloud prefers. After that it depends on what the provider listens to: its documented communities, AS-path prepending on the backup to make that path look longer, or MED, which only works between links to the same neighbour and comes late in the order.
+
+      The clouds differ in exactly that. AWS documents communities: 7224:7300 on the primary and 7224:7100 on the backup become its local preference, which it compares before AS path. Prepending alone can fail on AWS, because with no community it gives a location in the circuit's associated Region medium preference anyway, and local preference beats path length. Azure ignores any community we send, so there I'd prepend on the backup or announce more specific prefixes on the primary. Google tells us its own preference as MED, its advertised route priority, base 100, so our routers should prefer the lower value.
+
+      Inside, the four routers run iBGP. A router never passes a route it learned over iBGP to another iBGP neighbour, because without the AS path changing it couldn't detect a loop. So either every router peers with every other, a full mesh, 6 sessions for 4 routers and 45 for 10, or one router, better two, acts as a route reflector: it passes its clients' routes on, marking them with an originator and a cluster list so they can't loop. The trap is the next hop: a reflected route keeps the circuit router's next hop, the cloud's address on the circuit, which nothing inside can reach, so the circuit routers set next-hop-self.
+
+      A cut cable is noticed at once. A circuit that fails silently, with its link still up, is noticed only when BGP's hold time runs out: 90 seconds by default on AWS, 180 on Microsoft's side, and traffic is lost meanwhile. With BFD at 300 ms and a multiplier of 3, it's noticed in 0.9 seconds and BGP moves at once; Google's BFD is off unless switched on, and 1 second times 5 at its defaults.
+
+      If we announce more prefixes than the provider accepts, 100 on an AWS private virtual interface by default, the session goes down and nothing passes, so we'd summarise: eight /24s become one /21.
+review_pool:
+  - mcq-more-specific-wins
+  - mcq-prepend-loses
+  - communities-table
+  - mcq-no-export
+  - est-full-mesh
+  - est-two-reflectors
+  - est-sessions-saved
+  - mcq-next-hop-self
+  - est-bfd-aws
+  - est-bfd-google
+  - est-hold-vs-bfd
+  - est-bfd-750
+  - mcq-silent-failure-bgp
+  - mcq-azure-communities
+  - mcq-prefix-limit
+  - mcq-gcp-priority
+skills:
+  - id: inbound-steering
+    description: "Make another network choose your preferred way in: a more specific prefix (longest match beats every attribute), AS-path prepending (a longer path loses, once everything before it is equal), MED (lower preferred, compared only between paths from one AS), and the communities a neighbour documents (AWS's 7224:7100, 7200 and 7300 become its local preference, compared before AS path); why the far side's local preference beats your prepending; NO_EXPORT and NO_ADVERTISE"
+  - id: route-reflection
+    description: "The iBGP rule (a route learned from one iBGP neighbour isn't passed to another) and why it exists; a full mesh needs n(n-1)/2 sessions; a route reflector passes routes between its clients and to everyone else, marking originator and cluster list; two reflectors for redundancy; next-hop-self at the border, so the routers inside can reach the next hop"
+  - id: failure-detection
+    description: "How fast each kind of failure is noticed: a lost carrier at once; a silent failure when the hold time runs out (FRR 180 s, AWS 90 s, Microsoft 180 s, the labs 9 s); BFD in interval times multiplier (300 ms x 3 on AWS and Microsoft, 1,000 ms x 5 by default on Google, which leaves it off); setting BFD up in FRR and reading show bfd peers; graceful restart named, and not with BFD on AWS"
+  - id: cloud-circuits
+    description: "BGP over Direct Connect, ExpressRoute and Cloud Interconnect: whose AS number is on each side, two sessions for redundancy, the prefix limits and what exceeding them does (AWS private virtual interface 100, idle; Azure private peering 4,000, dropped), summarising to stay under them, how to make a circuit primary in each direction on each cloud, a VPN as the last backup, and what each cloud's documentation says it ignores"

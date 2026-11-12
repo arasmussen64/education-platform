@@ -1,0 +1,106 @@
+# The checks of "Make core a route reflector": the five sessions, access's
+# route to the cloud and the office's traffic, access's single neighbour,
+# core's three clients, whether every router of the data centre runs its
+# own file, the cloud's router as it was, and last, the backup proved by
+# unplugging dc1's circuit and plugging it back in. sessions-up waits for BGP after a boot or a
+# restart of FRR; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sessions-up
+    description: "The data centre's three inside BGP sessions (access with core, core with dc1, core with dc2) and both circuits' sessions with the cloud are up."
+    # Each session must be Established for 3 seconds, long enough for the
+    # first exchange of routes to finish. Up to 40 tries a second apart, so it
+    # gets a minute and prints its own sentence rather than running out of time.
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      peer() { frr "$1" 'show bgp summary json' | json "(lambda p: '%s %s' % (p.get('state'), p.get('peerUptimeMsec', 0) >= 3000))(d.get('ipv4Unicast', {}).get('peers', {}).get('$2', {}))"; }
+      sessions="access=10.0.1.1 core=10.0.2.2 core=10.0.3.2 dc1=169.254.30.2 dc2=169.254.20.2"
+      all() { for s in $sessions; do [ "$(peer "${s%%=*}" "${s#*=}")" = "Established True" ] || return 1; done; }
+      wait_for 40 all && { echo up; exit 0; }
+      for s in $sessions; do
+        got=$(peer "${s%%=*}" "${s#*=}")
+        case $got in
+          "Established "*) ;;
+          *) echo "${s%%=*} has no BGP session up with ${s#*=}: FRR says ${got%% *}"; exit 0 ;;
+        esac
+      done
+      echo up
+    expect:
+      equals: up
+  - id: access-reaches-cloud
+    description: "access has a usable route to the cloud's 10.100.0.0/16, through dc1 and its circuit, and the office reaches the cloud's app."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      best=$(bgp-best access 10.100.0.0/16)
+      case $best in
+        "via 10.0.2.2, "*) ;;
+        none) echo "access has no usable path to the cloud's 10.100.0.0/16"; exit 0 ;;
+        *) echo "access's chosen path to the cloud isn't through dc1 (10.0.2.2): $best"; exit 0 ;;
+      esac
+      ip -n access route show 10.100.0.0/16 | grep 'proto bgp' > /dev/null || { echo "access's kernel has no BGP route for 10.100.0.0/16"; exit 0; }
+      [ "$(on office nc -w 2 10.100.0.10 8080 < /dev/null 2> /dev/null)" = 10.1.0.10 ] || { echo "the office doesn't reach the cloud's app, 10.100.0.10"; exit 0; }
+      echo reached
+    expect:
+      equals: reached
+  - id: access-one-neighbour
+    description: "access still has one BGP neighbour, core."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      peers=$(frr access 'show bgp summary json' | json "sorted(d.get('ipv4Unicast', {}).get('peers', {}))")
+      [ "$peers" = '["10.0.1.1"]' ] || { echo "access's BGP neighbours are $peers, not core alone"; exit 0; }
+      echo one
+    expect:
+      equals: one
+  - id: core-reflects
+    description: "core is a route reflector with all three of its neighbours, access, dc1 and dc2, as its clients."
+    # The traffic checks can't see this alone: a reflector passes a client's
+    # routes to everyone (RFC 4456), so with access its only client, dc1's and
+    # dc2's routes still reach access and every other check passes.
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for want in "10.0.1.2 access" "10.0.2.2 dc1" "10.0.3.2 dc2"; do
+        set -- $want
+        client=$(frr core "show bgp neighbors $1 json" | json "d.get('$1', {}).get('addressFamilyInfo', {}).get('ipv4Unicast', {}).get('routeReflectorClient', False)")
+        [ "$client" = True ] || { echo "core doesn't treat $2 ($1) as a route-reflector client"; exit 0; }
+      done
+      echo clients
+    expect:
+      equals: clients
+  - id: saved
+    description: "access's, core's, dc1's and dc2's running FRR configurations are the ones in their /etc/frr/frr.conf, so a restart gives the same routing."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in access core dc1 dc2; do
+        differs=$(frr_saved "$r") || { echo "$r's running configuration isn't its file: $(echo "$differs" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      done
+      echo saved
+    expect:
+      equals: saved
+  - id: cloud-untouched
+    description: "The cloud's router is as it was: its file, and the routing it runs."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      frr_saved cloud > /dev/null || { echo "the cloud's routing was changed live"; exit 0; }
+      echo untouched
+    expect:
+      equals: untouched
+  - id: backup-works
+    description: "With dc1's circuit unplugged, the office's traffic to the cloud goes through dc2 and its circuit by itself, within a few seconds; once the cable is plugged in again, it goes back to dc1."
+    # It unplugs dc1's cable to the cloud itself (netlab link) and plugs it
+    # back in, even if it is stopped part way: the trap runs on the way out.
+    timeout: 90
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      trap 'netlab link dc1 dx1 restore > /dev/null 2>&1' EXIT
+      app() { [ "$(on office nc -w 1 10.100.0.10 8080 < /dev/null 2> /dev/null)" = 10.1.0.10 ]; }
+      through() { case $(bgp-best access 10.100.0.0/16) in "via $1, "*) app ;; *) return 1 ;; esac; }
+      netlab link dc1 dx1 down
+      wait_for 10 through 10.0.3.2 || { echo "with dc1's circuit unplugged, the office doesn't reach the cloud through dc2 (access's path: $(bgp-best access 10.100.0.0/16))"; exit 0; }
+      netlab link dc1 dx1 restore
+      wait_for 25 through 10.0.2.2 || { echo "with the cable plugged back in, the office's traffic doesn't go back through dc1"; exit 0; }
+      echo "fails over and back"
+    expect:
+      equals: "fails over and back"

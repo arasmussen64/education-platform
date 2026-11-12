@@ -1,0 +1,22 @@
+id: est-bfd-aws
+type: estimate
+rev: 1
+prompt: |
+  BFD runs on a Direct Connect virtual interface at AWS's lowest settings: an interval of 300 ms and a multiplier of 3. How many milliseconds after the last BFD packet arrived does it declare the link down? Exactly.
+unit: ms
+answer: 900
+tolerance: { absolute: 0 }
+given: { interval: 300, multiplier: 3 }
+working: interval * multiplier
+mistakes:
+  - id: one-interval
+    value: 300
+    working: interval
+    why: "That is the gap between two BFD packets. One late packet isn't a failure: BFD waits until a multiplier's worth in a row are missing."
+  - id: divided
+    value: 100
+    working: interval / multiplier
+    why: "That divides by the multiplier. It multiplies: 3 intervals of 300 ms must pass with nothing heard."
+explanation: |
+  BFD sends a small packet every interval and declares the path down when a multiplier's worth of intervals pass with nothing heard: 300 ms x 3 = 900 ms, under a second, against the 90 seconds of AWS's default BGP hold time. These are AWS's minimums; a slower setting on either side wins, since BFD agrees on the slower of the two.
+skills: [failure-detection]

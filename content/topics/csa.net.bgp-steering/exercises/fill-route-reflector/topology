@@ -1,0 +1,46 @@
+# The data centre of "Steering traffic and cloud circuits": one AS, four
+# routers, two circuits to one cloud.
+#
+#   office 10.1.0.10 -- dcnet -- access --- core --- dc1 ==dx1 169.254.30.0/30== cloud (AS 64600) -- vpc -- app 10.100.0.10
+#                                            |                              //
+#                                            +------ dc2 ==dx2 169.254.20.0/30
+#
+# access, core, dc1 and dc2 are the company's AS 65001, joined by iBGP over
+# the cables access-core, core-dc1 and core-dc2 only, with static routes
+# for the inside cables (where a bigger network would run OSPF). access
+# holds the data centre's four networks, 10.1.0.0/24 to 10.1.3.0/24; dc1
+# and dc2 each hold one circuit to the cloud and announce the data centre
+# as one summary. The cloud's router is scenery, configured and saved, and
+# follows a provider's documented rules (the lab's prompt quotes them); the
+# company's four routers are the learner's. dx2's addresses, and dc2's
+# router ID, are the lower ones, so when everything else about two paths is
+# equal, the tie goes to dx2. Each router's interfaces are named after the
+# machine or network at the far end. Addresses come from the private ranges
+# and the link-local block for circuits (169.254.0.0/16), as the clouds use,
+# and AS numbers from the private range (RFC 6996).
+machine office
+machine app
+machine access router
+machine core router
+machine dc1 router
+machine dc2 router
+machine cloud router
+
+lan dcnet office:eth0=10.1.0.10/24 access:lan=10.1.0.1/24,10.1.1.1/24,10.1.2.1/24,10.1.3.1/24
+link access:core=10.0.1.2/30 core:access=10.0.1.1/30
+link core:dc1=10.0.2.1/30 dc1:core=10.0.2.2/30
+link core:dc2=10.0.3.1/30 dc2:core=10.0.3.2/30
+link dc1:dx1=169.254.30.1/30 cloud:dx1=169.254.30.2/30
+link dc2:dx2=169.254.20.1/30 cloud:dx2=169.254.20.2/30
+lan vpc cloud:vpc=10.100.0.1/16 app:eth0=10.100.0.10/16
+
+route office default via 10.1.0.1
+route app default via 10.100.0.1
+
+run access frr
+run core frr
+run dc1 frr
+run dc2 frr
+run cloud frr
+run office web-svc
+run app web-svc

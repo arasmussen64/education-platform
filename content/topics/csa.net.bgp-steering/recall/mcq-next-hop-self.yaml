@@ -1,0 +1,27 @@
+id: mcq-next-hop-self
+type: mcq
+rev: 1
+prompt: |
+  In the fill-in's data centre, core is a route reflector and dc1's circuit is unplugged, so only dc2 has the cloud's route. core's view of it, `show bgp ipv4 unicast 10.100.0.0/16` (captured in a run with one line taken out of dc2's configuration; its last line left out):
+
+  ```
+  BGP routing table entry for 10.100.0.0/16, version 0
+  Paths: (1 available, no best path)
+    Not advertised to any peer
+    64600, (Received from a RR-client)
+      169.254.20.2 (inaccessible) from 10.0.3.2 (169.254.20.1)
+        Origin IGP, metric 0, localpref 100, invalid, internal
+  ```
+
+  Why can't core use the path?
+choices:
+  - "core has no route to 169.254.20.2, the cloud's address on dc2's circuit"
+  - "A reflector never uses the routes its clients send for its own traffic"
+  - "The route's originator ID is core's own, so core takes it for a loop"
+  - "core needs bgp bestpath compare-routerid to choose among iBGP routes"
+answer: 0
+explanation: |
+  The path's next hop is 169.254.20.2, the cloud's end of dc2's circuit: dc2 passed the route on as it learned it, and nothing inside the data centre has a route to that cable, so FRR marks the next hop `inaccessible` and the path `invalid`. A reflector doesn't change the next hop either, so access would have the same problem. `neighbor 10.0.3.1 next-hop-self` on dc2 replaces it with dc2's own address, which core can reach; carrying routes to the circuits inside the AS would also do.
+
+  A reflector uses its clients' routes like any others. The originator ID here is dc2's, 169.254.20.1, the address in brackets. compare-routerid only settles ties between valid paths.
+skills: [route-reflection]

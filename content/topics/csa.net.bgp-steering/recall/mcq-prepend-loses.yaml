@@ -1,0 +1,16 @@
+id: mcq-prepend-loses
+type: mcq
+rev: 1
+prompt: |
+  A company has two Direct Connect private virtual interfaces to AWS. The backup's Direct Connect location is associated with the company's AWS Region; the primary's isn't. The company prepends its AS number three times on the backup, sends no communities, and AWS still sends its traffic over the backup. Why?
+choices:
+  - "AWS gives the backup's location medium local preference, compared before the AS path"
+  - "AWS strips any prepending from a private AS number on every kind of virtual interface"
+  - "AWS compares MED before the AS path, and both paths carry the same MED, 0"
+  - "Prepending counts on AWS only when the repeated number is AWS's own, 7224"
+answer: 0
+explanation: |
+  AWS's page: with no local-preference community, a location in the associated Region gets medium preference (as if tagged 7224:7200) and others a lower value, and local preference is compared before AS path length. The backup wins on preference before the longer path is ever looked at, just as in the walkthrough. The fix is a community, 7224:7300 (high) on the primary and 7224:7100 (low) on the backup, or a more specific prefix on the primary, which AWS compares before local preference.
+
+  Stripping is real, but only on public virtual interfaces, where AWS replaces a private AS number with 7224 before passing your routes on. MED comes after AS path in AWS's order, and prepending your own AS is the normal way to do it.
+skills: [inbound-steering]
