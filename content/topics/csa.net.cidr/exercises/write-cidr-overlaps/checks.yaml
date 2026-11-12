@@ -6,12 +6,14 @@
 # clock.
 checks:
   - id: script
-    description: "~/bin/cidr-overlaps exists, starts with #!/bin/bash, is executable, and ShellCheck has nothing to say about it, with no warning switched off."
+    description: "~/bin/cidr-overlaps exists, starts with #!/bin/bash, is executable, does its sums in bash rather than handing them to Python, and ShellCheck has nothing to say about it, with no warning switched off."
     command: |
       f=/home/learner/bin/cidr-overlaps
       [ -f "$f" ] || { echo "there is no ~/bin/cidr-overlaps"; exit 0; }
       [ -x "$f" ] || { echo "~/bin/cidr-overlaps isn't executable"; exit 0; }
       [ "$(head -n 1 "$f")" = "#!/bin/bash" ] || { echo "the first line isn't #!/bin/bash"; exit 0; }
+      # Python is in the lab for the checks; the script's sums are bash's.
+      if grep -v '^[[:space:]]*#' "$f" | grep -i 'python' > /dev/null; then echo "the script calls Python: its sums must be bash's"; exit 0; fi
       if grep -i 'shellcheck *disable' "$f" > /dev/null; then echo "a ShellCheck warning is switched off"; exit 0; fi
       shellcheck --norc "$f" > /dev/null 2>&1 || { echo "ShellCheck has something to say: run shellcheck ~/bin/cidr-overlaps"; exit 0; }
       echo script
