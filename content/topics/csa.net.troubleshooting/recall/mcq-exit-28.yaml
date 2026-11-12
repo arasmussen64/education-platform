@@ -1,0 +1,16 @@
+id: mcq-exit-28
+type: mcq
+rev: 1
+prompt: |
+  `curl --connect-timeout 2 http://10.20.0.13:8080/` ends after exactly 2.0 seconds with exit status 28. Which of these explanations does it rule out?
+choices:
+  - "A refusal, which comes back at once and ends curl with exit status 7"
+  - "A firewall on the way that drops the connection's packets without a word"
+  - "An address on the network that no machine holds, so nobody answers"
+  - "A reply that leaves the server and is dropped by a firewall on its way back"
+answer: 0
+explanation: |
+  Exit status 28 is curl running out of time: here the connect timeout, since it ended at exactly 2 seconds. Something was silent. A refusal isn't silent: the host's reset comes back in a fraction of a millisecond, and curl ends at once with exit status 7 (0.0001 seconds, measured for the lesson).
+
+  The other three are all silence, and all end in 28: a firewall that drops the SYN, an address nobody holds (the last router's "host unreachable" comes only after about 3 seconds of ARP tries, after curl has given up), and a SYN-ACK dropped on the way back. Telling those three apart takes the next split: a capture, or the same test from another place.
+skills: [split-the-suspects]

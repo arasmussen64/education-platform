@@ -1,0 +1,28 @@
+id: mcq-transfer-denied
+type: mcq
+rev: 1
+# Captured on 2026-11-11 by this topic's designer in the Checkpoint 3
+# prototype (BIND 9.18 on the network-lab base), journalctl -u named@ns1
+# and -u named@ns2; the clients' memory addresses shortened as BIND
+# prints them.
+prompt: |
+  Customers get the shop's old address now and then. The two name servers' journals, captured in a lab with this fault:
+
+  ```text
+  Nov 12 03:16:49 lab ip[833]: security: client @0x704b34007e38 10.30.0.200#33107 (shop.test): zone transfer 'shop.test/AXFR/IN' denied
+  Nov 12 03:16:49 lab ip[800]: xfer-in: transfer of 'shop.test/IN' from 10.20.0.53#53: failed while receiving responses: REFUSED
+  Nov 12 03:16:49 lab ip[800]: xfer-in: transfer of 'shop.test/IN' from 10.20.0.53#53: Transfer status: REFUSED
+  ```
+
+  ns1 is 10.20.0.53, the primary; ns2 is 10.30.0.200, the secondary. What do the lines say?
+choices:
+  - "ns1 won't let ns2 copy the zone, so ns2 keeps serving its old copy"
+  - "ns2 is down, so the customers who ask it get no answer at all"
+  - "ns1's zone has a serial lower than the copy ns2 already holds"
+  - "The network between them drops the TCP connection a zone transfer uses"
+answer: 0
+explanation: |
+  The first line is ns1 (`zone transfer ... denied` for the client 10.30.0.200, ns2); the next two are ns2 being told `REFUSED`. ns1's `allow-transfer` doesn't name ns2's address, so every copy is refused and ns2 goes on answering from the copy it has, the old one. Customers whose resolvers ask ns2 get the old address; those that ask ns1, the new one: "now and then". The fix is on ns1, where the lines point, not on ns2 where the symptom shows. (DNS's debug had this fault; here it is read as a recorded case.)
+
+  ns2 asked and was answered, so it's up and the network carried the transfer's TCP both ways. A serial problem would read "zone is up to date" or "refresh: ... serial", not "denied".
+skills: [read-logs-and-counters]

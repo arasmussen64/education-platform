@@ -1,0 +1,16 @@
+id: mcq-healthy-but-failing
+type: mcq
+rev: 1
+prompt: |
+  HAProxy's `show stat` says all three API servers are UP and passing their health checks, and yet one request in three returns `502 Bad Gateway`. Where do you look next?
+choices:
+  - "The log line of a failing request, which names its server, then that server's log"
+  - "The health checks' interval, which is too long to catch the failing server out"
+  - "The balancer's CPU, which drops one request in three whenever it's busy"
+  - "The network between the clients and the balancer, which loses some replies"
+answer: 0
+explanation: |
+  "One in three" with three servers in turn is a strong hint that one server is bad, and the health check passing says only that its health page answers, not that the API works. HAProxy's log line for each request names the backend and server (`apis/api3`), the status and the timers, so the failing requests' lines say at once whether they share a server. Then that server's own error log says why (an upstream refused, timed out, a crash).
+
+  A shorter interval would run the same check that passes. A busy balancer doesn't fail a steady one in three, and a 502 is an answer the balancer sent, so the replies are getting back to the clients.
+skills: [read-logs-and-counters]

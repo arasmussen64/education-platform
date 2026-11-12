@@ -1,0 +1,31 @@
+id: mtr-which-link
+type: mcq
+rev: 1
+# Constructed: mtr 0.95's report format (as mtr -n -r prints it on the
+# network-lab base), with made-up numbers and addresses.
+prompt: |
+  An mtr report from the office to the cloud's API server (constructed: mtr's real format, with made-up numbers):
+
+  ```text
+  HOST: office                      Loss%   Snt   Last   Avg  Best  Wrst StDev
+    1.|-- 10.1.0.1                   0.0%   100    0.3   0.3   0.2   0.9   0.1
+    2.|-- 203.0.113.1                0.0%   100    1.1   1.2   0.9   3.0   0.3
+    3.|-- 198.51.100.9               0.0%   100    4.8   5.0   4.6   7.2   0.4
+    4.|-- 198.51.100.17             25.0%   100    5.2   5.3   4.9   8.1   0.5
+    5.|-- 192.0.2.33                 0.0%   100    9.9  10.1   9.7  12.4   0.4
+    6.|-- 192.0.2.41                 6.0%   100   11.0  11.2  10.8  14.0   0.5
+    7.|-- 10.30.0.11                 6.0%   100   11.3  11.4  11.0  13.9   0.4
+  ```
+
+  Where does real loss start?
+choices:
+  - "On the link between hops 5 and 6; hop 4 only limits how often it answers"
+  - "At hop 4, which loses a quarter of the packets that pass through it"
+  - "At hop 7, the server, which is overloaded and drops some of its traffic"
+  - "Nowhere: 6% is too little to matter, and the loss shown is only noise"
+answer: 0
+explanation: |
+  Two rules. Loss at one hop that the next hop doesn't show is that router limiting how often it answers probes: hop 5 answers 100 of 100, and every probe to hop 5 passed through hop 4, so hop 4 forwarded them all. Loss that starts at a hop and carries on to the end is real, and it starts on the link *before* the first lossy hop: hop 5 is clean, hops 6 and 7 both show 6%, so packets are lost between hops 5 and 6 (or in hop 6 as it forwards). The ticket names 192.0.2.33 as the last clean hop and 192.0.2.41 as the first lossy one.
+
+  The server shows the same 6% as hop 6, which it would if the loss were upstream of it. And 6% isn't noise: TCP's throughput falls with the square root of the loss rate (Congestion control and QUIC), so a few percent of steady loss slows every transfer and is worth a ticket.
+skills: [locate-on-the-path]

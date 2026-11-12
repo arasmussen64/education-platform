@@ -1,0 +1,22 @@
+id: est-one-dead-of-three
+type: estimate
+rev: 1
+prompt: |
+  The shop's name gives 3 addresses, one for each of its web servers, and the resolver hands them out in turn, a different one first each time. 1 of the servers is dead, and the clients try only the first address they're given. Of 600 requests, how many fail? Exactly.
+unit: requests
+answer: 200
+tolerance: { absolute: 0 }
+given: { addresses: 3, dead: 1, requests: 600 }
+working: requests * dead / addresses
+mistakes:
+  - id: coin-toss
+    value: 300
+    working: requests / 2
+    why: "That treats each request as a coin toss, works or fails. With the addresses handed out in turn, each one comes first in a third of the answers, and only the dead one's share fails."
+  - id: counted-the-good
+    value: 400
+    working: requests * (addresses - dead) / addresses
+    why: "That's the requests that work: the two live addresses' share. The question asks for the ones that fail."
+explanation: |
+  Each address comes first in one answer in 3, so the dead server's address comes first in 600 ÷ 3 = 200 of the requests, and those fail. That share is the clue to look for in a monitor's log: failures in about a third of the tries, all sharing one address, points at one bad member of three. (Clients that try the next address, as curl does, turn those failures into slow successes instead, as the walkthrough's monitor showed.)
+skills: [measure-intermittent]

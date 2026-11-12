@@ -1,0 +1,14 @@
+# lb's failover software (/usr/local/bin/lb-announce), on lb.
+[Unit]
+Description=lb's failover software: announces 10.20.0.80
+After=netlab.service haproxy@lb.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=lb-announce
+ExecStart=/usr/sbin/ip netns exec lb /usr/local/lib/netlab/lab-enter lb /usr/local/bin/lb-announce
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

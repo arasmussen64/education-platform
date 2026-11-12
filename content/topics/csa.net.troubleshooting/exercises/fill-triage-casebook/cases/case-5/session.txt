@@ -1,0 +1,24 @@
+$ on vpn swanctl --list-sas
+cloud: #2, ESTABLISHED, IKEv2, 6a188271d175fff7_i* 5b2993480808a118_r
+  local  '198.51.100.10' @ 198.51.100.10[4500]
+  remote '203.0.113.10' @ 203.0.113.10[4500]
+  AES_CBC-256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048
+  established 77s ago, rekeying in 13256s
+$ on vpn vtysh -c "show bgp summary"
+
+IPv4 Unicast Summary (VRF default):
+BGP router identifier 198.51.100.10, local AS number 65010 vrf-id 0
+BGP table version 1
+RIB entries 1, using 192 bytes of memory
+Peers 1, using 724 KiB of memory
+
+Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down State/PfxRcd   PfxSnt Desc
+169.254.21.1    4      64512         0         0        0    0    0    never       Active        0 N/A
+
+Total number of neighbors 1
+$ cloud-vpn-log | grep proposals | tail -n 3
+received proposals: ESP:AES_CBC_256/HMAC_SHA1_96/NO_EXT_SEQ
+configured proposals: ESP:AES_GCM_16_256/MODP_2048/NO_EXT_SEQ, ESP:AES_GCM_16_128/MODP_2048/NO_EXT_SEQ
+$ on vpn ip route get 10.20.1.10
+10.20.1.10 via 198.51.100.1 dev wan src 198.51.100.10 uid 0 
+    cache 

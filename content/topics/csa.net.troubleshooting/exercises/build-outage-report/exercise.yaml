@@ -1,0 +1,47 @@
+id: build-outage-report
+stage: build
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "The outage report"
+prompt: |
+  The office's monitor loads a page of the shop every few seconds and writes one line per load, as in Follow the method:
+
+  ```
+  TIME PAGE ADDRESSES STATUS SECONDS exit=N
+  ```
+
+  TIME is `HH:MM:SS`; ADDRESSES is the addresses curl tried, in order, joined by commas, or `-` when it tried none; STATUS is the HTTP status (`000` when there was none); SECONDS is how long the load took; N is curl's exit status. Its real log, from the shop's network on a bad afternoon, is `/var/log/shop-monitor.log`.
+
+  Build `~/bin/outage-report LOG`, which reads such a log and prints exactly this, each line as shown:
+
+  ```
+  loads N
+  failed F (P%)
+  slow S
+  by-address ADDRESS ok=X fail=Y slow=Z
+  longest-outage START LENGTH
+  verdict VERDICT
+  ```
+
+  - A load **failed** when its exit status isn't 0, or its STATUS is 400 or more. It was **slow** when it didn't fail and took 1 second or more. Every other load is **ok**. A load belongs to the **first** address it tried (`-` for a load that tried none).
+  - `loads` counts every load; `failed` counts the failed ones, with P the percentage of all loads, rounded half up to a whole number (12.5 becomes 13); `slow` counts the slow ones.
+  - `by-address`: one line for each first address in the log, with how many of its loads were ok, failed and slow, sorted by the address as text, as `sort` sorts it.
+  - `longest-outage`: the longest run of failed loads one after another in the log, as the TIME of its first load and the number of loads in it; of two runs as long, the first. With no failed loads: `longest-outage none 0`.
+  - `verdict`: the address, when one address holds every failed and every slow load (all of them tried it first); otherwise `time`, when there are failed loads and every one of them is in the longest outage; otherwise `none`.
+
+  For example (constructed), a log of 400 loads whose 40 failures all tried 10.20.0.11 first, as did its 5 slow loads:
+
+  ```
+  loads 400
+  failed 40 (10%)
+  slow 5
+  by-address 10.20.0.11 ok=155 fail=40 slow=5
+  by-address 10.30.0.11 ok=200 fail=0 slow=0
+  longest-outage 14:02:31 3
+  verdict 10.20.0.11
+  ```
+
+  Any tools will do; `awk` with `split`, and `sort | uniq -c`, are enough. The checks run your report on logs they make at check time, each in a different shape, and on the real log, and compare every line. Create it with `nano ~/bin/outage-report`, make it runnable with `chmod +x ~/bin/outage-report`, try it with `~/bin/outage-report /var/log/shop-monitor.log`, and run the checks. Time yourself: 45 minutes.
+skills: [measure-intermittent, scope-it]

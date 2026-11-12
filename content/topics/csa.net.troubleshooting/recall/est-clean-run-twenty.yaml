@@ -1,0 +1,22 @@
+id: est-clean-run-twenty
+type: estimate
+rev: 1
+prompt: |
+  The branch's calls failed 1 in 5, at random. After a change, 20 calls in a row succeed. If the change had done nothing and the fault were still there, what is the chance, as a percentage, of those 20 clean calls anyway? Within 0.2.
+unit: "%"
+answer: 1.15
+tolerance: { absolute: 0.2 }
+given: { rate: 5, run: 20 }
+working: 100 * (1 - 1 / rate) ** run
+mistakes:
+  - id: one-call
+    value: 80
+    working: 100 * (1 - 1 / rate)
+    why: "That's the chance of one clean call. Each of the 20 has to come out clean, so the chances multiply: 0.8 to the power 20."
+  - id: twenty-failures
+    value: 0
+    working: 100 * (1 / rate) ** run
+    why: "That's the chance of 20 failures in a row, next to nothing. The question asks how often a fault that is still there would hide for all 20."
+explanation: |
+  Each call is clean with chance 0.8 if the fault is still there, so 20 in a row happen with chance 0.8²⁰ ≈ 0.0115: about one run in 87. That's good evidence the change worked. Ten clean calls would be much weaker: 0.8¹⁰ ≈ 0.107, about one run in nine.
+skills: [measure-intermittent]

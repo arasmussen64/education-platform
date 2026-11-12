@@ -1,0 +1,24 @@
+id: mcq-symptom-grid-v6
+type: mcq
+rev: 1
+prompt: |
+  The shop's website, tried over IPv4 and over IPv6 from each of three places at the same time (`curl -4` and `curl -6`):
+
+  | From | IPv4 | IPv6 |
+  | --- | --- | --- |
+  | the office | works | works |
+  | the branch | works | fails |
+  | the cloud | works | works |
+
+  Where is the fault most likely to be?
+choices:
+  - "On the branch's IPv6 path: its router or its provider, not the server"
+  - "On the server, whose IPv6 address has been taken off its network card"
+  - "In DNS, whose AAAA record for the site gives an IPv6 address that's wrong"
+  - "In the branch's IPv4 settings, which IPv6 relies on to find its way out"
+answer: 0
+explanation: |
+  One cell fails: one source, one address family. The office and the cloud reach the server's IPv6 address, so the server has it and the AAAA record that DNS gives everyone is right. What's left is what only the branch's IPv6 traffic crosses: the branch's router (its IPv6 route, its firewall's IPv6 rules, its router advertisements) or its provider's IPv6.
+
+  IPv6 doesn't depend on IPv4 settings: they are two separate stacks, each with its own addresses and routes, which is why one can fail while the other works.
+skills: [scope-it]

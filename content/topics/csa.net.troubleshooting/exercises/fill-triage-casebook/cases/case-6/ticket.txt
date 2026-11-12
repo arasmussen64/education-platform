@@ -1,0 +1,16 @@
+Ticket 6, from customers: "Every half minute or so, for a few seconds, the shop
+says 'No server is available to handle this request', even on the front page."
+
+The machines: office (10.0.9.2), where the customers' requests come from; lb
+(10.0.9.1), the shop's load balancer, HAProxy, checking each web server's
+/health page; web1, web2 and web3 (10.0.1.11 to .13, port 8080), the web
+servers, whose /health answers 200 only when the server and the database both
+answer, and /livez when the server itself can (web3 is out for repair, on
+purpose); db, the database the web servers share, whose team runs a
+maintenance job on it (db-nightly.service) on a timer of their own. The front
+page doesn't need the database.
+
+What the on-call engineer saved: mtr.txt (from office), capture.txt (tcpdump
+-nn on web1's eth0: the load balancer's health checks), journal.txt (the load
+balancer's log and the database job's, around one of the errors), session.txt
+(the commands typed, with what they printed).

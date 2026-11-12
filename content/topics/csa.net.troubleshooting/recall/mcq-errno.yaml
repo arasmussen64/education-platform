@@ -1,0 +1,22 @@
+id: mcq-errno
+type: mcq
+rev: 1
+prompt: |
+  The shop's API answers `502 Bad Gateway`. Its nginx error log says:
+
+  ```text
+  connect() failed (111: Connection refused) while connecting to upstream, client: 10.20.0.79, request: "GET /api/stock HTTP/1.1", upstream: "http://127.0.0.1:9001/stock"
+  ```
+
+  What does the line tell you?
+choices:
+  - "Nothing listens on port 9001 on that machine: the app is down or has moved"
+  - "A firewall drops nginx's connections to port 9001 without a word"
+  - "There's no route from nginx to the address of the app it passes requests to"
+  - "The client gave up waiting and closed its connection to nginx early"
+answer: 0
+explanation: |
+  The number in brackets is the kernel's error number (errno) for the connection nginx tried to open: 111 is `ECONNREFUSED`, "Connection refused". Something answered the SYN with a reset, and on 127.0.0.1 that means nothing listens on port 9001: the app has stopped, or listens on another port. Next: `ss -tlnp` on that machine, and the app's own journal.
+
+  A firewall that drops gives 110, `ETIMEDOUT` ("Connection timed out"), after nginx's `proxy_connect_timeout`. No route gives 113, `EHOSTUNREACH` ("No route to host"). And a client that gives up shows in nginx's access log as status 499, not as a failed connect to the upstream.
+skills: [read-logs-and-counters]

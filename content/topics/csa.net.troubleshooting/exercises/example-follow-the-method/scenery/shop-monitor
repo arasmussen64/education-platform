@@ -1,0 +1,25 @@
+#!/bin/bash
+# shop-monitor: the office's monitor of the shop. Every two seconds it loads
+# a page of the shop by name from pc, as a person in the office would,
+# taking the health page and the catalogue in turn, and writes one line per
+# load to /var/log/shop-monitor.log:
+#   TIME PAGE ADDRESSES STATUS SECONDS exit=N
+# ADDRESSES is the addresses curl tried, in order, joined by commas ("-"
+# when it tried none); STATUS is the HTTP status (000 when there was none);
+# SECONDS is how long the load took; N is curl's exit status (0 is success;
+# 6 no address for the name, 7 no connection, 28 out of time).
+log=/var/log/shop-monitor.log
+# It starts once the office can look the shop's name up, a few seconds
+# after a boot, so its log holds loads and not the network starting.
+until getent hosts www.shop.test > /dev/null; do sleep 1; done
+n=0
+while true; do
+  if ((n % 2)); then page=/catalog; else page=/health; fi
+  out=$(curl -sv -o /dev/null --max-time 5 -w 'RESULT %{http_code} %{time_total}\n' "http://www.shop.test$page" 2>&1)
+  status=$?
+  tried=$(echo "$out" | awk '/Trying/ {sub(/:80\.\.\./, "", $3); printf "%s%s", sep, $3; sep = ","}')
+  set -- $(echo "$out" | awk '/^RESULT/ {print $2, $3}')
+  printf '%s %-8s %-23s %s %8.3f exit=%s\n' "$(date +%H:%M:%S)" "$page" "${tried:--}" "${1:-000}" "${2:-0}" "$status" >> "$log"
+  n=$((n + 1))
+  sleep 2
+done

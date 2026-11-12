@@ -1,0 +1,38 @@
+id: debug-branch-api
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The branch's API calls"
+prompt: |
+  The shop's branch office calls the shop's API across an internet provider's network. Every machine is described here, the broken parts and the working ones alike; `netlab show` lists them.
+
+  - **The branch:** `client` (10.40.0.10), one of the branch's PCs, behind the shop's branch router, `br1`.
+  - **The provider:** `isp1` and `isp2`, the provider's routers, between br1 and the data centre. They are the provider's, not the shop's.
+  - **The data centre** (10.20.0.0/24), behind the shop's router `dc1`:
+    - `lb`, the API's load balancer: HAProxy (`haproxy@lb`), with its settings in lb's `/etc/haproxy/haproxy.cfg` and its log in `journalctl -u haproxy@lb`. The API's address, 10.20.0.80, is lb's service address; lb talks to its servers from an address of its own, 10.20.0.79. It sends the calls to three API servers in turn and checks each one's `/health` every 2 seconds. Its failover software (`lb-announce.service`) announces the service address every 30 seconds, as the software in a real pair of load balancers does.
+    - `api1`, `api2` and `api3` (10.20.0.11 to .13), the API servers: nginx (`nginx@api1` and so on), which answers `/health` itself and passes `/api/` on to the data service. nginx's log is `/var/log/nginx/error.log` on each, and each has its own firewall in its `/etc/nftables.conf` (`nftables@api1` and so on).
+    - `db` (10.20.0.50), the data service, on port 5000 (`shop-data.service`).
+    - `lbold` (10.20.0.81), the old load balancer, retired from the API last month. It is kept for the old reports: its service on port 8080 answers them.
+
+  Each machine's programs are units on the lab machine (`systemctl list-units`), and each machine keeps its settings in its own `/etc`.
+
+  Since Tuesday the branch says the API is slow, and sometimes fails: sometimes with an error, sometimes with a maintenance page. This shows a minute of what the branch gets:
+
+  ```
+  for i in $(seq 1 60); do on client curl -s -o /dev/null --max-time 5 -w '%{http_code} %{time_total}\n' http://10.20.0.80/api/stock; sleep 1; done
+  ```
+
+  **There are three faults.** Find each one with the method: scope it, measure it, split the suspects, find where it is, and read what the systems recorded. Before you change anything for a fault, write its cause, from the list in `/srv/ticket/causes.txt`, and the line of evidence that shows it into `~/ticket/notes.txt` (`nano ~/ticket/notes.txt`; the file says how). Then fix it, on the shop's machines, at its cause. A fault in the provider's network isn't yours to fix: for the provider's support desk, write in `~/ticket/provider.txt` (`nano ~/ticket/provider.txt`) the address of the last hop on the path before the trouble starts and of the first hop where it shows.
+
+  The rules of the fix:
+
+  - **isp1 and isp2 are the provider's:** change nothing on them, and leave the network (the topology) as it is.
+  - **Every machine keeps its firewall.**
+  - **lb's configuration stays as it is,** and the three API servers stay in service, with their health checks. The API servers' sites and the data service stay as they are too.
+  - **Every fix lasts a reboot.** `sudo netlab restart` builds the network again from the machines' files and starts every enabled service, as a reboot would.
+
+  Time yourself: a support engineer works this in about 50 minutes. When a minute of calls from the branch brings no error and nothing slow, run the checks.
+skills: [measure-intermittent, locate-on-the-path, read-logs-and-counters, prove-and-record]

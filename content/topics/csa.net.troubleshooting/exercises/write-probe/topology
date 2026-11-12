@@ -1,0 +1,13 @@
+# The probe's test bench: the office and a machine of targets.
+#
+#   shop 10.50.0.0/24:  office .20 ---- targets .10 (the shop's name server and web server)
+#   10.99.0.0/24 is routed to targets, which doesn't forward it: a range that answers nothing.
+machine office
+machine targets
+
+lan shop office:eth0=10.50.0.20/24 targets:eth0=10.50.0.10/24
+
+route office 10.99.0.0/24 via 10.50.0.10
+dns office 10.50.0.10
+
+run targets unbound nginx

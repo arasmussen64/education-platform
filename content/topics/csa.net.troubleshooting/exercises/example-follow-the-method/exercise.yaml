@@ -1,0 +1,41 @@
+id: example-follow-the-method
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Follow the method"
+prompt: |
+  The network labs' basics (machines, `on MACHINE COMMAND`, services named `name@machine`) are in Layers and packets' first lab, `example-follow-a-request`; `netlab show` lists the machines.
+
+  **The shop's network.** The office, 10.10.0.0/24, has a PC, `pc` (10.10.0.10), and the office's resolver, `resolver` (10.10.0.53), behind the office's router, `r1`. Beyond r1 is the data centre's router, `r2`, with the shop's name server, `ns1` (10.20.0.53), and one web server, `app1` (10.20.0.11); beyond r2, the cloud provider's router, `r3`, with the other web server, `app2` (10.30.0.11). The shop's name, `www.shop.test`, has both web servers' addresses, so a visitor may be sent to either. r1, r2 and r3 learn each other's networks over BGP (`on r1 vtysh`). On a cable of its own from r1 is `oldgw` (10.0.99.2), the old VPN appliance that the cloud link went through before BGP; it has been switched off as a router but is still plugged in. The office's monitor, `shop-monitor.service`, loads a page of the shop from pc every two seconds and writes one line per load to `/var/log/shop-monitor.log`: the time, the page, the addresses curl tried in order, the HTTP status, the seconds it took and curl's exit status.
+
+  **The ticket:** "Some page loads take two and a half seconds; most are instant." This walkthrough is the topic's method from start to finish, on a fault you met in Routing (a route someone forgot), so the work is in the method rather than in a new mechanism. Each step ends by writing one line of the incident notes, `KEY = VALUE`, into `~/example/notes.txt` (`echo 'KEY = VALUE' >> ~/example/notes.txt` adds one). When a step names the cause, it takes one from this list: `dns-stale-record`, `server-down`, `firewall-port-closed`, `stale-more-specific-route`, `mtu-black-hole`.
+
+  Type each line yourself and read what it prints before you type the next. The checks read the notes against the evidence they came from, then r1's routing, then the loads.
+steps:
+  - label: "Let the sample grow, and keep it"
+    lines: "1-2"
+    note: "A handful of loads says little about a fault that comes and goes, so the first line waits until the monitor has logged at least ten (`wc -l` counts the log's lines; about half a minute after the lab starts). Then a copy of the evidence goes into `~/example/before.log` before anything changes: the log goes on growing, and once the fault is fixed its newest lines won't show it."
+  - label: "Scope"
+    lines: "3-4"
+    note: "The monitor's last lines, captured in this lab on 2026-11-12, are of two kinds: `20:42:39 /catalog 10.20.0.11 200 0.007 exit=0`, instant, and `20:42:43 /health 10.30.0.11,10.20.0.11 200 2.504 exit=0`, two and a half seconds with two addresses tried. Every load succeeds (200, exit 0); some are slow, the health page and the catalogue alike, so it isn't the page's size. That is the scope in three words: `scope = some-loads-slow`."
+  - label: "Measure, and break the slow ones down"
+    lines: "5-7"
+    note: "The first `awk` prints each load's addresses and whether it took a second or more (`$5`, the seconds, against 1), and `sort | uniq -c` counts each kind: `6 10.20.0.11 instant` and `7 10.30.0.11,10.20.0.11 slow` (and your counts will differ). One value of one variable holds every slow load: they all tried 10.30.0.11 first, and none of the instant ones did. The second `awk` works out the share: `slow` counts the slow loads, `NR` is the number of lines read, and `printf \"%.0f\"` rounds; it printed `54`. The last line writes it into the notes (`$(...)` puts the command's output in its place; typing `echo 'slow_share = 54' >> ~/example/notes.txt` with your own number is the same). The 2.5 seconds is curl itself: with two addresses for a name and 5 seconds allowed (the monitor's `--max-time 5`), it gives the first address half the time left, then tries the next."
+  - label: "Split: ask each address directly"
+    lines: "8-10"
+    note: "The same request by address instead of by name rules naming in or out. `-H 'Host: www.shop.test'` sends the site's name in the request, as the browser would, so the server answers as for the name. 10.30.0.11 gives `000 3.002846`: no answer before curl's 3-second limit (`-m 3`), curl's exit status 28. 10.20.0.11 gives `200 0.000484`. So the name is cleared: by name or not, one address fails and the other works. `fails_by_address = 10.30.0.11`."
+  - label: "Locate: hop by hop"
+    lines: "11-15"
+    note: "`traceroute` stops after r1: `1  10.10.0.1  0.151 ms`, then `2  *` to the end. One silent hop proves little by itself (routers limit how often they answer), but every hop after it silent says the packets go nowhere past r1. So ask r1 which way it sends them: `10.30.0.11 via 10.0.99.2 dev old0`, to oldgw, the switched-off appliance, while `10.30.0.200 via 10.0.12.2 dev eth0` goes to r2. r1's routing table says why: `B>* 10.30.0.0/24 [20/0] via 10.0.12.2, eth0` is BGP's route for the whole cloud network, and `S>* 10.30.0.0/25 [1/0] via 10.0.99.2, old0` is a static route for its lower half, left from the days of the old VPN. A /25 is a longer prefix than a /24, so for every address from .0 to .127 it wins, whatever BGP says. `where = r1`."
+  - label: "Name the cause before changing anything"
+    lines: "16-17"
+    note: "Before any change: the cause, and the line that shows it. If you can't write those two lines, you would be guessing, and a guess that happens to work hides what was wrong. `cause = stale-more-specific-route`, `evidence = S>* 10.30.0.0/25 [1/0] via 10.0.99.2, old0`."
+  - label: "Change one thing"
+    lines: "18-19"
+    note: "One change, at the cause: `no ip route 10.30.0.0/25 10.0.99.2` removes the stale route from FRR's running configuration and `write memory` saves it to `/etc/frr/frr.conf`, so the next boot doesn't bring it back (`Integrated configuration saved to /etc/frr/frr.conf`, `[OK]`). r1 now sends 10.30.0.11 `via 10.0.12.2 dev eth0`. Nothing else changed: not the name server, not the monitor, not oldgw."
+  - label: "Prove it, with enough samples"
+    lines: "20-23"
+    note: "One good load proves little against a fault that failed half the time: a fault like that would still give one clean load half the time. Twenty in a row by the address that failed, and twenty by name, each counted instant or slow: `20 200 instant` and `20 200 instant`. A fault that was still there and failed half the loads would give twenty clean ones in a row about once in a million tries (0.5 to the power 20). `verified = 20/20`, and the notes are complete: the incident note's symptom, cause, evidence, fix and how it was verified, one line each."

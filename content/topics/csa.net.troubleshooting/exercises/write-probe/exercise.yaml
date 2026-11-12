@@ -1,0 +1,45 @@
+id: write-probe
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A probe for faults that come and go"
+prompt: |
+  A fault that fails one request in five can't be found by trying once: it has to be measured. Write the measuring tool, `~/bin/probe`, a script that tries a URL many times and counts what happened.
+
+  `probe URL [COUNT]` makes COUNT requests to URL, one after another (20 when no COUNT is given), each with
+
+  ```
+  curl -s -o /dev/null --max-time 2 -w '%{http_code} %{time_total}' URL
+  ```
+
+  and prints one line per attempt, `N RESULT SECONDS`: N counts from 1, SECONDS is what curl printed for `%{time_total}`, and RESULT comes from curl's exit status and the HTTP status:
+
+  - `ok`: exit status 0 and an HTTP status below 400;
+  - `http-NNN`: exit status 0 and a status of 400 or more, such as `http-503`;
+  - `no-address`: exit status 6, no address for the name;
+  - `no-connection`: exit status 7, the connection refused or the host unreachable;
+  - `timeout`: exit status 28, no answer within the 2 seconds;
+  - `other-E`: any other exit status E, such as `other-52`.
+
+  Then the summary: one line per RESULT that occurred, `RESULT COUNT/TOTAL`, the largest count first and equal counts in alphabetical order, and last, `failure-rate PCT`, the percentage of the attempts that weren't `ok`, rounded half up to a whole number (12.5 becomes 13). A probe of 20 attempts in which every fifth got a 503 ends like this (constructed: yours prints its own times):
+
+  ```
+  19 ok 0.001022
+  20 http-503 0.001187
+  ok 16/20
+  http-503 4/20
+  failure-rate 20
+  ```
+
+  **The test bench.** The office, `office` (10.50.0.20), and `targets` (10.50.0.10), which is the office's name server and runs a web server: `http://www.shop.test/` answers 200 and any other path 404, and a name under `shop.test` that targets doesn't hold doesn't exist. Nothing listens on targets' port 81, and the range 10.99.0.0/24 is routed to targets, which forwards nothing, so an address there answers nothing at all. Run your probe from the office: `on office ~/bin/probe http://www.shop.test/ 5`. The checks run it there too, against servers of their own whose answers change at every check, so a probe that prints what it saw last time won't pass.
+
+  Create the script with `nano ~/bin/probe`, make it runnable with `chmod +x ~/bin/probe`, and start it with `#!/bin/bash` and `set -euo pipefail`, as Module 1's scripts did. Under `set -e`, a command that fails ends the script, and curl fails on purpose here, so keep its exit status instead: `status=0; out=$(curl ...) || status=$?`. Then run the checks.
+hints:
+  - "`out` holds two words, such as `503 0.001187`. `${out%% *}` is the first (everything before the first space) and `${out##* }` the last."
+  - "Keep each attempt's RESULT, one a line, in a variable or a file of your own; `sort | uniq -c` counts them, and a second `sort -k1,1nr -k2,2` puts the largest count first (`n` numbers, `r` reversed) and breaks ties by the name. `awk -v n=\"$count\" '{print $2, $1 \"/\" n}'` turns `uniq -c`'s `4 http-503` into `http-503 4/20`."
+  - "Rounded half up in whole numbers, with no decimals: 100 × failed ÷ count, plus a half, cut down, is `$(( (200 * failed + count) / (2 * count) ))`. awk's `printf \"%.0f\"` sends a half to the even number (12.5 to 12), which isn't half up."
+  - "`grep -c` counts the lines that match and `-v` the lines that don't; when it counts none it prints 0 and exits 1, which `set -e` would stop at, so write `|| true` after it."
+skills: [split-the-suspects, measure-intermittent]

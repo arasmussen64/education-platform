@@ -1,0 +1,110 @@
+# The checks of "The triage desk": one per case and field of ~/triage.txt,
+# so a failure points at one answer, each read by the checks' own tool
+# (/usr/local/lib/lab-checks/triage-check), which holds the truths; then
+# that the cases' files are as they were captured.
+checks:
+  - id: case-3-layer
+    description: "The layer given for case-3 is the one whose mechanism its evidence shows failing."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-3 layer
+    expect:
+      equals: right
+  - id: case-3-where
+    description: "The machine given for case-3 is the one its cause is on."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-3 where
+    expect:
+      equals: right
+  - id: case-3-cause
+    description: "The cause given for case-3, from /srv/cases/causes.txt, is the one its evidence shows."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-3 cause
+    expect:
+      equals: right
+  - id: case-3-evidence
+    description: "The evidence given for case-3 is a FILE:LINE in its folder whose line shows the cause."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-3 evidence
+    expect:
+      equals: right
+  - id: case-4-layer
+    description: "The layer given for case-4 is the one whose mechanism its evidence shows failing."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-4 layer
+    expect:
+      equals: right
+  - id: case-4-where
+    description: "The machine given for case-4 is the one its cause is on."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-4 where
+    expect:
+      equals: right
+  - id: case-4-cause
+    description: "The cause given for case-4, from /srv/cases/causes.txt, is the one its evidence shows."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-4 cause
+    expect:
+      equals: right
+  - id: case-4-evidence
+    description: "The evidence given for case-4 is a FILE:LINE in its folder whose line shows the cause."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-4 evidence
+    expect:
+      equals: right
+  - id: case-5-layer
+    description: "The layer given for case-5 is the one whose mechanism its evidence shows failing."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-5 layer
+    expect:
+      equals: right
+  - id: case-5-where
+    description: "The machine given for case-5 is the one its cause is on."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-5 where
+    expect:
+      equals: right
+  - id: case-5-cause
+    description: "The cause given for case-5, from /srv/cases/causes.txt, is the one its evidence shows."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-5 cause
+    expect:
+      equals: right
+  - id: case-5-evidence
+    description: "The evidence given for case-5 is a FILE:LINE in its folder whose line shows the cause."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-5 evidence
+    expect:
+      equals: right
+  - id: case-6-layer
+    description: "The layer given for case-6 is the one whose mechanism its evidence shows failing."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-6 layer
+    expect:
+      equals: right
+  - id: case-6-where
+    description: "The machine given for case-6 is the one its cause is on."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-6 where
+    expect:
+      equals: right
+  - id: case-6-cause
+    description: "The cause given for case-6, from /srv/cases/causes.txt, is the one its evidence shows."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-6 cause
+    expect:
+      equals: right
+  - id: case-6-evidence
+    description: "The evidence given for case-6 is a FILE:LINE in its folder whose line shows the cause."
+    timeout: 10
+    command: python3 /usr/local/lib/lab-checks/triage-check case-6 evidence
+    expect:
+      equals: right
+  - id: evidence-untouched
+    description: "Every file in /srv/cases is as it was captured, and no file has been added."
+    timeout: 10
+    command: |
+      now=$(find /srv/cases -type f | sort | xargs sha256sum)
+      changed=$(diff <(echo "$now") /usr/local/lib/lab-checks/cases.sha256 | sed -n 's/^[<>] [0-9a-f]*  //p' | sort -u)
+      [ -z "$changed" ] && echo untouched || echo "the files in /srv/cases aren't as they were captured: $(echo $changed)"
+    expect:
+      equals: untouched

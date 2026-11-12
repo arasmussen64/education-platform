@@ -1,0 +1,28 @@
+$ echo "show stat" | on lb socat stdio /run/haproxy/admin.sock | cut -d, -f1,2,18 | grep web
+web,web1,DOWN
+web,web2,DOWN
+web,web3,MAINT
+web,BACKEND,DOWN
+$ on office curl -s -i http://10.0.9.1/
+HTTP/1.1 503 Service Unavailable
+content-length: 107
+cache-control: no-cache
+content-type: text/html
+<html><body><h1>503 Service Unavailable</h1>
+No server is available to handle this request.
+</body></html>
+$ on lb grep -n -B1 -A4 httpchk /etc/haproxy/haproxy.cfg
+21-    option forwardfor
+22:    option httpchk GET /health
+23-    http-check expect status 200
+24-    default-server inter 1s fall 1 rise 1
+25-    server web1 10.0.1.11:8080 check cookie web1
+26-    server web2 10.0.1.12:8080 check cookie web2
+$ on web1 curl -s -i http://127.0.0.1:8080/livez
+HTTP/1.1 200 OK
+Server: shop-web 
+Date: Thu, 12 Nov 2026 21:05:11 GMT
+Content-Type: text/plain
+Content-Length: 6
+X-Served-By: web1
+alive

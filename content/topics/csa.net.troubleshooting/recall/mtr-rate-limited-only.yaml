@@ -1,0 +1,29 @@
+id: mtr-rate-limited-only
+type: mcq
+rev: 1
+# Constructed: mtr 0.95's report format (as mtr -n -r prints it on the
+# network-lab base), with made-up numbers and addresses.
+prompt: |
+  A colleague sends this mtr report as proof that the provider is losing packets (constructed: mtr's real format, with made-up numbers):
+
+  ```text
+  HOST: branch                      Loss%   Snt   Last   Avg  Best  Wrst StDev
+    1.|-- 10.40.0.1                  0.0%    50    0.2   0.2   0.1   0.6   0.1
+    2.|-- 203.0.113.9                0.0%    50    2.1   2.3   1.9   4.4   0.4
+    3.|-- 198.51.100.65             40.0%    50    6.0   6.2   5.8   9.1   0.6
+    4.|-- 198.51.100.70              0.0%    50    8.4   8.5   8.1  10.2   0.3
+    5.|-- 10.20.0.80                 0.0%    50    8.9   9.0   8.6  11.0   0.3
+  ```
+
+  Where is traffic being lost?
+choices:
+  - "Nowhere: hop 3 only answers probes so often, and the rest get through"
+  - "At hop 3, which drops 40% of the traffic, hidden by the hops after it"
+  - "On the link after hop 3, since loss shows at the hop beyond a bad link"
+  - "At the server, whose losses mtr can't show while hop 3 loses packets"
+answer: 0
+explanation: |
+  Every probe to hops 4 and 5 passed through hop 3, and all of them came back: hop 3 forwarded every packet. Its 40% is its own answers missing. Routers limit how often they send the ICMP messages a probe asks for (Linux's `icmp_ratelimit`, 1000 ms by default), and answering is a router's lowest priority. Loss at one hop that later hops don't show is never real loss; trust the later hops.
+
+  No later hop shows any loss, so nothing is hidden and there's no bad link after hop 3. The server answers 50 of 50. This report proves a clean path; the ticket would be closed at once.
+skills: [locate-on-the-path]

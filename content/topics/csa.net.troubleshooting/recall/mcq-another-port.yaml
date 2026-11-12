@@ -1,0 +1,16 @@
+id: mcq-another-port
+type: mcq
+rev: 1
+prompt: |
+  From one laptop, about one connection in two to the shop's API hangs, and the others are instant. The laptop's address, the API's address and the API's port never change. What differs from one connection to the next, and so may decide which ones fail?
+choices:
+  - "The source port, which can pick the path, or the server behind a balancer"
+  - "The TTL, which each router lowers by one, so later connections run out"
+  - "The MTU, which the path agrees afresh for every new connection it carries"
+  - "The server's CPU, which is idle for some connections and busy for others"
+answer: 0
+explanation: |
+  Each new connection gets a new source port, so it's the one part of the connection that changes. Where traffic is shared over equal paths (ECMP with the ports in the hash) or over servers (a balancer hashing the connection, or taking servers in turn), the port can decide where a connection goes: one bad path or one bad server then fails the connections sent its way, about one in two here. Log the source port (or the server each answer names) for every try, and see whether the failures share one value.
+
+  The TTL starts afresh at 64 for every packet; nothing runs out between connections. The MTU belongs to the path, not to the connection, so it doesn't change from one to the next. And a busy CPU makes connections slow, not "instant or hung" in a steady one-in-two.
+skills: [split-the-suspects]
