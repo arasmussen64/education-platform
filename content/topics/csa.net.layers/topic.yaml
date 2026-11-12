@@ -1,16 +1,235 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.layers
 kind: topic
-status: planned
+status: ready
 title: Layers and packets
-summary: Follow a request down and up the network layers, using the OSI and TCP/IP models as debugging tools.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Follow one request down and up the network layers, using the OSI and TCP/IP models as a debugging order: headers and hex, what each router changes, ARP and the neighbour table, ICMP's messages, encapsulation and MTU, and the path MTU black hole where small pages load and big downloads hang."
+# Module 3 opens straight after Module 1 (the Module 3 plan, section 2), and
+# this is its first topic. It also carries the module's lab onboarding: the
+# note at the top of example-follow-a-request's prompt and its first five
+# steps, which every later Module 3 topic's first lab points back to.
+# What it builds on in Module 1, for the writer: net-tools (ip, ss, tcpdump,
+# traceroute, nftables and ct state, namespaces and veth pairs), shell
+# (grep, awk, sed), scripting (a bash script, chmod +x, $(...), if),
+# services (systemctl, journalctl) and hardening (a fix lives in the file).
+prerequisites: [csa.m1.checkpoint]
+estimated_minutes: 310
 rev: 1
 objectives:
-- Follow a request down and up the network layers, using the OSI and TCP/IP models as debugging tools.
-- Explain ARP and ICMP.
-- Explain encapsulation and MTU, and spot MTU problems.
+  - "Follow one request from a laptop to a server and back, layer by layer, in real captures: which headers wrap the data, what each router changes (the MAC addresses, the TTL, the checksum) and what it leaves alone (the IP addresses and ports), read field by field in `tcpdump` text and in a hex dump."
+  - "Use the OSI and TCP/IP models as a debugging order (link, neighbour, route, port, protocol): name the layer a symptom belongs to, and the tool that tests it."
+  - "Explain ARP and read the neighbour table: why a packet for a far host carries the gateway's MAC address, and what `FAILED` and a stale `PERMANENT` entry mean."
+  - "Read ICMP's messages (echo, destination unreachable and its codes, time exceeded) in `ping` and `traceroute` output, and say which of them a firewall must never drop."
+  - "Work out MTU, MSS and tunnel overheads on sight (GRE, IPIP, VXLAN), and the largest packet a path carries, including where the three clouds' MTUs differ."
+  - "Recognise a path MTU black hole (handshakes and small pages work, big transfers hang), prove it with captures and DF pings, and fix it at its cause."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - AWS: all instance types support 1500 MTU; current generation types
+#   support 9001 jumbo frames; 1500 over an internet gateway, VPN
+#   connections, and between Regions unless a transit gateway is used; 8500
+#   over inter-Region VPC peering; over the limit, packets "are fragmented,
+#   or they are dropped if the Don't Fragment flag is set"; PMTUD's type 3
+#   code 4 can be blocked by a network ACL:
+#   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/network_mtu.html
+# - AWS: "We do not support broadcast in a VPC, therefore we reserve this
+#   address": https://docs.aws.amazon.com/vpc/latest/userguide/subnet-sizing.html
+#   No AWS page read says whether GRE between instances is allowed, so the
+#   lesson claims nothing about it.
+# - Google Cloud: VPC networks default to an MTU of 1,460, settable from
+#   1,300 to 8,896; no IP fragmentation inside the network, and Fragmentation
+#   Needed or Packet Too Big sent back; no MSS clamping inside a VPC, MSS
+#   clamping for destinations outside it: https://docs.cloud.google.com/vpc/docs/mtu
+# - Google Cloud: VPC networks "do not support broadcast or multicast";
+#   they support GRE version 0, which Cloud NAT and Application Load
+#   Balancers don't: https://docs.cloud.google.com/vpc/docs/vpc
+# - Azure: the default MTU is 1500; larger only for traffic within the
+#   virtual network and directly peered ones in the same region (not
+#   gateways, global peering or the internet); largest 3900 on Mellanox
+#   adapters, 9000 on MANA; ping -M do -s is the MTU less 28 (dated
+#   2024-07-22, updated 2026-08-07):
+#   https://learn.microsoft.com/en-us/azure/virtual-network/how-to-virtual-machine-mtu
+# - Azure: "Multicast, broadcast, IP-in-IP encapsulated packets, and Generic
+#   Routing Encapsulation (GRE) packets are blocked in virtual networks"
+#   (FAQ dated 2026-07-08):
+#   https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-faq
+# - Cloudflare's MTU explainer says 1,500 bytes is "the maximum MTU size"
+#   (the Module 3 critic read it 2026-11-11; it refused this writer's plain
+#   fetch with HTTP 403 on 2026-11-12, so it isn't listed as a resource).
+# - RFC 791 (IPv4 header), RFC 792 (ICMP types and codes; an error carries
+#   the IP header and the first 64 bits of the datagram), RFC 826 (ARP),
+#   RFC 1191 (PMTUD), RFC 2923 section 2.1 (the black hole), RFC 7348
+#   (VXLAN, UDP 4789, 8-byte header), RFC 8200 (IPv6 routers don't fragment):
+#   as the Module 3 layers brief recorded them on 2026-11-11.
+# Every capture in the lesson, the items and the labs' notes is real output
+# of this topic's labs on the owner's PC (Docker Desktop 29.8.2, kernel
+# 6.18.33.2-microsoft-standard-WSL2, the network-lab base's Ubuntu 24.04
+# packages: tcpdump 4.99.4, iputils 20240117, tshark), captured 2026-11-12;
+# MAC addresses and identification numbers differ at every run. Linux's
+# default tunnel MTUs (GRE 1476, IPIP 1480, VXLAN 1450, WireGuard 1420 over
+# a 1500-byte link) and the ten-minute PMTU cache are the Module 3 layers
+# brief's captures (F7, F9), the GRE and PMTU ones seen again here.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: Beej's guide is
+# CC BY-NC-ND 3.0 (its foreword's "Copyright and Distribution", v1.11.4);
+# YouTube's standard licence for Ben Eater's videos (title and channel
+# confirmed through YouTube's oEmbed; not watched by this writer); the
+# Cloudflare blog states no licence (copyright Cloudflare); AWS documentation
+# is copyright Amazon Web Services; Google Cloud's documentation is CC BY 4.0
+# (as Module 2 recorded it); Microsoft's Azure documentation is CC BY 4.0
+# (MicrosoftDocs/azure-docs); RFCs are under the IETF Trust's provisions.
+resources:
+  - title: "Beej's Guide to Network Concepts, chapter 4, \"The Layered Network Model\": layering, the internet's model and the OSI model, with a glossary (about 14 minutes)"
+    url: https://beej.us/guide/bgnet0/html/split/the-layered-network-model.html
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 3.0 (the guide's foreword); linked, not copied"
+  - title: "Hop-by-hop routing (Ben Eater, Networking tutorial 11 of 13, 14 minutes)"
+    url: https://www.youtube.com/watch?v=VWJ8GmYnjTs
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "ARP: Mapping between IP and Ethernet (Ben Eater, Networking tutorial 9 of 13, 10 minutes): watch this or read Beej's ARP chapter, one of the two"
+    url: https://www.youtube.com/watch?v=aamG4-tH_m8
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "Beej's Guide to Network Concepts, chapter 21, \"ARP: The Address Resolution Protocol\": broadcast frames, caching, request and response (about 10 minutes; the reading instead of the ARP video)"
+    url: https://beej.us/guide/bgnet0/html/split/arp-the-address-resolution-protocol.html
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 3.0 (the guide's foreword); linked, not copied"
+  - title: "Path MTU discovery in practice (Marek Majkowski, Cloudflare blog, 2015): read to the end of \"Another Black Hole\", about 7 minutes"
+    url: https://blog.cloudflare.com/path-mtu-discovery-in-practice/
+    type: reading
+    use: link
+    license: "Copyright Cloudflare, Inc. (no licence stated); linked, not copied"
+  - title: "Network maximum transmission unit (MTU) for your EC2 instance (AWS): \"Jumbo frames\" and \"Path MTU Discovery\""
+    url: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/network_mtu.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Maximum transmission unit (Google Cloud VPC): the default, the range, fragmentation and MSS clamping"
+    url: https://docs.cloud.google.com/vpc/docs/mtu
+    type: reading
+    use: link
+    license: CC BY 4.0
+  - title: "Configure MTU for virtual machines in Azure (Microsoft Learn): the opening table, \"Precautions\" and \"Path MTU Discovery\""
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/how-to-virtual-machine-mtu
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "RFC 2923, TCP Problems with Path MTU Discovery: optional, section 2.1, \"Black Hole Detection\""
+    url: https://www.rfc-editor.org/rfc/rfc2923.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "RFC 792, Internet Control Message Protocol: optional, the message types and their codes"
+    url: https://www.rfc-editor.org/rfc/rfc792.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+# The recall items read captures, ping, traceroute and tracepath output from
+# this topic's labs with Module 1's text tools, and ask for the overhead
+# sums as estimates (ADR-0024). The worked example, the fill-in, the write
+# and both proofs are labs on the network-lab base (content/lab-bases/net):
+# several machines in one container, each a network namespace with its own
+# /etc, built from a topology file (ADR-0018, third amendment). Every lab
+# keeps its contract with the restart trial.
+practice:
+  - example-follow-a-request
+  - mcq-which-layer
+  - hdr-two-sides
+  - hdr-hex-ttl
+  - est-ping-data-bytes
+  - arp-who-has
+  - mcq-gateway-mac
+  - arp-neigh-states
+  - mcq-stale-permanent
+  - mcq-cloud-floating-ip
+  - icmp-ping-verdicts
+  - mcq-traceroute-loop
+  - mcq-icmp-related
+  - mcq-never-block
+  - est-mss-from-mtu
+  - est-gre-mtu
+  - est-vxlan-mtu
+  - est-df-ping-size
+  - est-jumbo-mss
+  - mcq-cloud-mtus
+  - mcq-blackhole-symptom
+  - pmtud-tracepath
+  - mcq-capture-sees-it
+  - mcq-mss-clamp
+  - fill-tunnel-up
+  - write-why-not
+prove:
+  build: build-branch-tunnel
+  debug: debug-big-downloads-hang
+  explain:
+    prompt: |
+      Staff say the shop's site loads but big downloads hang, and a colleague says "the firewall must be broken, turn it off". Explain, in your own words: how one request travels from a laptop to a server across a router and a tunnel, layer by layer, and what each router changes and what it leaves alone; how the laptop finds the router's hardware address; what ICMP is for, and which of its messages must never be blocked; what MTU and encapsulation overhead are, and how path MTU discovery works; why dropping ICMP makes small pages work but big downloads hang, how you'd prove that's what is happening, and how you'd fix it without turning the firewall off; and one way the three clouds differ in any of this.
+    rubric:
+      - id: layers-and-encapsulation
+        required: true
+        description: "Each layer wraps the one above in a header (the application's data in TCP, in IP, in an Ethernet frame); the models are a debugging order: link, neighbour, route, port, protocol."
+      - id: hop-by-hop
+        required: true
+        description: "Each hop builds a new frame (new source and destination MAC addresses) and lowers the TTL (so it rewrites the checksum); the IP addresses and ports stay the same end to end (without NAT); a tunnel adds an outer IP header around the whole packet."
+      - id: arp
+        required: true
+        description: "The laptop broadcasts an ARP request for the gateway's IP address and gets its MAC address in a reply sent straight back; it never asks for the far server's MAC; answers are cached in the neighbour table, with states."
+      - id: icmp
+        required: true
+        description: "ICMP carries errors and tests (echo, destination unreachable with its codes, time exceeded); an error quotes the packet that caused it, so a stateful firewall can treat it as related; fragmentation needed (IPv6's Packet Too Big) must get through."
+      - id: mtu-pmtud
+        required: true
+        description: "MTU is the largest packet a link carries; headers and tunnels take room (GRE 24 bytes, so 1476 over 1500); the sender sets DF, a router that can't forward the packet sends fragmentation needed with its MTU, and the sender remembers it and sends smaller packets."
+      - id: black-hole
+        required: true
+        description: "Small packets fit, so handshakes and small pages work; the first full-size packet is dropped and its ICMP blocked, so bulk transfers stall; proof: a DF ping from the sender, tracepath, a capture on the sender showing the ICMP arriving, ip route get with no remembered MTU; fix: let the ICMP through (related, or the specific type), not turn the firewall off; MSS clamping helps TCP only."
+      - id: clouds-differ
+        required: false
+        description: "Any correct difference: AWS 9001 inside a VPC and 1500 at its edges; Google 1460 by default and MSS clamping on the way out; Azure 1500 except inside a virtual network; Azure blocks GRE between VMs while Google allows it; no broadcast in any of them, so no gratuitous-ARP failover."
+    model_answer: |
+      The firewall isn't broken; it's dropping one message too many. Start with how a request travels. The browser's HTTP request is wrapped in a TCP segment with the ports, that in an IP packet with the laptop's and the server's addresses and a TTL, and that in an Ethernet frame with MAC addresses. Each layer adds its own header, and on the way up each one is taken off again. The layers are also the order to debug in: is the link up, does the next box answer, is there a route, does the port answer, does the protocol work.
+
+      The laptop's frame doesn't go to the server: it goes to the router. The laptop broadcasts an ARP request, "who has 10.0.1.1?", the router answers with its MAC address, and the laptop keeps that in its neighbour table. It never asks for the server's MAC; ARP doesn't cross routers. Each router takes the frame off, lowers the TTL by one (so it redoes the header's checksum), and builds a new frame for the next hop. The IP addresses and ports stay the same end to end. Across the internet, a GRE tunnel wraps the whole packet in a new outer IP header, 24 bytes of extra headers.
+
+      That costs room. A link's MTU is the largest packet it carries, 1500 on Ethernet, so the tunnel's is 1476. Senders set don't-fragment, and a router that can't forward a packet sends back ICMP "fragmentation needed" with its MTU; the sender remembers it and sends smaller packets. That's path MTU discovery. ICMP is how the network reports errors (unreachable, time exceeded) and how ping works, and each error quotes the packet that caused it, so a stateful firewall can accept it as related.
+
+      If the server's firewall drops all ICMP, the handshake and small pages still fit, but the first full-size packet never fits the tunnel and the message saying so is thrown away, so the download hangs. To prove it: tracepath shows 1476, a don't-fragment ping from the server gets nothing back, tcpdump on the server shows the ICMP arriving, and ip route get shows no remembered MTU. The fix is to let related ICMP in above the drop rule, not to turn the firewall off. MSS clamping would only rescue TCP.
+
+      The clouds differ too: AWS uses 9001 inside a VPC but only 1500 through an internet gateway, while Google defaults to 1460 and clamps the MSS on the way out.
+review_pool:
+  - mcq-which-layer
+  - mcq-tool-for-layer
+  - mcq-cloud-floating-ip
+  - hdr-two-sides
+  - hdr-hex-ttl
+  - hdr-udp-length
+  - mcq-gateway-mac
+  - arp-neigh-states
+  - mcq-stale-permanent
+  - icmp-ping-verdicts
+  - mcq-icmp-related
+  - mcq-port-unreachable
+  - est-gre-mtu
+  - est-vxlan-mtu
+  - est-df-ping-size
+  - est-ipip-mtu
+  - est-full-frames
+  - mcq-blackhole-symptom
+  - mcq-capture-sees-it
+  - mcq-mss-clamp
+  - pmtud-tracepath
+skills:
+  - id: layer-model
+    description: "The OSI and TCP/IP models as a map: which layer a header, a device, a tool and a symptom belong to; working up the layers to place a fault (link, neighbour, route, port, protocol); why \"it pings\" proves only layer 3; where the clouds hide layers 1 and 2"
+  - id: read-headers
+    description: "Reading a capture field by field: Ethernet (MAC addresses, EtherType), IPv4 (header length, total length, identification, DF, TTL, protocol, addresses) and the ports; the same packet on two sides of a router; the same fields in a hex dump"
+  - id: arp-neighbours
+    description: "ARP's request and reply; the gateway's MAC address on every packet to another network; the neighbour table's states, and what FAILED, INCOMPLETE and a wrong PERMANENT entry mean; why gratuitous ARP doesn't work in the clouds"
+  - id: icmp-messages
+    description: "ICMP's types and codes and what each tells you (echo, destination unreachable with host, port and fragmentation needed, time exceeded); errors quoting the packet that caused them, so they are related; which ICMP a firewall must let through"
+  - id: encapsulation-mtu
+    description: "MTU, frame size and MSS; the overheads (Ethernet 14, IPv4 20, TCP 20, UDP 8, ICMP 8; GRE 24, IPIP 20, VXLAN 50) and the inner MTU a tunnel leaves; the largest ping -M do -s that fits; the three clouds' MTUs"
+  - id: pmtud-blackholes
+    description: "Path MTU discovery (DF, fragmentation needed, the sender's per-destination memory); the black hole when that ICMP is dropped; proving it with tracepath, DF pings, a capture on the sender and ip route get; fixing it at the cause, and why MSS clamping and lowered MTUs are workarounds"
