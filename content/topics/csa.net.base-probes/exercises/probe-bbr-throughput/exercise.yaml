@@ -1,0 +1,16 @@
+id: probe-bbr-throughput
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Probe: BBR on a long, lossy link"
+prompt: |
+  A probe for the network-lab base's CI spike, not a lesson: the Module 3 topic Congestion control and QUIC will teach this.
+
+  Three machines: `shop`, which sends the nightly archive; `dr1`, the disaster-recovery site, whose receiver takes it; and `wan`, the long link between them (50 Mbit/s, a 50 ms round trip, and about 1% of the packets on their way to dr1 lost). `archive-push` sends the archive for 6 seconds over one connection, as the nightly job does, and prints how many Mbit/s dr1 received. `on MACHINE COMMAND` runs a command on a machine.
+
+  Today the archive gets a few Mbit/s: shop uses CUBIC, Linux's default congestion control, which slows down at every lost packet. Make shop send with BBR instead, for good: the line `net.ipv4.tcp_congestion_control = bbr` in a file in shop's `/etc/sysctl.d/`, applied with `on shop sysctl -p FILE` (or `sudo netlab restart`). Leave the link and the job as they are; the archive keeps its one connection.
+
+  Then run the checks. They measure three times, and each time the archive must reach 25 Mbit/s.

@@ -1,7 +1,7 @@
 # Proves every lab's contract in Docker (ADR-0018), on pull requests that
 # touch the labs or the checker. It's the slowest check (a quarter of an
 # hour for eighty labs on one machine), so the labs are split by topic
-# across four machines, each warming the layer its topics share once; and
+# across eight machines, each warming the layer its topics share once; and
 # it doesn't run for a change to the web app, the docs, or a Python topic:
 # every lab lives under a cloud topic (csa.*). The pristine container must
 # not pass, the solution must, every known-wrong fix must not. The last job,
@@ -25,6 +25,7 @@ on:
   pull_request:
     paths:
       - "content/topics/csa.*/**"
+      - "content/lab-bases/**"
       - "tools/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -51,7 +52,7 @@ jobs:
       fail-fast: false
       matrix:
         # Change the N in --shard below with this list.
-        shard: [0, 1, 2, 3]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v7
       # setup-uv only publishes exact version tags (no floating "v10").
@@ -59,7 +60,7 @@ jobs:
       - name: Install Python and dependencies
         run: uv sync --locked
       - name: Prove this share of the labs' contracts in Docker
-        run: uv run python tools/labcheck.py test --all --jobs 4 --shard ${{ matrix.shard }}/4
+        run: uv run python tools/labcheck.py test --all --jobs 4 --shard ${{ matrix.shard }}/8
 
   labs:
     name: Labs

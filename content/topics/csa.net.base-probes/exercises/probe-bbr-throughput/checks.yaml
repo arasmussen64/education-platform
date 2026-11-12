@@ -1,0 +1,49 @@
+# The BBR probe's checks: shop's congestion control against its
+# /etc/sysctl.d, three separate measurements of the archive's speed across
+# the lossy link (each a fresh 6-second transfer, which must reach
+# 25 Mbit/s: the middle of the gap between CUBIC's 1.4 to 7.4 and BBR's 41
+# to 46 that the congestion designer measured), and the link and the job
+# as they were shipped.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sender-choice-lasts
+    description: "shop, the sender, uses BBR, and its /etc/sysctl.d says so, so a reboot keeps it."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      differs=$(sysctl_saved shop net.ipv4.tcp_congestion_control) || { echo "$differs"; exit 0; }
+      on shop sysctl -n net.ipv4.tcp_congestion_control
+    expect:
+      equals: bbr
+  - id: speed-1
+    description: "The archive reaches dr1 at 25 Mbit/s or more on its one connection (the first of three measurements)."
+    command: archive-push 2>&1
+    timeout: 45
+    expect:
+      gte: 25
+  - id: speed-2
+    description: "The archive reaches dr1 at 25 Mbit/s or more on its one connection (the second of three measurements)."
+    command: archive-push 2>&1
+    timeout: 45
+    expect:
+      gte: 25
+  - id: speed-3
+    description: "The archive reaches dr1 at 25 Mbit/s or more on its one connection (the third of three measurements)."
+    command: archive-push 2>&1
+    timeout: 45
+    expect:
+      gte: 25
+  - id: link-as-shipped
+    description: "The link and the nightly job are as they were: 50 Mbit/s, 25 ms each way, and 1% loss towards dr1."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      # The link's live shaping against a fresh build's (the copy that
+      # netlab verify makes from the topology), so a change made live with
+      # tc shows. The qdisc's handle (8001:) is only a number: left out.
+      # Each interface is named: placeholder interfaces come and go.
+      live=$(for dev in eth0 eth1; do ip netns exec wan tc qdisc show dev "$dev"; done | sed 's/netem [0-9a-f]*:/netem/')
+      fresh=$(netlab verify wan -- bash -c 'for dev in eth0 eth1; do ip netns exec chk-wan tc qdisc show dev "$dev"; done' | sed 's/netem [0-9a-f]*:/netem/')
+      if [ "$live" = "$fresh" ]; then echo "as shipped"; else echo "the link's shaping was changed: now $(echo "$live" | tr '\n' ' ')"; fi
+    expect:
+      equals: "as shipped"

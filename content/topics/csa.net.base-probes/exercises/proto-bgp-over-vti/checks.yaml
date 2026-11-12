@@ -1,0 +1,135 @@
+# The VTI probe's checks. Each reads the network's real state: the kernel's
+# IPsec SAs and routes, FRR's own answers, a ping between the sites, a
+# capture on the internet's router. "saved", "network-lasts",
+# "tunnel-starts-itself" and "cloud-side-untouched" compare that state with
+# the files that make it last. tunnel-up and bgp-up wait for convergence after a boot; the rest
+# read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: tunnel-up
+    description: "vpn-a and vpn-b have an IPsec tunnel between their public addresses, in both directions."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sas() { on vpn-a ip xfrm state | grep -c '^src \(198.51.100.2 dst 203.0.113.2\|203.0.113.2 dst 198.51.100.2\)$'; }
+      both_ways() { [ "$(sas)" -ge 2 ]; }
+      wait_for 15 both_ways || { echo "vpn-a has no IPsec SAs to and from 203.0.113.2"; exit 0; }
+      echo "tunnel up"
+    expect:
+      equals: "tunnel up"
+  - id: bgp-up
+    description: "vpn-a has a BGP session with the cloud's gateway, 169.254.10.2 in AS 64512, inside the tunnel."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on vpn-a ip xfrm state | grep -q '^src ' || { echo "there is no IPsec tunnel, so no session inside one"; exit 0; }
+      peer() { frr vpn-a 'show bgp neighbors 169.254.10.2 json' | json "d['169.254.10.2'][$1]"; }
+      established() { [ "$(peer "'bgpState'")" = Established ]; }
+      wait_for 30 established
+      echo "$(peer "'bgpState'") $(peer "'remoteAs'")"
+    timeout: 45
+    expect:
+      equals: "Established 64512"
+  - id: learned-by-bgp
+    description: "vpn-a reaches the cloud's network, 10.2.0.0/24, by a route it learned over BGP, through vti0."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      route() { frr vpn-a 'show ip route 10.2.0.0/24 json' | json "[(r['protocol'], [n.get('interfaceName') for n in r['nexthops']]) for r in d.get('10.2.0.0/24', []) if r.get('selected')]"; }
+      by_bgp() { route | grep -q bgp; }
+      wait_for 5 by_bgp
+      route
+    expect:
+      equals: '[["bgp", ["vti0"]]]'
+  - id: path-from-the-cloud
+    description: "BGP's chosen path to 10.2.0.0/24 on vpn-a comes from the cloud's gateway and crosses only the cloud's AS."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      bgp-best vpn-a 10.2.0.0/24 | cut -d, -f1,4
+    expect:
+      equals: "via 169.254.10.2, path 64512"
+  - id: only-the-clouds-prefixes
+    description: "vpn-a accepts no prefix from the cloud outside 10.2.0.0/16, though the cloud offers one."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      bgp-best vpn-a 172.16.9.0/24
+    expect:
+      equals: "none"
+  - id: no-hand-made-routes
+    description: "vpn-a has no routes typed in by hand, which the next boot would lose: its routes come from FRR."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      routes=$(hand_routes vpn-a)
+      [ -z "$routes" ] || { echo "vpn-a has routes typed by hand: $(echo "$routes" | head -n 2 | tr '\n' ';')"; exit 0; }
+      echo none
+    expect:
+      equals: "none"
+  - id: hosts-reach
+    description: "host-a, in the shop, reaches host-b, in the cloud."
+    command: on host-a ping -c 2 -W 1 10.2.0.10 > /dev/null && echo reached
+    expect:
+      equals: reached
+  - id: encrypted
+    description: "Between the shop and the cloud, the internet carries only encrypted traffic: a ping from host-a to host-b crosses it as ESP."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      seen=$(capture isp eth1 'host 198.51.100.2 and not port 500 and not port 4500' 4 -- on host-a ping -c 3 -W 1 10.2.0.10)
+      esp=$(echo "$seen" | grep -c ' ESP(')
+      plain=$(echo "$seen" | grep -c 'ICMP')
+      [ "$plain" -eq 0 ] || { echo "the internet saw $plain packets in the clear"; exit 0; }
+      [ "$esp" -ge 3 ] || { echo "the internet saw no ESP for the ping"; exit 0; }
+      echo encrypted
+    timeout: 20
+    expect:
+      equals: encrypted
+  - id: saved
+    description: "vpn-a's running FRR configuration is saved, so a restart brings the same routing back."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      frr_saved vpn-a && echo saved
+    expect:
+      equals: saved
+  - id: network-lasts
+    description: "vpn-a's interfaces, addresses and routes are what its files build at boot."
+    command: netlab verify vpn-a
+    expect:
+      equals: verified
+  - id: tunnel-starts-itself
+    description: "vpn-a's tunnel is in its files and starts by itself: an IPsec daemon started from them, as at boot, begins it with nothing typed."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # In netlab verify's throwaway copy (chk-vpn-a sees vpn-a's own /etc,
+      # and no service runs there), charon starts and loads vpn-a's files as
+      # a boot does. A connection with start_action = start begins at once
+      # (it can't finish: the copy has no routes from FRR); a tunnel started
+      # by hand, or loaded from a file elsewhere, doesn't begin at all.
+      began=$(netlab verify vpn-a -- bash -c '
+        on chk-vpn-a /usr/sbin/charon-systemd > /dev/null 2>&1 &
+        charon=$!
+        for i in $(seq 1 50); do on chk-vpn-a swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-vpn-a swanctl --load-all --noprompt > /dev/null 2>&1
+        for i in $(seq 1 25); do
+          n=$(on chk-vpn-a swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.2\[")
+          [ "$n" -ge 1 ] && break
+          sleep 0.2
+        done
+        echo "$n"
+        kill "$charon" 2> /dev/null
+        wait "$charon" 2> /dev/null
+        true')
+      case $began in
+        [1-9]*) echo "starts itself" ;;
+        0) echo "an IPsec daemon started from vpn-a's files doesn't begin the tunnel by itself: it was started by hand, or isn't in /etc/swanctl/conf.d/" ;;
+        *) echo "$began" ;;
+      esac
+    expect:
+      equals: "starts itself"
+  - id: cloud-side-untouched
+    description: "The cloud's gateway (its files and its running routing), the network and vpn-a's network files are as they were."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact)
+      [ "$sealed" = intact ] || { echo "$sealed"; exit 0; }
+      # The sealed files can't show a change typed into vpn-b's vtysh.
+      changed=$(frr_saved vpn-b) || { echo "vpn-b's routing was changed live: $(echo "$changed" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      echo intact
+    expect:
+      equals: intact

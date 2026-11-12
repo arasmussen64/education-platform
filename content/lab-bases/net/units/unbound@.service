@@ -1,0 +1,19 @@
+# Unbound, a recursive resolver, on one of the lab's machines: "systemctl
+# status unbound@resolver". Its configuration is the machine's /etc/unbound.
+[Unit]
+Description=Unbound resolver on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+# Journal lines say which service and machine wrote them ("unbound@resolver"),
+# not "ip", the program that enters the machine.
+SyslogIdentifier=%p@%i
+Type=simple
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/unbound -d -p
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/unbound-control reload
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

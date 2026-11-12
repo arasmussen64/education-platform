@@ -1,0 +1,20 @@
+# nginx on one of the lab's machines: "systemctl status nginx@web1". Its
+# configuration is the machine's /etc/nginx.
+[Unit]
+Description=nginx on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+# Journal lines say which service and machine wrote them ("unbound@resolver"),
+# not "ip", the program that enters the machine.
+SyslogIdentifier=%p@%i
+Type=simple
+ExecStartPre=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/nginx -t -q
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/nginx -g 'daemon off; master_process on;'
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/nginx -s reload
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

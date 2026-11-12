@@ -1,0 +1,58 @@
+#!/bin/bash
+# lab-enter MACHINE [COMMAND...]
+# Runs inside "ip netns exec MACHINE", which has already put the command in
+# the machine's network namespace, in a mount namespace of its own, with
+# each file and folder of /etc/netns/MACHINE/ laid over /etc. This adds the
+# rest of what makes a machine: its own /run (so two machines' daemons don't
+# share pid files and sockets), its own state folders (/var/cache/bind and
+# the like), and its own name. Then it runs COMMAND, or a shell.
+# Used by "on" and by every per-machine service (frr@, strongswan@ ...), so
+# the learner and the daemons see the same machine.
+set -euo pipefail
+m=$1
+shift
+# With no command, a login shell in root's home, as after logging in.
+if [[ $# -eq 0 ]]; then
+  set -- bash -l
+  cd /root
+fi
+
+run=/run/netlab/machines/$m
+state=/var/lib/netlab/machines/$m
+mkdir -p "$run"
+
+# The machine's own /run, with the lab machine's systemd and journal still in
+# sight, so systemctl and journalctl work from inside a machine. Bound into
+# the machine's folder first, then the folder over /run, taking them along.
+for d in systemd log; do
+  mkdir -p "$run/$d"
+  mount --bind "/run/$d" "$run/$d"
+done
+mount --rbind "$run" /run
+
+# The machine's own state folders, made from the image's at first use.
+# Two commands can enter a machine at the same moment (two of its services
+# at boot, a check's "on" beside another), and both would make the same
+# folder: cp then fails on a file the other has just made, and this script
+# stops. So one at a time makes them, holding a lock beside the folders.
+mkdir -p "$state"
+exec 9> "$state.lock"
+flock 9
+for d in /var/cache/bind /var/lib/bind /var/lib/unbound /var/log/frr /var/lib/frr \
+         /var/log/nginx /var/lib/nginx /var/lib/haproxy; do
+  [[ -d $d ]] || continue
+  if [[ ! -d $state$d ]]; then
+    mkdir -p "$state$d"
+    cp -a "$d/." "$state$d/"
+    chown --reference="$d" "$state$d"
+    chmod --reference="$d" "$state$d"
+  fi
+  mount --bind "$state$d" "$d"
+done
+# Let go of the lock, so the command below doesn't hold it.
+exec 9>&-
+
+# The machine's name, in a namespace of its own (the prompt reads root@r1),
+# and no domain name: given the container's, FRR would write a "domainname"
+# line into every configuration it saves.
+exec unshare --uts /bin/sh -c 'hostname "$0" && domainname "(none)" && exec "$@"' "$m" "$@"

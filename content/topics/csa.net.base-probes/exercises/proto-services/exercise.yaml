@@ -1,0 +1,16 @@
+id: proto-services
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Probe: names, load balancing, NAT and a slow link"
+prompt: |
+  A probe for the network-lab base's CI spike, not a lesson: the Module 3 DNS topic will teach this.
+
+  Nine machines: an office (`client`, and `resolver`, the office's Unbound resolver), `edge`, the office's NAT router onto a small internet over a slow link, three BIND name servers on that internet (`root`, `tld` for `test.` and `ns1` for `shop.test.`), and `lb1`, an HAProxy load balancer in front of two nginx servers, `web1` and `web2`. `on MACHINE COMMAND` runs a command on a machine, and `netlab show` lists them.
+
+  From `client`, `www.shop.test` doesn't resolve (`on client dig www.shop.test`). Fix the office's resolver, in `/etc/unbound/unbound.conf` on `resolver` (then `sudo systemctl restart unbound@resolver`), so that names under `test.` are looked up on the lab's internet. Change nothing on the other machines, and leave `client`'s resolver settings as they are.
+
+  Then run the checks.

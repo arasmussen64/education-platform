@@ -1,0 +1,27 @@
+#!/bin/bash
+# plain-units: run once, at image build. On a network lab each daemon runs
+# on a machine, as a unit per machine (frr@r1, nginx@web), and never on the
+# lab machine itself, which is on no lab network. The packages' own plain
+# units (frr.service, nginx.service ...) are replaced here by units that
+# never start the daemon: started, they run not-here, which says what to
+# type instead and fails. So a habit-typed "sudo systemctl restart frr" ends
+# in "Job for frr.service failed ... See systemctl status frr.service", and
+# that shows the advice. (A masked unit would refuse too, but its message,
+# "Unit frr.service is masked", doesn't say what to type.)
+set -euo pipefail
+for unit in frr strongswan named bind9 unbound nginx haproxy radvd nftables; do
+  daemon=$unit
+  if [[ $unit == bind9 ]]; then daemon=named; fi
+  cat > "/etc/systemd/system/$unit.service" << EOF
+# Written by netlab's plain-units at image build (content/lab-bases/net).
+[Unit]
+Description=Not on this lab machine: $daemon runs on each machine, as $daemon@MACHINE
+# Forgotten as soon as it has run, so a habit-typed command leaves no
+# failed unit behind.
+CollectMode=inactive-or-failed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/netlab/not-here $unit
+EOF
+done

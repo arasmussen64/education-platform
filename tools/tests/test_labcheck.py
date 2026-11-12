@@ -12,7 +12,7 @@ import labcheck
 import pytest
 import yaml
 from content_fixture import make_valid_tree, write
-from content_model import Expect, LabCheck, LabChecks
+from content_model import Expect, LabCheck, LabChecks, LabOptions
 from labcheck import (
     CHECKER_VERSION,
     CheckResult,
@@ -1414,3 +1414,256 @@ def test_a_checks_limit_reaches_the_docker_command_itself(monkeypatch) -> None:
     monkeypatch.setattr(labcheck.subprocess, "run", hung)
     result = labcheck.run_check(NAME, check)
     assert not result.passed and result.detail.startswith("ran out of time")
+
+
+# --- Shared lab bases (ADR-0018, third amendment) -----------------------------------
+
+LAB_DIR = "content/topics/t.hello/exercises/lab-hello"
+
+
+def test_a_shared_base_is_named_on_a_from_line_of_its_own() -> None:
+    assert labcheck.base_named_in("FROM lab-base-net\nCOPY topology /etc/x\n") == "net"
+    # FROM in any case, as Docker allows; a Dockerfile saved with CRLF.
+    assert labcheck.base_named_in("# the base\r\nfrom lab-base-net-v2\r\n") == "net-v2"
+    for text in (
+        "FROM ubuntu:24.04\n",
+        "FROM lab-base-net:latest\n",  # a tag: not what the checker builds
+        "FROM lab-base-Net\n",  # Docker's image names are lowercase
+        "RUN echo FROM lab-base-net\n",
+    ):
+        assert labcheck.base_named_in(text) is None, text
+
+
+def test_a_labs_base_is_read_from_its_dockerfile_and_found_beside_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    lab = use_lab(tmp_path, monkeypatch, FakeDocker())
+    assert labcheck.base_of(lab) is None
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-net\n")
+    assert labcheck.base_of(lab) == "net"
+    # In the lab's own content tree, not wherever the checker is.
+    assert labcheck.bases_of(lab) == tmp_path / "content" / "lab-bases"
+
+
+def test_a_lab_on_a_shared_base_has_the_base_built_first(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-net\nCOPY topology /x\n")
+    write(tmp_path, "content/lab-bases/net/Dockerfile", "FROM ubuntu:24.04\n")
+    labcheck.build_image(lab)
+    base = tmp_path / "content" / "lab-bases" / "net"
+    assert docker.calls == [
+        ("build", "-q", "-t", "lab-base-net", str(base)),
+        ("build", "-q", "-t", IMAGE, str(lab.folder)),
+    ]
+    # The base's build may take as long as any build.
+    assert docker.options[0]["timeout"] == labcheck.BUILD_TIMEOUT_SECONDS
+
+
+def test_start_and_test_build_the_base_too(tmp_path: Path, monkeypatch) -> None:
+    docker = FakeDocker()
+    use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-net\n")
+    write(tmp_path, "content/lab-bases/net/Dockerfile", "FROM ubuntu:24.04\n")
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    assert docker.verbs == ["container", "build", "build", "inspect", "rm", "run"]
+    assert "lab-base-net" in docker.calls[1]
+
+
+def test_docker_builds_without_the_attestation_that_changes_an_images_id(
+    monkeypatch,
+) -> None:
+    # With buildx's default attestation, an unchanged base got a new ID at
+    # every build, and every lab on it rebuilt its own layers.
+    seen: list[dict[str, str]] = []
+
+    def run(argv: list[str], **options: object):
+        seen.append(options["env"])  # type: ignore[arg-type]
+        return answer()
+
+    monkeypatch.setattr(labcheck, "docker_command", lambda: "docker")
+    monkeypatch.setattr(labcheck.subprocess, "run", run)
+    monkeypatch.setenv("LAB_TEST_KEPT", "yes")
+    labcheck.docker("build", "-q", "-t", "lab-base-net", ".")
+    assert seen[0]["BUILDX_NO_DEFAULT_ATTESTATIONS"] == "1"
+    # The rest of the environment (PATH, Docker's own settings) is kept.
+    assert seen[0]["LAB_TEST_KEPT"] == "yes"
+
+
+def test_a_base_that_doesnt_exist_is_named_before_anything_is_built(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-nett\n")
+    with pytest.raises(
+        LabError,
+        match=r"no lab base called nett: a Dockerfile says FROM lab-base-nett, "
+        r"and .*content/lab-bases/nett/Dockerfile doesn't exist",
+    ):
+        labcheck.build_image(lab)
+    assert docker.calls == []
+
+
+def test_the_validator_wants_a_labs_base_to_exist(tmp_path: Path) -> None:
+    tree = make_valid_tree(tmp_path)
+    folder = "content/topics/t.hello/exercises/lab-report"
+    write(
+        tree,
+        f"{folder}/exercise.yaml",
+        "id: lab-report\nstage: write\nruntime: lab\nrev: 1\n"
+        "title: A report\nprompt: Make a report.\nskills: [print-text]\n",
+    )
+    write(tree, f"{folder}/solution.sh", "echo done > ~/report.txt\n")
+    write(tree, f"{folder}/checks.yaml", CHECKS)
+    write(tree, f"{folder}/Dockerfile", "FROM lab-base-net\nCOPY topology /x\n")
+    assert validate(tree, run=False).problems == [
+        f"{folder}/Dockerfile: starts FROM lab-base-net, but there is no "
+        "content/lab-bases/net/Dockerfile to build it from (the bases are: none "
+        "yet); fix the name, or add that base"
+    ]
+    write(tree, "content/lab-bases/net/Dockerfile", "FROM ubuntu:24.04\n")
+    assert validate(tree, run=False).problems == []
+    # A tag (or capitals) would send Docker looking online for the image.
+    write(tree, f"{folder}/Dockerfile", "FROM lab-base-net:latest\n")
+    assert validate(tree, run=False).problems == [
+        f"{folder}/Dockerfile: a FROM line names a lab base in a form the checker "
+        "can't read: write FROM lab-base-<name> alone on its line, with the name "
+        "in lowercase letters, digits and hyphens (the bases are: net)"
+    ]
+
+
+# --- The restart trial (ADR-0018, third amendment) ----------------------------------
+
+# Two checks that pass on exit status 0, so a stand-in Docker decides them.
+PLAIN_CHECKS = """checks:
+  - id: file-exists
+    description: hello.txt exists.
+    command: test -f /home/learner/hello.txt
+  - id: service-on
+    description: The service runs.
+    command: systemctl is-active hello
+"""
+TRIAL = "lab:\n  init: systemd\n  restart_trial: true\n"
+
+
+class Rebooting(FakeDocker):
+    """A stand-in Docker for contract runs. In each new container, every
+    check fails until a script has been applied; after `docker restart`, the
+    checks whose command holds one of `lost` fail again, as a fix that a
+    reboot loses would."""
+
+    def __init__(self, lost: tuple[str, ...] = ()) -> None:
+        super().__init__()
+        self.lost = lost
+        self.applied = False
+        self.restarted = False
+
+    def __call__(self, *args: str, **options: object):
+        super().__call__(*args, **options)
+        if args[0] == "run":
+            self.applied = self.restarted = False
+        elif args[0] == "cp":
+            self.applied = True
+        elif args[0] == "restart":
+            self.restarted = True
+        elif args[0] == "exec" and "timeout" in args:  # a check
+            lost = self.restarted and any(part in args[-1] for part in self.lost)
+            return answer(0 if self.applied and not lost else 1)
+        return answer()
+
+
+def trial_lab(tmp_path: Path, monkeypatch, docker: FakeDocker, options: str):
+    lab = use_lab(tmp_path, monkeypatch, docker, options, checks=PLAIN_CHECKS)
+    write(tmp_path, f"{LAB_DIR}/solution.sh", "sudo systemctl enable --now hello\n")
+    boots: list[str] = []
+    monkeypatch.setattr(labcheck, "wait_for_boot", boots.append)
+    return lab, boots
+
+
+def test_the_restart_trial_is_off_unless_a_lab_asks_for_it() -> None:
+    assert LabOptions().restart_trial is False
+    assert LabOptions(init="systemd", restart_trial=True).restart_trial is True
+    # Strictly true or false: a quoted "yes" or a 1 isn't quietly read as true.
+    for wrong in ("yes", "true", 1):
+        with pytest.raises(ValidationError):
+            LabOptions.model_validate({"restart_trial": wrong})
+
+
+def test_the_restart_trial_restarts_the_solved_lab_and_checks_it_again(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = Rebooting()
+    lab, boots = trial_lab(tmp_path, monkeypatch, docker, TRIAL)
+    said: list[str] = []
+    report = labcheck.test_lab(lab, say=said.append)
+    assert report.ok, report.problems
+    # The solution applied (cp, exec) and checked (exec, exec); then a
+    # restart, the wait for the boot, every check again, and the container
+    # removed (inspect, rm).
+    after_solution = docker.verbs[docker.verbs.index("cp") :]
+    assert after_solution == [
+        "cp",
+        "exec",
+        "exec",
+        "exec",
+        "restart",
+        "exec",
+        "exec",
+        "inspect",
+        "rm",
+    ]
+    assert ("restart", f"{NAME}-test") in docker.calls
+    assert boots[-1] == f"{NAME}-test"
+    assert "  restart trial: docker restart, then every check must pass again" in said
+
+
+def test_a_fix_that_a_restart_loses_breaks_the_contract_and_says_so(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = Rebooting(lost=("systemctl is-active hello",))
+    lab, _ = trial_lab(tmp_path, monkeypatch, docker, TRIAL)
+    report = labcheck.test_lab(lab, verbose=False)
+    assert report.problems == [
+        "the fix didn't survive a restart: after docker restart, service-on "
+        "fails: exit status 1"
+    ]
+    # A checker that stopped would be retried in the crowd; this is a broken
+    # contract, never retried.
+    assert not report.gave_up
+
+
+def test_no_restart_trial_without_the_option_or_before_the_solution_passes(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = Rebooting()
+    lab, _ = trial_lab(tmp_path, monkeypatch, docker, "lab:\n  init: systemd\n")
+    assert labcheck.test_lab(lab, verbose=False).ok
+    assert "restart" not in docker.verbs
+
+    # The solution fails a check: the trial would prove nothing, so it waits.
+    docker = Rebooting()
+    lab, _ = trial_lab(tmp_path, monkeypatch, docker, TRIAL)
+    write(tmp_path, f"{LAB_DIR}/checks.yaml", CHECKS)  # says-hello wants "hello"
+    lab = load_lab("t.hello", "lab-hello", tmp_path / "content" / "topics")
+    said: list[str] = []
+    report = labcheck.test_lab(lab, say=said.append)
+    assert "restart" not in docker.verbs
+    assert any(
+        problem.startswith("after solution.sh, says-hello")
+        for problem in report.problems
+    )
+    assert "  restart trial: not run, since the solution doesn't pass yet" in said
+
+
+def test_a_plain_lab_is_restarted_without_waiting_for_a_boot(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = Rebooting()
+    lab, boots = trial_lab(
+        tmp_path, monkeypatch, docker, "lab:\n  restart_trial: true\n"
+    )
+    assert labcheck.test_lab(lab, verbose=False).ok
+    assert "restart" in docker.verbs and boots == []

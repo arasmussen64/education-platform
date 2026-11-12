@@ -1,0 +1,14 @@
+# The DR site's receiver, on dr1: iperf3's server, which archive-push sends
+# the nightly archive to. "systemctl status backup-sink".
+[Unit]
+Description=The DR site's backup receiver, on dr1 (iperf3 -s)
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+ExecStart=/usr/sbin/ip netns exec dr1 /usr/local/lib/netlab/lab-enter dr1 /usr/bin/iperf3 -s
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

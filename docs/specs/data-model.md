@@ -257,7 +257,7 @@ How each stage behaves:
 
 ### Labs
 
-An exercise with `runtime: lab` ([ADR-0018](../decisions/0018-lab-checker-local-mode.md)) runs in a container on the learner's machine, started and checked by `tools/labcheck.py`. Its folder holds a `Dockerfile` (the scenario), `checks.yaml`, `solution.sh` and `wrong/*.sh` in place of the Python files; `lab: { init: systemd }` marks a lab whose container must boot systemd: the checker starts it privileged, in its own cgroup namespace, with `/sbin/init`, and waits for the boot to finish before running anything. `checks.yaml`:
+An exercise with `runtime: lab` ([ADR-0018](../decisions/0018-lab-checker-local-mode.md)) runs in a container on the learner's machine, started and checked by `tools/labcheck.py`. Its folder holds a `Dockerfile` (the scenario), `checks.yaml`, `solution.sh` and `wrong/*.sh` in place of the Python files; `lab: { init: systemd }` marks a lab whose container must boot systemd: the checker starts it privileged, in its own cgroup namespace, with `/sbin/init`, and waits for the boot to finish before running anything, and `restart_trial: true` beside it makes `labcheck test` restart the container once the solution passes and run every check again (ADR-0018, third amendment). A lab's `Dockerfile` may start `FROM lab-base-<name>`, a shared base in `content/lab-bases/<name>/` that the checker builds first. `checks.yaml`:
 
 ```yaml
 checks:

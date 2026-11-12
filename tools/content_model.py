@@ -10,7 +10,14 @@ import re
 from datetime import date
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    TypeAdapter,
+    model_validator,
+)
 
 # Topic, module and track IDs look like "py.variables" or "py.m1.checkpoint".
 TopicId = Annotated[str, Field(pattern=r"^[a-z0-9]+(?:[.-][a-z0-9]+)*$")]
@@ -445,10 +452,16 @@ Runtime = Literal["python", "lab"]
 
 
 class LabOptions(Strict):
-    """How the checker starts a lab's container (ADR-0018)."""
+    """How the checker starts and proves a lab's container (ADR-0018)."""
 
     # systemd labs run privileged with /sbin/init; the rest just sleep.
     init: Literal["none", "systemd"] = "none"
+    # The restart trial (ADR-0018, third amendment): `labcheck test` restarts
+    # the container once the solution passes, and every check must pass
+    # again, so a fix a reboot would lose fails the contract. Opt-in; every
+    # Module 3 lab opts in. Strictly true or false, so a YAML "yes" in quotes
+    # or a 1 isn't quietly read as true.
+    restart_trial: StrictBool = False
 
 
 class Exercise(Strict):

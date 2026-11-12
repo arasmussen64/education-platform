@@ -15,7 +15,7 @@ Run from the repository root:
     python -m uv run python tools/labcheck.py stop  --all
     python -m uv run python tools/labcheck.py test  csa.linux.shell build-log-report
     python -m uv run python tools/labcheck.py test  --all --jobs 4
-    python -m uv run python tools/labcheck.py test  --all --jobs 4 --shard 0/4
+    python -m uv run python tools/labcheck.py test  --all --jobs 4 --shard 0/8
 
 `start` builds the lab's image and starts its container. Run again, it keeps
 the work: a running lab is left alone, and a stopped one (after a restart of
@@ -28,14 +28,24 @@ removes the ones `start` made.
 
 `test` is for authors and CI: the pristine container must not pass, the
 reference solution must pass, every known-wrong fix must fail at least one
-check. `--jobs` tests several labs at once; `--shard I/N` takes every Nth
-topic, which is how CI splits the run across machines.
+check. A lab whose exercise.yaml says `lab: { restart_trial: true }` also
+gets the restart trial: once its solution passes, the container is
+restarted (`docker restart`, then the wait for its boot) and every check
+must pass again, so a fix that a reboot loses is caught. `--jobs` tests
+several labs at once; `--shard I/N` takes every Nth topic, which is how CI
+splits the run across machines.
 
 A lab whose exercise.yaml says `lab: { init: systemd }` boots systemd as PID 1
 in a privileged container, and the checker waits for the boot to finish before
 asking it anything. If the image has /usr/local/lib/lab/teardown.sh, the
 checker runs it before removing the container, so a lab can let go of what it
 attached to Docker's machine (the loop devices behind its disks).
+
+A lab's Dockerfile may start `FROM lab-base-<name>` instead of
+`FROM ubuntu:24.04`: the network labs share one base this way. The checker
+builds content/lab-bases/<name>/ first, tagged lab-base-<name>, whenever it
+builds such a lab; when nothing in the base has changed, Docker's cache makes
+that a second or two.
 
 Each check gets 30 seconds, or what its `timeout:` in checks.yaml says (up
 to 300). A check that runs out of time is stopped inside the container,
@@ -102,6 +112,9 @@ APPLY_TIMEOUT_SECONDS = 300
 # every lab's containers boot at once now that the shared layers are warmed
 # first. A healthy lab still boots in seconds.
 BOOT_TIMEOUT_SECONDS = 480
+# `docker restart` gives the container 10 seconds to stop before it kills
+# it, then starts it again; the restart trial's boot is waited for after.
+RESTART_TIMEOUT_SECONDS = 120
 
 # The learner's account inside every lab image.
 LEARNER = "learner"
@@ -144,6 +157,10 @@ class Lab:
     @property
     def init(self) -> str:
         return self.exercise.lab.init if self.exercise.lab else "none"
+
+    @property
+    def restart_trial(self) -> bool:
+        return bool(self.exercise.lab and self.exercise.lab.restart_trial)
 
 
 # --- Finding labs -------------------------------------------------------------------
@@ -210,6 +227,19 @@ def engine_is_down(message: str) -> bool:
     return any(says in message.lower() for says in ENGINE_DOWN_SAYS)
 
 
+def docker_environment() -> dict[str, str]:
+    """This process's environment, with Docker's default attestations off.
+
+    Docker's builder (buildx) stamps every image it builds with a record of
+    the build that holds its time, so an image built twice from the same
+    files gets a new ID each time. A lab built FROM a shared base would then
+    find a "new" base at every build, rebuild its own layers and leave the
+    old image behind untagged. Without the record, an unchanged base keeps
+    its ID and the lab comes from Docker's cache. Older builders ignore it.
+    """
+    return {**os.environ, "BUILDX_NO_DEFAULT_ATTESTATIONS": "1"}
+
+
 def docker(
     *args: str, timeout: int = CHECK_TIMEOUT_SECONDS, check: bool = True
 ) -> subprocess.CompletedProcess[str]:
@@ -221,6 +251,7 @@ def docker(
         errors="replace",
         timeout=timeout,
         check=False,
+        env=docker_environment(),
     )
     if check and completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip()
@@ -230,9 +261,60 @@ def docker(
     return completed
 
 
+# A lab may start from a shared base image instead of ubuntu:24.04 (ADR-0018,
+# third amendment): its Dockerfile says "FROM lab-base-<name>", alone on its
+# line, and the base is built from content/lab-bases/<name>/ first. Docker's
+# cache makes that a second or two when nothing in the base has changed, so
+# the base is always the one in the content tree, with no version to keep in
+# step. A base's name is lowercase letters and digits, with single hyphens
+# (Docker's image names are lowercase); FROM itself may be in any case, as
+# Docker allows.
+BASE_FROM = re.compile(
+    r"^(?i:FROM)\s+lab-base-([a-z0-9]+(?:-[a-z0-9]+)*)\s*$", re.MULTILINE
+)
+# Any FROM line that names a lab base, written so BASE_FROM can read it or
+# not: the validator uses it to tell an author when it can't.
+NAMES_A_BASE = re.compile(r"^\s*FROM\s+\S*lab-base-", re.MULTILINE | re.IGNORECASE)
+
+
+def base_named_in(dockerfile: str) -> str | None:
+    """The shared base a Dockerfile's text starts from, or None."""
+    found = BASE_FROM.search(dockerfile)
+    return found.group(1) if found else None
+
+
+def base_of(lab: Lab) -> str | None:
+    """The shared base a lab's Dockerfile starts from, or None."""
+    return base_named_in((lab.folder / "Dockerfile").read_text(encoding="utf-8"))
+
+
+def bases_of(lab: Lab) -> Path:
+    """content/lab-bases/ in the lab's own content tree (the lab's folder is
+    content/topics/<topic>/exercises/<lab>/), so a lab and its base always
+    come from the same checkout."""
+    return lab.folder.parents[3] / "lab-bases"
+
+
+def build_base(name: str, bases: Path, quiet: bool = True) -> None:
+    """Builds content/lab-bases/<name>/ as the image lab-base-<name>."""
+    folder = bases / name
+    if not (folder / "Dockerfile").exists():
+        raise LabError(
+            f"no lab base called {name}: a Dockerfile says FROM lab-base-{name}, "
+            f"and {folder.as_posix()}/Dockerfile doesn't exist"
+        )
+    args = ["build", "-t", f"lab-base-{name}", str(folder)]
+    if quiet:
+        args.insert(1, "-q")
+    docker(*args, timeout=BUILD_TIMEOUT_SECONDS)
+
+
 def build_image(lab: Lab, quiet: bool = True) -> None:
     if not (lab.folder / "Dockerfile").exists():
         raise LabError(f"{lab.name} has no Dockerfile")
+    base = base_of(lab)
+    if base:
+        build_base(base, bases_of(lab), quiet)
     args = ["build", "-t", lab.image, str(lab.folder)]
     if quiet:
         args.insert(1, "-q")
@@ -1127,6 +1209,28 @@ class ContractReport:
         )
 
 
+def restart_trial(
+    lab: Lab, container: str, verbose: bool, say: Callable[[str], None]
+) -> list[str]:
+    """The restart trial (ADR-0018, third amendment): the container with the
+    solution in it is restarted, as Docker Desktop or the computer restarts
+    a learner's lab, and every check must pass again. Returns the problems:
+    each check that fails now, which means the fix didn't last."""
+    say("  restart trial: docker restart, then every check must pass again")
+    docker("restart", container, timeout=RESTART_TIMEOUT_SECONDS)
+    if lab.init == "systemd":
+        wait_for_boot(container)
+    again = run_checks(lab, container)
+    if verbose:
+        print_results(again, show_detail=True, say=say)
+    return [
+        f"the fix didn't survive a restart: after docker restart, {result.id} "
+        f"fails: {result.detail}"
+        for result in again
+        if not result.passed
+    ]
+
+
 def test_lab(
     lab: Lab,
     verbose: bool = True,
@@ -1164,6 +1268,11 @@ def test_lab(
                     )
             if verbose:
                 print_results(solved, show_detail=True, say=say)
+            if lab.restart_trial:
+                if all(result.passed for result in solved):
+                    problems += restart_trial(lab, scratch, verbose, say)
+                else:
+                    say("  restart trial: not run, since the solution doesn't pass yet")
 
         for wrong in sorted(lab.folder.glob("wrong/*.sh")):
             say(f"  {wrong.name}: at least one check must fail")
@@ -1346,7 +1455,18 @@ def main(argv: list[str] | None = None) -> int:
         help="with --all: also what an interrupted `test` run left behind",
     )
     stop.set_defaults(run=cmd_stop)
-    test = sub.add_parser("test", help="prove a lab's contract (authors and CI)")
+    test = sub.add_parser(
+        "test",
+        help="prove a lab's contract (authors and CI)",
+        description=(
+            "Prove a lab's contract: the pristine container must not pass every "
+            "check, solution.sh must pass every check, and each wrong/*.sh must "
+            "fail at least one. A lab with lab: { restart_trial: true } in its "
+            "exercise.yaml also gets the restart trial: once the solution "
+            "passes, the container is restarted (docker restart, then the wait "
+            "for its boot) and every check must pass again."
+        ),
+    )
     test.add_argument("topic", nargs="?")
     test.add_argument("exercise", nargs="?")
     test.add_argument("--all", action="store_true", help="every lab in content/")
@@ -1358,7 +1478,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     test.add_argument(
         "--shard",
-        help="with --all: this machine's share of the topics, as I/N (CI: 0/4 to 3/4)",
+        help="with --all: this machine's share of the topics, as I/N (CI: 0/8 to 7/8)",
     )
     test.set_defaults(run=cmd_test)
 

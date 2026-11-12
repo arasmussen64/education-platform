@@ -2,11 +2,12 @@
 its answer, its known mistakes give their values, and the tolerance tells
 them apart. Each test breaks the fixture's estimate in one way."""
 
+from fractions import Fraction
 from pathlib import Path
 
 import pytest
 from content_fixture import ESTIMATE, TOPIC, make_valid_tree, write
-from validate_content import validate
+from validate_content import numbers_in, validate
 
 TOPIC_DIR = "content/topics/t.hello"
 ESTIMATE_FILE = f"{TOPIC_DIR}/recall/estimate-cost.yaml"
@@ -142,6 +143,14 @@ def test_stated_numbers_may_have_commas_and_trailing_zeros(tree: Path) -> None:
         ("(0.10 + 0.02) × 730 = 87.60", "(0.10 + 0.02) × 1460 = 175.20"),
     )
     assert found == []
+
+
+def test_a_dotted_quad_states_its_four_octets() -> None:
+    # Module 3's estimates give addresses: 10.20.30.77 states 10, 20, 30 and
+    # 77, so a given of 77 needs no "its last number is 77" beside it, and
+    # the address isn't also read as 10.2, 0.3 and 0.77.
+    stated = numbers_in("The host 10.20.30.77 is in 10.20.30.0/24; 1.5 hours.")
+    assert stated == {Fraction(n) for n in ("10", "20", "30", "77", "0", "24", "1.5")}
 
 
 def test_a_given_may_not_take_a_function_name(tree: Path) -> None:

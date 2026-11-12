@@ -1,0 +1,61 @@
+#!/usr/bin/python3
+"""holdconns N HOST PORT [SECONDS]: opens N TCP connections to HOST:PORT at
+once, holds the ones that opened for SECONDS (5 unless given), and prints
+"opened X of N".
+
+All N are started together and share one 3-second deadline, so a check that
+expects many to fail (a NAT gateway out of ports drops the extra SYNs, and
+nothing answers) takes 3 seconds, not 3 seconds for each failure. Run it on
+the machine the connections come from: on office holdconns 15 198.51.100.7 80
+"""
+
+import selectors
+import socket
+import sys
+import time
+
+DEADLINE_SECONDS = 3
+
+
+def open_all(count: int, host: str, port: int) -> list[socket.socket]:
+    """Starts every connection, then waits once for all of them; returns the
+    sockets that connected."""
+    family, kind, proto, _, address = socket.getaddrinfo(
+        host, port, type=socket.SOCK_STREAM
+    )[0]
+    waiting = selectors.DefaultSelector()
+    for _ in range(count):
+        sock = socket.socket(family, kind, proto)
+        sock.setblocking(False)
+        sock.connect_ex(address)  # returns at once; the answer comes later
+        waiting.register(sock, selectors.EVENT_WRITE)
+    opened = []
+    deadline = time.monotonic() + DEADLINE_SECONDS
+    while waiting.get_map() and (left := deadline - time.monotonic()) > 0:
+        for key, _ in waiting.select(left):
+            sock = key.fileobj
+            waiting.unregister(sock)
+            # Writable means the attempt is over: SO_ERROR says how it went.
+            if sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR) == 0:
+                opened.append(sock)
+            else:
+                sock.close()
+    for key in list(waiting.get_map().values()):  # still no answer: dropped
+        key.fileobj.close()
+    return opened
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) not in (4, 5):
+        print("usage: holdconns N HOST PORT [SECONDS]", file=sys.stderr)
+        return 2
+    count, host, port = int(argv[1]), argv[2], int(argv[3])
+    hold = float(argv[4]) if len(argv) == 5 else 5.0
+    opened = open_all(count, host, port)
+    print(f"opened {len(opened)} of {count}", flush=True)
+    time.sleep(hold)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -1,0 +1,57 @@
+#!/usr/bin/python3
+"""holdserver PORT...: accepts TCP connections on each PORT, over IPv4 and
+IPv6, and holds every one open until the client closes it. The far end of
+holdconns: a server that never closes first, so each connection keeps its
+place in a NAT gateway's table for as long as the client holds it. Run it
+on the machine that serves: on srv holdserver 80 81
+"""
+
+import selectors
+import socket
+import sys
+
+
+def listener(port: int) -> socket.socket:
+    """A socket listening on every address of the machine, both families
+    when the machine has IPv6, IPv4 alone when it doesn't."""
+    try:
+        sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("::", port))
+    except OSError:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("0.0.0.0", port))
+    sock.listen(4096)
+    return sock
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) < 2:
+        print("usage: holdserver PORT...", file=sys.stderr)
+        return 2
+    ready = selectors.DefaultSelector()
+    for port in argv[1:]:
+        ready.register(listener(int(port)), selectors.EVENT_READ, "listener")
+    while True:
+        for key, _ in ready.select():
+            if key.data == "listener":
+                # A new connection: watch it, so its close is noticed.
+                connection, _ = key.fileobj.accept()
+                ready.register(connection, selectors.EVENT_READ, "held")
+                continue
+            # A held connection is readable: data, which is thrown away, or
+            # the client's close (an empty read, or a reset), after which it
+            # is closed here too rather than left half-open (CLOSE_WAIT).
+            try:
+                data = key.fileobj.recv(4096)
+            except OSError:
+                data = b""
+            if not data:
+                ready.unregister(key.fileobj)
+                key.fileobj.close()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

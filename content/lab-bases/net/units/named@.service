@@ -1,0 +1,21 @@
+# BIND's name server (named) on one of the lab's machines: "systemctl status
+# named@ns1". Its configuration is the machine's /etc/bind.
+[Unit]
+Description=BIND name server on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+# Journal lines say which service and machine wrote them ("unbound@resolver"),
+# not "ip", the program that enters the machine.
+SyslogIdentifier=%p@%i
+Type=simple
+ExecStartPre=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/install -d -o bind -g bind -m 775 /run/named
+ExecStartPre=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/named-checkconf
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/named -f -u bind
+ExecReload=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/sbin/rndc reload
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
