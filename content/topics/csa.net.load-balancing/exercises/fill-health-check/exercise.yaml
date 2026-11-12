@@ -1,0 +1,31 @@
+id: fill-health-check
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Health checks"
+prompt: |
+  The shop from the walkthrough: the office, the balancer `lb` (HAProxy, `haproxy@lb`, at 10.0.9.1) and the web servers `web1` to `web3` behind it, with the database `db` they all share. A colleague started writing the web servers' health checks in lb's `/etc/haproxy/haproxy.cfg` and left five values out, each marked `___`. HAProxy refuses the file as it is, so the balancer isn't running and the shop is down: `systemctl status haproxy@lb` says so, and `on lb haproxy -c -f /etc/haproxy/haproxy.cfg` names the lines it can't read.
+
+  What a web server answers, so you can choose what to check:
+
+  - `/` is the front page, which needs nothing else.
+  - `/orders` is the order list, which needs the database.
+  - `/health` answers 200 only when the server and the database both answer.
+  - `/livez` answers 200 when the server itself can answer.
+
+  Fill in each `___` so that HAProxy follows the shop's policy for the web servers:
+
+  1. **A web server that stops answering is out of rotation within 15 seconds**, whether it refuses connections or hangs. With no `timeout check` line, as here, a check that gets no answer gives up after `inter`.
+  2. **One failed check never takes a server out of rotation.**
+  3. **A restart of the database never takes the front page down.** The database restarts now and then, for up to 20 seconds.
+  4. **A recovered server is back after two good checks**, and no sooner.
+
+  Edit with `on lb nano /etc/haproxy/haproxy.cfg`, replace each `___`, and check the file with `on lb haproxy -c -f /etc/haproxy/haproxy.cfg`. HAProxy failed at boot, so the first time, start it: `sudo systemctl restart haproxy@lb`. Once it runs, `sudo systemctl reload haproxy@lb` loads each later change, and `echo "show stat" | on lb socat stdio /run/haproxy/admin.sock` shows its view of the servers. Then run the checks. Two of them make something go wrong on every web server at once: they freeze the web servers' programs, and they stop the database for a few seconds; each puts things back afterwards.
+hints:
+  - "For the check's path: a check that asks the database fails on every server at once when the database restarts, and HAProxy then has nothing to send the front page to. Pick the page that tests only the server itself. The status that counts as healthy is the one for \"OK\"."
+  - "`fall` is how many failed checks in a row take a server out, and `rise` how many good ones in a row put it back. Policy 2 says one failure is never enough; policy 4 gives `rise` exactly."
+  - "For policy 1: HAProxy waits `inter` after each check ends, and a check of a hung server runs for its whole timeout, here `inter` too. So a hung server is out after about `fall` × (`inter` + `inter`) seconds. Write `inter` with its unit, as `2s` or `1s`."
+skills: [health-checks, failover-math]
