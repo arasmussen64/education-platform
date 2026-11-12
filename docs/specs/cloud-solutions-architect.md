@@ -1172,7 +1172,7 @@ A map of equivalent services, for orientation. Service names change often, so ea
 
 ## Building it
 
-The app shows this track, and Module 1 is written. Some later proofs still need tools that don't exist. In order:
+The app shows this track, and Modules 1 and 2 are written (Module 2 on 2026-11-11, from [its plan](../plans/cloud-module-2/README.md)). Some later proofs still need tools that don't exist. In order:
 
 1. **More than one track in the app.** _Done 2026-11-08:_ the map shows the first track at `/map` and each other track at `/map/<track id>`, and every topic page names its track and module (`tracks()` and `placeOf()` in `web/src/content/content.ts`). The Today page has shown every track since 2026-11-09 ([ADR-0019](../decisions/0019-today-across-tracks.md)).
 2. **The map as outlines.** _Done 2026-11-08:_ every topic, checkpoint and capstone is a `planned` outline in `content/`, generated from this spec by `tools/outline_cloud_track.py`. Change the spec and run the script; it never touches a topic that's being written.

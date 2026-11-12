@@ -2,6 +2,55 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-11, later: Cloud Module 2 is written
+
+The owner is still away, so decisions were made under their message of 2026-11-11, as in the entry below.
+
+**Module 2, "Virtualization, hardware and Windows", is complete** (#238 to #246): eight topics and Checkpoint 2, "the right machine". They were written from [the plan](plans/cloud-module-2/README.md) in three waves:
+
+- five topics;
+- the next three, on a branch that held the first five;
+- the checkpoint, on one that held all eight.
+
+Each topic had one writer in its own copy of the repository and then a cold reviewer. The reviewer read it as the first learner, re-checked its facts at their sources and attacked every lab as a hurried learner would. Each wave was combined and tested together before any of it merged.
+
+All 51 labs are proven locally, for free, and CI runs every one on each pull request that touches labs:
+
+- Hypervisors boots real QEMU virtual machines, and its checks boot the learner's machine themselves.
+- Memory tiers and disks caps and measures real loop disks with `io.max`.
+- The two Active Directory topics and Checkpoint 2's third part run a Samba domain controller with a Linux member that SSSD joins to the domain.
+- GPU basics and Windows licensing work from dated price tables and saved output labelled as constructed. No GPU and no Windows machine is needed.
+
+**Module 1, finished off** (#235 to #237). The last three Module 1 debug labs (permissions, packages, containers) now give symptoms, not faults. Three labs that could be passed by printing the expected lines are now checked on input made up at check time. Seven lessons were corrected against what their labs need. A debug lab's page also stops listing its checks before a first try (decided under the owner's delegation): each check describes the state a fix must reach, so the list pointed at the faults.
+
+**The quick validator** (#247) had its own copy of the full validator's per-topic checks. The copy had fallen behind: it never looked at a checkpoint's third part or at estimate questions. Both now call one function.
+
+**What the reviewers caught.** Every wave's reviewers found ways to pass a proof without the skill, which is why each topic gets one. Examples:
+
+- the domain-join build passed with two people permitted by name instead of their group;
+- a licensing debug passed three times in eight with a flat guess, because the shown inventories happened to fit it;
+- Checkpoint 2's SQL Server database passed on a GPU size priced inside the policy's 15% band;
+- the licensing lesson said licences without Software Assurance can't be used on Azure at all, which is wrong for dedicated hosts.
+
+Each was fixed with a check and a known-wrong answer that now fails it.
+
+**Two things the runs taught.**
+
+- _Docker Desktop and GitHub's Linux runners can disagree about what a fix does._ On the runners, systemd applies an emptied `AllowedCPUs=` at once, so a known-wrong fix in the cores-and-memory labs that failed on this machine passed in CI (#240). It was removed: on a real Linux host that fix works.
+- _A writer's follow-up note can be wrong._ Checkpoint 2's writer reported that the topic page's "Prove it" list leaves out a checkpoint's part 3. The outline that holds that list is only shown on ordinary topics, so there was nothing to fix. Each note is checked in the code before it's acted on.
+
+**Author notes:**
+
+- _Checkpoint 2's sizing policy bars GPU sizes for a workload that doesn't use a GPU._ Without that rule, a GPU size priced within 15% of the right answer passed.
+- _Azure's first B-series (B1s, B2s, B2ms) and Google's shared-core `e2-medium` are left out of Checkpoint 2's price table._ The B-series is at end of life. `e2-medium` bursts for seconds and has no credit balance to read, so the policy's burstable test can't be applied to it.
+- _Checkpoint 2's part 3 rejects one valid setup,_ `use_fully_qualified_names = False`, as the domain-join topic's build does. The module is consistent; both could accept it later.
+- _In part 2 of Checkpoint 2, one VM's ticket gives its CPU credit balance as 0._ It's fair evidence, though it points at the cause. The learner still works out the steal figure.
+- _Windows licensing's cells for licences without Software Assurance rest on Azure's Dedicated Host page and pricing FAQ,_ not on Microsoft's Product Terms, which couldn't be read as text here.
+- _Module 2's optional Azure lab hasn't been run._ It stays outside the proofs until the owner runs it once (owner queue, item 7).
+- _Labs CI grew from 79 to 130 labs._ It still runs in four shards; the shard count can rise if a run passes about 30 minutes.
+
+**Next:** Module 3, Networking: 14 topics and Checkpoint 3, "the address plan and the outage". It's planned the way Module 2 was, with designers, a critic and prototypes of the labs, then written in waves. Its labs run real routing (FRRouting), VPN (strongSwan) and DNS software in local containers.
+
 ## 2026-11-11: The learning engine, cloud Module 1 hardened, and Module 2 planned and begun
 
 **The owner left for a long while** (2026-11-11): "Your job is to build as much as you can. If you need a question answered for me just use your best judgement and error on the side of whatever provides the best learning experience and optimal memory retention and is free or falls within the $150 azure budget." So product and content questions were decided by those three tests, in that order, and each is listed in the [owner queue](owner-queue.md) under _Decided for you_. Steps on the live site, settings on the owner's accounts and anything that spends money still wait under _Open_. Nothing was created in the owner's Azure subscription.

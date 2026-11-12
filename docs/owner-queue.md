@@ -87,8 +87,9 @@ Made under your message of 2026-11-11. Say the word to overturn any of them.
 - **2026-11-11, right-sizing is taught in Module 2** (a new skill in "Cores, memory and noisy neighbours"), because Checkpoint 2 needs it and nothing taught it.
 - **2026-11-11, checkpoint time targets are stated, not timed.** You hold yourself to them.
 - **2026-11-11, "Arm saves 20 to 40%" becomes "what Arm saves, from price lists".** AWS's own page now says "up to 20% less".
+- **2026-11-11, a debug lab shows its checks only after your first try.** A lab page listed "What the checker looks for" before you started. For a debug each check describes the state a fix must reach ("svc-report is enabled"), which points at the fault you're meant to find. **Decided:** a debug lab says how many checks there are, and lists them once you've recorded a result; every other lab is unchanged. Built in #235.
 
-Module 2's whole plan is in [plans/cloud-module-2](plans/cloud-module-2/README.md).
+Module 2 is written (2026-11-11, #238 to #246). Its whole plan is in [plans/cloud-module-2](plans/cloud-module-2/README.md).
 
 The learning engine's rules, fixed after the audit (#210 to #215):
 
