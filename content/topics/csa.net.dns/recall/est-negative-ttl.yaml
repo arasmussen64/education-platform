@@ -1,0 +1,22 @@
+id: est-negative-ttl
+type: estimate
+rev: 1
+prompt: |
+  Someone looked up `sale.shop.test` a minute before it was created, and got NXDOMAIN. The zone's SOA record has a TTL of 3600 seconds, and its last number, MINIMUM, is 900. For at most how many seconds after that lookup can a resolver go on saying "no such name"? Exactly.
+unit: seconds
+answer: 900
+tolerance: { absolute: 0 }
+given: { soa_ttl: 3600, minimum: 900 }
+working: min(soa_ttl, minimum)
+mistakes:
+  - id: soa-ttl
+    value: 3600
+    working: soa_ttl
+    why: The negative answer carries the SOA, but its TTL is the smaller of the SOA's own TTL and MINIMUM, here 900.
+  - id: sum
+    value: 4500
+    working: soa_ttl + minimum
+    why: The two aren't added. The smaller one wins.
+explanation: |
+  An NXDOMAIN comes with the zone's SOA in its AUTHORITY section, and a resolver may keep the "no such name" for the smaller of the SOA record's own TTL and its MINIMUM field (RFC 2308), here min(3600, 900) = 900 seconds, 15 minutes. So a name asked for before it exists can stay missing for that long after it's created, for anyone using that resolver. Create records before anyone looks them up.
+skills: [ttl-and-caching]

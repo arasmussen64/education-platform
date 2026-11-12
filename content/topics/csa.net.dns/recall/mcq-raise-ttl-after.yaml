@@ -1,0 +1,16 @@
+id: mcq-raise-ttl-after
+type: mcq
+rev: 1
+prompt: |
+  After a move, you could leave `api.shop.test`'s TTL at the move's 300 seconds for good. Why raise it again?
+choices:
+  - "Short TTLs multiply the queries, and an outage of the name servers is then felt in minutes"
+  - "Short TTLs stop the secondaries copying the zone, so ns2 falls behind with each change"
+  - "Short TTLs break DNSSEC, because the signatures last longer than the records they cover"
+  - "Short TTLs make resolvers skip the record and hand out the old address they knew before"
+answer: 0
+explanation: |
+  With a TTL of 300 every resolver asks again every 5 minutes, so the zone's servers answer many more questions (and a provider that charges per query charges more). And if the name servers go down, copies with an hour or a day left keep working for that long, while 5-minute copies run out almost at once. Raise the TTL once the move is checked; lower it again before the next one.
+
+  Secondaries copy the zone according to the SOA's serial and timers, not the records' TTLs. Signatures are made for a record whatever its TTL, and their dates are separate. And resolvers honour short TTLs; they don't fall back to an older answer.
+skills: [ttl-and-caching]

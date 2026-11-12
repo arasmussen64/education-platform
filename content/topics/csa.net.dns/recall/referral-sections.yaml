@@ -1,0 +1,39 @@
+id: referral-sections
+type: predict_shell
+rev: 1
+prompt: |
+  `ref.txt` is the root server's answer to `dig @198.51.100.11 +norecurse api.shop.test`, captured in this topic's lab on 2026-11-12. The command prints the header's first flag, the name of each NS record and the address of each A record. What is printed?
+files:
+  ref.txt: |
+    ; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> @198.51.100.11 +norecurse api.shop.test
+    ; (1 server found)
+    ;; global options: +cmd
+    ;; Got answer:
+    ;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 4018
+    ;; flags: qr; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 2
+
+    ;; OPT PSEUDOSECTION:
+    ; EDNS: version: 0, flags:; udp: 1232
+    ; COOKIE: 3b76c6868126b856010000006af5b264dc61f0cf03ea96ea (good)
+    ;; QUESTION SECTION:
+    ;api.shop.test.			IN	A
+
+    ;; AUTHORITY SECTION:
+    test.			86400	IN	NS	ns1.nic.test.
+
+    ;; ADDITIONAL SECTION:
+    ns1.nic.test.		86400	IN	A	198.51.100.12
+
+    ;; Query time: 4 msec
+    ;; SERVER: 198.51.100.11#53(198.51.100.11) (UDP)
+    ;; WHEN: Thu Nov 12 12:34:44 UTC 2026
+    ;; MSG SIZE  rcvd: 116
+command: |
+  awk '/^;; flags:/ {print "flags:", $3} $4 == "NS" {print "ask", $5} $4 == "A" {print "at", $5}' ref.txt
+expected_output: |
+  flags: qr;
+  ask ns1.nic.test.
+  at 198.51.100.12
+explanation: |
+  The flags are `qr` alone: it's a reply, and there's no `aa`, because the root isn't the authority for `api.shop.test`. The ANSWER section is empty (`ANSWER: 0`), so nothing in it has a type in the fourth field; the question line, `;api.shop.test. IN A`, has only three. The AUTHORITY section is the referral, `test. 86400 IN NS ns1.nic.test.`: ask the server for `test.`. The ADDITIONAL section is the glue, `ns1.nic.test. 86400 IN A 198.51.100.12`: that server's address, which a resolver couldn't look up any other way, since the name is inside the zone being delegated. A referral is an empty answer, an NS in AUTHORITY, and usually glue.
+skills: [trace-resolution]

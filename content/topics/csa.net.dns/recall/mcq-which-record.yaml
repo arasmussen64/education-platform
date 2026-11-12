@@ -1,0 +1,16 @@
+id: mcq-which-record
+type: mcq
+rev: 1
+prompt: |
+  The shop wants only one certificate authority, `ca.shop.test`, to be allowed to issue certificates for `shop.test`. Which record says so?
+choices:
+  - "A CAA record at the apex: `@ IN CAA 0 issue \"ca.shop.test\"`"
+  - "A TXT record at the apex: `@ IN TXT \"issuer=ca.shop.test\"`"
+  - "An MX record at the apex: `@ IN MX 10 ca.shop.test.`"
+  - "An NS record at the apex: `@ IN NS ca.shop.test.`"
+answer: 0
+explanation: |
+  CAA (Certification Authority Authorization) lists the certificate authorities allowed to issue for a domain, and authorities check it before they issue: `0 issue "ca.shop.test"` allows that one and, by leaving every other out, refuses the rest. The labs' shop.test zone has exactly this line. A later topic on certificates leans on it.
+
+  TXT records hold free text, used by many conventions (email rules like `v=spf1 ...` among them), but no certificate authority reads an `issuer=` line. MX names the domain's mail servers. NS names the zone's name servers, so `@ IN NS ca.shop.test.` would send resolvers to ask the certificate authority about the shop's names.
+skills: [records-and-zones]

@@ -1,0 +1,16 @@
+id: mcq-rndc-queued
+type: mcq
+rev: 1
+prompt: |
+  You edit `/etc/bind/db.shop.test` on ns1 and run `on ns1 rndc reload shop.test`. It prints `zone reload queued`, but `on office dig @198.51.100.13 +norecurse api.shop.test` still gives the old address. Where do you look first?
+choices:
+  - "ns1's journal, with journalctl -u named@ns1, which says whether the zone loaded and why not"
+  - "The office resolver's cache, which may hold the old answer until that answer's TTL runs out"
+  - "dig +trace api.shop.test, to see which of the zone's two servers is the one answering it"
+  - "rndc reload shop.test once more, since the first reload may still be waiting in the queue"
+answer: 0
+explanation: |
+  `zone reload queued` only means the request was accepted. Whether the zone loaded, and if not why, is in the server's log: under BIND's signing, an edit without a higher serial gives `ixfr-from-differences: new serial (...) out of range` and `not loaded due to errors`, and a typo in a record gives its line number. Fix that, raise the serial, reload, and read the journal again.
+
+  The question went straight to ns1 with `+norecurse`, so no resolver's cache is involved. `+trace` follows referrals from the root; it can't say why ns1 didn't load its file. Running the same reload again on the same file fails the same way.
+skills: [records-and-zones]

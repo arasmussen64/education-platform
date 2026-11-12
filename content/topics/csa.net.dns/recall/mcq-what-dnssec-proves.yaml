@@ -1,0 +1,16 @@
+id: mcq-what-dnssec-proves
+type: mcq
+rev: 1
+prompt: |
+  A validating resolver gets `api.shop.test` with good signatures all the way down from the root's key, and sets the `ad` flag on its answer. What has DNSSEC proved?
+choices:
+  - "The record was signed with the zone's own key, and nobody changed it on the way"
+  - "Nobody on the path could read the question or the answer while they travelled"
+  - "The address belongs to a server the shop runs, and that server is safe to reach"
+  - "The answer is the newest version of the record, with no older copy in between"
+answer: 0
+explanation: |
+  DNSSEC proves origin and integrity: each record set is signed with the zone's private key (RRSIG), the zone's public key (DNSKEY) is vouched for by its parent's DS record, and so on up to the root key the resolver trusts. A forged or altered answer fails the check.
+
+  It isn't secrecy: questions and answers still travel in the clear, and anyone on the path can read them (encrypting them is a separate thing, DNS over TLS or HTTPS). It says nothing about what's at the address: a signed record can point at any server the zone's owner chose, safe or not. And a signed copy stays valid until its signatures expire, so a resolver can still be handing out an older, correctly signed answer after the zone changed.
+skills: [dnssec]

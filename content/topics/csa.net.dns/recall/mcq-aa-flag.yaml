@@ -1,0 +1,16 @@
+id: mcq-aa-flag
+type: mcq
+rev: 1
+prompt: |
+  Minutes after a change to `api.shop.test`, `dig api.shop.test` through the office's resolver gives 203.0.113.41 with the flags `qr rd ra ad`, and `dig @198.51.100.13 +norecurse api.shop.test` gives 203.0.113.51 with the flags `qr aa`. Which answer is the zone as it is right now?
+choices:
+  - "The one with aa, from the zone's own server; the resolver's may be a copy from before the change"
+  - "The resolver's, since its ad flag means it was validated, so it is the answer that can be trusted"
+  - "Whichever has the higher TTL, since a higher TTL means the copy was fetched more recently"
+  - "Neither of them until the zone's serial changes, since both are giving out data from before it"
+answer: 0
+explanation: |
+  `aa` (authoritative answer) means the zone's own server is speaking: what it says is the zone today. A resolver hands out what it fetched earlier until that copy's TTL runs out, so straight after a change it can still give the old address. When answers disagree, ask the authority directly with `+norecurse`.
+
+  `ad` says the resolver checked the signatures: the old answer was genuine when it was signed, which says nothing about whether it is current. A resolver's TTL counts down from when it fetched the copy; the authority always gives the full TTL, so comparing them doesn't show which is newer. And a server changes what it serves as soon as it loads the new zone (the serial matters for secondaries copying it, not for the answer itself).
+skills: [trace-resolution]

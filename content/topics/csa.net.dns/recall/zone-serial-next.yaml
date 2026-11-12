@@ -1,0 +1,19 @@
+id: zone-serial-next
+type: predict_shell
+rev: 1
+prompt: |
+  `db.shop.test` is a zone file's first lines (constructed in the lab's format, with a made-up serial). After an edit, the serial must go up. The command finds the line marked `; serial` and prints the next serial. What is printed?
+files:
+  db.shop.test: |
+    $TTL 300
+    @   IN SOA ns1.shop.test. hostmaster.shop.test. ( 2026111503 3600 600 1209600 300 ) ; serial
+    @   IN NS  ns1
+    @   IN NS  ns2
+    api IN A   203.0.113.51
+command: |
+  awk '/; serial/ {print $7 + 1}' db.shop.test
+expected_output: |
+  2026111504
+explanation: |
+  The SOA line's fields are `@`, `IN`, `SOA`, the primary server, the mailbox, `(`, and then the serial, the seventh: 2026111503, date-style (15 November 2026, change 03). Plus one is 2026111504. A secondary copies the zone only when the primary's serial is higher than its own, so an edit that leaves the serial alone never reaches it; under BIND's own signing, the primary doesn't even load the edit ("not loaded due to errors" in its journal, while `rndc reload` still says `zone reload queued`). Any higher number works; the date style just makes the order easy to read.
+skills: [records-and-zones]

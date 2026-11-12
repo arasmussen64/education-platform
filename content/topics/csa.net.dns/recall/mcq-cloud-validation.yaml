@@ -1,0 +1,14 @@
+id: mcq-cloud-validation
+type: mcq
+rev: 1
+prompt: |
+  Which of these default cloud resolvers checks DNSSEC signatures without anyone switching it on: Route 53's VPC Resolver in an AWS VPC, or the Azure-provided resolver at 168.63.129.16 in an Azure virtual network?
+choices:
+  - "Neither: Azure's doesn't validate, and AWS's validates only once it's switched on for the VPC"
+  - "Route 53's VPC Resolver, which validates by default and sets the ad flag on what it checked"
+  - "Azure's resolver, which validates every public zone, while AWS's leaves it to each instance"
+  - "Both of them, since each cloud validates every public answer its resolver hands to a VM"
+answer: 0
+explanation: |
+  From each provider's page, read 2026-11-12: Azure's DNSSEC overview says "DNSSEC response validation is not performed by the default Azure-provided resolver" (Azure DNS does sign public zones, with ECDSAP256SHA256). Route 53's VPC Resolver validates only when DNSSEC validation is switched on for the VPC, which AWS warns "could result in an outage" if a zone's signatures are broken, and even then it doesn't set the `ad` bit or return DNSSEC records. Google's Cloud DNS signs zones once DNSSEC is on and the registrar holds the DS; its page doesn't say whether a VPC's own resolver validates, so assume nothing. A team that needs validation runs a validating resolver of its own, or switches it on where it can.
+skills: [dnssec]

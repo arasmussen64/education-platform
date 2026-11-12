@@ -1,0 +1,16 @@
+id: mcq-flush-caches
+type: mcq
+rev: 1
+prompt: |
+  Halfway through a move, the new address is live on the zone's servers, but some customers still reach the old server. A colleague says: "Just flush the DNS caches." What can flushing do?
+choices:
+  - "Empty the caches you run yourself; the world's resolvers keep their copies until the TTL runs out"
+  - "Tell every resolver that holds the old answer to drop it, as a NOTIFY tells the zone's secondaries"
+  - "Empty the shop's own name servers' caches, so that they stop handing out the old address at once"
+  - "Nothing anywhere, since a resolver throws its copy away by itself as soon as the zone changes"
+answer: 0
+explanation: |
+  A resolver's cache belongs to whoever runs the resolver. You can flush your office's (`unbound-control flush NAME`), but the resolvers your customers use (their ISPs', public ones) aren't yours, and nothing in DNS lets a zone tell them to forget an answer: each copy lasts until its TTL runs out. That's why a move lowers the TTL first and waits out the old one.
+
+  NOTIFY goes from a primary to its own secondaries, never to resolvers. Authoritative servers don't cache their own zone; they serve it. And resolvers never hear that a zone changed: they find out only when their copy expires and they ask again.
+skills: [ttl-and-caching]

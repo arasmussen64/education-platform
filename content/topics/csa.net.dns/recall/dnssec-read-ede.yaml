@@ -1,0 +1,31 @@
+id: dnssec-read-ede
+type: predict_shell
+rev: 1
+prompt: |
+  `out.txt` is a public resolver's answer to `dig www.pay.shop.test`, captured in this topic's debug lab on 2026-11-12. The command prints the answer's status and its Extended DNS Error. What is printed?
+files:
+  out.txt: |
+    ; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> www.pay.shop.test
+    ;; global options: +cmd
+    ;; Got answer:
+    ;; ->>HEADER<<- opcode: QUERY, status: SERVFAIL, id: 58040
+    ;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1
+
+    ;; OPT PSEUDOSECTION:
+    ; EDNS: version: 0, flags:; udp: 1232
+    ; EDE: 7 (Signature Expired): (validation failure <www.pay.shop.test. A IN>: signature expired from 198.51.100.13 for key pay.shop.test. while building chain of trust)
+    ;; QUESTION SECTION:
+    ;www.pay.shop.test.		IN	A
+
+    ;; Query time: 8 msec
+    ;; SERVER: 127.0.0.1#53(127.0.0.1) (UDP)
+    ;; WHEN: Thu Nov 12 12:13:22 UTC 2026
+    ;; MSG SIZE  rcvd: 187
+command: |
+  grep -o 'status: [A-Z]*' out.txt; grep -o 'EDE: [0-9]* ([^)]*)' out.txt
+expected_output: |
+  status: SERVFAIL
+  EDE: 7 (Signature Expired)
+explanation: |
+  SERVFAIL on its own says only that the resolver couldn't give an answer. The Extended DNS Error line says why: code 7, Signature Expired, and its text names the zone (`for key pay.shop.test.`) and the server it came from. The resolver checks signatures, and the signatures on pay.shop.test's records ended before today, so it refuses them, as it should: an expired signature proves nothing. The fix is on the zone's side, signing it again (or letting the server sign it for you, so it never lapses), not on the resolver's. Code 6, DNSSEC Bogus, is the other one to know: a signature or DS that doesn't match.
+skills: [dnssec]

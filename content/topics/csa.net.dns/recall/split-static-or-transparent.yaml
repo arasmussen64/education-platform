@@ -1,0 +1,23 @@
+id: split-static-or-transparent
+type: mcq
+rev: 1
+prompt: |
+  The office's Unbound has these two lines in its `server:` section:
+
+  ```
+  local-zone: "shop.test." static
+  local-data: "api.shop.test. A 10.0.8.41"
+  ```
+
+  An office laptop asks it for `www.shop.test`, which exists in the shop's public zone. What does the laptop get?
+choices:
+  - "NXDOMAIN, from the resolver itself: a static zone answers every name under it alone"
+  - "203.0.113.40, the public address: the names the resolver doesn't hold are looked up as usual"
+  - "10.0.8.41, the private address: every name in the zone gets the one address the zone holds"
+  - "SERVFAIL: the resolver can't check the public zone's signatures against its own local data"
+answer: 0
+explanation: |
+  A `static` local zone makes the resolver the authority for everything under `shop.test`: it answers from its `local-data` lines and gives NXDOMAIN (or NODATA) for anything else, without asking anyone. In this topic's lab (captured 2026-11-12), `www.shop.test` and `mail.shop.test` both came back `NXDOMAIN` with the flag `aa`, while `api.shop.test` gave 10.0.8.41. With `local-zone: "shop.test." transparent` instead, the same `local-data` line answers api, and every other name is looked up normally: www gave 203.0.113.40 and mail 203.0.113.42, with `ad`.
+
+  The public answer is what `transparent` gives. Unbound never hands one name's data to another name. And local data isn't validated, so nothing here fails a signature check: the names simply vanish.
+skills: [split-horizon]

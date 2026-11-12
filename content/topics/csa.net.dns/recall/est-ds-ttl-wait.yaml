@@ -1,0 +1,22 @@
+id: est-ds-ttl-wait
+type: estimate
+rev: 1
+prompt: |
+  The parent zone's DS record for `shop.test` has a TTL of 86400 seconds. To stop signing shop.test, you have its DS removed from the parent at 12:00. At the earliest, how many hours after 12:00 can you safely stop signing the zone? Exactly.
+unit: hours
+answer: 24
+tolerance: { absolute: 0 }
+given: { ds_ttl: 86400 }
+working: ds_ttl / 3600
+mistakes:
+  - id: at-once
+    value: 0
+    working: "0"
+    why: Resolvers that fetched the DS before 12:00 keep it for its TTL, and while they hold it they expect signatures, so an unsigned zone is SERVFAIL for them.
+  - id: days
+    value: 1
+    working: ds_ttl / 86400
+    why: That's the right time, in days. The question asks for hours.
+explanation: |
+  86400 ÷ 3600 = 24 hours. Every validating resolver that fetched the DS before it was removed keeps it, and keeps checking signatures, for up to 24 hours; a zone that stops signing sooner fails for all of them. Slack learned this on 30 September 2021: its DS was taken out at the registrar on the assumption that it wasn't cached, resolvers kept it for up to 24 hours, and validating ones returned SERVFAIL for slack.com.
+skills: [dnssec, ttl-and-caching]

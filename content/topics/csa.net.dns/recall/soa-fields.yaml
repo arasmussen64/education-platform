@@ -1,0 +1,17 @@
+id: soa-fields
+type: predict_shell
+rev: 1
+prompt: |
+  `soa.txt` is the output of `dig shop.test SOA +short`, captured in this topic's lab on 2026-11-12. An SOA record's value is, in order: the primary name server, the responsible person's mailbox written as a name, the serial, refresh, retry, expire and minimum. The command prints three of them. What is printed?
+files:
+  soa.txt: |
+    ns1.shop.test. hostmaster.shop.test. 2026111204 3600 600 1209600 900
+command: |
+  awk '{print "serial", $3; print "expire", $6 / 86400, "days"; print "minimum", $7}' soa.txt
+expected_output: |
+  serial 2026111204
+  expire 14 days
+  minimum 900
+explanation: |
+  Count the fields: `ns1.shop.test.` (1), `hostmaster.shop.test.` (2, the mailbox hostmaster@shop.test), the serial 2026111204 (3), refresh 3600 (4), retry 600 (5), expire 1209600 (6) and minimum 900 (7). Expire is how long a secondary keeps answering from its copy when it can't reach its primary: 1209600 seconds is 14 days, after which it stops answering for the zone at all rather than serve something that old. Minimum is the cap on how long a "no such name" may be cached; the real figure is the smaller of it and the SOA record's own TTL. The serial served here is BIND's, which it raises each time it signs the zone, so it isn't the number in the zone file.
+skills: [records-and-zones]

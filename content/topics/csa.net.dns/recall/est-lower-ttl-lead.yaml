@@ -1,0 +1,22 @@
+id: est-lower-ttl-lead
+type: estimate
+rev: 1
+prompt: |
+  `www.shop.test` has a TTL of 43200 seconds today, and its address moves on Friday at 18:00. For the move, its TTL will be lowered to 300 seconds. At the latest, how many hours before 18:00 on Friday must the lowered TTL be live on every one of the zone's name servers? Exactly.
+unit: hours
+answer: 12
+tolerance: { absolute: 0 }
+given: { old_ttl: 43200, new_ttl: 300 }
+working: old_ttl / 3600
+mistakes:
+  - id: new-ttl
+    value: 0.08
+    working: new_ttl / 3600
+    why: That's the new TTL. Until the lowered record is live, resolvers fetch the old one, with the old TTL, and keep it that long; the lead time is the old TTL.
+  - id: twice
+    value: 24
+    working: 2 * old_ttl / 3600
+    why: One old TTL is enough. A copy fetched the moment before the lowering expires one old TTL later, and every copy after it carries the new TTL.
+explanation: |
+  43200 ÷ 3600 = 12 hours, so by 06:00 on Friday. A copy handed out with the old TTL just before the lowering can be kept for 12 hours; once those have all run out, every resolver holds the 5-minute version, and the switch at 18:00 reaches everyone within 5 minutes. Count from when the lowered record is live on all the servers (the secondaries included), not from when you typed it, and leave a margin: a day ahead is common practice.
+skills: [ttl-and-caching]

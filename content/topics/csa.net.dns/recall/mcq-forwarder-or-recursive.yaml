@@ -1,0 +1,16 @@
+id: mcq-forwarder-or-recursive
+type: mcq
+rev: 1
+prompt: |
+  dnsmasq, the small name server Module 1's labs ran, answers for the names in its own files and is usually set up as a forwarder. The office in this topic runs Unbound, a full recursive resolver. What does a forwarder do with a question about a name it doesn't hold?
+choices:
+  - "It passes the question to another resolver, and hands back whatever that resolver answers"
+  - "It asks the root, then the TLD's servers, then the zone's own servers, as Unbound does"
+  - "It answers NXDOMAIN at once, because the name isn't in any of the files it was given"
+  - "It asks the zone's own servers directly, finding their addresses in its /etc/hosts file"
+answer: 0
+explanation: |
+  A forwarder does no research of its own: it sends the question to another resolver (its upstream, or for one zone the server a `server=/zone/address` line names) and passes the answer back, often keeping a copy. A full recursive resolver such as Unbound does the research itself, following referrals from the root down to the zone's own servers, which is what `dig +trace` shows.
+
+  Walking down from the root is the recursive resolver's job, not the forwarder's. Answering NXDOMAIN for everything it doesn't hold is what an authoritative server does for its own zone, or a resolver with a `static` local zone. `/etc/hosts` holds names and addresses for one machine, not where to find name servers.
+skills: [trace-resolution]

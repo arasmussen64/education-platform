@@ -1,0 +1,22 @@
+id: est-move-window
+type: estimate
+rev: 1
+prompt: |
+  `shipping.shop.test`'s TTL of 7200 seconds is lowered to 120 seconds at 10:00, live on every one of the zone's servers at once. You switch its address at the earliest safe moment. How many minutes after 10:00 is it until every resolver that honours TTLs gives out the new address? Exactly.
+unit: minutes
+answer: 122
+tolerance: { absolute: 0 }
+given: { old_ttl: 7200, new_ttl: 120 }
+working: old_ttl / 60 + new_ttl / 60
+mistakes:
+  - id: switch-time
+    value: 120
+    working: old_ttl / 60
+    why: That's the earliest switch. Copies fetched just before it, with the new TTL of 120 seconds, can last 2 minutes more.
+  - id: new-ttl-only
+    value: 4
+    working: new_ttl / 60 + new_ttl / 60
+    why: Copies fetched before 10:00 carry the old TTL, 7200 seconds, so the switch can't come until 120 minutes after the lowering.
+explanation: |
+  The earliest safe switch is one old TTL after the lowering, 7200 ÷ 60 = 120 minutes, at 12:00: by then every copy with the old TTL has expired. Copies fetched just before the switch carry the new TTL, 120 seconds, so the last of them is gone 2 minutes later: 122 minutes after 10:00, at 12:02. Then raise the TTL again.
+skills: [ttl-and-caching]
