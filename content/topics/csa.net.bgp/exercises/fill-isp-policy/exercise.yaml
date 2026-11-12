@@ -1,0 +1,25 @@
+id: fill-isp-policy
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Fill in the shop's policy"
+prompt: |
+  The dual-homed shop from the walkthrough. The office (198.51.100.10) and the shop's website, `shopweb` (198.51.100.200), are on the LAN of the shop's router, `edge` (AS 65001), which has sessions with ISP A (`ispa`, AS 65010) at 192.0.2.2 and ISP B (`ispb`, AS 65020) at 192.0.2.6. Beyond them are the transit network and the cloud, whose web server, `web`, is 203.0.113.10. The far routers aren't yours; `looking-glass NAME 'show ...'` reads them. ISP B still sends its slip, a route for part of the shop's own addresses. BGP's timers are scaled down, as in the walkthrough (a keepalive every 3 seconds and a hold time of 9, where real routers default to 60 and 180).
+
+  edge's whole configuration is in its saved file, `/etc/frr/frr.conf`, and edge was started from it, but four values in it are missing, each written `___`. FRR started anyway and skipped or ignored what it couldn't use, so edge announces nothing and takes nothing from ISP B (`journalctl -u frr@edge` shows one of its complaints). The gaps, in the order they appear in the file:
+
+  1. on the line `neighbor 192.0.2.6 route-map ___ in`, the route map edge passes ISP B's routes through: it must refuse every part of the shop's own addresses, as ISP A's does, but without ISP A's preference;
+  2. in the prefix list `OURS`, the one prefix edge announces to both ISPs: the shop's whole network, as a prefix with its length;
+  3. at the end of `NOT-OURS`'s first line, what makes it refuse not just the shop's exact prefix but every longer prefix inside it, down to single addresses;
+  4. in the route map for ISP A, the local preference that makes edge send the shop's traffic to the internet through ISP A while that session is up (the default is 100).
+
+  Edit the file with `on edge nano /etc/frr/frr.conf`, replace each `___` (and nothing else), save, then `sudo systemctl restart frr@edge`: FRR reads its file only when it starts, as at every boot. If something doesn't behave, `on edge vtysh -c 'show running-config'` shows what FRR actually loaded, `on edge vtysh -c 'show bgp ipv4 unicast'` what it chose, and the ISPs' looking glasses what they received. Then run the checks; one of them has each ISP offer edge a new route for part of the shop's addresses, for a few seconds, to see it refused.
+hints:
+  - "Gap 1 is a name: the route maps are defined further down the file. One of them sets a preference as well as filtering; the other only filters."
+  - "Gap 2: `on edge ip -br addr` shows edge's address on its LAN with the network's length, and the `network` line in the file says the same prefix. A prefix list's line ends with the prefix itself, address and length."
+  - "Gap 3: a prefix-list line matches only the exact prefix unless it ends with a range of lengths. `le N` (less than or equal) matches every prefix inside it whose length is at most N, and an IPv4 prefix can be at most 32 long."
+  - "Gap 4: the highest local preference wins, and anything above the default does the job. The walkthrough used 200."
+skills: [announce-and-filter, local-preference]
