@@ -1,16 +1,301 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.http-semantics
 kind: topic
-status: planned
+status: ready
 title: HTTP semantics
-summary: Use caching headers correctly.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "What a request and its answer mean: methods as promises and which can be retried, status codes as an operator reads them, caching headers for each kind of page and what a CDN does with them, CORS and the browser's rules for other sites' pages, and choosing REST, server-sent events, WebSockets or gRPC for a flow and getting it through every proxy, with the three clouds side by side."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2,
+# 3.7 and 5, topic 33) and its designer's brief (csa.net.http-semantics.md).
+# Through csa.net.http-tls this builds on csa.net.dns (TTLs and caching
+# resolvers, which this topic's caching calls "the same idea, one layer
+# up"), csa.net.congestion and csa.net.transport (a load balancer, and the
+# rule that the smallest idle timer on the path wins, which est-ping-interval
+# retrieves on purpose), csa.net.layers (the network labs' machines, on and
+# name@machine services) and Module 1 (curl -I, -v, -H, -X; nginx in
+# services; awk, grep, cut in the shell). From csa.net.http-tls it uses
+# HTTP request and response, method, header, status line, HTTP/2 streams and
+# HTTPS. This topic defines the cookie for the module (the plan's 3.7).
+prerequisites: [csa.net.http-tls]
+# Worked out: the lesson about 24 minutes (3,100 words with its tables and
+# code), the readings about 50 (MDN's caching sections 17, its CORS sections
+# 16, "Idempotent" and the methods table 6, grpc.io's core concepts 8,
+# nginx's WebSocket page 3), 23 recall items at 1.5 each 35, then the worked
+# example 30, the fill-in 25, the write 35, the build 60, the debug 45 and
+# the explain 20: about 325. The plan's 315 is kept (MODULE-3-BRIEF.md,
+# topic 33); the lesson's tables stand in for the clouds' pages, which are
+# under More resources.
+estimated_minutes: 315
 rev: 1
 objectives:
-- Use caching headers correctly.
-- Explain CORS.
-- Choose between REST, WebSockets and gRPC over HTTP/2 for a given flow.
+  - "Say what each method promises (safe, idempotent) and which requests a client or proxy may retry by itself, why a `POST` needs an idempotency key, and read a status code as an operator does, telling a 502 from a 504."
+  - "Set `Cache-Control` for fingerprinted assets, pages, personal pages and APIs, work out how long a copy stays fresh from `max-age`, `s-maxage`, `Age` and the heuristic, revalidate with an ETag, and say what a browser, a CDN and each cloud's CDN do with it, including what a purge can and can't take back."
+  - "Explain the same-origin policy and CORS: which requests a browser preflights, what the answer must hold with and without credentials, why `Vary: Origin` matters, the allow-list mistakes, and why CORS is no substitute for checking who calls an API."
+  - "Choose REST, server-sent events, WebSockets or gRPC for a flow, and name what each needs from every proxy and load balancer on the path: the WebSocket upgrade's hop-by-hop headers, pings below the smallest idle timeout, HTTP/2 with trailers for gRPC, and gRPC-Web for browsers."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - RFC 9110: safe methods "essentially read-only" (9.2.1); "PUT, DELETE, and
+#   safe request methods are idempotent", and such a request "can be repeated
+#   automatically if a communication failure occurs" (9.2.2); 502 "received
+#   an invalid response", 504 "did not receive a timely response" from the
+#   server behind a gateway or proxy (15.6.3, 15.6.5); 304 (15.4.5), 405
+#   (15.5.6), 412 (15.5.13); 429 is RFC 6585's, not 9110's:
+#   https://www.rfc-editor.org/rfc/rfc9110.html
+# - RFC 9111: a cache answering from a stored response without validation
+#   "MUST generate an Age header field" (4); heuristic freshness, "a typical
+#   setting of this fraction might be 10%" (4.2.2); Vary and the cache key
+#   (4.1); no-cache "MUST NOT be used to satisfy any other request without
+#   forwarding it for validation" (5.2.2.4); no-store (5.2.2.5); private, "a
+#   shared cache MUST NOT store the response" (5.2.2.7); s-maxage overrides
+#   max-age for a shared cache (5.2.2.10); must-revalidate (5.2.2.2):
+#   https://www.rfc-editor.org/rfc/rfc9111.html. immutable is RFC 8246.
+# - The Fetch standard (last updated 19 October 2026, CC BY 4.0): the CORS
+#   check (4.10: no allow-origin fails; * only when credentials mode isn't
+#   "include"; otherwise the exact origin, then Allow-Credentials "true");
+#   the preflight (4.8: an ok status, methods and header names, * not with
+#   credentials, Authorization never by *); safelisted methods GET, HEAD,
+#   POST: https://fetch.spec.whatwg.org/. cors-verdict in the network base
+#   applies them, with its cases in tools/tests/test_cors_verdict.py.
+# - MDN's CORS guide (modified 2026-10-28): simple requests' methods, headers
+#   and three Content-Type values; with credentials no * in Allow-Origin,
+#   -Headers, -Methods or -Expose-Headers; Vary: Origin when the origin comes
+#   from a list. MDN's Access-Control-Max-Age (modified 2025-11-21): 5 s by
+#   default, Firefox 86,400 s, Chromium 7,200 s since v76 (600 before).
+# - MDN's caching guide (modified 2026-08-14): no-cache "does not prevent the
+#   storing of responses"; the 10% heuristic; Age.
+# - nginx: Upgrade and Connection are hop-by-hop and must be passed; "#
+#   proxy_http_version 1.1; # before version 1.29.7"; a WebSocket closed
+#   after 60 s without data unless proxy_read_timeout is raised or the server
+#   pings (https://nginx.org/en/docs/http/websocket.html); proxy_read_timeout
+#   60s; a response with Set-Cookie isn't cached; Vary * isn't cached, other
+#   Vary values key the cache; the page lists no Cache-Control values that
+#   stop caching (https://nginx.org/en/docs/http/ngx_http_proxy_module.html);
+#   grpc_pass "requires the ngx_http_v2_module", grpc_read_timeout 60s
+#   (https://nginx.org/en/docs/http/ngx_http_grpc_module.html).
+# - grpc.io "Core concepts" (modified 2026-05-11): unary, server streaming,
+#   client streaming and bidirectional streaming RPCs; deadlines and
+#   DEADLINE_EXCEEDED. gRPC over HTTP/2: "Status must be sent in Trailers
+#   even if the status code is OK", te: trailers "Used to detect incompatible
+#   proxies": https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md.
+#   gRPC-Web from browsers through Envoy, "You may also need to add some CORS
+#   setup": https://grpc.io/docs/platforms/web/basics/
+# - RFC 6455: 1.2 "Protocol Overview", 1.3 "Opening Handshake" with the key
+#   dGhlIHNhbXBsZSBub25jZQ== giving s3pPLMBiTxaQ9kYGzzhZRbK+xOo=; a Ping "may
+#   serve either as a keepalive" (5.5.2): https://www.rfc-editor.org/rfc/rfc6455.html
+# - Valve, "Update on Christmas Issues", 2015-12-30: a second caching
+#   configuration "incorrectly cached web traffic for authenticated users";
+#   between 11:50 and 13:20 PST store pages for about 34k users; billing
+#   addresses among what could be seen: https://store.steampowered.com/oldnews/19852
+# - CloudFront: no cache policy, a default TTL of 24 hours; no-cache,
+#   no-store and private respected with a minimum TTL of 0, and cached for
+#   the minimum TTL above 0 (https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Expiration.html);
+#   invalidation, and versioned names recommended, since browsers keep old
+#   copies (https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Invalidation.html).
+# - Azure Front Door (updated 2026-07-15): private, no-cache and no-store
+#   aren't cached; no Cache-Control, one to three days at random; purge; only
+#   GET cached; Last-Modified, not ETag, as the validator:
+#   https://learn.microsoft.com/en-us/azure/frontdoor/front-door-caching
+# - Cloud CDN: CACHE_ALL_STATIC the default mode, 1 hour for static content
+#   without headers; private and no-store not cached; no-cache "is cached but
+#   must be revalidated"; invalidation: https://docs.cloud.google.com/cdn/docs/caching
+# - AWS ALB: idle_timeout.timeout_seconds default 60
+#   (https://docs.aws.amazon.com/elasticloadbalancing/latest/application/application-load-balancers.html);
+#   "native support for WebSockets" on HTTP and HTTPS listeners
+#   (https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-listeners.html).
+# - Azure Application Gateway (updated 2026-06-22): WebSocket support on, no
+#   setting; "The request timeout value in HTTP Settings also applies to the
+#   WebSocket session"; keep it above the ping interval:
+#   https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-websocket
+# - Google Cloud's Application Load Balancers: "The load balancer doesn't
+#   require any configuration to proxy WebSocket connections"; timeouts
+#   "depend on the type of load balancer": https://docs.cloud.google.com/load-balancing/docs/https
+# Every output marked "captured" in the lesson, the labs and the recall items
+# is real output of this topic's labs (nginx 1.24.0, python3-websockets 10.4
+# on Ubuntu 24.04, on the network-lab base, Docker Desktop 29.8.2), captured
+# on 2026-11-12: MISS then HIT for an asset, no-cache never stored, the 304,
+# alice's page served to bob, the preflights from www.shop.test and
+# evil.test, the 101 and its accept value, the 400 without the upgrade lines
+# and the 426 with HTTP/1.1 and no headers, and idle WebSockets closed at
+# nginx's proxy_read_timeout. Times will differ in a new run.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: MDN's prose is
+# CC BY-SA 2.5 or later and its code samples CC0 (MDN's "Attributions and
+# copyright licensing", modified 2026-10-22); grpc.io is CC BY 4.0 (its
+# repository's LICENSE; code Apache 2.0); the Fetch standard is CC BY 4.0
+# (its "Intellectual property rights"); RFCs are under the IETF Trust's
+# provisions; nginx's documentation says "© F5, Inc. All rights reserved.";
+# AWS's documentation is copyright Amazon Web Services; Microsoft Learn's
+# Azure pages are CC BY 4.0 (the MicrosoftDocs/azure-docs repository's
+# LICENSE); Google Cloud's documentation is CC BY 4.0 by its pages' footer
+# (the fetched text of these two pages didn't reach the footer; csa.net.routing
+# read it on other pages the same day); Valve's post is © Valve Corporation.
+# web.dev's "HTTP Cache", the brief's optional second explanation, is left
+# out: its licence footer couldn't be read today.
+resources:
+  - title: "HTTP caching (MDN): read from \"Types of caches\" to the end of \"Don't cache\", then \"Common caching patterns\""
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching
+    type: reading
+    use: link
+    license: "CC BY-SA 2.5 or later (MDN's prose); linked, not copied"
+  - title: "Cross-Origin Resource Sharing (CORS) (MDN): read from the top to the end of \"Requests with credentials\""
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS
+    type: reading
+    use: link
+    license: "CC BY-SA 2.5 or later (MDN's prose); linked, not copied"
+  - title: "Idempotent (MDN glossary): what it means, and why POST isn't"
+    url: https://developer.mozilla.org/en-US/docs/Glossary/Idempotent
+    type: reading
+    use: link
+    license: "CC BY-SA 2.5 or later (MDN's prose); linked, not copied"
+  - title: "HTTP request methods (MDN): the table of which methods are safe, idempotent and cacheable"
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods
+    type: reading
+    use: link
+    license: "CC BY-SA 2.5 or later (MDN's prose); linked, not copied"
+  - title: "Core concepts, architecture and lifecycle (grpc.io): services, the four kinds of RPC, and deadlines"
+    url: https://grpc.io/docs/what-is-grpc/core-concepts/
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the grpc.io repository's LICENSE); linked, not copied"
+  - title: "WebSocket proxying (nginx documentation): the hop-by-hop headers, and the 60-second timeout"
+    url: https://nginx.org/en/docs/http/websocket.html
+    type: reading
+    use: link
+    license: "© F5, Inc. (the page's footer); linked, not copied"
+  - title: "HTTP response status codes (MDN): a reference, by class"
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status
+    type: reading
+    use: link
+    license: "CC BY-SA 2.5 or later (MDN's prose); linked, not copied"
+  - title: "Access-Control-Max-Age (MDN): how long a browser remembers a preflight, and each browser's cap (optional)"
+    url: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Max-Age
+    type: reading
+    use: link
+    license: "CC BY-SA 2.5 or later (MDN's prose); linked, not copied"
+  - title: "Fetch standard, \"CORS check\" (WHATWG): the browser's rule itself, the one the labs' checks apply (optional)"
+    url: https://fetch.spec.whatwg.org/#cors-check
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the standard's \"Intellectual property rights\"); linked, not copied"
+  - title: "RFC 6455, The WebSocket Protocol: sections 1.2 \"Protocol Overview\" and 1.3 \"Opening Handshake\" (optional)"
+    url: https://www.rfc-editor.org/rfc/rfc6455.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "Update on Christmas Issues (Valve, 2015): the caching change that showed Steam users each other's store pages (optional)"
+    url: https://store.steampowered.com/oldnews/19852
+    type: reading
+    use: link
+    license: "© Valve Corporation; linked, not copied"
+  - title: "Manage how long content stays in the cache (AWS CloudFront developer guide): the table of origin headers against the minimum TTL"
+    url: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/Expiration.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Caching, Azure Front Door (Microsoft Learn): read \"Cache expiration\" and \"Cache behavior and duration\""
+    url: https://learn.microsoft.com/en-us/azure/frontdoor/front-door-caching
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Cloud CDN caching (Google Cloud documentation): read \"Cache modes\" and \"Non-cacheable content based on origin headers\""
+    url: https://docs.cloud.google.com/cdn/docs/caching
+    type: reading
+    use: link
+    license: "CC BY 4.0 (Google Cloud documentation's footer); linked, not copied"
+  - title: "WebSocket support in Azure Application Gateway (Microsoft Learn): the request timeout and the ping interval (optional)"
+    url: https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-websocket
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+# The recall items read methods, status codes and timers, and answers
+# captured from this topic's labs, with Module 1's text tools. The worked
+# example, the fill-in, the build and the debug are labs on the network-lab
+# base: the shop's origin nginx behind an edge cache nginx, with the shop's
+# app and a WebSocket order board (ADR-0018's third amendment). The write lab
+# is a plain lab on Module 3's plain line with ShellCheck.
+practice:
+  - example-follow-a-cache
+  - mcq-retry-which
+  - mcq-502-or-504
+  - status-classes
+  - conditional-304
+  - cache-control-parse
+  - est-fresh-remaining
+  - est-heuristic
+  - est-s-maxage
+  - mcq-no-cache-means
+  - mcq-account-cache
+  - mcq-fingerprint
+  - fill-cache-policy
+  - mcq-preflight-when
+  - mcq-star-credentials
+  - mcq-cors-not-auth
+  - mcq-suffix-regex
+  - preflight-read
+  - est-preflights
+  - write-cors-audit
+  - ws-upgrade-answers
+  - mcq-board-style
+  - mcq-internal-streaming
+  - mcq-ws-drops-60s
+  - mcq-ws-no-upgrade
+  - est-ping-interval
+prove:
+  build: build-shop-edge
+  debug: debug-stale-and-blocked
+  explain:
+    prompt: |
+      The shop is putting a CDN in front of its site, adding a JavaScript widget that partners put on their own websites and that calls the shop's basket API from their pages, and giving warehouse staff a live order board. Explain, in your own words: which caching headers you would send for the HTML pages, the fingerprinted assets, the account pages and the API, and what goes wrong with each if you get it wrong; what CORS protects, what a browser checks before letting a partner's page read the basket, and why CORS doesn't stop anyone calling the API from a script on a server; which of the API's requests clients may retry by themselves, and why; and whether the order board should use REST, WebSockets, server-sent events or gRPC, and what the CDN, the load balancer and nginx must each allow for it to stay connected.
+    rubric:
+      - id: cache-policy
+        required: true
+        description: "Assets: a long max-age plus immutable, safe because a fingerprinted name changes with the content; HTML: no-cache (stored but revalidated, cheaply with an ETag and a 304), so a deploy shows at once, where a long max-age serves an old page; account pages: private or no-store, or a shared cache serves one customer's page to the next; the API: no-store; s-maxage for a CDN-only lifetime; and a copy already stored stays until it expires or the CDN is purged (a browser's can't be)."
+      - id: cors-purpose
+        required: true
+        description: "The same-origin policy protects users' data in their browser (their cookies) from other sites' pages; CORS is the server listing which origins may read its answers; non-simple requests (a JSON PUT, a custom header) are preflighted with OPTIONS; with cookies the answer must name the exact origin and send Access-Control-Allow-Credentials: true, never *; Vary: Origin when the origin comes from a list; never reflect every origin, match a suffix or allow null."
+      - id: cors-not-auth
+        required: true
+        description: "Only browsers apply CORS: curl, scripts and servers ignore it, so the API must still authenticate and authorise every call itself."
+      - id: idempotency
+        required: true
+        description: "Safe (GET) and idempotent (PUT, DELETE) requests can be repeated with the same effect, so clients and proxies may retry them automatically; POST can't, since a retry may order or charge twice, unless the API accepts an idempotency key."
+      - id: board-choice
+        required: true
+        description: "A push to many screens: server-sent events if it only flows one way, WebSockets if it goes both ways (either justified, rather than polling); every hop must keep a quiet connection open longer than the gap between messages or pings, and for WebSockets pass the upgrade (the hop-by-hop Upgrade and Connection headers, HTTP/1.1 to the upstream in nginx); ping more often than the smallest idle timeout on the path (nginx's proxy_read_timeout is 60 s by default, as is an AWS ALB's idle timeout)."
+      - id: grpc
+        required: false
+        description: "For internal service-to-service calls with a strict contract or streaming, gRPC over HTTP/2 end to end, with trailers and deadlines; browsers need gRPC-Web and a proxy."
+    model_answer: |
+      For the CDN I'd give each kind of answer its own Cache-Control. The fingerprinted assets, app.3f9a.js and the like, get public, max-age=31536000, immutable: their names change whenever their content does, so a year-old copy is never wrong, and immutable stops browsers asking on a reload. The HTML pages get no-cache, which doesn't mean "don't store": browsers keep them but ask before each use, and with the ETag nginx sends, an unchanged page costs a 304 of a few headers. If I gave the HTML a long max-age instead, customers would see an old page for as long as their copies last, and after fixing it I'd still have to purge the CDN, while copies in browsers can't be reached at all. The account pages get private (or no-store): a CDN keys its copies on the URL, so a public account page would be handed from one customer to the next, which is what happened to Steam at Christmas 2015. The API gets no-store, so nothing keeps anyone's basket. Where I want the CDN to keep something longer than browsers, s-maxage is for shared caches only.
+
+      CORS protects people, not the API. A customer's browser holds the shop's cookies, and a page from another site open in the same browser could otherwise read the customer's basket. The same-origin policy stops that by default, and CORS is the API saying which other origins may read its answers. For the partners' widget the API needs an allow-list of the partners' origins. A JSON PUT isn't a simple request, so the browser first sends an OPTIONS preflight naming the method and headers; the answer must name the partner's exact origin in Access-Control-Allow-Origin, list PUT and Content-Type, and, since the widget sends the customer's cookie, say Access-Control-Allow-Credentials: true, with no * anywhere. The real answer must carry the origin and credentials headers too, and Vary: Origin so the CDN never gives one partner's answer to another. I'd never echo back whatever Origin arrives, match on a suffix, or allow null. But a script on a server sends whatever it likes and ignores all of this, so the API still has to check the session or a token on every call.
+
+      Clients may retry GET, PUT and DELETE by themselves, because repeating them has the same effect as sending them once: GET changes nothing, and PUT sets the item to the same state. POST isn't idempotent, so a retried POST /orders could make two orders; for payments I'd have the client send an idempotency key, so a repeat is recognised.
+
+      The order board pushes new orders to many screens. If the screens only listen, server-sent events are enough; if they also send, WebSockets; both beat polling. For a WebSocket, every hop must pass the upgrade: nginx doesn't pass the hop-by-hop Upgrade and Connection headers unless told to, and needs proxy_http_version 1.1. And every hop drops a quiet connection: nginx after proxy_read_timeout, 60 seconds by default, an AWS ALB after its idle timeout, also 60 by default, and the CDN after its own. So the board should ping more often than the smallest of those, and I'd raise nginx's timeout above the ping interval. gRPC is for internal service-to-service calls over HTTP/2 with trailers; a browser would need gRPC-Web and a proxy.
+review_pool:
+  - est-fresh-remaining
+  - est-heuristic
+  - est-origin-load
+  - mcq-account-cache
+  - mcq-no-cache-means
+  - mcq-vary
+  - mcq-star-credentials
+  - mcq-suffix-regex
+  - est-preflights
+  - mcq-vary-origin
+  - mcq-cors-not-auth
+  - mcq-retry-which
+  - mcq-502-or-504
+  - mcq-idempotency-key
+  - conditional-304
+  - est-ping-interval
+  - mcq-ws-drops-60s
+  - mcq-board-style
+  - mcq-browser-grpc
+skills:
+  - id: caching
+    description: "Set Cache-Control for each kind of answer and say what a browser and a shared cache (a CDN, a reverse proxy) do with it: max-age, s-maxage, no-cache, no-store, private, public, immutable; validators, conditional requests and 304; fresh and stale from max-age and Age, and the heuristic for answers with no headers; Vary and the cache key; fingerprinted URLs; purging a CDN, and what no purge reaches; how CloudFront, Front Door and Cloud CDN read the same headers"
+  - id: cors
+    description: "The same-origin policy and what it protects; simple and preflighted requests; the preflight's answer and the CORS check; credentials (cookies) and why * is refused with them; Vary: Origin; Access-Control-Max-Age and the browsers' caps; allow-list mistakes (reflection, suffix matches, null); CORS isn't authentication"
+  - id: methods-and-status
+    description: "Methods as promises: safe and idempotent, which requests may be retried automatically, idempotency keys for POST; conditional requests (304, 412); status classes, and 502 against 504 at a proxy; 405 and 429"
+  - id: api-styles
+    description: "Choose REST, server-sent events, WebSockets or gRPC for a flow; the WebSocket upgrade (101, Sec-WebSocket-Accept) through proxies, the hop-by-hop Upgrade and Connection headers, idle timeouts and pings below the smallest one on the path; gRPC's protocol buffers, four kinds of call, deadlines, HTTP/2 with trailers, and gRPC-Web for browsers; what nginx and the clouds' load balancers need for each"
