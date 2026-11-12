@@ -1,0 +1,156 @@
+#!/usr/bin/python3
+"""nat-truth: the checks' own answer for "NAT ports" (not the learner's tool).
+
+  nat-truth answer FILE PORTS   what nat-ports should print for FILE, a saved
+                                conntrack -L listing, and PORTS, the NAT ports
+                                one public address has
+  nat-truth fixed FILE          writes the checks' fixed listing to FILE (made
+                                to catch each usual mistake) and prints its PORTS
+  nat-truth make FILE           writes a new random listing to FILE and prints
+                                the PORTS to ask about
+
+A listing is conntrack -L's output saved with its error stream: TCP lines
+(with a state word), UDP lines (without one), ICMP lines (no ports at all) and
+conntrack's own count line. Each TCP or UDP line counts once towards its
+destination: its protocol, and the first dst= and dport= on it (the original
+tuple, as the inside machine sent it). No two destinations in a listing made
+here have the same count, so the order of the answer is the counts' order.
+"""
+
+import random
+import sys
+
+GATEWAY = "198.51.100.2"
+
+
+def destinations(path):
+    """Counts of TCP and UDP lines per (protocol, destination address:port)."""
+    counts = {}
+    with open(path, encoding="utf-8") as listing:
+        for line in listing:
+            word = line.split()
+            if not word or word[0] not in ("tcp", "udp"):
+                continue
+            dst = next(w[4:] for w in word if w.startswith("dst="))
+            dport = next(w[6:] for w in word if w.startswith("dport="))
+            key = (word[0], f"{dst}:{dport}")
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+def answer(path, ports):
+    counts = destinations(path)
+    for (proto, dest), n in sorted(counts.items(), key=lambda item: -item[1]):
+        percent = n * 100 // ports
+        flag = " FULL" if n >= ports else " WARN" if percent >= 80 else ""
+        print(f"{proto} {dest} {n} {percent}%{flag}")
+
+
+def tcp_line(rng, src, dst, dport):
+    state = rng.choice(["ESTABLISHED", "ESTABLISHED", "ESTABLISHED", "TIME_WAIT", "TIME_WAIT", "SYN_SENT", "CLOSE_WAIT"])
+    timeout = {"ESTABLISHED": rng.randint(431000, 431999), "TIME_WAIT": rng.randint(1, 120), "SYN_SENT": rng.randint(1, 120), "CLOSE_WAIT": rng.randint(1, 60)}[state]
+    sport = rng.randint(32768, 60999)
+    nat = rng.randint(1024, 65535)
+    original = f"tcp      6 {timeout} {state} src={src} dst={dst} sport={sport} dport={dport}"
+    reply = f"src={dst} dst={GATEWAY} sport={dport} dport={nat}"
+    if state == "SYN_SENT":
+        return f"{original} [UNREPLIED] {reply} mark=0 use=1"
+    return f"{original} {reply} [ASSURED] mark=0 use=1"
+
+
+def udp_line(rng, src, dst, dport):
+    timeout = rng.randint(1, 180)
+    sport = rng.randint(32768, 60999)
+    nat = rng.randint(1024, 65535)
+    original = f"udp      17 {timeout} src={src} dst={dst} sport={sport} dport={dport}"
+    reply = f"src={dst} dst={GATEWAY} sport={dport} dport={nat}"
+    roll = rng.random()
+    if roll < 0.3:
+        return f"{original} [UNREPLIED] {reply} mark=0 use=1"
+    if roll < 0.6:
+        return f"{original} {reply} [ASSURED] mark=0 use=1"
+    return f"{original} {reply} mark=0 use=1"
+
+
+def icmp_line(rng, src, dst):
+    ident = rng.randint(1, 65535)
+    return f"icmp     1 {rng.randint(1, 30)} src={src} dst={dst} type=8 code=0 id={ident} src={dst} dst={GATEWAY} type=0 code=0 id={ident} mark=0 use=1"
+
+
+def write(path, rng, plan, icmps, sources, summary_first=None):
+    """plan: (protocol, address, port, count) for each destination.
+
+    summary_first: where conntrack's count line goes, True for the top and
+    False for the bottom; None leaves it to chance."""
+    lines = []
+    for proto, address, port, n in plan:
+        make = tcp_line if proto == "tcp" else udp_line
+        lines += [make(rng, rng.choice(sources), address, port) for _ in range(n)]
+    lines += [icmp_line(rng, rng.choice(sources), rng.choice(plan)[1]) for _ in range(icmps)]
+    rng.shuffle(lines)
+    summary = f"conntrack v1.4.8 (conntrack-tools): {len(lines)} flow entries have been shown."
+    # Saved with 2>&1, the count line can come first: it is written to the
+    # error stream, which isn't held back the way the listing is.
+    if summary_first is None:
+        summary_first = rng.random() < 0.5
+    if summary_first:
+        lines.insert(0, summary)
+    else:
+        lines.append(summary)
+    with open(path, "w", encoding="utf-8", newline="\n") as listing:
+        listing.write("\n".join(lines) + "\n")
+
+
+def fixed(path):
+    # TCP and UDP to the same address and port (protocol matters); one
+    # address on two ports (the port matters); a count exactly at PORTS
+    # (FULL, not WARN); one exactly at 80%; one at 79.6% (rounded down, no
+    # WARN); every TCP state; ICMP lines and the count line to skip, the
+    # count line at the top, where the prompt's listing doesn't have it (so
+    # a script that only drops the last line fails); many inside sources
+    # (the destination counts, not the source).
+    ports = 250
+    plan = [
+        ("tcp", "203.0.113.10", 443, 250),
+        ("udp", "203.0.113.53", 53, 200),
+        ("tcp", "203.0.113.10", 80, 199),
+        ("tcp", "198.51.100.77", 443, 31),
+        ("tcp", "203.0.113.53", 53, 7),
+    ]
+    sources = [f"10.1.0.{n}" for n in (10, 11, 12, 20, 21, 30)]
+    write(path, random.Random(27), plan, 5, sources, summary_first=True)
+    print(ports)
+
+
+def make(path):
+    rng = random.SystemRandom()
+    ports = rng.randint(80, 150)
+    count = rng.randint(5, 8)
+    # One destination full, one in the warning band, the rest below it, all
+    # with different counts.
+    counts = {ports, rng.randint((ports * 8 + 9) // 10, ports - 1)}
+    while len(counts) < count:
+        counts.add(rng.randint(1, ports * 8 // 10 - 1))
+    hosts = ["203.0.113.10", "203.0.113.53", "198.51.100.77", "192.0.2.44", "203.0.113.200"]
+    pool = [(proto, host, port) for proto in ("tcp", "udp") for host in hosts for port in (53, 80, 443, 5432, 8080)]
+    plan = [(proto, host, port, n) for (proto, host, port), n in zip(rng.sample(pool, count), sorted(counts))]
+    sources = [f"10.1.0.{rng.randint(2, 250)}" for _ in range(rng.randint(3, 9))]
+    write(path, rng, plan, rng.randint(0, 6), sources)
+    print(ports)
+
+
+def main(argv):
+    if len(argv) == 4 and argv[1] == "answer":
+        answer(argv[2], int(argv[3]))
+    elif len(argv) == 3 and argv[1] == "fixed":
+        fixed(argv[2])
+    elif len(argv) == 3 and argv[1] == "make":
+        make(argv[2])
+    else:
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

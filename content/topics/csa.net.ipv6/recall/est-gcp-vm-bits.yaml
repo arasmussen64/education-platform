@@ -1,0 +1,25 @@
+id: est-gcp-vm-bits
+type: estimate
+rev: 1
+# Google Cloud: "the interface is assigned a /96 IP address range from the
+# interface's subnet" (docs.cloud.google.com/vpc/docs/subnets, last updated
+# 2026-10-26, read 2026-11-12).
+prompt: |
+  A Google Cloud VM's network interface is given a /96 of IPv6. How many bits at the end of the address are the VM's own, to number its addresses? Exactly.
+unit: bits
+answer: 32
+tolerance: { absolute: 0 }
+given: { p: 96 }
+working: 128 - p
+mistakes:
+  - id: a-whole-64
+    value: 64
+    working: "64"
+    why: That's a whole /64's interface identifier. The VM gets a /96, which fixes 96 of the 128 bits.
+  - id: the-prefix
+    value: 96
+    working: p
+    why: That's the prefix, the bits fixed for the VM. The VM's own are the rest of the 128.
+explanation: |
+  An IPv6 address is 128 bits, and the /96 fixes the first 96, so 128 − 96 = 32 bits are left: as many addresses as the whole of IPv4, for one network interface. Google takes each /96 from the subnet's /64 and keeps the first and last /96 of every subnet for itself. It's a different shape from AWS and Azure, where an interface is given single addresses from the subnet.
+skills: [v6-plan]

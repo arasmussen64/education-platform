@@ -1,0 +1,16 @@
+id: mcq-why-64
+type: mcq
+rev: 1
+prompt: |
+  A small team proposes /120 subnets for IPv6, "to save addresses". What breaks?
+choices:
+  - "SLAAC: hosts ignore an advertised prefix that isn't a /64"
+  - "DNS: an AAAA record may only point at an address in a /64"
+  - "Routing: routers can't forward packets to prefixes longer than /64"
+  - "Nothing breaks: IPv6 subnets work at any length, as IPv4 ones do"
+answer: 0
+explanation: |
+  A host builds its address from the advertised prefix and a 64-bit interface identifier, and the two must add up to 128 bits. RFC 4862 says a prefix of any other length is ignored, so hosts on a /120 make no address at all and say nothing about it. The clouds agree: Azure requires IPv6 subnets to be exactly /64, and AWS allows nothing longer than a /64.
+
+  And there's nothing to save. A site's /48 holds 65,536 /64 subnets; the plan's job is to be readable, not to fit. Routers forward prefixes of any length (a /128 route to a single address is normal), DNS doesn't care what subnet an address is in, and some IPv6 subnets other than /64 do exist, such as /127 on links between two routers, where nothing needs SLAAC.
+skills: [v6-plan, slaac-dual-stack]

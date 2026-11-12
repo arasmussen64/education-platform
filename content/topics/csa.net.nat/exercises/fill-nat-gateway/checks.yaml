@@ -1,0 +1,87 @@
+# The checks of "Fill in the gateway": what srv and the app see (the
+# address each connection came from), that nothing else answers from the
+# internet (dropped, not refused, timed as Module 1's firewall labs do), that
+# gw forwards only what its rules allow (tried from a throwaway machine of
+# the check's own on the provider's network, which sends straight to the
+# shop's private addresses, as anyone on that network could), and that the
+# rules running are the ones gw's file loads at every boot. None of the
+# descriptions names a gap's answer. A check that finds something wrong
+# prints what it found and exits 0, so the checker shows that sentence.
+checks:
+  - id: office-out
+    description: "The office reaches srv's web server, which sees it as gw's address on the internet, 198.51.100.2."
+    command: on office curl -sS -m 3 http://203.0.113.10/ 2>&1
+    expect:
+      equals: "you are 198.51.100.2"
+  - id: published
+    description: "A customer reaches the shop's app at 198.51.100.2, port 443, and the app sees the customer's own address."
+    command: on client curl -sS -m 3 http://198.51.100.2:443/ 2>&1
+    expect:
+      equals: "you are 203.0.113.20"
+  - id: nothing-else
+    description: "From the internet, nothing else at 198.51.100.2 answers: SSH, the database, the app's own port and two ports nobody uses all stay silent for the whole timeout."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      ports="22 5432 8443 3306 9999"
+      for port in $ports; do
+        tcp_state client 198.51.100.2 "$port" > "$dir/$port" &
+      done
+      wait
+      for port in $ports; do
+        state=$(cat "$dir/$port")
+        [ "$state" = dropped ] || { echo "from the internet, 198.51.100.2 port $port is $state, not silent"; exit 0; }
+      done
+      echo "nothing else answers"
+    expect:
+      equals: "nothing else answers"
+  - id: forwards-only-what-rules-allow
+    description: "gw forwards only what its rules allow: its forward chain's policy is drop, and a machine on the provider's network that sends straight to the shop's private addresses gets no answer."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      policies=$(on gw nft -j list ruleset 2> /dev/null | json "sorted(set(c['chain'].get('policy', 'accept') for c in d['nftables'] if 'chain' in c and c['chain'].get('hook') == 'forward'))")
+      [ "$policies" = '["drop"]' ] || { echo "gw's forward chain doesn't drop what no rule accepts (policies: $policies)"; exit 0; }
+      # A throwaway machine on the provider's switch, isp, with a route to
+      # the shop's private network through gw.
+      p=chk-isp
+      ip netns del "$p" 2> /dev/null
+      # A cable left behind by a run that was stopped half way.
+      ip link del chkisp0 2> /dev/null
+      trap 'ip netns del chk-isp 2> /dev/null' EXIT
+      ip netns add "$p"
+      ip -n "$p" link set lo up
+      ip link add chkisp0 type veth peer name chkisp1
+      ip link set chkisp0 netns "$p"
+      ip -n "$p" link set chkisp0 name eth0
+      ip link set chkisp1 netns switches
+      ip -n switches link set chkisp1 master isp up
+      ip -n "$p" addr add 198.51.100.66/24 dev eth0
+      ip -n "$p" link set eth0 up
+      ip -n "$p" route add 10.1.0.0/24 via 198.51.100.2
+      # A machine that used this address a moment ago had another MAC.
+      ip -n gw neigh flush to 198.51.100.66 2> /dev/null
+      for port in 8443 5432; do
+        start=$(date +%s%N)
+        if ip netns exec "$p" nc -z -w 2 10.1.0.20 "$port" > /dev/null 2>&1; then
+          echo "from the provider's network, 10.1.0.20 port $port answers through gw"
+          exit 0
+        fi
+        ms=$((($(date +%s%N) - start) / 1000000))
+        [ "$ms" -ge 1500 ] || { echo "from the provider's network, 10.1.0.20 port $port is refused, not silent"; exit 0; }
+      done
+      echo "only what the rules allow"
+    expect:
+      equals: "only what the rules allow"
+  - id: saved
+    description: "gw's running firewall and NAT are the ones its /etc/nftables.conf loads, and nftables@gw loads that file at every boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(systemctl is-enabled nftables@gw 2> /dev/null)" = enabled ] || { echo "nftables@gw isn't enabled"; exit 0; }
+      if differs=$(nft_saved gw); then
+        echo saved
+      else
+        echo "gw's running rules aren't the ones its /etc/nftables.conf loads: $(echo "$differs" | head -n 2 | tr '\n' ' ')"
+      fi
+    expect:
+      equals: saved

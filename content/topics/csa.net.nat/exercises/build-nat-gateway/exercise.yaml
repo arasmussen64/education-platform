@@ -1,0 +1,28 @@
+id: build-nat-gateway
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Build the shop's gateway"
+prompt: |
+  Make `gw` the shop's NAT gateway, from a fresh server.
+
+  **The network.** The NAT labs' network: `office` (10.1.0.10) and `app` (10.1.0.20) on the shop's private network, `shop` (10.1.0.0/24), behind `gw` (`lan` 10.1.0.1). This time gw's `wan` has the shop's **two** public addresses, 198.51.100.2 and 198.51.100.3, on the provider's network towards `inet` (198.51.100.1). On the lab's internet are `client` (203.0.113.20), a customer, and `srv` (203.0.113.10): a web server on port 80 that answers with the address each connection came from, and the shop's **payment provider** on port 443, which takes connections only from the one address the shop registered with it, 198.51.100.3, and drops any other without a word. On `app`, the shop's web app listens on port 8443 and answers each request with the address it came from (it logs it too: `on app tail /var/log/nginx/access.log`); the app machine also runs the shop's database on 5432 and SSH on 22.
+
+  **gw today** is a fresh server: its `/etc/nftables.conf` is the one Ubuntu ships (three empty chains), `nftables@gw` isn't enabled, and forwarding is off, set that way by a hardening file in its `/etc/sysctl.d/`.
+
+  **When you're done:**
+
+  1. The office and the app reach the internet as 198.51.100.2.
+  2. The app's connections to the payment provider (203.0.113.10, port 443) leave from 198.51.100.3, and the app can hold 300 of them at once.
+  3. Customers reach the shop's app at 198.51.100.2, port 443, and the app sees each customer's own address.
+  4. From the internet, nothing else answers: not gw itself, not the app's database, SSH or port 8443, and nothing on 198.51.100.3. Only 198.51.100.2's port 443.
+  5. gw forwards between `lan` and `wan` only what its rules allow: its forward chain's policy is drop.
+  6. All of it survives a reboot: the rules in gw's `/etc/nftables.conf`, loaded by `nftables@gw` at every boot, and forwarding on in gw's `/etc/sysctl.d/`.
+
+  The payment provider, inet and the network itself aren't yours to change.
+
+  Useful commands: `on gw nano /etc/nftables.conf`, `on gw nft -c -f /etc/nftables.conf` (checks a file without loading it), `sudo systemctl enable --now nftables@gw`, `on gw nft list ruleset`, `on gw conntrack -L`, `on app holdconns 300 203.0.113.10 443` (opens that many connections at once and says how many opened), `on client curl -m 3 http://198.51.100.2:443/`, and `sudo netlab restart`, which rebuilds the whole network from every machine's files, as a reboot would.
+skills: [nat-rules, snat-and-dnat, nat-sizing]

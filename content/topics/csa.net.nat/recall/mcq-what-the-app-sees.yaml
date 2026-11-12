@@ -1,0 +1,16 @@
+id: mcq-what-the-app-sees
+type: mcq
+rev: 1
+prompt: |
+  A gateway publishes the shop's app with `iifname "wan" tcp dport 443 dnat to 10.1.0.20:8443`, and its only source NAT rule is a `masquerade` that names no interface. The app's log shows every customer as 10.1.0.1, the gateway's own address on the LAN. Why?
+choices:
+  - "The masquerade also rewrites traffic going in to the LAN, so the app sees the gateway"
+  - "DNAT replaces the packet's whole IP header, so the customer's address is lost going in"
+  - "The shop's internet provider runs one NAT in front of all of its customers' addresses"
+  - "conntrack merges every customer's connection into one entry for the published port"
+answer: 0
+explanation: |
+  `masquerade` with no `oifname` matches every packet gw sends out of any interface. A customer's connection, once DNAT has sent it towards 10.1.0.20, leaves gw through `lan`, so the masquerade rewrites its source to `lan`'s address, 10.1.0.1. The walkthrough did this on purpose: the app answered `you are 10.1.0.1`, and conntrack's reply tuple said `dst=10.1.0.1`. A rate limiter counting requests per address then sees one enormous customer; logs lose who anyone was. `oifname "wan"` limits source NAT to what leaves for the internet.
+
+  DNAT rewrites only the destination; the source stays the customer's, which is exactly what a published service wants. A provider's carrier-grade NAT would show customers as the provider's addresses, not as gw's LAN address. And conntrack keeps a separate entry for every connection.
+skills: [snat-and-dnat]

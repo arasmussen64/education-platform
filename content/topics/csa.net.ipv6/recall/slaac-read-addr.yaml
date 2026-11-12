@@ -1,0 +1,22 @@
+id: slaac-read-addr
+type: predict_shell
+rev: 1
+prompt: |
+  `addr.txt` is what `ip -6 addr show dev eth0` printed on the laptop h1 in the worked example's lab (captured on 2026-11-12; the spaces at the ends of its lines are trimmed). The `awk` command remembers each address's scope (its fourth field) and whether its fifth field is `dynamic`, and prints them with the address's valid lifetime from the line below it. What does it print?
+files:
+  addr.txt: |
+    13: eth0@if12: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000 link-netnsid 1
+        inet6 2001:db8:42:a:8c26:afff:fe7a:9104/64 scope global dynamic mngtmpaddr
+           valid_lft 86396sec preferred_lft 14396sec
+        inet6 fe80::8c26:afff:fe7a:9104/64 scope link
+           valid_lft forever preferred_lft forever
+command: |
+  awk '$1 == "inet6" {s = $4 " " ($5 == "dynamic" ? "from-RA" : "own")} $1 == "valid_lft" {print s, $2}' addr.txt
+expected_output: |
+  global from-RA 86396sec
+  link own forever
+explanation: |
+  The global address is `dynamic`: h1 built it from the prefix in r1's router advertisement (SLAAC), and it came with lifetimes. Its valid lifetime counts down from the advertisement's 86,400 seconds, a day, and each new advertisement tops it up; if the router stopped advertising, the address would expire. The link-local address has no lifetime, `forever`, because h1 made it itself, with no router at all.
+
+  Both end in `8c26:afff:fe7a:9104`, the interface identifier, made from h1's MAC address by EUI-64 (`ff:fe` in the middle, one bit of the first byte flipped). `mngtmpaddr` says the kernel may make temporary addresses from this one, which it does only when temporary addresses are switched on (`use_tempaddr`; they weren't in the lab).
+skills: [slaac-dual-stack, v6-address-types]

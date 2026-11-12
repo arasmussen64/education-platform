@@ -1,0 +1,39 @@
+id: count-per-destination
+type: predict_shell
+rev: 1
+prompt: |
+  `conns.txt` is part of a gateway's `conntrack -L` (constructed: the real format, as captured in the NAT labs, with made-up connections). The awk program finds each TCP or UDP line's first `dst=` and first `dport=`, counts the lines for each protocol, address and port, and prints each count; `sort -rn` puts the biggest first. What is printed?
+files:
+  conns.txt: |
+    tcp      6 431990 ESTABLISHED src=10.1.0.20 dst=203.0.113.10 sport=40112 dport=443 src=203.0.113.10 dst=198.51.100.2 sport=443 dport=40112 [ASSURED] mark=0 use=1
+    tcp      6 431987 ESTABLISHED src=10.1.0.20 dst=203.0.113.10 sport=40118 dport=443 src=203.0.113.10 dst=198.51.100.2 sport=443 dport=40118 [ASSURED] mark=0 use=1
+    udp      17 28 src=10.1.0.10 dst=203.0.113.53 sport=51820 dport=53 src=203.0.113.53 dst=198.51.100.2 sport=53 dport=51820 mark=0 use=1
+    tcp      6 431992 ESTABLISHED src=10.1.0.10 dst=203.0.113.10 sport=52004 dport=80 src=203.0.113.10 dst=198.51.100.2 sport=80 dport=52004 [ASSURED] mark=0 use=1
+    tcp      6 117 TIME_WAIT src=10.1.0.20 dst=203.0.113.10 sport=40102 dport=443 src=203.0.113.10 dst=198.51.100.2 sport=443 dport=40102 [ASSURED] mark=0 use=1
+    icmp     1 24 src=10.1.0.10 dst=203.0.113.10 type=8 code=0 id=4411 src=203.0.113.10 dst=198.51.100.2 type=0 code=0 id=4411 mark=0 use=1
+    tcp      6 431999 ESTABLISHED src=10.1.0.20 dst=203.0.113.10 sport=40131 dport=443 src=203.0.113.10 dst=198.51.100.2 sport=443 dport=40131 [ASSURED] mark=0 use=1
+    tcp      6 98 TIME_WAIT src=10.1.0.11 dst=203.0.113.10 sport=48610 dport=80 src=203.0.113.10 dst=198.51.100.2 sport=80 dport=48610 [ASSURED] mark=0 use=1
+    tcp      6 112 SYN_SENT src=10.1.0.20 dst=203.0.113.10 sport=40140 dport=443 [UNREPLIED] src=203.0.113.10 dst=198.51.100.2 sport=443 dport=40140 mark=0 use=1
+    udp      17 23 src=10.1.0.11 dst=203.0.113.53 sport=40977 dport=53 [UNREPLIED] src=203.0.113.53 dst=198.51.100.2 sport=53 dport=40977 mark=0 use=1
+    tcp      6 431995 ESTABLISHED src=10.1.0.10 dst=203.0.113.10 sport=52010 dport=80 src=203.0.113.10 dst=198.51.100.2 sport=80 dport=52010 [ASSURED] mark=0 use=1
+    tcp      6 431980 ESTABLISHED src=10.1.0.20 dst=203.0.113.10 sport=40150 dport=443 src=203.0.113.10 dst=198.51.100.2 sport=443 dport=40150 [ASSURED] mark=0 use=1
+    tcp      6 101 TIME_WAIT src=10.1.0.11 dst=203.0.113.10 sport=48622 dport=80 src=203.0.113.10 dst=198.51.100.2 sport=80 dport=48622 [ASSURED] mark=0 use=1
+command: |
+  awk '$1 == "tcp" || $1 == "udp" {
+    d = ""; p = ""
+    for (i = 2; i <= NF; i++) {
+      if (d == "" && $i ~ /^dst=/) d = substr($i, 5)
+      if (p == "" && $i ~ /^dport=/) p = substr($i, 7)
+    }
+    n[$1 " " d ":" p]++
+  }
+  END {for (k in n) print n[k], k}' conns.txt | sort -rn
+expected_output: |
+  6 tcp 203.0.113.10:443
+  4 tcp 203.0.113.10:80
+  2 udp 203.0.113.53:53
+explanation: |
+  A NAT needs a separate port for each connection to the same destination (protocol, address and port), so counting the connections per destination says which pool is filling up. Six TCP connections go to 203.0.113.10 port 443, every state counting, `SYN_SENT` and `TIME_WAIT` too, because each still holds its port; four go to the same address's port 80, a different destination with a pool of its own; two UDP lookups go to 203.0.113.53 port 53. The ICMP line has no ports and is skipped.
+
+  The loop looks for the first `dst=` and `dport=` rather than taking fixed words, because a UDP line has no state word, so its fields sit one place earlier than a TCP line's; and the first ones belong to the original tuple (the second `dst=` is the gateway's own address). This is the heart of the write lab's script.
+skills: [port-exhaustion, nat-sizing]

@@ -1,0 +1,121 @@
+<Intro>
+
+IPv4 has 2³² addresses, about 4.3 billion, and they ran out years ago. NAT (Module 1 named it: a router rewriting the private addresses of everything behind it to its own public one, topic 27 in full) stretched them, at the price of every connection passing through a translator. **IPv6**, version 6 of the Internet Protocol, has 128-bit addresses, enough to give every device its own global address again. Every cloud supports it beside IPv4, mobile networks run on it, and it changes four things an architect deals with: how addresses are written, how a network is planned, how a machine gets its address, and what protects it. The labs use an office like Layers and packets': laptops `h1` and `h2` on a switch, a router `r1`, the office's internet provider, and a server, `web`, in the cloud.
+
+**Writing an address.** 128 bits are written as eight **groups** of 16 bits each, separated by colons, and each group as four **hex** digits (Layers and packets' hexadecimal: 0 to 9, then `a` to `f` for 10 to 15). One hex digit is 4 bits, which network people call a **nibble**. In full, an address is long: `2001:0db8:0000:0000:0000:ff00:0042:8329`. RFC 5952 sets one **short form**, so that everyone writes an address the same way and a search or a firewall rule finds it:
+
+1. Drop the leading zeros of every group: `0db8` is `db8`, `0042` is `42`, and a group of zeros is `0`. Only leading zeros go: `ff00` stays `ff00`.
+2. Replace the longest run of zero groups with `::`: here the three after `db8`, giving `2001:db8::ff00:42:8329`.
+3. Use `::` only once, because with two nobody could tell how many zeros each stands for. If two runs are equally long, the first gets it; a single zero group stays `0` and is never `::`.
+4. Write the letters in lower case.
+
+To read a short form, count what's written and give `::` the rest: `2001:db8::1` has three groups written, so `::` stands for five. In a URL an address goes in brackets, so its colons aren't read as a port: `http://[2001:db8::80]:8080/`. `sipcalc ADDRESS/64`, from CIDR's toolkit, prints both forms (`Expanded Address` and `Compressed address`) to check your own.
+
+**Prefixes on nibble boundaries.** Prefix lengths mean what they meant in IPv4: `/48` fixes the first 48 bits. Lengths that are multiples of 4 cut between hex digits, so the prefix can be read straight off the text: a /48 is the first three groups, a /56 those and the fourth group's first two digits, a /64 the first four groups. Count the digits with the group written in full: in `2001:db8:abcd:1a::`, the fourth group is `001a`, so its /56 is `2001:db8:abcd::/56`, not `...:1a00::/56`. That's why IPv6 plans stick to /32, /48, /52, /56, /60 and /64.
+
+**The kinds of address.** IPv6 has no broadcast at all. An address is either **multicast** (CIDR's "one packet to many receivers": a group that machines join) or **unicast**, naming one interface. These are the kinds you'll meet:
+
+| Prefix | Kind | Example | What it's for |
+| --- | --- | --- | --- |
+| `2000::/3` | global unicast | `2600:1f18:abcd::5` | public addresses, routed on the internet |
+| `fe80::/10` | link-local | `fe80::8c26:afff:fe7a:9104` | every interface makes one itself; valid on its own link only |
+| `fc00::/7`, in practice `fd` | unique local (ULA) | `fd12:3456:789a:1::10` | private space, routed inside an organisation |
+| `ff00::/8` | multicast | `ff02::1`, all nodes on the link; `ff02::2`, all routers | one packet to every member of a group |
+| `::1` | loopback | `::1` | the machine itself, IPv4's `127.0.0.1` |
+| `::` | unspecified | `::` | "no address yet", used while a host checks one |
+| `2001:db8::/32`, `3fff::/20` | documentation | `2001:db8:42:a::1` | examples and labs; never on the internet (3fff::/20 was added in 2024, RFC 9637) |
+
+A **link-local address** is on every interface, even with no router anywhere: Module 1's `ip -brief addr` showed one beside `10.0.1.23`. IPv6 uses it for its own housekeeping, as the next part shows. The same `fe80::` addresses exist on every link, so using one needs the interface too: `ping fe80::1%eth0`, where `%eth0` is the **zone index**. A **unique local address** (ULA) is IPv6's RFC 1918: `fd` followed by 40 random bits gives a site its own /48, so two companies' ULAs almost never clash the way two `10.0.0.0/8` networks do when they merge. Google Cloud gives a VPC network that uses internal IPv6 a ULA /48 of its own, from `fd20::/20`.
+
+**Neighbour discovery, in place of ARP.** IPv6 has its own version of Layers and packets' ICMP, **ICMPv6**, which carries its error messages (Packet Too Big among them, below) and much more. It replaces ARP with **neighbour discovery** (NDP), five ICMPv6 messages, all kept on the link (each is sent with a **hop limit**, IPv6's name for the TTL, of 255, so one that had crossed a router would be spotted and dropped):
+
+| Type | Message | What it says |
+| --- | --- | --- |
+| 133 | router solicitation (RS) | a host: "any routers here?", to `ff02::2` |
+| 134 | router advertisement (RA) | a router: "I'm a router, here's the prefix", to the asker or to `ff02::1` |
+| 135 | neighbour solicitation (NS) | "who has this address?" (ARP's request) |
+| 136 | neighbour advertisement (NA) | "I have it, here's my MAC address" (ARP's reply) |
+| 137 | redirect | a router: "use that other router for this destination" |
+
+ARP broadcasts its question to every machine. A neighbour solicitation goes to the target's **solicited-node** multicast group, `ff02::1:ff` followed by the address's last 24 bits (`ff02::1:ff7a:9104` for an address ending `fe7a:9104`), which only machines whose addresses end that way have joined, so in practice only the owner is woken. Answers land in the neighbour table, `ip -6 neigh`, with Layers and packets' states (`REACHABLE`, `STALE`, `FAILED`).
+
+**How a host gets its address.** Plug a laptop into an IPv6 network and, with nobody's help:
+
+1. It makes its link-local address, `fe80::` and a 64-bit **interface identifier**, and checks that no other machine has it: **duplicate address detection** (DAD), a neighbour solicitation for its own new address, sent from `::`. No answer within a second, and the address is its own.
+2. It sends a router solicitation. The router answers with a router advertisement: the prefix, `2001:db8:42:a::/64`, with two flags (on-link, and "you may build your own address from this"), and the router's own lifetime as a default router.
+3. It joins the prefix to its interface identifier, checks that address with DAD too, and has a global address. That's **SLAAC**, stateless address autoconfiguration: no server keeps a list of who has what.
+4. It takes a default route to where the advertisement came from: the router's **link-local** address, `default via fe80::446:42ff:fe11:3dca dev eth0 proto ra`. A link-local address never changes when a network is given a new prefix, so the route survives renumbering.
+
+The interface identifier can be made from the MAC address, **EUI-64**: put `ff:fe` in the middle and flip the second-lowest bit of the first byte, so `8e:26:af:7a:91:04` becomes `8c26:afff:fe7a:9104`. The labs use it, because a new namespace does. But an EUI-64 address carries the laptop's MAC address to every network it joins, so most systems now use a **stable** random identifier for each network instead (RFC 7217), and **temporary** addresses that change every day or so for connections they open (RFC 8981). The rule that bites: SLAAC needs a **/64**. A host ignores a prefix of any other length (RFC 4862) and says nothing; it still takes the default route, so it ends up with a route out and no address to send from.
+
+Two alternatives, in a sentence each: **DHCPv6** hands out addresses from a server, as DHCP (the service that gives a machine its IPv4 address when it joins a network) does for IPv4, and the labs don't use it; **prefix delegation** is a router asking its provider for a whole prefix to advertise downstream, which is how home routers get theirs. In the clouds, the platform hands each VM its addresses, and you choose the subnets.
+
+**The router's side.** A Linux router needs two things for its LAN. One is forwarding, a **kernel setting** for each family: `net.ipv4.ip_forward` and `net.ipv6.conf.all.forwarding`, separate settings, so a router can forward IPv4 and drop every IPv6 packet it's handed to pass on. `sysctl KEY` reads a kernel setting, `sysctl -w KEY=VALUE` changes it until the next boot, and settings that last go in files under `/etc/sysctl.d/`, one `key = value` a line, applied at every boot in name order, a later file winning (Routing, topic 26, says more). In the labs each machine has its own `/etc/sysctl.d/`. The other is something to send router advertisements: **radvd**, the router advertisement daemon, whose `/etc/radvd.conf` names the interface and the prefix:
+
+```
+interface lan {
+    AdvSendAdvert on;
+    prefix 2001:db8:42:a::/64 {
+        AdvOnLink on;
+        AdvAutonomous on;
+    };
+};
+```
+
+radvd checks what it can, and its journal is the first place to look (`journalctl -u radvd@r1` in the labs). Given a /56 it says `lan prefix length should be: 64` and advertises it anyway; with IPv6 forwarding off it says `IPv6 forwarding seems to be disabled, but continuing anyway` and still tells every host it's their default router, so they send it everything and it drops it. Both were captured in this topic's labs on 2026-11-12. The labs switch DAD off on every machine, so addresses are ready the moment a network starts, except in the worked example, which switches it on to show it.
+
+**Planning.** An IPv6 plan isn't about saving addresses; it's about being readable. A site gets a **/48**, which holds 2¹⁶ = 65,536 /64 subnets, or a **/56** (256) for a small one, and every subnet is a **/64**, however few machines are on it, because SLAAC needs it. The fourth group is the plan: give its digits meaning, on nibble boundaries. With one digit for the region, one for the zone and two for the tier, `2001:db8:abcd:130a::/64` *says* region 1, zone 3, tier `0a`, and region 1's summary is `2001:db8:abcd:1000::/52`. CIDR's sum still works: a /p holds 2^(64 − p) /64s. Count in hex: tier 10 is `0a`, and a plan that writes it `10` has quietly used tier 16. The three clouds size things differently (their documentation, read 2026-11-12):
+
+| | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| The network's IPv6 | a /56 from Amazon's pool, which you can't choose; up to five blocks in all, /44 to /60 | your own range, which you choose | each subnet has a range of its own; for internal IPv6, the network's ULA /48 from `fd20::/20` |
+| A subnet | /44 to /64, in steps of 4 bits | exactly a /64 | a /64 |
+| A VM's interface | addresses from the subnet | addresses from the subnet | a /96 from the subnet |
+| Kept back | the subnet's first four addresses and its last | not stated for IPv6 on the pages read | the subnet's first and last /96 |
+| IPv6-only VMs | supported | not supported: every network card needs an IPv4 configuration | supported, in IPv6-only subnets |
+
+**Dual stack.** Running both families side by side is **dual stack**: every interface has an IPv4 and an IPv6 address, and a name has both. A **DNS record** is one fact about a name that DNS hands out: an A record holds an IPv4 address (Module 1's `dig` showed them), and an **AAAA record** ("quad A") holds an IPv6 address. Which one does a client use? RFC 6724's default **address selection** table ranks IPv6 above IPv4, so clients try the AAAA address first. And **Happy Eyeballs** (RFC 8305) keeps that from hurting: a client starts an IPv4 attempt 250 milliseconds after the IPv6 one and keeps whichever connects first. So a broken IPv6 path costs each connection a quarter of a second, nobody reports it, and broken IPv6 can go unnoticed for months; a monitor that tests each family on its own catches it. One more line in that table catches people: it ranks a ULA destination below IPv4, so Windows, which follows the table, picks IPv4 over a ULA. Linux keeps an older table that puts the ULA first (on the labs' Ubuntu, `getent ahosts` lists a ULA before an IPv4 address), and an update to RFC 6724 that raises ULAs above IPv4 was waiting to be published in November 2026. So on a network built on ULAs and IPv4, which family a connection uses depends on the machine: test both, don't assume.
+
+Firewalls have to cover both families. nftables tables have a family: `inet` covers IPv4 and IPv6 (the table Module 1 used), `ip` IPv4 only, `ip6` IPv6 only. A server "protected" by a `table ip filter` is wide open over IPv6, and a router whose only filter is an `ip6` table is open over IPv4.
+
+**Egress without NAT.** With an address for every machine, IPv6 needs no translation to reach the internet. What NAT seemed to give, nobody outside opening a connection in, came from its state table, not from the translation: RFC 4864 says plainly that NAT "was not developed as a security mechanism". A **stateful firewall** that admits only replies gives the same protection without rewriting anything. r1's forward chain in the labs is exactly that:
+
+```
+chain forward {
+    type filter hook forward priority filter; policy drop;
+    ct state established,related accept
+    iifname "lan" oifname "wan" accept
+}
+```
+
+The office may open connections out, replies come back, and nothing from `wan` can start one. IPv4 still needs its NAT in a dual-stack office, and only IPv4: a `table ip nat` whose `postrouting` chain says `oifname "wan" masquerade` rewrites the source of every IPv4 packet leaving through `wan` to r1's own address (**masquerade** is nftables' word for that; topic 27 has NAT in full). AWS sells the stateful filter as the **egress-only internet gateway**: IPv6 only, stateful, free itself (data transfer is charged), used through a route `::/0` to it, and it translates nothing. Two more terms in a sentence each. **NAT66** is translating IPv6 addresses to other IPv6 addresses, as IPv4's NAT does, and **NPTv6** swaps one prefix for another one to one (RFC 6296, experimental); you'll rarely need either. **NAT64** lets an IPv6-only machine reach an IPv4-only site: **DNS64** answers a name that has only an A record with a made-up AAAA address in `64:ff9b::/96`, and a NAT64 gateway translates packets for that range to IPv4. Here the clouds differ, and Azure is the one to know. (In the table: AWS's **internet gateway** is a VPC's door to the internet, both ways, which filters nothing; a **NAT gateway** is NAT as a cloud service, which a subnet's machines reach the internet through, from the gateway's own public addresses; a **load balancer** is a service that spreads incoming connections over several servers, and Azure's can also carry their outgoing traffic. A network ACL is a stateless filter on a whole subnet, and a network security group is Azure's security group.)
+
+| | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| IPv6 out to the internet | through an internet gateway, or an egress-only one: never translated | through an instance-level public IP, "directly" in Microsoft's words, or **translated**: a load balancer's outbound rules are source NAT to its public addresses, and a StandardV2 NAT gateway translates to IPv6 public addresses of its own | through external IPv6 addresses, which are public: never translated |
+| Nothing gets in | the egress-only gateway; security groups and network ACLs | a NAT gateway admits nothing unsolicited; network security groups | the firewall's implied rule denies incoming connections |
+| NAT64 | the NAT gateway, with DNS64 | a StandardV2 NAT gateway, with a DNS64 of your own | Cloud NAT, with DNS64 |
+
+So "IPv6 needs no NAT" is true of the protocol, of AWS and of Google; on Azure, IPv6 that leaves through a NAT gateway or a load balancer arrives from the gateway's address, not the VM's own. Azure Firewall doesn't support IPv6 at all yet (all three columns from each provider's pages, read 2026-11-12).
+
+**ICMPv6 is not optional.** Dropping ICMP was already risky in IPv4 (Layers and packets' black hole), and IPv4 routers can at least fragment a packet whose sender allows it. IPv6 routers never fragment at all (RFC 8200): a packet too big for the next link is dropped, and the router sends back ICMPv6 **Packet Too Big** (type 2) with that link's MTU. It's the only way a sender learns the path's MTU. Drop it and Layers and packets' black hole is back, on IPv6 only: small pages load, big uploads hang, IPv4 works. In the worked example's lab it reads `From 2001:db8:ffff:1::1 icmp_seq=1 Packet too big: mtu=1400`. RFC 4890 lists what a firewall must pass through: destination unreachable, Packet Too Big, time exceeded, parameter problem, and ping (echo request and reply). The rule `ct state established,related accept` already lets in the errors about your own connections, which are `related`, so the trap is a "drop ICMPv6" line above it. Neighbour discovery never crosses a router, so a forward chain needn't mention it, but a router's **input** chain must let it in, or the machines next to it can't find it. On Azure you can't write the rule either way: "ICMPv6 isn't currently supported in Network Security Groups".
+
+**Read now:** chapter 8 of Beej's Guide to Network Concepts, the main resource below, for how addresses are written, link-local and special addresses, AAAA records and addresses in URLs. Then APNIC's post on neighbour discovery, with captures of each message; the SURFnet manual's sections 2.3, 2.4, 4.1, 4.2 and 4.4, on /64 subnets, sizes for sites and building a plan; and the three clouds' pages, short: AWS's egress-only gateway, Azure's IPv6 overview (its Capabilities and Limitations) and Google's subnets page (its IPv6 parts). The optional ones are another explanation of SLAAC, the two RFC sections behind the short form and ICMPv6 filtering, and Azure's NAT gateway. The quick questions read and write addresses, count subnets in hex and read real `ip` output. The labs: a walkthrough of a dual-stack office that watches a laptop configure itself; a router's advertisements and forwarding to finish; a script that prints a site's address plan; a branch to make dual stack, firewall and all; and an office where IPv4 works and IPv6 doesn't.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **128 bits, eight groups of four hex digits** (a digit is a nibble, 4 bits). Short form (RFC 5952): drop leading zeros, `::` once for the longest run of zero groups (the first if two tie, never one group), lower case: `2001:db8::ff00:42:8329`. `[2001:db8::80]:8080` in URLs.
+- **Kinds:** global `2000::/3`; link-local `fe80::` on every interface (`%eth0`); unique local `fd...`; multicast `ff02::1` all nodes, `ff02::2` all routers, solicited-node `ff02::1:ff` + last 24 bits; loopback `::1`; unspecified `::`; documentation `2001:db8::/32` and `3fff::/20`. **No broadcast.**
+- **Neighbour discovery** (ICMPv6, on the link only): RS 133, RA 134, NS 135, NA 136, redirect 137. `ip -6 neigh` is IPv6's ARP table.
+- **SLAAC:** link-local address, DAD (NS from `::`), RS, RA with the prefix, address = prefix + interface identifier (EUI-64, or stable and temporary random ones), DAD again, default route via the router's **link-local** address (`proto ra`). **A /64 or no address**; radvd warns `prefix length should be: 64`.
+- **The router:** `net.ipv6.conf.all.forwarding = 1` in `/etc/sysctl.d/` (separate from IPv4's), radvd's `/etc/radvd.conf` (`interface`, `AdvSendAdvert on`, `prefix .../64`).
+- **Plan:** a /48 per site (65,536 /64s) or a /56 (256); every subnet a /64; hex digits for region, zone, tier on nibble boundaries; 2^(64 − p) /64s in a /p. AWS: /56 per VPC, subnets /44 to /64. Azure: subnets exactly /64, no IPv6-only VMs. Google: /64 subnets, a /96 per interface, a ULA /48 from `fd20::/20`.
+- **Dual stack:** A and AAAA records; clients prefer IPv6 and race IPv4 250 ms later (Happy Eyeballs), so broken IPv6 hides; RFC 6724 ranks ULAs below IPv4 (Windows follows it, Linux doesn't), so test which family a ULA network really uses. One `inet` table filters both families; `ip` is IPv4 only.
+- **Egress:** no NAT needed; a stateful firewall (`ct state established,related accept`, then inside to outside only) protects as NAT seemed to. IPv4 keeps its NAT: `oifname "wan" masquerade` in a `table ip nat`. AWS's egress-only internet gateway; Google's implied deny ingress; **Azure translates** IPv6 sent through a NAT gateway or a load balancer's outbound rules. NAT64 with DNS64 (`64:ff9b::/96`) for IPv6-only to IPv4.
+- **ICMPv6:** routers never fragment, so **never drop Packet Too Big** (type 2), or big IPv6 transfers hang; let neighbour discovery into a router's input chain.
+
+</Recap>

@@ -1,0 +1,22 @@
+id: est-sites-in-32
+type: estimate
+rev: 1
+prompt: |
+  An internet provider has a /32 and gives each customer site a /48. How many sites can it number? Exactly.
+unit: sites
+answer: 65536
+tolerance: { absolute: 0 }
+given: { org: 32, site: 48 }
+working: 2 ** (site - org)
+mistakes:
+  - id: bits-not-sites
+    value: 16
+    working: site - org
+    why: That's the number of bits between the two prefixes. 16 bits make 2 to the 16th sites.
+  - id: one-digit-short
+    value: 4096
+    working: 2 ** (site - org - 4)
+    why: That counts one hex digit too few. A /32 to a /48 is 16 bits, four hex digits, so 2 to the 16th.
+explanation: |
+  48 − 32 = 16 bits, the whole third group, so 2¹⁶ = 65,536 sites of a /48, each holding 65,536 subnets of its own. The same 16-bit step appears twice in a plan: /32 to /48 for sites, /48 to /64 for subnets. RIRs (the regional registries that hand out addresses) give providers a /32 or more for this reason.
+skills: [v6-plan]

@@ -1,0 +1,16 @@
+id: mcq-more-addresses
+type: mcq
+rev: 1
+prompt: |
+  One busy VM behind Google Cloud NAT, with static port allocation at the default of 64 ports per VM, runs out of ports talking to one API. The team adds a second NAT address to the gateway. What changes for that VM?
+choices:
+  - "Nothing: it keeps its 64 ports, so it needs more ports per VM or dynamic allocation"
+  - "It gets twice the ports, because each new address adds 64,512 for every VM to share"
+  - "It recovers once the idle timeout passes and its old mappings move to the new address"
+  - "It gets more ports for UDP only, because its TCP mappings stay with the first address"
+answer: 0
+explanation: |
+  With static allocation, Cloud NAT reserves a fixed block of ports for each VM, and "the number of ports allocated to each VM is fixed and doesn't change" (Google's "IP addresses and ports" page, read 2026-11-12). A second address adds 64,512 ports to the gateway, which lets it serve another 1,008 VMs at 64 each, but the busy VM's block is still 64. The fixes are a higher minimum ports per VM, or dynamic port allocation, which hands a VM more ports as it needs them (up to 65,536 by default).
+
+  AWS's and Azure's gateways are the other way: they share every address's ports among all their clients on demand, so there a second address does help. Nothing moves mappings to the new address at the idle timeout, and TCP and UDP each have their own ports on every address alike.
+skills: [port-exhaustion, nat-sizing]

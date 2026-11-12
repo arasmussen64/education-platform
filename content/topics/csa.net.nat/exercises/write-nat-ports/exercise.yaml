@@ -1,0 +1,44 @@
+id: write-nat-ports
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "NAT ports"
+prompt: |
+  From a blank file, write `~/bin/nat-ports`, a bash script that reads a gateway's saved connection table and says, for each destination, how many of the NAT's ports it is using and how close it is to running out. It's the first thing to look at when connections to one place start timing out.
+
+  It's run as `nat-ports FILE PORTS`. FILE is the output of `conntrack -L` saved with its error stream (`sudo conntrack -L > FILE 2>&1`), and PORTS is how many NAT ports the gateway's one public address has for each destination. The file's lines have four shapes, as the walkthrough showed:
+
+  - a TCP line: `tcp      6 431954 ESTABLISHED src=10.1.0.10 dst=203.0.113.10 sport=53511 dport=443 src=203.0.113.10 dst=198.51.100.2 sport=443 dport=11441 [ASSURED] mark=0 use=1`, with a state word after the timeout, and sometimes `[UNREPLIED]` after the first tuple;
+  - a UDP line: `udp      17 89 src=10.1.0.20 dst=203.0.113.53 sport=55357 dport=53 src=203.0.113.53 dst=198.51.100.2 sport=53 dport=52937 [ASSURED] mark=0 use=1`, with no state word;
+  - an ICMP line, which has no ports at all: `icmp     1 21 src=10.1.0.10 dst=203.0.113.53 type=8 code=0 id=5651 ...`;
+  - conntrack's own count line, which it writes to the error stream: `conntrack v1.4.8 (conntrack-tools): 24 flow entries have been shown.`, first or last.
+
+  Every TCP or UDP line is one connection holding one NAT port. A **destination** is a protocol, an address and a port, read from the line's first tuple, the one the inside machine sent: its first `dst=` and its first `dport=`. ICMP lines and the count line aren't counted.
+
+  For each destination, busiest first, the script prints one line: the protocol, `ADDRESS:PORT`, the number of connections, and that number as a percentage of PORTS, rounded down to a whole number, with a `%`. When the count is PORTS or more the line ends ` FULL`; otherwise, when the percentage is 80 or more, it ends ` WARN`. Single spaces between the parts. No two destinations in the checks' listings have the same count, so you needn't decide which of two equal ones comes first.
+
+  `awk` reads a line's words as `$1`, `$2` ... and `NF` is how many there are, so `for (i = 2; i <= NF; i++)` visits each word, `$i ~ /^dst=/` asks whether a word starts with `dst=`, and `substr($i, 5)` is the word from its fifth character on (what follows `dst=`). An array counts things by name: `count[key]++`, and `for (key in count)` in an `END` block visits each name once at the end. `int(x)` rounds down, `printf "%d%%\n", n` prints a number and a `%`, and `sort -k3,3nr` sorts lines by their third word as a number, largest first. Pass PORTS into awk with `awk -v ports="$2" '...' "$1"`.
+
+  Make the file with `nano ~/bin/nat-ports`, start it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/nat-ports`. ShellCheck must have nothing to say about it (`shellcheck ~/bin/nat-ports`). Try it on a gateway's lunchtime listing, whose public address had only 10 ports:
+
+  ```
+  ~/bin/nat-ports ~/listings/lunch.txt 10
+  ```
+
+  which should print:
+
+  ```
+  tcp 203.0.113.10:443 10 100% FULL
+  udp 203.0.113.53:53 8 80% WARN
+  tcp 203.0.113.10:80 4 40%
+  tcp 203.0.113.53:53 1 10%
+  ```
+
+  The checks run it on listings of their own, three of them made up as the checks run.
+hints:
+  - "One shape that works: one awk program over the file. For each line whose first word is `tcp` or `udp`, find the first `dst=` and the first `dport=` (keep each only while it is still empty), and count `$1 \" \" dst \":\" dport` in an array. In `END`, work out each one's percentage and flag and print its line; pipe the whole output into `sort`."
+  - "The first tuple is always first on the line, so the first `dst=` you meet is the destination; the second one, in the reply tuple, is the gateway's own address. Don't count words to find it: a UDP line has no state word, so its `dst=` is one place earlier than a TCP line's."
+  - "FULL is decided by the count (`n >= ports`), WARN by the rounded-down percentage (80 or more). A count exactly at PORTS is FULL, not WARN."
+skills: [port-exhaustion, nat-sizing]

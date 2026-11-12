@@ -1,0 +1,16 @@
+id: mcq-replies-need-no-rule
+type: mcq
+rev: 1
+prompt: |
+  gw's only NAT rule is `oifname "wan" masquerade`, in a `postrouting` chain. The office laptop, 10.1.0.10, fetches a page from srv, and srv sends its answer to 198.51.100.2, gw's public address. How does the answer reach the laptop?
+choices:
+  - "conntrack remembers the translation and reverses it on every reply that comes back"
+  - "nftables adds a matching reverse rule to prerouting when the first packet goes out"
+  - "srv sends its replies straight to the laptop's private address, 10.1.0.10, instead"
+  - "gw's default route sends everything arriving on wan back towards the shop's LAN"
+answer: 0
+explanation: |
+  When the laptop's first packet leaves, gw records the connection in conntrack with two tuples: the original as the laptop sent it (from 10.1.0.10) and the reply as srv will send it (to 198.51.100.2 and the port gw chose). Every later packet that matches the reply tuple is translated back, its destination rewritten to 10.1.0.10 and the port the laptop used, and routed out of `lan`. That's why a NAT gateway needs no rule for replies, just as Module 1's `ct state established,related accept` needs no rule for them.
+
+  No rule is added anywhere: `nft list ruleset` stays as it was, and `conntrack -L` shows the state instead. srv can't answer 10.1.0.10 directly: the internet has no route to a private address, which is the reason for NAT in the first place. And gw's default route points the other way, out of `wan`; a route can't rewrite an address.
+skills: [snat-and-dnat]

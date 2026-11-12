@@ -1,0 +1,24 @@
+id: est-nat-data-cost
+type: estimate
+rev: 1
+prompt: |
+  AWS's pricing page gives a NAT gateway in US East (Ohio) at $0.045 an hour and $0.045 per GB of data it processes. One gateway runs all month (730 hours) and processes 40000 GB. What is that month's bill for the gateway, leaving out data transfer charges? Within 5%.
+unit: US dollars
+answer: 1832.85
+tolerance: { percent: 5 }
+given: { hourly: 0.045, hours: 730, per_gb: 0.045, gb: 40000 }
+working: hourly * hours + per_gb * gb
+mistakes:
+  - id: hours-only
+    value: 32.85
+    working: hourly * hours
+    why: "That's only the hourly charge. A NAT gateway also charges for every gigabyte it processes, and here that's most of the bill."
+  - id: per-terabyte
+    value: 34.65
+    working: hourly * hours + per_gb * 40
+    why: "That charges $0.045 per terabyte. The price is per gigabyte, and 40000 GB is 40000 of them."
+explanation: |
+  The hours: 730 × $0.045 = $32.85. The data: 40000 GB × $0.045 = $1,800. In all $1,832.85, nearly all of it for processing. If the 40000 GB is S3 traffic in the same region, a gateway endpoint carries it for nothing ("There are no data processing or hourly charges for using Gateway Type VPC endpoints", the same page, read 2026-11-12), which saves the $1,800. Google's Cloud NAT charges $0.045 per GiB processed as well (its pricing page, the same day).
+skills: [avoid-nat, nat-sizing]
+prices_as_of: 2026-11-12
+prices_source: https://aws.amazon.com/vpc/pricing/

@@ -1,0 +1,22 @@
+id: mcq-port-range-protocol
+type: mcq
+rev: 1
+prompt: |
+  On gw, `nft add rule ip nat postrouting oifname "wan" snat to 198.51.100.2:20000-20009` fails (captured in the walkthrough's lab, 2026-11-12):
+
+  ```
+  Error: transport protocol mapping is only valid after transport protocol match
+  ```
+
+  Why?
+choices:
+  - "A port exists only in TCP or UDP, so the rule must first say which protocol"
+  - "A port range is allowed only with masquerade, never with snat to an address"
+  - "A source NAT range has to start above 1024, outside the well-known ports"
+  - "A port range needs nftables' `random` flag after it before it is accepted"
+answer: 0
+explanation: |
+  Ports are part of the TCP and UDP headers, not of IP, so "translate to ports 20000 to 20009" only means something once the rule knows the packet has ports. nft's error says so in its own words: a port mapping is only valid after a match on the transport protocol (the transport layer is where TCP and UDP sit). Put a protocol match first: `oifname "wan" ip protocol tcp snat to 198.51.100.2:20000-20009`, or `meta l4proto { tcp, udp }` for both, or a `tcp dport` match, which implies TCP.
+
+  `snat to ADDRESS:PORTS` is the normal way to give a range; masquerade takes one too (`masquerade to :20000-20009`), with the same rule. Ranges below 1024 are allowed, though the clouds' NAT gateways leave those ports out. `random` changes how ports are picked within the range; it isn't needed.
+skills: [nat-rules]

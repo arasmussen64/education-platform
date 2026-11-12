@@ -1,0 +1,83 @@
+<Intro>
+
+IPv4 and CIDR showed that the private ranges, 10.0.0.0/8 and the rest, are never routed on the internet; Routing showed that a reply needs a route back. Put the two together and a laptop at 10.1.0.10 can send a packet to a web server on the internet, but the answer has nowhere to go. **NAT**, network address translation, fixes that by rewriting addresses in packets as they pass a gateway. It is on every home router and in every cloud network, and it explains a whole family of failures: the server that sees every customer as one address, the published service that times out, the payments that fail only at lunchtime. Five ideas carry the topic: what each kind of NAT rewrites, how to write the rules, how many connections a NAT can carry, how running out looks, and when not to use NAT at all.
+
+**Source NAT, one packet at a time.** The walkthrough's capture, from its lab on 2026-11-12: the office laptop opens a connection to srv, and its packet leaves as `10.1.0.10:48902 → 203.0.113.10:9000` (address and port, from and to). The shop's gateway, gw, rewrites the source to its own public address and a port of its choosing, `198.51.100.2:20000`, and writes the pair down. srv answers to `198.51.100.2:20000`; gw looks the pair up, rewrites the destination back to `10.1.0.10:48902`, and passes the answer in. Rewriting the source is **source NAT** (SNAT). Many inside machines share one public address this way, kept apart by port: the textbooks call it **PAT** (port address translation) or **NAPT**, and it's what every home router and cloud NAT gateway does. The table gw writes in is conntrack, from Module 1. `conntrack -L` shows each connection as two **tuples** (a tuple is the set of protocol, addresses and ports that names a connection): the **original**, as the laptop sent it, and the **reply**, as srv will send its answers.
+
+```text
+tcp      6 431998 ESTABLISHED src=10.1.0.10 dst=203.0.113.10 sport=48902 dport=9000 src=203.0.113.10 dst=198.51.100.2 sport=9000 dport=20000 [ASSURED] mark=0 use=1
+```
+
+So **replies need no rule**: conntrack reverses the translation on every packet that matches the reply tuple. The **5-tuple**, protocol plus source address and port plus destination address and port, is what tells one connection from another. In nftables, `snat to 198.51.100.2` names a fixed address; **masquerade** is source NAT to whatever address the outgoing interface has at that moment, for a line whose address can change. On Linux, masquerade keeps the client's own port when it's free (the walkthrough's port-80 test left as `sport=42546`, answered to `dport=42546`).
+
+**Destination NAT, and what the server sees.** **Destination NAT** (DNAT, or port forwarding) rewrites the destination instead: `iifname "wan" tcp dport 443 dnat to 10.1.0.20:8443` sends customers who reach the gateway's port 443 on to the app (`iifname "wan"` matches packets that came in through gw's interface named `wan`; `oifname`, below, matches the interface a packet is about to leave by). The source stays the customer's, so the app's logs and its **rate limiter** (which counts requests per client address and blocks one that sends too many) see each real customer: `you are 203.0.113.20`. That is worth protecting. Write a masquerade rule without `oifname "wan"` and it also rewrites the customers' connections on their way in to the LAN, and the app sees everyone as the gateway, `you are 10.1.0.1`: the walkthrough's classic mistake. (An inside machine using the public address, **hairpinning**, needs extra rules; in the lab, the office got `Couldn't connect to server`.)
+
+**Where in the path.** Module 1's hooks, with NAT added:
+
+```text
+packet in → prerouting (DNAT) → routing decision → forward (filter) → postrouting (SNAT) → packet out
+```
+
+DNAT goes in a chain on `prerouting` (priority `dstnat`), before the routing decision, because it changes where the packet goes. SNAT goes on `postrouting` (priority `srcnat`), after it, once the way out is known. (A chain's **priority** orders it among the chains on the same hook; `dstnat` and `srcnat` are nft's names for the places NAT belongs, and nft refuses either one on the other's hook.) So the `forward` chain in between sees an outgoing packet's inside source and a published connection's inside destination. With Module 1's `policy drop` there, a published connection's first packet arrives on `wan` and matches neither `ct state established,related accept` nor `iifname "lan" oifname "wan" accept`, so it's dropped: the gateway also needs **`ct status dnat accept`**, which accepts connections that destination NAT rewrote, the line people forget. A NAT rule is applied to a connection's first packet; conntrack does the rest, and the first rule that matches wins, so a narrow source NAT rule goes before a general one. A port range needs a protocol first: `snat to 198.51.100.2:20000-20009` alone fails with `transport protocol mapping is only valid after transport protocol match`, while `ip protocol tcp snat to ...` loads. And NAT is not a firewall: anyone on your provider's network can send packets addressed to your private range to your gateway, and only the forward chain's drop stops them. The labs' checks do exactly that.
+
+The whole gateway, in `/etc/nftables.conf`:
+
+```text
+table ip nat {
+    chain prerouting {
+        type nat hook prerouting priority dstnat; policy accept;
+        iifname "wan" tcp dport 443 dnat to 10.1.0.20:8443
+    }
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        oifname "wan" masquerade
+    }
+}
+```
+
+with the filter table's forward chain from above (`policy drop`, `ct state established,related accept` and `iifname "lan" oifname "wan" accept`) plus `ct status dnat accept`, and forwarding on in the gateway's `/etc/sysctl.d/` (Routing).
+
+**How many connections? Per destination.** A NAT keeps its translations apart by the whole 5-tuple. Two connections can share one public address and port as long as they go to different destinations; only connections to the same **destination** (address, port and protocol) each need a port of their own. The walkthrough's ten-port rule held 10 of 15 connections to srv's port 9000, and at the same time 5 more to port 9001 through the same ten ports. RFC 4787 calls the related habit **endpoint-independent mapping**: one inside address and port keep the same outside address and port, whatever they talk to. So a NAT's capacity is ports per public address **per destination**, and the addresses a NAT needs are `connections to the busiest destination ÷ connections per address`, rounded up. One Linux trap: given a range of addresses, Linux sends one client's connections to one destination from one address, so the range doesn't add up for a single busy client.
+
+Each cloud sells a managed NAT gateway, and their numbers differ (each provider's page, read 2026-11-12). AWS's is **zonal**, in one zone, unless you make it **regional**, spanning all of a region's zones:
+
+| | AWS NAT gateway | Azure NAT Gateway | Google Cloud NAT |
+| --- | --- | --- | --- |
+| Per public address | up to 55,000 simultaneous connections to each unique destination; ports 1024 to 65535 | 64,512 SNAT ports; up to 50,000 concurrent connections to the same destination | 64,512 TCP and 64,512 UDP ports (0 to 1023 unused) |
+| Addresses | up to 8 on a zonal gateway (2 by default); 32 per zone on a regional one | up to 16 IPv4 (StandardV2: 16 IPv6 too) | added and removed as needed by default, or assigned by you |
+| How ports are shared | on demand, by every client | on demand, by every VM in its subnets | a fixed block per VM: 64 by default (static allocation), or growing as needed (dynamic, minimum 32) |
+| Idle timeout | 350 s, then a reset to the inside host | TCP 4 minutes by default (4 to 120); UDP 4 minutes, fixed | TCP established 1,200 s; TCP opening or closing 30 s; UDP 30 s |
+| Exhaustion shows as | `ErrorPortAllocation` above zero | `SNAT Connection Count`, filtered to Failed, above zero | `dropped_sent_packets_count` with reason `OUT_OF_RESOURCES` |
+| Price | $0.045 an hour and $0.045 per GB processed (US East, Ohio) | per hour and per GB processed | per VM hour ($0.0014 each up to 32 VMs) and $0.045 per GiB |
+
+The difference that bites is Google's: static allocation reserves ports per VM, so one NAT address at the default serves 64,512 ÷ 64 = 1,008 VMs, and one busy VM can run out while the address still has ports to spare. Adding an address there doesn't help that VM; more ports per VM, or dynamic allocation, does. On AWS and Azure, a second address adds ports for everyone.
+
+**Time holds ports too.** A port isn't free the moment its connection closes. Azure holds it 65 seconds after a **FIN** (the packet that closes a TCP connection politely), 16 after a reset, 30 for a connection left half-open, and 65 for UDP, before reusing it for the same destination; Linux's own `TIME-WAIT` is 60 seconds, on the side that closed first (Module 1). And a quiet connection keeps its port until the NAT's idle timeout forgets it. So ports in use ≈ new connections a second × seconds each port is held: 20 short connections a second to one API, through Azure, tie up about 20 × 65 = 1,300 ports. Long idle timeouts tie ports up; short ones cut quiet connections (the next topic, TCP and UDP, has keepalives for that). Google's closed-connection timer, TCP `TIME_WAIT`, is 30 seconds on gateways created after 2026-09-30 and 120 on older ones.
+
+**Port exhaustion, and how it looks.** When a NAT has no free port for a destination, it drops the new connection's first packet: nothing refuses it, the client sends it again, and the connection **times out**. Connections already open carry on, and connections to other destinations still work, because each destination has its own pool. That pattern, timeouts to one busy destination at the busy hour, is **port exhaustion**. On Linux, `conntrack -S` counts each dropped attempt under `insert_failed`, retries included, so the count runs ahead of the failed connections (the walkthrough: 15 for 5). In the clouds, read the metric in the table above (a **metric** is a number the cloud records about a resource every minute and can graph and alert on). The remedies, best first:
+
+1. Open fewer new connections: reuse a few open connections for many requests (HTTP calls it keep-alive; code keeps a pool of them).
+2. More public addresses, on AWS and Azure; on Google, more ports per VM or dynamic allocation.
+3. Shorter idle timeouts, so forgotten connections give their ports back sooner.
+4. A private path to the service that needs no NAT at all (next part).
+
+**When not to NAT, and when to.** IPv6 gives every machine its own global address, so IPv6 egress needs no NAT: AWS's egress-only internet gateway (IPv6) lets connections out and none in, translating nothing; on Azure, IPv6 that leaves through a NAT gateway or a load balancer's outbound rules is translated anyway. Cloud services have private paths: an AWS **gateway endpoint** sends a subnet's traffic for S3 (AWS's object storage, for files of any kind) or DynamoDB (one of its database services) to the service through a route-table entry, at no charge and with no ports, and a **private endpoint** gives a service a private address inside your network (Module 11 builds both). 40 TB a month from S3 through a NAT gateway is $1,800 of processing that a gateway endpoint carries for nothing. A service with several servers belongs behind a **load balancer** (a service that takes connections on one address and spreads them over several servers; it has a topic of its own) rather than a DNAT rule per server. Anything that must see real clients breaks if inbound traffic is source-NATed, and protocols that write addresses inside their own messages need help to cross a NAT at all. NAT is the right tool for two networks on overlapping ranges, as after a merger, and for a partner that allow-lists one outbound address. Internet providers run **carrier-grade NAT**, many customers behind a few public addresses, on the shared address space `100.64.0.0/10` (RFC 6598): not a range to pick for a cloud network, since it clashes with those customers, and Azure's default route table drops it unless your network uses it. NAT64 (IPv6) is NAT between the two families, for IPv6-only machines.
+
+**Read now:** the main video below, Practical Networking's "Dynamic PAT" (15 minutes), which follows packets through a translation in both directions. Then the nftables wiki's NAT page, for the statements (about 9 minutes); Azure's "Source Network Address Translation (SNAT) with Azure NAT Gateway", for ports shared on demand and the cool-down (10 minutes); and, from AWS's and Google's pages under More resources, the sections the table above came from (about 10 minutes). The other videos and pages are optional. The quick questions read conntrack and nft output from the labs and do the sizing sums with the clouds' real numbers. The labs: a walkthrough that turns gw into a NAT gateway and runs it out of ports, a gateway file to finish, a script that reads a connection table for exhaustion, a gateway to build from a fresh server, and a gateway with three faults behind one lunchtime.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **NAT** rewrites addresses as packets pass. **SNAT** rewrites the source (to `snat to ADDRESS`, or **masquerade**, the outgoing interface's address); **DNAT** rewrites the destination (port forwarding). Many machines sharing one address by port is **PAT**/NAPT.
+- **conntrack** holds each translation as two tuples, **original** and **reply**; replies are translated back with no rule. A **5-tuple** (protocol, source and destination address and port) names a connection.
+- **Hooks:** DNAT in `prerouting` (`priority dstnat`, before routing), SNAT in `postrouting` (`priority srcnat`, after it); `forward` sees inside addresses. A published port needs **`ct status dnat accept`** in forward. First matching NAT rule wins. A port range needs a protocol match. Limit source NAT with `oifname "wan"`, or the inside server sees every client as the gateway.
+- **NAT isn't a firewall:** the forward chain's `policy drop` is what keeps the internet out of a private network.
+- **Capacity is per destination** (address, port, protocol): AWS 55,000 connections per address per destination, up to 8 addresses (32 per zone, regional); Azure 64,512 SNAT ports per address (50,000 connections to one destination), up to 16; Google 64,512 ports per address in per-VM blocks, 64 by default, so 1,008 VMs an address.
+- **Time holds ports:** Azure's hold-down 65 s after a FIN (16 after a reset); Linux's TIME-WAIT 60 s; idle timeouts AWS 350 s, Azure 4 minutes, Google 1,200 s for TCP. Ports in use ≈ rate × hold.
+- **Exhaustion** = new connections to one destination **time out** while others work; `insert_failed` in `conntrack -S` (retries counted); AWS `ErrorPortAllocation`, Azure `SNAT Connection Count` Failed, Google `OUT_OF_RESOURCES`. Fix: reuse connections, then more addresses (Google: more ports per VM), shorter idle timeouts, a private path.
+- **Avoid NAT** for IPv6 (egress-only gateway), cloud services (gateway or private endpoints, no per-GB NAT charge), inbound services (a load balancer). **Use it** for overlapping ranges and allow-listed addresses. `100.64.0.0/10` is carrier-grade NAT's.
+
+</Recap>

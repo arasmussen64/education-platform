@@ -1,0 +1,22 @@
+id: est-region-nibble
+type: estimate
+rev: 1
+prompt: |
+  A company has a /40 and gives each region a /44. How many regions can it number? Exactly.
+unit: regions
+answer: 16
+tolerance: { absolute: 0 }
+given: { org: 40, region: 44 }
+working: 2 ** (region - org)
+mistakes:
+  - id: bits-not-regions
+    value: 4
+    working: region - org
+    why: That's the number of bits between the two prefixes. 4 bits make 2 to the 4th regions.
+  - id: sites-in-the-40
+    value: 256
+    working: 2 ** (48 - org)
+    why: That's how many /48 sites the whole /40 holds. The regions are /44s, one hex digit after the /40.
+explanation: |
+  44 − 40 = 4 bits, one hex digit, so 2⁴ = 16 regions, each a /44 holding 16 sites of a /48. The region is the third group's third digit: in `2001:db8:a700::/40`, region 5 is `2001:db8:a750::/44`.
+skills: [v6-plan]

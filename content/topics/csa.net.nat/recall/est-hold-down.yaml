@@ -1,0 +1,22 @@
+id: est-hold-down
+type: estimate
+rev: 1
+prompt: |
+  A service opens 20 new connections a second to the same API through an Azure NAT gateway. Each lasts a fraction of a second and closes with a FIN, after which the gateway holds its port for 65 seconds before it will reuse it for that destination. About how many of the gateway's ports are tied up with that API at any moment? Within 5%.
+unit: ports
+answer: 1300
+tolerance: { percent: 5 }
+given: { rate: 20, hold: 65 }
+working: rate * hold
+mistakes:
+  - id: time-wait
+    value: 1200
+    working: rate * 60
+    why: "60 seconds is Linux's TIME-WAIT. Azure's NAT gateway holds a port for 65 seconds after a FIN, the figure the question gives."
+  - id: open-only
+    value: 20
+    working: rate
+    why: "That counts only the connections open in one second. Each closed connection's port stays held for 65 seconds, so 65 seconds' worth of connections hold ports at once."
+explanation: |
+  Ports in use = how fast they're taken × how long each is kept. Each second 20 ports are taken, and each is kept about 65 seconds (the fraction of a second the connection is open hardly matters), so about 20 × 65 = 1300 are held at any moment. Azure's hold-downs after a close (its "NAT Gateway Resource" page, read 2026-11-12): 65 seconds after a FIN, 16 after a reset, 30 for a connection left half open, 65 for UDP. The same sum shows why reusing connections helps so much: one connection kept open for all the requests holds one port.
+skills: [nat-sizing]

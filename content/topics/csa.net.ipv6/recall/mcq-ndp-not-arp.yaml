@@ -1,0 +1,16 @@
+id: mcq-ndp-not-arp
+type: mcq
+rev: 1
+prompt: |
+  IPv6 has no broadcast. How does h1 find the MAC address of a neighbour on its link at `2001:db8:42:a::25`?
+choices:
+  - "It sends an ARP request to the all-nodes group, `ff02::1`, and that neighbour replies"
+  - "It reads the MAC address out of the IPv6 address, since every address has one inside"
+  - "It asks the router, which keeps the only table of MAC addresses there is on the link"
+  - "It sends a neighbour solicitation to the address's solicited-node multicast group"
+answer: 3
+explanation: |
+  Neighbour discovery does ARP's job with ICMPv6. h1 sends a neighbour solicitation, "who has `2001:db8:42:a::25`?", to that address's solicited-node group: `ff02::1:ff` followed by the address's last 24 bits, here `ff02::1:ff00:25`. Only machines whose addresses end in those 24 bits have joined that group, so in practice only the owner is woken, and it answers with a neighbour advertisement carrying its MAC address. h1 keeps the answer in its neighbour table, `ip -6 neigh`.
+
+  IPv6 has no ARP at all, and sending to `ff02::1` would wake every machine on the link, which is the broadcast IPv6 got rid of. An EUI-64 address does contain the MAC address, but most systems now make addresses that don't, and a host can't know which kind it's looking at. And every host keeps its own neighbour table; the router's is only its own.
+skills: [v6-address-types]

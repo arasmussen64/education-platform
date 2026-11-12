@@ -1,0 +1,52 @@
+id: example-meet-ipv6
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Meet IPv6"
+prompt: |
+  If this is your first network lab, read the note at the top of Layers and packets' worked example, `example-follow-a-request`, first: it shows how a lab's machines, `on` and `netlab show` work.
+
+  This lab is an office that runs **dual stack**, IPv4 and IPv6 side by side. Its laptops, `h1` and `h2`, are on the office's switch with its router, `r1`. Beyond r1 are the office's internet provider, `isp`, a narrower link inside the provider's network (MTU 1400), and `web`, a server in the cloud at 203.0.113.80 and `2001:db8:80::80`, which the laptops know by the name `web.shop.test`. web runs the lab's test service: port 8080 answers each connection with the address it came from.
+
+  The laptops' IPv4 is given to them, as an office's DHCP server would. Their IPv6 they make themselves, from r1's router advertisements. The walkthrough reads r1's settings, then a laptop's addresses and routes, watches h2 configure itself from nothing, and then looks at dual stack, at the firewall that keeps the internet out, and at a packet too big for the path. Type each line yourself in the lab's shell and read what it prints before you type the next. A line ending in `&` runs in the background, so the next line can make traffic while it captures; `wait` waits for it to finish. Your addresses will differ from the ones in the notes: they're made from the laptops' MAC addresses, which are new at every boot.
+steps:
+  - label: "The machines"
+    lines: "1"
+    note: "Every interface has an `fe80::` address besides any others: its **link-local** address, which it gives itself. h1 and h2 also have a global address in `2001:db8:42:a::/64`, the office's subnet, which nobody typed in. `netlab show` calls r1 a host, not a router, because netlab's router role would switch forwarding on for it; in this lab r1's forwarding is r1's own setting, in its own files, as on a real router."
+  - label: "r1's settings"
+    lines: "2-4"
+    note: "r1's network file gives its LAN interface `2001:db8:42:a::1/64`, the first address of the office's subnet, beside `192.168.10.1/24`, and its internet link an address of each family with a default route of each. Its `/etc/sysctl.d/90-forward.conf` sets two kernel settings, applied at every boot: forwarding for IPv4 and for IPv6, which are separate settings. A router that forwards only one family still answers the other on its own addresses. `/etc/radvd.conf` is radvd's file: on the interface `lan`, send router advertisements (`AdvSendAdvert on`), and in them the prefix `2001:db8:42:a::/64`, which is on this link (`AdvOnLink on`) and from which hosts may build their own addresses (`AdvAutonomous on`)."
+  - label: "A laptop's addresses"
+    lines: "5-6"
+    note: "Two `inet6` lines. `2001:db8:42:a:8c26:afff:fe7a:9104/64 scope global dynamic mngtmpaddr` is the global address: `dynamic` means it came with lifetimes from an advertisement (`valid_lft 86396sec` counts down, and each new advertisement tops it up), and `mngtmpaddr` that the kernel may make temporary addresses from it (here it doesn't: `use_tempaddr` is 0). `fe80::8c26:afff:fe7a:9104/64 scope link` is the link-local address, `valid_lft forever`: the laptop made it itself, with no router at all. Both end in the same 64 bits, the **interface identifier**, built from the MAC address on the next line: `8e:26:af:7a:91:04` with `ff:fe` put in the middle and the second-lowest bit of the first byte flipped (`8e` becomes `8c`). That recipe is **EUI-64**."
+  - label: "The default route points at a link-local address"
+    lines: "7-8"
+    note: "Three routes. `2001:db8:42:a::/64 dev eth0` is the subnet, on this link; `fe80::/64` is the link-local range; and `default via fe80::446:42ff:fe11:3dca dev eth0 proto ra` is the default route, learned from a router advertisement (`proto ra`) and timed (`expires 1795sec`). Its next hop is a link-local address, and r1's `lan` shows it is r1's. Routers advertise from their link-local address, so a host's default route survives the global prefix being changed. A link-local address means nothing without its link, which is why the route says `dev eth0` (written `fe80::...%eth0` where an address alone is asked for)."
+  - label: "Watch a laptop configure itself"
+    lines: "9-12"
+    note: "The capture on r1's `lan` keeps only frames to or from h2's MAC address (`ether host`), so it shows h2 alone. Switching IPv6 off and on again on h2's `eth0` makes h2 start its IPv6 from nothing, as a laptop does when it joins a network. Four messages, all ICMPv6: a **neighbour solicitation** from `::`, the unspecified address, asking who has h2's new link-local address: that's **duplicate address detection** (DAD), h2 checking nobody else uses it before it takes it. A second later, a **router solicitation** to `ff02::2`, the group every router on the link listens to: \"any routers here?\". r1 answers at once with a **router advertisement**, carrying the prefix. Then DAD again, for the global address h2 has built from the prefix. The neighbour solicitations go to `ff02::1:ff1c:3bf4`, a **solicited-node** group made from the address's last 24 bits, so only a machine whose address ends that way is woken."
+  - label: "h2 is back"
+    lines: "13"
+    note: "The same global address as before: the prefix is the same and so is h2's MAC, so EUI-64 builds the same identifier. Nothing you did here lasts; a restart would bring h2's IPv6 back anyway."
+  - label: "Neighbours, IPv6's ARP table"
+    lines: "14-15"
+    note: "A ping to web over IPv6 (`ttl=61`: IPv6 calls it the hop limit, and three routers lowered it). `ip -6 neigh` is IPv6's neighbour table, Module 1's ARP table for IPv6: r1's link-local address, its MAC address, and `router`. IPv6 has no ARP and no broadcast; **neighbour discovery** (NDP) does the same job with neighbour solicitations and advertisements, sent to solicited-node groups."
+  - label: "Dual stack"
+    lines: "16-18"
+    note: "`getent ahosts` asks the system's resolver for every address of a name, in the order programs get them: the IPv6 address first, then the IPv4 one (each appears three times, once per kind of socket). A program that just connects to the name, like `nc`, uses the first, so web answers with h1's own global address: nothing was translated. With `-4`, nc uses the IPv4 address, and web sees 198.51.100.2, r1's address, because r1 translates the office's private IPv4 (NAT). `tee` saves each answer under `~/example`."
+  - label: "r1's firewall"
+    lines: "19"
+    note: "r1's `/etc/nftables.conf`, which `nftables@r1` loads at every boot. One `inet` table filters both families. Its input chain, for packets to r1 itself, lets in loopback, replies, all ICMPv6 (neighbour discovery must reach the router, or the laptops and the ISP's router can't find it) and anything from the office's `lan`. Its forward chain, for packets passing through: `policy drop`, then replies to connections already open (`ct state established,related`), then anything from `lan` out to `wan`. Nothing lets a new connection in from `wan`, and that does for IPv6 what NAT seemed to do for IPv4: the laptops have public addresses, and the internet still can't open a connection to them. The last table, `table ip nat`, is for IPv4 alone: in its `postrouting` chain, `oifname \"wan\" masquerade` rewrites the source of everything leaving through `wan` to r1's own address there (masquerade is nftables' word for that kind of NAT), which is why web saw 198.51.100.2."
+  - label: "Nobody can call in"
+    lines: "20-22"
+    note: "`a` holds h1's global address. h1 listens on port 22 for five seconds, and web, on the internet, tries to connect: `timed out`, exit status 1 after two seconds. The SYN reached r1 and was dropped by the forward chain's policy. A listener with no firewall in front would have answered at once."
+  - label: "Packet Too Big"
+    lines: "23-24"
+    note: "A 1500-byte packet (1452 bytes of data, 8 of ICMPv6 header and 40 of IPv6 header) with `-M do`, don't fragment. IPv6 routers never fragment anyway: the ISP's router, whose next link has an MTU of 1400, drops it and sends back ICMPv6 **Packet Too Big**, `mtu=1400`, from `2001:db8:ffff:1::1`. h1's kernel remembers it for this destination for ten minutes: `ip route get` shows `expires 599sec mtu 1400`. Drop that message in a firewall and big IPv6 transfers hang, while IPv4 may work."
+  - label: "What you saved"
+    lines: "25"
+    note: "Three files: the capture of h2 configuring itself, and web's two answers. Run the checks."
+skills: [v6-address-types, slaac-dual-stack, v6-egress]

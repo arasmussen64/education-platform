@@ -1,0 +1,16 @@
+id: mcq-nat-forward-order
+type: mcq
+rev: 1
+prompt: |
+  gw masquerades everything leaving through `wan`, in its postrouting chain. Its forward chain is to let just one office PC, 10.1.0.10, out to the internet. Which address does that forward rule match the PC by?
+choices:
+  - "10.1.0.10, its own address: source NAT only happens later, as packets leave"
+  - "198.51.100.2, because masquerading has rewritten the source before forwarding"
+  - "Either one, because forward sees each packet both before and after the rewrite"
+  - "Neither: a forward chain can't match on addresses once a NAT table is loaded"
+answer: 0
+explanation: |
+  The hooks run in order: prerouting, the routing decision, forward, postrouting. Source NAT is in postrouting, the last of them, so when the forward chain looks at the PC's packet, its source is still 10.1.0.10: `iifname "lan" oifname "wan" ip saddr 10.1.0.10 accept`. That's what lets a gateway's filter tell its inside machines apart even though they all leave as one address. (DNAT is the mirror image: it runs in prerouting, so forward already sees a published connection's new, inside destination.)
+
+  198.51.100.2 doesn't appear on the packet until postrouting. The forward chain sees each packet once, between routing and postrouting. And a NAT table changes nothing about what a filter chain can match.
+skills: [nat-rules, snat-and-dnat]

@@ -1,0 +1,16 @@
+id: mcq-cloud-exhaustion-metric
+type: mcq
+rev: 1
+prompt: |
+  Which signal, on each cloud's managed NAT gateway, counts what fails when the gateway runs out of ports?
+choices:
+  - "AWS `ErrorPortAllocation`; Azure `SNAT Connection Count`, Failed; Google `dropped_sent_packets_count`, `OUT_OF_RESOURCES`"
+  - "AWS `ErrorPortAllocation`; Azure `Total SNAT Connection Count`, TCP; Google `open_connections`, by VM"
+  - "AWS `IdleTimeoutCount`; Azure `SNAT Connection Count`, Failed; Google `allocated_ports`, by VM"
+  - "AWS `ActiveConnectionCount`; Azure `Bytes`, Out; Google `dropped_sent_packets_count`, `OUT_OF_RESOURCES`"
+answer: 0
+explanation: |
+  AWS: `ErrorPortAllocation` is "the number of times the NAT gateway could not allocate a source port"; above zero means too many connections at once. `IdleTimeoutCount` counts connections that went idle for 350 seconds, and `ActiveConnectionCount` connections open now: both are useful, neither is a failure. Azure: `SNAT Connection Count` filtered to the connection state Failed; "a failed connection volume greater than zero can indicate SNAT port exhaustion". `Total SNAT Connection Count` is the active connections, and `Bytes` the data. Google: `nat/dropped_sent_packets_count` with the reason `OUT_OF_RESOURCES`, "if Cloud NAT runs out of NAT IP addresses or ports"; `open_connections` and `allocated_ports` describe what's in use, not what failed.
+
+  (AWS's metrics page, Azure's NAT Gateway metrics page and Google's Cloud NAT monitoring page, all read 2026-11-12.) On a Linux gateway of your own, the same signal is `insert_failed` in `conntrack -S`.
+skills: [port-exhaustion]

@@ -1,0 +1,25 @@
+id: est-aws-subnets
+type: estimate
+rev: 1
+# AWS: an Amazon-provided IPv6 block for a VPC is a /56; subnets are /44 to
+# /64 in steps of /4 (docs.aws.amazon.com/vpc/latest/userguide/vpc-cidr-blocks.html
+# and subnet-sizing.html, read 2026-11-12).
+prompt: |
+  AWS gives a VPC an IPv6 block of a /56. How many /64 subnets can it be split into? Exactly.
+unit: subnets
+answer: 256
+tolerance: { absolute: 0 }
+given: { vpc: 56, sub: 64 }
+working: 2 ** (sub - vpc)
+mistakes:
+  - id: bits-not-subnets
+    value: 8
+    working: sub - vpc
+    why: That's the number of bits between the two prefixes. 8 bits make 2 to the 8th subnets.
+  - id: a-48s-worth
+    value: 65536
+    working: 2 ** (64 - 48)
+    why: That's what a site's /48 holds. A VPC's /56 has 8 bits before the /64, not 16.
+explanation: |
+  64 − 56 = 8 bits, the last two hex digits of the fourth group, so 2⁸ = 256 subnets of /64. AWS chooses the VPC's /56 from its own pool (you can't pick the numbers), and each subnet takes a /64 from it. 256 subnets is plenty for one VPC; a company with many VPCs plans per VPC, not per subnet.
+skills: [v6-plan]

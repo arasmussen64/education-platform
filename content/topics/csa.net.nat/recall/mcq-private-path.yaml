@@ -1,0 +1,16 @@
+id: mcq-private-path
+type: mcq
+rev: 1
+prompt: |
+  Instances in private subnets download 40 TB a month from S3, in the same AWS region, through a NAT gateway, and the NAT gateway's charge for processing that data is most of the bill. What removes that charge without exposing the instances to the internet?
+choices:
+  - "A gateway endpoint for S3, added to the private subnets' route tables"
+  - "A second NAT gateway, so that each one processes only half of the data"
+  - "A public address on every instance, so S3 traffic skips the NAT gateway"
+  - "A larger NAT gateway size, which is billed at a lower price per gigabyte"
+answer: 0
+explanation: |
+  A gateway endpoint gives a VPC a private path to S3 (or DynamoDB): the endpoint adds a route for the service's addresses to the route tables you choose, so that traffic never reaches the NAT gateway, needs no NAT ports, and costs nothing: "There is no additional charge for using gateway endpoints" (AWS's gateway endpoints page; the VPC pricing page says the same, both read 2026-11-12). Azure's service endpoints and private endpoints, and Google's Private Google Access, play the same part on the other clouds; Module 11 builds them.
+
+  A second NAT gateway processes the same 40 TB in all, at the same price per gigabyte, and adds an hourly charge. A public address on every instance does avoid the NAT gateway, but costs an hourly charge per address and puts every instance on the internet, which is what private subnets exist to prevent. AWS's NAT gateways have no sizes: one gateway scales by itself, at one price.
+skills: [avoid-nat]

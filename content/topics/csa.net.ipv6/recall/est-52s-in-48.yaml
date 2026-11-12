@@ -1,0 +1,22 @@
+id: est-52s-in-48
+type: estimate
+rev: 1
+prompt: |
+  A company splits its /48 into one /52 for each of its regions. How many regions can it number this way? Exactly.
+unit: regions
+answer: 16
+tolerance: { absolute: 0 }
+given: { site: 48, region: 52 }
+working: 2 ** (region - site)
+mistakes:
+  - id: bits-not-regions
+    value: 4
+    working: region - site
+    why: That's the number of bits between the two prefixes. 4 bits make 2 to the 4th values.
+  - id: subnets-in-a-region
+    value: 4096
+    working: 2 ** (64 - region)
+    why: That's how many /64 subnets one region's /52 holds. The question asks how many /52s fit in the /48.
+explanation: |
+  52 − 48 = 4 bits number the regions, and 2⁴ = 16. Four bits are exactly one hex digit, so the regions are the first digit of the fourth group, `0` to `f`: region 3's /52 of `2001:db8:abcd::/48` is `2001:db8:abcd:3000::/52`. Plans keep their fields on these 4-bit (nibble) boundaries so a person can read the region off the address.
+skills: [v6-plan]

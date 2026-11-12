@@ -1,0 +1,24 @@
+id: mcq-azure-ipv6
+type: mcq
+rev: 1
+# Microsoft's pages, read 2026-11-12: "Overview of IPv6 for Azure Virtual
+# Network" (ms.date 2024-10-16, updated 2026-07-27): subnets "must be
+# exactly /64", IPv6-only VMs aren't supported, "ICMPv6 isn't currently
+# supported in Network Security Groups"; "What Is Azure NAT Gateway?"
+# (2026-08-31): StandardV2 "supports both IPv4 and IPv6 public IP
+# addresses and prefixes for outbound connectivity"; "Outbound Rules for
+# Azure Load Balancer" (2026-01-08): outbound rules "explicitly define
+# SNAT". https://learn.microsoft.com/en-us/azure/virtual-network/ip-services/ipv6-overview
+prompt: |
+  Which statement about IPv6 on Azure is true?
+choices:
+  - "A VM can be IPv6-only, with no IPv4 configuration on any of its network cards"
+  - "IPv6 sent out through a NAT gateway or a load balancer's outbound rules is translated"
+  - "Network security groups can allow or deny each ICMPv6 message by its type and code"
+  - "IPv6 subnets may be any size from a /44 down to a /64, in steps of 4 bits, as on AWS"
+answer: 1
+explanation: |
+  Azure is the cloud that translates IPv6. A StandardV2 NAT gateway rewrites a subnet's outgoing IPv6 to the gateway's own public IPv6 addresses, and a load balancer's outbound rules are source NAT (SNAT) to the load balancer's public addresses, for IPv6 as for IPv4. So on Azure, the address the far end sees may not be the VM's own. (A VM can also have an instance-level public IP, which Microsoft describes as IPv6 connectivity "directly to individual VMs".)
+
+  The other three are Azure's documented limits, turned round (its IPv6 overview, read 2026-11-12): every network card needs at least one IPv4 configuration, so IPv6-only VMs aren't supported; "ICMPv6 isn't currently supported in Network Security Groups"; and IPv6 subnets "must be exactly /64". The /44 to /64 range is AWS's.
+skills: [v6-egress, v6-plan]

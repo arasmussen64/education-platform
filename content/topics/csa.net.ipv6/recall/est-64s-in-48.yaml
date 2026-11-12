@@ -1,0 +1,22 @@
+id: est-64s-in-48
+type: estimate
+rev: 1
+prompt: |
+  A site has a /48. How many /64 subnets does it hold? Exactly.
+unit: subnets
+answer: 65536
+tolerance: { absolute: 0 }
+given: { site: 48, sub: 64 }
+working: 2 ** (sub - site)
+mistakes:
+  - id: bits-not-subnets
+    value: 16
+    working: sub - site
+    why: That's the number of bits between the two prefixes. Each bit doubles the count, so 16 bits give 2 to the 16th subnets.
+  - id: a-56s-worth
+    value: 256
+    working: 2 ** 8
+    why: That's what a /56 holds, 8 bits of subnets. A /48 has 16 bits before the /64, so 2 to the 16th.
+explanation: |
+  The site's prefix fixes the first 48 bits and each subnet's the first 64, so the 64 − 48 = 16 bits between them number the subnets: 2¹⁶ = 65,536, in hex `0000` to `ffff`, the whole fourth group. It's the same sum as IPv4's "a /y holds 2^(x − y) blocks of /x", with bigger numbers. That's why a /48 is the usual size for a site: no plan for one site runs short of 65,536 subnets.
+skills: [v6-plan]
