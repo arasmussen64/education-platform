@@ -10,7 +10,7 @@ choices:
   - "The router can't reach 192.168.5.0/24 again until someone adds a static route for it"
 answer: 0
 explanation: |
-  `PERMANENT` means someone pinned that MAC address by hand, and the kernel never asks ARP about 192.168.5.40 again. So every frame for the printer still goes to 02:00:00:00:00:41, a card that isn't there any more, and the switch has nowhere to deliver it. The fix is to delete the pin (`ip neigh del 192.168.5.40 dev lan`, and the line in whatever file the router reads at boot) and let ARP do its job.
+  `PERMANENT` means someone pinned that MAC address by hand, and the kernel never asks ARP about 192.168.5.40 again. So every frame for the printer still goes to 02:00:00:00:00:41, a card that isn't there any more. The switch has never seen that address, so it floods each such frame to every port, and every card, the printer's new one included, ignores a frame addressed to another card. The fix is to delete the pin (`ip neigh del 192.168.5.40 dev lan`, and the line in whatever file the router reads at boot) and let ARP do its job.
 
   Only one machine has that address; the old card is gone, not still plugged in. Learned entries go stale and are checked again, but a permanent one never expires: that's what the word means. And the router's route to its own network comes from its address on `lan`, which hasn't changed.
 skills: [arp-neighbours]

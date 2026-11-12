@@ -13,10 +13,10 @@ choices:
   - "tcpdump sees packets before the firewall does, and the firewall then drops this one"
   - "The message is meant for the client, so the server's kernel ignores it"
   - "The server lowered its MTU, but only connections opened later will use it"
-  - "tcpdump shows a copy, and the original packet was lost on the way in"
+  - "The server's kernel accepts this kind of message from the client only, not from routers"
 answer: 0
 explanation: |
   tcpdump captures a packet as it arrives on the interface, before the server's nftables rules decide its fate. The router (10.0.2.1) is telling the server (10.0.2.20) that its packet for the client, 10.0.1.10, was too big for a link with an MTU of 1476; but the server's firewall drops it, so the kernel never learns the smaller size and keeps sending the same full-size packet. Proof: `ip route get 10.0.1.10` on the server shows no remembered `mtu`. The fix is in the server's firewall: let in what is related to its connections, above any rule that drops ICMP.
 
-  The message is addressed to the server, and is about the server's own packet: 10.0.1.10 in it is that packet's destination. A server that took the message in would use the new size at once, for the connection that's open, which is how path MTU discovery recovers mid-download. And a capture is the packet itself arriving; it isn't lost afterwards on the way in.
+  The message is addressed to the server, and is about the server's own packet: 10.0.1.10 in it is that packet's destination. A server that took the message in would use the new size at once, for the connection that's open, which is how path MTU discovery recovers mid-download. And any router on the path may send it: the router whose next link is too small is the only one that knows, which is the whole point of the message.
 skills: [pmtud-blackholes]

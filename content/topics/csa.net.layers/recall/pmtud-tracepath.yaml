@@ -19,5 +19,5 @@ expected_output: |
   pmtu 1500
   hops: 3
 explanation: |
-  tracepath starts with the biggest packet its own link allows, 1500 (`[LOCALHOST]`), with don't-fragment set. At r1 (10.0.1.1) it's told "fragmentation needed", with r1's tunnel's MTU, 1476, and from then on it sends packets of 1476. It lists r1 again at hop 2 because the probe was sent again at the new size. Then r2's end of the tunnel (10.255.0.2) and web itself (`reached`). The `Resume` line is the summary: the path's MTU is 1476, and web is 3 hops away. `sort -u` sorts the lines and keeps one of each, which is why 1476 comes first.
+  tracepath starts with the biggest packet its own link allows, 1500 (`[LOCALHOST]`), with don't-fragment set. At hop 1, r1 (10.0.1.1) answers "time exceeded" as usual. At hop 2 the probe, still 1500 bytes, gets through r1's TTL check but is too big for r1's tunnel, so r1 answers "fragmentation needed" with the tunnel's MTU, 1476: that's why r1 is listed at hop 2 as well. From then on tracepath sends packets of 1476, and the hop-2 probe sent again at that size reaches r2's end of the tunnel (10.255.0.2). Hop 3 is web itself (`reached`). The `Resume` line is the summary: the path's MTU is 1476, and web is 3 hops away. `sort -u` sorts the lines and keeps one of each, which is why 1476 comes first.
 skills: [pmtud-blackholes]
