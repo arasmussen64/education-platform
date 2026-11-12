@@ -181,6 +181,7 @@ Checks source `. /usr/local/lib/netlab/checklib.sh` and run as root on the lab m
 | `hand_routes M` | M's routes typed with `ip route add` (protocol `boot`), one a line, or nothing |
 | `bgp-best M PREFIX` | the path BGP chose: `via 192.0.2.2, localpref 100, med 0, path 65010 65100, chosen by Local Pref`, or `none` |
 | `intact` | the sealed scenery is unchanged |
+| `python3 /usr/local/lib/netlab/cors-verdict PRE ACT ORIGIN METHOD [HEADER] [--credentials]` | what a browser decides about a cross-origin request from the server's two answers (`curl -si` output of the preflight and of the request): `allowed`, or `blocked:` and the Fetch standard's reason; its cases are `tools/tests/test_cors_verdict.py` |
 
 And from `/usr/local/bin`, for learners and checks: `looking-glass M 'show ...'` (FRR's `vtysh` on a router that isn't yours, show commands only), `holdconns N HOST PORT [SECONDS]` (opens N connections at once with one 3-second deadline and holds them; prints `opened X of N`), `holdserver PORT...` (accepts connections, IPv4 and IPv6, and holds each one until the client closes it), `web-svc` (a test server: 8080 answers with the caller's address, 9000 counts the bytes sent).
 

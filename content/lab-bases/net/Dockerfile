@@ -54,5 +54,7 @@ RUN cd /usr/local/lib/netlab \
 # (/etc/network and /etc/radvd.conf are made empty on the lab machine
 # because "ip netns exec" can lay a machine's own file over one only when
 # the lab machine has one there.)
+# The CORS checks' model of a browser, run as "python3 /usr/local/lib/netlab/cors-verdict".
+COPY cors-verdict /usr/local/lib/netlab/
 
 CMD ["/sbin/init"]
