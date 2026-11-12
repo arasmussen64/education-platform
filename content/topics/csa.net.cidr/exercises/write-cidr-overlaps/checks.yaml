@@ -1,0 +1,36 @@
+# The checks for "Write cidr-overlaps": a script ShellCheck is quiet about,
+# then the script's answers on plans that overlaps-truth
+# (/usr/local/lib/lab-checks) makes at check time and works out with
+# Python's ipaddress module: three random plans holding every kind of pair
+# the rule must get right, the edges, and a plan of 60 blocks against the
+# clock.
+checks:
+  - id: script
+    description: "~/bin/cidr-overlaps exists, starts with #!/bin/bash, is executable, does its sums in bash rather than handing them to Python, and ShellCheck has nothing to say about it, with no warning switched off."
+    command: |
+      f=/home/learner/bin/cidr-overlaps
+      [ -f "$f" ] || { echo "there is no ~/bin/cidr-overlaps"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/cidr-overlaps isn't executable"; exit 0; }
+      [ "$(head -n 1 "$f")" = "#!/bin/bash" ] || { echo "the first line isn't #!/bin/bash"; exit 0; }
+      # Python is in the lab for the checks; the script's sums are bash's.
+      if grep -v '^[[:space:]]*#' "$f" | grep -i 'python' > /dev/null; then echo "the script calls Python: its sums must be bash's"; exit 0; fi
+      if grep -i 'shellcheck *disable' "$f" > /dev/null; then echo "a ShellCheck warning is switched off"; exit 0; fi
+      shellcheck --norc "$f" > /dev/null 2>&1 || { echo "ShellCheck has something to say: run shellcheck ~/bin/cidr-overlaps"; exit 0; }
+      echo script
+    expect:
+      equals: script
+  - id: random-plans
+    description: "On three plans of 15 blocks that the check makes, with nested blocks in both orders, the same block written two ways, neighbours that touch, single addresses and blocks that share their first three numbers, it prints exactly the overlapping pairs, in order."
+    command: /usr/local/lib/lab-checks/overlaps-truth random
+    expect:
+      equals: right
+  - id: edges
+    description: "On a plan with comments, blank lines, a /0 and a /32, it prints exactly the overlapping pairs, in order."
+    command: /usr/local/lib/lab-checks/overlaps-truth edges
+    expect:
+      equals: right
+  - id: fast
+    description: "On a plan of 60 blocks it prints exactly the overlapping pairs within 10 seconds."
+    command: /usr/local/lib/lab-checks/overlaps-truth fast
+    expect:
+      equals: right

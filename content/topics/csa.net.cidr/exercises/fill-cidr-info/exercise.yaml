@@ -1,0 +1,18 @@
+id: fill-cidr-info
+stage: fill_in
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Finish cidr-info"
+prompt: |
+  `~/bin/cidr-info ADDRESS/PREFIX [aws|azure|google]` prints the block an address is in, and how many of the block's addresses a machine can be given, as five lines: `network`, `last`, `addresses`, `usable` and `first-usable`. Its opening comment says what each line means. Its two functions, `ip2int` and `int2ip`, are the ones from the worked example, and they're finished.
+
+  Seven gaps are left, each marked `...`: the mask (the prefix length as a 32-bit number, ones then zeros); the operator that turns the address into its block's first address; the sum for the block's last address; and in the `case`, the two numbers for AWS and Azure and the two for Google: how many of a block's addresses that cloud keeps back, and how far into the block its first usable address is. With no cloud the script counts the classic way, as the `classic` line shows: 2 kept back, and the first usable address 1 in.
+
+  Fill them in with `nano ~/bin/cidr-info`. bash runs a script line by line, so until every gap is filled the script runs up to the first one and stops soon after: an arithmetic gap prints `syntax error: operand expected` (or `invalid arithmetic operator`) with the line's number, and then a later line that reads the variable left unset stops the script (`mask: unbound variable`). The `case` gaps are values, so with a cloud named the script runs to its end, but its `usable` line becomes that same syntax error and its `first-usable` address comes out empty. Try `~/bin/cidr-info 10.20.30.77/26`, then the same with `aws` and with `google` after it, and compare with `ipcalc -b 10.20.30.77/26`, which counts the classic way. Then run the checks: they try your script on twelve addresses they pick themselves.
+hints:
+  - "The mask: `0xFFFFFFFF` is 32 ones. Shift it left by the number of host bits, `<< (32 - prefix)`, and cut the result back to 32 bits with `& 0xFFFFFFFF`, as the worked example did for a /27."
+  - "AND (`&`) keeps a bit only where both numbers have a 1, so `n & mask` keeps the network bits and clears the host bits: the block's first address. OR (`|`) sets bits, so `network | wildcard` sets every host bit: the block's last address."
+  - "AWS and Azure keep the first four addresses and the last: 5 kept back, and the first usable address is 4 in (`.4` in a /24). Google keeps the first two and the last two: 4 kept back, the first usable 2 in."
+skills: [binary-and-masks, block-math, private-and-reserved]

@@ -1,0 +1,28 @@
+id: est-mask-octet
+type: estimate
+rev: 1
+prompt: |
+  A block with prefix length /20, written as a dotted mask, is `255.255.?.0`. What is the third number? Exactly.
+unit: the mask's third number
+answer: 240
+tolerance: { absolute: 0 }
+given: { p: 20 }
+# The first 16 of the 20 ones fill the first two numbers; the third number
+# holds the other p - 16, followed by 24 - p zeros.
+working: 256 - 2 ** (24 - p)
+mistakes:
+  - id: one-too-many
+    value: 248
+    working: 256 - 2 ** (23 - p)
+    why: That's a /21's mask, with five ones in the third number. A /20 puts 16 of its ones in the first two numbers and only 4 in the third.
+  - id: one-too-few
+    value: 224
+    working: 256 - 2 ** (25 - p)
+    why: That's a /19's mask, with three ones in the third number. A /20 has 4 there.
+  - id: the-prefix
+    value: 20
+    working: p
+    why: 20 is how many 1 bits the mask has in all, not the third number. The third number is the octet that holds ones 17 to 20.
+explanation: |
+  A /20 mask is twenty 1 bits then twelve 0 bits. Sixteen of the ones fill `255.255`, so the third octet is `11110000`: 128 + 64 + 32 + 16 = 240, or 256 − 16. The mask is `255.255.240.0`. The same shortcut works for any octet: 256 minus the block size in that octet.
+skills: [binary-and-masks]

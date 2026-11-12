@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""plan-check: how the checks of "The new warehouse" read the address plan.
+
+The plan, /etc/netlab/plan.txt, has one network a line: its name, then its
+block (blank lines and # comments are left out). The checks compare it with
+the lab's rules and with the machines' real addresses, worked out with
+Python's ipaddress module, never typed in.
+
+  plan-check sound      the plan keeps the rules: prints "sound", or the
+                        rule it breaks
+  plan-check matches    every machine's address sits in its network's block
+                        with the plan's prefix length: prints "matches", or
+                        what doesn't
+  plan-check summary    r2 has one route towards HQ, no wider than HQ's
+                        block: prints "one summary", or what is wrong
+  plan-check address M  prints machine M's IPv4 address on its network
+
+A rule the planted faults break is reported without naming a network or a
+machine, because finding which is the exercise; a rule only a fix can break
+names what broke it.
+"""
+
+import ipaddress
+import json
+import subprocess
+import sys
+
+PLAN = "/etc/netlab/plan.txt"
+
+# The prefix length each network needs: HQ's block, the warehouse's room
+# for 400 scanners, a /30 for the link.
+SIZES = {
+    "hq": 20,
+    "store": 24,
+    "office": 24,
+    "warehouse": 23,
+    "servers": 24,
+    "branch": 24,
+    "wan": 30,
+}
+# The networks that were in use before the warehouse keep their blocks.
+KEPT_BLOCKS = {
+    "hq": "10.1.0.0/20",
+    "store": "10.1.1.0/24",
+    "office": "10.1.2.0/24",
+    "servers": "10.1.8.0/24",
+    "branch": "10.1.16.0/24",
+    "wan": "10.255.2.0/30",
+}
+INSIDE_HQ = ["store", "office", "warehouse", "servers"]
+OUTSIDE_HQ = ["branch", "wan"]
+
+# Each machine's interface, the network it is on, and the address it keeps
+# (None for the warehouse's two, which move with their network).
+PORTS = [
+    ("till", "eth0", "store", "10.1.1.20"),
+    ("r1", "store", "store", "10.1.1.1"),
+    ("printer", "eth0", "office", "10.1.2.30"),
+    ("r1", "office", "office", "10.1.2.1"),
+    ("scan", "eth0", "warehouse", None),
+    ("r1", "warehouse", "warehouse", None),
+    ("srv", "eth0", "servers", "10.1.8.10"),
+    ("r1", "servers", "servers", "10.1.8.1"),
+    ("r1", "wan", "wan", "10.255.2.1"),
+    ("r2", "wan", "wan", "10.255.2.2"),
+    ("r2", "branch", "branch", "10.1.16.1"),
+    ("kiosk", "eth0", "branch", "10.1.16.20"),
+]
+
+
+def read_plan():
+    """The plan's lines as (name, block as written)."""
+    entries = []
+    with open(PLAN, encoding="utf-8") as plan:
+        for line in plan:
+            fields = line.split("#", 1)[0].split()
+            if not fields:
+                continue
+            if len(fields) != 2:
+                raise ValueError(f"a line of the plan isn't a name and a block: {line.strip()}")
+            entries.append((fields[0], fields[1]))
+    return entries
+
+
+def blocks():
+    """Each name's block, read as a network even if host bits are set."""
+    return {name: ipaddress.IPv4Network(text, strict=False) for name, text in read_plan()}
+
+
+def sound():
+    entries = read_plan()
+    names = [name for name, _ in entries]
+    for name in SIZES:
+        if names.count(name) != 1:
+            return f"the plan lists {name} {names.count(name)} times, not once"
+    for name in names:
+        if name not in SIZES:
+            return f"the plan lists a network called {name}, which the shop doesn't have"
+    for name, text in entries:
+        try:
+            ipaddress.IPv4Network(text, strict=False)
+        except ValueError:
+            return f"{name}'s block, {text}, isn't an IPv4 address with a prefix length"
+    for name, text in entries:
+        try:
+            ipaddress.IPv4Network(text)
+        except ValueError:
+            return "a block in the plan isn't written at its start: its address has host bits set"
+    net = blocks()
+    for name, size in SIZES.items():
+        if net[name].prefixlen != size:
+            return f"the plan makes {name} a /{net[name].prefixlen}; it needs a /{size}"
+    for name, kept in KEPT_BLOCKS.items():
+        if net[name] != ipaddress.IPv4Network(kept):
+            return f"{name} was {kept}, and keeps that block"
+    for name in INSIDE_HQ:
+        if not net[name].subnet_of(net["hq"]):
+            return f"{name} isn't inside HQ's block, {net['hq']}"
+    for name in OUTSIDE_HQ:
+        if net[name].overlaps(net["hq"]):
+            return f"{name} overlaps HQ's block, {net['hq']}"
+    networks = INSIDE_HQ + OUTSIDE_HQ
+    for i, first in enumerate(networks):
+        for second in networks[i + 1 :]:
+            if net[first].overlaps(net[second]):
+                return "two of the plan's networks overlap"
+    return "sound"
+
+
+def ipv4_addresses(machine, dev):
+    """The machine's IPv4 addresses on one interface, as ip_interface."""
+    out = subprocess.run(
+        ["ip", "-j", "-n", machine, "-4", "addr", "show", "dev", dev],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    found = []
+    for link in json.loads(out or "[]"):
+        for info in link.get("addr_info", []):
+            found.append(ipaddress.IPv4Interface(f"{info['local']}/{info['prefixlen']}"))
+    return found
+
+
+def matches():
+    net = blocks()
+    for machine, dev, network, kept in PORTS:
+        addresses = ipv4_addresses(machine, dev)
+        if len(addresses) != 1:
+            return f"{machine}'s {dev} has {len(addresses)} IPv4 addresses, not one"
+        address = addresses[0]
+        if kept and str(address.ip) != kept:
+            return f"{machine} was {kept} on its network, and keeps that address"
+        if network not in net or address.network != net[network]:
+            return "an address on a machine doesn't sit in its network's block with the plan's prefix length"
+    return "matches"
+
+
+def summary():
+    out = subprocess.run(
+        ["ip", "-j", "-n", "r2", "-4", "route", "show", "table", "main"],
+        capture_output=True,
+        text=True,
+        check=False,
+    ).stdout
+    # The kernel's routes to r2's own two networks say "protocol": "kernel";
+    # every other route is one r2 was given.
+    given = [r for r in json.loads(out or "[]") if r.get("protocol") != "kernel"]
+    if len(given) != 1:
+        return f"r2 has {len(given)} routes besides its own two networks, not one"
+    dst = given[0]["dst"]
+    route = ipaddress.IPv4Network("0.0.0.0/0" if dst == "default" else dst, strict=False)
+    hq = blocks()["hq"]
+    if not route.subnet_of(hq):
+        return f"r2's route {dst} is wider than HQ's block, {hq}"
+    return "one summary"
+
+
+def address(machine):
+    dev = next(d for m, d, _, _ in PORTS if m == machine)
+    found = ipv4_addresses(machine, dev)
+    return str(found[0].ip) if found else ""
+
+
+def main():
+    what = sys.argv[1] if len(sys.argv) > 1 else ""
+    try:
+        if what == "sound":
+            print(sound())
+        elif what == "matches":
+            print(matches())
+        elif what == "summary":
+            print(summary())
+        elif what == "address" and len(sys.argv) == 3:
+            print(address(sys.argv[2]))
+        else:
+            print(__doc__)
+            sys.exit(2)
+    except (OSError, ValueError, KeyError) as problem:
+        # An unreadable plan, or a line that isn't a name and a block.
+        print(f"the plan can't be read: {problem}")
+
+
+main()

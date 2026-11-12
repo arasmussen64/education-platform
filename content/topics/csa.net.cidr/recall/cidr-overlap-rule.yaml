@@ -1,0 +1,27 @@
+id: cidr-overlap-rule
+type: predict_shell
+rev: 1
+prompt: |
+  `overlap` takes two blocks, works out `k`, the shorter of their two prefix lengths (`${1#*/}` is the part of the first argument after the `/`, and `a < b ? a : b` is the smaller), and compares the two addresses on their first `k` bits: shifting right by `32 - k` throws the rest away. What do the five calls print, one word each?
+command: |
+  ip2int() { local a b c d; IFS=. read -r a b c d <<< "$1"; echo $(( (a << 24) | (b << 16) | (c << 8) | d )); }
+  overlap() {
+    local k x y
+    k=$(( ${1#*/} < ${2#*/} ? ${1#*/} : ${2#*/} ))
+    x=$(ip2int "${1%/*}"); y=$(ip2int "${2%/*}")
+    if (( x >> (32 - k) == y >> (32 - k) )); then echo yes; else echo no; fi
+  }
+  overlap 10.0.0.0/8 10.200.0.0/16
+  overlap 10.0.0.0/25 10.0.0.128/25
+  overlap 172.16.0.0/12 172.32.0.0/16
+  overlap 0.0.0.0/0 192.168.1.0/24
+  overlap 192.168.1.5/32 192.168.1.0/30
+expected_output: |
+  yes
+  no
+  no
+  yes
+  no
+explanation: |
+  Two CIDR blocks either nest or don't touch, so comparing them on the shorter prefix decides it. `10.200.0.0/16` sits inside `10.0.0.0/8`: both start with the 8 bits of 10. The two /25s are the two halves of one /24 and differ in the 25th bit, so they touch without overlapping. `172.16.0.0/12` runs to 172.31.255.255, so `172.32.0.0/16` is just outside it (the classic trap). A /0 has no network bits at all, so it contains every address. And `192.168.1.0/30` is .0 to .3, so .5 is outside.
+skills: [overlaps]

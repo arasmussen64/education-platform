@@ -1,0 +1,44 @@
+#!/bin/bash
+# cidr-info ADDRESS/PREFIX [aws|azure|google]: the block an address is in,
+# and how many of its addresses a machine can be given. It prints:
+#   network A        the block's first address
+#   last A           its last address
+#   addresses N      how many addresses the block holds
+#   usable N         how many of them a machine can be given: with no cloud,
+#                    the classic count, which keeps back the first and the
+#                    last; a cloud keeps back more
+#   first-usable A   the first address a machine can be given
+set -euo pipefail
+
+ip2int() { local a b c d; IFS=. read -r a b c d <<< "$1"; echo $(( (a << 24) | (b << 16) | (c << 8) | d )); }
+int2ip() { echo "$(( $1 >> 24 & 255 )).$(( $1 >> 16 & 255 )).$(( $1 >> 8 & 255 )).$(( $1 & 255 ))"; }
+
+address=${1%/*}
+prefix=${1#*/}
+cloud=${2:-classic}
+n=$(ip2int "$address")
+
+# The mask: prefix ones, then zeros, as one 32-bit number.
+mask=$(( ... ))
+# The wildcard: the mask with every bit flipped.
+wildcard=$(( ~mask & 0xFFFFFFFF ))
+# The block's first address keeps the address's network bits and clears
+# its host bits; its last address sets every host bit.
+network=$(( n ... mask ))
+last=$(( ... ))
+size=$(( last - network + 1 ))
+
+# How many addresses of a block are kept back, and how far into the block
+# the first one a machine can be given is.
+case $cloud in
+  aws | azure) kept=...; first=... ;;
+  google) kept=...; first=... ;;
+  classic) kept=2; first=1 ;;
+  *) echo "cidr-info: the cloud is aws, azure or google, not $cloud" >&2; exit 2 ;;
+esac
+
+echo "network $(int2ip "$network")"
+echo "last $(int2ip "$last")"
+echo "addresses $size"
+echo "usable $(( size - kept ))"
+echo "first-usable $(int2ip $(( network + first )))"

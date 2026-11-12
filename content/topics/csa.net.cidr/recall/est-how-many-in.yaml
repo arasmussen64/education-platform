@@ -1,0 +1,24 @@
+id: est-how-many-in
+type: estimate
+rev: 1
+prompt: |
+  How many /24 subnets fit in a /20? Exactly.
+unit: subnets
+answer: 16
+tolerance: { absolute: 0 }
+given: { big: 20, small: 24 }
+# The /24s use small - big more network bits than the /20; each one
+# doubles the count.
+working: 2 ** (small - big)
+mistakes:
+  - id: the-difference
+    value: 4
+    working: small - big
+    why: 4 is how many more network bits a /24 has than a /20. Each extra bit doubles the number of subnets, so 4 bits make 2⁴ = 16.
+  - id: addresses-in-one
+    value: 256
+    working: 2 ** (32 - small)
+    why: 256 is how many addresses one /24 holds. The question is how many /24s fit, which depends on the difference between the two prefixes.
+explanation: |
+  A /20 holds 2¹² = 4,096 addresses and a /24 holds 256: 4,096 ÷ 256 = 16. The quick way: the difference between the prefixes is 4, and 2⁴ = 16. A /20 that starts at 10.20.0.0 holds the /24s from 10.20.0.0 to 10.20.15.0.
+skills: [split-and-summarise]

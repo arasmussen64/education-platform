@@ -1,0 +1,23 @@
+id: est-prefix-from-mask
+type: estimate
+rev: 1
+prompt: |
+  An old firewall's rule gives a subnet's mask as 255.255.255.192. What prefix length is that, the N in /N? Exactly.
+unit: "bits: the N in /N"
+answer: 26
+tolerance: { absolute: 0 }
+given: { last: 192 }
+# Three 255s are 24 ones; 192 is 11000000, two more.
+working: 24 + 2
+mistakes:
+  - id: one-short
+    value: 25
+    working: 24 + 1
+    why: That counts one 1 bit in 192. 192 is 128 + 64, so it's `11000000`, two 1 bits.
+  - id: host-bits
+    value: 6
+    working: 32 - 26
+    why: That's the number of host bits, the zeros. The prefix length counts the ones.
+explanation: |
+  Each 255 is eight 1 bits, so the first three numbers hold 24. 192 is 128 + 64, `11000000`: two more. 24 + 2 = 26, so the mask is a /26, a block of 64 addresses. The common last numbers are worth knowing on sight: 128 is /25, 192 /26, 224 /27, 240 /28, 248 /29, 252 /30.
+skills: [binary-and-masks]

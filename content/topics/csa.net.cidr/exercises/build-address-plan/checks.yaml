@@ -1,0 +1,31 @@
+# The checks for "Plan the cloud addresses": plan-truth
+# (/usr/local/lib/lab-checks) reads ~/plan/plan.txt and ~/plan/summary.txt
+# and works out every rule with Python's ipaddress module, from the brief's
+# numbers. Each check is one rule, so a plan that breaks one rule fails
+# that check alone.
+checks:
+  - id: names-and-form
+    description: "~/plan/plan.txt lists each of the fifteen subnets once, each block written at its start."
+    command: /usr/local/lib/lab-checks/plan-truth form
+    expect:
+      equals: ok
+  - id: big-enough
+    description: "Each subnet holds twice its machines plus the addresses its cloud keeps back."
+    command: /usr/local/lib/lab-checks/plan-truth big-enough
+    expect:
+      equals: ok
+  - id: not-oversized
+    description: "Each subnet is the smallest block that does."
+    command: /usr/local/lib/lab-checks/plan-truth not-oversized
+    expect:
+      equals: ok
+  - id: no-overlaps
+    description: "No two subnets overlap, and none overlaps the disaster-recovery site's 10.72.0.0/16."
+    command: /usr/local/lib/lab-checks/plan-truth no-overlaps
+    expect:
+      equals: ok
+  - id: summaries
+    description: "~/plan/summary.txt gives each cloud one block, written at its start, inside 10.64.0.0/12 and clear of 10.72.0.0/16, holding all that cloud's subnets and no other cloud's, at least twice their total size, and overlapping no other cloud's block."
+    command: /usr/local/lib/lab-checks/plan-truth summaries
+    expect:
+      equals: ok

@@ -1,0 +1,252 @@
+#!/usr/bin/env python3
+"""overlaps-truth: how the checks of "Write cidr-overlaps" know the answers.
+
+  overlaps-truth random   three plans made now, each holding every kind of
+                          pair the rule must get right, with random numbers
+  overlaps-truth edges    comments, blank lines, a /0 and a /32
+  overlaps-truth fast     a plan of 60 blocks, answered within 10 seconds
+
+Each writes its plan to a file the learner can read, runs the learner's
+~/bin/cidr-overlaps on it as the learner, works out the overlapping pairs
+with Python's ipaddress module, and prints "right", or the first
+difference. Based on the topic designer's prototype generator; this
+version's random plans separated the reference script from the lab's six
+wrong ones that answer quickly on every one of 1,000 seeds (2026-11-12, in
+the lab's own bash).
+"""
+
+import ipaddress
+import os
+import random
+import subprocess
+import sys
+import tempfile
+
+
+SCRIPT = "/home/learner/bin/cidr-overlaps"
+
+
+def net(address, prefix):
+    return ipaddress.IPv4Network((address, prefix), strict=False)
+
+
+def random_plan(rnd):
+    """A plan of 15 named blocks holding all seven cases, in random places.
+
+    1. a big block and a smaller one inside it, the big one first, across an
+       octet boundary
+    2. a small block inside a bigger one, the small one first, never at the
+       big block's start
+    3. the same block twice, once written with host bits set
+    4. two blocks side by side, touching but not overlapping
+    5. a /32 inside a block, and a /32 just past its end
+    6. two blocks with the same first three numbers that don't overlap
+    7. two blocks far apart
+    """
+    used = []
+
+    def fresh_base():
+        # A /16 in 10.0.0.0/8 or 172.16.0.0/12 that no case has used yet.
+        while True:
+            base = rnd.choice(
+                [(10 << 24) | (rnd.randrange(256) << 16), (172 << 24) | ((16 + rnd.randrange(16)) << 16)]
+            )
+            if all(not net(base, 16).overlaps(other) for other in used):
+                used.append(net(base, 16))
+                return base
+
+    cases = []
+    base = fresh_base()
+    p = rnd.choice([19, 20, 21])
+    outer = net(base | (rnd.randrange(4) << 13), p)
+    inner = net(int(outer.network_address) + (rnd.randrange(1, 2 ** (32 - p) // 256) << 8), 24)
+    cases.append([outer, inner])
+    base = fresh_base()
+    p = rnd.choice([22, 23])
+    outer = net(base | (rnd.randrange(16) << 10), p)
+    inner = net(int(outer.network_address) + rnd.randrange(1, 2 ** (32 - p) // 32) * 32, 27)
+    cases.append([inner, outer])
+    base = fresh_base()
+    p = rnd.choice([24, 25, 26])
+    same = net(base | (rnd.randrange(256) << 8), p)
+    cases.append([same, same])
+    base = fresh_base()
+    p = rnd.choice([25, 26, 27])
+    pair = net(base | (rnd.randrange(256) << 8), p - 1)
+    low, high = list(pair.subnets(new_prefix=p))[:2]
+    cases.append([high, low])
+    base = fresh_base()
+    p = rnd.choice([28, 29])
+    small = net(base | (rnd.randrange(256) << 8) | (rnd.randrange(8) << 5), p)
+    cases.append(
+        [
+            small,
+            net(int(small.network_address) + rnd.randrange(small.num_addresses), 32),
+            net(int(small.broadcast_address) + 1, 32),
+        ]
+    )
+    base = fresh_base()
+    third = base | (rnd.randrange(256) << 8)
+    cases.append([net(third, 26), net(third + 128, 26)])
+    cases.append([net(fresh_base(), 16), net(fresh_base() | (rnd.randrange(256) << 8), 24)])
+
+    flat = [(block, n) for n, case in enumerate(cases) for block in case]
+    rnd.shuffle(flat)
+    # Each nested pair keeps its case's order (big first in case 1, small
+    # first in case 2) wherever the shuffle put it, so a script that looks
+    # only one way round always fails one of the two.
+    for which in (0, 1):
+        spots = [i for i, (_, n) in enumerate(flat) if n == which]
+        first, second = cases[which]
+        flat[spots[0]] = (first, which)
+        flat[spots[1]] = (second, which)
+    names = rnd.sample(
+        ["web", "app", "db", "cache", "queue", "mgmt", "vpn", "lab", "dmz", "batch",
+         "edge", "data", "logs", "dev", "test", "prod", "ops", "hr"],
+        len(flat),
+    )
+    plan = []
+    seen_same = False
+    for i, (block, n) in enumerate(flat):
+        shown = str(block)
+        # Host bits set: in case 3's second copy, case 5's block, and now
+        # and then elsewhere. It is still that block.
+        host_bits = (n == 2 and seen_same) or (n == 4 and block.prefixlen < 32) or (
+            block.prefixlen <= 30 and rnd.random() < 0.3
+        )
+        if n == 2:
+            seen_same = True
+        # Always the block's second address: anywhere further in, a big
+        # block's address could land in the small block nested inside it,
+        # and a script that compares on the wrong prefix would pass by luck
+        # (it did on 4 of 500 seeds when this was random).
+        if host_bits and block.prefixlen <= 30:
+            shown = f"{block.network_address + 1}/{block.prefixlen}"
+        plan.append((f"{names[i]}-{i + 1}", shown, block))
+    return plan
+
+
+def edges_plan():
+    return [
+        "# The edges: comments and blank lines are skipped",
+        "",
+        "everything 0.0.0.0/0",
+        "# one address, written as a /32",
+        "gateway 192.168.1.1/32",
+        "lan 192.168.1.0/24",
+        "",
+        "other 10.9.8.0/24",
+    ]
+
+
+def fast_plan(rnd):
+    """60 blocks: /24s in a few /16s, with a few bigger blocks over them."""
+    plan = []
+    for i in range(60):
+        prefix = rnd.choice([24, 24, 24, 22, 26])
+        address = (10 << 24) | (rnd.randrange(4) << 16) | (rnd.randrange(256) << 8)
+        block = net(address, prefix)
+        plan.append((f"block-{i + 1}", str(block), block))
+    return plan
+
+
+def expected_pairs(plan):
+    pairs = []
+    for i in range(len(plan)):
+        for j in range(i + 1, len(plan)):
+            if plan[i][2].overlaps(plan[j][2]):
+                pairs.append(f"{plan[i][0]} {plan[j][0]}")
+    return pairs
+
+
+def run_script(lines, seconds):
+    """Writes the plan, runs the learner's script on it, returns its lines
+    (or None if it ran out of time) and its stderr."""
+    folder = tempfile.mkdtemp(prefix="chk-plan-")
+    os.chmod(folder, 0o755)
+    path = os.path.join(folder, "plan.txt")
+    with open(path, "w", encoding="utf-8", newline="\n") as plan:
+        plan.write("\n".join(lines) + "\n")
+    os.chmod(path, 0o644)
+    try:
+        run = subprocess.run(
+            ["runuser", "-u", "learner", "--", SCRIPT, path],
+            capture_output=True,
+            text=True,
+            timeout=seconds,
+            check=False,
+        )
+        return [line.strip() for line in run.stdout.splitlines() if line.strip()], run.stderr
+    except subprocess.TimeoutExpired:
+        return None, ""
+    finally:
+        os.remove(path)
+        os.rmdir(folder)
+
+
+def compare(plan_lines, plan, got, stderr):
+    """None if the script's lines are right; else what differs, in words."""
+    want = expected_pairs(plan)
+    if got == want:
+        return None
+    blocks = {name: shown for name, shown, _ in plan}
+    for i, pair in enumerate(want):
+        if i >= len(got) or got[i] != pair:
+            if pair not in got:
+                a, b = pair.split()
+                return f"it didn't print '{pair}', though {blocks[a]} and {blocks[b]} overlap"
+            return f"it printed the right pairs in the wrong order: '{pair}' should be line {i + 1}"
+    extra = got[len(want)]
+    parts = extra.split()
+    if len(parts) == 2 and parts[0] in blocks and parts[1] in blocks:
+        return f"it printed '{extra}', but {blocks[parts[0]]} and {blocks[parts[1]]} don't overlap, or the pair was printed already"
+    first_error = (stderr.strip().splitlines() or [""])[0]
+    return f"it printed '{extra}', which isn't a pair of names from the plan" + (
+        f" (and said: {first_error})" if first_error else ""
+    )
+
+
+def main():
+    what = sys.argv[1] if len(sys.argv) > 1 else ""
+    rnd = random.SystemRandom()
+    if what == "random":
+        for _ in range(3):
+            plan = random_plan(rnd)
+            lines = ["# NAME BLOCK"] + [f"{name} {shown}" for name, shown, _ in plan]
+            got, stderr = run_script(lines, 8)
+            if got is None:
+                print("on a plan of 15 blocks, it didn't finish within 8 seconds")
+                return
+            problem = compare(lines, plan, got, stderr)
+            if problem:
+                print(f"on a plan of 15 blocks the check made, {problem}")
+                return
+        print("right")
+    elif what == "edges":
+        lines = edges_plan()
+        plan = []
+        for line in lines:
+            fields = line.split()
+            if fields and not fields[0].startswith("#"):
+                plan.append((fields[0], fields[1], ipaddress.IPv4Network(fields[1], strict=False)))
+        got, stderr = run_script(lines, 8)
+        if got is None:
+            print("on a plan of 4 blocks, it didn't finish within 8 seconds")
+            return
+        problem = compare(lines, plan, got, stderr)
+        print(f"on a plan with comments, blank lines, a /0 and a /32, {problem}" if problem else "right")
+    elif what == "fast":
+        plan = fast_plan(rnd)
+        lines = [f"{name} {shown}" for name, shown, _ in plan]
+        got, stderr = run_script(lines, 10)
+        if got is None:
+            print("on a plan of 60 blocks, it didn't finish within 10 seconds")
+            return
+        problem = compare(lines, plan, got, stderr)
+        print(f"on a plan of 60 blocks, {problem}" if problem else "right")
+    else:
+        print(__doc__)
+        sys.exit(2)
+
+
+main()

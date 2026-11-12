@@ -1,0 +1,22 @@
+id: est-summary-waste
+type: estimate
+rev: 1
+prompt: |
+  The smallest single block covering both 10.8.6.0/24 and 10.8.9.0/24 is the /20 10.8.0.0/20. How many /24s does it hold besides those 2? Exactly.
+unit: /24s
+answer: 14
+tolerance: { absolute: 0 }
+given: { cover: 20, p: 24, used: 2 }
+working: 2 ** (p - cover) - used
+mistakes:
+  - id: forgot-the-two
+    value: 16
+    working: 2 ** (p - cover)
+    why: 16 is every /24 in the /20. Two of them are the ones asked for, so 14 are extra.
+  - id: bits-not-blocks
+    value: 4
+    working: p - cover
+    why: That's the difference in prefix lengths. Each bit doubles the count, so a /20 holds 2⁴ = 16 /24s.
+explanation: |
+  In the third number, 6 is `00000110` and 9 is `00001001`: they agree on the first four bits and differ from the fifth on, so the two blocks share only their first 16 + 4 = 20 bits. The summary is 10.8.0.0/20, from 10.8.0.0 to 10.8.15.255. That holds 2⁴ = 16 /24s, 14 of them not asked for. A route like that pulls in other people's traffic, so a summary is only clean over blocks that fill it.
+skills: [split-and-summarise]

@@ -1,0 +1,25 @@
+id: est-smallest-prefix
+type: estimate
+rev: 1
+prompt: |
+  An Azure subnet must hold 450 VMs, and Azure keeps 5 addresses of every subnet for itself. What is the prefix length of the smallest subnet that fits them? Exactly.
+unit: "bits: the N in /N"
+answer: 23
+tolerance: { absolute: 0 }
+given: { vms: 450, reserved: 5 }
+# 450 + 5 = 455 addresses. The smallest power of two at least that big is
+# 512 = 2 ** 9, so 9 host bits. (Sums here have no logarithm, so the
+# working names the power; the explanation shows the search.)
+working: 32 - 9
+mistakes:
+  - id: one-size-small
+    value: 24
+    working: "24"
+    why: A /24 holds 256 addresses, too few for 455. Each step to a shorter prefix doubles the block.
+  - id: one-size-big
+    value: 22
+    working: "22"
+    why: A /22 holds 1,024, which fits, but so does a /23's 512. The smallest that fits is the /23.
+explanation: |
+  The subnet needs 450 + 5 = 455 addresses. Count up the powers of two: 256 is too small, 512 fits. 512 is 2⁹, so 9 host bits and 32 − 9 = 23: a /23, with 512 − 5 = 507 usable. Leaving room to grow is a separate decision: twice 450 VMs would need a /22.
+skills: [block-math]

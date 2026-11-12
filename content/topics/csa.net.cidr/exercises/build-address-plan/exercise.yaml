@@ -1,0 +1,24 @@
+id: build-address-plan
+stage: build
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Plan the cloud addresses"
+prompt: |
+  The company keeps `10.64.0.0/12` for its cloud networks. Inside it, `10.72.0.0/16` is already used by the old data centre's disaster-recovery site (the standby copy that takes over if the main site fails) and must not be touched. Plan the company's first cloud subnets in `~/plan/plan.txt`, one subnet a line, its name and then its block (blank lines and lines starting with `#` are allowed):
+
+  | Cloud | Subnets | Machines in each today |
+  | --- | --- | --- |
+  | AWS, one region, zones a, b and c | `aws-a-web`, `aws-b-web`, `aws-c-web`, `aws-a-app`, `aws-b-app`, `aws-c-app`, `aws-a-data`, `aws-b-data`, `aws-c-data` | web 254, app 120, data 25 |
+  | Azure, one region | `az-web`, `az-app`, `az-data` | web 500, app 60, data 12 |
+  | Google Cloud, one region (its subnets are regional: one subnet serves every zone of the region) | `gcp-web`, `gcp-app`, `gcp-data` | web 62, app 30, data 6 |
+
+  Each subnet is the smallest block that holds twice its machines (room to double) plus the addresses its cloud keeps back of every subnet.
+
+  Then, in `~/plan/summary.txt`, give each cloud one block, on lines `aws BLOCK`, `azure BLOCK` and `gcp BLOCK`: the block that cloud's subnets are drawn from, so the rest of the company can reach each cloud by a single route. Each summary is inside 10.64.0.0/12, holds all its cloud's subnets and none of another cloud's, and has room beside them for at least as many again: it is at least twice the total size of its subnets.
+
+  Every block is written at its start. No two subnets overlap, no two summaries overlap, and nothing overlaps 10.72.0.0/16.
+
+  Create the files with `nano ~/plan/plan.txt` and `nano ~/plan/summary.txt`. `ipcalc -b` shows a block's start and size. To check the plan for overlaps, you can write your `cidr-overlaps` from the write lab again in `~/bin`. Then run the checks.
+skills: [block-math, split-and-summarise, overlaps, private-and-reserved]

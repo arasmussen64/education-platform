@@ -1,0 +1,28 @@
+id: est-network-octet
+type: estimate
+rev: 1
+prompt: |
+  A VM has the address 10.44.9.150/26. What is the last number of its block's network address, the block's first address? Exactly.
+unit: the last number
+answer: 128
+tolerance: { absolute: 0 }
+given: { last: 150, p: 26 }
+# The block size in the last octet is 2 ** (32 - p) = 64; the block starts
+# at the largest multiple of 64 that isn't above 150.
+working: floor(last / 2 ** (32 - p)) * 2 ** (32 - p)
+mistakes:
+  - id: the-address
+    value: 150
+    working: last
+    why: That's the VM's own address. The network address has every host bit cleared, so it is the block's start, a multiple of the block size.
+  - id: rounded-up
+    value: 192
+    working: ceil(last / 2 ** (32 - p)) * 2 ** (32 - p)
+    why: That's the next block's start. The block an address is in starts at the multiple of 64 at or below it, not above.
+  - id: the-block-size
+    value: 64
+    working: 2 ** (32 - p)
+    why: 64 is the block size, and 64 to 127 is a block, but 150 isn't in it. The multiples of 64 are 0, 64, 128, 192, and 150 lies between 128 and 191.
+explanation: |
+  A /26's mask is `255.255.255.192`, so the interesting octet is the last, and the block size there is 256 − 192 = 64. Blocks start at 0, 64, 128 and 192; 150 is in the one from 128 to 191. The block is 10.44.9.128/26. The rule: divide by the block size, keep the whole part, multiply back.
+skills: [block-math]

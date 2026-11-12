@@ -1,0 +1,26 @@
+id: est-last-octet
+type: estimate
+rev: 1
+prompt: |
+  A subnet starts at 192.168.40.96 and is a /28. What is the last number of its last address, the broadcast address? Exactly.
+unit: the last number
+answer: 111
+tolerance: { absolute: 0 }
+given: { start: 96, p: 28 }
+working: start + 2 ** (32 - p) - 1
+mistakes:
+  - id: next-start
+    value: 112
+    working: start + 2 ** (32 - p)
+    why: That's the first address of the next block. A block of 16 that starts at 96 holds 96 to 111.
+  - id: last-usable
+    value: 110
+    working: start + 2 ** (32 - p) - 2
+    why: That's the last address a machine could be given in the classic count. The block's last address, the broadcast, is one more.
+  - id: added-the-prefix
+    value: 124
+    working: start + p
+    why: That adds the prefix length to the start. The prefix length counts network bits; the block size is 2 raised to the host bits, 2⁴ = 16.
+explanation: |
+  A /28 holds 16 addresses, so a block that starts at 96 holds 96 to 96 + 16 − 1 = 111. The block is 192.168.40.96/28 and its last address is 192.168.40.111. Next door, the next /28 starts at 112.
+skills: [block-math]

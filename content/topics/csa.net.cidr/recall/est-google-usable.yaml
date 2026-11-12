@@ -1,0 +1,28 @@
+id: est-google-usable
+type: estimate
+rev: 1
+prompt: |
+  A Google Cloud subnet's primary range is a /28. How many of its addresses can VMs use? Exactly.
+unit: addresses
+answer: 12
+tolerance: { absolute: 0 }
+given: { p: 28 }
+# Google keeps 4 of a primary range: the network address, the gateway, the
+# second-to-last and the last (its "Subnets" page, read 2026-11-12).
+working: 2 ** (32 - p) - 4
+mistakes:
+  - id: aws-five
+    value: 11
+    working: 2 ** (32 - p) - 5
+    why: That's AWS's and Azure's rule, 5 kept back. Google Cloud keeps 4.
+  - id: classic-two
+    value: 14
+    working: 2 ** (32 - p) - 2
+    why: That keeps back only the first and last addresses, the classic count. Google also keeps the second address, its gateway, and the second-to-last.
+  - id: all-of-them
+    value: 16
+    working: 2 ** (32 - p)
+    why: That's every address in the block. Google keeps 4 of them back.
+explanation: |
+  A /28 holds 2⁴ = 16 addresses. Google Cloud keeps 4 of a subnet's primary range: the network address, the second (the default gateway), the second-to-last (kept for future use) and the last. 16 − 4 = 12. So the same /28 gives 11 usable addresses on AWS or Azure and 12 on Google Cloud.
+skills: [block-math, private-and-reserved]

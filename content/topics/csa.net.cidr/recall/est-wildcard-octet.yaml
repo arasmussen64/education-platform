@@ -1,0 +1,24 @@
+id: est-wildcard-octet
+type: estimate
+rev: 1
+prompt: |
+  The wildcard mask is the mask with every bit flipped, as `ipcalc` prints it and some firewalls ask for it. A /22's wildcard is `0.0.?.255`. What is the third number? Exactly.
+unit: the wildcard's third number
+answer: 3
+tolerance: { absolute: 0 }
+given: { p: 22 }
+# The third number holds the mask's last 24 - p bits as zeros; flipped,
+# they are 24 - p ones.
+working: 2 ** (24 - p) - 1
+mistakes:
+  - id: block-size
+    value: 4
+    working: 2 ** (24 - p)
+    why: That's the block size in the third number. The wildcard sets every host bit, so it's one less than the size, the biggest number those bits can make.
+  - id: the-mask
+    value: 252
+    working: 256 - 2 ** (24 - p)
+    why: That's the mask's own third number. The wildcard is its opposite, every bit flipped, so the two always add up to 255.
+explanation: |
+  A /22 mask is `255.255.252.0`: the third octet is `11111100`. Flipped, that's `00000011`, which is 3, and the wildcard is `0.0.3.255`. A mask octet and its wildcard octet always add up to 255. OR an address with the wildcard and you get its block's last address.
+skills: [binary-and-masks]
