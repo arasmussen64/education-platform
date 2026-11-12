@@ -70,6 +70,14 @@ checks:
       echo closed
     expect:
       equals: closed
+  - id: timer-on
+    description: "certbot@web.timer is on now and at every boot."
+    command: |
+      [ "$(systemctl is-enabled certbot@web.timer 2> /dev/null)" = enabled ] || { echo "certbot@web.timer doesn't start at boot"; exit 0; }
+      [ "$(systemctl is-active certbot@web.timer 2> /dev/null)" = active ] || { echo "certbot@web.timer isn't running"; exit 0; }
+      echo running
+    expect:
+      equals: running
   - id: renewal-reaches-nginx
     description: "When certbot renews www.shop.test's certificate, as the timer does, nginx serves the new certificate within seconds, with nobody touching it."
     # A renewal of about 3 seconds, and up to 10 seconds' wait for nginx.
