@@ -1,0 +1,77 @@
+# The checks for "Follow one lookup": what was saved in ~/example against
+# what the servers say now, and the office resolver's override, live and
+# in its file. referral-saved waits for the name servers after a boot; the
+# rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: referral-saved
+    description: "~/example/referral.txt holds the name server the root refers a question about api.shop.test to."
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      referral() { on office dig @198.51.100.11 +norecurse +time=1 +tries=1 +noall +authority api.shop.test | awk '$4 == "NS" {print $5}'; }
+      answered() { [ -n "$(referral)" ]; }
+      wait_for 20 answered
+      want=$(referral)
+      got=$(cat /home/learner/example/referral.txt 2> /dev/null)
+      [ "$got" = "$want" ] || { echo "~/example/referral.txt holds '${got}', not the server the root names in its AUTHORITY section"; exit 0; }
+      echo "$got"
+    expect:
+      equals: "ns1.nic.test."
+  - id: aa-saved
+    description: "~/example/aa.txt is the flags line of an answer from shop.test's own server, with the aa flag."
+    command: |
+      got=$(cat /home/learner/example/aa.txt 2> /dev/null)
+      echo "$got" | grep '^;; flags: qr aa;' > /dev/null || { echo "~/example/aa.txt holds '${got}', not the flags line of ns1's answer"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: countdown-saved
+    description: "~/example/countdown.txt holds how many seconds the resolver's TTL for api.shop.test fell between two lookups a couple of seconds apart."
+    command: |
+      got=$(cat /home/learner/example/countdown.txt 2> /dev/null)
+      case $got in
+        '' | *[!0-9]*) echo "~/example/countdown.txt holds '${got}', not a whole number of seconds"; exit 0 ;;
+      esac
+      [ "$got" -ge 1 ] && [ "$got" -le 10 ] || { echo "~/example/countdown.txt holds $got: two lookups 2 seconds apart differ by about 2"; exit 0; }
+      echo counted
+    expect:
+      equals: counted
+  - id: negative-ttl-saved
+    description: "~/example/negative-ttl.txt holds how long a resolver may keep shop.test's server's answer that a name doesn't exist (the TTL its NXDOMAIN gives the SOA)."
+    command: |
+      want=$(on office dig @198.51.100.13 +norecurse +noall +authority nope-$RANDOM.shop.test | awk '$4 == "SOA" {print $2}')
+      got=$(cat /home/learner/example/negative-ttl.txt 2> /dev/null)
+      [ -n "$want" ] && [ "$got" = "$want" ] || { echo "~/example/negative-ttl.txt holds '${got}', not the TTL of the SOA in ns1's NXDOMAIN"; exit 0; }
+      echo "$got"
+    expect:
+      equals: "300"
+  - id: office-override
+    description: "In the office, api.shop.test is the private address 10.0.8.41, and www.shop.test still resolves as it does on the shop's server."
+    command: |
+      api=$(on office dig +short +time=2 +tries=1 api.shop.test A)
+      [ "$api" = 10.0.8.41 ] || { echo "in the office, api.shop.test gives ${api:-no address}"; exit 0; }
+      want=$(on office dig +norecurse +short @198.51.100.13 www.shop.test A | tail -n 1)
+      got=$(on office dig +short +time=2 +tries=1 www.shop.test A | tail -n 1)
+      [ "$got" = "$want" ] || { echo "in the office, www.shop.test gives ${got:-no address}, but the shop's server gives $want"; exit 0; }
+      echo overridden
+    expect:
+      equals: overridden
+  - id: override-saved
+    description: "The override is in the office resolver's /etc/unbound/unbound.conf, so a restart keeps it: an Unbound started from its files answers for the same names itself as the running one."
+    timeout: 45
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      local_names() { on "$1" bash -c 'unbound-control list_local_zones; unbound-control list_local_data' 2> /dev/null | sort; }
+      live=$(local_names resolver)
+      fresh=$(netlab verify resolver -- bash -c '
+        on chk-resolver unbound -d -p > /dev/null 2>&1 &
+        for i in $(seq 1 50); do on chk-resolver unbound-control status > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-resolver bash -c "unbound-control list_local_zones; unbound-control list_local_data" 2> /dev/null | sort
+        on chk-resolver unbound-control stop > /dev/null 2>&1
+        wait')
+      if [ -n "$live" ] && [ "$live" = "$fresh" ]; then echo saved; exit 0; fi
+      echo "the running resolver isn't the one its files start: after a restart it would answer differently for $(diff <(echo "$live") <(echo "$fresh") | sed -n 's/^[<>] //p' | awk '{print $1}' | sort -u | head -n 2 | tr '\n' ' ')"
+    expect:
+      equals: saved
