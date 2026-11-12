@@ -292,13 +292,42 @@ def test_a_timeout_while_proving_counts_as_the_checker_giving_up(monkeypatch) ->
     assert report.problems[0].startswith("labcheck: timed out:")
 
 
-def test_shards_split_the_topics_and_cover_every_lab() -> None:
-    targets = [(f"t{i}", f"lab{j}") for i in range(5) for j in range(2)]
-    shards = [labcheck.shard_of(targets, f"{i}/4") for i in range(4)]
-    # Every lab lands in exactly one shard, whole topics at a time.
+def test_shards_cover_every_lab_once_and_balance_the_work() -> None:
+    # One long topic (five labs of weight 6) and four short ones (two labs of
+    # weight 1 each), over four machines.
+    targets = [("long", f"lab{j}") for j in range(5)] + [
+        (f"t{i}", f"lab{j}") for i in range(4) for j in range(2)
+    ]
+
+    def weight(topic: str, exercise: str) -> int:
+        return 6 if topic == "long" else 1
+
+    shards = [labcheck.shard_of(targets, f"{i}/4", weight) for i in range(4)]
+    # Every lab lands in exactly one shard, in the order it was listed.
     assert sorted(sum(shards, [])) == sorted(targets)
-    assert shards[0] == [("t0", "lab0"), ("t0", "lab1"), ("t4", "lab0"), ("t4", "lab1")]
-    assert shards[3] == [("t3", "lab0"), ("t3", "lab1")]
+    for shard in shards:
+        assert shard == [t for t in targets if t in shard]
+    # The long topic is spread out, and no machine has more than its share
+    # plus one lab: 38 units of work over four machines is 9.5 each.
+    assert all(sum(1 for t in shard if t[0] == "long") <= 2 for shard in shards)
+    loads = [sum(weight(*t) for t in shard) for shard in shards]
+    assert max(loads) - min(loads) <= 6
+    # Heaviest first, to the lightest machine (the lowest number on a tie).
+    assert shards[0][0] == ("long", "lab0") and ("long", "lab4") in shards[0]
+
+
+def test_a_lab_weighs_its_runs_and_more_on_a_shared_base(tmp_path) -> None:
+    plain = tmp_path / "t" / "exercises" / "plain"
+    (plain / "wrong").mkdir(parents=True)
+    (plain / "Dockerfile").write_text("FROM ubuntu:24.04\n", encoding="utf-8")
+    for name in ("a.sh", "b.sh"):
+        (plain / "wrong" / name).write_text("true\n", encoding="utf-8")
+    network = tmp_path / "t" / "exercises" / "network"
+    network.mkdir(parents=True)
+    (network / "Dockerfile").write_text("FROM lab-base-net\n", encoding="utf-8")
+    # Pristine, solution and restart trial, plus one run a known-wrong fix.
+    assert labcheck.lab_weight("t", "plain", tmp_path) == 5
+    assert labcheck.lab_weight("t", "network", tmp_path) == 9
 
 
 def test_a_shard_that_isnt_i_of_n_is_refused() -> None:

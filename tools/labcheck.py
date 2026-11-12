@@ -32,8 +32,9 @@ check. A lab whose exercise.yaml says `lab: { restart_trial: true }` also
 gets the restart trial: once its solution passes, the container is
 restarted (`docker restart`, then the wait for its boot) and every check
 must pass again, so a fix that a reboot loses is caught. `--jobs` tests
-several labs at once; `--shard I/N` takes every Nth topic, which is how CI
-splits the run across machines.
+several labs at once; `--shard I/N` takes one machine's share of the labs,
+balanced by how long each lab's contract takes, which is how CI splits the
+run across machines.
 
 A lab whose exercise.yaml says `lab: { init: systemd }` boots systemd as PID 1
 in a privileged container, and the checker waits for the boot to finish before
@@ -1349,11 +1350,37 @@ def warm_images(
             say(f"  {type(error).__name__}: {detail}")
 
 
-def shard_of(targets: list[tuple[str, str]], shard: str) -> list[tuple[str, str]]:
-    """The labs of every Nth topic, for `--shard I/N`. CI splits the run
-    across machines by topic rather than by lab, so each machine builds the
-    layer a topic's labs share only once; with about five labs a topic the
-    shares come out even enough."""
+def lab_weight(topic: str, exercise: str, content: Path = CONTENT) -> int:
+    """Roughly how long a lab's contract takes, in made-up units, for
+    splitting CI's run. The contract starts a fresh container for the
+    pristine lab, for the solution (with its restart trial) and for each
+    known-wrong fix, and a network lab (one on a shared base, several
+    machines with real daemons) takes about three times as long a run as a
+    one-machine lab. Measured on 2026-11-12: Module 3's labs took 2 to 10
+    minutes each, Module 1's about one."""
+    folder = content / topic / "exercises" / exercise
+    wrong = folder / "wrong"
+    runs = 3 + (len(list(wrong.glob("*.sh"))) if wrong.is_dir() else 0)
+    dockerfile = folder / "Dockerfile"
+    on_a_base = dockerfile.is_file() and (
+        base_named_in(dockerfile.read_text(encoding="utf-8")) is not None
+    )
+    return runs * (3 if on_a_base else 1)
+
+
+def shard_of(
+    targets: list[tuple[str, str]],
+    shard: str,
+    weight: Callable[[str, str], int] = lab_weight,
+) -> list[tuple[str, str]]:
+    """The labs one of N CI machines tests, for `--shard I/N`. Each lab goes,
+    heaviest first, to the machine with the least work so far (by
+    `weight`), so a long topic's labs spread over several machines. Whole
+    topics dealt out in turn left one long topic holding its share up: on
+    2026-11-12 (#262) the eight shares took from 8 to 24 minutes. Every
+    machine works the split out alike from the same checkout, so each lab
+    is tested exactly once. A topic's labs now share their topic layer's
+    build less often, which costs a few seconds a machine."""
     try:
         index_text, count_text = shard.split("/", 1)
         index, count = int(index_text), int(count_text)
@@ -1361,9 +1388,14 @@ def shard_of(targets: list[tuple[str, str]], shard: str) -> list[tuple[str, str]
         raise LabError(f"--shard wants I/N, like 0/4, not {shard!r}") from None
     if count < 1 or not 0 <= index < count:
         raise LabError(f"--shard {shard} is out of range: I runs from 0 to N-1")
-    topics = sorted({topic for topic, _ in targets})
-    mine = set(topics[index::count])
-    return [(topic, exercise) for topic, exercise in targets if topic in mine]
+    weights = {target: weight(*target) for target in targets}
+    loads = [0] * count
+    machine_of: dict[tuple[str, str], int] = {}
+    for target in sorted(targets, key=lambda t: (-weights[t], t)):
+        lightest = min(range(count), key=lambda m: (loads[m], m))
+        loads[lightest] += weights[target]
+        machine_of[target] = lightest
+    return [target for target in targets if machine_of[target] == index]
 
 
 def cmd_test(args: argparse.Namespace) -> int:
