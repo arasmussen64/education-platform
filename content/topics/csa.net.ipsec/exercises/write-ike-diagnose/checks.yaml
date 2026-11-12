@@ -2,7 +2,8 @@
 # learner, on logs made now from the lines this topic's labs captured, with
 # addresses, names, numbers, times and harmless extra lines chosen afresh
 # (/usr/local/lib/lab-checks/ike-log), so a script that answers the sample
-# logs by heart fails. A wrong answer leaves its log in
+# logs by heart fails. Each log gets a random file name, so the name gives
+# nothing away either. A wrong answer leaves its log in
 # /tmp/ike-diagnose-check.log for the learner to read.
 # A check that finds something wrong prints what it found and exits 0, so
 # the checker shows that sentence rather than an exit status.
@@ -28,7 +29,7 @@ checks:
         esac
       }
       try() {
-        f="$dir/$1-$RANDOM.log"
+        f=$(mktemp -p "$dir" XXXXXXXX.log)
         "$gen" "$@" --seed "$((RANDOM * 32768 + RANDOM))" > "$f"
         chmod 644 "$f"
         got=$(cd /home/learner && timeout 5 runuser -u learner -- "$s" "$f" 2> /dev/null)
@@ -69,7 +70,7 @@ checks:
       for _ in 1 2 3 4 5 6; do list+=("${all[RANDOM % 7]}"); done
       right=0
       for c in $(printf '%s\n' "${list[@]}" | shuf); do
-        f="$dir/$c-$RANDOM.log"
+        f=$(mktemp -p "$dir" XXXXXXXX.log)
         flags=()
         [ "$c" = up ] && [ $((RANDOM % 2)) = 1 ] && flags=(--retransmit)
         "$gen" "$c" "${flags[@]}" --seed "$((RANDOM * 32768 + RANDOM))" > "$f"
@@ -107,7 +108,7 @@ checks:
         esac
       }
       for c in up ike-proposal auth esp-proposal selectors rekey no-answer; do
-        f="$dir/$c-$RANDOM.log"
+        f=$(mktemp -p "$dir" XXXXXXXX.log)
         "$gen" "$c" --iso --seed "$((RANDOM * 32768 + RANDOM))" > "$f"
         chmod 644 "$f"
         got=$(cd /home/learner && timeout 5 runuser -u learner -- "$s" "$f" 2> /dev/null)
