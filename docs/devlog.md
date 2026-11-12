@@ -14,6 +14,7 @@ The owner asked to finish everything for Module 3 and then stop. Certificates an
 - _The casebook has no monitor logs:_ none was captured with the cases, and capturing one now would carry clock times that don't match each case's other files.
 - _The debug's provider loss runs at 8%,_ which passed six runs in six on Docker Desktop; if it ever fails for the solution on the runner, the plan's fallback is 5%.
 - _No video resource:_ none on the troubleshooting method was found and watched.
+- _`.gitignore`'s `*.log` kept a lab's recorded monitor log out of git_, so troubleshooting's build image failed on GitHub's runner (#274's first run). Lab files under `content/topics` are now never ignored, and a new test fails any lab whose Dockerfile copies a file the repository doesn't hold.
 
 **Next:** Checkpoint 3, which finishes Module 3.
 

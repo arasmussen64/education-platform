@@ -53,6 +53,43 @@ def test_no_lab_copies_two_same_size_files_onto_one_path() -> None:
     assert not problems, "\n".join(problems)
 
 
+def missing_sources(dockerfile: Path) -> list[str]:
+    """The files the Dockerfile's COPY lines name that aren't there."""
+    missing = []
+    for sources in copies_onto(dockerfile).values():
+        for source in sources:
+            relative = source.relative_to(dockerfile.parent).as_posix()
+            if any(char in relative for char in "*?["):
+                if not list(dockerfile.parent.glob(relative)):
+                    missing.append(relative)
+            elif not source.exists():
+                missing.append(relative)
+    return sorted(set(missing))
+
+
+def test_every_file_a_lab_copies_is_in_the_repository() -> None:
+    # In CI the checkout holds only what git tracks, so a file .gitignore
+    # kept out (a lab's recorded *.log, #274) fails here before a lab's
+    # image fails to build on GitHub's runner.
+    problems = []
+    for dockerfile in sorted(TOPICS.glob("*/exercises/*/Dockerfile")):
+        for name in missing_sources(dockerfile):
+            problems.append(f"{dockerfile.parent.relative_to(TOPICS)}: COPY {name}")
+    assert not problems, "\n".join(problems)
+
+
+def test_it_finds_a_missing_copy_source(tmp_path) -> None:
+    (tmp_path / "here.conf").write_text("x\n", encoding="utf-8")
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text(
+        "FROM ubuntu:24.04\n"
+        "COPY here.conf gone.log /etc/app/\n"
+        "COPY *.sh /usr/local/bin/\n",
+        encoding="utf-8",
+    )
+    assert missing_sources(dockerfile) == ["*.sh", "gone.log"]
+
+
 def test_it_finds_a_same_size_overwrite(tmp_path) -> None:
     (tmp_path / "good.conf").write_text("address=10.0.9.1\n", encoding="utf-8")
     (tmp_path / "stale.conf").write_text("address=10.0.9.5\n", encoding="utf-8")
