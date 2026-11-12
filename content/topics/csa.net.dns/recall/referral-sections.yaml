@@ -2,7 +2,7 @@ id: referral-sections
 type: predict_shell
 rev: 1
 prompt: |
-  `ref.txt` is the root server's answer to `dig @198.51.100.11 +norecurse api.shop.test`, captured in this topic's lab on 2026-11-12. The command prints the header's first flag, the name of each NS record and the address of each A record. What is printed?
+  `ref.txt` is the root server's answer to `dig @198.51.100.11 +norecurse api.shop.test`, captured in this topic's lab on 2026-11-12. The command prints the third word of the header's `;; flags:` line (awk's `$3`, exactly as it stands there), the name of each NS record and the address of each A record. What is printed?
 files:
   ref.txt: |
     ; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> @198.51.100.11 +norecurse api.shop.test
@@ -35,5 +35,5 @@ expected_output: |
   ask ns1.nic.test.
   at 198.51.100.12
 explanation: |
-  The flags are `qr` alone: it's a reply, and there's no `aa`, because the root isn't the authority for `api.shop.test`. The ANSWER section is empty (`ANSWER: 0`), so nothing in it has a type in the fourth field; the question line, `;api.shop.test. IN A`, has only three. The AUTHORITY section is the referral, `test. 86400 IN NS ns1.nic.test.`: ask the server for `test.`. The ADDITIONAL section is the glue, `ns1.nic.test. 86400 IN A 198.51.100.12`: that server's address, which a resolver couldn't look up any other way, since the name is inside the zone being delegated. A referral is an empty answer, an NS in AUTHORITY, and usually glue.
+  The flags line's third word is `qr;`, the semicolon included, since awk splits only at spaces. The flags are `qr` alone: it's a reply, and there's no `aa`, because the root isn't the authority for `api.shop.test`. The ANSWER section is empty (`ANSWER: 0`), so nothing in it has a type in the fourth field; the question line, `;api.shop.test. IN A`, has only three. The AUTHORITY section is the referral, `test. 86400 IN NS ns1.nic.test.`: ask the server for `test.`. The ADDITIONAL section is the glue, `ns1.nic.test. 86400 IN A 198.51.100.12`: that server's address, which a resolver couldn't look up any other way, since the name is inside the zone being delegated. A referral is an empty answer, an NS in AUTHORITY, and usually glue.
 skills: [trace-resolution]
