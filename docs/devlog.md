@@ -32,13 +32,17 @@ The owner is still away; decisions follow their message of 2026-11-11. Wave 3 (c
 
 **Congestion control and QUIC is ready** (#270). It teaches the sender's own limit, the congestion window, beside TCP and UDP's receive window: slow start, why loss-based algorithms cut their window at every lost packet (so one connection on a long path that loses a few packets at random is capped near 1.2 × MSS ÷ (RTT × √p)), bufferbloat, and BBR, which measures the bottleneck's rate and the shortest round trip instead. The setting matters only on the machine that sends, and lasts in `/etc/sysctl.d`. Then QUIC (one handshake for transport and encryption, streams that don't block each other, connection IDs, almost everything encrypted) and HTTP/3 (found through Alt-Svc or an HTTPS record, with a silent fallback to HTTP/2 when UDP 443 is blocked). In the worked example CUBIC manages 5 Mbit/s through 1% loss and BBR 45. Five labs (38 known-wrong fixes) and 27 recall items. The review found a live-only fix that passed (BBR set on the route, which the next boot rebuilds without it) and a first-run check message that named the debug's wrong port.
 
+**Certificates and mutual TLS is ready** (#272). It teaches certificate chains and what a client checks at each link, ACME (a local step-ca as the certificate authority and certbot as the client, renewing on a timer), rotation and why lifetimes are shrinking (the CA/Browser Forum's schedule to 47 days by 2029), and mutual TLS, where the server asks for the client's certificate too. Five labs (44 known-wrong fixes) and 21 recall items. The review found that serving the API over plain HTTP for its own name passed the build (anyone could read the orders without a certificate), that the write lab's example certificates were made when the image was built, so they would expire in a cached image within a month, and that the debug's three faults fixed with the renewal timer switched off passed.
+
 **Author notes:**
 
 - _Congestion's build puts the firewall on a separate router,_ not on the server as the plan had it, so the build asks for UDP 443 on every firewall on the path and isn't a twin of the fill-in and the debug.
 - _Congestion's thresholds sit in the measured gaps:_ CUBIC managed 1.4 to 9 Mbit/s and BBR 41 to 45 on the lossy paths, so 25 Mbit/s is the line.
+- _Certificates takes 280 minutes, not the plan's 230,_ its writer's own working, for the same reason as HTTP and TLS: the plan's figure came before the split gave the topic its own labs.
+- _Certificates' image fetches step-ca and step-cli from GitHub,_ pinned by version and checksum, as decided on 2026-11-11. The pinned files are for amd64 machines only; an ARM machine would need its own checksums added.
 - _Google's 2017 BBR blog post was dropped_ (it renders only in a browser, so neither its numbers nor its licence could be read again), and the lesson claims nothing about congestion control at the clouds' own edges that couldn't be re-read.
 
-**Next:** Certificates and mutual TLS, then IPsec, each in its own pull request; wave 4 is being written.
+**Next:** IPsec in its own pull request; wave 4 is being written.
 
 ## 2026-11-12, evening: Module 3's wave 2
 
