@@ -13,6 +13,7 @@ import {
 } from '../content/content.ts'
 import type { Module, Topic, Track } from '../content/types.ts'
 import {
+  furtherParts,
   PROOFS,
   STATE_LABELS,
   stateOf,
@@ -304,10 +305,27 @@ function listOf(words: string[]): string {
   return `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`
 }
 
-/** The proof checks passed on a topic that isn't Learned yet, if any. */
-function passedNote(progress: TopicProgress): string | null {
+/**
+ * The proof checks passed on a topic that isn't Learned yet, if any. A
+ * checkpoint with further parts numbers its parts, as its own page does:
+ * part 1 is the build, part 2 the debug, and part 3 on are prove.more
+ * (ADR-0012, amended 2026-11-11), so a part still to do is never hidden
+ * behind "build, debug and explain".
+ */
+function passedNote(topic: Topic, progress: TopicProgress): string | null {
   if (progress.learnedAt) return null
-  const passed = PROOFS.filter((proof) => progress.passed[proof])
+  const parts = furtherParts(topic)
+  const passed =
+    parts.length === 0
+      ? PROOFS.filter((proof) => progress.passed[proof])
+      : [
+          ...(progress.passed.build ? ['part 1'] : []),
+          ...(progress.passed.debug ? ['part 2'] : []),
+          ...parts
+            .filter((part) => progress.partsPassed?.[part.id])
+            .map((part) => `part ${part.number}`),
+          ...(progress.passed.explain ? ['explain'] : []),
+        ]
   return passed.length === 0 ? null : `Proof checks passed: ${listOf(passed)}`
 }
 
@@ -328,7 +346,7 @@ function TopicRow({
   // can be opened.
   const shown = state ? STATE_LABELS[state] : availability(topic)
   const open = isOpen(topic)
-  const note = progress ? passedNote(progress) : null
+  const note = progress ? passedNote(topic, progress) : null
   // The living map: a Learned topic shows how well it's predicted to be
   // remembered right now, so the spacing is something the learner can see.
   const memory = progress?.card ? memoryPercent(progress.card, now) : null
