@@ -1,0 +1,16 @@
+id: mcq-overlap-needs-nat
+type: mcq
+rev: 1
+prompt: |
+  Which of these situations genuinely needs NAT?
+choices:
+  - "Two merged companies both use 10.20.0.0/16 and must reach each other's servers"
+  - "Private servers must download patches, and they already have an IPv6 path out"
+  - "A web farm of six servers must be reachable from the internet on one address"
+  - "Instances must read objects from a storage service in the same cloud region"
+answer: 0
+explanation: |
+  Two networks on the same range can't simply be joined: an address like 10.20.4.7 would mean a machine on each side, and no route can choose between them (IPv4 and CIDR's overlaps). Until one side is renumbered, NAT can stand in: each side reaches the other through translated addresses from a range neither uses. Another case where NAT is the right tool: a partner that allow-lists one fixed outbound address, as the payment provider in the labs does.
+
+  Servers with an IPv6 path can fetch patches over it with no translation at all. A web farm on one address belongs behind a load balancer, which spreads connections, checks the servers' health and keeps the clients' addresses visible, rather than a DNAT rule per server. And a storage service in the same region has a private path (AWS's gateway endpoints, Azure's service endpoints, Google's Private Google Access) that needs no NAT and no NAT charges.
+skills: [avoid-nat]

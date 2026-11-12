@@ -1,0 +1,16 @@
+id: conntrack-two-tuples
+type: predict_shell
+rev: 1
+prompt: |
+  `conntrack.txt` is one line of `conntrack -L` on gw, captured in the walkthrough's lab on 2026-11-12 while the office held a connection to srv's port 9000 through the ten-port source NAT rule (`snat to 198.51.100.2:20000-20009`). The command prints four of its words: where the connection came from, as the office sent it, and where srv sends its answers. What is printed?
+files:
+  conntrack.txt: |
+    tcp      6 431998 ESTABLISHED src=10.1.0.10 dst=203.0.113.10 sport=48902 dport=9000 src=203.0.113.10 dst=198.51.100.2 sport=9000 dport=20000 [ASSURED] mark=0 use=1
+command: awk '{print $5, $7, "->", $10, $12}' conntrack.txt
+expected_output: |
+  src=10.1.0.10 sport=48902 -> dst=198.51.100.2 dport=20000
+explanation: |
+  awk splits the line into words at the spaces, however many there are: `tcp` is `$1`, `6` (TCP's protocol number) `$2`, the seconds until the entry expires `$3`, the state `$4`. Then come two tuples. The **original** (`$5` to `$8`) is the connection as the office sent it: from 10.1.0.10, port 48902, to 203.0.113.10, port 9000. The **reply** (`$9` to `$12`) is what gw expects srv's answers to look like: from 203.0.113.10 port 9000, to 198.51.100.2 port 20000.
+
+  So the command prints the office's own address and port, then the address and port srv answers to: the translation itself. gw rewrote 10.1.0.10:48902 to 198.51.100.2:20000 on the way out, and rewrites srv's answers to 198.51.100.2:20000 back to 10.1.0.10:48902 on the way in, with no rule of their own. Port 20000 is from the rule's ten-port range; with plain masquerade, Linux keeps the client's own port when it's free. `[ASSURED]` means traffic has gone both ways.
+skills: [snat-and-dnat]

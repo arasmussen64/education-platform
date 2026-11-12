@@ -1,0 +1,45 @@
+id: nft-nat-ruleset
+type: predict_shell
+rev: 1
+prompt: |
+  `ruleset.txt` is a branch office gateway's `nft list ruleset` (constructed: nft's real format, a made-up gateway): a filter table, and a NAT table that publishes an SSH jump host and translates the office's traffic two ways. The first command prints the hook and priority of every chain; the second counts the lines that do, or accept, some kind of NAT. What is printed?
+files:
+  ruleset.txt: |
+    table inet filter {
+    	chain input {
+    		type filter hook input priority filter; policy drop;
+    		iif "lo" accept
+    		ct state established,related accept
+    	}
+
+    	chain forward {
+    		type filter hook forward priority filter; policy drop;
+    		ct state established,related accept
+    		iifname "lan" oifname "wan" accept
+    		ct status dnat accept
+    	}
+    }
+    table ip nat {
+    	chain prerouting {
+    		type nat hook prerouting priority dstnat; policy accept;
+    		iifname "wan" tcp dport 2222 dnat to 10.8.0.5:22
+    	}
+
+    	chain postrouting {
+    		type nat hook postrouting priority srcnat; policy accept;
+    		oifname "wan" ip saddr 10.8.0.0/24 ip daddr 192.0.2.80 snat to 198.51.100.40
+    		oifname "wan" masquerade
+    	}
+    }
+command: grep -o 'hook [a-z]* priority [a-z]*' ruleset.txt; grep -cE 'dnat|snat|masquerade' ruleset.txt
+expected_output: |
+  hook input priority filter
+  hook forward priority filter
+  hook prerouting priority dstnat
+  hook postrouting priority srcnat
+  4
+explanation: |
+  `grep -o` prints only the part of each line that matches, so each chain's `type` line gives its hook and priority: two filter chains on `input` and `forward`, and two NAT chains, `prerouting` at the priority named `dstnat` (destination NAT, before the routing decision) and `postrouting` at `srcnat` (source NAT, after it). nft refuses `srcnat` on prerouting or `dstnat` on postrouting.
+
+  `grep -c` counts matching lines: `ct status dnat accept` (the forward rule that lets published connections in), the `dnat to 10.8.0.5:22` that publishes the jump host's SSH on port 2222, the `snat to 198.51.100.40` for the office's traffic to 192.0.2.80 (a partner that allows one address, say), and the `masquerade` for everything else leaving through `wan`. The priority lines don't count: `srcnat` and `dstnat` don't contain `snat` or `dnat`. Rule order matters in postrouting: the first source NAT rule that matches a connection wins, so the narrow rule comes before the general one.
+skills: [nat-rules]

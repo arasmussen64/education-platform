@@ -1,0 +1,16 @@
+id: mcq-cgnat-range
+type: mcq
+rev: 1
+prompt: |
+  A team wants 100.64.0.0/10 for a new cloud network: "it isn't one of the RFC 1918 ranges, so it can't clash with any office's network". Why is that a poor choice?
+choices:
+  - "It is set aside for internet providers' carrier-grade NAT, so it can clash with theirs"
+  - "It is a public range that belongs to one company, and it is routed on the internet"
+  - "It is link-local, like 169.254.0.0/16, so routers never forward packets sent to it"
+  - "It is for multicast, so each machine on it would receive every group's traffic too"
+answer: 0
+explanation: |
+  RFC 6598 sets 100.64.0.0/10 aside as shared address space for internet providers' carrier-grade NAT (one provider translating many customers behind a few public addresses), and warns that other uses "are likely to experience problems". An office or a home user whose provider puts them behind carrier-grade NAT has an address from it, so a cloud network on the same range clashes with them exactly as an RFC 1918 overlap would. Azure also treats it specially: a virtual network's default route table drops 100.64.0.0/10 (next hop None) unless the network's own address space uses it (Azure's routing page, read 2026-11-12).
+
+  It isn't anyone's public range; link-local is 169.254.0.0/16; multicast is 224.0.0.0/4 (IPv4 and CIDR). The safer habit is a private range with room beside it, checked against every network it will ever join.
+skills: [avoid-nat]

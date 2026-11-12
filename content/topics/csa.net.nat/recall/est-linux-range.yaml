@@ -1,0 +1,18 @@
+id: est-linux-range
+type: estimate
+rev: 1
+prompt: |
+  A Linux gateway translates the office's connections with `snat to 198.51.100.2:20000-20999`: one public address, and the ports from 20000 to 20999, both ends included. How many TCP connections can the office hold open at once to one destination address and port through it? Exactly.
+unit: connections
+answer: 1000
+tolerance: { absolute: 0 }
+given: { first: 20000, last: 20999 }
+working: last - first + 1
+mistakes:
+  - id: ends-once
+    value: 999
+    working: last - first
+    why: "That counts the gaps between the ports, not the ports. From 20000 to 20999 with both ends included is 20999 - 20000 + 1 ports, as 1 to 10 is ten numbers, not nine."
+explanation: |
+  Each connection to the same destination address, port and protocol needs its own translated port, so the range's size is the limit: 20999 - 20000 + 1 = 1000. The walkthrough ran a ten-port range, 20000 to 20009, out with its eleventh connection. Connections to any other destination can reuse the same 1000 ports at the same time, because a NAT keeps translations apart by the whole tuple.
+skills: [nat-sizing]

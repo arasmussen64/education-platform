@@ -1,0 +1,24 @@
+id: est-azure-snat-ports
+type: estimate
+rev: 1
+prompt: |
+  An Azure NAT gateway has 4 public IPv4 addresses. How many SNAT ports does it have in all, for TCP? Exactly.
+unit: ports
+answer: 258048
+tolerance: { absolute: 0 }
+# 64512 SNAT ports per public address is a fact the learner must know (the
+# lesson's table): Azure's NAT Gateway Resource page, read 2026-11-12.
+given: { ips: 4 }
+working: ips * 64512
+mistakes:
+  - id: all-65536
+    value: 262144
+    working: ips * 65536
+    why: "That counts all 65536 port numbers on each address. Azure's NAT gateway gives 64512 SNAT ports per public address: ports 0 to 1023 aren't used."
+  - id: one-address
+    value: 64512
+    working: "64512"
+    why: "That's one address's ports. Each of the 4 public addresses adds its own 64512."
+explanation: |
+  "Each public IP address for a NAT gateway provides 64,512 SNAT ports" (Azure's "NAT Gateway Resource" page, read 2026-11-12), so 4 × 64512 = 258048, shared on demand by every VM in the subnets the gateway serves. TCP and UDP have separate inventories of the same size. The same page gives a second number to keep beside it: up to 50,000 concurrent connections per public address to the same destination endpoint. A gateway takes up to 16 public IPv4 addresses.
+skills: [nat-sizing]

@@ -1,0 +1,16 @@
+id: mcq-hooks-for-nat
+type: mcq
+rev: 1
+prompt: |
+  In nftables, destination NAT goes in a chain on the `prerouting` hook, and source NAT in one on `postrouting`. Why that way round?
+choices:
+  - "DNAT must change where a packet goes before it's routed; SNAT can wait until after"
+  - "Prerouting runs faster, and DNAT has to keep up with every packet arriving from outside"
+  - "SNAT has to see the reply first, and replies reach postrouting before any other hook"
+  - "nftables allows only one NAT chain on each hook, so the two kinds are split across two"
+answer: 0
+explanation: |
+  A router decides where a packet goes from its destination address. Destination NAT changes that address, so it has to happen in `prerouting`, before the routing decision: gw then routes the packet to its new destination, 10.1.0.20, out of `lan`. Source NAT changes only who the packet seems to come from, which doesn't affect the route, so it waits for `postrouting`, the last hook before the packet leaves, once gw knows the way out (`oifname "wan"`). A useful side effect: the `forward` chain sits between the two, so it sees the inside address of an outgoing packet and the inside destination of a published one.
+
+  Neither hook is faster than the other. Replies don't need a NAT rule at all: conntrack translates them back. And nftables allows any number of chains on one hook; the split is about where the routing decision falls, not a limit.
+skills: [snat-and-dnat]

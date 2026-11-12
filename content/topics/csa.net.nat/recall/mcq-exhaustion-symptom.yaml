@@ -1,0 +1,16 @@
+id: mcq-exhaustion-symptom
+type: mcq
+rev: 1
+prompt: |
+  At lunchtime, card payments to one provider fail, while every other site works and the payments already under way finish normally. Which evidence points at the shop's NAT running out of ports?
+choices:
+  - "New connections to that provider time out, and `conntrack -S` shows `insert_failed` climbing"
+  - "New connections to that provider are refused at once, with resets sent back by the gateway"
+  - "`conntrack -L` lists far fewer connections than it usually does at that time of the day"
+  - "Every site fails at once, including ones that the shop's machines have never contacted"
+answer: 0
+explanation: |
+  A NAT that has no free port for a destination can't translate a new connection's first packet, so it drops the SYN; nothing answers, the client sends the SYN again, and in the end the connection times out. On Linux each dropped attempt adds one to `insert_failed` in `conntrack -S` (retries too, so the count runs ahead of the failed connections). The pattern fits too: ports run out per destination, so the busy provider fails while other sites, which have pools of their own, still work; and connections that already have their port carry on.
+
+  A refusal (a reset, at once) means something answered: a server with nothing listening, or a firewall rule that rejects, not a NAT out of ports. A NAT out of ports has more entries than usual in its table, not fewer. Everything failing at once points at the gateway or the link, not at one destination's pool.
+skills: [port-exhaustion]
