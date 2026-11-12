@@ -44,11 +44,12 @@ checks:
   # smaller box's 12 seconds; a dead supplier is given up on time + intvl ×
   # probes after the last packet.
   - id: noticed-in-time
-    description: "Probes come often enough for both boxes along the path, and a supplier that goes dark is noticed within 45 seconds of the last packet."
+    description: "Probes come often enough for both boxes along the path, and a supplier that goes dark is noticed within 45 seconds of the last packet, with the probe count still 3."
     command: |
       t=$(on app sysctl -n net.ipv4.tcp_keepalive_time)
       i=$(on app sysctl -n net.ipv4.tcp_keepalive_intvl)
       p=$(on app sysctl -n net.ipv4.tcp_keepalive_probes)
+      [ "$p" = 3 ] || { echo "the probe count is $p, and the prompt leaves it at 3"; exit 0; }
       [ "$t" -lt 12 ] || { echo "the first probe comes after $t s of quiet, later than one of the boxes forgets"; exit 0; }
       [ "$i" -lt 12 ] || { echo "the probes come $i s apart, and after an answered probe the next waits that long, later than one of the boxes forgets"; exit 0; }
       [ $((t + i * p)) -le 45 ] || { echo "a supplier that goes dark is noticed $((t + i * p)) s after the last packet"; exit 0; }
