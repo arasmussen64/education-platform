@@ -1,0 +1,26 @@
+id: fill-floating-statics
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Floating statics"
+prompt: |
+  The triangle from the walkthrough, with one difference: the store owns all of 10.2.0.0/16, though it uses only 10.2.0.0/24 so far, and r1 and r3 send the whole /16 to r2. The office (10.1.0.10) is behind `r1`, the store (10.2.0.10) behind `r2`, and the data centre's web server `dc` (10.3.0.10) behind `r3`. The cables between the routers are 10.0.12.0/30 (r1 .1, r2 .2), 10.0.13.0/30 (r1 .1, r3 .2) and 10.0.23.0/30 (r2 .1, r3 .2). r1 and r3 are set up and saved, each with a direct route and a backup for every other site. They aren't yours to change.
+
+  r2 has been rebuilt from its saved file, `/etc/frr/frr.conf`, and three values in it are missing, each marked `___`. The file's `ip route` lines are, in order:
+
+  1. r2's default route, through r1, complete: r2 reaches the office only by this route.
+  2. A route that makes packets for the store's addresses that no machine uses die at r2, instead of following r2's default route to r1. The gap is the prefix.
+  3. The route to the data centre's network over r2's own cable to r3. The gap is the next hop.
+  4. A second route to the data centre's network, through r1, that waits unused while the cable to r3 works and takes over when it doesn't. The gap is its distance.
+
+  r2's default route also leads to r1, but a default route is the route of last resort: the data centre's network gets a backup of its own, and the checks look for that one.
+
+  Edit the file with `on r2 nano /etc/frr/frr.conf`, replace each `___` (and nothing else), save, then `sudo systemctl restart frr@r2`: FRR reads the file only when it starts, which is also what happens at every boot. If the routes don't behave, `on r2 vtysh -c 'show running-config'` shows what FRR actually loaded, and `on r2 vtysh -c 'show ip route'` what it chose. Then run the checks. The last one unplugs the r2-r3 cable to see the second route take over, and plugs it back in.
+hints:
+  - "For line 2: the store's own 10.2.0.0/24 is a connected route on r2, and the longest prefix wins, so a blackhole may cover the store's used addresses as well as its unused ones without hurting them. How wide can it go before it also catches addresses that r2 reaches only by its default route?"
+  - "For line 3: the next hop is the address at the far end of r2's cable to r3, on 10.0.23.0/30."
+  - "For line 4: any distance above the direct route's 1 makes the route wait. 255 is the one value that never works: FRR never installs a route at 255. The walkthrough used 200."
+skills: [static-routes, longest-prefix-match, static-or-dynamic]

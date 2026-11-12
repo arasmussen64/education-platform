@@ -1,0 +1,110 @@
+# The checks of "Floating statics": traffic from the store, r2's forwarding
+# decisions as its kernel makes them (ip route get), the backup FRR keeps
+# waiting, addresses nobody uses, whether r2's running routing is its file,
+# r1 and r3 as they were, and last, the backup proved by unplugging the
+# r2-r3 cable and plugging it back in. store-reaches-dc waits for the routes
+# after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: store-reaches-dc
+    description: "The store reaches the data centre's web server, and r2 sends that traffic over its own cable to r3."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      web() { [ "$(on store curl -s -m 2 http://10.3.0.10/)" = "you are 10.2.0.10" ]; }
+      wait_for 15 web || { echo "the store doesn't reach the data centre's web server"; exit 0; }
+      hop=$(ip -n r2 route get 10.3.0.10 2>&1 | awk '{for (i = 1; i < NF; i++) if ($i == "via") {print $(i + 1); exit}}')
+      [ "$hop" = 10.0.23.2 ] || { echo "r2 sends the data centre's traffic via ${hop:-nothing}, not over its cable to r3"; exit 0; }
+      echo reached
+    expect:
+      equals: reached
+  - id: store-reaches-office
+    description: "The store reaches the office."
+    command: on store ping -c 2 -W 1 10.1.0.10 > /dev/null && echo reached
+    expect:
+      equals: reached
+  - id: backup-waits
+    description: "r2 keeps a second route to the data centre's network, through r1, that it doesn't use while the first one works."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      routes=$(frr r2 'show ip route 10.3.0.0/24 json')
+      used=$(echo "$routes" | json "sorted(n['ip'] for r in d.get('10.3.0.0/24', []) if r.get('selected') for n in r['nexthops'] if n.get('active'))")
+      [ "$used" = '["10.0.23.2"]' ] || { echo "r2 uses $used for the data centre's network, not the route over its cable to r3 alone"; exit 0; }
+      waiting=$(echo "$routes" | json "sorted(n['ip'] for r in d.get('10.3.0.0/24', []) if not r.get('selected') for n in r['nexthops'])")
+      [ "$waiting" = '["10.0.12.1"]' ] || { echo "r2 has no second route to the data centre's network through r1 waiting"; exit 0; }
+      # FRR never installs a route whose distance is 255 (its zebra manual).
+      distance=$(echo "$routes" | json "[r['distance'] for r in d.get('10.3.0.0/24', []) if not r.get('selected')][0]")
+      [ "$distance" -lt 255 ] 2> /dev/null || { echo "r2's second route has distance $distance, which FRR never installs, so it could never take over"; exit 0; }
+      echo waiting
+    expect:
+      equals: waiting
+  - id: unused-dies
+    description: "Packets for store addresses that no machine uses die at r2, without going round in circles."
+    command: |
+      # Three addresses in the store's 10.2.0.0/16 outside the 10.2.0.0/24
+      # it uses: two fixed and one new at every run.
+      for a in 10.2.77.1 10.2.1.5 "10.2.$((2 + RANDOM % 250)).$((1 + RANDOM % 254))"; do
+        if ip -n r2 route get "$a" > /dev/null 2>&1; then
+          echo "r2 has somewhere to send $a, an address no machine uses: $(ip -n r2 route get "$a" | head -n 1)"
+          exit 0
+        fi
+        answer=$(ip netns exec office ping -c 1 -W 1 "$a" 2>&1)
+        case $answer in
+          *"Time to live exceeded"*) echo "packets for $a go round in circles until their TTL runs out"; exit 0 ;;
+        esac
+      done
+      echo "die at r2"
+    expect:
+      equals: "die at r2"
+  - id: saved
+    description: "r2's running FRR configuration is the one in its /etc/frr/frr.conf, so a restart gives the same routing."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      differs=$(frr_saved r2) || { echo "r2's running configuration isn't its file: $(echo "$differs" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: r1-r3-untouched
+    description: "r1 and r3 are as they were: their files, and the routing they run."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      # The sealed files can't show a change typed into vtysh.
+      for r in r1 r3; do
+        frr_saved "$r" > /dev/null || { echo "$r's routing was changed live"; exit 0; }
+      done
+      echo untouched
+    expect:
+      equals: untouched
+  - id: no-hand-made-routes
+    description: "No router has a route typed into its kernel by hand, which the next boot would lose: their routes come from FRR."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in r1 r2 r3; do
+        routes=$(hand_routes "$r")
+        [ -z "$routes" ] || { echo "$r has a route typed by hand: $(echo "$routes" | head -n 1)"; exit 0; }
+      done
+      echo none
+    expect:
+      equals: none
+  - id: backup-works
+    description: "With the r2-r3 cable unplugged, r2's second route to the data centre's network takes over within a few seconds and the store reaches the data centre through r1; once the cable is plugged in again, r2 goes back to it."
+    # It unplugs the cable itself (netlab link) and plugs it back in, even if
+    # it is stopped part way: the trap runs on the way out. The route that
+    # carries the traffic must be the data centre's own (10.3.0.0/24 in the
+    # kernel's table), not r2's default route, which also leads to r1.
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      trap 'netlab link r2 r3 restore > /dev/null 2>&1' EXIT
+      hop() { ip -n r2 route show 10.3.0.0/24 2> /dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "via") print $(i + 1)}'; }
+      web() { [ "$(on store curl -s -m 2 http://10.3.0.10/)" = "you are 10.2.0.10" ]; }
+      through_r1() { [ "$(hop)" = 10.0.12.1 ] && web; }
+      direct() { [ "$(hop)" = 10.0.23.2 ] && web; }
+      netlab link r2 r3 down
+      wait_for 8 through_r1 || { echo "with the r2-r3 cable unplugged, r2 has no route of the data centre's own through r1 (its kernel's route for 10.3.0.0/24: $(ip -n r2 route show 10.3.0.0/24 | head -n 1))"; exit 0; }
+      netlab link r2 r3 restore
+      wait_for 10 direct || { echo "with the cable plugged back in, r2 doesn't go back to the direct route"; exit 0; }
+      echo "fails over and back"
+    expect:
+      equals: "fails over and back"
