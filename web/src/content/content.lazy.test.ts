@@ -11,9 +11,9 @@ import {
 
 // Vitest gives each test file a fresh copy of content.ts, so this file sees
 // the app as it first loads: with the main track's outlines bundled in, the
-// cloud track's Module 1 and its checkpoint bundled in too, and the rest of
-// the cloud track not yet downloaded. Keep these tests in order; each builds
-// on the one before.
+// cloud track's Modules 1 to 3 and their checkpoints bundled in too, and the
+// rest of the cloud track not yet downloaded. Keep these tests in order; each
+// builds on the one before.
 
 const CLOUD = 'cloud-solutions-architect'
 /** The cloud track's modules with real content, and their checkpoints, bundled into the app. */
@@ -21,7 +21,9 @@ const isBundled = (id: string) =>
   id.startsWith('csa.linux.') ||
   id === 'csa.m1.checkpoint' ||
   id.startsWith('csa.hw.') ||
-  id === 'csa.m2.checkpoint'
+  id === 'csa.m2.checkpoint' ||
+  id.startsWith('csa.net.') ||
+  id === 'csa.m3.checkpoint'
 
 describe('topic outlines that load on demand', () => {
   it('bundles the main track and the module being written, and leaves the outlines out', () => {
@@ -49,8 +51,8 @@ describe('topic outlines that load on demand', () => {
     for (const id of topicIdsOf(cloud)) {
       expect(getTopic(id), id).toBeDefined()
     }
-    // A Module 3 topic: planned for a long while yet.
-    expect(getTopic('csa.net.cidr')).toMatchObject({
+    // A Module 4 topic: planned for a long while yet.
+    expect(getTopic('csa.sec.threat-modeling')).toMatchObject({
       status: 'planned',
       practice: [],
     })
