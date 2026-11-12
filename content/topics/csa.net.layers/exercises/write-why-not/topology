@@ -1,0 +1,25 @@
+# The network of "Write why-not": the office's network, with a server and
+# a router on it, and a back-office network behind the router.
+#
+#   office 10.0.7.10 --+
+#   srv    10.0.7.20 --[shop]-- r1 10.0.7.1 / 10.0.9.1 --[back]-- far 10.0.9.30
+#
+# srv and far each run a web server on port 80 and a firewall
+# (/etc/nftables.conf) that drops ping and two ports. Nothing in the lab
+# owns 10.0.7.200 to 10.0.7.249. The checks plug throwaway machines of
+# their own into the two switches, at 10.0.7.100 to 149 and 10.0.9.100 to
+# 149, with ports of their own choosing.
+machine office
+machine srv
+machine r1 router
+machine far
+
+lan shop office:eth0=10.0.7.10/24 srv:eth0=10.0.7.20/24 r1:eth0=10.0.7.1/24
+lan back r1:eth1=10.0.9.1/24 far:eth0=10.0.9.30/24
+
+route office default via 10.0.7.1
+route srv default via 10.0.7.1
+route far default via 10.0.9.1
+
+run srv nginx nftables
+run far nginx nftables

@@ -1,0 +1,103 @@
+#!/bin/bash
+# why-not-cases CASE...: the checks' test of the learner's ~/bin/why-not.
+# Each CASE is WHERE:WANT. WHERE is "on" (the office's own network, shop)
+# or "off" (the back network, through r1); WANT is open, refused, dropped,
+# or no-arp (an address on the office's network that nobody owns).
+#
+# For every case but no-arp, it plugs a throwaway machine of its own into
+# that network's switch (chk-why1 ...), at an address from .100 to .149,
+# with a listener on one port and a firewall that drops another and drops
+# ping, all chosen now, at random. So a script can pass only by testing,
+# never by knowing srv's and far's ports. Then it runs the script on the
+# office and compares the one word it prints. It prints "right", or the
+# first case the script got wrong. It removes its machines when it ends.
+set -u
+script=/home/learner/bin/why-not
+targets=()
+cleanup() {
+  local t
+  for t in "${targets[@]}"; do
+    ip netns pids "$t" 2> /dev/null | xargs -r kill 2> /dev/null
+    ip netns del "$t" 2> /dev/null
+  done
+}
+trap cleanup EXIT
+
+# pick LOW HIGH: sets PICKED to a number from LOW to HIGH that this run
+# hasn't used yet (so no two cases share an address or a port).
+used=" "
+pick() {
+  local n
+  while :; do
+    n=$(($1 + RANDOM % ($2 - $1 + 1)))
+    case $used in *" $n "*) continue ;; esac
+    used+="$n "
+    PICKED=$n
+    return
+  done
+}
+
+# make_target NAME SWITCH ADDRESS GATEWAY OPEN DROP: a machine with one
+# cable into SWITCH, listening on port OPEN, dropping port DROP and ping.
+make_target() {
+  local name=$1 switch=$2 addr=$3 gw=$4 open=$5 drop=$6
+  local a="cw$$a${#targets[@]}" b="cw$$b${#targets[@]}"
+  ip netns add "$name" || return 1
+  targets+=("$name")
+  ip -n "$name" link set lo up
+  ip link add "$a" type veth peer name "$b"
+  ip link set "$a" netns "$name"
+  ip -n "$name" link set "$a" name eth0
+  ip link set "$b" netns switches
+  ip -n switches link set "$b" master "$switch" up
+  ip -n "$name" addr add "$addr/24" dev eth0
+  ip -n "$name" link set eth0 up
+  ip -n "$name" route add default via "$gw"
+  printf 'table inet filter {\n  chain input {\n    type filter hook input priority filter; policy accept;\n    icmp type echo-request drop\n    tcp dport %s drop\n  }\n}\n' "$drop" \
+    | ip netns exec "$name" nft -f -
+  ip netns exec "$name" timeout 90 nc -lk -p "$open" > /dev/null 2>&1 &
+}
+
+for case in "$@"; do
+  where=${case%%:*}
+  want=${case#*:}
+  if [ "$where" = on ]; then
+    switch=shop net=10.0.7 gw=10.0.7.1
+  else
+    switch=back net=10.0.9 gw=10.0.9.1
+  fi
+  if [ "$want" = no-arp ]; then
+    pick 200 249
+    addr=$net.$PICKED
+    pick 20000 29999
+    port=$PICKED
+  else
+    pick 100 149
+    addr=$net.$PICKED
+    pick 20000 29999
+    open=$PICKED
+    pick 20000 29999
+    drop=$PICKED
+    make_target "chk-why$((${#targets[@]} + 1))" "$switch" "$addr" "$gw" "$open" "$drop" \
+      || { echo "the check could not build its test machine"; exit 0; }
+    case $want in
+      open) port=$open ;;
+      dropped) port=$drop ;;
+      refused)
+        pick 20000 29999
+        port=$PICKED
+        ;;
+    esac
+  fi
+  # What the office and r1 remember about this address from an earlier run
+  # belongs to a machine that is gone.
+  ip -n office neigh flush to "$addr" 2> /dev/null
+  ip -n r1 neigh flush to "$addr" 2> /dev/null
+  sleep 0.3
+  got=$(timeout 20 on office "$script" "$addr" "$port" 2> /dev/null)
+  if [ "$got" != "$want" ]; then
+    echo "why-not $addr $port printed '$(echo "$got" | head -c 60 | tr '\n' ' ')'; the right answer is $want"
+    exit 0
+  fi
+done
+echo right
