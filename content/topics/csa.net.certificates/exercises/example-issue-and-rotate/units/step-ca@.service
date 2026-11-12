@@ -1,0 +1,19 @@
+# The shop's certificate authority on one of the lab's machines: "systemctl
+# status step-ca@ca". It is step-ca, answering ACME at
+# https://ca.shop.test:9000/acme/acme/directory, with its files in
+# /var/lib/step-ca (make-shop-ca says what they are).
+[Unit]
+Description=The shop's certificate authority (step-ca) on %i
+After=netlab.service unbound@resolver.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+Environment=STEPPATH=/var/lib/step-ca
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/bin/step-ca /var/lib/step-ca/config/ca.json --password-file /var/lib/step-ca/secrets/password
+Restart=on-failure
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

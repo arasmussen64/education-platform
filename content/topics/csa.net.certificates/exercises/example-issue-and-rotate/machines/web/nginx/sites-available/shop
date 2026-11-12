@@ -1,0 +1,24 @@
+# The shop's site on web: www.shop.test over HTTPS, and plain HTTP for
+# ACME's challenges.
+
+# Plain HTTP: the files certbot leaves for the CA to fetch (ACME's HTTP-01
+# challenge) from /var/www/html, and every other request sent to HTTPS.
+server {
+    listen 80;
+    server_name www.shop.test;
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    server_name www.shop.test;
+    # The site's certificate, followed by the intermediate's, and its key.
+    ssl_certificate     /etc/nginx/tls/www.shop.test/fullchain.pem;
+    ssl_certificate_key /etc/nginx/tls/www.shop.test/privkey.pem;
+    root /srv/www/www;
+}

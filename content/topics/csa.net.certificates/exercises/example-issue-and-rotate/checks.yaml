@@ -1,0 +1,78 @@
+# The checks of "Issue and rotate": web serves a certificate from the CA's
+# ACME service, certbot's current one; the two serial numbers saved are two
+# of certbot's certificates, the second the newer; a renewal reloads nginx;
+# the timer is on; and the lab is as it began. The first check waits for
+# nginx on web after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: served-from-acme
+    description: "www.shop.test serves a certificate the office trusts for that name, issued through the shop CA's ACME service: by its intermediate, for 24 hours."
+    # It waits up to about 30 seconds for nginx after a boot (10 tries of
+    # at most 3 seconds), so it gets 45 and prints its own sentence.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/certcheck.sh
+      wait_for 10 web_up || { echo "nothing answers HTTPS for www.shop.test on web"; exit 0; }
+      from_acme www.shop.test 443
+    expect:
+      equals: acme
+  - id: served-is-live
+    description: "The certificate www.shop.test serves is certbot's current one, the one in web's /etc/letsencrypt/live/www.shop.test/."
+    command: |
+      . /usr/local/lib/lab/certcheck.sh
+      live=$(live_serial www.shop.test)
+      [ -n "$live" ] || { echo "certbot has no certificate for www.shop.test on web"; exit 0; }
+      now=$(served www.shop.test 443 | serial_of)
+      [ "$now" = "$live" ] && { echo live; exit 0; }
+      echo "web serves the certificate with serial ${now:-none}; certbot's current one is $live"
+    expect:
+      equals: live
+  - id: serials-saved
+    description: "~/example/first.txt and ~/example/second.txt each hold a serial number of a certificate certbot got for www.shop.test, the second a newer one than the first."
+    command: |
+      for f in first second; do
+        [ -s "/home/learner/example/$f.txt" ] || { echo "there is no ~/example/$f.txt, or it's empty"; exit 0; }
+      done
+      first=$(sed -n 's/^serial=//p' /home/learner/example/first.txt | head -n 1)
+      second=$(sed -n 's/^serial=//p' /home/learner/example/second.txt | head -n 1)
+      [ -n "$first" ] && [ -n "$second" ] || { echo "the two files don't each hold a serial= line"; exit 0; }
+      [ "$first" != "$second" ] || { echo "the two files hold the same serial number, $first: the certificate didn't change between them"; exit 0; }
+      # certbot keeps every certificate it got in archive/, numbered in order.
+      number() {
+        local f
+        for f in /etc/netns/web/letsencrypt/archive/www.shop.test/cert*.pem; do
+          [ "$(openssl x509 -in "$f" -noout -serial 2> /dev/null | cut -d= -f2)" = "$1" ] && { basename "$f" .pem | tr -dc 0-9; return; }
+        done
+      }
+      a=$(number "$first")
+      b=$(number "$second")
+      [ -n "$a" ] && [ -n "$b" ] || { echo "a serial number saved isn't one of the certificates certbot got for www.shop.test"; exit 0; }
+      [ "$b" -gt "$a" ] || { echo "the certificate in second.txt isn't newer than the one in first.txt"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: renewal-reloads
+    description: "www.shop.test's renewal settings run a hook that has nginx on web read its files again after every renewal."
+    command: |
+      f=/etc/netns/web/letsencrypt/renewal/www.shop.test.conf
+      [ -f "$f" ] || { echo "certbot has no renewal settings for www.shop.test on web"; exit 0; }
+      grep -E '^renew_hook *= *systemctl (reload|restart) nginx@web *$' "$f" > /dev/null && { echo reloads; exit 0; }
+      echo "www.shop.test's renewal settings have no hook that reloads nginx@web (a renew_hook line)"
+    expect:
+      equals: reloads
+  - id: timer-on
+    description: "certbot@web.timer is on now and at every boot."
+    command: |
+      [ "$(systemctl is-enabled certbot@web.timer 2> /dev/null)" = enabled ] || { echo "certbot@web.timer doesn't start at boot"; exit 0; }
+      [ "$(systemctl is-active certbot@web.timer 2> /dev/null)" = active ] || { echo "certbot@web.timer isn't running"; exit 0; }
+      echo running
+    expect:
+      equals: running
+  - id: lab-untouched
+    description: "The network, the shop's certificate authority, its root and every machine's trust in it, and the resolver are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact
