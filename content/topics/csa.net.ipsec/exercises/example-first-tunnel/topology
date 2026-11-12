@@ -1,0 +1,32 @@
+# The network of "VPNs and IPsec": the shop's office, its VPN gateway, the
+# internet, and a cloud provider's VPN gateway with the shop's cloud network
+# behind it.
+#
+#   office --- vpn ==(internet)== cloud --[vpc]-- app
+#   192.168.10.10  198.51.100.10   203.0.113.10    10.20.1.10
+#
+# vpn is the office's VPN gateway, the learner's. cloud stands in for a
+# cloud provider's VPN gateway (AS 64512, a private AS number) and isn't
+# the learner's: its tunnel interface, its IPsec connection and its BGP are
+# scenery. Addresses come from the documentation ranges (RFC 5737) and the
+# tunnel's inside addresses from 169.254.0.0/16, as the clouds give them.
+machine office
+machine vpn router
+machine internet router
+machine cloud router
+machine app
+
+link office:eth0=192.168.10.10/24 vpn:lan=192.168.10.1/24
+link vpn:wan=198.51.100.10/24 internet:vpn=198.51.100.1/24
+link internet:cloud=203.0.113.1/24 cloud:wan=203.0.113.10/24
+lan vpc cloud:vpc=10.20.0.1/16 app:eth0=10.20.1.10/16
+route office default via 192.168.10.1
+route app default via 10.20.0.1
+
+# The provider's end of the tunnel. Key 7 is the mark that ties its vti0 to
+# the IPsec SA whose mark_in and mark_out are 7 (cloud's swanctl file).
+tunnel cloud vti0 vti local 203.0.113.10 remote 198.51.100.10 key 7 addr 169.254.21.1/30
+
+run vpn frr strongswan
+run cloud frr strongswan
+run app nginx

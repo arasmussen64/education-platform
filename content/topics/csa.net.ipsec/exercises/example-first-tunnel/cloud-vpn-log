@@ -1,0 +1,9 @@
+#!/bin/bash
+# Usage: cloud-vpn-log [LINES]
+# The provider's VPN log for the office's connection, as a cloud's VPN logs
+# show it once they are turned on (AWS's Site-to-Site VPN tunnel logs,
+# Azure's gateway diagnostics): the last LINES lines (default 40) its
+# strongSwan wrote, oldest first. Read-only.
+set -euo pipefail
+lines=${1:-40}
+exec journalctl -u strongswan@cloud --no-pager -o cat -n "$lines"
