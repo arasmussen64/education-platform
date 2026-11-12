@@ -1,0 +1,132 @@
+# The checks of "The shop's balancer": HAProxy running its file and starting
+# at boot; real requests and connections from the office, which say which
+# server answered and what it saw; then the health policy proved on every
+# web and API server at once: frozen (they accept connections and never
+# answer), failing one check in four, and the database stopped for a few
+# seconds. Servers are found by their addresses, so the learner's backends
+# and servers may have any names. Each check puts back what it changed. The
+# first check waits for the balancer after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: config-valid-and-running
+    description: "HAProxy on lb runs lb's /etc/haproxy/haproxy.cfg as the file is now, and starts at every boot."
+    timeout: 40
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      if ! errors=$(on lb haproxy -c -q -f /etc/haproxy/haproxy.cfg 2>&1); then
+        echo "haproxy -c refuses lb's /etc/haproxy/haproxy.cfg: $(echo "$errors" | grep ALERT | head -n 1)"
+        exit 0
+      fi
+      [ "$(systemctl is-enabled haproxy@lb)" = enabled ] || { echo "haproxy@lb doesn't start at boot"; exit 0; }
+      haproxy_ready || { echo "HAProxy on lb isn't running: systemctl status haproxy@lb says why"; exit 0; }
+      [ "$(systemctl is-active haproxy@lb)" = active ] || { echo "haproxy@lb isn't running"; exit 0; }
+      running_is_saved || { echo "the file has changed since haproxy@lb last loaded it, so HAProxy isn't running what it says"; exit 0; }
+      echo running
+    expect:
+      equals: running
+  - id: web-round-robin
+    description: "Visitors without a cookie are spread across web1, web2 and web3, at least 8 of 30 requests each, and only web servers answer the front page."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      got=$(for i in $(seq 1 30); do served_by http://10.0.9.1/; done | sort | uniq -c | awk '{print $2 "=" $1}' | tr '\n' ' ')
+      for m in web1 web2 web3; do
+        n=$(echo " $got" | grep -o " $m=[0-9]*" | cut -d= -f2)
+        [ "${n:-0}" -ge 8 ] || { echo "30 requests for the front page went: ${got:-nowhere}"; exit 0; }
+      done
+      echo "$got" | grep -e api -e stock -e status > /dev/null && { echo "30 requests for the front page went: $got"; exit 0; }
+      echo spread
+    expect:
+      equals: spread
+  - id: api-routed
+    description: "Every request under /api/ goes to api1 or api2, and both answer some of them."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      got=$(for i in $(seq 1 10); do served_by http://10.0.9.1/api/whoami; done | sort | uniq -c | awk '{print $2 "=" $1}' | tr '\n' ' ')
+      case " $got" in
+        *" api1="*" api2="*) ;;
+        *) echo "10 requests for /api/whoami went: ${got:-nowhere}"; exit 0 ;;
+      esac
+      echo "$got" | grep -e web -e stock -e status > /dev/null && { echo "10 requests for /api/whoami went: $got"; exit 0; }
+      echo routed
+    expect:
+      equals: routed
+  - id: sticky-by-cookie
+    description: "A visitor's requests all reach the same web server, kept there by a cookie named SHOPSRV."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      jar=$(mktemp /tmp/chk-jar.XXXXXX)
+      trap 'rm -f "$jar"' EXIT
+      got=$(for i in $(seq 1 10); do served_by -b "$jar" -c "$jar" http://10.0.9.1/; done | sort -u | tr '\n' ' ')
+      awk '$6 == "SHOPSRV"' "$jar" | grep SHOPSRV > /dev/null || { echo "the balancer never gave the visitor a cookie named SHOPSRV"; exit 0; }
+      case $got in
+        "web1 " | "web2 " | "web3 ") echo sticky ;;
+        *) echo "one visitor's 10 requests, sending back their cookies, went to: $got" ;;
+      esac
+    expect:
+      equals: sticky
+  - id: client-address-passed
+    description: "Web and API servers both see the office laptop's address as the last X-Forwarded-For value."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      for path in /whoami /api/whoami; do
+        xff=$(office "http://10.0.9.1$path" | awk -F': ' '$1 == "X-Forwarded-For" {print $2}')
+        last=$(echo "$xff" | awk -F', *' '{print $NF}')
+        [ "$last" = 10.0.9.2 ] || { echo "asked for $path, the server saw X-Forwarded-For: ${xff:-nothing}"; exit 0; }
+      done
+      echo passed
+    expect:
+      equals: passed
+  - id: stock-sync-at-layer-4
+    description: "Connections to the stock service on 10.0.9.1 port 7000 get its greeting at once, from both stock servers."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      seen=""
+      for i in 1 2 3 4 5 6; do
+        line=$(on office timeout 4 nc -w 2 10.0.9.1 7000 < /dev/null | head -n 1)
+        case $line in
+          "STOCK-SYNC 1.0 ready "*) seen+="${line##* } " ;;
+          *) echo "a connection to 10.0.9.1 port 7000 got ${line:-nothing} in 2 seconds"; exit 0 ;;
+        esac
+      done
+      both=$(echo "$seen" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+      [ "$both" = " stock1 stock2 " ] || [ "$both" = "stock1 stock2 " ] || { echo "six connections were answered by: $seen"; exit 0; }
+      echo greeted
+    expect:
+      equals: greeted
+  - id: hung-server-out
+    description: "A web or API server that hangs (it accepts connections and never answers) is out of rotation within 15 seconds."
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      hung_test 15 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080 10.0.1.21:8081 10.0.1.22:8081 2> /dev/null
+    expect:
+      equals: passed
+  - id: hiccups-tolerated
+    description: "A web or API server that fails a health check now and then (one in four) stays in rotation."
+    timeout: 50
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      hiccup_test 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080 10.0.1.21:8081 10.0.1.22:8081
+    expect:
+      equals: passed
+  - id: db-restart-survived
+    description: "While the database restarts, every web and API server keeps passing its health checks and the front page keeps answering."
+    timeout: 40
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      db_test 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080 10.0.1.21:8081 10.0.1.22:8081
+    expect:
+      equals: passed
+  - id: all-ready-at-the-end
+    description: "Every web, API and stock server is up and in rotation: none left draining or in maintenance."
+    command: |
+      . /usr/local/lib/lab/lbcheck.sh
+      wait_up 10 10.0.1.11:8080 10.0.1.12:8080 10.0.1.13:8080 10.0.1.21:8081 10.0.1.22:8081 > /dev/null || true
+      api "show servers state" | awk 'NF > 5 && $1 !~ /^#/ {
+        if ($6 != 2) bad = bad " " $4 " is not up"
+        else if ($7 != 0) bad = bad " " $4 " is out of rotation (administrative state " $7 ")"
+        n++
+      } END {print (n == 0 ? "HAProxy reports no servers" : (bad == "" ? "ready" : substr(bad, 2)))}'
+    expect:
+      equals: ready

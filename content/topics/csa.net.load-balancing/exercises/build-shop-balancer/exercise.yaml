@@ -1,0 +1,24 @@
+id: build-shop-balancer
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The shop's balancer"
+prompt: |
+  The shop is moving its website, its API and its stock service behind a new balancer, and you write its whole configuration. The machines are the walkthrough's: the office (10.0.9.2), the balancer `lb` (HAProxy, `haproxy@lb`, 10.0.9.1 for the office), and on the servers' network `web1` to `web3` (10.0.1.11 to .13, port 8080), `api1` and `api2` (10.0.1.21 and .22, port 8081), `stock1` and `stock2` (10.0.1.31 and .32, port 7000) and the database `db`. The servers and the database are as they should be; all the work is lb's `/etc/haproxy/haproxy.cfg`, which so far holds only its `global` and `defaults` sections, so HAProxy has nothing to run and didn't start.
+
+  What a web or API server answers: `/livez` is 200 when the server itself can answer, and `/health` is 200 only when the database answers too. A web server serves the front page, `/`, and `/whoami`; an API server serves everything under `/api/`, `/api/whoami` among it. Each `whoami` says what the server sees: the connection's address and any `X-Forwarded-For`.
+
+  Make the balancer do all of this:
+
+  1. **The website on 10.0.9.1, port 80.** Every request whose path starts `/api/` goes to `api1` and `api2`; everything else goes to `web1`, `web2` and `web3` in turn.
+  2. **Each web visitor stays on one web server** for the whole visit, by a cookie named `SHOPSRV`: the basket lives in the server's memory. The whole office reaches the internet through one NAT address, so stickiness by the visitor's address won't do.
+  3. **Every web and API server sees the office laptop's address.**
+  4. **The stock service on 10.0.9.1, port 7000**, spread across `stock1` and `stock2`. It isn't HTTP, and its server speaks first.
+  5. **The fill-in's health policy, for every web and API server:** one that stops answering, by refusing connections or by hanging, is out of rotation within 15 seconds; one failed check never takes a server out; a restart of the database never takes the front page or the API out of rotation; a recovered server is back after two good checks.
+  6. **HAProxy runs this configuration at every boot**, as the service `haproxy@lb`.
+
+  The commands you'll need: `on lb nano /etc/haproxy/haproxy.cfg`, `on lb haproxy -c -f /etc/haproxy/haproxy.cfg`, `sudo systemctl restart haproxy@lb` the first time and `sudo systemctl reload haproxy@lb` after each later change, `echo "show stat" | on lb socat stdio /run/haproxy/admin.sock`, and `on office curl` and `on office nc` to try it. Then run the checks. Three of them make something go wrong on every web and API server at once: they freeze the servers' programs, make one health check in four fail, and stop the database for a few seconds; each puts things back afterwards.
+skills: [choose-the-balancer, health-checks, failover-math, drain-and-stick, read-the-balancer]

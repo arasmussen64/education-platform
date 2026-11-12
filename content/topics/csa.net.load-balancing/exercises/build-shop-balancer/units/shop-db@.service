@@ -1,0 +1,15 @@
+# The shop's database, on the lab's machine db: "systemctl status shop-db@db".
+# The program is /usr/local/bin/shop-db.
+[Unit]
+Description=The shop's database on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/shop-db
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
