@@ -7,8 +7,9 @@ on-dc samba-tool domain provision --quiet --realm=AD.CLINIC.TEST --domain=CLINIC
   --server-role=dc --dns-backend=SAMBA_INTERNAL --adminpass='Clinic-Admin-1' \
   --option='dns forwarder = 10.0.9.1'
 sudo systemctl enable --now dc1
-# dc1's name server answers a moment after its service says it's ready.
-until dig +short +time=1 +tries=1 @10.0.9.10 _ldap._tcp.ad.clinic.test SRV | grep -q dc1; do sleep 1; done
+# dc1's name server and its directory (LDAP, port 389) answer a moment
+# after its service says it's ready; on a busy machine, many moments.
+until dig +short +time=1 +tries=1 @10.0.9.10 _ldap._tcp.ad.clinic.test SRV | grep -q dc1 && nc -z -w 1 10.0.9.10 389; do sleep 1; done
 dig +short @10.0.9.10 _kerberos._tcp.ad.clinic.test SRV
 
 # 2. dc1's address gets a name: a reverse zone for 10.0.9.x, and a PTR

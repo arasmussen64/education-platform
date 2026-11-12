@@ -57,12 +57,17 @@ checks:
       equals: "length 12, lockout 10"
   - id: policy-linked
     description: "A Group Policy object called Desk baseline is linked to the Front-Desk unit."
+    # The directory is read up to three times, a second apart: a read made
+    # while Samba is busy can come back empty once.
     command: |
       dc() { ip netns exec dc unshare --uts --mount --propagation private /usr/local/lib/lab/dc-enter "$@"; }
-      dc samba-tool gpo getlink 'OU=Front-Desk,DC=ad,DC=clinic,DC=test' 2>/dev/null \
-        | awk '/^ *Name *:/ {sub(/^ *Name *: */, ""); print tolower($0)}' | grep -qx 'desk baseline' \
-        || { echo "no Group Policy object called Desk baseline is linked to OU=Front-Desk"; exit 0; }
-      echo linked
+      for _ in 1 2 3; do
+        dc samba-tool gpo getlink 'OU=Front-Desk,DC=ad,DC=clinic,DC=test' 2>/dev/null \
+          | awk '/^ *Name *:/ {sub(/^ *Name *: */, ""); print tolower($0)}' | grep -qx 'desk baseline' \
+          && { echo linked; exit 0; }
+        sleep 1
+      done
+      echo "no Group Policy object called Desk baseline is linked to OU=Front-Desk"
     expect:
       equals: linked
   - id: finds-the-dc
@@ -87,9 +92,13 @@ checks:
     # that zone to dc1. A record for dc1 typed into the resolver
     # (host-record=, ptr-record=, srv-host=) answers dc1's name and address
     # but leaves the zone unforwarded, and so does pointing /etc/resolv.conf
-    # at dc1, which the next boot undoes.
+    # at dc1, which the next boot undoes. A record typed in beside the
+    # forwarders would pass the SOA test, so the resolver's own settings are
+    # read for one too.
     command: |
-      if grep -Eq '(^|[[:space:]])(10\.0\.9\.10|dc1(\.ad.clinic.test)?)([[:space:]]|$)' /etc/hosts; then echo "lab's hosts file names dc1"; exit 0; fi
+      if grep -Eq '(^|[[:space:]])(10\.0\.9\.10|dc1(\.ad\.clinic\.test)?)([[:space:]]|$)' /etc/hosts; then echo "lab's hosts file names dc1"; exit 0; fi
+      if grep -Eqs '^[[:space:]]*(host-record|ptr-record|srv-host|address|cname|txt-record|interface-name|dynamic-host)[[:space:]]*=.*(10\.0\.9\.10|dc1)' /etc/dnsmasq.conf /etc/dnsmasq.d/*; then echo "the site's resolver has a record for dc1 typed into its settings"; exit 0; fi
+      if grep -Eqs '^[[:space:]]*addn-hosts[[:space:]]*=' /etc/dnsmasq.conf /etc/dnsmasq.d/*; then echo "the site's resolver reads names from a hosts file of its own"; exit 0; fi
       if grep -Eqis '^[[:space:]]*(kdc|admin_server|kpasswd_server)[[:space:]]*=' /etc/krb5.conf /etc/krb5.conf.d/*; then echo "lab's Kerberos settings name a server"; exit 0; fi
       if grep -Eqis '^[[:space:]]*(ad_server|ad_backup_server|krb5_server|krb5_backup_server|ldap_uri|ldap_backup_uri)[[:space:]]*=' /etc/sssd/sssd.conf /etc/sssd/conf.d/*.conf; then echo "lab's SSSD settings name a server"; exit 0; fi
       for zone in ad.clinic.test 9.0.10.in-addr.arpa; do
