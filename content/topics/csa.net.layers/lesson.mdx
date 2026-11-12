@@ -42,7 +42,7 @@ The packet is the same: same addresses, same identification number, a number the
 
 On a network with several machines, the cables meet at a **switch** (on Linux, a software one is called a **bridge**): a box that passes each frame towards the port where that destination MAC address lives, learning which addresses are where from the frames it sees. A frame for a MAC address it hasn't seen yet goes out of every port, which is why a capture on one machine can show frames meant for someone else; the machine's own card ignores them. In the cloud you see none of this. AWS, Azure and Google Cloud all run their own networks underneath your virtual machines: there are no cables or switches of yours, the provider decides which VM an address belongs to, and all three state that their networks carry no **broadcast**, a frame sent to every machine at once (AWS's subnet page, Azure's virtual network FAQ, Google's VPC overview, all read 2026-11-12).
 
-**Reading a header in hex.** Captures show bytes in **hexadecimal**, counting in sixteens: the digits 0 to 9, then `a` to `f` for 10 to 15. Two hex digits make one **byte** (eight bits, which network standards call an **octet**): `0x40` is 4 × 16 + 0 = 64, `0x54` is 5 × 16 + 4 = 84, and the `0x` in front just says "this is hex". Here are the first 34 bytes of the worked example's echo request, from `tcpdump -xx`, read field by field:
+**Reading a header in hex.** Captures show bytes in **hexadecimal**, counting in sixteens: the digits 0 to 9, then `a` to `f` for 10 to 15. Two hex digits make one **byte** (eight bits, which network standards call an **octet**): `0x40` is 4 × 16 + 0 = 64, `0x54` is 5 × 16 + 4 = 84, and the `0x` in front just says "this is hex". Here are the first 34 bytes of another echo request from the worked example's lab (a later ping, so its identification isn't the one above), from `tcpdump -xx`, read field by field:
 
 | Bytes | Hex | What it is |
 | --- | --- | --- |
@@ -50,6 +50,7 @@ On a network with several machines, the cables meet at a **switch** (on Linux, a
 | 7 to 12 | `9a27 2da1 8336` | source MAC address (the laptop's) |
 | 13 to 14 | `0800` | **EtherType**: what the frame carries. `0800` is IPv4, `0806` ARP, `86dd` IPv6 |
 | 15 | `45` | IPv4 version 4, and a header of 5 four-byte words: 20 bytes |
+| 16 | `00` | type of service, a priority field that is usually 0 |
 | 17 to 18 | `0054` | total length of the packet: 84 bytes |
 | 19 to 20 | `d7c0` | identification |
 | 21 to 22 | `4000` | the flags, with DF (don't fragment) set |
@@ -71,7 +72,7 @@ Answers are kept in the **neighbour table** (`ip neigh`, Module 1's ARP table), 
 | `STALE` | answered a while ago; still used, checked again when next needed |
 | `DELAY`, `PROBE` | being checked again right now |
 | `INCOMPLETE` | asked, no answer yet |
-| `FAILED` | asked three times, never answered: wrong address, wrong netmask, or the machine is down |
+| `FAILED` | asked three times, never answered: a wrong address, a machine that is down, or one that isn't really on this network |
 | `PERMANENT` | typed in by hand, never checked again |
 
 The two failures you'll meet are `FAILED`, where nobody answers for the address, and a `PERMANENT` entry that was right once: if that machine's network card is replaced, every frame for it goes to a MAC address that no longer exists, without a single error, until someone deletes the line. When ARP fails, `ping` says `Destination Host Unreachable` from the sender's own address: the sender's kernel gave up before any packet left.
@@ -113,8 +114,8 @@ The three clouds differ here, and an architect has to know it (each provider's M
 | --- | --- | --- | --- |
 | Inside the network | up to 9001 (jumbo frames) on current instance types; every type supports 1500 | 1500 by default; up to 9000 on Microsoft's own network adapter (MANA), 3900 on Mellanox ones | 1460 by default; a network's MTU can be set from 1300 to 8896 |
 | Where it drops | 1500 over an internet gateway, a VPN, or between Regions without a transit gateway; 8500 over inter-Region peering | bigger than 1500 only within the virtual network and directly peered ones in the same region; 1500 through gateways, global peering and to the internet | the network's MTU everywhere in it |
-| Too big | fragmented, or dropped if DF is set | | never fragmented inside the network: dropped, with "fragmentation needed" sent back |
-| MSS clamping | | | clamps TCP's MSS for traffic leaving the network, not inside it |
+| Too big | fragmented, or dropped if DF is set | not stated on the pages read | never fragmented inside the network: dropped, and with DF set "fragmentation needed" is sent back |
+| MSS clamping | not stated on the pages read | not stated on the pages read | clamps TCP's MSS for traffic leaving the network, not inside it |
 | GRE between VMs | not stated on the pages read | blocked inside a virtual network (with broadcast, multicast and IP-in-IP) | supported (version 0); not through Cloud NAT or Application Load Balancers |
 
 Explainers that call 1500 bytes the maximum MTU mean the internet's limit, not the clouds' inside their own networks. **MSS clamping**, in the table, is a router rewriting the MSS in each new TCP connection's first packet so that the connection never sends segments too big for the path.
