@@ -1,0 +1,99 @@
+# The checks of "Cache policy": what the edge cache really does with each
+# kind of page, asked from the office, each on a URL the edge has never
+# seen (a fresh query string), so nothing kept from an earlier try counts;
+# the headers each kind carries; the WebSocket upgrade through both
+# proxies; and the edge as the lab began. The first check waits for the
+# shop's services after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: assets-kept
+    description: "The edge answers a fingerprinted asset from its own copy the second time, and the asset may be kept for a year without being asked about on a reload."
+    # It waits up to 20 seconds for the shop's services after a boot, so it
+    # gets a minute and prints its own sentence rather than running out.
+    timeout: 60
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      up() { [ -n "$(headers http://origin.shop.test/index.html | header etag)" ]; }
+      wait_for 20 up || { echo "the origin doesn't answer yet"; exit 0; }
+      k=$(fresh)
+      first=$(headers "http://www.shop.test/assets/app.3f9a.js?$k" | header x-cache-status)
+      second=$(headers "http://www.shop.test/assets/app.3f9a.js?$k" | header x-cache-status)
+      [ "$second" = HIT ] || { echo "asked twice, the edge answered $first then $second: it kept no copy"; exit 0; }
+      cc=$(headers http://origin.shop.test/assets/style.81c2.css | header cache-control)
+      age=$(echo "$cc" | grep -o 'max-age=[0-9]*' | head -n 1 | cut -d= -f2)
+      [ "${age:-0}" -ge 31536000 ] || { echo "the assets say \"Cache-Control: $cc\": a year is 31536000 seconds"; exit 0; }
+      echo "$cc" | grep -i immutable > /dev/null || { echo "the assets say \"Cache-Control: $cc\": a browser would still ask about them on a reload"; exit 0; }
+      echo kept
+    expect:
+      equals: kept
+  - id: pages-asked-about
+    description: "The pages may be kept by a browser, every cache asks the origin before using a copy, the edge serves the newest price list, and a browser's copy is checked with a cheap 304."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      cc=$(headers http://origin.shop.test/news.html | header cache-control)
+      if echo "$cc" | grep -i no-store > /dev/null; then echo "the pages say \"Cache-Control: $cc\": no-store keeps them out of the browser too"; exit 0; fi
+      if ! echo "$cc" | grep -i no-cache > /dev/null && ! { echo "$cc" | grep -i 'max-age=0\b' > /dev/null && echo "$cc" | grep -i must-revalidate > /dev/null; }; then
+        echo "the pages say \"Cache-Control: ${cc:-nothing}\": a cache may use its copy without asking the origin"
+        exit 0
+      fi
+      # The edge's price list against the origin's, once the origin has
+      # published a newer one than the edge first saw.
+      k=$(fresh)
+      seen=$(page "http://www.shop.test/news.html?$k" | version)
+      for i in $(seq 1 14); do
+        now=$(page http://origin.shop.test/news.html | version)
+        [ "${now:-0}" -gt "${seen:-0}" ] && break
+        sleep 0.5
+      done
+      edge=$(page "http://www.shop.test/news.html?$k" | version)
+      [ "${edge:-0}" -ge "${now:-1}" ] || { echo "the origin has published price list $now, and the edge still serves $edge"; exit 0; }
+      etag=$(headers http://origin.shop.test/index.html | header etag)
+      [ -n "$etag" ] || { echo "the storefront has no ETag"; exit 0; }
+      status=$(headers -H "If-None-Match: $etag" http://origin.shop.test/index.html | head -n 1)
+      case $status in
+        *" 304 "*) echo asked ;;
+        *) echo "asked with its own ETag, the storefront answers \"$status\", not 304" ;;
+      esac
+    expect:
+      equals: asked
+  - id: account-private
+    description: "Each customer gets their own account page through the edge, and only a browser may keep it."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      k=$(fresh)
+      alice=$(page -H 'Cookie: session=alice' "http://www.shop.test/account?$k")
+      bob=$(page -H 'Cookie: session=bob' "http://www.shop.test/account?$k")
+      case $bob in *"for bob,"*) ;; *) echo "bob asked for his account page and got: $bob"; exit 0 ;; esac
+      case $alice in *"for alice,"*) ;; *) echo "alice asked for her account page and got: $alice"; exit 0 ;; esac
+      cc=$(headers -H 'Cookie: session=alice' http://origin.shop.test/account | header cache-control)
+      echo "$cc" | grep -i -e private -e no-store > /dev/null || { echo "the account page says \"Cache-Control: ${cc:-nothing}\": a shared cache may keep it"; exit 0; }
+      echo private
+    expect:
+      equals: private
+  - id: api-never-kept
+    description: "Each customer gets their own basket through the edge, and no cache may keep the API's answers."
+    command: |
+      . /usr/local/lib/lab/httpcheck.sh
+      k=$(fresh)
+      alice=$(page -H 'Cookie: session=alice' "http://www.shop.test/api/basket?$k")
+      bob=$(page -H 'Cookie: session=bob' "http://www.shop.test/api/basket?$k")
+      case $bob in *'"customer": "bob"'*) ;; *) echo "bob asked for his basket and got: $bob"; exit 0 ;; esac
+      case $alice in *'"customer": "alice"'*) ;; *) echo "alice asked for her basket and got: $alice"; exit 0 ;; esac
+      cc=$(headers -H 'Cookie: session=alice' http://origin.shop.test/api/basket | header cache-control)
+      echo "$cc" | grep -i no-store > /dev/null || { echo "the API says \"Cache-Control: ${cc:-nothing}\": some cache may still keep it"; exit 0; }
+      echo never
+    expect:
+      equals: never
+  - id: board-opens
+    description: "A staff screen opens the order board's WebSocket through the edge and the origin, and the board answers it."
+    command: on office python3 /usr/local/lib/lab/ws-probe ws://www.shop.test/board/
+    expect:
+      equals: upgraded
+  - id: edge-untouched
+    description: "The network and the edge cache's configuration are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact

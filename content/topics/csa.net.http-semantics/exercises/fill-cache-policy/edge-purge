@@ -1,0 +1,13 @@
+#!/bin/bash
+# edge-purge: empties the edge cache, as a CDN's purge button does (CloudFront
+# calls it an invalidation, Azure Front Door and Cloud CDN a purge or an
+# invalidation). Every page is then fetched from the origin again, with the
+# origin's headers as they are now. It reaches only the edge: a copy already
+# in a customer's browser stays there until its own lifetime runs out.
+set -euo pipefail
+if [[ $EUID -ne 0 ]]; then exec sudo "$0" "$@"; fi
+on edge sh -c 'rm -rf /var/lib/nginx/edge-cache/*'
+# nginx keeps an index of its copies in memory; a restart reads the empty
+# folder afresh.
+systemctl restart nginx@edge
+echo "edge cache emptied: every page will be fetched from the origin again"

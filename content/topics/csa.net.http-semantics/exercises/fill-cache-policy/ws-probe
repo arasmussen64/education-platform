@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""ws-probe: the checks' staff screen (a check's tool, not the learner's).
+
+    ws-probe URL [QUIET]
+
+Opens a WebSocket to URL, sends "hello" and waits for the board's answer.
+With QUIET, it then sends nothing for QUIET seconds (it never pings, but it
+answers the board's pings, as every client does) and tries again. Prints one
+line: "upgraded", "survived N seconds of quiet", or what went wrong:
+"no upgrade: HTTP 400", "no answer", "closed after N seconds of quiet".
+"""
+
+import asyncio
+import sys
+import time
+
+import websockets
+
+
+async def probe(url, quiet):
+    try:
+        websocket = await websockets.connect(url, ping_interval=None, open_timeout=5, close_timeout=2)
+    except websockets.exceptions.InvalidStatusCode as refused:
+        return f"no upgrade: HTTP {refused.status_code}"
+    except (OSError, asyncio.TimeoutError, websockets.exceptions.WebSocketException) as error:
+        return f"no upgrade: {type(error).__name__}"
+    try:
+        await websocket.send("hello")
+        if await asyncio.wait_for(websocket.recv(), 5) != "order board: hello":
+            return "no answer"
+        if quiet is None:
+            return "upgraded"
+        started = time.monotonic()
+        try:
+            await asyncio.wait_for(websocket.wait_closed(), quiet)
+            return f"closed after {round(time.monotonic() - started)} seconds of quiet"
+        except asyncio.TimeoutError:
+            pass
+        await websocket.send("still there?")
+        if await asyncio.wait_for(websocket.recv(), 5) != "order board: still there?":
+            return "no answer"
+        return f"survived {quiet} seconds of quiet"
+    except websockets.exceptions.ConnectionClosed:
+        return "closed"
+    except asyncio.TimeoutError:
+        return "no answer"
+    finally:
+        await websocket.close()
+
+
+def main():
+    url = sys.argv[1]
+    quiet = int(sys.argv[2]) if len(sys.argv) > 2 else None
+    print(asyncio.run(probe(url, quiet)))
+
+
+main()
