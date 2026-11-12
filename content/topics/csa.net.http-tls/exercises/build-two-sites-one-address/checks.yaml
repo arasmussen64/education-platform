@@ -1,0 +1,129 @@
+# The checks of "Two sites, one address": every handshake is made from the
+# office, as a customer's laptop would make it, against web's one address.
+# The first check waits for nginx on web after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sni-each
+    description: "www.shop.test and api.shop.test, on web's one address, each answer with a certificate for their own name that the office trusts, and each serves its own pages."
+    # It waits up to about 30 seconds for nginx after a boot (10 tries of
+    # at most 3 seconds), so it gets 45 and prints its own sentence.
+    timeout: 45
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      wait_for 10 web_up || { echo "nothing answers HTTPS for www.shop.test on web"; exit 0; }
+      for name in www.shop.test api.shop.test; do
+        v=$(verified "$name")
+        [ "$v" = ok ] || { echo "the certificate served for $name doesn't verify for that name: $v (it names $(names_on "$name"))"; exit 0; }
+      done
+      on office curl -s --max-time 5 https://www.shop.test/ | grep 'The shop: www.shop.test' > /dev/null ||
+        { echo "https://www.shop.test/ doesn't serve the shop's page from /srv/www/www"; exit 0; }
+      on office curl -s --max-time 5 https://api.shop.test/ | grep 'api.shop.test' > /dev/null ||
+        { echo "https://api.shop.test/ doesn't serve the API's page from /srv/www/api"; exit 0; }
+      echo each
+    expect:
+      equals: each
+  - id: unknown-name-refused
+    description: "A handshake that asks for a name web has no site for, or for no name at all, is refused, and no certificate is handed out."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      other=$(fresh_name)
+      for name in "$other" -; do
+        out=$(handshake "$name")
+        if echo "$out" | grep -- '-----BEGIN CERTIFICATE-----' > /dev/null; then
+          what=$([ "$name" = - ] && echo "no name at all" || echo "$name")
+          echo "a handshake for $what is handed a certificate: $(echo "$out" | openssl x509 -noout -subject 2> /dev/null)"
+          exit 0
+        fi
+      done
+      echo refused
+    expect:
+      equals: refused
+  - id: versions
+    description: "Both sites accept TLS 1.2 and TLS 1.3 and refuse TLS 1.1, and no ssl_protocols line in nginx's files names a version older than TLS 1.2."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      for name in www.shop.test api.shop.test; do
+        for v in 1.2 1.3; do
+          got=$(hello "$name" "$v")
+          [ "$got" = "TLSv$v" ] || { echo "a TLS $v handshake for $name is $got"; exit 0; }
+        done
+        got=$(hello "$name" 1.1)
+        [ "$got" = refused ] || { echo "a TLS 1.1 handshake for $name is accepted ($got)"; exit 0; }
+      done
+      named=$(file_versions | tr '\n' ' ')
+      [ -n "$named" ] || { echo "nginx's files have no ssl_protocols line, so nginx 1.24 allows its own default, TLS 1.0 to 1.3"; exit 0; }
+      old=$(file_versions | grep -v -x -e TLSv1.2 -e TLSv1.3 | tr '\n' ' ')
+      [ -z "$old" ] || { echo "an ssl_protocols line in nginx's files still names $old"; exit 0; }
+      echo versions
+    expect:
+      equals: versions
+  - id: h2
+    description: "Both sites speak HTTP/2 to a client that offers it."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      for name in www.shop.test api.shop.test; do
+        got=$(http_version "$name")
+        [ "$got" = 2 ] || { echo "curl speaks HTTP/$got to $name"; exit 0; }
+      done
+      echo h2
+    expect:
+      equals: h2
+  - id: full-chain
+    description: "Each site sends its own certificate followed by the intermediate that signed it."
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      for name in www.shop.test api.shop.test; do
+        n=$(chain_count "$name")
+        [ "$n" -ge 2 ] || { echo "$name sends $n certificate(s): a client that only trusts the root can't get from it to the root"; exit 0; }
+        second=$(handshake "$name" -showcerts | awk '/BEGIN CERT/ {n++} n == 2' | openssl x509 -noout -subject 2> /dev/null)
+        case $second in
+          *"Shop Lab Intermediate"*) ;;
+          *) echo "the second certificate $name sends is \"$second\", not the intermediate"; exit 0 ;;
+        esac
+      done
+      echo chain
+    expect:
+      equals: chain
+  - id: stapled
+    description: "www.shop.test staples the CA's good OCSP answer to its handshakes, from the second handshake after nginx starts, and nginx's files name the shop's resolver for looking up the responder."
+    timeout: 20
+    command: |
+      . /usr/local/lib/lab/tlscheck.sh
+      resolver_set 10.0.9.53 || { echo "no resolver line in nginx's files names the shop's resolver, 10.0.9.53"; exit 0; }
+      stapled www.shop.test
+    expect:
+      equals: stapled
+  - id: redirect
+    description: "Plain HTTP for either name answers with a permanent redirect (301) to the same path on HTTPS."
+    command: |
+      for name in www.shop.test api.shop.test; do
+        path="/check/$RANDOM?x=$RANDOM"
+        answer=$(on office curl -sI --max-time 5 "http://$name$path" | tr -d '\r')
+        status=$(echo "$answer" | head -n 1)
+        loc=$(echo "$answer" | awk -F': ' 'tolower($1) == "location" {print $2}')
+        case $status in
+          "HTTP/1.1 301 "*) ;;
+          *) echo "http://$name$path answers \"$status\", not a 301"; exit 0 ;;
+        esac
+        [ "$loc" = "https://$name$path" ] || { echo "http://$name$path redirects to \"$loc\", not https://$name$path"; exit 0; }
+      done
+      echo redirect
+    expect:
+      equals: redirect
+  - id: lasts
+    description: "nginx on web starts at every boot, and nginx's files pass its own test."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(systemctl is-enabled nginx@web 2> /dev/null)" = enabled ] || { echo "nginx@web doesn't start at boot"; exit 0; }
+      said=$(on web nginx -t 2>&1) || { echo "on web, nginx -t says: $(echo "$said" | grep -m 1 emerg)"; exit 0; }
+      echo lasts
+    expect:
+      equals: lasts
+  - id: scenery
+    description: "The network, the shop's certificate authority, the sites' certificates and the shop's resolver are as the lab began."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact
+    expect:
+      equals: intact
