@@ -1,0 +1,29 @@
+id: debug-friday-change
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The Friday change"
+prompt: |
+  The shop's network, after a change that went in on Friday evening. Every machine and router is described here, the broken parts and the working ones alike; `netlab show` lists them.
+
+  - **The office**, 10.1.0.0/24 (host `office`, 10.1.0.10), is behind `r1`, which is also the shop's edge: its `wan` interface, 198.51.100.2/24, leads to the ISP's router at 198.51.100.1, and beyond the ISP is the payment provider's web server, `web` (203.0.113.10, port 80), which stands in for the rest of the internet too. There is no NAT in this topic, so the ISP carries the shop's private addresses back to r1.
+  - **The data centre**, 10.3.0.0/24, is behind `r3`. Its server `dc` (10.3.0.10) runs the stock app on port 8080 (`http://10.3.0.10:8080/`), which answers with the address each request came from and logs it (`on dc tail /var/log/nginx/access.log`).
+  - **The inspection firewall**, `r2`, sits between r1 (10.0.12.0/30) and r3 (10.0.23.0/30). Its rules are its `/etc/nftables.conf`, loaded at every boot by `nftables@r2`: new connections from the office to the stock app, and pings, are let through, and anything else only as part of a conversation r2 has already seen start (`on r2 nft list ruleset`, `on r2 conntrack -L`).
+  - **The emergency link**, 10.0.13.0/30, joins r1 and r3 directly, for when r2 is down.
+  - **The store**, 10.2.0.0/16, is behind `r4`, on 10.0.14.0/30 from r1. Its tills are on 10.2.0.0/24 (host `till`, 10.2.0.10) and its card readers on 10.2.200.0/24 (host `reader`, 10.2.200.10).
+
+  Each router runs FRR with static routes (`on r1 vtysh`), and each router's interfaces are named after what is at the far end. The intended design: every packet between the office and the data centre passes r2, in both directions; the emergency link isn't used while r2's links are up; r1 sends everything for the store's 10.2.0.0/16 to r4; r1 sends everything that isn't internal to the ISP's router; r1 drops packets for internal addresses (in 10.0.0.0/8) that no site uses; and the card readers must reach the payment provider.
+
+  Since Friday's change, nobody reaches the internet, and the stock app times out from the office although the server answers ping. There are three faults. Fixing one can change what you see.
+
+  The rules of the fix:
+
+  - **r2's firewall stays exactly as it is**, file and running rules: the inspection is the point.
+  - **Internal addresses that no site uses keep dying at r1.**
+  - **Every router's change is saved**, and no route is typed into a router's kernel by hand.
+
+  When the office, the store and the stock app all work, run the checks.
+skills: [return-path, static-routes, longest-prefix-match, find-the-black-hole]

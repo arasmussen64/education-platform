@@ -1,0 +1,51 @@
+# The network of "The Friday change": the office, the data centre behind
+# an inspection firewall, the store with its tills and card readers, and
+# the internet beyond r1.
+#
+#   office 10.1.0.10 --- r1 ---- r2 (firewall) ---- r3 --- dc 10.3.0.10
+#                       / | \______ emergency link ___/        (stock app :8080)
+#                      /  |
+#      wan 198.51.100.2   r4 --- till 10.2.0.10    (10.2.0.0/24)
+#                     |      \-- reader 10.2.200.10 (10.2.200.0/24)
+#   isp 198.51.100.1 --- web 203.0.113.10 (the payment provider)
+#
+# r1-r2 10.0.12.0/30, r2-r3 10.0.23.0/30, r1-r3 10.0.13.0/30 (the emergency
+# link), r1-r4 10.0.14.0/30. Each router's interfaces are named after what
+# is at the far end. There is no NAT in this topic, so the ISP carries the
+# shop's private addresses back to r1. r2's firewall is its own
+# /etc/nftables.conf, loaded at every boot by nftables@r2.
+machine office
+machine dc
+machine till
+machine reader
+machine r1 router
+machine r2 router
+machine r3 router
+machine r4 router
+machine isp router
+machine web
+
+link office:eth0=10.1.0.10/24 r1:lan=10.1.0.1/24
+link r1:r2=10.0.12.1/30 r2:r1=10.0.12.2/30
+link r2:r3=10.0.23.1/30 r3:r2=10.0.23.2/30
+link r1:r3=10.0.13.1/30 r3:r1=10.0.13.2/30
+link r1:r4=10.0.14.1/30 r4:r1=10.0.14.2/30
+link dc:eth0=10.3.0.10/24 r3:lan=10.3.0.1/24
+link till:eth0=10.2.0.10/24 r4:tills=10.2.0.1/24
+link reader:eth0=10.2.200.10/24 r4:readers=10.2.200.1/24
+link r1:wan=198.51.100.2/24 isp:shop=198.51.100.1/24
+link isp:web=203.0.113.1/24 web:eth0=203.0.113.10/24
+
+route office default via 10.1.0.1
+route dc default via 10.3.0.1
+route till default via 10.2.0.1
+route reader default via 10.2.200.1
+route web default via 203.0.113.1
+route isp 10.0.0.0/8 via 198.51.100.2
+
+run r1 frr
+run r2 frr nftables
+run r3 frr
+run r4 frr
+run dc nginx
+run web nginx
