@@ -15,13 +15,15 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends shellcheck \
  && rm -rf /var/lib/apt/lists/*
 
-# The checks' own answer (syn-truth), and three pairs of captures to try the
-# script on: the same connections captured on both sides of a box, on the
-# transport topic's lab network (2026-11-12).
+# The checks' own answer (syn-truth, root's alone: the checks run the
+# learner's script as the learner, so it can't hand them the work), and
+# three pairs of captures to try the script on: the same connections
+# captured on both sides of a box, on the transport topic's lab network
+# (2026-11-12).
 COPY syn-truth /usr/local/lib/lab/syn-truth
 COPY captures/ /srv/captures/
 COPY seed.sh /tmp/seed.sh
-RUN chmod 755 /usr/local/lib/lab/syn-truth \
+RUN chmod 700 /usr/local/lib/lab/syn-truth \
  && chmod -R a+rX /srv/captures \
  && bash /tmp/seed.sh && rm /tmp/seed.sh
 
