@@ -70,7 +70,7 @@ A program stuck for two minutes on one connect, or fifteen on one request, is an
 The fixes, best first:
 
 1. **TCP keepalives that come sooner than the smallest idle timer on the path**, switched on by the program for its connection, with the timers in a file so they last. AWS's networking blog (2026-05-22) suggests 240 seconds' idle, 60 between probes and 3 probes for its 350-second timers.
-2. **A heartbeat** (a few bytes of real data the application sends) where a proxy sits in the path. A layer 7 load balancer ends the client's TCP connection itself, so TCP probes stop there and don't count: AWS's Application Load Balancer counts data, and says it doesn't even count HTTP/2's PING frames.
+2. **A heartbeat** (a few bytes of real data the application sends) where a **proxy** sits in the path: a box that ends the client's TCP connection itself and opens its own to the server, as a layer 7 load balancer does. TCP probes stop at the proxy and don't count: AWS's Application Load Balancer counts data, and says it doesn't even count HTTP/2's PING frames.
 3. **A pool that closes connections before they've been idle that long**, and reconnects without fuss.
 4. **A longer timer on the box**, where it allows one, which costs: Azure's NAT gateway holds a connection's SNAT port for its whole timer, and advises against raising it.
 
@@ -84,7 +84,7 @@ The three clouds' timers, as their pages give them (each read 2026-11-12; a blan
 | Layer 7 load balancer | Application Load Balancer: 60 s by default, 1 to 4,000; HTTP/2 PINGs don't count | Front Door: 90 s HTTP keep-alive, fixed | external Application Load Balancer: client keepalive 610 s (5 to 1,200), backend 600 s, fixed |
 | The machine's own firewall | security groups: 350 s on Nitro v6 instance types, 5 days on others; UDP 30 s, 180 s for a flow of several exchanges | | VPC firewall: a connection stays tracked while it sends at least one packet every 10 minutes |
 
-Two details to remember: on AWS's Nitro v6 instance types the security group's tracking forgets a quiet connection after 350 seconds, where older types keep it five days (AWS's blog warns that long-lived pooled connections then drop unexpectedly), and Google says its NAT timers can vary by up to five seconds, so leave room.
+Two details to remember: on AWS's Nitro v6 instance types (virtual machine types built on the sixth generation of AWS's Nitro hardware) the security group's tracking forgets a quiet connection after 350 seconds, where older types keep it five days (AWS's blog warns that long-lived pooled connections then drop unexpectedly), and Google says its NAT timers can vary by up to five seconds, so leave room.
 
 **UDP.** UDP sends one **datagram** and forgets it: no handshake, no acknowledgement, no resending, no ordering, and no flow control. It keeps one thing, the message boundary: a datagram arrives whole, as the piece it was sent as, or not at all. Here's what that looks like from app (captured in the worked example's lab): a datagram to a port where nothing listens, answered by the far kernel's ICMP "port unreachable", and one to a port a firewall drops, answered by nothing at all.
 
