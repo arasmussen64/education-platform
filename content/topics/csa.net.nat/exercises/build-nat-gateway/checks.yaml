@@ -1,0 +1,115 @@
+# The checks of "Build the shop's gateway": what srv and the app see (the
+# address each connection came from); that the app holds 300 connections to
+# the payment provider at once, which only 198.51.100.3 can open; that
+# nothing else answers from the internet (dropped, not refused, timed as
+# Module 1's firewall labs do); that gw forwards only what its rules allow
+# (tried from a throwaway machine of the check's own on the provider's
+# network, which sends straight to the shop's private addresses); that the
+# provider was left alone; and that the rules and forwarding come back at
+# every boot (the running rules against gw's file, the live forwarding
+# against gw's /etc/sysctl.d). The cheap checks come first. A check that
+# finds something wrong prints what it found and exits 0, so the checker
+# shows that sentence rather than an exit status.
+checks:
+  - id: office-out
+    description: "The office and the app reach srv's web server, which sees each of them as 198.51.100.2."
+    command: |
+      for m in office app; do
+        got=$(on "$m" curl -sS -m 3 http://203.0.113.10/ 2>&1)
+        [ "$got" = "you are 198.51.100.2" ] || { echo "from $m, srv says: $got"; exit 0; }
+      done
+      echo "both as 198.51.100.2"
+    expect:
+      equals: "both as 198.51.100.2"
+  - id: published
+    description: "A customer reaches the shop's app at 198.51.100.2, port 443, and the app sees the customer's own address."
+    command: on client curl -sS -m 3 http://198.51.100.2:443/ 2>&1
+    expect:
+      equals: "you are 203.0.113.20"
+  - id: payments-out
+    description: "The app holds 300 connections to the payment provider (203.0.113.10, port 443) at once; the provider takes them only from 198.51.100.3."
+    command: on app holdconns 300 203.0.113.10 443 1
+    expect:
+      equals: "opened 300 of 300"
+  - id: nothing-else
+    description: "From the internet, only 198.51.100.2's port 443 answers: the gateway itself, SSH, the database, the app's own port, 198.51.100.3's port 443 and two ports nobody uses all stay silent for the whole timeout."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      dir=$(mktemp -d)
+      trap 'rm -rf "$dir"' EXIT
+      probes="198.51.100.2:22 198.51.100.2:5432 198.51.100.2:8443 198.51.100.2:3306 198.51.100.2:9999 198.51.100.3:443 198.51.100.3:22 198.51.100.3:5432 198.51.100.3:8443"
+      for probe in $probes; do
+        tcp_state client "${probe%:*}" "${probe#*:}" > "$dir/$probe" &
+      done
+      wait
+      for probe in $probes; do
+        state=$(cat "$dir/$probe")
+        [ "$state" = dropped ] || { echo "from the internet, ${probe%:*} port ${probe#*:} is $state, not silent"; exit 0; }
+      done
+      echo "nothing else answers"
+    expect:
+      equals: "nothing else answers"
+  - id: forwards-only-what-rules-allow
+    description: "gw forwards only what its rules allow: its forward chain's policy is drop, and a machine on the provider's network that sends straight to the shop's private addresses gets no answer."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      policies=$(on gw nft -j list ruleset 2> /dev/null | json "sorted(set(c['chain'].get('policy', 'accept') for c in d['nftables'] if 'chain' in c and c['chain'].get('hook') == 'forward'))")
+      [ "$policies" = '["drop"]' ] || { echo "gw's forward chain doesn't drop what no rule accepts (policies: $policies)"; exit 0; }
+      # A throwaway machine on the provider's switch, isp, with a route to
+      # the shop's private network through gw.
+      p=chk-isp
+      ip netns del "$p" 2> /dev/null
+      trap 'ip netns del chk-isp 2> /dev/null' EXIT
+      ip netns add "$p"
+      ip -n "$p" link set lo up
+      ip link add chkisp0 type veth peer name chkisp1
+      ip link set chkisp0 netns "$p"
+      ip -n "$p" link set chkisp0 name eth0
+      ip link set chkisp1 netns switches
+      ip -n switches link set chkisp1 master isp up
+      ip -n "$p" addr add 198.51.100.66/24 dev eth0
+      ip -n "$p" link set eth0 up
+      ip -n "$p" route add 10.1.0.0/24 via 198.51.100.2
+      # A machine that used this address a moment ago had another MAC.
+      ip -n gw neigh flush to 198.51.100.66 2> /dev/null
+      for port in 8443 5432; do
+        start=$(date +%s%N)
+        if ip netns exec "$p" nc -z -w 2 10.1.0.20 "$port" > /dev/null 2>&1; then
+          echo "from the provider's network, 10.1.0.20 port $port answers through gw"
+          exit 0
+        fi
+        ms=$((($(date +%s%N) - start) / 1000000))
+        [ "$ms" -ge 1500 ] || { echo "from the provider's network, 10.1.0.20 port $port is refused, not silent"; exit 0; }
+      done
+      echo "only what the rules allow"
+    expect:
+      equals: "only what the rules allow"
+  - id: provider-untouched
+    description: "The payment provider's firewall is as the lab began: its file unchanged, and running as its file says."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "the lab's scenery has changed: $sealed"; exit 0; }
+      differs=$(nft_saved srv) || { echo "srv's running firewall isn't its file's: $(echo "$differs" | head -n 2 | tr '\n' ' ')"; exit 0; }
+      echo untouched
+    expect:
+      equals: untouched
+  - id: saved
+    description: "gw's running firewall and NAT are the ones its /etc/nftables.conf loads, and nftables@gw loads that file at every boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(systemctl is-enabled nftables@gw 2> /dev/null)" = enabled ] || { echo "nftables@gw isn't enabled, so nothing loads gw's file at boot"; exit 0; }
+      if differs=$(nft_saved gw); then
+        echo saved
+      else
+        echo "gw's running rules aren't the ones its /etc/nftables.conf loads: $(echo "$differs" | head -n 2 | tr '\n' ' ')"
+      fi
+    expect:
+      equals: saved
+  - id: forwarding-lasts
+    description: "gw forwards, and its /etc/sysctl.d says so, so it still forwards after a reboot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      differs=$(sysctl_saved gw net.ipv4.ip_forward) || { echo "$differs"; exit 0; }
+      on gw sysctl -n net.ipv4.ip_forward
+    expect:
+      equals: "1"
