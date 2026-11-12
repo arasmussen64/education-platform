@@ -1,0 +1,14 @@
+# The DR site's status API on a machine: "systemctl status repl-status@dr".
+[Unit]
+Description=The DR site's status API on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/repl-status
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

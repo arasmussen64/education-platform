@@ -1,0 +1,103 @@
+#!/usr/bin/python3
+"""repl-agent: the replication agent's status connection to the DR site (a
+stand-in; part of the lab's scenery).
+
+It keeps one connection open to the DR site's status API and checks the
+site's status over it when asked: GET http://127.0.0.1:8090/status on its
+machine sends one line and waits for the one-line answer. Its settings are
+/etc/repl/agent.conf, read when it starts; a later line for the same name
+wins. It only switches TCP keepalive on or off: the timers are the
+system's (net.ipv4.tcp_keepalive_*).
+
+  GET /status  ->  {"ok": true, "check": 3, "port": 41522, "seconds": 0.1}
+                   or {"ok": false, ..., "error": "timed out"}
+
+"port" is the connection's own port on this machine, so two checks that
+show the same port went over the same connection.
+"""
+
+import json
+import socket
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+CONF = "/etc/repl/agent.conf"
+
+
+def read_conf():
+    settings = {}
+    with open(CONF, encoding="utf-8") as conf:
+        for line in conf:
+            line = line.split("#", 1)[0].strip()
+            if "=" in line:
+                name, value = (part.strip() for part in line.split("=", 1))
+                settings[name] = value
+    return settings
+
+
+SETTINGS = read_conf()
+HOST, PORT = SETTINGS.get("status", "10.0.6.20:8443").rsplit(":", 1)
+KEEPALIVE = SETTINGS.get("keepalive", "off")
+if KEEPALIVE not in ("on", "off"):
+    print(f"repl-agent: keepalive = {KEEPALIVE} isn't on or off, so it stays off", flush=True)
+    KEEPALIVE = "off"
+LOCK = threading.Lock()
+POOL = {"sock": None, "file": None}
+COUNT = {"checks": 0}
+
+
+def connect():
+    sock = socket.create_connection((HOST, int(PORT)), timeout=5)
+    if KEEPALIVE == "on":
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    sock.settimeout(float(SETTINGS.get("timeout") or 4))
+    print(f"connected to the DR site's status API from port {sock.getsockname()[1]} (keepalive {KEEPALIVE})", flush=True)
+    return sock
+
+
+def check(number):
+    with LOCK:
+        started = time.time()
+        port = None
+        try:
+            if POOL["sock"] is None:
+                POOL["sock"] = connect()
+                POOL["file"] = POOL["sock"].makefile("rwb", buffering=0)
+            port = POOL["sock"].getsockname()[1]
+            POOL["sock"].sendall(b"status %d\n" % number)
+            answer = POOL["file"].readline()
+            if not answer:
+                raise ConnectionError("the DR site closed the connection")
+            return {"ok": True, "check": number, "port": port,
+                    "seconds": round(time.time() - started, 3)}
+        except Exception as error:  # noqa: BLE001 - every failure is reported to the caller
+            took = time.time() - started
+            print(f"status check {number} failed after {took:.1f} s: {error}", flush=True)
+            if POOL["sock"] is not None:
+                POOL["sock"].close()
+            POOL["sock"] = None
+            return {"ok": False, "check": number, "port": port, "error": str(error),
+                    "seconds": round(took, 3)}
+
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *args):
+        pass
+
+    def do_GET(self):
+        if self.path == "/status":
+            COUNT["checks"] += 1
+            body = check(COUNT["checks"])
+        else:
+            body = {"checks": COUNT["checks"]}
+        data = json.dumps(body).encode() + b"\n"
+        self.send_response(200 if body.get("ok", True) else 502)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+print(f"repl-agent: status checks on 127.0.0.1:8090; the DR site is {HOST}:{PORT}, keepalive {KEEPALIVE}", flush=True)
+ThreadingHTTPServer(("127.0.0.1", 8090), Handler).serve_forever()

@@ -1,0 +1,27 @@
+id: debug-slow-replication
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Slow replication"
+prompt: |
+  Every night, the shop's app server, `app`, replicates its database to the DR site's server, `dr` (10.0.6.20), over a private link of 50 Mbit/s with a 100 ms round trip. Every machine is described here, the broken parts and the working ones alike; `netlab show` lists them.
+
+  - **The replication** is one TCP connection from app to dr's receiver on port 5201 (iperf3's server, `repl-sink@dr`). `on app iperf3 -c 10.0.6.20 -t 5` sends for five seconds the way the replication does and reports the rate dr received.
+  - **The replication agent**, `repl-agent` (`repl-agent@app`, its settings in app's `/etc/repl/agent.conf`), keeps a status connection open to dr's status API on port 8443 and checks the site's status over it whenever asked: `on app curl -s localhost:8090/status` asks for one and prints the result, with the connection's `port` on app; `journalctl -u repl-agent@app` shows how each check went.
+  - **The site's firewall**, `edge`, sits between app and the link. app may start connections out, with its address translated to edge's own, and nothing outside may start one in. It tracks connections, and forgets one that has been quiet for 10 seconds. The lab's clock runs fast: a managed firewall's timer is minutes.
+  - **The private link**, `wan`, is scenery. It carries the shop's own addresses back to edge, so only edge's firewall keeps the outside out.
+  - **dr** also runs a small test server on port 8080 that answers each connection with the address it came from: `on app nc 10.0.6.20 8080 < /dev/null` shows the address dr sees app's connections come from.
+
+  Since the site's firewall was replaced last month, the replication runs at about a tenth of the link's speed, and a status check after a quiet spell fails. There are three faults. Find each one from the evidence and fix it where it lives, on app, edge or dr.
+
+  The rules of the fix:
+
+  - **edge keeps its job:** it still refuses connections from outside, still translates app's address, and keeps its 10-second idle timer, which stands for a managed firewall's.
+  - **The link stays as it is.**
+  - **Every fix lasts after a reboot.**
+
+  When the replication runs near the link's speed and a status check after a quiet spell works, run the checks.
+skills: [window-math, idle-cuts, read-a-capture]
