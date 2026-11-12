@@ -36,6 +36,11 @@ checks:
       for u in shop-web@web1 shop-web@web2 shop-web@web3 shop-db@db; do
         [ "$(systemctl is-enabled "$u")" = enabled ] || { echo "$u doesn't start at boot"; exit 0; }
       done
+      # A drop-in (systemctl edit) changes a unit without touching its file.
+      for u in db-nightly.service db-nightly.timer shop-db@db shop-web@web1 shop-web@web2 shop-web@web3 lab-story.service; do
+        d=$(systemctl show -p DropInPaths --value "$u")
+        [ -z "$d" ] || { echo "$u has been changed by $d"; exit 0; }
+      done
       echo intact
     expect:
       equals: intact
@@ -53,7 +58,13 @@ checks:
       declare -A seen failed
       for m in web1 web2 web3; do seen[$m]=$(checks_seen "$m"); failed[$m]=$(db_failed "$m"); done
       systemctl start --no-block db-nightly.service
-      for i in $(seq 1 15); do on lb nc -z -w 1 10.0.1.20 5432 > /dev/null 2>&1 || break; sleep 0.2; done
+      # The job stops the database within a moment of starting.
+      gone=""
+      for i in $(seq 1 15); do
+        on lb nc -z -w 1 10.0.1.20 5432 > /dev/null 2>&1 || { gone=yes; break; }
+        sleep 0.2
+      done
+      [ -n "$gone" ] || { echo "the database's maintenance job was started, and the database never went down: the job or the database isn't as the lab began"; exit 0; }
       t0=$(ms)
       n=0
       while [ $(($(ms) - t0)) -lt 7000 ]; do
@@ -111,7 +122,7 @@ checks:
     expect:
       equals: steady
   - id: hung-server-out
-    description: "A web server in rotation that hangs (it accepts connections and never answers) is out of rotation within 15 seconds."
+    description: "A web server in rotation that hangs (it accepts connections and never answers) is out of rotation within 15 seconds, even when it hangs just after a good health check."
     timeout: 60
     command: |
       . /usr/local/lib/lab/lbcheck.sh
