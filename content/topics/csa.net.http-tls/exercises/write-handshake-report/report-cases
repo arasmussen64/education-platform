@@ -4,9 +4,10 @@
 # ports of 127.0.0.1, each with two certificates whose names are made up
 # now, and a version, an ALPN choice and a stapled answer or none, so that
 # every value of every line is in play. Then it runs the learner's script
-# against each server twice, once naming the second certificate's first
-# name and once naming nothing, and compares the four lines with what each
-# server was made to do. It prints "same", or the first difference.
+# against each server three times, naming the second certificate's first
+# name, naming the first certificate's second name, and naming nothing,
+# and compares the four lines with what each server was made to do. It
+# prints "same", or the first difference.
 set -u
 . /usr/local/lib/lab/tls-servers
 script=/home/learner/bin/handshake-report
@@ -42,15 +43,18 @@ for i in 0 1 2 3; do
   serve "$port" "$dir" "d$i" "${opts[@]}"
   listening "$port" || { echo "the check's own server on port $port didn't start"; exit 0; }
   # openssl's test server speaks ALPN only for its first certificate:
-  # a client whose name picks the second one negotiates none.
-  for ask in "$c1" ""; do
-    if [ -n "$ask" ]; then
+  # a client whose name picks the second one negotiates none. A name that
+  # isn't the second certificate's (here the first one's second name) gets
+  # the first certificate, whose first name differs from the name asked
+  # for, so a script must read the name from the certificate, and offer
+  # ALPN whether or not it was given a name.
+  for ask in "$c1" "$d2" ""; do
+    if [ "$ask" = "$c1" ]; then
       want="protocol: TLSv$version|alpn: none|certificate-name: $c1|stapled: $stapled"
-      how="localhost $port $ask"
     else
       want="protocol: TLSv$version|alpn: $alpn|certificate-name: $d1|stapled: $stapled"
-      how="localhost $port"
     fi
+    how="localhost $port${ask:+ $ask}"
     # shellcheck disable=SC2086
     got=$(cd /home/learner && sudo -u learner timeout 15 "$script" $how 2>&1 | tr '\n' '|' | sed 's/|$//')
     if [ "$got" != "$want" ]; then
