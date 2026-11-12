@@ -388,8 +388,10 @@ The sizing policy
   CPU        the 95th percentile of cpu_pct, as vCPUs of the machine it
              runs on now, is at most 60% of the new size's vCPUs
   Memory     the largest mem_gib is at most 80% of the new size's memory
-  GPU        the largest gpu_mem_gib is at most 90% of the new size's GPU
-             memory (gpu_mem_gib in prices.csv)
+  GPU        a size with a GPU only for a workload that uses one (its
+             metrics.csv has the gpu columns), and then the largest
+             gpu_mem_gib is at most 90% of the new size's GPU memory
+             (gpu_mem_gib in prices.csv)
   Burstable  a size with a baseline_pct only when the brief says the
              workload's peaks are short, and its average CPU, as vCPUs of
              the machine it runs on now, is at most baseline_pct of the
