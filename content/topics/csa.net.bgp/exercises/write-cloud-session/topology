@@ -1,0 +1,54 @@
+# The network of "BGP sessions and policy": the dual-homed shop.
+#
+#   office  198.51.100.10  \
+#   shopweb 198.51.100.200  -- shop -- edge (AS 65001, the shop's router)
+#                                       /                \
+#                     ispa (AS 65010, ISP A)       ispb (AS 65020, ISP B)
+#                               |                         |
+#                     transit (AS 65030)                  |
+#                               \                         |
+#                                 cloud (AS 65100) -------
+#                                   |     (and a private link, "vpn", to edge)
+#                                  web 203.0.113.10 (a web server)
+#
+# Each router's interfaces are named after what is at the far end of the
+# cable: on edge, "ispa" goes to ISP A, "ispb" to ISP B and "lan" to the
+# shop's switch. The ISPs, the transit network and the cloud are scenery,
+# configured and saved; edge is the learner's. Addresses come from the
+# documentation ranges (RFC 5737) and AS numbers from the private range
+# (RFC 6996), so nothing here is anybody's real network.
+machine office
+machine shopweb
+machine web
+machine edge router
+machine ispa router
+machine ispb router
+machine transit router
+machine cloud router
+
+lan shop office:eth0=198.51.100.10/24 shopweb:eth0=198.51.100.200/24 edge:lan=198.51.100.1/24
+link edge:ispa=192.0.2.1/30 ispa:edge=192.0.2.2/30
+link edge:ispb=192.0.2.5/30 ispb:edge=192.0.2.6/30
+link ispa:transit=192.0.2.9/30 transit:ispa=192.0.2.10/30
+link transit:cloud=192.0.2.13/30 cloud:transit=192.0.2.14/30
+link ispb:cloud=192.0.2.17/30 cloud:ispb=192.0.2.18/30
+link cloud:web=203.0.113.1/24 web:eth0=203.0.113.10/24
+# The shop's new private link to the cloud: a stand-in for a VPN tunnel with
+# BGP over it, addressed like one (a /30 from 169.254.0.0/16).
+link edge:vpn=169.254.30.1/30 cloud:vpn=169.254.30.2/30
+
+route office default via 198.51.100.1
+route shopweb default via 198.51.100.1
+route web default via 203.0.113.1
+# ISP B keeps a route for the top half of the shop's addresses, pointing at
+# the shop, and by a slip announces it to the shop as well (its routers
+# hand kernel routes inside the shop's block to their customer).
+route ispb 198.51.100.128/25 via 192.0.2.5
+
+run edge frr
+run ispa frr
+run ispb frr
+run transit frr
+run cloud frr
+run web nginx
+run shopweb nginx

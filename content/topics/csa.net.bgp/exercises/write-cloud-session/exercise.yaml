@@ -1,0 +1,27 @@
+id: write-cloud-session
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A session with the cloud"
+prompt: |
+  The dual-homed shop is adding a private link to the cloud (AS 65100), where its servers run: edge's new cable `vpn`, with edge at 169.254.30.1/30 and the cloud's router at 169.254.30.2. It stands in for a VPN tunnel with BGP over it, which a later topic builds for real; a cloud's VPN gateway gives you exactly this, a BGP neighbour at an address like 169.254.30.2. edge's sessions with ISP A and ISP B are configured and saved, with their filters (`on edge vtysh -c 'show running-config'`). The cloud's side of the new session is configured and waiting, and it offers more than the shop should take: besides its web servers' network, 203.0.113.0/24 (`web` is 203.0.113.10), it sends its private network and a default route. The cloud's router isn't yours; `looking-glass cloud 'show ...'` reads it. As in every lab of this topic, BGP's timers are scaled down (`timers bgp 3 9`, already in edge's configuration: a keepalive every 3 seconds and a hold time of 9, where real routers default to 60 and 180), so a new session comes up in seconds.
+
+  In edge's console (`on edge vtysh`), add from nothing:
+
+  1. a BGP session with the cloud's router, 169.254.30.2, AS 65100;
+  2. an export policy for it: edge announces the shop's 198.51.100.0/24 over the private link, and none of what it has learned from the ISPs;
+  3. an import policy for it: edge accepts 203.0.113.0/24 from the cloud, and nothing else the cloud offers, today or later;
+  4. with eBGP's policy requirement still on, and no static routes: the route to the cloud's web servers arrives by BGP;
+  5. saved, so a restart keeps it.
+
+  Then the shop's traffic to the cloud's web servers takes the private link by itself, with no preference set. Run the checks; one of them has the cloud offer edge a new prefix, for a few seconds, to see it refused.
+hints:
+  - "Copy the shape of the ISP sessions in `show running-config`: the `neighbor ... remote-as ...` line under `router bgp 65001`, and its route maps, `in` and `out`, under `address-family ipv4 unicast`."
+  - "Define the prefix list and the route maps before you apply them to the session: a route map named on a session before it exists lets nothing through until it does."
+  - "An import policy that names what it accepts (a prefix list with one permit line, and a route map that matches it) keeps out everything else, including what the cloud adds next month. A list of denies lets in anything you didn't think of."
+  - "For the export side, edge already has a prefix list that holds exactly the shop's prefix."
+  - "If the cloud's path isn't chosen, compare the AS paths in `show bgp ipv4 unicast 203.0.113.0/24`: the cloud's own is one network long."
+skills: [bgp-sessions, announce-and-filter, best-path]

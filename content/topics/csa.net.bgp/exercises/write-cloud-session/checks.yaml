@@ -1,0 +1,134 @@
+# The checks of "A session with the cloud": edge's new session over the
+# private link, what the cloud accepted from edge, what edge accepts from the
+# cloud (including a prefix the cloud offers at check time, which the
+# learner has never seen), the path edge now uses to the cloud's web servers
+# and that it came from BGP, the ISP sessions as they were, whether the work
+# lasts, and the far routers as they were. sessions-up waits for BGP after a
+# boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sessions-up
+    description: "edge has a BGP session up with the cloud's router over the private link (169.254.30.2, AS 65100), and its sessions with the two ISPs are up too."
+    # Each session must be Established with the right AS number for 3
+    # seconds, long enough for the first exchange of routes to finish. Up to
+    # 40 tries a second apart, so it gets a minute and prints its own
+    # sentence rather than running out of time.
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      peer() { frr edge 'show bgp summary json' | json "(lambda p: '%s %s %s' % (p.get('state'), p.get('remoteAs'), p.get('peerUptimeMsec', 0) >= 3000))(d.get('ipv4Unicast', {}).get('peers', {}).get('$1', {}))"; }
+      all3() { [ "$(peer 169.254.30.2)" = "Established 65100 True" ] && [ "$(peer 192.0.2.2)" = "Established 65010 True" ] && [ "$(peer 192.0.2.6)" = "Established 65020 True" ]; }
+      wait_for 40 all3 && { echo up; exit 0; }
+      for want in "169.254.30.2 65100 the cloud" "192.0.2.2 65010 ISP A" "192.0.2.6 65020 ISP B"; do
+        set -- $want
+        got=$(peer "$1")
+        case $got in
+          "Established $2 "*) ;;
+          *) echo "edge has no BGP session up with ${*:3} ($1, AS $2): FRR says ${got%% *}"; exit 0 ;;
+        esac
+      done
+      echo up
+    expect:
+      equals: up
+  - id: cloud-gets-only-the-shop
+    description: "The cloud's router accepts exactly one route from edge over the private link: the shop's 198.51.100.0/24."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # What the cloud's router took from edge on that session (it takes
+      # everything a customer sends).
+      got=$(frr cloud 'show bgp ipv4 unicast neighbors 169.254.30.1 routes json' | json "sorted(d.get('routes', {}))")
+      [ "$got" = '["198.51.100.0/24"]' ] || { echo "the cloud accepted $got from edge, not just the shop's 198.51.100.0/24"; exit 0; }
+      echo exactly
+    expect:
+      equals: exactly
+  - id: takes-only-the-web-network
+    description: "From the cloud, edge accepts only 203.0.113.0/24, the cloud's web servers' network, and nothing else the cloud offers, including a prefix it offers for the first time."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      accepted() { frr edge 'show bgp ipv4 unicast neighbors 169.254.30.2 routes json' | json "sorted(d.get('routes', {}))"; }
+      got=$(accepted)
+      [ "$got" = '["203.0.113.0/24"]' ] || { echo "edge accepted $got from the cloud, not just 203.0.113.0/24"; exit 0; }
+      # The cloud offers edge one more prefix for a few seconds, chosen at
+      # random inside 10.240.0.0/12: a kernel route on the cloud's router,
+      # which its BGP hands to the shop. The check removes it again, even if
+      # it is stopped part way (the trap runs on the way out).
+      prefix="10.$((240 + RANDOM % 16)).$((RANDOM % 256)).0/24"
+      trap 'ip -n cloud route del blackhole "$prefix" 2> /dev/null' EXIT
+      ip -n cloud route add blackhole "$prefix" || { echo "the check couldn't offer a prefix from the cloud"; exit 0; }
+      advertised() { [ "$(frr cloud 'show bgp ipv4 unicast neighbors 169.254.30.1 advertised-routes json' | json "'$prefix' in d.get('advertisedRoutes', {})")" = True ]; }
+      wait_for 5 advertised || { echo "the cloud never offered $prefix to edge, so the check couldn't test it"; exit 0; }
+      taken() { [ "$(accepted)" != '["203.0.113.0/24"]' ]; }
+      if wait_for 4 taken; then
+        echo "edge accepted $prefix, a prefix the cloud offered for the first time"
+        exit 0
+      fi
+      echo "only the web network"
+    expect:
+      equals: "only the web network"
+  - id: direct-path
+    description: "edge reaches the cloud's web servers over the private link, by a route it learned from the cloud over BGP, and the office reaches the cloud's web server that way."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      best=$(bgp-best edge 203.0.113.0/24)
+      case $best in
+        "via 169.254.30.2, "*"path 65100,"*) ;;
+        *) echo "edge's chosen path to 203.0.113.0/24 isn't the cloud's own over the private link: $best"; exit 0 ;;
+      esac
+      # The kernel's route, with details (-d), so its protocol shows: bgp,
+      # not a static route or one typed by hand.
+      kernel=$(ip -d -j -n edge route show 203.0.113.0/24 | json "' '.join('%s %s' % (r.get('protocol'), r.get('gateway')) for r in d)")
+      [ "$kernel" = "bgp 169.254.30.2" ] || { echo "edge's kernel route for 203.0.113.0/24 is \"$kernel\", not a BGP route through 169.254.30.2"; exit 0; }
+      [ "$(on office curl -s -m 3 http://203.0.113.10/)" = "you are 198.51.100.10" ] || { echo "the office doesn't reach the cloud's web server"; exit 0; }
+      echo direct
+    expect:
+      equals: direct
+  - id: isps-still-right
+    description: "ISP A and ISP B each still accept exactly one route from edge: the shop's 198.51.100.0/24."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for isp in "ispa 192.0.2.1 A" "ispb 192.0.2.5 B"; do
+        set -- $isp
+        got=$(frr "$1" "show bgp ipv4 unicast neighbors $2 routes json" | json "sorted(d.get('routes', {}))")
+        [ "$got" = '["198.51.100.0/24"]' ] || { echo "ISP $3 accepted $got from edge, not just the shop's 198.51.100.0/24"; exit 0; }
+      done
+      echo exactly
+    expect:
+      equals: exactly
+  - id: policy-kept
+    description: "edge's eBGP sessions still require a policy before they accept or send anything."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      frr edge 'show running-config' | grep 'no bgp ebgp-requires-policy' > /dev/null && { echo "edge's eBGP sessions no longer require a policy"; exit 0; }
+      echo kept
+    expect:
+      equals: kept
+  - id: saved
+    description: "edge's running FRR configuration is the one in its /etc/frr/frr.conf, so a restart gives the same routing."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      differs=$(frr_saved edge) || { echo "edge's running configuration isn't its file: $(echo "$differs" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: no-hand-made-routes
+    description: "edge has no route typed into its kernel by hand, which the next boot would lose: its routes come from FRR."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      routes=$(hand_routes edge)
+      [ -z "$routes" ] || { echo "edge has a route typed by hand: $(echo "$routes" | head -n 1)"; exit 0; }
+      echo none
+    expect:
+      equals: none
+  - id: far-side-untouched
+    description: "The cloud's, the ISPs' and the transit network's routers are as they were: their files, and the routing they run."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      # The sealed files can't show a change typed into a router's console.
+      for r in ispa ispb transit cloud; do
+        frr_saved "$r" > /dev/null || { echo "$r's routing was changed live"; exit 0; }
+      done
+      echo untouched
+    expect:
+      equals: untouched
