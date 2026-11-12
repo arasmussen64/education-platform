@@ -1,0 +1,71 @@
+# The checks of "Follow the route": traffic between the sites, each
+# router's forwarding decision as the kernel makes it (ip route get), the
+# backups FRR keeps waiting (show ip route json), and whether the routing
+# lasts (FRR's running configuration against its saved file, and no route
+# typed into a kernel by hand). sites-reach waits for the routes after a
+# boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sites-reach
+    description: "The office reaches the data centre's web server and the store, and the store reaches the data centre."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      web() { [ "$(on office curl -s -m 2 http://10.3.0.10/)" = "you are 10.1.0.10" ]; }
+      wait_for 15 web || { echo "the office doesn't reach the data centre's web server"; exit 0; }
+      on office ping -c 1 -W 1 10.2.0.10 > /dev/null || { echo "the office doesn't reach the store"; exit 0; }
+      on store ping -c 1 -W 1 10.3.0.10 > /dev/null || { echo "the store doesn't reach the data centre"; exit 0; }
+      echo reached
+    expect:
+      equals: reached
+  - id: direct-paths
+    description: "Each router sends the traffic for each other site over the direct cable to that site's router."
+    command: |
+      # ip route get asks the kernel which next hop it would use: what
+      # packets really follow.
+      hop() { ip -n "$1" route get "$2" 2>&1 | awk '{for (i = 1; i < NF; i++) if ($i == "via") {print $(i + 1); exit}}'; }
+      for want in "r1 10.2.0.10 10.0.12.2" "r1 10.3.0.10 10.0.13.2" "r2 10.1.0.10 10.0.12.1" \
+                  "r2 10.3.0.10 10.0.23.2" "r3 10.1.0.10 10.0.13.1" "r3 10.2.0.10 10.0.23.1"; do
+        set -- $want
+        got=$(hop "$1" "$2")
+        [ "$got" = "$3" ] || { echo "$1 sends $2 via ${got:-nothing}, not over the direct cable"; exit 0; }
+      done
+      echo direct
+    expect:
+      equals: direct
+  - id: backups-waiting
+    description: "Each router also has a static route at distance 200 to each other site, through the third router, waiting unused."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # A route FRR keeps but doesn't use has no "selected" key.
+      waiting() { frr "$1" "show ip route $2 json" | json "sorted(n['ip'] for r in d.get('$2', []) if r['distance'] == 200 and not r.get('selected') for n in r['nexthops'])"; }
+      for want in "r1 10.2.0.0/24 10.0.13.2" "r1 10.3.0.0/24 10.0.12.2" "r2 10.1.0.0/24 10.0.23.2" \
+                  "r2 10.3.0.0/24 10.0.12.1" "r3 10.1.0.0/24 10.0.23.1" "r3 10.2.0.0/24 10.0.13.1"; do
+        set -- $want
+        got=$(waiting "$1" "$2")
+        [ "$got" = "[\"$3\"]" ] || { echo "$1 has no unused distance-200 route to $2 via $3"; exit 0; }
+      done
+      echo waiting
+    expect:
+      equals: waiting
+  - id: saved
+    description: "Each router's running FRR configuration is the one it loads at boot, so a restart keeps the routes."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in r1 r2 r3; do
+        differs=$(frr_saved "$r") || { echo "$r's running configuration isn't saved: $(echo "$differs" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      done
+      echo saved
+    expect:
+      equals: saved
+  - id: no-hand-made-routes
+    description: "No router has a route typed into its kernel by hand, which the next boot would lose: their routes come from FRR."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in r1 r2 r3; do
+        routes=$(hand_routes "$r")
+        [ -z "$routes" ] || { echo "$r has a route typed by hand: $(echo "$routes" | head -n 1)"; exit 0; }
+      done
+      echo none
+    expect:
+      equals: none
