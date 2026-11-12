@@ -1,16 +1,276 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.ipv6
 kind: topic
-status: planned
+status: ready
 title: IPv6
-summary: Plan IPv6 addressing.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Read and write IPv6 addresses in their short form and tell the kinds apart on sight; plan a site's addresses from a /48, a /64 for every subnet; explain how a host configures itself from router advertisements, and run dual stack with one firewall for both families; and explain why IPv6 egress needs no NAT, what protects the machines instead, why ICMPv6 must get through, and where a cloud translates anyway."
+# Module 3's topics gate on Checkpoint 1 through each other (the Module 3
+# plan, docs/plans/cloud-module-3/MODULE-3-BRIEF.md, section 2): this one
+# through IPv4 and CIDR, and Layers and packets before it. What it builds
+# on, for the writer: csa.linux.net-tools (ip addr and ip route, an fe80::
+# address already seen, nftables' inet table covering both families, ct
+# state, NAT named, /etc/hosts); csa.net.layers (hex, ARP and the neighbour
+# table, ICMP and its types, MTU, path MTU discovery and the black hole,
+# Packet Too Big named, the network-lab onboarding); csa.net.cidr (prefix
+# lengths and block sizes as powers of two, splitting, IPv4 block
+# arithmetic, bash's $(( )) and printf, arrays and nested for loops in
+# its write lab). This topic defines the DNS record and the AAAA record in
+# a sentence each (the brief's 3.7), the egress-only gateway, and, because
+# it can come before Routing on the suggested path, sysctl and
+# /etc/sysctl.d in a few sentences of its own, as Routing defines them.
+prerequisites: [csa.net.cidr]
+estimated_minutes: 300
 rev: 1
 objectives:
-- Plan IPv6 addressing.
-- Run dual stack.
-- Explain why IPv6 egress needs no NAT, and where a cloud translates anyway.
+  - "Read and write IPv6 addresses: eight groups of four hex digits, the short form's rules (leading zeros dropped, one `::` for the longest run of zero groups, lower case), and prefix lengths on nibble boundaries."
+  - "Tell the kinds of address apart on sight (global, link-local, unique local, multicast, loopback, documentation), say what each is for, and explain how neighbour discovery replaces ARP and broadcast."
+  - "Plan IPv6 addressing: a /48 per site and a /64 for every subnet, hex digits that mean region, zone and tier, the counts on sight, and each cloud's sizes."
+  - "Explain how a host configures itself (router advertisements, SLAAC, duplicate address detection, a default route to the router's link-local address), and run dual stack: both families on every interface, clients preferring IPv6 and falling back fast, one firewall table for both."
+  - "Explain why IPv6 egress needs no NAT and what protects the machines instead (a stateful firewall, AWS's egress-only internet gateway), where Azure translates anyway, and why ICMPv6, Packet Too Big above all, must not be blocked; and find and fix the faults that make IPv6 half work."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - RFC 4291 (February 2006): the address kinds, no broadcast, the
+#   solicited-node group ff02::1:ff00:0/104 plus the low 24 bits; RFC 5952
+#   (August 2010), section 4: leading zeros MUST be suppressed, :: used to
+#   its maximum, never for one 16-bit 0 field, the longest run (the first
+#   on a tie), lower case; section 6: [address]:port. RFC 4862 (September
+#   2007) 5.5.3 (d): a prefix whose length plus the interface identifier's
+#   isn't 128 bits "MUST be ignored"; 5.4: DAD on every unicast address
+#   before it is assigned. RFC 4193 (October 2005): ULAs in fc00::/7, fd
+#   for locally assigned, a 40-bit random Global ID. RFC 6177 (March 2011,
+#   BCP 157): /48 no longer the only size for an end site; /56 common.
+#   RFC 8200 (July 2017): only the source fragments; every link at least
+#   1280. RFC 4890 (May 2007) 4.3.1: Destination Unreachable, Packet Too
+#   Big, Time Exceeded code 0, Parameter Problem codes 1 and 2, Echo
+#   Request and Reply must not be dropped in transit; 4.3.3: 133 to 137
+#   never leave their link (hop limit 255). RFC 4864 (May 2007) 4.2: "IPv4
+#   NAT was not developed as a security mechanism"; a stateful firewall
+#   gives the protection. RFC 6724 (September 2012) 2.1: ::/0 precedence
+#   40, ::ffff:0:0/96 35, fc00::/7 3. RFC 8305 (December 2017): Connection
+#   Attempt Delay 250 ms, Resolution Delay 50 ms. RFC 9637 (August 2024):
+#   3fff::/20 for documentation, beside 2001:db8::/32. RFC 8064 (2017) and
+#   RFC 7217 (2014): stable random interface identifiers recommended over
+#   EUI-64; RFC 8981 (2021): temporary addresses. None obsoleted (the RFC
+#   Editor's records, read 2026-11-12). All at rfc-editor.org.
+# - AWS: "IPv6 addresses are globally unique, and are therefore public by
+#   default"; the egress-only internet gateway is "for use with IPv6
+#   traffic only", stateful, no charge for the gateway itself, a route
+#   ::/0 to it, no security group on it:
+#   docs.aws.amazon.com/vpc/latest/userguide/egress-only-internet-gateway.html.
+#   An Amazon-provided IPv6 block is a /56 you can't choose; up to five
+#   blocks of /44 to /60: .../vpc-cidr-blocks.html. IPv6 subnets /44 to /64
+#   in steps of /4; the first four and the last address reserved; the
+#   router also at fe80:ec2::1: .../subnet-sizing.html. NAT gateways do
+#   NAT64 with DNS64 (64:ff9b::/96): .../nat-gateway-nat64-dns64.html.
+# - Azure, "Overview of IPv6 for Azure Virtual Network" (ms.date
+#   2024-10-16, updated 2026-07-27): customers define their own IPv6
+#   space; subnets "must be exactly /64"; IPv6-only VMs not supported (each
+#   NIC needs an IPv4 configuration); "ICMPv6 isn't currently supported in
+#   Network Security Groups"; Azure Firewall doesn't support IPv6; the load
+#   balancer does no NAT64; instance-level public IP "provides IPv6
+#   Internet connectivity directly to individual VMs"; no charge for public
+#   IPv6 addresses: learn.microsoft.com/en-us/azure/virtual-network/ip-services/ipv6-overview.
+#   "What Is Azure NAT Gateway?" (2026-08-31): StandardV2 "supports both
+#   IPv4 and IPv6 public IP addresses and prefixes for outbound
+#   connectivity", NAT64 with 64:ff9b::/96 and a third-party DNS64; no
+#   unsolicited inbound connections; not in Canada East, India South
+#   Central, Sweden South, West India; IPv6 through load-balancer outbound
+#   rules is disrupted when a StandardV2 gateway is added:
+#   learn.microsoft.com/en-us/azure/nat-gateway/nat-overview. "Outbound
+#   Rules for Azure Load Balancer" (2026-01-08): outbound rules "explicitly
+#   define SNAT": learn.microsoft.com/en-us/azure/load-balancer/outbound-rules.
+#   The narrowed claim (the brief's mcq-azure-ipv6): IPv6 out through a NAT
+#   gateway or a load balancer's outbound rules is translated; nothing read
+#   says an instance-level public IP is.
+# - Google Cloud, "Subnets" (last updated 2026-10-26): an internal subnet
+#   gets a /64 from the network's ULA /48, which comes from fd20::/20; an
+#   interface gets a /96; the first and last /96 of a subnet are reserved:
+#   docs.cloud.google.com/vpc/docs/subnets. "IP addresses": external IPv4
+#   and IPv6 addresses are always public; internal ones can't be reached
+#   from the internet: docs.cloud.google.com/vpc/docs/ip-addresses. Cloud
+#   NAT translates IPv4 to IPv4 and IPv6 to IPv4, and nothing IPv6 to IPv6
+#   (last updated 2026-11-10): docs.cloud.google.com/nat/docs/overview.
+#   VPC firewall rules are stateful, with an implied deny ingress and allow
+#   egress (last updated 2026-11-10): docs.cloud.google.com/firewall/docs/firewalls.
+# - Captured on 2026-11-12 in this topic's labs (Ubuntu 24.04, radvd
+#   2.19-1ubuntu1, iproute2 6.1.0, tcpdump 4.99.4, sipcalc 1.1.6, Docker
+#   Desktop 29.8.2): radvd advertising a /56 logs "lan prefix length should
+#   be: 64" and the hosts get a /56 on-link route and a default route but
+#   no global address; radvd with IPv6 forwarding off logs "IPv6 forwarding
+#   seems to be disabled, but continuing anyway"; a host's SLAAC address
+#   "scope global dynamic mngtmpaddr" with valid_lft 86400sec and preferred
+#   14400sec; its default route "via fe80::... proto ra ... expires
+#   1795sec"; a host starting IPv6 sends a DAD neighbour solicitation from
+#   ::, a router solicitation to ff02::2, gets r1's advertisement unicast,
+#   and checks its global address; Packet Too Big from 2001:db8:ffff:1::1
+#   with mtu=1400, remembered by ip route get for 599 s; getent ahosts
+#   lists the IPv6 address first. Every predict_shell output was run in Git
+#   Bash and in the base's bash with mawk, with the same result.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: Beej's Guide to
+# Network Concepts is CC BY-NC-ND 3.0 (its foreword's "Copyright and
+# Distribution"); the APNIC Blog shows "© 2026 APNIC" and no licence; the
+# SURFnet manual's last page says it is available under Creative Commons
+# Naamsvermelding 3.0 Nederland (CC BY 3.0 NL); AWS's documentation is
+# copyright Amazon Web Services; Microsoft's Azure documentation is CC BY
+# 4.0 (MicrosoftDocs/azure-docs's LICENSE); Google Cloud's pages are CC BY
+# 4.0 (each page's footer); Chris Grundemann's blog shows "Copyright ©
+# 2007-2026 Chris Grundemann" and no licence; RFCs are under the IETF
+# Trust's provisions. No video was found and confirmed (the designer's open
+# question 4), so the topic has none.
+resources:
+  - title: "Beej's Guide to Network Concepts, chapter 8, The Internet Protocol version 6: sections 8.1 to 8.5 (writing addresses, link-local addresses, special addresses, IPv6 and DNS, IPv6 in URLs), about 7 minutes"
+    url: https://beej.us/guide/bgnet0/html/split/the-internet-protocol-version-6.html
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 3.0 (linked, not copied)"
+  - title: "How to: IPv6 Neighbor Discovery, by Raskia Nayanajith (APNIC Blog, 2019): router and neighbour solicitations and advertisements, duplicate address detection and redirects, with captures, about 10 minutes"
+    url: https://blog.apnic.net/2019/10/18/how-to-ipv6-neighbor-discovery/
+    type: reading
+    use: link
+    license: "© APNIC; linked, not copied"
+  - title: "Preparing an IPv6 Address Plan (SURFnet and the RIPE NCC, manual version 2, 2013): read sections 2.3, 2.4, 4.1, 4.2 and 4.4, about 12 minutes"
+    url: https://www.ripe.net/media/documents/BasicIPv6-Appendix-AddressingPlanHowTo.pdf
+    type: reading
+    use: link
+    license: "CC BY 3.0 NL (the manual's last page); linked, not copied"
+  - title: "Enable outbound IPv6 traffic using an egress-only internet gateway (AWS documentation), about 3 minutes"
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/egress-only-internet-gateway.html
+    type: reading
+    use: link
+    license: "© Amazon Web Services; linked, not copied"
+  - title: "Overview of IPv6 for Azure Virtual Network (Microsoft Learn): read \"Capabilities\" and \"Limitations\", about 5 minutes"
+    url: https://learn.microsoft.com/en-us/azure/virtual-network/ip-services/ipv6-overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Subnets (Google Cloud documentation): read \"IPv6 subnet ranges\" and \"Unusable addresses in IPv6 subnet ranges\", about 3 minutes"
+    url: https://docs.cloud.google.com/vpc/docs/subnets
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "Introducing IPv6: Neighbor Discovery & SLAAC, by Chris Grundemann (2012): optional, the same mechanisms in another voice"
+    url: https://chrisgrundemann.com/index.php/2012/introducing-ipv6-neighbor-discovery-slaac/
+    type: reading
+    use: link
+    license: "© Chris Grundemann; linked, not copied"
+  - title: "RFC 4890, Recommendations for Filtering ICMPv6 Messages in Firewalls: optional, section 4.3.1, the messages that must not be dropped"
+    url: https://www.rfc-editor.org/rfc/rfc4890.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "RFC 5952, A Recommendation for IPv6 Address Text Representation: optional, section 4, the short form's rules"
+    url: https://www.rfc-editor.org/rfc/rfc5952.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "What Is Azure NAT Gateway? (Microsoft Learn): optional, the StandardV2 sections, Azure's IPv6 translation"
+    url: https://learn.microsoft.com/en-us/azure/nat-gateway/nat-overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+# The browser has no network to look at, so the recall items are multiple
+# choice, estimate questions (ADR-0024) and predict_shell items over
+# printf, case, awk and captured ip output. The worked example, the fill-in,
+# the build and the debug are network labs on the shared base
+# (content/lab-bases/net); the write is a plain lab on the Module 3 plain
+# first RUN, with ShellCheck added as IPv4 and CIDR's plain labs add it.
+practice:
+  - example-meet-ipv6
+  - mcq-short-form
+  - est-groups-in-colons
+  - mcq-lone-zero
+  - v6-plan-print
+  - v6-short-form
+  - v6-kinds
+  - mcq-default-via-fe80
+  - mcq-ndp-not-arp
+  - est-64s-in-48
+  - est-52s-in-48
+  - est-aws-subnets
+  - est-zone-subnets
+  - est-gcp-vm-bits
+  - mcq-why-64
+  - slaac-read-addr
+  - slaac-eui64
+  - mcq-prefix-56
+  - mcq-happy-eyeballs
+  - mcq-ip-table-not-inet
+  - mcq-why-no-nat66
+  - mcq-egress-only
+  - mcq-azure-ipv6
+  - mcq-icmpv6-firewall
+  - fill-radvd-conf
+  - write-v6-plan
+prove:
+  build: build-dual-stack-branch
+  debug: debug-ipv6-half-works
+  explain:
+    prompt: |
+      Your company is adding IPv6 to its offices and cloud networks. A colleague asks: "Do we need NAT gateways for IPv6? And how do machines get addresses without DHCP?" Explain, in your own words: how an IPv6 address is written, and why subnets are /64; how you'd lay out a plan from a /48; how a laptop configures itself, and where its default route points; what dual stack means for clients and for firewalls; why IPv6 egress needs no NAT, and what protects the machines instead; why ICMPv6 must get through a firewall; and how the three clouds differ on any two of these.
+    rubric:
+      - id: notation-and-64
+        required: true
+        description: "128 bits in eight groups of four hex digits; leading zeros dropped and one :: for the longest run of zero groups, in lower case; subnets are /64 because SLAAC joins the prefix to a 64-bit interface identifier, and a host ignores a prefix of any other length."
+      - id: plan
+        required: true
+        description: "A /48 per site (65,536 /64 subnets), or a /56 for a small one; hex digits for region, zone and tier, on 4-bit boundaries so a person can read them off an address; planned for readability, not to save addresses."
+      - id: slaac
+        required: true
+        description: "The host makes its link-local address, checks it with duplicate address detection, sends a router solicitation; the router's advertisement carries the prefix; the host builds its address from the prefix and an interface identifier (EUI-64 or a random one), checks it, and takes a default route to the router's link-local address; a prefix that isn't a /64 gives no address."
+      - id: dual-stack
+        required: true
+        description: "Both families on every interface, and names with A and AAAA records; clients prefer IPv6 and fall back to IPv4 within about 250 ms (Happy Eyeballs), so broken IPv6 hides; one firewall table for both families (nftables' inet), or IPv6 is left unfiltered."
+      - id: egress-no-nat
+        required: true
+        description: "Every host has a global address, so there's no shortage to hide; NAT's protection came from its state, and a stateful firewall that admits only replies gives the same without translating (AWS's egress-only internet gateway; Google's firewall, which denies incoming connections by default)."
+      - id: icmpv6
+        required: true
+        description: "IPv6 routers never fragment, so Packet Too Big must reach the sender or big transfers hang (a path MTU black hole on IPv6 only); neighbour discovery is ICMPv6 on the link and must reach the router's input."
+      - id: clouds-differ
+        required: true
+        description: "Any two, correctly: AWS assigns a /56 per VPC and /64 subnets, an egress-only gateway for IPv6 and a NAT gateway for IPv4 (and NAT64); Azure requires /64 subnets, has no IPv6-only VMs, translates IPv6 sent out through a NAT gateway or a load balancer's outbound rules, and its network security groups can't filter ICMPv6; Google gives each VM interface a /96, each network a ULA /48 from fd20::/20, external IPv6 addresses that are public, and NAT64 for IPv6-only VMs."
+    model_answer: |
+      An IPv6 address is 128 bits, written as eight groups of four hex digits separated by colons. To shorten one, each group drops its leading zeros, and the longest run of all-zero groups becomes ::, once, so 2001:0db8:0000:0000:0000:ff00:0042:8329 is 2001:db8::ff00:42:8329, in lower case. Every subnet is a /64: the last 64 bits are the host's interface identifier, and a host builds its own address only from a /64 prefix, so a /120 "to save addresses" just gives hosts no address at all. There's nothing to save anyway.
+
+      For a plan I'd give each site a /48, which holds 65,536 /64 subnets, or a /56 for a small branch, and spend the fourth group's hex digits on meaning: one digit for the region, one for the zone, two for the tier, so 2001:db8:abcd:130a::/64 reads as region 1, zone 3, tier 0a. Fields on 4-bit boundaries can be read off an address and summarised cleanly.
+
+      A laptop needs no DHCP. It makes a link-local fe80:: address itself, checks nobody has it with duplicate address detection, and sends a router solicitation. The router answers with a router advertisement carrying the prefix; the laptop joins it to an interface identifier, from its MAC address by EUI-64 or, more often now, a random one, checks that address too, and takes a default route to the router's link-local address, which survives any renumbering. If the router advertises anything but a /64, the laptop gets a default route and no address.
+
+      Dual stack means both families on every interface and both A and AAAA records for names. Clients prefer IPv6 and, with Happy Eyeballs, try IPv4 250 ms later if IPv6 hasn't connected, so broken IPv6 costs a quarter of a second and nobody notices. Firewalls must cover both families: an nftables table of the ip family filters IPv4 only, so I'd use one inet table for both.
+
+      IPv6 egress needs no NAT because every host has its own global address. What people liked about NAT, that nobody on the internet can open a connection in, came from its state table, and a stateful firewall that lets in only replies gives the same protection without rewriting anything. AWS sells exactly that as the egress-only internet gateway, and Google's firewall denies incoming connections by default. ICMPv6 must get through that firewall: IPv6 routers never fragment, so a sender only learns a path's MTU from Packet Too Big, and dropping it makes big IPv6 transfers hang while IPv4 works. Neighbour discovery is ICMPv6 too, and the router's input chain has to let it in.
+
+      The clouds differ. AWS gives each VPC a /56 from its own pool, subnets are /64, IPv6 egress goes through the egress-only gateway and IPv4 through a NAT gateway, which also does NAT64. Azure makes every IPv6 subnet exactly a /64, has no IPv6-only VMs, and its network security groups can't filter ICMPv6; and on Azure, IPv6 sent out through a NAT gateway or a load balancer's outbound rules is translated, so the far end doesn't see the VM's own address. Google gives each VM interface a /96 and each network a unique local /48 from fd20::/20.
+review_pool:
+  - mcq-short-form
+  - est-groups-in-colons
+  - v6-short-form
+  - mcq-expand
+  - v6-kinds
+  - mcq-ndp-not-arp
+  - mcq-default-via-fe80
+  - mcq-ula-use
+  - est-64s-in-48
+  - est-zone-subnets
+  - est-gcp-vm-bits
+  - est-sites-in-32
+  - est-region-nibble
+  - slaac-eui64
+  - mcq-prefix-56
+  - mcq-happy-eyeballs
+  - mcq-ip-table-not-inet
+  - mcq-rs-ra-order
+  - mcq-why-no-nat66
+  - mcq-egress-only
+  - mcq-azure-ipv6
+  - mcq-icmpv6-firewall
+skills:
+  - id: v6-notation
+    description: "128 bits in eight 16-bit groups of hex; the short form (leading zeros dropped, one `::` for the longest run of zero groups, the first if two tie, never for one group, lower case); expanding a short form; prefix lengths on nibble boundaries; `[address]:port` in URLs"
+  - id: v6-address-types
+    description: "Global unicast, link-local (`fe80::`, on every interface, with `%eth0` to use one), unique local (`fd`), multicast (`ff02::1`, `ff02::2`, solicited-node groups), loopback, unspecified and documentation; no broadcast; neighbour discovery in place of ARP; reading `ip -6 addr` and `ip -6 neigh`"
+  - id: v6-plan
+    description: "A /48 per site or a /56 for a small one, a /64 for every subnet; counting 2^(64 − p) /64s in a /p; plans whose hex digits mean region, zone and tier; each cloud's sizes (AWS's /56 per VPC and /64 subnets, Azure's exactly-/64 subnets, Google's /64 subnets, /96 per interface and a ULA /48 per network)"
+  - id: slaac-dual-stack
+    description: "Router advertisements and SLAAC (a /64 prefix or no address), EUI-64 and random interface identifiers, duplicate address detection, the default route via the router's link-local address; a router's side (IPv6 forwarding, radvd); dual stack on hosts: AAAA records, IPv6 preferred, Happy Eyeballs' 250 ms; one inet firewall table for both families"
+  - id: v6-egress
+    description: "Why IPv6 needs no NAT for egress and why NAT was never the security; a stateful filter's outbound-only (AWS's egress-only internet gateway, Google's default-deny ingress); Azure's translation of IPv6 through a NAT gateway or load-balancer outbound rules; NAT64 for IPv6-only to IPv4; which ICMPv6 a firewall must pass (Packet Too Big above all, and neighbour discovery on the link)"
