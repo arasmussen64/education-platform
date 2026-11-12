@@ -20,16 +20,22 @@ checks:
     expect:
       gte: 25
   # netlab verify's copy of shop (chk-shop) is built from the topology and
-  # shop's own files, as a reboot would build it: the value there is the
-  # one shop would have after a reboot, whether a file sets it or not. Only
-  # isp, which is scenery, is compared, so the copy is read whatever else
-  # on shop has changed.
+  # shop's own files, as a reboot would build it: the values there are the
+  # ones shop would have after a reboot, whether a file sets them or not.
+  # Only isp, which is scenery, is compared, so the copy is read whatever
+  # else on shop has changed. Two things choose the algorithm a connection
+  # starts with: the system's setting, and a route's own (ip route ...
+  # congctl), so shop's routes are compared too. The description doesn't
+  # say which setting, since the terminal shows it at the first check.
   - id: speed-lasts
-    description: "The congestion control shop sends with now is the one its own files give it at boot, so a reboot keeps the archive's speed."
+    description: "A reboot keeps the archive's speed: the way shop sends it now, by its kernel's setting and its routes, is the way its own files set at boot."
     command: |
-      live=$(on shop sysctl -n net.ipv4.tcp_congestion_control)
-      fresh=$(netlab verify isp -- on chk-shop sysctl -n net.ipv4.tcp_congestion_control 2>&1) || { echo "the internet's router, isp, isn't as it was shipped"; exit 0; }
-      [ "$live" = "$fresh" ] || { echo "shop sends with $live now, and would send with $fresh after a reboot"; exit 0; }
+      state() { on "$1" sysctl -n net.ipv4.tcp_congestion_control; ip -n "$1" route show table main; }
+      live=$(state shop)
+      fresh=$(netlab verify isp -- bash -c "$(declare -f state); state chk-shop" 2>&1) || { echo "the internet's router, isp, isn't as it was shipped"; exit 0; }
+      live_cc=${live%%$'\n'*} fresh_cc=${fresh%%$'\n'*}
+      [ "$live_cc" = "$fresh_cc" ] || { echo "shop sends with $live_cc now, and would send with $fresh_cc after a reboot"; exit 0; }
+      [ "$live" = "$fresh" ] || { echo "shop's routes now aren't the ones its own files give it at boot"; exit 0; }
       echo lasts
     expect:
       equals: lasts
@@ -54,11 +60,14 @@ checks:
     expect:
       equals: advertised
   # Listeners of the check's own on shop, on ports the site doesn't serve:
-  # three UDP ports that datagrams from the office must not reach, and one
-  # TCP port that must give no answer at all, as a firewall's drop gives.
-  # Each listener is the check's, so none of them is the site.
+  # three UDP ports that datagrams from the office must not reach (4433,
+  # 5000 and 9999), and one TCP port that must give no answer at all, as a
+  # firewall's drop gives. Each listener is the check's, so none of them is
+  # the site. The description and the sentence a failing run prints name no
+  # UDP port: the terminal shows them at the first check, and one of the
+  # ports is the one a fault opens.
   - id: only-what-it-serves
-    description: "shop's firewall still lets in nothing from the office but SSH and the site: datagrams to UDP ports 4433, 5000 and 9999 and connections to TCP port 8080 get nowhere."
+    description: "shop's firewall still lets in nothing from the office but SSH and the site: datagrams sent to three UDP ports the site doesn't serve, and connections to TCP port 8080, get nowhere."
     timeout: 25
     command: |
       . /usr/local/lib/netlab/checklib.sh
@@ -81,7 +90,7 @@ checks:
       tcp=$(tcp_state office 203.0.113.10 8080)
       sleep 1
       for port in 4433 5000 9999; do
-        [ -s "$dir/udp-$port" ] && { echo "a datagram from the office reached shop's UDP port $port"; exit 0; }
+        [ -s "$dir/udp-$port" ] && { echo "a datagram from the office reached a UDP port on shop that the site doesn't serve"; exit 0; }
       done
       [ "$tcp" = dropped ] || { echo "from the office, shop's TCP port 8080 is $tcp"; exit 0; }
       echo "only the site"
