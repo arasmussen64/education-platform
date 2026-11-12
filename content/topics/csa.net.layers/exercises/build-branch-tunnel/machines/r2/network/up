@@ -1,0 +1,12 @@
+# r2's network settings, run at every boot: the cloud's router.
+ip addr add 203.0.113.2/24 dev wan
+ip route add default via 203.0.113.1
+# The tunnel to the branch's router, r3, across the internet.
+ip link add gre-br type gre local 203.0.113.2 remote 198.51.100.6 ttl 64
+ip addr add 10.255.1.1/30 dev gre-br
+ip link set gre-br mtu 1376
+ip link set gre-br up
+# The cloud's network, where web is.
+ip addr add 10.0.2.1/24 dev lan
+# The branch's network is at the far end of the tunnel.
+ip route add 10.0.5.0/24 dev gre-br

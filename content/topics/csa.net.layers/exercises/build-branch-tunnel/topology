@@ -1,0 +1,26 @@
+# The network of "Connect the branch": the shop's new branch, its line to
+# an ISP, the internet beyond, and the shop's cloud network.
+#
+#   branch --[site]-- r3 ==(wan: the branch's line)== isp ==(core)== r2 --[cloud]-- web
+#                                                    1400-byte link
+#
+# Somewhere on the internet path between the ISP and the cloud, packets of
+# at most 1400 bytes get through: isp's core link and r2's wan carry 1400.
+# Only the cables are here. Each machine's addresses, routes and tunnel are
+# its own settings, in its /etc/network/up; r3's firewall is its
+# /etc/nftables.conf, loaded by nftables@r3 once that is enabled.
+machine branch
+machine r3 router
+machine isp router
+machine r2 router
+machine web
+
+lan site r3:eth0 branch:eth0
+link r3:wan isp:line
+link isp:core r2:wan
+lan cloud r2:lan web:eth0
+
+mtu isp core 1400
+mtu r2 wan 1400
+
+run web nginx
