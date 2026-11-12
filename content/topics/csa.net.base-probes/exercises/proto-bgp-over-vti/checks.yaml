@@ -106,8 +106,12 @@ checks:
         charon=$!
         for i in $(seq 1 50); do on chk-vpn-a swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
         on chk-vpn-a swanctl --load-all --noprompt > /dev/null 2>&1
-        sleep 1
-        on chk-vpn-a swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.2\["
+        for i in $(seq 1 25); do
+          n=$(on chk-vpn-a swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.2\[")
+          [ "$n" -ge 1 ] && break
+          sleep 0.2
+        done
+        echo "$n"
         kill "$charon" 2> /dev/null
         wait "$charon" 2> /dev/null
         true')
