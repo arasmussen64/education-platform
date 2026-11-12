@@ -23,6 +23,8 @@ All 51 labs are proven locally, for free, and CI runs every one on each pull req
 
 **Module 1, finished off** (#235 to #237). The last three Module 1 debug labs (permissions, packages, containers) now give symptoms, not faults. Three labs that could be passed by printing the expected lines are now checked on input made up at check time. Seven lessons were corrected against what their labs need. A debug lab's page also stops listing its checks before a first try (decided under the owner's delegation): each check describes the state a fix must reach, so the list pointed at the faults.
 
+**The CPU debug's cap rule** (#249) asked for "more than one CPU", which let a learner pick a cap that passed one check and then failed another at random. It now asks for at least one and a half CPUs.
+
 **The quick validator** (#247) had its own copy of the full validator's per-topic checks. The copy had fallen behind: it never looked at a checkpoint's third part or at estimate questions. Both now call one function.
 
 **What the reviewers caught.** Every wave's reviewers found ways to pass a proof without the skill, which is why each topic gets one. Examples:
