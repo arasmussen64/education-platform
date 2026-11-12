@@ -1,0 +1,39 @@
+id: trace-who-answered
+type: predict_shell
+rev: 1
+prompt: |
+  `trace.txt` is the output of `dig +trace api.shop.test` on the office laptop, captured in this topic's lab on 2026-11-12. Each block of records ends with a line `;; Received N bytes from ADDRESS#53(NAME) in T ms`, naming who sent it. The command prints, in order, the name in brackets on each of those lines. What is printed?
+files:
+  trace.txt: |
+    ; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> +trace api.shop.test
+    ;; global options: +cmd
+    .			86400	IN	NS	a.root-servers.test.
+    .			86400	IN	RRSIG	NS 13 0 86400 20261126101228 20261112113426 34376 . s5xukinZ5A2abC7M9VLnSJzVZQ2PnF6ID9CZEPQ3A6QIdjWxxe3oK0G5 KCQxvUerxwSOYCKTQ6zBGE/eB4lR3Q==
+    ;; Received 170 bytes from 10.1.0.53#53(10.1.0.53) in 4 ms
+
+    test.			86400	IN	NS	ns1.nic.test.
+    test.			86400	IN	DS	26470 13 2 1DF8D980D03F0738C93EE58A3A0AC2F30BD9BF92BC5A8A4F34018B2D D26CAA44
+    test.			86400	IN	RRSIG	DS 13 1 86400 20261126101228 20261112113426 34376 . 2Uvs/t7pgUbvIWfBiBtY/pwO1ubtEDFP1znHsZHjSIB/DRT7IszA05qq PzdomG+ENVRYkAHarwZbr7FU2TG81w==
+    ;; Received 259 bytes from 198.51.100.11#53(a.root-servers.test) in 4 ms
+
+    shop.test.		3600	IN	NS	ns1.shop.test.
+    shop.test.		3600	IN	NS	ns2.shop.test.
+    shop.test.		3600	IN	DS	57535 13 2 9D0C57EE764F3EBC1FEDBEF5F4A28351A470F70CD2C99F9508543875 7A5FA8B0
+    shop.test.		3600	IN	RRSIG	DS 13 2 3600 20261126024252 20261112113426 26470 test. ntmFJU/JB4YARMA6ErdhxvzJ+i+zibKFUtn8HvBbSk1kzNsGPWAm/WK+ 1xAXkItuZiojw1StRCtlZlhCjWSu8A==
+    ;; Received 286 bytes from 198.51.100.12#53(ns1.nic.test) in 0 ms
+
+    api.shop.test.		600	IN	A	203.0.113.41
+    api.shop.test.		600	IN	RRSIG	A 13 3 600 20261126111943 20261112113426 57535 shop.test. tzGqh9dM5XJxwaSkLVkI2/LpHEdVGJgHdXxeMTGHR5cPh4FSogKwGAl3 jwAF36TaMPAdcnWWyF8JjNjUUwaOGA==
+    shop.test.		300	IN	NS	ns1.shop.test.
+    shop.test.		300	IN	NS	ns2.shop.test.
+    shop.test.		300	IN	RRSIG	NS 13 2 300 20261126111943 20261112113426 57535 shop.test. W1zqUTjc6NR5aWc48swRcDDMljQQGhzWOEcjlAT0EmGuE/Ft2nZfSY0h QjTpwlqQ+yTr+8FEcG1eFRFUXT8NUQ==
+    ;; Received 574 bytes from 198.51.100.14#53(ns2.shop.test) in 0 ms
+command: grep '^;; Received' trace.txt | cut -d'(' -f2 | cut -d')' -f1
+expected_output: |
+  10.1.0.53
+  a.root-servers.test
+  ns1.nic.test
+  ns2.shop.test
+explanation: |
+  Four answers, from the top of the tree down. The office's resolver, 10.1.0.53, was asked only for the root's servers (`. NS a.root-servers.test.`): the stub knows nothing else. The root, `a.root-servers.test`, didn't know `api.shop.test` and referred dig to the servers for `test.`; `ns1.nic.test` referred it to the servers for `shop.test`; and one of those, `ns2.shop.test` this time, answered with the record itself, `api.shop.test. 600 IN A 203.0.113.41`. Three referrals, then the answer from the zone's own server. Either of the shop's two servers can be the one that answers: a resolver picks among them, and a trace run again may end at `ns1.shop.test`. The DS and RRSIG lines on the way are the chain of trust that DNSSEC follows.
+skills: [trace-resolution]

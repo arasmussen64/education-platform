@@ -1,0 +1,16 @@
+id: mcq-split-which-resolver
+type: mcq
+rev: 1
+prompt: |
+  The office's resolver gives `api.shop.test` its private address, 10.0.8.51, and every office machine is meant to use it. One laptop still gets the public address. What is the likeliest cause?
+choices:
+  - "The laptop asks another resolver, one set by hand there, that holds only the public answer"
+  - "The laptop's own cache keeps the public answer for good, as a laptop never asks for a name a second time"
+  - "The private answer's TTL is longer than the public one's, so the laptop prefers the shorter public one"
+  - "The zone is signed, and the laptop drops a private answer that carries no signature from the zone's key"
+answer: 0
+explanation: |
+  Split-horizon works only for machines that ask the resolver holding the private answer. A laptop whose resolver was set by hand (a public resolver in its network settings, or a VPN client's) asks somewhere that has only the public zone. `cat /etc/resolv.conf` on the laptop, and `dig` showing `SERVER:`, say which resolver it really asks.
+
+  A laptop's cache, if it has one, keeps an answer only for its TTL. Nothing compares TTLs to choose between answers: there's only the one answer the laptop's resolver gives. And a laptop's stub resolver doesn't check signatures; the resolver it asks does, and it doesn't check its own local data.
+skills: [split-horizon]

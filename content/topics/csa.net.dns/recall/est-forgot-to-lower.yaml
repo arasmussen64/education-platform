@@ -1,0 +1,22 @@
+id: est-forgot-to-lower
+type: estimate
+rev: 1
+prompt: |
+  `mail.shop.test` has a TTL of 14400 seconds. At 09:00 its address is changed, without lowering the TTL first. A resolver fetched the record just before the change. For how many hours after 09:00 can that resolver still hand out the old address? Within 0.1.
+unit: hours
+answer: 4
+tolerance: { absolute: 0.1 }
+given: { ttl: 14400 }
+working: ttl / 3600
+mistakes:
+  - id: instant
+    value: 0
+    working: "0"
+    why: The zone changed at once, but the resolver doesn't ask again until its copy's TTL runs out. Nobody can make it ask sooner.
+  - id: minutes
+    value: 240
+    working: ttl / 60
+    why: That's the right time, in minutes. The question asks for hours.
+explanation: |
+  14400 ÷ 3600 = 4 hours. The copy it fetched at 08:59 is good until about 12:59, and the resolver hands it out until then, whatever the zone says now. Lowering the TTL at least one old TTL before the change is what makes a change reach everyone quickly. (Some resolvers keep copies longer than the TTL or cap it shorter; the sums here assume they honour it.)
+skills: [ttl-and-caching]

@@ -1,0 +1,16 @@
+id: mcq-secondary-stale
+type: mcq
+rev: 1
+prompt: |
+  An hour after an edit to `shop.test` on its primary, ns1, `dig @ns1 +norecurse api.shop.test` gives the new address and `dig @ns2 +norecurse api.shop.test` gives the old one. ns2 is the zone's secondary. What is the likeliest cause?
+choices:
+  - "ns2 never copied the new zone: ns1's serial didn't go up, or ns1 refuses ns2 the transfer"
+  - "ns2's cache still holds the old answer, and drops it once the record's own TTL runs out"
+  - "ns2 checks signatures, and holds the new record back until its signature has been checked"
+  - "The record's TTL is an hour, so ns2 goes on handing out the old copy until the hour is up"
+answer: 0
+explanation: |
+  A secondary doesn't cache answers: it serves its own full copy of the zone, and changes it only by copying the zone again from the primary. It does that when a NOTIFY or its refresh timer makes it compare serials and the primary's is higher, and only if the primary allows it (`allow-transfer`). So either the serial didn't go up (and ns2 sees nothing to fetch), or the transfer is refused: `journalctl -u named@ns2` shows `REFUSED`, and ns1's journal `zone transfer ... denied`. `dig @SERVER +norecurse shop.test SOA` on each shows the two serials side by side.
+
+  TTLs tell resolvers how long to keep answers; they don't apply to the zone's own servers, which always give out what their copy holds. An authoritative server doesn't validate signatures either: it serves the signed zone as it is.
+skills: [records-and-zones]

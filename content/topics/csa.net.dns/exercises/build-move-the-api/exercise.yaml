@@ -1,0 +1,28 @@
+id: build-move-the-api
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Move the API"
+prompt: |
+  Tonight the shop's API moves to its new server. Today `api.shop.test` is 203.0.113.41; after the move it is 203.0.113.51, and the office reaches the new server on its private address, 10.0.8.51. `netlab show` lists the machines:
+
+  - `ns1` (198.51.100.13) is the primary name server for `shop.test`: its zone file is `/etc/bind/db.shop.test` and its settings `/etc/bind/named.conf.local`. BIND signs the zone itself. `ns2` (198.51.100.14) is the secondary, which copies the zone from ns1 whenever ns1's serial goes up.
+  - `root` (198.51.100.11) and `tld` (198.51.100.12) are the lab internet's root server and the server for `test.`. Scenery: they aren't the shop's.
+  - `isp1`, `isp2` and `isp3` (198.51.100.21 to .23) are the public resolvers the shop's customers use. They check signatures, keep each answer for its TTL, and aren't the shop's either.
+  - `resolver` (10.1.0.53) is the office's own resolver, Unbound, with its settings in `/etc/unbound/unbound.conf`, and `office` is a laptop that uses it. `edge` is the office's router.
+  - The move monitor, `move-watch`, runs on `office` from boot. Every second it asks ns1 and ns2 directly, and the three public resolvers, for `api.shop.test` and for `canary.shop.test` (a name with a one-hour TTL, so the log shows each resolver's copy counting down), and adds a line per answer to `/var/lib/lab/move.log`: the time in seconds, who answered, the name, the address and the TTL (`-` for no answer). It started asking the three resolvers 15 seconds apart, so their copies are of different ages, as customers' are. The log is the move's evidence, as a change ticket would be: the checks read it.
+
+  The TTLs are scaled down so the move takes minutes, not days: here `api.shop.test`'s TTL is 60 seconds, where a real record's is often 86,400 (a day), and the move's 5 seconds stands for a real 300. The move must meet these rules:
+
+  1. During the move `api.shop.test`'s TTL is **5**, and the new address first goes out with that TTL. Nobody may be sent to the old address for longer than that after the switch: switch only once every copy handed out with the old TTL of 60 has expired, counting from when both ns1 and ns2 give out the TTL of 5, not from when you typed the change, and leave a few seconds' margin.
+  2. Change only the shop's zone on ns1 (ns2 follows by itself) and the office's resolver. The public resolvers aren't yours: don't change them, restart them or empty their caches. Nothing goes into a hosts file.
+  3. After the move, `api.shop.test`'s TTL is **3600** again.
+  4. In the office, `api.shop.test` answers 10.0.8.51, and every other name in the zone still resolves as it does from outside.
+  5. The zone stays signed and valid: the public resolvers still get the `ad` flag.
+  6. Everything lasts a restart of the lab.
+
+  Useful commands: `on ns1 nano /etc/bind/db.shop.test`, then `on ns1 rndc reload shop.test` after each change (and `journalctl -u named@ns1` to see whether the zone really loaded); `on office dig @198.51.100.13 +norecurse api.shop.test` and the same at 198.51.100.14, for what each server gives out and with which TTL; `on office dig @198.51.100.21 api.shop.test` for what a public resolver hands out now; `tail -f /var/lib/lab/move.log` to watch the monitor (Ctrl+C stops watching); `on resolver nano /etc/unbound/unbound.conf`, `on resolver unbound-checkconf` and `sudo systemctl restart unbound@resolver`. Run the checks once the move is done; they want the log to run at least 10 seconds past the switch.
+skills: [trace-resolution, records-and-zones, ttl-and-caching, split-horizon, dnssec]

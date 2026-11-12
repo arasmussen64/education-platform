@@ -1,0 +1,31 @@
+# Is the zone in step? The office with its own resolver, and the name
+# servers of a small internet: its root, the server for test., and the
+# shop's two. The checks plug throwaway servers in at .16 to .18.
+#
+#   office 10.1.0.0/24                       internet 198.51.100.0/24
+#   office .10  resolver .53 --- edge .1 --- root .11  tld .12  ns1 .13  ns2 .14
+machine office
+machine resolver
+machine edge router
+machine root
+machine tld
+machine ns1
+machine ns2
+
+lan office office:eth0=10.1.0.10/24 resolver:eth0=10.1.0.53/24 edge:eth0=10.1.0.1/24
+lan inet edge:eth1=198.51.100.1/24 root:eth0=198.51.100.11/24 tld:eth0=198.51.100.12/24 ns1:eth0=198.51.100.13/24 ns2:eth0=198.51.100.14/24
+
+route office default via 10.1.0.1
+route resolver default via 10.1.0.1
+route root default via 198.51.100.1
+route tld default via 198.51.100.1
+route ns1 default via 198.51.100.1
+route ns2 default via 198.51.100.1
+dns office 10.1.0.53
+dns resolver 127.0.0.1
+
+run root named
+run tld named
+run ns1 named
+run ns2 named
+run resolver unbound

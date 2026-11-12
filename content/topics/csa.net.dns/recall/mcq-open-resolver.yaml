@@ -1,0 +1,16 @@
+id: mcq-open-resolver
+type: mcq
+rev: 1
+prompt: |
+  Every authoritative server in this topic's labs has `recursion no;` in its `named.conf.options`. What does that setting protect against?
+choices:
+  - "Strangers using it as a resolver for any name, and so aiming floods of answers at others"
+  - "Strangers copying its whole zone away with a zone transfer, which would list every name in it"
+  - "Its answers about its own zone being cached by resolvers, so that changes reach them too slowly"
+  - "Forged answers about its own zone, which an attacker could slip in through a recursive lookup"
+answer: 0
+explanation: |
+  An authoritative server answers for its own zones. One that also recurses for anyone is an open resolver: anybody can make it look up any name. Attackers use open resolvers to send big answers to a victim whose address they forge on small questions, multiplying their traffic (an amplification attack). `recursion no;` keeps the server to its own zones; a resolver that does recurse limits who may ask it (Unbound's `access-control`).
+
+  Zone transfers are a separate setting, `allow-transfer`. Caching is the resolvers' business, ruled by the TTLs. And forged answers are what DNSSEC's signatures defend against; a server that doesn't recurse never looks anything up, so it has nothing to be fooled about.
+skills: [trace-resolution]

@@ -1,0 +1,22 @@
+id: est-negative-ttl-2
+type: estimate
+rev: 1
+prompt: |
+  A zone's SOA record has a TTL of 300 seconds and a MINIMUM of 86400. A resolver gets NXDOMAIN for a name in the zone. For at most how many seconds may it keep that answer? Exactly.
+unit: seconds
+answer: 300
+tolerance: { absolute: 0 }
+given: { soa_ttl: 300, minimum: 86400 }
+working: min(soa_ttl, minimum)
+mistakes:
+  - id: minimum
+    value: 86400
+    working: minimum
+    why: MINIMUM is only one of the two numbers. The negative answer's TTL is the smaller of it and the SOA record's own TTL, here 300.
+  - id: sum
+    value: 86700
+    working: soa_ttl + minimum
+    why: The two aren't added. The smaller one wins.
+explanation: |
+  min(300, 86400) = 300 seconds. MINIMUM's name comes from an older meaning (once the zone's smallest TTL); today it only caps negative caching, and the SOA record's own TTL can cap it lower still (RFC 2308). A resolver may also cap negative answers itself: Unbound keeps one at most 3600 seconds by default.
+skills: [ttl-and-caching]

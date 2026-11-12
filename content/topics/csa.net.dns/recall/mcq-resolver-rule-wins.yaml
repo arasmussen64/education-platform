@@ -1,0 +1,16 @@
+id: mcq-resolver-rule-wins
+type: mcq
+rev: 1
+prompt: |
+  An AWS VPC has a Route 53 private hosted zone `shop.test`, and also a Route 53 VPC Resolver forwarding rule for `shop.test` that sends questions to the office's DNS servers. An instance in the VPC asks for `api.shop.test`. Who answers?
+choices:
+  - "The office's servers: a VPC Resolver rule for the same name wins over the private zone"
+  - "The private hosted zone: a private zone always wins over a rule, whatever names the rule covers"
+  - "The public zone: where a rule and a private zone overlap, the resolver uses neither of the two"
+  - "Whichever is faster: the VPC Resolver asks both of them and passes on the first answer it gets"
+answer: 0
+explanation: |
+  AWS's private hosted zone considerations page (read 2026-11-12): "If you have a private hosted zone (example.com) and a VPC Resolver rule that routes traffic to your network for the same domain name, the VPC Resolver rule takes precedence", so the questions go to the office's servers and the private zone isn't used for those names. That's how hybrid setups keep one source of truth for a domain, and it's also how a forgotten rule makes a private zone seem to be ignored.
+
+  Neither of the other two outcomes is how the resolver works: it picks one source for a name, by its own order, and the public zone is only asked when nothing private matches.
+skills: [split-horizon]

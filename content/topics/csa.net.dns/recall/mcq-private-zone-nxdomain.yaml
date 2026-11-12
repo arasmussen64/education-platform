@@ -1,0 +1,16 @@
+id: mcq-private-zone-nxdomain
+type: mcq
+rev: 1
+prompt: |
+  An AWS VPC is associated with a Route 53 private hosted zone `shop.test` that holds one record, `api`. From an EC2 instance (a virtual machine) in that VPC, `status.shop.test`, which exists only in the shop's public zone, gives NXDOMAIN. Why?
+choices:
+  - "The VPC's resolver found a private zone for the name, and with no record there it answered NXDOMAIN"
+  - "The public record's TTL hasn't yet run out in the VPC's resolver since the private zone was created"
+  - "The VPC's DNS hostnames setting is off, so names outside the private zone can't be resolved there"
+  - "The VPC's resolver checks DNSSEC, and the public record isn't signed with the private zone's key"
+answer: 0
+explanation: |
+  Route 53's VPC Resolver first looks for a private hosted zone that matches the name (the zone itself or a parent of it). If it finds one, it answers from that zone only: a name with no record there gets NXDOMAIN, and it "doesn't forward the request to a public DNS resolver" (AWS's private hosted zone considerations, read 2026-11-12). Google Cloud DNS's private zones behave the same, and so do Azure Private DNS zones, except that a Private Link zone's network link can turn on fallback to the internet. The cure is to copy into the private zone every record the VPC needs, or to make the private zone narrower (`internal.shop.test`, or just `api.shop.test`).
+
+  A missing record isn't a cached copy; the VPC's DNS settings must be on for private zones to work at all; and a private zone has nothing to do with the public zone's signatures.
+skills: [split-horizon]

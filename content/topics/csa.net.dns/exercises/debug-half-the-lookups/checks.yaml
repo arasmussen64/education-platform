@@ -1,0 +1,158 @@
+# The checks of "Half the lookups". They state end states, never what was
+# wrong. Each asks the real servers and resolvers: the shop's two name
+# servers directly, the three public resolvers, the office's resolver, the
+# payments zone's signatures and DS record, and whether the office
+# resolver's settings last. servers-agree waits for the name servers after
+# a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: servers-agree
+    description: "ns1 and ns2, asked directly, serve the same serial for shop.test, and both give api.shop.test its new address, 203.0.113.51."
+    timeout: 75
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      serial() { on office dig +norecurse +time=1 +tries=1 +short @"$1" shop.test SOA | awk '{print $3}'; }
+      api() { on office dig +norecurse +time=1 +tries=1 +short @"$1" api.shop.test A; }
+      both() { [ -n "$(serial 198.51.100.13)" ] && [ -n "$(serial 198.51.100.14)" ]; }
+      wait_for 20 both
+      s1=$(serial 198.51.100.13)
+      s2=$(serial 198.51.100.14)
+      [ -n "$s1" ] && [ "$s1" = "$s2" ] || { echo "ns1 serves serial ${s1:-nothing} and ns2 serial ${s2:-nothing}"; exit 0; }
+      for server in ns1:198.51.100.13 ns2:198.51.100.14; do
+        got=$(api "${server#*:}")
+        [ "$got" = 203.0.113.51 ] || { echo "${server%%:*} gives api.shop.test ${got:-no answer}"; exit 0; }
+      done
+      echo agree
+    expect:
+      equals: agree
+  - id: copies-stay-private
+    description: "ns1 hands a copy of a whole zone to nobody but the shop's own servers: a zone transfer asked for by a public resolver or by the office laptop is refused."
+    command: |
+      for from in isp1 office; do
+        for zone in shop.test pay.shop.test; do
+          out=$(on "$from" dig +time=2 +tries=1 @198.51.100.13 "$zone" AXFR 2>&1)
+          echo "$out" | grep -w SOA > /dev/null && { echo "ns1 hands $from a copy of the whole $zone zone"; exit 0; }
+        done
+      done
+      echo refused
+    expect:
+      equals: refused
+  - id: every-lookup-works
+    description: "Each of the three public resolvers gives customers api.shop.test's new address, 203.0.113.51, validated (the ad flag)."
+    command: |
+      for isp in isp1:198.51.100.21 isp2:198.51.100.22 isp3:198.51.100.23; do
+        out=$(on office dig +time=2 +tries=1 @"${isp#*:}" api.shop.test A)
+        got=$(echo "$out" | awk '$1 == "api.shop.test." && $4 == "A" {print $5}')
+        [ "$got" = 203.0.113.51 ] || { echo "${isp%%:*} gives api.shop.test ${got:-no address} (an answer it fetched earlier is kept for the record's TTL)"; exit 0; }
+        echo "$out" | grep '^;; flags:.* ad' > /dev/null || { echo "${isp%%:*} gives api.shop.test without the ad flag"; exit 0; }
+      done
+      echo "all three"
+    expect:
+      equals: "all three"
+  - id: office-sees-the-rest
+    description: "In the office, every name in shop.test other than api resolves as it does on the shop's own server."
+    command: |
+      names="@ www mail status $(printf '%s\n' docs shipping cdn | shuf -n 1)"
+      for n in $names; do
+        name=shop.test; [ "$n" = @ ] || name=$n.shop.test
+        want=$(on office dig +norecurse +short @198.51.100.13 "$name" A | tail -n 1)
+        got=$(on office dig +short +time=2 +tries=1 "$name" A | tail -n 1)
+        [ -n "$want" ] && [ "$got" = "$want" ] || { echo "in the office, $name gives ${got:-no address}, but the shop's server gives $want"; exit 0; }
+      done
+      echo "all resolve"
+    expect:
+      equals: "all resolve"
+  - id: office-keeps-private
+    description: "In the office, api.shop.test is still the private address, 10.0.8.51."
+    command: on office dig +short +time=2 +tries=1 api.shop.test A
+    expect:
+      equals: "10.0.8.51"
+  - id: pay-secure
+    description: "Customers whose resolver checks signatures reach the payments site: each public resolver gives www.pay.shop.test, 203.0.113.60, with the ad flag."
+    command: |
+      for isp in isp1:198.51.100.21 isp2:198.51.100.22 isp3:198.51.100.23; do
+        out=$(on office dig +time=2 +tries=1 @"${isp#*:}" www.pay.shop.test A)
+        got=$(echo "$out" | awk '$1 == "www.pay.shop.test." && $4 == "A" {print $5}')
+        status=$(echo "$out" | grep -o 'status: [A-Z]*')
+        [ "$got" = 203.0.113.60 ] || { echo "${isp%%:*} gives www.pay.shop.test no address ($status; a resolver that checks signatures remembers a failure for a minute)"; exit 0; }
+        echo "$out" | grep '^;; flags:.* ad' > /dev/null || { echo "${isp%%:*} gives www.pay.shop.test without the ad flag"; exit 0; }
+      done
+      echo secure
+    expect:
+      equals: secure
+  - id: pay-signed-for-a-week
+    description: "Every signature ns1 serves for pay.shop.test (on its SOA, its keys and www) is good for at least 7 more days."
+    command: |
+      week=$(date -u -d '+7 days' +%Y%m%d%H%M%S)
+      soonest=$(for type in SOA DNSKEY; do on office dig +norecurse +dnssec +noall +answer @198.51.100.13 pay.shop.test "$type"; done
+        on office dig +norecurse +dnssec +noall +answer @198.51.100.13 www.pay.shop.test A
+      )
+      soonest=$(echo "$soonest" | awk '$4 == "RRSIG" {print $9}' | sort | head -n 1)
+      [ -n "$soonest" ] || { echo "ns1 serves pay.shop.test without signatures"; exit 0; }
+      [ "$soonest" -ge "$week" ] || { echo "a signature on pay.shop.test ends at $soonest (UTC), less than 7 days from now"; exit 0; }
+      echo "a week or more"
+    expect:
+      equals: "a week or more"
+  - id: ds-in-place
+    description: "shop.test still holds a DS record for pay.shop.test, on both its servers, and it matches one of pay.shop.test's keys."
+    command: |
+      keys=$(on office dig +norecurse +noall +answer @198.51.100.13 pay.shop.test DNSKEY | awk '$4 == "DNSKEY" && $5 == 257')
+      [ -n "$keys" ] || { echo "pay.shop.test has no key with the flags 257"; exit 0; }
+      want=$(echo "$keys" | dnssec-dsfromkey -2 -f - pay.shop.test 2> /dev/null | awk '{print toupper($4 " " $5 " " $6 " " $7 $8)}' | sort)
+      for server in ns1:198.51.100.13 ns2:198.51.100.14; do
+        got=$(on office dig +norecurse +noall +answer @"${server#*:}" pay.shop.test DS | awk '$4 == "DS" {print toupper($5 " " $6 " " $7 " " $8 $9)}' | sort)
+        [ -n "$got" ] || { echo "${server%%:*} has no DS record for pay.shop.test"; exit 0; }
+        echo "$got" | grep -Fx -f <(echo "$want") > /dev/null || { echo "${server%%:*}'s DS record for pay.shop.test matches none of its keys"; exit 0; }
+      done
+      echo matches
+    expect:
+      equals: matches
+  - id: validation-still-on
+    description: "Every resolver still checks signatures: broken.test, a zone whose DS matches none of its keys on purpose, gets SERVFAIL from the office's resolver and the three public ones, whose settings are as they were."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      changed=$(intact) || { echo "files that aren't the shop's to change were changed: ${changed#changed: }"; exit 0; }
+      for r in resolver:10.1.0.53 isp1:198.51.100.21 isp2:198.51.100.22 isp3:198.51.100.23; do
+        status=$(on office dig +time=2 +tries=1 @"${r#*:}" www.broken.test A | grep -o 'status: [A-Z]*')
+        [ "$status" = "status: SERVFAIL" ] || { echo "${r%%:*} answers www.broken.test with ${status:-nothing}, so it no longer refuses a broken signature"; exit 0; }
+      done
+      echo refused
+    expect:
+      equals: refused
+  - id: both-servers-listed
+    description: "shop.test is still served by both ns1 and ns2: its NS records, in test. and in the zone itself, name the two."
+    command: |
+      want=$(printf 'ns1.shop.test.\nns2.shop.test.')
+      at_tld=$(on office dig +norecurse +noall +authority @198.51.100.12 shop.test NS | awk '$4 == "NS" {print $5}' | sort)
+      at_ns1=$(on office dig +norecurse +short @198.51.100.13 shop.test NS | sort)
+      [ "$at_tld" = "$want" ] || { echo "test. delegates shop.test to $(echo $at_tld)"; exit 0; }
+      [ "$at_ns1" = "$want" ] || { echo "shop.test's own NS records name $(echo $at_ns1)"; exit 0; }
+      echo both
+    expect:
+      equals: both
+  - id: no-hosts
+    description: "No shop.test name is in a hosts file, on any machine."
+    command: |
+      found=$(grep -l 'shop\.test' /etc/hosts /etc/netns/*/hosts 2> /dev/null)
+      [ -z "$found" ] || { echo "a hosts file names shop.test: $found"; exit 0; }
+      echo none
+    expect:
+      equals: none
+  - id: resolver-saved
+    description: "The office resolver's settings are in its /etc/unbound/unbound.conf, so a restart keeps them: an Unbound started from its files answers for the same names itself as the running one."
+    timeout: 45
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      local_names() { on "$1" bash -c 'unbound-control list_local_zones; unbound-control list_local_data' 2> /dev/null | sort; }
+      live=$(local_names resolver)
+      fresh=$(netlab verify resolver -- bash -c '
+        on chk-resolver unbound -d -p > /dev/null 2>&1 &
+        for i in $(seq 1 50); do on chk-resolver unbound-control status > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-resolver bash -c "unbound-control list_local_zones; unbound-control list_local_data" 2> /dev/null | sort
+        on chk-resolver unbound-control stop > /dev/null 2>&1
+        wait')
+      if [ -n "$live" ] && [ "$live" = "$fresh" ]; then echo saved; exit 0; fi
+      echo "the running resolver isn't the one its files start: after a restart it would answer differently for $(diff <(echo "$live") <(echo "$fresh") | sed -n 's/^[<>] //p' | awk '{print $1}' | sort -u | head -n 2 | tr '\n' ' ')"
+    expect:
+      equals: saved

@@ -1,0 +1,16 @@
+id: mcq-azure-fallback
+type: mcq
+rev: 1
+prompt: |
+  In Azure, a private DNS zone's virtual network link can switch on "Enable fallback to internet" (its resolution policy, `NxDomainRedirect`), so that a name missing from the private zone is looked up publicly instead of getting NXDOMAIN. Which private zones can use it?
+choices:
+  - "Only private DNS zones for Private Link resources, such as privatelink.blob.core.windows.net"
+  - "Any private DNS zone, as long as it's linked to the virtual network with autoregistration on"
+  - "Any private DNS zone whose name is also a public zone hosted in Azure DNS by the same tenant"
+  - "Only private DNS zones linked to more than one virtual network, in more than one region"
+answer: 0
+explanation: |
+  Microsoft's page on the fallback (dated 2025-02-04, read 2026-11-12) says it "is only available for Private DNS zones associated to Private Link resources", set per virtual network link, from API version 2024-06-01. For every other private zone, Azure behaves like Route 53 and Cloud DNS: a name the private zone doesn't hold gets NXDOMAIN inside the network, even if it exists publicly.
+
+  Autoregistration (the link's "registration enabled") makes VMs' names appear in the zone; it doesn't change what missing names get. Neither the public zone's host nor how many networks are linked decides it.
+skills: [split-horizon]

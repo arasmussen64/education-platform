@@ -1,0 +1,47 @@
+#!/bin/bash
+# move-watch: the shop's move monitor, on the office machine. Every second
+# it asks the shop's two name servers directly (without recursion) and the
+# three public resolvers customers use, for api.shop.test and for
+# canary.shop.test, and adds one line per answer to /var/lib/lab/move.log:
+#   TIME SOURCE NAME ADDRESS TTL
+# TIME is in seconds since 1970, and - means no answer; a line
+# "TIME monitor started - -" marks each start, at every boot. It starts
+# asking isp1 at once, isp2 15 seconds later and isp3 30 seconds later, as
+# customers' first lookups are spread out, so the three hold copies of
+# different ages. Part of the scenery: the log is the move's evidence.
+log=/var/lib/lab/move.log
+mkdir -p /var/lib/lab
+
+# One answer, as "NAME ADDRESS TTL" (dig's TTL column), or "NAME - -".
+ask() { # server recursion(yes|no) name
+  local flag=+recurse
+  if [ "$2" = no ]; then flag=+norecurse; fi
+  dig "$flag" +time=1 +tries=1 +noall +answer @"$1" "$3.shop.test" A 2> /dev/null \
+    | awk -v n="$3" '$4 == "A" {print n, $5, $2; found = 1; exit} END {if (!found) print n, "-", "-"}'
+}
+
+# After a boot, wait for the shop's two servers to answer before starting.
+for _ in $(seq 1 60); do
+  a=$(ask 198.51.100.13 no api)
+  b=$(ask 198.51.100.14 no api)
+  if [ "$a" != "api - -" ] && [ "$b" != "api - -" ]; then break; fi
+  sleep 1
+done
+
+start=$(date +%s)
+echo "$(date +%s.%N | cut -c1-14) monitor started - -" >> "$log"
+while :; do
+  now=$(date +%s.%N | cut -c1-14)
+  age=$(($(date +%s) - start))
+  {
+    for source in ns1:198.51.100.13:no ns2:198.51.100.14:no isp1:198.51.100.21:yes isp2:198.51.100.22:yes isp3:198.51.100.23:yes; do
+      IFS=: read -r name address recursion <<< "$source"
+      if [ "$name" = isp2 ] && [ "$age" -lt 15 ]; then continue; fi
+      if [ "$name" = isp3 ] && [ "$age" -lt 30 ]; then continue; fi
+      for n in api canary; do
+        echo "$now $name $(ask "$address" "$recursion" "$n")"
+      done
+    done
+  } >> "$log"
+  sleep 1
+done

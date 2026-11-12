@@ -1,0 +1,25 @@
+; The shop's zone, shop.test. Names without a final dot end in .shop.test,
+; and @ is shop.test itself, the zone's apex. The SOA's numbers are the
+; serial, refresh, retry, expire and minimum. Change a record, raise the
+; serial, then: rndc reload shop.test
+$TTL 300
+@        IN SOA ns1.shop.test. hostmaster.shop.test. ( 2026111201 3600 600 1209600 900 ) ; serial
+@        IN NS    ns1
+@        IN NS    ns2
+ns1      IN A     198.51.100.13
+ns2      IN A     198.51.100.14
+@        IN A     203.0.113.40
+www      IN CNAME @
+api  600 IN A     203.0.113.41
+mail     IN A     203.0.113.42
+status   IN A     203.0.113.43
+@        IN MX    10 mail
+@        IN TXT   "v=spf1 mx -all"
+@        IN CAA   0 issue "ca.shop.test"
+; The European site, eu.shop.test, is delegated to its own server, ns-eu.
+; To delegate it, take the ; off the start of these three lines and fill
+; in each ...: the server's name, its address (the glue), and the DS
+; record of eu.shop.test's key.
+;eu       IN NS    ...
+;ns-eu.eu IN A     ...
+;eu       IN DS    ...

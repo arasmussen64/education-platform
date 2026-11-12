@@ -1,0 +1,24 @@
+id: fill-delegate-eu
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Delegate the European site"
+prompt: |
+  The shop opens a European site with a name server of its own, `ns-eu` (198.51.100.15), which will answer for the zone `eu.shop.test`. The rest is the walkthrough's small internet: `root`, `tld` (the server for `test.`), the shop's `ns1` (198.51.100.13, the primary for `shop.test`) and `ns2` (198.51.100.14, its secondary), the office with its resolver, and `isp1` (198.51.100.21), a public resolver that checks signatures. ns-eu runs BIND, but its files have gaps, so it hasn't started (`systemctl status named@ns-eu`, and `journalctl -u named@ns-eu` says why).
+
+  Fill in each `...` in three files:
+
+  1. **ns-eu's zone file**, `/etc/bind/db.eu.shop.test` (`on ns-eu nano /etc/bind/db.eu.shop.test`): the SOA's first number, the serial (a 10-digit, date-style number, like the shop's); the name server the zone names as its own, written as a name inside the zone (as `ns1` is in shop.test's file); and that server's address.
+  2. **ns-eu's zone settings**, `/etc/bind/named.conf.local`: the zone file's full path, and the name of the DNSSEC policy BIND signs with, the same one every zone in this lab uses (look at ns1's `/etc/bind/named.conf.local`). Check them with `on ns-eu named-checkconf` and `on ns-eu named-checkzone eu.shop.test /etc/bind/db.eu.shop.test`, then `sudo systemctl restart named@ns-eu` (if systemd answers that it was restarted too often, `sudo systemctl reset-failed named@ns-eu` first). At its first start BIND makes the zone's key and signs the zone: `on office dig @198.51.100.15 +norecurse eu.shop.test DNSKEY` shows the key.
+  3. **The delegation, in shop.test's zone on ns1**, `/etc/bind/db.shop.test`: its last three lines start with `;`, which makes them comments. Take the `;` off each and fill in its `...`: the name server for `eu`, written relative to shop.test as the zone's own names are; the address that server's name needs here, as glue; and the DS record. Make the DS with `on office dig @198.51.100.15 +norecurse +noall +answer eu.shop.test DNSKEY | dnssec-dsfromkey -2 -f - eu.shop.test`, which prints the whole line: the `eu IN DS ...` line becomes that line. Then raise shop.test's serial and `on ns1 rndc reload shop.test`, and read `journalctl -u named@ns1` to see that the zone loaded. ns1 tells ns2 about the change after about 5 seconds, and ns2 copies it.
+
+  Ask the servers directly first (`on office dig @198.51.100.13 +norecurse www.eu.shop.test`, then the same at 198.51.100.15), and a public resolver last (`on isp1 dig www.eu.shop.test`): a resolver asked before the delegation is in place keeps the "no such name" it was given for shop.test's negative TTL, 300 seconds. Then run the checks.
+hints:
+  - "The serial can be any 10-digit number: 2026111201 is the date the shop's own zone uses, plus 01."
+  - "In ns-eu's own zone file, `@ IN NS ns-eu` names ns-eu.eu.shop.test, because a name without a final dot gets the zone's name added. In shop.test's file the same server is `ns-eu.eu`: shop.test is added there."
+  - "The glue line's name and the NS line's value must be the same name, or the address belongs to nobody the delegation mentions."
+  - "If ns1 says \"not loaded due to errors\", the serial in its file didn't go up."
+skills: [records-and-zones, trace-resolution, dnssec]

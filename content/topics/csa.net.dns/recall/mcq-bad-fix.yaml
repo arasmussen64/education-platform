@@ -1,0 +1,16 @@
+id: mcq-bad-fix
+type: mcq
+rev: 1
+prompt: |
+  `pay.shop.test` fails validation, and someone proposes adding `domain-insecure: "pay.shop.test"` (or `val-permissive-mode: yes`) to the resolvers' settings, "so payments work again". Why is that the wrong fix?
+choices:
+  - "It lets forged answers for the zone through too, which is the attack validation exists to stop"
+  - "It works only for zones signed with RSA keys, and pay.shop.test is signed with an ECDSA key"
+  - "It turns caching off for the zone, so every lookup has to go back to the zone's own servers"
+  - "It needs the zone's DS record removed from shop.test first, or the resolver ignores the line"
+answer: 0
+explanation: |
+  `domain-insecure` tells the resolver not to check signatures for that zone at all; `val-permissive-mode` checks them but hands bogus answers out anyway (Unbound's unbound.conf manual). Either way an attacker's forged answer for the payments site would now be accepted, exactly what checking exists to catch, and the zone's real fault (expired signatures, or a DS that doesn't match) is still there for every resolver you don't run. Fix the zone instead: sign it again, or publish the right DS.
+
+  Neither setting cares which algorithm signed the zone, neither changes caching, and neither depends on the DS.
+skills: [dnssec]

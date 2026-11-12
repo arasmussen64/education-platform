@@ -1,0 +1,16 @@
+id: mcq-glue-why
+type: mcq
+rev: 1
+prompt: |
+  Asked about `www.shop.test`, test.'s server answers with a referral: `shop.test. NS ns1.shop.test.` in AUTHORITY, and `ns1.shop.test. A 198.51.100.13` in ADDITIONAL. Why must that address come with the referral?
+choices:
+  - "The server's name is inside shop.test, so only shop.test's own servers could tell anyone its address"
+  - "It saves the resolver a second lookup, which it would otherwise have to make for every server it's given"
+  - "test.'s server is the authority for every address under test., and that includes the shop's servers"
+  - "The resolver asked for it, by setting the rd flag on the question that it sent to test.'s server"
+answer: 0
+explanation: |
+  This is glue. To reach `ns1.shop.test` a resolver needs its address, and that address is a record in `shop.test`, the very zone it is trying to reach: without the address in the referral it could never ask. So the parent hands it over. A name server named outside the zone being delegated (say `ns.example.net` for `shop.test`) needs no glue, because it can be looked up separately.
+
+  Saving lookups is a side effect, not the reason, and many referrals for servers outside the zone carry no addresses at all. test.'s server isn't the authority for the shop's addresses: its referral has no `aa`, and the authoritative copy of `ns1.shop.test`'s address is in shop.test's own zone. The `rd` flag asks for recursion, which an authoritative-only server doesn't do; it says nothing about extra records.
+skills: [trace-resolution]

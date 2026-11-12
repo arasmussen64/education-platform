@@ -1,0 +1,16 @@
+id: mcq-cname-apex
+type: mcq
+rev: 1
+prompt: |
+  The shop wants `shop.test` itself, the zone's apex, to follow its load balancer's name, `lb.cloud.test`, whose addresses change. Someone writes `@ IN CNAME lb.cloud.test.` in the zone file. Why won't that work, and what does?
+choices:
+  - "The apex has SOA and NS records, and a CNAME can't share its name: use the DNS host's apex alias"
+  - "A CNAME may only point at a name in its own zone: move the load balancer's name into shop.test first"
+  - "A CNAME at the apex must have a TTL under 60 seconds to follow the balancer: set one on that line"
+  - "The apex may only hold A and AAAA records: add a TXT record naming the balancer for clients to use"
+answer: 0
+explanation: |
+  A CNAME says "this name is that other name, for every type", so a name with a CNAME can't have any other record (RFC 2181). The apex always has the zone's SOA and NS records, so it can never be a CNAME. Hosts solve it with their own record types: Route 53's alias records can sit at the apex and answer with a load balancer's addresses (free to query when they point at AWS resources), and Azure DNS's alias record sets can point the apex at a public IP, Traffic Manager, the CDN or Front Door (each provider's alias page, read 2026-11-12). Without one, put the balancer's addresses in A records and keep them current.
+
+  A CNAME can point at any name anywhere, inside the zone or out; the TTL has nothing to do with whether it's allowed; and the apex holds many types (SOA, NS, MX, TXT, CAA), but no client follows a TXT record to find an address.
+skills: [records-and-zones]

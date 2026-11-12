@@ -1,0 +1,16 @@
+id: mcq-ds-mismatch
+type: mcq
+rev: 1
+prompt: |
+  After someone "made new keys" for `shop.test` and signed the zone with them, every resolver that checks signatures answers SERVFAIL for the shop's names, while other zones still validate there and `dig +cd` still gets the records. What is wrong, and what fixes it?
+choices:
+  - "test.'s DS record still matches the old key: publish the new key's DS in test."
+  - "The new signatures take a day to spread: wait until the old ones have expired"
+  - "The resolvers hold the old key as their trust anchor: restart each one of them"
+  - "The resolvers' clocks are wrong for the new signatures: correct their time"
+answer: 0
+explanation: |
+  The parent's DS record is a hash of the child's key, and validation follows it: test.'s DS for shop.test says "trust this key". After the keys change, the DS still names the old one, so no key the zone now shows matches, and validators call the zone bogus (EDE 6, "no keys have a DS ..."). `+cd` skips the check, which is why it still gets the records. Fix: publish the DS of the new key in the parent (at the registrar, for a real domain). Next time, publish the new key and its DS before the old one goes, so both work while caches change over.
+
+  Signatures don't spread: a zone's servers serve them at once. A resolver's trust anchor is the root's key, not each zone's. And SERVFAIL for one zone's names only, with every other zone fine, isn't a clock problem.
+skills: [dnssec]

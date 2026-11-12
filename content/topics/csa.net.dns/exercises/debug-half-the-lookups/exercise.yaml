@@ -1,0 +1,38 @@
+id: debug-half-the-lookups
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Half the lookups"
+prompt: |
+  The shop's names, a week after its API moved to a new server at 203.0.113.51. Every machine is described here, the broken parts and the working ones alike; `netlab show` lists them.
+
+  - **The shop's zone**, `shop.test`, has two name servers: `ns1` (198.51.100.13), the primary, whose zone file is the master copy, and `ns2` (198.51.100.14), its secondary, which copies the zone from ns1. BIND signs `shop.test`. Each server's settings are in its `/etc/bind`.
+  - **The payments site** is `pay.shop.test`, a zone of its own that `shop.test` delegates to ns1. It is signed, with its DS record in `shop.test`.
+  - **The lab internet's servers**, `root` (198.51.100.11) and `tld` (198.51.100.12, the server for `test.`), are scenery. tld also serves `broken.test`, a zone whose DS record matches none of its keys on purpose: every resolver that checks signatures must refuse it, so it shows that checking is on.
+  - **The public resolvers**, `isp1`, `isp2` and `isp3` (198.51.100.21 to .23), are the ones customers use. They check signatures and keep each answer for its TTL. They aren't the shop's.
+  - **The office**: a laptop, `office`, asks the office's resolver, `resolver` (Unbound, 10.1.0.53), which gives `api.shop.test` the new server's private address in the office, 10.0.8.51, and resolves everything else. `edge` is the office's router.
+
+  TTLs are scaled down: `api.shop.test`'s 60 seconds would be an hour or more on a real zone.
+
+  Since this morning:
+
+  - customers say the shop works one time in two (their resolvers are the public ones);
+  - payments fail for every customer whose resolver checks signatures, though `dig +cd` (checking disabled) shows the payments site's records;
+  - in the office, `status.shop.test` and the mail server don't resolve, though they do from outside.
+
+  There are three faults. Find each from the evidence (what each server and resolver answers, and their journals) and fix it at its cause.
+
+  The rules of the fix:
+
+  - **The public resolvers' settings stay as they are:** they aren't the shop's. An answer they already hold lasts until its TTL runs out.
+  - **Both name servers stay in service**, each answering for `shop.test`.
+  - **Only the shop's own name servers may copy a whole zone:** anyone may ask them questions, but a zone's full list of names stays the shop's.
+  - **`pay.shop.test` stays signed, with its DS record in `shop.test`,** and every resolver goes on checking signatures.
+  - **The office keeps its private address for `api.shop.test`.**
+  - **Nothing goes into a hosts file,** and every fix is in a file, so it lasts a restart.
+
+  Useful commands: `on office dig @SERVER +norecurse NAME` asks a name server directly, and `on office dig @198.51.100.21 NAME` asks a public resolver (add `+dnssec` to see signatures, `+cd` to skip checking them); `journalctl -u named@ns1`, `-u named@ns2`, `-u unbound@isp1` and `-u unbound@resolver` show each one's log; `on ns1 rndc ...` and `on ns2 rndc ...` control BIND on each server; `on resolver unbound-checkconf` and `sudo systemctl restart unbound@resolver` for the office's resolver. When customers, payments and the office all work, run the checks.
+skills: [records-and-zones, split-horizon, dnssec, trace-resolution]

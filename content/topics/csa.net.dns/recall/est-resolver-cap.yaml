@@ -1,0 +1,22 @@
+id: est-resolver-cap
+type: estimate
+rev: 1
+prompt: |
+  A record has a TTL of 172800 seconds (two days). A resolver running Unbound with its default settings fetches it. For at most how many seconds will Unbound keep that answer before asking again? Exactly.
+unit: seconds
+answer: 86400
+tolerance: { absolute: 0 }
+given: { ttl: 172800 }
+working: min(ttl, 86400)
+mistakes:
+  - id: record-ttl
+    value: 172800
+    working: ttl
+    why: A resolver can cap the TTLs it honours. Unbound's cache-max-ttl is 86400 seconds by default, so it keeps the answer one day at most.
+  - id: negative-cap
+    value: 3600
+    working: min(ttl, 3600)
+    why: 3600 seconds is Unbound's cap for negative answers ("no such name"), cache-max-negative-ttl. Answers with data are capped at 86400.
+explanation: |
+  Unbound's defaults are `cache-max-ttl: 86400` (a day) for answers and `cache-max-negative-ttl: 3600` for negative ones (its unbound.conf manual, read 2026-11-12), so min(172800, 86400) = 86400. Other resolvers have their own caps, which is one reason a move's arithmetic uses the record's TTL as the worst case rather than counting on caps.
+skills: [ttl-and-caching]

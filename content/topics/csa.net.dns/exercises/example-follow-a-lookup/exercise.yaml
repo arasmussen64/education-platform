@@ -1,0 +1,56 @@
+id: example-follow-a-lookup
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Follow one lookup"
+prompt: |
+  If this is your first network lab, read the note "Before your first network lab" at the top of `example-follow-a-request`, the walkthrough in Layers and packets, first: it explains the machines, `on`, the topology file and services like `named@ns1`.
+
+  **This lab.** A small internet of its own, with no way out to the real one. The office has a laptop, `office` (10.1.0.10), and its own resolver, `resolver` (10.1.0.53, Unbound), behind its router, `edge`. Out on the lab's internet are the name servers: `root` (198.51.100.11, called `a.root-servers.test`), the root of every name; `tld` (198.51.100.12, `ns1.nic.test`), the server for `test.`; and the shop's two servers for `shop.test`, `ns1` (198.51.100.13) and `ns2` (198.51.100.14). All four run BIND, authoritative only; every zone is signed. The walkthrough follows one name, `api.shop.test`, from the laptop to the zone's own server and back: the trail of referrals, the server whose answer is the authority, the cache counting down, a name that doesn't exist, the signatures, and a private answer for the office. Type each line yourself in the lab's shell and read what it prints before you type the next. Lines that save something write into `~/example`, which every machine shares.
+steps:
+  - label: "The machines"
+    lines: "1"
+    note: "Seven machines. `resolver` runs `unbound` and the four name servers run `named` (BIND); `edge` is a router between the office's network, 10.1.0.0/24, and the lab internet's, 198.51.100.0/24. Their addresses are in the list."
+  - label: "The stub's view"
+    lines: "2-3"
+    note: "The laptop's stub resolver knows one address, written into its `/etc/resolv.conf` at every boot: `nameserver 10.1.0.53`, the office's resolver. `dig api.shop.test` asks it. Read the header: `status: NOERROR` (an answer), and the flags `qr rd ra ad`: a reply (`qr`), recursion was asked for (`rd`) and is offered (`ra`), and the answer was validated (`ad`). The ANSWER section is `api.shop.test. 600 IN A 203.0.113.41`: a TTL of 600 seconds. `SERVER: 10.1.0.53` names who answered. There's no `aa`: the resolver isn't the authority for the name."
+  - label: "The whole trail"
+    lines: "4"
+    note: "`+trace` makes dig do the resolver's work itself, from the top. Each block ends with a `;; Received ... from` line naming who answered. First the resolver, asked only for the root's servers (`. NS a.root-servers.test.`). Then `a.root-servers.test`, which doesn't know `api.shop.test` but says who runs `test.`: `test. NS ns1.nic.test.`, with a DS record. Then `ns1.nic.test`, which says who runs `shop.test`: its two servers, with their DS. Last, one of the shop's servers gives the answer itself, `api.shop.test. 600 IN A 203.0.113.41`. Three referrals, then the answer. The RRSIG lines are signatures; the last steps come back to them."
+  - label: "One referral by hand"
+    lines: "5-7"
+    note: "The same question, asked of the root alone, without recursion (`+norecurse`). The flags are just `qr`: no `aa`, because the root isn't the authority for this name, and `ANSWER: 0`. The AUTHORITY section is the referral, `test. 86400 IN NS ns1.nic.test.`: ask that server. The ADDITIONAL section holds its address, `ns1.nic.test. 86400 IN A 198.51.100.12`. That's glue: `ns1.nic.test` is inside `test.`, the zone being delegated, so without the address nobody could ever find it. The last line saves the name the root referred to."
+  - label: "The authority"
+    lines: "8-9"
+    note: "Asked directly, shop.test's own server answers with the flags `qr aa`: `aa` means authoritative, the zone's own server speaking. Its answer is the zone as it is right now, and its TTL is the full 600, because nothing here is cached. When a resolver and the authority disagree, the authority's `+norecurse` answer is the zone today; the resolver's may be an older copy. The flags line is saved."
+  - label: "The zone file"
+    lines: "10"
+    note: "`/etc/bind/db.shop.test` on ns1, the zone's master copy. Each line is a record: a name (`@` is `shop.test` itself, the apex; a name without a final dot gets `.shop.test` added), an optional TTL, `IN`, the type, the value. `$TTL 300` is the TTL of every line that doesn't give its own, so `api` with 600 has twice the others'. The SOA line's numbers are the serial, refresh, retry, expire and minimum. `www` is a CNAME, another name for the apex; MX names the mail server, TXT holds text (here an email rule), CAA says which certificate authority may issue certificates for the domain."
+  - label: "Two servers, one serial"
+    lines: "11-12"
+    note: "Both servers give the same SOA, with the same serial, so ns2's copy is ns1's. The serial is higher than the file's 2026111201: BIND signs the zone itself and raises the serial each time it signs, so the serial a signed zone serves isn't the file's. Change a record without raising the file's serial and BIND, signing, refuses to load the edit at all."
+  - label: "The cache counting down"
+    lines: "13-16"
+    note: "Two lookups through the resolver, two seconds apart, each keeping only the TTL column (`awk '{print $2}'`). The resolver keeps its copy for the TTL and hands out how much is left, so the second number is two lower (587 then 585, say). The difference, about 2, is saved. A resolver that fetched the old address a second before a change keeps handing it out for the rest of its TTL, whatever the zone says now."
+  - label: "A name that doesn't exist"
+    lines: "17-18"
+    note: "`status: NXDOMAIN`: no such name. Its AUTHORITY section carries the zone's SOA, and that SOA's TTL is how long a resolver may keep saying \"no such name\". Asked directly, ns1 gives it as 300: the smaller of the SOA record's own TTL (300, from `$TTL`) and its last number, MINIMUM (900). Through the resolver it shows less, counting down like any cached answer. So a name looked up a moment before it is created can stay missing for up to 5 minutes here. The authority's figure is saved."
+  - label: "Signatures"
+    lines: "19-20"
+    note: "`+dnssec` asks for the signatures too. Beside the A record is its RRSIG: `A 13 3 600`, then two dates (when the signature stops being good and when it started, year to second, UTC), the signing key's tag, the signer `shop.test.` and the signature. Then the parent's half of the chain: `test.`'s server holds shop.test's DS record, a hash of shop.test's key, signed by `test.` itself. The DS's first number is the same key tag as in shop.test's RRSIGs: the parent vouches for the very key that signs the zone."
+  - label: "A private zone, the wrong way"
+    lines: "21-24"
+    note: "`unbound-control` changes the running resolver: here a local zone of type `static` for `shop.test`, with one name in it, `api.shop.test` at a private address, 10.0.8.41. The office now gets 10.0.8.41 for api, and `www.shop.test` gives `NXDOMAIN`, with the flag `aa`: a static zone answers everything under it from what it holds, and claims authority doing it. Every other name in the shop's zone has vanished for the office."
+  - label: "Live changes don't last"
+    lines: "25-26"
+    note: "A restart makes Unbound read `/etc/unbound/unbound.conf` again, and the live change is gone: `www.shop.test` gives `shop.test.`, then 203.0.113.40, again. Changes made with `unbound-control` last until the next restart; the file is what lasts."
+  - label: "A private zone that keeps the rest"
+    lines: "27-32"
+    note: "The same idea, in the file and with the type `transparent`: the resolver answers from its own data only for names it holds, and looks up the rest normally. `tee -a` adds the lines up to `EOF` to the end of the file; a second `server:` line opens the same section again, so the two settings join the others. Then a restart, so Unbound reads the file."
+  - label: "The office's view"
+    lines: "33-34"
+    note: "In the office, `api.shop.test` is 10.0.8.41, and `www.shop.test` still resolves to the public 203.0.113.40. Customers outside, whose resolvers don't hold this local zone, still get 203.0.113.41 for api. One name, two answers, depending on who asks: split-horizon DNS. Run the checks."
+skills: [trace-resolution, ttl-and-caching]

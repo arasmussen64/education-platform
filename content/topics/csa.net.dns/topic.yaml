@@ -1,17 +1,257 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.dns
 kind: topic
-status: planned
+status: ready
 title: DNS
-summary: Trace a lookup end to end, from recursion to authority.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Trace a lookup end to end, from a laptop's stub through a recursive resolver to the root, the TLD and the zone's own servers; read and write zone files, delegate with glue and keep a secondary in step; work out how long answers and \"no such name\" stay cached, and move a name with the TTL lowered first; give one name a private answer without losing the rest; and read DNSSEC's chain of trust, and what a broken one looks like."
+# DNS uses UDP and falls back to TCP on port 53, so this topic comes after
+# csa.net.transport, which defines the datagram, the port and the connection
+# it leans on (and reaches back through Module 3 to csa.m1.checkpoint). It
+# does not depend on Module 2: the words DNS, zone, record, resolver and
+# zone transfer are defined here. What it builds on, for the writer:
+# csa.linux.net-tools (dig, its answer section and TTL column, +short,
+# /etc/hosts read by curl but not by dig, dnsmasq), csa.linux.services
+# (systemctl, journalctl), csa.linux.shell and scripting (awk, sort, grep,
+# a script with chmod +x, for the write lab), csa.net.layers (the network
+# labs' machines, on, name@machine; its walkthrough's onboarding note) and
+# csa.net.cidr (the reverse zone's backwards octets, one line).
+prerequisites: [csa.net.transport]
+estimated_minutes: 315
 rev: 1
 objectives:
-- Trace a lookup end to end, from recursion to authority.
-- Use record types, TTLs, negative caching and split-horizon DNS.
-- Explain DNSSEC.
-- Lower TTLs ahead of a move.
+  - "Follow one lookup from a laptop's stub resolver through a recursive resolver to the root, the top-level domain's servers and the zone's own servers, reading `dig +trace` and `dig +norecurse`: each referral, the glue that came with it, and the server whose answer is authoritative (`aa`)."
+  - "Read and write a zone file (SOA and its serial, expire and minimum; NS, A, AAAA, CNAME and why it can't sit at the apex, MX, TXT, CAA, PTR), delegate a child zone with NS records, glue and a DS record, and keep a secondary in step through the serial, NOTIFY and zone transfers."
+  - "Work out how long an answer, or a \"no such name\", can stay cached (the TTL, the SOA's negative TTL, a resolver's caps), and run a planned move as a procedure: lower the TTL, wait out the old one, switch, check, raise it again."
+  - "Give one name a different answer inside a network (split-horizon) without losing the rest of the zone, and predict the classic failure where a private zone shadows the public one, on Route 53, Azure Private DNS and Cloud DNS."
+  - "Explain DNSSEC's chain of trust (DNSKEY, RRSIG, DS, the trust anchor, the ad flag), recognise a broken one (SERVFAIL, `dig +cd` still answering, an Extended DNS Error naming the cause), and fix it by signing again or publishing the right DS, never by switching validation off."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - A negative answer's TTL is the smaller of the SOA record's TTL and its
+#   MINIMUM field: RFC 2308, sections 3 and 5 (Module 3 DNS brief, F1, read
+#   2026-11-11; the labs' NXDOMAIN gave 300 for SOA TTL 300 and MINIMUM 900,
+#   captured 2026-11-12).
+# - Unbound's defaults: cache-max-ttl 86400 (1 day), cache-max-negative-ttl
+#   3600, infra-host-ttl 900, val-bogus-ttl 60, serve-expired no; static
+#   answers NODATA or NXDOMAIN for names without local data, transparent
+#   resolves them normally; test. is one of its default local zones
+#   (static); domain-insecure ignores the chain of trust below a name, and
+#   val-permissive-mode hands bogus data to clients:
+#   https://unbound.docs.nlnetlabs.nl/en/latest/manpages/unbound.conf.html
+# - Route 53 VPC Resolver: a matching private hosted zone with no matching
+#   record returns NXDOMAIN and "doesn't forward the request to a public DNS
+#   resolver"; a VPC Resolver rule for the same name takes precedence over
+#   the private zone; the Amazon-provided DNS server is at the VPC range's
+#   base plus two:
+#   https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zone-private-considerations.html
+# - Route 53 VPC Resolver validates DNSSEC only when switched on per VPC
+#   ("could result in an outage"), ignores DO and CD, and doesn't set AD:
+#   https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resolver-dnssec-validation.html
+# - Route 53 DNSSEC signing "is supported only for public hosted zones";
+#   each KSK is based on a customer managed key in AWS KMS, and Route 53
+#   manages the ZSK:
+#   https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-configuring-dnssec.html
+# - Route 53 alias records can sit at the zone apex, a CNAME can't; alias
+#   queries to AWS resources are free; an alias to an AWS resource uses the
+#   resource's TTL:
+#   https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resource-record-sets-choosing-alias-non-alias.html
+# - Azure Private DNS: "Enable fallback to internet" (resolutionPolicy
+#   NxDomainRedirect, API 2024-06-01 or later) "is only available for
+#   Private DNS zones associated to Private Link resources" (ms.date
+#   2025-02-04): https://learn.microsoft.com/en-us/azure/dns/private-dns-fallback
+# - Azure DNS signs public zones with ECDSAP256SHA256 and implements RFC
+#   9824; "DNSSEC response validation is not performed by the default
+#   Azure-provided resolver"; ZSKs roll automatically, a KSK change needs
+#   Microsoft support and a new DS (ms.date 2025-01-27, updated
+#   2026-08-12): https://learn.microsoft.com/en-us/azure/dns/dnssec
+#   (the page doesn't give the resolver's address; 168.63.129.16 is the
+#   "Server" in the fallback page's nslookup example, above, re-read
+#   2026-11-12 by the topic's reviewer)
+# - Azure DNS alias record sets (A, AAAA, CNAME) can point at a Standard
+#   public IP, a Traffic Manager profile, a CDN endpoint, Front Door or
+#   another record set, and sit at the apex, since "The DNS protocol
+#   prevents the assignment of CNAME records at the zone apex" (ms.date
+#   2026-10-05, updated 2026-10-19):
+#   https://learn.microsoft.com/en-us/azure/dns/dns-alias
+# - Cloud DNS: "A private zone can overlap with any public zone", and a
+#   missing record in it gives NXDOMAIN "even if there is a record ...
+#   defined in a public zone":
+#   https://docs.cloud.google.com/dns/docs/zones/zones-overview
+# - Cloud DNS manages DNSKEY creation, rotation and signing once DNSSEC is
+#   on; "If you cannot add a DS record through your domain registrar ...
+#   enabling DNSSEC in Cloud DNS has no effect"; the page doesn't say
+#   whether a VPC's own resolver validates, so nothing is claimed for it:
+#   https://docs.cloud.google.com/dns/docs/dnssec
+# - Slack, 30 September 2021 (post of 29 November 2021): a DNSSEC rollout
+#   caused a 24-hour outage for under 1% of users; the DS was removed at the
+#   registrar on the assumption it wasn't cached, .com tells resolvers to
+#   keep it 24 hours, and validating resolvers returned SERVFAIL:
+#   https://slack.engineering/what-happened-during-slacks-dnssec-rollout/
+# - The DigitalOcean tutorial (modified 2020-11-04) still says "13 root
+#   servers in operation": there are 13 root server names, each answered by
+#   many machines. RFC 6761 section 6.2 reserves .test; RFC 2181 section 10.1
+#   forbids a CNAME beside other data; RFC 8914 defines EDE 6 (DNSSEC Bogus)
+#   and 7 (Signature Expired); RFC 9499 defines referral and glue: as the
+#   Module 3 DNS brief recorded them on 2026-11-11.
+# Every command output in the lesson, the labs' notes and the items marked
+# "captured" is real output of this topic's labs on the owner's PC (Docker
+# Desktop 29.8.2, the network-lab base: BIND 9.18.39, Unbound 1.19.2, dig
+# 9.18.39), captured 2026-11-12. Keys, key tags, signatures and served
+# serials differ at every build.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: the DigitalOcean
+# tutorial is CC BY-NC-SA 4.0 (the "license" in its page's metadata; the page
+# renders its text in the browser, so its sections and the root-server line
+# were read from the page's own HTML); Julia Evans' blog is copyright Julia
+# Evans, no licence stated; Cloudflare's Learning Center is copyright 2026
+# Cloudflare, Inc. (it refuses WebFetch with HTTP 403; its title, sections
+# and footer were read with curl, sending an honest client name, not a
+# browser's); Unbound's documentation is copyright NLnet Labs; AWS's
+# documentation is copyright Amazon Web Services; Microsoft's Azure
+# documentation is CC BY 4.0 (MicrosoftDocs/azure-docs); Slack's
+# engineering blog is copyright Slack Technologies, all rights reserved;
+# BIND's guide is copyright Internet Systems Consortium.
+resources:
+  - title: "An Introduction to DNS Terminology, Components, and Concepts, by Justin Ellingwood (DigitalOcean community tutorials): read \"How DNS Works\", \"Zone Files\" and \"Record Types\", about 24 minutes"
+    url: https://www.digitalocean.com/community/tutorials/an-introduction-to-dns-terminology-components-and-concepts
+    type: reading
+    use: link
+    license: "CC BY-NC-SA 4.0 (the page's metadata); linked, not copied"
+  - title: "What happens when you update your DNS? (Julia Evans, 2020): TTLs and caches, about 12 minutes"
+    url: https://jvns.ca/blog/how-updating-dns-works/
+    type: reading
+    use: link
+    license: "Copyright Julia Evans (no licence stated); linked, not copied"
+  - title: "How does DNSSEC work? (Cloudflare Learning Center): read to the end of \"DNSSEC for Registrars\", about 14 minutes"
+    url: https://www.cloudflare.com/learning/dns/dnssec/how-dnssec-works/
+    type: reading
+    use: link
+    license: "Copyright 2026 Cloudflare, Inc.; linked, not copied"
+  - title: "What is recursive DNS? (Cloudflare Learning Center): optional, the resolver's job in another telling"
+    url: https://www.cloudflare.com/learning/dns/what-is-recursive-dns/
+    type: reading
+    use: link
+    license: "Copyright 2026 Cloudflare, Inc.; linked, not copied"
+  - title: "unbound.conf(5), Unbound's manual (NLnet Labs): optional, the local-zone entry and its types"
+    url: https://unbound.docs.nlnetlabs.nl/en/latest/manpages/unbound.conf.html
+    type: reading
+    use: link
+    license: "Copyright NLnet Labs; linked, not copied"
+  - title: "Considerations when working with a private hosted zone (AWS Route 53): optional, \"Split-view DNS\" to \"Private hosted zones and Route 53 VPC Resolver rules\""
+    url: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zone-private-considerations.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "The Case of the Recursive Resolvers: What Happened During Slack's DNSSEC Rollout (Slack Engineering, 2021): optional, the long story of a cached DS record"
+    url: https://slack.engineering/what-happened-during-slacks-dnssec-rollout/
+    type: reading
+    use: link
+    license: "Copyright Slack Technologies, all rights reserved; linked, not copied"
+  - title: "BIND 9.18's DNSSEC Guide (ISC): reference only, for depth on signing with BIND"
+    url: https://bind9.readthedocs.io/en/v9.18.39/dnssec-guide.html
+    type: reading
+    use: link
+    license: "Copyright Internet Systems Consortium; linked, not copied"
+# The recall items read dig output captured from this topic's labs with
+# Module 1's text tools, and ask the caching sums as estimates (ADR-0024).
+# The worked example, the fill-in, the write and both proofs are labs on the
+# network-lab base (content/lab-bases/net): an office with its own Unbound
+# resolver and a small internet of BIND servers, signed, in one container
+# (ADR-0018, third amendment). Every lab keeps its contract with the restart
+# trial.
+practice:
+  - example-follow-a-lookup
+  - trace-who-answered
+  - referral-sections
+  - mcq-glue-why
+  - mcq-aa-flag
+  - mcq-forwarder-or-recursive
+  - zone-serial-next
+  - soa-fields
+  - mcq-cname-apex
+  - mcq-which-record
+  - mcq-secondary-stale
+  - mcq-rndc-queued
+  - fill-delegate-eu
+  - est-lower-ttl-lead
+  - est-forgot-to-lower
+  - est-negative-ttl
+  - est-resolver-cap
+  - est-move-window
+  - mcq-flush-caches
+  - split-static-or-transparent
+  - mcq-private-zone-nxdomain
+  - dnssec-read-ede
+  - dnssec-cd-flag
+  - mcq-what-dnssec-proves
+  - mcq-ds-mismatch
+  - mcq-bad-fix
+  - write-zone-health
+prove:
+  build: build-move-the-api
+  debug: debug-half-the-lookups
+  explain:
+    prompt: |
+      A colleague is moving the company's main website to a new load balancer on Friday, and plans to "change the DNS on Friday afternoon". Explain, in your own words: how a laptop finds the website's address, from its own resolver to the zone's authoritative servers, and which of them may be holding an old answer; what you'd do in the days before the move and why, with the numbers; why a name you look up before creating it can stay "missing"; what happens to the company's own staff if the company also has a private zone for the same domain in its cloud network; and what DNSSEC adds, what a broken signature looks like to users, and why turning validation off is the wrong fix. Say one way the three clouds differ.
+    rubric:
+      - id: resolution
+        required: true
+        description: "The stub asks a recursive resolver, which follows referrals from the root to the TLD's servers to the zone's own (authoritative) servers, whose answer carries aa; old answers sit in resolvers' caches (and stubs'), each until its TTL runs out, not at the authority."
+      - id: ttl-procedure
+        required: true
+        description: "Lower the TTL at least one old TTL before the move (with the serial raised, live on every server), switch, check through several resolvers, then raise the TTL again; nobody can empty other people's caches, so the wait is the only way."
+      - id: negative
+        required: true
+        description: "A \"no such name\" (NXDOMAIN) is cached too, for the smaller of the SOA record's TTL and its MINIMUM field, so a name looked up before it exists stays missing that long."
+      - id: split-horizon
+        required: true
+        description: "A private zone answers every name under it: names missing there give NXDOMAIN inside the network even when they exist publicly (Route 53, Cloud DNS, and Azure except Private Link zones with fallback), so copy every needed record or make the private zone narrower."
+      - id: dnssec
+        required: true
+        description: "Signatures (RRSIG) checked against the zone's key (DNSKEY), vouched for by the parent's DS up to a trust anchor, prove origin and integrity, not secrecy; broken means SERVFAIL at validating resolvers only, while dig +cd still shows the data and an Extended DNS Error names the cause; fix by signing again or publishing the right DS, because switching validation off lets forgeries through."
+      - id: clouds-differ
+        required: false
+        description: "Any correct difference: Azure's default resolver doesn't validate DNSSEC, Route 53's VPC Resolver validates only once switched on per VPC, Cloud DNS signs but needs the registrar's DS; Azure's fallback to the internet for Private Link zones; Route 53 alias and Azure alias records at the apex."
+    model_answer: |
+      The laptop doesn't look anything up itself. Its stub resolver asks the resolver in its network settings, which does the research: it asks a root server, which refers it to the servers for .com, which refer it to the company's own name servers, and those answer with the authoritative flag, aa. Each answer has a TTL, and the resolver keeps it that long; so does the laptop. So after a change the authoritative servers have the new address at once, but every resolver that fetched the old one keeps handing it out until its TTL runs out, and nobody can empty other people's caches.
+
+      So "change the DNS on Friday afternoon" isn't enough. If the record's TTL is 86400 seconds, a day, I'd lower it to 300 at least a day before the move, raise the zone's serial so every server loads it, and check each server gives the new TTL. On Friday I'd switch the address, check through a few different resolvers, and once it works raise the TTL again, because short TTLs mean many more queries and an outage of the name servers felt in minutes.
+
+      Names that don't exist are cached too. An NXDOMAIN carries the zone's SOA, and resolvers keep it for the smaller of the SOA record's TTL and its MINIMUM, so if someone looks a name up before we create it, it can stay missing for that long.
+
+      If the company also has a private zone for the domain in its cloud network, the network's resolver answers every name under it from the private zone. A name missing there gives NXDOMAIN to the staff even though it exists publicly. So the private zone needs every record staff use, or it should be narrower, like internal.example.com.
+
+      DNSSEC adds signatures: each record set is signed with the zone's key, the parent's DS record vouches for that key, and so on up to the root key the resolver trusts. It proves the answer is the zone owner's and wasn't changed, but it isn't secret. If the signatures expire or the DS doesn't match the key, validating resolvers return SERVFAIL, while dig +cd still shows the records and the Extended DNS Error says why. The fix is signing again or publishing the right DS; turning validation off would accept forged answers too.
+
+      The clouds differ: Azure's default resolver doesn't validate DNSSEC at all, while Route 53's validates only once it's switched on for a VPC.
+review_pool:
+  - trace-who-answered
+  - mcq-aa-flag
+  - mcq-glue-why
+  - mcq-open-resolver
+  - zone-serial-next
+  - mcq-secondary-stale
+  - mcq-rndc-queued
+  - mcq-cname-apex
+  - est-lower-ttl-lead
+  - est-negative-ttl-2
+  - est-move-window
+  - est-resolver-cap
+  - mcq-raise-ttl-after
+  - mcq-private-zone-nxdomain
+  - mcq-resolver-rule-wins
+  - split-static-or-transparent
+  - mcq-azure-fallback
+  - mcq-split-which-resolver
+  - dnssec-read-ede
+  - est-ds-ttl-wait
+  - mcq-ds-mismatch
+  - mcq-cloud-validation
+skills:
+  - id: trace-resolution
+    description: "Stub, recursive resolver, forwarder and authoritative server; following one lookup from the root down through referrals and glue to the aa answer; reading dig +trace, dig +norecurse @server and the header's flags (qr, aa, rd, ra, ad, cd) and status; which server to ask when answers disagree"
+  - id: records-and-zones
+    description: "Record types and when to use each (A, AAAA, CNAME and its rules, MX, TXT, CAA, NS, SOA, PTR); the zone file and the SOA's fields; delegating a child zone with NS, glue and a DS; the serial, NOTIFY and zone transfers; a secondary that falls behind, and reading BIND's journal"
+  - id: ttl-and-caching
+    description: "TTLs counting down in a resolver's cache; negative caching for the smaller of the SOA's TTL and MINIMUM; resolvers' caps; the planned move: lower, wait out the old TTL, switch, check, raise; why nobody can flush the world's caches"
+  - id: split-horizon
+    description: "One name, two answers: a resolver's local zone (Unbound's static and transparent) with local data; private zones on Route 53, Azure and Cloud DNS, and how they shadow the public zone with NXDOMAIN; Route 53's resolver rules and Azure's fallback for Private Link zones"
+  - id: dnssec
+    description: "What DNSSEC proves and what it doesn't; DNSKEY, RRSIG, DS, the trust anchor and the ad flag; reading a broken chain (SERVFAIL, dig +cd, EDE 6 and 7); signing again and DS records; why switching validation off is the wrong fix; what each cloud signs and validates"

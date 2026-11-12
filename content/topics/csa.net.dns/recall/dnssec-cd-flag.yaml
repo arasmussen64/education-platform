@@ -1,0 +1,51 @@
+id: dnssec-cd-flag
+type: predict_shell
+rev: 1
+prompt: |
+  Two answers from the same public resolver, captured in this topic's debug lab on 2026-11-12: `plain.txt` from `dig www.pay.shop.test`, and `cd.txt` from `dig +cd www.pay.shop.test` (checking disabled). For each file, the command prints its name, the status and the address in it, or `none`. What is printed?
+files:
+  plain.txt: |
+    ; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> www.pay.shop.test
+    ;; global options: +cmd
+    ;; Got answer:
+    ;; ->>HEADER<<- opcode: QUERY, status: SERVFAIL, id: 58040
+    ;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1
+
+    ;; OPT PSEUDOSECTION:
+    ; EDNS: version: 0, flags:; udp: 1232
+    ; EDE: 7 (Signature Expired): (validation failure <www.pay.shop.test. A IN>: signature expired from 198.51.100.13 for key pay.shop.test. while building chain of trust)
+    ;; QUESTION SECTION:
+    ;www.pay.shop.test.		IN	A
+
+    ;; Query time: 8 msec
+    ;; SERVER: 127.0.0.1#53(127.0.0.1) (UDP)
+    ;; WHEN: Thu Nov 12 12:13:22 UTC 2026
+    ;; MSG SIZE  rcvd: 187
+  cd.txt: |
+    ; <<>> DiG 9.18.39-0ubuntu0.24.04.9-Ubuntu <<>> +cd www.pay.shop.test
+    ;; global options: +cmd
+    ;; Got answer:
+    ;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 4618
+    ;; flags: qr rd ra cd; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+
+    ;; OPT PSEUDOSECTION:
+    ; EDNS: version: 0, flags:; udp: 1232
+    ; EDE: 7 (Signature Expired): (validation failure <www.pay.shop.test. A IN>: signature expired from 198.51.100.13 for key pay.shop.test. while building chain of trust)
+    ;; QUESTION SECTION:
+    ;www.pay.shop.test.		IN	A
+
+    ;; ANSWER SECTION:
+    www.pay.shop.test.	300	IN	A	203.0.113.60
+
+    ;; Query time: 0 msec
+    ;; SERVER: 127.0.0.1#53(127.0.0.1) (UDP)
+    ;; WHEN: Thu Nov 12 12:13:22 UTC 2026
+    ;; MSG SIZE  rcvd: 203
+command: |
+  for f in plain.txt cd.txt; do s=$(grep -o 'status: [A-Z]*' $f | cut -d' ' -f2); a=$(awk '$4 == "A" {print $5}' $f); echo "$f $s ${a:-none}"; done
+expected_output: |
+  plain.txt SERVFAIL none
+  cd.txt NOERROR 203.0.113.60
+explanation: |
+  The same question, the same resolver, two results. Without `+cd` the resolver checks the signatures, finds them expired and refuses the answer: SERVFAIL, no address. With `+cd` (checking disabled) it hands over what the zone's server sent, unchecked: NOERROR and 203.0.113.60, with the flag `cd` and no `ad`. So the records exist and the servers answer; only validation fails. That one comparison tells a DNSSEC fault from a missing record or a dead server, and the EDE line in both files says which DNSSEC fault. `+cd` is for looking, never a fix: customers' resolvers don't set it.
+skills: [dnssec]
