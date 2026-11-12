@@ -1,16 +1,23 @@
 id: mcq-ula-use
 type: mcq
 rev: 1
+# RFC 6724 section 2.1 (September 2012): fc00::/7 precedence 3, below
+# ::ffff:0:0/96 at 35. Windows 11's prefix policy table (netsh interface
+# ipv6 show prefixpolicies, this machine, 2026-11-12) has the same values;
+# Ubuntu 24.04's glibc keeps RFC 3484's table and listed a ULA before an
+# IPv4 address (getent ahosts in the base image, 2026-11-12).
+# draft-ietf-6man-rfc6724-update-25 raises ULAs above IPv4 (datatracker,
+# read 2026-11-12: final approval pending).
 prompt: |
   When does a unique local address (`fd...`) make sense, and what's the catch?
 choices:
   - "For every server: a ULA can't be reached from outside, so it needs no firewall at all"
-  - "For networks kept off the internet: by default, a host prefers IPv4 over a ULA"
+  - "For networks kept off the internet: some hosts pick IPv4 over a ULA by default"
   - "For laptops only: routers refuse to forward ULAs between two subnets of one site"
   - "Nowhere: ULAs were deprecated, and site-local addresses took their place in 2005"
 answer: 1
 explanation: |
-  A ULA is IPv6's private space: `fd` followed by 40 random bits, a /48 a site can use without asking anyone, routed inside the organisation and never on the internet. It suits networks that must never reach the internet (Google Cloud gives every network a ULA /48 for internal-only IPv6). The catch is in the default address-selection table (RFC 6724): a ULA destination ranks below IPv4, so a host with ULAs and IPv4 picks IPv4, and a dual-stack plan built on ULAs quietly runs on IPv4.
+  A ULA is IPv6's private space: `fd` followed by 40 random bits, a /48 a site can use without asking anyone, routed inside the organisation and never on the internet. It suits networks that must never reach the internet (Google Cloud gives a network that uses internal IPv6 a ULA /48). The catch is in the default address-selection table (RFC 6724): a ULA destination ranks below IPv4, so a host that follows it, Windows among them, picks IPv4 when a name has both. Linux keeps an older table that puts the ULA first, and an update to RFC 6724 will raise ULAs above IPv4, so a dual-stack plan built on ULAs may run on either family depending on the machine. Test it.
 
   "Unreachable from outside" is routing, not protection: anything with a route to it, a VPN or a peered network, can reach it, so servers still need a firewall. Routers forward ULAs between subnets like any unicast address. And it's the other way round: site-local addresses (`fec0::/10`) were deprecated, in 2004, and ULAs (RFC 4193, 2005) replaced them.
 skills: [v6-address-types]
