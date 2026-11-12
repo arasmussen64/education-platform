@@ -4,16 +4,16 @@ on shop ping -c 4 10.0.6.20
 mkdir -p ~/example
 wan-set 50mbit 25ms 0%
 on shop iperf3 -c 10.0.6.20 -t 6 -f m | tee ~/example/cubic-clean.txt
-on shop iperf3 -c 10.0.6.20 -t 6 > /dev/null & sleep 4; on shop ss -tni dst 10.0.6.20; wait
+sleep 1; on shop iperf3 -c 10.0.6.20 -t 6 > /dev/null & sleep 4; on shop ss -tni dst 10.0.6.20; wait
 wan-set 50mbit 25ms 1%
 on shop iperf3 -c 10.0.6.20 -t 6 -f m | tee ~/example/cubic-lossy.txt
-on shop iperf3 -c 10.0.6.20 -t 6 > /dev/null & sleep 4; on shop ss -tni dst 10.0.6.20; wait
-on shop iperf3 -c 10.0.6.20 -t 6 -C bbr -f m | tee ~/example/bbr-lossy.txt
-on shop iperf3 -c 10.0.6.20 -t 6 -C bbr > /dev/null & sleep 4; on shop ss -tni dst 10.0.6.20; wait
+sleep 1; on shop iperf3 -c 10.0.6.20 -t 6 > /dev/null & sleep 4; on shop ss -tni dst 10.0.6.20; wait
+sleep 1; on shop iperf3 -c 10.0.6.20 -t 6 -C bbr -f m | tee ~/example/bbr-lossy.txt
+sleep 1; on shop iperf3 -c 10.0.6.20 -t 6 -C bbr > /dev/null & sleep 4; on shop ss -tni dst 10.0.6.20; wait
 on shop sysctl net.ipv4.tcp_available_congestion_control
 wan-set 50mbit 50ms 1%
 on shop iperf3 -c 10.0.6.20 -t 6 -f m | grep receiver
-on shop iperf3 -c 10.0.6.20 -t 6 -C bbr -f m | grep receiver
+sleep 1; on shop iperf3 -c 10.0.6.20 -t 6 -C bbr -f m | grep receiver
 wan-set 50mbit 25ms 1%
 awk '/receiver$/ {printf "%s %.1f\n", FILENAME, $7}' ~/example/cubic-clean.txt ~/example/cubic-lossy.txt ~/example/bbr-lossy.txt
 echo 'net.ipv4.tcp_congestion_control = bbr' | on shop tee /etc/sysctl.d/60-congestion.conf

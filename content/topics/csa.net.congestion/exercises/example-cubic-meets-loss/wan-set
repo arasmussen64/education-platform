@@ -12,6 +12,8 @@ if [[ $# -ne 3 ]]; then
 fi
 if on wan tc qdisc change dev dr1 root netem rate "$1" delay "$2" loss "$3" limit 2000 \
   && on wan tc qdisc change dev shop root netem delay "$2" limit 2000; then
+  # A second for packets already queued under the old settings to drain.
+  sleep 1
   echo "wan: $1 towards dr1, $2 each way, $3 of the packets towards dr1 lost"
 else
   echo "wan-set: the link didn't take those settings (RATE like 50mbit, DELAY like 25ms, LOSS like 1%)" >&2
