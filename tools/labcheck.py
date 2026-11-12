@@ -635,6 +635,9 @@ class CheckResult:
     passed: bool
     # Why it failed, for the author and the learner's terminal; not sent.
     detail: str
+    # What the check's command printed (the start of it), for an author
+    # asking why a known-wrong fix passed.
+    output: str = ""
 
 
 def evaluate(expect: Expect | None, stdout: str, exit_status: int) -> tuple[bool, str]:
@@ -728,7 +731,8 @@ def run_check(
     passed, detail = evaluate(check.expect, completed.stdout, completed.returncode)
     if not passed and completed.stderr.strip():
         detail += f"; stderr: {completed.stderr.strip()[:300]}"
-    return CheckResult(check.id, check.description, passed, detail)
+    output = completed.stdout.strip()[:300]
+    return CheckResult(check.id, check.description, passed, detail, output)
 
 
 def run_checks(
@@ -1286,6 +1290,11 @@ def test_lab(
             failing = [result.id for result in wrong_results if not result.passed]
             if not failing:
                 problems.append(f"wrong/{wrong.name} passes every check")
+                # What each check saw, so a run on another machine (CI)
+                # shows why: the checks' own output is the evidence.
+                say("    it passes every check; what each one printed:")
+                for result in wrong_results:
+                    say(f"      {result.id}: {result.output or '(nothing)'}")
             else:
                 say(f"    fails {', '.join(failing)}")
     finally:
