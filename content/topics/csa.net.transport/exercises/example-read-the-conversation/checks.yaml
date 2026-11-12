@@ -1,0 +1,72 @@
+# The checks of "Read the conversation": the two captures the walkthrough
+# saves (a whole conversation with the database; a reset with each packet's
+# TTL), shop-api's keepalive (its settings file, read the way shop-api reads
+# it, and a keepalive timer on the connection it really holds), and dr's
+# window scaling switched back on. A worked example's checks never open or
+# close a follow-up (ADR-0011), so they only confirm the walk was done.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: conversation-captured
+    description: "~/example/one-order.txt holds a whole conversation with the database: both SYNs offering window scaling, the data, and a FIN from each side."
+    command: |
+      f=/home/learner/example/one-order.txt
+      [ -s "$f" ] || { echo "there is no ~/example/one-order.txt, or it is empty"; exit 0; }
+      grep 'Flags \[S\],.*wscale' "$f" > /dev/null || { echo "it holds no SYN offering wscale"; exit 0; }
+      grep 'Flags \[S\.\],.*wscale' "$f" > /dev/null || { echo "it holds no SYN-ACK offering wscale"; exit 0; }
+      grep 'Flags \[P\.\], seq 1:' "$f" > /dev/null || { echo "it holds no data"; exit 0; }
+      [ "$(grep -c 'Flags \[F\.\]' "$f")" -ge 2 ] || { echo "it doesn't hold a FIN from each side"; exit 0; }
+      echo captured
+    expect:
+      equals: captured
+  # With -v, tcpdump prints each packet's TTL on the line above its
+  # addresses; without it there is no TTL to read.
+  - id: reset-traced
+    description: "~/example/reset.txt holds, with each packet's TTL, the database's SYN-ACK and a reset that claims to come from the database."
+    command: |
+      f=/home/learner/example/reset.txt
+      [ -s "$f" ] || { echo "there is no ~/example/reset.txt, or it is empty"; exit 0; }
+      seen=$(awk '/ttl [0-9]+/ {match($0, /ttl [0-9]+/); ttl = substr($0, RSTART + 4, RLENGTH - 4); next}
+        /10\.0\.2\.20\.5432 > 10\.0\.1\.10\.[0-9]+: Flags \[S\.\]/ {synack = synack " " ttl}
+        /10\.0\.2\.20\.5432 > 10\.0\.1\.10\.[0-9]+: Flags \[R\]/ {reset = reset " " ttl}
+        END {print "synack" synack ";reset" reset}' "$f")
+      case "$seen" in
+        *"synack "*"63"*";reset"*" 64"*) echo traced ;;
+        *) echo "it doesn't show the database's SYN-ACK and a reset, each with its TTL (found: $seen)" ;;
+      esac
+    expect:
+      equals: traced
+  # Read as shop-api reads it: the last line for a name wins, and a setting
+  # left out falls back to the system's. On a quiet connection the probes
+  # come every idle time or every interval, whichever is longer, so both
+  # must be below nat's 15 seconds. Then an order (shop-api connects only
+  # when there is one, as after a reboot) and the connection it holds.
+  - id: keepalive-under-the-timer
+    description: "shop-api's settings switch keepalive on for its database connection, with probes coming sooner than nat's 15 seconds, and the connection it holds has a keepalive timer."
+    command: |
+      read -r switch idle interval < <(python3 - << 'EOF'
+      settings = {}
+      for line in open("/etc/netns/app/shop/api.conf", encoding="utf-8"):
+          line = line.split("#", 1)[0].strip()
+          if "=" in line:
+              name, value = (part.strip() for part in line.split("=", 1))
+              settings[name] = value
+      print(settings.get("db_keepalive") or "off", settings.get("db_keepalive_idle") or "-", settings.get("db_keepalive_interval") or "-")
+      EOF
+      )
+      [ "$switch" = on ] || { echo "shop-api's settings leave keepalive off"; exit 0; }
+      [ "$idle" = - ] && idle=$(on app sysctl -n net.ipv4.tcp_keepalive_time)
+      [ "$interval" = - ] && interval=$(on app sysctl -n net.ipv4.tcp_keepalive_intvl)
+      case "$idle$interval" in *[!0-9]*) echo "a keepalive setting isn't a whole number of seconds"; exit 0 ;; esac
+      [ "$idle" -lt 15 ] || { echo "the first probe comes after $idle s of quiet, and nat forgets after 15"; exit 0; }
+      [ "$interval" -lt 15 ] || { echo "the probes come $interval s apart, and nat forgets after 15"; exit 0; }
+      on app curl -s -m 8 localhost:8080/order | grep '"ok": true' > /dev/null || { echo "an order fails"; exit 0; }
+      on app ss -tnoH state established '( dport = :5432 )' | grep 'timer:(keepalive' > /dev/null || { echo "shop-api's connection to the database has no keepalive timer"; exit 0; }
+      echo "kept alive"
+    expect:
+      equals: "kept alive"
+  - id: scaling-back-on
+    description: "dr's window scaling is on again."
+    command: on dr sysctl -n net.ipv4.tcp_window_scaling
+    expect:
+      equals: "1"

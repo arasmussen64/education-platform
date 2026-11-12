@@ -1,0 +1,44 @@
+id: example-read-the-conversation
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Read the conversation"
+prompt: |
+  This lab is a network of machines, like every lab from Layers and packets on. If you haven't done one yet, read the note "Before your first network lab" at the top of that topic's worked example, `example-follow-a-request`, first.
+
+  You're handed the shop's app server, `app`. Its order service, `shop-api` (the unit `shop-api@app`, with its settings in app's `/etc/shop/api.conf`), keeps one connection open to the cloud's managed database, `db` (10.0.2.20, port 5432, run by `orders-db@db`), and that connection crosses the cloud's NAT gateway, `nat`. The nightly replication goes the other way: through the shop's router `edge` and a private link, `wan` (50 Mbit/s, 50 ms each way), to the DR site, `dr` (10.0.6.20), whose receiver is iperf3's server on port 5201 (`repl-sink@dr`). nat is scenery: it stands for the cloud's NAT gateway, and behaves as AWS documents its own.
+
+  **The lab's clock runs fast.** nat forgets a connection that has been quiet for 15 seconds; AWS's NAT gateway waits 350 seconds, Azure's NAT gateway 4 minutes, Google Cloud NAT 20 minutes. Everything else happens as it would on the real thing, only sooner.
+
+  The walkthrough captures one conversation with the database and reads it line by line, then watches the app's own connection get cut after a quiet spell and finds out who cut it, fixes that with keepalives, and measures what window scaling is worth on the long path to dr. Type each line yourself in the lab's shell and read what it prints before you type the next. A line ending in `&` runs in the background, so the next line can make traffic while it captures; `wait` waits for it to finish. tcpdump's own messages ("listening on ...") appear on the screen and stay out of the files.
+steps:
+  - label: "The machines and the two paths"
+    lines: "1"
+    note: "`app` has two cables: `eth1` to nat (10.0.1.1), behind which is the cloud network with db, and `eth2` to edge (10.0.5.1), the way to the private link and dr. `nat` and `edge` are routers; `nat` runs a firewall (`nftables@nat`), which is where its connection tracking lives."
+  - label: "One order by hand, captured"
+    lines: "2-6"
+    note: "`tcpdump` watches app's `eth1` for five seconds in the background while `nc` sends one line to the database by hand (`-N`: say goodbye once the input ends, a second after the line). Each line of the capture is one TCP segment. The first two carry each side's settings in `options [...]`: `mss 1460` is the most data this side takes in one segment (the MTU less 40 bytes of headers); `sackOK` offers selective acknowledgements; `TS val ... ecr ...` is the timestamps option; `wscale 10` offers to count this side's window in units of 2^10, 1,024 bytes; `nop` is a byte of padding. Then the data: `seq 1:9, ... length 8` is bytes 1 to 8 of the client's stream (`order 1` and its newline), and the database's `ack 9` means \"I have everything before byte 9\". The numbers count from the start of this conversation; the SYN's `seq 3049429294` (a different random number each time) is the real start. The answer is `seq 1:12`, 11 bytes (`ok order 1` and its newline), and `win 63` is the window field: with `wscale 10`, 63 × 1,024 bytes."
+  - label: "Who said goodbye first"
+    lines: "7"
+    note: "The capture ends with the goodbye: the client's `[F.]` (FIN) first, then the database's `[F.]`, then the client's `[.]` with `ack 13` (a FIN counts as one byte in the numbering). The side that says goodbye first waits in `TIME-WAIT` for a minute, in case a late copy of the last packets is still on its way, so `ss` finds the socket on app, with `timer:(timewait,56sec,0)` counting down. The database's socket is already gone."
+  - label: "The app's own connection"
+    lines: "8-10"
+    note: "Two orders through shop-api. Both report the same `port`, app's end of the one connection shop-api keeps open and sends every order over: that's a **connection pool** (of one). `ss -tno` shows it `ESTAB`, with no `timer:` at the end: keepalive is off, so nothing at all crosses the network while the shop is quiet."
+  - label: "The gateway's memory"
+    lines: "11-12"
+    note: "nat's connection tracking keeps a record of every connection through it, and forgets one that has been quiet for `nf_conntrack_tcp_timeout_established` seconds, here 15. `conntrack -L` shows this connection's record: `ESTABLISHED`, and the number after `6` is the seconds left before nat forgets it. Every packet starts the count again. Its two halves are the connection as app sent it (`src=10.0.1.10`) and the reply nat expects (`dst=10.0.2.1`: nat's own address, which it translated app's to)."
+  - label: "A quiet connection is cut"
+    lines: "13-15"
+    note: "Twenty seconds of quiet, longer than nat remembers. The next order fails at once with `Connection reset by peer`, and shop-api's journal says the same. Nobody was told anything when nat forgot: app's socket still looked open until it sent."
+  - label: "Who sent that reset?"
+    lines: "16-20"
+    note: "The same again, captured with `-v`, which prints each packet's TTL on the line above its addresses; the filter keeps only SYNs and resets. The first order opens a new connection (shop-api closed the old one when it failed): app's SYN leaves with `ttl 64`, and the database's SYN-ACK arrives with `ttl 63`, because nat, a router, lowered it by one on the way. Twenty seconds later, the reset that answers the next order claims to come from 10.0.2.20.5432 but arrives with `ttl 64`: it started one hop closer. nat made it, in the database's name, for a connection it had forgotten, which is what AWS's NAT gateway does too."
+  - label: "Keepalives keep it"
+    lines: "21-29"
+    note: "shop-api reads its settings when it starts, and a later line for the same name wins, so three lines added at the end switch keepalive on for its connection: the first probe after 5 seconds of quiet, and 5 seconds between probes that get no answer (`tee -a` adds a line to the end of the file, as root on app; `on app nano /etc/shop/api.conf` would do it by hand). Both numbers must be below nat's 15. After an answered probe, Linux waits the interval before it looks again, so on a quiet connection the probes come every idle time or every interval, whichever is longer, and the system's interval is 75 seconds. Now `ss` shows `timer:(keepalive,4.9...ms,0)`, its way of writing 4.9 seconds until the next probe. The capture on nat's outside shows a probe every 5 seconds: an empty segment (`length 0`) acknowledging the same byte as before, each answered by an empty acknowledgement. tcpdump started in the middle of this connection, so its first line shows the real acknowledgement number and the rest count from there. The order after 21 seconds of quiet works, on the same `port`."
+  - label: "Window scaling over a long path"
+    lines: "30-34"
+    note: "`iperf3` sends to dr for 5 seconds over one connection and reports the rate dr received: about 43 Mbit/s of the link's 50. During a second run, `ss -tni` shows the transfer's connection (the one with a big `Send-Q`, bytes waiting to be sent) with `wscale:10,10` (both sides scale by 2^10) and `rtt:` in milliseconds; the other line is iperf3's control connection. Then, for one test, dr's window scaling is switched off live: its SYN-ACK no longer offers the option, so neither side uses it, and the window stops at 65,535 bytes. One window per round trip is 65,535 × 8 ÷ 0.1 s, 5.2 Mbit/s, and iperf3 gets about 5. The last line switches it back on."
