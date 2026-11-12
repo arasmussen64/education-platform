@@ -1,0 +1,16 @@
+id: mcq-weight-local
+type: mcq
+rev: 1
+prompt: |
+  What is `weight` in FRR's BGP?
+choices:
+  - "A preference shared with every router in the AS, like local preference"
+  - "A preference sent to the neighbouring AS, telling it which link to use"
+  - "The number of equal paths the router may install for one prefix at once"
+  - "A preference only this router uses: it is never sent to any neighbour"
+answer: 3
+explanation: |
+  Weight is FRR's own first step in choosing a path (Cisco's routers have it too): the highest weight wins before anything else is compared, and it never leaves the router. FRR gives the routes a router announces itself a weight of 32768, which is the `Weight` column you see in `show bgp ipv4 unicast` against the shop's own prefix.
+
+  The preference shared across an AS is local preference; the hint sent to a neighbouring AS is MED; and how many equal paths may be used at once is `maximum-paths`. Because weight stays on one router, a network with two edge routers that prefers ISP A with weight would have each router decide differently, which is why the build asks for local preference.
+skills: [best-path]

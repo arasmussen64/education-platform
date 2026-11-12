@@ -1,0 +1,16 @@
+id: mcq-session-active
+type: mcq
+rev: 1
+prompt: |
+  For ten minutes, `show bgp summary` on a router has shown one neighbour as `Active` in its `State/PfxRcd` column. What does that mean?
+choices:
+  - "The session is up, and the neighbour is busy sending the router all its routes"
+  - "The router keeps trying to open a TCP connection to that neighbour, and failing"
+  - "The neighbour is configured, but an administrator has shut its session down"
+  - "The two routers are still agreeing which address families they will exchange"
+answer: 1
+explanation: |
+  `Active` is a misleading name: it means the router is actively trying to reach the neighbour and not getting there. BGP runs over TCP port 179, and in `Connect` and `Active` the router is trying to open that connection, failing, waiting and trying again. The usual causes are a wrong neighbour address, no route to it, a firewall dropping port 179, or nothing configured on the other side yet.
+
+  A session that is up never shows a word in that column: it shows a number, how many prefixes it has accepted from the neighbour (or `(Policy)` when no policy lets any in). A session an administrator shut down shows `Idle (Admin)`. And agreeing on what to exchange happens in `OpenSent` and `OpenConfirm`, which pass in a fraction of a second.
+skills: [bgp-sessions]

@@ -1,0 +1,30 @@
+id: debug-shop-unreachable
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Nobody reaches the shop"
+prompt: |
+  The dual-homed shop. The office (198.51.100.10) and the shop's website, `shopweb` (198.51.100.200), are on the LAN of the shop's router, `edge` (AS 65001), which has BGP sessions with ISP A (`ispa`, AS 65010) at 192.0.2.2 and ISP B (`ispb`, AS 65020) at 192.0.2.6. Beyond them are a transit network and the cloud, whose web server, `web`, is 203.0.113.10. edge's configuration is saved in its `/etc/frr/frr.conf`; `on edge vtysh` opens its console. BGP's timers are scaled down, as in every lab of this topic (a keepalive every 3 seconds and a hold time of 9, where real routers default to 60 and 180).
+
+  How edge is meant to work: it announces the shop's network, 198.51.100.0/24, to both ISPs and nothing else; it refuses any route for part of the shop's own addresses from either ISP; and it sends the shop's traffic to the internet through ISP A, the cheaper contract, while that session is up, by giving ISP A's routes a local preference of 200, with ISP B as the way out when ISP A is down. It has worked like that for months.
+
+  Since Tuesday night's maintenance:
+
+  - nobody outside the shop reaches its website: `on web curl -m 3 http://198.51.100.200/` from the cloud fails, and the office's own requests to the cloud's web server (`on office curl -m 3 http://203.0.113.10/`) fail too;
+  - edge sends the office's traffic to the internet through ISP B, as `on edge ip route get 203.0.113.10` shows, though ISP A says its side is fine;
+  - ISP B's network operations centre has written to say that the shop is announcing routes to them that it has no business announcing.
+
+  There are three faults, all on edge. Fixing one can change what you see. Find each from the evidence: edge's own `show` commands, and what the ISPs and the cloud see through their looking glasses (`looking-glass NAME 'show ...'`).
+
+  The rules of the fix:
+
+  - **Change only edge.** The ISPs', the transit network's and the cloud's routers belong to other companies.
+  - **eBGP's policy requirement stays on.**
+  - **edge announces the shop's 198.51.100.0/24 and nothing else**: no other prefix, wider or narrower.
+  - **The fix lasts:** saved, with no routes typed into the kernel.
+
+  When the website answers from the cloud, run the checks.
+skills: [announce-and-filter, local-preference, best-path]

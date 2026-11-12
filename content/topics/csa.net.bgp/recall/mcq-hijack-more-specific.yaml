@@ -1,0 +1,16 @@
+id: mcq-hijack-more-specific
+type: mcq
+rev: 1
+prompt: |
+  The shop's router accepts everything ISP B sends it, and ISP B announces 198.51.100.128/25 by mistake. The shop's web server, 198.51.100.200, is on the router's own LAN, 198.51.100.0/24. A customer's packet for 198.51.100.200 arrives at the router from the internet. What does the router do with it?
+choices:
+  - "Sends it on to ISP B: the /25 is a longer prefix than its connected /24"
+  - "Delivers it on the LAN: a connected route beats any route learned by BGP"
+  - "Delivers it on the LAN: a connected route's distance, 0, beats eBGP's 20"
+  - "Drops it: the router has two routes for the one server and trusts neither"
+answer: 0
+explanation: |
+  Longest-prefix match comes first, as in Routing: 198.51.100.200 is inside both the connected /24 and ISP B's /25, and the /25 is the smaller box, so the kernel sends the packet to ISP B. Administrative distance only decides between routes for exactly the same prefix, so a connected route's 0 doesn't help against a longer one. In the lab, ISP B's own route for that half points back at the shop, so the packet bounced between the two routers until its TTL ran out, and the shop's website was unreachable from outside while the office, on the same LAN, still reached it.
+
+  That is a mistake here; done on purpose it's a **prefix hijack**. The shop's defence is its import filter, `ip prefix-list NOT-OURS seq 5 deny 198.51.100.0/24 le 32`: the shop's own prefix and everything inside it, refused from every provider.
+skills: [announce-and-filter]

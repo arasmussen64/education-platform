@@ -1,0 +1,28 @@
+id: prefix-list-le
+type: predict_shell
+rev: 1
+prompt: |
+  The shop's router refuses routes from its providers with this prefix list (constructed for this question, in FRR's syntax):
+
+  ```
+  ip prefix-list NOT-OURS seq 5 deny 198.51.100.0/24 le 32
+  ip prefix-list NOT-OURS seq 10 permit 0.0.0.0/0 le 32
+  ```
+
+  `offered.txt` holds five prefixes a provider might send. The awk command plays the list's first line: splitting each prefix at its dots and its slash, it drops a prefix that starts `198.51.100` and is a /24 or longer, and prints the rest, which the second line lets through. What is printed?
+files:
+  offered.txt: |
+    198.51.100.0/24
+    198.51.100.128/25
+    198.51.100.200/32
+    198.51.101.0/24
+    198.51.0.0/16
+command: awk -F'[./]' '!($1 == 198 && $2 == 51 && $3 == 100 && $5 >= 24)' offered.txt
+expected_output: |
+  198.51.101.0/24
+  198.51.0.0/16
+explanation: |
+  `le 32` turns "exactly 198.51.100.0/24" into "198.51.100.0/24 and every prefix inside it, up to /32", which is what the awk tests: the first 24 bits are the shop's, and the length is at least 24. So the shop's own /24, a /25 half of it and the single address 198.51.100.200/32 are all refused, and none of them can ever beat the shop's own connected /24 by being longer.
+
+  The two that pass aren't inside the shop's prefix. 198.51.101.0/24 is a neighbour's block whose numbers look close. 198.51.0.0/16 *contains* the shop's /24 rather than sitting inside it; it is a shorter prefix, so even if it were believed, longest-prefix match would keep the shop's own addresses on the shop's /24. Without `le 32` the first line would refuse only the exact /24, and the /25 and /32 would get in.
+skills: [announce-and-filter]

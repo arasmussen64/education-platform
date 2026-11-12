@@ -1,0 +1,52 @@
+id: example-first-session
+stage: worked_example
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Your first BGP sessions"
+prompt: |
+  The network labs work as in Layers and packets; if you haven't done one yet, read the note at the top of its first lab, `example-follow-a-request`, before you start.
+
+  **This lab.** The shop's network, 198.51.100.0/24, holds the office laptop, `office` (198.51.100.10), and the shop's website, `shopweb` (198.51.100.200). Its router, `edge`, is the shop's whole autonomous system, AS 65001, and it has a cable to each of two internet providers: ISP A (`ispa`, AS 65010) at 192.0.2.2 on edge's interface `ispa`, and ISP B (`ispb`, AS 65020) at 192.0.2.6 on `ispb`. Behind the ISPs are a transit network (`transit`, AS 65030, between ISP A and the cloud) and the cloud (`cloud`, AS 65100), whose web server, `web`, is 203.0.113.10. `netlab show` lists them all, and the topology file draws the map. edge runs FRR with BGP switched on and nothing configured. The other four routers are configured and saved, and they aren't yours: you read them the way network engineers read their providers' routers, through a looking glass, `looking-glass NAME 'show ...'`, which runs one `show` command and nothing else. The labs' BGP timers are fast, a keepalive every 3 seconds and a hold time of 9, so things happen in seconds; real routers default to 60 and 180.
+
+  The walkthrough opens edge's first session and finds it exchanging nothing, gives it policies, announces the shop, adds the second provider and sees a leak and a stolen route, fixes both with filters, reads which path BGP chose and changes it with local preference, and saves. Several steps type into edge's console: everything between `on edge vtysh << 'EOF'` and `EOF` is what you would type at the `edge#` prompt after `on edge vtysh` (and `exit` to leave it). You can type it that way, or paste the whole block into the lab's shell, which hands the lines to the console in one go. The `sleep` lines give BGP a few seconds; typing by hand, you won't need them. Read what each line prints before you type the next.
+steps:
+  - label: "Nothing yet"
+    lines: "1-2"
+    note: "`show bgp summary` answers `% BGP instance not found`: edge's BGP daemon is running, but nobody has told it which AS it belongs to or whom to talk to. The office's traceroute stops at hop 1, `198.51.100.1  0.087 ms !N`: edge has no route to the cloud, so it answers \"network unreachable\", as in Routing."
+  - label: "Open a session"
+    lines: "3-15"
+    note: "`router bgp 65001` starts BGP for AS 65001; `bgp router-id` names the router in BGP's messages; `timers bgp 3 9` sets the keepalive and hold time; `neighbor 192.0.2.2 remote-as 65010` says \"talk to 192.0.2.2, which belongs to AS 65010\"; `timers connect 5` retries a failed connection every 5 seconds instead of FRR's default 120. Straight away the summary shows the session `Idle` (just configured; it soon tries `Connect`, then `Active` while it waits to try again). Six seconds later it has an uptime, `00:00:05`: the two routers opened TCP port 179, exchanged OPEN messages naming their AS numbers, and are now swapping keepalives. But both prefix columns say `(Policy) (Policy)`, and the neighbour's details say \"Inbound updates discarded due to missing policy\" and the same for outbound: FRR follows RFC 8212, so an eBGP session accepts and sends nothing until a policy says what may pass."
+  - label: "Policies"
+    lines: "16-28"
+    note: "A **route map** is a list of rules a route passes through; `route-map ALLOW permit 10` is one rule, number 10, that permits every route because it matches anything. Applied to the session in both directions (`in` for what edge accepts, `out` for what it sends), it lifts the block. Three prefixes arrive: `10.10.0.0/16` (ISP A's own customers, AS path `65010`), `10.20.0.0/16` (ISP B's customers, reached through ISP A, the transit network and the cloud) and the cloud's `203.0.113.0/24` with the AS path `65010 65030 65100`. The **AS path** lists the networks a route has crossed, nearest first. `show ip route bgp` shows them in FRR's routing table as `B>*` at distance 20, eBGP's. ALLOW is a placeholder for this step: a policy that permits everything is the reason RFC 8212 exists, and steps 8 and 9 replace it."
+  - label: "The way back"
+    lines: "29-30"
+    note: "The trace now gets past edge and then shows only `*`: the routers beyond answer, but their answers have no way back. The cloud's looking glass says `% Network not in table` for 198.51.100.0/24: nobody has told the internet where the shop is. As in Routing, the reply is its own routing decision, and in BGP every network learns the way to the shop only from the shop's own announcement."
+  - label: "Announce the shop"
+    lines: "31-39"
+    note: "`network 198.51.100.0/24`, under `address-family ipv4 unicast`, tells BGP to announce that prefix. FRR does it only because the routing table holds exactly that prefix (the shop's connected network); a `network` line for a prefix the table doesn't hold announces nothing, silently. ISP A's looking glass now lists `198.51.100.0/24` from 192.0.2.1 with the AS path `65001`, and the office reaches the cloud: `you are 198.51.100.10`."
+  - label: "A second provider, and a leak"
+    lines: "40-51"
+    note: "The same for ISP B, with ALLOW both ways. ISP B's looking glass shows what it accepted from edge: the shop's prefix, and `10.10.0.0/16` with the AS path `65001 65010`. edge passed one provider's routes to the other: it now tells ISP B \"you can reach ISP A's customers through me\". That is a **route leak**, and ISP B, which accepts whatever its customer sends, would rather use the shop's two-network path than its own longer one, so its traffic for ISP A's customers would cross the shop's links. A shop is a **customer** of both ISPs and should carry traffic for nobody but itself."
+  - label: "The shop's own addresses, taken"
+    lines: "52-54"
+    note: "ISP B also sends `198.51.100.128/25`, the top half of the shop's own network, AS path `65020`: a slip in ISP B's configuration. edge accepted it, and as the longest matching prefix it beats edge's own connected /24, so `ip route get 198.51.100.200` now says `via 192.0.2.6 dev ispb`: edge sends the shop's own website's traffic to ISP B. From the cloud, the trace bounces between ISP B (192.0.2.17) and edge (192.0.2.5) until it runs out of hops, because ISP B's route for that half points back at the shop. Done on purpose, this is a **prefix hijack**; the office, on the same LAN, still reaches shopweb directly, which is why such faults go unnoticed inside."
+  - label: "Send only your own"
+    lines: "55-67"
+    note: "A **prefix list** names prefixes: `ip prefix-list OURS seq 5 permit 198.51.100.0/24` matches exactly the shop's prefix. The route map `TO-ISPS` permits only routes that match it (`match ip address prefix-list OURS`); anything a route map doesn't permit is denied at its end. Applied outbound to both ISPs, it replaces ALLOW there, and at once ISP B's looking glass shows only `198.51.100.0/24`."
+  - label: "Refuse your own"
+    lines: "68-89"
+    note: "`NOT-OURS` denies 198.51.100.0/24 `le 32`: the prefix and every longer one inside it, down to single addresses (`le` is \"less than or equal\" for the length); its second line permits everything else (`0.0.0.0/0 le 32` is every prefix there is). The route maps `FROM-ISPA` and `FROM-ISPB` let through what it permits, and replace ALLOW inbound; then ALLOW, unused, is deleted. edge sends the website's traffic onto its LAN again (`198.51.100.200 dev lan`), and the cloud reaches the shop: `the shop's website: you are 203.0.113.10`. Two filters per provider, out and in, are the whole of safe BGP for a small network."
+  - label: "Read the choice"
+    lines: "90-91"
+    note: "Two paths to the cloud. BGP compares them one attribute at a time and stops at the first difference: weight, local preference, then AS path length. Both have the default local preference, 100, so the shorter AS path wins: ISP B's `65020 65100` over ISP A's `65010 65030 65100`, and FRR says why, `best (AS Path)`. The kernel installs only the winner: `203.0.113.10 via 192.0.2.6 dev ispb`."
+  - label: "Prefer ISP A"
+    lines: "92-101"
+    note: "ISP A is the cheaper contract. `set local-preference 200`, added to FROM-ISPA, gives every route from ISP A a **local preference** of 200, and local preference is compared before AS path length: ISP A's path is now `best (Local Pref)`. (A route map changed while in use takes about 5 seconds to apply, hence the wait.) The office's trace leaves through ISP A (`192.0.2.2`, then the transit network, `192.0.2.10`); hop 4 shows the cloud by its address toward ISP B, 192.0.2.18, because the cloud answers out of the interface its reply leaves by. Its looking glass shows why: its best path to the shop is still through ISP B, `best (AS Path)`. Local preference chose the shop's way out and nothing else; how traffic comes in is the next topic's."
+  - label: "Save"
+    lines: "102-103"
+    note: "`write memory` saves FRR's running configuration to `/etc/frr/frr.conf`, which edge loads at every boot. The file holds the whole policy: the sessions, the announcement, two prefix lists and three route maps. The checks compare edge's running configuration with that file, and the far routers' with theirs."
+skills: [bgp-sessions, announce-and-filter, best-path, local-preference]

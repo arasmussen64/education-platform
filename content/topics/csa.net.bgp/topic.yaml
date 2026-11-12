@@ -1,16 +1,262 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.bgp
 kind: topic
-status: planned
+status: ready
 title: BGP sessions and policy
-summary: Bring up BGP sessions and read their state.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "How networks tell each other where addresses are: BGP sessions between routers and how to read their state, announcing your own prefixes and filtering what you send and accept so you never leak routes or accept a hijack, the order in which a router picks one path among several, and choosing your way out with local preference, on a shop with two internet providers."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2
+# and 5, topic 35) and its designer's brief (csa.net.bgp.md, with
+# frr-labs-common.md). The first half of the spec's old BGP topic; the second,
+# steering incoming traffic, route reflection, failure detection and the
+# clouds' circuits, is csa.net.bgp-steering. Through csa.net.routing this
+# builds on csa.net.cidr and csa.net.layers (the network labs' machines, on,
+# netlab and services as name@machine) and csa.m1.checkpoint; for the
+# writer: routing's longest-prefix match (a hijacked more-specific prefix
+# wins by it), FRR, vtysh, show ip route, distance (eBGP 20, iBGP 200) and
+# write memory, and its first definition of BGP as a routing protocol;
+# CIDR's prefixes inside prefixes (le 32); Module 1's TCP, ports, ss and
+# traceroute. This topic defines autonomous system, eBGP and iBGP, prefix
+# list, route map and looking glass for the module (the plan's section 3.7).
+prerequisites: [csa.net.routing]
+# Worked out: the lesson about 22 minutes (2,800 words at 130 a minute),
+# reading 47 (the main video 18, the Systems Approach's two sections 9,
+# FRR's four sections 11, Cloudflare's 2019 account 9), 17 recall items at
+# 1.5 each 26, then the worked example 35 (twelve steps), the fill-in 20,
+# the write 25, the build 55, the debug 45 and the explain 20: 295. The plan
+# gives 285; the walkthrough's two extra steps (the stolen half and the
+# filter that refuses it) are the difference.
+estimated_minutes: 295
 rev: 1
 objectives:
-- Bring up BGP sessions and read their state.
-- Announce your own prefixes and filter what you send and accept, so you never leak routes or accept a hijack.
-- Predict which path BGP chooses and choose your exit with local preference.
+  - "Bring up eBGP sessions on a router (FRR), read `show bgp summary` and `show bgp neighbors`, and say why a session isn't working from its state and its last error."
+  - "Announce your own prefix and nothing else, accept nothing inside your own space, and say why both filters are compulsory: route leaks, prefix hijacks and RFC 8212's rule that an eBGP session with no policy passes nothing."
+  - "Predict which of several paths to one prefix BGP chooses, from a real `show bgp` table, by its decision order: weight, local preference, AS path length, origin, MED between paths from one neighbouring AS, eBGP over iBGP, and the tie-breaks."
+  - "Choose the way out for outbound traffic with local preference, prove it in the kernel's forwarding table and with traceroute, and know that it changes nothing about how others reach you."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - BGP listens on TCP port 179; the session states Idle, Connect, Active,
+#   OpenSent, OpenConfirm and Established (RFC 4271, January 2006):
+#   https://www.rfc-editor.org/rfc/rfc4271
+# - RFC 8212 (July 2017, Proposed Standard): routes from an EBGP peer "SHALL
+#   NOT be considered eligible in the Decision Process" without an explicit
+#   import policy, and "Routes SHALL NOT be added to an Adj-RIB-Out
+#   associated with an EBGP peer if no explicit Export Policy has been
+#   applied"; route leaks among the reasons: https://www.rfc-editor.org/rfc/rfc8212
+# - Private AS numbers: 64512 - 65534 and 4200000000 - 4294967294 (RFC 6996,
+#   July 2013): https://www.rfc-editor.org/rfc/rfc6996
+# - FRR 8.4: bgp ebgp-requires-policy "is enabled by default for the
+#   traditional configuration and turned off by default for datacenter
+#   configuration", with "(Policy)" in show bgp summary; the route selection
+#   order (weight, local preference, local route, AS path length, origin,
+#   MED "Where routes with a MED were received from the same AS", external,
+#   IGP cost, multi-path, already-selected external, router ID, cluster-list
+#   length, peer address); compare-routerid skips the already-selected
+#   check; the network import check "For versions 7.4 and beyond both
+#   traditional and datacenter the network must exist"; maximum-prefix: "If
+#   this number is exceeded, the BGP session will be destroyed":
+#   https://docs.frrouting.org/en/stable-8.4/bgp.html
+# - FRR 8.4's source: BGP_DEFAULT_HOLDTIME 180, BGP_DEFAULT_KEEPALIVE 60,
+#   BGP_DEFAULT_CONNECT_RETRY 120, BGP_DEFAULT_LOCAL_PREF 100,
+#   BGP_DEFAULT_EBGP_ROUTEADV 0, RMAP_DEFAULT_UPDATE_TIMER 5:
+#   https://raw.githubusercontent.com/FRRouting/frr/stable/8.4/bgpd/bgpd.h
+# - The 2019 leak: DQE Communications' BGP optimizer made more specific
+#   routes, its customer Allegheny Technologies passed them to its other
+#   provider, Verizon (AS701), which accepted and passed them on; prefix
+#   limits, IRR filtering and RPKI would each have stopped it (Cloudflare,
+#   2019-06-24): https://blog.cloudflare.com/how-verizon-and-a-bgp-optimizer-knocked-large-parts-of-the-internet-offline-today/
+# - Facebook stopped announcing its routes, its DNS servers' prefixes among
+#   them, on 2021-10-04 (Cloudflare, 2021-10-04):
+#   https://blog.cloudflare.com/october-2021-facebook-outage/
+# - AWS: a virtual private gateway's Amazon-side ASN is 64512 unless you
+#   choose another, and can't be changed after it is created:
+#   https://docs.aws.amazon.com/vpn/latest/s2svpn/how_it_works.html ; a
+#   customer gateway may use a private ASN (64,512-65,534 or
+#   4,200,000,000-4,294,967,294): https://docs.aws.amazon.com/vpn/latest/s2svpn/cgw-options.html ;
+#   "Dynamic routes advertised from a customer gateway device to a
+#   Site-to-Site VPN connection on a virtual private gateway": 100, not
+#   adjustable: https://docs.aws.amazon.com/vpn/latest/s2svpn/vpn-limits.html
+# - Azure: VPN gateways have a default ASN of 65515 (it can be changed after
+#   the gateway is created; 65515 and 65517 to 65520 are reserved); "Azure
+#   VPN Gateway supports up to 4,000 prefixes. The BGP session is dropped if
+#   the number of prefixes exceeds the limit."; keepalive 60 s and hold 180
+#   s, fixed (ms.date 2026-06-04, updated 2026-09-15):
+#   https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-vpn-faq
+# - Google Cloud: "Cloud Router requires you to use a private ASN" (64512 to
+#   65534 or 4200000000 to 4294967294; 16550 with Partner Interconnect);
+#   keepalive 20 s by default, 20 to 60 (last updated 2026-11-10):
+#   https://docs.cloud.google.com/network-connectivity/docs/router/how-to/create-router-vpc-network ;
+#   "If a BGP peer advertises more than 5,000 prefixes, Cloud Router resets
+#   the BGP session" (last updated 2026-11-10):
+#   https://docs.cloud.google.com/network-connectivity/docs/router/quotas ;
+#   "Cloud Router sets the value of the hold timer to three times the value
+#   of the configured keepalive interval" (read by the topic's reviewer,
+#   2026-11-12): https://docs.cloud.google.com/network-connectivity/docs/router/how-to/managing-bgp-timers
+# Every output marked "captured" in the lesson, the labs and the recall items
+# is real output of this topic's labs (FRR 8.4.4 on Ubuntu 24.04, on the
+# network-lab base, Docker Desktop 29.8.2), captured on 2026-11-12: a session
+# Idle, then Established with (Policy) (Policy) and "updates discarded due to
+# missing policy"; a session refused with "Bad Peer AS"; ISP A's summary with
+# the shop Active; the leak seen in ISP B's looking glass; the stolen /25
+# and the traceroute bouncing between ISP B and edge; best (AS Path), then
+# best (Local Pref); the cloud's return path through ISP B; a network line
+# for a prefix not in the table shown "inaccessible" and "invalid". Times and
+# uptimes will differ in a new run.
+#
+# Linked or embedded, never copied. Licences, each read on 2026-11-12: the
+# YouTube videos (embedding allowed, no licence stated beyond YouTube's own;
+# titles and channels from YouTube's oEmbed, lengths and dates from their
+# pages; not yet watched by a person); Computer Networks: A Systems Approach
+# (CC BY 4.0: the book's repository's LICENSE; the page's own footer says only
+# "© Copyright 2024"); FRR's documentation (the pages' footer "Copyright
+# 2017, FRR"; no separate documentation licence stated); Cloudflare's blog
+# (no licence stated; © Cloudflare); RFCs (the IETF Trust's Legal
+# Provisions); AWS's documentation (copyright Amazon Web Services); Microsoft
+# Learn (the MicrosoftDocs/azure-docs repository: CC BY 4.0); Google Cloud's
+# documentation (the pages' footer: CC BY 4.0).
+resources:
+  - title: "5.4 BGP: the Border Gateway Protocol (Jim Kurose, for Computer Networking: a Top-Down Approach, 2022, 18 minutes): autonomous systems, eBGP and iBGP, what BGP advertises, and how routers choose and limit routes by policy"
+    url: https://www.youtube.com/watch?v=2rV4tJkP-CQ
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "Computer Networks: A Systems Approach, section 4.1.2: read \"Basics of BGP\" and \"Common AS Relationships and Policies\" (Peterson and Davie), customers, providers and peers, and the policies that follow, about 9 minutes"
+    url: https://book.systemsapproach.org/scaling/global.html
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the book's repository's LICENSE); linked, not copied"
+  - title: "BGP (FRR 8.4 user guide): read \"Defining Peers\", \"Require policy on EBGP\", \"Route Selection\" and \"Networks\", the commands the labs use, about 11 minutes"
+    url: https://docs.frrouting.org/en/stable-8.4/bgp.html
+    type: reading
+    use: link
+    license: "Copyright 2017, FRR (the page's footer); linked, not copied"
+  - title: "How Verizon and a BGP Optimizer Knocked Large Parts of the Internet Offline Today (Cloudflare, 2019): a route leak from two missing filters, and what would have stopped it, about 9 minutes"
+    url: https://blog.cloudflare.com/how-verizon-and-a-bgp-optimizer-knocked-large-parts-of-the-internet-offline-today/
+    type: reading
+    use: link
+    license: "© Cloudflare (no licence stated); linked, not copied"
+  - title: "Filtering (FRR 8.4 user guide): \"IP Prefix List\", with le and ge, as a reference"
+    url: https://docs.frrouting.org/en/stable-8.4/filter.html
+    type: reading
+    use: link
+    license: "Copyright 2017, FRR (the page's footer); linked, not copied"
+  - title: "Route Maps (FRR 8.4 user guide): match and set commands, and what happens at the end of a route map, as a reference"
+    url: https://docs.frrouting.org/en/stable-8.4/routemap.html
+    type: reading
+    use: link
+    license: "Copyright 2017, FRR (the page's footer); linked, not copied"
+  - title: "BGP: Border Gateway Protocol (Computerphile, with Tim Griffin, 2016, 16 minutes): why the internet needs it, told without commands (optional)"
+    url: https://www.youtube.com/watch?v=O6tCoD5c_U0
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "Introduction to Border Gateway Protocol (NSRC, 2019, 6 minutes): sessions and AS numbers in a few slides (optional)"
+    url: https://www.youtube.com/watch?v=DnnZ0yPRVWg
+    type: video
+    use: embed
+    license: Standard YouTube licence (official embed)
+  - title: "RFC 8212: Default External BGP (EBGP) Route Propagation Behavior without Policies, sections 1 to 3: the rule behind (Policy) (optional, short)"
+    url: https://www.rfc-editor.org/rfc/rfc8212
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "Understanding how Facebook disappeared from the Internet (Cloudflare, 2021): what happens when a network withdraws its own routes (optional)"
+    url: https://blog.cloudflare.com/october-2021-facebook-outage/
+    type: reading
+    use: link
+    license: "© Cloudflare (no licence stated); linked, not copied"
+  - title: "Azure VPN Gateway FAQ (Microsoft Learn): read the BGP section, the cloud side's ASN, the 4,000-prefix limit and the fixed timers (optional)"
+    url: https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-vpn-faq
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "AWS Site-to-Site VPN quotas (AWS documentation): read \"Routes\", the 100 routes a virtual private gateway takes from you (optional)"
+    url: https://docs.aws.amazon.com/vpn/latest/s2svpn/vpn-limits.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Create a Cloud Router to connect a VPC network to a peer network (Google Cloud documentation): the Cloud Router's private ASN and its keepalive (optional)"
+    url: https://docs.cloud.google.com/network-connectivity/docs/router/how-to/create-router-vpc-network
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer); linked, not copied"
+# The recall items read show bgp summary, BGP tables and prefix lists,
+# mostly captured from this topic's own labs, with Module 1's text tools.
+# The five labs are on the network-lab base: the dual-homed shop, with edge
+# (the learner's router) between two ISPs, a transit network and the cloud,
+# all FRR routers as machines (ADR-0018's third amendment). The far routers
+# are sealed scenery, read through looking-glass.
+practice:
+  - example-first-session
+  - bgp-summary-read
+  - bgp-summary-policy
+  - mcq-session-active
+  - mcq-why-no-session
+  - mcq-network-needs-route
+  - mcq-route-leak
+  - mcq-hijack-more-specific
+  - mcq-rfc8212
+  - prefix-list-le
+  - bgp-table-best
+  - mcq-localpref-beats-path
+  - mcq-med-other-as
+  - mcq-ebgp-over-ibgp
+  - mcq-weight-local
+  - localpref-table
+  - mcq-localpref-direction
+  - mcq-localpref-where
+  - fill-isp-policy
+  - write-cloud-session
+prove:
+  build: build-dual-homed
+  debug: debug-shop-unreachable
+  explain:
+    prompt: |
+      Your company is about to connect its data centre to two internet providers with BGP, and a colleague says: "Once BGP is on, the internet just finds us." Explain, in your own words: how two routers become BGP neighbours and what they tell each other; what your router should announce and what it should accept, and what goes wrong without each of those filters, with a real kind of incident; how a router chooses between several paths to the same network; how you would make your outgoing traffic use the cheaper provider, and what that does not change; and what happens to your traffic when one of the sessions drops.
+    rubric:
+      - id: sessions
+        required: true
+        description: "A session is a TCP connection on port 179 between two routers, each configured with the other's address and AS number; they exchange OPEN messages (a wrong AS number is refused), then keepalives, and a router drops the session and the routes it learned over it when the hold time passes without hearing from the other; eBGP joins two autonomous systems, iBGP two routers of one."
+      - id: announce-filter
+        required: true
+        description: "Announce only your own prefixes (a network statement works only for a prefix in the routing table); never pass one provider's routes to the other, which is a route leak that makes you a path for other people's traffic; refuse your own prefix and anything inside it, because a more specific route, by mistake or a hijack, beats your own by longest prefix; RFC 8212, which FRR follows: an eBGP session with no policy passes nothing, and switching that off is the wrong fix; a maximum-prefix limit as a fuse."
+      - id: best-path
+        required: true
+        description: "The decision order at least as far as MED: local preference (highest), AS path length (shortest), origin, MED (lowest, and only between paths from the same neighbouring AS); then eBGP over iBGP and the tie-breaks (FRR's weight comes first and stays on one router); the kernel installs only the chosen path."
+      - id: exit
+        required: true
+        description: "Local preference, set by an inbound route map on the routes from the cheaper provider, makes them win, so outgoing traffic leaves that way, and it applies to every router in the AS; it changes nothing about how other networks reach you, which depends on their choices and needs other tools."
+      - id: failure
+        required: false
+        description: "When a session drops (at once if the link goes down, after the hold time if the path dies silently), its routes are withdrawn and the next best path, through the other provider, takes over by itself; when it returns, the preferred path wins again."
+    model_answer: |
+      The internet doesn't find anyone: tens of thousands of networks, each an autonomous system with its own number, tell their neighbours which addresses they can reach, and BGP is how they say it. Two routers become neighbours by opening a TCP connection on port 179. Each is configured with the other's address and AS number, and they exchange OPEN messages; if the AS number in the OPEN isn't the one configured, the session is refused with "bad peer AS". Then they exchange routes, prefixes with their AS paths, and keep sending keepalives, every 60 seconds by FRR's default. If one hears nothing for the hold time, 180 seconds by default, it drops the session and forgets the routes it learned over it. Between two companies that's eBGP; between routers of one company it's iBGP.
+
+      What we announce and accept needs a filter each way. We should announce only our own prefix, and the network line only works if that exact prefix is in our routing table. If we passed one provider's routes to the other, we would be leaking: the second provider might send its traffic for the first one's customers through our small links, which is what happened in 2019 when a company passed one provider's routes to Verizon, which accepted them. Coming in, we should refuse our own prefix and anything inside it: if a provider sends a more specific route for half our addresses, by mistake or as a hijack, longest-prefix match makes it beat our own network, and our servers become unreachable from outside. FRR follows RFC 8212, so an eBGP session passes nothing at all until a route map allows it; turning that off is the wrong fix. A maximum-prefix limit is a fuse against a neighbour who suddenly sends a whole internet table.
+
+      To choose between paths, BGP compares them one attribute at a time: highest local preference first, then the shortest AS path, then origin, then the lowest MED, but MED only between paths from the same neighbouring network, then a path learned over eBGP over one learned over iBGP, then tie-breaks. The kernel installs only the winner.
+
+      To use the cheaper provider, I'd set local preference 200 on every route it sends us, in an inbound route map on that session. Its paths then beat the other provider's even when theirs are shorter, and because local preference travels inside our AS, every router of ours agrees. It changes nothing about how the internet reaches us, though: incoming traffic depends on other networks' choices about the routes we announce.
+
+      If the cheaper provider's session drops, its routes are withdrawn, at once if the cable goes, or after the hold time if the path dies silently, and the other provider's paths are the best left, so traffic moves there by itself, and back when the session returns.
+review_pool:
+  - bgp-summary-policy
+  - mcq-why-no-session
+  - mcq-session-active
+  - mcq-hijack-more-specific
+  - mcq-network-needs-route
+  - mcq-route-leak
+  - mcq-max-prefix
+  - bgp-table-best
+  - mcq-localpref-beats-path
+  - mcq-med-other-as
+  - mcq-tie-older-path
+  - mcq-localpref-direction
+  - localpref-table
+  - mcq-localpref-ibgp
+skills:
+  - id: bgp-sessions
+    description: "Configure an eBGP neighbour in FRR (`router bgp ASN`, `neighbor ADDRESS remote-as ASN`, the timers); read `show bgp summary` (the state or the prefix count, `(Policy)`) and `show bgp neighbors` (its state and its last reset); what each state means, why a session doesn't come up (wrong AS number, wrong address, TCP 179 blocked, no route), and the keepalive and hold timers"
+  - id: announce-and-filter
+    description: "Announce your own prefix (`network` needs that exact prefix in the routing table) and nothing else, with a prefix list and a route map out; refuse your own space and everything inside it (`le 32`) coming in; RFC 8212 and `bgp ebgp-requires-policy`; maximum prefixes; route leaks and prefix hijacks"
+  - id: best-path
+    description: "Predict the winner among several paths to one prefix from `show bgp ipv4 unicast` (`>`, `LocPrf`, `Metric`, `Path`): weight (one router's own), local preference, a route the router originates, AS path length, origin, MED (only between paths from the same neighbouring AS), eBGP over iBGP, then tie-breaks; the kernel installs only the winner"
+  - id: local-preference
+    description: "Choose the way out for outbound traffic: local preference on the routes from the preferred neighbour, set in an inbound route map; confirm it in `show bgp`, with `ip route get` and with traceroute; it is shared with the AS's other routers over iBGP and changes nothing about how others reach you"

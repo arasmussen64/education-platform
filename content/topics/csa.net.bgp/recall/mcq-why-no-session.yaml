@@ -1,0 +1,22 @@
+id: mcq-why-no-session
+type: mcq
+rev: 1
+prompt: |
+  A new BGP session won't come up. `show bgp summary` shows the neighbour as `Idle`, and among the lines of `show bgp neighbors 192.0.2.6` is this one (captured from this topic's lab):
+
+  ```
+  Last reset 00:00:09,  Notification sent (OPEN Message Error/Bad Peer AS)
+  ```
+
+  What is wrong?
+choices:
+  - "TCP port 179 is blocked between the routers, so no OPEN message ever arrives"
+  - "The neighbour has no route back to this router's address, so replies are lost"
+  - "The AS number in the neighbour's OPEN message isn't this router's `remote-as`"
+  - "The two routers' hold timers differ, and they can't agree on which one to use"
+answer: 2
+explanation: |
+  The neighbour's OPEN message arrived, so TCP worked both ways. It named the neighbour's AS number, which didn't match the `remote-as` this router was given for it, so this router sent back a notification (an error message that closes the session) saying "bad peer AS". When this line was captured, the neighbour was ISP B, AS 65020, and the shop's router had been given `neighbor 192.0.2.6 remote-as 65021`. One typed digit, and the session never comes up.
+
+  A blocked port or a missing route back looks different: the TCP connection never opens, no OPEN message ever arrives to complain about, and the session sits in `Connect` or `Active`. Hold timers are never a reason to refuse: each side offers one in its OPEN message and both use the lower of the two.
+skills: [bgp-sessions]

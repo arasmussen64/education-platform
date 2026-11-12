@@ -1,0 +1,16 @@
+id: mcq-localpref-where
+type: mcq
+rev: 1
+prompt: |
+  Where does the shop's router set the local preference that makes ISP A the shop's way out?
+choices:
+  - "In a route map applied outbound to its session with ISP A"
+  - "In the `network` statement for the shop's own prefix"
+  - "In a route map applied inbound to its session with ISP A"
+  - "In ISP A's router, in a route map on its session to the shop"
+answer: 2
+explanation: |
+  Local preference is set on routes as they arrive, so it goes in the route map that ISP A's routes pass through on the way in: `neighbor 192.0.2.2 route-map FROM-ISPA in`, where FROM-ISPA has `set local-preference 200` beside its filter. Every route ISP A sends then carries the higher preference.
+
+  An outbound route map changes what ISP A receives from the shop, and local preference isn't even sent over eBGP. The `network` statement says which prefix the shop announces, not how it reaches others. And ISP A's router is ISP A's: a preference set there stays inside ISP A's network and decides ISP A's exits, not the shop's.
+skills: [local-preference]

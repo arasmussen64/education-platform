@@ -1,0 +1,16 @@
+id: mcq-localpref-ibgp
+type: mcq
+rev: 1
+prompt: |
+  A company has two edge routers in its AS: edge1, connected to ISP A, and edge2, connected to ISP B. They exchange routes over iBGP. edge1 sets local preference 200 on ISP A's routes. Which way does edge2 send traffic to the internet?
+choices:
+  - "Out through ISP B: local preference changes only the router that sets it"
+  - "Out through ISP B: edge2 always prefers a path it learned by its own eBGP"
+  - "Half each way: edge2 shares the traffic between its own path and edge1's"
+  - "To edge1 and out through ISP A: local preference reaches edge2 over iBGP"
+answer: 3
+explanation: |
+  Local preference travels with a route inside the AS: when edge1 passes ISP A's routes to edge2 over iBGP, they carry 200, and edge2 compares them with ISP B's at 100. Local preference is compared long before "eBGP over iBGP", so edge2 sends its traffic across to edge1 and out through ISP A. That is why one setting on one router steers a whole company's outgoing traffic.
+
+  "Only the router that sets it" describes FRR's weight, which never leaves the router: preferring ISP A with weight on edge1 would leave edge2 using ISP B. Paths from two different neighbouring networks aren't shared by default.
+skills: [local-preference]
