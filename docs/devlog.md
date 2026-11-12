@@ -43,6 +43,8 @@ Both now wait for real events (a log line, a serial that has stopped changing). 
 - a cache rule mended on one page while the storefront kept its own, which also passed;
 - nginx's `server`, `location` and `proxy_pass`, used but never defined.
 
+**Labs CI's shares are balanced** (#263). The Labs job dealt whole topics to its eight machines in turn, so a share that drew a long Module 3 topic and a Samba one held the whole run up: #262's shares took from 8.6 to 24.6 minutes. Each lab now goes, heaviest first, to the machine with the least work so far, weighed by how many fresh containers its contract starts (the pristine lab, the solution with its restart trial, one for each known-wrong fix), three times over for a network lab. It's a rough rule, not a measurement, and the first runs show how close it comes.
+
 **Author notes:**
 
 - _The build's narrow link moved._ The plan put the 1400-byte link next to the branch's router, where the cloud's router dropped the oversized packets before the branch's firewall ever saw the ICMP. It now sits beyond the ISP, so r3 can only learn the path MTU from ICMP that its own firewall lets in, which is the point of the lab.
