@@ -1,0 +1,168 @@
+# The checks of "Move the API". The authorities' and the office's answers
+# are asked for now; how the move went is read from the monitor's log,
+# /var/lib/lab/move.log, a line per answer: TIME SOURCE NAME ADDRESS TTL.
+# "The switch" is the first moment the shop's servers gave out the new
+# address after they last gave out the old one. new-address waits for the
+# name servers after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: new-address
+    description: "ns1 and ns2, asked directly, give api.shop.test the new address, 203.0.113.51, with a TTL of 3600 again, and serve the same serial."
+    timeout: 75
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      answer() { on office dig +norecurse +time=1 +tries=1 +noall +answer @"$1" api.shop.test A | awk '$4 == "A" {print $5, $2}'; }
+      serial() { on office dig +norecurse +time=1 +tries=1 +short @"$1" shop.test SOA | awk '{print $3}'; }
+      both() { [ -n "$(answer 198.51.100.13)" ] && [ -n "$(answer 198.51.100.14)" ]; }
+      wait_for 20 both
+      for server in ns1:198.51.100.13 ns2:198.51.100.14; do
+        got=$(answer "${server#*:}")
+        [ "$got" = "203.0.113.51 3600" ] || { echo "${server%%:*} gives api.shop.test ${got:-no answer} (address and TTL), not 203.0.113.51 with a TTL of 3600"; exit 0; }
+      done
+      s1=$(serial 198.51.100.13)
+      s2=$(serial 198.51.100.14)
+      [ "$s1" = "$s2" ] || { echo "ns1 serves serial $s1 and ns2 serial $s2"; exit 0; }
+      echo moved
+    expect:
+      equals: moved
+  - id: waited-old-ttl
+    description: "The move's log shows the switch at least 60 seconds (the old TTL) after the shop's servers last gave out api.shop.test with its old, longer TTL."
+    command: |
+      log=/var/lib/lab/move.log
+      [ -s "$log" ] || { echo "the monitor's log, $log, is empty or missing"; exit 0; }
+      awk -v old=203.0.113.41 -v new=203.0.113.51 '
+        ($2 == "ns1" || $2 == "ns2") && $3 == "api" {
+          if ($4 == old) { moved = ""; if ($5 > 5) long = $1 }
+          else if ($4 == new && moved == "") moved = $1
+        }
+        END {
+          if (moved == "") { print "the log shows no switch: the shop'\''s servers never gave out 203.0.113.51"; exit }
+          if (long == "") { print "the log never shows the old address with its old TTL"; exit }
+          if (moved - long >= 60) print "waited"
+          else printf "the switch came %d seconds after the shop'\''s servers last gave out the old address with a TTL longer than 5; the old TTL was 60\n", moved - long
+        }' "$log"
+    expect:
+      equals: waited
+  - id: switched-at-five
+    description: "Each of the shop's servers first gave out the new address with the move's TTL of 5."
+    command: |
+      log=/var/lib/lab/move.log
+      [ -s "$log" ] || { echo "the monitor's log, $log, is empty or missing"; exit 0; }
+      awk -v old=203.0.113.41 -v new=203.0.113.51 '
+        ($2 == "ns1" || $2 == "ns2") && $3 == "api" {
+          if ($4 == old) first[$2] = ""
+          else if ($4 == new && first[$2] == "") first[$2] = $5
+        }
+        END {
+          if (first["ns1"] == "" && first["ns2"] == "") { print "the log shows no switch: the shop'\''s servers never gave out 203.0.113.51"; exit }
+          for (s in first) if (first[s] != "" && first[s] != 5) { printf "%s first gave out the new address with a TTL of %s, not 5\n", s, first[s]; exit }
+          print "switched at 5"
+        }' "$log"
+    expect:
+      equals: "switched at 5"
+  - id: nobody-sent-back
+    description: "No public resolver gave out the old address more than 7 seconds (the move's TTL of 5, and 2 to spare) after the switch, and the log runs at least 10 seconds past it."
+    command: |
+      log=/var/lib/lab/move.log
+      [ -s "$log" ] || { echo "the monitor's log, $log, is empty or missing"; exit 0; }
+      awk -v old=203.0.113.41 -v new=203.0.113.51 '
+        FNR == NR {
+          if (($2 == "ns1" || $2 == "ns2") && $3 == "api") {
+            if ($4 == old) moved = ""
+            else if ($4 == new && moved == "") moved = $1
+          }
+          last = $1
+          next
+        }
+        moved != "" && $2 ~ /^isp/ && $3 == "api" && $4 == old && $1 - moved > late { late = $1 - moved; who = $2 }
+        END {
+          if (moved == "") { print "the log shows no switch: the shop'\''s servers never gave out 203.0.113.51"; exit }
+          if (last - moved < 10) { print "the log runs only " int(last - moved) " seconds past the switch: wait a few seconds and run the checks again"; exit }
+          if (late > 7) printf "%s gave out the old address %d seconds after the switch\n", who, late
+          else print "nobody sent back"
+        }' "$log" "$log"
+    expect:
+      equals: "nobody sent back"
+  - id: caches-untouched
+    description: "The public resolvers are as they were: their settings unchanged, and no copy in their caches thrown away early (in the log, each one's copy of canary.shop.test only counts down, except after the lab itself restarts)."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      changed=$(intact) || { echo "files that aren't the shop's to change were changed: ${changed#changed: }"; exit 0; }
+      log=/var/lib/lab/move.log
+      [ -s "$log" ] || { echo "the monitor's log, $log, is empty or missing"; exit 0; }
+      # A copy's TTL only counts down. One that jumps back up while it still
+      # had time left was thrown away early: a flush, a reload or a restart
+      # of that resolver. A restart of the whole lab empties every cache,
+      # and the monitor's "monitor started" line marks it.
+      awk '
+        $2 == "monitor" { split("", ttl) }
+        $2 ~ /^isp/ && $3 == "canary" && $5 != "-" {
+          if (($2 in ttl) && ttl[$2] > 2 && $5 > ttl[$2] + 1) { printf "%s'\''s cache was emptied early: its copy of canary.shop.test went from %d seconds left to %d\n", $2, ttl[$2], $5; found = 1; exit }
+          ttl[$2] = $5
+        }
+        END { if (!found) print "untouched" }' "$log"
+    expect:
+      equals: untouched
+  - id: office-private
+    description: "In the office, api.shop.test is the new server's private address, 10.0.8.51."
+    command: on office dig +short +time=2 +tries=1 api.shop.test A
+    expect:
+      equals: "10.0.8.51"
+  - id: office-sees-the-rest
+    description: "In the office, every other name in shop.test resolves as it does on the shop's own server."
+    command: |
+      names="@ www mail status $(printf '%s\n' docs shipping cdn | shuf -n 1)"
+      for n in $names; do
+        name=shop.test; [ "$n" = @ ] || name=$n.shop.test
+        want=$(on office dig +norecurse +short @198.51.100.13 "$name" A | tail -n 1)
+        got=$(on office dig +short +time=2 +tries=1 "$name" A | tail -n 1)
+        [ -n "$want" ] && [ "$got" = "$want" ] || { echo "in the office, $name gives ${got:-no address}, but the shop's server gives $want"; exit 0; }
+      done
+      echo "all resolve"
+    expect:
+      equals: "all resolve"
+  - id: still-secure
+    description: "shop.test is still signed and valid: a public resolver that checks signatures gets api.shop.test, and a name that doesn't exist, with the ad flag."
+    command: |
+      flags() { on isp2 dig +time=2 +tries=1 @198.51.100.22 "$1" A | awk '/^;; flags:/ {print " " $0}'; }
+      on office dig +norecurse +dnssec @198.51.100.13 api.shop.test A | grep -w RRSIG > /dev/null || { echo "ns1 gives api.shop.test without a signature (RRSIG)"; exit 0; }
+      for name in api.shop.test "no-such-$RANDOM.shop.test"; do
+        case $(flags "$name") in
+          *" ad"*) ;;
+          *) echo "isp2 doesn't validate $name (no ad flag): $(on isp2 dig +time=2 +tries=1 @198.51.100.22 "$name" A | grep -o 'status: [A-Z]*')"; exit 0 ;;
+        esac
+      done
+      echo secure
+    expect:
+      equals: secure
+  - id: no-hosts
+    description: "No shop.test name is in a hosts file, on any machine."
+    command: |
+      found=$(grep -l 'shop\.test' /etc/hosts /etc/netns/*/hosts 2> /dev/null)
+      [ -z "$found" ] || { echo "a hosts file names shop.test: $found"; exit 0; }
+      echo none
+    expect:
+      equals: none
+  - id: resolver-saved
+    description: "The office resolver's settings are in its /etc/unbound/unbound.conf, so a restart keeps them: an Unbound started from its files answers for the same names itself as the running one."
+    timeout: 45
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # The names the running resolver answers for itself (its local zones
+      # and local data), against those of an Unbound started from the
+      # resolver's files in netlab verify's throwaway copy (chk-resolver
+      # sees the resolver's own /etc). A change made only live, with
+      # unbound-control, makes them differ.
+      local_names() { on "$1" bash -c 'unbound-control list_local_zones; unbound-control list_local_data' 2> /dev/null | sort; }
+      live=$(local_names resolver)
+      fresh=$(netlab verify resolver -- bash -c '
+        on chk-resolver unbound -d -p > /dev/null 2>&1 &
+        for i in $(seq 1 50); do on chk-resolver unbound-control status > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-resolver bash -c "unbound-control list_local_zones; unbound-control list_local_data" 2> /dev/null | sort
+        on chk-resolver unbound-control stop > /dev/null 2>&1
+        wait')
+      if [ -n "$live" ] && [ "$live" = "$fresh" ]; then echo saved; exit 0; fi
+      echo "the running resolver isn't the one its files start: after a restart it would answer differently for $(diff <(echo "$live") <(echo "$fresh") | sed -n 's/^[<>] //p' | awk '{print $1}' | sort -u | head -n 2 | tr '\n' ' ')"
+    expect:
+      equals: saved

@@ -1,0 +1,15 @@
+# The shop's move monitor, on the office machine: "systemctl status
+# move-watch". It writes /var/lib/lab/move.log. Part of the scenery.
+[Unit]
+Description=The shop's move monitor, on office
+After=netlab.service named@ns1.service named@ns2.service unbound@isp1.service unbound@isp2.service unbound@isp3.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=move-watch
+ExecStart=/usr/sbin/ip netns exec office /usr/local/lib/netlab/lab-enter office /usr/local/bin/move-watch
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
