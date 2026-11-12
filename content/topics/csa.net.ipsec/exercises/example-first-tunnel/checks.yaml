@@ -1,0 +1,136 @@
+# The checks of "Your first IPsec tunnel": the tunnel as the provider sees
+# it, BGP over it and what vpn learned, the office reaching the app, the
+# notes, and whether everything lasts: vpn's network file against a fresh
+# build of it, FRR's running configuration against its saved file, the
+# tunnel starting by itself from vpn's files, and the tunnel coming back
+# after the provider's maintenance. tunnel-up and bgp-up wait for the
+# tunnel and the session after a boot; the rest read at once, except the
+# last, which restarts the provider's gateway and waits for the tunnel.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: tunnel-up
+    description: "The provider's gateway has an IPsec tunnel with vpn (198.51.100.10) whose CHILD_SA is installed for 0.0.0.0/0 both ways: a route-based tunnel."
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # On the provider's side: the IKE SA with vpn, and a CHILD_SA installed
+      # with 0.0.0.0/0 as both selectors (swanctl prints them under it).
+      route_based() {
+        on cloud swanctl --list-sas 2> /dev/null | awk '
+          /ESTABLISHED/ {ike = 1}
+          /: #[0-9]+, reqid/ {child = /INSTALLED/; l = r = 0}
+          child && $1 == "local" && $2 == "0.0.0.0/0" {l = 1}
+          child && $1 == "remote" && $2 == "0.0.0.0/0" {r = 1}
+          ike && l && r {ok = 1}
+          END {exit !ok}'
+      }
+      wait_for 20 route_based && { echo "route-based tunnel up"; exit 0; }
+      if on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null; then
+        echo "the provider's CHILD_SA isn't for 0.0.0.0/0 both ways: $(on cloud swanctl --list-sas | awk '$1 == "local" || $1 == "remote"' | tr -s ' ' | tr '\n' ';')"
+      else
+        echo "the provider's gateway has no CHILD_SA installed with vpn (cloud-vpn-status shows what it has)"
+      fi
+    expect:
+      equals: "route-based tunnel up"
+  - id: bgp-up
+    description: "vpn has a BGP session with the provider (169.254.21.1, AS 64512) inside the tunnel, and reaches the cloud's 10.20.0.0/16 by a route learned over it, through vti0, without taking the provider's default route."
+    timeout: 45
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on vpn ip xfrm state | grep '^src ' > /dev/null || { echo "vpn has no IPsec SAs, so no session inside a tunnel"; exit 0; }
+      state() { frr vpn 'show bgp neighbors 169.254.21.1 json' | json "d.get('169.254.21.1', {}).get('bgpState')"; }
+      route() { frr vpn "show ip route $1 json" | json "[(r['protocol'], [n.get('interfaceName') for n in r['nexthops']]) for r in d.get('$1', []) if r.get('selected')]"; }
+      learned() { [ "$(route 10.20.0.0/16)" = '[["bgp", ["vti0"]]]' ]; }
+      wait_for 30 learned
+      s=$(state)
+      [ "$s" = Established ] || { echo "vpn's BGP session with 169.254.21.1 is ${s:-not configured}"; exit 0; }
+      r=$(route 10.20.0.0/16)
+      [ "$r" = '[["bgp", ["vti0"]]]' ] || { echo "vpn's route to 10.20.0.0/16 isn't one learned by BGP through vti0: $r"; exit 0; }
+      d=$(route 0.0.0.0/0)
+      [ "$d" = '[["static", ["wan"]]]' ] || { echo "vpn's default route isn't its own, through the internet: $d"; exit 0; }
+      echo "learned by BGP"
+    expect:
+      equals: "learned by BGP"
+  - id: office-reaches-app
+    description: "The office laptop fetches the app's front page from 10.20.1.10."
+    command: on office curl -s -m 5 http://10.20.1.10/
+    expect:
+      contains: "The shop in the cloud"
+  - id: notes
+    description: "~/example holds the three notes: the IKE algorithms (ike.txt), the provider's log line for the wrong key (auth-error.txt) and vpn's BGP routes (learned.txt)."
+    command: |
+      cd /home/learner/example 2> /dev/null || { echo "there is no ~/example folder"; exit 0; }
+      grep 'AES_CBC-256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048' ike.txt > /dev/null 2>&1 || { echo "ike.txt doesn't hold the IKE SA's algorithms line"; exit 0; }
+      grep 'MAC mismatched' auth-error.txt > /dev/null 2>&1 || { echo "auth-error.txt doesn't hold the provider's line about the key"; exit 0; }
+      grep '^10\.20\.0\.0/16 .*dev vti0' learned.txt > /dev/null 2>&1 || { echo "learned.txt doesn't hold vpn's BGP route to 10.20.0.0/16"; exit 0; }
+      echo "notes written"
+    expect:
+      equals: "notes written"
+  - id: network-lasts
+    description: "vpn's interfaces, vti0 among them, are what its own files build at boot."
+    command: netlab verify vpn
+    expect:
+      equals: verified
+  - id: bgp-saved
+    description: "vpn's running FRR configuration is saved, so a restart brings the same BGP back."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      frr_saved vpn && echo saved
+    expect:
+      equals: saved
+  - id: tunnel-starts-itself
+    description: "vpn's tunnel is in its files and starts by itself: an IPsec daemon started from them, as at boot, begins it with nothing typed."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # In netlab verify's throwaway copy (chk-vpn sees vpn's own /etc, and
+      # no service runs there), charon starts and loads vpn's files as a
+      # boot does. A CHILD_SA with start_action = start begins at once (it
+      # can't finish: the copy has no routes from FRR); a tunnel started by
+      # hand doesn't begin at all.
+      began=$(netlab verify vpn -- bash -c '
+        on chk-vpn /usr/sbin/charon-systemd > /dev/null 2>&1 &
+        charon=$!
+        for i in $(seq 1 50); do on chk-vpn swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-vpn swanctl --load-all --noprompt > /dev/null 2>&1
+        for i in $(seq 1 25); do
+          n=$(on chk-vpn swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.10\[")
+          [ "$n" -ge 1 ] && break
+          sleep 0.2
+        done
+        echo "$n"
+        kill "$charon" 2> /dev/null
+        wait "$charon" 2> /dev/null
+        true')
+      case $began in
+        [1-9]*) echo "starts itself" ;;
+        0) echo "an IPsec daemon started from vpn's files doesn't begin the tunnel by itself: it was started by hand, or isn't in /etc/swanctl/conf.d/" ;;
+        *) echo "$began" ;;
+      esac
+    expect:
+      equals: "starts itself"
+  - id: back-after-maintenance
+    description: "When the provider's gateway restarts for maintenance, vpn brings the tunnel back by itself and the office reaches the app again within 30 seconds."
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      installed() { on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null; }
+      installed || { echo "there is no tunnel to begin with"; exit 0; }
+      # The provider's maintenance: its gateway restarts, deleting the
+      # tunnel and telling vpn so.
+      cloud-maintenance > /dev/null
+      end=$((SECONDS + 30))
+      while [ "$SECONDS" -lt "$end" ]; do
+        if installed && on office curl -s -m 2 -o /dev/null http://10.20.1.10/; then
+          echo "back by itself"
+          exit 0
+        fi
+        sleep 1
+      done
+      if installed; then
+        echo "the tunnel came back, but the office didn't reach the app within 30 seconds"
+      else
+        echo "30 seconds after the provider's gateway restarted, vpn hadn't brought the tunnel back"
+      fi
+    expect:
+      equals: "back by itself"

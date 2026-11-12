@@ -28,19 +28,28 @@ checks:
       . /usr/local/lib/lab/tls-servers
       listening 8443 && listening 9443 || { echo "the lab's example servers aren't running"; exit 0; }
       d=/usr/local/lib/lab/example
-      # The days left on an example certificate, rounded down, worked out now.
+      # The days left on an example certificate, rounded down. A certificate
+      # made with whole days crosses a day boundary a few seconds after it
+      # is made, so the days are read just before and just after the script
+      # runs, and either is right: the script read them in between (#273,
+      # where 400 was expected and the script rightly said 399).
       left() { echo $((($(date -d "$(openssl x509 -in "$d/$1.pem" -noout -enddate | cut -d= -f2)" +%s) - $(date +%s)) / 86400)); }
       run() { cd /home/learner && sudo -u learner timeout 15 /home/learner/bin/cert-report "$@" 2>&1 | tr '\n' '|' | sed 's/|$//'; }
       check() {
-        local want=$1
-        shift
+        local want=$1 cert=$2 before after
+        shift 2
+        before=$(left "$cert")
         got=$(run "$@")
-        [ "$got" = "$want" ] || { echo "cert-report $* printed \"${got//|/; }\", not \"${want//|/; }\""; exit 0; }
+        after=$(left "$cert")
+        [ "$got" = "${want//DAYS/$before}" ] || [ "$got" = "${want//DAYS/$after}" ] || {
+          echo "cert-report $* printed \"${got//|/; }\", not \"$(echo "${want//DAYS/$before}" | sed 's/|/; /g')\""
+          exit 0
+        }
       }
-      check "names: shop.test, www.shop.test|issuer: Report Lab Intermediate|days-left: $(left www)|chain: 2|verify: ok" localhost 8443 www.shop.test
-      check "names: shop.test, www.shop.test|issuer: Report Lab Intermediate|days-left: $(left www)|chain: 2|verify: hostname mismatch" localhost 8443
-      check "names: api.shop.test, partners.shop.test|issuer: Report Lab Intermediate|days-left: $(left api)|chain: 1|verify: unable to verify the first certificate" localhost 9443 api.shop.test
-      check "names: legacy.shop.test, old.shop.test|issuer: Report Lab Intermediate|days-left: $(left legacy)|chain: 1|verify: unable to verify the first certificate" localhost 9443
+      check "names: shop.test, www.shop.test|issuer: Report Lab Intermediate|days-left: DAYS|chain: 2|verify: ok" www localhost 8443 www.shop.test
+      check "names: shop.test, www.shop.test|issuer: Report Lab Intermediate|days-left: DAYS|chain: 2|verify: hostname mismatch" www localhost 8443
+      check "names: api.shop.test, partners.shop.test|issuer: Report Lab Intermediate|days-left: DAYS|chain: 1|verify: unable to verify the first certificate" api localhost 9443 api.shop.test
+      check "names: legacy.shop.test, old.shop.test|issuer: Report Lab Intermediate|days-left: DAYS|chain: 1|verify: unable to verify the first certificate" legacy localhost 9443
       echo same
     expect:
       equals: same

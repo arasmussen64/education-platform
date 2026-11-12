@@ -1,0 +1,14 @@
+id: mcq-pfs-first-child
+type: mcq
+rev: 1
+prompt: |
+  The provider's ESP proposal asks for perfect forward secrecy with DH group 14 (`aes256gcm16-modp2048`), but vpn's says only `aes256gcm16`, with no DH group. Yet the tunnel came up and carries the office's traffic. Why, and what will happen?
+choices:
+  - "The first CHILD_SA takes its keys from IKE_AUTH and does no DH exchange, so the first rekey fails"
+  - "The provider leaves PFS out when its peer doesn't offer it, so the tunnel stays as it is for good"
+  - "PFS was agreed in phase 1 with the IKE proposal's group, which matched, so the ESP group is spare"
+  - "strongSwan copied the IKE proposal's DH group into the ESP proposal, so the two ends agree after all"
+answer: 0
+explanation: |
+  A DH group in an ESP proposal means "give each new CHILD_SA keys from its own Diffie-Hellman exchange", which is perfect forward secrecy for the traffic. The first CHILD_SA is made inside IKE_AUTH and takes its keys from the IKE_SA's exchange, so its ESP proposal's group isn't compared at all; strongSwan's own reference warns that such a mismatch "might therefore not immediately be noticed". The first rekey, a CREATE_CHILD_SA exchange, does compare it: the provider refuses with NO_PROPOSAL_CHOSEN, vpn logs `CHILD_SA rekeying failed` and keeps trying, and when the old CHILD_SA reaches its hard lifetime the traffic stops, about an hour after it started. Nothing copies the IKE group across, and a provider that requires PFS doesn't drop it.
+skills: [ipsec-building-blocks]

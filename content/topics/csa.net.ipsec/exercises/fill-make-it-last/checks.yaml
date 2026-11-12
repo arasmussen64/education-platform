@@ -1,0 +1,119 @@
+# The checks of "Make the tunnel last": the tunnel as the provider sees it,
+# the office reaching the app through it, vpn's network file against a
+# fresh build of it, the IPsec service enabled, the tunnel starting by
+# itself from vpn's files, the connection's lasting settings in its file,
+# and the tunnel coming back after the provider's maintenance. tunnel-up
+# and office-reaches-app wait for the tunnel and BGP after a boot; the rest
+# read at once, except the last, which restarts the provider's gateway and
+# waits for the tunnel.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: tunnel-up
+    description: "The provider's gateway has an IPsec tunnel with vpn (198.51.100.10) whose CHILD_SA is installed for 0.0.0.0/0 both ways."
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      route_based() {
+        on cloud swanctl --list-sas 2> /dev/null | awk '
+          /ESTABLISHED/ {ike = 1}
+          /: #[0-9]+, reqid/ {child = /INSTALLED/; l = r = 0}
+          child && $1 == "local" && $2 == "0.0.0.0/0" {l = 1}
+          child && $1 == "remote" && $2 == "0.0.0.0/0" {r = 1}
+          ike && l && r {ok = 1}
+          END {exit !ok}'
+      }
+      wait_for 20 route_based && { echo "tunnel up"; exit 0; }
+      echo "the provider's gateway has no CHILD_SA installed with vpn for 0.0.0.0/0 (cloud-vpn-status shows what it has)"
+    expect:
+      equals: "tunnel up"
+  - id: office-reaches-app
+    description: "The office reaches the app (10.20.1.10) through the tunnel: vpn routes the cloud's 10.20.0.0/16 into vti0 by BGP, and the page arrives."
+    timeout: 45
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on vpn ip xfrm state | grep '^src ' > /dev/null || { echo "vpn has no IPsec SAs, so nothing goes through a tunnel"; exit 0; }
+      route() { frr vpn 'show ip route 10.20.0.0/16 json' | json "[(r['protocol'], [n.get('interfaceName') for n in r['nexthops']]) for r in d.get('10.20.0.0/16', []) if r.get('selected')]"; }
+      learned() { [ "$(route)" = '[["bgp", ["vti0"]]]' ]; }
+      wait_for 30 learned || { echo "vpn has no route to 10.20.0.0/16 learned by BGP through vti0: the BGP session inside the tunnel isn't up"; exit 0; }
+      page=$(on office curl -s -m 5 http://10.20.1.10/)
+      case $page in
+        *"The shop in the cloud"*) echo "reached" ;;
+        *) echo "the office doesn't get the app's page from 10.20.1.10" ;;
+      esac
+    expect:
+      equals: "reached"
+  - id: network-lasts
+    description: "vpn's interfaces, vti0 among them, are what its own files build at boot."
+    command: netlab verify vpn
+    expect:
+      equals: verified
+  - id: service-enabled
+    description: "vpn's IPsec service, strongswan@vpn, starts at every boot."
+    command: systemctl is-enabled strongswan@vpn
+    expect:
+      equals: enabled
+  - id: tunnel-starts-itself
+    description: "vpn's tunnel comes up by itself from its files: an IPsec daemon given them, as at boot, begins it with nothing typed."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # In netlab verify's throwaway copy (chk-vpn sees vpn's own /etc, and
+      # no service runs there), charon starts and loads vpn's files as a
+      # boot does. A CHILD_SA that starts when it is loaded begins at once
+      # (it can't finish: the copy has no routes from FRR); one started by
+      # hand, or a file that doesn't load, begins nothing.
+      began=$(netlab verify vpn -- bash -c '
+        on chk-vpn /usr/sbin/charon-systemd > /dev/null 2>&1 &
+        charon=$!
+        for i in $(seq 1 50); do on chk-vpn swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-vpn swanctl --load-all --noprompt > /dev/null 2>&1
+        for i in $(seq 1 25); do
+          n=$(on chk-vpn swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.10\[")
+          [ "$n" -ge 1 ] && break
+          sleep 0.2
+        done
+        echo "$n"
+        kill "$charon" 2> /dev/null
+        wait "$charon" 2> /dev/null
+        true')
+      case $began in
+        [1-9]*) echo "starts itself" ;;
+        0) echo "an IPsec daemon started from vpn's files doesn't begin the tunnel by itself" ;;
+        *) echo "$began" ;;
+      esac
+    expect:
+      equals: "starts itself"
+  - id: lasting-settings
+    description: "vpn's connection file has it keep trying, for as long as it takes, to bring the tunnel up, bring it back when the provider closes it, and bring it back when the provider stops answering."
+    command: |
+      f=/etc/netns/vpn/swanctl/conf.d/cloud.conf
+      has() { grep -E "^[[:space:]]*$1[[:space:]]*=[[:space:]]*$2[[:space:]]*(#.*)?$" "$f" > /dev/null; }
+      has keyingtries 0 || { echo "the connection gives up after a set number of tries at the start"; exit 0; }
+      has close_action start || { echo "the connection does nothing when the provider closes the tunnel"; exit 0; }
+      has dpd_action restart || { echo "the connection doesn't start again when the provider stops answering"; exit 0; }
+      echo "settings last"
+    expect:
+      equals: "settings last"
+  - id: back-after-maintenance
+    description: "When the provider's gateway goes down for maintenance and comes back, vpn brings the tunnel back by itself and the office reaches the app again within 30 seconds."
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      installed() { on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null; }
+      installed || { echo "there is no tunnel to begin with"; exit 0; }
+      cloud-maintenance > /dev/null
+      end=$((SECONDS + 30))
+      while [ "$SECONDS" -lt "$end" ]; do
+        if installed && on office curl -s -m 2 -o /dev/null http://10.20.1.10/; then
+          echo "back by itself"
+          exit 0
+        fi
+        sleep 1
+      done
+      if installed; then
+        echo "the tunnel came back, but the office didn't reach the app within 30 seconds"
+      else
+        echo "30 seconds after the provider's gateway restarted, vpn hadn't brought the tunnel back"
+      fi
+    expect:
+      equals: "back by itself"

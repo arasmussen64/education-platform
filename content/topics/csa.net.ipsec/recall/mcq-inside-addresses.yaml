@@ -1,0 +1,14 @@
+id: mcq-inside-addresses
+type: mcq
+rev: 1
+prompt: |
+  AWS gives each tunnel's two BGP peers a /30 from 169.254.0.0/16, and Azure's custom addresses for them come from 169.254.21.0 to 169.254.22.255. Why addresses from that block?
+choices:
+  - "They are link-local: never routed beyond their link, so they can't clash with either side's networks"
+  - "They are kept for VPNs: a router encrypts what is sent to them, whatever the tunnel's selectors say"
+  - "They are the clouds' own range: each cloud routes them between all of its regions and the tunnels"
+  - "They are the only addresses BGP accepts for a neighbour that it reaches through a tunnel interface"
+answer: 0
+explanation: |
+  169.254.0.0/16 is the link-local block: addresses that mean something only on one link and that routers never forward beyond it. A tunnel is one link between two gateways, so its two inside addresses need only be unique there, and they can't clash with the office's or the cloud's networks, whatever those are (Azure calls them APIPA addresses). Nothing about the block makes a router encrypt traffic: the SA's selectors and the tunnel's mark do that. The clouds don't route the block between regions (each tunnel's /30 is its own), and BGP accepts any address for a neighbour; link-local ones are simply the safe choice.
+skills: [route-based-tunnel]

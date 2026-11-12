@@ -1,0 +1,14 @@
+id: mcq-weak-default-accepted
+type: mcq
+rev: 1
+prompt: |
+  The provider's sheet asks for `aes256-sha384-ecp384`, and adds that its gateway also accepts `aes128-sha1-modp1024` for old devices. vpn's connection says `proposals = aes256-sha384-ecp384,aes128-sha1-modp1024`. `cloud-vpn-status` shows the IKE_SA using `AES_CBC-128/HMAC_SHA1_96/PRF_HMAC_SHA1/MODP_1024`. Why the weak pair?
+choices:
+  - "The provider chooses by its own list, weak pair first, and vpn offered the weak pair too"
+  - "ECP-384 failed in IKE_SA_INIT, so strongSwan fell back to the next proposal on the list"
+  - "vpn's charon always offers the last proposal in its list first, so the weak pair went out first"
+  - "The IKE_SA was rekeyed since, and a rekey always takes the last proposal that vpn listed"
+answer: 0
+explanation: |
+  The responder chooses, and it may go by its own order rather than yours. AWS documents exactly this: its endpoints "evaluate proposals from your customer gateway starting with the lowest configured value from the list below, regardless of the proposal order from the customer gateway", and the lab's provider is set up the same way, with the weak pair first in its own list. So listing a weak proposal anywhere lets it be chosen. Offer only what the sheet asks for (and on AWS, narrow the options the endpoint accepts). Nothing failed: ECP-384 works, as the build shows; charon sends its proposals in the order written; and a rekey offers the same proposals as the first exchange, so the responder chooses again by the same rule.
+skills: [ipsec-building-blocks]

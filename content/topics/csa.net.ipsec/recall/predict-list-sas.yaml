@@ -1,0 +1,29 @@
+id: predict-list-sas
+type: predict_shell
+rev: 1
+# sas.txt is captured: `on vpn swanctl --list-sas` in the worked example's
+# lab, after its reboot (strongSwan 5.9.13, Ubuntu 24.04, 2026-11-12).
+prompt: |
+  `sas.txt` is what `swanctl --list-sas` printed on the office's gateway, vpn, a few seconds after a reboot. The command picks out the states of the two SAs and the tunnel's selectors. What does it print?
+files:
+  sas.txt: |
+    cloud: #1, ESTABLISHED, IKEv2, 4b219466cca1e0da_i* aea569bf13dfbc85_r
+      local  '198.51.100.10' @ 198.51.100.10[4500]
+      remote '203.0.113.10' @ 203.0.113.10[4500]
+      AES_CBC-256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048
+      established 12s ago, rekeying in 13734s
+      cloud-vti: #1, reqid 1, INSTALLED, TUNNEL, ESP:AES_GCM_16-256
+        installed 12s ago, rekeying in 3316s, expires in 3948s
+        in  ca48840c (0x0000002a),   1611 bytes,    23 packets,     2s ago
+        out c7bcaf5e (0x0000002a),   1615 bytes,    20 packets,     2s ago
+        local  0.0.0.0/0
+        remote 0.0.0.0/0
+command: grep -oE '[A-Z]+, (IKEv2|TUNNEL)|[0-9.]+/[0-9]+$' sas.txt
+expected_output: |
+  ESTABLISHED, IKEv2
+  INSTALLED, TUNNEL
+  0.0.0.0/0
+  0.0.0.0/0
+explanation: |
+  `grep -o` prints each match on its own line. The first line of the output is phase 1, the IKE_SA `cloud: #1`, `ESTABLISHED` with IKEv2, its algorithms on the line under its addresses. The second is phase 2, the CHILD_SA `cloud-vti`, `INSTALLED` in the kernel in tunnel mode, with ESP using AES-GCM; its `in` and `out` lines are its two SAs, one each way, numbered by their SPIs and marked `0x0000002a`, 42. The last two are its selectors, `local 0.0.0.0/0` and `remote 0.0.0.0/0`: everything both ways, a route-based tunnel. The IKE_SA's own `local` and `remote` lines end in `[4500]`, so the pattern's `$` (end of line) leaves them out, and the algorithms line has no digit after its slashes.
+skills: [ipsec-building-blocks]

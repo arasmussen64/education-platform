@@ -1,0 +1,14 @@
+id: mcq-filter-what-you-accept
+type: mcq
+rev: 1
+prompt: |
+  vpn's route map for what it accepts from the provider permits only prefixes inside 10.0.0.0/8 of length /24 or shorter, so it refuses the default route, 0.0.0.0/0, that the provider also offers. What is the risk that filter guards against?
+choices:
+  - "If that default route were chosen, the office's internet traffic would all go into the tunnel"
+  - "BGP can't carry a default route, and the session resets the moment one of them arrives"
+  - "A default route counts as 4,000 prefixes against the provider's limit, which drops the session"
+  - "The provider would send the office's own prefix out to the internet as the default's next hop"
+answer: 0
+explanation: |
+  A default route says "send everything here". Learned from the provider and chosen, it would pull every packet the office sends to the internet into the tunnel and on to the cloud: slower, maybe billed by the gigabyte, and not what anyone decided. (In the labs vpn's own static default has the lower distance, 1 against eBGP's 20, so it would win; on a router whose default comes from elsewhere, the provider's could.) Accept what you expect, the cloud's own space, and nothing wider: the filter-what-you-accept rule from BGP sessions and policy. BGP carries 0.0.0.0/0 like any other prefix, it counts as one prefix, and accepting it changes nothing about what the provider announces.
+skills: [bgp-over-tunnel]

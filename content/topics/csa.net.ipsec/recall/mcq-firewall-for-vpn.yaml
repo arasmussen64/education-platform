@@ -1,0 +1,14 @@
+id: mcq-firewall-for-vpn
+type: mcq
+rev: 1
+prompt: |
+  A firewall stands in front of the office's VPN gateway, and no NAT is on the path to the provider. Both gateways run strongSwan with its defaults, MOBIKE among them. What must the firewall let through between the two gateways for the tunnel and its traffic to work?
+choices:
+  - "UDP 500, UDP 4500 and ESP (IP protocol 50)"
+  - "UDP 500 and ESP; UDP 4500 is only for a NAT"
+  - "UDP 500, TCP 4500 and ESP (IP protocol 50)"
+  - "UDP 500, UDP 4500 and AH (IP protocol 51)"
+answer: 0
+explanation: |
+  IKE starts on UDP 500 (IKE_SA_INIT). Because both ends support MOBIKE, they move IKE to UDP 4500 in IKE_AUTH even with no NAT (RFC 4555), so a firewall that allows only 500 lets the tunnel begin and then loses IKE_AUTH: retransmits and no answer. The traffic itself is ESP, IP protocol 50, which has no ports at all, so it needs a rule of its own. IKE never uses TCP. AH, protocol 51, is IPsec's other protocol, integrity without encryption; it is rarely used, and it can't cross a NAT because it protects the addresses a NAT rewrites.
+skills: [ipsec-building-blocks]

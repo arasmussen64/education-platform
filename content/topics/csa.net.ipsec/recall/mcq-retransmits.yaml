@@ -1,0 +1,14 @@
+id: mcq-retransmits
+type: mcq
+rev: 1
+prompt: |
+  vpn's log shows IKE_SA_INIT answered and a proposal selected, then `sending packet: from 198.51.100.10[4500] to 203.0.113.10[4500]`, then `retransmit 1 of request with message ID 1`, `retransmit 2 ...`, `retransmit 3 ...`, and nothing received. What is the likeliest cause?
+choices:
+  - "Something on the path drops UDP 4500, the port IKE moved to after IKE_SA_INIT"
+  - "The pre-shared key is wrong, and the provider ignores proofs it can't verify"
+  - "The ESP proposal is wrong, and the provider never answers one it refuses"
+  - "The provider's gateway is down, so nothing it should send comes back"
+answer: 0
+explanation: |
+  IKE_SA_INIT on UDP 500 got its answer, so the provider is up and reachable; message ID 1 is IKE_AUTH, the first message sent from port 4500, and it gets no answer at all. A firewall or a provider's filter that allows UDP 500 and ESP but not 4500 does exactly this. A wrong key or a refused proposal is answered, with AUTHENTICATION_FAILED or NO_PROPOSAL_CHOSEN; silence means the messages, or their answers, never arrive. And a gateway that was down would not have answered IKE_SA_INIT either.
+skills: [read-ike-logs]

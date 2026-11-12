@@ -1,0 +1,14 @@
+id: mcq-two-tunnels-med
+type: mcq
+rev: 1
+prompt: |
+  The office's AWS VPN connection has its two tunnels, with BGP over each. The office's router gives the routes from tunnel 1 a local preference of 200 and those from tunnel 2 the default, 100. AWS is about to update tunnel 1, and sets a lower MED on tunnel 2's routes first, as it does. What does the office's traffic to AWS do?
+choices:
+  - "It stays on tunnel 1 until that tunnel drops, because local preference is compared before MED"
+  - "It moves to tunnel 2 at once, because a lower MED is compared before any local preference"
+  - "It moves to tunnel 2 at once, because AWS withdraws tunnel 1's routes before the update"
+  - "It is shared by the two tunnels, because their paths through AWS are now of equal cost"
+answer: 0
+explanation: |
+  BGP compares local preference before AS path length and long before MED, so tunnel 1's 200 wins whatever MED tunnel 2's routes carry; the office ignores AWS's hint and keeps sending into tunnel 1 until it goes down, losing traffic in between. AWS's page says it outright: during an endpoint update it sets a lower outbound MED on the other tunnel, so use the same weight and local preference on both tunnels, which have higher priority than MED. MED is compared only between paths from the same neighbouring AS, which both tunnels' paths are, so with equal preferences it does decide. AWS doesn't withdraw the routes first (that is what the MED is instead of), and different MEDs don't make two paths equal.
+skills: [bgp-over-tunnel]

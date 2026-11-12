@@ -86,14 +86,16 @@ checks:
     description: "For shop.test it prints what the shop's own two servers say: each one's serial, and whether they agree."
     # ns2 copies shop.test from ns1 after a boot. On a busy machine (CI, with
     # three other labs) ns2 can start before ns1 answers, and its first copy
-    # fails; ns2's options then try again within 10 seconds (the lab's fast
-    # clock; BIND's default is 500). Until ns2 holds the zone the script is
-    # rightly told it isn't authoritative, so wait for that (30 tries of a
-    # one-second dig, about a minute), then compare.
+    # fails; even with ns2's short retry it was still empty when this check
+    # ran, three CI runs out of five. Until ns2 holds the zone the script is
+    # rightly told it isn't authoritative, so if ns2 doesn't hold it yet the
+    # check has ns2 fetch it now (rndc retransfer: what ns2 would do on its
+    # own, sooner; ADR-0018's third amendment), waits for it, then compares.
     timeout: 90
     command: |
       . /usr/local/lib/netlab/checklib.sh
       ns2_holds_it() { on office dig +norecurse +time=1 +tries=1 @198.51.100.14 shop.test SOA | grep 'flags:.* aa' > /dev/null; }
+      ns2_holds_it || on ns2 rndc retransfer shop.test > /dev/null 2>&1 || true
       wait_for 30 ns2_holds_it
       s1=$(on office dig +norecurse +short @198.51.100.13 shop.test SOA | awk '{print $3}')
       s2=$(on office dig +norecurse +short @198.51.100.14 shop.test SOA | awk '{print $3}')

@@ -1,0 +1,26 @@
+id: est-pfs-drop
+type: estimate
+rev: 1
+prompt: |
+  A tunnel's CHILD_SA is set to rekey every 60 minutes, and strongSwan gives it a hard lifetime 10% longer than its rekey time. The two ends' ESP proposals disagree about the DH group, so every rekey fails, and the first CHILD_SA carries the traffic until its hard lifetime runs out. How many minutes after the tunnel came up does the office's traffic stop? Exactly.
+unit: minutes
+answer: 66
+tolerance: { absolute: 0 }
+given: { rekey: 60, longer: 10 }
+working: rekey + rekey * longer / 100
+mistakes:
+  - id: rekey-time
+    value: 60
+    working: rekey
+    why: The rekey is only the first try. When it fails, the old CHILD_SA keeps working, and strongSwan tries again, until the hard lifetime ends it.
+  - id: ten-minutes
+    value: 70
+    working: rekey + longer
+    why: The hard lifetime is 10% longer than the rekey time, not 10 minutes longer. 10% of 60 minutes is 6.
+  - id: ike-rekey
+    value: 240
+    working: "240"
+    why: That is the IKE_SA's rekey time, 4 hours by default. The CHILD_SA, which carries the traffic, has its own, shorter lifetime and runs out first.
+explanation: |
+  60 + 60 × 10 / 100 = 66 minutes: the tunnel works for an hour and six minutes after every restart, then stops, which is what makes a PFS mismatch so confusing. strongSwan's own defaults are these: a CHILD_SA rekeys after an hour and its `life_time` defaults to 110% of its `rekey_time`. The walkthrough's first CHILD_SA showed it: `rekeying in 3500s, expires in 3960s`.
+skills: [ipsec-building-blocks]

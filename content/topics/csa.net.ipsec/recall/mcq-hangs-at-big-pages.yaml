@@ -1,0 +1,14 @@
+id: mcq-hangs-at-big-pages
+type: mcq
+rev: 1
+prompt: |
+  Through the office's tunnel, the app's front page loads at once and `ping 10.20.1.10` works, but the 300 KB report sits at 0 bytes until `curl` gives up. The tunnel and BGP are up. What is the likeliest cause?
+choices:
+  - "Full-size packets don't fit a link on the path, and the ICMP that would say so is dropped"
+  - "TCP's window is too small for the tunnel's round trip, so a long transfer stalls at the start"
+  - "AES-GCM encrypts at most 1,024 bytes a packet, so ESP drops every packet bigger than that"
+  - "The provider's BGP limits each route to small packets until the session's hold time passes"
+answer: 0
+explanation: |
+  Small things work and big things hang: the path MTU black hole from Layers and packets, made likelier by a tunnel. ESP adds about 54 bytes with AES-GCM, so a full-size 1,500-byte packet from the app no longer fits the path once wrapped, and with DF set it is dropped where a link is too small; when the "fragmentation needed" message that should come back is filtered, the sender keeps resending the same big packet. The handshake, the front page and the ping are small enough to fit. A small window makes a transfer slow, never stuck at 0 bytes; AES-GCM encrypts packets of any size; and BGP carries routes, not limits on packet size. The fix on your side is MSS clamping on the tunnel interface, in both directions.
+skills: [tunnel-mtu]

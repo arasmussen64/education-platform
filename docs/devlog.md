@@ -34,15 +34,22 @@ The owner is still away; decisions follow their message of 2026-11-11. Wave 3 (c
 
 **Certificates and mutual TLS is ready** (#272). It teaches certificate chains and what a client checks at each link, ACME (a local step-ca as the certificate authority and certbot as the client, renewing on a timer), rotation and why lifetimes are shrinking (the CA/Browser Forum's schedule to 47 days by 2029), and mutual TLS, where the server asks for the client's certificate too. Five labs (44 known-wrong fixes) and 21 recall items. The review found that serving the API over plain HTTP for its own name passed the build (anyone could read the orders without a certificate), that the write lab's example certificates were made when the image was built, so they would expire in a cached image within a month, and that the debug's three faults fixed with the renewal timer switched off passed.
 
+**VPNs and IPsec is ready** (#273). It teaches IKEv2's two phases and what each sets up, proposals and why a cloud's weak default gets accepted, a route-based tunnel (a VTI, as the three clouds build theirs) with BGP over it, the tunnel's MTU, keeping a connection up across the provider's maintenance and rekeys, and reading both ends' logs for eight failures. The provider's gateway is sealed scenery modelled on AWS's, which lists its weak proposal first. Five labs (39 known-wrong fixes) and 30 recall items. The review found a default route let in from BGP that passed (the gateway's own static default always won), a connection left at one attempt (`keyingtries` 1) that passed, an ESP proposal fixed only in the running charon that passed, and a write lab that named each check log after its answer.
+
+**A check may make the scenery act early** (ADR-0018's third amendment). The certificates topic's checks force a renewal that the machine's timer would run, and IPsec's restart the provider's gateway as its maintenance would and have it start a rekey. Each changes nothing the learner made and leaves the lab as the system itself would, like a link cut or an offered route.
+
 **Author notes:**
 
 - _Congestion's build puts the firewall on a separate router,_ not on the server as the plan had it, so the build asks for UDP 443 on every firewall on the path and isn't a twin of the fill-in and the debug.
 - _Congestion's thresholds sit in the measured gaps:_ CUBIC managed 1.4 to 9 Mbit/s and BBR 41 to 45 on the lossy paths, so 25 Mbit/s is the line.
+- _DNS's write lab raced in CI a third time_ (#273's first run), even with ns2's short retry: ns2 still held no zone when the last check ran. If ns2 doesn't hold the zone yet, the check now has it fetch the zone (`rndc retransfer`, what ns2 would do on its own, sooner), then waits.
+- _Certificates' write lab had a knife edge:_ its example certificates last a whole number of days from when they're made, so a few seconds later they cross a day boundary, and the check (which worked out the days before the script ran) once wanted 400 where the script rightly said 399. The check now reads the days just before and just after the script, and accepts either.
+- _IPsec's `keyingtries = 0` is taught and checked in the build_ by starting charon in `netlab verify`'s copy with fast retransmits, since `swanctl --list-conns` doesn't show it. DPD has no behavioural check: testing it needs a silent cut longer than charon's whole retransmit sequence. The fill-in accepts only the documented words for the connection's actions, not strongSwan's aliases.
 - _Certificates takes 280 minutes, not the plan's 230,_ its writer's own working, for the same reason as HTTP and TLS: the plan's figure came before the split gave the topic its own labs.
 - _Certificates' image fetches step-ca and step-cli from GitHub,_ pinned by version and checksum, as decided on 2026-11-11. The pinned files are for amd64 machines only; an ARM machine would need its own checksums added.
 - _Google's 2017 BBR blog post was dropped_ (it renders only in a browser, so neither its numbers nor its licence could be read again), and the lesson claims nothing about congestion control at the clouds' own edges that couldn't be re-read.
 
-**Next:** IPsec in its own pull request; wave 4 is being written.
+**Next:** wave 4 (Network troubleshooting and Checkpoint 3), being written now, which finishes Module 3; then Module 4 from its plan.
 
 ## 2026-11-12, evening: Module 3's wave 2
 

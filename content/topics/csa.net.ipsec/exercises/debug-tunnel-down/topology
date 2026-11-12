@@ -1,0 +1,39 @@
+# The network of "The tunnel is down": the shop's office and its VPN
+# gateway, the office's internet provider on its new line, the internet,
+# and the cloud provider's VPN gateway with the shop's cloud network.
+#
+#   office --- vpn --- isp ==(the new line)== internet --- cloud --[vpc]-- app
+#   192.168.10.10  198.51.100.10                        203.0.113.10   10.20.1.10
+#
+# vpn is the office's VPN gateway, the learner's. isp (the office's
+# internet provider) and internet are routers that aren't the learner's,
+# with the provider's new line between them. cloud stands in for a cloud
+# provider's VPN gateway (AS 64512) and isn't the learner's either.
+machine office
+machine vpn router
+machine isp router
+machine internet router
+machine cloud router
+machine app
+
+link office:eth0=192.168.10.10/24 vpn:lan=192.168.10.1/24
+link vpn:wan=198.51.100.10/24 isp:office=198.51.100.1/24
+link isp:line=192.0.2.1/30 internet:line=192.0.2.2/30
+link internet:cloud=203.0.113.1/24 cloud:wan=203.0.113.10/24
+lan vpc cloud:vpc=10.20.0.1/16 app:eth0=10.20.1.10/16
+route office default via 192.168.10.1
+route app default via 10.20.0.1
+route isp 203.0.113.0/24 via 192.0.2.2
+route internet 198.51.100.0/24 via 192.0.2.1
+mtu isp line 1400
+mtu internet line 1400
+
+# The provider's end of the tunnel. Key 7 is the mark that ties its vti0 to
+# the IPsec SA whose mark_in and mark_out are 7 (cloud's swanctl file).
+tunnel cloud vti0 vti local 203.0.113.10 remote 198.51.100.10 key 7 addr 169.254.21.1/30
+
+run vpn frr strongswan nftables
+run isp nftables
+run internet nftables
+run cloud frr strongswan
+run app nginx web-svc

@@ -1,0 +1,140 @@
+# The checks of "Write ike-diagnose". Each runs the learner's script, as the
+# learner, on logs made now from the lines this topic's labs captured, with
+# addresses, names, numbers, times and harmless extra lines chosen afresh
+# (/usr/local/lib/lab-checks/ike-log), so a script that answers the sample
+# logs by heart fails. Each log gets a random file name, so the name gives
+# nothing away either. A wrong answer leaves its log in
+# /tmp/ike-diagnose-check.log for the learner to read.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: each-case-right
+    description: "On a fresh log of each kind (made now, with addresses, names and times the script hasn't seen), ike-diagnose prints the right line: eight logs, one of them a tunnel that came up after a lost packet."
+    command: |
+      s=/home/learner/bin/ike-diagnose
+      [ -x "$s" ] || { echo "there is no executable ~/bin/ike-diagnose"; exit 0; }
+      gen=/usr/local/lib/lab-checks/ike-log
+      dir=$(mktemp -d)
+      chmod 755 "$dir"
+      trap 'rm -rf "$dir"' EXIT
+      want() {
+        case $1 in
+          up) echo "up" ;;
+          ike-proposal) echo "phase 1: no proposal chosen" ;;
+          auth) echo "phase 1: authentication failed" ;;
+          esp-proposal) echo "phase 2: no proposal chosen" ;;
+          selectors) echo "phase 2: traffic selectors unacceptable" ;;
+          rekey) echo "phase 2: rekey failed" ;;
+          no-answer) echo "no answer from the peer" ;;
+        esac
+      }
+      try() {
+        f=$(mktemp -p "$dir" XXXXXXXX.log)
+        "$gen" "$@" --seed "$((RANDOM * 32768 + RANDOM))" > "$f"
+        chmod 644 "$f"
+        got=$(cd /home/learner && timeout 5 runuser -u learner -- "$s" "$f" 2> /dev/null)
+        if [ "$got" != "$(want "$1")" ]; then
+          cp "$f" /tmp/ike-diagnose-check.log
+          chmod 644 /tmp/ike-diagnose-check.log
+          echo "for a log whose answer is '$(want "$1")', the script printed '$got' (the log is in /tmp/ike-diagnose-check.log)"
+          exit 0
+        fi
+      }
+      for c in ike-proposal auth esp-proposal selectors rekey no-answer up; do try "$c"; done
+      try up --retransmit
+      echo "all right"
+    expect:
+      equals: "all right"
+  - id: twenty-random
+    description: "On 20 more fresh logs, each kind at least twice, in a random order, ike-diagnose is right every time."
+    command: |
+      s=/home/learner/bin/ike-diagnose
+      [ -x "$s" ] || { echo "there is no executable ~/bin/ike-diagnose"; exit 0; }
+      gen=/usr/local/lib/lab-checks/ike-log
+      dir=$(mktemp -d)
+      chmod 755 "$dir"
+      trap 'rm -rf "$dir"' EXIT
+      want() {
+        case $1 in
+          up) echo "up" ;;
+          ike-proposal) echo "phase 1: no proposal chosen" ;;
+          auth) echo "phase 1: authentication failed" ;;
+          esp-proposal) echo "phase 2: no proposal chosen" ;;
+          selectors) echo "phase 2: traffic selectors unacceptable" ;;
+          rekey) echo "phase 2: rekey failed" ;;
+          no-answer) echo "no answer from the peer" ;;
+        esac
+      }
+      all=(up ike-proposal auth esp-proposal selectors rekey no-answer)
+      list=("${all[@]}" "${all[@]}")
+      for _ in 1 2 3 4 5 6; do list+=("${all[RANDOM % 7]}"); done
+      right=0
+      for c in $(printf '%s\n' "${list[@]}" | shuf); do
+        f=$(mktemp -p "$dir" XXXXXXXX.log)
+        flags=()
+        [ "$c" = up ] && [ $((RANDOM % 2)) = 1 ] && flags=(--retransmit)
+        "$gen" "$c" "${flags[@]}" --seed "$((RANDOM * 32768 + RANDOM))" > "$f"
+        chmod 644 "$f"
+        got=$(cd /home/learner && timeout 5 runuser -u learner -- "$s" "$f" 2> /dev/null)
+        if [ "$got" != "$(want "$c")" ]; then
+          cp "$f" /tmp/ike-diagnose-check.log
+          chmod 644 /tmp/ike-diagnose-check.log
+          echo "$right of 20 right; then, for a log whose answer is '$(want "$c")', the script printed '$got' (the log is in /tmp/ike-diagnose-check.log)"
+          exit 0
+        fi
+        right=$((right + 1))
+      done
+      echo "$right of 20 right"
+    expect:
+      equals: "20 of 20 right"
+  - id: ignores-the-prefix
+    description: "ike-diagnose reads the messages, whatever comes before them: on a fresh log of each kind written with full dates and times (journalctl -o short-iso), it is right every time."
+    command: |
+      s=/home/learner/bin/ike-diagnose
+      [ -x "$s" ] || { echo "there is no executable ~/bin/ike-diagnose"; exit 0; }
+      gen=/usr/local/lib/lab-checks/ike-log
+      dir=$(mktemp -d)
+      chmod 755 "$dir"
+      trap 'rm -rf "$dir"' EXIT
+      want() {
+        case $1 in
+          up) echo "up" ;;
+          ike-proposal) echo "phase 1: no proposal chosen" ;;
+          auth) echo "phase 1: authentication failed" ;;
+          esp-proposal) echo "phase 2: no proposal chosen" ;;
+          selectors) echo "phase 2: traffic selectors unacceptable" ;;
+          rekey) echo "phase 2: rekey failed" ;;
+          no-answer) echo "no answer from the peer" ;;
+        esac
+      }
+      for c in up ike-proposal auth esp-proposal selectors rekey no-answer; do
+        f=$(mktemp -p "$dir" XXXXXXXX.log)
+        "$gen" "$c" --iso --seed "$((RANDOM * 32768 + RANDOM))" > "$f"
+        chmod 644 "$f"
+        got=$(cd /home/learner && timeout 5 runuser -u learner -- "$s" "$f" 2> /dev/null)
+        if [ "$got" != "$(want "$c")" ]; then
+          cp "$f" /tmp/ike-diagnose-check.log
+          chmod 644 /tmp/ike-diagnose-check.log
+          echo "for a log with full dates whose answer is '$(want "$c")', the script printed '$got' (the log is in /tmp/ike-diagnose-check.log)"
+          exit 0
+        fi
+      done
+      echo "all right"
+    expect:
+      equals: "all right"
+  - id: missing-file
+    description: "Given a log file that doesn't exist, ike-diagnose prints nothing on standard output, says why on standard error, and exits with a status other than 0."
+    command: |
+      s=/home/learner/bin/ike-diagnose
+      [ -x "$s" ] || { echo "there is no executable ~/bin/ike-diagnose"; exit 0; }
+      err=$(mktemp)
+      chmod 666 "$err"
+      trap 'rm -f "$err"' EXIT
+      out=$(cd /home/learner && timeout 5 runuser -u learner -- "$s" "/tmp/no-such-log-$RANDOM.log" 2> "$err")
+      status=$?
+      [ "$status" -ne 0 ] || { echo "for a missing file the script exits 0"; exit 0; }
+      [ -z "$out" ] || { echo "for a missing file the script prints on standard output: $out"; exit 0; }
+      [ -s "$err" ] || { echo "for a missing file the script says nothing on standard error"; exit 0; }
+      echo "fails well"
+    expect:
+      equals: "fails well"

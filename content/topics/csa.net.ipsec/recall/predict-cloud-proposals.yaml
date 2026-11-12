@@ -1,0 +1,23 @@
+id: predict-cloud-proposals
+type: predict_shell
+rev: 1
+# cloud.log is captured: five lines of charon's log on the provider's
+# gateway during an attempt whose ESP proposal it refused (journalctl -u
+# strongswan@cloud -o cat), in the worked example's lab (strongSwan 5.9.13,
+# Ubuntu 24.04, 2026-11-12).
+prompt: |
+  The office's tunnel won't come up, and the provider's VPN log, `cloud.log`, has these five lines for the attempt. The command cuts each `proposals:` line short after its first two parts. What does it print?
+files:
+  cloud.log: |
+    IKE_SA office[6] established between 203.0.113.10[203.0.113.10]...198.51.100.10[198.51.100.10]
+    received proposals: ESP:AES_CBC_256/HMAC_SHA1_96/NO_EXT_SEQ
+    configured proposals: ESP:AES_GCM_16_256/MODP_2048/NO_EXT_SEQ, ESP:AES_GCM_16_128/MODP_2048/NO_EXT_SEQ
+    no acceptable proposal found
+    failed to establish CHILD_SA, keeping IKE_SA
+command: grep 'proposals:' cloud.log | cut -d/ -f1,2
+expected_output: |
+  received proposals: ESP:AES_CBC_256/HMAC_SHA1_96
+  configured proposals: ESP:AES_GCM_16_256/MODP_2048
+explanation: |
+  `cut -d/ -f1,2` keeps what comes before the second `/`. The proposals are `ESP:` ones, so this is phase 2, and the IKE_SA above them is established: phase 1 worked. vpn offered AES-CBC with SHA-1 for integrity and no DH group; the provider takes only AES-GCM with DH group 14 (`MODP_2048`) for perfect forward secrecy, so `no acceptable proposal found`, and vpn's side logs `received NO_PROPOSAL_CHOSEN notify, no CHILD_SA built`. The fix is vpn's `esp_proposals`, from the sheet: `aes256gcm16-modp2048`.
+skills: [read-ike-logs, ipsec-building-blocks]

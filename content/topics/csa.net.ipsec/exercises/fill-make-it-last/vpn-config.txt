@@ -1,0 +1,33 @@
+VPN connection: the shop's office to its cloud network
+(a provider's configuration sheet, in the shape of the file a cloud lets
+you download for a site-to-site VPN; the numbers are this lab's)
+
+Your gateway (the customer gateway)
+  Outside address ........ 198.51.100.10
+  Identity (IKE ID) ...... 198.51.100.10
+  BGP AS number .......... 65010
+
+The provider's VPN gateway
+  Outside address ........ 203.0.113.10
+  Identity (IKE ID) ...... 203.0.113.10
+  BGP AS number .......... 64512
+  Networks behind it ..... 10.20.0.0/16
+
+Tunnel 1
+  IKE version ............ IKEv2
+  Authentication ......... pre-shared key
+  Pre-shared key ......... rT7qV2mX9pL4wZ8kN3bF6hJ1
+  Phase 1 (IKE) .......... aes256-sha256-modp2048
+                           (AES-CBC 256, SHA-256, DH group 14)
+  Phase 2 (IPsec, ESP) ... aes256gcm16-modp2048
+                           (AES-GCM 256, perfect forward secrecy with DH group 14)
+  Traffic selectors ...... 0.0.0.0/0 both ways (route-based)
+  Inside addresses ....... 169.254.21.0/30
+                           the provider's end 169.254.21.1, yours 169.254.21.2
+  Routing ................ BGP between the inside addresses
+                           keepalive 3 s, hold time 9 s in this lab
+                           (real gateways: 30 s and 90 s, or 60 s and 180 s)
+
+Who starts the tunnel: your gateway. The provider's gateway answers and
+never initiates. During maintenance it restarts; your gateway must bring
+the tunnel back by itself.

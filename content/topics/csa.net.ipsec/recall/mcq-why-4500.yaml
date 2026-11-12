@@ -1,0 +1,14 @@
+id: mcq-why-4500
+type: mcq
+rev: 1
+prompt: |
+  There is no NAT between vpn and the provider's gateway, yet `swanctl --list-sas` shows both ends of the IKE_SA on port 4500 (`198.51.100.10[4500]`). Why?
+choices:
+  - "Both ends support MOBIKE, so they move IKE to 4500 in IKE_AUTH, NAT or not"
+  - "A NAT was found after all, since strongSwan moves to 4500 only behind one"
+  - "IKE_SA_INIT failed on port 500, and strongSwan tried again on port 4500"
+  - "Port 4500 carries the ESP packets, and IKE moves to the port that ESP uses"
+answer: 0
+explanation: |
+  MOBIKE (RFC 4555) lets a tunnel survive an address change, such as a laptop moving between networks. Its rule is that implementations supporting both MOBIKE and NAT traversal move to port 4500 if the other end supports both, even when no NAT was detected, so that a NAT appearing later doesn't need another change of port. strongSwan has MOBIKE on by default, so the move happens in IKE_AUTH, the second exchange. Nothing failed on port 500: IKE_SA_INIT was answered there. And without a NAT, ESP isn't on any port: it is IP protocol 50, beside IKE's UDP 4500.
+skills: [ipsec-building-blocks]

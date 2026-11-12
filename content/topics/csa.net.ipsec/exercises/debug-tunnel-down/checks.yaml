@@ -1,0 +1,150 @@
+# The checks of "The tunnel is down". Each states the end state, never a
+# fault: the tunnel as the provider sees it, a rekey started by the
+# provider, BGP's route to the cloud, a big download and a big upload from
+# the office, the firewall's file against the running rules, the parts
+# that aren't the learner's against their files, and vpn's connection
+# against its file. tunnel-up waits for the tunnel after a boot; the rest
+# read at once, except survives-a-rekey, which rekeys from the provider's
+# side and waits for vpn's answer.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: tunnel-up
+    description: "The provider's gateway has an IPsec tunnel with vpn (198.51.100.10) whose CHILD_SA is installed for 0.0.0.0/0 both ways."
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      route_based() {
+        on cloud swanctl --list-sas 2> /dev/null | awk '
+          /ESTABLISHED/ {ike = 1}
+          /: #[0-9]+, reqid/ {child = /INSTALLED/; l = r = 0}
+          child && $1 == "local" && $2 == "0.0.0.0/0" {l = 1}
+          child && $1 == "remote" && $2 == "0.0.0.0/0" {r = 1}
+          ike && l && r {ok = 1}
+          END {exit !ok}'
+      }
+      wait_for 20 route_based && { echo "tunnel up"; exit 0; }
+      echo "the provider's gateway has no CHILD_SA installed with vpn for 0.0.0.0/0 both ways"
+    expect:
+      equals: "tunnel up"
+  - id: survives-a-rekey
+    description: "When the provider rekeys the CHILD_SA, the new one is installed with fresh keys from its own Diffie-Hellman exchange (group 14, MODP-2048), as the sheet's ESP proposal asks."
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null || { echo "there is no CHILD_SA to rekey"; exit 0; }
+      on cloud swanctl --rekey --child office-vti > /dev/null 2>&1
+      rekeyed() { on cloud swanctl --list-sas 2> /dev/null | grep 'INSTALLED, TUNNEL, ESP:AES_GCM_16-256/MODP_2048' > /dev/null; }
+      wait_for 10 rekeyed || { echo "after the provider's rekey there is no CHILD_SA with its own MODP-2048 key exchange"; exit 0; }
+      echo rekeyed
+    expect:
+      equals: rekeyed
+  - id: routes-by-bgp
+    description: "vpn reaches the cloud's 10.20.0.0/16 by a route BGP learned through vti0, and has no routes typed in by hand and no static route but its default."
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null || { echo "there is no tunnel for BGP to run in"; exit 0; }
+      route() { frr vpn 'show ip route 10.20.0.0/16 json' | json "[(r['protocol'], [n.get('interfaceName') for n in r['nexthops']]) for r in d.get('10.20.0.0/16', []) if r.get('selected')]"; }
+      learned() { [ "$(route)" = '[["bgp", ["vti0"]]]' ]; }
+      wait_for 20 learned || { echo "vpn's route to 10.20.0.0/16 isn't one learned by BGP through vti0: $(route)"; exit 0; }
+      typed=$(hand_routes vpn)
+      [ -z "$typed" ] || { echo "vpn has routes typed by hand: $(echo "$typed" | head -n 2 | tr '\n' ';')"; exit 0; }
+      statics=$(frr vpn 'show ip route static json' | json "sorted(d)")
+      [ "$statics" = '["0.0.0.0/0"]' ] || { echo "vpn's FRR has static routes besides its default: $statics"; exit 0; }
+      echo "by BGP"
+    expect:
+      equals: "by BGP"
+  - id: big-download
+    description: "The office downloads the app's 303,030-byte report, all of it, within 10 seconds."
+    command: |
+      ip -d -n vpn route show 10.20.0.0/16 | grep 'proto bgp' > /dev/null || { echo "vpn has no route to the cloud's network"; exit 0; }
+      on office curl -s -m 10 -o /dev/null -w '%{size_download}' http://10.20.1.10/report.txt
+    expect:
+      equals: "303030"
+  - id: big-upload
+    description: "The office uploads 400,000 bytes to the app's port 9000, and the app counts all of them, within 10 seconds."
+    command: |
+      ip -d -n vpn route show 10.20.0.0/16 | grep 'proto bgp' > /dev/null || { echo "vpn has no route to the cloud's network"; exit 0; }
+      head -c 400000 /dev/zero | timeout 10 ip netns exec office nc -N 10.20.1.10 9000
+    expect:
+      equals: "400000"
+  - id: firewall-lasts
+    description: "vpn's running firewall is the one its /etc/nftables.conf loads at boot, and nftables@vpn starts at boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(systemctl is-enabled nftables@vpn)" = enabled ] || { echo "nftables@vpn doesn't start at boot"; exit 0; }
+      nft_saved vpn && echo saved
+    expect:
+      equals: saved
+  - id: others-untouched
+    description: "The office laptop, the internet provider's routers and line, the network and the cloud provider's gateway are as they were, on disk and running."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      mtu=$(ip -j -n office link show eth0 | json "d[0]['mtu']")
+      [ "$mtu" = 1500 ] || { echo "the office laptop's eth0 has an MTU of $mtu, not 1500"; exit 0; }
+      for m in isp internet; do
+        line=$(ip -j -n "$m" link show line | json "d[0]['mtu']")
+        [ "$line" = 1400 ] || { echo "$m's new line has an MTU of $line now"; exit 0; }
+        nft_saved "$m" > /dev/null || { echo "$m's firewall was changed while running"; exit 0; }
+      done
+      sealed=$(intact)
+      [ "$sealed" = intact ] || { echo "$sealed"; exit 0; }
+      frr_saved cloud > /dev/null || { echo "the provider's routing was changed while running"; exit 0; }
+      # The provider's IPsec connection as loaded now, against one started
+      # from its files in netlab verify's throwaway copy.
+      live=$(on cloud swanctl --list-conns 2> /dev/null)
+      fresh=$(netlab verify cloud -- bash -c '
+        on chk-cloud /usr/sbin/charon-systemd > /dev/null 2>&1 &
+        charon=$!
+        for i in $(seq 1 50); do on chk-cloud swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-cloud swanctl --load-all --noprompt > /dev/null 2>&1
+        on chk-cloud swanctl --list-conns 2> /dev/null
+        kill "$charon" 2> /dev/null
+        wait "$charon" 2> /dev/null
+        true')
+      [ -n "$live" ] && [ "$live" = "$fresh" ] || { echo "the provider's IPsec connection was changed while running"; exit 0; }
+      echo intact
+    expect:
+      equals: intact
+  - id: config-lasts
+    description: "vpn's IPsec connection, as loaded now, is the one its files give an IPsec daemon at boot, and strongswan@vpn starts at boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      [ "$(systemctl is-enabled strongswan@vpn)" = enabled ] || { echo "strongswan@vpn doesn't start at boot"; exit 0; }
+      live=$(on vpn swanctl --list-conns 2> /dev/null)
+      # A charon started from vpn's files in netlab verify's copy: its
+      # connections, and the proposals it loaded, which --list-conns doesn't
+      # show (its settings file adds a log of what it loads, lines marked @@).
+      out=$(netlab verify vpn -- bash -c '
+        conf=$(mktemp /tmp/chk-strongswan-XXXXXX.conf)
+        log=$(mktemp /tmp/chk-charon-XXXXXX.log)
+        printf "%s\n" "include /etc/strongswan.conf" "charon-systemd {" "  filelog {" "    chk {" "      path = $log" "      default = -1" "      cfg = 2" "    }" "  }" "}" > "$conf"
+        chmod 644 "$conf"
+        chmod 666 "$log"
+        on chk-vpn env STRONGSWAN_CONF="$conf" /usr/sbin/charon-systemd > /dev/null 2>&1 &
+        charon=$!
+        for i in $(seq 1 50); do on chk-vpn swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-vpn swanctl --load-all --noprompt > /dev/null 2>&1
+        on chk-vpn swanctl --list-conns 2> /dev/null
+        kill "$charon" 2> /dev/null
+        wait "$charon" 2> /dev/null
+        sed -n "s/^.*\] *proposals = /@@ /p" "$log"
+        rm -f "$conf" "$log"
+        true')
+      fresh=$(echo "$out" | grep -v '^@@ ')
+      [ -n "$live" ] || { echo "vpn has no IPsec connection loaded"; exit 0; }
+      [ "$live" = "$fresh" ] || { echo "vpn's loaded connection isn't the one in its files (or its other files don't match what boots): $(echo "$fresh" | head -n 1)"; exit 0; }
+      # Once the tunnel runs with the sheet's AES-GCM, the files must give
+      # the same at boot: their first ESP proposal is the sheet's, with its
+      # DH group.
+      if on vpn swanctl --list-sas 2> /dev/null | grep 'INSTALLED, TUNNEL, ESP:AES_GCM_16-256' > /dev/null; then
+        esp=$(echo "$out" | sed -n 's/^@@ \(ESP:[^,]*\).*/\1/p' | head -n 1)
+        case $esp in
+          ESP:AES_GCM_16_256/MODP_2048/*) ;;
+          *) echo "the tunnel running now isn't the one vpn's files give at boot: an IPsec daemon started from them proposes ${esp:-nothing} for the traffic"; exit 0 ;;
+        esac
+      fi
+      echo saved
+    expect:
+      equals: saved
