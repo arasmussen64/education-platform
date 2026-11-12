@@ -1,16 +1,318 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.congestion
 kind: topic
-status: planned
+status: ready
 title: Congestion control and QUIC
-summary: Explain CUBIC and BBR, and how loss and latency interact.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Explain the congestion window beside the receive window, slow start, and how CUBIC and other loss-based algorithms slow down at every lost packet, so that loss and distance together cap one connection; explain what BBR measures instead and what it costs, and set a sender's congestion control so that it lasts; then explain what QUIC changes, how a browser finds HTTP/3 and falls back without it, and turn HTTP/3 on for a server and its firewall."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2
+# and 5, topic 29) and its designer's brief (csa.net.congestion.md). Through
+# csa.net.transport this builds on csa.net.nat, csa.net.routing (sysctl and
+# /etc/sysctl.d, later files winning), csa.net.ipv6 (a DNS record in a
+# sentence), csa.net.cidr, csa.net.layers (MTU, the network labs' machines,
+# on, netlab, name@machine services) and csa.m1.checkpoint; for the writer,
+# Module 1's nftables (policy drop, saved against running), tcpdump, ss,
+# curl -I and awk's printf. From csa.net.transport it uses the receive
+# window and window scaling, round trips and the bandwidth-delay product,
+# retransmission and backoff, iperf3, UDP and the 30-second UDP mapping, and
+# the postcards picture of TCP's byte stream. It defines QUIC, stream,
+# head-of-line blocking, 0-RTT and Alt-Svc (the plan's section 3.7), and
+# says of TLS and HTTP/2 only what it needs: HTTP and TLS, after it,
+# teaches them and refers back here for QUIC.
+prerequisites: [csa.net.transport]
+# Worked out: the lesson about 25 minutes (3,300 words at 130 a minute);
+# reading about 50 (HPBN's three sections 18, the tcp_bbr.c comment 4, the
+# BBR draft's abstract and introduction 5, HTTP/3 explained's six sections
+# 15, the three clouds' HTTP/3 pages 8); 21 recall items at 1.5 each 32;
+# the worked example 40, the fill-in 25, the write 30, the build 50, the
+# debug 45 and the explain 20: 317, less the overlap of the worked
+# example's reading with the lesson's (the same captures): 300.
+estimated_minutes: 300
 rev: 1
 objectives:
-- Explain CUBIC and BBR, and how loss and latency interact.
-- Choose and set a sender's congestion control.
-- Explain what QUIC and HTTP/3 change, and when they help.
+  - "Explain the congestion window beside the receive window, slow start from 10 segments, and congestion avoidance with Reno's halving and CUBIC's cut to 0.7, and read `cwnd`, `ssthresh`, `rtt` and `retrans` in `ss -tni`."
+  - "Explain why a loss-based algorithm slows down on a long path that loses packets at random, and work out roughly what one connection can carry from its round trip and loss rate (about 1.2 × MSS ÷ (RTT × √p)), and what changes it: distance, loss, parallel connections, a different algorithm."
+  - "Explain what BBR measures and does instead (the bottleneck bandwidth, the minimum round trip, pacing), show the difference on a lossy path, name its costs, and set a sender's congestion control so that it lasts, knowing that only the sending side's choice matters."
+  - "Explain what QUIC changes: one handshake for transport and encryption, streams that don't block each other, connection IDs that survive a new address, an encrypted transport that boxes in the middle can't read; and read what a capture and a client's own log show of it."
+  - "Explain how a browser finds HTTP/3 (Alt-Svc, HTTPS DNS records), what happens when UDP port 443 is blocked, when HTTP/3 helps and when it doesn't, and what the three clouds offer; and turn it on for a server and every firewall in front of it."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - Linux's net/ipv4/tcp_bbr.c, the comment at the top: bottleneck_bandwidth
+#   = windowed_max(delivered / elapsed, 10 round trips); min_rtt =
+#   windowed_min(rtt, 10 seconds); "The core algorithm does not react
+#   directly to packet losses or delays"; STARTUP, DRAIN, PROBE_BW,
+#   PROBE_RTT; with fq "with pacing enabled", "otherwise TCP stack falls back
+#   to an internal pacing"; no version named; SPDX GPL-2.0 OR BSD-3-Clause:
+#   https://raw.githubusercontent.com/torvalds/linux/master/net/ipv4/tcp_bbr.c
+# - Mainline Linux's BBR is version 1: Neal Cardwell on the bbr-dev list,
+#   2025-03-15, "The net-next and mainline Linux trees still have BBR 1.x";
+#   no merge of version 3 found since (a search, 2026-11-12):
+#   https://groups.google.com/g/bbr-dev/c/4vwZGw0nxdQ
+# - draft-ietf-ccwg-bbr-07, 2 November 2026, "specifies version 3 of the
+#   BBR algorithm, BBRv3"; intended status Experimental; Cardwell, Swett
+#   (Google), Beshay (Meta); BBR.LossThresh 2%, BBR.Beta 0.7; open source
+#   implementations for TCP and QUIC:
+#   https://datatracker.ietf.org/doc/draft-ietf-ccwg-bbr/
+# - RFC 9438 (August 2023, Standards Track, obsoletes RFC 8312): β_cubic
+#   0.7, C 0.4, "adopted as the default TCP congestion control algorithm in
+#   the Linux, Windows, and Apple stacks":
+#   https://www.rfc-editor.org/rfc/rfc9438.html
+# - RFC 5681 section 3.1: slow start while cwnd < ssthresh, cwnd grows by at
+#   most SMSS per ACK of new data; congestion avoidance SMSS*SMSS/cwnd per
+#   ACK; ssthresh = max(FlightSize / 2, 2*SMSS) after a timeout:
+#   https://www.rfc-editor.org/rfc/rfc5681.txt
+# - RFC 6928: initial window min(10*MSS, max(2*MSS, 14600)):
+#   https://www.rfc-editor.org/rfc/rfc6928.txt
+# - RFC 3649 (Experimental, December 2003): "the current Standard TCP's
+#   average congestion window is roughly 1.2/sqrt(p) segments":
+#   https://www.rfc-editor.org/rfc/rfc3649.txt
+# - Geoff Huston, "BBR, the new kid on the TCP block", APNIC blog,
+#   2017-05-09: BBR "more successful in claiming path resources" than CUBIC
+#   in his tests; Google's report of token-bucket policers and "continuous
+#   moderate losses": https://blog.apnic.net/2017/05/09/bbr-new-kid-tcp-block/
+# - The kernel's ip-sysctl page: tcp_congestion_control "to be used for new
+#   connections", "For passive connections, the listener congestion control
+#   choice is inherited"; tcp_available_congestion_control, "More congestion
+#   control algorithms may be available as modules, but not loaded";
+#   tcp_allowed_congestion_control for non-privileged processes:
+#   https://docs.kernel.org/networking/ip-sysctl.html
+# - tcp(7), man-pages 6.19 (2026-04-19): TCP_CONGESTION per socket;
+#   unprivileged processes restricted to tcp_allowed_congestion_control:
+#   https://man7.org/linux/man-pages/man7/tcp.7.html
+# - tc-netem(8): "Each packet loss is independent" (loss random); rate
+#   "Delays packets based on packet size to emulate a fixed link speed":
+#   https://man7.org/linux/man-pages/man8/tc-netem.8.html
+# - iperf3: -C "Set the congestion control algorithm (Linux and FreeBSD
+#   only)", -t default 10 s, -f format, --forceflush:
+#   https://software.es.net/iperf/invoking.html
+# - RFC 9000: clients pad datagrams carrying Initial packets to at least
+#   1200 bytes; before validation a server sends at most three times what it
+#   received; "Only clients are able to migrate in this version of QUIC";
+#   the effective idle timeout is the minimum of the two advertised values;
+#   "sending packets every 30 seconds is necessary to prevent the majority
+#   of middleboxes from losing state for UDP flows":
+#   https://www.rfc-editor.org/rfc/rfc9000.txt
+# - RFC 7838 section 3.1: an alternative service is "considered fresh for 24
+#   hours", changed with "ma": https://www.rfc-editor.org/rfc/rfc7838.txt
+# - RFC 9460 (November 2023): "@ 7200 IN HTTPS 1 . alpn=h3":
+#   https://www.rfc-editor.org/rfc/rfc9460.txt
+# - nginx: QUIC and HTTP/3 "available since 1.25.0" (Ubuntu 24.04 has
+#   1.24): https://nginx.org/en/docs/quic.html
+# - Caddy's global options: protocols h1, h2, h2c, h3, default "h1 h2 h3";
+#   skip_install_trust; local_certs: https://caddyserver.com/docs/caddyfile/options
+# - CloudFront: for HTTP/3 "viewers must support TLSv1.3 and Server Name
+#   Indication (SNI)"; "CloudFront supports HTTP/3 connection migration";
+#   Route 53 HTTPS records for protocol negotiation in DNS:
+#   https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistValuesGeneral.html
+# - AWS Network Load Balancer, Nov 13, 2025: QUIC in passthrough mode, "by
+#   using the QUIC Connection ID to maintain session stickiness", all
+#   commercial and GovCloud (US) regions, within UDP LCUs:
+#   https://aws.amazon.com/about-aws/whats-new/2025/11/aws-network-load-balancer-quic-passthrough-mode
+# - Google Cloud's external Application Load Balancer: HTTP/3 on the global
+#   external and the classic (Premium Tier) ones, not the regional external
+#   or Standard Tier; "for connections between clients and the load
+#   balancer"; quicOverride NONE (default, "Automatic"), ENABLE, DISABLE;
+#   "When a connection falls back to HTTPS or HTTP/2, we don't count this as
+#   a failure of the load balancer":
+#   https://docs.cloud.google.com/load-balancing/docs/https
+# - Azure Application Gateway: HTTP/3 "currently in preview"; "HTTP/3
+#   applies only to frontend client connections. Backend connections
+#   continue to use HTTP/1.1"; needs a TLS 1.3 policy (ms.date 2026-09-09):
+#   https://learn.microsoft.com/en-us/azure/application-gateway/http3-quic-support
+# - Azure Front Door FAQ: "Azure Front Door supports HTTP, HTTPS, and
+#   HTTP/2"; HTTP/1.1 to origins except gRPC routes (ms.date 2026-11-02,
+#   updated 2026-11-11). A third-party article claims HTTP/3; nothing
+#   official found, so the lesson teaches the FAQ:
+#   https://learn.microsoft.com/en-us/azure/frontdoor/front-door-faq
+# Measured in this topic's labs on 2026-11-12 (Docker Desktop 29.8.2, kernel
+# 6.18.33.2-microsoft-standard-WSL2): one iperf3 connection across 50 Mbit/s
+# with a 50 ms round trip, 46.0 Mbit/s clean (CUBIC, rtt 213 ms against
+# minrtt 50: a full 2,000-packet queue), 5.2 with 1% loss (CUBIC, 31
+# retransmitted), 44.7 with BBR through the same loss (155 retransmitted);
+# at a 100 ms round trip, CUBIC 1.4 to 5.7, BBR 40.7 to 41.6. Over the
+# office's 100 ms path, curl's TCP connect 0.100 s, TLS 0.203 s, first byte
+# 0.304 s; gtlsclient's HTTP/3 answer at 205 ms. Every output marked
+# "captured" is real output of these labs that day; addresses, ports and
+# times will differ in a new run.
+#
+# Linked, never copied. Licences, each read on 2026-11-12: High Performance
+# Browser Networking (the pages' footer: "Licensed under CC BY-NC-ND 4.0");
+# Linux's tcp_bbr.c (its SPDX line: GPL-2.0 OR BSD-3-Clause); HTTP/3
+# explained ("licensed under the Creative Commons Attribution 4.0 license",
+# its English page, and the repository's LICENSE); Internet-Drafts and RFCs
+# (the IETF Trust's legal provisions); the APNIC blog (no licence stated);
+# AWS's documentation and announcements (copyright Amazon Web Services);
+# Microsoft Learn (the MicrosoftDocs/azure-docs repository's LICENSE: CC BY
+# 4.0); Google Cloud's documentation (Google's site policies: content under
+# CC BY 4.0 except as otherwise noted); iperf3's documentation (© ESnet, no
+# licence stated on the page); the kernel's ip-sysctl page (GPL-2.0, its
+# source's SPDX line).
+# Not used: Google Cloud's 2017 BBR blog post (the designer's S2), which
+# renders in the browser and gave automated fetches only "There's been an
+# error loading the blog" on 2026-11-12, so neither its numbers nor its
+# licence could be read again; the kernel's comment and the BBR draft carry
+# the model, the lab carries the numbers. The BBR paper in ACM Queue and
+# Cloudflare's "What is HTTP/3?" answer HTTP 403.
+resources:
+  - title: "High Performance Browser Networking, chapter 2, \"Building Blocks of TCP\" (Ilya Grigorik): read \"Slow-Start\" (with \"Slow-Start Restart\" and \"Increasing TCP's Initial Congestion Window\"), \"Congestion Avoidance\" and \"Head-of-Line Blocking\", about 15 minutes"
+    url: https://hpbn.co/building-blocks-of-tcp/
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 4.0 (the page's footer); linked, not copied"
+  - title: "tcp_bbr.c, Linux's BBR: read the comment at the top of the file, BBR's model in its authors' words, about 4 minutes"
+    url: https://raw.githubusercontent.com/torvalds/linux/master/net/ipv4/tcp_bbr.c
+    type: reading
+    use: link
+    license: "GPL-2.0 OR BSD-3-Clause (its SPDX line); linked, not copied"
+  - title: "BBR Congestion Control, draft-ietf-ccwg-bbr-07 (IETF, 2 November 2026): read the abstract and section 1, \"Introduction\", BBRv3 and the problems it answers, about 5 minutes"
+    url: https://datatracker.ietf.org/doc/draft-ietf-ccwg-bbr/
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "HTTP/3 explained (Daniel Stenberg): read \"TCP head of line blocking\", \"TCP or UDP\", \"Ossification\", \"Fast handshakes\", \"Connections\" and \"Bootstrap with Alt-svc\", about 15 minutes; \"Common criticism\" is optional"
+    url: https://http3-explained.haxx.se/en/why-quic/why-tcphol
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the book's English page and its repository's LICENSE); linked, not copied"
+  - title: "External Application Load Balancer overview (Google Cloud): read the HTTP/3 section, about 3 minutes"
+    url: https://docs.cloud.google.com/load-balancing/docs/https
+    type: reading
+    use: link
+    license: "CC BY 4.0 (Google's documentation site policies); linked, not copied"
+  - title: "Distribution settings (Amazon CloudFront developer guide): read \"Supported HTTP versions\", about 2 minutes"
+    url: https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/DownloadDistValuesGeneral.html#DownloadDistValuesSupportedHTTPVersions
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "HTTP/3 support in Azure Application Gateway, preview (Microsoft Learn): about 6 minutes"
+    url: https://learn.microsoft.com/en-us/azure/application-gateway/http3-quic-support
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "AWS Network Load Balancer now supports QUIC protocol in passthrough mode (AWS What's New, 13 November 2025): optional, 2 minutes"
+    url: https://aws.amazon.com/about-aws/whats-new/2025/11/aws-network-load-balancer-quic-passthrough-mode
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "BBR, the new kid on the TCP block (Geoff Huston, APNIC blog, 2017): optional, the sections \"AIMD and TCP Reno\", \"CUBIC\", \"BBR\" and \"Sharing\""
+    url: https://blog.apnic.net/2017/05/09/bbr-new-kid-tcp-block/
+    type: reading
+    use: link
+    license: "No licence stated (© the author and APNIC); linked, not copied"
+  - title: "RFC 9438, CUBIC for Fast and Long-Distance Networks: optional, section 1 and sections 4.1 to 4.6"
+    url: https://www.rfc-editor.org/rfc/rfc9438.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "RFC 9000, QUIC: optional reference, sections 5.1 (connection IDs), 8.1 (the three-times limit), 10.1 (the idle timeout) and 14 (the 1,200-byte datagram)"
+    url: https://www.rfc-editor.org/rfc/rfc9000.html
+    type: reading
+    use: link
+    license: "IETF Trust Legal Provisions; linked, not copied"
+  - title: "Invoking iperf3 (ESnet): reference for -C, -t, -f and -R"
+    url: https://software.es.net/iperf/invoking.html
+    type: reading
+    use: link
+    license: "© ESnet (no licence stated on the page); linked, not copied"
+  - title: "IP Sysctl (the Linux kernel's documentation): reference, look up tcp_congestion_control, tcp_available_congestion_control and tcp_allowed_congestion_control"
+    url: https://docs.kernel.org/networking/ip-sysctl.html
+    type: reading
+    use: link
+    license: "GPL-2.0 (its source's SPDX line); linked, not copied"
+# The recall items read ss, a QUIC capture, gtlsclient's log and a site's
+# headers, all captured from this topic's labs, with Module 1's text tools,
+# and do the window, loss and round-trip sums as estimates. Every lab is on
+# the network-lab base (ADR-0018's third amendment), with one extra layer
+# for this topic: Caddy, aioquic (for the lab's HTTP/3 client, h3get) and
+# ngtcp2's gtlsclient, from Ubuntu's archive.
+practice:
+  - example-cubic-meets-loss
+  - est-slow-start-window
+  - mcq-cubic-after-loss
+  - ss-read-cwnd
+  - est-cwnd-to-rate
+  - mcq-loss-on-wifi
+  - mcq-bbr-measures
+  - mcq-receiver-bbr
+  - est-bbr-inflight
+  - mcq-bbr-retransmits
+  - est-loss-ceiling
+  - est-double-rtt
+  - est-quadruple-loss
+  - est-parallel-streams
+  - quic-first-datagrams
+  - est-rtt-saved
+  - mcq-hol-blocking
+  - mcq-migration
+  - mcq-capture-shows
+  - altsvc-read
+  - mcq-udp-443-blocked
+  - mcq-h3-to-backends
+  - fill-turn-on-http3
+  - write-cc-compare
+prove:
+  build: build-fast-far-site
+  debug: debug-slow-from-far
+  explain:
+    prompt: |
+      A company is moving its shop's servers to a region on another continent, about 140 ms round trip from most of its customers, many of them on mobile networks that lose about 1% of their packets. Its nightly backups will come back across the same distance. Explain, in your own words: how loss and distance together limit a TCP connection that uses CUBIC, with rough numbers; what BBR does differently, what it costs, and on which machine it has to be set to help the backups; what QUIC changes compared with TCP and TLS, and why that helps mobile customers in particular; how a browser finds out that a site speaks HTTP/3, and what happens when a customer's network blocks it; and how the three clouds' load balancers or CDNs handle HTTP/3.
+    rubric:
+      - id: loss-and-distance
+        required: true
+        description: "Loss-based algorithms such as CUBIC read every lost packet as congestion and cut the congestion window; one connection sends at most one window per round trip, so its throughput falls with the round trip and with the square root of the loss rate (about 1.2 × MSS ÷ (RTT × √p)), worked into a rough number for a path of their own; twice the round trip halves it."
+      - id: bbr
+        required: true
+        description: "BBR models the path's bottleneck bandwidth (the highest recent delivery rate) and minimum round trip, paces its packets at that rate and keeps about one bandwidth-delay product in flight, and doesn't treat random loss as congestion; its costs are more retransmissions and an unfair share against CUBIC; it must be set on the sender (for the backups, the machines that send them), lastingly, in /etc/sysctl.d or per program."
+      - id: quic
+        required: true
+        description: "QUIC runs over UDP with TLS 1.3 built into its handshake, so the first request goes after one round trip instead of two; its streams are independent, so one lost packet stalls only its own stream (no head-of-line blocking across streams); connection IDs let a phone change networks without breaking the connection; almost all of it is encrypted, so boxes on the path can't read or meddle with it."
+      - id: discovery-and-fallback
+        required: true
+        description: "The browser first comes over TCP and learns of HTTP/3 from the Alt-Svc header (h3 on a UDP port, remembered for ma seconds) or from an HTTPS DNS record; when UDP 443 is blocked the browser falls back to HTTP/2 without telling anyone, so the site works but loses the benefit; turning HTTP/3 on means the server listening on UDP 443 and every firewall on the path allowing it."
+      - id: clouds
+        required: true
+        description: "At least two correct, dated facts, such as: CloudFront offers HTTP/3 to viewers, with connection migration; AWS's Network Load Balancer passes QUIC through, sticky by connection ID; Google's global external Application Load Balancer advertises HTTP/3 by default, between clients and the load balancer only; Azure Application Gateway's HTTP/3 is a preview with HTTP/1.1 to backends; Front Door's FAQ lists HTTP/2, not HTTP/3."
+      - id: queues
+        required: false
+        description: "Bufferbloat: on a clean path a loss-based sender fills deep queues and adds delay for everyone, where BBR keeps the queue short; or the slow start sum, that a small page costs several round trips whatever the link's speed."
+    model_answer: |
+      CUBIC, Linux's default, is loss-based: it reads every lost packet as a sign of congestion and cuts its congestion window to 0.7, and a connection can only send one window per round trip. Mobile networks lose packets at random, so the window keeps being cut though nothing is congested. Roughly, one connection carries 1.2 × MSS ÷ (RTT × √p). With 1,448-byte segments, a 140 ms round trip and 1% loss that's 1.2 × 1,448 × 8 ÷ (0.14 × 0.1), about 1 Mbit/s, however fast the link. Twice the distance halves it, and four times the loss halves it too.
+
+      BBR doesn't react directly to loss. It measures the path: the highest delivery rate it has seen lately and the shortest round trip, the path's delay without queues. It paces its packets at that rate and keeps about one bandwidth-delay product in flight, so it gets most of the link through the same 1% loss. In my lab, across a 50 Mbit/s link that lost 1%, BBR got about 45 Mbit/s and CUBIC about 5. The costs are more retransmissions, since it resends what's lost without slowing down, and that it can take more than its share from CUBIC flows on a shared link. Congestion control is the sender's choice, so for the backups it has to be set on the servers that send them, as net.ipv4.tcp_congestion_control = bbr in a file in /etc/sysctl.d so it survives a reboot. Setting it on the receiving end does nothing.
+
+      QUIC is a new transport over UDP with TLS 1.3 built in. Over TCP, the TCP handshake takes a round trip and TLS another before the first request; QUIC does both in one, so at 140 ms every new connection gets its first answer 140 ms sooner. Its streams are numbered separately, so one lost packet holds up only its own stream, not every image on the page as on HTTP/2 over TCP. A connection is known by its connection ID, not its addresses, so a phone moving from Wi-Fi to 5G keeps its connection. And almost all of it is encrypted, so boxes in the middle can't break it.
+
+      A browser first reaches the site over TCP, and the answer's Alt-Svc header, like h3=":443"; ma=2592000, says HTTP/3 is on UDP 443 and to remember that for 30 days; an HTTPS DNS record with alpn=h3 can say it before the first visit. If a customer's network blocks UDP 443, the browser quietly falls back to HTTP/2: nothing breaks, it's just slower. So the server must listen on UDP 443 and every firewall on the path must allow it.
+
+      CloudFront offers HTTP/3 to viewers, with connection migration, and AWS's Network Load Balancer can pass QUIC through to the servers. Google's global external Application Load Balancer advertises HTTP/3 by default, but only between clients and the load balancer. Azure's Application Gateway has HTTP/3 in preview and talks HTTP/1.1 to its backends, and Front Door's FAQ lists HTTP/2 as its newest.
+review_pool:
+  - est-slow-start-window
+  - ss-read-cwnd
+  - mcq-cubic-after-loss
+  - est-slow-start-bytes
+  - mcq-receiver-bbr
+  - est-bbr-inflight
+  - mcq-bbr-retransmits
+  - mcq-bbr-sharing
+  - est-cwnd-to-rate
+  - est-loss-ceiling
+  - est-double-rtt
+  - est-parallel-streams
+  - est-transfer-hours
+  - quic-first-datagrams
+  - est-rtt-saved
+  - mcq-hol-blocking
+  - mcq-migration
+  - ngtcp2-idle
+  - altsvc-read
+  - mcq-udp-443-blocked
+  - mcq-when-h3-helps
+  - mcq-three-clouds-h3
+skills:
+  - id: loss-based-cc
+    description: "The congestion window beside the receive window; slow start from 10 segments, doubling every round trip until a loss or ssthresh; congestion avoidance and AIMD; Reno's halving and CUBIC's cut to 0.7 and cubic regrowth; fast retransmit against a timeout; why random loss and long round trips slow loss-based algorithms; bufferbloat; reading `cwnd`, `ssthresh`, `rtt` and `retrans` in `ss -tni`"
+  - id: bbr-model
+    description: "BBR's model (the highest recent delivery rate, the shortest recent round trip), pacing, its four states, about one bandwidth-delay product in flight; it doesn't react directly to loss; its costs (retransmissions, an unfair share against CUBIC, loss behind policers); version 1 in mainline Linux, version 3 in the IETF draft; congestion control is the sender's choice, set for good in `/etc/sysctl.d/`, per socket with `TCP_CONGESTION`, or for one test with `iperf3 -C`; fq isn't needed"
+  - id: loss-latency-math
+    description: "Calculation: the loss-based ceiling, about 1.2 × MSS ÷ (RTT × √p), and how it scales with the round trip and the loss rate; a window per round trip as a rate; a bandwidth-delay product from BBR's model; slow start's growth and what it delivers; parallel connections; transfer times"
+  - id: quic-changes
+    description: "QUIC's handshake (one round trip to the first request, against two for TCP with TLS 1.3) and 0-RTT on return; streams without head-of-line blocking across them; connection IDs and migration; encryption of almost everything against ossification; the 1,200-byte first datagram and the three-times limit; QUIC's own idle timeout and the UDP timers of boxes on the path; what `tcpdump` shows (UDP lengths) and what a client's own log shows"
+  - id: http3-in-practice
+    description: "How a browser finds HTTP/3: the Alt-Svc header (`h3=\":443\"; ma=...`, 24 hours without `ma`) and HTTPS DNS records with `alpn=h3`; the silent fallback to HTTP/2 when UDP 443 is blocked; turning it on (Caddy's `protocols`, a listener on UDP 443, `udp dport 443` in every firewall on the path); when it helps and when it doesn't; the three clouds' support, and that it ends at their edge"
