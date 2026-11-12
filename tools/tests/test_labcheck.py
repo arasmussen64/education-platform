@@ -1414,3 +1414,102 @@ def test_a_checks_limit_reaches_the_docker_command_itself(monkeypatch) -> None:
     monkeypatch.setattr(labcheck.subprocess, "run", hung)
     result = labcheck.run_check(NAME, check)
     assert not result.passed and result.detail.startswith("ran out of time")
+
+
+# --- Shared lab bases (ADR-0018, third amendment) -----------------------------------
+
+LAB_DIR = "content/topics/t.hello/exercises/lab-hello"
+
+
+def test_a_shared_base_is_named_on_a_from_line_of_its_own() -> None:
+    assert labcheck.base_named_in("FROM lab-base-net\nCOPY topology /etc/x\n") == "net"
+    # FROM in any case, as Docker allows; a Dockerfile saved with CRLF.
+    assert labcheck.base_named_in("# the base\r\nfrom lab-base-net-v2\r\n") == "net-v2"
+    for text in (
+        "FROM ubuntu:24.04\n",
+        "FROM lab-base-net:latest\n",  # a tag: not what the checker builds
+        "FROM lab-base-Net\n",  # Docker's image names are lowercase
+        "RUN echo FROM lab-base-net\n",
+    ):
+        assert labcheck.base_named_in(text) is None, text
+
+
+def test_a_labs_base_is_read_from_its_dockerfile_and_found_beside_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    lab = use_lab(tmp_path, monkeypatch, FakeDocker())
+    assert labcheck.base_of(lab) is None
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-net\n")
+    assert labcheck.base_of(lab) == "net"
+    # In the lab's own content tree, not wherever the checker is.
+    assert labcheck.bases_of(lab) == tmp_path / "content" / "lab-bases"
+
+
+def test_a_lab_on_a_shared_base_has_the_base_built_first(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-net\nCOPY topology /x\n")
+    write(tmp_path, "content/lab-bases/net/Dockerfile", "FROM ubuntu:24.04\n")
+    labcheck.build_image(lab)
+    base = tmp_path / "content" / "lab-bases" / "net"
+    assert docker.calls == [
+        ("build", "-q", "-t", "lab-base-net", str(base)),
+        ("build", "-q", "-t", IMAGE, str(lab.folder)),
+    ]
+    # The base's build may take as long as any build.
+    assert docker.options[0]["timeout"] == labcheck.BUILD_TIMEOUT_SECONDS
+
+
+def test_start_and_test_build_the_base_too(tmp_path: Path, monkeypatch) -> None:
+    docker = FakeDocker()
+    use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-net\n")
+    write(tmp_path, "content/lab-bases/net/Dockerfile", "FROM ubuntu:24.04\n")
+    assert run_main("start", "t.hello", "lab-hello") == 0
+    assert docker.verbs == ["container", "build", "build", "inspect", "rm", "run"]
+    assert "lab-base-net" in docker.calls[1]
+
+
+def test_a_base_that_doesnt_exist_is_named_before_anything_is_built(
+    tmp_path: Path, monkeypatch
+) -> None:
+    docker = FakeDocker()
+    lab = use_lab(tmp_path, monkeypatch, docker)
+    write(tmp_path, f"{LAB_DIR}/Dockerfile", "FROM lab-base-nett\n")
+    with pytest.raises(
+        LabError,
+        match=r"no lab base called nett: a Dockerfile says FROM lab-base-nett, "
+        r"and .*content/lab-bases/nett/Dockerfile doesn't exist",
+    ):
+        labcheck.build_image(lab)
+    assert docker.calls == []
+
+
+def test_the_validator_wants_a_labs_base_to_exist(tmp_path: Path) -> None:
+    tree = make_valid_tree(tmp_path)
+    folder = "content/topics/t.hello/exercises/lab-report"
+    write(
+        tree,
+        f"{folder}/exercise.yaml",
+        "id: lab-report\nstage: write\nruntime: lab\nrev: 1\n"
+        "title: A report\nprompt: Make a report.\nskills: [print-text]\n",
+    )
+    write(tree, f"{folder}/solution.sh", "echo done > ~/report.txt\n")
+    write(tree, f"{folder}/checks.yaml", CHECKS)
+    write(tree, f"{folder}/Dockerfile", "FROM lab-base-net\nCOPY topology /x\n")
+    assert validate(tree, run=False).problems == [
+        f"{folder}/Dockerfile: starts FROM lab-base-net, but there is no "
+        "content/lab-bases/net/Dockerfile to build it from (the bases are: none "
+        "yet); fix the name, or add that base"
+    ]
+    write(tree, "content/lab-bases/net/Dockerfile", "FROM ubuntu:24.04\n")
+    assert validate(tree, run=False).problems == []
+    # A tag (or capitals) would send Docker looking online for the image.
+    write(tree, f"{folder}/Dockerfile", "FROM lab-base-net:latest\n")
+    assert validate(tree, run=False).problems == [
+        f"{folder}/Dockerfile: a FROM line names a lab base in a form the checker "
+        "can't read: write FROM lab-base-<name> alone on its line, with the name "
+        "in lowercase letters, digits and hyphens (the bases are: net)"
+    ]

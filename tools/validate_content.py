@@ -722,6 +722,35 @@ def describe(result: dict[str, Any]) -> str:
     return f"{result['passed']}/{result['total']} passed ({details})"
 
 
+def check_lab_base(dockerfile: Path, report: Report) -> None:
+    """A lab that starts FROM a shared base (ADR-0018, third amendment) names
+    one that exists in content/lab-bases/, in the form the checker reads, or
+    the checker can't build it and Docker would go looking for it online."""
+    import labcheck
+
+    text = dockerfile.read_text(encoding="utf-8")
+    if not labcheck.NAMES_A_BASE.search(text):
+        return
+    bases = report.root / "content" / "lab-bases"
+    there = sorted(p.name for p in bases.glob("*") if (p / "Dockerfile").exists())
+    listed = ", ".join(there) or "none yet"
+    name = labcheck.base_named_in(text)
+    if name is None:
+        report.add(
+            dockerfile,
+            "a FROM line names a lab base in a form the checker can't read: write "
+            "FROM lab-base-<name> alone on its line, with the name in lowercase "
+            f"letters, digits and hyphens (the bases are: {listed})",
+        )
+    elif name not in there:
+        report.add(
+            dockerfile,
+            f"starts FROM lab-base-{name}, but there is no "
+            f"content/lab-bases/{name}/Dockerfile to build it from (the bases "
+            f"are: {listed}); fix the name, or add that base",
+        )
+
+
 def check_lab(folder: Path, exercise: Exercise, report: Report, run: bool) -> None:
     """A lab (ADR-0018) needs its image, its checks and its solution. Its
     contract (pristine fails, the solution passes, wrong fixes fail) needs
@@ -730,6 +759,8 @@ def check_lab(folder: Path, exercise: Exercise, report: Report, run: bool) -> No
     for name in ("Dockerfile", "checks.yaml", "solution.sh"):
         if not (folder / name).exists():
             report.add(yaml_file, f"a lab needs {name}")
+    if (folder / "Dockerfile").exists():
+        check_lab_base(folder / "Dockerfile", report)
     if (folder / "checks.yaml").exists():
         load(folder / "checks.yaml", LabChecks, report)
     # A lab's scenario may well include a Python program; what it can't have

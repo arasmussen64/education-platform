@@ -37,6 +37,12 @@ asking it anything. If the image has /usr/local/lib/lab/teardown.sh, the
 checker runs it before removing the container, so a lab can let go of what it
 attached to Docker's machine (the loop devices behind its disks).
 
+A lab's Dockerfile may start `FROM lab-base-<name>` instead of
+`FROM ubuntu:24.04`: the network labs share one base this way. The checker
+builds content/lab-bases/<name>/ first, tagged lab-base-<name>, whenever it
+builds such a lab; when nothing in the base has changed, Docker's cache makes
+that a second or two.
+
 Each check gets 30 seconds, or what its `timeout:` in checks.yaml says (up
 to 300). A check that runs out of time is stopped inside the container,
 with what it started (ADR-0018 says what can escape), and fails saying so.
@@ -230,9 +236,60 @@ def docker(
     return completed
 
 
+# A lab may start from a shared base image instead of ubuntu:24.04 (ADR-0018,
+# third amendment): its Dockerfile says "FROM lab-base-<name>", alone on its
+# line, and the base is built from content/lab-bases/<name>/ first. Docker's
+# cache makes that a second or two when nothing in the base has changed, so
+# the base is always the one in the content tree, with no version to keep in
+# step. A base's name is lowercase letters and digits, with single hyphens
+# (Docker's image names are lowercase); FROM itself may be in any case, as
+# Docker allows.
+BASE_FROM = re.compile(
+    r"^(?i:FROM)\s+lab-base-([a-z0-9]+(?:-[a-z0-9]+)*)\s*$", re.MULTILINE
+)
+# Any FROM line that names a lab base, written so BASE_FROM can read it or
+# not: the validator uses it to tell an author when it can't.
+NAMES_A_BASE = re.compile(r"^\s*FROM\s+\S*lab-base-", re.MULTILINE | re.IGNORECASE)
+
+
+def base_named_in(dockerfile: str) -> str | None:
+    """The shared base a Dockerfile's text starts from, or None."""
+    found = BASE_FROM.search(dockerfile)
+    return found.group(1) if found else None
+
+
+def base_of(lab: Lab) -> str | None:
+    """The shared base a lab's Dockerfile starts from, or None."""
+    return base_named_in((lab.folder / "Dockerfile").read_text(encoding="utf-8"))
+
+
+def bases_of(lab: Lab) -> Path:
+    """content/lab-bases/ in the lab's own content tree (the lab's folder is
+    content/topics/<topic>/exercises/<lab>/), so a lab and its base always
+    come from the same checkout."""
+    return lab.folder.parents[3] / "lab-bases"
+
+
+def build_base(name: str, bases: Path, quiet: bool = True) -> None:
+    """Builds content/lab-bases/<name>/ as the image lab-base-<name>."""
+    folder = bases / name
+    if not (folder / "Dockerfile").exists():
+        raise LabError(
+            f"no lab base called {name}: a Dockerfile says FROM lab-base-{name}, "
+            f"and {folder.as_posix()}/Dockerfile doesn't exist"
+        )
+    args = ["build", "-t", f"lab-base-{name}", str(folder)]
+    if quiet:
+        args.insert(1, "-q")
+    docker(*args, timeout=BUILD_TIMEOUT_SECONDS)
+
+
 def build_image(lab: Lab, quiet: bool = True) -> None:
     if not (lab.folder / "Dockerfile").exists():
         raise LabError(f"{lab.name} has no Dockerfile")
+    base = base_of(lab)
+    if base:
+        build_base(base, bases_of(lab), quiet)
     args = ["build", "-t", lab.image, str(lab.folder)]
     if quiet:
         args.insert(1, "-q")
