@@ -1,0 +1,177 @@
+# The checks of "The backup circuit carries everything": the five sessions,
+# which circuit each side sends its traffic over (BGP's choice on core and
+# access, and the cloud's kernel route, which shares traffic over two paths
+# that tie), what the cloud accepted over each circuit, eBGP's policy rule,
+# whether every router of the data centre runs its own file and has no
+# routes typed into its kernel, the cloud's router as it was, and last, a
+# silent failure of circuit 1 that must be noticed within 3 seconds.
+# sessions-up waits for BGP after a boot or a restart of FRR; the rest read
+# at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sessions-up
+    description: "The data centre's three inside BGP sessions (access with core, core with dc1, core with dc2) and both circuits' sessions with the cloud are up."
+    # Each session must be Established for 3 seconds, long enough for the
+    # first exchange of routes to finish. Up to 40 tries a second apart, so it
+    # gets a minute and prints its own sentence rather than running out of time.
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      peer() { frr "$1" 'show bgp summary json' | json "(lambda p: '%s %s' % (p.get('state'), p.get('peerUptimeMsec', 0) >= 3000))(d.get('ipv4Unicast', {}).get('peers', {}).get('$2', {}))"; }
+      sessions="access=10.0.1.1 core=10.0.2.2 core=10.0.3.2 dc1=169.254.30.2 dc2=169.254.20.2"
+      all() { for s in $sessions; do [ "$(peer "${s%%=*}" "${s#*=}")" = "Established True" ] || return 1; done; }
+      wait_for 40 all && { echo up; exit 0; }
+      for s in $sessions; do
+        got=$(peer "${s%%=*}" "${s#*=}")
+        case $got in
+          "Established "*) ;;
+          *) echo "${s%%=*} has no BGP session up with ${s#*=}: FRR says ${got%% *}"; exit 0 ;;
+        esac
+      done
+      echo up
+    expect:
+      equals: up
+  - id: out-on-circuit-1
+    description: "The data centre's traffic to the cloud leaves through dc1 and circuit 1, on core's and access's routes, and the office reaches the cloud's app."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # dc1's path: its own address as the next hop (10.0.2.2), or, where the
+      # routers inside carry a route to circuit 1, the cloud's on it.
+      for r in core access; do
+        best=$(bgp-best "$r" 10.100.0.0/16)
+        case $best in
+          "via 10.0.2.2, "* | "via 169.254.30.2, "*) ;;
+          *) echo "$r's chosen path to the cloud, 10.100.0.0/16, isn't the one through dc1: $best"; exit 0 ;;
+        esac
+      done
+      hops=$(ip -n core route show 10.100.0.0/16 | grep -o 'via [0-9.]*' | sort | tr '\n' ' ')
+      [ "$hops" = "via 10.0.2.2 " ] || { echo "core's kernel sends traffic for 10.100.0.0/16 $hops, not to dc1 alone"; exit 0; }
+      [ "$(on office nc -w 2 10.100.0.10 8080 < /dev/null 2> /dev/null)" = 10.1.0.10 ] || { echo "the office doesn't reach the cloud's app, 10.100.0.10"; exit 0; }
+      echo "circuit 1"
+    expect:
+      equals: "circuit 1"
+  - id: in-on-circuit-1
+    description: "The cloud sends its traffic for every one of the data centre's four networks over circuit 1 alone."
+    command: |
+      # The next hops of the cloud's kernel route that an address goes by:
+      # the longest BGP prefix that holds it, with every next hop it has.
+      hops() { ip -j -n cloud route show proto bgp | python3 -c '
+      import ipaddress, json, sys
+      a = ipaddress.ip_address(sys.argv[1])
+      routes = [r for r in json.load(sys.stdin) if r["dst"] != "default" and a in ipaddress.ip_network(r["dst"] if "/" in r["dst"] else r["dst"] + "/32")]
+      if not routes:
+          print("none")
+      else:
+          r = max(routes, key=lambda r: ipaddress.ip_network(r["dst"] if "/" in r["dst"] else r["dst"] + "/32").prefixlen)
+          print(" ".join(sorted(h["gateway"] for h in r["nexthops"])) if "nexthops" in r else r.get("gateway", "none"))
+      ' "$1"; }
+      for n in 0 1 2 3; do
+        got=$(hops "10.1.$n.10")
+        [ "$got" = 169.254.30.1 ] || { echo "the cloud sends traffic for 10.1.$n.0/24 via $got, not over circuit 1 alone (169.254.30.1)"; exit 0; }
+      done
+      echo "circuit 1"
+    expect:
+      equals: "circuit 1"
+  - id: announced-summary
+    description: "Over each circuit the cloud accepts exactly one route from the data centre, its summary, 10.1.0.0/22."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for want in "169.254.30.1 1" "169.254.20.1 2"; do
+        set -- $want
+        got=$(frr cloud "show bgp ipv4 unicast neighbors $1 routes json" | json "sorted(d.get('routes', {}))")
+        [ "$got" = '["10.1.0.0/22"]' ] || { echo "over circuit $2 the cloud accepted $got from the data centre, not just its summary, 10.1.0.0/22"; exit 0; }
+      done
+      echo summary
+    expect:
+      equals: summary
+  - id: policy-kept
+    description: "dc1's and dc2's eBGP sessions still require a policy before they accept or send anything."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in dc1 dc2; do
+        frr "$r" 'show running-config' | grep 'no bgp ebgp-requires-policy' > /dev/null && { echo "$r's eBGP sessions no longer require a policy"; exit 0; }
+      done
+      echo kept
+    expect:
+      equals: kept
+  - id: bfd-watches
+    description: "BFD watches both circuits' sessions, and on each circuit either side would notice a silent failure within a second."
+    # Each side's detection time, from the timers the two sides agreed: the
+    # sender's multiplier times the slower of one side's sending interval and
+    # the other side's receiving one (in milliseconds).
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for want in "dc1 169.254.30.2 1" "dc2 169.254.20.2 2"; do
+        set -- $want
+        got=$(frr "$1" 'show bfd peers json' | json "[(p.get('status'), p['remote-detect-multiplier'] * max(p['receive-interval'], p['remote-transmit-interval']), p['detect-multiplier'] * max(p['transmit-interval'], p['remote-receive-interval'])) for p in d if p.get('peer') == '$2'] or 'none'")
+        case $got in
+          '[["up", '*) ;;
+          *) echo "$1 has no BFD session up with the cloud over circuit $3"; exit 0 ;;
+        esac
+        slow=$(echo "$got" | json "max(d[0][1], d[0][2])")
+        [ "$slow" -le 1000 ] || { echo "on circuit $3 BFD would take $slow ms to notice a silent failure"; exit 0; }
+        bgp=$(frr "$1" "show bgp neighbors $2 json" | json "'peerBfdInfo' in d.get('$2', {})")
+        [ "$bgp" = True ] || { echo "$1's BGP session over circuit $3 isn't watched by BFD"; exit 0; }
+      done
+      echo watched
+    expect:
+      equals: watched
+  - id: saved
+    description: "access's, core's, dc1's and dc2's running FRR configurations are the ones in their /etc/frr/frr.conf, so a restart gives the same routing."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in access core dc1 dc2; do
+        differs=$(frr_saved "$r") || { echo "$r's running configuration isn't its file: $(echo "$differs" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      done
+      echo saved
+    expect:
+      equals: saved
+  - id: no-hand-made-routes
+    description: "No router of the data centre has a route typed into its kernel by hand, which the next boot would lose: their routes come from FRR."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for r in access core dc1 dc2; do
+        routes=$(hand_routes "$r")
+        [ -z "$routes" ] || { echo "$r has a route typed by hand: $(echo "$routes" | head -n 1)"; exit 0; }
+      done
+      echo none
+    expect:
+      equals: none
+  - id: cloud-untouched
+    description: "The cloud's router is as it was: its file, and the routing it runs."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      frr_saved cloud > /dev/null || { echo "the cloud's routing was changed live"; exit 0; }
+      echo untouched
+    expect:
+      equals: untouched
+  - id: silent-failure-noticed
+    description: "When circuit 1 stops carrying dc1's traffic with its cable still plugged in, both directions move to circuit 2 within 3 seconds; once circuit 1 is mended, they go back to it."
+    # It makes circuit 1 silent itself (netlab link: what dc1 sends over it
+    # vanishes at the cloud) and mends it again, even if it is stopped part
+    # way: the trap runs on the way out. A session comes back a few seconds
+    # after its link does (both sides try again every 5).
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      trap 'netlab link dc1 dx1 restore > /dev/null 2>&1' EXIT
+      core_hops() { ip -n core route show 10.100.0.0/16 2> /dev/null | grep -o 'via [0-9.]*' | sort | tr '\n' ' '; }
+      cloud_hop() { ip -n cloud route get 10.1.0.10 2> /dev/null | grep -o 'via [0-9.]*'; }
+      app() { [ "$(on office nc -w 1 10.100.0.10 8080 < /dev/null 2> /dev/null)" = 10.1.0.10 ]; }
+      both() { [ "$(core_hops)" = "via $1 " ] && [ "$(cloud_hop)" = "via $2" ] && app; }
+      both 10.0.2.2 169.254.30.1 || { echo "before the test, traffic isn't on circuit 1 both ways"; exit 0; }
+      start=$(date +%s%N)
+      netlab link dc1 dx1 silent
+      moved=""
+      while [ $((($(date +%s%N) - start) / 1000000)) -lt 3000 ]; do
+        if both 10.0.3.2 169.254.20.1; then moved=yes; break; fi
+        sleep 0.2
+      done
+      [ -n "$moved" ] || { echo "3 seconds after circuit 1 went silent, traffic hadn't moved to circuit 2 both ways"; exit 0; }
+      netlab link dc1 dx1 restore
+      wait_for 25 both 10.0.2.2 169.254.30.1 || { echo "once circuit 1 was mended, traffic didn't go back to it within 25 seconds"; exit 0; }
+      echo "moved within 3 seconds"
+    expect:
+      equals: "moved within 3 seconds"
