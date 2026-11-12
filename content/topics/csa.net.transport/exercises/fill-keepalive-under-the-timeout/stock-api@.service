@@ -1,0 +1,14 @@
+# The supplier's stock API on a machine: "systemctl status stock-api@supplier".
+[Unit]
+Description=The supplier's stock API on %i
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=%p@%i
+ExecStart=/usr/sbin/ip netns exec %i /usr/local/lib/netlab/lab-enter %i /usr/local/bin/stock-api
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

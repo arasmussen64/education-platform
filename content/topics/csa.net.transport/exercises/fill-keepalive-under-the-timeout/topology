@@ -1,0 +1,26 @@
+# The network of "Under the timeout": the shop's app server, the cloud's NAT
+# gateway, and the supplier's API server behind its own firewall.
+#
+#   app eth1 10.0.1.10 --- nat (inside 10.0.1.1 | outside 10.0.2.1) ---[cloud]--- supplier 10.0.2.30
+#
+# nat and supplier are scenery. nat forgets a quiet connection after 20
+# seconds and resets whoever sends on it afterwards (as AWS's NAT gateway
+# does, after 350). The supplier's firewall forgets a quiet connection
+# after 12 seconds and then drops what arrives on it without a word (as a
+# cloud load balancer or firewall with silent drops does, after minutes).
+machine app
+machine nat router
+machine supplier
+
+link app:eth1=10.0.1.10/24 nat:inside=10.0.1.1/24
+lan cloud nat:outside=10.0.2.1/24 supplier:eth0=10.0.2.30/24
+
+route app 10.0.2.0/24 via 10.0.1.1
+route supplier default via 10.0.2.1
+
+# The boxes' idle timers.
+sysctl nat net.netfilter.nf_conntrack_tcp_timeout_established=20
+sysctl supplier net.netfilter.nf_conntrack_tcp_timeout_established=12
+
+run nat nftables
+run supplier nftables

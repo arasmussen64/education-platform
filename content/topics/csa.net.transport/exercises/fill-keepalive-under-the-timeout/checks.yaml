@@ -1,0 +1,100 @@
+# The checks of "Under the timeout": stock-sync's connection has keepalive
+# (its file asks for it, and the connection it holds has a keepalive
+# timer), app's keepalive timers come from its /etc/sysctl.d, they're short
+# enough for both boxes and notice a dead supplier in time, a sync after a
+# quiet spell longer than the supplier's firewall remembers works over the
+# same connection with only probes crossing nat, and both boxes are as
+# shipped. A fill-in's descriptions never say what a gap holds.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  # stock-sync reads its file once, at start, and connects only when asked
+  # for a sync (as after a reboot), so the check asks for one first.
+  - id: switched-on
+    description: "stock-sync's settings ask for keepalives, and the connection it holds to the supplier has a keepalive timer."
+    command: |
+      asked=$(python3 - << 'EOF'
+      settings = {}
+      for line in open("/etc/netns/app/shop/stock-sync.conf", encoding="utf-8"):
+          line = line.split("#", 1)[0].strip()
+          if "=" in line:
+              name, value = (part.strip() for part in line.split("=", 1))
+              settings[name] = value
+      print(settings.get("keepalive", ""))
+      EOF
+      )
+      [ "$asked" = on ] || { echo "stock-sync's settings don't ask for keepalives"; exit 0; }
+      on app curl -s -m 8 localhost:8081/sync | grep '"ok": true' > /dev/null || { echo "a sync fails"; exit 0; }
+      on app ss -tnoH state established '( dport = :6000 )' | grep 'timer:(keepalive' > /dev/null || { echo "stock-sync's connection to the supplier has no keepalive timer"; exit 0; }
+      echo "asked for"
+    expect:
+      equals: "asked for"
+  - id: from-the-files
+    description: "Each of app's keepalive settings in force now is the one its /etc/sysctl.d gives it, so a reboot keeps it."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for key in net.ipv4.tcp_keepalive_time net.ipv4.tcp_keepalive_intvl net.ipv4.tcp_keepalive_probes; do
+        differs=$(sysctl_saved app "$key") || { echo "$differs"; exit 0; }
+      done
+      echo "from the files"
+    expect:
+      equals: "from the files"
+  # On a quiet connection the probes come every tcp_keepalive_time or every
+  # tcp_keepalive_intvl, whichever is longer, so both must be under the
+  # smaller box's 12 seconds; a dead supplier is given up on time + intvl ×
+  # probes after the last packet.
+  - id: noticed-in-time
+    description: "Probes come often enough for both boxes along the path, and a supplier that goes dark is noticed within 45 seconds of the last packet."
+    command: |
+      t=$(on app sysctl -n net.ipv4.tcp_keepalive_time)
+      i=$(on app sysctl -n net.ipv4.tcp_keepalive_intvl)
+      p=$(on app sysctl -n net.ipv4.tcp_keepalive_probes)
+      [ "$t" -lt 12 ] || { echo "the first probe comes after $t s of quiet, later than one of the boxes forgets"; exit 0; }
+      [ "$i" -lt 12 ] || { echo "the probes come $i s apart, and after an answered probe the next waits that long, later than one of the boxes forgets"; exit 0; }
+      [ $((t + i * p)) -le 45 ] || { echo "a supplier that goes dark is noticed $((t + i * p)) s after the last packet"; exit 0; }
+      echo "in time"
+    expect:
+      equals: "in time"
+  # A sync, 14 seconds of quiet (longer than the supplier's firewall
+  # remembers, shorter than nat), and a sync: the second must work over the
+  # same connection, and during the quiet only empty segments (probes and
+  # their answers, at least two) may cross nat's outside, not data. The
+  # capture starts a second after the first sync, so its last
+  # acknowledgement isn't counted.
+  - id: quiet-spell
+    description: "A sync after 14 seconds of quiet works, over the same connection as the sync before it, and only keepalive probes and their answers cross nat during the quiet."
+    timeout: 45
+    command: |
+      sync() { on app curl -s -m 8 localhost:8081/sync; }
+      first=$(sync)
+      case "$first" in *'"ok": true'*) ;; *) echo "a sync fails: $first"; exit 0 ;; esac
+      port1=$(echo "$first" | sed -n 's/.*"port": \([0-9]*\).*/\1/p')
+      cap=$(mktemp)
+      (sleep 1; on nat timeout 12 tcpdump -nn -l -i outside 'tcp port 6000' > "$cap" 2> /dev/null) &
+      sleep 14
+      second=$(sync)
+      wait
+      port2=$(echo "$second" | sed -n 's/.*"port": \([0-9]*\).*/\1/p')
+      empty=$(grep -c 'length 0$' "$cap")
+      data=$(grep -c 'length [1-9][0-9]*$' "$cap")
+      rm -f "$cap"
+      case "$second" in *'"ok": true'*) ;; *) echo "the sync after 14 s of quiet fails: $second"; exit 0 ;; esac
+      [ "$port1" = "$port2" ] || { echo "the sync after the quiet spell went over a new connection (port $port1, then $port2)"; exit 0; }
+      [ "$empty" -ge 2 ] || { echo "no keepalive probes crossed nat during the quiet spell"; exit 0; }
+      [ "$data" -eq 0 ] || { echo "data crossed nat during the quiet spell ($data segments)"; exit 0; }
+      echo "survives"
+    expect:
+      equals: survives
+  - id: boxes-as-they-were
+    description: "nat and the supplier's firewall are as they were shipped: their files, their running rules and their idle timers."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      for m in nat supplier; do
+        nft_saved "$m" > /dev/null || { echo "$m's running rules aren't the ones its /etc/nftables.conf loads"; exit 0; }
+      done
+      [ "$(on nat sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established)" = 20 ] || { echo "nat's idle timer was changed"; exit 0; }
+      [ "$(on supplier sysctl -n net.netfilter.nf_conntrack_tcp_timeout_established)" = 12 ] || { echo "the supplier's idle timer was changed"; exit 0; }
+      echo "as shipped"
+    expect:
+      equals: "as shipped"

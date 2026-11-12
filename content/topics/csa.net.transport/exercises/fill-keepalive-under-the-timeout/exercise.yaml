@@ -1,0 +1,31 @@
+id: fill-keepalive-under-the-timeout
+stage: fill_in
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Under the timeout"
+prompt: |
+  The shop's stock sync, `stock-sync` (`stock-sync@app`), keeps one connection open to the supplier's stock API on `supplier` (10.0.2.30, port 6000), and syncs over it whenever it's asked: `on app curl -s localhost:8081/sync` asks for one and prints the result, with the connection's `port` on app. The connection crosses two stateful boxes, both scenery: the cloud's NAT gateway, `nat`, and the supplier's own firewall on `supplier`, which the supplier lets you look at but not change. After a quiet spell, the next sync fails (`journalctl -u stock-sync@app` shows how).
+
+  Two files on app hold the fix, and each has gaps, `...`:
+
+  - app's **`/etc/sysctl.d/60-keepalive.conf`**: the system's keepalive timers, which apply to every connection on app that has keepalive switched on and sets no timers of its own;
+  - stock-sync's **`/etc/shop/stock-sync.conf`**, whose `keepalive` line switches keepalive on or off for its connection (stock-sync sets no timers of its own).
+
+  Fill the gaps so that:
+
+  1. **the connection survives a quiet spell of any length,** with probes coming often enough for both boxes. Find each box's idle timer yourself, the way the worked example found nat's, on each of the two machines;
+  2. **a supplier that goes dark is noticed within 45 seconds of the last packet,** with the probe count left at 3;
+  3. **it all lasts after a reboot;**
+  4. **nat and the supplier's firewall stay exactly as they are.**
+
+  `on app nano /etc/sysctl.d/60-keepalive.conf` and `on app nano /etc/shop/stock-sync.conf` open the files. `on app sysctl -p /etc/sysctl.d/60-keepalive.conf` applies the timers now (at the next boot they're applied anyway), and `sudo systemctl restart stock-sync@app` makes stock-sync read its file again and open a new connection. Until a gap is filled: a `...` in the sysctl file is a value the kernel refuses, so `sysctl -p` reports that line, the boot leaves it out (with a line in `journalctl -u netlab`), and the system's default stays; a `...` in stock-sync's file leaves keepalive off, and its journal says so.
+
+  The lab's clock runs fast: the boxes forget quiet connections in seconds, where a cloud's NAT gateway or load balancer takes minutes. When a sync after a quiet spell works, run the checks.
+hints:
+  - "Each box's idle timer is `net.netfilter.nf_conntrack_tcp_timeout_established` on that machine (`on nat sysctl ...`, `on supplier sysctl ...`). The smaller one decides."
+  - "On a quiet connection the probes come every `tcp_keepalive_time` or every `tcp_keepalive_intvl`, whichever is longer, so both must be below the smaller box's timer."
+  - "A peer that has gone dark is given up on `tcp_keepalive_time + tcp_keepalive_intvl × tcp_keepalive_probes` seconds after the last packet."
+skills: [idle-cuts, tcp-timers]
