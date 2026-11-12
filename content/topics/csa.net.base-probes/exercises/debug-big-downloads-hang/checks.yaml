@@ -1,0 +1,106 @@
+# The checks of "Big downloads hang". Each reads the network's real state:
+# a download and its checksum, connections and pings from the office, a
+# packet too big for the tunnel sent from web, the interfaces' MTUs. Then
+# "laptop-untouched" compares the sealed scenery with the image's, and
+# "lasts" builds a fresh copy of every machine from its files and compares
+# it with the running one (netlab verify), so a fix made only live fails.
+# "download" waits for web's site after a boot; the rest read at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: download
+    description: "The price list reaches the office whole within 15 seconds."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      site_answers() { on office curl -s -o /dev/null --max-time 3 http://10.0.2.20/; }
+      wait_for 10 site_answers
+      want=$(cat /var/lib/lab/pricelist.sha256)
+      got=$(on office curl -s --max-time 15 http://10.0.2.20/pricelist.csv | sha256sum | cut -d' ' -f1)
+      [ "$got" = "$want" ] && echo whole || echo "the price list doesn't reach the office whole within 15 seconds"
+    expect:
+      equals: whole
+  - id: pmtu
+    description: "No interface or route has a changed MTU, web does path MTU discovery, and web is told the path's MTU when it sends a packet too big for the tunnel."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # Every interface keeps its MTU: 1500 on the cables, what the kernel
+      # gives a GRE tunnel over them on the tunnel.
+      for want in office:eth0:1500 r1:eth0:1500 r1:wan:1500 r1:gre1:1476 r2:wan:1500 r2:gre1:1476 \
+                  r2:lan:1500 r2:prn:1500 web:eth0:1500 files:eth0:1500 printer:eth0:1500; do
+        IFS=: read -r m dev mtu <<< "$want"
+        got=$(ip -n "$m" -o link show "$dev" 2> /dev/null | grep -o 'mtu [0-9]*' | cut -d' ' -f2)
+        [ "$got" = "$mtu" ] || { echo "$m's $dev has an MTU of ${got:-nothing}, not $mtu"; exit 0; }
+      done
+      for m in office r1 r2 web files printer; do
+        if ip -n "$m" route show table all | grep -q ' mtu '; then echo "a route on $m sets an MTU"; exit 0; fi
+      done
+      [ "$(on web sysctl -n net.ipv4.ip_no_pmtu_disc)" = 0 ] || { echo "web doesn't do path MTU discovery"; exit 0; }
+      # A full-size packet that mustn't be fragmented, from web to an office
+      # address it hasn't sent to before (so nothing it learned earlier
+      # counts): r2 answers that it's too big for the tunnel, with the
+      # tunnel's MTU, and ping prints it only if web's kernel got the answer.
+      to=10.0.1.$((128 + RANDOM % 127))
+      out=$(on web ping -c 1 -W 2 -M do -s 1472 "$to" 2>&1)
+      if echo "$out" | grep -Eq 'mtu ?= ?1476'; then echo told; else echo "web sent a packet too big for the tunnel and wasn't told the path's MTU"; fi
+    expect:
+      equals: told
+  - id: strict
+    description: "From the office, web answers on its website's port, 80, and nothing else: other ports and ping get no answer at all."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # Listeners of the check's own on ports nobody asked for, so a port
+      # the firewall lets through answers.
+      for p in 22 8080 3306; do on web timeout 9 nc -l -p "$p" > /dev/null 2>&1 & done
+      sleep 0.5
+      found=""
+      [ "$(tcp_state office 10.0.2.20 80)" = open ] || found="$found port 80 doesn't answer;"
+      for p in 22 8080 3306; do
+        state=$(tcp_state office 10.0.2.20 "$p")
+        [ "$state" = dropped ] || found="$found port $p is $state;"
+      done
+      if on office ping -c 1 -W 2 10.0.2.20 > /dev/null 2>&1; then found="$found it answers ping;"; fi
+      kill $(jobs -p) 2> /dev/null
+      wait 2> /dev/null
+      if [ -z "$found" ]; then echo strict; else echo "from the office, web:$found"; fi
+    expect:
+      equals: strict
+  - id: files
+    description: "The file server answers from the office."
+    command: on office curl -s --max-time 5 http://10.0.2.30/ || echo "the file server doesn't answer from the office"
+    expect:
+      equals: "The shop's file server"
+  - id: printer
+    description: "The printer answers from the office."
+    command: on office ping -c 1 -W 2 10.0.3.5 > /dev/null 2>&1 && echo answers || echo "the printer doesn't answer from the office"
+    expect:
+      equals: answers
+  - id: laptop-untouched
+    description: "The office laptop's settings, and the network's cables, are as they were."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact || true
+    expect:
+      equals: intact
+  - id: lasts
+    description: "Every machine is as its files build it, and in a fresh build from those files the office reaches web, the file server and the printer, and web is told the path's MTU."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # netlab verify builds a copy of every machine (chk-office ...) from
+      # its files, compares each with the running machine, and then runs
+      # the probes below in the copy, which a fix made only live can't pass.
+      # A pin of a MAC address passes the comparison (both have it) and
+      # fails a probe: the copy's file server has a new card, as after a
+      # boot.
+      netlab verify -- bash -c '
+        on chk-web timeout 6 nc -l -p 80 > /dev/null 2>&1 &
+        sleep 0.3
+        on chk-office nc -z -w 2 10.0.2.20 80 2> /dev/null || { echo "built fresh, the office cannot reach web"; exit 0; }
+        on chk-office ping -c 1 -W 2 10.0.2.30 > /dev/null || { echo "built fresh, the office cannot reach the file server"; exit 0; }
+        on chk-office ping -c 1 -W 2 10.0.3.5 > /dev/null || { echo "built fresh, the office cannot reach the printer"; exit 0; }
+        out=$(on chk-web ping -c 1 -W 2 -M do -s 1472 10.0.1.$((128 + RANDOM % 127)) 2>&1)
+        echo "$out" | grep -Eq "mtu ?= ?1476" || { echo "built fresh, web is not told the path MTU"; exit 0; }
+        kill $(jobs -p) 2> /dev/null
+        echo lasts' || true
+    timeout: 45
+    expect:
+      equals: lasts
