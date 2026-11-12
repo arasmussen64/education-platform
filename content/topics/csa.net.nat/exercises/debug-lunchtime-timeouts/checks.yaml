@@ -10,10 +10,15 @@
 # so the checker shows that sentence rather than an exit status.
 checks:
   - id: office-out
-    description: "An office PC reaches srv's web server, which sees it as 198.51.100.2."
-    command: on office curl -sS -m 3 http://203.0.113.10/ 2>&1
+    description: "An office PC and the app reach srv's web server, which sees each of them as 198.51.100.2."
+    command: |
+      for m in office app; do
+        got=$(on "$m" curl -sS -m 3 http://203.0.113.10/ 2>&1)
+        [ "$got" = "you are 198.51.100.2" ] || { echo "from $m, srv says: $got"; exit 0; }
+      done
+      echo "both as 198.51.100.2"
     expect:
-      equals: "you are 198.51.100.2"
+      equals: "both as 198.51.100.2"
   - id: customers-seen
     description: "A customer reaches the shop's app at 198.51.100.2, port 443, and the app sees the customer's own address."
     command: on client curl -sS -m 3 http://198.51.100.2:443/ 2>&1
