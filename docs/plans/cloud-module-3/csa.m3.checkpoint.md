@@ -2,7 +2,7 @@
 
 Designer's brief, 2026-11-11. The writing brief for Module 3's checkpoint, in the shape of Module 2's checkpoint brief and the plan it was written from (`docs/plans/cloud-module-2/MODULE-2-BRIEF.md`, section 5), whose decisions stand: parts in the slots `prove.build`, `prove.debug` and `prove.more` (ADR-0012 as amended 2026-11-11); the explain opens once part 1 passes; time targets are stated and self-timed; everything proven locally and for free.
 
-Prototypes, captured output and contract logs: `prototypes/troubleshooting-checkpoint/` (`plan/` is part 1's checker with a sample plan and 14 wrong plans; `repo/content/topics/csa.m3tc-proto/exercises/debug-the-outage/` and `debug-outage-v2/` are part 2's two versions; `CAPTURES.md` and the `*-contract-*.log` files are the evidence).
+Prototypes, captured output and contract logs: `prototypes/troubleshooting-checkpoint/` (`plan/` is part 1's checker with a sample plan and 14 wrong plans; `labs/debug-the-outage/` and `labs/debug-outage-v2/` are part 2's two versions; `CAPTURES.md` and the `*-contract-*.log` files are the evidence).
 
 ## 1. The plan in one screen
 

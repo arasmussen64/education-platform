@@ -89,6 +89,7 @@ As decided on 2026-11-11 (above), a debug prompt now gives what the program shou
 ### Fixed (content tools)
 
 - **The quick validator runs the full validator's own checks** (#247). `tools/generators/checks/validate_one.py` had its own copy of the per-topic checks, which skipped a checkpoint's further parts, estimate questions and choices named by position, so a topic could pass it and fail the full run. Both now call one function, `validate_content.check_topic`.
+- **Every path in the repository fits a Windows checkout again** (this pull request). Two Module 3 designers' copies of the repository, archived in #251, had paths up to 178 characters, too long for git to check out inside a worktree on Windows, so no new worktree could be made. Their copies are flattened into `base/` and `labs/<lab>/` (the longest path is now 141), the plan's references follow, and `tools/tests/test_repository_paths.py` fails any path over 150 characters.
 
 ### Fixed (the audit of 2026-11-10)
 
