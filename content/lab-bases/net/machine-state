@@ -46,9 +46,11 @@ ip -n "$n" -o addr show permanent | grep -v 'scope link' | awk '{print "addr", $
 # leaves the protocol out for these); and 4. Any other is a routing
 # program's (FRR's BGP is 186, its static routes 196) or a router
 # advertisement's (9), and left out. With -N a route's type is a number
-# too, at the start of the line, and only ordinary (unicast) routes, which
-# have none, are kept: not the kernel's local, broadcast, anycast and
-# multicast entries.
+# too, at the start of the line. Ordinary (unicast) routes have none; of the
+# typed ones, blackhole (6), unreachable (7) and prohibit (8) are kept, as
+# words, since a machine's own files make them (a blackhole that holds a BGP
+# summary, typed in /etc/network/up; found by Checkpoint 3's review), and the
+# kernel's local, broadcast, anycast and multicast entries are left out.
 # The numbers kept are then written back as words for whoever reads netlab
 # verify's message (scope 253 is "link", 254 "host").
 # A route with several next hops (ECMP) prints its head line, then one
@@ -59,13 +61,21 @@ ip -n "$n" -o addr show permanent | grep -v 'scope link' | awk '{print "addr", $
 ip -N -n "$n" route show table all \
   | grep -Ev '^fe80::/64 |expires' \
   | awk '/^[ \t]/ { if (keep) { line = $0; gsub(/^[ \t]+|[ \t]+$/, "", line); print "route", line }; next }
-    { keep = 0 }
-    $1 !~ /^[0-9]+$/ {
+    {
+      keep = 0
+      type = ""
+      if ($1 ~ /^[0-9]+$/) {
+        if ($1 == "6") type = "blackhole"
+        else if ($1 == "7") type = "unreachable"
+        else if ($1 == "8") type = "prohibit"
+        else next
+      }
       proto = "3"
       for (i = 1; i <= NF; i++) if ($i == "proto") proto = $(i + 1)
       if (proto != "2" && proto != "3" && proto != "4") next
       keep = 1
       line = " " $0 " "
+      if (type != "") sub(/^ [0-9]+ /, " " type " ", line)
       sub(/ proto 2 /, " proto kernel ", line)
       sub(/ proto 4 /, " proto static ", line)
       sub(/ scope 253 /, " scope link ", line)
