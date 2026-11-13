@@ -1,0 +1,22 @@
+id: est-two-faults
+type: estimate
+rev: 1
+prompt: |
+  Two faults, independent of each other, sit on the same path: one fails 1 request in 4, the other fails 1 request in 10. A request fails if either fault hits it. What percentage of requests fail? Within 1.
+unit: "%"
+answer: 32.5
+tolerance: { absolute: 1 }
+given: { a: 4, b: 10 }
+working: 100 * (1 - (1 - 1 / a) * (1 - 1 / b))
+mistakes:
+  - id: added
+    value: 35
+    working: 100 * (1 / a + 1 / b)
+    why: "That adds the two shares, which counts twice the requests both faults hit. Work out the share that gets past both instead: 3 in 4 get past the first, and 9 in 10 of those get past the second."
+  - id: both-at-once
+    value: 2.5
+    working: 100 / (a * b)
+    why: "That's the share both faults hit at once. A request fails when either one hits it."
+explanation: |
+  Work out what survives: 1 − 1/4 = 0.75 of requests get past the first fault, and 1 − 1/10 = 0.9 of those get past the second, so 0.75 × 0.9 = 0.675 get through and 1 − 0.675 = 0.325, 32.5%, fail. A failure rate that matches no single member's share ("about a third, with three servers, but not all on one server") is the sign of two faults at once: break the failures down by each variable you logged, and each fault shows as its own value.
+skills: [measure-intermittent]

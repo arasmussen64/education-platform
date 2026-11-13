@@ -2,6 +2,22 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-12, last: Module 3's last topics
+
+The owner asked to finish everything for Module 3 and then stop. Certificates and mutual TLS (#272) and VPNs and IPsec (#273) landed, with two fixes CI's runner asked for on the way (DNS's write lab now has ns2 fetch its zone if it hasn't yet; Certificates' write lab no longer sits on a day boundary). The two topics the pause had stopped were finished by a second writer each, starting from the first writer's branch, and reviewed cold.
+
+**Network troubleshooting is ready** (#274), Module 3's last topic. It teaches the method under every debug in the module: scope the symptom, split the suspects with tests that each rule out about half, locate the fault on the path, read what the systems recorded, write down the cause and its evidence before changing anything, change one thing, prove the fix with enough samples, and record it. It also covers faults that come and go (sample them, break the failures down until one value holds them all, and the arithmetic of rates and clean runs), reading mtr past a hop that only limits its replies, and a fault in a provider's network, proved and handed over in a ticket. The triage casebook holds six recorded cases from other Module 3 debugs, on purpose, as retrieval after those proofs. The debug's three faults appear in no other debug: provider loss behind a rate-limited hop (not fixable, only ticketed), a retired load balancer still claiming the service address, and an API server whose outbound firewall blocks its database. Five labs (43 known-wrong fixes) and 29 recall items. The review found three shortcuts in the build's outage report (a verdict from the failures alone, "failed" read as anything but 200, a fixed threshold for "slow"), a correct debug fix (deleting the retired balancer's unit) that a check failed, and Gregg's two anti-methods swapped in the lesson.
+
+**Author notes:**
+
+- _Troubleshooting was finished by a second writer_ from the first writer's five drafted labs, after the pause; the lesson and recall items are the second writer's.
+- _The casebook has no monitor logs:_ none was captured with the cases, and capturing one now would carry clock times that don't match each case's other files.
+- _The debug's provider loss runs at 8%,_ which passed six runs in six on Docker Desktop; if it ever fails for the solution on the runner, the plan's fallback is 5%.
+- _No video resource:_ none on the troubleshooting method was found and watched.
+- _`.gitignore`'s `*.log` kept a lab's recorded monitor log out of git_, so troubleshooting's build image failed on GitHub's runner (#274's first run). Lab files under `content/topics` are now never ignored, and a new test fails any lab whose Dockerfile copies a file the repository doesn't hold.
+
+**Next:** Checkpoint 3, which finishes Module 3.
+
 ## 2026-11-12, late: Where we stopped
 
 Paused at the owner's request. Nothing is running: no workflows, no lab containers, no background checks.

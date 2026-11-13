@@ -1,0 +1,104 @@
+# The checks of "A probe for faults that come and go". Each runs the
+# learner's ~/bin/probe from the office against targets it chooses at check
+# time: its own web servers, which answer an error to a share of requests
+# chosen afresh at each check, a name that doesn't exist, a closed port, a
+# server that hangs up, and an address that answers nothing. So a probe
+# that prints what it was shown last time, or that only handles the
+# examples in the prompt, fails. Each check works the right summary out
+# itself.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: counts-and-rate
+    description: "Against servers that fail a share of requests chosen at check time, the probe's summary counts each result, largest first (equal counts in alphabetical order), and ends with the failure rate rounded half up."
+    command: |
+      . /usr/local/lib/lab/probecheck.sh
+      have_probe || exit 0
+      trap stop_servers EXIT
+      # Four probes: errors on every k-th request with a rate whose
+      # rounding goes up; errors on all but every k-th, with a rate whose
+      # rounding goes down; a tie between the two results; and a rate of
+      # exactly 12.5%, which half up makes 13 (rounding a half to the even
+      # number, as awk's printf does, makes it 12). In the second, the good
+      # answers are redirects (301): under 400, so ok.
+      for shape in up down tie half; do
+        while :; do
+          case $shape in
+            tie) k=2; n=$((12 + 2 * (RANDOM % 10))); mode=errors; f=$((n / 2)) ;;
+            half) k=8; n=$((8 * (2 + RANDOM % 4))); mode=errors; f=$((n / 8)) ;;
+            up) k=$((2 + RANDOM % 5)); n=$((12 + RANDOM % 19)); mode=errors; f=$((n / k)) ;;
+            down) k=$((2 + RANDOM % 5)); n=$((12 + RANDOM % 19)); mode=oks; f=$((n - n / k)) ;;
+          esac
+          rest=$((100 * f % n))
+          case $shape in
+            up) [ $((2 * rest)) -ge "$n" ] && break ;;
+            down) [ "$rest" -gt 0 ] && [ $((2 * rest)) -lt "$n" ] && break ;;
+            tie | half) break ;;
+          esac
+        done
+        status=$(echo 500 502 503 504 429 | tr ' ' '\n' | shuf -n 1)
+        good=200
+        [ "$shape" = down ] && good=301
+        port=$((20000 + RANDOM % 10000))
+        serve_on_targets kth-server "$port" "$k" "$status" "$mode" "$good" || { echo "the check's own server didn't start (port $port): run the checks again"; exit 0; }
+        out=$(probe "http://10.50.0.10:$port/" "$n")
+        stop_servers
+        got=$(summary "$out")
+        want=$(expected "$n" "ok=$((n - f))" "http-$status=$f")
+        [ "$got" = "$want" ] || { printf 'a probe of %s requests, %s of them answered %s, ended:\n%s\nand should have ended:\n%s\n' "$n" "$f" "$status" "$got" "$want"; exit 0; }
+      done
+      echo "summaries right"
+    expect:
+      equals: "summaries right"
+  - id: classifies-failures
+    description: "Each attempt's result names how it failed: http-NNN for an HTTP error, no-address for a name that doesn't exist, no-connection for a port that refuses, other-E for any other exit status of curl."
+    command: |
+      . /usr/local/lib/lab/probecheck.sh
+      have_probe || exit 0
+      trap stop_servers EXIT
+      port=$((30000 + RANDOM % 10000))
+      serve_on_targets hangup-server "$port" || { echo "the check's own server didn't start (port $port): run the checks again"; exit 0; }
+      for t in "http-404 http://www.shop.test/nothing-$RANDOM" \
+               "no-address http://nosuch-$RANDOM.shop.test/" \
+               "no-connection http://10.50.0.10:81/" \
+               "other-52 http://10.50.0.10:$port/"; do
+        set -- $t
+        out=$(probe "$2" 3)
+        results=$(attempts "$out" | awk '{print $2}' | sort -u)
+        [ "$results" = "$1" ] || { echo "probing $2 gave the results '$(echo $results)', not $1"; exit 0; }
+        got=$(summary "$out")
+        want=$(expected 3 "$1=3")
+        [ "$got" = "$want" ] || { printf 'probing %s 3 times ended:\n%s\nand should have ended:\n%s\n' "$2" "$got" "$want"; exit 0; }
+      done
+      echo "classified"
+    expect:
+      equals: classified
+  - id: timeouts-classified
+    description: "A request to an address that answers nothing is a timeout, given up after 2 seconds."
+    command: |
+      . /usr/local/lib/lab/probecheck.sh
+      have_probe || exit 0
+      target=http://10.99.0.$((20 + RANDOM % 200))/
+      out=$(probe "$target" 3)
+      results=$(attempts "$out" | awk '{print $2}' | sort -u)
+      [ "$results" = timeout ] || { echo "probing $target, which answers nothing, gave the results '$(echo $results)', not timeout"; exit 0; }
+      attempts "$out" | awk '{if ($3 + 0 < 1.9 || $3 + 0 > 2.5) bad = 1} END {exit bad}' || { echo "probing $target, the attempts didn't each give up after 2 seconds: $(attempts "$out" | awk '{print $3}' | tr '\n' ' ')"; exit 0; }
+      got=$(summary "$out")
+      want=$(expected 3 "timeout=3")
+      [ "$got" = "$want" ] || { printf 'probing %s 3 times ended:\n%s\nand should have ended:\n%s\n' "$target" "$got" "$want"; exit 0; }
+      echo "timed out"
+    expect:
+      equals: "timed out"
+  - id: attempt-lines
+    description: "Without a COUNT the probe makes 20 requests, and prints one line for each, numbered from 1, with its result and the seconds it took, before the summary."
+    command: |
+      . /usr/local/lib/lab/probecheck.sh
+      have_probe || exit 0
+      out=$(probe http://www.shop.test/)
+      lines=$(attempts "$out")
+      [ "$(echo "$lines" | grep -c .)" = 20 ] || { echo "a probe without a COUNT printed $(echo "$lines" | grep -c .) attempt lines, not 20"; exit 0; }
+      echo "$lines" | awk '$1 != NR || $2 != "ok" || $3 !~ /^[0-9]+\.[0-9]+$/ || NF != 3 {bad = 1} END {exit bad}' || { echo "the attempt lines aren't each NUMBER RESULT SECONDS, numbered from 1: $(echo "$lines" | head -n 2 | tr '\n' '|')"; exit 0; }
+      [ "$(summary "$out")" = "$(expected 20 ok=20)" ] || { echo "a probe of 20 good requests ended: $(summary "$out" | tr '\n' '|')"; exit 0; }
+      echo "twenty lines"
+    expect:
+      equals: "twenty lines"

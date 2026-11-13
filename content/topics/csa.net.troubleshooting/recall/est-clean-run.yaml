@@ -1,0 +1,22 @@
+id: est-clean-run
+type: estimate
+rev: 1
+prompt: |
+  A fault failed 1 request in 10, at random. After your fix, you make 30 requests in a row and all of them succeed. If the fix had done nothing and the fault were still there, what is the chance, as a percentage, of 30 clean requests in a row anyway? Within 0.5.
+unit: "%"
+answer: 4.24
+tolerance: { absolute: 0.5 }
+given: { rate: 10, run: 30 }
+working: 100 * (1 - 1 / rate) ** run
+mistakes:
+  - id: one-request
+    value: 90
+    working: 100 * (1 - 1 / rate)
+    why: "That's the chance of one clean request. Each of the 30 has to come out clean, so the chances multiply: 0.9 to the power 30."
+  - id: thirty-failures
+    value: 0
+    working: 100 * (1 / rate) ** run
+    why: "That's the chance of 30 failures in a row, next to nothing. The question asks how often a fault that is still there would hide for all 30."
+explanation: |
+  Each request is clean with chance 0.9 if the fault is still there, and 30 in a row with chance 0.9³⁰ ≈ 0.042: about 4 runs in 100. So 30 clean requests make a still-present fault unlikely but not impossible. For a fault that fails 1 in 10, 30 clean tries is about the least to believe; for a rarer fault you need more (a 1 in 50 fault survives 30 clean tries 55% of the time). Work out how many samples your fault's rate needs before you call it fixed, and say so in the incident note.
+skills: [measure-intermittent]

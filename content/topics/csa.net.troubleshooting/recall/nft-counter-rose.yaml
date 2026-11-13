@@ -1,0 +1,46 @@
+id: nft-counter-rose
+type: predict_shell
+rev: 1
+# Captured on 2026-11-12 in the worked example's network on the
+# network-lab base: app2 given this input chain for the item, nft list
+# chain inet filter input before and after three curl tries from pc to
+# https://10.30.0.11/ and one from app1, with the office monitor running.
+# Pinned in Git Bash (gawk) and with Ubuntu 24.04's mawk 1.3.4.
+prompt: |
+  The office can't reach app2's new HTTPS port, 443; the data centre (10.20.0.0/24) can. `before.txt` and `after.txt` are app2's input chain, `nft list chain inet filter input`, before and after three tries from the office and one from the data centre (captured in a lab, 2026-11-12). The command pairs each rule's packet counter before with the one after and prints each rule whose count changed, numbered among the rules with a counter. What is printed?
+files:
+  before.txt: |
+    table inet filter {
+    	chain input {
+    		type filter hook input priority filter; policy drop;
+    		iif "lo" accept
+    		ct state established,related accept
+    		tcp dport 22 counter packets 0 bytes 0 accept
+    		tcp dport 80 counter packets 3 bytes 180 accept
+    		ip saddr 10.20.0.0/24 tcp dport 443 counter packets 0 bytes 0 accept
+    		tcp dport 443 counter packets 0 bytes 0 drop
+    	}
+    }
+  after.txt: |
+    table inet filter {
+    	chain input {
+    		type filter hook input priority filter; policy drop;
+    		iif "lo" accept
+    		ct state established,related accept
+    		tcp dport 22 counter packets 0 bytes 0 accept
+    		tcp dport 80 counter packets 4 bytes 240 accept
+    		ip saddr 10.20.0.0/24 tcp dport 443 counter packets 1 bytes 60 accept
+    		tcp dport 443 counter packets 6 bytes 360 drop
+    	}
+    }
+command: |
+  paste <(grep -o 'packets [0-9]*' before.txt) <(grep -o 'packets [0-9]*' after.txt) | awk '$4 != $2 {print "rule", NR, "+" $4 - $2}'
+expected_output: |
+  rule 2 +1
+  rule 3 +1
+  rule 4 +6
+explanation: |
+  `grep -o` prints only the matching part, `packets N`, once per rule with a counter, in order; `<(...)` hands each list to `paste` as if it were a file, and `paste` puts them side by side, so each line is `packets BEFORE packets AFTER`. awk prints the rules whose count changed, with the difference.
+
+  Rule 4, the drop for port 443, rose by 6: the office's three tries, two SYNs each (the first, and curl's retransmission after a second, before its 2-second limit). Rule 3, port 443 from the data centre, rose by 1: one SYN, answered (with a refusal, since nothing listens there yet). Rule 2, port 80, rose by 1: the office monitor's load of app2 in the meantime, not part of the test. So the office's SYNs meet the drop, because the accept for 443 names only 10.20.0.0/24. Counters read before and after a test are evidence; counters read once say only "something matched, sometime". And only rules with `counter` count: the first two rules have none.
+skills: [read-logs-and-counters]

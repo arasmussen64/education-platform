@@ -1,0 +1,22 @@
+id: est-page-of-four
+type: estimate
+rev: 1
+prompt: |
+  A router shares traffic between 2 equal paths, choosing a path for each new connection at random, and 1 of the paths drops web traffic. A page needs 4 separate connections to load (its HTML, a style sheet, a script and an image), and it fails if any one of them does. What percentage of page loads fail? Within 1.
+unit: "%"
+answer: 93.75
+tolerance: { absolute: 1 }
+given: { paths: 2, dead: 1, connections: 4 }
+working: 100 * (1 - (1 - dead / paths) ** connections)
+mistakes:
+  - id: one-connection
+    value: 50
+    working: 100 * dead / paths
+    why: "That's the share of single connections that fail. A page needs all four to work."
+  - id: all-four
+    value: 6.25
+    working: 100 * (dead / paths) ** connections
+    why: "That's the share of page loads where all four connections fail. One failed connection is enough to break the page."
+explanation: |
+  A page loads only if all 4 connections take the good path: (1 − 1/2)⁴ = 1/16 = 6.25% of the time. So 100 − 6.25 = 93.75% of page loads fail. That's why one bad path of two feels like "the site is down" to a person with a browser, while a monitor that makes one connection a try reports one failure in two. Measure with the tool that matches what users do, or work the sum out.
+skills: [measure-intermittent]

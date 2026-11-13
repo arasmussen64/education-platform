@@ -1,0 +1,63 @@
+id: ports-and-paths
+type: predict_shell
+rev: 1
+# Captured on 2026-11-12 in the worked example's network on the
+# network-lab base, with its fix made and, for this item, two links added
+# between r2 and r3 (eth3 and eth4), a route for 10.30.0.0/25 over both
+# (ECMP, fib_multipath_hash_policy 1) and an nftables rule on r2 dropping
+# TCP port 80 out of eth4. attempts.txt: 20 curl requests from pc to
+# 10.30.0.11, each from its own source port (--local-port), 200 written ok
+# and 000 fail. eth3.txt: the source port of every SYN that tcpdump on r2's
+# eth3 saw meanwhile (the office monitor's own loads among them). Pinned in
+# Git Bash (gawk) and with Ubuntu 24.04's mawk 1.3.4.
+prompt: |
+  r2 shares the traffic for the cloud between two equal links, `eth3` and `eth4`, choosing one for each connection from its addresses and ports. From the office, 20 requests to the same server, each from a source port of its own, gave `attempts.txt` (port and result). At the same time a capture on r2's `eth3` noted the source port of every connection it saw leave: `eth3.txt` (captured in a lab, 2026-11-12). The command marks each attempt by whether its port left by `eth3`, and counts. What is printed?
+files:
+  attempts.txt: |
+    45010 ok
+    45011 ok
+    45012 ok
+    45013 fail
+    45014 fail
+    45015 ok
+    45016 ok
+    45017 fail
+    45018 ok
+    45019 ok
+    45020 fail
+    45021 ok
+    45022 ok
+    45023 fail
+    45024 ok
+    45025 fail
+    45026 fail
+    45027 fail
+    45028 ok
+    45029 ok
+  eth3.txt: |
+    45010
+    45011
+    45012
+    55586
+    45015
+    55598
+    45016
+    45018
+    45019
+    45021
+    45022
+    55614
+    45024
+    34716
+    45028
+    45029
+command: |
+  awk 'NR == FNR {seen[$1] = 1; next} {print $2, ($1 in seen ? "left-by-eth3" : "not-by-eth3")}' eth3.txt attempts.txt | sort | uniq -c | awk '{print $2, $3, $1}'
+expected_output: |
+  fail not-by-eth3 8
+  ok left-by-eth3 12
+explanation: |
+  awk reads `eth3.txt` first (while `NR == FNR`, the line number in the file equals the line number overall) and remembers each port; then for each attempt it prints the result and whether its port is among them. Counted: all 12 that worked left by `eth3`, and none of the 8 that failed did. (The other ports in `eth3.txt`, such as 55586, are the office monitor's own connections.)
+
+  So the failures all went the other way, by `eth4`: that's where to look, and a filter on r2 for traffic leaving `eth4` was the cause. Connections are spread per port, so one bad path fails only the connections hashed onto it, about one in two here, which looks intermittent from the office. A capture on `eth4` showed nothing at all, because r2 dropped the packets before they left: that, too, points at r2. Only captures say which way each connection went; `ip route get` with ports is a prediction, and in tests in this module's labs it didn't match.
+skills: [locate-on-the-path, measure-intermittent]

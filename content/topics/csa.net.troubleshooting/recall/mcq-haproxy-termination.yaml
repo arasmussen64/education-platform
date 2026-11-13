@@ -1,0 +1,25 @@
+id: mcq-haproxy-termination
+type: mcq
+rev: 1
+# Constructed: HAProxy 2.8's httplog format, with made-up values. The
+# termination states are from the configuration manual's section 8.5
+# (https://docs.haproxy.org/2.8/configuration.html, read 2026-11-12).
+prompt: |
+  The balancer's settings include `timeout server 5s`. One request's line in HAProxy's log (constructed: HAProxy's real format, made-up values):
+
+  ```text
+  10.40.0.10:61822 [12/Nov/2026:15:02:11.004] api apis/api2 0/0/1/-1/5001 504 194 - - sH-- 3/3/1/0/0 0/0 "GET /api/report HTTP/1.1"
+  ```
+
+  What happened to it?
+choices:
+  - "api2 took the connection and sent no answer within the 5 seconds allowed"
+  - "api2 refused the connection, so HAProxy answered the client with a 504"
+  - "The client gave up waiting and closed its connection after 5 seconds"
+  - "The request waited 5 seconds in HAProxy's queue for a server to be free"
+answer: 0
+explanation: |
+  Read the timers `TR/Tw/Tc/Tr/Ta`: 0 ms to receive the request, 0 in the queue, 1 ms to connect to api2, `-1` for the server's response (its headers never came) and 5001 ms in all. The termination state's first letter, `s`, says the server-side timeout struck, and the second, `H`, that HAProxy was waiting for the response headers. So api2 accepted the connection and said nothing for 5 seconds, and HAProxy answered `504` itself. Next: api2's own log for that request.
+
+  A refusal would show `SC` (the server refused, with `Tc` -1) and a 502 or 503 at once; a client giving up would start with `C` or `c`; a wait in the queue would show a large `Tw` and `sQ`.
+skills: [read-logs-and-counters]

@@ -1,0 +1,109 @@
+# The checks of "Follow the method": the notes the walkthrough writes, step
+# by step (each read against the evidence it came from), then r1's routing
+# as the kernel follows it and as FRR has saved it, and the loads it brings
+# back. The last check waits for the routes after a boot; the others read
+# at once.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: notes-complete
+    description: "~/example/notes.txt has a value for each of scope, slow_share, fails_by_address, where, cause, evidence and verified, and verified is the 20/20 the last step counts."
+    command: |
+      f=/home/learner/example/notes.txt
+      [ -f "$f" ] || { echo "there is no ~/example/notes.txt"; exit 0; }
+      for k in scope slow_share fails_by_address where cause evidence verified; do
+        v=$(sed -n "s/^[[:space:]]*$k[[:space:]]*=[[:space:]]*//p" "$f" | tail -n 1 | tr -d '[:space:]')
+        [ -n "$v" ] || { echo "~/example/notes.txt has no value for $k"; exit 0; }
+      done
+      v=$(sed -n 's/^[[:space:]]*verified[[:space:]]*=[[:space:]]*//p' "$f" | tail -n 1 | tr -d '[:space:]')
+      [ "$v" = 20/20 ] || { echo "verified is $v, not the 20/20 the last step counts"; exit 0; }
+      echo complete
+    expect:
+      equals: complete
+  - id: slow-share-measured
+    description: "~/example/before.log is a copy of the start of the office monitor's log, with at least 10 loads in it, and slow_share is the percentage of those loads that took a second or more, to within 5."
+    command: |
+      b=/home/learner/example/before.log
+      log=/var/log/shop-monitor.log
+      [ -f "$b" ] || { echo "there is no ~/example/before.log"; exit 0; }
+      n=$(wc -l < "$b")
+      [ "$n" -ge 10 ] || { echo "~/example/before.log holds $n loads, fewer than 10"; exit 0; }
+      size=$(stat -c %s "$b")
+      cmp -s -n "$size" "$b" "$log" || { echo "~/example/before.log isn't a copy of the start of $log"; exit 0; }
+      share=$(awk '$5 >= 1 {slow++} END {printf "%.0f\n", 100 * slow / NR}' "$b")
+      got=$(sed -n 's/^[[:space:]]*slow_share[[:space:]]*=[[:space:]]*\([0-9.]*\)%*[[:space:]]*$/\1/p' /home/learner/example/notes.txt | tail -n 1)
+      [ -n "$got" ] || { echo "slow_share isn't a number"; exit 0; }
+      awk -v a="$got" -v b="$share" 'BEGIN {d = a - b; if (d < 0) d = -d; exit !(d <= 5)}' || { echo "slow_share is $got; in ~/example/before.log, $share% of the loads took a second or more"; exit 0; }
+      echo measured
+    expect:
+      equals: measured
+  - id: split-and-located
+    description: "The notes name the address that fails when it is asked directly (fails_by_address) and the router whose route sends that address's traffic astray (where)."
+    command: |
+      f=/home/learner/example/notes.txt
+      value() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\\([^[:space:]]*\\)[[:space:]]*$/\\1/p" "$f" | tail -n 1; }
+      [ "$(value fails_by_address)" = 10.30.0.11 ] || { echo "fails_by_address isn't the address that fails when asked directly"; exit 0; }
+      [ "$(value where)" = r1 ] || { echo "where isn't the router whose route sends that traffic astray"; exit 0; }
+      echo located
+    expect:
+      equals: located
+  - id: cause-named
+    description: "The notes name the cause from the walkthrough's list, with the line of r1's routing table that shows it as the evidence."
+    command: |
+      f=/home/learner/example/notes.txt
+      c=$(sed -n 's/^[[:space:]]*cause[[:space:]]*=[[:space:]]*\([^[:space:]]*\)[[:space:]]*$/\1/p' "$f" | tail -n 1)
+      e=$(sed -n 's/^[[:space:]]*evidence[[:space:]]*=[[:space:]]*//p' "$f" | tail -n 1)
+      [ "$c" = stale-more-specific-route ] || { echo "the cause in the notes isn't the one the evidence shows"; exit 0; }
+      case $e in *10.30.0.0/25*) ;; *) echo "the evidence in the notes isn't the routing table's line that shows the cause"; exit 0 ;; esac
+      echo named
+    expect:
+      equals: named
+  - id: r1-routes-by-bgp
+    description: "r1 sends traffic for the data centre and the cloud to r2 by the routes it learns over BGP, runs no fixed route for a shop network, and runs the configuration it has saved."
+    timeout: 45
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # After a boot, until BGP has brought r1 its routes (the sessions
+      # come up within seconds; this is the check run's one wait).
+      bgp_up() { [ "$(on r1 vtysh -c 'show ip route bgp' | grep -c '^B>\*')" -ge 2 ]; }
+      wait_for 30 bgp_up
+      for a in 10.20.0.11 10.30.0.11 10.30.0.200; do
+        r=$(on r1 ip route get $a | head -n 1)
+        case "$r" in *"via 10.0.12.2 dev eth0"*) ;; *) echo "r1 doesn't send traffic for $a to r2"; exit 0 ;; esac
+      done
+      [ -z "$(hand_routes r1)" ] || { echo "r1 has a route typed into its kernel by hand, which the next boot loses"; exit 0; }
+      # -d shows each route's protocol; FRR's BGP routes are "bgp".
+      bad=$(ip -d -j -n r1 route show | python3 -c 'import json, sys
+      for r in json.load(sys.stdin):
+          d = r.get("dst", "")
+          if (d.startswith("10.20.") or d.startswith("10.30.")) and r.get("protocol") != "bgp":
+              print(d)')
+      [ -z "$bad" ] || { echo "r1 has a route for a shop network that BGP didn't give it: $bad"; exit 0; }
+      on r1 vtysh -c 'show running-config' | grep -E '^ip route 10\.(20|30)\.' > /dev/null && { echo "r1 runs a fixed route for a shop network"; exit 0; }
+      frr_saved r1 > /dev/null || { echo "r1's running configuration isn't the one it has saved"; exit 0; }
+      echo bgp
+    expect:
+      equals: bgp
+  - id: loads-instant
+    description: "From the office, ten loads of the shop's health page by name, and ten by each of its two addresses, all answer 200 in under a second."
+    timeout: 90
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      load() { on pc curl -s -o /dev/null -m 3 -w '%{http_code} %{time_total}' "$@"; }
+      fast() { set -- $(load "$@"); [ "$1" = 200 ] && awk -v t="$2" 'BEGIN {exit !(t < 1.0)}'; }
+      # After a boot, until BGP has brought the routes and the office's
+      # resolver has looked the shop's name up once (its first lookup after
+      # a boot can take a second or two while it finds ns1). At most 10
+      # tries of 3 + 3 seconds and the pause between them.
+      ready() { fast -H 'Host: www.shop.test' http://10.30.0.11/health && fast http://www.shop.test/health; }
+      wait_for 10 ready
+      for target in http://www.shop.test/health "-H Host:www.shop.test http://10.30.0.11/health" "-H Host:www.shop.test http://10.20.0.11/health"; do
+        for i in $(seq 1 10); do
+          set -- $(load $target)
+          [ "$1" = 200 ] || { echo "a load of ${target##* } from the office got $1"; exit 0; }
+          awk -v t="$2" 'BEGIN {exit !(t < 1.0)}' || { echo "a load of ${target##* } from the office took $2 seconds"; exit 0; }
+        done
+      done
+      echo instant
+    expect:
+      equals: instant

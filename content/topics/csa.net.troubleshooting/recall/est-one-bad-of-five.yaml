@@ -1,0 +1,22 @@
+id: est-one-bad-of-five
+type: estimate
+rev: 1
+prompt: |
+  A balancer takes 5 API servers in turn, and 1 of them answers every call with `502 Bad Gateway`; the others are fine. Of 250 calls, how many get a 502? Exactly.
+unit: calls
+answer: 50
+tolerance: { absolute: 0 }
+given: { servers: 5, bad: 1, calls: 250 }
+working: calls * bad / servers
+mistakes:
+  - id: coin-toss
+    value: 125
+    working: calls / 2
+    why: "That treats each call as a coin toss, works or fails. Taken in turn, each server gets a fifth of the calls, and only the bad one's fifth fails."
+  - id: counted-the-good
+    value: 200
+    working: calls * (servers - bad) / servers
+    why: "That's the calls the four good servers answer. The question asks for the ones that fail."
+explanation: |
+  In turn, each of the 5 servers gets 250 ÷ 5 = 50 of the calls, and the bad one's 50 all get a 502. One failure in five, steady, with five servers: break the failures down by the server HAProxy's log names for each call, and all of them share one.
+skills: [measure-intermittent]

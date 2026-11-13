@@ -1,0 +1,16 @@
+id: mcq-two-captures
+type: mcq
+rev: 1
+prompt: |
+  The office's connections to the cloud fail. On r2, the router at the near end of the tunnel, `tcpdump -nn -i eth0 port 80` shows each SYN from the office arrive. At the same moment `tcpdump -nn -i tun2 port 80`, on the tunnel r2's route uses, shows none of them. Where are they lost?
+choices:
+  - "In r2 itself: its firewall or its routing drops them before tun2"
+  - "At the tunnel's far end, which drops them as soon as they arrive"
+  - "In the tunnel, which loses them on their way across the internet"
+  - "Nowhere: tcpdump can't see the packets a tunnel interface carries"
+answer: 0
+explanation: |
+  Two captures at two points: a packet seen at the first and not at the second was lost between them, and here both points are on r2. The SYNs arrive on eth0 and never leave on tun2, so r2 drops them: a firewall rule in its forward chain, a route that sends them somewhere else, or a hook that eats them. Next: `on r2 nft list ruleset` and `on r2 ip route get` for the server's address.
+
+  The far end and the tunnel's path come after tun2, so they can't explain packets that never reached it. And tcpdump on a tunnel interface shows the packets inside the tunnel, with their own addresses and ports: that's what makes it the second point.
+skills: [locate-on-the-path]

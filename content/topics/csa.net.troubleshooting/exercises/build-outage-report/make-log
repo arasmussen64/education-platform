@@ -1,0 +1,229 @@
+#!/usr/bin/python3
+"""make-log SHAPE SEED: writes a monitor log of 300 to 600 loads, in the
+office monitor's format, to standard output. The checks' tool, not the
+learner's: each check makes a fresh log, from a seed taken from the clock,
+so a report written for one log can't pass another.
+
+SHAPE is one of:
+  address  one bad address: every failed and every slow load tried it first
+  window   one outage: a run of 10 to 20 failed loads, from every address,
+           and slow loads scattered over several addresses
+  neither  failures and slow loads scattered over several addresses, never
+           all in one run
+  half     as neither, with exactly one load in eight failed: 12.5%, which
+           half up makes 13 (cut down, or a half sent to the even number as
+           printf "%.0f" does, makes 12)
+  clean    no failed load at all, and slow loads on several addresses
+  split    every failed load on one address and every slow load on another,
+           the failures scattered: no one address holds both, so the verdict
+           is none (a verdict worked out from the failures alone, or from
+           the slow loads alone, names an address)
+The failure rate is made to round differently from a rate cut down (address,
+window and split) or rounded up (neither), so rounding is tested too.
+
+Every log also holds the loads on the prompt's lines: an ok load of 0.999
+seconds (under 1), a redirect (301, under 400, so ok), and, where the shape
+has them, a slow load of exactly 1.000 seconds and a failed load answered
+404 (400 or more, with exit status 0). So "slow" read as more than 1, or
+"failed" read as anything but 200 or as 500 and up, gives a wrong line."""
+import random
+import sys
+
+shape, seed = sys.argv[1], int(sys.argv[2])
+if shape not in ("address", "window", "neither", "half", "clean", "split"):
+    sys.exit(f"make-log: no such shape: {shape}")
+rng = random.Random(seed)
+POOL = ["10.20.0.11", "10.20.0.12", "10.30.0.11", "10.30.0.200", "172.16.4.20", "192.168.50.7", "10.1.2.9"]
+PAGES = ["/health", "/catalog"]
+
+
+class Log:
+    def __init__(self):
+        self.addresses = rng.sample(POOL, 3)
+        self.bad = self.addresses[0]
+        self.clock = rng.randrange(0, 20 * 3600)
+        self.lines: list[str] = []
+        # How many of each kind of load so far: the first few of each kind
+        # are the ones on the prompt's lines.
+        self.oks = self.slows = self.fails = 0
+
+    def add(self, tried: str, status: str, seconds: float, exit_status: int) -> None:
+        c = self.clock
+        stamp = f"{c // 3600 % 24:02d}:{c // 60 % 60:02d}:{c % 60:02d}"
+        page = PAGES[len(self.lines) % 2]
+        self.lines.append(f"{stamp} {page:<8} {tried:<23} {status} {seconds:8.3f} exit={exit_status}")
+        self.clock += 2 + int(seconds) + rng.randrange(0, 2)
+
+    def other(self, than: str) -> str:
+        return rng.choice([a for a in self.addresses if a != than])
+
+    def ok(self, first: str) -> None:
+        # The third ok load is a redirect (301: under 400, so ok), and the
+        # fifth took 0.999 seconds (under 1, so not slow).
+        self.oks += 1
+        if self.oks == 3:
+            self.add(first, "301", rng.uniform(0.001, 0.05), 0)
+        elif self.oks == 5:
+            self.add(first, "200", 0.999, 0)
+        else:
+            self.add(first, "200", rng.uniform(0.001, 0.05), 0)
+
+    def slow_fallback(self, first: str) -> None:
+        # The first address didn't answer; curl gave it half of its 5
+        # seconds, then the next one answered.
+        self.add(f"{first},{self.other(first)}", "200", rng.uniform(2.501, 2.512), 0)
+
+    def slow_server(self, first: str) -> None:
+        # The first took exactly 1.000 seconds: slow, since slow is 1 second
+        # or more.
+        self.slows += 1
+        self.add(first, "200", 1.0 if self.slows == 1 else rng.uniform(1.0, 3.4), 0)
+
+    def no_name(self) -> None:
+        self.add("-", "000", rng.uniform(0.001, 0.05), 6)
+
+    def fail(self, first: str) -> None:
+        # The first is a 404 with exit status 0: failed, since its status
+        # is 400 or more.
+        self.fails += 1
+        if self.fails == 1:
+            self.add(first, "404", rng.uniform(0.001, 0.02), 0)
+            return
+        kind = rng.randrange(4)
+        if kind == 0:
+            self.add(f"{first},{self.other(first)}", "000", rng.uniform(5.0, 5.01), 28)
+        elif kind == 1:
+            self.add(first, "000", rng.uniform(0.0001, 0.002), 7)
+        elif kind == 2:
+            self.add(first, "503", rng.uniform(0.001, 0.02), 0)
+        else:
+            self.add(first, "000", rng.uniform(3.0, 3.1), 7)
+
+
+def results(lines: list[str]) -> list[tuple[str, str]]:
+    """Each load's first address and result, as the report sees them."""
+    out = []
+    for text in lines:
+        f = text.split()
+        failed = f[5] != "exit=0" or int(f[3]) >= 400
+        slow = not failed and float(f[4]) >= 1
+        out.append((f[2].split(",")[0], "fail" if failed else "slow" if slow else "ok"))
+    return out
+
+
+def verdict(lines: list[str]) -> str:
+    loads = results(lines)
+    failed = sum(1 for _, r in loads if r == "fail")
+    best = run = 0
+    for _, r in loads:
+        run = run + 1 if r == "fail" else 0
+        best = max(best, run)
+    troubled = {a for a, r in loads if r != "ok"}
+    if len(troubled) == 1:
+        return "address"
+    if failed and best == failed:
+        return "window"
+    return "neither"
+
+
+def rounding_wanted(lines: list[str]) -> bool:
+    n = len(lines)
+    failed = sum(1 for _, r in results(lines) if r == "fail")
+    if shape == "half":
+        return 8 * failed == n
+    if shape == "clean":
+        return failed == 0
+    rest = 100 * failed % n
+    return 0 < 2 * rest < n if shape == "neither" else 2 * rest >= n
+
+
+def make() -> list[str]:
+    log = Log()
+    total = rng.randrange(300, 601)
+    if shape == "address":
+        for _ in range(total):
+            first = rng.choice(log.addresses)
+            if first != log.bad:
+                log.ok(first)
+            elif rng.random() < 0.6:
+                log.slow_fallback(first)
+            else:
+                log.fail(first)
+    elif shape == "window":
+        length = rng.randrange(10, 21)
+        start = rng.randrange(total // 4, 3 * total // 4)
+        slow_at = {rng.randrange(0, start): log.addresses[0], rng.randrange(start + length, total): log.addresses[1]}
+        for i in range(total):
+            first = rng.choice(log.addresses)
+            if start <= i < start + length:
+                log.no_name() if rng.random() < 0.25 else log.fail(first)
+            elif i in slow_at:
+                log.slow_server(slow_at[i])
+            elif rng.random() < 0.04:
+                log.slow_server(first)
+            else:
+                log.ok(first)
+    elif shape == "clean":
+        for _ in range(total):
+            first = rng.choice(log.addresses)
+            if rng.random() < 0.06:
+                log.slow_fallback(first) if rng.random() < 0.5 else log.slow_server(first)
+            else:
+                log.ok(first)
+    elif shape == "half":
+        # Exactly one failed load in eight, at places chosen at random but
+        # never two together, and slow loads scattered over the addresses.
+        total = 8 * rng.randrange(40, 71)
+        failing = set()
+        while len(failing) < total // 8:
+            i = rng.randrange(total)
+            if not {i - 1, i, i + 1} & failing:
+                failing.add(i)
+        for i in range(total):
+            first = rng.choice(log.addresses)
+            if i in failing:
+                log.no_name() if rng.random() < 0.2 else log.fail(first)
+            elif rng.random() < 0.05:
+                log.slow_server(first)
+            else:
+                log.ok(first)
+    elif shape == "split":
+        # Every failed load tried the bad address first, never two in a
+        # row, and every slow load tried one other address first.
+        slow_address = log.other(log.bad)
+        for _ in range(total):
+            first = rng.choice(log.addresses)
+            last_failed = bool(log.lines) and results(log.lines[-1:])[0][1] == "fail"
+            roll = rng.random()
+            if first == log.bad and roll < 0.1 and not last_failed:
+                log.fail(first)
+            elif first == slow_address and roll < 0.15:
+                log.slow_server(first)
+            else:
+                log.ok(first)
+    else:
+        for _ in range(total):
+            first = rng.choice(log.addresses)
+            last_failed = bool(log.lines) and results(log.lines[-1:])[0][1] == "fail"
+            roll = rng.random()
+            if roll < 0.03 and not last_failed:
+                log.no_name() if rng.random() < 0.2 else log.fail(first)
+            elif roll < 0.07:
+                log.slow_server(first)
+            else:
+                log.ok(first)
+    # Instant loads added at the end until the rate rounds the way wanted.
+    for _ in range(400):
+        if rounding_wanted(log.lines):
+            break
+        log.ok(log.other(log.bad))
+    return log.lines
+
+
+for _ in range(50):
+    lines = make()
+    if verdict(lines) == ("neither" if shape in ("half", "clean", "split") else shape) and rounding_wanted(lines):
+        break
+else:
+    sys.exit("make-log: couldn't make a log of that shape")
+print("\n".join(lines))

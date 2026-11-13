@@ -1,0 +1,173 @@
+# The checks of "The branch's API calls". Each description is an end state,
+# and none names a fault. A check that finds something wrong prints what it
+# found and exits 0, so the checker shows that sentence. The first check
+# waits for the API after a boot; the rest read at once.
+checks:
+  - id: calls-succeed
+    description: "From the branch, 30 calls in a row to the API, http://10.20.0.80/api/stock, each get 200 with the data service's own answer, within 5 seconds."
+    timeout: 90
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      want=$(on dc1 curl -s --max-time 3 http://10.20.0.50:5000/stock)
+      [ -n "$want" ] || { echo "the data service on db doesn't answer"; exit 0; }
+      good() { [ "$(on client curl -s --max-time 4 http://10.20.0.80/api/stock)" = "$want" ]; }
+      wait_for 10 good
+      for i in $(seq 1 30); do
+        out=$(on client curl -s --max-time 6 -w '\n%{http_code} %{time_total}' http://10.20.0.80/api/stock)
+        body=$(echo "$out" | head -n 1)
+        set -- $(echo "$out" | tail -n 1)
+        [ "${1:-000}" = 200 ] || { echo "call $i of 30 from the branch got HTTP ${1:-000}"; exit 0; }
+        [ "$body" = "$want" ] || { echo "call $i of 30 from the branch got an answer that isn't the data service's"; exit 0; }
+        awk -v t="$2" 'BEGIN {exit !(t < 5.0)}' || { echo "call $i of 30 from the branch took $2 seconds"; exit 0; }
+      done
+      echo "30 of 30"
+    expect:
+      equals: "30 of 30"
+  - id: lb-alone-has-the-address
+    description: "The API's address, 10.20.0.80, is lb's: every answer to ARP for it comes from lb's card."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      mine=$(ip -n lb -br link show dev eth0 | awk '{print tolower($3)}')
+      # -b: every probe is broadcast, so every machine that holds the
+      # address hears each one and answers.
+      macs=$(on dc1 arping -b -c 3 -w 5 -I eth1 10.20.0.80 2>&1 | grep -o '\[[0-9A-Fa-f:]*\]' | tr -d '[]' | tr 'A-F' 'a-f' | sort -u)
+      [ -n "$macs" ] || { echo "nothing answers ARP for 10.20.0.80"; exit 0; }
+      [ "$macs" = "$mine" ] || { echo "not every answer to ARP for 10.20.0.80 comes from lb"; exit 0; }
+      echo "lb alone"
+    expect:
+      equals: "lb alone"
+  - id: lb-alone-after-a-reboot
+    description: "After a reboot too, the API's address is lb's alone, and every machine keeps its own address and the services the prompt describes (the old reports still answer on port 8080)."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      case $(systemctl is-active old-lb.service) in active | activating | reloading)
+        echo "lb isn't the only machine set to hold 10.20.0.80"; exit 0 ;;
+      esac
+      # Disabled, masked, or its unit file deleted (not-found): none of
+      # them starts at boot.
+      case $(systemctl is-enabled old-lb.service 2> /dev/null) in disabled | masked | not-found) ;; *)
+        echo "after a reboot, lb wouldn't be the only machine to hold 10.20.0.80"; exit 0 ;;
+      esac
+      addrs=$(ip -n lbold -br addr show dev eth0)
+      echo "$addrs" | grep -w '10.20.0.81/24' > /dev/null || { echo "lbold no longer has its own address, 10.20.0.81"; exit 0; }
+      echo "$addrs" | grep -w '10.20.0.80/24' > /dev/null && { echo "a machine other than lb still holds 10.20.0.80"; exit 0; }
+      seen=$(on client nc -w 3 10.20.0.81 8080 < /dev/null 2> /dev/null)
+      [ "$seen" = 10.40.0.10 ] || { echo "the old reports don't answer the branch on 10.20.0.81, port 8080"; exit 0; }
+      echo "lb alone"
+    expect:
+      equals: "lb alone"
+  - id: api-servers-reach-db
+    description: "Each API server's own API answers: on api1, api2 and api3, a request for http://127.0.0.1/api/stock gets the data service's answer."
+    command: |
+      want=$(/usr/local/bin/on dc1 curl -s --max-time 3 http://10.20.0.50:5000/stock)
+      [ -n "$want" ] || { echo "the data service on db doesn't answer"; exit 0; }
+      for m in api1 api2 api3; do
+        got=$(/usr/local/bin/on $m curl -s --max-time 5 http://127.0.0.1/api/stock)
+        [ "$got" = "$want" ] || { echo "not every API server's own /api/stock brings the data service's answer"; exit 0; }
+      done
+      echo answers
+    expect:
+      equals: answers
+  - id: firewalls-as-strict
+    description: "Every API server keeps its firewall no looser than it was given: the same input and output policies, and no new way out to a port it has no use for, on db or on another server."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      policies() { on "$1" nft list ruleset 2> /dev/null | grep -oE 'hook (input|output) .*policy [a-z]+' | awk '{print $2, $NF}' | tr -d ';' | tr '\n' ' '; }
+      for m in api1 api2; do
+        [ "$(policies $m)" = "input drop output accept " ] || { echo "$m's firewall policies aren't the ones it was given"; exit 0; }
+      done
+      [ "$(policies api3)" = "input drop output drop " ] || { echo "api3's firewall policies aren't the ones it was given"; exit 0; }
+      # A listener of the check's own on db, on a port nobody asked for.
+      on db timeout 10 nc -l -k 2525 > /dev/null 2>&1 &
+      listener=$!
+      sleep 0.5
+      to_db=$(tcp_state api3 10.20.0.50 2525)
+      # And api1's SSH port, which api1's firewall lets in (nothing listens,
+      # so an attempt that leaves api3 is refused at once).
+      to_api1=$(tcp_state api3 10.20.0.11 22)
+      kill "$listener" 2> /dev/null
+      wait "$listener" 2> /dev/null
+      [ "$to_db" = dropped ] || { echo "api3 can open a connection to db on a port it has no use for"; exit 0; }
+      [ "$to_api1" = dropped ] || { echo "api3 can open a connection to api1 on a port it has no use for"; exit 0; }
+      echo guarded
+    expect:
+      equals: guarded
+  - id: firewalls-saved
+    description: "Each API server's firewall file loads the rules it is running, and its firewall service is enabled, so a reboot brings the same rules back."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for m in api1 api2 api3; do
+        nft_saved $m > /dev/null || { echo "$m's running rules aren't the ones its /etc/nftables.conf loads"; exit 0; }
+        [ "$(systemctl is-enabled nftables@$m)" = enabled ] || { echo "$m's firewall doesn't start at boot"; exit 0; }
+      done
+      echo saved
+    expect:
+      equals: saved
+  - id: balancer-intact
+    description: "lb runs HAProxy's configuration as it was given, with api1, api2 and api3 all in service and passing their health checks, and the API servers' sites and the data service are as they were."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sha256sum --quiet -c /usr/local/lib/lab/as-given.sha256 > /dev/null 2>&1 || { echo "a file that must stay as it was given has changed: $(sha256sum --quiet -c /usr/local/lib/lab/as-given.sha256 2> /dev/null | cut -d: -f1 | tr '\n' ' ')"; exit 0; }
+      api() { echo "$1" | on lb socat -t 2 stdio /run/haproxy/admin.sock 2> /dev/null; }
+      started=$(api "show info" | awk -F': ' '$1 == "Start_time_sec" {print $2}')
+      changed=$(stat -c %Y /etc/netns/lb/haproxy/haproxy.cfg)
+      [ -n "$started" ] || { echo "HAProxy on lb isn't running"; exit 0; }
+      [ "$started" -ge "$changed" ] || { echo "HAProxy on lb hasn't loaded its file since it last changed"; exit 0; }
+      for i in $(seq 1 10); do
+        states=$(api "show stat" | awk -F, '$1 == "apis" && $2 ~ /^api[123]$/ {print $2 "=" $18}' | sort | tr '\n' ' ')
+        [ "$states" = "api1=UP api2=UP api3=UP " ] && break
+        sleep 1
+      done
+      [ "$states" = "api1=UP api2=UP api3=UP " ] || { echo "not every API server is in service and passing its health checks: $states"; exit 0; }
+      echo intact
+    expect:
+      equals: intact
+  - id: provider-untouched
+    description: "The provider's routers, isp1 and isp2, and the network itself are as they were."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact > /dev/null || { netlab intact; exit 0; }
+      v=$(netlab verify isp1 isp2 2>&1)
+      [ "$v" = verified ] || { echo "$v" | head -n 2; exit 0; }
+      on isp2 tc qdisc show dev eth2 | grep -E 'netem .*loss 8%' > /dev/null || { echo "isp2's link to dc1 isn't as the provider left it"; exit 0; }
+      [ "$(on isp1 sysctl -n net.ipv4.icmp_ratelimit)" = 2000 ] || { echo "isp1's kernel settings aren't as the provider left them"; exit 0; }
+      [ "$(on isp2 sysctl -n net.ipv4.icmp_ratelimit)" = 0 ] || { echo "isp2's kernel settings aren't as the provider left them"; exit 0; }
+      echo intact
+    expect:
+      equals: intact
+  - id: ticket-right
+    description: "~/ticket/provider.txt gives the provider's desk the last hop on the path before the trouble starts, and the first hop where it shows."
+    command: |
+      f=/home/learner/ticket/provider.txt
+      [ -f "$f" ] || { echo "there is no ~/ticket/provider.txt"; exit 0; }
+      value() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\\([^[:space:]]*\\)[[:space:]]*$/\\1/p" "$f" | tail -n 1; }
+      last=$(value last_clean_hop)
+      first=$(value first_lossy_hop)
+      [ -n "$last" ] && [ -n "$first" ] || { echo "~/ticket/provider.txt doesn't give both hops"; exit 0; }
+      # The provider's lossy link is isp2's eth2 (the topology's netem
+      # line): isp2, the last clean hop (192.0.2.2 is the address it answers
+      # the branch's probes from; 198.51.100.1, its end of the lossy link,
+      # names the same router), then dc1 beyond it.
+      case $last in 192.0.2.2 | 198.51.100.1) ;; *) last=wrong ;; esac
+      [ "$last" != wrong ] && [ "$first" = 198.51.100.2 ] || { echo "the hops in ~/ticket/provider.txt aren't the two either side of where the trouble starts"; exit 0; }
+      echo right
+    expect:
+      equals: right
+  - id: notes-right
+    description: "~/ticket/notes.txt gives each of the three faults a cause from /srv/ticket/causes.txt and a line of evidence."
+    command: |
+      f=/home/learner/ticket/notes.txt
+      [ -f "$f" ] || { echo "there is no ~/ticket/notes.txt"; exit 0; }
+      causes=""
+      for n in 1 2 3; do
+        c=$(sed -n "s/^[[:space:]]*fault-$n[[:space:]]*cause[[:space:]]*=[[:space:]]*\\([^[:space:]]*\\)[[:space:]]*$/\\1/p" "$f" | tail -n 1)
+        e=$(sed -n "s/^[[:space:]]*fault-$n[[:space:]]*evidence[[:space:]]*=[[:space:]]*//p" "$f" | tail -n 1 | tr -d '[:space:]')
+        [ -n "$c" ] || { echo "fault-$n has no cause in ~/ticket/notes.txt"; exit 0; }
+        grep -x -- "$c" /srv/ticket/causes.txt > /dev/null || { echo "fault-$n's cause, $c, isn't one of /srv/ticket/causes.txt"; exit 0; }
+        [ -n "$e" ] || { echo "fault-$n has no evidence in ~/ticket/notes.txt"; exit 0; }
+        causes="$causes$c "
+      done
+      [ "$(echo $causes | tr ' ' '\n' | sort | tr '\n' ' ')" = "duplicate-address egress-filter-blocks-dependency provider-packet-loss " ] || { echo "the causes in ~/ticket/notes.txt aren't the three faults' causes"; exit 0; }
+      echo right
+    expect:
+      equals: right

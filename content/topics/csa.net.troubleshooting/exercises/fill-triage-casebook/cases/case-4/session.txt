@@ -1,0 +1,28 @@
+$ on gw conntrack -S
+cpu=0   	found=4680 invalid=0 insert=0 insert_failed=210 drop=210 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0 
+cpu=1   	found=7315 invalid=0 insert=0 insert_failed=350 drop=350 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0 
+cpu=2   	found=4680 invalid=0 insert=0 insert_failed=210 drop=210 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0 
+cpu=3   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0 
+cpu=4   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0 
+cpu=5   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0 
+cpu=6   	found=1260 invalid=0 insert=0 insert_failed=70 drop=70 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0 
+cpu=7   	found=0 invalid=0 insert=0 insert_failed=0 drop=0 early_drop=0 error=0 search_restart=0 clash_resolve=0 chaintoolong=0 
+$ on gw conntrack -L -p tcp --dport 443 2>/dev/null | head -n 3
+tcp      6 119 TIME_WAIT src=10.1.0.20 dst=203.0.113.10 sport=43152 dport=443 src=203.0.113.10 dst=198.51.100.3 sport=443 dport=40048 [ASSURED] mark=0 use=1
+tcp      6 119 TIME_WAIT src=10.1.0.20 dst=203.0.113.10 sport=43054 dport=443 src=203.0.113.10 dst=198.51.100.3 sport=443 dport=40021 [ASSURED] mark=0 use=1
+tcp      6 119 TIME_WAIT src=10.1.0.20 dst=203.0.113.10 sport=43010 dport=443 src=203.0.113.10 dst=198.51.100.3 sport=443 dport=40047 [ASSURED] mark=0 use=1
+$ on gw nft list table ip nat
+table ip nat {
+	chain prerouting {
+		type nat hook prerouting priority dstnat; policy accept;
+		iifname "wan" ip daddr 198.51.100.2 tcp dport 443 dnat to 10.1.0.20:8443
+	}
+
+	chain postrouting {
+		type nat hook postrouting priority srcnat; policy accept;
+		oifname "wan" ip saddr 10.1.0.20 ip daddr 203.0.113.10 tcp dport 443 snat to 198.51.100.3:40000-40049
+		oifname "wan" ip saddr 10.1.0.20 snat to 198.51.100.2
+		oifname "wan" ip saddr 10.1.1.0/24 snat to 198.51.100.2
+		iifname "wan" masquerade
+	}
+}

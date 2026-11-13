@@ -1,0 +1,43 @@
+#!/usr/bin/python3
+"""kth-server PORT K STATUS MODE [GOOD]: the checks' own throwaway web
+server, started on targets for one check. With MODE errors, it answers
+every K-th request it receives with STATUS (an error) and every other one
+with GOOD; with MODE oks, every K-th with GOOD and every other one with
+STATUS. GOOD is 200 unless given (a redirect, 301, is a good answer too:
+under 400). So a probe of COUNT requests sees COUNT // K errors, or
+COUNT - COUNT // K. The checks choose PORT, K, STATUS, MODE and GOOD afresh
+each time."""
+import sys
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+port, k, status, mode = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+good = int(sys.argv[5]) if len(sys.argv) > 5 else 200
+lock = threading.Lock()
+seen = 0
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        global seen
+        with lock:
+            seen += 1
+            n = seen
+        every_kth = n % k == 0
+        if mode == "errors":
+            code = status if every_kth else good
+        else:
+            code = good if every_kth else status
+        body = b"error\n" if code == status else b"ok\n"
+        self.send_response(code)
+        if code == 301:
+            self.send_header("Location", "/moved")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()

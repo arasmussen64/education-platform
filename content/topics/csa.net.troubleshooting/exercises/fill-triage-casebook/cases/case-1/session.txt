@@ -1,0 +1,22 @@
+$ on office dig +norecurse +short @198.51.100.13 shop.test SOA
+ns1.shop.test. hostmaster.shop.test. 2026111206 3600 600 1209600 900
+$ on office dig +norecurse +short @198.51.100.13 api.shop.test
+203.0.113.51
+$ on office dig +norecurse +short @198.51.100.14 shop.test SOA
+ns1.shop.test. hostmaster.shop.test. 2026111205 3600 600 1209600 900
+$ on office dig +norecurse +short @198.51.100.14 api.shop.test
+203.0.113.41
+$ on ns1 grep -n -A6 "zone \"shop.test\"" /etc/bind/named.conf.local
+6:zone "shop.test" {
+7-  type primary;
+8-  file "/etc/bind/db.shop.test";
+9-  dnssec-policy default;
+10-  inline-signing yes;
+11-  key-directory "/etc/bind/keys";
+12-  allow-transfer { 198.51.100.24; };
+$ on ns2 grep -n -A4 "zone \"shop.test\"" /etc/bind/named.conf.local
+5:zone "shop.test" {
+6-  type secondary;
+7-  primaries { 198.51.100.13; };
+8-  file "/var/cache/bind/db.shop.test";
+9-};

@@ -1,0 +1,16 @@
+id: mcq-name-or-address
+type: mcq
+rev: 1
+prompt: |
+  From the office, `curl http://www.shop.test/` fails now and then. The same request by the address the name should give, `curl -H 'Host: www.shop.test' http://10.20.0.11/`, works fifty times in a row. What does that split tell you?
+choices:
+  - "The fault is in naming: ask each name server directly and compare answers"
+  - "The fault is the server's firewall, which treats requests by name differently"
+  - "The fault is the route to the server, which differs when a name is used"
+  - "The fault is the server's load: it's busy and answers only some requests"
+answer: 0
+explanation: |
+  The two requests are the same at the server: same address, same port, same `Host:` header, so the server, its firewall and the route see no difference between them. The only thing the address skips is the lookup. So naming is ruled in: ask each name server directly (`dig @SERVER NAME`) and the resolver, and compare. A secondary serving an old copy, or a round robin with a dead address in it, fails "now and then" exactly like this.
+
+  A firewall or a route acts on addresses and ports, never on whether a name was used. And a server too busy to answer would fail the requests by address as well.
+skills: [split-the-suspects]

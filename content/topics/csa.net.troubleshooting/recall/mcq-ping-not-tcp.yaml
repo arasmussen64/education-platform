@@ -1,0 +1,16 @@
+id: mcq-ping-not-tcp
+type: mcq
+rev: 1
+prompt: |
+  `ping -c 5 10.20.0.11` gets five replies. `nc -zv -w 5 10.20.0.11 443` waits the whole five seconds and gives up. What does that rule in?
+choices:
+  - "Something drops TCP to port 443, on the way or at the host; layer 3 works"
+  - "The host is down, so nothing that it runs can answer a connection of any kind"
+  - "The route to the host is missing, so the packets sent to it go nowhere"
+  - "Nothing listens on port 443 there, so the host refuses the connection"
+answer: 0
+explanation: |
+  The replies to ping prove the address is up and the routes work both ways: layer 3 is cleared. The TCP test then waits its whole timeout, which is silence, not a refusal. Something swallowed the SYN or the SYN-ACK: a firewall or security group on the way, or the host's own firewall dropping port 443.
+
+  A host that's down or a missing route would fail the ping too. And a port nobody listens on is refused at once: the host answers the SYN with a reset, and `nc` says `Connection refused` in a millisecond, not after five seconds.
+skills: [split-the-suspects]

@@ -1,0 +1,50 @@
+# The triage desk's sheet: one block per case in /srv/cases. For each case:
+#   layer    = the layer whose mechanism fails: link (ARP, MAC addresses),
+#              network (IP, routes, ICMP, MTU), transport (TCP, UDP, ports,
+#              NAT's port table), application (HTTP, servers, load balancers),
+#              naming (DNS) or security (TLS, IPsec's keys and proposals)
+#   where    = the machine where the cause is, as the ticket names it
+#   cause    = one of the causes in /srv/cases/causes.txt, as it is written there
+#   evidence = FILE:LINE, the one line in the case's folder that shows the
+#              cause, such as session.txt:14 (grep -n prints line numbers)
+# Cases 1 and 2 are filled in as examples.
+
+[case-1]
+# ns2, the secondary, still serves the old address: ns1 refuses to let it
+# copy the zone (ns1's allow-transfer names another address).
+layer = naming
+where = ns1
+cause = stale-secondary
+evidence = journal.txt:1
+
+[case-2]
+# The slow loads all tried 10.30.0.11 first; r1 sends that address to oldgw,
+# which forwards nothing, by a static route more specific than BGP's.
+layer = network
+where = r1
+cause = stale-more-specific-route
+evidence = session.txt:11
+
+[case-3]
+layer =
+where =
+cause =
+evidence =
+
+[case-4]
+layer =
+where =
+cause =
+evidence =
+
+[case-5]
+layer =
+where =
+cause =
+evidence =
+
+[case-6]
+layer =
+where =
+cause =
+evidence =

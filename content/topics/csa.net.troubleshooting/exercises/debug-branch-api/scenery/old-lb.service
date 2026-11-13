@@ -1,0 +1,16 @@
+# The old load balancer's failover software (/usr/local/bin/old-lb), on lbold.
+[Unit]
+Description=The old load balancer's failover software, on lbold
+After=netlab.service
+Requires=netlab.service
+PartOf=netlab.service
+
+[Service]
+SyslogIdentifier=old-lb
+ExecStart=/usr/sbin/ip netns exec lbold /usr/local/lib/netlab/lab-enter lbold /usr/local/bin/old-lb
+# Stopped, it lets go of the address it held, as failover software does.
+ExecStopPost=-/usr/sbin/ip netns exec lbold /usr/sbin/ip addr del 10.20.0.80/24 dev eth0
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,59 @@
+#!/usr/bin/python3
+"""report-truth LOG: the report that outage-report must print for a monitor
+log, worked out the long way round. The checks' tool, not the learner's.
+
+A line of the log: TIME PAGE ADDRESSES STATUS SECONDS exit=N. A load failed
+when N isn't 0 or STATUS is 400 or more; it was slow when it didn't fail
+and took 1 second or more; its address is the first one in ADDRESSES ("-"
+when it tried none)."""
+import sys
+
+loads = []
+with open(sys.argv[1], encoding="utf-8") as log:
+    for line in log:
+        fields = line.split()
+        if not fields:
+            continue
+        time, _page, tried, status, seconds, exit_field = fields[:6]
+        failed = int(exit_field.split("=", 1)[1]) != 0 or int(status) >= 400
+        slow = not failed and float(seconds) >= 1
+        result = "fail" if failed else "slow" if slow else "ok"
+        loads.append((time, tried.split(",")[0], result))
+
+total = len(loads)
+failed = sum(1 for _, _, r in loads if r == "fail")
+slow = sum(1 for _, _, r in loads if r == "slow")
+print(f"loads {total}")
+# Rounded half up, exactly: (200 f + n) // 2n.
+print(f"failed {failed} ({(200 * failed + total) // (2 * total)}%)")
+print(f"slow {slow}")
+
+counts = {}
+for _, address, result in loads:
+    counts.setdefault(address, {"ok": 0, "fail": 0, "slow": 0})[result] += 1
+# Sorted as text, as sort does with no language set.
+for address in sorted(counts):
+    c = counts[address]
+    print(f"by-address {address} ok={c['ok']} fail={c['fail']} slow={c['slow']}")
+
+best_start, best_length, run_start, run_length = "none", 0, None, 0
+for time, _, result in loads:
+    if result == "fail":
+        if run_length == 0:
+            run_start = time
+        run_length += 1
+        # Strictly longer: of two runs as long, the first stays.
+        if run_length > best_length:
+            best_start, best_length = run_start, run_length
+    else:
+        run_length = 0
+print(f"longest-outage {best_start} {best_length}")
+
+troubled = {address for _, address, result in loads if result != "ok"}
+if len(troubled) == 1:
+    verdict = troubled.pop()
+elif failed and best_length == failed:
+    verdict = "time"
+else:
+    verdict = "none"
+print(f"verdict {verdict}")

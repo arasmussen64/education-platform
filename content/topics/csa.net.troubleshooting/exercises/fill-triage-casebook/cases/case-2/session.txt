@@ -1,0 +1,16 @@
+$ on r1 ip route get 10.30.0.11
+10.30.0.11 via 10.0.99.2 dev old0 src 10.0.99.1 uid 0 
+    cache 
+$ on r1 vtysh -c "show ip route" | grep -E "^[CSB]"
+Codes: K - kernel route, C - connected, S - static, R - RIP,
+C>* 10.0.12.0/30 is directly connected, eth0, 00:01:12
+C>* 10.0.99.0/30 is directly connected, old0, 00:01:12
+C>* 10.10.0.0/24 is directly connected, eth1, 00:01:12
+B>* 10.20.0.0/24 [20/0] via 10.0.12.2, eth0, weight 1, 00:01:07
+B>* 10.30.0.0/24 [20/0] via 10.0.12.2, eth0, weight 1, 00:01:07
+S>* 10.30.0.0/25 [1/0] via 10.0.99.2, old0, weight 1, 00:01:12
+$ on oldgw sysctl net.ipv4.ip_forward
+net.ipv4.ip_forward = 0
+$ on pc dig +short www.shop.test
+10.20.0.11
+10.30.0.11

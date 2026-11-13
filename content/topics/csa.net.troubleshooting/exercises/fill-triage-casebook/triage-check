@@ -1,0 +1,97 @@
+#!/usr/bin/python3
+"""triage-check CASE FIELD: reads the learner's ~/triage.txt and prints
+"right", or what is wrong with that one field of that one case, in a
+sentence that doesn't give the answer. The checks' tool, not the learner's.
+
+The truths: for each case, the layer, the machine and the cause, and the
+words a line of evidence must hold (any one of them) to show the cause."""
+import re
+import sys
+from pathlib import Path
+
+SHEET = Path("/home/learner/triage.txt")
+CASES = Path("/srv/cases")
+
+TRUTH = {
+    "case-3": {
+        "layer": "network",
+        "where": "web",
+        "cause": "pmtu-black-hole",
+        # The router's "fragmentation needed", the firewall rule that drops
+        # it, and the kernel's count of ICMP taken in: each shows the cause.
+        "evidence": ["need to frag", "ip protocol icmp drop", "IcmpInMsgs  "],
+    },
+    "case-4": {
+        "layer": "transport",
+        "where": "gw",
+        "cause": "nat-ports-exhausted",
+        "evidence": [re.compile(r"insert_failed=[1-9]"), "40000-40049"],
+    },
+    "case-5": {
+        "layer": "security",
+        "where": "vpn",
+        "cause": "ipsec-proposal-mismatch",
+        "evidence": ["NO_PROP", "received proposals: ESP:AES_CBC"],
+    },
+    "case-6": {
+        "layer": "application",
+        "where": "lb",
+        "cause": "health-check-too-deep",
+        # Both servers in rotation going down together (web2 also flaps on
+        # its own, so its lines alone don't show the cause), the balancer
+        # left with none, the check's path, and /health failing on web1.
+        "evidence": [
+            "web/web1 is DOWN",
+            "0 active and 0 backup servers left",
+            "has no server available",
+            "web,BACKEND,DOWN",
+            "option httpchk GET /health",
+            "HTTP: HTTP/1.1 503",
+        ],
+    },
+}
+
+
+def sheet() -> dict[str, dict[str, str]]:
+    """Each [case-N] block's fields, with comments and spaces dropped."""
+    blocks: dict[str, dict[str, str]] = {}
+    current = None
+    for line in SHEET.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.split("#", 1)[0].strip()
+        header = re.fullmatch(r"\[(case-\d+)\]", line)
+        if header:
+            current = blocks.setdefault(header.group(1), {})
+        elif current is not None and "=" in line:
+            key, value = (part.strip() for part in line.split("=", 1))
+            current[key] = value
+    return blocks
+
+
+def main() -> str:
+    case, field = sys.argv[1], sys.argv[2]
+    if not SHEET.is_file():
+        return "there is no ~/triage.txt"
+    value = sheet().get(case, {}).get(field, "")
+    if not value:
+        return f"{case} has no {field} in ~/triage.txt"
+    truth = TRUTH[case][field]
+    if field != "evidence":
+        return "right" if value == truth else f"the {field} given for {case} isn't the one its evidence shows"
+    match = re.fullmatch(r"([A-Za-z0-9._-]+):(\d+)", value)
+    if not match:
+        return f"{case}'s evidence isn't FILE:LINE, such as session.txt:14"
+    path = CASES / case / match.group(1)
+    if not path.is_file():
+        return f"{case} has no file called {match.group(1)}"
+    lines = path.read_text(encoding="utf-8").splitlines()
+    number = int(match.group(2))
+    if not 1 <= number <= len(lines):
+        return f"{match.group(1)} in {case} has no line {number}"
+    line = lines[number - 1]
+    for word in truth:
+        if (word.search(line) if isinstance(word, re.Pattern) else word in line):
+            return "right"
+    return f"line {number} of {case}'s {match.group(1)} doesn't show the cause"
+
+
+print(main())

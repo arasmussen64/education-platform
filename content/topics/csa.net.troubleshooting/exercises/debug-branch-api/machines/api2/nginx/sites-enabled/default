@@ -1,0 +1,16 @@
+# api2: the shop's API. /health says the server itself is up; /api/ is
+# passed to the data service on db.
+server {
+    listen 80 default_server;
+
+    location = /health {
+        return 200 "ok from api2\n";
+    }
+
+    location /api/ {
+        proxy_connect_timeout 2s;
+        proxy_read_timeout 3s;
+        proxy_pass http://10.20.0.50:5000/;
+        add_header X-Served-By api2 always;
+    }
+}

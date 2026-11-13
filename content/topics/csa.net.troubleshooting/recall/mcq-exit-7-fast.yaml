@@ -1,0 +1,16 @@
+id: mcq-exit-7-fast
+type: mcq
+rev: 1
+prompt: |
+  `curl -sS http://10.20.0.11:8080/` ends in under a millisecond with exit status 7: `Failed to connect to 10.20.0.11 port 8080 after 0 ms`. What does the speed of it tell you?
+choices:
+  - "Something answered at once: the host refused, or a router said unreachable"
+  - "A firewall dropped the packets on the way and sent nothing back to say so"
+  - "The name didn't resolve, so curl never got as far as trying to connect"
+  - "The server accepted the connection, then closed it without saying a word"
+answer: 0
+explanation: |
+  Exit status 7 is "Failed to connect", and so fast means an answer came back: the host's TCP reset (nothing listens on that port, or its firewall rejects rather than drops), or a router's ICMP "unreachable". Either way the packets reached something that spoke. That rules out silence: a firewall that drops would make curl wait for its timeout and end with 28.
+
+  A name that doesn't resolve is exit status 6, and there is no name here at all. A server that accepts and closes without a word is exit status 52, "Empty reply from server": the connection was made, so it isn't a failure to connect.
+skills: [split-the-suspects]

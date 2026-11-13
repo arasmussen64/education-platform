@@ -1,0 +1,17 @@
+#!/usr/bin/python3
+"""hangup-server PORT: the checks' own throwaway server, started on targets
+for one check. It accepts each connection and closes it at once, without a
+word, so curl ends with its exit status 52 ("Empty reply from server")."""
+import socket
+import sys
+
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(("0.0.0.0", int(sys.argv[1])))
+server.listen(16)
+while True:
+    connection, _ = server.accept()
+    try:
+        connection.recv(4096)
+    finally:
+        connection.close()

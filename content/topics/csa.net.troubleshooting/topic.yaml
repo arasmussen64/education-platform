@@ -1,16 +1,343 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
 id: csa.net.troubleshooting
 kind: topic
-status: planned
+status: ready
 title: Network troubleshooting
-summary: Find a fault from its symptoms with a repeatable method, using captures, traceroute, DNS lookups and logs.
-prerequisites:
-- csa.m1.checkpoint
-estimated_minutes: 240
+summary: "Find a network fault with a method rather than by guessing: scope the symptom, split the suspects with tests that each rule out half, locate the fault on the path with mtr, captures and the routers' own answers (and see through a hop that only rate-limits its replies), measure a fault that comes and goes and break its failures down until one value holds them all, read what the systems recorded, name the cause and its evidence before changing anything, prove the fix with enough samples, and hand a provider's fault over with the evidence their desk needs."
+# Module 3's plan (docs/plans/cloud-module-3/MODULE-3-BRIEF.md, sections 2,
+# 3.7 and 5, topic 38) and its designer's brief (csa.net.troubleshooting.md).
+# Through csa.net.load-balancing (HAProxy, its show stat and log, health
+# checks that pass while users fail; through http-semantics and http-tls,
+# nginx as a proxy and its upstream, 502 and 504; through dns and transport,
+# resolvers, name servers and secondaries, TCP's timers, refused against
+# dropped) and csa.net.ipsec (through csa.net.bgp and csa.net.routing:
+# longest-prefix match, ip route get, FRR's show ip route, ECMP and sysctl,
+# BGP and the looking glass; through csa.net.cidr and csa.net.layers: ARP,
+# ip neigh and gratuitous ARP, ICMP's types, MTU and PMTUD, the network
+# labs' machines, on and name@machine services) every Module 3 topic comes
+# before this one, and its casebook reads their debugs' evidence as recorded
+# cases. Module 1 taught ip, ss, dig, curl, nc, traceroute and mtr by name,
+# tcpdump, nftables and its counters, conntrack, journalctl, the USE method
+# and scripts with set -euo pipefail, awk and sort | uniq -c.
+prerequisites: [csa.net.load-balancing, csa.net.ipsec]
+# Worked out: the lesson about 30 minutes (about 3,900 words with its
+# tables, at 130 a minute), the assigned reading about 54 (the SRE chapter's
+# "Theory", "In Practice" and "Case Study", about 4,400 words, 34; Gregg's
+# three sections, about 330 words, 3; Akamai's "Read MTR Reports", "Analyze
+# MTR Reports" and "ICMP Rate Limiting", about 2,100 words counting their
+# reports, 13; Everything curl's one page, about 500 words, 4), 18 quick
+# items at 1.5 each 27, then the worked example 35, the casebook 30, the
+# probe 30, the build 45, the debug 50 and the explain 20: about 321. The plan's 300
+# is kept (MODULE-3-BRIEF.md, topic 38, with the designer's trim (a): the
+# SRE chapter's core sections only and five multiple-choice items moved to
+# the review pool), as Module 3's other long topics kept theirs: the
+# lesson's tables of curl's exit codes, the records and the clouds' tools
+# stand in for pages under More resources that aren't assigned.
+estimated_minutes: 300
 rev: 1
 objectives:
-- Find a fault from its symptoms with a repeatable method, using captures, traceroute, DNS lookups and logs.
-- Measure a fault that comes and goes.
-- Prove a fault that's on a provider's side.
+  - "Turn \"it doesn't work\" into a precise symptom: from where, to what, by name or by address, which address family, which size, always or sometimes, since when, and what changed; read a grid of sources against destinations for what its pattern points at."
+  - "Choose the test that rules out about half of the remaining suspects and read each result as ruling in or out: by name against by address, ping against TCP against HTTP, small against large, another source, another path; read curl's exit status as a verdict on the layer."
+  - "Find where on a path traffic stops: read mtr's report without being fooled by a hop that limits its answers or by a return path you can't see, capture at two points, ask each router with ip route get, and prove which of two equal paths a connection took with captures, not with a prediction."
+  - "Measure a fault that comes and goes: sample it over time, work out its failure rate, break the failures down by a variable until one value holds them all, and work out how many clean samples it takes to believe a fix."
+  - "Read what the systems recorded and line it up with the symptom: a service's journal, nginx's error log and its error numbers, HAProxy's log line, a name server's transfer messages, a firewall rule's counter, conntrack's and an interface's counters."
+  - "Name the cause and its evidence before changing anything, change one thing, prove the fix with enough samples and that nothing else broke, write the incident note, and for a fault on a provider's side, write the ticket their desk needs; say how each cloud's tools stand in for the captures you can't take there."
+# Facts the lesson and the items rely on, each read on 2026-11-12:
+# - Google's SRE book, chapter 12, "Effective Troubleshooting" (Chris
+#   Jones): sections Theory (with Common Pitfalls, four of them), In
+#   Practice (Problem Report, Triage, Examine, Diagnose with "Simplify and
+#   reduce", where it describes dividing and conquering and bisection, and
+#   "What touched it last", Test and Treat), Negative Results Are Magic,
+#   Cure, Case Study, Making Troubleshooting Easier, Conclusion; about 6,000
+#   words; footer "Licensed under CC BY-NC-ND 4.0":
+#   https://sre.google/sre-book/effective-troubleshooting/
+# - Brendan Gregg, "Performance Analysis Methodology" (last updated
+#   23-Jan-2025, no licence stated): the anti-methods Blame-Someone-Else,
+#   Streetlight, Drunk Man, Random Change, Passive Benchmarking, Traffic
+#   Light; the Problem Statement Method's six questions, among them "What
+#   has changed recently?" and "Does the problem affect other people or
+#   applications (or is it just you)?"; Process of Elimination:
+#   https://www.brendangregg.com/methodology.html
+# - Akamai's (formerly Linode's) "Diagnosing Network Issues with MTR"
+#   (updated 2018-05-10, "© 2003-2026 Akamai Technologies. All rights
+#   reserved."): rate limiting of ICMP by some providers can show loss where
+#   there is none; loss at a hop with 0.0% at the next is likely rate
+#   limiting; "always trust the reports from later hops"; "collect MTR
+#   reports in both directions"; --report sends 10 packets unless
+#   --report-cycles says otherwise. Its line that "small amounts of loss in
+#   the neighborhood of 10%" are "no cause for real concern" is not repeated
+#   and the lesson corrects it (TCP's throughput falls with the square root
+#   of the loss rate, csa.net.congestion):
+#   https://www.akamai.com/cloud/guides/diagnosing-network-issues-with-mtr/
+# - Linux's IP sysctls: icmp_ratelimit, default 1000, "0 to disable any
+#   limiting, otherwise the minimal space between responses in
+#   milliseconds", for ICMP types in icmp_ratemask, default 6168:
+#   Destination Unreachable, Source Quench, Time Exceeded and Parameter
+#   Problem (so echo replies aren't limited); fib_multipath_hash_policy 0
+#   layer 3 (default), 1 layer 4:
+#   https://docs.kernel.org/networking/ip-sysctl.html
+# - curl's manual: exit codes 6 "Could not resolve host", 7 "Failed to
+#   connect to host", 22 (HTTP 400 or above, only with --fail), 28
+#   "Operation timeout", 35 "SSL connect error", 52 "The server did not
+#   reply anything", 56 "Failure in receiving network data", 60 "Peer
+#   certificate cannot be authenticated with known CA certificates";
+#   remote_ip "The remote IP address of the most recently done connection";
+#   time_total "The total time, in seconds, that the full operation lasted":
+#   https://curl.se/docs/manpage.html
+# - Everything curl, "How libcurl connects": "When libcurl has multiple
+#   addresses left to try to connect to, and there is more than 600
+#   millisecond left", it allows half the remaining time for the attempt:
+#   https://everything.curl.dev/transfers/conn/how.html
+# - Tried in this topic's labs (curl 8.5.0 on the network-lab base,
+#   2026-11-12): a refused port gave exit 7 at once; a dropped address,
+#   exit 28 at the time limit; a name that doesn't exist, exit 6; a server
+#   that hangs up, exit 52; with two addresses for a name, the first silent,
+#   the monitor's curl --max-time 5 took 2.50 s and reached the second; with
+#   the second refused, 2.5 s and exit 7; with the first refused and the
+#   second silent, 5.0 s and exit 28.
+# - Linux error numbers (Python's errno on the lab image): 110 ETIMEDOUT
+#   "Connection timed out", 111 ECONNREFUSED "Connection refused", 113
+#   EHOSTUNREACH "No route to host".
+# - nginx's proxy_connect_timeout: "Defines a timeout for establishing a
+#   connection with a proxied server", default 60s ("© F5, Inc. All rights
+#   reserved."): https://nginx.org/en/docs/http/ngx_http_proxy_module.html
+# - HAProxy 2.8's httplog format "%ci:%cp [%tr] %ft %b/%s
+#   %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc ..."; timers in milliseconds,
+#   -1 for an event that never happened (Tc: the connection never
+#   established; Tr: the response headers never seen); termination state:
+#   first letter C client, S server (aborted or refused), c client-side
+#   timeout, s server-side timeout, P proxy, R resource, - normal; second R
+#   request, Q queue, C connect, H headers, D data, - normal; SC the server
+#   refused, sC timeout connect, sH timeout server before the headers, sQ
+#   too long in the queue (configuration manual, sections 8.2.3, 8.4 and
+#   8.5): https://docs.haproxy.org/2.8/configuration.html
+# - AWS: Reachability Analyzer "is a configuration analysis tool", gives the
+#   blocking component, and "You are charged per analysis run"
+#   (https://docs.aws.amazon.com/vpc/latest/reachability/what-is-reachability-analyzer.html);
+#   VPC Flow Logs "capture information about the IP traffic going to and
+#   from network interfaces", collected "outside of the path of your network
+#   traffic" (https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html);
+#   Traffic Mirroring copies "network traffic from an elastic network
+#   interface", from the listed (Nitro) instance types, charged "on an
+#   hourly basis for each active traffic mirror session"
+#   (https://docs.aws.amazon.com/vpc/latest/mirroring/what-is-traffic-mirroring.html).
+# - Azure Network Watcher (ms.date 2026-02-25): seven diagnostic tools, IP
+#   flow verify, NSG diagnostics, next hop, effective security rules,
+#   connection troubleshoot, packet capture (on a VM or a scale set) and VPN
+#   troubleshoot; connection monitor; flow logs for a network security group
+#   or a virtual network; NSG flow logs "retire on September 30, 2027" and no
+#   new ones can be made:
+#   https://learn.microsoft.com/en-us/azure/network-watcher/network-watcher-overview
+# - Google Cloud (CC BY 4.0 by each page's footer): Connectivity Tests
+#   "simulates the expected forwarding path of a packet", and "For some
+#   connectivity scenarios" also performs live data plane analysis with test
+#   packets (last updated 2026-11-12,
+#   https://docs.cloud.google.com/network-intelligence-center/docs/connectivity-tests/concepts/overview);
+#   Packet Mirroring "clones the traffic of specified instances" and
+#   "captures all traffic and packet data, including payloads and headers",
+#   charged for the data it processes (last updated 2026-11-11,
+#   https://docs.cloud.google.com/vpc/docs/packet-mirroring); VPC Flow Logs
+#   (last updated 2026-11-10, https://docs.cloud.google.com/vpc/docs/flow-logs).
+#
+# Linked, never copied. Licences, each read on 2026-11-12: the SRE book is
+# CC BY-NC-ND 4.0 (the page's footer); Gregg's page states no licence (link
+# only); Akamai's guide is all rights reserved (its footer); Everything curl
+# is CC BY 4.0 (its repository's README and LICENSE, curl/everything-curl);
+# curl's manual is part of curl's source, under the curl licence (the
+# source's SPDX line, and https://curl.se/docs/copyright.html); the kernel's
+# documentation is GPL-2.0; nginx's is "© F5, Inc. All rights reserved.";
+# HAProxy's is GPL-2.0 (its LICENSE, as csa.net.load-balancing records);
+# AWS's is copyright Amazon Web Services; Microsoft Learn's Azure pages are
+# CC BY 4.0 (MicrosoftDocs/azure-docs, as csa.hw.windows-ad records);
+# Google Cloud's pages are CC BY 4.0 (their footers). No free video on the
+# troubleshooting method was found and watched, so none is assigned (the
+# designer's open question 4).
+resources:
+  - title: "Effective Troubleshooting, chapter 12 of Google's Site Reliability Engineering book: read \"Theory\", \"In Practice\" and \"Case Study\""
+    url: https://sre.google/sre-book/effective-troubleshooting/
+    type: reading
+    use: link
+    license: "CC BY-NC-ND 4.0 (the page's footer); linked, not copied"
+  - title: "Performance Analysis Methodology, by Brendan Gregg: read the anti-methods, \"Problem Statement Method\" and \"Process of Elimination\""
+    url: https://www.brendangregg.com/methodology.html
+    type: reading
+    use: link
+    license: "No licence stated on the page; linked, not copied"
+  - title: "Diagnosing Network Issues with MTR (Akamai, formerly Linode): read \"Read MTR Reports\", \"Analyze MTR Reports\" and, under \"Common MTR Reports\", \"ICMP Rate Limiting\""
+    url: https://www.akamai.com/cloud/guides/diagnosing-network-issues-with-mtr/
+    type: reading
+    use: link
+    license: "© Akamai Technologies, all rights reserved; linked, not copied"
+  - title: "How libcurl connects (Everything curl): what curl does with several addresses for one name"
+    url: https://everything.curl.dev/transfers/conn/how.html
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the book's repository, curl/everything-curl); linked, not copied"
+  - title: "curl's manual: the EXIT CODES section and --write-out's variables (a reference for the labs)"
+    url: https://curl.se/docs/manpage.html
+    type: reading
+    use: link
+    license: "The curl licence (curl's manual is part of its source); linked, not copied"
+  - title: "IP sysctl (the Linux kernel's documentation): icmp_ratelimit, icmp_ratemask and fib_multipath_hash_policy"
+    url: https://docs.kernel.org/networking/ip-sysctl.html
+    type: reading
+    use: link
+    license: "GPL-2.0 (the Linux kernel's documentation); linked, not copied"
+  - title: "tcpdump(1), the tcpdump manual page: -e, which prints each frame's MAC addresses"
+    url: https://www.tcpdump.org/manpages/tcpdump.1.html
+    type: reading
+    use: link
+    license: "BSD-3-Clause (tcpdump documentation)"
+  - title: "HAProxy 2.8 Configuration Manual, section 8: \"HTTP log format\" (8.2.3), \"Timing events\" (8.4) and \"Session state at disconnection\" (8.5)"
+    url: https://docs.haproxy.org/2.8/configuration.html
+    type: reading
+    use: link
+    license: "GPL-2.0 (HAProxy's LICENSE covers its documentation); linked, not copied"
+  - title: "nginx's ngx_http_proxy_module: proxy_connect_timeout and proxy_read_timeout, the limits behind an upstream's timeouts"
+    url: https://nginx.org/en/docs/http/ngx_http_proxy_module.html
+    type: reading
+    use: link
+    license: "© F5, Inc., all rights reserved; linked, not copied"
+  - title: "What is Reachability Analyzer? (AWS)"
+    url: https://docs.aws.amazon.com/vpc/latest/reachability/what-is-reachability-analyzer.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Logging IP traffic using VPC Flow Logs (AWS)"
+    url: https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "What is Traffic Mirroring? (AWS)"
+    url: https://docs.aws.amazon.com/vpc/latest/mirroring/what-is-traffic-mirroring.html
+    type: reading
+    use: link
+    license: "Copyright Amazon Web Services; linked, not copied"
+  - title: "Azure Network Watcher overview (Microsoft Learn)"
+    url: https://learn.microsoft.com/en-us/azure/network-watcher/network-watcher-overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (MicrosoftDocs/azure-docs); linked, not copied"
+  - title: "Connectivity Tests overview (Google Cloud documentation)"
+    url: https://docs.cloud.google.com/network-intelligence-center/docs/connectivity-tests/concepts/overview
+    type: reading
+    use: link
+    license: "CC BY 4.0 (Google Cloud documentation's footer); linked, not copied"
+  - title: "VPC Flow Logs (Google Cloud documentation)"
+    url: https://docs.cloud.google.com/vpc/docs/flow-logs
+    type: reading
+    use: link
+    license: "CC BY 4.0 (Google Cloud documentation's footer); linked, not copied"
+  - title: "Packet Mirroring (Google Cloud documentation)"
+    url: https://docs.cloud.google.com/vpc/docs/packet-mirroring
+    type: reading
+    use: link
+    license: "CC BY 4.0 (Google Cloud documentation's footer); linked, not copied"
+# The recall items read mtr reports, monitor logs, captures, nginx's,
+# HAProxy's and BIND's logs and nftables' counters (captured in this topic's
+# labs or the Checkpoint 3 prototype, or constructed in the tools' real
+# formats, and labelled which), and ask for the arithmetic of faults that
+# come and go. The worked example, the probe and the debug are labs on the
+# network-lab base; the casebook and the build are Module 3 plain labs
+# (ADR-0018's third amendment).
+practice:
+  - example-follow-the-method
+  - mcq-symptom-grid
+  - mcq-what-changed
+  - mcq-name-or-address
+  - mcq-ping-not-tcp
+  - mcq-another-port
+  - mtr-which-link
+  - mcq-two-captures
+  - ports-and-paths
+  - monitor-by-address
+  - est-one-dead-of-three
+  - est-two-faults
+  - est-page-of-four
+  - est-clean-run
+  - mcq-errno
+  - mcq-transfer-denied
+  - nft-counter-rose
+  - fill-triage-casebook
+  - mcq-two-changes
+  - mcq-provider-ticket
+  - write-probe
+prove:
+  build: build-outage-report
+  debug: debug-branch-api
+  explain:
+    prompt: |
+      A colleague says: "When the network acts up, I restart the router, and if that doesn't work I open the firewall for a minute to see if it helps." The network now has an intermittent problem: about one request in five fails, at no particular time. Explain, in your own words: what's wrong with your colleague's approach; how you would scope the problem and what you'd measure first; which tests would split the possible causes, and what each result would rule out; how you would find where on the path the trouble is, including what can make a hop in `mtr` look lossy when it isn't; which records you'd read; how many clean results you'd want before believing a fix, and why; what you would do if the cause turned out to be in your provider's network; and one way finding a fault in a cloud differs from finding it on your own routers.
+    rubric:
+      - id: anti-methods
+        required: true
+        description: "Restarting and opening the firewall are guesses (random change): they can hide the cause, add a security hole and teach nothing, and a restart also throws away evidence (caches, counters, the state of a stuck process)."
+      - id: scope
+        required: true
+        description: "From where, to what, by name or address, which address family and size, always or sometimes and how often, since when, what changed; and for an intermittent fault, sample it over time before guessing."
+      - id: split
+        required: true
+        description: "Tests that halve the suspects, with what each rules out: by address against by name (naming), ping against TCP against HTTP (the layer), small against large (MTU), another source or path; curl's exit status as a quick verdict (6 naming, 7 refused or unreachable, 28 silence)."
+      - id: locate
+        required: true
+        description: "mtr or traceroute: loss that carries on to the end is real and starts on the link before the first lossy hop; loss at one hop that later hops don't show is that router limiting its answers; the return path is invisible, so test from both ends; captures at two points, and on each path where traffic is shared."
+      - id: intermittent
+        required: true
+        description: "Break the failures down by a variable that was logged (address, source port or path, server, size, time) until one value holds them all; one in five suggests one bad member of five, or two faults together."
+      - id: prove
+        required: true
+        description: "Name the cause and its evidence first; change one thing; take enough clean samples (a one-in-five fault survives ten clean tries about 11% of the time, 0.8 to the power 10, so ten isn't enough; twenty leaves about 1%); check nothing else broke and the fix lasts."
+      - id: provider
+        required: true
+        description: "Prove it and hand it over: the time window, the addresses, mtr from both ends, the last clean hop and the first lossy one, and what has been ruled out."
+      - id: clouds
+        required: false
+        description: "In a cloud you can't log in to the provider's routers: AWS's Reachability Analyzer, Azure's Network Watcher (IP flow verify, next hop) or Google's Connectivity Tests analyse the configuration, and flow logs and traffic or packet mirroring stand in for captures."
+    model_answer: |
+      Restarting the router and opening the firewall "to see" are guesses. If the fault goes away, I don't know why, it may come back, and opening the firewall may leave a hole. A restart also wipes the evidence: the neighbour table, the counters, the state of whatever was stuck. And one in five, at no particular time, may well survive a restart and look "fixed" for a while by chance.
+
+      First I'd scope it: from where it fails (everyone, one office, one network), to what (a name, or the address too), IPv4 or IPv6, small or large requests, how often, since when, and what changed just before. Then I'd measure: a loop of requests every few seconds that logs the time, the address curl tried, the status, the seconds and curl's exit status.
+
+      With a log, I'd split. The same request by address instead of by name rules naming in or out. Ping against `nc -z` against curl finds the layer that fails, and curl's exit status says it too: 6 is no address, 7 a refusal or an unreachable, 28 silence. Small against large catches an MTU problem; another source or another path tells the path from the destination. Then I'd break the failures down by every variable I logged. If they all share one address, one server or one source port, that's my lead: one in five sounds like one bad member of five, or two faults together.
+
+      To locate it, mtr from the source: loss that starts at a hop and carries on to the end is real, and starts on the link before it. Loss at one hop that the next doesn't show is that router limiting how often it answers probes, not losing traffic. The answers come back by a return path I can't see, so I'd ask for an mtr from the other end too. Captures at two points show where a packet stops. Then the records: the service's journal, nginx's error log (110 timed out, 111 refused), the balancer's log line, the firewall's counters, conntrack's.
+
+      Before changing anything I'd write down the cause and the line that shows it. Then one change, and enough clean samples: if the fault was still there, ten clean tries would happen 0.8¹⁰, about 11% of the time, so I'd want twenty or more (about 1%), and I'd check nothing else broke and that the fix survives a reboot.
+
+      If the loss starts in the provider's network, I can't fix it: I'd send them the time window, the addresses, mtr reports from both ends, the last clean hop and the first lossy one, and what I'd ruled out. In a cloud I can't log in to their routers or capture on them, so I'd use the provider's tools instead: Reachability Analyzer, Network Watcher or Connectivity Tests to check the configuration, and flow logs or traffic mirroring in place of a capture.
+review_pool:
+  - mcq-symptom-grid
+  - mcq-what-changed
+  - mcq-symptom-grid-v6
+  - mcq-first-questions
+  - mcq-name-or-address
+  - mcq-another-port
+  - mcq-exit-7-fast
+  - mcq-exit-28
+  - mtr-which-link
+  - ports-and-paths
+  - mtr-rate-limited-only
+  - mcq-return-path
+  - est-two-faults
+  - est-clean-run
+  - est-one-bad-of-five
+  - est-clean-run-twenty
+  - mcq-errno
+  - nft-counter-rose
+  - mcq-haproxy-termination
+  - mcq-healthy-but-failing
+  - mcq-two-changes
+  - mcq-provider-ticket
+  - mcq-name-first
+skills:
+  - id: scope-it
+    description: "The scoping questions (from where, to what, by name or address, IPv4 or IPv6, small or large, always or sometimes, since when, what changed); a grid of sources against destinations and what its pattern points at; what changed as the first suspect"
+  - id: split-the-suspects
+    description: "Choosing the test that rules out about half of what's left, and reading each result as ruling in or out: by name against by address, ping against TCP against HTTP, small against large, another source, another path or source port; curl's exit status as a verdict on the layer"
+  - id: locate-on-the-path
+    description: "mtr's report read correctly (loss that carries on to the end is real and starts on the link before; loss at one hop alone is rate limiting; the return path is invisible, so test both ways); captures at two points, and on every outgoing path where traffic is shared; ip route get hop by hop"
+  - id: measure-intermittent
+    description: "Sampling over time; the failure rate; breaking the failures down by a variable until one value holds them all; the arithmetic: a share of servers or paths, two independent faults together, a page of several connections, and the chance a fault survives a clean run"
+  - id: read-logs-and-counters
+    description: "Which record holds the evidence for which fault: a service's journal, nginx's error log and its error numbers (110, 111, 113), HAProxy's log line (server, timers, status, termination state), BIND's transfer lines, nftables counters, ip -s link, conntrack -S; lining timestamps up with the symptom"
+  - id: prove-and-record
+    description: "Naming the cause and its evidence before changing anything; one change at a time; proving the fix with enough samples and that nothing else broke (still a firewall, still there after a reboot); the incident note; the provider ticket"

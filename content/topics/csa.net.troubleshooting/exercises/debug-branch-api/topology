@@ -1,0 +1,55 @@
+# The branch office's calls to the shop's API, across a provider's network.
+#
+#   branch 10.40.0.0/24          the provider (isp1, isp2)            the data centre 10.20.0.0/24
+#   client .10 -- br1 ---- isp1 ---- isp2 ---- dc1 -- lb .80 (the API's address), .79 (its own)
+#                                                     lbold .81 (the old load balancer)
+#                                                     api1 .11, api2 .12, api3 .13, db .50
+#
+# br1 and dc1 are the shop's routers; isp1 and isp2 are the provider's.
+machine client
+machine br1 router
+machine isp1 router
+machine isp2 router
+machine dc1 router
+machine lb
+machine lbold
+machine api1
+machine api2
+machine api3
+machine db
+
+lan branch client:eth0=10.40.0.10/24 br1:eth1=10.40.0.1/24
+link br1:eth0=203.0.113.2/30 isp1:eth1=203.0.113.1/30
+link isp1:eth2=192.0.2.1/30 isp2:eth1=192.0.2.2/30
+link isp2:eth2=198.51.100.1/30 dc1:eth0=198.51.100.2/30
+lan dc dc1:eth1=10.20.0.1/24 lb:eth0=10.20.0.79/24,10.20.0.80/24 lbold:eth0=10.20.0.81/24 api1:eth0=10.20.0.11/24 api2:eth0=10.20.0.12/24 api3:eth0=10.20.0.13/24 db:eth0=10.20.0.50/24
+
+route client default via 10.40.0.1
+route br1 default via 203.0.113.1
+route isp1 10.40.0.0/24 via 203.0.113.2
+route isp1 default via 192.0.2.2
+route isp2 10.20.0.0/24 via 198.51.100.2
+route isp2 default via 192.0.2.1
+route dc1 default via 198.51.100.1
+route lb default via 10.20.0.1
+route lbold default via 10.20.0.1
+route api1 default via 10.20.0.1
+route api2 default via 10.20.0.1
+route api3 default via 10.20.0.1
+route db default via 10.20.0.1
+
+# The provider's last link, towards the data centre, loses packets.
+netem isp2 eth2 loss 8%
+# How often each router may answer a probe (an ICMP error), in
+# milliseconds: isp1 at most once every two seconds; the others without a
+# limit, so that only isp1's limit shows in mtr.
+sysctl isp1 net.ipv4.icmp_ratelimit=2000
+sysctl br1 net.ipv4.icmp_ratelimit=0
+sysctl isp2 net.ipv4.icmp_ratelimit=0
+sysctl dc1 net.ipv4.icmp_ratelimit=0
+
+run lb haproxy
+run lbold web-svc
+run api1 nginx nftables
+run api2 nginx nftables
+run api3 nginx nftables

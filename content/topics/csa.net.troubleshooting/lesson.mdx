@@ -1,0 +1,143 @@
+<Intro>
+
+Every topic in this module ended in a debug: a broken network, a count of faults, find them and fix them. You found them with that topic's tools. This topic is the method underneath all of them, practised on purpose, and three things those debugs didn't ask of you: a fault that comes and goes, which has to be **measured** before it can be found; **naming the cause** before you touch anything; and a fault that isn't yours to fix, in a provider's network, which you prove and hand over.
+
+**Four words first.** The **symptom** is what someone sees: "some pages take two and a half seconds". The **cause** is why. A **hypothesis** is a guess at the cause that a test can confirm or kill, and a **suspect** is a part that could hold the cause: the resolver, a route, a firewall, one server. Troubleshooting is turning a symptom into a short list of suspects, and the list into one cause, with tests.
+
+**Why a method.** Brendan Gregg's page, one of the readings, names the ways people usually go about it, and calls them **anti-methods**. The **streetlight**: looking where it's easy to look (the graphs you already have, the one box you can log in to) rather than where the fault is. **Changing things at random** until the symptom goes (his "drunk man"; his "random change" is its careful cousin, one setting tried at a time with a measurement after each, but still a guess at which setting matters). **Blame someone else**: handing the problem to another team with no evidence. They feel fast. They aren't: a random change that "works" teaches nothing and may add a fault (a firewall rule opened "for a minute" and left), a restart throws away the evidence (the neighbour table, the counters, the state of whatever was stuck), and a fault that comes and goes will often seem fixed by whatever you did last. The alternative is one line, the spine of this topic:
+
+> **scope, split, locate, read the records, name the cause, change one thing, prove it, record it.**
+
+The main resource, chapter 12 of Google's SRE book (SRE is site reliability engineering, the job of keeping big services up), says the same in its own words: triage (deciding how bad it is and what to do first), examine, diagnose, test and treat. What it calls "simplify and reduce" (dividing and conquering, bisection) is what this topic calls **split**, and its "what touched it last" is the question "what changed?".
+
+**1. Scope.** "It doesn't work" can't be tested; a precise symptom can. The questions, network edition, after Gregg's "problem statement":
+
+| Ask | Because |
+| --- | --- |
+| From where? One PC, one office, everyone? | one source points at the source or its path; everyone, at the destination |
+| To what: a name, or the address as well? | a name that fails while its address works is a naming fault |
+| IPv4 or IPv6? | two separate stacks, each with its own addresses, routes and rules |
+| Small or large? | small requests working while large ones hang is the MTU (Layers and packets) |
+| Always, or sometimes? How often? | sometimes means measure before you guess (section 4) |
+| Since when, and what changed just before? | the last change before the symptom is the first suspect |
+
+When there are several sources and destinations, draw the **symptom grid**: sources down the side (the office, the data centre, the cloud), destinations across the top (the website, the API, a name lookup), each cell "works", "fails" or "sometimes". A whole failing **column** points at that destination, which fails for everyone. A whole failing **row** points at that source. A **single cell** points at the path between the two, or at a rule that names that source (a firewall, a security group). And "sometimes" in any cell says the next step is measuring.
+
+**2. Split the suspects.** A good test rules out about half of what's left, whichever way it comes out; read each result as "rules in" or "rules out". The standard splits:
+
+| Test | The result to look for | What it rules in |
+| --- | --- | --- |
+| The same request by address instead of by name (`curl -H 'Host: NAME' http://ADDRESS/`) | the address works where the name fails | naming: the resolver, a name server, a cache. If the address fails too, naming is cleared: look lower |
+| `ping`, then `nc -zv HOST PORT`, then `curl` | the first of them that fails | its layer: ping the network, `nc` the port (a firewall, nothing listening), curl the application |
+| A small answer, then a large one | only the large one fails | the MTU, or how the path treats big packets (Layers and packets) |
+| From another machine on the same network, then from another network | it works from there | the first source, or the part of the path only it uses |
+| The same request again, from new source ports | some connections fail and some don't | a path or a server chosen per connection (ECMP, a balancer), one of them bad |
+
+**curl's exit status** is a ready-made verdict on the layer, and the monitors in this topic's labs log it. `echo $?` straight after curl prints it; curl's manual lists them all. The last column was measured on 2026-11-12 (curl 8.5.0, a 2-second limit):
+
+| Exit | Means | In the worked example's network, with `-m 2` |
+| --- | --- | --- |
+| 0 | the transfer worked, though the HTTP status may still be an error (`-w '%{http_code}'` shows it) | `200` in 0.0008 s |
+| 6 | no address for the name | 0.0001 s |
+| 7 | no connection: refused (a TCP reset), or a router's "unreachable" | 0.0001 s: an answer came back |
+| 22 | an HTTP status of 400 or more, only with `--fail` | |
+| 28 | out of time: nothing answered (a firewall that drops, an address nobody holds) | 2.003 s, the whole limit |
+| 35, 60 | TLS: the handshake failed; the certificate couldn't be checked (HTTP and TLS) | |
+| 52 | the server accepted the connection and sent nothing | 0.0008 s |
+
+The speed is half the evidence: a 7 in a millisecond means something answered; a 28 after the whole limit means silence. One more of curl's habits explains a classic symptom. When a name has several addresses, curl tries them in turn, and while more than 600 milliseconds are left it gives each attempt half the time remaining (Everything curl's "How libcurl connects"). With `--max-time 5` and a first address that never answers, it waits 2.5 seconds, then reaches the second: "some loads take two and a half seconds", the worked example's ticket. curl's `%{remote_ip}` names only the address it finally connected to (and is empty when it connected to none), so a monitor that wants every address tried reads the `Trying 10.30.0.11:80...` lines of `curl -v`, as the labs' monitor does.
+
+**3. Locate it on the path.** **mtr** is traceroute that keeps going: it sends probes with a TTL of 1, 2, 3 and so on, over and over, and counts each hop's answers. Module 1 named it; here is how to read it. `mtr -n -r -c 40 HOST` makes a report of 40 rounds (`-n` no names, `-r` a report rather than the live screen; Akamai's guide says a report sends 10 rounds unless told otherwise). This one is from the worked example's network, captured with r2 set to answer probes at most once every 2 seconds:
+
+```text
+HOST: pc                          Loss%   Snt   Last   Avg  Best  Wrst StDev
+  1.|-- 10.10.0.1                  0.0%    40    0.1   0.1   0.0   0.2   0.0
+  2.|-- 10.0.12.2                 37.5%    40    0.1   0.1   0.0   0.2   0.0
+  3.|-- 10.0.23.2                  0.0%    40    0.1   0.1   0.1   0.3   0.0
+  4.|-- 10.30.0.11                 0.0%    40    0.1   0.1   0.0   0.6   0.1
+```
+
+`Loss%` is the share of probes to that hop that got no answer, `Snt` how many were sent, and `Last`, `Avg`, `Best` and `Wrst` the last, average, best and worst round trip in milliseconds, with `StDev` how much they vary. Two rules read every report:
+
+- **Loss that starts at a hop and carries on to the end is real,** and it starts on the link *before* the first lossy hop (or in the router at its far end). The last clean hop and the first lossy one are the two addresses a provider's desk wants.
+- **Loss at one hop that the next hop doesn't show is that router limiting how often it answers,** which is called **rate limiting**. Every probe to the next hop passed through it, so it forwarded them all. Routers answer probes with ICMP messages, and answering is their lowest priority; Linux limits the Time Exceeded and Destination Unreachable messages it sends to each destination to about one every `net.ipv4.icmp_ratelimit` milliseconds (1000 by default; echo replies, which the destination sends, aren't limited). Probe faster than that and the hop looks lossy while nothing is lost. "Always trust the reports from later hops", in Akamai's words. Hop 2 above is such a hop: 37.5% of its own answers missing, while every probe to hops 3 and 4 passed through it and came back.
+
+Akamai's guide also says loss "in the neighborhood of 10%" is "no cause for real concern". That is too generous: TCP's throughput falls with the square root of the loss rate (Congestion control and QUIC), so 4% loss is half the speed of 1%. Steady loss of a few percent is worth a ticket.
+
+**The return path is invisible.** Each answer travels back by the return path, which may be a different route and never appears in the report. Loss shown from hop 5 onward may be on the way out after hop 4, or on the way back from hop 5. So ask for an mtr from the other end too, as every provider's desk will.
+
+**Captures at two points.** A packet seen at one point and not at the next was lost between them: `tcpdump -nn -i eth0 port 80` and the same on the router's outgoing interface, at the same moment. On each router of the path, `ip route get ADDRESS` says which way it would send it (Routing). Where a router shares traffic over equal paths (ECMP), **prove the path with traffic, not with a prediction**. `ip route get ADDRESS ipproto tcp sport P dport Q` exists to say which path a connection would take, but when it was tried in this module's labs against a filter on one of two paths, its answers didn't match where forwarded connections really went, while a capture on each outgoing interface showed it at once. A tool's opinion is a hypothesis; the packets are the evidence.
+
+**Who answers for an address.** On the first or last network of a path, ARP decides which machine gets the frames (Layers and packets). **arping** sends ARP requests and prints every answer: `arping -b -c 3 -I eth0 10.0.5.20`, from a machine on that network, asks three times by broadcast (`-b`, so every machine hears each one) and prints each reply with the MAC that sent it. `Received 3 response(s)` for 3 probes is one machine answering; twice as many, from two MACs, is two machines claiming one address. `tcpdump -nn -e -i eth0 arp` shows each request and reply with their MACs (`-e` prints the link layer's addresses), and `ip neigh` on the router shows which MAC it holds now. When two machines both claim an address and announce it with gratuitous ARP (Layers and packets), the router's entry follows whichever spoke last, and its traffic with it.
+
+**4. Faults that come and go.** You can't stare at a fault that fails one request in five; you **sample** it. A loop that makes a request every few seconds and logs, for each, the time, the addresses tried, the status, the seconds and curl's exit status is the instrument, and the labs build one. The **failure rate** is the share of samples that failed, and the **failure window** when they happened. Then **break the failures down** by every variable you logged (`awk` and `sort | uniq -c` do it): the variable whose one value holds every failure is your lead.
+
+| Variable | One value holding all the failures points at |
+| --- | --- |
+| the address tried first | a dead server in a name's round robin, or a stale record |
+| the source port, or the path a capture saw | ECMP with one bad path, or a balancer sending to one bad server |
+| the server the balancer's log names | one bad backend, its health check passing all the while |
+| the size | the MTU |
+| the time | something that ran then: a job, a restart, a cache's TTL running out |
+
+Failures that share a value point at it; they don't prove it. A **red herring** is evidence that looks like the cause and isn't (the rate-limited hop is the classic one), and two things that happen together may both come from a third. The test is to change only that value and watch the failures follow it.
+
+The arithmetic, which the quick questions practise. With one bad member of N taking turns (servers, addresses, paths), 1 in N requests fails. Two independent faults that fail 1 in 4 and 1 in 10 let 0.75 × 0.9 = 0.675 of requests through, so 32.5% fail: work out what survives, never add the shares. A page that needs 4 connections over 2 paths, one of them bad, loads only when all four take the good path, 0.5⁴ = 6.25% of the time: one bad path of two looks like an outage to a browser. And after a fix, **count the clean samples**. If a fault that failed 1 in 10 were still there, 30 clean requests in a row would still happen 0.9³⁰ ≈ 4% of the time; a rough rule is that about 3 ÷ (the failure rate) clean samples leave a 5% chance of fooling you, so 30 for a 1 in 10 fault and 300 for a 1 in 100.
+
+**5. Read what the systems recorded.** The machines usually say what's wrong, in a record you have to know to look in:
+
+| Record | Read it with | What it shows |
+| --- | --- | --- |
+| a service's journal | `journalctl -u nginx@web --since '10 min ago'` | starts, stops, errors, each with its time |
+| nginx's error log | `tail /var/log/nginx/error.log` | an upstream that failed, with the kernel's error number |
+| HAProxy's log | `journalctl -u haproxy@lb` | for every request: the server it went to, the timers, the status, how it ended |
+| BIND's log | `journalctl -u named@ns1` | `zone transfer ... denied`, `Transfer status: REFUSED`, `zone is up to date` (DNS) |
+| a firewall rule's counter | `nft list ruleset`, twice | how many packets each rule with `counter` matched; read it before and after a test |
+| an interface's counters | `ip -s link show eth0` | packets, errors and drops on that interface |
+| conntrack's counters | `conntrack -S` | `insert_failed`: connections NAT couldn't make (NAT) |
+
+The number in nginx's `connect() failed (111: Connection refused) while connecting to upstream` is the kernel's **error number** for the connection nginx tried to open: **110** "Connection timed out" (nothing answered: a firewall drops, or nobody is there, within nginx's `proxy_connect_timeout`, how long it waits for a connection to its upstream), **111** "Connection refused" (nothing listens), **113** "No route to host".
+
+An HAProxy log line, field by field (constructed, in HAProxy's real format):
+
+```text
+10.0.9.2:61822 [12/Nov/2026:14:02:11.004] shop web/web2 0/0/1/-1/5001 504 194 - - sH-- 3/3/1/0/0 0/0 "GET /orders HTTP/1.1"
+```
+
+The client and its port, when the request arrived, the frontend, then **backend/server**: the one server this request went to, which is what lets you break failures down by server. The timers in milliseconds, `TR/Tw/Tc/Tr/Ta`: receiving the request, waiting in the queue, connecting to the server, the server's answer (`-1`: its headers never came), and the total. The status, the bytes, two cookie fields, and the **termination state**: its first letter says what ended the request (`-` normally, `C` or `c` the client, `S` the server aborting or refusing, `s` a server-side timeout), its second what HAProxy was waiting for (`C` the connection, `H` the response headers, `D` the data). So `sH--` is "the server took the connection and said nothing until `timeout server` struck", and HAProxy answered 504 itself; `SC`, with a 502 or 503, is a server that refused.
+
+**Line the times up.** When did the first error appear, and what happened just before, in which log? Watch the clocks: the journal and a monitor may be in different time zones. And a log that says all is well is evidence only of what that program checked: a health check that passes proves the health page answers, not that the API works.
+
+**6. Name it, change one thing, prove it, record it.** Before you change anything, write down the cause and the line of evidence that shows it. If you can't fill in those two lines, you have a suspect, not a cause: split again. Then change **one** thing, at the cause, in the file that lasts. Prove the symptom is gone with enough samples (section 4), and that nothing else broke: every machine still has its firewall, the fix survives a reboot. The **incident note** is five lines: symptom, cause, evidence, fix, and how it was verified.
+
+When the cause is in someone else's network, **escalate**: hand it to the people who can fix it, with the evidence. A **provider ticket** holds the time window (with the time zone), the source and destination addresses, mtr reports from both ends, the last clean hop and the first lossy one, what you have ruled out, and a capture if you have one. "The internet is slow since Tuesday" gets nothing done; "6% loss since 09:40 UTC from 203.0.113.70 onward, 203.0.113.66 clean, mtr from both ends attached, ruled out: our router and the servers" does. A **looking glass** (BGP) is a provider's read-only view of its own routers, and worth a look before you write.
+
+**7. In the clouds.** In a cloud you can't log in to the provider's routers or capture on them, so the provider's tools take the place of "capture at two points". From a VM, `mtr`, `traceroute`, `tcpdump` and `curl` work exactly as here, and the provider's network is the "provider" of this topic: you prove a fault there and open a ticket. Side by side (each provider's page, read 2026-11-12):
+
+| | AWS | Azure | Google Cloud |
+| --- | --- | --- | --- |
+| Check the configuration along a path | **Reachability Analyzer**: "a configuration analysis tool"; names the blocking component; charged per analysis | **Network Watcher**: IP flow verify (which rule allows or denies a packet), next hop, effective security rules, NSG diagnostics (an NSG, network security group, is Azure's security group), connection troubleshoot, VPN troubleshoot | **Connectivity Tests**: simulates the path from the configuration, and "for some connectivity scenarios" also sends test packets |
+| A record of the flows | **VPC Flow Logs**: the IP traffic to and from each network interface, collected outside the traffic's path | **flow logs**, for a virtual network (NSG flow logs retire on 30 September 2027 and can't be created now) | **VPC Flow Logs** |
+| Whole packets | **Traffic Mirroring**: copies an interface's traffic to a monitoring machine (supported instance types only); charged per session-hour | **packet capture** on a VM or a scale set (a group of identical VMs) | **Packet Mirroring**: "captures all traffic and packet data, including payloads and headers"; charged for the data it processes |
+
+Module 11 builds with these. Here, the method is the same; only the instruments change.
+
+**Read now:** the main resource below, the SRE chapter's "Theory", "In Practice" and "Case Study" (about 4,400 words). Then Gregg's anti-methods, "Problem Statement Method" and "Process of Elimination" (three short sections); Akamai's guide, its "Read MTR Reports", "Analyze MTR Reports" and, under "Common MTR Reports", "ICMP Rate Limiting"; and Everything curl's page on how libcurl connects. The rest under More resources are references the labs use: curl's exit codes, the kernel's ICMP settings, tcpdump's `-e`, HAProxy's log format, nginx's timeouts, and each cloud's tools. The quick questions read mtr reports, monitor logs, captures, logs and counters, and ask for the sums. The labs give you the method five ways: you follow it step by step through a network with a slow half, work a triage desk's cases against the clock, write a probe that measures a fault, build a report that reads a monitor's log, and mend a branch office's calls to the shop's API from start to finish.
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- **The spine:** scope, split, locate, read the records, name the cause, change one thing, prove it, record it. Anti-methods: the streetlight, changing things at random, blame someone else.
+- **Scope:** from where, to what (name or address), IPv4 or IPv6, small or large, always or sometimes, since when, what changed. The grid: a failing column is the destination, a row the source, one cell the path between them; "sometimes" means measure.
+- **Split:** by address against by name (naming), ping, `nc -z`, curl (the layer), small against large (MTU), another source (source or path), a new source port (a path or server chosen per connection). curl: 0 worked (read the status), 6 no address, 7 refused or unreachable, at once, 28 silence, at the limit, 52 an empty reply, 35 and 60 TLS. With several addresses curl gives each half the time left: 2.5 s of a 5 s limit.
+- **mtr:** `mtr -n -r -c 40 HOST`. Loss that carries on to the end is real and starts on the link before the first lossy hop; loss at one hop only is rate limiting (`icmp_ratelimit`, 1000 ms); the return path is invisible, so ask for an mtr from the far end. A few percent of steady loss is worth a ticket.
+- **Locate:** captures at two points; `ip route get` hop by hop; with ECMP, a capture on each outgoing interface, never a prediction. `arping -b -c 3 -I IF ADDR`: answers from two MACs are two machines claiming one address; `tcpdump -e` and `ip neigh` show the flips.
+- **Intermittent:** sample (time, address, status, seconds, exit status); break the failures down until one value holds them all (address, source port or path, server, size, time). One bad of N: 1/N. Two faults: 1 − (1 − a)(1 − b). A page of k connections over two paths, one bad: 1 − 0.5ᵏ. If a fault that fails a share p of requests were still there, n clean samples in a row would come with chance (1 − p)ⁿ; about 3/p clean samples bring that to 5%.
+- **Records:** the service's journal; nginx's errno 110 timed out, 111 refused, 113 no route; HAProxy's `backend/server`, `TR/Tw/Tc/Tr/Ta`, status and termination state (`SC` refused, `sC` connect timeout, `sH` no headers before `timeout server`); BIND's `denied`, `REFUSED`, `zone is up to date`; `nft` counters before and after; `ip -s link`; `conntrack -S`. Line the times up.
+- **Prove and record:** cause and evidence written first; one change, in the file that lasts; enough clean samples; nothing else broken. The incident note: symptom, cause, evidence, fix, verified. The provider ticket: window, addresses, mtr from both ends, last clean and first lossy hop, what's ruled out.
+- **Clouds:** AWS Reachability Analyzer, VPC Flow Logs, Traffic Mirroring; Azure Network Watcher (IP flow verify, next hop, packet capture, flow logs); Google Connectivity Tests, VPC Flow Logs, Packet Mirroring.
+
+</Recap>

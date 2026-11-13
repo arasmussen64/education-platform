@@ -1,0 +1,62 @@
+# The checks of "The outage report". Six of them make a fresh monitor
+# log at check time, from a seed taken from the clock, in one of six
+# shapes (one bad address, one outage window, neither, failures on one
+# address and slow loads on another, neither with a failure rate of exactly
+# 12.5%, and no failures), run the learner's ~/bin/outage-report on it, and
+# compare every line with the report the checks' own tool works out; the
+# last does the same on the image's real log. So a script that prints the
+# real log's answer, or that handles one shape, fails the others. Every
+# made log also holds loads on the prompt's lines (0.999 and 1.000 seconds,
+# a 301 and a 404), so a rule read a little wrong fails too.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: report-one-address
+    description: "On a monitor log made at check time in which one address holds every failed and every slow load, the report's every line is right, and its verdict names that address."
+    command: |
+      . /usr/local/lib/lab-checks/reportcheck.sh
+      compare address
+    expect:
+      equals: right
+  - id: report-one-window
+    description: "On a monitor log made at check time with one run of failed loads, from every address, and slow loads on several addresses, the report's every line is right, and its verdict is time."
+    command: |
+      . /usr/local/lib/lab-checks/reportcheck.sh
+      compare window
+    expect:
+      equals: right
+  - id: report-neither
+    description: "On a monitor log made at check time with failed and slow loads scattered over several addresses, the report's every line is right, and its verdict is none."
+    command: |
+      . /usr/local/lib/lab-checks/reportcheck.sh
+      compare neither
+    expect:
+      equals: right
+  - id: report-two-addresses
+    description: "On a monitor log made at check time in which every failed load tried one address first and every slow load another, the report's every line is right, and its verdict is none."
+    command: |
+      . /usr/local/lib/lab-checks/reportcheck.sh
+      compare split
+    expect:
+      equals: right
+  - id: report-rounds-half-up
+    description: "On a monitor log made at check time in which exactly one load in eight failed (12.5%), the report's every line is right, its percentage rounded half up."
+    command: |
+      . /usr/local/lib/lab-checks/reportcheck.sh
+      compare half
+    expect:
+      equals: right
+  - id: report-no-failures
+    description: "On a monitor log made at check time in which no load failed and slow loads are spread over several addresses, the report's every line is right, its longest outage none 0."
+    command: |
+      . /usr/local/lib/lab-checks/reportcheck.sh
+      compare clean
+    expect:
+      equals: right
+  - id: report-real-log
+    description: "On the office monitor's real log, /var/log/shop-monitor.log, the report's every line is right."
+    command: |
+      . /usr/local/lib/lab-checks/reportcheck.sh
+      compare real
+    expect:
+      equals: right

@@ -1,0 +1,23 @@
+id: fill-triage-casebook
+stage: fill_in
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "The triage desk"
+prompt: |
+  A day on the triage desk: tickets come in with what the on-call engineer saved, and for each one you name the layer, the machine and the cause, and point at the line that shows it, before anyone changes anything. The six cases in `/srv/cases` come from six different networks of this module, each saved while it was failing; besides the ticket, every file is real output from its lab. `cat /srv/cases/README.txt` says what each file is.
+
+  Your sheet is `~/triage.txt` (`nano ~/triage.txt`). Its first lines say what each field takes, and cases 1 and 2 are filled in as examples: read their folders against their answers first. Then fill in cases 3 to 6. For each case:
+
+  1. Read `ticket.txt`: the symptom, and the machines. Scope it: always or sometimes, everything or one thing, from where.
+  2. Read the evidence with the splits in mind: which test works and which fails, where on the path it stops, what each log and counter recorded. Not every file holds the cause, and some hold a red herring.
+  3. Write the layer, the machine where the cause is (not where the symptom shows), the cause from `/srv/cases/causes.txt`, and the evidence as `FILE:LINE`, the file's name in the case's folder and the number of the one line that shows the cause. `grep -n PATTERN FILE` and `cat -n FILE` print line numbers.
+
+  The cases are evidence: read them, change nothing in `/srv/cases`. A triage desk does a case like these in about five minutes: time yourself. Then run the checks; each answer has a check of its own.
+hints:
+  - "Case 3: small pages work and only the big download hangs. Which test in the lesson splits small from large, and what does a capture on the sender show arriving for each big segment?"
+  - "Case 4: only new payments fail, at the peak, and mtr.txt shows a clean path. Which counter in session.txt counts the connections a NAT gateway couldn't make, and how many ports does gw's payment rule give 120 connections to one destination?"
+  - "Case 5: the IKE_SA is ESTABLISHED, so phase 1 is fine. What does the CHILD_SA's exchange end with, in journal.txt?"
+  - "Case 6: what do both servers in rotation do in the same second the database job starts, and what does /livez answer on web1?"
+skills: [split-the-suspects, locate-on-the-path, read-logs-and-counters]
