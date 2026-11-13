@@ -51,12 +51,20 @@ ip -n "$n" -o addr show permanent | grep -v 'scope link' | awk '{print "addr", $
 # multicast entries.
 # The numbers kept are then written back as words for whoever reads netlab
 # verify's message (scope 253 is "link", 254 "host").
+# A route with several next hops (ECMP) prints its head line, then one
+# indented "nexthop via ..." line for each; those follow their head line's
+# fate, so FRR's shared BGP routes are left out whole (they used to leave
+# their next-hop lines behind, which made verify report a difference;
+# found by Checkpoint 3's cloud link).
 ip -N -n "$n" route show table all \
   | grep -Ev '^fe80::/64 |expires' \
-  | awk '$1 !~ /^[0-9]+$/ {
+  | awk '/^[ \t]/ { if (keep) { line = $0; gsub(/^[ \t]+|[ \t]+$/, "", line); print "route", line }; next }
+    { keep = 0 }
+    $1 !~ /^[0-9]+$/ {
       proto = "3"
       for (i = 1; i <= NF; i++) if ($i == "proto") proto = $(i + 1)
       if (proto != "2" && proto != "3" && proto != "4") next
+      keep = 1
       line = " " $0 " "
       sub(/ proto 2 /, " proto kernel ", line)
       sub(/ proto 4 /, " proto static ", line)
