@@ -52,6 +52,11 @@ checks:
       [ -n "$(api 'show info')" ] || { echo "HAProxy on lb isn't running"; exit 0; }
       m=$(unchecked 10.0.1.11:8080 10.0.1.12:8080)
       [ -z "$m" ] || { echo "HAProxy doesn't check $m, so nothing here would notice it fail"; exit 0; }
+      # Right after a boot (the restart trial's), a web server can still be
+      # earning its way back into rotation, and a request then gets a 503
+      # that has nothing to do with the database (#275's first run). So the
+      # test starts once both are up.
+      wait_up 15 10.0.1.11:8080 10.0.1.12:8080 || { echo "the web servers aren't both in rotation: $(not_up 10.0.1.11:8080 10.0.1.12:8080)"; exit 0; }
       # The job's own run, now: first let a run already going finish (a
       # oneshot job is "activating" while it runs).
       for i in $(seq 1 12); do [ "$(systemctl show -p ActiveState --value db-nightly.service)" = activating ] || break; sleep 1; done
