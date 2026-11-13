@@ -2,6 +2,29 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-13: Module 3 is written, and where we stopped
+
+**Checkpoint 3 is ready** (#275), and with it Module 3 is written: sixteen topics and a checkpoint, every one written by one agent, reviewed cold by another and proven in CI. The checkpoint has three parts, each run as a lab on the learner's own machine:
+
+- **Part 1, the address plan** (a plain lab): IPv4 and IPv6 blocks for twelve cloud regions, two data centres and a summary for each cloud, checked by a script that works out every right size, overlap and summary from the requirements themselves, so it checks rules, not remembered answers. A solved sibling (the print shop), four steps and two fresh versions (the clinic and the bakery) support it.
+- **Part 2, the outage that comes and goes** (a nine-machine network): three faults no Module 3 topic's debug uses (a zone edited without raising its serial, a leftover filter on one of two tunnels, an app firewall that only knows the old network).
+- **Part 3, the cloud link** (in `prove.more`): from a provider's sheet, a data centre joined to a cloud over a private circuit and a backup IPsec VPN (a VTI) with BGP over both, announcing only the smallest summary and preferring the circuit both ways; its last check unplugs the circuit. A fresh version uses a cloud modelled on Azure.
+
+Eleven labs (84 known-wrong fixes) and the explain. The review found a weakening fix that passed part 2 (app2's firewall opened on every port to the office and the data centre), the shop left on one web server that also passed, and a valid lasting build that part 3 failed because it held a blackhole in the machine's network file.
+
+**Two base fixes came from it.** `netlab verify` used to leave FRR's shared (ECMP) routes' next-hop lines behind, reporting a difference on any machine sharing traffic over two BGP paths, and it dropped every blackhole, unreachable and prohibit route, so one typed in a machine's network file was never compared. Both are fixed, and the checkpoint's own workaround stays harmlessly in its labs. The draft probe topic is gone too: every probe's lab now lives in its topic.
+
+**Author notes:**
+
+- _Checkpoint 3 was finished by a second writer_ from the first writer's parts 1 and 2 and drafted part 3, after the pause; the second writer proved part 3 and its fresh version, which had never run (two of its path checks failed its own solution).
+- _Part 2's record TTL is 10 seconds_ (scaled down, as its prompt says), so its by-name check is 14 seconds rather than 36, for CI time; part 2's data-centre probe comes from r2's own address, because app1's connections depended on the very tunnel filter the learner removes.
+- _Part 3 has no ESP capture on the internet router:_ a VTI sends only through its SA, so the tunnel's traffic can't cross in the clear, and the checks read the SA from the cloud's side instead.
+- _Part 2 is the first lab to rely on per-namespace ECMP hashing_ on GitHub's runner; its CI run here settles that row of the base's kernel table.
+
+**Where we stopped.** The owner asked to finish Module 3 and then stop. Nothing is running. Module 4's design is still paused where the earlier note left it: five of seven designers finished, the identity-lab base's and the checkpoint's designers and the critic not run, the unreviewed briefs on the local branch `wip/paused-2026-11-12` (never to be pushed).
+
+**Next:** Module 4, security and identity foundations: resume its design (the two stopped designers and the critic), then its plan, platform and topics, as Module 3's were.
+
 ## 2026-11-12, last: Module 3's last topics
 
 The owner asked to finish everything for Module 3 and then stop. Certificates and mutual TLS (#272) and VPNs and IPsec (#273) landed, with two fixes CI's runner asked for on the way (DNS's write lab now has ns2 fetch its zone if it hasn't yet; Certificates' write lab no longer sits on a day boundary). The two topics the pause had stopped were finished by a second writer each, starting from the first writer's branch, and reviewed cold.
