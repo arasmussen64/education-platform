@@ -161,7 +161,7 @@ fresh=$(netlab verify resolver -- bash -c '
 [ -n "$live" ] && [ "$live" = "$fresh" ] && echo saved
 ```
 
-The daemon started in the copy must be stopped by the same command, before `verify` removes the copy. The same way, charon started on `chk-vpn` from the machine's files shows whether a tunnel begins by itself at boot (`start_action = start`) or was only started by hand with `swanctl --initiate`, which `swanctl --list-conns` can't show (the draft topic `csa.net.base-probes` has both checks, while it exists).
+The daemon started in the copy must be stopped by the same command, before `verify` removes the copy. The same way, charon started on `chk-vpn` from the machine's files shows whether a tunnel begins by itself at boot (`start_action = start`) or was only started by hand with `swanctl --initiate`, which `swanctl --list-conns` can't show (`csa.net.ipsec`'s build and debug have both checks).
 
 ## Check helpers
 
