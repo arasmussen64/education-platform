@@ -145,7 +145,7 @@ The lab's Dockerfile copies it and runs `systemctl enable shop-api@app`. A unit 
 
 It builds a copy of every machine (`chk-r1` and so on) from the topology and the machines' own `sysctl.d`, network file and (where `nftables@M` is enabled) firewall, with no services; compares each machine, or the ones named, with its copy; prints `verified` or the first difference, up to three lines of it, each marked `now:` (only on the running machine) or `from its files:` (only in the fresh build), as in `r2 differs from a fresh build of its files: now: route 10.9.0.0/24 via 10.0.12.1 dev eth1`; and removes the copy. It exits 1 when they differ. With `-- COMMAND`, it runs the command while the copy exists instead of printing `verified`, so a check can probe inside the copy (`netlab verify -- on chk-office ping -c 1 10.0.2.30`); the copy sees each machine's own `/etc`.
 
-What it compares: links (up or down, MTU, the bridge they're in), configured addresses, routes (the kernel's for connected networks, those `ip route add` makes, `proto static`), permanent neighbours, `nft -s list ruleset`, forwarding, and every key the machine's `sysctl.d` sets (a setting changed live that no file names isn't compared: `sysctl_saved` catches that). What it leaves out because it changes every boot or comes from a running program: MACs, link-local addresses, addresses and routes from router advertisements, the kernel's local and broadcast entries, the PMTU cache, placeholder tunnel interfaces, and routes a routing program installed (FRR's, which `frr_saved` covers). So a machine whose addresses FRR configures (`ip address` in `frr.conf`) can't be verified: keep addresses in the topology or the network file.
+What it compares: links (up or down, MTU, the bridge they're in), configured addresses, routes (the kernel's for connected networks, those `ip route add` makes, `proto static`, and blackhole, unreachable and prohibit routes a machine's files make), permanent neighbours, `nft -s list ruleset`, forwarding, and every key the machine's `sysctl.d` sets (a setting changed live that no file names isn't compared: `sysctl_saved` catches that). What it leaves out because it changes every boot or comes from a running program: MACs, link-local addresses, addresses and routes from router advertisements, the kernel's local and broadcast entries, the PMTU cache, placeholder tunnel interfaces, and routes a routing program installed (FRR's, which `frr_saved` covers, a route FRR shares over two paths with all its next-hop lines). So a machine whose addresses FRR configures (`ip address` in `frr.conf`) can't be verified: keep addresses in the topology or the network file.
 
 The copy also proves that a daemon's own configuration lasts, when the daemon has no saved-versus-running helper: start the daemon in the copy from the machine's files, ask it, stop it, and compare with the running one. A fix made only live (with `unbound-control`, say) then fails:
 
@@ -161,7 +161,7 @@ fresh=$(netlab verify resolver -- bash -c '
 [ -n "$live" ] && [ "$live" = "$fresh" ] && echo saved
 ```
 
-The daemon started in the copy must be stopped by the same command, before `verify` removes the copy. The same way, charon started on `chk-vpn` from the machine's files shows whether a tunnel begins by itself at boot (`start_action = start`) or was only started by hand with `swanctl --initiate`, which `swanctl --list-conns` can't show (the draft topic `csa.net.base-probes` has both checks, while it exists).
+The daemon started in the copy must be stopped by the same command, before `verify` removes the copy. The same way, charon started on `chk-vpn` from the machine's files shows whether a tunnel begins by itself at boot (`start_action = start`) or was only started by hand with `swanctl --initiate`, which `swanctl --list-conns` can't show (`csa.net.ipsec`'s build and debug have both checks).
 
 ## Check helpers
 
@@ -247,7 +247,7 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 | `tcp_bbr` | congestion | works, loads from a machine's `sysctl.d` | works: BBR cleared 25 Mbit/s three times (`probe-bbr-throughput`) |
 | nftables `reset tcp option window` | transport | works | untried |
 | IPv6 in namespaces, forwarding, SLAAC | IPv6, NAT | works | works (`debug-ipv6-half-works`) |
-| `fib_multipath_hash_policy` per namespace | routing, checkpoint part 2 | works | untried |
+| `fib_multipath_hash_policy` per namespace | routing, checkpoint part 2 | works | works (Checkpoint 3 part 2's both-tunnels check, #275) |
 
 ## Files here
 

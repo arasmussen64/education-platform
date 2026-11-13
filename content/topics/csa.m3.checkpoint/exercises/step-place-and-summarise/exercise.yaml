@@ -1,0 +1,16 @@
+id: step-place-and-summarise
+stage: fill_in
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Step 2 of the plan: place and summarise"
+prompt: |
+  Step 2 of the plan: place the blocks and make the summaries. The checkpoint's build, with the sizing and the IPv6 done for you: `/srv/plan/README.txt` has a section that lists the block each region needs, and the IPv6 column of `~/plan/plan.csv` is filled in. What's left is every IPv4 cell: the data centres and `onprem`, each cloud's summary, and each region inside its summary.
+
+  Keep the rules of the README (3, 4 and 5): the data centres keep their blocks, every summary has the room the policy asks for, and nothing overlaps another block or anything already in use. Edit the plan with `nano ~/plan/plan.csv`; `plan-show` shows it as a tree. The checks test the whole plan, the rows done for you included.
+hints:
+  - "The data centres come first, because they can't move: their blocks are the `in_use` lines of `policy.txt` with their names. `onprem` is the smallest block that holds both: 10.0.0.0/16 and 10.1.0.0/16 differ only in the last bit of the second number, so one bit shorter, a /15, holds them."
+  - "A cloud's summary is the smallest block that holds `summary_room` (2) times what its regions take: add up its regions' block sizes (a /18 is 16,384 addresses, a /19 8,192 ...), double the total, and go up to a power of two."
+  - "Put each summary where nothing in use and no other summary is: in `policy.txt`, 10.0 and 10.1 are the data centres, 10.100 the partner and 10.255 the old lab, so 10.2.0.0/16, 10.3.0.0/16 and on are free. A summary starts on a multiple of its own size."
+  - "Then each cloud's regions inside its summary, biggest first, each on a multiple of its own size. `plan-show` prints every block's range to look the plan over."

@@ -1,0 +1,321 @@
+# The checks of "The cloud link", read from both ends: the tunnel and its
+# algorithms as the cloud sees them (so a weak proposal it happens to
+# accept is caught), a rekey the cloud starts (so a phase 2 proposal
+# without perfect forward secrecy is caught), both BGP sessions, what edge
+# sends (the cloud's view) and what it accepts (tested on prefixes the
+# cloud offers at check time), the path each side chooses and why, the
+# lasting files, the key's file mode, the scenery, and last a cut of the
+# circuit. tunnel-up and sessions-up wait for the tunnel and the sessions
+# after a boot; the rest read at once, except survives-a-rekey,
+# accepts-only-the-cloud and fails-over, which change something on the
+# cloud's side for a moment and wait for edge's answer, and put it back.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: tunnel-up
+    description: "The cloud's VPN gateway has an IPsec tunnel with edge (198.51.100.40) whose CHILD_SA is installed for 0.0.0.0/0 both ways: a route-based tunnel."
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      route_based() {
+        on cloud swanctl --list-sas 2> /dev/null | awk '
+          /ESTABLISHED/ {ike = 1}
+          /: #[0-9]+, reqid/ {child = /INSTALLED/; l = r = 0}
+          child && $1 == "local" && $2 == "0.0.0.0/0" {l = 1}
+          child && $1 == "remote" && $2 == "0.0.0.0/0" {r = 1}
+          ike && l && r {ok = 1}
+          END {exit !ok}'
+      }
+      wait_for 20 route_based && { echo "route-based tunnel up"; exit 0; }
+      if on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null; then
+        echo "the cloud's CHILD_SA isn't for 0.0.0.0/0 both ways: $(on cloud swanctl --list-sas | awk '$1 == "local" || $1 == "remote"' | tr -s ' ' | tr '\n' ';')"
+      else
+        echo "the cloud's VPN gateway has no CHILD_SA installed with edge (cloud-vpn-status shows what it has)"
+      fi
+    expect:
+      equals: "route-based tunnel up"
+  - id: sessions-up
+    description: "edge has two BGP sessions with the cloud (AS 65515), both established: over the circuit with 169.254.30.2, and inside the tunnel with 169.254.21.1."
+    timeout: 50
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      state() { frr edge "show bgp neighbors $1 json" | json "d.get('$1', {}).get('bgpState')"; }
+      for n in 169.254.30.2 169.254.21.1; do
+        [ "$(state $n)" != None ] || { echo "edge has no BGP neighbour $n configured"; exit 0; }
+      done
+      # Both up, the cloud's network in edge's kernel by BGP, and something
+      # from edge at the cloud over each session, so the later checks can
+      # read at once. Each try asks FRR five questions, about half a
+      # second, so 25 tries stay inside the check's 50 seconds.
+      sent() { [ "$(frr cloud "show bgp ipv4 unicast neighbors $1 routes json" | json "len(d.get('routes', {}))")" -gt 0 ] 2> /dev/null; }
+      settled() { [ "$(state 169.254.30.2)" = Established ] && [ "$(state 169.254.21.1)" = Established ] && ip -d -n edge route show 10.200.0.0/16 | grep 'proto bgp' > /dev/null && sent 169.254.30.1 && sent 169.254.21.2; }
+      wait_for 25 settled
+      echo "$(state 169.254.30.2) $(state 169.254.21.1)"
+    expect:
+      equals: "Established Established"
+  - id: sheet-proposals
+    description: "The tunnel uses the sheet's proposals, as the cloud sees them: IKE with AES-256, SHA-256 and MODP-2048, and ESP with AES-GCM-256."
+    command: |
+      sas=$(/usr/local/bin/on cloud swanctl --list-sas 2> /dev/null)
+      ike=$(echo "$sas" | awk '/ESTABLISHED/ {getline; getline; getline; print $1; exit}')
+      [ "$ike" = "AES_CBC-256/HMAC_SHA2_256_128/PRF_HMAC_SHA2_256/MODP_2048" ] || { echo "the IKE SA uses ${ike:-nothing}"; exit 0; }
+      esp=$(echo "$sas" | awk '/INSTALLED/ {print $NF; exit}')
+      case $esp in
+        ESP:AES_GCM_16-256 | ESP:AES_GCM_16-256/MODP_2048) echo "the sheet's proposals" ;;
+        *) echo "the CHILD_SA uses ${esp:-nothing}" ;;
+      esac
+    expect:
+      equals: "the sheet's proposals"
+  - id: survives-a-rekey
+    description: "When the cloud rekeys the CHILD_SA, the new one is installed with fresh keys from its own Diffie-Hellman exchange (MODP-2048), and the data centre still reaches the cloud."
+    timeout: 30
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null || { echo "there is no CHILD_SA to rekey"; exit 0; }
+      # The cloud starts a rekey, as it does on its own timer (every hour by
+      # default; this one now). A new CHILD_SA is negotiated with
+      # CREATE_CHILD_SA, with its own key exchange if both sides' ESP
+      # proposals name a DH group.
+      on cloud swanctl --rekey --child clinic-vti > /dev/null 2>&1
+      rekeyed() { on cloud swanctl --list-sas 2> /dev/null | grep 'INSTALLED, TUNNEL, ESP:AES_GCM_16-256/MODP_2048' > /dev/null; }
+      wait_for 10 rekeyed || { echo "after the cloud's rekey there is no CHILD_SA with its own MODP-2048 key exchange: $(on cloud swanctl --list-sas | grep 'reqid' | tr -s ' ' | tr '\n' ';')"; exit 0; }
+      wait_for 5 on edge ping -c 1 -W 1 169.254.21.1 || { echo "after the rekey the tunnel carries nothing between edge and the cloud"; exit 0; }
+      echo rekeyed
+    expect:
+      equals: rekeyed
+  - id: summary-only
+    description: "Over each session the cloud receives exactly one route from edge: the data centre's summary, the smallest block that holds all its networks."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # The summary, worked out from the data centre's networks as the
+      # topology (sealed) gives them to edge's LAN, so a network taken off
+      # edge can't make the summary smaller.
+      want=$(python3 -c '
+      import ipaddress, json, re
+      lan = re.search(r"\bedge:lan=(\S+)", open("/etc/netlab/topology").read()).group(1)
+      nets = [ipaddress.ip_interface(a).network for a in lan.split(",")]
+      s = nets[0]
+      while not all(n.subnet_of(s) for n in nets):
+          s = s.supernet()
+      print(json.dumps([str(s)]))')
+      for n in 169.254.30.1:circuit 169.254.21.2:VPN; do
+        got=$(frr cloud "show bgp ipv4 unicast neighbors ${n%%:*} routes json" | json "sorted(d.get('routes', {}))")
+        [ "$got" = "$want" ] || { echo "over the ${n#*:} the cloud receives $got from edge, not one summary of the data centre's networks, the smallest that holds them"; exit 0; }
+      done
+      echo "the summary alone"
+    expect:
+      equals: "the summary alone"
+  - id: accepts-only-the-cloud
+    description: "edge takes from the cloud, over both sessions, only prefixes inside 10.200.0.0/16 no longer than /24: a new one the cloud offers arrives, and one outside 10.200.0.0/16, one longer than /24 and the cloud's default route are refused."
+    timeout: 45
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      took() { frr edge "show bgp ipv4 unicast neighbors $1 routes json" | json "'$2' in d.get('routes', {})"; }
+      # The cloud offers three prefixes it hasn't offered before, chosen
+      # now: blackhole routes on its machine, which its BGP hands to edge
+      # over both sessions (its route map OFFER passes only 10.200.0.0/16's
+      # /24s and /25s and 172.16.0.0/12's /24s). They are removed again on
+      # the way out, even if the check is stopped part way.
+      a=$((2 + RANDOM % 250))
+      good="10.200.$a.0/24" long="10.200.$((a + 1)).128/25" foreign="172.16.$a.0/24"
+      trap 'for p in $good $long $foreign; do ip -n cloud route del blackhole "$p" 2> /dev/null; done' EXIT
+      for p in $good $long $foreign; do ip -n cloud route add blackhole "$p" || { echo "the check couldn't offer $p"; exit 0; }; done
+      offered() { for n in 169.254.30.1 169.254.21.2; do [ "$(frr cloud "show bgp ipv4 unicast neighbors $n advertised-routes json" | json "all(p in d.get('advertisedRoutes', {}) for p in '0.0.0.0/0 $good $long $foreign'.split())")" = True ] || return 1; done; }
+      wait_for 10 offered || { echo "the cloud never offered the check's prefixes over both sessions, so the check couldn't test them"; exit 0; }
+      arrived() { [ "$(took 169.254.30.2 "$good")" = True ] && [ "$(took 169.254.21.1 "$good")" = True ] && ip -d -n edge route show "$good" | grep 'proto bgp' > /dev/null; }
+      wait_for 15 arrived || { echo "a new prefix the cloud offers, $good, doesn't arrive by BGP over both sessions"; exit 0; }
+      for n in 169.254.30.2:circuit 169.254.21.1:VPN; do
+        for p in 0.0.0.0/0 $long $foreign; do
+          [ "$(took "${n%%:*}" "$p")" = False ] || { echo "over the ${n#*:}, edge's BGP took $p from the cloud, which isn't inside 10.200.0.0/16 at /24 or shorter"; exit 0; }
+        done
+      done
+      echo "only the cloud's"
+    expect:
+      equals: "only the cloud's"
+  - id: dc-prefers-dx
+    description: "edge sends the data centre's traffic for the cloud over the circuit: of its two paths to 10.200.0.0/16, BGP chooses the circuit's by an attribute set on purpose, and the kernel's route is BGP's, through dx alone. No route to the cloud is typed in or static."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # A route to the cloud typed with ip route, live or in edge's network
+      # file. (Another route typed only live, such as a blackhole for the
+      # summary, is network-lasts' to find; one in the network file lasts.)
+      typed=$(hand_routes edge | python3 -c '
+      import ipaddress, sys
+      cloud = ipaddress.ip_network("10.200.0.0/16")
+      for line in sys.stdin:
+          words = line.split()
+          dest = words[1] if len(words) > 1 and words[0] in ("unicast", "blackhole", "unreachable", "prohibit", "throw") else words[0]
+          try:
+              net = ipaddress.ip_network(dest, strict=False)
+          except ValueError:
+              continue
+          if net.version == 4 and net.prefixlen > 0 and net.overlaps(cloud):
+              print(" ".join(words))')
+      [ -z "$typed" ] || { echo "edge has a route to the cloud typed in, not learned by BGP: $(echo "$typed" | head -n 1)"; exit 0; }
+      statics=$(frr edge 'show ip route static json' | python3 -c '
+      import ipaddress, json, sys
+      cloud = ipaddress.ip_network("10.200.0.0/16")
+      print(" ".join(p for p in json.load(sys.stdin) if ipaddress.ip_network(p).overlaps(cloud) and ipaddress.ip_network(p).prefixlen > 0))')
+      [ -z "$statics" ] || { echo "edge has a static route to the cloud: $statics"; exit 0; }
+      paths=$(frr edge 'show bgp ipv4 unicast 10.200.0.0/16 json' | json "sorted(p.get('peer', {}).get('peerId', '?') for p in d.get('paths', []))")
+      [ "$paths" = '["169.254.21.1", "169.254.30.2"]' ] || { echo "edge doesn't have the cloud's 10.200.0.0/16 from both sessions: $paths"; exit 0; }
+      best=$(bgp-best edge 10.200.0.0/16)
+      case $best in
+        "via 169.254.30.2,"*) ;;
+        *) echo "edge's BGP chooses the VPN's path to the cloud: $best"; exit 0 ;;
+      esac
+      case $best in
+        *"Older Path" | *"Router ID" | *"Neighbor IP" | *"Cluster length" | *"Nothing left to compare")
+          echo "edge chooses the circuit only by BGP's last tie-breakers ($best), not by an attribute set on purpose"; exit 0 ;;
+      esac
+      r=$(ip -d -j -n edge route show 10.200.0.0/16 | json "[(x.get('protocol'), sorted(n.get('dev') for n in x.get('nexthops', [x]))) for x in d]")
+      [ "$r" = '[["bgp", ["dx"]]]' ] || { echo "edge's kernel route to the cloud isn't BGP's through dx alone: $r"; exit 0; }
+      echo "out over the circuit"
+    expect:
+      equals: "out over the circuit"
+  - id: cloud-prefers-dx
+    description: "The cloud sends its traffic for the data centre over the circuit: of the two paths edge gives it to the data centre's summary, it chooses the circuit's, by AS-path length or MED."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      summary=$(frr cloud 'show bgp ipv4 unicast neighbors 169.254.30.1 routes json' | json "sorted(d.get('routes', {}))[0] if d.get('routes') else ''")
+      [ -n "$summary" ] || { echo "the cloud receives nothing from edge over the circuit"; exit 0; }
+      paths=$(frr cloud "show bgp ipv4 unicast $summary json" | json "sorted(p.get('peer', {}).get('peerId', '?') for p in d.get('paths', []))")
+      [ "$paths" = '["169.254.21.2", "169.254.30.1"]' ] || { echo "the cloud doesn't have edge's $summary from both sessions: $paths"; exit 0; }
+      best=$(bgp-best cloud "$summary")
+      case $best in
+        "via 169.254.30.1,"*"chosen by AS Path" | "via 169.254.30.1,"*"chosen by MED") echo "back over the circuit" ;;
+        "via 169.254.30.1,"*) echo "the cloud chooses the circuit, but not by the paths' AS-path length or MED: $best" ;;
+        *) echo "the cloud chooses the VPN's path to the data centre: $best" ;;
+      esac
+    expect:
+      equals: "back over the circuit"
+  - id: network-lasts
+    description: "edge's interfaces, vti0 among them, and any route typed into it are what its own files build at boot."
+    # netlab verify, with FRR's two-path routes set aside and typed
+    # blackholes added (the helper says why): edge's files, not what BGP is
+    # doing, are what this reads. It exits 1 when edge differs: || true
+    # lets the checker show the difference it printed, not "exit status 1".
+    command: /usr/local/lib/lab-checks/same-as-its-files edge || true
+    expect:
+      equals: verified
+  - id: tunnel-starts-itself
+    description: "edge's tunnel is in its files and starts by itself: an IPsec daemon started from them, as at boot, begins it with nothing typed, and keeps trying while the cloud doesn't answer."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # In netlab verify's throwaway copy (built here through inet, which
+      # nothing configures, so that this reads the tunnel alone and
+      # network-lasts reads edge's interfaces; chk-edge sees edge's own /etc,
+      # and no service runs there), charon starts and loads edge's files as
+      # a boot does. A CHILD_SA with start_action = start begins at once (it
+      # can't finish: the copy has no routes from FRR, so nothing answers);
+      # a tunnel started by hand doesn't begin at all. This charon
+      # retransmits fast (STRONGSWAN_CONF adds that to the machine's own
+      # settings), so a try gives up after about 2 seconds: with
+      # keyingtries = 0 a new try is still under way 5 seconds after
+      # loading, and with the default, 1, nothing is.
+      began=$(netlab verify inet -- bash -c '
+        conf=$(mktemp /tmp/chk-strongswan-XXXXXX.conf)
+        printf "%s\n" "include /etc/strongswan.conf" "charon {" "  retransmit_tries = 1" "  retransmit_timeout = 1" "  retransmit_base = 1" "}" > "$conf"
+        chmod 644 "$conf"
+        on chk-edge env STRONGSWAN_CONF="$conf" /usr/sbin/charon-systemd > /dev/null 2>&1 &
+        charon=$!
+        for i in $(seq 1 50); do on chk-edge swanctl --stats > /dev/null 2>&1 && break; sleep 0.2; done
+        on chk-edge swanctl --load-all --noprompt > /dev/null 2>&1
+        loaded=$SECONDS
+        n=0
+        for i in $(seq 1 10); do
+          n=$(on chk-edge swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.40\[")
+          [ "$n" -ge 1 ] && break
+          sleep 0.2
+        done
+        later=0
+        if [ "$n" -ge 1 ]; then
+          while [ $((SECONDS - loaded)) -lt 5 ]; do sleep 0.5; done
+          later=$(on chk-edge swanctl --list-sas 2> /dev/null | grep -c "@ 203\.0\.113\.40\[")
+        fi
+        echo "$n $later"
+        kill "$charon" 2> /dev/null
+        wait "$charon" 2> /dev/null
+        rm -f "$conf"
+        true')
+      case $began in
+        "0 0") echo "an IPsec daemon started from edge's files doesn't begin the tunnel by itself: it was started by hand, or isn't in /etc/swanctl/conf.d/" ;;
+        [1-9]*" 0") echo "an IPsec daemon started from edge's files begins the tunnel, but soon gives up when the cloud doesn't answer, as at a boot when the cloud isn't ready yet" ;;
+        [1-9]*" "[1-9]*) echo "starts itself" ;;
+        *) echo "$began" ;;
+      esac
+    expect:
+      equals: "starts itself"
+  - id: kept-safe
+    description: "edge's eBGP sessions still need a policy (FRR's ebgp-requires-policy is on), and every file in edge's /etc/swanctl that holds the pre-shared key belongs to root and can't be read by anyone else."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      frr edge 'show running-config' | grep 'no bgp ebgp-requires-policy' > /dev/null && { echo "edge's eBGP sessions no longer need a policy (no bgp ebgp-requires-policy)"; exit 0; }
+      found=0
+      while IFS= read -r f; do
+        found=1
+        mode=$(stat -c '%U %a' "$f")
+        case $mode in
+          "root "[0-7]00) ;;
+          *) echo "${f#/etc/netns/edge} holds the pre-shared key and is $mode (owner, mode)"; exit 0 ;;
+        esac
+      done < <(grep -rl 'Fz3kW8nR5tY2bH9qL4vM7cX6' /etc/netns/edge/swanctl 2> /dev/null)
+      [ "$found" = 1 ] || { echo "no file in edge's /etc/swanctl holds the pre-shared key"; exit 0; }
+      echo safe
+    expect:
+      equals: safe
+  - id: saved
+    description: "edge's running FRR configuration is saved, and its IPsec and routing services start at every boot."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for s in strongswan@edge frr@edge; do
+        [ "$(systemctl is-enabled "$s")" = enabled ] || { echo "$s doesn't start at boot"; exit 0; }
+      done
+      frr_saved edge > /dev/null && echo saved || echo "edge's running FRR configuration isn't the one in its /etc/frr/frr.conf (write memory saves it)"
+    expect:
+      equals: saved
+  - id: cloud-untouched
+    description: "The network and the cloud's side are as they were: their files, and the routing configuration the cloud runs."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      intact > /dev/null || { echo "these have changed: $(intact | tr '\n' ' ')"; exit 0; }
+      frr_saved cloud > /dev/null || { echo "the cloud's running routing configuration isn't the provider's"; exit 0; }
+      echo intact
+    expect:
+      equals: intact
+  - id: fails-over
+    description: "When the circuit goes down, within 10 seconds the data centre and the cloud reach each other over the VPN, both ways; when it comes back, within 20 seconds both ways are back on the circuit. The check unplugs dx for a moment and puts it back."
+    timeout: 90
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # dcapp asks the VM's port 8080, which answers with the caller's
+      # address: an answer is the data centre reaching the cloud and the
+      # cloud's reply coming back.
+      reach() { [ "$(on dcapp nc -w 1 10.200.1.10 8080 < /dev/null 2> /dev/null)" = 10.41.0.10 ]; }
+      out_via() { ip -n edge route get 10.200.1.10 2> /dev/null | grep -w "dev $1" > /dev/null; }
+      back_via() { ip -n cloud route get 10.41.0.10 2> /dev/null | grep -w "dev $1" > /dev/null; }
+      paths() { echo "out: $(ip -n edge route get 10.200.1.10 | head -n 1 | tr -s ' '); back: $(ip -n cloud route get 10.41.0.10 | head -n 1 | tr -s ' ')"; }
+      reach || { echo "the data centre doesn't reach the cloud to begin with"; exit 0; }
+      # The cut, and its repair on the way out whatever happens, waiting for
+      # the circuit's session to come back.
+      dx_state() { frr edge 'show bgp neighbors 169.254.30.2 json' | json "d.get('169.254.30.2', {}).get('bgpState')"; }
+      restore() {
+        netlab link edge dx up > /dev/null 2>&1
+        for _ in $(seq 1 15); do [ "$(dx_state)" = Established ] && break; sleep 1; done
+      }
+      trap restore EXIT
+      netlab link edge dx down > /dev/null
+      deadline=$((SECONDS + 10))
+      until out_via vti0 && back_via vti0 && reach; do
+        [ "$SECONDS" -lt "$deadline" ] || { echo "10 seconds after the circuit went down, the data centre and the cloud didn't reach each other over the VPN both ways ($(paths))"; exit 0; }
+        sleep 0.5
+      done
+      netlab link edge dx up > /dev/null
+      deadline=$((SECONDS + 20))
+      until out_via dx && back_via dx && reach; do
+        [ "$SECONDS" -lt "$deadline" ] || { echo "20 seconds after the circuit came back, the traffic wasn't back on it both ways ($(paths))"; exit 0; }
+        sleep 0.5
+      done
+      echo "fails over and back"
+    expect:
+      equals: "fails over and back"

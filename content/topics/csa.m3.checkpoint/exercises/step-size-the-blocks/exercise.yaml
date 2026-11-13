@@ -1,0 +1,16 @@
+id: step-size-the-blocks
+stage: fill_in
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Step 1 of the plan: size the regions"
+prompt: |
+  Step 1 of the plan: size and place the regions. The checkpoint's build, with most of the plan already done for you: in `~/plan/plan.csv` the three clouds' summaries, `onprem`, the data centres and every IPv6 cell are filled in. What's left is the twelve regions' IPv4 blocks.
+
+  For each region in `/srv/plan/sites.csv`, work out the smallest block that holds its five-year need (rule 2 of `/srv/plan/README.txt`, with the growth and the reserved addresses from `policy.txt`), then place it inside its cloud's summary, apart from that cloud's other regions. Edit the plan with `nano ~/plan/plan.csv`; `plan-show` shows it as a tree. The checks test the whole plan, the rows done for you included.
+hints:
+  - "One region at a time. Machines × `host_growth` + the cloud's `reserved_` addresses is what one subnet must hold, and the smallest power of two at least that big is the subnet's size. Then subnets × `subnet_growth` × the subnet's size, up to a power of two, is the region's. aws-us-east: 300 × 3 + 5 = 905, so 1,024 addresses a subnet; 6 × 2 = 12 subnets is 12,288 addresses, so 16,384."
+  - "A block of 2 to the power n addresses is a /(32 − n): 16,384 is 2^14, a /18; 8,192 a /19; 2,048 a /21; 1,024 a /22."
+  - "Place the biggest first. Inside a summary, a /18 can start only where the third number is a multiple of 64 (10.2.0.0, 10.2.64.0 ...), a /19 a multiple of 32, a /20 of 16, a /21 of 8, a /22 of 4. Filling from the summary's start, biggest to smallest, nothing overlaps."
+  - "`plan-show` prints each block's first and last address: two regions overlap when one starts before the other ends. `ipcalc -b 10.2.64.0/19` shows one block's range."

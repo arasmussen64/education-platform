@@ -1,0 +1,50 @@
+id: debug-the-outage
+stage: debug
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The outage that comes and goes"
+prompt: |
+  Part 2 of the checkpoint. The shop's website runs on two servers now, one in its data centre and one in the cloud, and since the move the office says the shop is unreliable: some page loads take a few seconds, and every so often, for several seconds at a time, nothing loads at all.
+
+  The network labs' basics (machines, `on MACHINE COMMAND`, services named `name@machine`) are in Layers and packets' first lab, `example-follow-a-request`; `netlab show` lists the machines. Every part of this network, the broken and the working alike:
+
+  - **The office**, 10.10.0.0/24: `pc` (10.10.0.10), where the office's monitor runs, and `resolver` (10.10.0.53), the office's resolver (Unbound), which asks the shop's own name servers about `shop.test` and keeps each answer for its TTL. `r1` (AS 65010) is the office's router.
+  - **The data centre**, 10.20.0.0/24: `r2` (AS 65020), its router, with a firewall (nftables) for the traffic it forwards; `ns1` (10.20.0.53), the primary name server for `shop.test` (BIND), whose zone file is the master copy; and `app1` (10.20.0.11), one of the shop's two web servers (nginx).
+  - **The cloud**, 10.30.0.0/24: `r3` (AS 65030), the cloud provider's router; `app2` (10.30.0.11), the other web server, with a firewall of its own; and `ns2` (10.30.0.200), the secondary name server for `shop.test`, which copies the zone from ns1. ns2 moved to the cloud in October.
+  - **The links:** r1 and r2 are joined by a cable. r2 reaches r3 over two VPN tunnels, `tun1` and `tun2` (two plain cables here: their encryption isn't part of this story), and r2 and r3 share the traffic between them connection by connection, as a cloud's VPN gateway can. The three routers learn their routes from each other by BGP (`on r2 vtysh`). BGP's timers are scaled down: a keepalive every 3 seconds and a hold time of 9, where FRR's defaults are 60 and 180.
+  - **The shop:** `www.shop.test` has two addresses, app1's and app2's, and the resolver hands them out in turn. Both servers serve the same pages: `/health`, a few bytes, and `/catalog`, the whole catalogue, about 67 KB. Its TTL is 10 seconds, scaled down for the lab as the BGP timers are (a real record's TTL is more often minutes or hours).
+  - **The monitor** on pc loads a page by name every two seconds, the two in turn, and writes a line for each to `/var/log/shop-monitor.log`: the time, the page, the addresses curl tried in order, the HTTP status (000 for none), the seconds it took, and curl's exit status (0 for success, 6 no address, 7 no connection, 28 out of time). `tail -f /var/log/shop-monitor.log` watches it.
+
+  **There are three faults. Fixing one can change what you see: measure again after each fix.**
+
+  The rules of the fix:
+
+  - r3, the tunnels and the network itself are the cloud provider's: change nothing there.
+  - Both name servers stay in service, ns2 as a secondary that copies the zone from ns1, and only the shop's name servers may copy the whole zone.
+  - Both web servers stay in service: `www.shop.test` keeps app1's address and app2's.
+  - Both tunnels stay in use.
+  - Every machine keeps its firewall, and nothing is opened wider than the shop's own networks need. Nothing in the cloud may reach the office's administration ports (SSH, 22, and remote desktop, 3389).
+  - Every fix lasts a reboot: it is in the file the machine reads at boot.
+
+  Useful commands: `journalctl -u SERVICE@MACHINE` for one service's log on one machine (`frr@r2`, `named@ns1`, `nginx@app2`, `unbound@resolver` and the rest: `netlab show` lists what each machine runs); `on pc dig @SERVER NAME` asks one name server directly; `on resolver unbound-control ...` controls the resolver; `on MACHINE nft list ruleset` shows a firewall with its counters; `on MACHINE tcpdump -nn -i IF ...` captures on one machine's interface; `on pc curl -v ...` loads a page and shows every step. Edit a machine's files with `on MACHINE nano FILE`. `sudo systemctl reload SERVICE@MACHINE` makes one service read its files again, and `sudo netlab restart` rebuilds the whole network from the files, as a reboot would.
+
+  **Time yourself.** An outage like this should take about 60 minutes. Note the time when you open the lab's shell (`date`). Nothing stops you at 60 minutes: the target is yours to hold yourself to.
+
+  When the monitor shows every load fast and whole, run the checks. Some of them take their time: they load the shop from the office many times over, for longer than its TTL.
+test_skills:
+  names-agree: [csa.net.dns/records-and-zones]
+  zone-private: [csa.net.dns/records-and-zones]
+  resolver-asks-both: [csa.net.dns/trace-resolution]
+  both-tunnels: [csa.net.troubleshooting/locate-on-the-path, csa.net.routing/find-the-black-hole]
+  r2-firewall-saved: [csa.linux.net-tools/firewall-path]
+  app2-firewall-saved: [csa.linux.net-tools/firewall-path]
+  office-admin-closed: [csa.linux.net-tools/firewall-path]
+  app2-web-for-the-shop: [csa.linux.net-tools/firewall-path, csa.net.troubleshooting/split-the-suspects]
+  app2-web-only: [csa.linux.net-tools/firewall-path]
+  catalogue-everywhere: [csa.net.troubleshooting/split-the-suspects, csa.net.dns/records-and-zones]
+  both-tunnels-carry: [csa.net.troubleshooting/locate-on-the-path, csa.net.troubleshooting/measure-intermittent]
+  by-name: [csa.net.troubleshooting/measure-intermittent, csa.net.dns/ttl-and-caching]
+  provider-untouched: [csa.net.troubleshooting/prove-and-record]

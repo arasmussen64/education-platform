@@ -1,0 +1,269 @@
+#!/usr/bin/python3
+"""plancheck CHECK [PLAN] [REQUIREMENTS]: one check of an address plan.
+
+The checks of Checkpoint 3's address-plan labs. It reads the requirements
+(/srv/plan/sites.csv and /srv/plan/policy.txt) and works every right size,
+overlap and summary out from them with Python's ipaddress module, so a plan
+made for another story fails. It prints "ok", or one sentence naming the
+row and the rule it breaks (never the right value), and always exits 0: the
+lab checker compares what it prints.
+
+A cell it can't read fails only the "complete" check: the others skip it,
+so one mistyped block fails one check and not all of them.
+"""
+
+import csv
+import ipaddress
+import math
+import sys
+
+CHECK = sys.argv[1] if len(sys.argv) > 1 else ""
+PLAN = sys.argv[2] if len(sys.argv) > 2 else "/home/learner/plan/plan.csv"
+REQ = sys.argv[3] if len(sys.argv) > 3 else "/srv/plan"
+CHECKS = ("complete", "v4-sizes", "v4-dcs", "v4-apart", "v4-summaries", "v6-sizes", "v6-apart")
+
+
+def say(text):
+    print(text)
+    sys.exit(0)
+
+
+if CHECK not in CHECKS:
+    say(f"plancheck: no check called {CHECK!r}")
+
+
+def read_policy():
+    policy, in_use = {}, []
+    with open(f"{REQ}/policy.txt", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            key, value = (part.strip() for part in line.split("=", 1))
+            if key == "in_use":
+                block, label = value.split(None, 1)
+                in_use.append((ipaddress.ip_network(block), label))
+            else:
+                policy[key] = value
+    return policy, in_use
+
+
+def read_sites():
+    with open(f"{REQ}/sites.csv", encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+policy, in_use = read_policy()
+sites = read_sites()
+regions = [s for s in sites if s["kind"] == "region"]
+dcs = [s for s in sites if s["kind"] == "dc"]
+clouds = sorted({s["cloud"] for s in regions})
+summaries = clouds + ["onprem"]
+# The rows a plan has, in the order the starter lists them.
+names = []
+for c in clouds:
+    names.append(c)
+    names += [s["site"] for s in regions if s["cloud"] == c]
+names.append("onprem")
+names += [s["site"] for s in dcs]
+dc_names = {d["site"] for d in dcs}
+dc_v4 = {label: block for block, label in in_use if label in dc_names}
+
+
+def pow2_at_least(n):
+    return 1 << math.ceil(math.log2(n))
+
+
+def need_v4(site):
+    """The addresses a region's block must hold in five years: twice today's
+    subnets, each the smallest block for three times today's hosts plus the
+    addresses its cloud keeps back."""
+    hosts = int(site["hosts_per_subnet_today"]) * int(policy["host_growth"])
+    subnet = pow2_at_least(hosts + int(policy[f"reserved_{site['cloud']}"]))
+    subnets = int(site["subnets_today"]) * int(policy["subnet_growth"])
+    return pow2_at_least(subnets * subnet)
+
+
+def read_plan():
+    try:
+        with open(PLAN, encoding="utf-8") as f:
+            lines = [ln.replace("\r", "") for ln in f]
+    except OSError:
+        say("there is no plan at ~/plan/plan.csv")
+    lines = [ln for ln in lines if ln.strip() and not ln.lstrip().startswith("#")]
+    reader = csv.reader(lines)
+    header = [h.strip() for h in next(reader, [])]
+    if header != ["name", "ipv4", "ipv6"]:
+        say("the plan's first line is not the header name,ipv4,ipv6")
+    rows = {}
+    for row in reader:
+        row = [c.strip() for c in row] + ["", ""]
+        if row[0] in rows:
+            say(f"the plan has two rows for {row[0]}")
+        rows[row[0]] = (row[1], row[2])
+    return rows
+
+
+BAD = "bad"
+
+
+def parse(text, family, where):
+    """A block, None for "-" or an empty cell, or BAD for one that can't be
+    read (only the complete check says why)."""
+    if text in ("-", ""):
+        return None
+    try:
+        net = ipaddress.ip_network(text, strict=True)
+    except ValueError:
+        if CHECK != "complete":
+            return BAD
+        try:
+            ipaddress.ip_network(text, strict=False)
+        except ValueError:
+            say(f"{where}: [{text}] is not an address block")
+        say(f"{where}: [{text}] is not written as its network address (the first address of the block)")
+    if net.version != family:
+        if CHECK == "complete":
+            say(f"{where}: [{text}] is not an IPv{family} block")
+        return BAD
+    return net
+
+
+rows = read_plan()
+for n in names:
+    if n not in rows:
+        say(f"the plan has no row for {n}")
+extra = sorted(set(rows) - set(names))
+if extra:
+    say(f"the plan has a row the requirements don't name: {extra[0]}")
+v4 = {n: parse(rows[n][0], 4, f"{n}'s IPv4") for n in names}
+v6 = {n: parse(rows[n][1], 6, f"{n}'s IPv6") for n in names}
+gcp_regions = {s["site"] for s in regions if s["cloud"] == "gcp"}
+
+if CHECK == "complete":
+    for n in names:
+        if v4[n] is None:
+            say(f"{n} has no IPv4 block")
+        if n in gcp_regions and rows[n][1] != "-":
+            say(f"{n}'s IPv6 is chosen by Google Cloud, so the plan leaves it as -")
+        if n not in gcp_regions and v6[n] is None:
+            say(f"{n} has no IPv6 block")
+    say("ok")
+
+# Every other check needs its cells filled in, and skips one it can't read
+# (plan-complete says what is wrong with it).
+region_names = [s["site"] for s in regions]
+reads = {
+    "v4-sizes": (region_names, []),
+    "v4-dcs": (["onprem", *[d["site"] for d in dcs]], []),
+    "v4-apart": (names, []),
+    "v4-summaries": ([*clouds, *region_names], []),
+    "v6-sizes": ([], [n for n in names if n not in gcp_regions]),
+    "v6-apart": ([], [n for n in names if n not in gcp_regions]),
+}[CHECK]
+for n in reads[0]:
+    if rows[n][0] == "":
+        say(f"{n} has no IPv4 block yet")
+for n in reads[1]:
+    if rows[n][1] == "":
+        say(f"{n} has no IPv6 block yet")
+v4 = {n: (None if b is BAD else b) for n, b in v4.items()}
+v6 = {n: (None if b is BAD else b) for n, b in v6.items()}
+space4 = ipaddress.ip_network(policy["ipv4_space"])
+space6 = ipaddress.ip_network(policy["ipv6_space"])
+gcp_pool = ipaddress.ip_network(policy["ipv6_gcp_pool"])
+
+
+def both(a, b):
+    return a is not None and b is not None
+
+
+if CHECK == "v4-sizes":
+    for s in regions:
+        b = v4[s["site"]]
+        if b is not None and b.num_addresses != need_v4(s):
+            say(f"{s['site']}'s IPv4 block isn't the smallest that holds its five-year need")
+    say("ok")
+
+if CHECK == "v4-dcs":
+    for d in dcs:
+        if v4[d["site"]] != dc_v4[d["site"]]:
+            say(f"{d['site']} doesn't keep the addresses it has")
+    blocks = list(dc_v4.values())
+    on = v4["onprem"]
+    if on is None or not all(b.subnet_of(on) for b in blocks):
+        say("onprem doesn't hold every data centre")
+    if on.prefixlen < 32 and any(all(b.subnet_of(h) for b in blocks) for h in on.subnets(prefixlen_diff=1)):
+        say("onprem isn't the smallest block that holds every data centre")
+    say("ok")
+
+if CHECK == "v4-apart":
+    site_names = [s["site"] for s in sites]
+    for n in site_names + summaries:
+        if v4[n] is not None and not v4[n].subnet_of(space4):
+            say(f"{n}'s IPv4 block is outside the IPv4 space the policy gives")
+    for i, a in enumerate(site_names):
+        for b in site_names[i + 1 :]:
+            if both(v4[a], v4[b]) and v4[a].overlaps(v4[b]):
+                say(f"{a} and {b} overlap")
+    for n in [s["site"] for s in regions] + clouds:
+        for block, label in in_use:
+            if v4[n] is not None and v4[n].overlaps(block):
+                say(f"{n}'s IPv4 block overlaps addresses already in use ({label})")
+    for i, a in enumerate(summaries):
+        for b in summaries[i + 1 :]:
+            if both(v4[a], v4[b]) and v4[a].overlaps(v4[b]):
+                say(f"the summaries {a} and {b} overlap")
+    say("ok")
+
+if CHECK == "v4-summaries":
+    for c in clouds:
+        if v4[c] is None:
+            say(f"the summary {c} has no IPv4 block to check")
+        mine = [s for s in regions if s["cloud"] == c]
+        for s in mine:
+            if v4[s["site"]] is not None and not v4[s["site"]].subnet_of(v4[c]):
+                say(f"{s['site']} is outside its cloud's summary, {c}")
+        # The room is worked out from the sizes the regions need, not from
+        # the plan's, so a wrongly sized region fails v4-sizes alone.
+        want = pow2_at_least(sum(need_v4(s) for s in mine) * int(policy["summary_room"]))
+        if v4[c].num_addresses != want:
+            say(f"the summary {c} isn't the smallest block with the room for growth the policy asks for")
+    say("ok")
+
+if CHECK == "v6-sizes":
+    for n in names:
+        if v6[n] is not None and v6[n].prefixlen % 4:
+            say(f"{n}'s IPv6 block doesn't end on a nibble boundary (a prefix length that is a multiple of 4)")
+    for s in regions + dcs:
+        b = v6[s["site"]]
+        if b is not None and b.prefixlen != int(policy["ipv6_site"]):
+            say(f"{s['site']}'s IPv6 block isn't the size the policy gives a site")
+    for c in summaries:
+        if c != "gcp" and v6[c] is not None and v6[c].prefixlen != int(policy["ipv6_summary"]):
+            say(f"the summary {c}'s IPv6 block isn't the size the policy gives a summary")
+    if "gcp" in clouds and v6["gcp"] is not None and v6["gcp"].prefixlen != int(policy["ipv6_gcp_network"]):
+        say("gcp's IPv6 network isn't the size Google Cloud gives a network")
+    say("ok")
+
+if CHECK == "v6-apart":
+    own = [c for c in summaries if c != "gcp"]
+    for c in own:
+        if v6[c] is not None and not v6[c].subnet_of(space6):
+            say(f"the summary {c}'s IPv6 block is outside the IPv6 space the policy gives")
+    for i, a in enumerate(own):
+        for b in own[i + 1 :]:
+            if both(v6[a], v6[b]) and v6[a].overlaps(v6[b]):
+                say(f"the IPv6 summaries {a} and {b} overlap")
+    for s in regions + dcs:
+        mine, parent = v6[s["site"]], v6[s["cloud"]]
+        if both(mine, parent) and not mine.subnet_of(parent):
+            say(f"{s['site']}'s IPv6 block is outside its summary, {s['cloud']}")
+    six = [s["site"] for s in regions + dcs if v6[s["site"]] is not None]
+    for i, a in enumerate(six):
+        for b in six[i + 1 :]:
+            if v6[a].overlaps(v6[b]):
+                say(f"the IPv6 blocks of {a} and {b} overlap")
+    if "gcp" in clouds and v6["gcp"] is not None and not v6["gcp"].subnet_of(gcp_pool):
+        say("gcp's IPv6 network isn't one Google Cloud can give it (it must be inside the pool the policy names)")
+    say("ok")
