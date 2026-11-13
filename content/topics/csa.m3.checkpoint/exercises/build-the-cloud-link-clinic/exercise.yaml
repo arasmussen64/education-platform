@@ -1,0 +1,43 @@
+id: build-the-cloud-link-clinic
+stage: build
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The cloud link for the clinic"
+prompt: |
+  A fresh version of part 3, in another story: a second try that can't be passed from memory. A clinic's data centre is joining its cloud network, 10.200.0.0/16, where `vm` (10.200.1.10) runs, on a cloud modelled on Azure. It has bought a private circuit to the cloud, `dx` (a stand-in for Azure ExpressRoute: here a cable), and wants a VPN over the internet as its backup. The data centre's router, `edge` (AS 65040), is yours: FRR runs with only a default route toward the internet, and strongSwan runs with no connection. The data centre's networks are 10.40.0.0/24, 10.41.0.0/24, 10.42.0.0/24 and 10.43.0.0/24, on edge's interface `lan`; `dcapp` (10.41.0.10) is a server there. `inet` is the internet, a router that knows only the two outside networks. The cloud's side, `cloud` (AS 65515), is its circuit router and VPN gateway in one, configured and not yours; its AS number is Azure's default for a VPN gateway.
+
+  The provider's sheet, `/srv/provider/link-sheet.txt`, has every number: the circuit's addresses, the VPN's outside addresses, identities, key, proposals and inside addresses, and how the cloud's router chooses between your two paths. `cloud-vpn-status` shows the cloud's view of the tunnel, `cloud-vpn-log` its VPN log, and `looking-glass cloud 'show ...'` reads its router. `vm` and `dcapp` both answer on TCP port 8080 with the address that reached them (`on dcapp nc -w 2 10.200.1.10 8080 < /dev/null`). BGP's timers are scaled down in this lab, as the sheet says: a keepalive every 3 seconds and a hold time of 9, where AWS Direct Connect defaults to 30 and 90 and Azure's VPN gateways use 60 and 180. The network labs' basics are in Layers and packets' first lab, `example-follow-a-request`.
+
+  Build the data centre's side, so that:
+
+  1. **The VPN** is route-based, a tunnel interface (a VTI) on edge with one CHILD_SA for 0.0.0.0/0 both ways, from the sheet: its proposals for both phases and nothing weaker, though the cloud would accept something weaker, with perfect forward secrecy, and the pre-shared key readable only by root. It starts by itself at boot and keeps trying while the cloud doesn't answer.
+  2. **BGP**: two sessions with the cloud, one over the circuit and one inside the tunnel, each with a route map in and out (FRR's rule that an eBGP session needs a policy stays on).
+  3. **edge announces one route for the data centre:** the smallest block that holds all four of its networks, and none of them on its own.
+  4. **edge accepts from the cloud only prefixes inside 10.200.0.0/16, no longer than /24:** never its default route.
+  5. **The circuit is preferred both ways:** the data centre's traffic for the cloud leaves over dx, and the cloud's traffic for the data centre comes back over dx, each by a choice you make on edge. As the sheet says, ties go the wrong way here.
+  6. **It fails over by itself:** when the circuit goes down, the traffic goes over the VPN, both ways, within 10 seconds, and back to the circuit within 20 seconds of its return.
+  7. **It lasts:** the routes to the cloud come from BGP alone (none typed in, no static route to the cloud), and everything is saved and comes back after a reboot.
+
+  The tools are the IPsec and BGP topics': `on edge nano FILE` for edge's files (the network file `/etc/network/up`, a connection in `/etc/swanctl/conf.d/`), `on edge swanctl ...`, `sudo systemctl restart strongswan@edge`, `on edge vtysh` for BGP (and `write memory`), and `sudo netlab restart` to reboot the network.
+
+  **Time yourself.** A link like this should take about 60 minutes. Note the time when you open the lab's shell (`date`). Nothing stops you at 60 minutes: the target is yours to hold yourself to.
+
+  Then run the checks. Some of them act on the cloud's side for a moment: one rekeys the tunnel from there, one offers new prefixes to see which edge takes, and the last unplugs the circuit, watches the traffic move to the VPN and back, and plugs it in again.
+test_skills:
+  tunnel-up: [csa.net.ipsec/route-based-tunnel]
+  sessions-up: [csa.net.bgp/bgp-sessions, csa.net.ipsec/bgp-over-tunnel]
+  sheet-proposals: [csa.net.ipsec/ipsec-building-blocks]
+  survives-a-rekey: [csa.net.ipsec/ipsec-building-blocks]
+  summary-only: [csa.net.bgp/announce-and-filter, csa.net.cidr/split-and-summarise]
+  accepts-only-the-cloud: [csa.net.bgp/announce-and-filter, csa.net.ipsec/bgp-over-tunnel]
+  dc-prefers-dx: [csa.net.bgp/local-preference, csa.net.bgp/best-path]
+  cloud-prefers-dx: [csa.net.bgp-steering/inbound-steering]
+  network-lasts: [csa.net.ipsec/route-based-tunnel]
+  tunnel-starts-itself: [csa.net.ipsec/route-based-tunnel]
+  kept-safe: [csa.net.ipsec/ipsec-building-blocks, csa.net.bgp/announce-and-filter]
+  saved: [csa.net.bgp/bgp-sessions]
+  cloud-untouched: [csa.net.troubleshooting/prove-and-record]
+  fails-over: [csa.net.bgp-steering/failure-detection, csa.net.bgp-steering/cloud-circuits, csa.net.ipsec/bgp-over-tunnel]

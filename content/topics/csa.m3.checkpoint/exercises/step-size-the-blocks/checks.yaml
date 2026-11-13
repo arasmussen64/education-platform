@@ -1,0 +1,50 @@
+# The checks for "Step 1 of the plan: size the regions". Each runs plancheck
+# (/usr/local/lib/lab-checks), which reads ~/plan/plan.csv and works every
+# right size, overlap and summary out from /srv/plan's requirements with
+# Python's ipaddress module, so it holds rules, not answers: any layout
+# that keeps them passes. Each check is one rule, so a plan that breaks one
+# rule fails that check alone, and one mistyped block fails only
+# plan-complete. plancheck prints "ok" or a sentence naming the row and the
+# rule, never the right value.
+checks:
+  - id: plan-complete
+    description: "~/plan/plan.csv has its header and a row for every block the requirements name, each cell a block written as its network address, and - exactly where the README says."
+    command: /usr/local/lib/lab-checks/plancheck complete
+    expect:
+      equals: ok
+  - id: requirements-untouched
+    description: "The requirements in /srv/plan are as the plan began: nothing changed, added or removed."
+    command: |
+      [ "$(cd /srv/plan && find . -type f | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" = "$(cat /usr/local/lib/lab-checks/plan.sha256)" ] && echo untouched || echo "the files in /srv/plan have changed"
+    expect:
+      equals: untouched
+  - id: v4-sizes
+    description: "Every region's IPv4 block is the smallest that holds its five-year need."
+    command: /usr/local/lib/lab-checks/plancheck v4-sizes
+    expect:
+      equals: ok
+  - id: v4-dcs
+    description: "The data centres keep the blocks they have, and onprem is the smallest block that holds them all."
+    command: /usr/local/lib/lab-checks/plancheck v4-dcs
+    expect:
+      equals: ok
+  - id: v4-apart
+    description: "Every IPv4 block is inside the policy's space; no two sites overlap; no region or cloud summary overlaps a block in use; no two summaries overlap."
+    command: /usr/local/lib/lab-checks/plancheck v4-apart
+    expect:
+      equals: ok
+  - id: v4-summaries
+    description: "Each cloud's regions are inside its summary, and the summary is the smallest block with the room for growth the policy asks for."
+    command: /usr/local/lib/lab-checks/plancheck v4-summaries
+    expect:
+      equals: ok
+  - id: v6-sizes
+    description: "Every IPv6 site block and summary is the size the policy gives it, Google Cloud's network is the size Google Cloud gives one, and every IPv6 prefix ends on a nibble boundary."
+    command: /usr/local/lib/lab-checks/plancheck v6-sizes
+    expect:
+      equals: ok
+  - id: v6-apart
+    description: "Every IPv6 summary is inside the policy's IPv6 space and apart from the others, every site is inside its own summary, no two sites overlap, and Google Cloud's network is one it can give."
+    command: /usr/local/lib/lab-checks/plancheck v6-apart
+    expect:
+      equals: ok

@@ -1,0 +1,73 @@
+The clinic's link to its cloud network
+(a provider's configuration sheet, in the shape of the files a cloud lets
+you download for a private circuit and a site-to-site VPN; the numbers are
+this lab's)
+
+The cloud's side
+  BGP AS number .......... 65515
+  Its network ............ 10.200.0.0/16
+  What it announces ...... its network, a default route (0.0.0.0/0), and
+                           from time to time more networks inside
+                           10.200.0.0/16. Take only what you need.
+
+Your side, the data centre's router (edge)
+  BGP AS number .......... 65040
+  Its networks ........... 10.40.0.0/24, 10.41.0.0/24, 10.42.0.0/24
+                           and 10.43.0.0/24, on edge's interface lan
+
+The private circuit (dx)
+  Your address ........... 169.254.30.1/30, on edge's interface dx
+  The cloud's address .... 169.254.30.2
+  Routing ................ BGP between the two addresses
+
+The VPN, over the internet (the backup)
+  Your outside address ... 198.51.100.40 (edge's interface wan)
+  Your identity .......... 198.51.100.40
+  The cloud's gateway .... 203.0.113.40, identity 203.0.113.40
+  IKE version ............ IKEv2
+  Authentication ......... pre-shared key
+  Pre-shared key ......... Fz3kW8nR5tY2bH9qL4vM7cX6
+  Phase 1 (IKE) .......... aes256-sha256-modp2048
+                           (AES-CBC 256, SHA-256, DH group 14: MODP 2048-bit)
+  Phase 2 (IPsec, ESP) ... aes256gcm16-modp2048
+                           (AES-GCM 256, perfect forward secrecy with DH
+                           group 14)
+  Traffic selectors ...... 0.0.0.0/0 both ways (route-based)
+  Inside addresses ....... 169.254.21.0/30
+                           the cloud's end 169.254.21.1, yours 169.254.21.2
+  Routing ................ BGP between the inside addresses
+
+  For older devices the cloud's gateway also accepts aes128-sha1-modp1024
+  in both phases. Don't use it: SHA-1 and DH group 2 (1,024 bits) are no
+  longer considered safe.
+
+  Who starts the tunnel: your router. The cloud's gateway answers and never
+  initiates.
+
+Both BGP sessions
+  Timers ................. keepalive 3 s, hold time 9 s in this lab
+                           (real circuits and gateways: 30 s and 90 s,
+                           or 60 s and 180 s)
+
+How the cloud chooses between your two paths
+  The cloud's router treats the circuit and the VPN alike. For a prefix it
+  hears over both, it prefers the shorter AS path, modelled on Azure's VPN
+  gateway between two connections: "Azure VPN Gateway honors autonomous
+  system (AS) path prepending to help make routing decisions when BGP is
+  enabled. A shorter AS path is preferred in BGP path selection."
+  (https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-vpn-faq,
+  read 2026-11-12). Azure's answer for choosing between connections is
+  prepending ("you need to use AS path prepending"); this lab's router,
+  like most BGP routers, also compares the lower MED when the AS paths are
+  the same length. Its AS number, 65515, is the one Azure gives every VPN
+  gateway by default, and the VPN's inside addresses come from the range
+  Azure's gateways take for BGP over APIPA addresses, 169.254.21.0 to
+  169.254.22.255. It uses one path at a time, never both, and honours no
+  BGP communities. When nothing tells the two paths apart, it takes the
+  one from the lower neighbour address, which is the VPN's.
+
+  (Real Azure makes an ExpressRoute circuit the primary link for the same
+  prefix by itself, and its guide asks the router on your side to set "a
+  higher local preference for the routes received via ExpressRoute". This
+  cloud doesn't prefer the circuit by itself, so which way its traffic
+  comes back is yours to decide, as it is between two VPN connections.)

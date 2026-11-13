@@ -1,31 +1,146 @@
-# An outline generated from docs/specs/cloud-solutions-architect.md by
-# tools/outline_cloud_track.py. Until this topic is written, change the
-# spec and run the script again instead of editing this file.
+# Checkpoint 3 ends Module 3, "Networking". Its plan is
+# docs/plans/cloud-module-3/MODULE-3-BRIEF.md, section 6, and the designer's
+# brief docs/plans/cloud-module-3/csa.m3.checkpoint.md: three parts in three
+# slots (prove.build, prove.debug and prove.more, ADR-0012 as amended
+# 2026-11-11), each a lab proven locally and for free.
+#
+# Facts, each read on 2026-11-12 and read again on the same day by the
+# writer who finished the checkpoint, with where (the labs' README.txt
+# files, sheets and prompts say the same to the learner):
+# - AWS: subnets /16 to /28, the first four and the last address of each
+#   reserved (5); IPv6 subnets /44 to /64 in steps of /4, five reserved too
+#   (https://docs.aws.amazon.com/vpc/latest/userguide/subnet-sizing.html).
+#   VPCs /16 to /28; "Some AWS services use the 172.17.0.0/16 CIDR range ...
+#   don't use this range when creating your VPC" (Cloud9, SageMaker AI;
+#   https://docs.aws.amazon.com/vpc/latest/userguide/vpc-cidr-blocks.html).
+# - Azure: "Azure reserves the first four addresses and the last address,
+#   for a total of five"; subnets /29 to /2; "IPv6 subnets must be exactly
+#   /64 in size" (https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-faq,
+#   ms.date 2026-07-08).
+# - Google Cloud: the first two and last two addresses of a primary range
+#   (4); a /29 at the smallest; "A /48 ULA range from within fd20::/20 is
+#   assigned to the network", automatically or chosen; on a subnet with
+#   internal IPv6, "a /64 range of internal ULAs is assigned from your VPC
+#   network's /48 range" (https://docs.cloud.google.com/vpc/docs/subnets).
+#   "VPC networks, including their associated routes and firewall rules,
+#   are global resources"; "Subnets are regional resources"
+#   (https://docs.cloud.google.com/vpc/docs/vpc), which the explain's
+#   rubric and model answer use.
+# - RIPE-690: "/48 for business customers and /56 for residential
+#   customers" (section 1, and 4.2.2); the length of a delegated prefix
+#   "should therefore always be a multiple of 4" (section 4.2)
+#   (https://www.ripe.net/publications/docs/ripe-690/).
+# - AWS's virtual private gateway, for one prefix: Direct Connect's BGP
+#   routes first, then static VPN routes, then VPN BGP routes; between VPN
+#   connections "the prefix with the shortest AS PATH is preferred", then
+#   the lowest MED; AS-path prepending and local preference to prefer one
+#   path for devices without asymmetric routing; "ECMP is not supported for
+#   Site-to-Site VPN connections on a virtual private gateway"
+#   (https://docs.aws.amazon.com/vpn/latest/s2svpn/vpn-route-priority.html).
+#   Site-to-Site VPN tunnel endpoints "evaluate proposals ... starting
+#   with the lowest configured value ... regardless of the proposal order"
+#   (https://docs.aws.amazon.com/vpn/latest/s2svpn/VPNTunnels.html).
+#   Direct Connect's BGP: default hold timer 90 seconds, keepalive 30
+#   (https://docs.aws.amazon.com/directconnect/latest/UserGuide/bgp-specific-settings.html).
+# - Azure VPN Gateway: default ASN 65515; Azure reserves 65515, 65517,
+#   65518, 65519 and 65520; it "honors autonomous system (AS) path
+#   prepending ... A shorter AS path is preferred"; "The BGP keepalive
+#   timer is 60 seconds, and the hold timer is 180 seconds"
+#   (https://learn.microsoft.com/en-us/azure/vpn-gateway/vpn-gateway-vpn-faq,
+#   ms.date 2026-06-04); custom APIPA BGP addresses "in the range
+#   169.254.21.0 through 169.254.22.255"
+#   (https://learn.microsoft.com/en-us/azure/vpn-gateway/configure-bgp,
+#   ms.date 2026-08-27). With ExpressRoute and a VPN for the same prefix,
+#   "The ExpressRoute circuit is always the primary link", and on-premises
+#   sets "a higher local preference for the routes received via
+#   ExpressRoute" (https://learn.microsoft.com/en-us/azure/expressroute/expressroute-howto-coexist-resource-manager).
+#
+# Counted (estimated_minutes): part 1 60, part 2 60, part 3 60 (each the
+# target its prompt states, reading its README or sheet included) and the
+# explain 20: 200 of work, and about 40 more for starting three labs, their
+# boots and convergence, and running their checks more than once (part 2's
+# take about 30 seconds a run, part 3's about 15). 240.
 id: csa.m3.checkpoint
 kind: checkpoint
-status: planned
-title: 'Checkpoint 3: the address plan, the outage and the cloud link'
-summary: Build an IPv4 and IPv6 address plan for three clouds, four regions in each and two data centres, with room for five years' growth.
+status: ready
+title: "Checkpoint 3: the address plan, the outage and the cloud link"
+summary: "Plan IPv4 and IPv6 addresses for three clouds and two data centres with room for five years' growth; find and fix an intermittent outage in a network of routers, name servers and web servers from the evidence it leaves; and connect a data centre to a cloud over a private circuit and a backup IPsec VPN with BGP that prefers the circuit both ways and fails over by itself."
 prerequisites:
-- csa.net.layers
-- csa.net.cidr
-- csa.net.ipv6
-- csa.net.routing
-- csa.net.nat
-- csa.net.transport
-- csa.net.congestion
-- csa.net.dns
-- csa.net.http-tls
-- csa.net.certificates
-- csa.net.http-semantics
-- csa.net.load-balancing
-- csa.net.bgp
-- csa.net.bgp-steering
-- csa.net.ipsec
-- csa.net.troubleshooting
-estimated_minutes: 480
+  - csa.net.layers
+  - csa.net.cidr
+  - csa.net.ipv6
+  - csa.net.routing
+  - csa.net.nat
+  - csa.net.transport
+  - csa.net.congestion
+  - csa.net.dns
+  - csa.net.http-tls
+  - csa.net.certificates
+  - csa.net.http-semantics
+  - csa.net.load-balancing
+  - csa.net.bgp
+  - csa.net.bgp-steering
+  - csa.net.ipsec
+  - csa.net.troubleshooting
+estimated_minutes: 240
 rev: 1
 objectives:
-- Build an IPv4 and IPv6 address plan for three clouds, four regions in each and two data centres, with room for five years' growth. Code checks it for overlaps, block sizes and summarization.
-- Fix a local network of routers, name servers and an app. It has an intermittent outage caused by three faults.
-- 'Connect a data centre to a cloud over a private circuit and a backup IPsec VPN with BGP: advertise only the summary, prefer the circuit both ways, and fail over by itself.'
+  - "Plan IPv4 and IPv6 addresses for three clouds, four regions in each and two data centres, with room for five years' growth: blocks of the right size, no overlaps with each other or with what's already in use, and one summary for each cloud, aiming for 60 minutes on your own clock."
+  - "Find and fix an intermittent outage in a network of routers, name servers and web servers from the evidence it leaves, without weakening it and with every fix lasting past a reboot, aiming for 60 minutes on your own clock."
+  - "Connect a data centre to a cloud over a private circuit and a backup IPsec VPN with BGP, announcing only the data centre's summary, preferring the circuit both ways and failing over to the VPN by itself, aiming for 60 minutes on your own clock."
+  - "Explain how an estate's networks are planned, joined, published and kept running, and how the three clouds differ."
+prove:
+  build: build-the-address-plan
+  debug: debug-the-outage
+  more:
+    - id: build-the-cloud-link
+      versions: [build-the-cloud-link-clinic]
+  explain:
+    prompt: |
+      A colleague's plan for the shop's new estate: give every new VPC or VNet a /16 from 10.0.0.0/8 as it's needed, add IPv6 later, put NAT in front of everything "for security", connect the data centre to each cloud with one VPN and static routes, run the shop's website on two servers with one name server in front of them, and when something breaks, restart the router.
+
+      In your own words: what goes wrong with handing out blocks as they're needed, and what a plan does instead; how planning IPv6 differs, and why IPv6 doesn't need NAT; what NAT costs and when you'd avoid it; why the data centre's link to a cloud should use BGP over a private circuit with a VPN as its backup, and how you would make traffic prefer one path and fail over to the other; what a load balancer with TLS in front of the two servers would add, and what its health check must test; why "restart the router" is not a method, and what is; and two ways the three clouds differ that would change this plan.
+    rubric:
+      - id: plan
+        required: true
+        description: "Blocks handed out as needed overlap the data centres, partners and each other (which breaks peering, VPNs and routing), can't be summarised, and leave no room to grow. A plan sizes each site from its needs with growth and the cloud's reserved addresses, keeps one summary per cloud with room, avoids ranges already in use, and is written down before the first VPC."
+      - id: ipv6
+        required: true
+        description: "A /48 per site and /64 subnets, prefixes on nibble boundaries; addresses are plentiful, so the plan is for structure, not scarcity. IPv6 egress needs no NAT: a stateful filter (an egress-only gateway, default-deny ingress) gives \"outbound only\", and NAT was never the security."
+      - id: nat
+        required: true
+        description: "NAT hides addresses but isn't a firewall. It costs ports (exhaustion per destination), money (cloud NAT gateways charge by the hour and the gigabyte) and end-to-end reachability. Avoid it with IPv6, private endpoints for cloud services, or plain routing between private networks."
+      - id: hybrid
+        required: true
+        description: "Static routes over one VPN can't fail over or carry new prefixes. BGP over a private circuit with a VPN as backup: announce only summaries and filter what's accepted (never a default route); local preference for the way out, AS-path prepending (or MED) on the backup for the way in; a failure noticed by the link going down, by BGP's hold timer, or faster by BFD."
+      - id: lb-tls
+        required: true
+        description: "A load balancer spreads the load and takes a failed server out; TLS ends there with a full chain and a certificate renewed automatically. Its health check must test the server itself, not a dependency every server shares, or one blip takes the whole fleet out."
+      - id: method
+        required: true
+        description: "Restarting is a guess that destroys the evidence. The method: scope the problem, split the suspects, locate the fault on the path, read the logs and counters, name the cause, change one thing, and prove the fix with enough samples, measuring again after each change."
+      - id: clouds
+        required: true
+        description: "Two real differences, for example: Google's VPC is global while AWS's and Azure's are regional; the addresses kept back in each subnet (AWS and Azure 5, Google Cloud 4); Azure's IPv6 subnets are exactly /64 and Google Cloud gives each network a /48 from fd20::/20 and picks its subnets' /64s; AWS prefers a Direct Connect route to a VPN route for the same prefix by itself, and Azure an ExpressRoute one."
+      - id: dns
+        required: false
+        description: "Two name servers kept in step (a secondary copies the zone when the primary's serial rises), and TTLs lowered before a move."
+    model_answer: |
+      Handing out a /16 whenever someone asks goes wrong slowly and then all at once. Sooner or later one lands on a block the data centre or a partner already uses, and two networks with the same addresses can't be peered or joined by a VPN, because routing can't tell them apart. The blocks are scattered, so no single route covers a cloud, and nobody knows how much room is left. A plan works from the needs: how many subnets each region has and how many machines in each, times the growth expected over five years, plus the addresses each cloud keeps back in every subnet (five on AWS and Azure, four on Google Cloud), rounded up to the next block size. Then one summary per cloud with room for regions that don't exist yet, placed clear of everything already in use, all written down before the first VPC is made.
+
+      IPv6 is planned for structure, not scarcity: a /48 for every site, /64 subnets inside it, every prefix on a nibble boundary so the hex digits mean something and reverse DNS lines up. Planning it later means renumbering later. And it needs no NAT: every address is public, and "outbound only" comes from a stateful filter, an egress-only gateway or default-deny ingress, which is all NAT ever really gave us. NAT itself isn't security. It costs ports, so many connections to one destination exhaust it; it costs money, since cloud NAT gateways charge by the hour and by the gigabyte; and it breaks end-to-end reachability. I'd avoid it with IPv6, private endpoints for cloud services, and plain routing between our own private networks.
+
+      One VPN with static routes can't fail over and can't learn new prefixes; when the cloud adds a network someone has to type it in. I'd connect the data centre over a private circuit with BGP and keep a VPN, also with BGP, as the backup. Each side announces only its summary and filters what it accepts, never a default route. Local preference on the routes learned over the circuit makes our traffic leave that way; AS-path prepending on what we announce over the VPN (or MED, where the other side honours it) makes the cloud's traffic come back the same way. When the circuit's link goes down BGP notices at once; a silent failure is noticed when the hold timer runs out, or within a second with BFD, and traffic moves to the VPN by itself and back when the circuit returns.
+
+      A load balancer in front of the two web servers spreads the load and takes a failed server out of service; TLS would end there, with the full certificate chain and automatic renewal. Its health check has to test the server itself, not something every server shares like the database, or one blip in the dependency takes the whole fleet out at once.
+
+      "Restart the router" is a guess that destroys the evidence. The method is to scope the problem (who, what, since when), split the suspects, locate where on the path it fails, read the logs and counters, name the cause, change one thing and prove the fix with enough samples, measuring again after each change, because one fault can hide another. As for the clouds: Google's VPC is global while AWS's and Azure's are regional, so on Google one network holds every region's subnets under one summary instead of a VPC per region; and AWS and Azure keep back five addresses in each subnet and Google four, while Azure's IPv6 subnets must be exactly /64 and Google Cloud picks its subnets' /64s itself from a /48 it gives the network, so the IPv6 column for Google is partly theirs to fill.
+# A way through for a learner who's stuck on part 1 (ADR-0012): a solved
+# sibling in another story, the build in four steps with the other parts
+# done for them, and fresh versions in other stories. Part 3's practice is
+# the BGP, BGP steering and IPsec topics, which its failed checks bring
+# back on Today; its fresh version is the second try.
+unstuck:
+  example: example-address-plan-print-shop
+  steps: [step-size-the-blocks, step-place-and-summarise, step-the-ipv6-plan, step-the-whole-plan]
+  versions: [build-the-address-plan-clinic, build-the-address-plan-bakery]

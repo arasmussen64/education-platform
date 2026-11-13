@@ -1,0 +1,46 @@
+# The network of "The cloud link": the shop's data centre and its cloud
+# network, joined by a private circuit and, across the internet, a VPN.
+#
+#   dcapp 10.20.1.10 -- dc -- edge (AS 65020) ==dx 169.254.100.0/30== cloud (AS 64512) -- vpc -- vm 10.100.1.10
+#                              \ 198.51.100.20 == inet == 203.0.113.20 /
+#                               (the VPN: vti0 169.254.62.2 to 169.254.62.1, inside IPsec)
+#
+# dx stands in for a private circuit (Direct Connect, ExpressRoute or Cloud
+# Interconnect): a cable with a BGP session over it. inet stands in for the
+# internet: a router that knows only the two outside networks, so the data
+# centre's traffic crosses it only inside the tunnel. cloud stands in for
+# the cloud provider's side, its circuit router and VPN gateway in one
+# (AS 64512, a private AS number, AWS's default for a virtual private
+# gateway), and isn't the learner's: its BGP, its IPsec connection and its
+# end of the tunnel are scenery. edge is the data centre's router, the
+# learner's: FRR runs with only a default route, and strongSwan with no
+# connection. The data centre's three networks are three addresses on
+# edge's LAN. The VPN's inside addresses are lower than the circuit's, so
+# when nothing else tells two paths apart, BGP's last tie-breaker (the
+# lowest neighbour address) picks the VPN: the lab can't be passed by
+# leaving things as they are. Addresses come from the private ranges, the
+# documentation ranges for the internet (RFC 5737), and the link-local
+# block for the circuit and the tunnel's inside, as the clouds use.
+machine dcapp
+machine edge router
+machine inet router
+machine cloud router
+machine vm
+
+lan dc dcapp:eth0=10.20.1.10/24 edge:lan=10.20.0.1/24,10.20.1.1/24,10.20.2.1/24
+link edge:dx=169.254.100.1/30 cloud:dx=169.254.100.2/30
+link edge:wan=198.51.100.20/24 inet:edge=198.51.100.1/24
+link inet:cloud=203.0.113.1/24 cloud:wan=203.0.113.20/24
+lan vpc cloud:vpc=10.100.0.1/16 vm:eth0=10.100.1.10/16
+
+route dcapp default via 10.20.1.1
+route vm default via 10.100.0.1
+
+# The provider's end of the tunnel. Key 7 is the mark that ties its vti0 to
+# the IPsec SA whose mark_in and mark_out are 7 (cloud's swanctl file).
+tunnel cloud vti0 vti local 203.0.113.20 remote 198.51.100.20 key 7 addr 169.254.62.1/30
+
+run edge frr strongswan
+run cloud frr strongswan
+run dcapp web-svc
+run vm web-svc

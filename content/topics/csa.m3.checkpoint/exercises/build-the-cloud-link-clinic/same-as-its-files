@@ -1,0 +1,36 @@
+#!/bin/bash
+# same-as-its-files M: "netlab verify M" for the checks of this lab, with
+# one thing set aside. netlab verify leaves out the routes a routing program
+# installs (FRR's, which frr_saved covers), but when FRR installs a route
+# with two next hops (BGP sharing traffic over the circuit and the VPN), the
+# kernel prints each next hop on a line of its own, and those lines stay in
+# the comparison: the machine then "differs from a fresh build of its files"
+# though its files are fine. This builds the fresh copy through netlab
+# verify of inet (the internet, which nothing here configures), compares M
+# with its copy without those next-hop lines, and prints "verified" or the
+# first differences in netlab verify's words. It also compares the routes
+# typed with ip route of every kind, since netlab verify reads only
+# ordinary ones: a blackhole typed by hand to hold a summary for BGP,
+# which the next boot loses, would otherwise pass.
+set -u
+m=$1
+if [ -z "${SAME_AS_ITS_FILES:-}" ]; then
+  SAME_AS_ITS_FILES=1 exec /usr/local/bin/netlab verify inet -- "$0" "$m"
+fi
+# The settings netlab verify compares: forwarding, and every key M's own
+# sysctl files set.
+keys="net.ipv4.ip_forward net.ipv6.conf.all.forwarding net.ipv4.ip_no_pmtu_disc"
+keys="$keys $(cat /etc/netns/"$m"/sysctl.d/*.conf 2> /dev/null | sed -n 's/^[[:space:]]*-\{0,1\}\([A-Za-z0-9_.\/-]*\)[[:space:]]*=.*/\1/p' | sort -u | tr '\n' ' ')"
+state() {
+  # shellcheck disable=SC2086 # the keys are separate arguments
+  /usr/local/lib/netlab/machine-state "$1" $keys | grep -Ev '^route[[:space:]]+nexthop[[:space:]]'
+  {
+    ip -d -n "$1" route show table all
+    ip -d -n "$1" -6 route show table all
+  } 2> /dev/null | grep -w 'proto boot' | sed 's/^/typed route /' | sort
+}
+if ! differs=$(diff <(state "$m") <(state "chk-$m")); then
+  echo "$m differs from a fresh build of its files: $(echo "$differs" | sed -n 's/^< /now: /p; s/^> /from its files: /p' | head -n 3 | tr -s ' \t' ' ' | paste -sd ';' | sed 's/;/; /g')"
+  exit 1
+fi
+echo verified

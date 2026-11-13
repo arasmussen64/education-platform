@@ -1,0 +1,60 @@
+#!/usr/bin/python3
+"""plan-show [PLAN]: an address plan as a tree, to look it over.
+
+Each block with its first and last address and how many addresses it
+holds, every site under its summary. It checks nothing: the lab's checks
+do that. A cell that isn't a block is shown as it was typed, marked "?".
+"""
+
+import csv
+import ipaddress
+import sys
+
+PLAN = sys.argv[1] if len(sys.argv) > 1 else "/home/learner/plan/plan.csv"
+SITES = "/srv/plan/sites.csv"
+
+
+def block(text):
+    """The block a cell holds, and how to show it."""
+    if text in ("", "-"):
+        return None, text or "(empty)"
+    try:
+        net = ipaddress.ip_network(text, strict=True)
+    except ValueError:
+        return None, f"{text} ?"
+    if net.version == 4:
+        count = f"{net.num_addresses:,} addresses"
+    elif net.prefixlen <= 64:
+        count = f"{2 ** (64 - net.prefixlen):,} /64 subnets"
+    else:
+        count = "smaller than one /64 subnet"
+    return net, f"{text:<22} {net[0]} to {net[-1]}  ({count})"
+
+
+try:
+    with open(PLAN, encoding="utf-8") as f:
+        lines = [ln.replace("\r", "") for ln in f if ln.strip() and not ln.lstrip().startswith("#")]
+except OSError:
+    sys.exit(f"plan-show: no plan at {PLAN}")
+rows = {}
+for row in list(csv.reader(lines))[1:]:
+    row = [c.strip() for c in row] + ["", ""]
+    rows[row[0]] = (row[1], row[2])
+
+parent = {}
+with open(SITES, encoding="utf-8", newline="") as f:
+    for s in csv.DictReader(f):
+        parent[s["site"]] = s["cloud"]
+
+tops = [n for n in rows if n not in parent]
+for family, column in (("IPv4", 0), ("IPv6", 1)):
+    print(family)
+    for top in tops:
+        print(f"  {top:<15} {block(rows[top][column])[1]}")
+        for name in rows:
+            if parent.get(name) == top:
+                print(f"    {name:<13} {block(rows[name][column])[1]}")
+    others = [n for n in rows if n in parent and parent[n] not in rows]
+    for name in others:
+        print(f"  {name:<15} {block(rows[name][column])[1]}")
+    print()

@@ -1,0 +1,16 @@
+id: step-the-ipv6-plan
+stage: fill_in
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Step 3 of the plan: the IPv6 column"
+prompt: |
+  Step 3 of the plan: the IPv6 column. The checkpoint's build, with the IPv4 plan done for you: in `~/plan/plan.csv` every IPv4 cell is filled in, and the IPv6 column is empty. Fill it in: a block for each summary and site, and Google Cloud's network, by rules 6 and 7 of `/srv/plan/README.txt` and the IPv6 settings in `policy.txt`.
+
+  Edit the plan with `nano ~/plan/plan.csv`; `plan-show` shows it as a tree. The checks test the whole plan, the rows done for you included.
+hints:
+  - "The shop's IPv6 space is a /40, and a summary is a /44: four bits more, so the /40 holds 16 of them, which differ in one hex digit (2001:db8:4800::/44, 2001:db8:4810::/44 ... 2001:db8:48f0::/44). Give AWS, Azure and onprem one each."
+  - "A /48 is four bits longer again: a /44 holds 16 /48s, which differ in the next hex digit (2001:db8:4810::/48, 2001:db8:4811::/48 ...). Each site gets one inside its own summary."
+  - "Google Cloud's network (the gcp row) is a /48 from fd20::/20: the address starts fd20: and the next group's first hex digit is 0 (fd20:a7b:: is fd20:0a7b::), so fd20:a7b:9c00::/48 is one. Its regions' cells are `-`: Google Cloud picks their /64s."
+  - "Every prefix length must be a multiple of 4 (a nibble boundary): /44 and /48 are, /46 isn't."
