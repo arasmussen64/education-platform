@@ -1,0 +1,18 @@
+id: mcq-azure-two-nics
+type: mcq
+rev: 1
+prompt: |
+  Microsoft's documentation says what a Linux VM on Azure lists when its one network card has Accelerated Networking: two interfaces with the same MAC address (the hardware address a network card answers to). One is `eth0`, on the `hv_netvsc` driver. The other, with a name like `enP53091s1np0`, is on `mlx5_core`. Which of the two holds the VM's IP address, and so is the one your applications and firewall rules should name?
+choices:
+  - "`eth0`, the synthetic card on VMBus: it stays when the other is taken away"
+  - "The `mlx5_core` one, the virtual function: it is the one that reaches the hardware"
+  - "Both: each holds an address of its own, and Linux shares the traffic between the two"
+  - "Neither: the address sits on a bond device that Linux builds on top of the two cards"
+answer: 0
+explanation: |
+  With Accelerated Networking, Azure gives each network card two interfaces in the guest. The **synthetic** one (`eth0`, driver `hv_netvsc`) is the paravirtual card on VMBus, which every Azure VM has. The second is an SR-IOV **virtual function** of the host's physical card (driver `mlx4`, `mlx5` or `mana`, by the host's hardware). Microsoft's page says IP addresses are assigned only to the synthetic interface, and that applications should work only with it. The `hv_netvsc` driver pairs the two itself and sends the traffic through the virtual function, the fast path, without the applications knowing.
+
+  That split is what lets Azure service a host under a running VM: it takes the virtual function away for about 30 seconds, and traffic carries on through `eth0` and the host's virtual switch, slower but unbroken. Anything tied to the virtual function itself would break each time.
+
+  The virtual function does reach the hardware, but it holds no address: it works for `eth0`. The two never hold an address each. And no separate bond device appears: the pairing is done inside the `hv_netvsc` driver, so `eth0` itself is what stands for the pair. This question is built on Microsoft's documentation, not on a recording of a real VM.
+skills: [cloud-hypervisors, device-paths]
