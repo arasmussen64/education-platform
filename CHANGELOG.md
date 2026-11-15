@@ -18,6 +18,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Changed (cloud Modules 1 to 3: what was left, batch one)
+
+- Review pools are wider, from questions that already existed: every Module 1 topic's pool holds all its recall questions (6 became 14 to 21), HTTP and TLS has 12 where it had 7, and Hypervisors gained three. A review still asks two questions and now rotates through more.
+- `tools/lab-seconds.json` is rebuilt from the last full Labs run: 221 labs, where it knew 160.
+- Stale sentences corrected in the cloud track's spec, the writer's guide, the network-lab base's notes, ADR-0018 and the owner queue, which also names three more main videos nobody has watched.
+
 ### Changed (the cloud track, audited against the principal bar)
 
 - The Cloud Solutions Architect track was audited on 2026-11-15 against what a principal or distinguished cloud architect is hired on. Its spec says what it measured against in a new section, "The principal bar", which also says what no course can give: a record of decisions made in production, real scale, and people's judgement of you.
