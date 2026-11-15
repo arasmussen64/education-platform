@@ -1,0 +1,25 @@
+id: est-inode-count
+type: estimate
+rev: 1
+prompt: |
+  `mkfs.ext4` gives a new filesystem one inode for every 16384 bytes of its size (16 KB), and that number is fixed from then on. About how many inodes does a 20 GB filesystem get? Within 6%.
+unit: inodes
+answer: 1310720
+tolerance: { percent: 6 }
+given: { size: 20, ratio: 16384 }
+# The ratio is inode_ratio in Ubuntu 24.04's /etc/mke2fs.conf; a 20G
+# filesystem made in the lab container on 2026-11-15 reported
+# "Inode count: 1310720".
+working: size * 1024 ** 3 / ratio
+mistakes:
+  - id: one-per-block
+    value: 5242880
+    working: size * 1024 ** 3 / 4096
+    why: That's one inode for every 4 KB block. The filesystem has that many blocks, but it gets an inode for every 16 KB, so a quarter as many.
+  - id: megabytes-for-bytes
+    value: 1280
+    working: size * 1024 / 16
+    why: That divides megabytes by 16. A gigabyte is about a million kilobytes, so 20 GB is about 20 million KB, and a sixteenth of that is over a million.
+explanation: |
+  20 GB is about 20 million KB, and one inode per 16 KB makes about 1.3 million (exactly 20 × 1024³ ÷ 16384 = 1,310,720, the number `df -i` shows for a 20 GB root filesystem). Every file and folder uses one, whatever its size. So this filesystem holds at most 1.3 million files, and files that average less than 16 KB use up the inodes before the bytes. XFS doesn't have the limit: it makes inodes as it needs them.
+skills: [filesystems]

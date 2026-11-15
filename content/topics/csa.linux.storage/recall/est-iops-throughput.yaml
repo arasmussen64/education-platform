@@ -1,0 +1,22 @@
+id: est-iops-throughput
+type: estimate
+rev: 1
+prompt: |
+  A cloud volume is limited to 3000 IOPS. A database reads and writes it in operations of 16 KB each. Running at the IOPS limit, about how many MB a second is the database moving? Within 5%.
+unit: MB/s
+answer: 47
+tolerance: { percent: 5 }
+given: { iops: 3000, size: 16 }
+working: iops * size / 1024
+mistakes:
+  - id: kilobytes-left
+    value: 48000
+    working: iops * size
+    why: That's kilobytes a second. Divide by about a thousand for megabytes.
+  - id: divided
+    value: 187.5
+    working: iops / size
+    why: That divides the operations by their size. Each operation moves 16 KB, so the amount moved is the two multiplied.
+explanation: |
+  Throughput is operations a second times the size of each: 3000 × 16 KB = 48,000 KB a second, about 47 MB a second. So a database doing small operations is stopped by the IOPS limit while the throughput graph still looks idle: against a throughput limit of 125 MB a second, say, it would be using under half. Large operations turn it round: at 256 KB each, 500 operations a second already move 125 MB, and the throughput limit is the one in the way. Knowing the size of the operations tells you which of the two limits to pay for.
+skills: [durability]
