@@ -4,7 +4,7 @@ status: ready
 title: "How containers work"
 summary: "A container is a process on the host's kernel with its own view of the system: namespaces for isolation, cgroups for limits, and a root filesystem assembled from image layers by overlayfs. Why that makes it fast and dense, and why it is not a virtual machine."
 prerequisites: [csa.linux.cpu, csa.linux.memory]
-estimated_minutes: 220
+estimated_minutes: 228
 rev: 1
 objectives:
   - "Explain what a container is: a process tree on the host kernel, isolated by namespaces (pid, net, mnt, uts, ipc, user) and limited by a cgroup, with its own root filesystem."
@@ -41,7 +41,10 @@ resources:
     use: link
     license: GPL-2.0
 # The recall items read Dockerfiles, mount tables, process listings and
-# cgroup files with the text tools of the first topic. The worked example,
+# cgroup files with the text tools of the first topic; the estimate items
+# (ADR-0024) are the sums done on sight: a --cpus flag as a quota, room
+# under a pids limit, the disk shared layers save, copies that fit as
+# containers and as VMs. The worked example,
 # the fill-in, the write and both proofs are labs that build a container
 # from its parts, unshare, chroot, cgroups and overlayfs, with no Docker in
 # the lab machine (ADR-0017, ADR-0018).
@@ -52,14 +55,19 @@ practice:
   - mcq-namespaces-which
   - mcq-root-in-container
   - ctr-cgroup-limits
+  - est-cpus-flag-to-quota
   - mcq-pids-limit
+  - est-pids-left
   - ctr-dockerfile-layers
   - mcq-layer-cache
   - ctr-image-tags
+  - est-shared-base-disk
   - ctr-overlay-mount
   - ctr-writable-layer
+  - est-containers-upper-disk
   - mcq-volumes
   - mcq-container-vs-vm
+  - est-vm-density
   - mcq-runtime-chain
   - fill-run-in-box
   - write-layers
@@ -102,6 +110,11 @@ review_pool:
   - ctr-image-tags
   - ctr-writable-layer
   - mcq-runtime-chain
+  - est-cpus-flag-to-quota
+  - est-pids-left
+  - est-shared-base-disk
+  - est-containers-upper-disk
+  - est-vm-density
 skills:
   - id: namespaces
     description: "What namespaces isolate (pid, net, mnt, uts, ipc, user), a container's PID 1, and what root inside a container means"
