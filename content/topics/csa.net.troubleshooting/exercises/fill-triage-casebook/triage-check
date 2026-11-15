@@ -4,7 +4,9 @@
 sentence that doesn't give the answer. The checks' tool, not the learner's.
 
 The truths: for each case, the layer, the machine and the cause, and the
-words a line of evidence must hold (any one of them) to show the cause."""
+words a line of evidence must hold (any one of them) to show the cause.
+The failed count isn't held here: it is counted from the case's own
+monitor.log each time, by the rule the sheet states."""
 import re
 import sys
 from pathlib import Path
@@ -67,6 +69,25 @@ def sheet() -> dict[str, dict[str, str]]:
     return blocks
 
 
+def failed(case: str, value: str) -> str:
+    """Is F/N the failed loads and all the loads of the case's monitor.log?
+    A line is TIME URL ADDRESSES STATUS SECONDS exit=N; a load failed when
+    its exit status isn't 0 or its HTTP status is 400 or more."""
+    match = re.fullmatch(r"(\d+)\s*/\s*(\d+)", value)
+    if not match:
+        return f"{case}'s failed isn't F/N, two whole numbers such as 3/40"
+    loads = [line.split() for line in (CASES / case / "monitor.log").read_text(encoding="utf-8").splitlines() if line.strip()]
+    bad = sum(1 for load in loads if load[-1] != "exit=0" or int(load[3]) >= 400)
+    if int(match.group(2)) != len(loads):
+        return f"the second number given for {case} isn't the number of loads in its monitor.log"
+    if int(match.group(1)) != bad:
+        return (
+            f"the first number given for {case} isn't the number of loads that failed in its monitor.log: "
+            "count the exit statuses that aren't 0 and the HTTP statuses of 400 or more, and no slow load that worked"
+        )
+    return "right"
+
+
 def main() -> str:
     case, field = sys.argv[1], sys.argv[2]
     if not SHEET.is_file():
@@ -74,6 +95,8 @@ def main() -> str:
     value = sheet().get(case, {}).get(field, "")
     if not value:
         return f"{case} has no {field} in ~/triage.txt"
+    if field == "failed":
+        return failed(case, value)
     truth = TRUTH[case][field]
     if field != "evidence":
         return "right" if value == truth else f"the {field} given for {case} isn't the one its evidence shows"

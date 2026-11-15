@@ -25,14 +25,16 @@ prerequisites: [csa.net.load-balancing, csa.net.ipsec]
 # three sections, about 330 words, 3; Akamai's "Read MTR Reports", "Analyze
 # MTR Reports" and "ICMP Rate Limiting", about 2,100 words counting their
 # reports, 13; Everything curl's one page, about 500 words, 4), 18 quick
-# items at 1.5 each 27, then the worked example 35, the casebook 30, the
-# probe 30, the build 45, the debug 50 and the explain 20: about 321. The plan's 300
-# is kept (MODULE-3-BRIEF.md, topic 38, with the designer's trim (a): the
-# SRE chapter's core sections only and five multiple-choice items moved to
-# the review pool), as Module 3's other long topics kept theirs: the
-# lesson's tables of curl's exit codes, the records and the clouds' tools
-# stand in for pages under More resources that aren't assigned.
-estimated_minutes: 300
+# items at 1.5 each 27, then the worked example 35, the casebook 35 (30,
+# and 5 since 2026-11-15 for measuring each case's monitor log), the probe
+# 30, the build 45, the debug 50 and the explain 20: about 326. The plan's
+# 300 was kept when that sum was 321 (MODULE-3-BRIEF.md, topic 38, with the
+# designer's trim (a): the SRE chapter's core sections only and five
+# multiple-choice items moved to the review pool), as Module 3's other long
+# topics kept theirs: the lesson's tables of curl's exit codes, the records
+# and the clouds' tools stand in for pages under More resources that aren't
+# assigned. The casebook's 5 more minutes are added to it: 305.
+estimated_minutes: 305
 rev: 1
 objectives:
   - "Turn \"it doesn't work\" into a precise symptom: from where, to what, by name or by address, which address family, which size, always or sometimes, since when, and what changed; read a grid of sources against destinations for what its pattern points at."
@@ -239,6 +241,41 @@ resources:
 # come and go. The worked example, the probe and the debug are labs on the
 # network-lab base; the casebook and the build are Module 3 plain labs
 # (ADR-0018's third amendment).
+#
+# The casebook's six monitor logs (cases/case-N/monitor.log) are constructed,
+# on 2026-11-15, and labelled so in the lab's prompt and in the cases'
+# README: no monitor ran when the cases were captured on 2026-11-12. Each is
+# what a loop like the worked example's monitor (curl --max-time 5, a line
+# per load stamped when it ended) would have written on that case's clock,
+# and no line contradicts the case's captured files:
+# - case 1, a monitor outside the office asking isp1 every 10 s: the answer
+#   is kept for the record's TTL, 60 s, then comes from ns1 (the new
+#   address) or ns2 (the old one, silent: exit 28 at the limit). Seen in the
+#   DNS debug's lab on 2026-11-15: isp1 kept each answer for its 60 s and
+#   went from .51 to .41 and to .41 again as it ran out, and ns2 still
+#   answered .41 after a refused `rndc retransfer`.
+# - case 2, the worked example's monitor on pc every 2 s: the load that
+#   ends at 21:12:50 after 2.503 s is the one whose three SYNs capture.txt
+#   holds (21:12:48.22, a second apart: that kernel's SYN retries).
+# - case 3, the front page from office every 10 s: every load works, and
+#   none is on web's cable during capture.txt's download (21:00:23.8 to
+#   27.9). The monitor loads no large page, so it stays green, on purpose.
+# - case 4, the provider's port 443 and port 80 in turn from app, one every
+#   5 s: from capture.txt's burst at 21:02:14.09 a payment load gets a port
+#   only when one is free, at once or at its SYN's retry a second later
+#   (one slow load that worked), and otherwise nothing in 5 s; port 80,
+#   through gw's other rule, always works. A stand-in for a payment health
+#   page: the lab's port 443 is holdserver, which speaks no HTTP.
+# - case 5, the app's front page from office every 10 s: every load runs
+#   out of time (mtr.txt: silence after vpn).
+# - case 6, the front page through lb every 2 s: 503 from the balancer
+#   itself (exit status 0) while it has no server, about 8 s from 21:04:03
+#   and every 30 s after (the debug's db-nightly.timer, OnUnitActiveSec=30s,
+#   and its 8-second job; journal.txt's DOWN at 21:04:03 and UP at 21:04:11,
+#   capture.txt's failed health checks at 21:05:06 to :08), and no load
+#   within 0.3 s of an outage's first or last moment.
+# The sheet's new field, failed = F/N, is counted from each log by the
+# checks' tool, never held as a number.
 practice:
   - example-follow-the-method
   - mcq-symptom-grid

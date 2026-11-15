@@ -1,7 +1,10 @@
 FROM lab-base-net
 # The walkthrough's network. vpn's BGP is configured and saved; its network
 # file and its IPsec connection are written but have gaps; and its IPsec
-# service was only ever started by hand, so it isn't enabled. The provider's
+# service was only ever started by hand, so it isn't enabled. vpn's
+# strongSwan is on the lab's fast clock (machines/vpn/strongswan.d/): it
+# gives up on an unanswered message after 8 seconds, so the check that cuts
+# the path sees dead peer detection act in seconds. The provider's
 # gateway, cloud, is configured and saved, and ordered to start before
 # vpn's; the provider's console stand-ins and its configuration sheet; the
 # app's pages. Then every machine gets its own copy of what its services

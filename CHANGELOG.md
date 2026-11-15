@@ -18,6 +18,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Fixed (cloud Module 3: three checks that could be passed with a fault left in)
+
+- NAT's debug lab no longer passes with its third fault left in: a new check asks the payment provider's firewall whether anything but the payments leaves from the payments' address.
+- IPsec's fill-in proves dead peer detection by cutting the path to the provider and timing how long the gateway takes to notice and to recover.
+- BGP's build reads the timers each session agreed and the ones the saved configuration asks for, and its prompt says a session must be cleared for new timers to apply.
+- Each has two new known-wrong fixes.
+
+### Added (cloud Module 3: a Google-style circuit, and a casebook that can be measured)
+
+- Steering traffic and cloud circuits has a third lab, "The circuit Google names": a cloud modelled on Google's Cloud Router, where the MED decides, one circuit made primary in both directions, and the backup proved by unplugging the primary. Three multiple-choice questions cover what moves each of the three clouds.
+- The troubleshooting casebook's six cases each have a monitor log, and the sheet a new field, how many loads failed out of how many, checked against the log.
+- Routing gains two questions on choosing static or dynamic routing.
+
 ### Fixed (cloud Module 3: every script lab is linted)
 
 - Six Module 3 write labs now have ShellCheck read the learner's script, as the module's plan asked: Layers and packets, Congestion control, DNS, VPNs and IPsec, Load balancing and Network troubleshooting. Each has known-wrong scripts that work and fail only the lint.

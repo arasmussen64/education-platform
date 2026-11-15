@@ -1,0 +1,36 @@
+# The network of "The circuit Google names": the shop's depot, with a
+# router of its own and two private circuits to one cloud.
+#
+#   pc 10.2.0.10 -- site -- depot (AS 65002) ==ic1 169.254.50.0/30== cloud (AS 64900) -- vpc -- app 10.60.0.10
+#                                           \==ic2 169.254.70.0/30==/
+#
+# ic1 and ic2 stand in for two VLAN attachments of a Google Cloud
+# Interconnect: each is a cable with a BGP session over it. The cloud's
+# router is scenery, configured and saved, and follows Cloud Router's
+# documented rules (the prompt gives them); depot is the learner's. The
+# cloud announces its network with a MED of 200 over ic1 and 100 over ic2,
+# so ic2 is the circuit it names as the primary. ic1's addresses are the
+# lower ones, so when everything else about two paths is equal, the tie
+# goes to ic1 on both routers (FRR also shares the traffic over two equal
+# paths): the lab can't be passed by leaving things as they are, nor by
+# taking the first circuit for the primary. Each router's interfaces are
+# named after the cable or network at the far end. Addresses come from the
+# private ranges and the link-local block for circuits (169.254.0.0/16), as
+# the clouds use, and AS numbers from the private range (RFC 6996).
+machine pc
+machine app
+machine depot router
+machine cloud router
+
+lan site pc:eth0=10.2.0.10/24 depot:lan=10.2.0.1/24
+link depot:ic1=169.254.50.1/30 cloud:ic1=169.254.50.2/30
+link depot:ic2=169.254.70.1/30 cloud:ic2=169.254.70.2/30
+lan vpc cloud:vpc=10.60.0.1/16 app:eth0=10.60.0.10/16
+
+route pc default via 10.2.0.1
+route app default via 10.60.0.1
+
+run depot frr
+run cloud frr
+run pc web-svc
+run app web-svc

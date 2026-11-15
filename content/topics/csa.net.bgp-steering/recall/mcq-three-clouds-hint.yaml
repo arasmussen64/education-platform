@@ -1,0 +1,16 @@
+id: mcq-three-clouds-hint
+type: mcq
+rev: 1
+prompt: |
+  Which circuit your traffic takes to a cloud is your own router's choice on AWS, Azure and Google Cloud alike. On one of the three, the cloud's router sends a number with its routes that your router compares by itself, with no route map of yours, so that an untouched router already uses the circuit the cloud's side marked as the primary. Which cloud, and which number?
+choices:
+  - "AWS: 7224:7300 on the primary's routes arrives as a higher local preference"
+  - "Azure: 12076:50004 on the primary's routes arrives as a shorter AS path"
+  - "Google Cloud: each session's base advertised priority arrives as the MED"
+  - "All three: each one's own local preference arrives with every route"
+answer: 2
+explanation: |
+  A Cloud Router sends each session's base advertised priority, 100 unless it was changed, as the MED of the routes it announces there. MED is part of BGP's own decision, lower preferred between paths from one neighbouring AS, so a router with no policy for it already picks the session with the lower number: in the lab "The circuit Google names", depot's choice read `best (MED)` before you typed anything. It is still only a hint, compared late: a local preference you set would override it.
+
+  Local preference never travels between ASes, so no cloud can send you its own. What AWS and Azure put on their routes are communities, and a community changes nothing until you write a route map that matches it and sets something: Azure's 12076:50004 marks East US's routes so that you can set your local preference by region, and AWS marks its own routes on public virtual interfaces. 7224:7300 is a label you send to AWS, not one it sends you. On those two clouds, your local preference decides alone.
+skills: [cloud-circuits]

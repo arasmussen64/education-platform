@@ -2,10 +2,14 @@
 # the office reaching the app through it, vpn's network file against a
 # fresh build of it, the IPsec service enabled, the tunnel starting by
 # itself from vpn's files, the connection's lasting settings in its file,
-# and the tunnel coming back after the provider's maintenance. tunnel-up
-# and office-reaches-app wait for the tunnel and BGP after a boot; the rest
-# read at once, except the last, which restarts the provider's gateway and
-# waits for the tunnel.
+# the tunnel coming back after the provider's maintenance, and vpn noticing
+# a provider that has stopped answering. tunnel-up and office-reaches-app
+# wait for the tunnel and BGP after a boot; the rest read at once, except
+# the last two: one restarts the provider's gateway and waits for the
+# tunnel, and one cuts the path between the gateways without a word
+# (netlab link ... silent, both ways), waits for vpn to give the provider
+# up, puts the path back and waits for the tunnel. It puts the path back
+# even if it is stopped part way: the trap runs on the way out.
 # A check that finds something wrong prints what it found and exits 0, so
 # the checker shows that sentence rather than an exit status.
 checks:
@@ -117,3 +121,49 @@ checks:
       fi
     expect:
       equals: "back by itself"
+  - id: notices-a-silent-provider
+    description: "When the path to the provider goes dead without a word, vpn notices within 40 seconds that the provider no longer answers and gives up the tunnel it had; once the path is back, vpn has brought the tunnel up again by itself, and the office reaches the app within 30 seconds."
+    # On this lab's clock vpn takes about 18 seconds to notice: 10 with
+    # nothing arriving, then 8 of asking with no answer (vpn's
+    # /etc/strongswan.d/fast-clock.conf; strongSwan's defaults make that
+    # 165). The limit is 40, for a busy machine. The cut is both ways: one
+    # way only, the provider's own packets keep arriving at vpn, which then
+    # has no reason to ask.
+    timeout: 90
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      installed() { on cloud swanctl --list-sas 2> /dev/null | grep INSTALLED > /dev/null; }
+      reaches() { on office curl -s -m 2 -o /dev/null http://10.20.1.10/; }
+      # vpn's IKE_SAs that are up, as "#1," (swanctl numbers each one it
+      # ever makes, so one made afresh has another number).
+      up() { on vpn swanctl --list-sas 2> /dev/null | awk '/^[^ ].*: #[0-9]+, ESTABLISHED/ {print $2}'; }
+      installed && reaches || { echo "there is no working tunnel to begin with"; exit 0; }
+      before=$(up)
+      [ -n "$before" ] || { echo "vpn has no IKE_SA to begin with"; exit 0; }
+      held() { now=" $(up | tr '\n' ' ')"; for id in $before; do case $now in *" $id "*) return 0 ;; esac; done; return 1; }
+      mend() { netlab link vpn wan restore > /dev/null 2>&1; netlab link internet vpn restore > /dev/null 2>&1; }
+      trap mend EXIT
+      netlab link vpn wan silent
+      netlab link internet vpn silent
+      end=$((SECONDS + 40))
+      while held; do
+        [ "$SECONDS" -lt "$end" ] || { echo "40 seconds after the path to the provider went dead, vpn still held the tunnel as if the provider were answering"; exit 0; }
+        sleep 1
+      done
+      mend
+      learned() { ip -d -n vpn route show 10.20.0.0/16 | grep 'proto bgp' > /dev/null; }
+      end=$((SECONDS + 30))
+      while [ "$SECONDS" -lt "$end" ]; do
+        if installed && learned && reaches; then
+          echo "noticed, and back by itself"
+          exit 0
+        fi
+        sleep 1
+      done
+      if installed; then
+        echo "vpn noticed and the tunnel came back, but within 30 seconds vpn had no BGP route to the cloud or the office didn't reach the app"
+      else
+        echo "vpn noticed that the provider had stopped answering, but 30 seconds after the path was back it hadn't brought the tunnel up again"
+      fi
+    expect:
+      equals: "noticed, and back by itself"
