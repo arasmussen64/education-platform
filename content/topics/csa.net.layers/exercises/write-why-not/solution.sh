@@ -44,6 +44,7 @@ else
 fi
 EOF
 chmod +x ~/bin/why-not
+shellcheck ~/bin/why-not && echo "shellcheck: quiet"
 on office ~/bin/why-not 10.0.7.20 80
 on office ~/bin/why-not 10.0.7.20 22
 on office ~/bin/why-not 10.0.7.20 3306

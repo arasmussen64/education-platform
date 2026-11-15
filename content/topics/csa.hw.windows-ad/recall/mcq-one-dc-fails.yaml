@@ -1,0 +1,16 @@
+id: mcq-one-dc-fails
+type: mcq
+rev: 1
+prompt: |
+  The domain `ad.shop.test` has two domain controllers, dc1 and dc2, and every member's resolver can ask either of them. On a Tuesday morning dc1's disk fails and it stops. What happens to people signing in on the domain's forty servers?
+choices:
+  - "They sign in as before: dc2 has a full copy of the directory and runs its own KDC"
+  - "Nobody can sign in: only the first controller made in a domain can check passwords"
+  - "People who hold a ticket carry on, but dc2 can't hand out a new one without dc1's say"
+  - "Nobody can sign in until each server is told dc2's address, since members remember dc1"
+answer: 0
+explanation: |
+  Every domain controller holds a full copy of the domain's directory and runs its own KDC, which uses that copy as its list of accounts. That is why a domain has two or more: one can fail. The members don't remember a controller. They ask DNS for the domain's SRV records (`_ldap._tcp.ad.shop.test`, `_kerberos._tcp`), which list both, and when dc1 doesn't answer they use dc2, with nobody touching a server.
+
+  No controller is the only one that can check a password: dc2 does it from its own copy, and issues first tickets and service tickets alike. And nothing has to be told dc2's address, as long as the servers find the domain the way members are meant to, through DNS. The servers that do break are the ones where someone typed dc1's address in by hand, in a hosts file or as the one place the domain's zone is forwarded to: a reason to let DNS do the finding, and to give a forwarder both controllers.
+skills: [directory-structure, dc-discovery]

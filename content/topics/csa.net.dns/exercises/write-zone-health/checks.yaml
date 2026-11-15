@@ -1,4 +1,6 @@
-# The checks of "Is the zone in step?". Three of them run the learner's
+# The checks of "Is the zone in step?". The first has ShellCheck read the
+# script (with --norc, and no warning may be switched off in it). Three of
+# the others run the learner's
 # ~/bin/zone-health, on the office machine, against zones the checker
 # brings up itself (zone-servers, with serials drawn at random at every
 # run), so an answer that was typed in for the zones the learner can see
@@ -12,12 +14,14 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: script-ready
-    description: "~/bin/zone-health exists and can be run."
+    description: "~/bin/zone-health exists, can be run, and ShellCheck has nothing to say about it, with no warning switched off."
     command: |
       f=/home/learner/bin/zone-health
       [ -f "$f" ] || { echo "there is no ~/bin/zone-health"; exit 0; }
       [ -x "$f" ] || { echo "~/bin/zone-health can't be run: chmod +x it"; exit 0; }
       head -n 1 "$f" | grep -Ex '#! ?(/usr)?/bin/bash|#! ?/usr/bin/env bash' > /dev/null || { echo "~/bin/zone-health's first line isn't #!/bin/bash"; exit 0; }
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/zone-health switches a ShellCheck warning off"; exit 0; fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say (run shellcheck ~/bin/zone-health): $(echo "$said" | grep -m 1 -o 'SC[0-9].*')"; exit 0; }
       echo ready
     expect:
       equals: ready

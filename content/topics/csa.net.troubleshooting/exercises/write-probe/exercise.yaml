@@ -4,7 +4,7 @@ runtime: lab
 lab:
   init: systemd
   restart_trial: true
-rev: 1
+rev: 2
 title: "A probe for faults that come and go"
 prompt: |
   A fault that fails one request in five can't be found by trying once: it has to be measured. Write the measuring tool, `~/bin/probe`, a script that tries a URL many times and counts what happened.
@@ -36,7 +36,7 @@ prompt: |
 
   **The test bench.** The office, `office` (10.50.0.20), and `targets` (10.50.0.10), which is the office's name server and runs a web server: `http://www.shop.test/` answers 200 and any other path 404, and a name under `shop.test` that targets doesn't hold doesn't exist. Nothing listens on targets' port 81, and the range 10.99.0.0/24 is routed to targets, which forwards nothing, so an address there answers nothing at all. Run your probe from the office: `on office ~/bin/probe http://www.shop.test/ 5`. The checks run it there too, against servers of their own whose answers change at every check, so a probe that prints what it saw last time won't pass.
 
-  Create the script with `nano ~/bin/probe`, make it runnable with `chmod +x ~/bin/probe`, and start it with `#!/bin/bash` and `set -euo pipefail`, as Module 1's scripts did. Under `set -e`, a command that fails ends the script, and curl fails on purpose here, so keep its exit status instead: `status=0; out=$(curl ...) || status=$?`. Then run the checks.
+  Create the script with `nano ~/bin/probe`, make it runnable with `chmod +x ~/bin/probe`, and start it with `#!/bin/bash` and `set -euo pipefail`, as Module 1's scripts did. Under `set -e`, a command that fails ends the script, and curl fails on purpose here, so keep its exit status instead: `status=0; out=$(curl ...) || status=$?`. ShellCheck, the script checker from Module 1's Shell scripting topic, must have nothing to say about the script (`shellcheck ~/bin/probe`). Then run the checks.
 hints:
   - "`out` holds two words, such as `503 0.001187`. `${out%% *}` is the first (everything before the first space) and `${out##* }` the last."
   - "Keep each attempt's RESULT, one a line, in a variable or a file of your own; `sort | uniq -c` counts them, and a second `sort -k1,1nr -k2,2` puts the largest count first (`n` numbers, `r` reversed) and breaks ties by the name. `awk -v n=\"$count\" '{print $2, $1 \"/\" n}'` turns `uniq -c`'s `4 http-503` into `http-503 4/20`."

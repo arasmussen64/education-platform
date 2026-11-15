@@ -1,0 +1,65 @@
+id: est-saving-right-size
+type: estimate
+rev: 1
+prompt: |
+  A reporting server runs on Azure's `D48s_v5`. A week of its metrics, in 5-minute samples: CPU, as a percentage of its 48 vCPUs, averaged 4%, with a 95th percentile of 15% and a largest sample of 34%; memory in use peaked at 11 GiB.
+
+  The sizing policy: at the 95th percentile the work may use at most 60% of the new machine's vCPUs; the peak of memory may be at most 80% of the new machine's memory; then take the cheapest size that meets both.
+
+  | Azure Dsv5, East US, Linux, pay as you go, read 2026-11-15 | vCPUs | Memory | Per hour |
+  | --- | --- | --- | --- |
+  | `D4s_v5` | 4 | 16 GiB | $0.192 |
+  | `D8s_v5` | 8 | 32 GiB | $0.384 |
+  | `D16s_v5` | 16 | 64 GiB | $0.768 |
+  | `D32s_v5` | 32 | 128 GiB | $1.536 |
+  | `D48s_v5` | 48 | 192 GiB | $2.304 |
+
+  Using 730 hours a month, how many dollars a month does moving to the right size save? Within 15%.
+unit: US dollars a month
+answer: 1121.28
+tolerance: { percent: 15 }
+given:
+  vcpus: 48
+  average: 4
+  p95: 15
+  largest: 34
+  cpu_policy: 60
+  memory_peak: 11
+  memory_policy: 80
+  d4s: 0.192
+  d8s: 0.384
+  d16s: 0.768
+  d32s: 1.536
+  d48s: 2.304
+  hours: 730
+# Prices from the Azure Retail Prices API (prices.azure.com/api/retail/prices),
+# region eastus, product "Virtual Machines Dsv5 Series", read 2026-11-15:
+# D4s v5 $0.192, D8s v5 $0.384, D16s v5 $0.768, D32s v5 $1.536, D48s v5
+# $2.304 an hour. vCPUs and memory from the series' own page,
+# learn.microsoft.com/en-us/azure/virtual-machines/sizes/general-purpose/dsv5-series
+# (dated 2026-03-10, updated 2026-07-27), read 2026-11-15.
+# The right size is D16s_v5: 15% of 48 is 7.2 vCPUs, 7.2 / 0.6 = 12, so 16;
+# 11 / 0.8 = 13.75 GiB, so any size here has the memory. The working can't
+# look a size up, so it names the two prices; the explanation does the
+# choosing. A 720-hour month gives 1105.92, inside the tolerance.
+working: (d48s - d16s) * hours
+mistakes:
+  - id: from-the-average
+    value: 1541.76
+    working: (d48s - d4s) * hours
+    why: That is the saving of moving to `D4s_v5`, the size the average needs (4% of 48 is 1.92 vCPUs, and 1.92 ÷ 0.6 = 3.2). The policy sizes on the 95th percentile, because the busy hours sit well above the average.
+  - id: no-headroom
+    value: 1401.6
+    working: (d48s - d8s) * hours
+    why: That is the saving of moving to `D8s_v5`, whose 8 vCPUs hold the 7.2 the busy hours use with nothing to spare (90% full). The policy lets them fill at most 60%, so 7.2 ÷ 0.6 = 12 vCPUs are needed.
+  - id: from-the-largest
+    value: 560.64
+    working: (d48s - d32s) * hours
+    why: That is the saving of moving only to `D32s_v5`, the size the single largest sample asks for (it is also what a `D16s_v5` costs a month, which isn't the saving). The policy names the 95th percentile, so one burst doesn't set the size.
+prices_as_of: 2026-11-15
+prices_source: https://azure.microsoft.com/en-us/pricing/details/virtual-machines/linux/
+explanation: |
+  CPU first. At the 95th percentile the work keeps 15% of 48 = 7.2 vCPUs busy. That may be at most 60% of the new machine, so it needs 7.2 ÷ 0.6 = 12 vCPUs: the 16-vCPU size. Memory: 11 ÷ 0.8 = 13.75 GiB, which every size from `D4s_v5` up has. The cheapest size that meets both is `D16s_v5`.
+
+  The saving is the difference in hourly price over a month: ($2.304 − $0.768) × 730 = $1.536 × 730 = about $1,121 a month, two thirds of the bill. Sizing on the average would pick `D4s_v5`, which the busy hours would overfill (7.2 vCPUs of work on 4). Forgetting the headroom would pick `D8s_v5`, 90% full in its busy hours with no room to grow. Prices change: look them up again on the day.
+skills: [right-size]

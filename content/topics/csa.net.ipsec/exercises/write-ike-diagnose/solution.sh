@@ -36,4 +36,5 @@ else
 fi
 EOF
 chmod +x ~/bin/ike-diagnose
+shellcheck ~/bin/ike-diagnose && echo "shellcheck: quiet"
 for f in ~/logs/*.log; do echo "$f: $(~/bin/ike-diagnose "$f")"; done

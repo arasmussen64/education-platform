@@ -45,5 +45,6 @@ failed=$(printf '%s' "$results" | grep -cv '^ok$' || true)
 echo "failure-rate $(((200 * failed + count) / (2 * count)))"
 EOF
 chmod +x ~/bin/probe
+shellcheck ~/bin/probe && echo "shellcheck: quiet"
 on office ~/bin/probe http://www.shop.test/ 5
 on office ~/bin/probe http://10.99.0.5/ 2
