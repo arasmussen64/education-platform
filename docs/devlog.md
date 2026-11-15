@@ -94,13 +94,14 @@ Part of what was left in Modules 1 to 3. Since Module 3, a lab can ask for a res
 
 Proving 79 labs on one PC would have taken hours, so the trial was switched on for every systemd lab of the two modules on a draft pull request, and CI's eight machines said which ones don't pass again after a restart.
 
-- **69 of the 79 pass, and now keep the trial on:** every Module 2 lab and Checkpoint 2 among them. Nothing had to be fixed: no solution turned out to be one that doesn't last.
-- **Ten Module 1 labs fail it by design, and leave it off with the reason written beside the setting.** In each, what the checks read is something a real reboot also clears: systemd's count of automatic restarts (Services); how a service last ended (Memory); the "reboot needed" flag in `/run` (Packages); a control group made by hand (Containers); a runaway process the scenario starts again at boot (Processes); a first boot that the lab's restart repeats (Boot); files held open by processes that a reboot ends, and three storage labs whose fstab mounts don't come back in a container without udev.
+- **77 of the 88 pass, and now keep the trial on:** every Module 2 lab, Checkpoint 2, and eight of Checkpoint 1's nine labs among them (the 79 of the first run, then Checkpoint 1's nine once their rewrite was merged). Nothing had to be fixed: no solution turned out to be one that doesn't last.
+- **Eleven fail it by design, and leave it off with the reason written beside the setting:** ten Module 1 labs and Checkpoint 1's debug, whose data area is a tmpfs that its own boot script makes and fills again at every boot. In each, what the checks read is something a real reboot also clears: systemd's count of automatic restarts (Services); how a service last ended (Memory); the "reboot needed" flag in `/run` (Packages); a control group made by hand (Containers); a runaway process the scenario starts again at boot (Processes); a first boot that the lab's restart repeats (Boot); files held open by processes that a reboot ends, and three storage labs whose fstab mounts don't come back in a container without udev.
 
 **Author notes:**
 
-- _ADR-0018 guessed "a dozen" would fail by design;_ it was ten. Its note and the writer's guide are brought up to date, and the guide now asks a new systemd lab to set the trial unless it can give such a reason.
-- _Checkpoint 1's nine labs aren't in this,_ because another pull request open beside it rewrites them. They follow once it is merged.
+- _ADR-0018 guessed "a dozen" would fail by design;_ it was eleven. Its note and the writer's guide are brought up to date, and the guide now asks a new systemd lab to set the trial unless it can give such a reason.
+- _Checkpoint 1's debug could take the trial if its data area were a real disk image_ that keeps its contents across a restart, as the storage labs' disks do. Its rule that a fix must last a reboot is proved today by known-wrong fixes that read systemd's and nftables' saved settings.
+- _CI found one more wrong answer that could pass by luck, in a lab this pull request only switched the trial on for:_ Memory's fill-in report. A report that prints total swap where it should print swap in use passed on machines that have no swap at all, where both are 0; some of GitHub's machines have none, and it failed two pull requests the same hour. `free` reads the whole machine, so the check now hands the script a `free` with fixed numbers, as the triage report's check does with `vmstat`.
 - _No lab's revision number changed:_ the trial is part of how a lab is proved, not of what the learner sees.
 
 ## 2026-11-15, last: What's left in cloud Modules 1 to 3, and the first batch

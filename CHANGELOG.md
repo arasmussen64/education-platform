@@ -50,7 +50,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Changed (cloud Modules 1 and 2: restarted in CI)
 
-- 69 of the 79 systemd labs of Modules 1 and 2, every Module 2 lab and Checkpoint 2 among them, now take the restart trial: after the solution passes, CI restarts the lab and every check must pass again. Ten Module 1 labs leave it off, each with its reason beside the setting: what their checks read is something a real reboot also clears.
+- 77 of the 88 systemd labs of Modules 1 and 2 and their checkpoints now take the restart trial: after the solution passes, CI restarts the lab and every check must pass again. Eleven leave it off, each with its reason beside the setting: what their checks read is something a real reboot also clears, or, in Checkpoint 1's debug, a data area the lab rebuilds at every boot.
+- Memory's fill-in report lab no longer passes a report that prints total swap for swap in use on a machine with no swap: its check hands the script a `free` with fixed numbers.
 
 ### Changed (cloud Modules 1 to 3: what was left, batch one)
 
