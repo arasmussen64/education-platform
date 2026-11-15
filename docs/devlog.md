@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, leftovers: Module 3's script labs are linted
+
+The second pull request of what was left in Modules 1 to 3 ([the list](#2026-11-15-last-whats-left-in-cloud-modules-1-to-3-and-the-first-batch) is in the entry below). The Module 3 plan asked that every lab where the learner writes a shell script have ShellCheck read it, as Module 1's scripting labs do. ShellCheck is the script checker that topic teaches. Six labs had been written without it.
+
+- **Six write labs now lint the learner's script:** Layers and packets, Congestion control, DNS, VPNs and IPsec, Load balancing and Network troubleshooting. Each prompt says so in one sentence, the first check runs ShellCheck and refuses a script that switches a warning off, and each lab has known-wrong scripts that do the job and fail only the lint.
+- **DNS's own reference script failed the lint** (an unquoted variable). It is fixed, and its hint now teaches the quoted form.
+- **The eight labs that already linted had two gaps.** A warning switched off with two spaces or a tab in the comment passed, because the check looked for exactly one space. And six of them had no known-wrong script failing the lint, so that rule in their prompts was unproved. Both are closed.
+- **Checkpoint 3's cloud link reads plain `netlab verify`.** The helper it carried worked around two faults in the network base's own comparison, which were fixed on 2026-11-13. The helper, its copy line and its permissions line are gone from both versions of the lab.
+
+Sixteen labs changed, each proved again with the lab checker: the untouched lab fails, the solution passes and passes again after a restart, and every known-wrong fix fails.
+
+**Author notes:**
+
+- _The network base still has no ShellCheck._ Each lab that lints installs it in a line of its own, written the same in every lab so Docker builds it once. Putting it in the base would rebuild every network lab.
+- _One small difference is left by removing the helper:_ a stray route of two rare kinds (`throw` and `local`) typed by hand on the edge router is no longer reported. FRR ignores both, so no wrong fix gets through; closing it would mean changing the base.
+- _Left alone:_ a two-line script that hands over to a second, unlinted file passes every lint. A learner who does that is choosing to cheat. The troubleshooting build isn't linted, because its prompt allows any tool and an awk script is a fair answer.
+- _These labs now take longer in CI,_ so `tools/lab-seconds.json` is refreshed again once the leftovers are all in.
+- _CI found a known-wrong fix that could pass by luck,_ in Congestion control's write lab, on this pull request's first run. The fix runs both speed tests with the same algorithm, CUBIC, and the check asked only that the second test be at least twice the first and the first under 25 Mbit/s. Two short CUBIC tests across a lossy link can differ twofold. The check now also asks that the second test be over 25 Mbit/s by itself, which only BBR reaches there (it measures 41 to 46, and CUBIC at most 13.5). The flaw was there before the lint work; the lint work only made CI run the lab again.
+- _A second CI failure had nothing to do with this work:_ in Checkpoint 2's domain lab, one known-wrong fix (the reverse zone not forwarded) stopped with an error on some of GitHub's machines and ran clean on others, in runs minutes apart. With the reverse zone not forwarded, the site's resolver asks its own upstream for the name of the domain controller's address. Most networks say "no such name" and the join goes through; that day some of GitHub's answered with a name of their own, Kerberos asked for a ticket for the wrong name, and `realm join` said "Insufficient permissions", so the fix's script ended with an error and the checker called the lab broken. The script now ends cleanly whatever the join did, in both versions of the lab, and the checks judge it. A learner who makes this mistake may see either symptom, depending on their own network; both are what the mistake really does.
+
+**Next:** the three tightened checks, then the new content for Module 3.
+
 ## 2026-11-15, last: What's left in cloud Modules 1 to 3, and the first batch
 
 The owner asked for everything left in the cloud track before Module 4 to be built. Modules 1 to 3 are all `ready`, so "left" had to be found first: three reviewers, one a module, read the spec, the plans and this devlog against what was built, changing nothing. All three found the same thing: every topic has its four proofs and nothing is half-written, and what remains is what was put off while writing.

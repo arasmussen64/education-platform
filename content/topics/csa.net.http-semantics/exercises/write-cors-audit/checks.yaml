@@ -9,13 +9,13 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: script-ready
-    description: "~/bin/cors-audit exists, is executable, starts with a shebang, ShellCheck has nothing to say about it, and it decides for itself, with curl and the shell, without Python or the checks' own tools."
+    description: "~/bin/cors-audit exists, is executable, starts with a shebang, ShellCheck has nothing to say about it (with no warning switched off), and it decides for itself, with curl and the shell, without Python or the checks' own tools."
     command: |
       f=/home/learner/bin/cors-audit
       [ -f "$f" ] || { echo "there is no ~/bin/cors-audit"; exit 0; }
       [ -x "$f" ] || { echo "~/bin/cors-audit isn't executable"; exit 0; }
       head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/cors-audit's first line isn't a shebang"; exit 0; }
-      if grep 'shellcheck disable' "$f" > /dev/null; then echo "~/bin/cors-audit switches ShellCheck's warnings off"; exit 0; fi
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/cors-audit switches ShellCheck's warnings off"; exit 0; fi
       if grep -E 'python|perl|cors-verdict|cors-cases|cors-compare|/usr/local/lib/lab' "$f" > /dev/null; then
         echo "~/bin/cors-audit hands the decision to another program: the shell and curl are this lab's tools"
         exit 0

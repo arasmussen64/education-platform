@@ -29,14 +29,17 @@ for name in $servers; do
     echo "$name $address not authoritative"
   fi
 done
-# 3. The verdict.
+# 3. The verdict. Each serial goes on a line of its own, sort -u keeps one
+# of each, and grep -c . counts the lines that aren't empty ($serials
+# starts with a space, which leaves one empty line).
 if [ "$authoritative" -ne "$total" ]; then
   echo broken
-elif [ "$(echo $serials | tr ' ' '\n' | sort -u | wc -l)" -eq 1 ]; then
+elif [ "$(echo "$serials" | tr ' ' '\n' | sort -u | grep -c .)" -eq 1 ]; then
   echo "in sync"
 else
   echo "out of sync"
 fi
 EOF
 chmod +x ~/bin/zone-health
+shellcheck ~/bin/zone-health && echo "shellcheck: quiet"
 on office ~/bin/zone-health shop.test

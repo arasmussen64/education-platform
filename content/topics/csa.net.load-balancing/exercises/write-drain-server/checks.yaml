@@ -1,11 +1,25 @@
-# The checks of "Drain a server": each runs the learner's ~/bin/drain-server
+# The checks of "Drain a server". The first has ShellCheck read the script
+# (with --norc, and no warning may be switched off in it). Each of the
+# others runs the learner's ~/bin/drain-server
 # as the learner, on a server it picks as it runs, while a download it starts
 # is in flight, watching HAProxy's own state for that server meanwhile. Each
 # puts every server back in rotation afterwards, as an operator would once
-# the patch is done. The first check waits for the balancer after a boot.
+# the patch is done. The first of them waits for the balancer after a boot.
 # A check that finds something wrong prints what it found and exits 0, so
 # the checker shows that sentence rather than an exit status.
 checks:
+  - id: script-ready
+    description: "~/bin/drain-server exists, can be run, starts with a shebang line, and ShellCheck has nothing to say about it, with no warning switched off."
+    command: |
+      f=/home/learner/bin/drain-server
+      [ -f "$f" ] || { echo "there is no ~/bin/drain-server"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/drain-server can't be run: chmod +x ~/bin/drain-server"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/drain-server doesn't start with a shebang line (#!/bin/bash)"; exit 0; }
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/drain-server switches a ShellCheck warning off"; exit 0; fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say (run shellcheck ~/bin/drain-server): $(echo "$said" | grep -m 1 -o 'SC[0-9].*')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
   - id: waits-for-the-download
     description: "drain-server drains the server first, waits until a visitor's download from it has finished (and no longer), then puts it in maintenance and says how many seconds it waited; the download arrives whole."
     timeout: 50

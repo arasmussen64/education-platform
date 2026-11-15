@@ -1,4 +1,6 @@
-# The checks of "Write ike-diagnose". Each runs the learner's script, as the
+# The checks of "Write ike-diagnose". The first has ShellCheck read the
+# script (with --norc, and no warning may be switched off in it). Each of
+# the others runs the learner's script, as the
 # learner, on logs made now from the lines this topic's labs captured, with
 # addresses, names, numbers, times and harmless extra lines chosen afresh
 # (/usr/local/lib/lab-checks/ike-log), so a script that answers the sample
@@ -8,6 +10,18 @@
 # A check that finds something wrong prints what it found and exits 0, so
 # the checker shows that sentence rather than an exit status.
 checks:
+  - id: script-ready
+    description: "~/bin/ike-diagnose exists, can be run, starts with a shebang line, and ShellCheck has nothing to say about it, with no warning switched off."
+    command: |
+      f=/home/learner/bin/ike-diagnose
+      [ -f "$f" ] || { echo "there is no ~/bin/ike-diagnose"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/ike-diagnose can't be run: chmod +x ~/bin/ike-diagnose"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/ike-diagnose doesn't start with a shebang line (#!/bin/bash)"; exit 0; }
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/ike-diagnose switches a ShellCheck warning off"; exit 0; fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say (run shellcheck ~/bin/ike-diagnose): $(echo "$said" | grep -m 1 -o 'SC[0-9].*')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
   - id: each-case-right
     description: "On a fresh log of each kind (made now, with addresses, names and times the script hasn't seen), ike-diagnose prints the right line: eight logs, one of them a tunnel that came up after a lost packet."
     command: |
