@@ -1,0 +1,56 @@
+#!/usr/bin/python3
+"""office-dashboard: the office's dashboard (stand-in). It runs in the
+office and calls the shop's API at 10.0.9.1:8080 in two ways:
+
+  - one connection that it opens once and keeps open all day, asking again
+    on it every three seconds. This one always leaves the office from the
+    same port, PORT below, so it is easy to pick out;
+  - a quick health check every three seconds: a new connection each time,
+    from whatever port the kernel hands out, closed as soon as it is
+    answered.
+"""
+
+import socket
+import time
+
+API = ("10.0.9.1", 8080)
+PORT = 20917
+REQUEST = b"GET /dashboard HTTP/1.1\r\nHost: shop.internal\r\n\r\n"
+
+
+def open_long_connection():
+    """Connects from PORT, trying again every two seconds until it works."""
+    while True:
+        connection = socket.socket()
+        connection.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        connection.settimeout(5)
+        try:
+            connection.bind(("10.0.9.2", PORT))
+            connection.connect(API)
+            return connection
+        except OSError:
+            connection.close()
+            time.sleep(2)
+
+
+def health_check():
+    try:
+        with socket.create_connection(API, timeout=3) as connection:
+            connection.sendall(b"GET /health HTTP/1.0\r\n\r\n")
+            connection.recv(4096)
+    except OSError:
+        pass
+
+
+print(f"office-dashboard calling {API[0]}:{API[1]} from port {PORT}", flush=True)
+long_connection = open_long_connection()
+while True:
+    try:
+        long_connection.sendall(REQUEST)
+        if not long_connection.recv(4096):
+            raise OSError("the API closed the connection")
+    except OSError:
+        long_connection.close()
+        long_connection = open_long_connection()
+    health_check()
+    time.sleep(3)

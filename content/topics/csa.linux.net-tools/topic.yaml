@@ -11,7 +11,7 @@ objectives:
   - "Read `ss` output: what is listening on which address and port and by which process, the TCP states (`LISTEN`, `ESTAB`, `TIME-WAIT`, `CLOSE-WAIT`), and what ephemeral ports are."
   - "Pick the right test tool for a question, `curl`, `dig`, `nc` or `traceroute`, and read what each answers."
   - "Capture traffic with `tcpdump` and recognise a three-way handshake, a refused connection and a filter that keeps the capture small."
-  - "Follow a packet through an nftables ruleset: hooks, chains, default policy and connection tracking, and through a container's network namespace and veth pair."
+  - "Follow a packet through an nftables ruleset: hooks, chains, default policy and connection tracking, and through a container's network namespace and veth pair; read the same rules as `iptables-save` prints them, and read the connection table with `conntrack -L`."
 # Linked, never copied. Licences: DigitalOcean's community tutorials are
 # CC BY-NC-SA 4.0; the ArchWiki is GNU FDL 1.3; the Linux man-pages are free
 # documentation; tcpdump's manual is BSD-licensed; RFCs are published under
@@ -52,7 +52,8 @@ resources:
 # topic. The worked example, the fill-in, the write and both proofs are labs
 # on a server with an "office" on the far side of its second interface (a
 # network namespace), its own name server, and a firewall to build and to
-# fix (ADR-0017, ADR-0018).
+# fix (ADR-0017, ADR-0018). A second write lab, write-tracked-replies, reads
+# the connection table and restores the rule that accepts tracked replies.
 practice:
   - example-whats-listening
   - net-ip-addr-up
@@ -68,12 +69,16 @@ practice:
   - mcq-traceroute-stars
   - net-tcpdump-handshake
   - mcq-tcpdump-filter
+  - net-tcpdump-reply-unheard
   - net-nft-policy
   - mcq-nft-hooks
   - mcq-conntrack
+  - net-conntrack-started-here
+  - mcq-iptables-same-rules
   - mcq-netns-veth
   - fill-net-report
   - write-socket-report
+  - write-tracked-replies
 prove:
   build: build-shop-firewall
   debug: debug-not-from-the-office
@@ -116,6 +121,9 @@ review_pool:
   - mcq-tcpdump-filter
   - mcq-nft-hooks
   - mcq-netns-veth
+  - net-tcpdump-reply-unheard
+  - net-conntrack-started-here
+  - mcq-iptables-same-rules
 skills:
   - id: ip-and-routes
     description: "Interfaces, addresses and routes with `ip addr` and `ip route`: the default gateway and which interface carries a packet"
@@ -126,4 +134,4 @@ skills:
   - id: tcpdump
     description: "Capturing with `tcpdump`: filters, `-nn`, reading a handshake, a reset and a dropped SYN"
   - id: firewall-path
-    description: "A packet's path through nftables hooks and chains, the default policy, connection tracking, and a container's network namespace"
+    description: "A packet's path through nftables hooks and chains (and the same rules in `iptables`), the default policy, connection tracking and its table, and a container's network namespace"

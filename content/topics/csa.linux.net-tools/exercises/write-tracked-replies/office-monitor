@@ -1,0 +1,19 @@
+#!/usr/bin/python3
+"""office-monitor: the office's monitoring endpoint (stand-in). It runs in
+the office, so from the shop's server a connection to it goes out through
+eth1 to 10.0.9.2:9100. Greets each connection and closes it."""
+
+import socket
+
+server = socket.socket()
+server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+server.bind(("0.0.0.0", 9100))
+server.listen(16)
+print("office-monitor listening on 9100", flush=True)
+while True:
+    connection, _ = server.accept()
+    try:
+        connection.sendall(b"office monitor ok\n")
+    except OSError:
+        pass
+    connection.close()
