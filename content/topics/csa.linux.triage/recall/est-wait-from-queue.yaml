@@ -1,0 +1,24 @@
+id: est-wait-from-queue
+type: estimate
+rev: 1
+prompt: |
+  `iostat -x` shows a disk finishing 300 writes a second (`w/s`) with 24 requests in its queue (`aqu-sz`). About how long does a write take from the moment it arrives until it is done, in milliseconds? Within 10% is close enough.
+unit: ms
+answer: 80
+tolerance: { percent: 10 }
+given: { rate: 300, queue: 24 }
+working: queue / rate * 1000
+mistakes:
+  - id: upside-down
+    value: 12.5
+    working: rate / queue
+    why: That divides the rate by the queue. The wait is the queue divided by the rate, 24 requests at 300 a second, which is a time in seconds.
+  - id: in-seconds
+    value: 0.08
+    working: queue / rate
+    why: That's the wait in seconds. `iostat` gives its `await` columns in milliseconds, 1,000 to the second.
+explanation: |
+  A write that arrives now has 24 requests in the queue with it, and the disk finishes 300 a second, so it is done after about 24 ÷ 300 = 0.08 seconds, which is 80 ms. That is the number `iostat` prints as `w_await`: the queue divided by the rate, in milliseconds.
+
+  It's a sum worth doing on sight, because it tells you where the time goes. At 300 writes a second the disk spends about 3 ms on each write; the other 77 or so are spent waiting in line. A faster disk isn't the first fix for that. Taking load off the queue is.
+skills: [disk-io]

@@ -1,0 +1,25 @@
+id: pkg-dnf-history
+type: predict_shell
+rev: 1
+prompt: |
+  `history.txt` is what `dnf history` printed on a server after a patch day: every change `dnf` has made, newest first, one numbered transaction a line, with the start of the command that made it and the kind of change it was (in the Action column, `R` is short for a reinstall). The command keeps the lines that mention an upgrade or a downgrade, and prints the transaction's number and the first word of its command. What is printed?
+files:
+  history.txt: |
+    ID     | Command line             | Date and time    | Action(s)      | Altered
+    -------------------------------------------------------------------------------
+         6 | upgrade -y               | 2026-11-15 22:11 | Upgrade        |    1
+         5 | install -y shop-dashboar | 2026-11-15 22:11 | Install        |    1
+         4 | downgrade shop-report -y | 2026-11-15 22:11 | Downgrade      |    1
+         3 | reinstall -y shop-agent  | 2026-11-15 22:09 | R              |    2
+         2 | upgrade -y shop-report   | 2026-11-15 22:09 | Upgrade        |    1
+         1 | install -y shop-agent-1. | 2026-11-15 22:09 | Install        |    2
+command: awk '/Upgrade|Downgrade/ {print $1, $3}' history.txt
+expected_output: |
+  6 upgrade
+  4 downgrade
+  2 upgrade
+explanation: |
+  `awk` splits each line at the spaces, so `$1` is the number, `$2` is the `|` and `$3` is the first word of the command. Three transactions changed a version: 2 upgraded `shop-report`, 4 took it back, and 6 upgraded whatever else had a newer version. The table cuts a long command short, which is why 5 and 1 end mid-word.
+
+  This is the server's own record of who changed what, in order, and `apt` has nothing as tidy: on Ubuntu you read `/var/log/apt/history.log`. `dnf history info 2` lists the packages transaction 2 changed, with the version before and after, and `dnf history undo 2` reverses it.
+skills: [apt-dnf]

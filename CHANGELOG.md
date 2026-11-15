@@ -18,6 +18,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Fixed (the lab checker: a forgotten disk with a device built on it)
+
+- `tools/labcheck.py`'s sweep for disks a dead lab left attached now removes a device built on such a disk first (an LVM volume, or the saturated-disk lab's data disk), so the disk can be let go of. It still touches only disks it has found stale. Tried on a real leftover volume.
+
+### Added (a capture tool for GitHub's own machines)
+
+- `tools/lab-capture` and a Capture workflow, started by hand, that records what GitHub's x86 and Arm machines show about the hypervisor under them and uploads the result. Module 2's plan asked for it, so that examples of a real cloud guest are captured and not typed. A test keeps the script and the two labs' copies of it identical.
+
 ### Fixed (cloud Module 3: three checks that could be passed with a fault left in)
 
 - NAT's debug lab no longer passes with its third fault left in: a new check asks the payment provider's firewall whether anything but the payments leaves from the payments' address.
@@ -93,6 +101,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The app takes on Momentum, the design direction the owner chose: limestone paper and pine ink in light mode, a deep pine "night trail" in dark mode. The grey scale every page was written with is repainted in `web/src/index.css`, so every page changes at once. Every text pairing keeps a contrast of at least 4.5 to 1 (WCAG AA).
 - Three fonts, bundled with the app under the SIL Open Font License 1.1, so no page asks a font service for them: Gabarito for headings, Figtree for text (18px with roomy lines), JetBrains Mono for code, with ligatures off so a learner sees each character they type.
 - The favicon's background is pine to match.
+
+### Added (cloud Module 1: a saturated disk, and a patch day with `dnf`)
+
+- Performance triage has a lab on a saturated disk: show it with `iostat -x`, find the writer with `pidstat -d`, and fix the cause without lifting the disk's limit.
+- Package management has a lab on AlmaLinux 9, the track's first that isn't Ubuntu: find a bad upgrade in `dnf history`, take it back, lock two versions, and upgrade the rest.
+- The two topics gain three questions on `dnf`, a third on replacing servers instead of patching them, and four number drills for triage.
 
 ### Added (cloud Module 2: the plan, and the platform it needs)
 

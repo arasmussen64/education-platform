@@ -1,0 +1,24 @@
+id: est-queue-growth
+type: estimate
+rev: 1
+prompt: |
+  A disk gets through 500 writes a second and no more. For 20 seconds, the programs on the server ask it for 650 writes a second. The queue was empty at the start. How many writes are waiting in it at the end of the 20 seconds? Exactly.
+unit: writes
+answer: 3000
+tolerance: { absolute: 0 }
+given: { served: 500, asked: 650, seconds: 20 }
+working: (asked - served) * seconds
+mistakes:
+  - id: one-second
+    value: 150
+    working: asked - served
+    why: That's how much the queue grows in one second. It grows by that much every second, for 20 seconds.
+  - id: everything-asked
+    value: 13000
+    working: asked * seconds
+    why: That's every write that was asked for. The disk got through 500 of each second's 650, and only the rest are waiting.
+explanation: |
+  Each second 650 writes arrive and 500 are done, so 150 more are left waiting than the second before. After 20 seconds that is 150 × 20 = 3,000.
+
+  This is what saturation means: work arrives faster than it can be served, and the difference piles up. The disk's utilisation was 100% for the whole 20 seconds and said nothing about how bad things were getting; the queue is the number that kept growing. It doesn't empty the moment the rush ends, either: if the programs drop back to 400 writes a second, the disk has 100 a second to spare, and the 3,000 take another 30 seconds to clear.
+skills: [use-method]
