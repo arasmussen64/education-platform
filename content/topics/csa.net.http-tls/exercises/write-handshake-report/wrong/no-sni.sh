@@ -9,7 +9,6 @@ cat > ~/bin/handshake-report << 'EOF'
 set -euo pipefail
 host=$1
 port=$2
-name=${3:-$host}
 
 out=$(openssl s_client -connect "$host:$port" -servername "$host" -alpn h2,http/1.1 -status < /dev/null 2>&1) || true
 

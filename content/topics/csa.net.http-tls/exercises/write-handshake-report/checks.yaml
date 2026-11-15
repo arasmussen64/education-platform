@@ -7,13 +7,13 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: script-ready
-    description: "~/bin/handshake-report exists, is executable, starts with a shebang, ShellCheck has nothing to say about it, and it does its own work with openssl and the shell."
+    description: "~/bin/handshake-report exists, is executable, starts with a shebang, ShellCheck has nothing to say about it (with no warning switched off), and it does its own work with openssl and the shell."
     command: |
       f=/home/learner/bin/handshake-report
       [ -f "$f" ] || { echo "there is no ~/bin/handshake-report"; exit 0; }
       [ -x "$f" ] || { echo "~/bin/handshake-report isn't executable"; exit 0; }
       head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/handshake-report's first line isn't a shebang"; exit 0; }
-      if grep 'shellcheck disable' "$f" > /dev/null; then echo "~/bin/handshake-report switches ShellCheck's warnings off"; exit 0; fi
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/handshake-report switches ShellCheck's warnings off"; exit 0; fi
       if grep -E 'python|perl|/usr/local/lib/lab' "$f" > /dev/null; then
         echo "~/bin/handshake-report hands the work to another program: openssl and the shell are this lab's tools"
         exit 0
