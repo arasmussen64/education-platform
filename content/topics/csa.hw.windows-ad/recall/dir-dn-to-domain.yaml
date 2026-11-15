@@ -1,0 +1,19 @@
+id: dir-dn-to-domain
+type: predict_shell
+rev: 1
+prompt: |
+  `entry.ldif` holds one `dn:` line from another company's directory, made up for this question and written the way an LDAP search prints it. The first command picks out the DN's `DC=` parts and joins them with dots; the second prints the first `OU=` part it finds. What is printed?
+files:
+  entry.ldif: |
+    dn: CN=Dana Roy,OU=Tills,OU=Shops,DC=corp,DC=example,DC=com
+command: |
+  grep -o 'DC=[a-z]*' entry.ldif | cut -d= -f2 | paste -sd. -
+  grep -o 'OU=[A-Za-z]*' entry.ldif | head -n 1
+expected_output: |
+  corp.example.com
+  OU=Tills
+explanation: |
+  `grep -o` prints each match on a line of its own: `DC=corp`, `DC=example`, `DC=com`. `cut -d= -f2` keeps what follows the `=`, and `paste -sd. -` joins the three lines with dots.
+
+  The `DC=` parts of a distinguished name spell the domain's DNS name, in the order they are written: this entry lives in the domain `corp.example.com`, whose Kerberos realm is the same name in capitals, `CORP.EXAMPLE.COM`. The rest of the DN is read from the right, one folder deeper at each step: `OU=Shops` is a folder at the top of the domain, `OU=Tills` is inside it, and `CN=Dana Roy` is the entry itself. So the first `OU=` from the left is the folder Dana sits in directly, and the settings linked to Tills, and to Shops above it, are the ones that reach her.
+skills: [directory-structure]

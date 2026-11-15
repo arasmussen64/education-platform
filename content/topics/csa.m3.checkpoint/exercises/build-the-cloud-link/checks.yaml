@@ -191,11 +191,13 @@ checks:
       equals: "back over the circuit"
   - id: network-lasts
     description: "edge's interfaces, vti0 among them, and any route typed into it are what its own files build at boot."
-    # netlab verify, with FRR's two-path routes set aside and typed
-    # blackholes added (the helper says why): edge's files, not what BGP is
-    # doing, are what this reads. It exits 1 when edge differs: || true
-    # lets the checker show the difference it printed, not "exit status 1".
-    command: /usr/local/lib/lab-checks/same-as-its-files edge || true
+    # netlab verify compares edge with a fresh build of its files. It
+    # leaves out the routes FRR installs (the two-path BGP routes among
+    # them; frr_saved covers FRR) and keeps a blackhole typed by hand, so
+    # edge's files, not what BGP is doing, are what this reads. It exits 1
+    # when edge differs: || true lets the checker show the difference it
+    # printed, not "exit status 1".
+    command: netlab verify edge || true
     expect:
       equals: verified
   - id: tunnel-starts-itself

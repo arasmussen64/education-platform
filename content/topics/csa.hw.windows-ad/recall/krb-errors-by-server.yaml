@@ -1,0 +1,26 @@
+id: krb-errors-by-server
+type: predict_shell
+rev: 1
+prompt: |
+  Five servers each run a nightly job that signs in with `kinit` and a keytab, and one morning all five have failed. `kinit.txt` holds what `kinit` printed on each, with the server's name in front. Each error line is captured from the lab; the five servers are made up. The first command prints the servers whose problem is names, not an account or a clock; the second counts the servers whose request did reach a KDC. What is printed?
+files:
+  kinit.txt: |
+    web1: kinit: Cannot find KDC for realm "AD.SHOP.TEST" while getting initial credentials
+    web2: kinit: Clock skew too great while getting initial credentials
+    web3: kinit: Client's credentials have been revoked while getting initial credentials
+    web4: kinit: Cannot find KDC for realm "AD.SHOP.TEST" while getting initial credentials
+    web5: kinit: Preauthentication failed while getting initial credentials
+command: |
+  grep 'Cannot find KDC' kinit.txt | cut -d: -f1
+  grep -v -c 'Cannot find KDC' kinit.txt
+expected_output: |
+  web1
+  web4
+  3
+explanation: |
+  `cut -d: -f1` keeps what is in front of the first colon, the server's name. `grep -v` keeps the lines that don't match, and `-c` counts them.
+
+  `Cannot find KDC for realm` is the one error here that comes before any KDC was asked: the server's resolver couldn't answer the domain's SRV records, so `kinit` had nowhere to send its request. On web1 and web4, check names first (`dig _kerberos._tcp.ad.shop.test SRV`), and leave the accounts alone.
+
+  The other three are answers from a KDC, so on those servers the names work. `Clock skew too great`: web2's clock is more than five minutes from the KDC's, and the fix is its time source. `Client's credentials have been revoked`: the account web3 signs in with is disabled, locked or expired in the directory. `Preauthentication failed`, from a keytab: web5's keys are stale, because the account's password was changed after the keytab was made.
+skills: [kerberos-tickets]

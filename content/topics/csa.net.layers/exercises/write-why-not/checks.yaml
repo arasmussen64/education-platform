@@ -1,5 +1,7 @@
-# The checks for "Write why-not": the script is there and runs, then it is
-# tried from the office against machines the check builds for the purpose
+# The checks for "Write why-not": the script is there, runs, and ShellCheck
+# is quiet about it (run with --norc, and no warning may be switched off in
+# the script); then it is tried from the office against machines the check
+# builds for the purpose
 # (why-not-cases, in /usr/local/lib/lab/): on the office's own network,
 # behind r1, and a mix chosen at random, each at an address and on ports
 # picked when the check runs. srv's and far's ports are for trying the
@@ -8,12 +10,14 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: script-ready
-    description: "~/bin/why-not exists, is executable, and starts with a shebang line."
+    description: "~/bin/why-not exists, is executable, starts with a shebang line, and ShellCheck has nothing to say about it, with no warning switched off."
     command: |
       f=/home/learner/bin/why-not
       [ -f "$f" ] || { echo "there is no ~/bin/why-not"; exit 0; }
       [ -x "$f" ] || { echo "~/bin/why-not isn't executable (chmod +x)"; exit 0; }
       head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/why-not doesn't start with a shebang line"; exit 0; }
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/why-not switches a ShellCheck warning off"; exit 0; fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say (run shellcheck ~/bin/why-not): $(echo "$said" | grep -m 1 -o 'SC[0-9].*')"; exit 0; }
       echo ready
     expect:
       equals: ready

@@ -33,6 +33,7 @@ awk -v c="$cubic" -v b="$bbr" 'BEGIN {
 }'
 EOF
 chmod +x ~/bin/cc-compare
+shellcheck ~/bin/cc-compare && echo "shellcheck: quiet"
 # Try it on the lossy link to dr1, then on the clean one to dr2.
 on shop ~/bin/cc-compare 10.0.6.20 4
 on shop ~/bin/cc-compare 10.0.7.20 3

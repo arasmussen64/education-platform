@@ -1,4 +1,11 @@
 FROM lab-base-net
+# ShellCheck, for the check that the learner's script is clean. The base
+# doesn't carry it, so it is a layer of this lab's own: the same line,
+# straight after FROM, in every Module 3 network lab that lints a script, so
+# Docker builds it once for all of them.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends shellcheck \
+ && rm -rf /var/lib/apt/lists/*
 # The network, and the balancer's own configuration (lb's /etc/haproxy).
 COPY topology /etc/netlab/topology
 COPY machines/ /etc/netns/

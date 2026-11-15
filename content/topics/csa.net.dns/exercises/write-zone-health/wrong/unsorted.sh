@@ -24,7 +24,7 @@ for name in $servers; do
 done
 if [ "$authoritative" -ne "$total" ]; then
   echo broken
-elif [ "$(echo $serials | tr ' ' '\n' | sort -u | wc -l)" -eq 1 ]; then
+elif [ "$(echo "$serials" | tr ' ' '\n' | sort -u | grep -c .)" -eq 1 ]; then
   echo "in sync"
 else
   echo "out of sync"
