@@ -1050,8 +1050,20 @@ def test_the_helper_script_only_lets_go_of_what_it_can_prove_is_stale() -> None:
     # ...and asks whether the file's filesystem is still mounted anywhere.
     assert "/proc/[0-9]*/mountinfo" in script
     # Detaching happens in one place, behind the word "detach".
-    assert script.count("losetup -d") == 1
-    assert '[ "$1" = detach ] && losetup -d "$dev"' in script
+    assert script.count("losetup -d ") == 1
+    assert 'if [ "$1" = detach ]; then\n            release "$name"' in script
+    # What a lab stacked on a stale disk goes first, and nothing else does:
+    # release is called in that one place, on the disk just found stale, and
+    # on what is built on top of what it finds there.
+    assert script.count('release "') == 2
+    assert '/sys/block/"$1"/holders/dm-*' in script
+    assert script.count("dmsetup remove") == 1
+    # It calls itself, so its variables are its own. Without that, the call
+    # inside the loop overwrote the loop's variable, and the device to
+    # remove had no name (found on a real leftover volume, 2026-11-15).
+    assert "local holder dm" in script
+    # An image without dmsetup changes nothing.
+    assert "command -v dmsetup > /dev/null 2>&1 || return 0" in script
     # No backslash-n or Windows line ending for bash to trip over.
     assert "\r" not in script
 
