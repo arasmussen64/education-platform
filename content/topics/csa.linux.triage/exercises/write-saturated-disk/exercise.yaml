@@ -11,7 +11,7 @@ prompt: |
 
   What is on the server:
 
-  - **The data disk**, `/dev/lab/data`, mounted at `/srv/data`, is a network disk, as a cloud server's data disk is, and it is provisioned for 100 writes a second. Everything on the server that writes to it shares those 100. On the lab machine the disk is a file on your computer, which would take far more, so the lab plays the cloud's part and holds the disk to its 100 writes a second. The limit belongs to the disk: on a cloud, nothing you do on the server lifts it, and here a check makes sure it is still in place.
+  - **The data disk**, `/dev/lab/data`, mounted at `/srv/data`, is a network disk, as a cloud server's data disk is, and it is provisioned for 100 writes a second: that is what was paid for, and the cloud lets no more through. Everything on the server that writes to it shares those 100. On the lab machine the disk is a file on your computer, which would take far more, so the lab plays the cloud's part and holds the disk to its 100 writes a second. The limit belongs to the disk: on a cloud, nothing you do on the server lifts it, and here a check makes sure it is still in place.
   - **`shop-orders`** saves every order on the data disk in four small writes, and answers once all four are on the disk. Besides your test orders it takes one from the shop's website every two seconds, and logs each one (`journalctl -u shop-orders -f` follows the log; Ctrl+C stops following).
   - **`shop-sync`** copies changed products to the shop's search page. It has 32 workers, and each handles 10 products a second when nothing holds it up, 320 in all (`journalctl -u shop-sync` shows how many it gets through).
 
