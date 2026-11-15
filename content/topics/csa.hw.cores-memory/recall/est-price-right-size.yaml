@@ -1,0 +1,63 @@
+id: est-price-right-size
+type: estimate
+rev: 1
+prompt: |
+  An API server runs on AWS's `c7i.4xlarge`. A week of its metrics, in 5-minute samples: CPU, as a percentage of its 16 vCPUs, averaged 5%, with a 95th percentile of 13% and a largest sample of 52%; memory in use peaked at 10.5 GiB.
+
+  The sizing policy: at the 95th percentile the work may use at most 60% of the new machine's vCPUs; the peak of memory may be at most 80% of the new machine's memory; then take the cheapest size that meets both.
+
+  | AWS c7i, US East (N. Virginia), Linux, on demand, read 2026-11-15 | vCPUs | Memory | Per hour |
+  | --- | --- | --- | --- |
+  | `c7i.large` | 2 | 4 GiB | $0.08925 |
+  | `c7i.xlarge` | 4 | 8 GiB | $0.1785 |
+  | `c7i.2xlarge` | 8 | 16 GiB | $0.357 |
+  | `c7i.4xlarge` | 16 | 32 GiB | $0.714 |
+  | `c7i.8xlarge` | 32 | 64 GiB | $1.428 |
+
+  What is the hourly price of the right size, in dollars? Exactly, as the table gives it.
+unit: US dollars an hour
+answer: 0.357
+tolerance: { absolute: 0 }
+given:
+  vcpus: 16
+  average: 5
+  p95: 13
+  largest: 52
+  cpu_policy: 60
+  memory_peak: 10.5
+  memory_policy: 80
+  c7i_large: 0.08925
+  c7i_xlarge: 0.1785
+  c7i_2xlarge: 0.357
+  c7i_4xlarge: 0.714
+# Prices, vCPUs and memory from AWS's public price file behind the EC2
+# On-Demand pricing page (b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/
+# USD/current/ec2-ondemand-without-sec-sel/US East (N. Virginia)/Linux/
+# index.json), which says it was published 2026-11-14T01:29:26Z, read
+# 2026-11-15: c7i.large 2 vCPUs, 4 GiB, $0.08925; c7i.xlarge 4, 8, $0.1785;
+# c7i.2xlarge 8, 16, $0.357; c7i.4xlarge 16, 32, $0.714; c7i.8xlarge 32, 64,
+# $1.428.
+# Choosing the size is the answer, so the working is the price read off the
+# table: the right size is c7i.2xlarge (CPU: 13% of 16 is 2.08 vCPUs, / 0.6 =
+# 3.47, so 4; memory: 10.5 / 0.8 = 13.125 GiB, so 16, which decides).
+working: c7i_2xlarge
+mistakes:
+  - id: forgot-memory
+    value: 0.1785
+    working: c7i_xlarge
+    why: That is `c7i.xlarge`, the cheapest size that fits the CPU (13% of 16 is 2.08 vCPUs, and 2.08 ÷ 0.6 = 3.5, so 4). Its 8 GiB can't hold a peak of 10.5 GiB. A size has to meet both halves of the policy.
+  - id: from-the-average
+    value: 0.08925
+    working: c7i_large
+    why: That is `c7i.large`, which fits the average CPU (5% of 16 is 0.8 vCPUs). The policy sizes the CPU on the 95th percentile, and this size's 4 GiB is far less memory than the server uses.
+  - id: from-the-largest
+    value: 0.714
+    working: c7i_4xlarge
+    why: That is the size it has now, which is what the single largest sample asks for (52% of 16 is 8.32 vCPUs, and 8.32 ÷ 0.6 = 13.9). The policy names the 95th percentile, so one burst doesn't set the size.
+prices_as_of: 2026-11-15
+prices_source: https://aws.amazon.com/ec2/pricing/on-demand/
+explanation: |
+  CPU first. At the 95th percentile the work keeps 13% of 16 = 2.08 vCPUs busy; at most 60% full means 2.08 ÷ 0.6 = 3.5 vCPUs, so 4 would do. Memory: the peak, 10.5 GiB, may be at most 80% of the new machine, so it needs 10.5 ÷ 0.8 = 13.1 GiB: at least 16 GiB. The cheapest size with at least 4 vCPUs and at least 16 GiB is `c7i.2xlarge`, at $0.357 an hour: half of what the server costs now.
+
+  Memory decided it. `c7i.xlarge` fits the CPU, but a machine that runs out of memory doesn't slow down and recover: the kernel kills a process. Check both halves of a policy before reading the price. Prices change: look them up again on the day.
+skills: [right-size]

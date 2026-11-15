@@ -5,10 +5,11 @@ title: "Hypervisors"
 summary: "What sits under every cloud VM: what a hypervisor does and how the processor helps it, type 1 and type 2, emulated, paravirtual and SR-IOV devices, how AWS, Azure and Google Cloud build their hosts and maintain them, how to tell from inside a Linux guest what it runs on, and what a hypervisor can and can't keep apart."
 prerequisites: [csa.m1.checkpoint]
 # 12 minutes of lesson, 70 of core reading (resources 0 to 9 at about 200
-# words a minute), 17 quick questions at about 90 seconds, 75 for the worked
-# example, fill-in and write labs, 80 for the build and the debug, 15 for the
-# explain. Each lab builds a 400 MB image the first time, a few minutes once.
-estimated_minutes: 280
+# words a minute), 19 quick questions at about 90 seconds (two of them added
+# on 2026-11-15), 75 for the worked example, fill-in and write labs, 80 for
+# the build and the debug, 15 for the explain. Each lab builds a 400 MB image
+# the first time, a few minutes once.
+estimated_minutes: 283
 rev: 1
 objectives:
   - "Say what a hypervisor does and how the processor's virtualization extensions help it, tell type 1 from type 2, place KVM with QEMU, Hyper-V, Xen and AWS Nitro, and say what nested virtualization is."
@@ -87,6 +88,30 @@ objectives:
 # - Xen's network and disk drivers are called vif and vbd in /sys: the Linux
 #   kernel source, drivers/net/xen-netfront.c, drivers/block/xen-blkfront.c
 #   and drivers/xen/xenbus/xenbus_probe.c (torvalds/linux, master)
+# Two questions stand in for the plan's hv-azure-two-nics and
+# hv-nitro-devices, which waited for recordings of real cloud machines that
+# were never taken (MODULE-2-BRIEF, section 4, topic 15): mcq-azure-two-nics
+# and mcq-nitro-devices are multiple choice built on the providers'
+# documentation, and say so. What they rest on, each read on 2026-11-15:
+# - Azure, Accelerated Networking in the guest: a synthetic interface on
+#   netvsc for each virtual NIC and a second, VF interface (mlx4, mlx5 or
+#   MANA driver) with the same MAC address; "IP addresses are assigned only
+#   to the synthetic interface"; "Applications should interact only with the
+#   synthetic interface"; "The netvsc driver does the bonding"; the VF may be
+#   renamed to a name of the form enP<n>; during host servicing the VF is
+#   removed, "typically about 30 seconds" (dated 2026-07-16, updated
+#   2026-10-08): https://learn.microsoft.com/en-us/azure/virtual-network/accelerated-networking-how-it-works
+# - AWS: "Instances built on the AWS Nitro System use ENA for enhanced
+#   networking, and storage volumes exposed as NVMe block devices"; M7i is
+#   listed among the virtualized Nitro instances:
+#   https://docs.aws.amazon.com/ec2/latest/instancetypes/ec2-nitro-instances.html
+# - AWS: EBS volumes on Nitro instances are NVMe block devices named
+#   /dev/nvme0n1, /dev/nvme1n1 and so on; names given in a block device
+#   mapping are renamed, and may be assigned in a different order:
+#   https://docs.aws.amazon.com/ebs/latest/userguide/nvme-ebs-volumes.html
+# - AWS: the Linux driver is called ena (`ethtool -i eth0` prints
+#   "driver: ena"; "vif" there means ENA isn't in use):
+#   https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/test-enhanced-networking-ena.html
 # Measured in this topic's lab image on the owner's laptop (Windows 11,
 # Docker Desktop 29.8.2, QEMU 8.2.2, kernel 6.8.0-149-generic): a 300,000-step
 # loop took 0.29 s on the lab machine and 4.96 s in a guest under TCG; boots
@@ -165,7 +190,9 @@ practice:
   - hv-tcg-slowdown
   - mcq-nested-virtualization
   - mcq-nitro-pieces
+  - mcq-azure-two-nics
   - mcq-vf-revoked
+  - mcq-nitro-devices
   - mcq-which-cloud
   - mcq-maintenance
   - mcq-what-is-shared
@@ -219,6 +246,8 @@ review_pool:
   - mcq-dedicated
   - mcq-host-failure
   - hv-vulnerabilities
+  - mcq-azure-two-nics
+  - mcq-nitro-devices
 skills:
   - id: hypervisor-types
     description: "What a hypervisor does (shares CPUs, memory and devices, and traps what a guest may not do itself); type 1 against type 2; emulation against hardware-assisted virtualization (QEMU alone against QEMU with KVM); nested virtualization"

@@ -1,0 +1,27 @@
+id: dns-forwarders-three-servers
+type: predict_shell
+rev: 1
+prompt: |
+  dc1, the domain controller for `ad.shop.test`, is at 10.0.9.10, and three servers each run a small resolver of their own, as the lab's `lab` does. Each file is one server's `/etc/dnsmasq.d/ad.conf`, the file that holds the resolver's conditional forwarders, in the form the labs write it (the three servers are made up). The first command counts each file's lines about the reverse zone; the second prints the zone each of the last two files forwards. What is printed?
+files:
+  web1.conf: |
+    server=/ad.shop.test/10.0.9.10
+    server=/9.0.10.in-addr.arpa/10.0.9.10
+  web2.conf: |
+    server=/ad.shop.test/10.0.9.10
+  web3.conf: |
+    server=/9.0.10.in-addr.arpa/10.0.9.10
+command: |
+  grep -c 'in-addr.arpa' web1.conf web2.conf web3.conf
+  cut -d/ -f2 web2.conf web3.conf
+expected_output: |
+  web1.conf:1
+  web2.conf:0
+  web3.conf:1
+  ad.shop.test
+  9.0.10.in-addr.arpa
+explanation: |
+  `grep -c` with several files prints each file's count after its name. Each line is `server=/ZONE/ADDRESS`, so with `/` as the separator the zone is field 2.
+
+  A conditional forwarder sends questions about one zone, and only that zone, to another name server: here to dc1, which answers for the domain. A server that uses the domain needs two of them. **web1** has both, so it finds the domain and can turn dc1's address back into a name. **web2** forwards only the domain's zone: `dig _ldap._tcp.ad.shop.test SRV` answers and `kinit` works, but 10.0.9.10 has no name there. An LDAP search signed in with Kerberos turns dc1's address back into a name, gets none, and asks for a ticket for a name no service has: `Server not found in Kerberos database`. **web3** forwards only the reverse zone, `9.0.10.in-addr.arpa` (the network's numbers, 10.0.9, backwards): it knows dc1's name and nothing about the domain, so the SRV lookup says NXDOMAIN and `kinit` says `Cannot find KDC for realm`. Forward the zone and its reverse zone together.
+skills: [dc-discovery]
