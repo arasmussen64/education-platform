@@ -18,6 +18,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Changed (the cloud track, audited against the principal bar)
+
+- The Cloud Solutions Architect track was audited on 2026-11-15 against what a principal or distinguished cloud architect is hired on. Its spec says what it measured against in a new section, "The principal bar", which also says what no course can give: a record of decisions made in production, real scale, and people's judgement of you.
+- A new Module 31, "Technology strategy and enterprise architecture", with ten topics and Checkpoint 31, "the inherited estate": diagnose a 400-account estate from its data, review three teams' designs, write a three-year strategy and defend it. Capstone 3 now needs it.
+- Six more topics: SAP on the cloud, VMware estates and virtual desktops (Module 28); safe change at scale (Module 22); crypto agility and post-quantum migration, and identity governance and privileged access (Module 20). A reliability specialty joins Module 30.
+- Three proofs for Stage 4, all run in the browser at no cost: the estate review, the design critique and the strategy narrative. Two drills: design critique, and a paper in an hour.
+- Eleven outlines say more: virtual networks as overlays, how object storage is kept durable, schema changes with no downtime, the control plane of a multi-tenant product, open-source licence changes, gray failures, business impact analysis, operational readiness reviews, workloads that shouldn't be in a cloud, directory synchronization, and modelling data for analysis. Quantum computing now names cryptography as the one thing it changes today. Checkpoints 22, 25 and 28 each gained a part.
+- The track is now 31 modules and about 340 topics (337 numbered, 8 specialties). `tools/outline_cloud_track.py` knows Module 31. Everything added is a `planned` outline; no written topic changed.
+
 ### Changed (the Momentum redesign, stage 1: colours and fonts)
 
 - The app takes on Momentum, the design direction the owner chose: limestone paper and pine ink in light mode, a deep pine "night trail" in dark mode. The grey scale every page was written with is repainted in `web/src/index.css`, so every page changes at once. Every text pairing keeps a contrast of at least 4.5 to 1 (WCAG AA).

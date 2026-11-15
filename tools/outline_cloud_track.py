@@ -85,11 +85,13 @@ MODULE_PREREQUISITES: dict[str, list[str]] = {
     "m28": ["m25"],
     "m29": ["c2"],
     "m30": ["c2"],
-    "c3": ["m27", "m28", "m29", "m30"],
+    # Module 31 builds on Module 29, so Capstone 3 waits for 29 through 31.
+    "m31": ["m29"],
+    "c3": ["m27", "m28", "m30", "m31"],
 }
 
 # The capstone that follows each module, where there is one.
-CAPSTONE_AFTER = {"m15": "c1", "m24": "c2", "m30": "c3"}
+CAPSTONE_AFTER = {"m15": "c1", "m24": "c2", "m31": "c3"}
 
 PYTHON_CHECKPOINT = "py.m6.checkpoint"
 
