@@ -33,6 +33,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `tools/lab-seconds.json` is rebuilt from the last full Labs run: 221 labs, where it knew 160.
 - Stale sentences corrected in the cloud track's spec, the writer's guide, the network-lab base's notes, ADR-0018 and the owner queue, which also names three more main videos nobody has watched.
 
+### Added (cloud Module 1: LVM by hand, and a real benchmark scan)
+
+- Disks and filesystems has an LVM lab: build a volume from one disk, fill it, then add a second disk and grow the volume and its filesystem while in use, with the data intact.
+- Hardening has a lab with a real scanner, Lynis: scan, fix three named findings, record a fourth as an exception, and scan again to prove it.
+- The two topics gain third questions for two thin skills and six number drills.
+
 ### Added (cloud Module 2: fuller review pools, and right-sizing from a price table)
 
 - The two Active Directory topics' review pools hold 19 and 25 questions, where they held 6 and 8: questions that existed and weren't in the pool, and twelve new ones that appear only in reviews.
