@@ -1,25 +1,47 @@
+# A fresh version of the checkpoint's build (ADR-0012): the same skills on a
+# server whose particulars differ in every part, so that a learner who has
+# read the steps can't pass by pasting them with the names changed.
+#
+# What differs from the build (build-stand-up-server):
+#   1. The service. The build's is ready to run. The gateway's unit binds it
+#      to 127.0.0.1, so a setting in the unit has to change (a drop-in or an
+#      edit, daemon-reload, restart) before another machine can reach it.
+#      Step 1's command, `systemctl enable --now`, starts it on loopback
+#      only: listens-on-every-address and reachable-from-outside fail.
+#   2. The firewall. The build lets in SSH and one port; the gateway serves
+#      two, 9090 and 9191. Step 2's file with the port changed leaves 9191
+#      shut: reachable-from-outside fails.
+#   3. SSH. The build turns off passwords and root logins. Here only the
+#      ssh-users group may log in as well, and Kit, who has a good key
+#      installed and isn't in the group, must be turned away. Step 3's
+#      drop-in has no such rule: ssh-group-only fails.
+# wrong/steps-pasted.sh is the build's solution with the service's name and
+# port changed and nothing else; the contract proves that it fails.
 id: build-stand-up-gateway
 stage: build
 runtime: lab
 lab:
   init: systemd
-rev: 2
+rev: 3
 title: "Stand up the API gateway"
 prompt: |
-  A fresh version of the checkpoint's build, in a different story. A new server has arrived for the company's API gateway, the service every request to the company's APIs passes through first. Nothing is set up yet: the `gateway` service is installed but not running, there is no firewall, and SSH still accepts passwords. Bring the server up to the runbook, the company's written standard for a new server. There are no steps and no hints here, only what must be true when you finish:
+  A fresh version of the checkpoint's build: the same three parts of the runbook, on a different server. The particulars differ in every part, so work from each goal as it is written here, not from the shop's commands. There are no steps and no hints.
 
-  1. **The service runs.** `gateway` is running now, starts by itself after a reboot, and answers on port 9090.
-  2. **The firewall lets in only what the server serves.** From another machine, SSH (port 22) and the gateway (port 9090) answer and nothing else does. The firewall is nftables, and the same rules come back after a reboot: they are saved in `/etc/nftables.conf`, and the `nftables` service is enabled.
-  3. **SSH is hardened.** The SSH server that is running refuses password logins and root logins, and Ben, who deploys the company's code, can still log in with his key: `ssh -i ~/keys/ben ben@localhost` (a copy of his private key is in your `~/keys`, so you can test as him).
+  A new server has arrived for the company's API gateway, the service every request to the company's APIs passes through first. Nothing is set up yet: the `gateway` service is installed but not running, there is no firewall, and SSH still accepts passwords. This must be true when you finish:
+
+  1. **The service runs, where other machines can reach it.** `gateway` is running now and starts by itself after a reboot. It answers on two ports: requests on 9090 (`gateway ok`) and its health page on 9191 (`gateway healthy`), which the office's monitoring reads. As installed, its unit sets `BIND=127.0.0.1`, so it listens only on the loopback address, where no other machine can reach it. The gateway is there for other machines, so it must listen on every address (`BIND=0.0.0.0`), now and after a reboot. Where it listens is a setting of the service: its program, `/usr/local/bin/gateway`, stays as it was installed.
+  2. **The firewall lets in only what the server serves.** From another machine, SSH (port 22), the gateway (port 9090) and its health page (port 9191) answer and nothing else does. The firewall is nftables, and the same rules come back after a reboot: they are saved in `/etc/nftables.conf`, and the `nftables` service is enabled.
+  3. **SSH is hardened, and only the `ssh-users` group gets in.** The SSH server that is running refuses password logins and root logins, and lets only members of the `ssh-users` group log in. Ben, who deploys the company's code, is in that group and can still log in with his key: `ssh -i ~/keys/ben ben@localhost`. Kit has an account and an installed key as well, so `ssh -i ~/keys/kit kit@localhost` works today, but Kit isn't in the group and must be turned away. (Copies of both private keys are in your `~/keys`, for this lab only, so you can test as each of them.)
 
   To test from another machine, use `from-office`: it runs a command on a second machine on the office network, where this server's address is `10.0.9.1`. For example, `from-office curl -s http://10.0.9.1:9090/`.
 
-  No shortcut that leaves the server weaker counts: with the firewall off, or passwords still accepted, the checks fail. When all three are true, run the checks.
+  No shortcut that leaves the server weaker counts: with the firewall off, a port open that nobody asked for, or passwords still accepted, the checks fail. When all three are true, run the checks.
 test_skills:
-  service-running: [csa.linux.services/systemctl, csa.linux.services/unit-files]
-  api-answers: [csa.linux.services/supervision]
+  service-running: [csa.linux.services/systemctl]
+  listens-on-every-address: [csa.linux.services/unit-files, csa.linux.services/supervision]
   reachable-from-outside: [csa.linux.hardening/firewall-min, csa.linux.net-tools/test-tools]
   firewall-default-deny: [csa.linux.net-tools/firewall-path, csa.linux.hardening/firewall-min]
   firewall-persisted: [csa.linux.hardening/firewall-min]
   ssh-hardened: [csa.linux.hardening/ssh-hardening]
+  ssh-group-only: [csa.linux.hardening/ssh-hardening]
   key-login-works: [csa.linux.permissions/ssh-keys]
