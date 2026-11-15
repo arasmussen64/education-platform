@@ -1,0 +1,48 @@
+# Records what GitHub's own machines can see about the hypervisor under
+# them, for the cloud track's Module 2 (hypervisors and CPU architectures).
+# A recording is honest only if it was captured, not typed, so the content's
+# examples of a real cloud guest and a real Arm machine come from here.
+#
+# It runs only by hand: the "Run workflow" button under the Actions tab, or
+# `gh workflow run capture.yml`. It runs tools/lab-capture on an x86 runner
+# and an Arm one, and uploads each folder of small text files as an
+# artifact (a download attached to the run, kept for 30 days). The script
+# only reads, and masks what identifies a machine: MAC addresses, UUIDs and
+# instance IDs. Runs are free on a public repository.
+name: Capture
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    strategy:
+      # One runner failing mustn't cancel the other's capture.
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Record what this machine can see
+        run: |
+          out="capture-${{ matrix.runner }}"
+          sudo bash tools/lab-capture "$out"
+          sudo chown -R "$USER" "$out"
+          {
+            echo "Captured, not typed, by tools/lab-capture on a GitHub-hosted runner."
+            echo "date: $(date -u +%Y-%m-%d)"
+            echo "runner label: ${{ matrix.runner }}"
+            echo "runner image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
+            echo "architecture: $(uname -m)"
+          } > "$out/SOURCE.txt"
+          ls -la "$out"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: capture-${{ matrix.runner }}
+          path: capture-${{ matrix.runner }}
+          retention-days: 30
+          if-no-files-found: error
