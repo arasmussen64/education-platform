@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, leftovers: the lab checker lets go of a disk that has something built on it
+
+Part of what was left in Modules 1 to 3. Two of today's new labs build a second device on top of their disk: the LVM lab's volume, and the saturated-disk lab's data disk. When a lab's container goes away without its teardown (removed from Docker Desktop's window, or killed), the checker's sweep lets go of the disks it left attached, the next time a lab with disks starts. It couldn't let go of a disk with a device built on it, because that device holds the disk open, so the volume and its disks stayed until Docker restarted.
+
+- **The sweep now removes what is built on a stale disk first,** and whatever is built on top of that, then lets go of the disk. It still touches only a disk it has already found stale: one whose image file is on a filesystem that isn't mounted anywhere any more.
+
+Tried for real: the LVM lab's volume was built, its container killed, and another storage lab started. The volume was removed and both of its disks freed, while two labs that were running at the same moment, one of them with a device on its disk, were reported in use and left alone.
+
+**Author notes:**
+
+- _The real trial found a bug the tests couldn't:_ the function calls itself, and without variables of its own the inner call overwrote the outer loop's, so the device to remove had no name. A test now pins the fix.
+- _The trial killed the container where it meant to remove it:_ a safety check in the tooling refused a command that removed a container beside a script it couldn't read. A killed container leaves its disks attached in the same way.
+- _An image without `dmsetup` changes nothing:_ the sweep runs in the starting lab's own image, and skips the new step if the tool isn't there.
+
 ## 2026-11-15, leftovers: a capture tool for GitHub's own machines
 
 Part of what was left in Modules 1 to 3. Module 2's plan asked for one piece of authoring tooling that was never built: a way to record what a real cloud machine shows about the hypervisor under it, so the content's examples are captured and not typed. GitHub's own machines are real cloud guests, x86 and Arm, and free on a public repository.

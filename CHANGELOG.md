@@ -18,6 +18,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Fixed (the lab checker: a forgotten disk with a device built on it)
+
+- `tools/labcheck.py`'s sweep for disks a dead lab left attached now removes a device built on such a disk first (an LVM volume, or the saturated-disk lab's data disk), so the disk can be let go of. It still touches only disks it has found stale. Tried on a real leftover volume.
+
 ### Added (a capture tool for GitHub's own machines)
 
 - `tools/lab-capture` and a Capture workflow, started by hand, that records what GitHub's x86 and Arm machines show about the hypervisor under them and uploads the result. Module 2's plan asked for it, so that examples of a real cloud guest are captured and not typed. A test keeps the script and the two labs' copies of it identical.
