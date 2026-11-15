@@ -33,6 +33,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Eleven outlines say more: virtual networks as overlays, how object storage is kept durable, schema changes with no downtime, the control plane of a multi-tenant product, open-source licence changes, gray failures, business impact analysis, operational readiness reviews, workloads that shouldn't be in a cloud, directory synchronization, and modelling data for analysis. Quantum computing now names cryptography as the one thing it changes today. Checkpoints 22, 25 and 28 each gained a part.
 - The track is now 31 modules and about 340 topics (337 numbered, 8 specialties). `tools/outline_cloud_track.py` knows Module 31. Everything added is a `planned` outline; no written topic changed.
 
+### Added (cloud Module 1: zombies, `jq` and the connection table, by hand)
+
+- Processes and signals has a lab, "Find and clear the zombies": find them, see that `kill` does nothing, trace the parent, and fix the start script that never waits for its helpers.
+- Networking from the host has a lab on the kernel's connection table: read `conntrack -L`, find a half-open download, and restore the firewall's rule for connections already under way.
+- Shell essentials has a lab, "Four questions about a JSON log", answered with `jq`, and its lesson teaches the filters the lab needs.
+- The three topics gain eleven number drills, a third `tcpdump` question, and questions on a saved connection table and on `iptables` beside `nft`.
+
 ### Added (cloud Module 1: number drills)
 
 - Thirty estimate questions (a typed number, checked within a tolerance) across seven Module 1 topics: CPU scheduling, Memory, Permissions, Containers, Services, Boot and Shell scripting. Each is a sum done on sight, such as a `CPUQuota=` percentage to the numbers in `cpu.max`, the mode a umask leaves, or the exit status after a signal, and each recognises the likely wrong answers and says why.
