@@ -32,6 +32,21 @@ The owner asked for everything left in the cloud track before Module 4 to be bui
 
 **Next:** batch two, the new questions.
 
+## 2026-11-15, leftovers: Module 2's review pools, and right-sizing from a price table
+
+Part of what was left in Modules 1 to 3 (the list is in the entry above; this one sits below it only so that pull requests open at the same time don't edit the same lines). Module 2 was complete against its spec, and its leftovers needed only questions: 17 new ones, and no lab or lesson changed.
+
+- **The two Active Directory topics have full review pools.** Joining machines, Group Policy and Entra ID went from 6 questions to 19, and Active Directory: domains, names and tickets from 8 to 25. Most of that is questions that existed and weren't in the pool. Twelve are new and appear only in reviews, so a review can ask something the learner hasn't met: reading an SSH journal to say who was refused, an `sssd.conf` to say who may log in, a forwarders file, Kerberos errors grouped by server, and multiple choice.
+- **Right-sizing from a price table,** which the spec's drills table asks for and only labs did. Three estimate questions in Cores, memory and noisy neighbours give a week of a machine's metrics, a sizing policy and a small dated price table, and ask what moving to the right size saves each month. Each wrong answer the page recognises is a real mistake: sizing on the average, forgetting headroom, sizing on one burst, forgetting memory.
+- **Hypervisors has the two questions its plan left waiting.** They were meant to follow recordings from real cloud machines that were never made. They are written as multiple choice from Microsoft's and AWS's own pages, and each says it rests on documentation, not a recording.
+
+**Author notes:**
+
+- _The right-sizing questions choose a size inside one family,_ not a family, because the lesson leaves choosing a family to Module 12.
+- _Prices were read on 2026-11-15_ from Azure's retail price list (East US) and AWS's public price file (N. Virginia), and each prompt carries its own table and date, so the question stays answerable when prices move. Google Cloud's prices aren't used: its price page was too large to read.
+- _No new recordings:_ the predict-the-output questions use only output already captured in the labs' folders, and say which lines are captured and which are made up.
+- _Their names start `mcq-`,_ not the plan's `hv-`, to match the topic's other questions; the topic's notes say which planned questions they stand in for.
+
 ## 2026-11-15, later: The cloud track, audited against the principal bar
 
 The owner asked for the Cloud Solutions Architect track to be audited the way a vice president of cloud would, against one question: would what a learner knows and can do at the end qualify them for a principal or distinguished cloud architect's job? The whole spec was read against that, and changed where it fell short. Everything changed is an outline; no written topic was touched.

@@ -24,6 +24,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `tools/lab-seconds.json` is rebuilt from the last full Labs run: 221 labs, where it knew 160.
 - Stale sentences corrected in the cloud track's spec, the writer's guide, the network-lab base's notes, ADR-0018 and the owner queue, which also names three more main videos nobody has watched.
 
+### Added (cloud Module 2: fuller review pools, and right-sizing from a price table)
+
+- The two Active Directory topics' review pools hold 19 and 25 questions, where they held 6 and 8: questions that existed and weren't in the pool, and twelve new ones that appear only in reviews.
+- Cores, memory and noisy neighbours has three estimate questions that right-size a machine from a week of metrics and a dated price table, and ask what the move saves.
+- Hypervisors has the two questions about a guest on a real cloud that its plan left waiting, written from the providers' documentation.
+
 ### Changed (the cloud track, audited against the principal bar)
 
 - The Cloud Solutions Architect track was audited on 2026-11-15 against what a principal or distinguished cloud architect is hired on. Its spec says what it measured against in a new section, "The principal bar", which also says what no course can give: a record of decisions made in production, real scale, and people's judgement of you.
