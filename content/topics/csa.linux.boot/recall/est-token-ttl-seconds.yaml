@@ -1,0 +1,26 @@
+id: est-token-ttl-seconds
+type: estimate
+rev: 1
+prompt: |
+  A script asks the AWS metadata service for a session token that should stay valid for 90 minutes. What number does it put in the `X-aws-ec2-metadata-token-ttl-seconds` header of its `PUT`? Exactly.
+unit: as the header's value
+answer: 5400
+tolerance: { absolute: 0 }
+given: { minutes: 90 }
+working: minutes * 60
+mistakes:
+  - id: in-minutes
+    value: 90
+    working: minutes
+    why: "That's the lifetime in minutes. The header counts seconds, as its name says, so 90 would buy a token that expires after a minute and a half."
+  - id: in-hours
+    value: 1.5
+    working: minutes / 60
+    why: "That's the lifetime in hours. The header counts seconds: 90 minutes of 60 seconds each."
+  - id: an-hour-per-minute
+    value: 324000
+    working: minutes * 3600
+    why: "That multiplies by the seconds in an hour, not in a minute. It is also far above 21,600, the longest lifetime the service accepts."
+explanation: |
+  The header's value is the token's lifetime in seconds: 90 × 60 = 5,400. The script then sends the token it gets back in an `X-aws-ec2-metadata-token` header on every `GET` for the next hour and a half, and asks for a new one after that. The most the service accepts is 21,600 seconds, six hours. Shorter lifetimes cost a few more `PUT`s and leave a token that leaks useful for less time.
+skills: [imds-v2]

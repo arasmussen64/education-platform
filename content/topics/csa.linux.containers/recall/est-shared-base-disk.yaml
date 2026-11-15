@@ -1,0 +1,27 @@
+id: est-shared-base-disk
+type: estimate
+rev: 1
+prompt: |
+  `docker images` lists three images: a base image at 80 MB, and `api` at 140 MB and `worker` at 200 MB, both built `FROM` that base. Each size counts the base's layers too, and `api` and `worker` have no other layers in common. How much disk do the three images take together, in MB? Exactly.
+unit: MB
+answer: 260
+tolerance: { absolute: 0 }
+given: { base: 80, api: 140, worker: 200 }
+# The base is stored once; each image adds only the layers of its own.
+working: base + (api - base) + (worker - base)
+mistakes:
+  - id: sizes-added-up
+    value: 420
+    working: base + api + worker
+    why: "That adds up the three sizes, which counts the base's 80 MB three times. Layers are shared on disk: the base is stored once, and each image adds only its own layers."
+  - id: base-left-out
+    value: 180
+    working: (api - base) + (worker - base)
+    why: "That's the layers `api` and `worker` add. The base's own 80 MB is on the disk too, once."
+  - id: base-counted-twice
+    value: 340
+    working: api + worker
+    why: "That counts the base once inside `api` and again inside `worker`. Both images point at the same stored layers."
+explanation: |
+  An image is a stack of layers, and a layer that several images use is stored once. The base takes 80 MB. `api` adds 140 − 80 = 60 MB of layers of its own, and `worker` adds 200 − 80 = 120 MB. Together: 80 + 60 + 120 = 260 MB, not the 420 MB the size column adds up to. This is why building a team's images from one common base saves disk on every host and time on every pull: a host that already has the base downloads only the layers on top.
+skills: [layers-overlay]

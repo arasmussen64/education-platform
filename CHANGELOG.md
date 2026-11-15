@@ -33,6 +33,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Eleven outlines say more: virtual networks as overlays, how object storage is kept durable, schema changes with no downtime, the control plane of a multi-tenant product, open-source licence changes, gray failures, business impact analysis, operational readiness reviews, workloads that shouldn't be in a cloud, directory synchronization, and modelling data for analysis. Quantum computing now names cryptography as the one thing it changes today. Checkpoints 22, 25 and 28 each gained a part.
 - The track is now 31 modules and about 340 topics (337 numbered, 8 specialties). `tools/outline_cloud_track.py` knows Module 31. Everything added is a `planned` outline; no written topic changed.
 
+### Added (cloud Module 1: number drills)
+
+- Thirty estimate questions (a typed number, checked within a tolerance) across seven Module 1 topics: CPU scheduling, Memory, Permissions, Containers, Services, Boot and Shell scripting. Each is a sum done on sight, such as a `CPUQuota=` percentage to the numbers in `cpu.max`, the mode a umask leaves, or the exit status after a signal, and each recognises the likely wrong answers and says why.
+- Shell scripting's `tooling` skill has a third question, and five lessons gained a sentence where a drill needed a rule stated.
+
 ### Changed (the Momentum redesign, stage 1: colours and fonts)
 
 - The app takes on Momentum, the design direction the owner chose: limestone paper and pine ink in light mode, a deep pine "night trail" in dark mode. The grey scale every page was written with is repainted in `web/src/index.css`, so every page changes at once. Every text pairing keeps a contrast of at least 4.5 to 1 (WCAG AA).

@@ -4,7 +4,7 @@ status: ready
 title: "Boot, cloud-init and instance metadata"
 summary: "What happens between pressing power and a ready server: firmware, bootloader, kernel, systemd; how cloud-init turns a bare image into your configured instance from user data; what the instance metadata service offers; and why its session-based form (IMDSv2 and its cousins) closes a famous hole."
 prerequisites: [csa.linux.services]
-estimated_minutes: 220
+estimated_minutes: 225
 rev: 1
 objectives:
   - "Follow a Linux machine from power-on to ready: firmware, bootloader, kernel and initramfs, systemd and its targets, and read `systemd-analyze` and the boot journal."
@@ -53,10 +53,13 @@ resources:
     license: "LGPL-2.1-or-later (systemd documentation)"
 # The recall items read systemd-analyze, the boot journal, user data,
 # cloud-init's log and metadata listings with the text tools of the first
-# topic. The worked example, the fill-in, the write and both proofs are labs
-# on a machine that stands in for a fresh instance: cloud-init runs at its
-# first boot from a seed, "console" stand-ins launch and reboot it, and a
-# metadata-service stand-in answers at 169.254.169.254 (ADR-0017, ADR-0018).
+# topic; the estimate items (ADR-0024) are the few sums the topic has: a
+# stage's length from the log's "Up" times, and a token's lifetime in
+# seconds and the tokens a long job needs. The worked example, the fill-in,
+# the write and both proofs are labs on a machine that stands in for a
+# fresh instance: cloud-init runs at its first boot from a seed, "console"
+# stand-ins launch and reboot it, and a metadata-service stand-in answers at
+# 169.254.169.254 (ADR-0017, ADR-0018).
 practice:
   - example-first-boot
   - mcq-boot-order
@@ -67,12 +70,15 @@ practice:
   - mcq-user-data-formats
   - boot-cloud-config
   - boot-cloud-init-stages
+  - est-final-stage-seconds
   - boot-instance-id
   - mcq-cloud-init-once
   - mcq-metadata-what
   - meta-paths
   - mcq-imdsv2-why
   - meta-token-requests
+  - est-token-ttl-seconds
+  - est-tokens-for-a-job
   - mcq-other-clouds-headers
   - fill-user-data
   - write-imds-get
@@ -116,6 +122,9 @@ review_pool:
   - mcq-metadata-what
   - meta-paths
   - mcq-other-clouds-headers
+  - est-final-stage-seconds
+  - est-token-ttl-seconds
+  - est-tokens-for-a-job
 skills:
   - id: boot-sequence
     description: "Firmware, bootloader, kernel and initramfs, systemd and its targets; `systemd-analyze`, `journalctl -b` and the boot's log"

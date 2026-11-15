@@ -1,0 +1,28 @@
+id: est-pipefail-status
+type: estimate
+rev: 1
+prompt: |
+  A script sets `set -o pipefail` and then runs `extract | transform | load`. This time `extract` exits with status 3, `transform` with status 5 and `load` with status 0. What is `$?` straight after the pipeline? Exactly.
+unit: exit status
+answer: 5
+tolerance: { absolute: 0 }
+given: { extract: 3, transform: 5, load: 0 }
+# Run in bash 5.2 on Ubuntu 24.04, 2026-11-15: with pipefail,
+# (exit 3) | (exit 5) | true; echo $? prints 5, and without it 0.
+working: transform
+mistakes:
+  - id: the-last-command
+    value: 0
+    working: load
+    why: "That's the pipeline's status without `pipefail`: the last command's, whatever failed before it. With `pipefail` a failed stage decides it."
+  - id: the-first-failure
+    value: 3
+    working: extract
+    why: "That's the first stage to fail. With `pipefail` the status is that of the last stage that failed, the one furthest to the right: `transform`'s 5."
+  - id: added-up
+    value: 8
+    working: extract + transform + load
+    why: "That adds the statuses up. A pipeline reports one stage's status, the last one that failed."
+explanation: |
+  With `pipefail`, a pipeline's status is the status of the last stage that failed, the one furthest to the right, and 0 only if every stage succeeded. Here two stages failed, and `transform` is the later of them, so `$?` is 5. Without `pipefail` it would be 0, `load`'s status, and the script would carry on as if the data had arrived. Under `set -e` as well, the non-zero status stops the script at this line. To see every stage's status, bash keeps them in the array `PIPESTATUS`.
+skills: [strict-mode]

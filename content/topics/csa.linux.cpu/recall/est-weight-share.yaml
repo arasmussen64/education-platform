@@ -1,0 +1,28 @@
+id: est-weight-share
+type: estimate
+rev: 1
+prompt: |
+  A server has 1 CPU. Three services on it each want all the CPU time they can get, and nothing else is busy. `api.service` has `CPUWeight=300`. `report.service` and `mail.service` have no `CPUWeight=` line at all. What percentage of the CPU time does `api.service` get? Exactly.
+unit: "%"
+answer: 60
+tolerance: { absolute: 0 }
+given: { api: 300, cpus: 1 }
+# 100 is the default weight, which the learner must know, so the prompt
+# doesn't state it.
+working: api / (api + 100 + 100) * 100
+mistakes:
+  - id: one-rival
+    value: 75
+    working: api / (api + 100) * 100
+    why: "That shares the CPU between `api` and one other service. Two others are competing, each with a weight of 100, so the weights add up to 500."
+  - id: equal-split
+    value: 33.33
+    working: 100 / 3
+    why: "That's an equal three-way split, which is what equal weights would give. `api` holds 300 of the 500 shares."
+  - id: no-default
+    value: 100
+    working: api / api * 100
+    why: "That gives the other two nothing. A service with no `CPUWeight=` line still has a weight, the default of 100."
+explanation: |
+  Under contention, CPU time is divided in proportion to the weights. The two services without a `CPUWeight=` line have the default, 100, so the weights are 300, 100 and 100: 500 in all, and `api.service` gets 300 ÷ 500 = 60%. The other two get 20% each. The moment one of them goes idle the split changes (300 against 100 is 75%), and with both idle `api.service` has the whole CPU: a weight is a share of what's contested, never a cap.
+skills: [cgroups-v2]

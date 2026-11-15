@@ -1,0 +1,23 @@
+id: est-cpus-flag-to-quota
+type: estimate
+rev: 1
+prompt: |
+  A container is started with `--cpus=0.25`. Docker writes two numbers to its cgroup's `cpu.max`. The second, the period, is 100000. What is the first? Exactly.
+unit: microseconds
+answer: 25000
+tolerance: { absolute: 0 }
+given: { cpus: 0.25, period: 100000 }
+# Checked with Docker, 2026-11-15: --cpus=0.25 gives cpu.max "25000 100000".
+working: cpus * period
+mistakes:
+  - id: as-a-percentage
+    value: 25
+    working: cpus * 100
+    why: "That's a quarter of a CPU as a percentage. `cpu.max` counts microseconds of CPU time in each period: a quarter of 100,000 µs."
+  - id: divided
+    value: 400000
+    working: period / cpus
+    why: "That divides the period by 0.25 where it should multiply. 400,000 µs in every 100,000 µs would be four CPUs, not a quarter of one."
+explanation: |
+  `--cpus` is a number of CPUs, and the quota is that share of each period: 0.25 × 100,000 µs = 25,000 µs, so `cpu.max` reads `25000 100000`. The container may run for 25 ms in every 100 ms and is stopped for the rest of the period once it has, even on an idle host. Reading the file back is how you find out what a running container was really given: quota ÷ period is the number that was passed to `--cpus`.
+skills: [cgroups-limits]

@@ -1,0 +1,29 @@
+id: est-umask-shared-file
+type: estimate
+rev: 1
+prompt: |
+  Everyone on a build server works with `umask 002`. Ada saves a new file there, `notes.txt`. What mode does it get, in octal? Exactly.
+unit: octal mode
+answer: 664
+tolerance: { absolute: 0 }
+given: { mask: 2 }
+# The mask's only bit, write for others, is one a new file has, so taking it
+# away is the same as subtracting it. Run on Ubuntu 24.04, 2026-11-15:
+# umask 002, touch, is 664.
+working: 666 - mask
+mistakes:
+  - id: a-directory
+    value: 775
+    working: 777 - mask
+    why: "That's what a new directory gets. A file starts from 666, not 777: nothing is made executable just by being created."
+  - id: the-usual-mask
+    value: 644
+    working: 666 - 22
+    why: "That's the result of the usual mask, 022, which takes write from the group as well. 002 takes it from others only."
+  - id: the-wrong-digit
+    value: 646
+    working: 666 - 20
+    why: "That takes write from the group and leaves it with others. A mask's three digits are owner, group, others, like a mode's, so 002 touches only the last."
+explanation: |
+  A new file starts from 666, `rw-rw-rw-`, and `umask 002` takes away one bit: write (2) for others. The file is 664, `rw-rw-r--`: Ada and her group can change it, everyone else can only read it. That is the point of 002 on a shared machine: files come out writable by the group without anyone having to remember a `chmod g+w`. Under the usual 022 the same file would be 644, and a teammate couldn't edit it.
+skills: [chmod-chown]
