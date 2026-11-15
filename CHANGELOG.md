@@ -22,6 +22,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - CPU architectures gains `arch-lscpu-arm`, three lines of `lscpu` recorded on a real Arm cloud server (an Azure VM on a Cobalt 100), and Hypervisors gains `hv-azure-two-nics`, the two interfaces an Azure VM shows for one network card with Accelerated Networking. Both were recorded by the Capture workflow on 2026-11-15, and the recordings are kept in `docs/plans/cloud-module-2/captures/`.
 
+### Fixed (the lab checker: a forgotten disk with a device built on it)
+
+- `tools/labcheck.py`'s sweep for disks a dead lab left attached now removes a device built on such a disk first (an LVM volume, or the saturated-disk lab's data disk), so the disk can be let go of. It still touches only disks it has found stale. Tried on a real leftover volume.
+
 ### Added (a capture tool for GitHub's own machines)
 
 - `tools/lab-capture` and a Capture workflow, started by hand, that records what GitHub's x86 and Arm machines show about the hypervisor under them and uploads the result. Module 2's plan asked for it, so that examples of a real cloud guest are captured and not typed. A test keeps the script and the two labs' copies of it identical.
@@ -97,6 +101,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - The app takes on Momentum, the design direction the owner chose: limestone paper and pine ink in light mode, a deep pine "night trail" in dark mode. The grey scale every page was written with is repainted in `web/src/index.css`, so every page changes at once. Every text pairing keeps a contrast of at least 4.5 to 1 (WCAG AA).
 - Three fonts, bundled with the app under the SIL Open Font License 1.1, so no page asks a font service for them: Gabarito for headings, Figtree for text (18px with roomy lines), JetBrains Mono for code, with ligatures off so a learner sees each character they type.
 - The favicon's background is pine to match.
+
+### Added (cloud Module 1: a saturated disk, and a patch day with `dnf`)
+
+- Performance triage has a lab on a saturated disk: show it with `iostat -x`, find the writer with `pidstat -d`, and fix the cause without lifting the disk's limit.
+- Package management has a lab on AlmaLinux 9, the track's first that isn't Ubuntu: find a bad upgrade in `dnf history`, take it back, lock two versions, and upgrade the rest.
+- The two topics gain three questions on `dnf`, a third on replacing servers instead of patching them, and four number drills for triage.
 
 ### Added (cloud Module 2: the plan, and the platform it needs)
 

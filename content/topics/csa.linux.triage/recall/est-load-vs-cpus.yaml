@@ -1,0 +1,24 @@
+id: est-load-vs-cpus
+type: estimate
+rev: 1
+prompt: |
+  `uptime` shows a 1-minute load average of 22 on a server where `nproc` prints 16. `vmstat` shows nothing blocked on a disk, so all of that load is tasks that want a CPU. On average over the last minute, how many tasks were waiting for a CPU while the others ran? Exactly.
+unit: tasks
+answer: 6
+tolerance: { absolute: 0 }
+given: { load: 22, cpus: 16 }
+working: load - cpus
+mistakes:
+  - id: every-task
+    value: 22
+    working: load
+    why: That's every task that wanted a CPU. 16 of them had one at any moment; the ones waiting are the rest.
+  - id: per-cpu
+    value: 1.375
+    working: load / cpus
+    why: That's the load for each CPU. It is a useful ratio, since anything above 1 means tasks are waiting, but the question asks how many.
+explanation: |
+  The load average counts the tasks that are running or waiting to run. With 16 CPUs, 16 of the 22 can run at once, which leaves 22 − 16 = 6 waiting their turn: the CPUs are saturated, and `vmstat`'s `r` column would show about 22 as well.
+
+  The same 22 on a 32-CPU server would mean ten CPUs idle, which is why a load average is always read against `nproc`. And on Linux the load average also counts tasks stuck waiting for a disk, which is why the question rules that out first: a load of 22 with idle CPUs and a high `wa` is a disk problem, not a CPU one.
+skills: [first-minute]

@@ -397,6 +397,12 @@ LAB_DISKS = "/var/lib/lab/"
 # mounted anywhere on the machine: that filesystem was a container's own, so
 # the container is gone or stopped, and nothing can reach the file again. A
 # running lab's disks never qualify, whatever the container is called.
+#
+# A lab may build another device on top of its disk: an LVM volume, or the
+# triage lab's data disk (both are device-mapper devices). Such a device
+# holds the disk open, so the disk can't be let go of until the device on
+# top is removed. The helper removes those first, and only from on top of a
+# disk it has already found stale.
 # $1 is "detach"; anything else only reports. Prints "stale DEVICE FILE" for
 # each disk it let go of, "in-use DEVICE FILE" for each it left alone.
 STALE_DISKS = (
@@ -409,6 +415,21 @@ STALE_DISKS = (
 mine=$(awk '$5 == "/" { print $3 }' /proc/self/mountinfo | tail -1)
 [ -n "$mine" ] && [ "$mine" = "$(stat -c '%Hd:%Ld' /usr/bin/env)" ] \\
   || { echo "abort: files don't report their filesystem's device"; exit 0; }
+# Removes every device-mapper device built on the block device named $1
+# (loop3, dm-2), whatever is built on top of each one first. Without
+# dmsetup in the image, or if a device won't go, it leaves things as they
+# are: the disk is then only marked, to be let go of once nothing holds it.
+release() {
+  # Its own variables: it calls itself, and the loop below it uses "name".
+  local holder dm
+  command -v dmsetup > /dev/null 2>&1 || return 0
+  for holder in /sys/block/"$1"/holders/dm-*; do
+    [ -e "$holder/dm/name" ] || continue
+    dm=$(cat "$holder/dm/name")
+    release "${holder##*/}"
+    dmsetup remove --noudevsync "$dm" 2>/dev/null || true
+  done
+}
 for backing in /sys/block/loop*/loop/backing_file; do
   [ -e "$backing" ] || continue
   name=${backing#/sys/block/}
@@ -429,7 +450,10 @@ for backing in /sys/block/loop*/loop/backing_file; do
         if awk '{ print $3 }' /proc/[0-9]*/mountinfo 2>/dev/null | grep -qxF "$on"; then
           echo "in-use $dev $file"
         else
-          [ "$1" = detach ] && losetup -d "$dev"
+          if [ "$1" = detach ]; then
+            release "$name"
+            losetup -d "$dev"
+          fi
           echo "stale $dev $file"
         fi
       fi

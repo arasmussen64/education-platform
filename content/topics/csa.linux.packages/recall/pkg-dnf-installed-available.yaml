@@ -1,0 +1,29 @@
+id: pkg-dnf-installed-available
+type: predict_shell
+rev: 1
+prompt: |
+  These two files come from a server of Red Hat's family, where `dnf` and `rpm` do the work of `apt` and `dpkg`. `installed.txt` is what `rpm -q shop-report` printed. `list.txt` is what `dnf list --showduplicates 'shop-*'` printed: first the packages that are installed, whose last column, `@shop`, names the repository each came from; then every version the repository `shop` has. The command prints the first file, then the version column of every `shop-report` line whose last column is exactly `shop`. What is printed?
+files:
+  installed.txt: |
+    shop-report-2.1-1.noarch
+  list.txt: |
+    Installed Packages
+    shop-agent.noarch                            1.0-1                         @shop
+    shop-report.noarch                           2.1-1                         @shop
+    Available Packages
+    shop-agent.noarch                            1.0-1                         shop
+    shop-agent.noarch                            1.1-1                         shop
+    shop-dashboard.noarch                        1.0-1                         shop
+    shop-dashboard.noarch                        1.1-1                         shop
+    shop-report.noarch                           2.0-1                         shop
+    shop-report.noarch                           2.1-1                         shop
+command: cat installed.txt; awk '$1 == "shop-report.noarch" && $3 == "shop" {print $2}' list.txt
+expected_output: |
+  shop-report-2.1-1.noarch
+  2.0-1
+  2.1-1
+explanation: |
+  `rpm -q` names a package as name, version, release and architecture: `shop-report`, `2.1`, `1`, `noarch` (it runs on any processor). The release counts the packager's own rebuilds of one version, as the `-2ubuntu7` part of an Ubuntu version does. The `awk` test skips the installed line, whose last column is `@shop`, and keeps the two the repository offers: 2.0-1 and 2.1-1.
+
+  So the server has the newest version, and an older one is there to go back to: `dnf install shop-report-2.0` installs it by name and version, and `dnf downgrade shop-report` steps back one. On Ubuntu, `apt policy shop-report` answers both questions at once, installed and available.
+skills: [apt-dnf]

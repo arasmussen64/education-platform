@@ -17,6 +17,20 @@ Part of what was left in Modules 1 to 3. The capture tool's first run, on GitHub
 - _No recording from AWS:_ GitHub runs some jobs on AWS (one of today's Labs machines had an AWS kernel), but both capture jobs landed on Azure. The Nitro question therefore stays written from documentation. Running the workflow again may land on AWS.
 - _The Hypervisors build's fleet is still made from documentation._ Swapping in the real recordings would change that lab's image and checks, and nothing in the plan requires it.
 
+## 2026-11-15, leftovers: the lab checker lets go of a disk that has something built on it
+
+Part of what was left in Modules 1 to 3. Two of today's new labs build a second device on top of their disk: the LVM lab's volume, and the saturated-disk lab's data disk. When a lab's container goes away without its teardown (removed from Docker Desktop's window, or killed), the checker's sweep lets go of the disks it left attached, the next time a lab with disks starts. It couldn't let go of a disk with a device built on it, because that device holds the disk open, so the volume and its disks stayed until Docker restarted.
+
+- **The sweep now removes what is built on a stale disk first,** and whatever is built on top of that, then lets go of the disk. It still touches only a disk it has already found stale: one whose image file is on a filesystem that isn't mounted anywhere any more.
+
+Tried for real: the LVM lab's volume was built, its container killed, and another storage lab started. The volume was removed and both of its disks freed, while two labs that were running at the same moment, one of them with a device on its disk, were reported in use and left alone.
+
+**Author notes:**
+
+- _The real trial found a bug the tests couldn't:_ the function calls itself, and without variables of its own the inner call overwrote the outer loop's, so the device to remove had no name. A test now pins the fix.
+- _The trial killed the container where it meant to remove it:_ a safety check in the tooling refused a command that removed a container beside a script it couldn't read. A killed container leaves its disks attached in the same way.
+- _An image without `dmsetup` changes nothing:_ the sweep runs in the starting lab's own image, and skips the new step if the tool isn't there.
+
 ## 2026-11-15, leftovers: a capture tool for GitHub's own machines
 
 Part of what was left in Modules 1 to 3. Module 2's plan asked for one piece of authoring tooling that was never built: a way to record what a real cloud machine shows about the hypervisor under it, so the content's examples are captured and not typed. GitHub's own machines are real cloud guests, x86 and Arm, and free on a public repository.
@@ -275,6 +289,25 @@ The owner asked for the redesign to start, in the Momentum direction they chose 
 - _A rule for the editor's font has to sit outside Tailwind's layers:_ CodeMirror adds its own `monospace` rule, and an unlayered rule always beats a layered one.
 
 **Next:** stage 2, lime for "forward" only and the editor's themes; then Module 4 of the cloud track resumes as planned.
+
+## 2026-11-15, leftovers: a saturated disk, and a patch day with `dnf`
+
+Part of what was left in Modules 1 to 3 (the list is further up, under "What's left in cloud Modules 1 to 3"; this entry sits here only so that pull requests open at the same time don't edit the same lines). Two more things Module 1's spec promises that were taught and never done by hand.
+
+- **A saturated disk, found by hand** (Performance triage). A test order takes about 1,300 ms on a machine whose CPUs are idle. The learner saves `iostat -x` reports that show the data disk 100% busy with a queue of about 32 and writes waiting about 320 ms, finds the writer with `pidstat -d` and `lsof` (a sync job whose 32 workers are writing a debug trace), and turns the trace off in the job's settings. Eight checks read state: the saved evidence, the finding, orders quick again and still written to the data disk, the sync job still at full speed, the programs untouched, the disk's limit still in place. Eleven known-wrong fixes, among them lifting the limit, stopping the sync job, and blaming the order service.
+- **A patch day with `dnf`** (Package management). `dnf` is the package manager of Red Hat's family of Linux, as `apt` is Ubuntu's. The lab's machine is AlmaLinux 9, the track's first that isn't Ubuntu, with a small package repository built into the image. The learner reads what is installed and what is on offer, finds in `dnf history` the transaction that upgraded a package, takes it back and locks its version, installs an older version of another on purpose and locks that, then upgrades everything else. Eight known-wrong fixes.
+- **Also:** three questions on `dnf` over output captured in the lab, a third question on replacing servers instead of patching them, and four number drills for triage (busy time as a percentage, the wait a queue implies, how fast a queue grows, load against the number of CPUs).
+
+**Author notes:**
+
+- _A disk capped with `io.max` alone doesn't look saturated to `iostat`:_ the kernel holds the writes back before they reach the device, so it reported the disk 1% busy. The lab's data disk is therefore a device-mapper device laid over the capped loop disk, and the queue builds where `iostat` can see it. It builds a device-mapper device, which CI's Linux machines allow (the LVM lab showed that first).
+- _Where the limit is set mattered on CI._ The lab's first version wrote the limit into the top-level control group of its own container, which Docker Desktop allows and GitHub's machine refused ("Operation not permitted", read from the lab's own boot log on a runner). The limit is now a systemd setting on a slice, a named group of services, that holds the shop's two services, the way Module 2's disk labs set theirs. The services sit one slice further down, because directly in the limited slice the kernel took turns between them and an order was slowed to only about 370 ms, not 1,300.
+- _If that lab's container is removed without the lab checker_ (from Docker Desktop's window, say), one device-mapper device and one loop device stay attached until Docker restarts. The checker's sweep for forgotten disks can't detach a loop device that another device holds. Teaching it to is the next small tool change.
+- _While that lab runs, the whole machine's load average rises by about 32,_ because Linux counts processes waiting on a disk in it. The lab's prompt doesn't lean on that number, because inside a container it belongs to the whole machine. Other labs running at the same moment see it too.
+- _A typed-in line of `iostat` output passes as evidence,_ and can't be prevented: the check reads the report the learner saved.
+- _Moving the trace to another disk also passes,_ on purpose: it takes the load off the data disk, which is what was asked.
+- _`perf` stays questions only:_ it doesn't work inside the lab's container.
+- _AlmaLinux worked under the lab checker unchanged._ The checker needed nothing from Ubuntu that the image didn't have.
 
 ## 2026-11-13: Module 3 is written, and where we stopped
 

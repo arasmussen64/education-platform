@@ -1,0 +1,22 @@
+[Unit]
+Description=shop-orders: takes the shop's orders
+Requires=lab-disks.service
+After=lab-disks.service
+
+[Service]
+# Its settings: each NAME=value line of this file is handed to the program
+# when it starts.
+EnvironmentFile=/etc/shop/orders.conf
+# Makes its folder, owned by the shop's account, before it starts.
+ExecStartPre=-+/usr/bin/install -d -o shop -g shop ${ORDERS_DIR}
+ExecStart=/usr/local/bin/shop-orders
+User=shop
+# With the shop's other service, inside shop.slice.
+Slice=shop-services.slice
+Restart=always
+RestartSec=1
+# Keep count of its disk reads and writes (io.stat in its cgroup folder).
+IOAccounting=yes
+
+[Install]
+WantedBy=multi-user.target
