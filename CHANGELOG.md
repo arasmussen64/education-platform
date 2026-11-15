@@ -40,6 +40,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Checkpoint 2's domain lab: a known-wrong fix whose `realm join` fails on some networks no longer breaks the lab's proof in CI; its script ends cleanly and the checks judge it.
 - Checkpoint 3's cloud-link lab, in both versions, reads plain `netlab verify`; the helper that worked around two faults in the network base is gone, since the base was fixed.
 
+### Changed (cloud Modules 1 and 2: restarted in CI)
+
+- 69 of the 79 systemd labs of Modules 1 and 2, every Module 2 lab and Checkpoint 2 among them, now take the restart trial: after the solution passes, CI restarts the lab and every check must pass again. Ten Module 1 labs leave it off, each with its reason beside the setting: what their checks read is something a real reboot also clears.
+
 ### Changed (cloud Modules 1 to 3: what was left, batch one)
 
 - Review pools are wider, from questions that already existed: every Module 1 topic's pool holds all its recall questions (6 became 14 to 21), HTTP and TLS has 12 where it had 7, and Hypervisors gained three. A review still asks two questions and now rotates through more.

@@ -59,6 +59,21 @@ Sixteen labs changed, each proved again with the lab checker: the untouched lab 
 
 **Next:** the three tightened checks, then the new content for Module 3.
 
+## 2026-11-15, leftovers: Modules 1 and 2 are restarted in CI too
+
+Part of what was left in Modules 1 to 3. Since Module 3, a lab can ask for a restart trial: once its solution passes, the checker restarts the lab's machine and runs every check again, so a fix that wouldn't survive a reboot fails in CI. Modules 1 and 2 were written before that existed, and Checkpoint 2 promises fixes that last a reboot.
+
+Proving 79 labs on one PC would have taken hours, so the trial was switched on for every systemd lab of the two modules on a draft pull request, and CI's eight machines said which ones don't pass again after a restart.
+
+- **69 of the 79 pass, and now keep the trial on:** every Module 2 lab and Checkpoint 2 among them. Nothing had to be fixed: no solution turned out to be one that doesn't last.
+- **Ten Module 1 labs fail it by design, and leave it off with the reason written beside the setting.** In each, what the checks read is something a real reboot also clears: systemd's count of automatic restarts (Services); how a service last ended (Memory); the "reboot needed" flag in `/run` (Packages); a control group made by hand (Containers); a runaway process the scenario starts again at boot (Processes); a first boot that the lab's restart repeats (Boot); files held open by processes that a reboot ends, and three storage labs whose fstab mounts don't come back in a container without udev.
+
+**Author notes:**
+
+- _ADR-0018 guessed "a dozen" would fail by design;_ it was ten. Its note and the writer's guide are brought up to date, and the guide now asks a new systemd lab to set the trial unless it can give such a reason.
+- _Checkpoint 1's nine labs aren't in this,_ because another pull request open beside it rewrites them. They follow once it is merged.
+- _No lab's revision number changed:_ the trial is part of how a lab is proved, not of what the learner sees.
+
 ## 2026-11-15, last: What's left in cloud Modules 1 to 3, and the first batch
 
 The owner asked for everything left in the cloud track before Module 4 to be built. Modules 1 to 3 are all `ready`, so "left" had to be found first: three reviewers, one a module, read the spec, the plans and this devlog against what was built, changing nothing. All three found the same thing: every topic has its four proofs and nothing is half-written, and what remains is what was put off while writing.
