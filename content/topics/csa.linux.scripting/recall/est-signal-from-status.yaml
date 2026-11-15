@@ -1,0 +1,24 @@
+id: est-signal-from-status
+type: estimate
+rev: 1
+prompt: |
+  A nightly job's log ends with `backup.sh exited with status 130`. Nothing in the script calls `exit` with a number that high. Which signal number ended the script? Exactly.
+unit: signal number
+answer: 2
+tolerance: { absolute: 0 }
+given: { status: 130 }
+# Run in bash 5.2 on Ubuntu 24.04, 2026-11-15: bash -c 'kill -INT $$';
+# echo $? prints 130, and kill -l 130 prints INT.
+working: status - 128
+mistakes:
+  - id: counted-from-127
+    value: 3
+    working: status - 127
+    why: "That counts from 127. A death by signal is reported as 128 plus the signal's number, so 130 is signal 2."
+  - id: the-kill-signal
+    value: 9
+    working: "9"
+    why: "That's `KILL`, which shows up as status 137. 130 is 128 + 2."
+explanation: |
+  A status above 128 that the script didn't choose is 128 plus a signal's number: 130 − 128 = 2. Signal 2 is `INT`, the interrupt that Ctrl-C sends, so somebody (or some tool acting for them) interrupted the backup; it didn't fail by itself. `kill -l 130` does the subtraction for you and prints `INT`. The same reading works for any such status: 137 is signal 9, `KILL`, and 143 is signal 15, `TERM`.
+skills: [traps-cleanup]

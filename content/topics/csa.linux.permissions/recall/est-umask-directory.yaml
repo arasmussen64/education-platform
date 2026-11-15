@@ -1,0 +1,29 @@
+id: est-umask-directory
+type: estimate
+rev: 1
+prompt: |
+  A deploy script sets `umask 007` and then runs `mkdir releases`. What mode does the new directory get, in octal? Exactly.
+unit: octal mode
+answer: 770
+tolerance: { absolute: 0 }
+given: { mask: 7 }
+# A directory starts at 777, which has every bit, so taking the mask's bits
+# away is the same as subtracting it. Run on Ubuntu 24.04, 2026-11-15:
+# umask 007, mkdir, is 770.
+working: 777 - mask
+mistakes:
+  - id: a-file
+    value: 660
+    working: (6 - 0) * 100 + (6 - 0) * 10 + (6 - 4 - 2)
+    why: "That's what a new file gets. A directory starts from 777, not 666, so the owner and the group keep the execute bit that lets them enter it."
+  - id: the-usual-mask
+    value: 755
+    working: 777 - 22
+    why: "That's the result of the usual mask, 022. This script set 007, which takes nothing from the group and everything from others."
+  - id: nothing-taken
+    value: 777
+    working: "777"
+    why: "That's where a directory starts, before the mask. 007 takes read, write and execute away from others."
+explanation: |
+  A new directory starts from 777 and the mask takes bits away: 0 from the owner, 0 from the group, and all three (4 + 2 + 1 = 7) from others. That leaves 770, `rwxrwx---`: the owner and the group can list it, change it and enter it, and nobody else can do anything. A file created under the same mask starts from 666 and comes out 660. `umask 007` suits a script whose output a whole team (the group) should be able to manage and no one else should see.
+skills: [chmod-chown]

@@ -4,7 +4,7 @@ runtime: lab
 lab:
   init: systemd
   restart_trial: true
-rev: 1
+rev: 2
 title: "Write why-not"
 prompt: |
   Write a script, `~/bin/why-not HOST PORT`, that says in one word why a TCP connection from the office to HOST on PORT works or doesn't, testing from the bottom layer up, the way the lesson works through a fault. It prints exactly one of:
@@ -22,7 +22,7 @@ prompt: |
   - **Layer 2:** `ping -c 1 -W 1 HOST > /dev/null` makes the kernel ask ARP for the next hop whether or not the ping is answered (srv and far drop pings). Then `ip neigh show NEXTHOP` shows the neighbour's state as its last word: `FAILED` or `INCOMPLETE` (or no line at all) means it never answered.
   - **Layer 4:** `nc -z -w 2 HOST PORT` exits 0 when the connection is made. Without `-v` it prints nothing either way, and a refusal and a drop both exit 1, so time it: `start=$(date +%s%N)` before it reads the clock in nanoseconds, and `$((($(date +%s%N) - start) / 1000000))` after it is how many milliseconds it took. A reset comes back in a few; a drop takes the whole 2 seconds (count 1,500 or more as dropped).
 
-  Start the file with `mkdir -p ~/bin` and `nano ~/bin/why-not`, begin it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/why-not`. Try it against srv and far (ports 80, 22 and the ones their firewalls drop: `on srv nft list ruleset`), and against an address nobody owns. The checks build test machines of their own, with addresses and ports chosen as the checks run, so the script must test, not know. Then run the checks.
+  Start the file with `mkdir -p ~/bin` and `nano ~/bin/why-not`, begin it with `#!/bin/bash`, and make it executable with `chmod +x ~/bin/why-not`. ShellCheck, the script checker from Module 1's scripting topic, must have nothing to say about it (`shellcheck ~/bin/why-not`). Try it against srv and far (ports 80, 22 and the ones their firewalls drop: `on srv nft list ruleset`), and against an address nobody owns. The checks build test machines of their own, with addresses and ports chosen as the checks run, so the script must test, not know. Then run the checks.
 hints:
   - "Read the two arguments first: `host=$1` and `port=$2`. Then `hop=$(ip route get \"$host\" | awk ...)`, and if `$hop` is empty, `hop=$host`."
   - "`state=$(ip neigh show \"$hop\" | awk '{print $NF}')` keeps the last word of the line. Test it with `if [ -z \"$state\" ] || [ \"$state\" = FAILED ] || [ \"$state\" = INCOMPLETE ]; then echo no-arp; exit 0; fi`: the script stops there, since there's no point testing a port behind a next hop that never answered."

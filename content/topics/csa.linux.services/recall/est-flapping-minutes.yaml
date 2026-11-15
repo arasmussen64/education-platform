@@ -1,0 +1,26 @@
+id: est-flapping-minutes
+type: estimate
+rev: 1
+prompt: |
+  `journalctl -u sync` ends with the line `sync.service: Scheduled restart job, restart counter is at 240.` The unit has `RestartSec=30`, and its program fails at once on every start. For about how many minutes has the service been failing? Within 5%.
+unit: minutes
+answer: 120
+tolerance: { percent: 5 }
+given: { counter: 240, sec: 30 }
+working: counter * sec / 60
+mistakes:
+  - id: in-seconds
+    value: 7200
+    working: counter * sec
+    why: "That's the time in seconds: 240 restarts of 30 seconds each. Divide by 60 for minutes."
+  - id: divided
+    value: 8
+    working: counter / sec
+    why: "That divides the restarts by the pause. Each restart costs 30 seconds, so the two are multiplied: 240 × 30 seconds."
+  - id: a-minute-each
+    value: 240
+    working: counter
+    why: "That allows a minute for each restart. Each one waits `RestartSec`, 30 seconds, so 240 of them take half that."
+explanation: |
+  Every restart is one failure followed by one 30-second pause, so 240 restarts are 240 × 30 = 7,200 seconds: 120 minutes. The service has been down for two hours, and at one start every 30 seconds systemd will never give up on it, so nothing but this counter and the failures in the journal says so. `systemctl show sync -p NRestarts` prints the same counter, and the first `Scheduled restart job` line in the journal carries the time it all began.
+skills: [supervision, journalctl]

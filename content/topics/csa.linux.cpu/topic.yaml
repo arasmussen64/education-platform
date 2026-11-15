@@ -4,7 +4,7 @@ status: ready
 title: "CPU scheduling and cgroups"
 summary: "How Linux shares the CPUs: the fair scheduler and nice values, load average and what it really counts, steal time in a VM, cgroups v2 weights and quotas, and how to find and fix a container that's being throttled."
 prerequisites: [csa.linux.processes, csa.linux.permissions, csa.linux.services]
-estimated_minutes: 220
+estimated_minutes: 229
 rev: 1
 objectives:
   - "Explain how the Completely Fair Scheduler shares CPU time, what nice values do, and read `top`'s CPU line (`us`, `sy`, `id`, `wa`, `st`)."
@@ -41,7 +41,9 @@ resources:
     use: link
     license: CC BY 4.0
 # The recall items read top, uptime, ps and cgroup files with the text tools
-# of the first topic and bash arithmetic. The worked example, the fill-in,
+# of the first topic and bash arithmetic; the estimate items (ADR-0024) are
+# the sums done on sight: a quota from a percentage and back, a share from
+# weights, throttled periods, load per CPU. The worked example, the fill-in,
 # the write and both proofs are labs on a machine that boots systemd, where
 # quotas and weights are real cgroup settings and the kernel does the
 # throttling (ADR-0017, ADR-0018). Every lab sets them through systemd
@@ -53,17 +55,23 @@ practice:
   - cpu-nice-order
   - mcq-nice-values
   - cpu-load-vs-cores
+  - est-load-per-cpu
   - mcq-load-average
   - cpu-top-steal
   - mcq-steal-time
   - mcq-cgroup-hierarchy
   - cpu-cgroup-procs
   - cpu-weights
+  - est-weight-share
   - cpu-quota-percent
+  - est-quota-to-cpu-max
   - cpu-quota-two-groups
+  - est-cpu-max-to-cpus
   - mcq-weight-vs-quota
   - cpu-throttled-periods
+  - est-throttled-share
   - mcq-throttling-symptom
+  - est-burst-wall-time
   - mcq-k8s-cpu-limits
   - fill-cpu-report
   - write-cpu-cap
@@ -108,6 +116,12 @@ review_pool:
   - cpu-weights
   - cpu-quota-two-groups
   - mcq-k8s-cpu-limits
+  - est-load-per-cpu
+  - est-weight-share
+  - est-quota-to-cpu-max
+  - est-cpu-max-to-cpus
+  - est-throttled-share
+  - est-burst-wall-time
 skills:
   - id: scheduler
     description: "How CFS shares the CPU, nice values and `renice`, and reading `top`'s CPU line"

@@ -1,0 +1,18 @@
+id: mcq-reverse-zone-name
+type: mcq
+rev: 1
+prompt: |
+  A company's two domain controllers are at 10.20.0.4 and 10.20.0.5, and the site's resolver already forwards the domain's own zone to them. Which reverse zone must it forward as well, so that any address from 10.20.0.0 to 10.20.0.255 can be turned back into a name?
+choices:
+  - "`0.20.10.in-addr.arpa`: the network's three numbers, backwards"
+  - "`10.20.0.in-addr.arpa`: the network's three numbers, as written"
+  - "`4.0.20.10.in-addr.arpa`: the first controller's address, backwards"
+  - "`10.20.0.4.in-addr.arpa`: the first controller's address, as written"
+answer: 0
+explanation: |
+  A reverse zone is named after the network's numbers written backwards, with `in-addr.arpa` on the end: the addresses 10.20.0.x live in `0.20.10.in-addr.arpa`, just as the lab's 10.0.9.x live in `9.0.10.in-addr.arpa`. Inside the zone, each address is a PTR record named by its last number: record `4` holds the name of 10.20.0.4, and record `5` the name of 10.20.0.5.
+
+  Written forwards, `10.20.0.in-addr.arpa` would be the zone for a different network, 0.20.10.x. The whole address backwards, `4.0.20.10.in-addr.arpa`, is the full name of one PTR record, the first controller's; forwarding only that leaves the second controller, and every other address, without a name. And the address written forwards would be the record of another machine altogether, the one at 4.0.20.10.
+
+  Backwards is not a whim: DNS names get more specific towards the left (`dc1.ad.shop.test`), and addresses get more specific towards the right, so an address has to be turned round to fit.
+skills: [dc-discovery]

@@ -1,0 +1,29 @@
+id: est-seconds-until-give-up
+type: estimate
+rev: 1
+prompt: |
+  A unit has `Restart=on-failure` and `RestartSec=10`, and its `[Unit]` section sets `StartLimitBurst=4` and `StartLimitIntervalSec=60`: at most 4 starts in any 60 seconds. Its program fails at once every time it is started. systemd keeps restarting it until one start is refused with `Start request repeated too quickly`. About how many seconds after the first start does that refusal come? Within 2 seconds.
+unit: seconds
+answer: 40
+tolerance: { absolute: 2 }
+given: { sec: 10, burst: 4, interval: 60 }
+# Tried on systemd 255 (Ubuntu 24.04), 2026-11-15, with exactly these
+# settings: starts at 0, 10.1, 20.4 and 30.6 seconds, and "Start request
+# repeated too quickly" at 40.9.
+working: burst * sec
+mistakes:
+  - id: the-last-start
+    value: 30
+    working: (burst - 1) * sec
+    why: "That's when the fourth and last start happens. systemd gives up when the next one comes due, 10 seconds later, and is refused."
+  - id: the-interval
+    value: 60
+    working: interval
+    why: "That's the window the starts are counted in, not a time systemd waits. The 4 starts are used up by second 30, and the fifth is refused when it comes due."
+  - id: one-start-too-many
+    value: 50
+    working: (burst + 1) * sec
+    why: "That lets a fifth start through. Only 4 are allowed, at seconds 0, 10, 20 and 30; the one due at second 40 is the one refused."
+explanation: |
+  The 4 allowed starts happen at seconds 0, 10, 20 and 30, each failing at once and each followed by the 10-second pause. At second 40 the fifth start comes due, inside the same 60 seconds, and systemd refuses it: the journal says `Start request repeated too quickly` and the unit stays failed. On a real machine each round takes a fraction of a second longer, so expect about 41. From then on a `start` fails too, until `systemctl reset-failed` clears the count or the 60 seconds have passed. Had the pause been 20 seconds, the fifth start would have come due at second 80, outside the 60, and systemd would never have given up.
+skills: [supervision]

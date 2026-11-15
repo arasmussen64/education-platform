@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, leftovers: Module 3's script labs are linted
+
+The second pull request of what was left in Modules 1 to 3 ([the list](#2026-11-15-last-whats-left-in-cloud-modules-1-to-3-and-the-first-batch) is in the entry below). The Module 3 plan asked that every lab where the learner writes a shell script have ShellCheck read it, as Module 1's scripting labs do. ShellCheck is the script checker that topic teaches. Six labs had been written without it.
+
+- **Six write labs now lint the learner's script:** Layers and packets, Congestion control, DNS, VPNs and IPsec, Load balancing and Network troubleshooting. Each prompt says so in one sentence, the first check runs ShellCheck and refuses a script that switches a warning off, and each lab has known-wrong scripts that do the job and fail only the lint.
+- **DNS's own reference script failed the lint** (an unquoted variable). It is fixed, and its hint now teaches the quoted form.
+- **The eight labs that already linted had two gaps.** A warning switched off with two spaces or a tab in the comment passed, because the check looked for exactly one space. And six of them had no known-wrong script failing the lint, so that rule in their prompts was unproved. Both are closed.
+- **Checkpoint 3's cloud link reads plain `netlab verify`.** The helper it carried worked around two faults in the network base's own comparison, which were fixed on 2026-11-13. The helper, its copy line and its permissions line are gone from both versions of the lab.
+
+Sixteen labs changed, each proved again with the lab checker: the untouched lab fails, the solution passes and passes again after a restart, and every known-wrong fix fails.
+
+**Author notes:**
+
+- _The network base still has no ShellCheck._ Each lab that lints installs it in a line of its own, written the same in every lab so Docker builds it once. Putting it in the base would rebuild every network lab.
+- _One small difference is left by removing the helper:_ a stray route of two rare kinds (`throw` and `local`) typed by hand on the edge router is no longer reported. FRR ignores both, so no wrong fix gets through; closing it would mean changing the base.
+- _Left alone:_ a two-line script that hands over to a second, unlinted file passes every lint. A learner who does that is choosing to cheat. The troubleshooting build isn't linted, because its prompt allows any tool and an awk script is a fair answer.
+- _These labs now take longer in CI,_ so `tools/lab-seconds.json` is refreshed again once the leftovers are all in.
+- _CI found a known-wrong fix that could pass by luck,_ in Congestion control's write lab, on this pull request's first run. The fix runs both speed tests with the same algorithm, CUBIC, and the check asked only that the second test be at least twice the first and the first under 25 Mbit/s. Two short CUBIC tests across a lossy link can differ twofold. The check now also asks that the second test be over 25 Mbit/s by itself, which only BBR reaches there (it measures 41 to 46, and CUBIC at most 13.5). The flaw was there before the lint work; the lint work only made CI run the lab again.
+- _A second CI failure had nothing to do with this work:_ in Checkpoint 2's domain lab, one known-wrong fix (the reverse zone not forwarded) stopped with an error on some of GitHub's machines and ran clean on others, in runs minutes apart. With the reverse zone not forwarded, the site's resolver asks its own upstream for the name of the domain controller's address. Most networks say "no such name" and the join goes through; that day some of GitHub's answered with a name of their own, Kerberos asked for a ticket for the wrong name, and `realm join` said "Insufficient permissions", so the fix's script ended with an error and the checker called the lab broken. The script now ends cleanly whatever the join did, in both versions of the lab, and the checks judge it. A learner who makes this mistake may see either symptom, depending on their own network; both are what the mistake really does.
+
+**Next:** the three tightened checks, then the new content for Module 3.
+
 ## 2026-11-15, last: What's left in cloud Modules 1 to 3, and the first batch
 
 The owner asked for everything left in the cloud track before Module 4 to be built. Modules 1 to 3 are all `ready`, so "left" had to be found first: three reviewers, one a module, read the spec, the plans and this devlog against what was built, changing nothing. All three found the same thing: every topic has its four proofs and nothing is half-written, and what remains is what was put off while writing.
@@ -31,6 +53,21 @@ The owner asked for everything left in the cloud track before Module 4 to be bui
 - _The plan's price fixture still lists AWS's g5 and g6 cards as 24 GiB._ It is a dated record with a warning on it, and the content uses 22, so it was left alone.
 
 **Next:** batch two, the new questions.
+
+## 2026-11-15, leftovers: Module 2's review pools, and right-sizing from a price table
+
+Part of what was left in Modules 1 to 3 (the list is in the entry above; this one sits below it only so that pull requests open at the same time don't edit the same lines). Module 2 was complete against its spec, and its leftovers needed only questions: 17 new ones, and no lab or lesson changed.
+
+- **The two Active Directory topics have full review pools.** Joining machines, Group Policy and Entra ID went from 6 questions to 19, and Active Directory: domains, names and tickets from 8 to 25. Most of that is questions that existed and weren't in the pool. Twelve are new and appear only in reviews, so a review can ask something the learner hasn't met: reading an SSH journal to say who was refused, an `sssd.conf` to say who may log in, a forwarders file, Kerberos errors grouped by server, and multiple choice.
+- **Right-sizing from a price table,** which the spec's drills table asks for and only labs did. Three estimate questions in Cores, memory and noisy neighbours give a week of a machine's metrics, a sizing policy and a small dated price table, and ask what moving to the right size saves each month. Each wrong answer the page recognises is a real mistake: sizing on the average, forgetting headroom, sizing on one burst, forgetting memory.
+- **Hypervisors has the two questions its plan left waiting.** They were meant to follow recordings from real cloud machines that were never made. They are written as multiple choice from Microsoft's and AWS's own pages, and each says it rests on documentation, not a recording.
+
+**Author notes:**
+
+- _The right-sizing questions choose a size inside one family,_ not a family, because the lesson leaves choosing a family to Module 12.
+- _Prices were read on 2026-11-15_ from Azure's retail price list (East US) and AWS's public price file (N. Virginia), and each prompt carries its own table and date, so the question stays answerable when prices move. Google Cloud's prices aren't used: its price page was too large to read.
+- _No new recordings:_ the predict-the-output questions use only output already captured in the labs' folders, and say which lines are captured and which are made up.
+- _Their names start `mcq-`,_ not the plan's `hv-`, to match the topic's other questions; the topic's notes say which planned questions they stand in for.
 
 ## 2026-11-15, later: The cloud track, audited against the principal bar
 
@@ -74,6 +111,30 @@ The track is now 31 modules and about 340 topics: 337 numbered and 8 specialties
 - _Not added, on purpose:_ a fourth cloud, a low-latency trading topic, contact centres and gaming. Each is a niche a specialty or a job teaches, and the track is already about 2,500 hours.
 
 **Next:** stage 2 of the Momentum redesign, then Module 4 of the cloud track, as planned. Nothing in this audit changes Modules 4 to 10.
+
+## 2026-11-15, leftovers: Module 1's number drills
+
+Part of what was left in Modules 1 to 3 (the list is a few entries up, under "What's left in cloud Modules 1 to 3"; this one sits here only so that pull requests open at the same time don't edit the same lines). Module 1 was written before the platform had estimate questions, where the learner types a number and it's checked within a tolerance. The spec calls them drills, practice that builds speed. Modules 2 and 3 have 59 and 113, and Module 1 had none.
+
+- **Thirty drills across seven topics,** each a sum a practitioner does on sight:
+  - CPU scheduling (6): a `CPUQuota=` percentage to the numbers in `cpu.max` and back, the share a `CPUWeight=` wins, throttled periods as a percentage, how long a request really takes under a quota, load against the number of CPUs.
+  - Memory (5): `MemoryMax=` in bytes, headroom before a limit, huge pages needed, the OOM table's pages in MiB, hours until a leak reaches its limit.
+  - Permissions (5): octal modes after `chmod`, and what a new file or directory gets under a umask.
+  - Containers (5): `--cpus` to a quota, process IDs left under a limit, the disk that layers share and don't.
+  - Services (3): how many starts fit before systemd gives up, and when it does.
+  - Boot (3): seconds in cloud-init's last stage, and a metadata token's lifetime.
+  - Shell scripting (3): the exit status after a signal, the signal from a status, a pipeline's status with `pipefail`.
+- **Every drill's wrong answers are real mistakes.** Typing 240 for the request under a quota, where the answer is 220, gets "that treats half a CPU as running at half speed all the time", not just "wrong".
+- **Shell scripting's `tooling` skill has a third question:** reading ShellCheck's own report on a short script.
+- **Five lessons gained a sentence or two** where a drill needed a rule the lesson hadn't stated: sizes in steps of 1,024, 128 plus the signal's number, how `pipefail` picks a status, and how a umask works digit by digit. Each of the seven intros now says a few questions ask for a typed number.
+
+Every answer and every recognised wrong answer was computed by a script, and the rules behind them were tried on a real systemd 255 and bash 5.2 the same day (a start limit of 4 in 60 seconds with a 10-second pause was refused at 40.9 seconds). A cold reader given only the prompts and lessons reached all thirty answers, and flagged four ambiguous prompts, which were reworded.
+
+**Author notes:**
+
+- _No timer drill in Services, and none for two of Boot's skills,_ because the lessons teach no sum there. A drill is written only where the sum is real.
+- _The other seven Module 1 topics get their drills with their new labs,_ in the pull requests that follow, so the roadmap's box for Stage 1's drills is ticked when those land.
+- _The four reworded prompts weren't cold-read a second time._
 
 ## 2026-11-15: The Momentum redesign begins
 

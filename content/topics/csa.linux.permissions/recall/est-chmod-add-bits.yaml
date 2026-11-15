@@ -1,0 +1,28 @@
+id: est-chmod-add-bits
+type: estimate
+rev: 1
+prompt: |
+  `stat -c '%a' app.conf` prints `640`. You run `chmod g+w app.conf` and then `chmod o+r app.conf`. What does the same `stat` command print now? Exactly.
+unit: octal mode
+answer: 664
+tolerance: { absolute: 0 }
+given: { before: 640 }
+# Write for the group is 2 in the middle digit, read for others is 4 in the
+# last. Run on Ubuntu 24.04, 2026-11-15: 640, then the two commands, is 664.
+working: before + 20 + 4
+mistakes:
+  - id: write-to-others
+    value: 642
+    working: before + 2
+    why: "That gives the write bit to others and nothing new to the group. `g` is the group, the middle digit, which goes from 4 to 6; `o` is others, the last digit, which gets read, 4."
+  - id: write-as-one
+    value: 654
+    working: before + 10 + 4
+    why: "That adds 1 for write. Read is 4, write is 2 and execute is 1, so `g+w` takes the group's digit from 4 to 6; a 5 there would let the group run the file."
+  - id: first-command-only
+    value: 660
+    working: before + 20
+    why: "That's the mode after `chmod g+w` alone. The second command gives others read, 4 in the last digit."
+explanation: |
+  640 is `rw-` for the owner, `r--` for the group and `---` for others. `g+w` adds write (2) to the group's digit: 4 + 2 = 6. `o+r` adds read (4) to others' digit: 0 + 4 = 4. The owner's digit isn't touched, so the mode is 664, `rw-rw-r--`. The symbolic form changes one bit and leaves the rest alone, which is why it's the safer way to adjust a file whose mode you haven't looked at; `chmod 664 app.conf` would have set the same mode outright.
+skills: [chmod-chown, read-modes]

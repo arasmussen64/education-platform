@@ -1,0 +1,26 @@
+id: est-hugepages-needed
+type: estimate
+rev: 1
+prompt: |
+  A database is to keep 6144 MiB of its memory in huge pages, and `/proc/meminfo` on its server says `Hugepagesize: 2048 kB`. How many huge pages must be reserved for it? Exactly.
+unit: huge pages
+answer: 3072
+tolerance: { absolute: 0 }
+given: { size: 6144, page: 2048 }
+working: size * 1024 / page
+mistakes:
+  - id: ordinary-pages
+    value: 1572864
+    working: size * 1024 / 4
+    why: "That's how many ordinary 4 kB pages the memory takes. A huge page here is 2,048 kB, 512 times bigger, so far fewer are needed."
+  - id: mixed-units
+    value: 3
+    working: size / page
+    why: "That divides MiB by kB. 2,048 kB is 2 MiB, so the sum is 6,144 ÷ 2."
+  - id: a-thousand-kb
+    value: 3000
+    working: size * 1000 / page
+    why: "That takes a MiB as 1,000 kB. In `/proc/meminfo` a kB is 1,024 bytes and a MiB is 1,024 of those, so 2,048 kB is exactly 2 MiB."
+explanation: |
+  2,048 kB is 2 MiB, so 6,144 MiB needs 6,144 ÷ 2 = 3,072 huge pages. That is the number an administrator reserves (it shows up as `HugePages_Total`), and it's worth getting right in both directions: too few and the database falls back to ordinary pages or refuses to start, too many and the memory left over in the reservation is lost to every other program on the server. The same memory in 4 kB pages would be 1,572,864 of them, which is the bookkeeping huge pages save.
+skills: [swap-paging]

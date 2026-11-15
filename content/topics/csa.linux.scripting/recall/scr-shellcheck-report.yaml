@@ -1,0 +1,31 @@
+id: scr-shellcheck-report
+type: predict_shell
+rev: 1
+prompt: |
+  `cleanup.sh` is a short script, and `report.txt` is what `shellcheck -f gcc cleanup.sh` printed about it: one finding per line, as `file:line:column: level: message [code]`. The first command counts the findings rated `warning`; the second prints the line of the script each finding points at. What is printed?
+files:
+  cleanup.sh: |
+    #!/bin/sh
+    dir=$1
+    cd "$dir" || exit 1
+    for f in *.tmp; do
+      rm $f
+    done
+    if [[ -f done.txt ]]; then
+      echo finished
+    fi
+    echo "removed files from $dirr"
+  report.txt: |
+    cleanup.sh:5:6: note: Double quote to prevent globbing and word splitting. [SC2086]
+    cleanup.sh:7:4: warning: In POSIX sh, [[ ]] is undefined. [SC3010]
+    cleanup.sh:10:26: warning: dirr is referenced but not assigned. [SC2154]
+command: |
+  grep -c ': warning: ' report.txt; awk -F: '{print "line " $2}' report.txt
+expected_output: |
+  2
+  line 5
+  line 7
+  line 10
+explanation: |
+  Three findings, two of them warnings, and each one is a habit from this topic that the script broke. Line 5, `rm $f`, has an unquoted variable: a file name with a space would be split in two (ShellCheck rates that a `note`, a milder level than `warning`, and the fix is `rm "$f"`). Line 7 uses `[[ ]]`, a bash feature, in a script whose first line asks for `sh`: on Ubuntu `sh` is a smaller shell that doesn't have it, so the test fails with `[[: not found` and `finished` is never printed; the first line should be `#!/usr/bin/env bash`. Line 10 reads `$dirr`, a misspelling of `$dir`, which is never set: the message would end with nothing where the folder's name should be. ShellCheck found all three without running the script. The report is ShellCheck 0.9.0's real output; the code at the end of each line, such as `SC2086`, is the name of a page on its wiki that explains the finding.
+skills: [tooling]

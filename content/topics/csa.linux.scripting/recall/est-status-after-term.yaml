@@ -1,0 +1,28 @@
+id: est-status-after-term
+type: estimate
+rev: 1
+prompt: |
+  A CI job runs `./migrate.sh`. While the script is running, an operator stops it with a plain `kill`, which sends `TERM`, signal 15. The script has no trap for it. What exit status does the CI job see for the script? Exactly.
+unit: exit status
+answer: 143
+tolerance: { absolute: 0 }
+given: { signal: 15 }
+# Run in bash 5.2 on Ubuntu 24.04, 2026-11-15: bash -c 'kill -TERM $$';
+# echo $? prints 143.
+working: 128 + signal
+mistakes:
+  - id: the-signal-number
+    value: 15
+    working: signal
+    why: "That's the signal's own number. The shell reports a death by signal as 128 plus that number, so that it can't be mistaken for a script that ran `exit 15`."
+  - id: the-kill-signal
+    value: 137
+    working: 128 + 9
+    why: "That's the status after `KILL`, signal 9. A plain `kill` sends `TERM`, signal 15."
+  - id: a-plain-failure
+    value: 1
+    working: "1"
+    why: "That's an ordinary failure. A script ended by a signal reports 128 plus the signal's number instead."
+explanation: |
+  A process ended by a signal reports 128 plus the signal's number: 128 + 15 = 143. The CI job sees a non-zero status, so the step fails, and the number says how: not an error the script found, but someone or something asking it to stop. 143 is also what you see when a service manager or a container runtime stops a program politely and the program doesn't handle `TERM` itself. A script that should tidy up on the way out sets a `trap ... EXIT`, which bash runs before it dies of a `TERM`.
+skills: [traps-cleanup]
