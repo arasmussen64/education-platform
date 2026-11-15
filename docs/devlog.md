@@ -75,6 +75,30 @@ The track is now 31 modules and about 340 topics: 337 numbered and 8 specialties
 
 **Next:** stage 2 of the Momentum redesign, then Module 4 of the cloud track, as planned. Nothing in this audit changes Modules 4 to 10.
 
+## 2026-11-15, leftovers: Module 1's number drills
+
+Part of what was left in Modules 1 to 3 (the list is two entries up; this one sits here only so that pull requests open at the same time don't edit the same lines). Module 1 was written before the platform had estimate questions, where the learner types a number and it's checked within a tolerance. The spec calls them drills, practice that builds speed. Modules 2 and 3 have 59 and 113, and Module 1 had none.
+
+- **Thirty drills across seven topics,** each a sum a practitioner does on sight:
+  - CPU scheduling (6): a `CPUQuota=` percentage to the numbers in `cpu.max` and back, the share a `CPUWeight=` wins, throttled periods as a percentage, how long a request really takes under a quota, load against the number of CPUs.
+  - Memory (5): `MemoryMax=` in bytes, headroom before a limit, huge pages needed, the OOM table's pages in MiB, hours until a leak reaches its limit.
+  - Permissions (5): octal modes after `chmod`, and what a new file or directory gets under a umask.
+  - Containers (5): `--cpus` to a quota, process IDs left under a limit, the disk that layers share and don't.
+  - Services (3): how many starts fit before systemd gives up, and when it does.
+  - Boot (3): seconds in cloud-init's last stage, and a metadata token's lifetime.
+  - Shell scripting (3): the exit status after a signal, the signal from a status, a pipeline's status with `pipefail`.
+- **Every drill's wrong answers are real mistakes.** Typing 240 for the request under a quota, where the answer is 220, gets "that treats half a CPU as running at half speed all the time", not just "wrong".
+- **Shell scripting's `tooling` skill has a third question:** reading ShellCheck's own report on a short script.
+- **Five lessons gained a sentence or two** where a drill needed a rule the lesson hadn't stated: sizes in steps of 1,024, 128 plus the signal's number, how `pipefail` picks a status, and how a umask works digit by digit. Each of the seven intros now says a few questions ask for a typed number.
+
+Every answer and every recognised wrong answer was computed by a script, and the rules behind them were tried on a real systemd 255 and bash 5.2 the same day (a start limit of 4 in 60 seconds with a 10-second pause was refused at 40.9 seconds). A cold reader given only the prompts and lessons reached all thirty answers, and flagged four ambiguous prompts, which were reworded.
+
+**Author notes:**
+
+- _No timer drill in Services, and none for two of Boot's skills,_ because the lessons teach no sum there. A drill is written only where the sum is real.
+- _The other seven Module 1 topics get their drills with their new labs,_ in the pull requests that follow, so the roadmap's box for Stage 1's drills is ticked when those land.
+- _The four reworded prompts weren't cold-read a second time._
+
 ## 2026-11-15: The Momentum redesign begins
 
 The owner asked for the redesign to start, in the Momentum direction they chose on 2026-11-12 (warm and encouraging; light is "morning trail", dark is "night trail"; lime means only "forward"). It comes in three stages, each its own pull request:
