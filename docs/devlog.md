@@ -2,6 +2,23 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15: The Momentum redesign begins
+
+The owner asked for the redesign to start, in the Momentum direction they chose on 2026-11-12 (warm and encouraging; light is "morning trail", dark is "night trail"; lime means only "forward"). It comes in three stages, each its own pull request:
+
+1. **Colours and fonts (this session).** Tailwind lets a project redefine its colours, and every component was written with its grey `slate` scale (305 uses in 32 files). `web/src/index.css` now repaints that scale from limestone paper (#f6f4ed) to pine ink (#1b2620) and night (#111914), so every page moved to Momentum without touching a component. Cards are near-white (#fdfcf8). Gabarito (headings), Figtree (text, 18px, line height 1.7) and JetBrains Mono (code, ligatures off) come from Fontsource's npm packages, bundled with the app, so no page asks Google for a font. Checked in the browser on my own dev server: both fonts and the code font load, headings use Gabarito, the editor uses JetBrains Mono.
+2. **Lime means "forward", and the editor.** The 22 uses of lime are audited so it marks only the one primary button on a card, progress fills and "you are here", and the code editor gets light and dark themes (today it stays light in dark mode, as it did before this change).
+3. **Page by page.** Each page against the mock-up, moving components from the repainted `slate` to named colours (paper, card, ink, muted, line, forward).
+
+**Author notes:**
+
+- _Repainting `slate` instead of renaming every class first_ changes the whole app in one small, reviewable file; the named colours of stage 3 replace it page by page, and the repaint goes when the last page has moved.
+- _The scale's 500 step is darker than the mock-up's muted grey would be,_ so muted text on paper keeps 4.9 to 1; every pairing the app uses was measured above 4.5.
+- _The 18px body size_ reaches lesson text and any text without its own size; interface text set to `text-sm` keeps its size until stage 3.
+- _A rule for the editor's font has to sit outside Tailwind's layers:_ CodeMirror adds its own `monospace` rule, and an unlayered rule always beats a layered one.
+
+**Next:** stage 2, lime for "forward" only and the editor's themes; then Module 4 of the cloud track resumes as planned.
+
 ## 2026-11-13: Module 3 is written, and where we stopped
 
 **Checkpoint 3 is ready** (#275), and with it Module 3 is written: sixteen topics and a checkpoint, every one written by one agent, reviewed cold by another and proven in CI. The checkpoint has three parts, each run as a lab on the learner's own machine:
