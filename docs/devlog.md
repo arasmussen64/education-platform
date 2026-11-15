@@ -77,7 +77,7 @@ The track is now 31 modules and about 340 topics: 337 numbered and 8 specialties
 
 ## 2026-11-15, leftovers: Module 1's number drills
 
-Part of what was left in Modules 1 to 3 (the list is two entries up; this one sits here only so that pull requests open at the same time don't edit the same lines). Module 1 was written before the platform had estimate questions, where the learner types a number and it's checked within a tolerance. The spec calls them drills, practice that builds speed. Modules 2 and 3 have 59 and 113, and Module 1 had none.
+Part of what was left in Modules 1 to 3 (the list is a few entries up, under "What's left in cloud Modules 1 to 3"; this one sits here only so that pull requests open at the same time don't edit the same lines). Module 1 was written before the platform had estimate questions, where the learner types a number and it's checked within a tolerance. The spec calls them drills, practice that builds speed. Modules 2 and 3 have 59 and 113, and Module 1 had none.
 
 - **Thirty drills across seven topics,** each a sum a practitioner does on sight:
   - CPU scheduling (6): a `CPUQuota=` percentage to the numbers in `cpu.max` and back, the share a `CPUWeight=` wins, throttled periods as a percentage, how long a request really takes under a quota, load against the number of CPUs.
