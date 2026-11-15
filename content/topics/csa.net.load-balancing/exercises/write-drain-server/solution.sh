@@ -41,5 +41,6 @@ else
 fi
 EOF
 chmod +x ~/bin/drain-server
+shellcheck ~/bin/drain-server && echo "shellcheck: quiet"
 ~/bin/drain-server web2
 echo "set server web/web2 state ready" | on lb socat stdio /run/haproxy/admin.sock

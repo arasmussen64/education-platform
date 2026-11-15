@@ -12,7 +12,7 @@ Read this before writing a network lab. The plan behind it is [docs/plans/cloud-
 | 2 | FRRouting 8.4, strongSwan 5.9 (`swanctl`, standard plugins only), BIND 9.18, Unbound 1.19, nginx 1.24, HAProxy 2.8, radvd, ipcalc, sipcalc, tshark, iperf3, mtr, tracepath, arping, ethtool, socat, openssl, rdisc6 | All from Ubuntu 24.04's archive. Each package's own service is switched off. |
 | 3 | `netlab` and its helpers, `on`, the per-machine units, the check helpers, and the helpers a learner runs | Small; rebuilt in a moment when one of these files changes. |
 
-Not in it: `jq` (checks read JSON with `python3`, through `json` below), `gawk` (`awk` is Ubuntu's mawk in every lab), and anything from outside Ubuntu's archive. A topic that needs one more package (congestion's Caddy, certificates' certbot) adds a second `RUN` after `FROM lab-base-net`, identical in all that topic's labs so Docker shares it.
+Not in it: `jq` (checks read JSON with `python3`, through `json` below), `gawk` (`awk` is Ubuntu's mawk in every lab), and anything from outside Ubuntu's archive. A topic that needs one more package (congestion's Caddy, certificates' certbot) adds a second `RUN` after `FROM lab-base-net`, identical in all that topic's labs so Docker shares it. ShellCheck isn't in the base either: a network lab whose learner writes a script lints it in its first check (`shellcheck --norc`, and no `# shellcheck disable` line), and installs ShellCheck with a `RUN` of its own straight after `FROM lab-base-net`, the same line in every such lab so Docker builds it once (`csa.net.layers`' write lab is the pattern; in a topic with a `RUN` of its own, it follows that one).
 
 strongSwan's `forecast` plugin makes a VTI tunnel drop every packet that arrives (`XfrmInTmplMismatch`; the Module 3 critic found it). The base leaves out the extra plugins package that the prototype had, but `strongswan-pki` still brings `libcharon-extra-plugins`, which has `forecast` and switches it on, so `/etc/strongswan.d/netlab.conf` switches it off again (and sets `install_routes = no`) for every machine that runs strongSwan. `/etc/strongswan.d/swanctl.conf` lists the plugins `swanctl` loads, which keeps it from printing a dozen "failed to load" lines.
 
@@ -234,7 +234,7 @@ From the Module 3 brief, sections 3.5 and 4.4.
 
 ## Kernel needs
 
-The base asks Docker's machine's kernel for these. Each loads on demand when a privileged container first uses it. Seen on Docker Desktop 29.8.2 (kernel 6.18.33.2-microsoft-standard-WSL2) on 2026-11-11, and on GitHub's `ubuntu-26.04` runner (image 20261101.186.1) on 2026-11-12, where the six probe labs in `csa.net.base-probes` kept their contracts with no `modprobe` step (the CI spike, #253). A row still marked untried falls back to a `sudo modprobe` step in `.github/workflows/labs.yml` if the first lab that needs it fails there.
+The base asks Docker's machine's kernel for these. Each loads on demand when a privileged container first uses it. Seen on Docker Desktop 29.8.2 (kernel 6.18.33.2-microsoft-standard-WSL2) on 2026-11-11, and on GitHub's `ubuntu-26.04` runner (image 20261101.186.1) on 2026-11-12, where the six probe labs in `csa.net.base-probes` kept their contracts with no `modprobe` step (the CI spike, #253). That probe topic is gone since #275: each probe's lab moved into the topic it was written for, some under a new name, so a probe's name in the table may no longer be a folder. No row is untried any more (2026-11-15); a new one would fall back to a `sudo modprobe` step in `.github/workflows/labs.yml` if the first lab that needs it fails there.
 
 | Need | Topics | Docker Desktop | GitHub's runner |
 | --- | --- | --- | --- |
@@ -245,7 +245,7 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 | `xfrm_user`, `esp4`, `ip_vti` | IPsec, checkpoint part 3 | works (with the standard plugins only) | works (`proto-bgp-over-vti`) |
 | `sch_netem` | transport, congestion, troubleshooting, the `netem` word | works, delays egress only | works (`probe-bbr-throughput`, `proto-services`) |
 | `tcp_bbr` | congestion | works, loads from a machine's `sysctl.d` | works: BBR cleared 25 Mbit/s three times (`probe-bbr-throughput`) |
-| nftables `reset tcp option window` | transport | works | untried |
+| nftables `reset tcp option window` | transport | works | works (`csa.net.transport`'s debug, `debug-slow-replication`, #266) |
 | IPv6 in namespaces, forwarding, SLAAC | IPv6, NAT | works | works (`debug-ipv6-half-works`) |
 | `fib_multipath_hash_policy` per namespace | routing, checkpoint part 2 | works | works (Checkpoint 3 part 2's both-tunnels check, #275) |
 

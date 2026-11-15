@@ -14,7 +14,7 @@ checks:
       [ "$(head -n 1 "$f")" = "#!/bin/bash" ] || { echo "the first line isn't #!/bin/bash"; exit 0; }
       # Python is in the lab for the checks; the script's sums are bash's.
       if grep -v '^[[:space:]]*#' "$f" | grep -i 'python' > /dev/null; then echo "the script calls Python: its sums must be bash's"; exit 0; fi
-      if grep -i 'shellcheck *disable' "$f" > /dev/null; then echo "a ShellCheck warning is switched off"; exit 0; fi
+      if grep -iE 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "a ShellCheck warning is switched off"; exit 0; fi
       shellcheck --norc "$f" > /dev/null 2>&1 || { echo "ShellCheck has something to say: run shellcheck ~/bin/cidr-overlaps"; exit 0; }
       echo script
     expect:

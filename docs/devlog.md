@@ -2,6 +2,56 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, leftovers: Module 3's script labs are linted
+
+The second pull request of what was left in Modules 1 to 3 ([the list](#2026-11-15-last-whats-left-in-cloud-modules-1-to-3-and-the-first-batch) is in the entry below). The Module 3 plan asked that every lab where the learner writes a shell script have ShellCheck read it, as Module 1's scripting labs do. ShellCheck is the script checker that topic teaches. Six labs had been written without it.
+
+- **Six write labs now lint the learner's script:** Layers and packets, Congestion control, DNS, VPNs and IPsec, Load balancing and Network troubleshooting. Each prompt says so in one sentence, the first check runs ShellCheck and refuses a script that switches a warning off, and each lab has known-wrong scripts that do the job and fail only the lint.
+- **DNS's own reference script failed the lint** (an unquoted variable). It is fixed, and its hint now teaches the quoted form.
+- **The eight labs that already linted had two gaps.** A warning switched off with two spaces or a tab in the comment passed, because the check looked for exactly one space. And six of them had no known-wrong script failing the lint, so that rule in their prompts was unproved. Both are closed.
+- **Checkpoint 3's cloud link reads plain `netlab verify`.** The helper it carried worked around two faults in the network base's own comparison, which were fixed on 2026-11-13. The helper, its copy line and its permissions line are gone from both versions of the lab.
+
+Sixteen labs changed, each proved again with the lab checker: the untouched lab fails, the solution passes and passes again after a restart, and every known-wrong fix fails.
+
+**Author notes:**
+
+- _The network base still has no ShellCheck._ Each lab that lints installs it in a line of its own, written the same in every lab so Docker builds it once. Putting it in the base would rebuild every network lab.
+- _One small difference is left by removing the helper:_ a stray route of two rare kinds (`throw` and `local`) typed by hand on the edge router is no longer reported. FRR ignores both, so no wrong fix gets through; closing it would mean changing the base.
+- _Left alone:_ a two-line script that hands over to a second, unlinted file passes every lint. A learner who does that is choosing to cheat. The troubleshooting build isn't linted, because its prompt allows any tool and an awk script is a fair answer.
+- _These labs now take longer in CI,_ so `tools/lab-seconds.json` is refreshed again once the leftovers are all in.
+
+**Next:** the three tightened checks, then the new content for Module 3.
+
+## 2026-11-15, last: What's left in cloud Modules 1 to 3, and the first batch
+
+The owner asked for everything left in the cloud track before Module 4 to be built. Modules 1 to 3 are all `ready`, so "left" had to be found first: three reviewers, one a module, read the spec, the plans and this devlog against what was built, changing nothing. All three found the same thing: every topic has its four proofs and nothing is half-written, and what remains is what was put off while writing.
+
+**What the reviews found.**
+
+- **Module 1, Linux.** Seven things the spec promises are taught and quizzed but never done by hand: a benchmark scan (Hardening), LVM (Disks), `dnf` (Packages), finding and clearing a zombie process (Processes), `jq` (Shell essentials), disk saturation with `iostat` (Triage) and connection tracking (Networking from the host). Its review pools held 6 questions a topic where Modules 2 and 3 hold about 11 and 20. It has no estimate questions (a typed number), because that kind arrived with Module 2. Checkpoint 1's two fresh versions are the build with a name and a port changed, and each carries half the build's known-wrong fixes.
+- **Module 2, hardware.** Complete against the spec. The plan's capture tool for GitHub's own machines was never built, so three planned questions about what a real cloud guest shows were never written. No lab is restarted in CI, though the checkpoint promises fixes that last a reboot. Two Active Directory topics have thin review pools.
+- **Module 3, networking.** Complete against the spec and its plan. Left: six script labs that aren't linted as the plan asked, a troubleshooting casebook without its monitor logs, three checks the devlog knew could be passed with a fault left in (NAT's third fault, IPsec's dead-peer detection, BGP's timers), a checkpoint workaround the base no longer needs, and no lab on a Google-style circuit.
+- **Across all three:** stale sentences in the spec, the writer's guide, the network base's notes and ADR-0018; and a lab timing file that knew 30 of Module 3's 91 labs.
+
+**Batch one (this pull request), nothing that needs Docker:**
+
+- **Review pools are wider, from questions that already existed.** Every Module 1 topic's pool now holds all of its recall questions (6 became 14 to 21), HTTP and TLS went from 7 to 12, and Hypervisors gained the three that test what a hypervisor can't isolate. A review still asks two questions; it now rotates through more of them, so a learner meets the same question less often.
+- **`tools/lab-seconds.json` is rebuilt** from the last full Labs run (221 labs, where it knew 160), so the eight CI machines share the work evenly again.
+- **Stale sentences corrected:** the spec's "Building it" (Module 3 was "planned"), the writer's guide (Module 3 missing; three debug labs "next to rewrite" that were rewritten in #237), the network base's kernel table (its last "untried" row has run green since #266), ADR-0018's "still open" note, and the owner queue's pointer to the Azure budget steps.
+- **The owner queue names three more main videos nobody has watched** (BGP, NAT, CPU architectures), beside Routing's.
+
+**Still to build, in this order:** new questions (Module 1's estimate drills and third questions for thin skills, `dnf` and connection-tracking questions, review-only questions for the two Active Directory topics, right-sizing from a price table, a Google-style circuit); then labs (the seven hands-on gaps in Module 1, Checkpoint 1's fresh versions made genuinely different, restart trials for Modules 1 and 2, Module 3's lints, monitor logs and three tightened checks, and the capture tool).
+
+**Author notes:**
+
+- _A wider pool doesn't lengthen a review:_ a session asks two questions, the ones answered longest ago first (`web/src/reviews/reviews.ts`), so a bigger pool only adds variety.
+- _Every Module 1 recall question went into its pool,_ where Module 3 keeps about seven in ten. Each is self-contained (a predict-the-output question carries its own files), and several skills had no pool question at all.
+- _Not being built, and why:_ a Linux machine in the browser (ADR-0017 deferred it until its download cost is weighed), tutor hints about a lab (it spends the Claude budget, and ADR-0018 left it for later), pinned lab images and a shared base for Module 1's labs (neither was promised, and the weekly run catches a break), and a timed rebuild of a lab as a review (the app can't put a lab in a review pool).
+- _Waiting for the owner, unchanged:_ the optional Azure Active Directory run and what follows it, the capture runs in the owner's clouds, and the proposed ADR amendments.
+- _The plan's price fixture still lists AWS's g5 and g6 cards as 24 GiB._ It is a dated record with a warning on it, and the content uses 22, so it was left alone.
+
+**Next:** batch two, the new questions.
+
 ## 2026-11-15, later: The cloud track, audited against the principal bar
 
 The owner asked for the Cloud Solutions Architect track to be audited the way a vice president of cloud would, against one question: would what a learner knows and can do at the end qualify them for a principal or distinguished cloud architect's job? The whole spec was read against that, and changed where it fell short. Everything changed is an outline; no written topic was touched.
