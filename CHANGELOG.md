@@ -18,6 +18,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Fixed (cloud Module 3: every script lab is linted)
+
+- Six Module 3 write labs now have ShellCheck read the learner's script, as the module's plan asked: Layers and packets, Congestion control, DNS, VPNs and IPsec, Load balancing and Network troubleshooting. Each has known-wrong scripts that work and fail only the lint.
+- The eight labs that already linted no longer accept a warning switched off with two spaces or a tab, and six of them gained the known-wrong scripts that prove the lint.
+- DNS's reference script failed the lint itself (an unquoted variable), and is fixed.
+- Checkpoint 3's cloud-link lab, in both versions, reads plain `netlab verify`; the helper that worked around two faults in the network base is gone, since the base was fixed.
+
 ### Changed (cloud Modules 1 to 3: what was left, batch one)
 
 - Review pools are wider, from questions that already existed: every Module 1 topic's pool holds all its recall questions (6 became 14 to 21), HTTP and TLS has 12 where it had 7, and Hypervisors gained three. A review still asks two questions and now rotates through more.
