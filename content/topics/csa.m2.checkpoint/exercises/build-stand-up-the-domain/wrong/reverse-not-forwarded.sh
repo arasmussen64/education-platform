@@ -50,3 +50,12 @@ sudo realm permit -g linux-admins@ad.shop.test
 # 8. Look.
 realm list
 id dana@ad.shop.test
+
+# The join can fail outright here, and that is still this mistake. With the
+# reverse zone not forwarded, the site's resolver asks its own upstream for
+# the name of 10.0.9.10. Most networks answer "no such name" and the join
+# goes through; some answer with a name of their own (GitHub's runners did
+# on 2026-11-15), Kerberos then asks for a ticket for the wrong name, and
+# realm says "Insufficient permissions". Either way the checks must be the
+# judge, so this file ends cleanly whatever the join did.
+exit 0
