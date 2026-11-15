@@ -1,0 +1,14 @@
+id: mcq-write-cache
+type: mcq
+rev: 1
+prompt: |
+  A program appends an order to a file and `write()` reports success. Half a second later the server loses power. After the reboot the filesystem (ext4, with its journal on) is intact and the disk is healthy, but the order is not in the file. What happened?
+choices:
+  - "The journal rolled it back: after a crash ext4 undoes every write made in the last second before it"
+  - "The file was still open, and Linux only puts a file's contents on the disk when the program closes it"
+  - "The order was still in the kernel's memory cache: only `fsync` makes a program wait for the disk"
+  - "The write went over the volume's IOPS limit, and a cloud volume drops such writes without an error"
+answer: 2
+explanation: |
+  `write()` returns as soon as the data is in the kernel's memory cache, which is what makes writing fast. The kernel sends cached data to the disk some seconds later, in its own time, and a power cut in between loses it. A program that must not lose the order calls `fsync` on the file and tells the customer "saved" only when that returns; each `fsync` waits for the disk, and that wait is what durability costs. The journal protects the filesystem's own structure, so the file and its folder still make sense after the crash; it makes no promise about data a program never asked to have forced out, and it doesn't undo writes by their age. Closing a file doesn't force its data to the disk either: it can sit in the cache after `close()` just as before. And a volume at its IOPS limit makes writes wait; it never throws them away.
+skills: [durability]

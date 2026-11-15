@@ -1,0 +1,80 @@
+# The checks for "A volume that grows: LVM by hand": both disks are in the
+# group, the volume takes all of it, the filesystem was grown to match and
+# never made again, the six films are on it byte for byte, and fstab brings
+# it back. The first check mounts what fstab lists, as `sudo mount -a` does:
+# after a restart of the lab machine nothing is mounted until then, so the
+# checks that follow it prove what a reboot brings back.
+checks:
+  - id: fstab-works
+    description: "Everything /etc/fstab lists mounts without a complaint."
+    command: mount -a > /dev/null 2>&1
+  - id: both-disks-in-group
+    description: "Both lab disks are physical volumes in the volume group mediavg."
+    command: |
+      for disk in disk1 disk2; do
+        group=$(pvs --noheadings -o vg_name "/dev/lab/$disk" 2>/dev/null | tr -d ' ')
+        [ "$group" = mediavg ] || { echo "$disk is not a physical volume in mediavg"; exit 0; }
+      done
+      echo both
+    expect:
+      equals: both
+  - id: volume-size
+    description: "The logical volume films takes all of the group: 192 MB, with nothing left free."
+    command: |
+      size=$(lvs --noheadings --units m --nosuffix -o lv_size mediavg/films 2>/dev/null | tr -d ' ')
+      free=$(vgs --noheadings --units m --nosuffix -o vg_free mediavg 2>/dev/null | tr -d ' ')
+      echo "films: ${size:-none} MB, free in the group: ${free:-none} MB"
+    expect:
+      equals: "films: 192.00 MB, free in the group: 0 MB"
+  - id: mounted
+    description: "The volume carries an ext4 filesystem, mounted at /srv/media."
+    command: findmnt -n -o SOURCE,FSTYPE /srv/media | tr -s ' '
+    expect:
+      equals: "/dev/mapper/mediavg-films ext4"
+  - id: filesystem-size
+    description: "The filesystem at /srv/media fills the extended volume: df shows at least 150 MB."
+    command: |
+      [ "$(findmnt -n -o SOURCE /srv/media)" = /dev/mapper/mediavg-films ] || { echo "the volume is not mounted at /srv/media"; exit 0; }
+      df --output=size -BM /srv/media | tail -n 1 | tr -d ' M'
+    expect:
+      gte: 150
+  - id: films-intact
+    description: "All six films are on the volume, byte for byte as they were delivered."
+    command: |
+      for n in 1 2 3 4 5 6; do
+        film=/srv/media/film-$n.mp4
+        [ -f "$film" ] || { echo "film-$n.mp4 is not in /srv/media"; exit 0; }
+        [ "$(df --output=source "$film" | tail -n 1)" = /dev/mapper/mediavg-films ] || { echo "film-$n.mp4 is not on the volume"; exit 0; }
+        # The bytes the film was made of, worked out again from its number.
+        want=$(seq "${n}000000" "${n}9999999" | head -c 20M | sha256sum | cut -d ' ' -f 1)
+        have=$(sha256sum "$film" | cut -d ' ' -f 1)
+        [ "$want" = "$have" ] || { echo "film-$n.mp4 is not the film that was delivered"; exit 0; }
+      done
+      echo intact
+    expect:
+      equals: intact
+  - id: fstab-line
+    description: "/etc/fstab names the volume by UUID or by its LVM name, at /srv/media, as ext4, with nofail."
+    command: |
+      uuid=$(blkid -s UUID -o value /dev/mapper/mediavg-films 2>/dev/null)
+      grep -E "^(UUID=${uuid:-none}|/dev/mediavg/films|/dev/mapper/mediavg-films)[[:space:]]+/srv/media[[:space:]]+ext4[[:space:]]+[^[:space:]]*nofail" /etc/fstab
+  - id: grown-not-remade
+    description: "The filesystem is the one made on the first disk alone, before the group and the volume grew: grown, never made again."
+    command: |
+      made=$(dumpe2fs -h /dev/mapper/mediavg-films 2>/dev/null | sed -n 's/^Filesystem created: *//p')
+      [ -n "$made" ] || { echo "there is no ext4 filesystem on the volume"; exit 0; }
+      made=$(date -d "$made" +%s)
+      # LVM keeps a copy of a group's layout from before each change, with
+      # the command and the time. The last time a command was run on it:
+      last() {
+        grep -l "executing '$1 " /etc/lvm/archive/mediavg_*.vg 2>/dev/null | xargs -r grep -h '^creation_time' | awk '{ print $3 }' | sort -n | tail -n 1
+      }
+      joined=$(last vgextend)
+      extended=$( { last lvextend; last lvresize; } | sort -n | tail -n 1)
+      [ -n "$joined" ] || { echo "LVM has no record of a disk being added to the group"; exit 0; }
+      [ -n "$extended" ] || { echo "LVM has no record of the volume being extended"; exit 0; }
+      [ "$made" -le "$joined" ] || { echo "the filesystem was made after the second disk joined the group"; exit 0; }
+      [ "$made" -le "$extended" ] || { echo "the filesystem was made after the volume was extended"; exit 0; }
+      echo grown
+    expect:
+      equals: grown
