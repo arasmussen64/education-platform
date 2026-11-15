@@ -58,6 +58,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Cores, memory and noisy neighbours has three estimate questions that right-size a machine from a week of metrics and a dated price table, and ask what the move saves.
 - Hypervisors has the two questions about a guest on a real cloud that its plan left waiting, written from the providers' documentation.
 
+### Changed (cloud Checkpoint 1: fresh versions that differ from the build)
+
+- Checkpoint 1's two fresh versions, the gateway and the ledger, each differ from the build in every part (the service's unit, the firewall's rules, who may log in), so the build's steps can't be pasted with the names changed. Each has 21 known-wrong fixes, one of which does exactly that and fails.
+- All nine of the checkpoint's lab images keep `/run/sshd` when SSH stops, so a broken SSH setting is reported by its own line.
+
 ### Changed (the cloud track, audited against the principal bar)
 
 - The Cloud Solutions Architect track was audited on 2026-11-15 against what a principal or distinguished cloud architect is hired on. Its spec says what it measured against in a new section, "The principal bar", which also says what no course can give: a record of decisions made in production, real scale, and people's judgement of you.

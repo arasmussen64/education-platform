@@ -3,7 +3,7 @@ stage: fill_in
 runtime: lab
 lab:
   init: systemd
-rev: 2
+rev: 3
 title: "Step 2 of the runbook: put up the firewall"
 prompt: |
   The checkpoint's build, with two of its three parts already done for you: `shop-api` is enabled and running, and SSH is hardened. One part is left: there's no firewall. Write `/etc/nftables.conf` with an `input` chain whose policy is `drop`, accepting loopback, established and related traffic, and new connections to SSH (`tcp dport 22`) and the API (`tcp dport 8080`); load it, and `systemctl enable nftables` so it survives a reboot. Prove it from both sides: `ssh -i ~/keys/ben ben@localhost` still works, and from another machine the API answers, with `from-office curl -s http://10.0.9.1:8080/` (`from-office` runs a command on a second machine on the office network, where this server's address is `10.0.9.1`). Then run the checks, which test the whole server: they try the firewall from the office, and they compare the rules that are running with the ones in the file.
