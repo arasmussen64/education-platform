@@ -2,17 +2,17 @@
 
 ## Where the project stands
 
-_Last updated 2026-11-13._ This is the one place the project's status is written down. Other documents link here instead of repeating it.
+_Last updated 2026-11-15._ This is the one place the project's status is written down. Other documents link here instead of repeating it.
 
 **Current phase: Phases 1 and 2 are built (2026-11-09 and 2026-11-10). Phase 3's content is under way, and the build is on the Cloud Solutions Architect track until that track is finished.**
 
-**Content.** 141 topics are `ready`, meaning written, machine-checked and shown to learners. Another 328 are outlines: a title, a summary and prerequisites, shown on the map with nothing to learn yet.
+**Content.** 141 topics are `ready`, meaning written, machine-checked and shown to learners. Another 346 are outlines: a title, a summary and prerequisites, shown on the map with nothing to learn yet.
 
 | Track                                                           | Ready               | Outlines            |
 | --------------------------------------------------------------- | ------------------- | ------------------- |
 | [Python Foundations](specs/python-foundations.md)               | 36, the whole track | 0                   |
 | [Machine Learning Foundations](specs/ml-foundations.md)         | 64, Modules 1 to 8  | 8, Module 9         |
-| [Cloud Solutions Architect](specs/cloud-solutions-architect.md) | 41, Modules 1 to 3 | 320, the rest of it |
+| [Cloud Solutions Architect](specs/cloud-solutions-architect.md) | 41, Modules 1 to 3 | 338, the rest of it |
 
 **Since the audit** (2026-11-11, details in the [devlog](devlog.md)):
 
@@ -21,6 +21,8 @@ _Last updated 2026-11-13._ This is the one place the project's status is written
 - **The AI proxy is fixed** (the budget cap counts every call, the tutor reads long programs, prompts can't be broken out of), and is live once the owner deploys it.
 - **Cloud Module 2 is written** (#238 to #246): eight topics and Checkpoint 2, "the right machine", from [its plan](plans/cloud-module-2/README.md). All of it is proven locally, for free: 51 labs, among them QEMU virtual machines the checks boot themselves, real disks capped with `io.max`, and a Samba Active Directory domain with a Linux member. Built for it: estimate questions ([ADR-0024](decisions/0024-estimate-questions.md), proposed), a lab check's own time limit, checkpoints with more than two parts, and a debug lab that lists its checks only after a first try.
 - **Cloud Module 3 is written** (#251, #253, then a pull request a topic from #257 to #275): sixteen topics and Checkpoint 3 from [its plan](plans/cloud-module-3/README.md), and one network-lab base every network lab starts from, whose machines are network namespaces running real FRRouting, strongSwan, BIND, Unbound, nginx and HAProxy. Every Module 3 lab is restarted in CI after its solution passes, so a fix that wouldn't survive a reboot fails ([ADR-0018](decisions/0018-lab-checker-local-mode.md)'s third amendment, proposed).
+
+**The cloud track was audited against the principal bar** (2026-11-15), the way a vice president of cloud would hire a principal or distinguished architect. It was strong to senior level, which is what the owner's map describes, and thin above it. So its spec gained [The principal bar](specs/cloud-solutions-architect.md#the-principal-bar), a Module 31 on technology strategy and enterprise architecture, six more topics (SAP, VMware estates, virtual desktops, safe change at scale, post-quantum cryptography, identity governance), a reliability specialty, and three proofs that test judgement over a whole estate. Every addition is an outline; nothing already written changed. The findings are in the [devlog](devlog.md).
 
 **Build order.** The owner set it on 2026-11-10: "I'm going to just go at my own pace and bounce around from track to track so your job is to just build. Let's focus the build on the cloud track until it's completely finished and then start working on the ML track again." So:
 
@@ -133,7 +135,7 @@ Every item below is built (2026-11-10). Two of them aren't fully in use yet: the
 
 ## Cloud Solutions Architect: the track being built
 
-- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud. It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09 and amended 2026-11-10 on what a lab may cost.
+- **Cloud Solutions Architect, multi-cloud.** Specified on 2026-11-08: [the spec](specs/cloud-solutions-architect.md), with 30 modules in 4 stages and about 320 topics, up to principal level, on AWS, Azure and Google Cloud (31 modules and about 340 topics since the audit of 2026-11-15). It was cross-referenced the same day with the owner's own knowledge map ([docs/research](research/senior-cloud-architect-knowledge-map.md)), which added a 24-month example path and a self-assessment. The track assumes nothing about the learner and starts from zero. How its cloud work is proven is [ADR-0014](decisions/0014-cloud-labs.md), accepted 2026-11-09 and amended 2026-11-10 on what a lab may cost.
 
   Building it, in the order the spec's _Building it_ section gives:
   - [x] More than one track in the app: the map and topic pages know every track (2026-11-08)

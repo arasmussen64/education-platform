@@ -162,3 +162,22 @@ def test_reads_tables_a_formatter_has_padded() -> None:
 
     assert topics(padded) == topics(SPEC)
     assert ("csa.deep.networking", "Specialty: Networking") in topics(padded)
+
+
+def test_the_real_spec_and_the_module_map_agree() -> None:
+    # A module missing from MODULE_PREREQUISITES would get no prerequisites
+    # and say nothing: every topic in it would be open from the first day.
+    # So adding a module to the spec has to fail here until the map knows it.
+    import outline_cloud_track as real
+
+    text = real.SPEC.read_text(encoding="utf-8")
+    read_capstone_titles(text)
+    track = parse_spec(text)
+
+    keys = [module.key for module in track.modules]
+    assert set(keys) | set(track.capstones) == set(real.MODULE_PREREQUISITES)
+    # The last capstone is shown after the last module.
+    assert real.CAPSTONE_AFTER[keys[-1]] == max(track.capstones)
+    # No topic ID is used twice.
+    ids = [topic.id for module in track.modules for topic in module.topics]
+    assert len(ids) == len(set(ids))

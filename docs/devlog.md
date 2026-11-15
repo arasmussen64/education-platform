@@ -2,6 +2,49 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, later: The cloud track, audited against the principal bar
+
+The owner asked for the Cloud Solutions Architect track to be audited the way a vice president of cloud would, against one question: would what a learner knows and can do at the end qualify them for a principal or distinguished cloud architect's job? The whole spec was read against that, and changed where it fell short. Everything changed is an outline; no written topic was touched.
+
+**The verdict.** To senior level the track is strong, and broader and deeper than the certifications it lists. Above senior it was thin, for a plain reason: the map it was cross-referenced against is titled "Senior Cloud Architect", and nothing had measured Stage 4 against the two rungs above. A principal is hired less for knowing more than for how far their decisions reach: a whole company's estate, three years ahead, mostly through other people's designs.
+
+**What was found, most serious first.**
+
+1. **No technical strategy.** Nothing taught how to diagnose an estate, choose what a company will and won't do, or write it down; nothing on business capabilities and the application portfolio, build or buy, target states and roadmaps, decision rights, long-form writing, or mergers and carve-outs, though Capstone 3 is a merger.
+2. **Every proof was one system in one sandbox.** Nothing tested judgement over an estate of hundreds of accounts, and nothing made the learner review other people's designs in number, which is most of a principal's week.
+3. **Three workloads that fill enterprise review boards were missing:** SAP, VMware estates (many companies have been moving off VMware since Broadcom changed its licensing) and virtual desktops.
+4. **Safe change at scale was missing.** Several of the largest outages of recent years were changes pushed everywhere at once. The track taught canaries inside Kubernetes, and nothing on rolling a change out by machine, zone and region with automatic rollback.
+5. **Post-quantum cryptography was missing, and one line was wrong.** Quantum computing was said not to change today's designs. It changes their cryptography: data stolen today can be decrypted later, and NIST has published the replacement algorithms and a timetable.
+6. **Thin spots one level below the API,** where principals are tested in interviews: how a virtual network is built on a physical one, how storage reaches eleven nines of durability, gray failures (a zone that is failing while its health checks pass), schema changes with no downtime.
+7. **Identity governance** (who joins, moves and leaves, access reviews, privileged access, identities that aren't people) and directory synchronization were unnamed.
+8. **No reliability specialty,** one of the commonest principal roles.
+9. **The levels promised a title.** "Principal architect, reached at Capstone 3" read as though finishing gives the job. It gives the knowledge and skill.
+10. **Small inconsistencies:** the stage table still said 83 topics for Stage 1 (it has 87 since Modules 2 and 3 were split); the status line said Module 3 was only planned; and the self-assessment cited a "Defend it" in Checkpoint 25 that the checkpoint didn't have.
+
+**What changed in the spec.**
+
+- **A new section, "The principal bar":** the three rungs and what each is hired on; three things principals do beyond the eleven already listed; and what no course can give (a record of decisions in production, real scale, and people's judgement of you), with what that means for a learner with experience and one without.
+- **Module 31, Technology strategy and enterprise architecture,** ten topics: technical strategy; capabilities and the application portfolio; build, buy or rent; target states and roadmaps; standards and decision rights; writing at length; mergers, acquisitions and divestitures; papers and how the clouds are built; working at principal scope; evidence of impact. Its checkpoint, "the inherited estate", gives the learner a company as data (400 accounts, a year of bills, two years of incidents, three teams' designs) and asks for a diagnosis with checked numbers, rulings on the designs, a three-year strategy, a defence, and a revision when a fact changes.
+- **Six more topics:** SAP on the cloud, VMware estates, virtual desktops (Module 28); safe change at scale (Module 22); crypto agility and post-quantum migration, and identity governance and privileged access (Module 20). A reliability specialty joins Module 30, and each specialty now ends in a piece of work fit to publish.
+- **Three proofs for Stage 4:** the estate review, the design critique and the strategy narrative. They run in the browser on data the platform supplies, so they cost nothing.
+- **Eleven outlines say more, and Checkpoints 22, 25 and 28 each gained a part** (a bad change that must stop at its first stage; a defence; a third design).
+- **A second self-assessment,** "…and principal when you can": twelve lines, each tied to a proof.
+
+The track is now 31 modules and about 340 topics: 337 numbered and 8 specialties. Topics from 222 on were renumbered; IDs didn't change. The outline generator learned Module 31, which needs Module 29, and Capstone 3 now follows it. 346 outlines in all; the validator, 343 Python tests and 1,933 web tests pass.
+
+**The honest limit.** After these changes the track covers what a principal is expected to know and proves the skills as far as a platform can. It can't give the title. A learner with years of production work behind them should pass a principal interview on knowledge and judgement; one with none should expect to be hired as a senior architect and earn the title at work. "Distinguished" is a record of impact over ten years or more, and no course grants it. The spec now says so.
+
+**Author notes:**
+
+- _Module 31 is added at the end, not inserted,_ because checkpoints are numbered by their module's position and inserting would rename every checkpoint after it (the spec's open question on stable checkpoint IDs).
+- _The new proofs were designed to be free:_ data packs and documents with planted problems and known answers, checked by code where an answer is a number and by AI against a rubric where it's reasoning. They need a generator for the data packs, listed as step 6 under the spec's "Building it".
+- _Publishing is the learner's choice._ `csa.strat.evidence` and the specialties ask for work fit to publish and a review by a practising architect, and the platform checks neither.
+- _Service names were checked on the web today:_ Amazon Elastic VMware Service (generally available since August 2025), and NIST's post-quantum standards (FIPS 203 and 204) and transition report (IR 8547). Every name is checked again when its topic is written.
+- _One risk is left as it is: hands-on depth on AWS and Google Cloud._ Many principal roles ask for depth on AWS, and the 2026-11-10 rule keeps AWS and Google Cloud labs inside free tiers. Much of what a principal needs there costs nothing (AWS Organizations and its service control policies, IAM, IAM Identity Center, Google Cloud's folders, projects and organization policies), and anything priced can be proven as a plan: `tofu plan` asks the real cloud what it would build and creates nothing. That keeps the rule. What it can't give is having run a priced service, such as a Transit Gateway or a managed Kubernetes cluster, on AWS itself. Also worth knowing before Module 8: an AWS account opened since July 2025 gets credits (up to $200, for six months) in place of the old twelve-month free tier, with the always-free services unchanged. To be settled when Module 8 is designed.
+- _Not added, on purpose:_ a fourth cloud, a low-latency trading topic, contact centres and gaming. Each is a niche a specialty or a job teaches, and the track is already about 2,500 hours.
+
+**Next:** stage 2 of the Momentum redesign, then Module 4 of the cloud track, as planned. Nothing in this audit changes Modules 4 to 10.
+
 ## 2026-11-15: The Momentum redesign begins
 
 The owner asked for the redesign to start, in the Momentum direction they chose on 2026-11-12 (warm and encouraging; light is "morning trail", dark is "night trail"; lime means only "forward"). It comes in three stages, each its own pull request:
