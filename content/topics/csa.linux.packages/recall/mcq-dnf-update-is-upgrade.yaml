@@ -1,0 +1,16 @@
+id: mcq-dnf-update-is-upgrade
+type: mcq
+rev: 1
+prompt: |
+  On Ubuntu, `sudo apt update` refreshes the list of available packages and installs nothing. A colleague who knows only Ubuntu types `sudo dnf update` on a Red Hat production server, meaning to do the same. What does `dnf` do?
+choices:
+  - "It refreshes the list of available packages and installs nothing, exactly as `apt update` does"
+  - "It stops with `No such command: update`, because the `dnf` word for a refresh is `makecache`"
+  - "It works out an upgrade of every package that has a newer version, and asks to go ahead"
+  - "It lists the packages that have a newer version and installs nothing, as `dnf check-update` does"
+answer: 2
+explanation: |
+  `dnf update` is an old name for `dnf upgrade`: ask for `dnf update --help` and the first line reads `usage: dnf upgrade`. So it lists every package it would upgrade and waits at `Is this ok [y/N]:`. Answer `N` and nothing has happened; with `-y` on the end, the whole server would have been patched by someone who meant only to look.
+
+  The command that only looks is `dnf check-update`: it lists what has a newer version and installs nothing. `dnf` has no everyday refresh step to match `apt update`, because it fetches a stale list by itself before it does anything; `dnf makecache` forces that, and `update` is a word `dnf` knows. The pairs to remember: `apt update` then `apt list --upgradable` is `dnf check-update`, and `apt upgrade` is `dnf upgrade`.
+skills: [apt-dnf]

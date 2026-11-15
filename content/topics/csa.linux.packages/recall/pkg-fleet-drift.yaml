@@ -1,0 +1,27 @@
+id: pkg-fleet-drift
+type: predict_shell
+rev: 1
+prompt: |
+  Two web servers were made from the same image six months ago, and people have logged in to patch and fix them since. Each file is one server's list of the shop's packages, as `dpkg-query -W` prints it: a name, then the version. The command sorts the two lists together and keeps only the lines that appear once (`uniq -u`), which are the lines the servers don't share. What is printed?
+files:
+  web-01.txt: |
+    linux-image-shop 6.8.0-1
+    shop-agent 1.0
+    shop-report 2.0
+    shop-theme 1.0
+  web-02.txt: |
+    linux-image-shop 6.8.0-1
+    shop-agent 1.1
+    shop-dashboard 1.0
+    shop-report 2.0
+    shop-theme 1.0
+command: sort web-01.txt web-02.txt | uniq -u
+expected_output: |
+  shop-agent 1.0
+  shop-agent 1.1
+  shop-dashboard 1.0
+explanation: |
+  A line that both servers have appears twice once the lists are sorted together, and `uniq -u` drops it. What is left is the **drift**: `shop-agent` is at 1.0 on one server and 1.1 on the other, and one server has a `shop-dashboard` that the other never got. Nobody decided that: one server missed a round of patching, and someone installed a package by hand on the other.
+
+  This is what patching in place does to a fleet over time, and why "it works on web-02" stops meaning anything about web-01. With immutable servers there is nothing to compare: every server is made from one image, a change is a new image, and the servers are replaced from it, so the two lists can't differ.
+skills: [immutable]

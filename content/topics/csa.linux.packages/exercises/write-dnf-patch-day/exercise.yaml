@@ -1,0 +1,24 @@
+id: write-dnf-patch-day
+stage: write
+runtime: lab
+lab:
+  restart_trial: true
+rev: 1
+title: "Patch day with dnf"
+prompt: |
+  This server runs AlmaLinux, one of Red Hat's family of Linux, not Ubuntu: there is no `apt` or `dpkg` on it, and the same jobs are done with `dnf`, with `rpm` underneath. Today's job is the one you did with `apt`: find out where the server stands, hold what mustn't move, and upgrade the rest.
+
+  The shop's three packages, `shop-agent`, `shop-report` and `shop-dashboard`, come from a repository built into the lab, so `dnf` needs no internet. The repository has two versions of each.
+
+  1. **Look first.** `rpm -q NAME` prints the version of a package that is installed. `dnf list --showduplicates 'shop-*'` lists what is installed and every version the repository has. `dnf check-update` lists what an upgrade would change.
+  2. **Read the history.** The nightly report has failed ever since someone upgraded `shop-report`. `dnf history` lists every change `dnf` has made to this server, each one a numbered transaction. Find the transaction that upgraded `shop-report`, and save its number in `~/patch/bad-transaction.txt`.
+  3. **Put `shop-report` back** at the version it had before that upgrade, and version-lock it there, so that no upgrade moves it.
+  4. **Install `shop-dashboard`** at the older of its two versions (the newer one needs a database the shop doesn't run yet), and version-lock it too.
+  5. **Upgrade everything else.** The repository stays as it is, switched on: holding a package is the lock's job.
+
+  Then run the checks.
+hints:
+  - "`dnf history` lists the transactions, newest first, with the start of the command that made each one. `dnf history info 2` shows everything transaction 2 changed, and `dnf history list shop-report` lists only the transactions that touched that package. Save the number with `echo NUMBER > ~/patch/bad-transaction.txt`."
+  - "A version goes after the name, joined by a hyphen: `sudo dnf install shop-dashboard-1.0`. To step a package back, `sudo dnf downgrade shop-report` installs the version before the one it has, and `sudo dnf history undo NUMBER` reverses a whole transaction. Lock a package once it is at the version you want: `sudo dnf versionlock add shop-report` locks the version that is installed. `dnf versionlock list` shows the locks, and `sudo dnf versionlock delete shop-report` takes one off."
+  - "`sudo dnf upgrade -y` upgrades everything that has a newer version and isn't locked. Afterwards `dnf check-update` should list nothing, and `rpm -q shop-agent shop-report shop-dashboard` shows where each package ended up."
+skills: [apt-dnf, patching]

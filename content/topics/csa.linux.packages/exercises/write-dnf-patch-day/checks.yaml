@@ -1,0 +1,85 @@
+# The checks for "Patch day with dnf". They read the package database
+# (rpm -q), dnf's own history, and what dnf would do next (check-update,
+# which changes nothing): the learner's own "dnf upgrade" is what moved the
+# packages, and the end state shows whether it left the held ones alone.
+#
+# Each mistake has a wrong fix to prove it is caught: no locks at all, so
+# the upgrade moves everything (wrong/no-locks.sh); a lock put on before
+# the package was back at the old version, which locks the wrong one
+# (wrong/locked-too-early.sh); the newest dashboard (wrong/newest-dashboard.sh);
+# everything locked, so nothing is patched (wrong/locked-everything.sh);
+# the upgrade never run (wrong/nothing-upgraded.sh); one package upgraded
+# by name with nothing held (wrong/upgraded-one-by-name.sh); the
+# repository switched off instead of the packages being locked
+# (wrong/repo-disabled.sh); and the newest transaction given instead of
+# the one that upgraded the report tool (wrong/wrong-transaction.sh).
+checks:
+  - id: bad-transaction
+    description: "~/patch/bad-transaction.txt holds the number of the transaction that upgraded shop-report."
+    # The answer comes from dnf's history: of the transactions that touched
+    # shop-report, the earliest whose action is an upgrade.
+    command: |
+      want=$(dnf history list shop-report 2>/dev/null | awk -F'|' '$4 ~ /Upgrade/ {gsub(/ /, "", $1); print $1}' | sort -n | head -n 1)
+      got=$(cat /home/learner/patch/bad-transaction.txt 2>/dev/null | tr -d '[:space:]')
+      if [ -n "$want" ] && [ "$got" = "$want" ]; then
+        echo "the right transaction"
+      else
+        echo "the file holds [$got], which isn't the transaction that upgraded shop-report"
+      fi
+    expect:
+      equals: "the right transaction"
+  - id: report-back
+    description: "shop-report is back at the version it had before the upgrade."
+    # The version before, from the history itself: what the upgrade replaced.
+    command: |
+      id=$(dnf history list shop-report 2>/dev/null | awk -F'|' '$4 ~ /Upgrade/ {gsub(/ /, "", $1); print $1}' | sort -n | head -n 1)
+      before=$(dnf history info "$id" 2>/dev/null | awk '$1 == "Upgraded" {print $2}')
+      now=$(rpm -q shop-report)
+      if [ -n "$before" ] && [ "$now" = "$before" ]; then
+        echo "back where it was"
+      else
+        echo "shop-report is at [$now]"
+      fi
+    expect:
+      equals: "back where it was"
+  - id: dashboard-older
+    description: "shop-dashboard is installed, at the older of the repository's two versions."
+    command: |
+      older=$(dnf -q --disableplugin=versionlock --disableexcludes=all repoquery --qf '%{version}' shop-dashboard 2>/dev/null | sort -V | head -n 1)
+      now=$(rpm -q --qf '%{VERSION}' shop-dashboard 2>/dev/null) || now="not installed"
+      if [ -n "$older" ] && [ "$now" = "$older" ]; then
+        echo "the older version"
+      else
+        echo "shop-dashboard is [$now]"
+      fi
+    expect:
+      equals: "the older version"
+  - id: held
+    description: "shop-report and shop-dashboard are held: the repository still offers a newer version of each, and dnf leaves both where they are."
+    # With the locks and excludes set aside, dnf must still offer an update
+    # for each of the two (so the repository is there, switched on and
+    # whole); with them in place, it must offer none.
+    command: |
+      rpm -q shop-report shop-dashboard > /dev/null 2>&1 || { echo "one of the two isn't installed"; exit 0; }
+      offered=$(dnf -q --disableplugin=versionlock --disableexcludes=all check-update shop-report shop-dashboard 2>/dev/null | awk '$1 ~ /^shop-/ {print $1}' | sort | paste -sd' ')
+      moves=$(dnf -q check-update shop-report shop-dashboard 2>/dev/null | awk '$1 ~ /^shop-/ {print $1}' | sort | paste -sd' ')
+      if [ "$offered" = "shop-dashboard.noarch shop-report.noarch" ] && [ -z "$moves" ]; then
+        echo "both held"
+      else
+        echo "the repository offers a newer [$offered]; the next upgrade would move [$moves]"
+      fi
+    expect:
+      equals: "both held"
+  - id: rest-upgraded
+    description: "Everything that isn't held is at the repository's newest version: dnf has no upgrade left to make."
+    command: |
+      newest=$(dnf -q --disableplugin=versionlock --disableexcludes=all repoquery --qf '%{version}' shop-agent 2>/dev/null | sort -V | tail -n 1)
+      now=$(rpm -q --qf '%{VERSION}' shop-agent 2>/dev/null) || now="not installed"
+      left=$(dnf -q check-update 2>/dev/null | awk '$1 ~ /^shop-/ {print $1}' | paste -sd' ')
+      if [ -n "$newest" ] && [ "$now" = "$newest" ] && [ -z "$left" ]; then
+        echo "nothing left to upgrade"
+      else
+        echo "shop-agent is [$now]; still waiting: [$left]"
+      fi
+    expect:
+      equals: "nothing left to upgrade"
