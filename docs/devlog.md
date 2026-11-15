@@ -89,6 +89,24 @@ The owner asked for everything left in the cloud track before Module 4 to be bui
 
 **Next:** batch two, the new questions.
 
+## 2026-11-15, leftovers: LVM by hand, and a real benchmark scan
+
+Part of what was left in Modules 1 to 3 (the list is the entry above). The last two of Module 1's seven hands-on gaps.
+
+- **A volume built and grown with LVM** (Disks and filesystems). LVM is the layer that lets several disks act as one pool, from which volumes are cut and later grown. The spec says "use LVM", and until now the topic only asked questions about it. The learner makes a physical volume, a volume group and a logical volume from one of the lab's disks, puts a filesystem on it and mounts it through fstab, fills it with films, then adds the second disk to the group, extends the volume and grows the filesystem while it is in use, and moves the rest in. Eight checks, among them that the six films are on the volume with the checksums their numbers give, and that the filesystem is older than the growing, so it wasn't remade. Nine known-wrong fixes: the volume extended and the filesystem not grown, a new filesystem made over the films, the second disk mounted beside the first.
+- **A real scan with Lynis** (Hardening). The spec says to prove a baseline with a benchmark scan, and the topic's own objectives promise one; the scan was questions over saved reports. The learner now runs Lynis, a scanner that tests a machine against a list of hardening checks, saves its report, fixes three named findings, records a fourth as an exception with a reason, and scans again to prove it. Nine checks, thirteen known-wrong fixes: fixing first and scanning after, editing the report by hand, switching the tests off in the scanner's profile, changing SSH's file and never reloading it.
+- **Also:** third questions for two thin skills (what a write cache risks; an open security group), and six number drills (space a physical volume really gives, how many inodes a filesystem gets and when they run out, a scan's pass rate).
+
+**Author notes:**
+
+- _Lynis proved steady enough to check:_ three scans in a row, and scans either side of a restart, gave the same findings, differing only in times. Two things had to be pinned for that: SSH runs as a service from boot (when it waits for its first connection, Lynis skips its SSH tests), and the scan doesn't refresh the package lists. No check reads the overall score, which moved only from 60 to 61 for the three fixes.
+- _Shortcuts that pass because they're right:_ `lvextend` followed by `resize2fs` in two steps; the fstab line by the volume's name instead of its UUID; a quick scan of only the named tests as the "after".
+- _Shortcuts not closed:_ a "before" report forged after the fixes, with its start time edited too, would pass. A login banner of five bare key words passes, because that is the scanner's own bar.
+- _LVM in a container needed care:_ there is no udev, so the lab's boot script makes the device nodes itself; it clears a volume left over from an earlier run of the same lab; and its teardown switches the group off before letting go of the disks. A container removed without the lab checker leaves the volume and its two disks attached until the lab next boots.
+- _Two copies of the LVM lab running on one machine would collide,_ since both name their volume group `mediavg`. The checker runs one at a time, and a learner has one.
+- _The writer's guide gained two notes,_ on how a lab with LVM volumes lets go of them and on how a scanner lab is checked.
+- _The roadmap's note about Stage 1's browser drills is closed with this:_ once the pull requests open beside this one are in, thirteen of Module 1's fourteen topics have number drills. Package management has none, because nothing there is a sum anyone does on sight.
+
 ## 2026-11-15, leftovers: Module 2's review pools, and right-sizing from a price table
 
 Part of what was left in Modules 1 to 3 (the list is in the entry above; this one sits below it only so that pull requests open at the same time don't edit the same lines). Module 2 was complete against its spec, and its leftovers needed only questions: 17 new ones, and no lab or lesson changed.

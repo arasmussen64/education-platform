@@ -1,0 +1,27 @@
+id: est-inodes-run-out
+type: estimate
+rev: 1
+prompt: |
+  A 40 GB ext4 filesystem has 2621440 inodes. A session store is filling it with small files that take 4 KB of disk each, and nothing deletes them. When the last inode is used, about what percentage of the 40 GB have the files filled? Within 2.
+unit: "%"
+answer: 25
+tolerance: { absolute: 2 }
+given: { size: 40, inodes: 2621440, each: 4 }
+# Tried in a lab container on 2026-11-15, at a twentieth of the size: a
+# 2 GB ext4 filesystem (131072 inodes) took 4 KB files until "No space
+# left on device", with 515M used; df -h then showed 29%, a few points
+# over the files' own quarter, because df counts the filesystem's journal
+# as used and leaves root's reserved 5% out of the total.
+working: inodes * each / (size * 1024 * 1024) * 100
+mistakes:
+  - id: full-means-full
+    value: 100
+    working: "100"
+    why: That's a filesystem out of bytes. This one runs out of inodes first, because every file uses one and the files are small, so it stops taking files with most of its space still free.
+  - id: upside-down
+    value: 400
+    working: size * 1024 * 1024 / (inodes * each) * 100
+    why: That divides the filesystem's size by what the files use. It's the other way up, and nothing can fill 400% of a disk.
+explanation: |
+  2,621,440 files of 4 KB are about 10.5 million KB, which is 10 GB, a quarter of 40 GB. So the store stops with "No space left on device" with three quarters of the disk empty. `df -h` shows a few points more than the files' own share, about 29%, since it counts the filesystem's own journal and sets aside the 5% kept for root, and still nowhere near full. That mismatch is the sign to run `df -i`, which shows IUse% at 100%. The rule of thumb: inodes run out before bytes whenever the files average less than the filesystem's bytes-per-inode ratio, 16 KB by default.
+skills: [disk-full]

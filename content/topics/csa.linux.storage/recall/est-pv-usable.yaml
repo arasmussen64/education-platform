@@ -1,0 +1,24 @@
+id: est-pv-usable
+type: estimate
+rev: 1
+prompt: |
+  A 500 MB disk joins an LVM volume group. LVM keeps the first 1 MB of the disk for its own records, and hands out the rest in whole extents of 4 MB. How many MB does the group gain? Exactly.
+unit: MB
+answer: 496
+tolerance: { absolute: 0 }
+given: { disk: 500, kept: 1, extent: 4 }
+# Run in the lab container on 2026-11-15 (LVM 2.03.16): a 150M disk gave a
+# group of 148.00m, a 300M disk 296.00m, a 100M disk 96.00m.
+working: (disk - kept) // extent * extent
+mistakes:
+  - id: part-extent-counted
+    value: 499
+    working: disk - kept
+    why: That takes off LVM's own megabyte and stops. The 499 MB that are left hold 124 whole extents of 4 MB, with 3 MB over, and a part of an extent can't be handed out.
+  - id: whole-disk
+    value: 500
+    working: disk // extent * extent
+    why: That divides the whole disk into extents. The first megabyte is LVM's, for its records of the group, so only 499 MB are left to divide.
+explanation: |
+  500 − 1 = 499 MB are left after LVM's own megabyte. 499 ÷ 4 is 124 with 3 MB over, and only whole extents count: 124 × 4 = 496 MB. This is why `vgs` never shows quite the size you attached: the lab's 100 MB disks give 96 MB each, 24 extents. The same sum tells you how far `lvextend -l +100%FREE` can go: it hands the volume every free extent, and not a megabyte more.
+skills: [lvm-grow]

@@ -1,0 +1,22 @@
+id: write-lvm-volume
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "A volume that grows: LVM by hand"
+prompt: |
+  The shop is going to sell films, and they need a home at `/srv/media` that can be made bigger when it fills. That is what LVM is for, and in this lab you build its three layers by hand and then grow them. The lab machine has two blank 100 MB disks, `/dev/lab/disk1` and `/dev/lab/disk2`. Only the disks labelled under `/dev/lab/` belong to the lab: the others `lsblk` lists belong to Docker on your own computer, and must be left alone.
+
+  1. **Build the volume on the first disk only.** Make `/dev/lab/disk1` a physical volume (`sudo pvcreate DISK`), make a volume group called `mediavg` out of it (`sudo vgcreate GROUP DISK`), and carve from the group one logical volume called `films` that takes all of its space (`sudo lvcreate -n NAME -l 100%FREE GROUP`). `sudo pvs`, `sudo vgs` and `sudo lvs` show the three layers. The new volume is the device `/dev/mediavg/films`, and from here on you treat it like any disk: put an ext4 filesystem on it, make the folder `/srv/media`, add a line for it to `/etc/fstab` (`sudo nano /etc/fstab`) with `nofail`, then run `sudo systemctl daemon-reload` and mount it from that line with `sudo mount -a`. In `fstab`, name it by UUID as before. (A logical volume's name, `/dev/mediavg/films`, never changes either, so many servers' `fstab` use the name; the checks accept both.)
+  2. **Move the first films in:** `sudo mv ~/incoming/batch1/* /srv/media/`. Now compare `df -h /srv/media` with `du -sh ~/incoming/batch2`: the second batch won't fit in what is left.
+  3. **Grow the volume, with the films in place and the volume still mounted.** Make `/dev/lab/disk2` a physical volume too and add it to the group (`sudo vgextend GROUP DISK`); `sudo vgs` now shows free space. Extend the logical volume into all of it and grow the filesystem in the same step: `sudo lvextend -r -l +100%FREE /dev/mediavg/films`. Nothing is unmounted and nothing is formatted again: `mkfs` at this point would erase the films, and they are no longer anywhere else.
+  4. **Move the second batch in:** `sudo mv ~/incoming/batch2/* /srv/media/`, and look at `df -h /srv/media` once more.
+
+  Then run the checks. If the lab machine is restarted, the volume comes back but is not mounted, as with the other disk labs: `sudo mount -a` mounts it again.
+hints:
+  - "Step 1's LVM commands in full: `sudo pvcreate /dev/lab/disk1`, then `sudo vgcreate mediavg /dev/lab/disk1`, then `sudo lvcreate -n films -l 100%FREE mediavg`. `-l` counts in extents, the 4 MB pieces a volume group hands out, or in percent; `100%FREE` means every piece that isn't in a volume yet."
+  - "The rest of step 1 is what you did for a plain disk, with `/dev/mediavg/films` as the device: `sudo mkfs.ext4 /dev/mediavg/films`, `sudo mkdir -p /srv/media`, then the line in `/etc/fstab`, with its six fields: `UUID=THE-UUID /srv/media ext4 defaults,nofail 0 2`. `sudo blkid -s UUID -o value /dev/mediavg/films` prints the UUID to put in it."
+  - "If you ran `lvextend` without `-r`, the volume is bigger and `df -h /srv/media` still shows the old size: the filesystem hasn't been told. `sudo resize2fs /dev/mediavg/films` grows an ext4 filesystem into its device while it is mounted. Don't reach for `mkfs`."
+skills: [lvm-grow, block-devices]
