@@ -1,0 +1,26 @@
+id: est-load-per-cpu
+type: estimate
+rev: 1
+prompt: |
+  On a slow server `uptime` ends with `load average: 18.00, 9.00, 4.50`, and `nproc` prints 12. Over the last minute, how many tasks were there for each CPU, on average, running or waiting? Exactly.
+unit: tasks per CPU
+answer: 1.5
+tolerance: { absolute: 0 }
+given: { one: 18, five: 9, fifteen: 4.5, cpus: 12 }
+working: one / cpus
+mistakes:
+  - id: fifteen-minutes
+    value: 0.375
+    working: fifteen / cpus
+    why: "That uses the last of the three numbers, which is the average over 15 minutes. The last minute is the first number, 18."
+  - id: five-minutes
+    value: 0.75
+    working: five / cpus
+    why: "That uses the middle number, the average over 5 minutes. The last minute is the first number, 18."
+  - id: upside-down
+    value: 0.67
+    working: cpus / one
+    why: "That divides the CPUs by the load. Tasks per CPU is the load divided by the CPU count."
+explanation: |
+  The three numbers are the averages over 1, 5 and 15 minutes, in that order, so the last minute's is 18. With 12 CPUs that is 18 ÷ 12 = 1.5 tasks for each CPU: every CPU has one task running and, half the time, another waiting its turn (or the extra tasks are stuck waiting on the disk, which the load average counts too). Anything above 1 per CPU means a queue. The trend matters as much: 4.5, then 9, then 18 says the load has doubled twice in a quarter of an hour.
+skills: [load-average]
