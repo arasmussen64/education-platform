@@ -1,0 +1,25 @@
+id: est-memorymax-bytes
+type: estimate
+rev: 1
+prompt: |
+  A drop-in sets `MemoryMax=96M` for a service. What number does the service's `memory.max` file hold? Exactly.
+unit: bytes
+answer: 100663296
+tolerance: { absolute: 0 }
+given: { size: 96 }
+# Checked on systemd 255 (Ubuntu 24.04), 2026-11-15: MemoryMax=96M gives
+# memory.max 100663296. Its manual, systemd.resource-control, says K, M, G
+# and T are "with the base 1024".
+working: size * 1024 * 1024
+mistakes:
+  - id: a-million-each
+    value: 96000000
+    working: size * 1000 * 1000
+    why: "That counts a megabyte as a million bytes. systemd's `M` is 1,024 × 1,024 bytes, 1,048,576, so 96M is a little over 100 million."
+  - id: one-step-short
+    value: 98304
+    working: size * 1024
+    why: "That multiplies by 1,024 once, which gives the size in kB. `memory.max` is in bytes: multiply by 1,024 again."
+explanation: |
+  `memory.max` is in bytes, and the `M` of `MemoryMax=` is 1,024 × 1,024 = 1,048,576 of them: 96 × 1,048,576 = 100,663,296. Knowing the step is what lets you read a cgroup file on sight: a limit of about 100 million is 96M, about 268 million is 256M, about 1,074 million is 1G. Going the other way, divide by 1,048,576 (or by 1,024 twice) and you have the number that was written in the unit file.
+skills: [container-memory]

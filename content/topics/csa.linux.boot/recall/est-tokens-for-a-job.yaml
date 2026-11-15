@@ -1,0 +1,32 @@
+id: est-tokens-for-a-job
+type: estimate
+rev: 1
+prompt: |
+  A batch job on an instance that requires IMDSv2 runs for 20 hours and reads the instance's metadata every 5 minutes. Each time it needs a new session token it asks for the longest-lived one the service allows, and it uses that token until it expires. How many tokens does it ask for during the 20 hours? Exactly.
+unit: tokens
+answer: 4
+tolerance: { absolute: 0 }
+given: { hours: 20, every: 5 }
+# 6 is the longest a token may live, in hours (21,600 seconds), which the
+# learner must know. Tokens at hours 0, 6, 12 and 18.
+working: ceil(hours / 6)
+mistakes:
+  - id: a-token-per-read
+    value: 240
+    working: hours * 60 / every
+    why: "That's one token for every read. A token is a session: one `PUT` gets it, and the same token goes on every `GET` until it expires."
+  - id: one-for-ever
+    value: 1
+    working: "1"
+    why: "That's a token that never expires. The longest a token may live is six hours, 21,600 seconds, so 20 hours take four."
+  - id: one-an-hour
+    value: 20
+    working: hours
+    why: "That's a new token every hour. The longest a token may live is six hours, so each one covers six hours of reads."
+  - id: rounded-down
+    value: 3
+    working: floor(hours / 6)
+    why: "Three tokens cover the first 18 hours. The job runs for two hours more, and those reads need a fourth."
+explanation: |
+  The longest lifetime a token can have is 21,600 seconds, six hours. The job gets one token at the start and another each time the last has expired: at hours 0, 6, 12 and 18, which is 4 tokens (20 ÷ 6 is 3.3, and the last part of a token still takes a whole one). The 240 reads all reuse them. That is what the session buys: the `PUT` is rare, and a forged plain `GET` from a web application never has a token to send. Software that asks for a token before every single read works too, but makes twice the requests for nothing.
+skills: [imds-v2]

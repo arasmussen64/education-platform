@@ -1,0 +1,28 @@
+id: est-burst-wall-time
+type: estimate
+rev: 1
+prompt: |
+  An API's cgroup has `cpu.max` `50000 100000`. A request arrives just as a period begins and needs 120 ms of CPU time. One process handles it, using one CPU at a time, and nothing else in the group is running. How many milliseconds pass before the request is finished? Exactly.
+unit: ms
+answer: 220
+tolerance: { absolute: 0 }
+given: { quota: 50000, period: 100000, need: 120 }
+# Two whole periods, each 50 ms of running and 50 ms stopped, then the last
+# 20 ms at the start of the third.
+working: floor(need / (quota / 1000)) * (period / 1000) + need % (quota / 1000)
+mistakes:
+  - id: no-throttling
+    value: 120
+    working: need
+    why: "That's the CPU time alone, as if there were no quota. After 50 ms in a period the kernel stops the group until the next period begins."
+  - id: half-speed
+    value: 240
+    working: need / (quota / period)
+    why: "That treats half a CPU as running at half speed all the time. The quota comes as 50 ms at the start of each period, so after two whole periods (200 ms) the last 20 ms run straight away."
+  - id: one-wait
+    value: 170
+    working: need + (period - quota) / 1000
+    why: "That counts one 50 ms wait. The request uses up the quota in two periods, and waits out the rest of both."
+explanation: |
+  The quota is 50 ms of CPU time in every 100 ms period. The request runs for 50 ms and is stopped until 100 ms; runs for another 50 ms and is stopped until 200 ms; then runs its last 20 ms and finishes at 220 ms. With no quota it would have taken 120 ms. That extra 100 ms is spent doing nothing on a machine whose CPUs may all be idle, and it's why a throttled service shows poor latency beside a low CPU graph.
+skills: [throttling]

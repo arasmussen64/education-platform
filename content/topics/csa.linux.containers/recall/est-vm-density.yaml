@@ -1,0 +1,26 @@
+id: est-vm-density
+type: estimate
+rev: 1
+prompt: |
+  A host has 32768 MB of memory to hand out. One copy of an application needs 256 MB for itself. A kernel and operating system of the kind a virtual machine boots take another 512 MB. Each copy can run in a VM of its own or in a container of its own. How many more whole copies fit on the host as containers than as VMs? Exactly.
+unit: copies
+answer: 86
+tolerance: { absolute: 0 }
+given: { host: 32768, app: 256, guest: 512 }
+working: host / app - floor(host / (app + guest))
+mistakes:
+  - id: containers-only
+    value: 128
+    working: host / app
+    why: "That's how many copies fit as containers. As VMs, 42 fit, so the difference is 128 − 42."
+  - id: vms-only
+    value: 42
+    working: floor(host / (app + guest))
+    why: "That's how many copies fit as VMs, at 768 MB each. As containers, 128 fit, so the difference is 128 − 42."
+  - id: overhead-only
+    value: 64
+    working: host / app - host / guest
+    why: "That counts 512 MB for each VM and leaves out the application's own 256 MB. A VM here costs both, 768 MB, so 42 fit, not 64."
+explanation: |
+  A container has no kernel of its own: it runs on the host's, so each copy costs only its 256 MB, and 32,768 ÷ 256 = 128 copies fit. As VMs, each costs 256 + 512 = 768 MB: 32,768 ÷ 768 is 42.7, so 42 whole VMs. The difference is 128 − 42 = 86, three times as many copies on the same host. The saving is the shared kernel: one kernel does the work for every container, where each VM carries its own. The price is the one the lesson names: that shared kernel is also the only thing keeping the containers apart.
+skills: [container-vs-vm]

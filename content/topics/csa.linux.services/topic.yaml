@@ -4,7 +4,7 @@ status: ready
 title: "Services and logs"
 summary: "Run a program as a service that starts at boot, restarts when it crashes and keeps its logs: systemd unit files, systemctl, and reading the journal with journalctl."
 prerequisites: [csa.linux.processes]
-estimated_minutes: 220
+estimated_minutes: 225
 rev: 1
 objectives:
   - "Read and write a service's unit file: what the `[Unit]`, `[Service]` and `[Install]` sections are for, and the handful of lines most services need (`ExecStart`, `User`, `Restart`, `WantedBy`)."
@@ -41,7 +41,10 @@ resources:
     use: link
     license: GNU FDL 1.3
 # The browser has no systemd, so the recall items read unit files, systemctl
-# listings and journal output with the text tools of the first topic. The
+# listings and journal output with the text tools of the first topic; the
+# estimate items (ADR-0024) are the restart sums done on sight: starts that
+# fit inside the start limit's window, when systemd gives up, and how long a
+# unit has been failing from its restart counter. The
 # worked example, the fill-in, the write and both proofs are labs in a
 # container that boots systemd (ADR-0017, ADR-0018).
 practice:
@@ -56,7 +59,10 @@ practice:
   - svc-enabled-units
   - mcq-status-output
   - mcq-restart-policy
+  - est-starts-in-ten-seconds
+  - est-seconds-until-give-up
   - svc-journal-restarts
+  - est-flapping-minutes
   - svc-journal-errors
   - mcq-journalctl-flags
   - svc-journal-priorities
@@ -105,6 +111,9 @@ review_pool:
   - svc-journal-errors
   - mcq-journal-persistent
   - mcq-reload-vs-restart
+  - est-starts-in-ten-seconds
+  - est-seconds-until-give-up
+  - est-flapping-minutes
 skills:
   - id: unit-files
     description: "Read and write a unit file: the `[Unit]`, `[Service]` and `[Install]` sections, the common settings, where units and drop-ins live"

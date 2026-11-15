@@ -1,0 +1,27 @@
+id: est-containers-upper-disk
+type: estimate
+rev: 1
+prompt: |
+  12 containers run from one 400 MB image. Each has written 15 MB of files of its own, and none of them uses a volume. How much disk do the image and the 12 containers take together, in MB? Exactly.
+unit: MB
+answer: 580
+tolerance: { absolute: 0 }
+given: { count: 12, image: 400, written: 15 }
+# One copy of the image's read-only layers, and an upper layer per container.
+working: image + count * written
+mistakes:
+  - id: an-image-each
+    value: 4980
+    working: count * (image + written)
+    why: "That gives every container its own copy of the image. The image's layers are read-only lower layers that all 12 share; a container adds only its upper layer, the 15 MB it wrote."
+  - id: image-left-out
+    value: 180
+    working: count * written
+    why: "That's the 12 upper layers alone. The image's 400 MB is on the disk as well, once."
+  - id: one-upper-layer
+    value: 415
+    working: image + written
+    why: "That counts one container's writes. Each of the 12 has an upper layer of its own, so it's 12 times 15 MB on top of the image."
+explanation: |
+  overlayfs mounts the image's layers read-only under every container, so the 400 MB is stored once however many containers run from it. What each container adds is its upper layer, holding only what it wrote: 12 × 15 = 180 MB. In all, 400 + 180 = 580 MB. It is the same sharing that lets a host download an image once and start any number of containers from it in milliseconds. Those upper layers are deleted with their containers, so the 180 MB is also what would be lost.
+skills: [layers-overlay]
