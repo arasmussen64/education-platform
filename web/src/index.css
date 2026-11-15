@@ -1,1 +1,79 @@
 @import 'tailwindcss';
+
+/* Momentum, the app's visual design (stage 1: colours and fonts).
+   Light is "morning trail": limestone paper, near-white cards, pine ink.
+   Dark is "night trail": the same scale read from the other end.
+   Lime (#a3e635, the favicon's) is kept for "forward": the one primary
+   button on a card, progress fills, "you are here". */
+
+/* The fonts are bundled with the app (SIL Open Font License 1.1), so no
+   page asks Google or anyone else for them. */
+@import '@fontsource-variable/gabarito';
+@import '@fontsource-variable/figtree';
+@import '@fontsource-variable/jetbrains-mono';
+
+@theme {
+  /* Components were written with Tailwind's grey "slate" scale. Repainting
+     that scale here moves every page to Momentum at once; later stages swap
+     the components over to named colours one page at a time. Every text
+     pairing the app uses keeps a contrast of at least 4.5 to 1 (WCAG AA). */
+  --color-slate-50: #f6f4ed; /* limestone paper: the page in light mode */
+  --color-slate-100: #edeae0;
+  --color-slate-200: #dedacb;
+  --color-slate-300: #c6c2b0;
+  --color-slate-400: #9a9a88;
+  --color-slate-500: #666c5f;
+  --color-slate-600: #4f574c;
+  --color-slate-700: #3b443b;
+  --color-slate-800: #28322b;
+  --color-slate-900: #1b2620; /* pine ink: text in light mode */
+  --color-slate-950: #111914; /* night trail: the page in dark mode */
+
+  /* Cards are near-white rather than pure white, which glares on paper. */
+  --color-white: #fdfcf8;
+
+  --font-sans: 'Figtree Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Gabarito Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+}
+
+@layer base {
+  :root {
+    /* Lets the browser draw scrollbars and form controls to match. */
+    color-scheme: light dark;
+  }
+
+  body {
+    /* Lesson and interface text: 18px with roomy lines, for long reading. */
+    font-size: 1.125rem;
+    line-height: 1.7;
+  }
+
+  /* Headings and big numbers use Gabarito. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    line-height: 1.25;
+  }
+
+  /* Ligatures merge characters like "!=" into one symbol; a learner needs
+     to see exactly what they type, so code shows every character. */
+  code,
+  kbd,
+  pre,
+  samp,
+  .cm-editor {
+    font-variant-ligatures: none;
+  }
+}
+
+/* The code editor (CodeMirror) adds its own "monospace" rule after this file
+   loads. This one sits outside the layer above and names the editor class
+   twice, so it is the stronger rule and wins. */
+.cm-editor.cm-editor .cm-scroller {
+  font-family: var(--font-mono);
+}
