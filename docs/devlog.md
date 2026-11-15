@@ -2,6 +2,41 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, leftovers: three checks that could be passed with a fault left in
+
+In the same pull request as the entry below. When Module 3 was written, three notes in this devlog (2026-11-12) admitted that a lab could be passed with part of the work undone. Each now has a check that fails without it, and known-wrong fixes that prove the check.
+
+- **NAT's debug, the third fault.** The gateway's catch-all rule took the gateway's first public address, which was also the address the office was meant to leave from, so a rule turned round the wrong way behaved exactly like a mended one. The gateway's addresses are now listed the other way round, and the prompt says nothing but the payments may leave from the payments' address. A new check asks the payment provider's own firewall, outside the gateway: an office PC that tries the payment port gets no answer. Two new known-wrong fixes.
+- **IPsec's fill-in, dead peer detection** (noticing that the other end of a tunnel has gone silent). The fill-in asks for it and nothing proved it. A new last check cuts the path to the provider in both directions without a word, and passes only if the gateway notices within 40 seconds, gives the tunnel up, and has it back by itself within 30 seconds of the path returning. The gateway gives up on an unanswered message after 8 seconds in the lab, where strongSwan's own figure is 165; the prompt states both. Two new known-wrong fixes: detection left off, and a tunnel that is cleared and never brought back.
+- **BGP's build, the timers.** The prompt asked for the lab's fast timers and no check read them. A new check reads what each session agreed with its ISP and what the saved configuration asks for. The ISPs now offer FRR's default timers, so the lower figure is the learner's to set. Writing it turned up something the lesson didn't say: timers typed after a session is up change nothing until the session is cleared. The prompt now says so and gives the command. Two new known-wrong fixes: default timers, and timers typed late.
+
+**Tried and undone: a cheaper HTTP semantics build.** That lab is the slowest in CI (about 1,300 seconds), because thirteen of its seventeen runs each wait out a 75-second idle check that has to outlast nginx's real 60-second default. Pairing its fourteen known-wrong fixes into eight files cut the run by 42%. But the checker asks only that each file fail one check, so CI would no longer have proved each paired mistake by itself. The pairing was reverted; the lab is as it was.
+
+**Author notes:**
+
+- _One NAT shortcut still passes:_ replacing the catch-all with a rule that names the office's address, and leaving the stale line in the file. The office is then translated by an explicit rule, and nothing a check can observe separates that from a mended file.
+- _An idea for the lab checker, not built:_ a known-wrong fix could name the check it must fail. That would let one file hold two mistakes and still prove both, and it would catch a wrong fix that fails for the wrong reason. It changes ADR-0018's contract, so it needs its own decision.
+- _A one-way cut doesn't test dead peer detection:_ the provider's own packets keep the gateway from asking, so the check cuts both directions, and restores the path even when it fails.
+- _BGP's build takes about two minutes longer to prove_ (689 seconds on this machine, where CI recorded 559).
+
+## 2026-11-15, leftovers: a Google-style circuit, and a casebook that can be measured
+
+The third pull request of what was left in Modules 1 to 3. Three things in Module 3 that its spec or plan promised and the writing put off.
+
+- **A lab on a Google-style circuit** ("The circuit Google names", in Steering traffic and cloud circuits). The spec promises one circuit made primary in both directions on all three clouds, and the labs had an AWS-style cloud and an Azure-style one. In the new lab the cloud's router is modelled on what Google's pages say a Cloud Router does: it sends a priority as the MED on each session (MED is the number a network sends to say which way in it prefers), and it follows the MED it receives. The learner reads which circuit the cloud team named, sends the higher MED on the backup, and the last check unplugs the primary. Nine known-wrong fixes, restart trial on. Three multiple-choice questions on what moves each of the three clouds bring the difference back in reviews.
+- **The troubleshooting casebook has its monitor logs.** Each of the six cases gains what an uptime monitor would have recorded across the fault, fitted to the second to that case's captures and journal. They earn their place: the sheet has a new field, how many loads failed out of how many, which the checks count from the log itself. Two known-wrong sheets prove it (one counts only by exit status and misses the 503 answers; one counts slow loads as failures).
+- **Routing's thinnest skill has five questions, where it had three:** a predict-the-output over a router's table after a pulled cable and after a silent cut, both captured from the lab, and an estimate of how many static route lines nine sites take.
+
+**Author notes:**
+
+- _Where the lab's cloud differs from Google's:_ it is one FRR router, which always compares AS-path length between its two sessions, where a real Cloud Router in its default mode compares it only among sessions one of its programs holds. The prompt says so, and a known-wrong fix that prepends where it should set MED fails the check that reads how the path was chosen.
+- _The untouched lab passes six of its eight checks,_ because sending traffic out over the right circuit needs no change: the depot already follows the cloud's MED. The two that fail are the cloud's way in and the failover. Two other right answers pass all eight: MED on the backup only, and local preference added on the primary.
+- _The monitor logs are constructed and say so,_ in the prompt, the cases' README and the topic's notes, beside the captured evidence, which is real. Case 3's monitor is green on purpose: it loads only the small front page, and a monitor fetching the big file would have left retransmissions in that case's capture.
+- _The new field is one question and four checks,_ following the casebook's pattern of a check for each case and field.
+- _Read on Google's pages on 2026-11-15_ (each last updated 2026-11-10, CC BY 4.0): how a Cloud Router ranks learned routes, the base advertised priority, its range, and the guide for on-premises routers. Recorded in the topic's notes.
+
+**Next:** Module 1's leftovers: its number drills, its seven hands-on gaps and Checkpoint 1's fresh versions; and Module 2's review pools.
+
 ## 2026-11-15, leftovers: Module 3's script labs are linted
 
 The second pull request of what was left in Modules 1 to 3 ([the list](#2026-11-15-last-whats-left-in-cloud-modules-1-to-3-and-the-first-batch) is in the entry below). The Module 3 plan asked that every lab where the learner writes a shell script have ShellCheck read it, as Module 1's scripting labs do. ShellCheck is the script checker that topic teaches. Six labs had been written without it.
