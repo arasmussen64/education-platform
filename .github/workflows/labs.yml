@@ -59,6 +59,13 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
       - name: Install Python and dependencies
         run: uv sync --locked
+      # Two labs build device-mapper devices: an LVM volume, and a disk whose
+      # queue iostat can see. Docker Desktop's kernel has the device mapper
+      # built in. This runner's has it as a module, and a container can't
+      # load a module, so it is loaded here (the base README's "Kernel
+      # needs" says a need is met this way when a runner lacks it).
+      - name: Load the kernel's device mapper
+        run: sudo modprobe dm_mod
       - name: Prove this share of the labs' contracts in Docker
         run: uv run python tools/labcheck.py test --all --jobs 4 --shard ${{ matrix.shard }}/8
 
