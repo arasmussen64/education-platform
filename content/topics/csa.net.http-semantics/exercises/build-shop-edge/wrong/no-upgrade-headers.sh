@@ -1,12 +1,6 @@
-# Wrong, twice over, in two parts of the file that have nothing to do with
-# each other (one file for both, because every contract run of this lab
-# waits out the 75-second idle check: see content/README.md).
-# 1. /board/ is proxied like any page. Upgrade and Connection describe one
-#    hop, so nginx doesn't pass them on, and the board never sees an upgrade
-#    asked for. Fails board-opens (and board-survives-quiet, at once).
-# 2. The API echoes whatever Origin arrives, so a page from any site may
-#    call it with the customer's cookie and read their basket. Fails
-#    others-blocked.
+# Wrong: /board/ is proxied like any page. Upgrade and Connection describe
+# one hop, so nginx doesn't pass them on, and the board never sees an
+# upgrade asked for.
 on origin tee /etc/nginx/sites-available/shop > /dev/null << 'EOF'
 # The shop's origin server, nginx on origin. The edge cache (www.shop.test)
 # sits in front of it and keeps a copy of whatever these headers let a
@@ -45,7 +39,7 @@ server {
     # The basket API, from shop-app.
     location /api/ {
         if ($request_method = OPTIONS) {
-            add_header Access-Control-Allow-Origin $http_origin always;
+            add_header Access-Control-Allow-Origin $cors_origin always;
             add_header Access-Control-Allow-Credentials "true" always;
             add_header Access-Control-Allow-Methods "GET, PUT, DELETE" always;
             add_header Access-Control-Allow-Headers "Content-Type" always;
@@ -55,7 +49,7 @@ server {
         }
         proxy_pass http://127.0.0.1:8080;
         add_header Cache-Control "no-store" always;
-        add_header Access-Control-Allow-Origin $http_origin always;
+        add_header Access-Control-Allow-Origin $cors_origin always;
         add_header Access-Control-Allow-Credentials "true" always;
         add_header Vary Origin always;
     }

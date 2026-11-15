@@ -1,11 +1,7 @@
-# Wrong, twice over, in two parts of the file that have nothing to do with
-# each other (one file for both, because every contract run of this lab
-# waits out the 75-second idle check: see content/README.md).
-# 1. The account page may be kept by any cache for a minute, so the edge
-#    hands one customer's page to the next. Fails account-private.
-# 2. The API's answers name the asking origin and never say they depend on
-#    it, so a shared cache could hand one site's answer to another. Fails
-#    vary-origin.
+# Wrong: nginx's idle limit is left at its default, 60 seconds, and the
+# board's own settings were changed instead, to ping every 30 seconds.
+# Screens stay connected, but the board's settings are the board team's,
+# and the prompt said to leave them.
 on origin tee /etc/nginx/sites-available/shop > /dev/null << 'EOF'
 # The shop's origin server, nginx on origin. The edge cache (www.shop.test)
 # sits in front of it and keeps a copy of whatever these headers let a
@@ -38,7 +34,7 @@ server {
     # Each customer's own account page, from shop-app.
     location /account {
         proxy_pass http://127.0.0.1:8080;
-        add_header Cache-Control "public, max-age=60";
+        add_header Cache-Control "private";
     }
 
     # The basket API, from shop-app.
@@ -49,12 +45,14 @@ server {
             add_header Access-Control-Allow-Methods "GET, PUT, DELETE" always;
             add_header Access-Control-Allow-Headers "Content-Type" always;
             add_header Access-Control-Max-Age 600 always;
+            add_header Vary Origin always;
             return 204;
         }
         proxy_pass http://127.0.0.1:8080;
         add_header Cache-Control "no-store" always;
         add_header Access-Control-Allow-Origin $cors_origin always;
         add_header Access-Control-Allow-Credentials "true" always;
+        add_header Vary Origin always;
     }
 
     # The staff order board, a WebSocket, from order-board.
@@ -63,10 +61,16 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
-        proxy_read_timeout 300s;
     }
 }
 EOF
 on origin nginx -t
 sudo systemctl reload nginx@origin
+on origin tee /etc/order-board/board.conf > /dev/null << 'EOF'
+# The order board's settings, read when it starts
+# (sudo systemctl restart order-board@origin after a change).
+# How often the board pings every screen, in seconds (0: never).
+ping_interval = 30
+EOF
+sudo systemctl restart order-board@origin
 sleep 1

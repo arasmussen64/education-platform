@@ -1,12 +1,5 @@
-# Wrong, twice over, in two parts of the file that have nothing to do with
-# each other (one file for both, because every contract run of this lab
-# waits out the 75-second idle check: see content/README.md).
-# 1. The upgrade is passed on and nginx's idle limit is left at its
-#    default, 60 seconds, which runs out before the board's 70-second ping.
-#    Fails board-survives-quiet.
-# 2. The allow-list is a regular expression for origins ending in
-#    shop.test, so https://evilshop.test and plain http://shop.test pass.
-#    Fails others-blocked.
+# Wrong: the origin null is allowed too, "for local testing". Sandboxed
+# frames and pages opened from files send null, so any site can.
 on origin tee /etc/nginx/sites-available/shop > /dev/null << 'EOF'
 # The shop's origin server, nginx on origin. The edge cache (www.shop.test)
 # sits in front of it and keeps a copy of whatever these headers let a
@@ -16,7 +9,9 @@ on origin tee /etc/nginx/sites-available/shop > /dev/null << 'EOF'
 # each answered with its own name; anything else gets an empty value.
 map $http_origin $cors_origin {
     default                 "";
-    ~shop\.test$           $http_origin;
+    "https://shop.test"     $http_origin;
+    "https://www.shop.test" $http_origin;
+    "null"                  $http_origin;
 }
 
 server {
@@ -65,6 +60,7 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_read_timeout 300s;
     }
 }
 EOF

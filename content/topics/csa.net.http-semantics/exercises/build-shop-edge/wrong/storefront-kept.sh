@@ -1,13 +1,6 @@
-# Wrong, twice over, in two parts of the lab that have nothing to do with
-# each other (one file for both, because every contract run of this lab
-# waits out the 75-second idle check: see content/README.md).
-# 1. nginx's idle limit is left at its default, 60 seconds, and the board's
-#    own settings were changed instead, to ping every 30 seconds. Screens
-#    stay connected, but the board's settings are the board team's, and the
-#    prompt said to leave them. Fails scenery-kept.
-# 2. The origin null is allowed too, "for local testing". Sandboxed frames
-#    and pages opened from files send null, so any site can. Fails
-#    others-blocked.
+# Wrong: the price list is asked about before every use, in a block of
+# its own, and the storefront may be kept by every cache for an hour, so a
+# change to it reaches customers up to an hour late.
 on origin tee /etc/nginx/sites-available/shop > /dev/null << 'EOF'
 # The shop's origin server, nginx on origin. The edge cache (www.shop.test)
 # sits in front of it and keeps a copy of whatever these headers let a
@@ -19,7 +12,6 @@ map $http_origin $cors_origin {
     default                 "";
     "https://shop.test"     $http_origin;
     "https://www.shop.test" $http_origin;
-    "null"                  $http_origin;
 }
 
 server {
@@ -33,9 +25,14 @@ server {
         add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
+    # The price list, asked about before every use.
+    location = /news.html {
+        add_header Cache-Control "no-cache";
+    }
+
     # The pages: the storefront and the price list.
     location ~ \.html$ {
-        add_header Cache-Control "no-cache";
+        add_header Cache-Control "public, max-age=3600";
     }
 
     # Each customer's own account page, from shop-app.
@@ -68,16 +65,11 @@ server {
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_read_timeout 300s;
     }
 }
 EOF
 on origin nginx -t
 sudo systemctl reload nginx@origin
-on origin tee /etc/order-board/board.conf > /dev/null << 'EOF'
-# The order board's settings, read when it starts
-# (sudo systemctl restart order-board@origin after a change).
-# How often the board pings every screen, in seconds (0: never).
-ping_interval = 30
-EOF
-sudo systemctl restart order-board@origin
 sleep 1
+on office curl -si -X OPTIONS -H 'Origin: https://shop.test' -H 'Access-Control-Request-Method: DELETE' http://www.shop.test/api/basket
