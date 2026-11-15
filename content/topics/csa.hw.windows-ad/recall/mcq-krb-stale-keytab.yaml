@@ -1,0 +1,16 @@
+id: mcq-krb-stale-keytab
+type: mcq
+rev: 1
+prompt: |
+  A nightly job signs in to the domain as a service account, with a keytab that was made for it last month. Yesterday an administrator changed that account's password on a domain controller and told nobody. Nothing else has changed: the names resolve and the clocks agree. What does tonight's `kinit` with the keytab print?
+choices:
+  - "`Preauthentication failed`: the KDC knows the account, and the old keys don't match"
+  - "`Client's credentials have been revoked`: a changed password switches the account off"
+  - "`Password incorrect`: the KDC compares the password in the keytab with the new one"
+  - "`Keytab contains no suitable keys`: the keys in the file were made for another name"
+answer: 0
+explanation: |
+  A keytab holds keys worked out from the account's password on the day it was made. Change the password and the KDC holds new keys, while the file still holds the old ones: the keytab is stale. The KDC finds the account, can't match what the job sent, and answers `Preauthentication failed` (captured in the lab, from `kinit -k` with a stale keytab). The fix is a new keytab made from the account as it is now, and an agreement that nobody changes a service account's password without replacing its keytabs.
+
+  `Client's credentials have been revoked` is the KDC refusing an account that is disabled, locked or expired; changing a password does none of those. `Password incorrect` is what a person sees after typing a wrong password; a keytab holds keys, not a password, and nothing was typed. And `Keytab contains no suitable keys` means the file has no keys at all for the name `kinit` asked for, such as the same account written with its realm in lower case: here the name is right and the keys are old.
+skills: [kerberos-tickets]

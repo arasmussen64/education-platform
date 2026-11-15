@@ -1,0 +1,16 @@
+id: mcq-gpo-made-not-linked
+type: mcq
+rev: 1
+prompt: |
+  An administrator creates a GPO called `Lock screen`, sets it to lock the screen after ten minutes, and looks again two days later. No computer in the domain has changed, though every one of them has restarted since. The list of the domain's GPOs shows `Lock screen`, with its settings. What is the likeliest reason?
+choices:
+  - "It was never linked to a site, the domain or an OU, so it reaches nobody"
+  - "Its link isn't enforced, and members may ignore a GPO that isn't enforced"
+  - "It isn't in a group yet: a GPO reaches the members of the groups that hold it"
+  - "Nobody has run `gpupdate` on the computers, which a new GPO needs the first time"
+answer: 0
+explanation: |
+  A GPO on its own is only a named bundle of settings, kept in the directory and on SYSVOL. It does nothing until it is **linked** to a site, the domain or an organisational unit; then it reaches every computer and person in that folder and the folders inside it. Creating a GPO and linking it are two steps (`samba-tool gpo create`, then `gpo setlink`, in the labs), and the second is the one that is forgotten.
+
+  Enforcing is about a link that exists: an enforced link can't be blocked or overridden further down, and an ordinary link is applied all the same. A GPO isn't put in groups: policy follows the folders a computer or a person sits in, and groups are for permissions. And nobody needs to run `gpupdate`: a computer applies its computer settings every time it starts, and these have all restarted; `gpupdate` only fetches sooner what already reaches the machine.
+skills: [group-policy]

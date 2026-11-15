@@ -1,0 +1,16 @@
+id: mcq-gpo-new-server-no-policy
+type: mcq
+rev: 1
+prompt: |
+  A new Windows server joins the domain, and its computer account lands where a join puts it by default, in the container `CN=Computers`. The GPO `Server baseline` is linked to the organisational unit `OU=Servers`. A day and two restarts later, the server still has none of the baseline's settings. What fixes it?
+choices:
+  - "Move its computer account into `OU=Servers`, where the GPO is linked"
+  - "Add the server to a group called Servers, so that the GPO can find it"
+  - "Link `Server baseline` to `CN=Computers` as well, where new servers land"
+  - "Run `gpupdate` on the server, so it fetches the GPOs it has missed"
+answer: 0
+explanation: |
+  A GPO reaches the computers and people in the folder it is linked to, and in the folders inside that one. The new server's account is in `CN=Computers`, outside `OU=Servers`, so `Server baseline` doesn't reach it however long it waits. Move the account into the folder (or join new servers straight into it), and the server applies the baseline at its next start or refresh.
+
+  A group doesn't help: policy follows folders, and groups are for permissions. `CN=Computers` can't take the link: it is a plain container, not an organisational unit, and Microsoft's documentation says Group Policy can be applied to OUs but not to those default containers. And `gpupdate` only fetches what already reaches the machine: it would fetch the same list again, without `Server baseline` in it.
+skills: [group-policy]
