@@ -1,0 +1,30 @@
+id: est-umask-file
+type: estimate
+rev: 1
+prompt: |
+  A service starts with `umask 027` and then creates a new log file. What mode does the file get, in octal? Exactly.
+unit: octal mode
+answer: 640
+tolerance: { absolute: 0 }
+given: { mask: 27 }
+# A mask takes bits away digit by digit, so the sum is written digit by
+# digit: a new file starts at 6, 6, 6; the mask's 0 takes nothing, its 2
+# takes write, and its 7 takes read and write (there's no execute bit to
+# take). Run on Ubuntu 24.04, 2026-11-15: umask 027, touch, is 640.
+working: (6 - 0) * 100 + (6 - 2) * 10 + (6 - 4 - 2)
+mistakes:
+  - id: plain-subtraction
+    value: 639
+    working: 666 - mask
+    why: "That subtracts 027 from 666 as ordinary numbers. A mask takes bits away one digit at a time: the 7 removes read and write from others, which leaves 0, and nothing is borrowed from the group's digit."
+  - id: a-directory
+    value: 750
+    working: 777 - mask
+    why: "That's what a new directory gets. A file starts from 666, not 777, so it has no execute bits for the mask to leave in place."
+  - id: the-mask-itself
+    value: 27
+    working: mask
+    why: "That's the mask: the bits taken away. The mode is what's left of 666 afterwards."
+explanation: |
+  A new file starts from 666, `rw-rw-rw-`, and the mask takes bits away. Digit by digit: the owner's 6 loses nothing (0); the group's 6 loses write (2) and becomes 4; others' 6 loses read and write, and the mask's execute bit finds nothing to take, so it becomes 0. The file is 640: the owner reads and writes, the group reads, nobody else gets in. A new directory under the same mask starts from 777 and comes out 750. `umask 027` is a common setting for a service whose files its own group may read and the rest of the machine may not.
+skills: [chmod-chown]

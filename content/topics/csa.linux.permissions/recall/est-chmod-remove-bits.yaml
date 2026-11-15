@@ -1,0 +1,28 @@
+id: est-chmod-remove-bits
+type: estimate
+rev: 1
+prompt: |
+  An `uploads` folder has mode `777`. So that only its owner can create and delete files in it, you run `chmod g-w uploads` and then `chmod o-w uploads`. What is the folder's mode now, in octal? Exactly.
+unit: octal mode
+answer: 755
+tolerance: { absolute: 0 }
+given: { before: 777 }
+# Write is 2: once from the group's digit, once from others'. Run on Ubuntu
+# 24.04, 2026-11-15: 777, then the two commands, is 755.
+working: before - 20 - 2
+mistakes:
+  - id: took-read
+    value: 733
+    working: before - 40 - 4
+    why: "That takes 4 from each digit, which is read. Write is 2, so each 7 becomes 5: the group and others can still list the folder and enter it."
+  - id: took-execute
+    value: 766
+    working: before - 10 - 1
+    why: "That takes 1 from each digit, which is execute. Write is 2, so each 7 becomes 5; without `x` nobody else could even enter the folder."
+  - id: first-command-only
+    value: 757
+    working: before - 20
+    why: "That's the mode after `chmod g-w` alone. The second command takes write from others too."
+explanation: |
+  777 is `rwx` for everyone. Taking write (2) from the group's digit and from others' digit leaves 7, 5 and 5: `rwxr-xr-x`, the usual mode for a directory. On a directory, write is what lets someone create and delete entries, so at 777 any user on the machine could delete another user's upload; at 755 everyone can still look inside, and only the owner can add or remove files.
+skills: [chmod-chown]
