@@ -1,0 +1,20 @@
+id: hard-security-group-open
+type: predict_shell
+rev: 1
+prompt: |
+  `sg.txt` lists the inbound rules of a web server's cloud security group: the port, the protocol, the source the rule lets in, and a note. A source of `0.0.0.0/0` means "any address on the internet"; `203.0.113.0/24` is the office's own block of addresses. A web server has to take ports 80 and 443 from anywhere. The command prints every other rule that is open to the whole internet. What is printed?
+files:
+  sg.txt: |
+    PORT  PROTOCOL  SOURCE          NOTE
+    22    tcp       203.0.113.0/24  office
+    80    tcp       0.0.0.0/0       redirect
+    443   tcp       0.0.0.0/0       website
+    5432  tcp       0.0.0.0/0       database
+    9000  tcp       0.0.0.0/0       debug
+command: awk 'NR > 1 && $3 == "0.0.0.0/0" && $1 != 80 && $1 != 443 {print $1, $4}' sg.txt
+expected_output: |
+  5432 database
+  9000 debug
+explanation: |
+  Two doors are open to everyone that nobody outside needs: the database and a debugging port. The security group is the outer layer of the firewall, at the network's edge, and it follows the same rule as the one on the host: deny by default, and allow only the ports the server serves, from the narrowest source that works. Here that is 80 and 443 from anywhere, and SSH from the office alone, which this group already gets right. The two extra rules should go even if the host's own firewall blocks those ports today: the layers exist so that a slip in one is caught by the other, and that only works while both are tight.
+skills: [firewall-min]

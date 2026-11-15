@@ -1,0 +1,119 @@
+# The checks for "Scan, fix, scan again": a report from before the fixes
+# that carries the three findings, the fixes made after it, a later report
+# that doesn't carry them, the scanner itself asked again now (so a report
+# can't have been edited to look clean), the state each fix leaves behind,
+# the finding that was left and written down, and ben still able to log
+# in. Nothing here reads Lynis's hardening index: it depends on how many
+# tests ran and on the machine.
+checks:
+  - id: before-report
+    description: "~/scan/before.dat is a Lynis report taken before the fixes: it carries all three findings."
+    command: |
+      report=/home/learner/scan/before.dat
+      grep '^lynis_version=' "$report" > /dev/null 2>&1 || { echo "~/scan/before.dat is not a Lynis report"; exit 0; }
+      grep -E '^suggestion\[\]=SSH-7408\|.*MaxAuthTries' "$report" > /dev/null || { echo "before.dat has no SSH-7408 finding about MaxAuthTries"; exit 0; }
+      grep -E '^suggestion\[\]=FILE-7524\|' "$report" > /dev/null || { echo "before.dat has no FILE-7524 finding"; exit 0; }
+      grep -E '^suggestion\[\]=BANN-7126\|' "$report" > /dev/null || { echo "before.dat has no BANN-7126 finding"; exit 0; }
+      echo "taken before the fixes"
+    expect:
+      equals: "taken before the fixes"
+  - id: fixes-follow-the-scan
+    description: "Each of the three fixes was made after the scan in ~/scan/before.dat had started."
+    # A file keeps the time it was last changed (its contents or its
+    # permissions), and that time can't be set by hand. So a "before"
+    # report put together once the fixes were in shows here.
+    command: |
+      started=$(sed -n 's/^report_datetime_start=//p' /home/learner/scan/before.dat 2> /dev/null | head -n 1)
+      [ -n "$started" ] || { echo "~/scan/before.dat does not say when its scan started"; exit 0; }
+      started=$(date -d "$started" +%s)
+      ssh=$(find /etc/ssh/sshd_config /etc/ssh/sshd_config.d -printf '%C@\n' | sort -n | tail -n 1 | cut -d . -f 1)
+      [ "$ssh" -gt "$started" ] || { echo "nothing under /etc/ssh has changed since that scan started"; exit 0; }
+      for path in /etc/ssh/sshd_config /etc/cron.d /etc/cron.daily /etc/issue; do
+        [ "$(stat -c %Z "$path")" -gt "$started" ] || { echo "$path has not changed since that scan started"; exit 0; }
+      done
+      echo "scan first"
+    expect:
+      equals: "scan first"
+  - id: after-report
+    description: "~/scan/after.dat is a later Lynis report in which the same tests ran and the three findings are gone."
+    command: |
+      before=/home/learner/scan/before.dat
+      after=/home/learner/scan/after.dat
+      grep '^lynis_version=' "$after" > /dev/null 2>&1 || { echo "~/scan/after.dat is not a Lynis report"; exit 0; }
+      for test in SSH-7408 FILE-7524 BANN-7126; do
+        grep '^tests_executed=' "$after" | grep -F "$test|" > /dev/null || { echo "the scan in after.dat did not run test $test"; exit 0; }
+      done
+      started() { sed -n 's/^report_datetime_start=//p' "$1" 2>/dev/null | head -n 1; }
+      [ "$(started "$after")" \> "$(started "$before")" ] || { echo "after.dat was not taken later than before.dat"; exit 0; }
+      left=$(grep -E '^(warning|suggestion)\[\]=(SSH-7408\|.*MaxAuthTries|FILE-7524\||BANN-7126\|)' "$after" | cut -d '|' -f 1 | cut -d = -f 2 | sort -u | paste -sd ' ')
+      [ -z "$left" ] || { echo "after.dat still has a finding from: $left"; exit 0; }
+      echo "three findings gone"
+    expect:
+      equals: "three findings gone"
+  - id: scanner-agrees
+    description: "Lynis, run again now on those tests, finds none of the three, and no profile tells it to skip a test."
+    # The scanner is the judge of its own findings, so a report edited by
+    # hand doesn't count. SSH-7408 only runs after the three SSH tests it
+    # builds on. The log and report go to a folder of the check's own, so
+    # the learner's /var/log/lynis-report.dat is left as it was.
+    timeout: 90
+    command: |
+      if grep -rsE '^[[:space:]]*skip-test' /etc/lynis > /dev/null; then echo "a Lynis profile tells the scanner to skip tests"; exit 0; fi
+      out=$(mktemp -d)
+      lynis audit system --quick --no-colors --tests "SSH-7402 SSH-7404 SSH-7406 SSH-7408 FILE-7524 BANN-7126" --logfile "$out/log" --report-file "$out/report" > /dev/null 2>&1
+      for test in SSH-7408 FILE-7524 BANN-7126; do
+        grep '^tests_executed=' "$out/report" | grep -F "$test|" > /dev/null || { echo "Lynis could not run test $test"; rm -rf "$out"; exit 0; }
+      done
+      left=$(grep -E '^(warning|suggestion)\[\]=(SSH-7408\|.*MaxAuthTries|FILE-7524\||BANN-7126\|)' "$out/report" | cut -d '|' -f 1 | cut -d = -f 2 | sort -u | paste -sd ' ')
+      rm -rf "$out"
+      [ -z "$left" ] || { echo "Lynis still has a finding from: $left"; exit 0; }
+      echo "the scanner agrees"
+    expect:
+      equals: "the scanner agrees"
+  - id: ssh-tries-in-force
+    description: "The try limit is 3 in sshd's files, and the running SSH service has read them: it was reloaded after the last change under /etc/ssh."
+    # sshd -T reads the files; the service's last change of state (a start,
+    # a reload) against the newest change under /etc/ssh says whether the
+    # server that is running has them too.
+    command: |
+      sshd -T 2> /dev/null | grep -ix 'maxauthtries 3' > /dev/null || { echo "the try limit in sshd's files is not 3"; exit 0; }
+      systemctl is-active --quiet ssh || { echo "the SSH service is not running"; exit 0; }
+      loaded=$(date -d "$(systemctl show ssh -p StateChangeTimestamp --value --timestamp=us)" +%s.%6N)
+      changed=$(find /etc/ssh/sshd_config /etc/ssh/sshd_config.d -printf '%T@\n' | sort -n | tail -n 1)
+      awk -v loaded="$loaded" -v changed="$changed" 'BEGIN { if (loaded + 0 >= changed + 0) print "in force"; else print "the files changed after ssh last read them" }'
+    expect:
+      equals: "in force"
+  - id: permissions-closed
+    description: "/etc/ssh/sshd_config, /etc/cron.d and /etc/cron.daily are closed to everyone but their owner, root."
+    command: |
+      for path in /etc/ssh/sshd_config /etc/cron.d /etc/cron.daily; do
+        [ "$(stat -c %U "$path")" = root ] || { echo "$path is not root's"; exit 0; }
+        [ -z "$(find "$path" -maxdepth 0 -perm /077)" ] || { echo "$path is still open to its group or to everyone"; exit 0; }
+      done
+      echo closed
+    expect:
+      equals: closed
+  - id: banner-warns
+    description: "/etc/issue has been replaced: it no longer says which system this is. (Whether its words warn enough is Lynis's test.)"
+    command: |
+      [ -s /etc/issue ] || { echo "/etc/issue is empty"; exit 0; }
+      if grep -iE 'ubuntu|24\.04' /etc/issue > /dev/null; then echo "/etc/issue still names the system"; exit 0; fi
+      echo warns
+    expect:
+      equals: warns
+  - id: port-exception
+    description: "SSH is still on port 22, the later report still carries that finding, and ~/scan/exceptions.txt records it with a reason."
+    command: |
+      sshd -T 2> /dev/null | grep -x 'port 22' > /dev/null || { echo "sshd's files no longer say port 22"; exit 0; }
+      grep -E '^suggestion\[\]=SSH-7408\|.*\|Port ' /home/learner/scan/after.dat > /dev/null 2>&1 || { echo "after.dat does not carry the SSH-7408 finding about Port"; exit 0; }
+      line=$(grep -i 'SSH-7408' /home/learner/scan/exceptions.txt 2> /dev/null | grep -i 'port' | head -n 1)
+      [ -n "$line" ] || { echo "no line of ~/scan/exceptions.txt names both SSH-7408 and Port"; exit 0; }
+      [ "$(echo "$line" | wc -w)" -ge 8 ] || { echo "the exception gives no reason: a sentence, at least eight words with the names"; exit 0; }
+      echo recorded
+    expect:
+      equals: recorded
+  - id: key-login-still-works
+    description: "ben can still log in with his key."
+    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=5 ben@localhost whoami
+    expect:
+      equals: "ben"
