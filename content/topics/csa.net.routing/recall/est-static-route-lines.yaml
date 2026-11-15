@@ -1,0 +1,28 @@
+id: est-static-route-lines
+type: estimate
+rev: 1
+prompt: |
+  The shop grows to 9 sites, each with one router and one network of its own, joined so that every router has two ways to reach every other site. Everything is routed with static routes: each router gets 2 `ip route` lines for each of the other sites, a route and a floating backup. How many `ip route` lines is that across all the routers together? Exactly.
+unit: lines
+answer: 144
+tolerance: { absolute: 0 }
+given: { sites: 9, per_site: 2 }
+working: sites * (sites - 1) * per_site
+mistakes:
+  - id: own-site-too
+    value: 162
+    working: sites * sites * per_site
+    why: "That gives each router lines for all 9 sites, its own among them. A router needs no static route for its own network: the connected route is there by itself. So each router has lines for the 8 other sites."
+  - id: no-backups
+    value: 72
+    working: sites * (sites - 1)
+    why: "That's one line for each other site on every router: the routes without their floating backups. Each other site takes 2 lines, a route and a backup."
+  - id: one-router
+    value: 16
+    working: (sites - 1) * per_site
+    why: "That's the lines on one router. The question asks for all 9 routers together."
+explanation: |
+  Each router has lines for the 8 other sites (its own network needs none: a connected route appears by itself), 2 for each, so 16 lines a router, and 9 routers make 144. The walkthrough's three routers were the same sum with small numbers: 3 routers, 2 other sites each, 2 lines a site, 12 lines.
+
+  The number grows with the square of the sites, and every line is typed by a person. A tenth site means 18 lines on its new router and 2 more on each of the other 9, 36 lines on 10 routers, and one wrong next hop among them is a black hole. That is the point where a routing protocol pays for itself: each router announces its own network once and the others work out the routes, and the backups, themselves. A handful of routes that never change is what static routing suits.
+skills: [static-or-dynamic]

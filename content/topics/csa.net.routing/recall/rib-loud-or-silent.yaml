@@ -1,0 +1,30 @@
+id: rib-loud-or-silent
+type: predict_shell
+rev: 1
+prompt: |
+  In the walkthrough "Follow the route", r1 reaches the data centre's network, 10.3.0.0/24, by a static route over its cable to r3, with a floating static route through r2 as the backup. Its `show ip route` was saved twice (captured with FRR 8.4.4 on Ubuntu 24.04, 2026-11-15; the code key above it is left out): `pulled.txt` a few seconds after `sudo netlab link r1 r3 down` unplugged the cable, and `silent.txt` a few seconds after `sudo netlab link r1 r3 silent` left it plugged in and carrying nothing. The command prints, for each file, the distance and metric and the interface of the route r1 has selected for 10.3.0.0/24. What is printed?
+files:
+  pulled.txt: |
+    C>* 10.0.12.0/30 is directly connected, r2, 00:00:16
+    C>* 10.1.0.0/24 is directly connected, lan, 00:00:16
+    S>* 10.2.0.0/24 [1/0] via 10.0.12.2, r2, weight 1, 00:00:07
+    S>* 10.3.0.0/24 [200/0] via 10.0.12.2, r2, weight 1, 00:00:07
+  silent.txt: |
+    C>* 10.0.12.0/30 is directly connected, r2, 00:00:26
+    C>* 10.0.13.0/30 is directly connected, r3, 00:00:08
+    C>* 10.1.0.0/24 is directly connected, lan, 00:00:26
+    S   10.2.0.0/24 [200/0] via 10.0.13.2, r3, weight 1, 00:00:08
+    S>* 10.2.0.0/24 [1/0] via 10.0.12.2, r2, weight 1, 00:00:17
+    S>* 10.3.0.0/24 [1/0] via 10.0.13.2, r3, weight 1, 00:00:08
+    S   10.3.0.0/24 [200/0] via 10.0.12.2, r2, weight 1, 00:00:17
+command: awk '$1 == "S>*" && $2 == "10.3.0.0/24" {sub(",", "", $6); print FILENAME, $3, $6}' pulled.txt silent.txt
+expected_output: |
+  pulled.txt [200/0] r2
+  silent.txt [1/0] r3
+explanation: |
+  The unplugged cable is a loud failure: r1's interface `r3` lost its link, so the connected network 10.0.13.0/30 and both routes through it left the table, and the floating backup at distance 200 became the selected route (`>`), through r2. Seconds later the office's ping to the data centre got 3 answers of 3, by way of r2.
+
+  The silent fault changed nothing r1 can see. Its interface is still up, so `silent.txt` is the same table as before the fault: the route at distance 1 through `r3` is still selected, the backup still waits without a mark, and every packet for the data centre goes into the dead cable (the office's ping lost 3 of 3). A static route never asks whether its path works. That takes routers that keep talking to each other across the link, a routing protocol, which notices a neighbour going quiet and moves the traffic.
+
+  In the `awk`, `FILENAME` is the file a line came from, `$3` the `[distance/metric]`, and `sub(",", "", $6)` takes the comma off the interface in field 6.
+skills: [static-or-dynamic]
