@@ -1,23 +1,24 @@
 #!/bin/bash
-# Gives the lab its data disk, at every boot, and holds it to a cloud
-# disk's write limit.
+# Gives the lab its data disk, at every boot.
 #
 # The disk is a file, /var/lib/lab/data.img, attached as a block device (a
 # "loop device"), which is how a cloud volume looks to the server once
-# attached. A cloud's network disk is provisioned for so many writes a
-# second, and the cloud holds every program on the server to that. Here the
-# kernel plays the cloud's part: a line in the server's io.max (the file of
-# input and output limits in its control group, which covers every process
-# on the server) holds all writes to the loop device, together, to
-# WRITES_A_SECOND.
+# attached. It is labelled /dev/lab/data-backing.
 #
 # Programs don't use the loop device directly. A second device sits on top
 # of it and passes every request straight down (a device-mapper "linear"
 # device, the kind LVM makes for a logical volume), and that one is the
-# data disk: /dev/dm-N, labelled /dev/lab/data, mounted at /srv/data. A
-# request that has to wait for the limit waits inside that disk, so the
-# disk's own counters (iostat) show the wait and the queue, as a cloud
-# disk's do when it is asked for more than it is provisioned for.
+# data disk: /dev/dm-N, labelled /dev/lab/data, mounted at /srv/data.
+#
+# The two layers are there for the disk's write limit. A cloud's network
+# disk is provisioned for so many writes a second, and the cloud holds
+# every program on the server to that. Here the shop's slice plays the
+# cloud's part (/etc/systemd/system/shop.slice.d/data-disk.conf), and its
+# limit is put on the loop device underneath: a request that has to wait
+# for the limit then waits inside the data disk, so the disk's own counters
+# (iostat) show the wait and the queue, as a cloud disk's do when it is
+# asked for more than it is provisioned for. Nothing here writes a limit
+# itself: systemd does, when the slice starts, after this script.
 #
 # teardown.sh lets go of both devices again when the lab is stopped.
 set -euo pipefail
@@ -25,7 +26,6 @@ set -euo pipefail
 IMAGE=/var/lib/lab/data.img
 STATE=/var/lib/lab/state
 NAMES=/var/lib/lab/data-names
-WRITES_A_SECOND=100
 
 # A restart of the lab (docker restart) stops everything without running
 # teardown.sh, so the devices of the last boot are still there. STATE names
@@ -76,12 +76,10 @@ rm -f "$node"
 mknod "$node" b "${numbers%%:*}" "${numbers##*:}"
 mkdir -p /dev/lab
 ln -sfn "$node" /dev/lab/data
+ln -sfn "$loop" /dev/lab/data-backing
 # Every name iostat has had for the disk, one boot after another: the name
 # can change at a restart, and a check reads output saved before one.
 printf '%s\n%s\n' "${node#/dev/}" "$name" >> "$NAMES"
-
-# The limit, on the loop device underneath.
-echo "$(lsblk -dno MAJ:MIN "$loop" | tr -d ' ') wiops=$WRITES_A_SECOND" > /sys/fs/cgroup/io.max
 
 mkdir -p /srv/data
 mount "$node" /srv/data

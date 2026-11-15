@@ -48,15 +48,20 @@ COPY make-disks.sh /usr/local/lib/lab/make-disks.sh
 RUN bash /usr/local/lib/lab/make-disks.sh && rm /usr/local/lib/lab/make-disks.sh
 
 # The shop: the service that takes orders and the one that copies products
-# to the search page, both using the data disk, both running at boot.
+# to the search page, both using the data disk, both running at boot, in
+# the slice that holds their writes to the disk's allowance.
 COPY shop-orders /usr/local/bin/shop-orders
 COPY shop-sync /usr/local/bin/shop-sync
 COPY orders.conf /etc/shop/orders.conf
 COPY sync.conf /etc/shop/sync.conf
 COPY shop-orders.service /etc/systemd/system/shop-orders.service
 COPY shop-sync.service /etc/systemd/system/shop-sync.service
+COPY shop.slice /etc/systemd/system/shop.slice
+COPY shop-services.slice /etc/systemd/system/shop-services.slice
+COPY data-disk.conf /etc/systemd/system/shop.slice.d/data-disk.conf
 RUN chmod 755 /usr/local/bin/shop-orders /usr/local/bin/shop-sync \
  && chmod 644 /etc/shop/orders.conf /etc/shop/sync.conf /etc/systemd/system/shop-orders.service /etc/systemd/system/shop-sync.service \
+ && chmod 644 /etc/systemd/system/shop.slice /etc/systemd/system/shop-services.slice /etc/systemd/system/shop.slice.d/data-disk.conf \
  && sha256sum /usr/local/bin/shop-orders /usr/local/bin/shop-sync > /usr/local/lib/lab/programs.sha256 \
  && mkdir -p /home/learner/triage \
  && chown learner:learner /home/learner/triage \

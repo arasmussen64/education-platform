@@ -29,7 +29,10 @@ printf 'culprit: shop-sync\nwhat: its debug trace, left on since a closed ticket
 
 # 3. The fix: the trace goes off in the service's settings (in the lab
 # you'd edit the file with sudo nano), and the service is restarted so it
-# reads them. The settings file is what the next boot reads too.
+# reads them. The settings file is what the next boot reads too. The
+# slice's setting, the disk's limit, is left exactly as it was: the load
+# comes off the disk, the limit doesn't.
+systemctl cat shop.slice | grep IOWriteIOPSMax
 sudo sed -i 's/^TRACE=on$/TRACE=off/' /etc/shop/sync.conf
 sudo systemctl restart shop-sync
 

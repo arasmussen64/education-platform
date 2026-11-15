@@ -9,6 +9,8 @@
 # Nothing here reads a figure that belongs to the whole machine. The data
 # disk is the lab's own device (a device-mapper device over a loop device,
 # see disks.sh), so the numbers iostat printed for it are the lab's alone;
+# its limit is a setting of shop.slice, one level below the container's
+# own top cgroup, whose files GitHub's runners don't let a container write;
 # the write counts come from each service's own cgroup (io.stat); and the
 # one check that times something times the shop's own request, with the
 # limit a fifth of what a saturated disk gives (about 1,300 ms) and many
@@ -17,8 +19,14 @@
 # Each shortcut has a wrong fix to prove it is caught: the service at fault
 # stopped (wrong/stopped-the-sync.sh), slowed with fewer workers
 # (wrong/fewer-workers.sh) or held to a small write cap of its own
-# (wrong/sync-throttled.sh); the disk's limit lifted
-# (wrong/limit-lifted.sh); the orders moved off the data disk
+# (wrong/sync-throttled.sh); the disk's limit set to infinity for good
+# (wrong/limit-lifted.sh), its file deleted, which the kernel doesn't show
+# until the next boot (wrong/limit-file-deleted.sh), cleared until the next
+# reboot
+# (wrong/limit-cleared-runtime.sh) or written over in the kernel's own file
+# (wrong/limit-written-over.sh); the service at fault moved out of the
+# slice, and so out from under the limit (wrong/sync-out-of-the-slice.sh);
+# the orders moved off the data disk
 # (wrong/orders-moved-off.sh); the setting changed only until the next
 # reboot (wrong/runtime-only.sh) or changed and never put into effect
 # (wrong/edited-not-restarted.sh); the evidence saved after the fix
@@ -133,13 +141,35 @@ checks:
     expect:
       equals: "as they were"
   - id: disk-limit
-    description: "The data disk still has its limit of 100 writes a second."
-    # What the kernel holds the disk to now: the line for the loop device
-    # under the data disk in the server's io.max.
+    description: "Both services are still inside shop.slice, and the slice still holds their writes to the data disk to 100 a second, from settings that last after a reboot."
+    # Three readings that must agree. systemd's own setting for the slice:
+    # every write limit it names for the loop device under the data disk,
+    # by any path that leads to it. What the kernel was given: the slice's
+    # io.max, which a write straight to that file changes and systemd's
+    # setting doesn't show. And no setting from /run, where "systemctl
+    # set-property --runtime" puts the ones a reboot forgets. Then where
+    # the services are: the slice each unit names, and the cgroup each one
+    # is running in, which differ when a change hasn't been put into effect.
     command: |
       read -r _ loop < /var/lib/lab/state
       dev=$(cat "/sys/block/${loop#/dev/}/dev")
-      limit=$(awk -v d="$dev" '$1 == d {for (i = 2; i <= NF; i++) if (sub(/^wiops=/, "", $i)) print $i}' /sys/fs/cgroup/io.max)
-      echo "${limit:-none}"
+      said=$(systemctl show shop.slice -p IOWriteIOPSMax | while read -r line; do
+        set -- ${line#*=}
+        if [ -n "${1:-}" ] && [ "$(readlink -f "$1")" = "$loop" ]; then echo "$2"; fi
+      done | sort -u | paste -sd' ')
+      kernel=$(awk -v d="$dev" '$1 == d {for (i = 2; i <= NF; i++) if (sub(/^wiops=/, "", $i)) print $i}' /sys/fs/cgroup/shop.slice/io.max 2>/dev/null)
+      runtime=$(systemctl show shop.slice shop-services.slice -p DropInPaths --value | tr ' ' '\n' | grep -c '^/run/' || true)
+      outside=0
+      for unit in shop-sync shop-orders; do
+        slice=$(systemctl show "$unit" -p Slice --value)
+        group=$(systemctl show "$unit" -p ControlGroup --value)
+        case "$slice" in shop.slice|shop-*.slice) ;; *) outside=$((outside + 1)); continue ;; esac
+        case "$group" in ''|/shop.slice/*) ;; *) outside=$((outside + 1)) ;; esac
+      done
+      if [ "$said" = 100 ] && [ "$kernel" = 100 ] && [ "$runtime" = 0 ] && [ "$outside" = 0 ]; then
+        echo "held to 100 writes a second"
+      else
+        echo "the slice's setting for the disk: [$said] writes a second; the kernel has [$kernel]; settings a reboot forgets: $runtime; services outside the slice: $outside"
+      fi
     expect:
-      equals: "100"
+      equals: "held to 100 writes a second"
