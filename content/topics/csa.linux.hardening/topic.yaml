@@ -4,7 +4,7 @@ status: ready
 title: "Hardening"
 summary: "Apply a security baseline to a server, then prove it: SSH with keys only and no root login, a default-deny firewall, fewer services, least privilege, automatic security updates, and a benchmark scan (CIS, OpenSCAP, Lynis) before and after to show the difference."
 prerequisites: [csa.linux.permissions, csa.linux.services, csa.linux.packages, csa.linux.net-tools]
-estimated_minutes: 220
+estimated_minutes: 255
 rev: 1
 objectives:
   - "List what a server security baseline contains and why each item is there: updates, minimal packages, SSH keys only and no root login, a default-deny firewall, least-privilege users and services, file permissions, time sync, logging."
@@ -62,9 +62,18 @@ resources:
 # The worked example, the fill-in, the write and both proofs are labs that
 # harden a real machine and prove it without locking anyone out: SSH keys
 # only, a default-deny firewall, the open ports audited, and a lock-out to
-# undo. Benchmark scanners (CIS, OpenSCAP, Lynis) are in the lesson and the
-# recall; the labs prove the baseline with their own checks, which is the
-# same scan-before-and-after idea (ADR-0017, ADR-0018).
+# undo (ADR-0017, ADR-0018). A sixth lab, write-lynis-scan (2026-11-15),
+# runs a real scanner: Lynis 3.0.9 from Ubuntu 24.04's archive, a scan
+# before, three named findings fixed, a scan after. Every finding and
+# every output quoted in it was printed by Lynis in the lab container on
+# that day. Its findings were the same in three scans in a row and across
+# a restart of the container; what does change them is whether the SSH
+# server is running (Lynis skips its SSH tests otherwise, so the lab
+# starts it at boot), the network (by default a scan runs apt-get update,
+# switched off in the lab's profile) and the machine underneath (kernel
+# settings, name servers). So the lab's checks read named findings and
+# the state each fix leaves, never the hardening index. OpenSCAP stays in
+# the lesson and the recall.
 practice:
   - example-harden-ssh
   - mcq-baseline-contents
@@ -76,15 +85,19 @@ practice:
   - mcq-fail2ban-mfa
   - hard-ufw-status
   - mcq-firewall-default-deny
+  - hard-security-group-open
   - hard-shell-users
   - hard-sudoers-nopasswd
   - mcq-least-privilege-service
   - mcq-cis-levels
   - hard-lynis-before-after
   - hard-oscap-failures
+  - est-scan-pass-rate
   - mcq-prove-with-scan
+  - est-scan-failure-budget
   - fill-sshd-hardening
   - write-exposed-ports
+  - write-lynis-scan
 prove:
   build: build-harden-the-server
   debug: debug-locked-out
@@ -126,6 +139,9 @@ review_pool:
   - mcq-least-privilege-service
   - mcq-cis-levels
   - hard-oscap-failures
+  - hard-security-group-open
+  - est-scan-pass-rate
+  - est-scan-failure-budget
 skills:
   - id: baseline
     description: "What a server security baseline contains and why: updates, minimal packages, keys, firewall, least privilege, permissions, time, logs"

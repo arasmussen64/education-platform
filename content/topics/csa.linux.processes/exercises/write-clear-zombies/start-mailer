@@ -1,0 +1,10 @@
+#!/bin/bash
+# Starts the shop's mailer. Its five queues are got ready first, all at the
+# same time (each & starts one helper in the background), and then the
+# mailer program takes over from this script.
+/srv/shop/bin/prepare-queue welcome 1 &
+/srv/shop/bin/prepare-queue receipts 2 &
+/srv/shop/bin/prepare-queue invoices 3 &
+/srv/shop/bin/prepare-queue reminders 4 &
+/srv/shop/bin/prepare-queue returns 5 &
+exec /srv/shop/bin/mailer

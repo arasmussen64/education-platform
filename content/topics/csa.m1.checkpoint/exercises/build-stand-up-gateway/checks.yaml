@@ -1,48 +1,85 @@
-# The checks for "Stand up the API gateway".
-# The service runs and answers; the firewall lets in SSH and the gateway and
-# nothing else, which is tested from the office (a second machine) rather
-# than by reading the rules, so any correct way of writing them passes; the
-# same rules come back after a reboot; and the SSH server that is running,
-# not just its files, is hardened, with Ben still able to log in. The build,
-# its fresh versions, the steps and the worked example share these checks,
-# with the service and the port swapped.
+# The checks for "Stand up the API gateway", a fresh version of the
+# checkpoint's build with an end state of its own.
+# The service runs, and it is the service that answers on both of its ports
+# at the server's network address, not only on loopback; the firewall lets
+# in SSH and the gateway's two ports and nothing else, which is tested from
+# the office (a second machine) rather than by reading the rules, so any
+# correct way of writing them passes; the same rules come back after a
+# reboot; the SSH server that is running, not just its files, is hardened
+# and lets in only the ssh-users group, with Ben still able to log in and
+# Kit turned away.
+#
+# A check that finds something wrong prints what it found and exits 0, so
+# the learner's terminal shows the reason beside the failed check.
 checks:
   - id: service-running
     description: "gateway is active and enabled to start on boot."
     command: systemctl is-active gateway && test "$(systemctl is-enabled gateway)" = enabled && echo "active and enabled"
     expect:
       contains: "active and enabled"
-  - id: api-answers
-    description: "The gateway answers on port 9090."
+  - id: listens-on-every-address
+    description: "The gateway service answers on ports 9090 and 9191 at this server's address on the network, 10.0.9.1, and will after a reboot."
     command: |
-      for i in 1 2 3 4 5; do out=$(curl -s --max-time 2 localhost:9090); [ -n "$out" ] && break; sleep 1; done
-      echo "$out"
+      # Asked from this machine itself, at its network address: that reaches
+      # a program listening on every address and misses one bound to
+      # 127.0.0.1, whatever the firewall says about other machines.
+      for port in 9090 9191; do
+        out=""
+        for i in 1 2 3; do out=$(curl -s --max-time 2 "http://10.0.9.1:$port/"); [ -n "$out" ] && break; sleep 1; done
+        case "$port:$out" in
+          "9090:gateway ok" | "9191:gateway healthy") ;;
+          *) echo "port $port gives no answer at 10.0.9.1, asked from this machine"; exit 0 ;;
+        esac
+      done
+      # What answers there must be the service systemd started, listening on
+      # every address, not a second copy of the program started by hand on
+      # the network address, which nothing would start again. In ss's
+      # listing the fourth column is the address and port listened on.
+      pid=$(systemctl show gateway -p MainPID --value)
+      for port in 9090 9191; do
+        ss -Hltnp "sport = :$port" | awk -v port="$port" '$4 == "0.0.0.0:" port || $4 == "*:" port || $4 == "[::]:" port' | grep "pid=$pid," > /dev/null || { echo "on port $port, the gateway service itself isn't listening on every address"; exit 0; }
+      done
+      # Where it listens is a setting of the service; the program stays as
+      # it was installed (its checksum was taken when the image was built).
+      sha256sum -c --status /usr/local/lib/lab/gateway.sha256 || { echo "the gateway's program, /usr/local/bin/gateway, isn't as it was installed"; exit 0; }
+      # A setting kept under /run is gone after a reboot.
+      if systemctl show gateway -p FragmentPath -p DropInPaths --value | grep '/run/' > /dev/null; then
+        echo "one of the gateway service's settings is kept under /run, which a reboot empties"; exit 0
+      fi
+      echo "answers at 10.0.9.1"
     expect:
-      contains: "gateway ok"
+      equals: "answers at 10.0.9.1"
   - id: reachable-from-outside
-    description: "From the office, a second machine on the network, SSH (port 22) and the gateway (port 9090) both answer."
+    description: "From the office, a second machine on the network, SSH (port 22), the gateway (port 9090) and its health page (port 9191) all answer."
     command: |
-      for i in 1 2 3; do out=$(ip netns exec office curl -s --max-time 3 http://10.0.9.1:9090/); [ -n "$out" ] && break; sleep 1; done
-      if ! echo "$out" | grep -q "gateway ok"; then echo "port 9090 gives no answer from the office"
-      elif ! ip netns exec office nc -z -w 3 10.0.9.1 22 2> /dev/null; then echo "port 22 gives no answer from the office"
-      else echo "22 and 9090 answer"; fi
+      for port in 9090 9191; do
+        out=""
+        for i in 1 2 3; do out=$(ip netns exec office curl -s --max-time 3 "http://10.0.9.1:$port/"); [ -n "$out" ] && break; sleep 1; done
+        case "$port:$out" in
+          "9090:gateway ok" | "9191:gateway healthy") ;;
+          *) echo "port $port gives no answer from the office"; exit 0 ;;
+        esac
+      done
+      ip netns exec office nc -z -w 3 10.0.9.1 22 2> /dev/null || { echo "port 22 gives no answer from the office"; exit 0; }
+      echo "22, 9090 and 9191 answer"
     expect:
-      equals: "22 and 9090 answer"
+      equals: "22, 9090 and 9191 answer"
   - id: firewall-default-deny
     description: "From the office, ports the server isn't meant to serve get no answer."
     command: |
-      # Listeners of the check's own, on ports nobody asked for: the web's
-      # two, a database's and two more. If the office can reach any of them,
-      # the firewall lets in more than the server serves, whether it is off,
-      # wide open or opened "for later".
-      ports="80 443 3306 8081 9999"
+      # Listeners of the check's own, on ports nobody asked for: the ones
+      # most often opened "for later" (mail and file transfer, the web's,
+      # the usual databases', the usual ports of a program in development).
+      # If the office can reach any of them, the firewall lets in more than
+      # the server serves, whether it is off, wide open or opened in advance.
+      ports="21 25 80 443 3000 3306 5432 6379 8000 8080 8081 8443 9000 9999"
       listeners=""
       for port in $ports; do
         timeout 20 nc -4 -l "$port" > /dev/null 2>&1 &
         listeners="$listeners $!"
       done
       sleep 0.5
-      missing=$(for port in $ports; do ss -Hltn sport = ":$port" | grep -q . || echo "$port"; done)
+      missing=$(for port in $ports; do ss -Hltn "sport = :$port" | grep . > /dev/null || echo "$port"; done)
       # Every port at once, so a firewall that drops them all takes 2
       # seconds rather than 10.
       reachable=$({ for port in $ports; do (ip netns exec office nc -z -w 2 10.0.9.1 "$port" 2> /dev/null && echo "$port") & done; wait; } | sort -n)
@@ -84,15 +121,28 @@ checks:
       loaded=$(date -d "$(systemctl show -p StateChangeTimestamp --value ssh)" +%s 2> /dev/null)
       changed=$(stat -c %Y /etc/ssh/sshd_config /etc/ssh/sshd_config.d /etc/ssh/sshd_config.d/* 2> /dev/null | sort -n | tail -1)
       if [ -z "$offered" ]; then echo "the SSH server didn't answer"
-      elif echo ",$offered," | grep -qE ',(password|keyboard-interactive),'; then echo "the running SSH server still offers: $offered"
-      elif ! echo "$settings" | grep -qx 'passwordauthentication no'; then echo "PasswordAuthentication isn't no in the configuration"
-      elif ! echo "$settings" | grep -qx 'permitrootlogin no'; then echo "PermitRootLogin isn't no in the configuration"
+      elif echo ",$offered," | grep -E ',(password|keyboard-interactive),' > /dev/null; then echo "the running SSH server still offers: $offered"
+      elif ! echo "$settings" | grep -x 'passwordauthentication no' > /dev/null; then echo "PasswordAuthentication isn't no in the configuration"
+      elif ! echo "$settings" | grep -x 'permitrootlogin no' > /dev/null; then echo "PermitRootLogin isn't no in the configuration"
       elif [ "${changed:-0}" -gt "${loaded:-0}" ]; then echo "the SSH server that is running hasn't loaded its configuration since it last changed"
       else echo "hardened"; fi
     expect:
       equals: "hardened"
+  - id: ssh-group-only
+    description: "Only the ssh-users group may log in: the SSH server that is running turns Kit away, key and all, and in the configuration ssh-users is the only group allowed."
+    command: |
+      # Kit's key is a good one and is installed, so the only thing that can
+      # turn Kit away is the server's own rule about who may log in. The key
+      # used here is the lab's copy, not the one in the learner's ~/keys.
+      kit=$(ssh -i /usr/local/lib/lab/keys/kit -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 kit@localhost whoami 2> /dev/null)
+      allowed=$(sshd -T 2> /dev/null | grep '^allowgroups ' | paste -sd' ')
+      if [ "$kit" = kit ]; then echo "the SSH server that is running lets Kit in, who isn't in ssh-users"
+      elif [ "$allowed" != "allowgroups ssh-users" ]; then echo "in the configuration, the groups allowed to log in aren't ssh-users alone"
+      else echo "ssh-users only"; fi
+    expect:
+      equals: "ssh-users only"
   - id: key-login-works
-    description: "Ben can still log in with his key."
-    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    description: "Ben, a member of ssh-users, can still log in with his key."
+    command: ssh -i /usr/local/lib/lab/keys/ben -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ben@localhost whoami
     expect:
       equals: "ben"

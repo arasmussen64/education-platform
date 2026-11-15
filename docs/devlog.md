@@ -104,6 +104,24 @@ The owner asked for everything left in the cloud track before Module 4 to be bui
 
 **Next:** batch two, the new questions.
 
+## 2026-11-15, leftovers: LVM by hand, and a real benchmark scan
+
+Part of what was left in Modules 1 to 3 (the list is the entry above). The last two of Module 1's seven hands-on gaps.
+
+- **A volume built and grown with LVM** (Disks and filesystems). LVM is the layer that lets several disks act as one pool, from which volumes are cut and later grown. The spec says "use LVM", and until now the topic only asked questions about it. The learner makes a physical volume, a volume group and a logical volume from one of the lab's disks, puts a filesystem on it and mounts it through fstab, fills it with films, then adds the second disk to the group, extends the volume and grows the filesystem while it is in use, and moves the rest in. Eight checks, among them that the six films are on the volume with the checksums their numbers give, and that the filesystem is older than the growing, so it wasn't remade. Nine known-wrong fixes: the volume extended and the filesystem not grown, a new filesystem made over the films, the second disk mounted beside the first.
+- **A real scan with Lynis** (Hardening). The spec says to prove a baseline with a benchmark scan, and the topic's own objectives promise one; the scan was questions over saved reports. The learner now runs Lynis, a scanner that tests a machine against a list of hardening checks, saves its report, fixes three named findings, records a fourth as an exception with a reason, and scans again to prove it. Nine checks, thirteen known-wrong fixes: fixing first and scanning after, editing the report by hand, switching the tests off in the scanner's profile, changing SSH's file and never reloading it.
+- **Also:** third questions for two thin skills (what a write cache risks; an open security group), and six number drills (space a physical volume really gives, how many inodes a filesystem gets and when they run out, a scan's pass rate).
+
+**Author notes:**
+
+- _Lynis proved steady enough to check:_ three scans in a row, and scans either side of a restart, gave the same findings, differing only in times. Two things had to be pinned for that: SSH runs as a service from boot (when it waits for its first connection, Lynis skips its SSH tests), and the scan doesn't refresh the package lists. No check reads the overall score, which moved only from 60 to 61 for the three fixes.
+- _Shortcuts that pass because they're right:_ `lvextend` followed by `resize2fs` in two steps; the fstab line by the volume's name instead of its UUID; a quick scan of only the named tests as the "after".
+- _Shortcuts not closed:_ a "before" report forged after the fixes, with its start time edited too, would pass. A login banner of five bare key words passes, because that is the scanner's own bar.
+- _LVM in a container needed care:_ there is no udev, so the lab's boot script makes the device nodes itself; it clears a volume left over from an earlier run of the same lab; and its teardown switches the group off before letting go of the disks. A container removed without the lab checker leaves the volume and its two disks attached until the lab next boots.
+- _Two copies of the LVM lab running on one machine would collide,_ since both name their volume group `mediavg`. The checker runs one at a time, and a learner has one.
+- _The writer's guide gained two notes,_ on how a lab with LVM volumes lets go of them and on how a scanner lab is checked.
+- _The roadmap's note about Stage 1's browser drills is closed with this:_ once the pull requests open beside this one are in, thirteen of Module 1's fourteen topics have number drills. Package management has none, because nothing there is a sum anyone does on sight.
+
 ## 2026-11-15, leftovers: Module 2's review pools, and right-sizing from a price table
 
 Part of what was left in Modules 1 to 3 (the list is in the entry above; this one sits below it only so that pull requests open at the same time don't edit the same lines). Module 2 was complete against its spec, and its leftovers needed only questions: 17 new ones, and no lab or lesson changed.
@@ -118,6 +136,25 @@ Part of what was left in Modules 1 to 3 (the list is in the entry above; this on
 - _Prices were read on 2026-11-15_ from Azure's retail price list (East US) and AWS's public price file (N. Virginia), and each prompt carries its own table and date, so the question stays answerable when prices move. Google Cloud's prices aren't used: its price page was too large to read.
 - _No new recordings:_ the predict-the-output questions use only output already captured in the labs' folders, and say which lines are captured and which are made up.
 - _Their names start `mcq-`,_ not the plan's `hv-`, to match the topic's other questions; the topic's notes say which planned questions they stand in for.
+
+## 2026-11-15, leftovers: Checkpoint 1's fresh versions are no longer the build with a name changed
+
+Part of what was left in Modules 1 to 3 (the list is a few entries up, under "What's left in cloud Modules 1 to 3"). A checkpoint's build comes with steps that show most of its solution. Once a learner opens them, passing the build no longer counts, and a "fresh version" proves it instead: the same skills in another story ([ADR-0012](decisions/0012-checkpoint-support.md)). Checkpoint 1's two fresh versions were the build with the service's name and port swapped, so the steps could be pasted with two words changed. That ADR's own count put only 6 to 20% of each as the learner's own work.
+
+- **The gateway version** now differs in every part. Its service listens only on the machine itself until a setting in its unit is changed; it serves two ports; and only one group may log in over SSH, so a second person with a perfectly good key must be refused.
+- **The ledger version** differs in every part too, and from the gateway. Its unit has no restart policy and the runbook asks for one; the ledger is for that machine alone, so the firewall lets in SSH only and the ledger's port stays shut from outside; and nobody's key is installed, so the learner installs one before passwords go off.
+- **Each has 21 known-wrong fixes,** where it had 4 and the build 8. One of them, in each, pastes the build's steps with only the names changed, and fails three checks.
+- **All nine of the checkpoint's lab images keep `/run/sshd` when SSH stops,** as the hardening labs' do. Without that, a learner who breaks SSH's settings is told only "Missing privilege separation directory", which points away from the line they got wrong.
+
+Every lab was proved again with the lab checker. By the ADR's own count, 54% and 63% of the two versions is now the learner's to write, and the ADR says so.
+
+**Author notes:**
+
+- _Three shortcuts were found and closed while writing:_ a second copy of the gateway started by hand beside the real service; the gateway's program edited to ignore its setting (a checksum, and a sentence in the prompt saying the program stays as installed); and a ledger restart policy written but never loaded, which passed until the known-wrong fix was reordered, because a later `systemctl enable` reloads systemd.
+- _Two are left open._ A port opened "for later" outside the fourteen the firewall check samples passes, in the versions as in the build: a check can only try so many. And the ledger passes if SSH is told to read keys from the folder the key came in, which Module 1 doesn't teach and which doesn't weaken the server.
+- _The explain prompt is unchanged._ It states no number of faults; its model answer's "five causes" counts the five the prompt itself lists.
+- _The restart trial isn't set on these two,_ to match the build; each passed one by hand. The trial run for Modules 1 and 2 decides it for all of the checkpoint's labs together.
+- _The archive's old assembly script still names the deleted version;_ it is history and was left.
 
 ## 2026-11-15, later: The cloud track, audited against the principal bar
 
@@ -161,6 +198,27 @@ The track is now 31 modules and about 340 topics: 337 numbered and 8 specialties
 - _Not added, on purpose:_ a fourth cloud, a low-latency trading topic, contact centres and gaming. Each is a niche a specialty or a job teaches, and the track is already about 2,500 hours.
 
 **Next:** stage 2 of the Momentum redesign, then Module 4 of the cloud track, as planned. Nothing in this audit changes Modules 4 to 10.
+
+## 2026-11-15, leftovers: zombies, `jq` and the connection table, done by hand
+
+Part of what was left in Modules 1 to 3 (the list is under "What's left in cloud Modules 1 to 3"). Three things Module 1's spec promises were taught and quizzed and never done in a lab. Each now has one.
+
+- **Find and clear the zombies** (Processes and signals). A zombie is a process that has finished but whose parent hasn't collected its exit status. One of two services leaves five behind, because its start script runs its helpers in the background and then hands over, with `exec`, to a program that never waits for them. The learner finds them with `ps`, tries `kill -9` on one and sees nothing change, traces the parent, restarts the service and watches the zombies come back, then fixes the script with `wait`. Eight known-wrong fixes, among them killing the zombies, stopping the service for good, and a restart with the script unfixed.
+- **The reply that never arrives** (Networking from the host). The firewall has lost its rule for connections already under way, so the server's own download from the office times out while the office still reaches the API. The learner reads the kernel's connection table with `sudo conntrack -L`, finds the half-open download in it, and restores the rule in the file the firewall loads at boot. Fourteen known-wrong fixes: opening ports for the replies, accepting everything from the office, a rule typed live and not saved.
+- **Four questions about a JSON log** (Shell essentials). `jq`, the tool that reads JSON by field name, was one sentence in the lesson. The lab's log has two layouts and notes that hold "500", which is where `grep` and `awk` go wrong. Ten known-wrong answers. The lesson now teaches `.field`, `select(...)` and `-r`, and the objective that said "know what jq is for" says to use it.
+
+**Also in these three topics:** eleven number drills (the exit status after a signal, ports in the ephemeral range, lines a pipeline leaves, a round-trip time from a capture), a third question for the `tcpdump` skill, a predict-the-output over a saved connection table, and a question that puts an `iptables` rule set beside the same rules in `nft` form.
+
+All three labs were proved with the lab checker; the two with services restart in the proof, and pass again after it.
+
+**Author notes:**
+
+- _The connection-table lab is a new lab, not a step in an old one,_ so that the fault (a missing rule for established connections) has the whole lab to itself.
+- _A shortcut the writer found and closed:_ a rule that accepts "anything that isn't an opening packet" passed the first six checks. A seventh sends a lone ACK from the office, which a firewall that tracks connections drops and that rule lets in.
+- _Shortcuts left open, on purpose:_ in the zombies lab, deleting the helpers and printing their "ready" lines by hand passes, which is forging the evidence, not a mistake. In the `jq` lab, a careful `grep` and `cut` reaches the same four answers; the checks read the answers, and can't see the tool.
+- _One piece of scenery is new to CI:_ the firewall's `ct state invalid drop` rule, which is what switches connection tracking on in that lab. CI's Linux machines prove it with this pull request.
+- _No drill for zombies or `jq`:_ there is no sum there that anyone does on sight.
+- _The writer's guide said no lab image has `jq`._ One has now; predict-the-output questions still can't use it, because Git Bash has none.
 
 ## 2026-11-15, leftovers: Module 1's number drills
 

@@ -50,11 +50,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `tools/lab-seconds.json` is rebuilt from the last full Labs run: 221 labs, where it knew 160.
 - Stale sentences corrected in the cloud track's spec, the writer's guide, the network-lab base's notes, ADR-0018 and the owner queue, which also names three more main videos nobody has watched.
 
+### Added (cloud Module 1: LVM by hand, and a real benchmark scan)
+
+- Disks and filesystems has an LVM lab: build a volume from one disk, fill it, then add a second disk and grow the volume and its filesystem while in use, with the data intact.
+- Hardening has a lab with a real scanner, Lynis: scan, fix three named findings, record a fourth as an exception, and scan again to prove it.
+- The two topics gain third questions for two thin skills and six number drills.
+
 ### Added (cloud Module 2: fuller review pools, and right-sizing from a price table)
 
 - The two Active Directory topics' review pools hold 19 and 25 questions, where they held 6 and 8: questions that existed and weren't in the pool, and twelve new ones that appear only in reviews.
 - Cores, memory and noisy neighbours has three estimate questions that right-size a machine from a week of metrics and a dated price table, and ask what the move saves.
 - Hypervisors has the two questions about a guest on a real cloud that its plan left waiting, written from the providers' documentation.
+
+### Changed (cloud Checkpoint 1: fresh versions that differ from the build)
+
+- Checkpoint 1's two fresh versions, the gateway and the ledger, each differ from the build in every part (the service's unit, the firewall's rules, who may log in), so the build's steps can't be pasted with the names changed. Each has 21 known-wrong fixes, one of which does exactly that and fails.
+- All nine of the checkpoint's lab images keep `/run/sshd` when SSH stops, so a broken SSH setting is reported by its own line.
 
 ### Changed (the cloud track, audited against the principal bar)
 
@@ -64,6 +75,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Three proofs for Stage 4, all run in the browser at no cost: the estate review, the design critique and the strategy narrative. Two drills: design critique, and a paper in an hour.
 - Eleven outlines say more: virtual networks as overlays, how object storage is kept durable, schema changes with no downtime, the control plane of a multi-tenant product, open-source licence changes, gray failures, business impact analysis, operational readiness reviews, workloads that shouldn't be in a cloud, directory synchronization, and modelling data for analysis. Quantum computing now names cryptography as the one thing it changes today. Checkpoints 22, 25 and 28 each gained a part.
 - The track is now 31 modules and about 340 topics (337 numbered, 8 specialties). `tools/outline_cloud_track.py` knows Module 31. Everything added is a `planned` outline; no written topic changed.
+
+### Added (cloud Module 1: zombies, `jq` and the connection table, by hand)
+
+- Processes and signals has a lab, "Find and clear the zombies": find them, see that `kill` does nothing, trace the parent, and fix the start script that never waits for its helpers.
+- Networking from the host has a lab on the kernel's connection table: read `conntrack -L`, find a half-open download, and restore the firewall's rule for connections already under way.
+- Shell essentials has a lab, "Four questions about a JSON log", answered with `jq`, and its lesson teaches the filters the lab needs.
+- The three topics gain eleven number drills, a third `tcpdump` question, and questions on a saved connection table and on `iptables` beside `nft`.
 
 ### Added (cloud Module 1: number drills)
 

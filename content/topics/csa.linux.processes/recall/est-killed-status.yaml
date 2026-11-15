@@ -1,0 +1,24 @@
+id: est-killed-status
+type: estimate
+rev: 1
+prompt: |
+  A backup script is stuck. `TERM` got no result, so you end it with `kill -9`: `KILL` is signal 9. The shell that was waiting for the script then reports its exit status. What number is it? Exactly.
+unit: the exit status
+answer: 137
+tolerance: { absolute: 0 }
+given: { signal: 9 }
+# The 128 is what the learner must know: a process ended by signal N is
+# reported as 128 + N.
+working: 128 + signal
+mistakes:
+  - id: the-signal
+    value: 9
+    working: signal
+    why: That's the signal's own number. The shell reports 128 plus it, so that a death by signal can't be mistaken for a program that chose to exit with 9.
+  - id: term-instead
+    value: 143
+    working: 128 + 15
+    why: That's 128 + 15, what the shell reports after `TERM`. This script was ended by `KILL`, signal 9.
+explanation: |
+  When a signal ends a process, the shell that waited for it reports 128 plus the signal's number: 128 + 9 = 137. It is the number to know on sight: 137 in a job's log or a container's status means something sent `KILL`, and when nobody did so by hand it was usually the kernel, ending a process that used more memory than it was allowed.
+skills: [signals]

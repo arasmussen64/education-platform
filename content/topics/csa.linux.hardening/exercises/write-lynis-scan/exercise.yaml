@@ -1,0 +1,26 @@
+id: write-lynis-scan
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Scan, fix, scan again"
+prompt: |
+  A baseline is proved with a scanner: a scan before, the fixes, a scan after, and both reports kept. The lab machine has **Lynis** installed, the quick scanner from the lesson, and the same `ben` as the other hardening labs, whose key is in `~/keys/ben`. Lynis only reads: a scan changes nothing on the server. In this lab its scans also stay on the machine (on a real server Lynis first asks the package archive what needs patching).
+
+  1. **Scan before you change anything.** `sudo lynis audit system` runs some 240 tests in under a minute. It prints a line for each test, then its warnings and suggestions, each with the ID of its test in square brackets, such as `[SSH-7408]`, and near the end a hardening index, Lynis's own score out of 100. It also writes its findings, one to a line, to `/var/log/lynis-report.dat`, which only root can read. Keep a copy that is yours: `mkdir -p ~/scan`, then `sudo cat /var/log/lynis-report.dat > ~/scan/before.dat`. `grep -E '^(warning|suggestion)' ~/scan/before.dat` lists the findings.
+  2. **Fix three of them.** The rest are for another day.
+     - `SSH-7408`, the line about `MaxAuthTries`: the finding says which value Lynis wants. Set it in a drop-in file in `/etc/ssh/sshd_config.d/`, test the files with `sudo sshd -t`, and reload the SSH service.
+     - `FILE-7524`: three paths whose permissions are too open. `sudo lynis show details FILE-7524` prints what that test saw during the last scan; its lines that say `not matching` name each path, the mode it has and the mode Lynis expects. Close them with `chmod`.
+     - `BANN-7126`: `/etc/issue`, the text a server shows before its login prompt, tells a stranger which system this is and warns nobody. Replace what is in it (`sudo nano /etc/issue`) with a warning that the server is for authorised use only. Lynis counts the words such a notice uses (authorized, monitored, logged, prohibited, legal and the like) and wants five or more of them.
+  3. **Leave one, and write down why.** `SSH-7408` also suggests moving SSH away from port 22, which the lesson advises against. Leave the port where it is, and record the decision: one line in `~/scan/exceptions.txt` with the test's ID, `SSH-7408`, the setting, `Port`, and your reason in a sentence.
+  4. **Scan again** the same way, and keep that report as `~/scan/after.dat`. The three findings should be gone from it and the `Port` line still there. `grep hardening_index ~/scan/before.dat ~/scan/after.dat` shows how little the index moves for three fixes: the proof is the named findings that are in one report and not in the other. Then finish as every hardening job finishes: `ssh -i ~/keys/ben ben@localhost whoami` must still print `ben` (the first time, answer `yes` when it asks whether to trust the server's key).
+
+  Then run the checks. One of them runs Lynis itself on those tests, so a report can't be made clean by editing it or by telling Lynis to skip a test.
+hints:
+  - "A drop-in is a small file of your own, such as `/etc/ssh/sshd_config.d/90-hardening.conf`, holding the line `MaxAuthTries 3`. `echo 'MaxAuthTries 3' | sudo tee /etc/ssh/sshd_config.d/90-hardening.conf` writes it. Then `sudo sshd -t`, which says nothing when the files are valid, and `sudo systemctl reload ssh`."
+  - "`sudo lynis show details FILE-7524 | grep 'not matching'` leaves the three lines that matter. A file that should be 600 is closed with `sudo chmod 600 FILE`; the two folders want 700."
+  - "A banner that passes: `Authorized users only. Activity on this system is monitored and logged. Unauthorized access is prohibited and may lead to legal action.` After the second scan, `sudo lynis show details BANN-7126` says how many of its key words Lynis found."
+  - "If a finding is still in `after.dat`, either its fix isn't complete or the scan was taken before it: fix it, scan again, and copy the report again. `lynis show details` always describes the newest scan."
+skills: [benchmarks-scanning, baseline]

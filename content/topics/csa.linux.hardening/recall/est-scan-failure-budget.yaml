@@ -1,0 +1,22 @@
+id: est-scan-failure-budget
+type: estimate
+rev: 1
+prompt: |
+  A team scans each new server against a benchmark profile of 260 rules, and lets a server go live once 95% of the rules pass. At most how many rules may still be failing on a server that goes live? Exactly.
+unit: rules
+answer: 13
+tolerance: { absolute: 0 }
+given: { rules: 260, target: 95 }
+working: rules * (100 - target) / 100
+mistakes:
+  - id: rules-that-must-pass
+    value: 247
+    working: rules * target / 100
+    why: That's how many rules have to pass, 95% of 260. The question asks for the rest, the ones that may fail.
+  - id: percent-for-count
+    value: 5
+    working: 100 - target
+    why: That's the share that may fail, 5%, not the number of rules. 5% of 260 rules is 13.
+explanation: |
+  95% passing leaves 5% that may fail, and 5% of 260 is 13 rules (a tenth is 26, and half of that is 13). The number is a ceiling, and it says nothing about which rules: each of the 13 is still either fixed later or written down as an exception, with the reason and what makes up for it, and a failing rule that opens a real door, such as password logins left on, isn't excused by the other 247 passing.
+skills: [benchmarks-scanning]

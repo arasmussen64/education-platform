@@ -1,0 +1,22 @@
+id: est-ports-in-time-wait
+type: estimate
+rev: 1
+prompt: |
+  A proxy opens 300 new connections a second to one backend, and closes each as soon as it is answered. On the proxy every closed connection stays in `TIME-WAIT`, still holding its port, for 60 seconds. Once this has been going on for a few minutes, how many ports are held in `TIME-WAIT` at any moment? Exactly.
+unit: ports
+answer: 18000
+tolerance: { absolute: 0 }
+given: { rate: 300, hold: 60 }
+working: rate * hold
+mistakes:
+  - id: one-second
+    value: 300
+    working: rate
+    why: That's the ports of a single second. Each one is held for 60 seconds, so 60 seconds' worth are held at once.
+  - id: divided
+    value: 5
+    working: rate / hold
+    why: That divides the rate by the time. The ports pile up for the whole 60 seconds before the first is let go, so multiply.
+explanation: |
+  Every second 300 ports go into `TIME-WAIT` and the 300 from a minute ago come out, so 300 × 60 = 18,000 are held at any moment. That is well over half of the default range's 28,232 ports, all tied up by connections that are already over. `ss -tan | grep -c TIME-WAIT` would show the number. The cure is to stop opening a new connection for every request: keep a few open and send the requests over them.
+skills: [sockets-ss]

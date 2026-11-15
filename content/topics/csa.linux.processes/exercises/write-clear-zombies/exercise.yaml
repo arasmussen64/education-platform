@@ -1,0 +1,26 @@
+id: write-clear-zombies
+stage: write
+runtime: lab
+# The fix is a corrected script on disk, so it must still hold after a
+# reboot: the contract restarts the container and checks again.
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "Find and clear the zombies"
+prompt: |
+  The lab machine runs two of the shop's services, `shop-mailer` and `shop-orders`. Each is started by a short script in `/srv/shop/bin/` (`start-mailer` and `start-orders`). The script first runs a helper, `prepare-queue`, once for each of the service's queues, and then hands over to the service's long-running program, which adds a line to `/var/log/shop/mailer.log` or `/var/log/shop/orders.log` every two seconds. Someone has noticed zombies on this machine. Find them, find out whose they are, and clear them so that they stay away.
+
+  1. **Find them.** `ps -eo pid,ppid,stat,comm` lists every process with the columns you name: its PID, its parent's PID, its state and its name. A zombie's state is `Z`, so `ps -eo pid,ppid,stat,comm | awk '$3 == "Z"'` keeps only the lines whose third column is exactly `Z`. How many are there, and what do they have in common?
+  2. **Try to kill one.** Run `kill -9` with one zombie's PID, then look at it again with `ps -o pid,ppid,stat,comm -p` and the same PID. `kill` reports no error, and nothing has changed.
+  3. **Find the parent.** Every zombie has the same PPID. Look at that process: `ps -o pid,ppid,comm -p` and the number. `systemctl status shop-mailer` and `systemctl status shop-orders` each show a `Main PID`, the process the service is built around (press `q` if the output stops and waits). Which service is the zombies' parent?
+  4. **Restart that service** with `sudo systemctl restart` and its name; `sudo` runs one command as the machine's administrator, which changing a service needs. Straight away, run the line from step 1 a few times over ten seconds. The old zombies have gone: their parent ended, so PID 1 adopted them and collected them. Then new ones arrive, one a second.
+  5. **Fix the cause.** Read that service's start script with `cat`. It starts its helpers in the background and then runs `exec`, which replaces the script with the long-running program in the same process. Everything the script started is now the child of a program that knows nothing about it and never calls `wait`. Change the script with `nano` so that every helper's exit status is collected before the hand-over, restart the service, and watch for ten seconds: no zombie should appear.
+
+  The checks look once a service has been up for eight seconds. Both services must still be running and adding lines to their logs, each service must still get every one of its queues ready when it starts, and the programs `mailer`, `orders` and `prepare-queue` must stay as they are: change only a start script.
+hints:
+  - "The zombies' parent is the process their PPID column names. Its name is in the last column of `ps -o pid,ppid,comm -p NUMBER`, and one of the two services shows the same number as its `Main PID`."
+  - "`wait` on a line of its own pauses a script until every background job it started has finished, and collects each one's exit status. A line after `exec` never runs, so think about where the `wait` has to go."
+  - "The other service's start script leaves no zombies. `cat /srv/shop/bin/start-orders` and compare the two, line by line."
+  - "A corrected script changes nothing until the service runs it: restart the service with `sudo systemctl restart` and its name, wait ten seconds, and the line from step 1 should print nothing."
+skills: [process-model, init-systemd]

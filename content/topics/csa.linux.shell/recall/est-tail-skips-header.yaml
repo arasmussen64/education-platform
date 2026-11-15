@@ -1,0 +1,22 @@
+id: est-tail-skips-header
+type: estimate
+rev: 1
+prompt: |
+  `orders.csv` has 500 lines: a header, and then one line for each order. What number does `tail -n +2 orders.csv | wc -l` print? Exactly.
+unit: lines
+answer: 499
+tolerance: { absolute: 0 }
+given: { lines: 500, from_line: 2 }
+working: lines - (from_line - 1)
+mistakes:
+  - id: skipped-two
+    value: 498
+    working: lines - from_line
+    why: That drops two lines. `+2` means "start at line 2", so only line 1, the header, is left out.
+  - id: last-two
+    value: 2
+    working: from_line
+    why: That's `tail -n 2`, the last two lines. With the plus sign, `tail -n +2` prints from line 2 to the end.
+explanation: |
+  `tail -n +2` prints from the second line on, so it leaves out exactly one line, the header: 500 − 1 = 499 orders. The plus sign changes what the number means: `tail -n 2` counts back from the end, and `tail -n +2` names the line to start at.
+skills: [count-and-sort]
