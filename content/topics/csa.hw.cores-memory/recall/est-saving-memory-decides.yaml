@@ -1,0 +1,61 @@
+id: est-saving-memory-decides
+type: estimate
+rev: 1
+prompt: |
+  A cache server (it keeps a large set of data in memory) runs on AWS's `m7g.16xlarge`. A week of its metrics, in 5-minute samples: CPU, as a percentage of its 64 vCPUs, averaged 3%, with a 95th percentile of 7% and a largest sample of 31%; memory in use peaked at 118 GiB.
+
+  The sizing policy: at the 95th percentile the work may use at most 60% of the new machine's vCPUs; the peak of memory may be at most 80% of the new machine's memory; then take the cheapest size that meets both.
+
+  | AWS m7g, US East (N. Virginia), Linux, on demand, read 2026-11-15 | vCPUs | Memory | Per hour |
+  | --- | --- | --- | --- |
+  | `m7g.2xlarge` | 8 | 32 GiB | $0.3264 |
+  | `m7g.4xlarge` | 16 | 64 GiB | $0.6528 |
+  | `m7g.8xlarge` | 32 | 128 GiB | $1.3056 |
+  | `m7g.12xlarge` | 48 | 192 GiB | $1.9584 |
+  | `m7g.16xlarge` | 64 | 256 GiB | $2.6112 |
+
+  Using 730 hours a month, how many dollars a month does moving to the right size save? Within 15%.
+unit: US dollars a month
+answer: 476.544
+tolerance: { percent: 15 }
+given:
+  vcpus: 64
+  average: 3
+  p95: 7
+  largest: 31
+  cpu_policy: 60
+  memory_peak: 118
+  memory_policy: 80
+  m7g_2xlarge: 0.3264
+  m7g_8xlarge: 1.3056
+  m7g_12xlarge: 1.9584
+  m7g_16xlarge: 2.6112
+  hours: 730
+# Prices, vCPUs and memory from AWS's public price file behind the EC2
+# On-Demand pricing page (b0.p.awsstatic.com/pricing/2.0/meteredUnitMaps/ec2/
+# USD/current/ec2-ondemand-without-sec-sel/US East (N. Virginia)/Linux/
+# index.json), which says it was published 2026-11-14T01:29:26Z, read
+# 2026-11-15: m7g.2xlarge 8 vCPUs, 32 GiB, $0.3264; m7g.4xlarge 16, 64,
+# $0.6528; m7g.8xlarge 32, 128, $1.3056; m7g.12xlarge 48, 192, $1.9584;
+# m7g.16xlarge 64, 256, $2.6112.
+# The right size is m7g.12xlarge: 118 / 0.8 = 147.5 GiB, so 192; the CPU
+# alone (7% of 64 is 4.48 vCPUs, / 0.6 = 7.47) would fit the 2xlarge. The
+# working can't look a size up, so it names the two prices; the explanation
+# does the choosing. A 720-hour month gives 470.02, inside the tolerance.
+working: (m7g_16xlarge - m7g_12xlarge) * hours
+mistakes:
+  - id: forgot-memory
+    value: 1667.904
+    working: (m7g_16xlarge - m7g_2xlarge) * hours
+    why: That is the saving of moving to `m7g.2xlarge`, the cheapest size that fits the CPU (7% of 64 is 4.48 vCPUs, and 4.48 ÷ 0.6 = 7.5, so 8). Its 32 GiB can't hold a peak of 118 GiB. A size has to meet both halves of the policy.
+  - id: memory-without-headroom
+    value: 953.088
+    working: (m7g_16xlarge - m7g_8xlarge) * hours
+    why: That is the saving of moving to `m7g.8xlarge`, whose 128 GiB holds the 118 GiB peak with almost nothing to spare (92% full). The policy lets the peak fill at most 80%, so 118 ÷ 0.8 = 147.5 GiB is needed.
+prices_as_of: 2026-11-15
+prices_source: https://aws.amazon.com/ec2/pricing/on-demand/
+explanation: |
+  CPU first. At the 95th percentile the work keeps 7% of 64 = 4.48 vCPUs busy; at most 60% full means 4.48 ÷ 0.6 = 7.5 vCPUs, so 8 would do. Memory: the peak, 118 GiB, may be at most 80% of the new machine, so it needs 118 ÷ 0.8 = 147.5 GiB: the 192 GiB size. The cheapest size that meets both is `m7g.12xlarge`, and it is memory that decides: the server keeps 48 vCPUs it barely uses, because sizes in one family grow their vCPUs and memory together.
+
+  The saving is ($2.6112 − $1.9584) × 730 = $0.6528 × 730 = about $477 a month, a quarter of the bill. Memory is sized on its peak, with headroom, because running short of memory isn't a slowdown that passes: the kernel kills a process. (A family with more memory for each vCPU might fit this server better; choosing among families is a later module's subject.) Prices change: look them up again on the day.
+skills: [right-size]
