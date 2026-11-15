@@ -36,6 +36,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Six Module 3 write labs now have ShellCheck read the learner's script, as the module's plan asked: Layers and packets, Congestion control, DNS, VPNs and IPsec, Load balancing and Network troubleshooting. Each has known-wrong scripts that work and fail only the lint.
 - The eight labs that already linted no longer accept a warning switched off with two spaces or a tab, and six of them gained the known-wrong scripts that prove the lint.
 - DNS's reference script failed the lint itself (an unquoted variable), and is fixed.
+- Congestion control's write lab no longer lets a script that tests the same algorithm twice pass by luck: the second test must reach BBR's rate by itself.
+- Checkpoint 2's domain lab: a known-wrong fix whose `realm join` fails on some networks no longer breaks the lab's proof in CI; its script ends cleanly and the checks judge it.
 - Checkpoint 3's cloud-link lab, in both versions, reads plain `netlab verify`; the helper that worked around two faults in the network base is gone, since the base was fixed.
 
 ### Changed (cloud Modules 1 to 3: what was left, batch one)
@@ -43,6 +45,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Review pools are wider, from questions that already existed: every Module 1 topic's pool holds all its recall questions (6 became 14 to 21), HTTP and TLS has 12 where it had 7, and Hypervisors gained three. A review still asks two questions and now rotates through more.
 - `tools/lab-seconds.json` is rebuilt from the last full Labs run: 221 labs, where it knew 160.
 - Stale sentences corrected in the cloud track's spec, the writer's guide, the network-lab base's notes, ADR-0018 and the owner queue, which also names three more main videos nobody has watched.
+
+### Added (cloud Module 2: fuller review pools, and right-sizing from a price table)
+
+- The two Active Directory topics' review pools hold 19 and 25 questions, where they held 6 and 8: questions that existed and weren't in the pool, and twelve new ones that appear only in reviews.
+- Cores, memory and noisy neighbours has three estimate questions that right-size a machine from a week of metrics and a dated price table, and ask what the move saves.
+- Hypervisors has the two questions about a guest on a real cloud that its plan left waiting, written from the providers' documentation.
 
 ### Changed (the cloud track, audited against the principal bar)
 
@@ -52,6 +60,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Three proofs for Stage 4, all run in the browser at no cost: the estate review, the design critique and the strategy narrative. Two drills: design critique, and a paper in an hour.
 - Eleven outlines say more: virtual networks as overlays, how object storage is kept durable, schema changes with no downtime, the control plane of a multi-tenant product, open-source licence changes, gray failures, business impact analysis, operational readiness reviews, workloads that shouldn't be in a cloud, directory synchronization, and modelling data for analysis. Quantum computing now names cryptography as the one thing it changes today. Checkpoints 22, 25 and 28 each gained a part.
 - The track is now 31 modules and about 340 topics (337 numbered, 8 specialties). `tools/outline_cloud_track.py` knows Module 31. Everything added is a `planned` outline; no written topic changed.
+
+### Added (cloud Module 1: number drills)
+
+- Thirty estimate questions (a typed number, checked within a tolerance) across seven Module 1 topics: CPU scheduling, Memory, Permissions, Containers, Services, Boot and Shell scripting. Each is a sum done on sight, such as a `CPUQuota=` percentage to the numbers in `cpu.max`, the mode a umask leaves, or the exit status after a signal, and each recognises the likely wrong answers and says why.
+- Shell scripting's `tooling` skill has a third question, and five lessons gained a sentence where a drill needed a rule stated.
 
 ### Changed (the Momentum redesign, stage 1: colours and fonts)
 

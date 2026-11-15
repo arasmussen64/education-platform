@@ -1,0 +1,32 @@
+id: sssd-conf-who-may-log-in
+type: predict_shell
+rev: 1
+prompt: |
+  `sssd.conf` holds ten lines of `/etc/sssd/sssd.conf`, SSSD's settings file, on a member of `ad.shop.test` where only the group `linux-admins` may log in. It is written the way one of the lab's own scripts writes that file; `realm permit -g` is what sets its two access lines (captured in the lab, 2026-11-11). The first command prints which parts of Linux ask SSSD; the second prints the two settings that decide who may log in. What is printed?
+files:
+  sssd.conf: |
+    [sssd]
+    domains = ad.shop.test
+    services = nss, pam
+
+    [domain/ad.shop.test]
+    id_provider = ad
+    access_provider = simple
+    simple_allow_groups = linux-admins@ad.shop.test
+    krb5_realm = AD.SHOP.TEST
+    fallback_homedir = /home/%u@%d
+    use_fully_qualified_names = True
+command: |
+  grep '^services' sssd.conf | cut -d' ' -f3-
+  grep -e '^access_provider' -e '^simple_allow' sssd.conf | cut -d' ' -f1,3
+expected_output: |
+  nss, pam
+  access_provider simple
+  simple_allow_groups linux-admins@ad.shop.test
+explanation: |
+  Each setting is `name = value`, so with a space as the separator the name is field 1, the `=` field 2 and the value field 3. `cut -f3-` keeps everything from field 3 on (`nss, pam`), and `-f1,3` keeps the name and the value.
+
+  `services = nss, pam` names the two parts of Linux that ask SSSD about domain accounts: NSS, which every program uses to look up a user or a group, and PAM, which every login runs to check a password and decide whether to let the person in. The two access lines are the member's own rule, the second question at every login: `access_provider = simple` says "let in only who is listed", and `simple_allow_groups` lists one group. That is what `sudo realm permit -g linux-admins@ad.shop.test` writes, and it names a group, not people, so who may log in is changed in the directory and never in this file.
+
+  Two more lines explain what you saw in the labs: `use_fully_qualified_names = True` is why accounts are written `alice@ad.shop.test`, and `fallback_homedir = /home/%u@%d` (the user, an `@`, the domain) is why her home is `/home/alice@ad.shop.test`. The file holds no password; the machine's own keys are in the keytab. Only root may read either.
+skills: [domain-join]

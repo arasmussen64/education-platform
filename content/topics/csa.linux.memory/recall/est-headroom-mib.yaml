@@ -1,0 +1,26 @@
+id: est-headroom-mib
+type: estimate
+rev: 1
+prompt: |
+  A container's `memory.max` reads `268435456` and its `memory.current` reads `201326592`. How many more MiB can its processes take before they reach the limit? Exactly.
+unit: MiB
+answer: 64
+tolerance: { absolute: 0 }
+given: { limit: 268435456, used: 201326592 }
+working: (limit - used) / 1024 / 1024
+mistakes:
+  - id: a-million-each
+    value: 67.11
+    working: (limit - used) / 1000 / 1000
+    why: "That divides by a million. A MiB is 1,024 × 1,024 bytes, 1,048,576, so the 67,108,864 bytes left are exactly 64 MiB."
+  - id: what-it-uses
+    value: 192
+    working: used / 1024 / 1024
+    why: "That's what the container uses now, `memory.current` in MiB. What's left is the limit minus that."
+  - id: the-limit
+    value: 256
+    working: limit / 1024 / 1024
+    why: "That's the whole limit, `memory.max` in MiB. The container already uses 192 of it."
+explanation: |
+  Both files are in bytes. The limit is 268,435,456 ÷ 1,048,576 = 256 MiB and the container uses 201,326,592 ÷ 1,048,576 = 192 MiB, so 64 MiB are left. Subtracting first and converting once gives the same: 67,108,864 bytes is 64 MiB. A container at three quarters of its limit is not in trouble yet; whether it will be depends on whether `memory.current` is steady or climbing, which two readings an hour apart will tell you.
+skills: [container-memory]
