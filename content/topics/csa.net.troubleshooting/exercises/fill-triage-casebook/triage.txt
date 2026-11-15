@@ -1,4 +1,8 @@
 # The triage desk's sheet: one block per case in /srv/cases. For each case:
+#   failed   = F/N: of the N loads in the case's monitor.log, the F that
+#              failed, such as 3/40. A load failed when its exit status
+#              isn't 0 or its HTTP status is 400 or more; a slow load that
+#              worked hasn't failed
 #   layer    = the layer whose mechanism fails: link (ARP, MAC addresses),
 #              network (IP, routes, ICMP, MTU), transport (TCP, UDP, ports,
 #              NAT's port table), application (HTTP, servers, load balancers),
@@ -10,40 +14,49 @@
 # Cases 1 and 2 are filled in as examples.
 
 [case-1]
-# ns2, the secondary, still serves the old address: ns1 refuses to let it
-# copy the zone (ns1's allow-transfer names another address).
+# 12 of the monitor's 27 loads failed, every one of them at 203.0.113.41, in
+# runs a minute or two long. ns2, the secondary, still serves that old
+# address: ns1 refuses to let it copy the zone (ns1's allow-transfer names
+# another address).
+failed = 12/27
 layer = naming
 where = ns1
 cause = stale-secondary
 evidence = journal.txt:1
 
 [case-2]
-# The slow loads all tried 10.30.0.11 first; r1 sends that address to oldgw,
-# which forwards nothing, by a static route more specific than BGP's.
+# No load failed: 14 of the 26 were slow, which is another thing. The slow
+# loads all tried 10.30.0.11 first; r1 sends that address to oldgw, which
+# forwards nothing, by a static route more specific than BGP's.
+failed = 0/26
 layer = network
 where = r1
 cause = stale-more-specific-route
 evidence = session.txt:11
 
 [case-3]
+failed =
 layer =
 where =
 cause =
 evidence =
 
 [case-4]
+failed =
 layer =
 where =
 cause =
 evidence =
 
 [case-5]
+failed =
 layer =
 where =
 cause =
 evidence =
 
 [case-6]
+failed =
 layer =
 where =
 cause =

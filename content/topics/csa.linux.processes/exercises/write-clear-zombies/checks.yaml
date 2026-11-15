@@ -1,0 +1,84 @@
+# The checks for "Find and clear the zombies": no shop service has a zombie
+# under it once its helpers have had time to finish, both services still do
+# their work, every queue was got ready at this start of its service, and
+# the shop's programs are as they were. A zombie is counted when its control
+# group (the group systemd keeps each service's processes in, which
+# /proc/PID/cgroup names) is a shop service's, so a zombie somewhere else on
+# the machine doesn't count against the learner.
+checks:
+  - id: no-zombies
+    description: "Once each shop service has been up for eight seconds and its helpers have finished, no zombie is left under either of them."
+    command: |
+      # Wait until both services are at least eight seconds old and no
+      # helper is still at work, so a zombie that is going to appear has.
+      for _ in $(seq 1 24); do
+        settled=yes
+        for unit in shop-mailer shop-orders; do
+          pid=$(systemctl show "$unit" -p MainPID --value)
+          [ "$pid" != 0 ] || continue
+          age=$(ps -o etimes= -p "$pid" | tr -d ' ')
+          [ "${age:-8}" -ge 8 ] || settled=no
+        done
+        pgrep -r R,S,D,T -x prepare-queue > /dev/null && settled=no
+        [ "$settled" = yes ] && break
+        sleep 1
+      done
+      count=0
+      for pid in $(ps -eo pid=,stat= | awk '$2 ~ /^Z/ {print $1}'); do
+        grep 'shop-.*\.service' "/proc/$pid/cgroup" > /dev/null 2>&1 && count=$((count + 1))
+      done
+      echo "$count"
+    expect:
+      equals: "0"
+  - id: still-working
+    description: "Both shop services are running, each with its program inside it, and each is still handling batches: its log gets a new line."
+    command: |
+      for unit in shop-mailer shop-orders; do
+        name=${unit#shop-}
+        [ "$(systemctl is-active "$unit")" = active ] || { echo "$unit is not running"; exit 0; }
+        inside=no
+        for pid in $(cat "/sys/fs/cgroup/system.slice/$unit.service/cgroup.procs" 2>/dev/null); do
+          [ "$(ps -o comm= -p "$pid")" = "$name" ] && inside=yes
+        done
+        [ "$inside" = yes ] || { echo "the program $name is not running inside $unit"; exit 0; }
+        before=$(tail -n 1 "/var/log/shop/$name.log" 2>/dev/null)
+        moved=no
+        for _ in $(seq 1 10); do
+          sleep 1
+          [ "$(tail -n 1 "/var/log/shop/$name.log" 2>/dev/null)" != "$before" ] && { moved=yes; break; }
+        done
+        [ "$moved" = yes ] || { echo "$unit has stopped handling batches"; exit 0; }
+      done
+      echo working
+    expect:
+      equals: working
+  - id: queues-ready
+    description: "At this start of each service, every one of its queues was got ready: the mailer's five and the order service's three, as the service's journal shows."
+    command: |
+      for spec in "shop-mailer welcome receipts invoices reminders returns" "shop-orders new paid shipped"; do
+        set -- $spec
+        unit=$1
+        shift
+        id=$(systemctl show "$unit" -p InvocationID --value)
+        [ -n "$id" ] || { echo "$unit is not running"; exit 0; }
+        for queue in "$@"; do
+          found=no
+          for _ in 1 2 3; do
+            journalctl "_SYSTEMD_INVOCATION_ID=$id" --no-pager -o cat | grep -x "queue $queue ready" > /dev/null && { found=yes; break; }
+            sleep 1
+          done
+          [ "$found" = yes ] || { echo "a queue of $unit was not got ready at this start"; exit 0; }
+        done
+      done
+      echo ready
+    expect:
+      equals: ready
+  - id: programs-unchanged
+    description: "The shop's own programs in /srv/shop/bin (mailer, orders and prepare-queue) are as they were: only a start script changed."
+    command: |
+      for name in mailer orders prepare-queue; do
+        cmp -s "/srv/shop/bin/$name" "/usr/local/lib/lab/pristine/$name" || { echo "$name was changed"; exit 0; }
+      done
+      echo unchanged
+    expect:
+      equals: unchanged

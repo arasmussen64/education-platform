@@ -1,0 +1,16 @@
+# The office's dashboard, on the far side of eth1: a program run inside the
+# office's network namespace, so on this machine its calls arrive on eth1
+# from 10.0.9.2. Part of the lab's scenery.
+[Unit]
+Description=office-dashboard: the office's dashboard (in the office)
+After=lab-network.service
+Requires=lab-network.service
+
+[Service]
+NetworkNamespacePath=/run/netns/office
+ExecStart=/usr/local/bin/office-dashboard
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

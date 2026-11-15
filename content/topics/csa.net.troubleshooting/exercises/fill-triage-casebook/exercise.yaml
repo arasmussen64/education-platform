@@ -3,21 +3,23 @@ stage: fill_in
 runtime: lab
 lab:
   restart_trial: true
-rev: 1
+rev: 2
 title: "The triage desk"
 prompt: |
-  A day on the triage desk: tickets come in with what the on-call engineer saved, and for each one you name the layer, the machine and the cause, and point at the line that shows it, before anyone changes anything. The six cases in `/srv/cases` come from six different networks of this module, each saved while it was failing; besides the ticket, every file is real output from its lab. `cat /srv/cases/README.txt` says what each file is.
+  A day on the triage desk: tickets come in with what the on-call engineer saved, and for each one you measure the fault, name the layer, the machine and the cause, and point at the line that shows it, before anyone changes anything. The six cases in `/srv/cases` come from six different networks of this module, each saved while it was failing. Each case's `mtr.txt`, `capture.txt`, `journal.txt` and `session.txt` are real output from its lab; its ticket and its `monitor.log` are constructed, the log written afterwards as the shop's monitor would have written it over the same minutes. `cat /srv/cases/README.txt` says what each file is.
 
   Your sheet is `~/triage.txt` (`nano ~/triage.txt`). Its first lines say what each field takes, and cases 1 and 2 are filled in as examples: read their folders against their answers first. Then fill in cases 3 to 6. For each case:
 
-  1. Read `ticket.txt`: the symptom, and the machines. Scope it: always or sometimes, everything or one thing, from where.
-  2. Read the evidence with the splits in mind: which test works and which fails, where on the path it stops, what each log and counter recorded. Not every file holds the cause, and some hold a red herring.
-  3. Write the layer, the machine where the cause is (not where the symptom shows), the cause from `/srv/cases/causes.txt`, and the evidence as `FILE:LINE`, the file's name in the case's folder and the number of the one line that shows the cause. `grep -n PATTERN FILE` and `cat -n FILE` print line numbers.
+  1. Read `ticket.txt`: the symptom, the machines, and where the monitor runs and what it loads. Scope it: always or sometimes, everything or one thing, from where.
+  2. Measure it. `monitor.log` has one line for each page the monitor loaded, in the format of Follow the method's monitor, with the URL where that one had the page: `TIME URL ADDRESSES STATUS SECONDS exit=N`. Count the loads and the ones that failed, and write them as `failed = F/N`. A load failed when its exit status isn't 0 or its HTTP status is 400 or more; a slow load that worked hasn't failed. Then look at which loads failed, as the lesson's breakdown does: all of them or some, every URL or one, and at what times. A ticket's "sometimes" and "everything" are a person's impression; the log is the measurement.
+  3. Read the evidence with the splits in mind: which test works and which fails, where on the path it stops, what each log and counter recorded. Not every file holds the cause, and some hold a red herring.
+  4. Write the layer, the machine where the cause is (not where the symptom shows), the cause from `/srv/cases/causes.txt`, and the evidence as `FILE:LINE`, the file's name in the case's folder and the number of the one line that shows the cause. `grep -n PATTERN FILE` and `cat -n FILE` print line numbers. A monitor's line shows the symptom, never the cause.
 
-  The cases are evidence: read them, change nothing in `/srv/cases`. A triage desk does a case like these in about five minutes: time yourself. Then run the checks; each answer has a check of its own.
+  The cases are evidence: read them, change nothing in `/srv/cases`. A triage desk does a case like these in about six minutes: time yourself. Then run the checks; each answer has a check of its own.
 hints:
+  - "The failed count: `awk '$NF != \"exit=0\" || $4 >= 400' /srv/cases/case-3/monitor.log | wc -l` counts the loads that failed (`$NF` is a line's last field, `$4` its status), and `wc -l < /srv/cases/case-3/monitor.log` counts every load. Read the status as well as the exit status: curl ends with 0 whenever the server answered, whatever the answer was."
   - "Case 3: small pages work and only the big download hangs. Which test in the lesson splits small from large, and what does a capture on the sender show arriving for each big segment?"
   - "Case 4: only new payments fail, at the peak, and mtr.txt shows a clean path. Which counter in session.txt counts the connections a NAT gateway couldn't make, and how many ports does gw's payment rule give 120 connections to one destination?"
   - "Case 5: the IKE_SA is ESTABLISHED, so phase 1 is fine. What does the CHILD_SA's exchange end with, in journal.txt?"
   - "Case 6: what do both servers in rotation do in the same second the database job starts, and what does /livez answer on web1?"
-skills: [split-the-suspects, locate-on-the-path, read-logs-and-counters]
+skills: [measure-intermittent, split-the-suspects, locate-on-the-path, read-logs-and-counters]

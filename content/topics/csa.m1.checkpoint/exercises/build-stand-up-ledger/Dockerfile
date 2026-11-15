@@ -33,6 +33,15 @@ RUN useradd -m -s /bin/bash ben \
  && chown -R learner:learner /home/learner/keys /home/learner/bin && chmod 600 /home/learner/keys/ben \
  && printf 'd /run/sshd 0755 root root -\n' > /etc/tmpfiles.d/sshd.conf
 
+# sshd -t and sshd -T need the folder /run/sshd. systemd makes it when
+# ssh.service starts and, on this release, removes it again when the service
+# stops or fails to start; after that both commands only say "Missing
+# privilege separation directory". A learner is asked for sshd -t at just
+# those moments (before a restart, after a start that failed), so the lab
+# keeps the folder.
+RUN mkdir -p /etc/systemd/system/ssh.service.d \
+ && printf '# Part of the lab: keeps /run/sshd when ssh.service stops, so that\n# sshd -t and sshd -T always work.\n[Service]\nRuntimeDirectoryPreserve=yes\n' > /etc/systemd/system/ssh.service.d/keep-run-sshd.conf
+
 # The office: a second machine on the far side of eth1 (a network namespace
 # joined to this one by a veth pair, made at boot by network.sh; from-office
 # runs a command there), so the firewall is proved from outside, as in the
@@ -46,8 +55,28 @@ RUN chmod 755 /usr/local/lib/lab/network.sh /usr/local/bin/from-office \
 
 # A fresh server for the ledger, nothing set up: ledger is installed but not
 # enabled or started, there's no firewall, and SSH still takes passwords.
-COPY webapp /usr/local/bin/webapp
+# Three things here differ from the checkpoint's build, so that its steps
+# can't be pasted (see exercise.yaml): the ledger's unit has no restart
+# policy, the ledger is for this machine alone, so its port stays shut to
+# others, and nobody can log in with a key yet. Ben, whom the other
+# checkpoint labs start with, isn't on this server. Ana is, with no key
+# installed: her public key waits in /srv/keys, the learner gets a copy of
+# her private key to test with, and the checks use a copy of their own
+# under /usr/local/lib/lab/keys, which only root reads, so nothing the
+# learner does to ~/keys changes what a check sees.
+COPY ledger /usr/local/bin/ledger
 COPY ledger.service /etc/systemd/system/ledger.service
-RUN chmod 755 /usr/local/bin/webapp
+RUN chmod 755 /usr/local/bin/ledger \
+ && chmod 644 /etc/systemd/system/ledger.service \
+ && useradd -r -s /usr/sbin/nologin ledger \
+ && userdel -r ben 2> /dev/null && groupdel ssh-users \
+ && rm -f /home/learner/keys/ben /home/learner/keys/ben.pub \
+ && useradd -m -s /bin/bash ana \
+ && mkdir -p /srv/keys /usr/local/lib/lab/keys \
+ && ssh-keygen -q -t ed25519 -N '' -C ana@laptop -f /home/learner/keys/ana \
+ && mv /home/learner/keys/ana.pub /srv/keys/ana.pub && chmod 644 /srv/keys/ana.pub \
+ && chown learner:learner /home/learner/keys/ana && chmod 600 /home/learner/keys/ana \
+ && cp /home/learner/keys/ana /usr/local/lib/lab/keys/ana \
+ && chown -R root:root /usr/local/lib/lab/keys && chmod 700 /usr/local/lib/lab/keys && chmod 600 /usr/local/lib/lab/keys/ana
 
 CMD ["/sbin/init"]

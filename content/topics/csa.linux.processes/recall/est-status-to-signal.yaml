@@ -1,0 +1,23 @@
+id: est-status-to-signal
+type: estimate
+rev: 1
+prompt: |
+  A nightly job's log ends with `exit status 143`, which says that a signal ended the process. What is the number of that signal? Exactly.
+unit: the signal's number
+answer: 15
+tolerance: { absolute: 0 }
+given: { status: 143 }
+# The 128 is what the learner must know.
+working: status - 128
+mistakes:
+  - id: kill-instead
+    value: 9
+    working: "9"
+    why: 9 is `KILL`, which the shell would report as 128 + 9 = 137. This status is 143, and 143 − 128 = 15.
+  - id: minus-100
+    value: 43
+    working: status - 100
+    why: That takes 100 away. The shell adds 128 to the signal's number, so take 128 away, which leaves 15.
+explanation: |
+  143 − 128 = 15, and signal 15 is `TERM`, the polite request to stop: `kill -l 15` prints `TERM`. So nothing crashed. Something asked the job to stop: a person with plain `kill`, a `systemctl stop`, or the machine shutting down. Had the log said 137, the signal would have been 9, `KILL`, and the job would have had no chance to tidy up.
+skills: [signals]

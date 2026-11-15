@@ -1,0 +1,20 @@
+id: mcq-three-clouds-inbound
+type: mcq
+rev: 1
+prompt: |
+  A company has two private circuits to each of three clouds and announces one prefix, the same one, over both circuits. On each cloud it wants the cloud's traffic to arrive over circuit 1 alone. On AWS, circuit 2 is the one whose Direct Connect location is associated with the company's Region; on Azure and Google Cloud the two paths tie. Which set of tools does the job on all three, as each provider's documentation describes?
+choices:
+  - "AWS: a prepend on circuit 2; Azure: a higher MED on circuit 2; Google: a higher MED on circuit 2"
+  - "AWS: a community on each circuit; Azure: a community on each; Google: a prepend on circuit 2"
+  - "AWS: a community on each circuit; Azure: a prepend on circuit 2; Google: a higher MED on circuit 2"
+  - "AWS: a higher MED on circuit 2; Azure: a prepend on circuit 2; Google: a community on each circuit"
+answer: 2
+explanation: |
+  Each cloud's router decides its own way to you, in an order of its own, so the tool that moves it differs.
+
+  AWS turns its documented communities into local preference, 7224:7300 high and 7224:7100 low, and compares that before the AS path and long before MED. With no community it prefers the location in the associated Region, here circuit 2, so a prepend or a MED on circuit 2 changes nothing: only a community (or a more specific prefix) moves it.
+
+  Azure honours no community you send, and Microsoft's pages name two tools for its traffic to you: announcing prefixes on the circuit you want, or AS-path prepending. With one prefix on both circuits, that leaves a prepend on circuit 2. MED isn't among the tools Microsoft names.
+
+  Google's Cloud Router chooses among your routes by AS-path length, origin and then the lowest MED, and Google's guide for an active and a backup circuit is the higher MED on the backup, on both sides. A community isn't part of its choice, and Google's page says not to rely on AS-path length, which in the default mode isn't compared across all of a Cloud Router's sessions. The lab "The circuit Google names" did it with MED.
+skills: [cloud-circuits, inbound-steering]

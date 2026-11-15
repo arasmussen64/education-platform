@@ -4,12 +4,12 @@ status: ready
 title: "Disks and filesystems"
 summary: "From a raw disk to files you can use: partitions, filesystems, mount points and fstab; growing a disk in the cloud, with LVM; the two ways a disk fills up and how to fix each; and what durability costs."
 prerequisites: [csa.linux.shell, csa.linux.processes, csa.linux.permissions, csa.linux.services]
-estimated_minutes: 220
+estimated_minutes: 255
 rev: 1
 objectives:
   - "Read `lsblk`, `blkid`, `df` and `/etc/fstab`: disks, partitions, filesystems, UUIDs and mount points, and attach, format and mount a new disk."
   - "Choose between ext4 and XFS for a new volume, and explain what inodes are."
-  - "Grow a disk in the cloud without downtime, including what LVM adds (physical volumes, volume groups, logical volumes)."
+  - "Grow a disk in the cloud without downtime, including what LVM adds (physical volumes, volume groups, logical volumes), and build an LVM volume by hand and grow it with a second disk."
   - "Fix a full disk: find what's using the space, tell a full disk from one that's out of inodes, and free a deleted file a process still holds open."
   - "Explain `fsync`, IOPS, throughput, latency and queue depth, and why turning durability off is dangerous."
 # Linked, never copied. Licences: DigitalOcean's community tutorials are
@@ -52,7 +52,13 @@ resources:
 # worked example, the fill-in, the write and both proofs are labs on a
 # machine with real (loop-device) disks attached: formatting, mounting,
 # fstab, a full disk, a deleted file held open, and growing a volume
-# (ADR-0017, ADR-0018). Every lab needs sudo ("Users, permissions and
+# (ADR-0017, ADR-0018). A sixth lab, write-lvm-volume (2026-11-15), is LVM
+# by hand: physical volumes, a volume group and a logical volume on one
+# disk, grown onto a second with the data in place. Every command and
+# every output in it was run in the lab container on that day (LVM
+# 2.03.16, Ubuntu 24.04): a 100 MB disk gives 24 extents of 4 MB, 96 MB,
+# because the first 1 MB is LVM's (pvs -o pe_start prints 1.00m). Every
+# lab needs sudo ("Users, permissions and
 # SSH"); the full-disk labs are about a file a process holds open, found by
 # its PID ("Processes and signals"), and a service that must keep running
 # while the disk is fixed ("Services and logs"). Hence the prerequisites.
@@ -68,15 +74,21 @@ practice:
   - disk-du-top
   - disk-df-inodes
   - mcq-inodes
+  - est-inode-count
+  - est-inodes-run-out
   - disk-lsof-deleted
   - mcq-deleted-open
   - mcq-lvm-why
   - disk-vg-free
+  - est-pv-usable
   - mcq-grow-cloud-disk
   - mcq-fsync
+  - mcq-write-cache
   - mcq-iops-throughput
+  - est-iops-throughput
   - fill-add-disk
   - write-disk-report
+  - write-lvm-volume
 prove:
   build: build-full-disk
   debug: debug-wont-mount
@@ -119,6 +131,11 @@ review_pool:
   - mcq-lvm-why
   - disk-vg-free
   - mcq-iops-throughput
+  - mcq-write-cache
+  - est-pv-usable
+  - est-inode-count
+  - est-inodes-run-out
+  - est-iops-throughput
 skills:
   - id: block-devices
     description: "Disks, partitions, filesystems and mount points: `lsblk`, `blkid`, `mkfs`, `mount`, `/etc/fstab` with UUIDs"

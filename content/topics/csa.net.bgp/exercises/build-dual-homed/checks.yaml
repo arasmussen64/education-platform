@@ -1,4 +1,5 @@
-# The checks of "The dual-homed shop": edge's two sessions, what each ISP
+# The checks of "The dual-homed shop": edge's two sessions, the timers each
+# running session agreed and the ones edge's file asks for, what each ISP
 # accepted from it (including whether a new route ISP A offers at check time
 # goes on to ISP B), what it accepts from them (including a route for part of
 # the shop's addresses that an ISP offers at check time; the learner has
@@ -33,6 +34,48 @@ checks:
       echo up
     expect:
       equals: up
+  - id: fast-timers
+    description: "Each of edge's two sessions runs on the lab's fast timers: with its ISP it has agreed a keepalive every 3 seconds and a hold time of 9, and edge's saved configuration asks for them, so a restart agrees the same."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # 1. What each running session agreed when it started, in FRR's own
+      #    answer. The ISPs offer FRR's defaults (60 and 180) on their side
+      #    and a session uses the lower hold time, so 3 and 9 are agreed
+      #    only if edge asked for them before the session began.
+      for isp in "192.0.2.2 A" "192.0.2.6 B"; do
+        set -- $isp
+        agreed=$(frr edge "show bgp neighbors $1 json" | json "(lambda p: '%s %s %s' % (p.get('bgpState'), p.get('bgpTimerKeepAliveIntervalMsecs', 0) // 1000, p.get('bgpTimerHoldTimeMsecs', 0) // 1000))(d.get('$1', {}))")
+        case $agreed in
+          "Established 3 9") ;;
+          "Established "*)
+            set -- $1 $2 $agreed
+            echo "edge's session with ISP $2 runs on a keepalive every $4 seconds and a hold time of $5, not 3 and 9 (show bgp neighbors $1). A session takes its timers when it starts, so timers typed later wait for clear bgp *"
+            exit 0
+            ;;
+          *) echo "edge has no session up with ISP $2 ($1) to read the timers of"; exit 0 ;;
+        esac
+      done
+      # 2. What edge's file asks for, which is what a restart starts from: a
+      #    neighbour's own timers line, or its peer group's, or the router's
+      #    "timers bgp", or FRR's defaults.
+      saved=$(awk -v want="192.0.2.2 192.0.2.6" '
+        $1 == "timers" && $2 == "bgp" && NF == 4 {all = $3 " " $4}
+        $1 == "neighbor" && $3 == "timers" && $4 != "connect" && NF == 5 {own[$2] = $4 " " $5}
+        $1 == "neighbor" && $3 == "peer-group" && NF == 4 {group[$2] = $4}
+        END {
+          n = split(want, w, " ")
+          for (i = 1; i <= n; i++) {
+            t = own[w[i]]
+            if (t == "" && group[w[i]] != "") t = own[group[w[i]]]
+            if (t == "") t = all
+            if (t == "") t = "60 180"
+            printf "%s%s", (i > 1 ? ", " : ""), t
+          }
+        }' /etc/netns/edge/frr/frr.conf 2> /dev/null)
+      [ "$saved" = "3 9, 3 9" ] || { echo "the sessions run on the fast timers now, but edge's saved configuration, /etc/frr/frr.conf, asks for other ones (keepalive and hold time for ISP A, then ISP B: ${saved:-none}), so a restart would agree those"; exit 0; }
+      echo "3 and 9, saved"
+    expect:
+      equals: "3 and 9, saved"
   - id: announced-exactly
     description: "ISP A and ISP B each accept exactly one route from edge, the shop's 198.51.100.0/24, even when an ISP offers edge a route it hasn't sent before."
     command: |

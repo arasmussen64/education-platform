@@ -1,0 +1,27 @@
+#!/usr/bin/python3
+"""office-files: the office's file server (stand-in). It runs in the
+office, on port 8000, and hands out one file: the price list the shop's
+server downloads, /prices.csv. From the shop's server a download is a
+connection out through eth1 to 10.0.9.2:8000."""
+
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+PRICES = b"item,price\nmug,7.50\nposter,12.00\nnotebook,4.25\nsticker,1.10\n"
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        found = self.path == "/prices.csv"
+        body = PRICES if found else b"no such file\n"
+        self.send_response(200 if found else 404)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+print("office-files listening on 8000", flush=True)
+ThreadingHTTPServer(("0.0.0.0", 8000), Handler).serve_forever()

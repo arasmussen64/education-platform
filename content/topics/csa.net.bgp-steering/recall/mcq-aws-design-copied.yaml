@@ -1,0 +1,18 @@
+id: mcq-aws-design-copied
+type: mcq
+rev: 1
+prompt: |
+  A team's Direct Connect design tags its announcements with the community 7224:7300 on the primary circuit and 7224:7100 on the backup, and sets nothing else. The team copies it unchanged to the two links of an ExpressRoute circuit and to two Cloud Interconnect attachments. What does each cloud do with its traffic to the company?
+choices:
+  - "All three use the primary alone: a community means the same on every network"
+  - "AWS uses the primary alone; Azure and Google share theirs over both circuits"
+  - "AWS and Google use the primary alone; Azure shares its traffic over both"
+  - "AWS uses the primary alone; Azure and Google refuse the tagged routes"
+answer: 1
+explanation: |
+  A community means only what the network that defined it says it means. 7224 is AWS's AS number, and AWS has promised to turn 7224:7300 and 7224:7100 into high and low local preference on its side, so on AWS the primary carries everything.
+
+  To the other two the same labels are just numbers. Microsoft honours no community you send, and Google's Cloud Router chooses by AS-path length, origin and MED, none of which the design sets. Both accept the routes, find the two paths equal, and share their traffic over both circuits, as the ExpressRoute lab's cloud and the Google-style lab's cloud did before your change. Part of each cloud's traffic then arrives over the circuit meant to be the backup.
+
+  The design has to be translated, not copied: on Azure a prepend on the backup (or more specific prefixes on the primary), on Google a higher MED on the backup, with the Cloud Router's base advertised priority set the same way round.
+skills: [cloud-circuits]

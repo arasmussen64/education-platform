@@ -2,6 +2,56 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, leftovers: a capture tool for GitHub's own machines
+
+Part of what was left in Modules 1 to 3. Module 2's plan asked for one piece of authoring tooling that was never built: a way to record what a real cloud machine shows about the hypervisor under it, so the content's examples are captured and not typed. GitHub's own machines are real cloud guests, x86 and Arm, and free on a public repository.
+
+- **`tools/lab-capture`** is the script two Hypervisors labs already ship, now also where a workflow can run it. It only reads, and masks MAC addresses, UUIDs and instance IDs. A test keeps the three copies identical.
+- **The Capture workflow** (`.github/workflows/capture.yml`) runs it on `ubuntu-latest` and `ubuntu-24.04-arm` and uploads each folder as an artifact, a download attached to the run. It starts only by hand.
+
+**Author notes:**
+
+- _The labs keep their own copies,_ because a lab's image is built from the lab's folder alone.
+- _Nothing is captured by this pull request._ The workflow can only be started once it is on `main`; the first run, and the question that waits for it (three lines of `lscpu` from a real Arm machine, in CPU architectures), follow.
+- _The plan also wanted a capture from inside a KVM guest on a runner._ That is left: it needs a guest image the workflow would have to build, and no question waits for it.
+
+**Next:** run it once, and write the Arm question from what it records.
+
+## 2026-11-15, leftovers: three checks that could be passed with a fault left in
+
+In the same pull request as the entry below. When Module 3 was written, three notes in this devlog (2026-11-12) admitted that a lab could be passed with part of the work undone. Each now has a check that fails without it, and known-wrong fixes that prove the check.
+
+- **NAT's debug, the third fault.** The gateway's catch-all rule took the gateway's first public address, which was also the address the office was meant to leave from, so a rule turned round the wrong way behaved exactly like a mended one. The gateway's addresses are now listed the other way round, and the prompt says nothing but the payments may leave from the payments' address. A new check asks the payment provider's own firewall, outside the gateway: an office PC that tries the payment port gets no answer. Two new known-wrong fixes.
+- **IPsec's fill-in, dead peer detection** (noticing that the other end of a tunnel has gone silent). The fill-in asks for it and nothing proved it. A new last check cuts the path to the provider in both directions without a word, and passes only if the gateway notices within 40 seconds, gives the tunnel up, and has it back by itself within 30 seconds of the path returning. The gateway gives up on an unanswered message after 8 seconds in the lab, where strongSwan's own figure is 165; the prompt states both. Two new known-wrong fixes: detection left off, and a tunnel that is cleared and never brought back.
+- **BGP's build, the timers.** The prompt asked for the lab's fast timers and no check read them. A new check reads what each session agreed with its ISP and what the saved configuration asks for. The ISPs now offer FRR's default timers, so the lower figure is the learner's to set. Writing it turned up something the lesson didn't say: timers typed after a session is up change nothing until the session is cleared. The prompt now says so and gives the command. Two new known-wrong fixes: default timers, and timers typed late.
+
+**Tried and undone: a cheaper HTTP semantics build.** That lab is the slowest in CI (about 1,300 seconds), because thirteen of its seventeen runs each wait out a 75-second idle check that has to outlast nginx's real 60-second default. Pairing its fourteen known-wrong fixes into eight files cut the run by 42%. But the checker asks only that each file fail one check, so CI would no longer have proved each paired mistake by itself. The pairing was reverted; the lab is as it was.
+
+**Author notes:**
+
+- _One NAT shortcut still passes:_ replacing the catch-all with a rule that names the office's address, and leaving the stale line in the file. The office is then translated by an explicit rule, and nothing a check can observe separates that from a mended file.
+- _An idea for the lab checker, not built:_ a known-wrong fix could name the check it must fail. That would let one file hold two mistakes and still prove both, and it would catch a wrong fix that fails for the wrong reason. It changes ADR-0018's contract, so it needs its own decision.
+- _A one-way cut doesn't test dead peer detection:_ the provider's own packets keep the gateway from asking, so the check cuts both directions, and restores the path even when it fails.
+- _BGP's build takes about two minutes longer to prove_ (689 seconds on this machine, where CI recorded 559).
+
+## 2026-11-15, leftovers: a Google-style circuit, and a casebook that can be measured
+
+The third pull request of what was left in Modules 1 to 3. Three things in Module 3 that its spec or plan promised and the writing put off.
+
+- **A lab on a Google-style circuit** ("The circuit Google names", in Steering traffic and cloud circuits). The spec promises one circuit made primary in both directions on all three clouds, and the labs had an AWS-style cloud and an Azure-style one. In the new lab the cloud's router is modelled on what Google's pages say a Cloud Router does: it sends a priority as the MED on each session (MED is the number a network sends to say which way in it prefers), and it follows the MED it receives. The learner reads which circuit the cloud team named, sends the higher MED on the backup, and the last check unplugs the primary. Nine known-wrong fixes, restart trial on. Three multiple-choice questions on what moves each of the three clouds bring the difference back in reviews.
+- **The troubleshooting casebook has its monitor logs.** Each of the six cases gains what an uptime monitor would have recorded across the fault, fitted to the second to that case's captures and journal. They earn their place: the sheet has a new field, how many loads failed out of how many, which the checks count from the log itself. Two known-wrong sheets prove it (one counts only by exit status and misses the 503 answers; one counts slow loads as failures).
+- **Routing's thinnest skill has five questions, where it had three:** a predict-the-output over a router's table after a pulled cable and after a silent cut, both captured from the lab, and an estimate of how many static route lines nine sites take.
+
+**Author notes:**
+
+- _Where the lab's cloud differs from Google's:_ it is one FRR router, which always compares AS-path length between its two sessions, where a real Cloud Router in its default mode compares it only among sessions one of its programs holds. The prompt says so, and a known-wrong fix that prepends where it should set MED fails the check that reads how the path was chosen.
+- _The untouched lab passes six of its eight checks,_ because sending traffic out over the right circuit needs no change: the depot already follows the cloud's MED. The two that fail are the cloud's way in and the failover. Two other right answers pass all eight: MED on the backup only, and local preference added on the primary.
+- _The monitor logs are constructed and say so,_ in the prompt, the cases' README and the topic's notes, beside the captured evidence, which is real. Case 3's monitor is green on purpose: it loads only the small front page, and a monitor fetching the big file would have left retransmissions in that case's capture.
+- _The new field is one question and four checks,_ following the casebook's pattern of a check for each case and field.
+- _Read on Google's pages on 2026-11-15_ (each last updated 2026-11-10, CC BY 4.0): how a Cloud Router ranks learned routes, the base advertised priority, its range, and the guide for on-premises routers. Recorded in the topic's notes.
+
+**Next:** Module 1's leftovers: its seven hands-on gaps and Checkpoint 1's fresh versions.
+
 ## 2026-11-15, leftovers: Module 3's script labs are linted
 
 The second pull request of what was left in Modules 1 to 3 ([the list](#2026-11-15-last-whats-left-in-cloud-modules-1-to-3-and-the-first-batch) is in the entry below). The Module 3 plan asked that every lab where the learner writes a shell script have ShellCheck read it, as Module 1's scripting labs do. ShellCheck is the script checker that topic teaches. Six labs had been written without it.
@@ -54,6 +104,24 @@ The owner asked for everything left in the cloud track before Module 4 to be bui
 
 **Next:** batch two, the new questions.
 
+## 2026-11-15, leftovers: LVM by hand, and a real benchmark scan
+
+Part of what was left in Modules 1 to 3 (the list is the entry above). The last two of Module 1's seven hands-on gaps.
+
+- **A volume built and grown with LVM** (Disks and filesystems). LVM is the layer that lets several disks act as one pool, from which volumes are cut and later grown. The spec says "use LVM", and until now the topic only asked questions about it. The learner makes a physical volume, a volume group and a logical volume from one of the lab's disks, puts a filesystem on it and mounts it through fstab, fills it with films, then adds the second disk to the group, extends the volume and grows the filesystem while it is in use, and moves the rest in. Eight checks, among them that the six films are on the volume with the checksums their numbers give, and that the filesystem is older than the growing, so it wasn't remade. Nine known-wrong fixes: the volume extended and the filesystem not grown, a new filesystem made over the films, the second disk mounted beside the first.
+- **A real scan with Lynis** (Hardening). The spec says to prove a baseline with a benchmark scan, and the topic's own objectives promise one; the scan was questions over saved reports. The learner now runs Lynis, a scanner that tests a machine against a list of hardening checks, saves its report, fixes three named findings, records a fourth as an exception with a reason, and scans again to prove it. Nine checks, thirteen known-wrong fixes: fixing first and scanning after, editing the report by hand, switching the tests off in the scanner's profile, changing SSH's file and never reloading it.
+- **Also:** third questions for two thin skills (what a write cache risks; an open security group), and six number drills (space a physical volume really gives, how many inodes a filesystem gets and when they run out, a scan's pass rate).
+
+**Author notes:**
+
+- _Lynis proved steady enough to check:_ three scans in a row, and scans either side of a restart, gave the same findings, differing only in times. Two things had to be pinned for that: SSH runs as a service from boot (when it waits for its first connection, Lynis skips its SSH tests), and the scan doesn't refresh the package lists. No check reads the overall score, which moved only from 60 to 61 for the three fixes.
+- _Shortcuts that pass because they're right:_ `lvextend` followed by `resize2fs` in two steps; the fstab line by the volume's name instead of its UUID; a quick scan of only the named tests as the "after".
+- _Shortcuts not closed:_ a "before" report forged after the fixes, with its start time edited too, would pass. A login banner of five bare key words passes, because that is the scanner's own bar.
+- _LVM in a container needed care:_ there is no udev, so the lab's boot script makes the device nodes itself; it clears a volume left over from an earlier run of the same lab; and its teardown switches the group off before letting go of the disks. A container removed without the lab checker leaves the volume and its two disks attached until the lab next boots.
+- _Two copies of the LVM lab running on one machine would collide,_ since both name their volume group `mediavg`. The checker runs one at a time, and a learner has one.
+- _The writer's guide gained two notes,_ on how a lab with LVM volumes lets go of them and on how a scanner lab is checked.
+- _The roadmap's note about Stage 1's browser drills is closed with this:_ once the pull requests open beside this one are in, thirteen of Module 1's fourteen topics have number drills. Package management has none, because nothing there is a sum anyone does on sight.
+
 ## 2026-11-15, leftovers: Module 2's review pools, and right-sizing from a price table
 
 Part of what was left in Modules 1 to 3 (the list is in the entry above; this one sits below it only so that pull requests open at the same time don't edit the same lines). Module 2 was complete against its spec, and its leftovers needed only questions: 17 new ones, and no lab or lesson changed.
@@ -68,6 +136,25 @@ Part of what was left in Modules 1 to 3 (the list is in the entry above; this on
 - _Prices were read on 2026-11-15_ from Azure's retail price list (East US) and AWS's public price file (N. Virginia), and each prompt carries its own table and date, so the question stays answerable when prices move. Google Cloud's prices aren't used: its price page was too large to read.
 - _No new recordings:_ the predict-the-output questions use only output already captured in the labs' folders, and say which lines are captured and which are made up.
 - _Their names start `mcq-`,_ not the plan's `hv-`, to match the topic's other questions; the topic's notes say which planned questions they stand in for.
+
+## 2026-11-15, leftovers: Checkpoint 1's fresh versions are no longer the build with a name changed
+
+Part of what was left in Modules 1 to 3 (the list is a few entries up, under "What's left in cloud Modules 1 to 3"). A checkpoint's build comes with steps that show most of its solution. Once a learner opens them, passing the build no longer counts, and a "fresh version" proves it instead: the same skills in another story ([ADR-0012](decisions/0012-checkpoint-support.md)). Checkpoint 1's two fresh versions were the build with the service's name and port swapped, so the steps could be pasted with two words changed. That ADR's own count put only 6 to 20% of each as the learner's own work.
+
+- **The gateway version** now differs in every part. Its service listens only on the machine itself until a setting in its unit is changed; it serves two ports; and only one group may log in over SSH, so a second person with a perfectly good key must be refused.
+- **The ledger version** differs in every part too, and from the gateway. Its unit has no restart policy and the runbook asks for one; the ledger is for that machine alone, so the firewall lets in SSH only and the ledger's port stays shut from outside; and nobody's key is installed, so the learner installs one before passwords go off.
+- **Each has 21 known-wrong fixes,** where it had 4 and the build 8. One of them, in each, pastes the build's steps with only the names changed, and fails three checks.
+- **All nine of the checkpoint's lab images keep `/run/sshd` when SSH stops,** as the hardening labs' do. Without that, a learner who breaks SSH's settings is told only "Missing privilege separation directory", which points away from the line they got wrong.
+
+Every lab was proved again with the lab checker. By the ADR's own count, 54% and 63% of the two versions is now the learner's to write, and the ADR says so.
+
+**Author notes:**
+
+- _Three shortcuts were found and closed while writing:_ a second copy of the gateway started by hand beside the real service; the gateway's program edited to ignore its setting (a checksum, and a sentence in the prompt saying the program stays as installed); and a ledger restart policy written but never loaded, which passed until the known-wrong fix was reordered, because a later `systemctl enable` reloads systemd.
+- _Two are left open._ A port opened "for later" outside the fourteen the firewall check samples passes, in the versions as in the build: a check can only try so many. And the ledger passes if SSH is told to read keys from the folder the key came in, which Module 1 doesn't teach and which doesn't weaken the server.
+- _The explain prompt is unchanged._ It states no number of faults; its model answer's "five causes" counts the five the prompt itself lists.
+- _The restart trial isn't set on these two,_ to match the build; each passed one by hand. The trial run for Modules 1 and 2 decides it for all of the checkpoint's labs together.
+- _The archive's old assembly script still names the deleted version;_ it is history and was left.
 
 ## 2026-11-15, later: The cloud track, audited against the principal bar
 
@@ -111,6 +198,27 @@ The track is now 31 modules and about 340 topics: 337 numbered and 8 specialties
 - _Not added, on purpose:_ a fourth cloud, a low-latency trading topic, contact centres and gaming. Each is a niche a specialty or a job teaches, and the track is already about 2,500 hours.
 
 **Next:** stage 2 of the Momentum redesign, then Module 4 of the cloud track, as planned. Nothing in this audit changes Modules 4 to 10.
+
+## 2026-11-15, leftovers: zombies, `jq` and the connection table, done by hand
+
+Part of what was left in Modules 1 to 3 (the list is under "What's left in cloud Modules 1 to 3"). Three things Module 1's spec promises were taught and quizzed and never done in a lab. Each now has one.
+
+- **Find and clear the zombies** (Processes and signals). A zombie is a process that has finished but whose parent hasn't collected its exit status. One of two services leaves five behind, because its start script runs its helpers in the background and then hands over, with `exec`, to a program that never waits for them. The learner finds them with `ps`, tries `kill -9` on one and sees nothing change, traces the parent, restarts the service and watches the zombies come back, then fixes the script with `wait`. Eight known-wrong fixes, among them killing the zombies, stopping the service for good, and a restart with the script unfixed.
+- **The reply that never arrives** (Networking from the host). The firewall has lost its rule for connections already under way, so the server's own download from the office times out while the office still reaches the API. The learner reads the kernel's connection table with `sudo conntrack -L`, finds the half-open download in it, and restores the rule in the file the firewall loads at boot. Fourteen known-wrong fixes: opening ports for the replies, accepting everything from the office, a rule typed live and not saved.
+- **Four questions about a JSON log** (Shell essentials). `jq`, the tool that reads JSON by field name, was one sentence in the lesson. The lab's log has two layouts and notes that hold "500", which is where `grep` and `awk` go wrong. Ten known-wrong answers. The lesson now teaches `.field`, `select(...)` and `-r`, and the objective that said "know what jq is for" says to use it.
+
+**Also in these three topics:** eleven number drills (the exit status after a signal, ports in the ephemeral range, lines a pipeline leaves, a round-trip time from a capture), a third question for the `tcpdump` skill, a predict-the-output over a saved connection table, and a question that puts an `iptables` rule set beside the same rules in `nft` form.
+
+All three labs were proved with the lab checker; the two with services restart in the proof, and pass again after it.
+
+**Author notes:**
+
+- _The connection-table lab is a new lab, not a step in an old one,_ so that the fault (a missing rule for established connections) has the whole lab to itself.
+- _A shortcut the writer found and closed:_ a rule that accepts "anything that isn't an opening packet" passed the first six checks. A seventh sends a lone ACK from the office, which a firewall that tracks connections drops and that rule lets in.
+- _Shortcuts left open, on purpose:_ in the zombies lab, deleting the helpers and printing their "ready" lines by hand passes, which is forging the evidence, not a mistake. In the `jq` lab, a careful `grep` and `cut` reaches the same four answers; the checks read the answers, and can't see the tool.
+- _One piece of scenery is new to CI:_ the firewall's `ct state invalid drop` rule, which is what switches connection tracking on in that lab. CI's Linux machines prove it with this pull request.
+- _No drill for zombies or `jq`:_ there is no sum there that anyone does on sight.
+- _The writer's guide said no lab image has `jq`._ One has now; predict-the-output questions still can't use it, because Git Bash has none.
 
 ## 2026-11-15, leftovers: Module 1's number drills
 

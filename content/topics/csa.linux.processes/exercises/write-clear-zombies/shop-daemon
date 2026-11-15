@@ -1,0 +1,19 @@
+#!/usr/bin/python3
+# One of the shop's long-running programs; the same file is installed as
+# `mailer` and as `orders`. Every two seconds it handles one batch and adds a
+# line to /var/log/shop/NAME.log. It starts no processes of its own and never
+# calls wait: it has no reason to expect children.
+import os
+import sys
+import time
+
+name = os.path.basename(sys.argv[0])
+log = f"/var/log/shop/{name}.log"
+batch = 0
+while True:
+    batch += 1
+    # Start the log again every 300 lines, so it never grows large.
+    mode = "w" if batch % 300 == 0 else "a"
+    with open(log, mode) as file:
+        file.write(f"{time.strftime('%H:%M:%S')} {name}: batch {batch} handled\n")
+    time.sleep(2)

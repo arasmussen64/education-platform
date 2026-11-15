@@ -1,0 +1,22 @@
+id: est-scan-pass-rate
+type: estimate
+rev: 1
+prompt: |
+  An OpenSCAP scan checked a server against a CIS Level 1 profile of 240 rules: 204 passed and 36 failed. What percentage of the rules passed? Exactly.
+unit: "%"
+answer: 85
+tolerance: { absolute: 0 }
+given: { rules: 240, passed: 204, failed: 36 }
+working: passed / rules * 100
+mistakes:
+  - id: share-that-failed
+    value: 15
+    working: failed / rules * 100
+    why: That's the share that failed, 36 of 240. The pass rate is the other 85%.
+  - id: counted-the-gap
+    value: 168
+    working: passed - failed
+    why: That's how many more rules passed than failed. A pass rate is the passes as a share of all the rules, 204 out of 240.
+explanation: |
+  204 ÷ 240 = 0.85, so 85% of the rules pass. A tenth of 240 is 24, so the 36 failures are a tenth and a half, 15%, which leaves 85. A pass rate is how one scan is compared with the next: 85% before the baseline and 97% after is the proof on one line. It doesn't say which rules failed, though, and one failure that matters (root login over SSH) outweighs ten that don't, so the list of failed rules is kept beside the number.
+skills: [benchmarks-scanning]

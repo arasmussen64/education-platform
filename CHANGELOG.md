@@ -18,6 +18,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (a capture tool for GitHub's own machines)
+
+- `tools/lab-capture` and a Capture workflow, started by hand, that records what GitHub's x86 and Arm machines show about the hypervisor under them and uploads the result. Module 2's plan asked for it, so that examples of a real cloud guest are captured and not typed. A test keeps the script and the two labs' copies of it identical.
+
+### Fixed (cloud Module 3: three checks that could be passed with a fault left in)
+
+- NAT's debug lab no longer passes with its third fault left in: a new check asks the payment provider's firewall whether anything but the payments leaves from the payments' address.
+- IPsec's fill-in proves dead peer detection by cutting the path to the provider and timing how long the gateway takes to notice and to recover.
+- BGP's build reads the timers each session agreed and the ones the saved configuration asks for, and its prompt says a session must be cleared for new timers to apply.
+- Each has two new known-wrong fixes.
+
+### Added (cloud Module 3: a Google-style circuit, and a casebook that can be measured)
+
+- Steering traffic and cloud circuits has a third lab, "The circuit Google names": a cloud modelled on Google's Cloud Router, where the MED decides, one circuit made primary in both directions, and the backup proved by unplugging the primary. Three multiple-choice questions cover what moves each of the three clouds.
+- The troubleshooting casebook's six cases each have a monitor log, and the sheet a new field, how many loads failed out of how many, checked against the log.
+- Routing gains two questions on choosing static or dynamic routing.
+
 ### Fixed (cloud Module 3: every script lab is linted)
 
 - Six Module 3 write labs now have ShellCheck read the learner's script, as the module's plan asked: Layers and packets, Congestion control, DNS, VPNs and IPsec, Load balancing and Network troubleshooting. Each has known-wrong scripts that work and fail only the lint.
@@ -33,11 +50,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `tools/lab-seconds.json` is rebuilt from the last full Labs run: 221 labs, where it knew 160.
 - Stale sentences corrected in the cloud track's spec, the writer's guide, the network-lab base's notes, ADR-0018 and the owner queue, which also names three more main videos nobody has watched.
 
+### Added (cloud Module 1: LVM by hand, and a real benchmark scan)
+
+- Disks and filesystems has an LVM lab: build a volume from one disk, fill it, then add a second disk and grow the volume and its filesystem while in use, with the data intact.
+- Hardening has a lab with a real scanner, Lynis: scan, fix three named findings, record a fourth as an exception, and scan again to prove it.
+- The two topics gain third questions for two thin skills and six number drills.
+
 ### Added (cloud Module 2: fuller review pools, and right-sizing from a price table)
 
 - The two Active Directory topics' review pools hold 19 and 25 questions, where they held 6 and 8: questions that existed and weren't in the pool, and twelve new ones that appear only in reviews.
 - Cores, memory and noisy neighbours has three estimate questions that right-size a machine from a week of metrics and a dated price table, and ask what the move saves.
 - Hypervisors has the two questions about a guest on a real cloud that its plan left waiting, written from the providers' documentation.
+
+### Changed (cloud Checkpoint 1: fresh versions that differ from the build)
+
+- Checkpoint 1's two fresh versions, the gateway and the ledger, each differ from the build in every part (the service's unit, the firewall's rules, who may log in), so the build's steps can't be pasted with the names changed. Each has 21 known-wrong fixes, one of which does exactly that and fails.
+- All nine of the checkpoint's lab images keep `/run/sshd` when SSH stops, so a broken SSH setting is reported by its own line.
 
 ### Changed (the cloud track, audited against the principal bar)
 
@@ -47,6 +75,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Three proofs for Stage 4, all run in the browser at no cost: the estate review, the design critique and the strategy narrative. Two drills: design critique, and a paper in an hour.
 - Eleven outlines say more: virtual networks as overlays, how object storage is kept durable, schema changes with no downtime, the control plane of a multi-tenant product, open-source licence changes, gray failures, business impact analysis, operational readiness reviews, workloads that shouldn't be in a cloud, directory synchronization, and modelling data for analysis. Quantum computing now names cryptography as the one thing it changes today. Checkpoints 22, 25 and 28 each gained a part.
 - The track is now 31 modules and about 340 topics (337 numbered, 8 specialties). `tools/outline_cloud_track.py` knows Module 31. Everything added is a `planned` outline; no written topic changed.
+
+### Added (cloud Module 1: zombies, `jq` and the connection table, by hand)
+
+- Processes and signals has a lab, "Find and clear the zombies": find them, see that `kill` does nothing, trace the parent, and fix the start script that never waits for its helpers.
+- Networking from the host has a lab on the kernel's connection table: read `conntrack -L`, find a half-open download, and restore the firewall's rule for connections already under way.
+- Shell essentials has a lab, "Four questions about a JSON log", answered with `jq`, and its lesson teaches the filters the lab needs.
+- The three topics gain eleven number drills, a third `tcpdump` question, and questions on a saved connection table and on `iptables` beside `nft`.
 
 ### Added (cloud Module 1: number drills)
 

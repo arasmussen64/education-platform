@@ -1,0 +1,22 @@
+id: est-head-tail-window
+type: estimate
+rev: 1
+prompt: |
+  `access.log` has thousands of lines. `head -n 80 access.log | tail -n 20` prints 20 of them. Counting from the top of `access.log`, what is the number of the first line it prints? Exactly.
+unit: the line's number
+answer: 61
+tolerance: { absolute: 0 }
+given: { top: 80, kept: 20 }
+working: top - kept + 1
+mistakes:
+  - id: off-by-one
+    value: 60
+    working: top - kept
+    why: Line 60 is the last one that is left out. The 20 lines kept are 61 to 80; count them.
+  - id: the-last-line
+    value: 80
+    working: top
+    why: Line 80 is the last line printed, the end of what `head` let through. The first is 19 lines before it.
+explanation: |
+  `head -n 80` lets lines 1 to 80 through, and `tail -n 20` keeps the last 20 of those: lines 61 to 80, because 80 − 20 + 1 = 61. The pair is the shell's way to look at a stretch in the middle of a file, and the `+ 1` is the part that catches people: 61 to 80 is 20 lines, 60 to 80 would be 21.
+skills: [navigate, pipes-redirects]
