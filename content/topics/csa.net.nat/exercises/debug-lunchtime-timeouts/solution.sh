@@ -8,7 +8,11 @@
 #    address, 10.1.0.1; a catch-all for what leaves is oifname "wan";
 # 3. the office's rule still named the office's old network, 10.1.1.0/24,
 #    so its PCs left untranslated (conntrack: a reply tuple to 10.1.0.10)
-#    and no reply could come back.
+#    and no reply could come back. Turning the catch-all round would have
+#    let them out without mending this rule, and badly: masquerade takes
+#    the first address on wan, here 198.51.100.3, the payments' address.
+#    So the office's rule is mended, and the catch-all, with nothing left
+#    to catch, goes.
 # The whole file is written here with "on gw tee FILE <<'EOF'", which copies
 # every line up to the one that says EOF into the file, as nano would save
 # it; nft checks it; restarting nftables@gw loads it, as every boot does.

@@ -2,7 +2,10 @@
 # wants, never a fault. What srv and the app see (the address each
 # connection came from); that the app holds twice the lunchtime peak of
 # connections to the payment provider at once, which only 198.51.100.3 can
-# open; that nothing else answers from the internet (dropped, not refused);
+# open; that nothing but the app's payments leaves from that address (an
+# office PC that tries the provider's payment port gets no answer, as
+# anything sent from another address does); that nothing else answers from
+# the internet (dropped, not refused);
 # that gw forwards only what its rules allow (tried from a throwaway machine
 # of the check's own on the provider's network); that the provider and its
 # router, inet, were left alone; and that the rules running are the ones gw's file loads at every
@@ -29,6 +32,17 @@ checks:
     command: on app holdconns 240 203.0.113.10 443 1
     expect:
       equals: "opened 240 of 240"
+  - id: payments-address-kept
+    description: "198.51.100.3 stays the payments' address and nothing else's: an office PC that tries the provider's payment port gets no answer for the whole timeout, as anything not sent from 198.51.100.3 does."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      # The provider's firewall is the judge, from outside gw: it answers
+      # on 443 only what arrives from 198.51.100.3.
+      state=$(tcp_state office 203.0.113.10 443)
+      [ "$state" = dropped ] || { echo "from an office PC, the provider's payment port is $state: something besides the app's payments leaves from 198.51.100.3"; exit 0; }
+      echo "the payments' alone"
+    expect:
+      equals: "the payments' alone"
   - id: nothing-else
     description: "From the internet, only 198.51.100.2's port 443 answers: the gateway itself, SSH, the database, the app's own port, 198.51.100.3's port 443 and two ports nobody uses all stay silent for the whole timeout."
     command: |
