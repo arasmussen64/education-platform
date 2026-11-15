@@ -1,0 +1,31 @@
+id: write-saturated-disk
+stage: write
+runtime: lab
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The disk that can't keep up"
+prompt: |
+  The shop's server takes orders, and today it takes them slowly. `curl -s localhost:8080/order` places a test order and says how long it took to save, which should be a few milliseconds. The server isn't short of CPU: `pidstat 1 3` shows the shop's processes using next to none. So this time the first-minute checklist sends you on, to the disk.
+
+  What is on the server:
+
+  - **The data disk**, `/dev/lab/data`, mounted at `/srv/data`, is a network disk, as a cloud server's data disk is, and it is provisioned for 100 writes a second. Everything on the server that writes to it shares those 100. On the lab machine the disk is a file on your computer, which would take far more, so the lab plays the cloud's part and holds the disk to its 100 writes a second. The limit belongs to the disk: on a cloud, nothing you do on the server lifts it, and here a check makes sure it is still in place.
+  - **`shop-orders`** saves every order on the data disk in four small writes, and answers once all four are on the disk. Besides your test orders it takes one from the shop's website every two seconds, and logs each one (`journalctl -u shop-orders -f` follows the log; Ctrl+C stops following).
+  - **`shop-sync`** copies changed products to the shop's search page. It has 32 workers, and each handles 10 products a second when nothing holds it up, 320 in all (`journalctl -u shop-sync` shows how many it gets through).
+
+  **One thing on this server is wrong,** and it is why orders are slow. Work from the disk to the process, as the lesson does:
+
+  1. **Show that the data disk is saturated, and keep the proof.** Save `iostat -x` reports for the data disk, a second apart, in `~/triage/iostat-before.txt`, before you change anything: once the fault is fixed, the evidence is gone. `findmnt /srv/data` shows the disk's device name. The checks read the last report in the file.
+  2. **Find the service whose writes fill the disk's queue,** and write its name in `~/triage/finding.txt`. Add what it was writing, for the next person; the checks read only the name.
+  3. **Fix it in that service's settings,** and place a test order again.
+
+  The rules of the fix: both services keep running and keep doing all their work (`shop-sync` at full speed, `shop-orders` saving every order on the data disk in four writes); the two programs in `/usr/local/bin` stay as they are; the disk keeps its limit; and the fix must last after a reboot.
+
+  `iostat` also lists the disks of your own computer, which Docker shares with the lab. Only `/dev/lab/data` is the lab's. When you're done, run the checks.
+hints:
+  - "`findmnt /srv/data` prints the disk's device under SOURCE, such as `/dev/dm-3`, and `iostat` calls it by the last part, `dm-3`. `iostat -x /dev/dm-3 1 5` prints five reports for that one disk, a second apart. The first is the average since the machine started, so read the later ones: `w/s`, `w_await`, `aqu-sz` and `%util`. To save them: `iostat -x /dev/dm-3 1 5 > ~/triage/iostat-before.txt`."
+  - "`sudo pidstat -d 1 5` lists how many kB a second each process reads and writes (without `sudo` it shows only your own processes). `sudo lsof /srv/data` lists the files that are open on the data disk and which program holds each one, and `systemctl status PID` names the service a process belongs to."
+  - "`systemctl cat NAME` prints a service's unit file. A line that starts `EnvironmentFile=` names the file its settings come from: read that file's comments, change the setting with `sudo nano`, then `sudo systemctl restart NAME` and place a test order."
+skills: [disk-io, use-method]

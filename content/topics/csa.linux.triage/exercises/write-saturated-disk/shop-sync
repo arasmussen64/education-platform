@@ -1,0 +1,85 @@
+#!/usr/bin/python3
+# shop-sync: the lab's stand-in for the service that copies changed
+# products to the shop's search page. Part of the lab's scenery. It runs
+# WORKERS workers, and each one handles 10 products a second when nothing
+# holds it up. With TRACE=on, a worker also writes a 4 KiB record of every
+# product it handles to a file of its own in TRACE_DIR, straight to the
+# disk (O_DIRECT, so nothing is lost if the server crashes), and waits
+# until the record is there before it takes the next product. The settings
+# come from /etc/shop/sync.conf. It keeps a count of the products handled
+# in /run/shop-sync/handled, and every 10 seconds it logs how many a second
+# it got through.
+import mmap
+import os
+import threading
+import time
+
+BLOCK = 4096
+RECORDS = 64  # a trace file keeps a worker's last 64 records
+EACH = 10  # products a second one worker handles
+
+workers = max(1, min(64, int(os.environ.get("WORKERS", "32"))))
+trace = os.environ.get("TRACE", "off").strip().lower() == "on"
+trace_dir = os.environ.get("TRACE_DIR", "/srv/data/sync-trace")
+status = os.path.join(os.environ.get("RUNTIME_DIRECTORY", "/run/shop-sync"), "handled")
+
+handled = 0
+lock = threading.Lock()
+
+
+def open_trace(number: int) -> int:
+    path = os.path.join(trace_dir, f"worker-{number:02d}.trace")
+    flags = os.O_RDWR | os.O_CREAT
+    try:
+        return os.open(path, flags | os.O_DIRECT, 0o640)
+    except OSError:
+        # A filesystem that can't write straight to the disk.
+        return os.open(path, flags, 0o640)
+
+
+def work(number: int) -> None:
+    global handled
+    file = open_trace(number) if trace else None
+    # Direct writes need memory aligned to the disk's blocks; an anonymous
+    # mmap is aligned to a whole page.
+    record = mmap.mmap(-1, BLOCK)
+    record.write(b"t" * BLOCK)
+    done = 0
+    pace_from = time.monotonic()
+    while True:
+        if file is not None:
+            os.pwrite(file, record, (done % RECORDS) * BLOCK)
+        done += 1
+        with lock:
+            handled += 1
+        # Never more than 10 a second; and after a slow spell, carry on
+        # from now rather than catch up.
+        now = time.monotonic()
+        due = pace_from + done / EACH
+        if now < due:
+            time.sleep(due - now)
+        elif now > due + 1:
+            pace_from, done = now, 0
+
+
+if trace:
+    os.makedirs(trace_dir, exist_ok=True)
+    print(f"shop-sync: {workers} workers, trace on: every product is recorded in {trace_dir}", flush=True)
+else:
+    print(f"shop-sync: {workers} workers, trace off", flush=True)
+for number in range(workers):
+    threading.Thread(target=work, args=(number,), daemon=True).start()
+
+before = 0
+logged = time.monotonic()
+while True:
+    time.sleep(0.1)
+    with lock:
+        count = handled
+    with open(status + ".new", "w") as new:
+        new.write(f"{count}\n")
+    os.replace(status + ".new", status)
+    now = time.monotonic()
+    if now - logged >= 10:
+        print(f"shop-sync: {(count - before) / (now - logged):.0f} products a second", flush=True)
+        before, logged = count, now

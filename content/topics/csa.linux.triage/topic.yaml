@@ -4,7 +4,7 @@ status: ready
 title: "Performance triage"
 summary: "When a server is slow, find out why in minutes instead of guessing: the USE method (utilisation, saturation, errors, for every resource), the sixty-second checklist, and reading vmstat, iostat, pidstat, sar, strace and perf to see where the time goes."
 prerequisites: [csa.linux.memory, csa.linux.cpu, csa.linux.storage, csa.linux.net-tools, csa.linux.scripting]
-estimated_minutes: 220
+estimated_minutes: 247
 rev: 1
 objectives:
   - "Apply the USE method: for each resource (CPU, memory, disks, network), check utilisation, saturation and errors, and say why saturation, not utilisation, is the sign of trouble."
@@ -53,8 +53,12 @@ resources:
 # with real load: a CPU-pegging worker to find with the checklist, and a
 # runaway burning a CPU in failing system calls to catch with strace. The
 # labs lean on the signals that are reliable in a container (per-process and
-# per-cgroup CPU, strace); disks and the network are in the lesson and the
-# recall (ADR-0017, ADR-0018). The write and the build are scripts written
+# per-cgroup CPU, strace); the network is in the lesson and the recall
+# (ADR-0017, ADR-0018). A saturated disk is done by hand in
+# write-saturated-disk, on a disk of the lab's own that is held to a cloud
+# disk's write limit, so iostat's numbers for it belong to the lab alone.
+# The estimate items are the sums a practitioner does on sight while
+# reading those tools. The write and the build are scripts written
 # from a blank file with strict mode, a default argument and an array,
 # which is why "Shell scripting" is a prerequisite; services and sudo come
 # with Memory and CPU, which need them too.
@@ -77,6 +81,7 @@ practice:
   - mcq-retransmits
   - fill-triage-report
   - write-cpu-culprit
+  - write-saturated-disk
 prove:
   build: build-busiest-service
   debug: debug-syscall-storm
