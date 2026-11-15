@@ -23,6 +23,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Six Module 3 write labs now have ShellCheck read the learner's script, as the module's plan asked: Layers and packets, Congestion control, DNS, VPNs and IPsec, Load balancing and Network troubleshooting. Each has known-wrong scripts that work and fail only the lint.
 - The eight labs that already linted no longer accept a warning switched off with two spaces or a tab, and six of them gained the known-wrong scripts that prove the lint.
 - DNS's reference script failed the lint itself (an unquoted variable), and is fixed.
+- Congestion control's write lab no longer lets a script that tests the same algorithm twice pass by luck: the second test must reach BBR's rate by itself.
 - Checkpoint 3's cloud-link lab, in both versions, reads plain `netlab verify`; the helper that worked around two faults in the network base is gone, since the base was fixed.
 
 ### Changed (cloud Modules 1 to 3: what was left, batch one)

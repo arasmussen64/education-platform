@@ -19,6 +19,7 @@ Sixteen labs changed, each proved again with the lab checker: the untouched lab 
 - _One small difference is left by removing the helper:_ a stray route of two rare kinds (`throw` and `local`) typed by hand on the edge router is no longer reported. FRR ignores both, so no wrong fix gets through; closing it would mean changing the base.
 - _Left alone:_ a two-line script that hands over to a second, unlinted file passes every lint. A learner who does that is choosing to cheat. The troubleshooting build isn't linted, because its prompt allows any tool and an awk script is a fair answer.
 - _These labs now take longer in CI,_ so `tools/lab-seconds.json` is refreshed again once the leftovers are all in.
+- _CI found a known-wrong fix that could pass by luck,_ in Congestion control's write lab, on this pull request's first run. The fix runs both speed tests with the same algorithm, CUBIC, and the check asked only that the second test be at least twice the first and the first under 25 Mbit/s. Two short CUBIC tests across a lossy link can differ twofold. The check now also asks that the second test be over 25 Mbit/s by itself, which only BBR reaches there (it measures 41 to 46, and CUBIC at most 13.5). The flaw was there before the lint work; the lint work only made CI run the lab again.
 
 **Next:** the three tightened checks, then the new content for Module 3.
 

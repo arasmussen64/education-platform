@@ -61,6 +61,11 @@ if mode == "lossy":
     # (measured 2026-11-11 and 12); both thresholds sit in those gaps.
     if cubic >= 25:
         sys.exit(print(f"across {site}'s lossy link the first test got {cubic} Mbit/s, which isn't what CUBIC gets there"))
+    # Two CUBIC tests can differ twofold by luck (one run in CI gave a
+    # second CUBIC test more than twice the first), so the second test
+    # must also clear the gap between the two algorithms by itself.
+    if bbr < 25:
+        sys.exit(print(f"across {site}'s lossy link the second test got {bbr} Mbit/s, which isn't what BBR gets there"))
     if bbr < 2 * cubic:
         sys.exit(print(f"across {site}'s lossy link the second test got {bbr} Mbit/s against the first's {cubic}, which isn't what BBR gets beside CUBIC"))
 print("measured")
