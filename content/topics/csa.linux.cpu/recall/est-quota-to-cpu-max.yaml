@@ -1,0 +1,28 @@
+id: est-quota-to-cpu-max
+type: estimate
+rev: 1
+prompt: |
+  A drop-in gives a service `CPUQuota=250%`. systemd writes two numbers to the service's `cpu.max`. The second, the period, is 100000. What is the first? Exactly.
+unit: microseconds
+answer: 250000
+tolerance: { absolute: 0 }
+given: { percent: 250, period: 100000 }
+# Checked on systemd 255 (Ubuntu 24.04), 2026-11-15: CPUQuota=250% gives
+# cpu.max "250000 100000".
+working: percent / 100 * period
+mistakes:
+  - id: the-percentage
+    value: 250
+    working: percent
+    why: "That's the percentage itself. `cpu.max` counts microseconds of CPU time, and 250% of a 100,000 µs period is 250,000 µs."
+  - id: stopped-at-one-cpu
+    value: 100000
+    working: min(percent / 100 * period, period)
+    why: "That stops at one CPU, a quota equal to the period. A quota may be bigger than its period: 250,000 µs of CPU time in every 100,000 µs is what two and a half CPUs can do."
+  - id: divided
+    value: 40000
+    working: period / (percent / 100)
+    why: "That divides the period by 2.5 where it should multiply. 40,000 µs in every 100,000 µs would be 40% of one CPU, far less than the 250% asked for."
+explanation: |
+  The quota is the percentage of one period: 250% of 100,000 µs is 250,000 µs, so `cpu.max` reads `250000 100000`. More than 100% is normal on a machine with several CPUs: the service's threads may use two and a half CPUs' worth of time between them. `systemctl show name -p CPUQuotaPerSecUSec` says the same thing per second: `2.500000s`.
+skills: [cgroups-v2]

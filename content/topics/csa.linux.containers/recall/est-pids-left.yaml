@@ -1,0 +1,23 @@
+id: est-pids-left
+type: estimate
+rev: 1
+prompt: |
+  A container was started with `--pids-limit=64`. In it run a server's main process and its 15 worker processes, and nothing else. For each upload it handles, the server starts 1 helper process, which lives until the upload is done. At the most, how many helpers can be running at the same time? Exactly.
+unit: helpers
+answer: 48
+tolerance: { absolute: 0 }
+given: { limit: 64, workers: 15 }
+# The 1 is the server's main process.
+working: limit - (1 + workers)
+mistakes:
+  - id: the-whole-limit
+    value: 64
+    working: limit
+    why: "That's the whole limit. The 16 processes already running in the container count towards it, so only the rest is free for helpers."
+  - id: main-process-forgotten
+    value: 49
+    working: limit - workers
+    why: "That takes off the 15 workers and forgets the main process. The server is 16 processes: 1 main and 15 workers."
+explanation: |
+  `--pids-limit=64` writes 64 to the cgroup's `pids.max`: the processes in the container may number 64 at most, together. The server already accounts for 1 + 15 = 16, which leaves room for 64 − 16 = 48 helpers: with 48 running the group holds exactly 64, which is allowed. A 49th can't be started: `fork` fails with "resource temporarily unavailable", and the cgroup's `pids.events` counts the refusal. The file `pids.current` shows how many the group holds at any moment. It counts threads too (a thread is one of several lines of work running inside a single process), so a program that starts many threads uses its allowance up faster than a process listing suggests.
+skills: [cgroups-limits]

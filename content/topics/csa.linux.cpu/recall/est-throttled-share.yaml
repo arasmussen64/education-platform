@@ -1,0 +1,22 @@
+id: est-throttled-share
+type: estimate
+rev: 1
+prompt: |
+  A slow container's `cpu.stat` has the lines `nr_periods 48000` and `nr_throttled 6000`. In what percentage of its periods was the container throttled? Exactly.
+unit: "%"
+answer: 12.5
+tolerance: { absolute: 0 }
+given: { periods: 48000, throttled: 6000 }
+working: throttled / periods * 100
+mistakes:
+  - id: one-in
+    value: 8
+    working: periods / throttled
+    why: "That's the ratio the other way up: one period in 8. As a percentage, 6,000 of 48,000 is 12.5%."
+  - id: not-throttled
+    value: 87.5
+    working: (periods - throttled) / periods * 100
+    why: "That's the share of periods that ran without being stopped. The throttled ones are the other 12.5%."
+explanation: |
+  6,000 ÷ 48,000 = 0.125, so the container used up its quota and was stopped in 12.5% of its periods, one in eight. A period is a tenth of a second, so 48,000 periods are 80 minutes, and in 600 seconds' worth of them the container ran out of quota. One period in eight is plenty to feel: every request that lands in one of them waits for the next period to begin. A container that is never throttled shows `nr_throttled 0`.
+skills: [throttling]

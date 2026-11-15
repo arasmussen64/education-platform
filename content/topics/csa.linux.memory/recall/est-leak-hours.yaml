@@ -1,0 +1,22 @@
+id: est-leak-hours
+type: estimate
+rev: 1
+prompt: |
+  A service's unit has `MemoryMax=512M`. Straight after a restart it uses 120 MiB, and from that moment its memory use climbs by a steady 8 MiB an hour, whatever the load. How many hours after a restart does it reach its limit and get killed? Exactly.
+unit: hours
+answer: 49
+tolerance: { absolute: 0 }
+given: { limit: 512, start: 120, rate: 8 }
+working: (limit - start) / rate
+mistakes:
+  - id: from-empty
+    value: 64
+    working: limit / rate
+    why: "That fills the whole limit from nothing. The service starts at 120 MiB, so only 392 MiB are left to fill."
+  - id: start-over-rate
+    value: 15
+    working: start / rate
+    why: "That divides what it starts with by the rate. What matters is the room left under the limit, 512 − 120 = 392 MiB."
+explanation: |
+  There are 512 − 120 = 392 MiB between where the service starts and its limit, and at 8 MiB an hour that lasts 392 ÷ 8 = 49 hours: it is killed about every two days, the sawtooth of a leak. The same sum shows why a bigger limit isn't a fix: at `MemoryMax=1G` the room is 904 MiB and the kill comes after 113 hours instead, later but just as surely. What the number is good for is a stopgap, a planned restart every day and a half, say, while the leak is found.
+skills: [container-memory]

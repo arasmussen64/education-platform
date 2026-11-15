@@ -1,0 +1,26 @@
+id: est-starts-in-ten-seconds
+type: estimate
+rev: 1
+prompt: |
+  A unit has `Restart=on-failure` and `RestartSec=4`, and no start-limit settings of its own. Its program fails at once every time it is started. If the first start is at second 0, how many times has systemd started it by second 10? Exactly.
+unit: starts
+answer: 3
+tolerance: { absolute: 0 }
+given: { sec: 4, window: 10 }
+# Starts at seconds 0, 4 and 8. Tried on systemd 255 (Ubuntu 24.04),
+# 2026-11-15: with RestartSec=4 and the default limit, a unit that fails at
+# once shows "activating (auto-restart)" and is restarted for ever; with
+# RestartSec=1 it is refused at its sixth start.
+working: floor(window / sec) + 1
+mistakes:
+  - id: restarts-only
+    value: 2
+    working: floor(window / sec)
+    why: "That counts the restarts, at seconds 4 and 8. The first start, at second 0, is a start too."
+  - id: the-limit
+    value: 5
+    working: "5"
+    why: "That's the default limit, the most starts systemd allows in ten seconds. With a 4-second pause between them, this unit only manages 3 in that time."
+explanation: |
+  The program fails at once, systemd waits `RestartSec`, 4 seconds, and starts it again: starts at seconds 0, 4 and 8, and the next is due at 12. That is 3 starts in ten seconds, and systemd only stops trying when a unit asks for more than five starts within ten. So this unit never trips the limit: it is restarted every four seconds for as long as the fault lasts, with `systemctl status` showing `activating (auto-restart)` between tries. `Start request repeated too quickly` only appears when the pause is short enough to fit a sixth start into the ten seconds.
+skills: [supervision]
