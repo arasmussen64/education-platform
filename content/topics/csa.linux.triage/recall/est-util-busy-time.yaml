@@ -1,0 +1,24 @@
+id: est-util-busy-time
+type: estimate
+rev: 1
+prompt: |
+  `%util` is the share of the time a disk had at least one request in hand. Over a sample of 5 seconds, a disk was busy for 4.2 seconds in all. What does `iostat -x` report as its `%util` for that sample? Exactly.
+unit: "%"
+answer: 84
+tolerance: { absolute: 0 }
+given: { sample: 5, busy: 4.2 }
+working: busy / sample * 100
+mistakes:
+  - id: idle-share
+    value: 16
+    working: (sample - busy) / sample * 100
+    why: That's the share of the time the disk was idle, 0.8 seconds of the 5. `%util` is the busy share.
+  - id: a-fraction
+    value: 0.84
+    working: busy / sample
+    why: That's the busy share as a fraction of 1. A percentage is that times 100.
+explanation: |
+  4.2 busy seconds out of 5 is 4.2 ÷ 5 = 0.84 of the time, and `iostat` prints it as a percentage: 84.
+
+  On its own that isn't trouble. A disk that is busy 84% of the time may be answering every request the moment it arrives. `%util` says how much of the time there was work, not whether work was waiting; the queue (`aqu-sz`) and the wait (`await`) say that.
+skills: [disk-io]
