@@ -1,0 +1,128 @@
+# The checks of "The circuit Google names": depot's two sessions, which
+# circuit each side sends its traffic over (BGP's choice and why, and the
+# kernel's route, which shares the traffic over both circuits when two
+# paths tie), what depot announced and the cloud accepted, eBGP's policy
+# rule, whether the work is saved, the cloud's router as it was, and last,
+# the backup proved by unplugging the primary and plugging it back in.
+# sessions-up waits for BGP after a boot; the rest read at once.
+# The primary is ic2: the cloud announces its network with a MED of 100
+# over ic2 (169.254.70.0/30) and 200 over ic1 (169.254.50.0/30). No
+# description says so, because finding that out is the lab's first step.
+# A check that finds something wrong prints what it found and exits 0, so
+# the checker shows that sentence rather than an exit status.
+checks:
+  - id: sessions-up
+    description: "depot has BGP sessions up with the cloud over both circuits, ic1 (169.254.50.2) and ic2 (169.254.70.2)."
+    # Each session must be Established for 3 seconds, long enough for the
+    # first exchange of routes to finish. Up to 40 tries a second apart, so it
+    # gets a minute and prints its own sentence rather than running out of time.
+    timeout: 60
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      peer() { frr depot 'show bgp summary json' | json "(lambda p: '%s %s' % (p.get('state'), p.get('peerUptimeMsec', 0) >= 3000))(d.get('ipv4Unicast', {}).get('peers', {}).get('$1', {}))"; }
+      both() { [ "$(peer 169.254.50.2)" = "Established True" ] && [ "$(peer 169.254.70.2)" = "Established True" ]; }
+      wait_for 40 both && { echo up; exit 0; }
+      for want in "169.254.50.2 ic1" "169.254.70.2 ic2"; do
+        set -- $want
+        got=$(peer "$1")
+        case $got in
+          "Established "*) ;;
+          *) echo "depot has no BGP session up with the cloud over $2 ($1): FRR says ${got%% *}"; exit 0 ;;
+        esac
+      done
+      echo up
+    expect:
+      equals: up
+  - id: out-on-primary
+    description: "depot sends the depot's traffic to the cloud over the circuit the cloud's priorities name, and over it alone, and pc reaches the cloud's app."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      best=$(bgp-best depot 10.60.0.0/16)
+      case $best in
+        "via 169.254.70.2, "*) ;;
+        *) echo "depot's chosen path to the cloud, 10.60.0.0/16, isn't over the circuit whose route arrives with the lower MED: $best"; exit 0 ;;
+      esac
+      hops=$(ip -n depot route show 10.60.0.0/16 | grep -o 'via [0-9.]*' | sort | tr '\n' ' ')
+      [ "$hops" = "via 169.254.70.2 " ] || { echo "depot's kernel sends traffic for 10.60.0.0/16 $hops, not over the primary alone"; exit 0; }
+      [ "$(on pc nc -w 2 10.60.0.10 8080 < /dev/null 2> /dev/null)" = 10.2.0.10 ] || { echo "pc doesn't reach the cloud's app, 10.60.0.10"; exit 0; }
+      echo primary
+    expect:
+      equals: primary
+  - id: in-on-primary
+    description: "The cloud sends its traffic for the depot over the same circuit, and over it alone, chosen by the MED depot sends."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      best=$(bgp-best cloud 10.2.0.0/24)
+      case $best in
+        "via 169.254.70.1, "*"chosen by MED") ;;
+        *) echo "the cloud's chosen path to the depot, 10.2.0.0/24, isn't the primary circuit by MED: $best"; exit 0 ;;
+      esac
+      hops=$(ip -n cloud route show 10.2.0.0/24 | grep -o 'via [0-9.]*' | sort | tr '\n' ' ')
+      [ "$hops" = "via 169.254.70.1 " ] || { echo "the cloud's kernel sends traffic for 10.2.0.0/24 $hops, not over the primary alone"; exit 0; }
+      echo primary
+    expect:
+      equals: primary
+  - id: announced-exactly
+    description: "Over each circuit depot announces exactly one route, the depot's 10.2.0.0/24, and the cloud accepts it."
+    # Both ends: what depot sends, and what the cloud kept. The cloud drops a
+    # route whose AS path already holds its own AS, so the cloud's own
+    # network sent back to it (a route map with no match line) shows only in
+    # what depot sends.
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      for want in "169.254.50.2 169.254.50.1 ic1" "169.254.70.2 169.254.70.1 ic2"; do
+        set -- $want
+        sent=$(frr depot "show bgp ipv4 unicast neighbors $1 advertised-routes json" | json "sorted(d.get('advertisedRoutes', {}))")
+        [ "$sent" = '["10.2.0.0/24"]' ] || { echo "over $3 depot announces $sent, not just the depot's 10.2.0.0/24"; exit 0; }
+        got=$(frr cloud "show bgp ipv4 unicast neighbors $2 routes json" | json "sorted(d.get('routes', {}))")
+        [ "$got" = '["10.2.0.0/24"]' ] || { echo "over $3 the cloud accepted $got from depot, not just the depot's 10.2.0.0/24"; exit 0; }
+      done
+      echo exactly
+    expect:
+      equals: exactly
+  - id: policy-kept
+    description: "depot's eBGP sessions still require a policy before they accept or send anything."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      frr depot 'show running-config' | grep 'no bgp ebgp-requires-policy' > /dev/null && { echo "depot's eBGP sessions no longer require a policy"; exit 0; }
+      echo kept
+    expect:
+      equals: kept
+  - id: saved
+    description: "depot's running FRR configuration is the one in its /etc/frr/frr.conf, so a restart gives the same routing."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      differs=$(frr_saved depot) || { echo "depot's running configuration isn't its file: $(echo "$differs" | grep '^[<>]' | head -n 2 | tr '\n' ' ')"; exit 0; }
+      echo saved
+    expect:
+      equals: saved
+  - id: cloud-untouched
+    description: "The cloud's router is as it was: its file, and the routing it runs."
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      sealed=$(intact) || { echo "$sealed"; exit 0; }
+      frr_saved cloud > /dev/null || { echo "the cloud's routing was changed live"; exit 0; }
+      echo untouched
+    expect:
+      equals: untouched
+  - id: fails-over
+    description: "With the primary circuit unplugged, both directions move to the backup within a few seconds by themselves; once it is plugged in again, they go back to the primary."
+    # It unplugs ic2 itself (netlab link) and plugs it back in, even if it is
+    # stopped part way: the trap runs on the way out. A session comes back a
+    # few seconds after its cable does (both sides try again every 5).
+    timeout: 90
+    command: |
+      . /usr/local/lib/netlab/checklib.sh
+      trap 'netlab link depot ic2 restore > /dev/null 2>&1' EXIT
+      hops() { ip -n "$1" route show "$2" 2> /dev/null | grep -o 'via [0-9.]*' | sort | tr '\n' ' '; }
+      app() { [ "$(on pc nc -w 1 10.60.0.10 8080 < /dev/null 2> /dev/null)" = 10.2.0.10 ]; }
+      on_backup() { [ "$(hops depot 10.60.0.0/16)" = "via 169.254.50.2 " ] && [ "$(hops cloud 10.2.0.0/24)" = "via 169.254.50.1 " ] && app; }
+      on_primary() { [ "$(hops depot 10.60.0.0/16)" = "via 169.254.70.2 " ] && [ "$(hops cloud 10.2.0.0/24)" = "via 169.254.70.1 " ] && app; }
+      on_primary || { echo "before the test, traffic isn't on the primary both ways"; exit 0; }
+      netlab link depot ic2 down
+      wait_for 8 on_backup || { echo "with the primary unplugged, traffic doesn't use the backup both ways (depot: $(hops depot 10.60.0.0/16); the cloud: $(hops cloud 10.2.0.0/24))"; exit 0; }
+      netlab link depot ic2 restore
+      wait_for 25 on_primary || { echo "with the primary plugged back in, traffic doesn't go back to it both ways"; exit 0; }
+      echo "fails over and back"
+    expect:
+      equals: "fails over and back"

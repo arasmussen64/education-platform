@@ -23,8 +23,10 @@ prerequisites: [csa.net.bgp]
 # routes 6, the NSRC route-reflector video 7, AWS's BGP settings 1), 18
 # recall items at 1.5 each 27, then the worked example 35 (nine steps,
 # three failures timed), the fill-in 20, the write 25, the build 60, the
-# debug 45 and the explain 20: 302. The plan gives 295, which is kept.
-estimated_minutes: 295
+# debug 45 and the explain 20: 302. The plan gave 295, which was kept.
+# Since 2026-11-15 the ladder also has the Google-style lab (25) and three
+# more recall items (4.5): about 30 more, added to the 295.
+estimated_minutes: 325
 rev: 1
 objectives:
   - "Make another network choose your preferred way in, with a more specific prefix, AS-path prepending, MED (between links to one neighbour) and the communities a provider documents, and say which of them AWS, Azure and Google Cloud honour and in what order."
@@ -103,6 +105,43 @@ objectives:
 #   https://docs.cloud.google.com/network-connectivity/docs/interconnect/concepts/partner-overview ;
 #   Cloud Router's ASN 16550 with Partner Interconnect (as csa.net.bgp read
 #   it, 2026-11-12): https://docs.cloud.google.com/network-connectivity/docs/router/how-to/create-router-vpc-network
+# - Google Cloud Router again, read on 2026-11-15 for the lab
+#   write-google-style and the three-cloud recall items, and put here in
+#   this topic's own words, nothing quoted (each of the four pages' footers
+#   reads "Last updated 2026-11-10 UTC" and gives the Creative Commons
+#   Attribution 4.0 License for its content):
+#   learned routes: a Cloud Router BGP task ranks the next hops it has for a
+#   prefix by the shortest AS path, then the origin (IGP first), then the
+#   smallest MED; legacy is the default best-path mode of a new VPC network,
+#   and in it AS-path length matters only inside one BGP task (a Cloud
+#   Router's sessions involve several tasks) while the region's dynamic
+#   route control plane orders by MED alone, so the page says not to rely
+#   on AS-path length; in standard mode AS path is weighed across every
+#   Cloud Router of the network, MED after it, between routes from one
+#   neighbouring AS unless always-compare-MED is set
+#   (https://docs.cloud.google.com/network-connectivity/docs/router/concepts/learned-routes);
+#   advertised routes: the base advertised priority is set per BGP session
+#   and sent as the MED, 100 by default, with a region-to-region cost added
+#   for other regions' subnets under global dynamic routing; its
+#   active/passive example gives the second tunnel the higher priority
+#   number; the on-premises side may not follow the lower MED
+#   (https://docs.cloud.google.com/network-connectivity/docs/router/concepts/advertised-routes);
+#   the base route priority: a whole number from 0 to 65535, 0 the most
+#   preferred, 100 the default, 0 to 200 recommended within a region because
+#   region-to-region costs run from 201 to 9999
+#   (https://docs.cloud.google.com/network-connectivity/docs/router/how-to/updating-priority);
+#   configuring on-premises routers for Dedicated Interconnect: for
+#   active/active the same MED on every session and ECMP switched on; for
+#   active/passive the higher MED on the Cloud Router's side and on the
+#   on-premises side alike, to avoid asymmetric routing; keepalive 20 s and
+#   hold 60 s recommended, graceful restart recommended, BFD off in its
+#   sample (https://docs.cloud.google.com/network-connectivity/docs/interconnect/how-to/dedicated/configuring-onprem-routers).
+#   The lab's cloud is one FRR router with no inbound policy, whose own
+#   order for two eBGP paths from one AS is AS-path length, origin, MED,
+#   then both installed when all tie: the BGP task's order. It differs from
+#   a real Cloud Router in always comparing AS paths between its two
+#   sessions, which the lab's prompt says; no community changes its choice
+#   (none is in Google's order), and prefix limits and BFD aren't modelled.
 # - RFC 4456 (April 2006): without reflection "all BGP speakers within a
 #   single AS must be fully meshed"; a route from a non-client is reflected
 #   to the clients, a route from a client to the non-clients and the other
@@ -129,7 +168,10 @@ objectives:
 # show bfd peers; core's summary sending nothing before it reflected, and
 # "Originator" and "Cluster list" after; an "inaccessible" next hop; and
 # "Idle (PfxCt)" with "will restart in 56 seconds". Times and uptimes will
-# differ in a new run.
+# differ in a new run. The Google-style lab's outputs named in its
+# solution and in mcq-three-clouds-hint (depot's "best (MED)" before any
+# change, the cloud's two equal paths, then its "best (MED)") were seen in
+# that lab on 2026-11-15.
 #
 # Linked or embedded, never copied. Licences, each read on 2026-11-12: AWS's
 # documentation (copyright Amazon Web Services); Microsoft Learn (the
@@ -202,6 +244,16 @@ resources:
     type: reading
     use: link
     license: "CC BY 4.0 (the page's footer); linked, not copied"
+  - title: "Learned routes (Google Cloud Router documentation): \"Best path selection modes\", how a Cloud Router chooses among the routes you send it, a reference for the Google-style lab (optional)"
+    url: https://docs.cloud.google.com/network-connectivity/docs/router/concepts/learned-routes
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer, read 2026-11-15); linked, not copied"
+  - title: "Configure on-premises routers (Google Cloud Interconnect documentation): under \"Best practices\", the short parts on active/active and active/passive forwarding (optional)"
+    url: https://docs.cloud.google.com/network-connectivity/docs/interconnect/how-to/dedicated/configuring-onprem-routers
+    type: reading
+    use: link
+    license: "CC BY 4.0 (the page's footer, read 2026-11-15); linked, not copied"
   - title: "RFC 1997: BGP Communities Attribute, the short definition and the well-known communities (optional)"
     url: https://www.rfc-editor.org/rfc/rfc1997
     type: reading
@@ -213,13 +265,15 @@ resources:
     use: embed
     license: Standard YouTube licence (official embed)
 # The recall items read BGP tables, BFD's numbers and the clouds' rules,
-# with Module 1's text tools where there is output to read. The five labs are
+# with Module 1's text tools where there is output to read. The six labs are
 # on the network-lab base: a company's router with two circuits to one cloud
 # (an AWS-style cloud in the walkthrough and the build, an Azure-style one in
-# the write), and a data centre of four routers with a route reflector in
-# the middle (the fill-in and the debug). The clouds' routers are sealed
-# scenery, read through looking-glass, each modelled on its provider's
-# documented rules, which every prompt quotes.
+# the first write lab, and a Google-style one, at the shop's depot, in the
+# second, added 2026-11-15), and a data centre of four routers with a route
+# reflector in the middle (the fill-in and the debug). The clouds' routers
+# are sealed scenery, read through looking-glass, each modelled on its
+# provider's documented rules, which every prompt gives (the Google-style
+# lab in its own words, without quotations).
 practice:
   - example-two-circuits
   - mcq-who-decides-inbound
@@ -229,6 +283,7 @@ practice:
   - communities-table
   - mcq-azure-communities
   - mcq-gcp-priority
+  - mcq-three-clouds-inbound
   - mcq-ibgp-rule
   - est-full-mesh
   - est-two-reflectors
@@ -242,6 +297,9 @@ practice:
   - est-summarise
   - fill-route-reflector
   - write-azure-style
+  - write-google-style
+  - mcq-three-clouds-hint
+  - mcq-aws-design-copied
 prove:
   build: build-primary-and-backup
   debug: debug-wrong-circuit
@@ -291,6 +349,9 @@ review_pool:
   - mcq-azure-communities
   - mcq-prefix-limit
   - mcq-gcp-priority
+  - mcq-three-clouds-inbound
+  - mcq-three-clouds-hint
+  - mcq-aws-design-copied
 skills:
   - id: inbound-steering
     description: "Make another network choose your preferred way in: a more specific prefix (longest match beats every attribute), AS-path prepending (a longer path loses, once everything before it is equal), MED (lower preferred, compared only between paths from one AS), and the communities a neighbour documents (AWS's 7224:7100, 7200 and 7300 become its local preference, compared before AS path); why the far side's local preference beats your prepending; NO_EXPORT and NO_ADVERTISE"
