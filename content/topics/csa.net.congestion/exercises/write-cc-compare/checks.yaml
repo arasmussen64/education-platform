@@ -1,5 +1,7 @@
-# The checks of "Compare the two". The script runs on shop, as root there,
-# the way the prompt runs it. Its numbers are compared with what the
+# The checks of "Compare the two". ShellCheck must be quiet about the
+# script (run with --norc, and no warning may be switched off in it). The
+# script runs on shop, as root there, the way the prompt runs it. Its
+# numbers are compared with what the
 # receiver itself counted for each of its two tests, from the receiver's
 # journal (iperf3's server logs a "receiver" line for each), so numbers the
 # script didn't measure fail. It is run against both sites: dr2's clean,
@@ -13,11 +15,14 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: executable
-    description: "~/bin/cc-compare exists and can be run."
+    description: "~/bin/cc-compare exists, can be run, starts with a shebang line, and ShellCheck has nothing to say about it, with no warning switched off."
     command: |
       f=/home/learner/bin/cc-compare
       [ -f "$f" ] || { echo "there is no ~/bin/cc-compare"; exit 0; }
       [ -x "$f" ] || { echo "~/bin/cc-compare isn't executable"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/cc-compare doesn't start with a shebang line (#!/bin/bash)"; exit 0; }
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/cc-compare switches a ShellCheck warning off"; exit 0; fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say (run shellcheck ~/bin/cc-compare): $(echo "$said" | grep -m 1 -o 'SC[0-9].*')"; exit 0; }
       echo ready
     expect:
       equals: ready

@@ -12,6 +12,12 @@ RUN apt-get update \
  && echo 'learner ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/learner \
  && chmod 440 /etc/sudoers.d/learner
 
+# This lab lints the learner's script: the same second RUN as the IPv4 and
+# CIDR topic's plain labs, so Docker shares it.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends shellcheck \
+ && rm -rf /var/lib/apt/lists/*
+
 # The checks' log maker stays where the checks find it, out of the
 # learner's PATH. Three sample logs, made by it from fixed seeds, go into
 # ~/logs for the learner to try the script on, and ~/bin waits for it.

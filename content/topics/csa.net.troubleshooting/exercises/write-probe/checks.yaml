@@ -1,4 +1,6 @@
-# The checks of "A probe for faults that come and go". Each runs the
+# The checks of "A probe for faults that come and go". The first has
+# ShellCheck read the script (with --norc, and no warning may be switched
+# off in it). Each of the others runs the
 # learner's ~/bin/probe from the office against targets it chooses at check
 # time: its own web servers, which answer an error to a share of requests
 # chosen afresh at each check, a name that doesn't exist, a closed port, a
@@ -9,6 +11,18 @@
 # A check that finds something wrong prints what it found and exits 0, so
 # the checker shows that sentence rather than an exit status.
 checks:
+  - id: script-ready
+    description: "~/bin/probe exists, can be run, starts with a shebang line, and ShellCheck has nothing to say about it, with no warning switched off."
+    command: |
+      f=/home/learner/bin/probe
+      [ -f "$f" ] || { echo "there is no ~/bin/probe"; exit 0; }
+      [ -x "$f" ] || { echo "~/bin/probe can't be run: chmod +x ~/bin/probe"; exit 0; }
+      head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/probe doesn't start with a shebang line (#!/bin/bash)"; exit 0; }
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/probe switches a ShellCheck warning off"; exit 0; fi
+      said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say (run shellcheck ~/bin/probe): $(echo "$said" | grep -m 1 -o 'SC[0-9].*')"; exit 0; }
+      echo ready
+    expect:
+      equals: ready
   - id: counts-and-rate
     description: "Against servers that fail a share of requests chosen at check time, the probe's summary counts each result, largest first (equal counts in alphabetical order), and ends with the failure rate rounded half up."
     command: |
