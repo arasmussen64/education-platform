@@ -69,6 +69,25 @@ Part of what was left in Modules 1 to 3 (the list is in the entry above; this on
 - _No new recordings:_ the predict-the-output questions use only output already captured in the labs' folders, and say which lines are captured and which are made up.
 - _Their names start `mcq-`,_ not the plan's `hv-`, to match the topic's other questions; the topic's notes say which planned questions they stand in for.
 
+## 2026-11-15, leftovers: Checkpoint 1's fresh versions are no longer the build with a name changed
+
+Part of what was left in Modules 1 to 3 (the list is a few entries up, under "What's left in cloud Modules 1 to 3"). A checkpoint's build comes with steps that show most of its solution. Once a learner opens them, passing the build no longer counts, and a "fresh version" proves it instead: the same skills in another story ([ADR-0012](decisions/0012-checkpoint-support.md)). Checkpoint 1's two fresh versions were the build with the service's name and port swapped, so the steps could be pasted with two words changed. That ADR's own count put only 6 to 20% of each as the learner's own work.
+
+- **The gateway version** now differs in every part. Its service listens only on the machine itself until a setting in its unit is changed; it serves two ports; and only one group may log in over SSH, so a second person with a perfectly good key must be refused.
+- **The ledger version** differs in every part too, and from the gateway. Its unit has no restart policy and the runbook asks for one; the ledger is for that machine alone, so the firewall lets in SSH only and the ledger's port stays shut from outside; and nobody's key is installed, so the learner installs one before passwords go off.
+- **Each has 21 known-wrong fixes,** where it had 4 and the build 8. One of them, in each, pastes the build's steps with only the names changed, and fails three checks.
+- **All nine of the checkpoint's lab images keep `/run/sshd` when SSH stops,** as the hardening labs' do. Without that, a learner who breaks SSH's settings is told only "Missing privilege separation directory", which points away from the line they got wrong.
+
+Every lab was proved again with the lab checker. By the ADR's own count, 54% and 63% of the two versions is now the learner's to write, and the ADR says so.
+
+**Author notes:**
+
+- _Three shortcuts were found and closed while writing:_ a second copy of the gateway started by hand beside the real service; the gateway's program edited to ignore its setting (a checksum, and a sentence in the prompt saying the program stays as installed); and a ledger restart policy written but never loaded, which passed until the known-wrong fix was reordered, because a later `systemctl enable` reloads systemd.
+- _Two are left open._ A port opened "for later" outside the fourteen the firewall check samples passes, in the versions as in the build: a check can only try so many. And the ledger passes if SSH is told to read keys from the folder the key came in, which Module 1 doesn't teach and which doesn't weaken the server.
+- _The explain prompt is unchanged._ It states no number of faults; its model answer's "five causes" counts the five the prompt itself lists.
+- _The restart trial isn't set on these two,_ to match the build; each passed one by hand. The trial run for Modules 1 and 2 decides it for all of the checkpoint's labs together.
+- _The archive's old assembly script still names the deleted version;_ it is history and was left.
+
 ## 2026-11-15, later: The cloud track, audited against the principal bar
 
 The owner asked for the Cloud Solutions Architect track to be audited the way a vice president of cloud would, against one question: would what a learner knows and can do at the end qualify them for a principal or distinguished cloud architect's job? The whole spec was read against that, and changed where it fell short. Everything changed is an outline; no written topic was touched.
