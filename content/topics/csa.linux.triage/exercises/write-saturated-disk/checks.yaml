@@ -1,0 +1,175 @@
+# The checks for "The disk that can't keep up": the learner saved iostat's
+# reports of the saturated data disk and named the service behind them;
+# orders are quick again; both services still do all their work; the
+# service at fault has stopped writing to the data disk, from settings that
+# last; and the disk still has its limit. The descriptions don't say which
+# service is at fault, because finding that out is the lab and the page
+# shows them before any attempt.
+#
+# Nothing here reads a figure that belongs to the whole machine. The data
+# disk is the lab's own device (a device-mapper device over a loop device,
+# see disks.sh), so the numbers iostat printed for it are the lab's alone;
+# its limit is a setting of shop.slice, one level below the container's
+# own top cgroup, whose files GitHub's runners don't let a container write;
+# the write counts come from each service's own cgroup (io.stat); and the
+# one check that times something times the shop's own request, with the
+# limit a fifth of what a saturated disk gives (about 1,300 ms) and many
+# times what a quiet one gives (a few ms).
+#
+# Each shortcut has a wrong fix to prove it is caught: the service at fault
+# stopped (wrong/stopped-the-sync.sh), slowed with fewer workers
+# (wrong/fewer-workers.sh) or held to a small write cap of its own
+# (wrong/sync-throttled.sh); the disk's limit set to infinity for good
+# (wrong/limit-lifted.sh), its file deleted, which the kernel doesn't show
+# until the next boot (wrong/limit-file-deleted.sh), cleared until the next
+# reboot
+# (wrong/limit-cleared-runtime.sh) or written over in the kernel's own file
+# (wrong/limit-written-over.sh); the service at fault moved out of the
+# slice, and so out from under the limit (wrong/sync-out-of-the-slice.sh);
+# the orders moved off the data disk
+# (wrong/orders-moved-off.sh); the setting changed only until the next
+# reboot (wrong/runtime-only.sh) or changed and never put into effect
+# (wrong/edited-not-restarted.sh); the evidence saved after the fix
+# (wrong/evidence-after-the-fix.sh) or as iostat's since-boot average
+# (wrong/since-boot-report.sh); the slow service blamed instead of the
+# one that fills the queue (wrong/blamed-the-victim.sh); and the service's
+# program edited instead of its settings (wrong/edited-the-program.sh).
+checks:
+  - id: evidence
+    description: "~/triage/iostat-before.txt holds `iostat -x` reports for the data disk, and the last of them shows it saturated: busy at least 80% of the time, with more than one request in its queue."
+    # /var/lib/lab/data-names lists every name the disk has had (it can
+    # change at a restart, and this file was saved before one). The columns
+    # are found by the names in iostat's own header line.
+    command: |
+      file=/home/learner/triage/iostat-before.txt
+      [ -s "$file" ] || { echo "there is no iostat output in $file"; exit 0; }
+      awk -v file="$file" '
+        FILENAME != file { names[$1] = 1; next }
+        $1 ~ /^Device/ { for (i = 1; i <= NF; i++) column[$i] = i; next }
+        ($1 in names) && column["%util"] && column["aqu-sz"] {
+          busy = $column["%util"]; queue = $column["aqu-sz"]; reports++
+        }
+        END {
+          if (!reports) print "the file has no `iostat -x` line for the data disk"
+          else if (busy >= 80 && queue > 1) print "saturated"
+          else printf "the last report in the file has the data disk %s%% busy with %s in its queue\n", busy, queue
+        }' /var/lib/lab/data-names "$file"
+    expect:
+      equals: "saturated"
+  - id: finding
+    description: "~/triage/finding.txt names the service at fault."
+    command: |
+      if grep -iqw 'shop-sync' /home/learner/triage/finding.txt 2>/dev/null; then
+        echo "names it"
+      else
+        echo "~/triage/finding.txt doesn't name the service at fault"
+      fi
+    expect:
+      equals: "names it"
+  - id: orders-quick
+    description: "A test order is saved in under 250 ms (the middle one of five)."
+    command: |
+      for _ in 1 2 3 4 5; do
+        took=$(curl -sf -o /dev/null -m 5 -w '%{time_total}' http://127.0.0.1:8080/order) || took=5
+        echo "$took"
+      done | sort -n | awk 'NR == 3 { printf "%d\n", $1 * 1000 }'
+    expect:
+      lt: 250
+  - id: orders-on-the-data-disk
+    description: "shop-orders is running, and saves every order on the data disk in four writes."
+    # The kernel's own count of the service's writes to the disk (io.stat in
+    # its cgroup folder), read before and after five test orders.
+    command: |
+      disk=$(readlink -f /dev/lab/data)
+      dev=$(cat "/sys/block/${disk#/dev/}/dev")
+      [ "$(findmnt -n -o SOURCE /srv/data)" = "$disk" ] || { echo "/srv/data isn't the data disk any more"; exit 0; }
+      [ "$(systemctl is-active shop-orders)" = active ] || { echo "shop-orders isn't running"; exit 0; }
+      stat=/sys/fs/cgroup$(systemctl show shop-orders -p ControlGroup --value)/io.stat
+      writes() { awk -v d="$dev" '$1 == d {for (i = 2; i <= NF; i++) if (sub(/^wios=/, "", $i)) print $i}' "$stat" 2>/dev/null; }
+      a=$(writes)
+      for _ in 1 2 3 4 5; do
+        curl -sf -o /dev/null -m 5 http://127.0.0.1:8080/order || { echo "shop-orders didn't take a test order on port 8080"; exit 0; }
+      done
+      b=$(writes)
+      made=$(( ${b:-0} - ${a:-0} ))
+      if [ "$made" -ge 20 ]; then echo "on the data disk"; else echo "five test orders made $made writes to the data disk, where 20 were due"; fi
+    expect:
+      equals: "on the data disk"
+  - id: sync-at-full-speed
+    description: "shop-sync is running, and gets through at least 250 products a second."
+    # Its own count of products handled, read five seconds apart, with the
+    # same process each time, so a service that crashes and is started
+    # again doesn't pass. All 32 workers unhindered make 320 a second.
+    command: |
+      pid=$(systemctl show shop-sync -p MainPID --value)
+      a=$(cat /run/shop-sync/handled 2>/dev/null)
+      sleep 5
+      b=$(cat /run/shop-sync/handled 2>/dev/null)
+      if [ "$(systemctl is-active shop-sync)" = active ] && [ "$pid" != 0 ] \
+        && [ "$pid" = "$(systemctl show shop-sync -p MainPID --value)" ]; then
+        echo $(( (${b:-0} - ${a:-0}) / 5 ))
+      else
+        echo "shop-sync isn't running steadily"
+      fi
+    expect:
+      gte: 250
+  - id: off-the-data-disk
+    description: "The service at fault makes fewer than 5 writes a second to the data disk, from settings that last after a reboot."
+    # The kernel's count of its writes to the disk, three seconds apart, and
+    # no setting from /run, where "systemctl edit --runtime" and
+    # "set-property --runtime" put the ones a reboot forgets.
+    command: |
+      disk=$(readlink -f /dev/lab/data)
+      dev=$(cat "/sys/block/${disk#/dev/}/dev")
+      stat=/sys/fs/cgroup$(systemctl show shop-sync -p ControlGroup --value)/io.stat
+      writes() { awk -v d="$dev" '$1 == d {for (i = 2; i <= NF; i++) if (sub(/^wios=/, "", $i)) print $i}' "$stat" 2>/dev/null; }
+      a=$(writes)
+      sleep 3
+      b=$(writes)
+      rate=$(( (${b:-0} - ${a:-0}) / 3 ))
+      runtime=$({ systemctl show shop-sync -p DropInPaths --value | tr ' ' '\n'; systemctl show shop-sync -p EnvironmentFiles --value | awk '{print $1}'; } | grep -c '^/run/' || true)
+      if [ "$rate" -lt 5 ] && [ "$runtime" = 0 ]; then
+        echo "off the data disk"
+      else
+        echo "the service at fault makes $rate writes a second to the data disk; settings of its that a reboot forgets: $runtime"
+      fi
+    expect:
+      equals: "off the data disk"
+  - id: programs-as-shipped
+    description: "The shop's two programs in /usr/local/bin are as they were: the fix is in a service's settings."
+    command: sha256sum --quiet -c /usr/local/lib/lab/programs.sha256 > /dev/null 2>&1 && echo "as they were"
+    expect:
+      equals: "as they were"
+  - id: disk-limit
+    description: "Both services are still inside shop.slice, and the slice still holds their writes to the data disk to 100 a second, from settings that last after a reboot."
+    # Three readings that must agree. systemd's own setting for the slice:
+    # every write limit it names for the loop device under the data disk,
+    # by any path that leads to it. What the kernel was given: the slice's
+    # io.max, which a write straight to that file changes and systemd's
+    # setting doesn't show. And no setting from /run, where "systemctl
+    # set-property --runtime" puts the ones a reboot forgets. Then where
+    # the services are: the slice each unit names, and the cgroup each one
+    # is running in, which differ when a change hasn't been put into effect.
+    command: |
+      read -r _ loop < /var/lib/lab/state
+      dev=$(cat "/sys/block/${loop#/dev/}/dev")
+      said=$(systemctl show shop.slice -p IOWriteIOPSMax | while read -r line; do
+        set -- ${line#*=}
+        if [ -n "${1:-}" ] && [ "$(readlink -f "$1")" = "$loop" ]; then echo "$2"; fi
+      done | sort -u | paste -sd' ')
+      kernel=$(awk -v d="$dev" '$1 == d {for (i = 2; i <= NF; i++) if (sub(/^wiops=/, "", $i)) print $i}' /sys/fs/cgroup/shop.slice/io.max 2>/dev/null)
+      runtime=$(systemctl show shop.slice shop-services.slice -p DropInPaths --value | tr ' ' '\n' | grep -c '^/run/' || true)
+      outside=0
+      for unit in shop-sync shop-orders; do
+        slice=$(systemctl show "$unit" -p Slice --value)
+        group=$(systemctl show "$unit" -p ControlGroup --value)
+        case "$slice" in shop.slice|shop-*.slice) ;; *) outside=$((outside + 1)); continue ;; esac
+        case "$group" in ''|/shop.slice/*) ;; *) outside=$((outside + 1)) ;; esac
+      done
+      if [ "$said" = 100 ] && [ "$kernel" = 100 ] && [ "$runtime" = 0 ] && [ "$outside" = 0 ]; then
+        echo "held to 100 writes a second"
+      else
+        echo "the slice's setting for the disk: [$said] writes a second; the kernel has [$kernel]; settings a reboot forgets: $runtime; services outside the slice: $outside"
+      fi
+    expect:
+      equals: "held to 100 writes a second"

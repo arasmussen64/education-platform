@@ -94,6 +94,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Three fonts, bundled with the app under the SIL Open Font License 1.1, so no page asks a font service for them: Gabarito for headings, Figtree for text (18px with roomy lines), JetBrains Mono for code, with ligatures off so a learner sees each character they type.
 - The favicon's background is pine to match.
 
+### Added (cloud Module 1: a saturated disk, and a patch day with `dnf`)
+
+- Performance triage has a lab on a saturated disk: show it with `iostat -x`, find the writer with `pidstat -d`, and fix the cause without lifting the disk's limit.
+- Package management has a lab on AlmaLinux 9, the track's first that isn't Ubuntu: find a bad upgrade in `dnf history`, take it back, lock two versions, and upgrade the rest.
+- The two topics gain three questions on `dnf`, a third on replacing servers instead of patching them, and four number drills for triage.
+
 ### Added (cloud Module 2: the plan, and the platform it needs)
 
 - **The plan for the cloud track's Module 2, "Virtualization, hardware and Windows"** (#216), kept in `docs/plans/cloud-module-2/`: a brief that decides (the topic order, each topic's skills, practice, proofs and review pool, Checkpoint 2, the platform work and the cost of the optional Azure lab), the designers' briefs, the problems a critic found in them, a dated price list, and drafts of the decisions the platform work needed. The designers' prototypes (a Samba Active Directory domain controller in a lab container, QEMU and cross-compiling trials, a capture script, and a capture of the owner's laptop with its CPU model masked) are archived under `tools/generators/cloud-labs/module-2-prototypes/`. Module 2 now has eight topics, not six: "Cores, memory and noisy neighbours" is split into it and "Memory tiers and disks", and "Windows Server and Active Directory" into "Active Directory: domains, names and tickets" and "Joining machines, Group Policy and Entra ID". The spec's later topics are renumbered and the outlines regenerated (two new ones, five reworded). **The outline tool reads padded tables again:** a formatter had padded the spec's tables with spaces, and `tools/outline_cloud_track.py` expected single spaces, so it found only 24 of the 324 topics and, run on `main`, would have rewritten the track without the other 300. On `main`'s own spec the fixed tool reproduces all 342 existing outlines byte for byte, and a new test with padded tables fails on the old tool.

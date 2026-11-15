@@ -1,0 +1,24 @@
+[Unit]
+Description=shop-sync: copies changed products to the shop's search page
+Requires=lab-disks.service
+After=lab-disks.service
+
+[Service]
+# Its settings: each NAME=value line of this file is handed to the program
+# when it starts.
+EnvironmentFile=/etc/shop/sync.conf
+# Makes its trace folder, owned by the shop's account, before it starts.
+ExecStartPre=-+/usr/bin/install -d -o shop -g shop ${TRACE_DIR}
+ExecStart=/usr/local/bin/shop-sync
+User=shop
+# With the shop's other service, inside shop.slice.
+Slice=shop-services.slice
+# A folder of its own under /run, for its count of products handled.
+RuntimeDirectory=shop-sync
+Restart=always
+RestartSec=1
+# Keep count of its disk reads and writes (io.stat in its cgroup folder).
+IOAccounting=yes
+
+[Install]
+WantedBy=multi-user.target
