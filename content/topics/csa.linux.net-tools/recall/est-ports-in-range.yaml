@@ -1,0 +1,22 @@
+id: est-ports-in-range
+type: estimate
+rev: 1
+prompt: |
+  A busy proxy has had its ephemeral range widened: `/proc/sys/net/ipv4/ip_local_port_range` now holds `15000 64999`. How many ports can the kernel pick from for a connection the proxy makes, the first and the last included? Exactly.
+unit: ports
+answer: 50000
+tolerance: { absolute: 0 }
+given: { low: 15000, high: 64999 }
+working: high - low + 1
+mistakes:
+  - id: no-plus-one
+    value: 49999
+    working: high - low
+    why: That's the distance from the first port to the last. Both ends can be used, so there is one more port than that.
+  - id: default-range
+    value: 28232
+    working: 60999 - 32768 + 1
+    why: That's the default range, 32768 to 60999. This proxy's range was changed, to 15000 to 64999.
+explanation: |
+  64999 − 15000 + 1 = 50000. The `+ 1` is there because both ends count: the range 5 to 7 holds three ports, not two. The default range, 32768 to 60999, holds 28,232, so this change nearly doubles how many connections the proxy can have open to one address and port of a backend at a time. Widening the range downwards has a cost to weigh: a service that listens on a port inside the range can one day find that port already taken by an outgoing connection.
+skills: [sockets-ss]

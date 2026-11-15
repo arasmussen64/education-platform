@@ -1,0 +1,28 @@
+id: est-connection-rate-limit
+type: estimate
+rev: 1
+prompt: |
+  A client opens a new connection to one database address and port for every query, and closes it afterwards. Each closed connection holds its port in `TIME-WAIT` for 60 seconds, and the ephemeral port range is the default one. About how many new connections a second can the client keep up before it runs out of ports? Within 10%.
+unit: connections a second
+answer: 471
+tolerance: { percent: 10 }
+given: { hold: 60 }
+# The default range, 32768 to 60999, is what the learner must know: 28232
+# ports.
+working: (60999 - 32768 + 1) / hold
+mistakes:
+  - id: from-zero
+    value: 1017
+    working: 60999 / hold
+    why: That counts every port up to 60999. The range starts at 32768, so it holds 28,232 ports, and 28,232 ÷ 60 is about 470.
+  - id: every-port
+    value: 1092
+    working: 65535 / hold
+    why: That uses every port number there is. The kernel picks only from the ephemeral range, 32768 to 60999, which is 28,232 ports.
+  - id: multiplied
+    value: 1693920
+    working: (60999 - 32768 + 1) * hold
+    why: That multiplies the ports by the seconds. Each connection ties a port up for 60 seconds, so the ports have to be shared out over them, 28,232 ÷ 60.
+explanation: |
+  The default range, 32768 to 60999, holds 28,232 ports, and each one is busy for 60 seconds after its connection closes. So 28,232 ÷ 60, about 470 connections a second, is the most the client can keep up to that one address and port. Faster than that and `connect` fails with "cannot assign requested address", although the server is perfectly healthy. Round numbers are enough here: 28,000 ÷ 60 is a little under 470.
+skills: [sockets-ss]

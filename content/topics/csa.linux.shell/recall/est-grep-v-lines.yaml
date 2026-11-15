@@ -1,0 +1,22 @@
+id: est-grep-v-lines
+type: estimate
+rev: 1
+prompt: |
+  `wc -l app.log` prints 1200, and `grep -c -i error app.log` prints 45. What number does `grep -v -i error app.log | wc -l` print? Exactly.
+unit: lines
+answer: 1155
+tolerance: { absolute: 0 }
+given: { lines: 1200, matching: 45 }
+working: lines - matching
+mistakes:
+  - id: same-as-c
+    value: 45
+    working: matching
+    why: That's the count of the lines that match. `-v` turns the test round and keeps the lines that don't.
+  - id: added
+    value: 1245
+    working: lines + matching
+    why: That adds the two counts. The matching lines are among the 1200, so the rest is 1200 − 45.
+explanation: |
+  Every line either mentions an error or doesn't, so the two groups add up to the whole file: 45 lines match, and `-v` keeps the other 1200 − 45 = 1155. It's a sum worth doing before you trust a filter: if a pattern and its `-v` don't add up to `wc -l`, one of the two commands isn't the one you meant.
+skills: [grep-filter]
