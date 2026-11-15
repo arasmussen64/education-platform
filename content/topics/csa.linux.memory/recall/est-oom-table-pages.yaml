@@ -1,0 +1,25 @@
+id: est-oom-table-pages
+type: estimate
+rev: 1
+prompt: |
+  Above its `Killed process` line, the kernel's out-of-memory report lists the processes it chose from, in a table headed `Tasks state (memory values in pages)`. In that table, the `rss` column for the `java` process that was killed reads 655360. How many MiB of memory did the process hold? Exactly.
+unit: MiB
+answer: 2560
+tolerance: { absolute: 0 }
+given: { rss: 655360 }
+# 4 is the size of a page in kB, which the learner must know. The table's
+# heading is the kernel's own (read off a real report, kernel 6.18,
+# 2026-11-15); `getconf PAGESIZE` printed 4096 on the same machine.
+working: rss * 4 / 1024
+mistakes:
+  - id: read-as-kb
+    value: 640
+    working: rss / 1024
+    why: "That reads the column as kB. The table counts pages, and a page is 4 kB, so the process held four times as much."
+  - id: stopped-at-kb
+    value: 2621440
+    working: rss * 4
+    why: "That's the memory in kB: 655,360 pages of 4 kB. Divide by 1,024 for MiB."
+explanation: |
+  A page is 4 kB, so 655,360 pages are 2,621,440 kB, and 2,621,440 ÷ 1,024 = 2,560 MiB, two and a half GiB. The table and the line under it use different units for the same memory: the table counts pages, while the `Killed process` line gives `anon-rss` in kB. Reading the table as kB makes every process look a quarter of its real size, which can send you after the wrong one. `getconf PAGESIZE` prints a machine's page size in bytes: 4096 on the servers you'll usually meet.
+skills: [oom-killer, virtual-memory]
