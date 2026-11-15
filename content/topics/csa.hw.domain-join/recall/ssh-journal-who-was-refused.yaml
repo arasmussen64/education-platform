@@ -1,0 +1,25 @@
+id: ssh-journal-who-was-refused
+type: predict_shell
+rev: 1
+prompt: |
+  Four people tried to log in to a domain member over SSH one morning: alice, bob, carol and frank. `journal.txt` holds the lines that `pam_sss` (SSSD's step in the login) wrote to the SSH server's journal that morning to say `authentication success` or `Access denied`. bob's two lines are captured from the lab's `lab` (2026-11-11); the other people's are the same lines with their names. The first command counts the passwords the domain accepted; the second prints the accounts the server itself then turned away. What is printed?
+files:
+  journal.txt: |
+    pam_sss(sshd:auth): authentication success; logname= uid=0 euid=0 tty=ssh ruser= rhost=127.0.0.1 user=alice@ad.shop.test
+    pam_sss(sshd:auth): authentication success; logname= uid=0 euid=0 tty=ssh ruser= rhost=127.0.0.1 user=bob@ad.shop.test
+    pam_sss(sshd:account): Access denied for user bob@ad.shop.test: 6 (Permission denied)
+    pam_sss(sshd:auth): authentication success; logname= uid=0 euid=0 tty=ssh ruser= rhost=127.0.0.1 user=carol@ad.shop.test
+    pam_sss(sshd:auth): authentication success; logname= uid=0 euid=0 tty=ssh ruser= rhost=127.0.0.1 user=frank@ad.shop.test
+    pam_sss(sshd:account): Access denied for user frank@ad.shop.test: 6 (Permission denied)
+command: |
+  grep -c 'authentication success' journal.txt
+  grep 'Access denied' journal.txt | cut -d' ' -f6 | cut -d: -f1
+expected_output: |
+  4
+  bob@ad.shop.test
+  frank@ad.shop.test
+explanation: |
+  `grep -c` counts the four `authentication success` lines. In an `Access denied` line the sixth word is the account with a colon after it, and the second `cut` takes the colon off.
+
+  Every login to a member asks two questions, in two places. `pam_sss(sshd:auth)` is the first, **authentication**, answered by the domain: all four typed the right password. `pam_sss(sshd:account)` is the second, **authorisation**, answered by this server's own access rule (`realm permit`): it turned bob and frank away, and let alice and carol in. So nothing about bob's or frank's passwords needs fixing. If they should come in, put them in the group the server permits; if they shouldn't, the server is doing its job.
+skills: [domain-join]

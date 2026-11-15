@@ -10,6 +10,12 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && systemctl disable caddy \
  && printf '%s\n' '[Unit]' 'Description=Not on this lab machine: Caddy runs on shop, as caddy@shop' 'CollectMode=inactive-or-failed' '' '[Service]' 'Type=oneshot' 'ExecStart=/usr/local/lib/netlab/not-here caddy' > /etc/systemd/system/caddy.service
+# ShellCheck, for the check that the learner's script is clean: the base
+# doesn't carry it, so it is a layer of this lab's own, after the topic's
+# shared one.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends shellcheck \
+ && rm -rf /var/lib/apt/lists/*
 # The network, a backup receiver on each DR site, and the checks' reader of
 # the learner's script (kept out of the learner's PATH). Then every
 # machine gets its own folders, the receivers start at every boot, and the

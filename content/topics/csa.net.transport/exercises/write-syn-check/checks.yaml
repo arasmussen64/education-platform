@@ -11,13 +11,13 @@
 # the checker shows that sentence rather than an exit status.
 checks:
   - id: script-ready
-    description: "~/bin/syn-check exists, is executable, starts with a shebang, and ShellCheck has nothing to say about it."
+    description: "~/bin/syn-check exists, is executable, starts with a shebang, and ShellCheck has nothing to say about it, with no warning switched off."
     command: |
       f=/home/learner/bin/syn-check
       [ -f "$f" ] || { echo "there is no ~/bin/syn-check"; exit 0; }
       [ -x "$f" ] || { echo "~/bin/syn-check isn't executable"; exit 0; }
       head -n 1 "$f" | grep '^#!' > /dev/null || { echo "~/bin/syn-check's first line isn't a shebang"; exit 0; }
-      if grep 'shellcheck disable' "$f" > /dev/null; then echo "~/bin/syn-check switches ShellCheck's warnings off"; exit 0; fi
+      if grep -E 'shellcheck[[:space:]]+disable' "$f" > /dev/null; then echo "~/bin/syn-check switches ShellCheck's warnings off"; exit 0; fi
       said=$(shellcheck --norc "$f" 2>&1) || { echo "ShellCheck has something to say: $(echo "$said" | grep -m 1 'SC[0-9]')"; exit 0; }
       echo ready
     expect:

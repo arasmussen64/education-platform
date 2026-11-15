@@ -1,0 +1,18 @@
+id: mcq-nitro-devices
+type: mcq
+rev: 1
+prompt: |
+  The hypervisor of the AWS Nitro System is built on KVM. By AWS's documentation, which network card and which disks does a Linux guest find on an instance built on the Nitro System, such as an `m7i.large`?
+choices:
+  - "An ENA network card, on the `ena` driver, and its disks as NVMe devices"
+  - "A virtio network card, on `virtio_net`, and its disks on `virtio_blk`"
+  - "A synthetic card on VMBus, on `hv_netvsc`, and its disks on `hv_storvsc`"
+  - "An emulated Intel card, on the `e1000` driver, and emulated disks as well"
+answer: 0
+explanation: |
+  AWS's page on Nitro instances says they "use ENA for enhanced networking, and storage volumes exposed as NVMe block devices". The network card is an **ENA** (Elastic Network Adapter), whose Linux driver is called `ena`, and the EBS volumes show up as NVMe disks, named `/dev/nvme0n1`, `/dev/nvme1n1` and so on. Both are functions of the **Nitro cards**, handed straight to the instance, so the traffic and the disk writes never pass through software on the host's main processors.
+
+  virtio is the tempting answer, because the Nitro hypervisor is built on KVM, and an ordinary KVM server does give its guests `virtio_net` and `virtio_blk`. But on Nitro the hypervisor only divides the CPUs and memory: by AWS's own account it has no network stack and no device drivers, so it has nothing to put behind a virtio device, and the cards do that work instead. `hv_netvsc` and `hv_storvsc` are Hyper-V's synthetic devices, which an Azure VM shows. An emulated `e1000` is what QEMU gives a guest by default, as in this topic's labs: the slowest of the three paths, and not what Nitro shows.
+
+  One practical consequence, from AWS's page on EBS and NVMe: the name you give a volume when you attach it (such as `/dev/sdf`) isn't the name the guest sees, and the NVMe names can come in a different order. Mount cloud disks by UUID, as the storage topic taught. This question is built on AWS's documentation, not on a recording of a real instance.
+skills: [cloud-hypervisors]

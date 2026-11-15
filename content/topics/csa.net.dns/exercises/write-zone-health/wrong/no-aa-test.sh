@@ -14,7 +14,7 @@ for name in $servers; do
   echo "$name $address serial $serial"
   serials="$serials $serial"
 done
-if [ "$(echo $serials | tr ' ' '\n' | sort -u | wc -l)" -eq 1 ]; then
+if [ "$(echo "$serials" | tr ' ' '\n' | sort -u | grep -c .)" -eq 1 ]; then
   echo "in sync"
 else
   echo "out of sync"
