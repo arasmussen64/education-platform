@@ -2,6 +2,21 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, leftovers: a capture tool for GitHub's own machines
+
+Part of what was left in Modules 1 to 3. Module 2's plan asked for one piece of authoring tooling that was never built: a way to record what a real cloud machine shows about the hypervisor under it, so the content's examples are captured and not typed. GitHub's own machines are real cloud guests, x86 and Arm, and free on a public repository.
+
+- **`tools/lab-capture`** is the script two Hypervisors labs already ship, now also where a workflow can run it. It only reads, and masks MAC addresses, UUIDs and instance IDs. A test keeps the three copies identical.
+- **The Capture workflow** (`.github/workflows/capture.yml`) runs it on `ubuntu-latest` and `ubuntu-24.04-arm` and uploads each folder as an artifact, a download attached to the run. It starts only by hand.
+
+**Author notes:**
+
+- _The labs keep their own copies,_ because a lab's image is built from the lab's folder alone.
+- _Nothing is captured by this pull request._ The workflow can only be started once it is on `main`; the first run, and the question that waits for it (three lines of `lscpu` from a real Arm machine, in CPU architectures), follow.
+- _The plan also wanted a capture from inside a KVM guest on a runner._ That is left: it needs a guest image the workflow would have to build, and no question waits for it.
+
+**Next:** run it once, and write the Arm question from what it records.
+
 ## 2026-11-15, leftovers: three checks that could be passed with a fault left in
 
 In the same pull request as the entry below. When Module 3 was written, three notes in this devlog (2026-11-12) admitted that a lab could be passed with part of the work undone. Each now has a check that fails without it, and known-wrong fixes that prove the check.
