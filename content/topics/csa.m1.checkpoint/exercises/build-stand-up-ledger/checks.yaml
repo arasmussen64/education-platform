@@ -1,53 +1,82 @@
-# The checks for "Stand up the ledger".
-# The service runs and answers; the firewall lets in SSH and the ledger and
-# nothing else, which is tested from the office (a second machine) rather
-# than by reading the rules, so any correct way of writing them passes; the
-# same rules come back after a reboot; and the SSH server that is running,
-# not just its files, is hardened, with Ben still able to log in. The build,
-# its fresh versions, the steps and the worked example share these checks,
-# with the service and the port swapped.
+# The checks for "Stand up the ledger", a fresh version of the checkpoint's
+# build with an end state of its own.
+# The service runs, answers on this machine and is restarted by systemd
+# after a crash; the firewall lets in SSH and nothing else, the ledger's
+# own port included, which is tested from the office (a second machine)
+# rather than by reading the rules, so any correct way of writing them
+# passes; the same rules come back after a reboot; the SSH server that is
+# running, not just its files, is hardened, with none of its own checks
+# switched off; and Ana can log in with the key that was installed for her.
+#
+# A check that finds something wrong prints what it found and exits 0, so
+# the learner's terminal shows the reason beside the failed check.
 checks:
   - id: service-running
     description: "ledger is active and enabled to start on boot."
     command: systemctl is-active ledger && test "$(systemctl is-enabled ledger)" = enabled && echo "active and enabled"
     expect:
       contains: "active and enabled"
-  - id: api-answers
-    description: "The ledger answers on port 7000."
+  - id: answers-on-this-machine
+    description: "On this machine, the ledger service answers on port 7000."
     command: |
+      out=""
       for i in 1 2 3 4 5; do out=$(curl -s --max-time 2 localhost:7000); [ -n "$out" ] && break; sleep 1; done
-      echo "$out"
+      [ "$out" = "ledger ok" ] || { echo "localhost:7000 gives no answer on this machine"; exit 0; }
+      # What answers must be the service systemd started, not a copy of the
+      # program started by hand, which nothing would start again.
+      pid=$(systemctl show ledger -p MainPID --value)
+      ss -Hltnp "sport = :7000" | grep "pid=$pid," > /dev/null || { echo "what listens on port 7000 isn't the ledger service"; exit 0; }
+      echo "ledger ok"
     expect:
-      contains: "ledger ok"
-  - id: reachable-from-outside
-    description: "From the office, a second machine on the network, SSH (port 22) and the ledger (port 7000) both answer."
+      equals: "ledger ok"
+  - id: comes-back-after-a-crash
+    description: "systemd starts ledger again by itself when it crashes, and will after a reboot."
     command: |
-      for i in 1 2 3; do out=$(ip netns exec office curl -s --max-time 3 http://10.0.9.1:7000/); [ -n "$out" ] && break; sleep 1; done
-      if ! echo "$out" | grep -q "ledger ok"; then echo "port 7000 gives no answer from the office"
-      elif ! ip netns exec office nc -z -w 3 10.0.9.1 22 2> /dev/null; then echo "port 22 gives no answer from the office"
-      else echo "22 and 7000 answer"; fi
+      # systemd's own answer, whichever file the setting was written in:
+      # on-failure restarts a service that exits with an error or is killed,
+      # always restarts it whatever way it stopped.
+      policy=$(systemctl show ledger -p Restart --value)
+      case "$policy" in
+        on-failure | always) ;;
+        *) echo "systemd wouldn't start ledger again after a crash: its restart policy is \"$policy\""; exit 0 ;;
+      esac
+      # A setting kept under /run is gone after a reboot.
+      if systemctl show ledger -p FragmentPath -p DropInPaths --value | grep '/run/' > /dev/null; then
+        echo "one of the ledger service's settings is kept under /run, which a reboot empties"; exit 0
+      fi
+      echo "restarted after a crash"
     expect:
-      equals: "22 and 7000 answer"
+      equals: "restarted after a crash"
+  - id: ssh-from-outside
+    description: "From the office, a second machine on the network, SSH (port 22) answers."
+    command: |
+      ip netns exec office nc -z -w 3 10.0.9.1 22 2> /dev/null || { echo "port 22 gives no answer from the office"; exit 0; }
+      echo "22 answers"
+    expect:
+      equals: "22 answers"
   - id: firewall-default-deny
-    description: "From the office, ports the server isn't meant to serve get no answer."
+    description: "From the office, nothing but SSH gets an answer: not the ledger's port 7000, and not ports nobody asked for."
     command: |
-      # Listeners of the check's own, on ports nobody asked for: the web's
-      # two, a database's and two more. If the office can reach any of them,
-      # the firewall lets in more than the server serves, whether it is off,
-      # wide open or opened "for later".
-      ports="80 443 3306 8081 9999"
+      # The ledger's own port, and listeners of the check's own on ports
+      # nobody asked for: the ones most often opened "for later" (mail and
+      # file transfer, the web's, the usual databases', the usual ports of a
+      # program in development). If the office can reach any of them, the
+      # firewall lets in more than the server serves to other machines,
+      # whether it is off, wide open or opened in advance. On 7000 the
+      # check's listener only gets the port when the ledger isn't running.
+      ports="21 25 80 443 3000 3306 5432 6379 7000 8000 8080 8081 8443 9000 9999"
       listeners=""
       for port in $ports; do
         timeout 20 nc -4 -l "$port" > /dev/null 2>&1 &
         listeners="$listeners $!"
       done
       sleep 0.5
-      missing=$(for port in $ports; do ss -Hltn sport = ":$port" | grep -q . || echo "$port"; done)
+      missing=$(for port in $ports; do ss -Hltn "sport = :$port" | grep . > /dev/null || echo "$port"; done)
       # Every port at once, so a firewall that drops them all takes 2
-      # seconds rather than 10.
+      # seconds rather than 30.
       reachable=$({ for port in $ports; do (ip netns exec office nc -z -w 2 10.0.9.1 "$port" 2> /dev/null && echo "$port") & done; wait; } | sort -n)
       if [ -n "$missing" ]; then result="the check couldn't listen on port $(echo $missing)"
-      elif [ -n "$reachable" ]; then result="reachable from the office on ports nobody asked for: $(echo $reachable)"
+      elif [ -n "$reachable" ]; then result="reachable from the office, on ports this server doesn't serve to other machines: $(echo $reachable)"
       else result="closed"; fi
       # A listener the office reached has gone already, so kill's own
       # complaint is no news.
@@ -70,29 +99,33 @@ checks:
     expect:
       equals: "saved and enabled"
   - id: ssh-hardened
-    description: "The SSH server that is running refuses password logins and has loaded its current configuration, in which password and root logins are off."
+    description: "The SSH server that is running refuses password logins and has loaded its current configuration, in which password and root logins are off and none of SSH's own checks is switched off."
     command: |
       # Ask the running server which ways of logging in it offers; sshd -T
       # only reads the files, which a server started earlier may not have.
-      answer=$(ssh -o PreferredAuthentications=none -o PubkeyAuthentication=no -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ben@localhost true 2>&1)
+      answer=$(ssh -o PreferredAuthentications=none -o PubkeyAuthentication=no -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ana@localhost true 2>&1)
       offered=$(echo "$answer" | sed -n 's/.*Permission denied (\(.*\))\..*/\1/p')
       settings=$(sshd -T 2> /dev/null)
-      # A root login can't be tried without a key for root, so for that
-      # setting ask whether the running server is older than its files: when
-      # the unit last started or reloaded, against the newest change under
-      # /etc/ssh (removing a file changes the folder's own time).
+      # A root login can't be tried without a key for root, so for the
+      # settings that can't be tried ask whether the running server is older
+      # than its files: when the unit last started or reloaded, against the
+      # newest change under /etc/ssh (removing a file changes the folder's
+      # own time).
       loaded=$(date -d "$(systemctl show -p StateChangeTimestamp --value ssh)" +%s 2> /dev/null)
       changed=$(stat -c %Y /etc/ssh/sshd_config /etc/ssh/sshd_config.d /etc/ssh/sshd_config.d/* 2> /dev/null | sort -n | tail -1)
       if [ -z "$offered" ]; then echo "the SSH server didn't answer"
-      elif echo ",$offered," | grep -qE ',(password|keyboard-interactive),'; then echo "the running SSH server still offers: $offered"
-      elif ! echo "$settings" | grep -qx 'passwordauthentication no'; then echo "PasswordAuthentication isn't no in the configuration"
-      elif ! echo "$settings" | grep -qx 'permitrootlogin no'; then echo "PermitRootLogin isn't no in the configuration"
+      elif echo ",$offered," | grep -E ',(password|keyboard-interactive),' > /dev/null; then echo "the running SSH server still offers: $offered"
+      elif ! echo "$settings" | grep -x 'passwordauthentication no' > /dev/null; then echo "PasswordAuthentication isn't no in the configuration"
+      elif ! echo "$settings" | grep -x 'permitrootlogin no' > /dev/null; then echo "PermitRootLogin isn't no in the configuration"
+      elif ! echo "$settings" | grep -x 'strictmodes yes' > /dev/null; then echo "StrictModes isn't yes in the configuration"
       elif [ "${changed:-0}" -gt "${loaded:-0}" ]; then echo "the SSH server that is running hasn't loaded its configuration since it last changed"
       else echo "hardened"; fi
     expect:
       equals: "hardened"
   - id: key-login-works
-    description: "Ben can still log in with his key."
-    command: sudo -u learner -H ssh -i /home/learner/keys/ben -o StrictHostKeyChecking=no -o BatchMode=yes ben@localhost whoami
+    description: "Ana can log in with her key."
+    # The key used here is the lab's copy, not the one in the learner's
+    # ~/keys, so the check tests the server and Ana's account only.
+    command: ssh -i /usr/local/lib/lab/keys/ana -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5 ana@localhost whoami
     expect:
-      equals: "ben"
+      equals: "ana"

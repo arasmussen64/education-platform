@@ -1,24 +1,50 @@
+# A fresh version of the checkpoint's build (ADR-0012): the same skills on a
+# server whose particulars differ in every part, so that a learner who has
+# read the steps can't pass by pasting them with the names changed. It
+# differs from the other fresh version, the gateway, in each part too.
+#
+# What differs from the build (build-stand-up-server):
+#   1. The service. The build's unit already restarts on failure. The
+#      ledger's has no restart policy, and the runbook asks for one (a
+#      drop-in or an edit, then daemon-reload). Step 1's command,
+#      `systemctl enable --now`, leaves it without: comes-back-after-a-crash
+#      fails.
+#   2. The firewall. The build lets other machines reach its service. The
+#      ledger is for this machine alone, so only SSH is let in. Step 2's
+#      file with the port changed opens 7000 to the office:
+#      firewall-default-deny fails.
+#   3. SSH. In the build Ben's key is already installed. Here nobody's is:
+#      Ana's public key has to be installed for her account first, as in
+#      the permissions topic. Step 3's commands turn passwords off with no
+#      key in place, which locks her out: key-login-works fails.
+# wrong/steps-pasted.sh is the build's solution with the service's name, the
+# port and the person changed and nothing else (but an `|| echo` after the
+# two logins, which fail, so that the script itself ends without an error);
+# the contract proves that it fails.
 id: build-stand-up-ledger
 stage: build
 runtime: lab
 lab:
   init: systemd
-rev: 2
+rev: 3
 title: "Stand up the ledger"
 prompt: |
-  A fresh version of the checkpoint's build, in a different story. A new server has arrived for the accounts ledger, the service that records every payment the company takes. Nothing is set up yet: the `ledger` service is installed but not running, there is no firewall, and SSH still accepts passwords. Bring the server up to the runbook, the company's written standard for a new server. There are no steps and no hints here, only what must be true when you finish:
+  A fresh version of the checkpoint's build: the same three parts of the runbook, the company's written standard for a new server, on a different server. The particulars differ in every part, so work from each goal as it is written here, not from the shop's commands. There are no steps and no hints.
 
-  1. **The service runs.** `ledger` is running now, starts by itself after a reboot, and answers on port 7000.
-  2. **The firewall lets in only what the server serves.** From another machine, SSH (port 22) and the ledger (port 7000) answer and nothing else does. The firewall is nftables, and the same rules come back after a reboot: they are saved in `/etc/nftables.conf`, and the `nftables` service is enabled.
-  3. **SSH is hardened.** The SSH server that is running refuses password logins and root logins, and Ben, who deploys the company's code, can still log in with his key: `ssh -i ~/keys/ben ben@localhost` (a copy of his private key is in your `~/keys`, so you can test as him).
+  A new server has arrived for the accounts ledger, the service that records every payment the company takes. Nothing is set up yet: the `ledger` service is installed but not running, there is no firewall, SSH still accepts passwords, and nobody's key is installed. This must be true when you finish:
 
-  To test from another machine, use `from-office`: it runs a command on a second machine on the office network, where this server's address is `10.0.9.1`. For example, `from-office curl -s http://10.0.9.1:7000/`.
+  1. **The service runs, and comes back.** `ledger` is running now and starts by itself after a reboot, and on this machine `curl -s localhost:7000` prints `ledger ok`. While the ledger is down, payments go unrecorded, and as installed its unit has no restart policy: nothing starts it again if it crashes. Make systemd start it again by itself whenever it crashes, now and after a reboot. To try it, `curl -s localhost:7000/crash` makes the ledger exit with an error, as a crash would.
+  2. **The firewall lets in only what the server serves to other machines.** The ledger is used from this server only: the billing job that will run here reaches it at `localhost:7000`. So from another machine SSH (port 22) answers and nothing else does, port 7000 included, while on this machine the ledger still answers. The firewall is nftables, and the same rules come back after a reboot: they are saved in `/etc/nftables.conf`, and the `nftables` service is enabled.
+  3. **SSH is hardened, and Ana can get in.** Ana, who looks after the ledger, has an account, `ana`, and has sent her public key: it is in `/srv/keys/ana.pub`, not installed yet. Install it for her account, with the ownership and permissions `sshd` insists on, so that `ssh -i ~/keys/ana ana@localhost` logs in (a copy of her private key is in your `~/keys`, for this lab only, so you can test as her). The SSH server that is running refuses password logins and root logins, with every one of its own checks left on.
 
-  No shortcut that leaves the server weaker counts: with the firewall off, or passwords still accepted, the checks fail. When all three are true, run the checks.
+  To test from another machine, use `from-office`: it runs a command on a second machine on the office network, where this server's address is `10.0.9.1`. For example, `from-office nc -zv -w 3 10.0.9.1 7000` should get no answer and time out.
+
+  No shortcut that leaves the server weaker counts: with the firewall off, a port open that nobody asked for, passwords still accepted, or one of SSH's checks switched off, the checks fail. When all three are true, run the checks.
 test_skills:
-  service-running: [csa.linux.services/systemctl, csa.linux.services/unit-files]
-  api-answers: [csa.linux.services/supervision]
-  reachable-from-outside: [csa.linux.hardening/firewall-min, csa.linux.net-tools/test-tools]
+  service-running: [csa.linux.services/systemctl]
+  answers-on-this-machine: [csa.linux.services/systemctl, csa.linux.net-tools/firewall-path]
+  comes-back-after-a-crash: [csa.linux.services/supervision, csa.linux.services/unit-files]
+  ssh-from-outside: [csa.linux.hardening/firewall-min, csa.linux.net-tools/test-tools]
   firewall-default-deny: [csa.linux.net-tools/firewall-path, csa.linux.hardening/firewall-min]
   firewall-persisted: [csa.linux.hardening/firewall-min]
   ssh-hardened: [csa.linux.hardening/ssh-hardening]
