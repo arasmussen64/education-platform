@@ -165,6 +165,27 @@ The track is now 31 modules and about 340 topics: 337 numbered and 8 specialties
 
 **Next:** stage 2 of the Momentum redesign, then Module 4 of the cloud track, as planned. Nothing in this audit changes Modules 4 to 10.
 
+## 2026-11-15, leftovers: zombies, `jq` and the connection table, done by hand
+
+Part of what was left in Modules 1 to 3 (the list is under "What's left in cloud Modules 1 to 3"). Three things Module 1's spec promises were taught and quizzed and never done in a lab. Each now has one.
+
+- **Find and clear the zombies** (Processes and signals). A zombie is a process that has finished but whose parent hasn't collected its exit status. One of two services leaves five behind, because its start script runs its helpers in the background and then hands over, with `exec`, to a program that never waits for them. The learner finds them with `ps`, tries `kill -9` on one and sees nothing change, traces the parent, restarts the service and watches the zombies come back, then fixes the script with `wait`. Eight known-wrong fixes, among them killing the zombies, stopping the service for good, and a restart with the script unfixed.
+- **The reply that never arrives** (Networking from the host). The firewall has lost its rule for connections already under way, so the server's own download from the office times out while the office still reaches the API. The learner reads the kernel's connection table with `sudo conntrack -L`, finds the half-open download in it, and restores the rule in the file the firewall loads at boot. Fourteen known-wrong fixes: opening ports for the replies, accepting everything from the office, a rule typed live and not saved.
+- **Four questions about a JSON log** (Shell essentials). `jq`, the tool that reads JSON by field name, was one sentence in the lesson. The lab's log has two layouts and notes that hold "500", which is where `grep` and `awk` go wrong. Ten known-wrong answers. The lesson now teaches `.field`, `select(...)` and `-r`, and the objective that said "know what jq is for" says to use it.
+
+**Also in these three topics:** eleven number drills (the exit status after a signal, ports in the ephemeral range, lines a pipeline leaves, a round-trip time from a capture), a third question for the `tcpdump` skill, a predict-the-output over a saved connection table, and a question that puts an `iptables` rule set beside the same rules in `nft` form.
+
+All three labs were proved with the lab checker; the two with services restart in the proof, and pass again after it.
+
+**Author notes:**
+
+- _The connection-table lab is a new lab, not a step in an old one,_ so that the fault (a missing rule for established connections) has the whole lab to itself.
+- _A shortcut the writer found and closed:_ a rule that accepts "anything that isn't an opening packet" passed the first six checks. A seventh sends a lone ACK from the office, which a firewall that tracks connections drops and that rule lets in.
+- _Shortcuts left open, on purpose:_ in the zombies lab, deleting the helpers and printing their "ready" lines by hand passes, which is forging the evidence, not a mistake. In the `jq` lab, a careful `grep` and `cut` reaches the same four answers; the checks read the answers, and can't see the tool.
+- _One piece of scenery is new to CI:_ the firewall's `ct state invalid drop` rule, which is what switches connection tracking on in that lab. CI's Linux machines prove it with this pull request.
+- _No drill for zombies or `jq`:_ there is no sum there that anyone does on sight.
+- _The writer's guide said no lab image has `jq`._ One has now; predict-the-output questions still can't use it, because Git Bash has none.
+
 ## 2026-11-15, leftovers: Module 1's number drills
 
 Part of what was left in Modules 1 to 3 (the list is a few entries up, under "What's left in cloud Modules 1 to 3"; this one sits here only so that pull requests open at the same time don't edit the same lines). Module 1 was written before the platform had estimate questions, where the learner types a number and it's checked within a tolerance. The spec calls them drills, practice that builds speed. Modules 2 and 3 have 59 and 113, and Module 1 had none.

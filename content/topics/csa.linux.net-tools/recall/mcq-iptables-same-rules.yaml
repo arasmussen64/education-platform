@@ -1,0 +1,45 @@
+id: mcq-iptables-same-rules
+type: mcq
+rev: 1
+prompt: |
+  A server's firewall was loaded with the older `iptables` command. Here it is twice: as `iptables-save` prints it, and as `nft -s list ruleset` prints the very same rules.
+
+  ```
+  *filter
+  :INPUT DROP [0:0]
+  :FORWARD ACCEPT [0:0]
+  :OUTPUT ACCEPT [0:0]
+  -A INPUT -i lo -j ACCEPT
+  -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  -A INPUT -p tcp -m tcp --dport 22 -j ACCEPT
+  -A INPUT -p tcp -m tcp --dport 8080 -j ACCEPT
+  -A INPUT -p udp -m udp --dport 53 -j ACCEPT
+  COMMIT
+  ```
+
+  ```
+  # Warning: table ip filter is managed by iptables-nft, do not touch!
+  table ip filter {
+  	chain INPUT {
+  		type filter hook input priority filter; policy drop;
+  		iifname "lo" counter accept
+  		ct state related,established counter accept
+  		tcp dport 22 counter accept
+  		tcp dport 8080 counter accept
+  		udp dport 53 counter accept
+  	}
+  }
+  ```
+
+  A laptop on another network sends the first packet of a new connection to TCP port 53 on this server. What happens to the packet?
+choices:
+  - "It is accepted by the rule for port 53, since a rule for a port covers TCP and UDP alike"
+  - "It is accepted as `ESTABLISHED`, since the server already answers on port 53 for others"
+  - "It matches no rule, so the `INPUT` chain's policy decides, and the packet is dropped"
+  - "It matches no rule, so `:OUTPUT ACCEPT` decides, and the packet is let in to port 53"
+answer: 2
+explanation: |
+  Walk the packet down the `INPUT` chain in either listing; they hold the same five rules. It didn't arrive on `lo`. It is the first packet of a new connection, so it belongs to nothing in the connection table and is not `ESTABLISHED` or `RELATED`. It is TCP, but its port is neither 22 nor 8080. The last rule is for port 53 over UDP only: `-p udp --dport 53` in one listing, `udp dport 53` in the other. Nothing matched, so the chain's policy decides: `:INPUT DROP`, which nft writes as `policy drop`. The laptop gets no answer at all.
+
+  A rule names its protocol, so opening UDP 53 opens nothing for TCP; a name server that should answer over TCP as well needs a second rule. `ESTABLISHED` is about one connection, the one this packet would belong to, not about whether the port is busy with other callers. And `OUTPUT` judges packets this server sends; a packet coming in never meets it.
+skills: [firewall-path]

@@ -1,0 +1,23 @@
+id: est-ctrl-c-status
+type: estimate
+rev: 1
+prompt: |
+  A `find` over a whole disk is taking too long, so you press Ctrl-C, which sends it `INT`, signal 2. It stops, and you type `echo $?`. What number is printed? Exactly.
+unit: the exit status
+answer: 130
+tolerance: { absolute: 0 }
+given: { signal: 2 }
+# The 128 is what the learner must know.
+working: 128 + signal
+mistakes:
+  - id: the-signal
+    value: 2
+    working: signal
+    why: That's the signal's own number. The shell reports 128 plus it, so a command stopped by Ctrl-C shows 130.
+  - id: plain-failure
+    value: 1
+    working: "1"
+    why: 1 is what many programs exit with when they fail by themselves. This one was ended by a signal, and the shell reports that as 128 plus the signal's number.
+explanation: |
+  128 + 2 = 130. A script that runs commands for you can tell "the user pressed Ctrl-C" (130) from "the command failed" (usually 1 or 2) and from "it was asked to stop" (143, after `TERM`), which is why wrappers and schedulers print these numbers and why they're worth recognising.
+skills: [signals]

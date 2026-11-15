@@ -1,0 +1,28 @@
+id: write-tracked-replies
+stage: write
+runtime: lab
+# The fix is a rule in /etc/nftables.conf, which a reboot loads again, and a
+# note in a file: both must still hold after a restart, so the contract
+# restarts the container and checks again.
+lab:
+  init: systemd
+  restart_trial: true
+rev: 1
+title: "The reply that never arrives"
+prompt: |
+  Every night the shop's server downloads a price list from the office's file server, `http://files.office.internal:8000/prices.csv`. Since someone tidied the firewall last week, the download fails. Nothing else seems broken: the office still reaches the shop's API on port 8080. Find out why with the kernel's **connection table**, and fix it with one rule.
+
+  The connection table is the kernel's list of the connections it is tracking, and `sudo conntrack -L` prints it, one connection a line. A line reads, left to right: the protocol (`tcp`, and its number, 6); the seconds until the kernel forgets the entry; for TCP, the state the kernel thinks the connection is in; the connection as its first packet travelled (`src=`, `dst=`, `sport=`, `dport=`: the source and destination addresses and ports); and then the same connection as its replies travel, with the addresses and ports the other way round. `[ASSURED]` marks a connection that has carried traffic both ways.
+
+  1. **See the fault.** `curl -m 5 http://files.office.internal:8000/prices.csv` gives up after five seconds. `from-office curl -m 5 http://shop.internal:8080/` shows that the office still gets its answer from the API.
+  2. **Read the table.** Run `sudo conntrack -L`. Most lines come from the office (`src=10.0.9.2`) and go to the API (`dport=8080`). The office's dashboard keeps one connection to the API open all day: its state is `ESTABLISHED` every time you look. The other lines are the dashboard's health checks, each a connection of its own that was closed as soon as it was answered (`TIME_WAIT`: closed, and remembered for two more minutes; now and then one reads `CLOSE` for a few seconds instead). Find the dashboard's long connection and note the port it comes from at the office's end, the first `sport=` on its line: `mkdir -p ~/conntrack`, then `echo NUMBER > ~/conntrack/dashboard-port.txt` with the number you read.
+  3. **Find your own download in the table.** Run the `curl` again, then `sudo conntrack -L | grep dport=8000`. The kernel is tracking it: it left this machine (`src=10.0.9.1`) for the office, and the state `SYN_RECV` says the kernel saw the office's answer to the opening packet arrive. Now read the rules with `sudo nft list ruleset`. The `input` chain decides what may come in, and its policy is `drop`. Every packet of the office's calls is addressed to port 8080, so `tcp dport { 22, 8080 } accept` lets each one in. The answer to your download is addressed to the port your `curl` happened to call from, a different one each time, so no rule matches it and the policy drops it. (`ct state invalid drop` throws away packets that fit no connection at all; it accepts nothing.)
+  4. **Fix it.** The missing rule is `ct state established,related accept`: accept any packet that belongs to a connection already in the table. Add it to the `input` chain in `/etc/nftables.conf` with `sudo nano /etc/nftables.conf`, on a line of its own under `ct state invalid drop`, and load the file with `sudo nft -f /etc/nftables.conf`. Download the price list again, and look at its line in the table once more.
+
+  The checks connect from this machine to the file server, to the office's monitoring endpoint and to an office port picked on the spot, so the replies must get in whatever port they come from. From the office, SSH, the API and the name server must still answer and everything else must still be dropped, including a packet made to look like a reply to a connection that never existed. The machine must still reach its own services on `lo`, and the running rules must be the ones `/etc/nftables.conf` loads, with `nftables.service` still enabled.
+hints:
+  - "On the dashboard's line the first `sport=` is the office's port and `dport=8080` is the API's. A health check's line looks the same but says `TIME_WAIT`. Run `sudo conntrack -L | grep ESTABLISHED` twice, a few seconds apart: the line that is there both times is the dashboard's."
+  - "The rule goes inside `chain input { ... }`, one rule a line, exactly as written: `ct state established,related accept`. Leave the other rules and the policy as they are."
+  - "Editing the file changes nothing until it is loaded: `sudo nft -f /etc/nftables.conf`. Then `sudo nft list ruleset` shows the new rule, and the `curl` from step 1 prints the price list."
+  - "A rule that names the ports the replies come from, or opens a range of ports, lets in more than the replies. Only the table knows which packets answer a connection this machine made."
+skills: [firewall-path]

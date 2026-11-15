@@ -1,0 +1,38 @@
+#!/usr/bin/python3
+"""shop-api: the shop's API (stand-in). Answers every request with one line,
+on port 8080, on the address in $BIND (0.0.0.0, every interface, unless told
+otherwise). This lab's copy keeps a connection open
+between requests (HTTP/1.1) and serves each connection on a thread of its
+own, so the office's dashboard can hold one open all day while other
+callers come and go."""
+
+import os
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+BODY = b"shop api ok\n"
+
+
+class Handler(BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
+    def do_GET(self):
+        self.answer()
+        self.wfile.write(BODY)
+
+    def do_HEAD(self):
+        self.answer()
+
+    def answer(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain")
+        self.send_header("Content-Length", str(len(BODY)))
+        self.end_headers()
+
+    def log_message(self, *args):
+        # One line per request would fill the journal: say nothing.
+        pass
+
+
+bind = os.environ.get("BIND", "0.0.0.0")
+print(f"shop-api listening on {bind}:8080", flush=True)
+ThreadingHTTPServer((bind, 8080), Handler).serve_forever()

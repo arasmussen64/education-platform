@@ -1,0 +1,20 @@
+# The checks for "Four questions about a JSON log": each saved answer
+# against the same question answered here with jq, over the log itself.
+# Counts are compared with the spaces uniq -c puts in front left out.
+checks:
+  - id: by-path
+    description: "~/jq/by-path.txt counts the requests for each path, biggest first: the count, then the path, with no quotes around it."
+    command: |
+      diff -q <(awk '{print $1, $2}' /home/learner/jq/by-path.txt) <(jq -r '.path' /var/log/shop/api.jsonl | sort | uniq -c | sort -rn | awk '{print $1, $2}')
+  - id: failed-paths
+    description: "~/jq/failed-paths.txt holds the path of every request whose status is 500 or above, one a line, in the log's order."
+    command: |
+      diff -q /home/learner/jq/failed-paths.txt <(jq -r 'select(.status >= 500) | .path' /var/log/shop/api.jsonl)
+  - id: slow-count
+    description: "~/jq/slow-count.txt holds one number: how many requests took longer than 1000 ms."
+    command: |
+      test "$(tr -d '[:space:]' < /home/learner/jq/slow-count.txt)" = "$(jq -c 'select(.ms > 1000)' /var/log/shop/api.jsonl | wc -l)"
+  - id: top-failing-user
+    description: "~/jq/top-failing-user.txt holds one line: the number of failed requests (status 500 or above) of the user who has the most, then that user."
+    command: |
+      diff -q <(awk '{print $1, $2}' /home/learner/jq/top-failing-user.txt) <(jq -r 'select(.status >= 500) | .user' /var/log/shop/api.jsonl | sort | uniq -c | sort -rn | head -n 1 | awk '{print $1, $2}')

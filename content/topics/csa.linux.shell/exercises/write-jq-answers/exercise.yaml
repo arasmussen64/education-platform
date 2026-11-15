@@ -1,0 +1,24 @@
+id: write-jq-answers
+stage: write
+runtime: lab
+rev: 1
+title: "Four questions about a JSON log"
+prompt: |
+  The shop's new API writes its log as JSON lines, one JSON object for each request, in `/var/log/shop/api.jsonl`. Two programs write to it and they don't lay their lines out the same way: the fields come in a different order, with different spacing, and some lines carry a `note`. Text like that is where `grep` and `awk` go wrong and `jq` doesn't, because `jq` reads each line as JSON and finds a value by its name. This lab's machine has `jq` installed.
+
+  Look first. `head -n 4 /var/log/shop/api.jsonl` shows both layouts, and `head -n 1 /var/log/shop/api.jsonl | jq '.'` prints one line with a field on each row. Every line has a `time`, a `method`, a `path`, a `status` (a number), `ms` (how long the request took, in milliseconds, a number) and a `user`.
+
+  Answer four questions, and save each answer in a file in a new folder, `~/jq` (make it with `mkdir -p ~/jq`). Build each command at the prompt first, one stage at a time, and add `> ~/jq/NAME` once it prints what you expect.
+
+  1. **`by-path.txt`:** how many requests did each path get? One line for each path, the count and then the path, biggest count first. The path has no quotes around it.
+  2. **`failed-paths.txt`:** the path of every request the server failed, which means a status of 500 or above. One path a line, without quotes, in the log's order.
+  3. **`slow-count.txt`:** how many requests took longer than 1000 ms? The file holds just that number.
+  4. **`top-failing-user.txt`:** which user had the most failed requests (status 500 or above)? One line: the count, then the user, without quotes.
+
+  The spaces that `uniq -c` puts in front of a count don't matter. Then run the checks.
+hints:
+  - "`jq -r '.path' /var/log/shop/api.jsonl` prints every line's path, without quotes. From there it's the pipeline you know: `sort`, `uniq -c`, `sort -rn`."
+  - "`select(...)` keeps the objects that pass a test, and a `|` inside the quotes hands them on: `jq -r 'select(.status >= 500) | .path' FILE`. The 500 has no quotes, because the status is a number."
+  - "To count with `wc -l`, each match must print exactly one line. `jq 'select(.ms > 1000)' FILE` prints every match over several rows; `jq -c` prints one compact line each, and so does picking a single field, as in `select(.ms > 1000) | .ms`."
+  - "Question 4 is question 2 with `.user` in place of `.path`, followed by the counting pipeline and `head -n 1`."
+skills: [sed-awk, count-and-sort]

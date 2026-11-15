@@ -1,0 +1,23 @@
+id: est-rtt-from-capture
+type: estimate
+rev: 1
+prompt: |
+  In a `tcpdump` capture taken on a client, the SYN to a server leaves at 10:15:42.118 and the server's SYN-ACK arrives at 10:15:42.153. How long was the round trip to the server and back, in milliseconds? Exactly.
+unit: ms
+answer: 35
+tolerance: { absolute: 0 }
+given: { syn: 42.118, synack: 42.153 }
+# 1,000 milliseconds in a second is what the learner must know.
+working: (synack - syn) * 1000
+mistakes:
+  - id: in-seconds
+    value: 0.035
+    working: synack - syn
+    why: That's the gap in seconds. A second is 1,000 milliseconds, so 0.035 s is 35 ms.
+  - id: halved
+    value: 17.5
+    working: (synack - syn) * 1000 / 2
+    why: That's one way only. The gap between a packet and its answer covers the trip there and the trip back, which is what a round trip means.
+explanation: |
+  The digits after the dot are fractions of a second, so the gap is 0.153 − 0.118 = 0.035 s, which is 35 ms. The first two packets of a handshake are the cleanest measure of the network there is: the server answers a SYN from inside its kernel, before any program is involved, so the gap is the path there and back and almost nothing else. If a page is slow and this gap is 35 ms, the network isn't the reason.
+skills: [tcpdump]

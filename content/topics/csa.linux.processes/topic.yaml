@@ -4,7 +4,7 @@ status: ready
 title: "Processes and signals"
 summary: "What a running program is to Linux: how a process is born with fork and exec, how signals stop it politely or by force, what a zombie is, and what PID 1 does for the services on a server."
 prerequisites: [csa.linux.shell]
-estimated_minutes: 220
+estimated_minutes: 250
 rev: 1
 objectives:
   - "Explain how a process comes into being (fork, then exec), what a PID and a parent process are, and what an exit status tells the shell."
@@ -38,7 +38,8 @@ resources:
 # The recall items run bash itself in the browser's validator-proven way
 # (ADR-0017). The worked example, the fill-in, the write and both proofs are
 # labs in a container that boots systemd, so PID 1 is the real thing
-# (ADR-0018).
+# (ADR-0018). A second write lab, write-clear-zombies, has the learner find
+# a service's zombies, fail to kill them, and clear them through the parent.
 practice:
   - example-stop-a-runaway
   - mcq-fork-exec
@@ -52,14 +53,18 @@ practice:
   - mcq-ctrl-z-bg
   - mcq-nohup
   - proc-kill-l
+  - est-killed-status
+  - est-ctrl-c-status
   - proc-trap-term
   - mcq-term-vs-kill
+  - est-status-to-signal
   - mcq-zombie
   - mcq-pid1-systemd
   - mcq-systemctl-enable-start
   - mcq-target
   - fill-run-report
   - write-graceful-stop
+  - write-clear-zombies
 prove:
   build: build-nightly-runner
   debug: debug-stop-workers
@@ -102,6 +107,9 @@ review_pool:
   - proc-kill-l
   - mcq-systemctl-enable-start
   - mcq-target
+  - est-killed-status
+  - est-ctrl-c-status
+  - est-status-to-signal
 skills:
   - id: process-model
     description: "Fork and exec, PIDs and parents, exit status, and what a zombie is"

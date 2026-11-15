@@ -1,0 +1,24 @@
+id: net-conntrack-started-here
+type: predict_shell
+rev: 1
+prompt: |
+  `conntrack.txt` is eight lines of `sudo conntrack -L`, saved on a server whose own address is `10.0.9.1`. On a TCP line the fourth field is the state, and the fields after it are the connection as its first packet travelled: `src=`, `dst=`, `sport=`, `dport=`. The command keeps the TCP connections that this server started and prints each one's state, where it went and to which port. What is printed?
+files:
+  conntrack.txt: |
+    tcp      6 84 TIME_WAIT src=10.0.9.2 dst=10.0.9.1 sport=46634 dport=8080 src=10.0.9.1 dst=10.0.9.2 sport=8080 dport=46634 [ASSURED] mark=0 use=1
+    udp      17 23 src=127.0.0.1 dst=127.0.0.1 sport=47028 dport=53 src=127.0.0.1 dst=127.0.0.1 sport=53 dport=47028 mark=0 use=1
+    tcp      6 113 TIME_WAIT src=10.0.9.1 dst=10.0.9.2 sport=49556 dport=8000 src=10.0.9.2 dst=10.0.9.1 sport=8000 dport=49556 [ASSURED] mark=0 use=1
+    tcp      6 7 CLOSE src=10.0.9.2 dst=10.0.9.1 sport=43244 dport=8080 src=10.0.9.1 dst=10.0.9.2 sport=8080 dport=43244 [ASSURED] mark=0 use=1
+    tcp      6 431997 ESTABLISHED src=10.0.9.2 dst=10.0.9.1 sport=20917 dport=8080 src=10.0.9.1 dst=10.0.9.2 sport=8080 dport=20917 [ASSURED] mark=0 use=1
+    udp      17 29 src=10.0.9.2 dst=10.0.9.1 sport=40989 dport=53 src=10.0.9.1 dst=10.0.9.2 sport=53 dport=40989 mark=0 use=1
+    tcp      6 117 SYN_SENT src=10.0.9.1 dst=10.0.9.77 sport=46664 dport=443 [UNREPLIED] src=10.0.9.77 dst=10.0.9.1 sport=443 dport=46664 mark=0 use=2
+    tcp      6 33 TIME_WAIT src=10.0.9.2 dst=10.0.9.1 sport=52836 dport=8080 src=10.0.9.1 dst=10.0.9.2 sport=8080 dport=52836 [ASSURED] mark=0 use=1
+command: grep '^tcp' conntrack.txt | awk '$5 == "src=10.0.9.1" {print $4, $6, $8}'
+expected_output: |
+  TIME_WAIT dst=10.0.9.2 dport=8000
+  SYN_SENT dst=10.0.9.77 dport=443
+explanation: |
+  The first `src=` on a line is the machine that sent the connection's first packet, so it says who started it. Six of these lines start at `10.0.9.2` or at the server's own loopback address; two start at `10.0.9.1`, the server. The first is a download from port 8000 of `10.0.9.2` that is over: `TIME_WAIT` is a closed connection the kernel remembers for two more minutes, and `[ASSURED]` says traffic flowed both ways. Its replies got in through `ct state established,related accept`, which accepts a packet that fits the second half of a line in this table. The other is an attempt to reach port 443 of `10.0.9.77` that has had no answer at all: `SYN_SENT` and `[UNREPLIED]` mean the opening packet left and nothing came back, which is what a wrong address or a firewall that drops looks like from here.
+
+  The line that says `ESTABLISHED` was started by `10.0.9.2`, a caller of this server's port 8080, so the test on the fifth field leaves it out. On the two `udp` lines the fourth field is an address, because UDP has no states, which is why `grep '^tcp'` comes first.
+skills: [firewall-path]
