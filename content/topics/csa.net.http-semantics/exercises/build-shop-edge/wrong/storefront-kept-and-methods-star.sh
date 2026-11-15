@@ -1,5 +1,12 @@
-# Wrong: the API echoes whatever Origin arrives, so a page from any site
-# may call it with the customer's cookie and read their basket.
+# Wrong, twice over, in two parts of the file that have nothing to do with
+# each other (one file for both, because every contract run of this lab
+# waits out the 75-second idle check: see content/README.md).
+# 1. The price list is asked about before every use, in a block of its own,
+#    and the storefront may be kept by every cache for an hour, so a change
+#    to it reaches customers up to an hour late. Fails pages-asked-about.
+# 2. The preflight allows the methods "*". With a cookie a browser takes
+#    that as a method called *, so PUT and DELETE are refused. Fails
+#    shop-sites-may-call.
 on origin tee /etc/nginx/sites-available/shop > /dev/null << 'EOF'
 # The shop's origin server, nginx on origin. The edge cache (www.shop.test)
 # sits in front of it and keeps a copy of whatever these headers let a
@@ -24,9 +31,14 @@ server {
         add_header Cache-Control "public, max-age=31536000, immutable";
     }
 
+    # The price list, asked about before every use.
+    location = /news.html {
+        add_header Cache-Control "no-cache";
+    }
+
     # The pages: the storefront and the price list.
     location ~ \.html$ {
-        add_header Cache-Control "no-cache";
+        add_header Cache-Control "public, max-age=3600";
     }
 
     # Each customer's own account page, from shop-app.
@@ -38,9 +50,9 @@ server {
     # The basket API, from shop-app.
     location /api/ {
         if ($request_method = OPTIONS) {
-            add_header Access-Control-Allow-Origin $http_origin always;
+            add_header Access-Control-Allow-Origin $cors_origin always;
             add_header Access-Control-Allow-Credentials "true" always;
-            add_header Access-Control-Allow-Methods "GET, PUT, DELETE" always;
+            add_header Access-Control-Allow-Methods "*" always;
             add_header Access-Control-Allow-Headers "Content-Type" always;
             add_header Access-Control-Max-Age 600 always;
             add_header Vary Origin always;
@@ -48,7 +60,7 @@ server {
         }
         proxy_pass http://127.0.0.1:8080;
         add_header Cache-Control "no-store" always;
-        add_header Access-Control-Allow-Origin $http_origin always;
+        add_header Access-Control-Allow-Origin $cors_origin always;
         add_header Access-Control-Allow-Credentials "true" always;
         add_header Vary Origin always;
     }
