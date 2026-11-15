@@ -8,7 +8,7 @@ Every command from the earlier topics can be saved in a file and run again, and 
 
 - **`set -e`**: exit the moment a command fails. Without it, a failed `cd` is followed by an `rm` in the wrong directory.
 - **`set -u`**: treat an unset variable as an error. Without it, a misspelt `$BUILD_DRI` is an empty string, and `rm -rf "$BUILD_DRI/"` is `rm -rf /`.
-- **`set -o pipefail`**: a pipeline fails if *any* stage fails. Without it, `cat missing.txt | wc -l` succeeds, because `wc` did.
+- **`set -o pipefail`**: a pipeline fails if *any* stage fails, and its exit status is that of the last stage that failed. Without it, `cat missing.txt | wc -l` succeeds, because `wc` did.
 
 Together: `set -euo pipefail`. One trap to know: `set -e` deliberately doesn't fire where a result is being *tested*: inside an `if` condition, on the left of `||` or `&&`, and inside `$(…)` on a `local x=$(…)` line, where `local` succeeding masks the failure. For a command that's allowed to fail, say so: `grep pattern file || true`.
 

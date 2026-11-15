@@ -2,7 +2,7 @@ id: est-final-stage-seconds
 type: estimate
 rev: 1
 prompt: |
-  A new instance took a minute and a half to come up. Its `/var/log/cloud-init-output.log` has these lines, each ending with how long the machine had been up:
+  A new instance took over a minute and a half to come up. Its `/var/log/cloud-init-output.log` has these lines, each ending with how long the machine had been up:
 
   ```
   Cloud-init v. 24.4 running 'init-local' at Tue, 10 Nov 2026 14:02:10 +0000. Up 3.10 seconds.
@@ -32,5 +32,5 @@ mistakes:
     working: final - config
     why: "That's the config stage, from its own line to the next one. The final stage runs from the `modules:final` line to `finished`."
 explanation: |
-  Each line carries an `Up` time, so a stage's length is the gap to the next line. The final stage began at 11.50 seconds and cloud-init finished at 95.50: 84 seconds, against 5.3 for the local stage, 1.8 for the network stage and 1.3 for config. The final stage is where packages are installed and `runcmd` runs, so that is where this boot's minute and a half went, waiting on package mirrors or on a slow command. The lines printed between `modules:final` and `finished` say which, and baking the packages into the image is the usual cure.
+  Each line carries an `Up` time, so a stage's length is the gap to the next line. The final stage began at 11.50 seconds and cloud-init finished at 95.50: 84 seconds, against 5.3 for the local stage, 1.8 for the network stage and 1.3 for config. The final stage is where packages are installed and `runcmd` runs, so that is where nearly all of this boot's time went, waiting on package mirrors or on a slow command. The lines printed between `modules:final` and `finished` say which, and baking the packages into the image is the usual cure.
 skills: [cloud-init]

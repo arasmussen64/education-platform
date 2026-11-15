@@ -37,7 +37,7 @@ The first ten characters are the **mode**. The first one is the type: `-` for an
 - **On a directory:** `r` lists names, `w` creates and deletes entries, `x` lets you enter it. No `x`, no access to what's inside.
 - **Octal:** `r`=4, `w`=2, `x`=1 per group. `644` files, `755` programs and directories, `600` secrets, `700` private directories. `-rwxr-x---` is `750`.
 - **`chmod 750 f`**, `chmod u+x f`, `chmod g-w f`, `chmod o= f`; **`chown app:app f`**, `-R` for a tree. Owner or root only.
-- **`umask`:** new files start from 666, directories from 777, minus the mask: `022` gives `644`/`755`, `077` gives `600`/`700`.
+- **`umask`:** new files start from 666, directories from 777, minus the mask: `022` gives `644`/`755`, `077` gives `600`/`700`. The mask works on one digit at a time and only takes away bits that are there: under `077` a file's last two digits go from 6 to 0, not below it, and nothing is borrowed from the digit beside them.
 - **Users:** `/etc/passwd` is `name:x:uid:gid:comment:home:shell`; root is uid 0; service users have `nologin` (`useradd --system --shell /usr/sbin/nologin`); `getent passwd name`; `id` shows your groups; `usermod -aG group user` (keep the `-a`), effective at next login.
 - **sudo** runs one command as root with your own password and logs it; `visudo` (`-f` one file in `sudoers.d`, `-c` to check) edits the rules; `%group`, and `NOPASSWD:` for one specific command, is least privilege; `sudo -l -U name` shows what someone may run. `PermitRootLogin no`.
 - **Modes as numbers:** `stat -c '%a %U:%G %n' file`.
