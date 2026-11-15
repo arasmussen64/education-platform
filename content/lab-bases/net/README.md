@@ -234,7 +234,7 @@ From the Module 3 brief, sections 3.5 and 4.4.
 
 ## Kernel needs
 
-The base asks Docker's machine's kernel for these. Each loads on demand when a privileged container first uses it. Seen on Docker Desktop 29.8.2 (kernel 6.18.33.2-microsoft-standard-WSL2) on 2026-11-11, and on GitHub's `ubuntu-26.04` runner (image 20261101.186.1) on 2026-11-12, where the six probe labs in `csa.net.base-probes` kept their contracts with no `modprobe` step (the CI spike, #253). A row still marked untried falls back to a `sudo modprobe` step in `.github/workflows/labs.yml` if the first lab that needs it fails there.
+The base asks Docker's machine's kernel for these. Each loads on demand when a privileged container first uses it. Seen on Docker Desktop 29.8.2 (kernel 6.18.33.2-microsoft-standard-WSL2) on 2026-11-11, and on GitHub's `ubuntu-26.04` runner (image 20261101.186.1) on 2026-11-12, where the six probe labs in `csa.net.base-probes` kept their contracts with no `modprobe` step (the CI spike, #253). That probe topic is gone since #275: each probe's lab moved into the topic it was written for, some under a new name, so a probe's name in the table may no longer be a folder. No row is untried any more (2026-11-15); a new one would fall back to a `sudo modprobe` step in `.github/workflows/labs.yml` if the first lab that needs it fails there.
 
 | Need | Topics | Docker Desktop | GitHub's runner |
 | --- | --- | --- | --- |
@@ -245,7 +245,7 @@ The base asks Docker's machine's kernel for these. Each loads on demand when a p
 | `xfrm_user`, `esp4`, `ip_vti` | IPsec, checkpoint part 3 | works (with the standard plugins only) | works (`proto-bgp-over-vti`) |
 | `sch_netem` | transport, congestion, troubleshooting, the `netem` word | works, delays egress only | works (`probe-bbr-throughput`, `proto-services`) |
 | `tcp_bbr` | congestion | works, loads from a machine's `sysctl.d` | works: BBR cleared 25 Mbit/s three times (`probe-bbr-throughput`) |
-| nftables `reset tcp option window` | transport | works | untried |
+| nftables `reset tcp option window` | transport | works | works (`csa.net.transport`'s debug, `debug-slow-replication`, #266) |
 | IPv6 in namespaces, forwarding, SLAAC | IPv6, NAT | works | works (`debug-ipv6-half-works`) |
 | `fib_multipath_hash_policy` per namespace | routing, checkpoint part 2 | works | works (Checkpoint 3 part 2's both-tunnels check, #275) |
 
