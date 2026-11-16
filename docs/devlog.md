@@ -2,6 +2,21 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, leftovers: two questions from a real recording
+
+Part of what was left in Modules 1 to 3. The capture tool's first run, on GitHub's Arm and x86 machines, gave the two recordings that Module 2's plan had been waiting for since it was written.
+
+- **Both machines turned out to be Azure virtual machines,** the Arm one on a Cobalt 100 (its `lscpu` says `Neoverse-N2` for the design and `Cobalt 100` for the chip) and the x86 one on an AMD EPYC. Both show what Accelerated Networking looks like from inside: one network card, two interfaces, `eth0` on `hv_netvsc` and a second on `mlx5_core`.
+- **`arch-lscpu-arm`** (CPU architectures) is the plan's "three lines of `lscpu` from a real Arm machine": the architecture, the core design, and 1 thread per core, which is the lesson's point that an Arm vCPU is a whole core.
+- **`hv-azure-two-nics`** (Hypervisors) reads the recorded list of interfaces and their drivers. The multiple-choice question written from Microsoft's documentation, before a recording existed, stays beside it.
+- **The two recordings are kept whole** in `docs/plans/cloud-module-2/captures/`, each with a note of when and where it was made and what was masked.
+
+**Author notes:**
+
+- _The runner's host name was masked by hand_ in the boot messages before the recordings were stored; the script had already masked MAC addresses and UUIDs. The script could mask host names itself; that is a small change for the next time it is used.
+- _No recording from AWS:_ GitHub runs some jobs on AWS (one of today's Labs machines had an AWS kernel), but both capture jobs landed on Azure. The Nitro question therefore stays written from documentation. Running the workflow again may land on AWS.
+- _The Hypervisors build's fleet is still made from documentation._ Swapping in the real recordings would change that lab's image and checks, and nothing in the plan requires it.
+
 ## 2026-11-15, leftovers: the lab checker lets go of a disk that has something built on it
 
 Part of what was left in Modules 1 to 3. Two of today's new labs build a second device on top of their disk: the LVM lab's volume, and the saturated-disk lab's data disk. When a lab's container goes away without its teardown (removed from Docker Desktop's window, or killed), the checker's sweep lets go of the disks it left attached, the next time a lab with disks starts. It couldn't let go of a disk with a device built on it, because that device holds the disk open, so the volume and its disks stayed until Docker restarted.

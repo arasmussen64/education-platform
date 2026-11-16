@@ -1,0 +1,21 @@
+id: hv-azure-two-nics
+type: predict_shell
+rev: 1
+prompt: |
+  `net-drivers.txt` was recorded on a real Azure virtual machine on 2026-11-15, by the labs' own `lab-capture`: one line for each network interface, its name and then the driver behind it (`none` where no device is behind it). The machine has one network card, with Accelerated Networking. The command keeps the interfaces that have a device behind them and puts them in order of driver. What does it print?
+files:
+  net-drivers.txt: |
+    docker0 none
+    enP42920s1 mlx5_core
+    eth0 hv_netvsc
+command: grep -v ' none$' net-drivers.txt | sort -k 2
+expected_output: |
+  eth0 hv_netvsc
+  enP42920s1 mlx5_core
+explanation: |
+  `grep -v ' none$'` drops `docker0`, a bridge that Docker makes in software, with no device behind it. `sort -k 2` orders what is left by the second word, the driver, and `hv_netvsc` comes before `mlx5_core`.
+
+  Two interfaces, and the machine has one network card. That is what Accelerated Networking looks like from inside. `eth0`, on `hv_netvsc`, is the synthetic card: the paravirtual one on VMBus that every Azure VM has, and the one that holds the IP address. `enP42920s1`, on `mlx5_core`, is a virtual function of the host's physical Mellanox card, handed straight to the guest by SR-IOV. The `hv_netvsc` driver pairs the two and sends the traffic through the virtual function, the fast path; when Azure services the host it takes the virtual function away for a while and traffic carries on through `eth0` alone.
+
+  So `mlx5_core` in a guest's list of drivers is a quick sign of SR-IOV on Azure, and `hv_netvsc` a sign of Hyper-V underneath. The recording is from one of GitHub's machines, which run in Azure.
+skills: [cloud-hypervisors, device-paths]

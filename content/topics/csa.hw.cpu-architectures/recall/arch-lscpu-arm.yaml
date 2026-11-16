@@ -1,0 +1,36 @@
+id: arch-lscpu-arm
+type: predict_shell
+rev: 1
+prompt: |
+  `lscpu.txt` holds the first lines of what `lscpu` printed on a real cloud server, an Azure virtual machine, on 2026-11-15. Nothing in it was typed. The command prints three of its values, in the file's order: the architecture, the model name and the threads per core. What does it print?
+files:
+  lscpu.txt: |
+    Architecture:                            aarch64
+    CPU op-mode(s):                          32-bit, 64-bit
+    Byte Order:                              Little Endian
+    CPU(s):                                  4
+    On-line CPU(s) list:                     0-3
+    Vendor ID:                               ARM
+    BIOS Vendor ID:                          MICROSOFT CORPORATION
+    Model name:                              Neoverse-N2
+    BIOS Model name:                         Cobalt 100 None CPU @ 3.4GHz
+    BIOS CPU family:                         280
+    Model:                                   0
+    Thread(s) per core:                      1
+    Core(s) per socket:                      4
+    Socket(s):                               1
+# A block, because the command holds a colon followed by a space, which
+# YAML would otherwise read as a key.
+command: |-
+  awk -F ':  +' '/^Architecture|^Model name|^Thread/ {print $2}' lscpu.txt
+expected_output: |
+  aarch64
+  Neoverse-N2
+  1
+explanation: |
+  The command splits each line at the colon and the spaces after it, and prints the value of the three lines whose names start with `Architecture`, `Model name` and `Thread`. The line `BIOS Model name` doesn't start with `Model name`, so it isn't one of them.
+
+  Read the three as a server's identity card. `aarch64` is the kernel's name for 64-bit Arm: this machine needs `arm64` packages and images. `Neoverse-N2` is the core design, from Arm's family for servers; Arm designs it and others build the chip. Who built this one is on the line the command skipped: `Cobalt 100`, Microsoft's chip, which is an N2 design. And `1` thread per core is the Arm habit the lesson describes: each of the 4 vCPUs is a whole physical core, where most x86 cloud servers give you one of a core's two hyperthreads and print `2` here.
+
+  The recording was made on one of GitHub's Arm machines, which run in Azure, by the script the Hypervisors labs use.
+skills: [read-arch, arm-families]
