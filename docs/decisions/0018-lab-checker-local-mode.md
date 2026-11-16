@@ -181,7 +181,7 @@ What doesn't change: what a check means, the result the learner pastes, and the 
 - _Publishing the base to a registry._ Deferred for the same reason as the labs' own images (section 2): the owner is the only learner and has the repository.
 - _Proving a backup by reading the configuration._ It passes a backup that points into a loop, or one the primary's failure never reaches.
 - _Leaving the restart trial to authors,_ as `content/README.md` asked until now. It is the step most easily forgotten, and Module 3's checks rest on it.
-- _A restart trial for every lab._ A dozen existing labs would fail it by design.
+- _A restart trial for every lab._ A dozen existing labs would fail it by design. (Tried on 2026-11-15: with the trial switched on for all 88 systemd labs of Modules 1 and 2 and their checkpoints, CI found 11 that fail it by design and none that failed it by mistake. The other 77 now set it, and the 11 each record their reason.)
 
 **Consequences.** Every Module 3 network lab is four `Dockerfile` lines on the base; a change to the base rebuilds them all (from Docker's cache, except the layers after the change). Two checkouts on one Docker share the tag `lab-base-net`: each build of a lab rebuilds the base from its own checkout first, so a lab builds on its own checkout's base, except when the two checkouts' bases differ and the other checkout's build retags `lab-base-net` in the moment between the two builds. Two sessions changing the base at once should therefore not run `labcheck` at the same time; with the same base in both, the two builds are the same image. Labs CI runs on eight machines. `content/README.md` says how to write a network lab and points at the base's README.
 

@@ -21,12 +21,14 @@ RUN apt-get update \
  && chmod 440 /etc/sudoers.d/learner \
  && useradd -r -s /usr/sbin/nologin shop
 
-# The script with its gaps, and a service holding 150 MB so the report has
-# a clear answer.
+# The script with its gaps, a service holding 150 MB so the report has a
+# clear answer, and a free with fixed numbers, which the swap check puts
+# first in the script's PATH (a container's free reads the whole machine).
 COPY memhog /usr/local/bin/memhog
 COPY memory-hungry.service /etc/systemd/system/memory-hungry.service
 COPY memory-report.starter /home/learner/bin/memory-report
-RUN chmod 755 /usr/local/bin/memhog /home/learner/bin/memory-report \
+COPY fixed-free /usr/local/lib/lab-check/free
+RUN chmod 755 /usr/local/bin/memhog /home/learner/bin/memory-report /usr/local/lib/lab-check/free \
  && chown -R learner:learner /home/learner/bin \
  && mkdir -p /etc/systemd/system/multi-user.target.wants \
  && ln -s /etc/systemd/system/memory-hungry.service /etc/systemd/system/multi-user.target.wants/memory-hungry.service

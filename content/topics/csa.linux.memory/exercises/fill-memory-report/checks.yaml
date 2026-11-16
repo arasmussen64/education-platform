@@ -14,15 +14,16 @@ checks:
       reported=$(runuser -u learner -- /home/learner/bin/memory-report | sed -n 's/^available: \([0-9][0-9]*\) MB$/\1/p')
       test -n "$reported" && test $((reported - kb / 1024)) -le 64 && test $((kb / 1024 - reported)) -le 64
   - id: swap-line
-    description: "The swap line is the swap in use, in MB."
-    # The same two readings a moment apart, of the whole machine: on a CI
-    # runner where a neighbouring lab is filling memory, the swap in use
-    # moves between them, so allow a little. The total, the likely mistake,
-    # is thousands of MB off.
+    description: "The swap line is the swap in use, in MB, and no other column (the check hands the script a free with fixed numbers, in which 300 MB of swap is in use)."
+    # free reads the whole machine, not the container. On a machine with no
+    # swap the total and the used column are both 0, so the total, the
+    # likely mistake, read the same as the right answer (two CI runs, on
+    # 2026-11-15). So the script is run with a free of fixed numbers first
+    # in its PATH: only the used column of its Swap line holds 300.
     command: |
-      used=$(free -m | awk '/^Swap:/ {print $3}')
-      reported=$(runuser -u learner -- /home/learner/bin/memory-report | sed -n 's/^swap used: \([0-9][0-9]*\) MB$/\1/p')
-      test -n "$reported" && test $((reported - used)) -le 64 && test $((used - reported)) -le 64
+      runuser -u learner -- env PATH=/usr/local/lib/lab-check:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin /home/learner/bin/memory-report | sed -n 's/^swap used: \([0-9][0-9]*\) MB$/\1/p'
+    expect:
+      equals: "300"
   - id: top-process-line
     description: "The top process line names the process holding the most memory (memhog, holding 150 MB)."
     command: runuser -u learner -- /home/learner/bin/memory-report | grep '^top process:'
