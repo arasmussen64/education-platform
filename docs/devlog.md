@@ -2,6 +2,24 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-15, end: Modules 1 to 3 are finished, and where we stopped
+
+The owner asked for everything left in the cloud track before Module 4 to be built. It is: fourteen pull requests today (#278 to #291), each listed in the entries below this one.
+
+**What changed, in sum.** Eight new labs, every one of them something the spec promised that had only been taught: a benchmark scan, LVM, `dnf` on AlmaLinux, zombie processes, `jq`, the connection table, a saturated disk, and a Google-style circuit. 83 new questions, among them Module 1's first number drills (now in thirteen of its fourteen topics) and two Module 2 questions from a real recording. Six checks tightened where a lab could be passed with a fault left in or by luck. Checkpoint 1's fresh versions rewritten so the build's steps can't be pasted. 77 of the 88 older systemd labs restarted in CI after their solution passes. A capture tool for GitHub's own machines, and a lab checker that lets go of a disk with a device built on it. The site has 229 labs and 1,610 questions; the day began with 221 and 1,527.
+
+**What CI found that the writers couldn't.** Three known-wrong answers in older labs that passed on some of GitHub's machines by luck (two CUBIC speed tests that differed twofold; a report that printed total swap on a machine with none; a domain join that failed on one network and not another), and a disk limit that GitHub's kernel refuses where Docker Desktop allows it. Each is fixed and written up in its entry.
+
+**Left, and why.**
+
+- _For the owner,_ in [the owner queue](owner-queue.md): watching four main videos nobody has watched (Routing, BGP, NAT, CPU architectures); accepting the proposed ADR amendments; and, optionally, the Azure Active Directory run and the capture runs in the owner's own clouds.
+- _Not built on purpose:_ a Linux machine in the browser, tutor hints about a lab, pinned lab images, a shared base for Module 1's labs, a timed rebuild of a lab as a review, and a capture from inside a KVM guest. None was promised, and each entry below says why.
+- _Small, for next time:_ the capture script could mask host names itself; one HTTP semantics lab has no recorded time until the next full run; and a lab checker rule that lets a known-wrong fix name the check it must fail would need its own decision.
+
+Nothing is running: no lab containers, and every working copy the writers used is removed.
+
+**Next:** the Momentum redesign's stage 2, then Module 4, security and identity foundations, as planned.
+
 ## 2026-11-15, leftovers: two questions from a real recording
 
 Part of what was left in Modules 1 to 3. The capture tool's first run, on GitHub's Arm and x86 machines, gave the two recordings that Module 2's plan had been waiting for since it was written.
