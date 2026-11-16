@@ -18,6 +18,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (a "Back to top" button on long pages)
+
+- Every page gains a "Back to top" button in its bottom right corner once the learner has scrolled more than one screen down. It scrolls back smoothly (or jumps, when the system asks for less motion) and puts keyboard focus at the top of the page. Pages leave room under their last line so it never covers anything at the very bottom.
+
 ### Added (cloud Module 2: two questions from a real recording)
 
 - CPU architectures gains `arch-lscpu-arm`, three lines of `lscpu` recorded on a real Arm cloud server (an Azure VM on a Cobalt 100), and Hypervisors gains `hv-azure-two-nics`, the two interfaces an Azure VM shows for one network card with Accelerated Networking. Both were recorded by the Capture workflow on 2026-11-15, and the recordings are kept in `docs/plans/cloud-module-2/captures/`.

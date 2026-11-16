@@ -1,7 +1,9 @@
+import { useRef } from 'react'
 import { Link, NavLink, Outlet, useNavigation } from 'react-router'
 import { displayName } from '../auth/authContext.ts'
 import { useAuth } from '../auth/useAuth.ts'
 import { APP_NAME } from '../config.ts'
+import { BackToTop } from './BackToTop.tsx'
 import { SaveStatus } from './SaveStatus.tsx'
 
 // NavLink tells us whether its link matches the current page, so the
@@ -19,9 +21,15 @@ export function Layout() {
   // "loading" while the next page's content downloads (e.g. a topic's
   // lesson); the current page fades a little so the click visibly worked.
   const loading = useNavigation().state === 'loading'
+  // "Back to top" puts keyboard focus here, so the next Tab is the app name.
+  const header = useRef<HTMLElement>(null)
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <header className="border-b border-slate-200 dark:border-slate-800">
+      <header
+        ref={header}
+        tabIndex={-1}
+        className="border-b border-slate-200 outline-none dark:border-slate-800"
+      >
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-2 px-4 py-3">
           <Link to="/" className="text-lg font-semibold">
             {APP_NAME}
@@ -45,10 +53,12 @@ export function Layout() {
       </header>
       <main
         aria-busy={loading}
-        className={`mx-auto max-w-5xl px-4 py-8 transition-opacity ${loading ? 'opacity-60' : ''}`}
+        // pb-20 leaves room under the last line for the "Back to top" button.
+        className={`mx-auto max-w-5xl px-4 pt-8 pb-20 transition-opacity ${loading ? 'opacity-60' : ''}`}
       >
         <Outlet />
       </main>
+      <BackToTop focusTarget={() => header.current} />
     </div>
   )
 }

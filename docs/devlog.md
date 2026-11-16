@@ -2,6 +2,20 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16: A "Back to top" button
+
+**The owner asked** for last week's audits to be reviewed and anything buildable from them built, for Module 1 only, and for a button to jump back to the top of long pages. Reviewed: the whole-app audit of 2026-11-10, the cloud track's principal-bar audit of 2026-11-15, and the "Three roads to Distinguished" plan of the same day. Cloud Module 1 has nothing left from any of them: the 2026-11-10 findings were fixed in #209 to #237, and yesterday's leftovers work (#278 to #291) finished what remained. The audits still list Module 1 work in the Python track (multiple-choice items whose right answer is the longest choice) and in the ML track's math refresher (the same, plus placement-test topics with only two questions), and the plan would start Full Stack and Mobile at their Module 1. Asked which to build, the owner said: "Just build the back to top button then. Right now I only care about the cloud track."
+
+**What changed.** `web/src/components/BackToTop.tsx`, placed once in the page frame (`Layout.tsx`), so every page has it. It appears once the page is scrolled more than one screen's height, scrolls to the top on a click, and moves keyboard focus to the header, so the next Tab starts at the app's name rather than deep in the page. The page frame's bottom padding grew so the button never sits on top of a page's last line. Three tests cover when it shows, the scroll and the focus, and the reduced-motion jump.
+
+**Author notes:**
+
+- _It shows after one screen, not a fixed number of pixels,_ so a phone and a tall monitor both get it at the same point: when the top of the page is out of sight.
+- _It uses the page's ink colours, not lime._ The redesign keeps lime for moving forward, and going back up isn't that.
+- _Focus goes to the header, not to the main content,_ because "top" means the top of the page, and the header holds the navigation a learner going back up most likely wants.
+
+**Next:** the Momentum redesign's stage 2, then cloud Module 4.
+
 ## 2026-11-15, end: Modules 1 to 3 are finished, and where we stopped
 
 The owner asked for everything left in the cloud track before Module 4 to be built. It is: fourteen pull requests today (#278 to #291), each listed in the entries below this one.
