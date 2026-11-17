@@ -1,0 +1,18 @@
+id: typed-list-tickets
+type: typed
+rev: 1
+prompt: |
+  alice signed in with Kerberos an hour ago and has since opened two services on the domain. Type the command that lists the Kerberos tickets she now holds, her day pass and each service ticket.
+kind: command
+answers:
+  - klist
+mistakes:
+  - id: get-ticket
+    answers: [kinit, kinit alice, kinit alice@AD.SHOP.TEST]
+    why: "`kinit` gets a new ticket-granting ticket, asking for the password. Listing the tickets she holds is `klist`."
+  - id: throw-away
+    answers: [kdestroy]
+    why: "`kdestroy` throws her tickets away. `klist` lists them."
+explanation: |
+  `klist` lists the tickets in her cache: the ticket-granting ticket, `krbtgt/AD.SHOP.TEST@AD.SHOP.TEST`, and a service ticket for each service she opened, such as `ldap/dc1.ad.shop.test@AD.SHOP.TEST`, each with when it starts and when it expires. `kinit` gets the day pass and `kdestroy` throws the tickets away.
+skills: [kerberos-tickets]

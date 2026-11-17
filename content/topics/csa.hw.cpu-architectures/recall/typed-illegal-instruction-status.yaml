@@ -1,0 +1,21 @@
+id: typed-illegal-instruction-status
+type: typed
+rev: 1
+prompt: |
+  A program built with `-march=x86-64-v3` starts on an older x86-64 server and dies with `Illegal instruction`. What exit status does Bash report for it? Type the number.
+kind: text
+answers:
+  - "132"
+mistakes:
+  - id: exec-format
+    answers: ["126"]
+    why: "126 is what Bash reports when it can't run the file at all, as with `Exec format error` for another architecture. This program started, then died on a signal."
+  - id: memory-kill
+    answers: ["137"]
+    why: "137 is 128 + 9, a program killed by signal 9, as the out-of-memory killer does. `Illegal instruction` is signal 4."
+  - id: signal-number
+    answers: ["4"]
+    why: "4 is the signal's number, `SIGILL`. A program killed by a signal exits with 128 plus that number."
+explanation: |
+  `Illegal instruction` is signal 4, `SIGILL`, and a program killed by a signal exits with 128 plus its number: 128 + 4 = 132. You read 137 the same way in the memory topic: 128 + 9. The program started, so the architecture was right; it died at the first instruction its CPU lacks, here an AVX2 instruction that `-march=x86-64-v3` allowed the compiler to use.
+skills: [instruction-sets]

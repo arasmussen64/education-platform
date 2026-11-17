@@ -18,6 +18,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (cloud Module 2: glossaries and typed questions)
+
+- Every topic of the cloud track's Module 2 now lists the terms it teaches in `glossary.yaml`, 60 terms in all (such as SR-IOV, cross-compile, NUMA, local disk, VRAM, domain controller, Group Policy object and Software Assurance). Where a later lesson uses one, the word shows its definition and links back.
+- Sixteen typed questions, two per topic: a command (`systemd-detect-virt --vm`, `uname -m`, `numactl --hardware`, `nvidia-smi`, `klist`, `realm permit -g`, `gpupdate`), a term (instance store, MIG, Product Terms, Azure Hybrid Benefit), a file or setting name (`cpu.stat`, `IOWriteIOPSMax`), a record name or a number, each with the mistakes learners are likely to type.
+
 ### Added (saying how sure you are before a quick question is checked)
 
 - Every quick question (multiple choice, predict the output, Parsons, estimate, typed) is checked with one of three buttons, "Guessing", "Fairly sure" or "Certain", instead of Check ([ADR-0028](docs/decisions/0028-confidence-before-the-answer.md), proposed). One press still checks the answer. In an estimate or a typed answer, Enter moves to the three buttons rather than choosing one. The answer event saves the choice as `confidence`; it changes no grade, rating, Mastered or follow-up. The placement test keeps its single Check.

@@ -1,0 +1,17 @@
+id: typed-apply-policy-now
+type: typed
+rev: 1
+prompt: |
+  You've just changed a GPO, and one Windows server must pick the change up now rather than at its next background refresh, up to two hours away. On that server, type the command that fetches and applies Group Policy at once.
+kind: command
+case: insensitive
+answers:
+  - gpupdate
+  - gpupdate /force
+mistakes:
+  - id: report-only
+    answers: [gpresult, gpresult /r]
+    why: "`gpresult` reports which GPOs reached the machine and the user. It doesn't fetch anything new."
+explanation: |
+  `gpupdate` fetches Group Policy now and applies what changed; `/force` applies every setting again, changed or not. Without it, a running Windows machine checks every 90 minutes plus up to 30 at random (domain controllers every 5). From PowerShell elsewhere, `Invoke-GPUpdate` asks a machine to do the same.
+skills: [group-policy]

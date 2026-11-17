@@ -1,0 +1,18 @@
+id: typed-gpu-report-command
+type: typed
+rev: 1
+prompt: |
+  Type the command that NVIDIA's driver installs to report on its cards: each card's memory in use, its utilisation, its power and the programs holding its memory.
+kind: command
+answers:
+  - nvidia-smi
+mistakes:
+  - id: pci-list
+    answers: [lspci, lspci -k]
+    why: "`lspci` lists the card as a device on the PCIe bus, and with `-k` its driver, but nothing about its memory or how busy it is."
+  - id: cpu-tools
+    answers: [top, htop]
+    why: "`top` reports the CPUs and the VM's memory. A card's own memory and utilisation come from NVIDIA's `nvidia-smi`."
+explanation: |
+  `nvidia-smi` prints a box per card: its name, power against its cap, `Memory-Usage` in MiB, GPU-Util, and a process table of who holds its memory. Remember what GPU-Util means: the share of time some program ran on the card, which says it was open, not how full it was.
+skills: [read-nvidia-smi]
