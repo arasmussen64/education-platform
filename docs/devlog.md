@@ -2,6 +2,27 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, Today page: weeks with practice, and progress through the module
+
+The second of the Today page's study-habit changes. Two findings from behavioural science behind it: a daily streak turns one missed day into a loss, and the fear of losing it pushes people to cram or to give up after the first break, while spaced practice only needs regular returns; and progress feels fastest near the end of a goal (the "goal gradient"), and the start of something new is a natural moment to begin again (the "fresh start" effect).
+
+**What changed.**
+
+- **Weeks, not a streak.** The Practice hours section starts with "You practised in 4 of the last 5 weeks." and five small marks, oldest first. `web/src/progress/weeks.ts` works it out from the graded history: a week is the seven days up to today, then the seven before, in the learner's own recorded days. A learner who began less than five weeks ago is counted over the weeks since then ("2 of the last 2 weeks"), and in their first week it says "You've practised this week." When this week is empty, one line: "A session today counts for this week."
+- **Progress through the module.** The "Today's session" card says where the next topic sits: "6 of 8 topics proven in Module 2, Linux: 2 to go.", or "A fresh start: Module 2, Linux, begins here, with 8 topics." when nothing in it is proven yet. The map shows "N of M proven" beside each module's heading. `web/src/progress/modules.ts`.
+- Tests: the rolling weeks, the shorter count for a new learner, the recorded day winning over the UTC date, placement answers left out, a fast clock, and every sentence (`weeks.test.ts`); the module counts and sentences (`modules.test.ts`); the Today page's line and marks, and the map's counts.
+
+**Author notes:**
+
+- _Rolling weeks, not Monday to Sunday._ With calendar weeks, every Monday morning the current week is empty and the count drops, which is the loss framing this is meant to avoid. A rolling week is always a whole seven days, and a practice day stays in "this week" for seven days.
+- _A new learner isn't shown "1 of the last 5 weeks"._ The count covers the weeks since their first practice, up to five.
+- _What counts as practice:_ any graded attempt (answer, Check, explanation, review), except answers in the placement test, which looks for a starting point rather than practising. The practice-hours total still counts those, as before.
+- _The marks are hidden from screen readers;_ the sentence beside them says the same thing. They use lime, which Momentum keeps for progress fills.
+- _"Proven" counts a module's topics and its checkpoint, not its capstone,_ which the map shows as its own section. Topics still being written aren't in the count, and the sentence says how many there are.
+- _The module line follows the session's next topic,_ so it names the module the learner is about to work in. The "Next up" section keeps its per-track count.
+
+**Next:** honest pacing from the learner's own history.
+
 ## 2026-11-16, Today page: one button for today's session
 
 Part of a set of study-habit improvements to the Today page, from behavioural science: the fewer choices a learner has to make before starting, the more likely they start, and a plan for bad days keeps a habit alive when a full session feels like too much.
