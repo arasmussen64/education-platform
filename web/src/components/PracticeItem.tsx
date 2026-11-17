@@ -22,6 +22,7 @@ import { McqQuestion } from './McqQuestion.tsx'
 import { ParsonsProblem } from './ParsonsProblem.tsx'
 import { PredictOutput } from './PredictOutput.tsx'
 import { CARD } from './styles.ts'
+import { TypedQuestion } from './TypedQuestion.tsx'
 import { useAttemptTimer } from './useAttemptTimer.ts'
 
 type Props = {
@@ -154,6 +155,27 @@ function describe(
               number: answer?.number ?? null,
               relative_error: answer?.relativeError ?? null,
               mistake: answer?.mistake ?? null,
+              ...unknownIf(answer === null),
+            })
+          }
+        />
+      ),
+    }
+  }
+  if (recall?.type === 'typed') {
+    return {
+      heading:
+        recall.kind === 'command' ? 'Type the command' : 'Type the answer',
+      body: (
+        <TypedQuestion
+          item={recall}
+          quiet={quiet}
+          onAnswer={(correct, answer) =>
+            onAnswer(correct, {
+              typed:
+                answer === null ? null : clip(answer.typed, MAX_TEXT_CHARS),
+              mistake: answer?.mistake ?? null,
+              slip: answer?.slip ?? null,
               ...unknownIf(answer === null),
             })
           }

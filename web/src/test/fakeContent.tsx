@@ -11,6 +11,7 @@ import type {
   PredictShellItem,
   Topic,
   TopicContent,
+  TypedItem,
 } from '../content/types.ts'
 
 type Tag = ComponentType<{ children?: ReactNode; index?: number }>
@@ -215,6 +216,41 @@ export const ESTIMATE: EstimateItem = {
   skills: ['print-text'],
   prices_as_of: '2026-11-10',
   prices_source: 'https://example.com/prices',
+}
+
+/**
+ * A typed command (ADR-0027), with a known mistake. Not in the shared
+ * recall map, like PARSONS.
+ */
+export const TYPED_COMMAND: TypedItem = {
+  id: 'typed-docker-ps',
+  type: 'typed',
+  rev: 1,
+  prompt: 'Which Docker command lists only the containers that are running?',
+  kind: 'command',
+  answers: ['docker ps', 'docker container ls'],
+  mistakes: [
+    {
+      id: 'every-container',
+      answers: ['docker ps -a', 'docker ps --all'],
+      why: '`-a` lists every container, stopped ones too.',
+    },
+  ],
+  explanation: '`docker ps` lists the running containers.',
+  skills: ['print-text'],
+}
+
+/** A typed term (ADR-0027): case doesn't matter, and a slip is forgiven. */
+export const TYPED_TERM: TypedItem = {
+  id: 'typed-orchestrator',
+  type: 'typed',
+  rev: 1,
+  prompt: 'What is the open-source container orchestrator called?',
+  kind: 'text',
+  answers: ['Kubernetes', 'K8s'],
+  mistakes: [],
+  explanation: 'Kubernetes runs containers across many machines.',
+  skills: ['print-text'],
 }
 
 export function fakeContent(topic = fakeTopic()): TopicContent {
