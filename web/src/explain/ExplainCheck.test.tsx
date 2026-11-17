@@ -56,6 +56,17 @@ async function explain(text: string) {
 }
 
 describe('the explain-it-back check', () => {
+  it("says how it's marked before you write, but not the rubric's wording", () => {
+    renderCheck(graded('pass'))
+    expect(screen.getByText("How it's marked")).toBeInTheDocument()
+    expect(document.body).toHaveTextContent(
+      'checked against one point, drawn from the question above, and a pass needs it.',
+    )
+    for (const point of EXPLAIN.rubric) {
+      expect(document.body).not.toHaveTextContent(point.description)
+    }
+  })
+
   it('grades an explanation, and saves it as a passed proof check', async () => {
     const { grade, events } = renderCheck(graded('pass'))
     await explain('  "5" is text and 5 is a number.  ')
