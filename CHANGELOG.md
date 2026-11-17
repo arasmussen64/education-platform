@@ -28,6 +28,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - A new quick-question type, `typed` ([ADR-0027](docs/decisions/0027-typed-answers.md), proposed): the learner types a command, a term, a value or a short phrase from memory, which builds memory better than picking it from a list. An item lists every accepted answer and, optionally, known mistakes with a sentence on each. Answers are read forgivingly and the same way by the validator and the page: spaces, curly quotes, a copied `$ ` prompt before a command, quotes round a term and (for terms) case don't count, and a term with one slip of the fingers among its letters is accepted with its spelling shown. The validator checks that the accepted answers differ, that no mistake is also an answer, and that the prompt doesn't give the answer away. Typed items work in practice, reviews (where they count as a produced answer), follow-ups and the placement test, and their answers are saved with what was typed. `content/README.md` says how to write one.
 
+### Added (topic page: the goals at the top, ticked once proven)
+
+- A topic now opens with what you'll be able to do (its goals), at the top of every part: unfolded with the lesson, folded on the other parts. Each goal is ticked once the topic is Learned, when all three proofs have passed, with the date. They're ticked together, since the content doesn't say which proof shows which goal.
+
+### Added (topic page: a short break between parts)
+
+- Finishing a part of a topic and pressing Next now suggests a five-minute break, in a small card above the next part: rest quietly, away from your phone, because a few minutes of quiet straight after learning helps memory (Dewar et al., 2012). An optional timer counts the five minutes down on the page and says when they're up. The next part is open underneath the whole time, Skip puts the card away, and nothing is ever blocked or sent as a notification. Leaving the lesson counts as finishing it; a practice part counts once every question in it is right.
+
+### Added (a topic page in parts)
+
+- A topic page now shows one part at a time ([ADR-0025](docs/decisions/0025-topics-in-parts.md), proposed): the lesson, then the practice cut into parts of about 30 minutes, then the proofs. Each part says "Part 2 of 5 · about 30 min" above its heading, and buttons below it go to the parts before and after. The outline beside the page lists the parts with a tick for each one done, worked out from your saved answers, and every link in it opens the right part. The page opens where you were: the part you last looked at on this device if it isn't done, or else the first part that isn't. Parts never lock anything, "Prove it now" opens the proofs part, and checkpoints stay as they were.
+
 ### Added (Today page: a welcome-back plan, and new topics earlier in the day)
 
 - After a break of 7 days or more, or whenever more reviews are due than the daily limit of 20 can clear, the Today page opens with a calm plan: "Welcome back" (or "A plan for your reviews"), what's due, and the reviews set out over the next few days within the limit, the most faded first, each day with about how long it takes and, folded away, which topics and how much of each is still remembered. It changes the message only: which reviews are due, their order and the limit are the reviews engine's own. `web/src/session/welcomeBack.ts`.

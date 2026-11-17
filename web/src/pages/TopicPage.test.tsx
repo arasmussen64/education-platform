@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,6 +18,7 @@ import {
   fakeTopic,
 } from '../test/fakeContent.tsx'
 import { fakeEventsClient, recordingEventLog } from '../test/fakeEvents.ts'
+import { fakeLongContent } from '../test/fakeLongTopic.ts'
 import { allPassed, fakeRunner, oneFailed } from '../test/fakePython.ts'
 import { setFakeRunner } from '../test/mockPython.ts'
 import { TopicView } from './TopicPage.tsx'
@@ -88,8 +89,17 @@ function unlocked(topic: Topic): Attempt[] {
 }
 
 /**
+ * Opens the page as a link to a place on it would ("#prove-it"), so the
+ * part that holds the place is the one on screen (ADR-0025).
+ */
+function openAt(anchor: string) {
+  window.history.replaceState(null, '', `#${anchor}`)
+}
+
+/**
  * Renders a topic for a signed-in learner (unless `signedIn` is false), with
- * what it builds on already learned, so the whole page shows.
+ * what it builds on already learned, so the whole page shows. `at` opens it
+ * at the part holding that place, as a link would.
  */
 function renderTopic(
   topic: Topic = fakeTopic(),
@@ -99,8 +109,14 @@ function renderTopic(
     loadAttempts = vi.fn((_topicId: string) =>
       Promise.resolve<Attempt[]>(unlocked(topic)),
     ),
+    at,
+  }: {
+    signedIn?: boolean
+    loadAttempts?: (topicId: string) => Promise<Attempt[]>
+    at?: string
   } = {},
 ) {
+  if (at) openAt(at)
   const { log, events } = recordingEventLog()
   render(
     <AuthProvider auth={fakeAuth(signedIn ? fakeUser() : null)}>
@@ -150,7 +166,6 @@ describe('the topic page', () => {
   it('teaches with an intro, the main resource, a recap and more resources', () => {
     renderTopic()
     const learn = screen.getByRole('region', { name: 'Learn' })
-    expect(learn).toHaveTextContent('Use type() to check a value.')
     expect(within(learn).getByText('What to watch for')).toBeInTheDocument()
     expect(within(learn).getByText('Recap')).toBeInTheDocument()
     expect(
@@ -198,7 +213,7 @@ describe('the topic page', () => {
   })
 
   it('lists the practice ladder in order', () => {
-    renderTopic()
+    renderTopic(fakeTopic(), fakeContent(), { at: 'practice' })
     const practice = screen.getByRole('region', { name: 'Practice' })
     expect(itemHeadings(practice)).toEqual([
       'Worked example: Say hello',
@@ -217,6 +232,7 @@ describe('the topic page', () => {
       prerequisites: [],
     })
     const { log, events } = recordingEventLog()
+    openAt('practice')
     render(
       <AuthProvider auth={fakeAuth(fakeUser())}>
         <EventLogContext value={log}>
@@ -266,7 +282,7 @@ describe('the topic page', () => {
   })
 
   it('has the three proof checks, without revealing the model answer', () => {
-    renderTopic()
+    renderTopic(fakeTopic(), fakeContent(), { at: 'prove-it' })
     const prove = screen.getByRole('region', { name: 'Prove it' })
     expect(itemHeadings(prove)).toEqual([
       'Build: Greet',
@@ -291,7 +307,10 @@ describe('the topic page', () => {
   })
 
   it('asks signed-out learners to sign in to save their answers', () => {
-    renderTopic(fakeTopic(), fakeContent(), { signedIn: false })
+    renderTopic(fakeTopic(), fakeContent(), {
+      signedIn: false,
+      at: 'prove-it',
+    })
     expect(screen.getByText(/won't be saved/)).toBeInTheDocument()
     // At the top, and in the explain check, which needs a signed-in learner.
     const links = screen.getAllByRole('link', { name: 'Sign in' })
@@ -322,7 +341,9 @@ describe('what the topic page saves', () => {
   })
 
   it('saves each answer with the item, its revision and the time it took', async () => {
-    const { events } = renderTopic()
+    const { events } = renderTopic(fakeTopic(), fakeContent(), {
+      at: 'practice',
+    })
     await userEvent.click(screen.getByRole('radio', { name: 'Hi' }))
     await userEvent.click(
       within(screen.getByRole('region', { name: 'Quick check' })).getByRole(
@@ -344,7 +365,9 @@ describe('what the topic page saves', () => {
 
   it('saves proof checks as proof, with the code that was checked', async () => {
     setFakeRunner(fakeRunner({ check: allPassed('Greets') }))
-    const { events } = renderTopic()
+    const { events } = renderTopic(fakeTopic(), fakeContent(), {
+      at: 'prove-it',
+    })
     const build = screen.getByRole('region', { name: 'Build: Greet' })
     await userEvent.type(within(build).getByLabelText('Python code'), 'print()')
     await userEvent.click(within(build).getByRole('button', { name: 'Check' }))
@@ -770,7 +793,7 @@ describe('a checkpoint page', () => {
     })
 
     it('leaves a regular topic alone: its prompt shows from the start', async () => {
-      renderTopic()
+      renderTopic(fakeTopic(), fakeContent(), { at: 'prove-it' })
       const prompt = 'Why is "5" different from 5?'
       // While the progress is still loading...
       expect(explainCard()).toHaveTextContent(prompt)
@@ -1218,6 +1241,8 @@ describe('a checkpoint page', () => {
 describe('your progress on a topic page', () => {
   beforeEach(() => {
     setFakeRunner()
+    // The list is in the proofs part; a checkpoint ignores the address.
+    openAt('prove-it')
   })
 
   /** "Nov 6", as the page writes a date. */
@@ -1382,8 +1407,9 @@ describe('topic states and gating', () => {
   it('is Available once what it builds on is learned, and offers Prove it now', async () => {
     renderTopic()
     expect(await stateLine()).toHaveTextContent('Available')
-    expect(screen.getByRole('region', { name: 'Practice' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Learn' })).toBeInTheDocument()
 
+    // Prove it now opens the last part, the proofs, with focus on them.
     await userEvent.click(screen.getByRole('button', { name: 'Prove it now' }))
     expect(screen.queryByRole('region', { name: 'Learn' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Practice' })).toBeNull()
@@ -1391,10 +1417,10 @@ describe('topic states and gating', () => {
     expect(screen.getByRole('heading', { name: 'Prove it' })).toHaveFocus()
     expect(screen.queryByRole('button', { name: 'Prove it now' })).toBeNull()
 
+    // The lesson and practice are still a click away.
     await userEvent.click(
-      screen.getByRole('button', { name: 'Show them anyway' }),
+      screen.getByRole('button', { name: /Part 2: Practice/ }),
     )
-    expect(screen.getByRole('region', { name: 'Learn' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Practice' })).toBeInTheDocument()
   })
 
@@ -1443,10 +1469,16 @@ describe('topic states and gating', () => {
     ).toBeNull()
   })
 
-  it("doesn't gate a signed-out visitor, whose progress it can't know", () => {
+  it("doesn't gate a signed-out visitor, whose progress it can't know", async () => {
     renderTopic(fakeTopic(), fakeContent(), { signedIn: false })
     expect(screen.queryByTestId('topic-state')).toBeNull()
-    expect(screen.getByRole('region', { name: 'Practice' })).toBeInTheDocument()
+    const parts = within(screen.getByRole('list', { name: 'Parts' }))
+    expect(
+      parts.getByRole('link', { name: 'Part 2 · Practice' }),
+    ).toBeInTheDocument()
+    await userEvent.click(
+      parts.getByRole('link', { name: 'Part 3 · Prove it' }),
+    )
     expect(screen.getByRole('region', { name: 'Prove it' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Prove it now' })).toBeNull()
   })
@@ -1505,16 +1537,21 @@ describe('your place on a long topic', () => {
     expect(
       within(nav).getByRole('link', { name: 'Next not done: Practice 3' }),
     ).toHaveAttribute('href', '#place-item-py.values-and-types-predict-print')
-    // The lesson's parts and the proof checks are places too.
-    expect(
-      within(nav).getByRole('link', { name: 'The lesson' }),
-    ).toHaveAttribute('href', '#place-lesson-1')
+    // The lesson's parts and the proof checks are places too, and a link to
+    // one opens its part (ADR-0025).
+    const lesson = within(nav).getByRole('link', { name: 'The lesson' })
+    expect(lesson).toHaveAttribute('href', '#place-lesson-1')
+    await userEvent.click(lesson)
     expect(document.getElementById('place-lesson-1')).toBeInTheDocument()
     expect(document.getElementById('place-recap')).toBeInTheDocument()
-    expect(
-      within(nav).getByRole('link', { name: 'Build: not passed yet' }),
-    ).toHaveAttribute('href', '#place-prove-build')
+    expect(window.location.hash).toBe('#place-lesson-1')
+    const build = within(nav).getByRole('link', {
+      name: 'Build: not passed yet',
+    })
+    expect(build).toHaveAttribute('href', '#place-prove-build')
+    await userEvent.click(build)
     expect(document.getElementById('place-prove-build')).toBeInTheDocument()
+    expect(document.getElementById('place-lesson-1')).toBeNull()
   })
 
   it('shows the places without states to a signed-out visitor', () => {
@@ -1535,6 +1572,7 @@ describe('your place on a long topic', () => {
           answered('mcq-print', true),
         ]),
       ),
+      at: 'practice',
     })
     const quick = screen.getByRole('region', { name: 'Quick check' })
     expect(
@@ -1554,6 +1592,7 @@ describe('your place on a long topic', () => {
 
   it('marks an item done as soon as it is answered right, and keeps it open', async () => {
     const topic = fakeTopic()
+    openAt('practice')
     render(
       <AuthProvider auth={fakeAuth(fakeUser())}>
         <EventsProvider client={fakeEventsClient()}>
@@ -1607,6 +1646,312 @@ describe('your place on a long topic', () => {
   })
 })
 
+describe('a topic in parts (ADR-0025)', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
+  const parts = () => within(screen.getByRole('list', { name: 'Parts' }))
+  const stateLine = () => screen.findByTestId('topic-state')
+
+  /** Every item of the fake topic's practice, got right. */
+  const practiceDone = () =>
+    fakeTopic().practice.map((item) => passedCheck(item))
+
+  it('shows one part at a time, with its number and time, and moves between them', async () => {
+    renderTopic()
+    expect(await stateLine()).toHaveTextContent('Available')
+    const learn = screen.getByRole('region', { name: 'Learn' })
+    expect(learn).toHaveTextContent('Part 1 of 3 · about 10 min')
+    expect(screen.queryByRole('region', { name: 'Practice' })).toBeNull()
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Next: Part 2, Practice' }),
+    )
+    const practice = screen.getByRole('region', { name: 'Practice' })
+    expect(practice).toHaveTextContent(/Part 2 of 3 · about \d+ min/)
+    expect(screen.queryByRole('region', { name: 'Learn' })).toBeNull()
+    // Moving on from the lesson suggests a break first, with focus on it.
+    expect(
+      screen.getByRole('complementary', { name: 'A short break' }),
+    ).toHaveFocus()
+    // The address says where, so a reload or a shared link opens it here.
+    expect(window.location.hash).toBe('#practice')
+    expect(localStorage.getItem('part:py.values-and-types')).toBe('practice-1')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Part 1: Learn' }))
+    expect(screen.getByRole('region', { name: 'Learn' })).toBeInTheDocument()
+    // The last part has nothing after it.
+    await userEvent.click(parts().getByRole('link', { name: /Part 3/ }))
+    expect(screen.queryByRole('button', { name: /^Next/ })).toBeNull()
+  })
+
+  it('opens at the first part not done, and marks what is done', async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([...unlocked(topic), ...practiceDone()]),
+      ),
+    })
+    expect(
+      await screen.findByRole('region', { name: 'Prove it' }),
+    ).toBeInTheDocument()
+    expect(
+      parts().getByRole('link', { name: 'Part 1 · Learn: done' }),
+    ).toBeInTheDocument()
+    expect(
+      parts().getByRole('link', { name: 'Part 2 · Practice: done' }),
+    ).toBeInTheDocument()
+    expect(
+      parts().getByRole('link', { name: 'Part 3 · Prove it: not done yet' }),
+    ).toHaveAttribute('aria-current', 'step')
+  })
+
+  it('opens at the part last viewed on this device, while it is not done', async () => {
+    localStorage.setItem('part:py.values-and-types', 'prove')
+    renderTopic()
+    expect(
+      await screen.findByRole('region', { name: 'Prove it' }),
+    ).toBeInTheDocument()
+  })
+
+  it('skips the part last viewed once it is done', async () => {
+    localStorage.setItem('part:py.values-and-types', 'practice-1')
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([...unlocked(topic), ...practiceDone()]),
+      ),
+    })
+    expect(
+      await screen.findByRole('region', { name: 'Prove it' }),
+    ).toBeInTheDocument()
+  })
+
+  it('never moves on by itself when the learner finishes a part', async () => {
+    localStorage.setItem('part:py.values-and-types', 'practice-1')
+    const topic = fakeTopic()
+    const allButOne = practiceDone().filter(
+      (attempt) => attempt.item_id !== 'mcq-print',
+    )
+    render(
+      <AuthProvider auth={fakeAuth(fakeUser())}>
+        <EventsProvider client={fakeEventsClient()}>
+          <MemoryRouter>
+            <TopicView
+              topic={topic}
+              content={fakeContent(topic)}
+              loadAttempts={vi.fn((_topicId: string) =>
+                Promise.resolve([...unlocked(topic), ...allButOne]),
+              )}
+            />
+          </MemoryRouter>
+        </EventsProvider>
+      </AuthProvider>,
+    )
+    const done = await parts().findByRole('link', {
+      name: 'Part 2 · Practice: not done yet',
+    })
+    const quick = screen.getByRole('region', { name: 'Quick check' })
+    await userEvent.click(within(quick).getByRole('radio', { name: 'Hi' }))
+    await userEvent.click(within(quick).getByRole('button', { name: 'Check' }))
+    await vi.waitFor(() =>
+      expect(done).toHaveAccessibleName('Part 2 · Practice: done'),
+    )
+    expect(screen.getByRole('region', { name: 'Practice' })).toBeInTheDocument()
+  })
+
+  it('opens the part a link points into', async () => {
+    renderTopic(fakeTopic(), fakeContent(), { at: 'place-recap' })
+    expect(screen.getByRole('region', { name: 'Learn' })).toBeInTheDocument()
+    expect(document.getElementById('place-recap')).toBeInTheDocument()
+    cleanup()
+
+    renderTopic(fakeTopic(), fakeContent(), {
+      at: 'place-item-py.values-and-types-fill-hello',
+    })
+    expect(screen.getByRole('region', { name: 'Practice' })).toBeInTheDocument()
+
+    // A link followed later, from the lesson's own text, say.
+    act(() => {
+      window.history.replaceState(null, '', '#place-prove-explain')
+      window.dispatchEvent(new HashChangeEvent('hashchange'))
+    })
+    expect(screen.getByRole('region', { name: 'Prove it' })).toBeInTheDocument()
+  })
+
+  it("cuts a long topic's practice into parts, numbered across the ladder", async () => {
+    const content = fakeLongContent()
+    renderTopic(content.topic, content, { at: 'practice-3' })
+    // Once the progress is known, so the parts are marked.
+    await stateLine()
+    const part = screen.getByRole('region', {
+      name: 'Practice: 5 questions and fill in the gaps',
+    })
+    expect(part).toHaveTextContent('Part 4 of 6 · about 30 min')
+    expect(within(part).getByText('Practice 21 of 28')).toBeInTheDocument()
+    expect(
+      parts()
+        .getAllByRole('link', { name: /^Part \d/ })
+        .map((link) => link.textContent),
+    ).toEqual([
+      '○ Part 1 · Learn: not done yet',
+      '○ Part 2 · Practice: Worked example: not done yet',
+      '○ Part 3 · Practice: 19 questions: not done yet',
+      '▸ ○ Part 4 · Practice: 5 questions and fill in the gaps: not done yet',
+      '○ Part 5 · Practice: Write it and 1 question: not done yet',
+      '○ Part 6 · Prove it: not done yet',
+    ])
+    // Each part's items are in the outline, numbered across the ladder.
+    expect(
+      screen.getByRole('link', { name: 'Practice 28: not done yet' }),
+    ).toHaveAttribute('href', '#place-item-py.values-and-types-q-25')
+  })
+
+  it('has no parts on a Locked topic, which shows its lesson only', async () => {
+    renderTopic(fakeTopic(), fakeContent(), {
+      loadAttempts: vi.fn((_topicId: string) => Promise.resolve<Attempt[]>([])),
+      at: 'prove-it',
+    })
+    await screen.findByRole('complementary', { name: 'Locked' })
+    expect(screen.getByRole('region', { name: 'Learn' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('navigation', { name: 'Parts of this topic' }),
+    ).toBeNull()
+    expect(screen.queryByText(/Part 1 of/)).toBeNull()
+  })
+
+  describe('a short break between parts', () => {
+    const breakCard = () =>
+      screen.queryByRole('complementary', { name: 'A short break' })
+
+    it('is suggested on moving on from a finished part, and never blocks the next', async () => {
+      const topic = fakeTopic()
+      renderTopic(topic, fakeContent(topic), {
+        loadAttempts: vi.fn((_topicId: string) =>
+          Promise.resolve([...unlocked(topic), ...practiceDone()]),
+        ),
+        at: 'practice',
+      })
+      await stateLine()
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Next: Part 3, Prove it' }),
+      )
+      expect(breakCard()).toHaveTextContent('Practice: done.')
+      expect(breakCard()).toHaveFocus()
+      // The proofs are right there under it.
+      expect(
+        screen.getByRole('region', { name: 'Prove it' }),
+      ).toBeInTheDocument()
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Skip the break' }),
+      )
+      expect(breakCard()).toBeNull()
+    })
+
+    it("isn't suggested on moving on from a part that isn't finished", async () => {
+      renderTopic(fakeTopic(), fakeContent(), { at: 'practice' })
+      await stateLine()
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Next: Part 3, Prove it' }),
+      )
+      expect(breakCard()).toBeNull()
+      expect(screen.getByRole('heading', { name: 'Prove it' })).toHaveFocus()
+    })
+
+    it('goes away when the learner jumps elsewhere', async () => {
+      renderTopic()
+      await stateLine()
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Next: Part 2, Practice' }),
+      )
+      expect(breakCard()).toBeInTheDocument()
+      await userEvent.click(parts().getByRole('link', { name: /Part 3/ }))
+      expect(breakCard()).toBeNull()
+    })
+  })
+
+  it('leaves a checkpoint whole', () => {
+    const content = fakeCheckpointContent()
+    renderTopic(content.topic, content)
+    expect(screen.getByRole('region', { name: 'Prove it' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('navigation', { name: 'Parts of this topic' }),
+    ).toBeNull()
+  })
+})
+
+describe('the goals at the top of a topic', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
+  const goals = () => screen.getByRole('list', { name: 'Goals of this topic' })
+  /** The <details> the goals fold into. */
+  const fold = () => goals().closest('details')!
+
+  it("says what you'll be able to do, unticked until the topic is proven", async () => {
+    renderTopic()
+    await screen.findByTestId('topic-state')
+    expect(screen.getByText("You'll be able to…")).toBeInTheDocument()
+    expect(within(goals()).getByRole('listitem')).toHaveTextContent(
+      'Use type() to check a value. (not proven yet)',
+    )
+    expect(
+      screen.getByText(/ticked once you pass all three proofs/),
+    ).toBeInTheDocument()
+    // Open with the lesson…
+    expect(fold()).toHaveAttribute('open')
+    // …and folded on the other parts, a click away.
+    await userEvent.click(
+      within(screen.getByRole('list', { name: 'Parts' })).getByRole('link', {
+        name: /Part 2/,
+      }),
+    )
+    expect(fold()).not.toHaveAttribute('open')
+  })
+
+  it('ticks every goal once all three proofs have passed', async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([
+          ...unlocked(topic),
+          passedCheck('build-hello'),
+          passedCheck('debug-hello'),
+          explainPassed(),
+        ]),
+      ),
+    })
+    expect(await screen.findByText('You can now…')).toBeInTheDocument()
+    expect(within(goals()).getByRole('listitem')).toHaveTextContent(
+      'Use type() to check a value. (proven)',
+    )
+    expect(
+      screen.getByText('Ticked on Nov 6, when you passed all three proofs.'),
+    ).toBeInTheDocument()
+  })
+
+  it("doesn't tick them for two proofs out of three", async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([
+          ...unlocked(topic),
+          passedCheck('build-hello'),
+          passedCheck('debug-hello'),
+        ]),
+      ),
+    })
+    expect(await screen.findByTestId('topic-state')).toHaveTextContent(
+      'In progress',
+    )
+    expect(within(goals()).getByRole('listitem')).toHaveTextContent(
+      '(not proven yet)',
+    )
+  })
+})
+
 // Every fixture here is dated Nov 6, 2026, and a topic proved that day has a
 // review due a few days later. These tests aren't about reviews, so they run
 // at the end of that day, whatever day it really is (as progress.test does).
@@ -1615,4 +1960,10 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date(2026, 10, 6, 23))
   return () => vi.useRealTimers()
+})
+
+// The page reads and writes the address's "#…" (ADR-0025), so each test
+// starts from a plain one.
+beforeEach(() => {
+  window.history.replaceState(null, '', '/')
 })

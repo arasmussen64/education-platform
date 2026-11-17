@@ -48,6 +48,63 @@ A dated log of each working session: what changed, what was decided, what's next
 
 **Next:** confidence before the answer (ADR-0028): "Guessing", "Fairly sure" and "Certain" in place of Check, and a calibration summary on the Account page.
 
+## 2026-11-16, topic page: the goals at the top
+
+Part of today's improvement plan for the topic page, after the parts (#297) and the breaks (#303).
+
+**What changed.** A topic's goals (its `objectives`) moved from inside the lesson to the top of the topic, above every part, as "You'll be able to…". They're unfolded on the lesson's part and folded on the others, one click away. Once the topic is Learned (all three proofs passed) each goal gets a tick, the heading reads "You can now…", and a line says on which day. Before that, each shows an empty circle and the line says they're ticked once all three proofs pass. Screen readers hear "proven" or "not proven yet" after each goal.
+
+- `web/src/parts/TopicGoals.tsx` is the card; the topic page passes it the day the topic became Learned, from the progress it already loads.
+- Tested: three page tests (unticked and open with the lesson, folded on another part; all ticked with the date once proven; not ticked for two proofs of three). The test that read the goal inside the lesson no longer does.
+
+**Author notes:**
+
+- _All goals are ticked together._ The plan allowed ticking them one by one only with data that exists, and none does: a topic's objectives are plain sentences, its skills are separate, and nothing in the content links a goal to the proof or skill that shows it. Guessing a link would put a tick where nothing was proven.
+- _"Learned" is the moment,_ not Mastered: the proofs are what show the learner can do the goals, and the page already dates Learned. Mastered adds a review a week later; the star beside the topic's state shows that.
+- _Checkpoints are unchanged._ Their "About this checkpoint" already lists what passing shows, in place of a lesson.
+- _The outline's "What you can do after" link_ still opens the lesson's part, where the goals are unfolded.
+
+**Next:** the marking rules before an explain-back.
+
+## 2026-11-16, topic page: a short break between parts
+
+Part of today's improvement plan for the topic page, after the topic in parts (#297).
+
+**What changed.** Pressing Next after finishing a part now shows a small card above the next part: "Learn: done. Time for a five-minute break?", with why (a few minutes of quiet rest straight after learning helps memory, Dewar et al., 2012), an optional five-minute timer, and Skip. The next part is open underneath it the whole time. Written up as an amendment to [ADR-0025](decisions/0025-topics-in-parts.md).
+
+- `web/src/parts/PartBreak.tsx` is the card; the topic page shows it from its Next button and puts keyboard focus on it.
+- Tested: three tests of the card (skip, the countdown and its end, the right time after the tab was in the background) and three page tests (suggested after a finished part, not after an unfinished one, gone on a jump elsewhere).
+
+**Author notes:**
+
+- _Leaving the lesson counts as finishing it,_ since a lesson has no answers; after an hour of reading and video, that's the moment a break helps most. A practice part counts once every item in it is Done, as its tick in the outline does.
+- _Only the Next button suggests a break,_ not a jump from the outline: the plan said "finishes a part and moves on", and jumping around is looking, not finishing.
+- _The timer works from the clock, not by counting ticks,_ so a tab left in the background shows the right time on its return. It runs on the page only: no notifications, no sound, and it never blocks anything.
+- _Nothing is saved._ The break isn't practice, so it isn't an event and doesn't count toward practice hours.
+
+**Next:** the topic's goals at the top, ticked once it's proven.
+
+## 2026-11-16, topic page: a topic in parts
+
+Part of today's improvement plan for the topic page. A cloud topic is estimated at four to five hours, and its page was one scroll of all of it.
+
+**What changed.** A topic page shows one part at a time ([ADR-0025](decisions/0025-topics-in-parts.md), proposed): Learn, then the practice ladder cut into parts of about 30 minutes, then Prove it. Each part says "Part 2 of 5 · about 30 min" above its heading; a practice part's heading says what's in it ("Practice: worked example and 8 questions"), and its items keep their numbers across the whole ladder. Buttons below go back and on. The outline lists the parts with a tick for each one done and, inside each, the places it already listed; any link to a place opens its part, and the address keeps it after the `#`. The page opens at the part a link points into, or else at the part last viewed on this device if it isn't done, or else at the first part not done. "Prove it now" opens the proofs part. Checkpoints are unchanged.
+
+- `web/src/parts/estimates.ts` holds the time guesses, `web/src/parts/topicParts.ts` the cutting, the done marks, where to open and which part a link points into, and `web/src/parts/partMemory.ts` the last part viewed.
+- Tested: 24 new unit tests for the parts, 9 new page tests (moving between parts, opening where the learner was, never moving on by itself, links into parts, a long topic's six parts, Locked topics and checkpoints), and the page's older tests updated to open the part they look at.
+- Tried on every ready topic: a cloud topic comes out as a lesson of about 55 to 125 minutes, three or four practice parts of 20 to 40, and proofs of about 80 to 90; a Python or ML topic as three parts of 10 to 20 minutes.
+
+**Author notes:**
+
+- _The time guesses are the authors' own figures_ (a question 1.5 minutes, labs from the "Worked out" notes in Module 2 and 3's topic.yaml files), scaled so the parts add up to the topic's total. Where the guesses leave the lesson under a quarter of the total, as in short Python topics and some of Module 1's, the practice and proof figures are scaled down instead. The lesson's figure is what's left, since the page can't count a lesson's words or readings.
+- _The lesson and the proofs are one part each,_ even at 60 to 120 minutes and about 90, as the plan asked. Each proof check, and each place in the lesson, is still a natural stop, and the outline shows them.
+- _Cuts prefer a change in the kind of work:_ a small cost for cutting between two quick questions moves a cut to where questions give way to a lab, when that costs a part only a few minutes.
+- _Only the part on screen is rendered._ Keeping the others hidden would keep an unchecked answer, but would also keep every editor loaded and a lesson video playing out of sight; code and explanations are kept as drafts anyway.
+- _The lesson counts as done once anything after it has been tried,_ since a lesson has no answers and the plan ruled out new storage. A click past it doesn't count, so nothing can be ticked off without work (ADR-0002).
+- _The page picks its opening part once,_ when the progress is known, so finishing the last question of a part never moves the learner on.
+
+**Next:** a short break between parts, then the topic's goals at the top.
+
 ## 2026-11-16, Today page: a welcome-back plan, and new topics earlier in the day
 
 The fourth of the Today page's study-habit changes. Two ideas behind it. Coming back after a break to a long list of overdue reviews reads as a debt, and that is when many learners stop; the same reviews set out as a short plan over a few days read as doable. And a new topic takes fresh attention, which runs low late at night, while a review is short retrieval practice that suits a tired evening.
