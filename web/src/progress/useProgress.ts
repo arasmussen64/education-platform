@@ -11,7 +11,7 @@ import {
   fetchStepsOpened,
   localStepsOpened,
 } from '../checkpoints/stepsOpened.ts'
-import { getTopic } from '../content/content.ts'
+import { getTopic, topicIdsOf, tracks } from '../content/content.ts'
 import type { Topic } from '../content/types.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import {
@@ -29,6 +29,12 @@ import {
   openItemsOf,
   type SkillIndex,
 } from '../followups/skillIndex.ts'
+import { type UsualTimes, usualTimes } from '../reviews/answerTime.ts'
+import {
+  type PersonalCurve,
+  personalCurve,
+  withPersonalCurve,
+} from '../reviews/personal.ts'
 import {
   progressOf,
   type StepsOpened,
@@ -48,6 +54,18 @@ export type ProgressState =
       attempts: Attempt[]
       /** The mistakes coming back (ADR-0011), from that same history. */
       followUps: FollowUp[]
+      /**
+       * How long the learner usually takes to get each kind of item right,
+       * so a review can tell a slow right answer (ADR-0009, amended
+       * 2026-11-16).
+       */
+      usualTimes: UsualTimes
+      /**
+       * The learner's own forgetting curve, fitted to every review once
+       * there are enough (ADR-0009, amended 2026-11-16). The cards above
+       * are scheduled by it.
+       */
+      personalCurve: PersonalCurve
     }
 
 /** What the server sent, and for whom, so another learner never sees it. */
@@ -132,20 +150,35 @@ export function useProgress(
       ...fetched.history.stepsOpened,
       ...localRows.map(localStepsOpened).filter((opened) => opened !== null),
     ]
-    const followUps = openFollowUps(
-      attempts,
-      openItemsOf(fetched.history.index),
-    )
+    const itemsOf = openItemsOf(fetched.history.index)
+    const followUps = openFollowUps(attempts, itemsOf)
+    // Every bundled topic's progress, not only the ones asked for: the
+    // personal forgetting curve is fitted to all of the learner's reviews,
+    // and any topic can give what it builds on implicit review credit
+    // (ADR-0009, amended 2026-11-16).
+    const all = progressOf(withBundled(topics), attempts, stepsOpened, getTopic)
+    const curve = personalCurve(all)
     return {
       status: 'ready',
       progress: withOpenFollowUps(
-        // Any bundled topic can give what it builds on implicit review
-        // credit (ADR-0009, amended 2026-11-16), so look them all up.
-        progressOf(topics, attempts, stepsOpened, getTopic),
+        withPersonalCurve(all, curve.multiplier),
         followUps,
       ),
       attempts,
       followUps,
+      usualTimes: usualTimes(attempts, itemsOf),
+      personalCurve: curve,
     }
   }, [auth.status, fetched, userId, retry, localRows, topics])
+}
+
+/** The topics asked for, then every other topic bundled with the app. */
+function withBundled(topics: Topic[]): Topic[] {
+  const asked = new Set(topics.map((topic) => topic.id))
+  const others = tracks()
+    .flatMap(topicIdsOf)
+    .filter((id) => !asked.has(id))
+    .map((id) => getTopic(id))
+    .filter((topic) => topic !== undefined)
+  return [...topics, ...others]
 }

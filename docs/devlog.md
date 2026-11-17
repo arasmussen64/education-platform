@@ -26,6 +26,50 @@ Part of a larger plan to improve how the platform teaches. This stream adds new 
 
 **Next:** the glossary: `glossary.yaml` per topic, terms marked in lessons, and a glossary page.
 
+## 2026-11-16, reviews: a personal forgetting curve
+
+The third of four changes to the review engine. ADR-0009 left personal FSRS parameters to the ML capstone. A modest version comes first: one number, fitted to the learner's own reviews, that stretches or shrinks every interval. ADR-0009 has an amendment for it (Proposed).
+
+**What changed.**
+
+- **`web/src/reviews/personal.ts`**: `fitMultiplier` finds the stability multiplier (0.5 to 2) under which the learner's reviews are most likely, searching 400 steps; `personalCurve` fits it once there are 100 review outcomes; `withPersonalCurve` schedules every card by it; `describeCurve` says it in plain words.
+- **The replay** (`replayWithCredits`) records what the card predicted at each real review, and takes the multiplier for the due date. Cards carry it as `personal`, and `retrievabilityAt` uses it, so the map's memory percentage matches.
+- **`useProgress`** now works out progress for every bundled topic, not only the page's own, so the fit sees every review; it returns the curve as `personalCurve`.
+- **The Account page** has a "Your forgetting curve" section.
+- 10 new tests, among them fits to simulated learners who forget faster or slower than average.
+
+**Author notes:**
+
+- _Remembering means any rating but Again._ The brief for this work said to compare the prediction with whether a review was Good. FSRS's own optimizer counts Hard as remembered, and the 90% target means "not Again": with Good only, the target would quietly become "both items right nine times in ten", and nearly everyone's multiplier would fall. Listed for the owner.
+- _100 reviews, clamped to 0.5 to 2, rounded to 0.05._ The clamp keeps an odd early run from extremes; the rounding keeps one new review from nudging every date.
+- _The fit includes implicit credit's predictions,_ so if credit is worth less than it's given, reviews after it fail more often than predicted and the multiplier falls. The two rules check each other.
+- _Nothing changes for a learner below the threshold;_ the Account page counts down to it.
+- _Every page now works out every bundled topic's progress._ It's a few hundred replays, cheap next to reading the history.
+
+**Next:** review labs for hands-on skills.
+
+## 2026-11-16, reviews: answer time in ratings
+
+The second of four changes to the review engine. A review with every answer right was Good however long it took. Now a right answer that took far longer than this learner usually needs makes the session Hard, which brings the next review a little sooner. ADR-0009 has an amendment for it (Proposed).
+
+**What changed.**
+
+- **`web/src/reviews/answerTime.ts`**: `usualTimes` works out the learner's usual time for each kind of item (the median of their last 50 timed right answers), and `rateSession` turns an all-right Good into Hard when an answer took more than three times that and more than a minute. Kinds with fewer than 10 timed answers aren't judged; labs, missing times and answers carried over from an earlier visit aren't timed.
+- **The skill index** (`web/vite.config.ts`) now keeps each question's type and marks labs, so the usual times come from the whole history without downloading topics. `useProgress` returns them as `usualTimes`.
+- **`PracticeItem`'s `onGraded`** passes the attempt's time as well as whether it was right. **`ReviewSession`** rates with it, says why a slow session is Hard, and records the slow answers in the review event's `data.slow`.
+- 15 new tests (the thresholds, missing history, the floor, speeding up, and a whole session in the browser that took five minutes on a prediction).
+
+**Author notes:**
+
+- _Three times the median and over a minute._ Three times keeps ordinary variation out (times to a known answer are skewed, and most fall within twice the median); the minute keeps careful reading of a quick check out. Both are guesses, and the review log now records what the learner's own data needs to test them.
+- _Labs aren't timed:_ a lab's time is mostly building and starting its container.
+- _Answers from an earlier visit aren't timed,_ because the session can't be sure how they were split across visits; they can't make a session Hard.
+- _Old reviews keep their ratings._ Cards replay stored ratings, and re-rating would change what the learner was told.
+- _Slow means Hard, never Easy._ "Later" suggested time could tell Good from Easy; Easy isn't used, and a lucky fast answer shouldn't lengthen an interval.
+- _The owner may need to restart a running dev server:_ `vite.config.ts` changed.
+
+**Next:** a personal forgetting curve.
+
 ## 2026-11-16, Today page: a plan for when and where to study
 
 The last of the Today page's study-habit changes. Deciding in advance when and where you'll do something ("on Monday and Thursday at 7:30 pm, at the library, I'll study") makes following through much more likely than an intention alone; psychologists call these implementation intentions (Gollwitzer and Sheeran, 2006). Putting the plan in the learner's own calendar brings the reminder to where they already look.

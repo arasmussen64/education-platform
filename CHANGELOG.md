@@ -25,6 +25,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A lesson can tell a real public incident with `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>`, in the platform's own words, linking the postmortem it's drawn from.
 - The validator checks every tag in a lesson: only the six the app can draw, each written as `content/README.md` says, with the lesson's line in every problem.
 
+### Added (reviews: a personal forgetting curve)
+
+- Once a learner has 100 review outcomes, the scheduler fits one number to them: how many times longer (or shorter) their memory lasts than FSRS's average curve says, between 0.5 and 2 ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). Every interval is stretched or shrunk by it. The Account page says it in plain words ("You forget a little faster than average: reviews come about 20% sooner"), or how many reviews are left before it's fitted. Below 100 reviews nothing changes. Nothing is stored; it's worked out from the event log each visit.
+
+### Changed (reviews: a slow right answer makes a review Hard)
+
+- A review whose answers are all right is rated Hard instead of Good when one of them took more than three times as long as the learner usually needs for that kind of item, and more than a minute ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). The usual time is the median of the learner's last 50 right answers of that kind; a kind needs 10 before it's judged. Labs, missing times and answers from an earlier visit aren't timed. The session says why ("all right, but one took much longer than you usually need"), and the review event records which answers were slow. Reviews saved before keep their ratings.
+- The skill index carries each question's type and marks labs, so answer times can be compared by kind without downloading topics. Restart a running dev server after pulling (`vite.config.ts` changed).
+
 ### Added (Today page: a plan for when and where to study, with a calendar file)
 
 - The foot of the Today page asks once: "When and where will you study?" (the days, a time, and a place in the learner's own words). After that, the top of the page shows the plan back in one line ("Your plan: Monday and Thursday at 7:30 pm, at the library.", or "Your plan for today: 7:30 pm, at the library." on one of its days), with buttons to change it and to download it. "Not now" is remembered, and the Account page has a Study plan section to make, change or forget it.

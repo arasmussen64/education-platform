@@ -277,7 +277,7 @@ describe('a Check of an exercise', () => {
     expect(await screen.findByText(NOT_RUN)).toBeInTheDocument()
 
     await check()
-    await vi.waitFor(() => expect(onGraded).toHaveBeenCalledWith(true))
+    await vi.waitFor(() => expect(onGraded.mock.lastCall?.[0]).toBe(true))
     expect(onGraded).toHaveBeenCalledTimes(1)
     expect(screen.queryByText(NOT_RUN)).not.toBeInTheDocument()
     expect(events.map((event) => event.correct)).toEqual([undefined, true])
@@ -301,7 +301,7 @@ describe('a Check of an exercise', () => {
     // ...then four seconds after that, it runs and passes.
     clock = 7_000
     await check()
-    await vi.waitFor(() => expect(onGraded).toHaveBeenCalledWith(true))
+    await vi.waitFor(() => expect(onGraded.mock.lastCall?.[0]).toBe(true))
 
     // All six seconds belong to the one real attempt.
     expect(events.map((event) => event.duration_ms)).toEqual([null, 6_000])
@@ -314,7 +314,7 @@ describe('a Check of an exercise', () => {
     const { events, onCheck, onGraded, check } = await renderExercise(outcome)
     await check()
 
-    await vi.waitFor(() => expect(onGraded).toHaveBeenCalledWith(false))
+    await vi.waitFor(() => expect(onGraded.mock.lastCall?.[0]).toBe(false))
     expect(onCheck).toHaveBeenCalledWith(false)
     expect(events).toEqual([
       expect.objectContaining({ type: 'code_check', correct: false }),

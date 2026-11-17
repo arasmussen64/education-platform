@@ -22,6 +22,15 @@ vi.mock('../export/download.ts', () => ({
   downloadJson: vi.fn(),
   downloadText: vi.fn(),
 }))
+// The forgetting curve reads the review history from the server: none here.
+vi.mock('../followups/history.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../followups/history.ts')>()),
+  fetchAttempts: vi.fn(async () => []),
+}))
+vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../checkpoints/stepsOpened.ts')>()),
+  fetchStepsOpened: vi.fn(async () => []),
+}))
 
 const ADA = fakeUser()
 
@@ -94,6 +103,18 @@ describe('the account page', () => {
     expect(
       screen.queryByRole('button', { name: 'Download my data' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('says the forgetting curve is the average one until there are 100 reviews', async () => {
+    renderAccount()
+    expect(
+      screen.getByRole('heading', { name: 'Your forgetting curve' }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        /timed by the average forgetting curve for now\. After 100 reviews the app fits the curve to you; 100 more to go\./,
+      ),
+    ).toBeInTheDocument()
   })
 
   it("downloads the learner's data as a file, and says how much", async () => {
