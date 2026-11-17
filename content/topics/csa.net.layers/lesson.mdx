@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="Your laptop sends one packet to a web server two routers away. You capture it on the first link and again on the last, and both copies carry the same two IP addresses. What changed between them, and why?">
+
+The wrapping changed. Each router takes off the frame the packet arrived in and builds a new one, addressed from itself to the next box, so the hardware (MAC) addresses are new on every link. Each router also lowers the packet's TTL by one, so it works out the header's checksum again. The IP addresses travel end to end; a frame only ever goes one hop.
+
+</Puzzle>
+
 Module 1 gave you the tools a server administrator reaches for: `ip`, `ss`, `ping`, `traceroute`, `tcpdump`, nftables. This module explains what those tools are looking at. It starts with one request, a page fetched from a web server, followed from the laptop that asks for it to the server that answers, through two routers and a tunnel across the internet. By the end you can read the packets on the way, say what each router changed and what it left alone, and find the classic fault where small pages load and big downloads hang. The labs use the same small network all the way through: `office`, a laptop; `r1`, the office's router; a link across the internet with a **GRE tunnel** inside it; `r2`, the cloud's router; and `web`, the shop's web server.
 
 **Layers.** A **protocol** is a set of agreed rules for one kind of conversation: who speaks first, what each message looks like, what to do when one goes missing. Networks are built from several protocols stacked on top of each other, each doing one job and trusting the one below to do its own. Each job is a **layer**. The internet's own model, the **TCP/IP model**, has four:
@@ -28,6 +34,8 @@ The other model you'll meet is the **OSI model**, with seven layers. It's older,
 
 Layers 5 and 6 seldom earn their names in practice, and TLS, the encryption under HTTPS, sits awkwardly between 4 and 7. Treat the models as a map and a **debugging order**, not a law: work up from the bottom. Is the link up? Does the next box answer for its address? Is there a route? Does the port answer? Does the protocol on top work? A symptom belongs to the lowest layer that fails. "It pings" proves layers 1 to 3 and nothing above them.
 
+<Check item="mcq-which-layer" />
+
 **Hop by hop.** Here is one ping from the laptop to web, captured on both sides of the path in the worked example's lab (2026-11-12): on r1's side towards the laptop, and on r2's side towards web.
 
 | Field | Laptop's side (r1's `eth0`) | Web's side (r2's `lan`) |
@@ -39,6 +47,8 @@ Layers 5 and 6 seldom earn their names in practice, and TLS, the encryption unde
 | TTL | 64 | 62 |
 
 The packet is the same: same addresses, same identification number, a number the sender gives each packet. The frame around it is new on each link: the laptop addressed its frame to r1, and r2 built a new frame from itself to web. That's the whole idea of the internet layer working over the link layer: each **hop** (one link from one box to the next) has its own frame, and the packet inside travels end to end. The **TTL**, time to live, is a count in every IPv4 header that each router lowers by one; a router that brings it to zero throws the packet away and tells the sender ("time exceeded", below). It exists so a packet caught in a loop between routers dies instead of circling for ever. Two routers on the way, so 64 became 62. Because the TTL changed, each router also works out the header's **checksum** again, a small sum of the header's bytes that lets the next box spot a damaged header.
+
+<Check item="hdr-two-sides" />
 
 On a network with several machines, the cables meet at a **switch** (on Linux, a software one is called a **bridge**): a box that passes each frame towards the port where that destination MAC address lives, learning which addresses are where from the frames it sees. A frame for a MAC address it hasn't seen yet goes out of every port, which is why a capture on one machine can show frames meant for someone else; the machine's own card ignores them. In the cloud you see none of this. AWS, Azure and Google Cloud all run their own networks underneath your virtual machines: there are no cables or switches of yours, the provider decides which VM an address belongs to, and all three state that their networks carry no **broadcast**, a frame sent to every machine at once (AWS's subnet page, Azure's virtual network FAQ, Google's VPC overview, all read 2026-11-12).
 
@@ -63,6 +73,8 @@ On a network with several machines, the cables meet at a **switch** (on Linux, a
 The Ethernet header is the first 14 bytes; the IPv4 header is the next 20. `tshark`, Wireshark's command-line twin, prints the same packet in words (`tshark -V`), which the worked example shows once. Checks and scripts read `tcpdump`, whose output changes less between versions.
 
 **ARP: finding the next box.** To put a frame on the wire, a machine needs the MAC address of the next hop: the destination itself when it's on the same network, or the gateway when it isn't. **ARP**, the Address Resolution Protocol, finds it. The laptop broadcasts a request to `ff:ff:ff:ff:ff:ff`, the address every card listens to: "who has 10.0.1.1? Tell 10.0.1.10". The machine that owns 10.0.1.1 answers the laptop directly: "10.0.1.1 is at ba:b1:65:d2:b3:ed". The laptop never asks for web's MAC address: web isn't on its network, ARP never crosses a router, and the frame only ever goes as far as r1.
+
+<Check item="arp-who-has" />
 
 Answers are kept in the **neighbour table** (`ip neigh`, Module 1's ARP table), each with a state:
 
@@ -104,6 +116,8 @@ The last two lines are the quoted packet. That quote is how connection tracking 
 
 **Encapsulation and MTU.** Every link has an **MTU**, maximum transmission unit: the biggest IP packet it carries, headers included. On Ethernet it's 1500 bytes, so a full frame on the wire is 1500 + 14 bytes of Ethernet header, which `tcpdump -e` shows as `length 1514`. The headers to know by heart: Ethernet 14 bytes (outside the MTU), IPv4 20, TCP 20, UDP 8, ICMP 8. TCP announces its **MSS**, maximum segment size, the most data it will take in one segment, in its first packet: the MTU less 40 bytes of IPv4 and TCP headers, 1460 on Ethernet. `ping -M do -s N` sends N bytes of data in a packet N + 28 bytes long, so the biggest that fits a 1500-byte link is `-s 1472`.
 
+<Check item="est-mss-from-mtu" />
+
 A packet bigger than the next link's MTU can be split by a router into pieces the far end puts back together: **fragmentation**. It's slow and fragile, so senders usually forbid it by setting the **DF** (don't fragment) flag, as Linux does for TCP and for `ping`. Bigger frames than 1500, **jumbo frames**, are normal inside data centres and clouds; across the internet, 1500 is the size you can count on.
 
 A **tunnel** carries a whole packet inside another one. The network inside the tunnels is the **overlay**; the network the outer packets actually cross is the **underlay**. A **VPN** (virtual private network) is a tunnel whose inner packets are also encrypted (topic 37). The simplest tunnel is **GRE**, generic routing encapsulation: a 20-byte outer IPv4 header (protocol 47) and a 4-byte GRE header in front of the inner packet, 24 bytes in all. So a GRE tunnel over a 1500-byte link has an MTU of 1476, which is what Linux gives one by default. In the worked example's capture on the internet link, the outer packet from 203.0.113.1 to 203.0.113.2 is `length 108` and the laptop's packet inside it `length 84`: 24 bytes of tunnel. An **IPIP** tunnel adds only the outer IPv4 header (20 bytes, so 1480). **VXLAN**, which cloud and data-centre overlays use, carries a whole Ethernet frame inside UDP (port 4789): 14 + 8 bytes of UDP + 8 bytes of VXLAN header + 20 bytes of outer IPv4 = 50 bytes, so 1450. The arithmetic is always the same: the underlay's MTU less the tunnel's headers.
@@ -125,6 +139,16 @@ Explainers that call 1500 bytes the maximum MTU mean the internet's limit, not t
 Now drop that ICMP message on the way back, with a firewall that drops all ICMP, or a "no ping" rule written as `ip protocol icmp drop` above the `ct` rule. The handshake's packets are small and get through; small pages fit in small packets; `ping` sends 84 bytes. The first full-size data packet doesn't fit the tunnel, the router's message never arrives, and the sender sends the same packet again and again until the connection times out. The download sits at 0%. That's a **path MTU black hole**, and its signature is "small things work, big things hang".
 
 To prove it, in this order: `tracepath` from the client shows the path's MTU (`pmtu 1476`); from the *sender* (the server, for a download), `ping -M do -s 1472 CLIENT` gets no "fragmentation needed" back; a capture on the sender, `tcpdump -nn -i eth0 icmp`, shows the message arriving anyway, because tcpdump sees packets before the firewall does; and the sender's `ip route get CLIENT` shows no remembered `mtu`, so its kernel never took the message in. Then read the sender's firewall. The fixes, best first: let the ICMP through (the cause: `ct state established,related accept` above any ICMP rule, or "no ping" written as `icmp type echo-request drop`); clamp TCP's MSS on the tunnel's routers (common, and a fine extra, but it rescues TCP only); or lower the MTU on every host (works, on every host, for ever). IPv6 routers never fragment at all, only senders do, so its version of the message, Packet Too Big, matters even more (topic 25).
+
+<Story title="Cloudflare's misdelivered ICMP, 2015" source="https://blog.cloudflare.com/path-mtu-discovery-in-practice/" sourceTitle="Path MTU discovery in practice" license="linked, not copied">
+
+Early in 2015 a small number of Cloudflare's visitors couldn't use sites behind Cloudflare at all. They used tunnels, mostly IPv6 carried inside IPv4, and a tunnel's extra headers shrink the path's MTU, so they depended on path MTU discovery.
+
+A change inside Cloudflare's data centres had broken it. Incoming packets were now spread over many servers, each packet's server chosen from its addresses and ports, so every packet of one TCP connection reached the same machine. But the message saying a packet was too big comes from a router out on the internet, and for ICMP the choice used only the two addresses. So the message usually landed on a different server from the one holding the connection. That server never learned the smaller MTU, sent the same full-size packet again and again, and the connection hung: a black hole with no firewall to blame.
+
+As a stopgap, Cloudflare lowered its IPv6 MTU to 1,280 bytes, the smallest IPv6 allows, and switched on Linux's own MTU probing for IPv4. The lasting fix was a small program that copies each such ICMP message to every server. The lesson: the message has to reach the exact machine that sent the packet.
+
+</Story>
 
 **Read now:** Beej's chapter on the layered network model, the main resource below, about fourteen minutes: it covers layering and both models, with a glossary. Then, for ARP, either Ben Eater's video "ARP: Mapping between IP and Ethernet" or Beej's ARP chapter (one of the two). Ben Eater's video "Hop-by-hop routing" (14 minutes) is about the same idea, forwarding one hop at a time. Marek Majkowski's "Path MTU discovery in practice" is worth reading to the end of "Another Black Hole", and each cloud's MTU page is short. RFC 2923's section 2.1 and RFC 792's type lists are there for when you want the standard's own words. The quick questions read captures, ping and tracepath output from the labs, and ask you to do the overhead sums. The labs follow one ping across the network and save the evidence, put a tunnel's missing end up, write a script that names the layer a connection fails at, connect a new branch through a tunnel and a firewall, and fix a network where big downloads hang.
 

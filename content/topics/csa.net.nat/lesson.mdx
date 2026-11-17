@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="Your laptop at home has the address 192.168.1.23, and so do millions of other laptops in other homes. A web server answers every one of them correctly. How does its reply find your laptop, and not someone else's?">
+
+The server never sees 192.168.1.23. Your home router rewrites the source of each packet you send to its own public address and a port it picks, and writes the pair down. The server replies to that public address and port; the router looks the pair up, puts your private address back, and passes the reply in. Each home's router does the same with its own public address, so the replies never mix.
+
+</Puzzle>
+
 IPv4 and CIDR showed that the private ranges, 10.0.0.0/8 and the rest, are never routed on the internet; Routing showed that a reply needs a route back. Put the two together and a laptop at 10.1.0.10 can send a packet to a web server on the internet, but the answer has nowhere to go. **NAT**, network address translation, fixes that by rewriting addresses in packets as they pass a gateway. It is on every home router and in every cloud network, and it explains a whole family of failures: the server that sees every customer as one address, the published service that times out, the payments that fail only at lunchtime. Five ideas carry the topic: what each kind of NAT rewrites, how to write the rules, how many connections a NAT can carry, how running out looks, and when not to use NAT at all.
 
 **Source NAT, one packet at a time.** The walkthrough's capture, from its lab on 2026-11-12: the office laptop opens a connection to srv, and its packet leaves as `10.1.0.10:48902 → 203.0.113.10:9000` (address and port, from and to). The shop's gateway, gw, rewrites the source to its own public address and a port of its choosing, `198.51.100.2:20000`, and writes the pair down. srv answers to `198.51.100.2:20000`; gw looks the pair up, rewrites the destination back to `10.1.0.10:48902`, and passes the answer in. Rewriting the source is **source NAT** (SNAT). Many inside machines share one public address this way, kept apart by port: the textbooks call it **PAT** (port address translation) or **NAPT**, and it's what every home router and cloud NAT gateway does. The table gw writes in is conntrack, from Module 1. `conntrack -L` shows each connection as two **tuples** (a tuple is the set of protocol, addresses and ports that names a connection): the **original**, as the laptop sent it, and the **reply**, as srv will send its answers.
@@ -9,6 +15,8 @@ tcp      6 431998 ESTABLISHED src=10.1.0.10 dst=203.0.113.10 sport=48902 dport=9
 ```
 
 So **replies need no rule**: conntrack reverses the translation on every packet that matches the reply tuple. The **5-tuple**, protocol plus source address and port plus destination address and port, is what tells one connection from another. In nftables, `snat to 198.51.100.2` names a fixed address; **masquerade** is source NAT to whatever address the outgoing interface has at that moment (the first one, if it has several), for a line whose address can change. On Linux, masquerade keeps the client's own port when it's free (the walkthrough's port-80 test left as `sport=42546`, answered to `dport=42546`).
+
+<Check item="mcq-replies-need-no-rule" />
 
 **Destination NAT, and what the server sees.** **Destination NAT** (DNAT, or port forwarding) rewrites the destination instead: `iifname "wan" tcp dport 443 dnat to 10.1.0.20:8443` sends customers who reach the gateway's port 443 on to the app (`iifname "wan"` matches packets that came in through gw's interface named `wan`; `oifname`, below, matches the interface a packet is about to leave by). The source stays the customer's, so the app's logs and its **rate limiter** (which counts requests per client address and blocks one that sends too many) see each real customer: `you are 203.0.113.20`. That is worth protecting. Write a masquerade rule without `oifname "wan"` and it also rewrites the customers' connections on their way in to the LAN, and the app sees everyone as the gateway, `you are 10.1.0.1`: the walkthrough's classic mistake. (An inside machine using the public address, **hairpinning**, needs extra rules; in the lab, the office got `Couldn't connect to server`.)
 
@@ -39,6 +47,8 @@ with the filter table's forward chain from above (`policy drop`, `ct state estab
 
 **How many connections? Per destination.** A NAT keeps its translations apart by the whole 5-tuple. Two connections can share one public address and port as long as they go to different destinations; only connections to the same **destination** (address, port and protocol) each need a port of their own. The walkthrough's ten-port rule held 10 of 15 connections to srv's port 9000, and at the same time 5 more to port 9001 through the same ten ports. RFC 4787 calls the related habit **endpoint-independent mapping**: one inside address and port keep the same outside address and port, whatever they talk to. So a NAT's capacity is ports per public address **per destination**, and the addresses a NAT needs are `connections to the busiest destination ÷ connections per address`, rounded up. One Linux trap: given a range of addresses, Linux sends one client's connections to one destination from one address, so the range doesn't add up for a single busy client.
 
+<Check item="est-linux-range" />
+
 Each cloud sells a managed NAT gateway, and their numbers differ (each provider's page, read 2026-11-12). AWS's is **zonal**, in one zone, unless you make it **regional**, spanning all of a region's zones:
 
 | | AWS NAT gateway | Azure NAT Gateway | Google Cloud NAT |
@@ -60,6 +70,16 @@ The difference that bites is Google's: static allocation reserves ports per VM, 
 2. More public addresses, on AWS and Azure; on Google, more ports per VM or dynamic allocation.
 3. Shorter idle timeouts, so forgotten connections give their ports back sooner.
 4. A private path to the service that needs no NAT at all (next part).
+
+<Check item="mcq-exhaustion-symptom" />
+
+<Story title="XING's one- and three-second delays, 2017" source="https://tech.new-work.se/a-reason-for-unexplained-connection-timeouts-on-kubernetes-docker-abd041cf7e02" sourceTitle="A reason for unexplained connection timeouts on Kubernetes/Docker" license="linked, not copied">
+
+In 2017 XING, a social network for careers, moved its applications onto Kubernetes, which runs them in containers on shared Linux machines, and connection timeouts went up. Almost every second one request was slow, and the slow ones took almost exactly 1 or 3 seconds. Those numbers were the clue: they're when TCP sends a lost SYN again. Captures showed a container's SYN crossing the machine's bridge and never leaving `eth0`; in between, the machine source-NATs its containers' traffic.
+
+`conntrack -S` showed `insert_failed` rising with every lost SYN, yet the table was nearly empty: not exhaustion. The kernel's code showed a race. When two containers open connections to the same destination at the same instant, NAT picks a port for each before either is written into the table, so both can pick the same one; the second write fails, and its packet is dropped. Most of their connections went to the same few services, so it happened often. Random port choice (`--random-fully` on the masquerade rule) cut the errors from one every few seconds per machine to one every few hours across the clusters. The lesson: know what makes a counter rise before reading it as a cause.
+
+</Story>
 
 **When not to NAT, and when to.** IPv6 gives every machine its own global address, so IPv6 egress needs no NAT: AWS's egress-only internet gateway (IPv6) lets connections out and none in, translating nothing; on Azure, IPv6 that leaves through a NAT gateway or a load balancer's outbound rules is translated anyway. Cloud services have private paths: an AWS **gateway endpoint** sends a subnet's traffic for S3 (AWS's object storage, for files of any kind) or DynamoDB (one of its database services) to the service through a route-table entry, at no charge and with no ports, and a **private endpoint** gives a service a private address inside your network (Module 11 builds both). 40 TB a month from S3 through a NAT gateway is $1,800 of processing that a gateway endpoint carries for nothing. A service with several servers belongs behind a **load balancer** (a service that takes connections on one address and spreads them over several servers; it has a topic of its own) rather than a DNAT rule per server. Anything that must see real clients breaks if inbound traffic is source-NATed, and protocols that write addresses inside their own messages need help to cross a NAT at all. NAT is the right tool for two networks on overlapping ranges, as after a merger, and for a partner that allow-lists one outbound address. Internet providers run **carrier-grade NAT**, many customers behind a few public addresses, on the shared address space `100.64.0.0/10` (RFC 6598): not a range to pick for a cloud network, since it clashes with those customers, and Azure's default route table drops it unless your network uses it. NAT64 (IPv6) is NAT between the two families, for IPv6-only machines.
 

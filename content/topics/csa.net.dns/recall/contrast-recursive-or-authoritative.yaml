@@ -1,0 +1,16 @@
+id: contrast-recursive-or-authoritative
+type: mcq
+rev: 1
+prompt: |
+  You ask two servers about `api.shop.test`, twice each, a few seconds apart. Server A's replies carry the flags `qr rd ra`, and the TTL is a few seconds lower the second time. Server B, asked with `+norecurse`, replies with the flags `qr aa`, and the same TTL, 300, both times. Which server is which?
+choices:
+  - "A is a recursive resolver handing out a cached copy; B is one of the zone's own servers"
+  - "A is one of the zone's own servers, counting down to its next reload; B is a resolver"
+  - "Both are recursive resolvers; B has only just fetched its copy from the zone's servers"
+  - "Both are the zone's own servers; A is the primary and B a secondary yet to copy the zone"
+answer: 0
+explanation: |
+  Two clues agree. The `aa` flag (authoritative answer) is set only by a server answering from a zone it holds, and `ra` (recursion available) by a server that will do the research for you. And a resolver hands out what's left of the TTL on its cached copy, so it counts down between your two questions, while an authoritative server gives the TTL written in the zone, the same every time.
+
+  A zone's own server doesn't count its TTLs down, and an authoritative server set up as in the labs, with `recursion no;`, doesn't set `ra`. A resolver never sets `aa`, however fresh its copy: only the zone's servers speak for the zone. And a secondary is an authoritative server too: it would set `aa` and give the zone's TTL, not count it down.
+skills: [trace-resolution]
