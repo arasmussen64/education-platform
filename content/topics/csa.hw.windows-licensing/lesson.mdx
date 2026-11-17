@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="An Azure VM with 4 vCPUs costs about $140 a month running Linux. The very same VM, same hardware and same region, running Windows Server and SQL Server Enterprise costs about ten times as much. Where does the other 90% go?">
+
+To Microsoft's software, rented by the hour. The clouds charge for Windows Server and SQL Server per vCPU, on top of the machine: about $0.046 a vCPU-hour for Windows Server and $0.375 for SQL Server Enterprise when this topic was written, against about $0.048 a vCPU-hour for the machine itself. So the licences are nine-tenths of that bill. That is why this topic keeps counting cores: every licensed core costs money, and the cheapest one is the core you don't have to license.
+
+</Puzzle>
+
 "Cores, memory and noisy neighbours" priced machines by the hour. Put **Windows Server** on one (Microsoft's operating system for servers, which many companies run beside Linux), add **SQL Server** (Microsoft's database), and the software can cost more than the machine. This topic is about that part of the bill: how Microsoft's server software is counted (in cores, with minimums), what the clouds charge when they rent it to you by the hour, when a company may bring licences it already owns, and when renting a whole server, a dedicated host, is the cheaper way. The rules are Microsoft's and they change, so the topic teaches them **as Microsoft's Product Terms stood in November 2026**, each with where it is written, and teaches where to look the rest up. Several questions ask you to work out a number; use a calculator whenever you like, because the skill is setting up the sum.
 
 **The licence can cost more than the machine.** Here is one Azure VM, `Standard_D4s_v5` (4 vCPUs, 16 GiB of memory; a GiB, or gibibyte, is 1,024 × 1,024 × 1,024 bytes, about 7% more than the GB that SQL Server's limits below are given in) in East US, for a 730-hour month, at the pay-as-you-go prices read on 2026-11-11. The hardware is the same in every row:
@@ -13,9 +19,13 @@
 
 Everything after the first row is rent for software, and it is charged per vCPU: $0.046 a vCPU-hour for Windows Server, $0.10 for SQL Server Standard and $0.375 for Enterprise. That is why this topic keeps counting cores.
 
+<Check item="li-rate-per-vcpu" />
+
 **What a licence is.** A **licence** is the right to use a piece of software, on terms the maker sets. A **perpetual** licence is bought once and kept; a **subscription** licence is rented by the year and ends when you stop paying. Server software is sold as **core licences**, one for each processor core (a physical core, or a vCPU when it is licensed in a VM), bought in packs. Each product comes in **editions**: Windows Server **Standard** and **Datacenter** differ in how many VMs they cover; SQL Server, a database server (a program that stores an application's data and answers its questions about it, and usually the most expensive software on the machine), comes as **Enterprise**, **Standard**, two free **Developer** editions and the free, small **Express**. When a company runs its own server it also needs a **CAL** (client access licence) for each person or device that uses it; the clouds' rented Windows needs none (AWS and Azure both say so). Companies buy Microsoft licences in bulk through **volume licensing**, often an **Enterprise Agreement**, a contract of several years. **Software Assurance** (SA) is a yearly add-on to licences bought that way: it brings new versions as they come out and, what matters here, the right to use the licences in more places. None of Microsoft's price pages gives a price for it; a reseller quotes it. And every rule in this topic comes from Microsoft's **Product Terms**, the published licence terms for each product, which are the final word: Microsoft Learn's own page on the subject says the Product Terms "take precedent over this article". They call each running copy of an operating system an **OSE** (operating system environment); in this topic that is a VM, or a physical server's own operating system.
 
 **Counting Windows Server cores.** On a server you own and license yourself, every physical core needs a core licence, with two minimums: at least **8 per processor** and **16 per server**. A server with one 4-core processor needs 16; one with two 20-core processors needs 40. **Standard** then lets you run **2 VMs** on that server, and you may license every core again for 2 more ("stacking"); **Datacenter** lets you run **any number**. Microsoft's list prices for Windows Server 2025 (read 2026-11-11) were $1,176 for 16 core licences of Standard and $6,771 for Datacenter, so on a server with many VMs Datacenter becomes the cheaper edition; one of the questions works out from how many. Licensed **by VM** instead, which needs Software Assurance or a subscription, a VM needs one core licence per vCPU and **at least 8**: a 4-vCPU VM takes 8, a 12-vCPU VM takes 12. That per-VM rule is the one Azure Hybrid Benefit uses, below. A **processor licence**, an older kind still in some companies' contracts, counts as 16 core licences.
+
+<Check item="count-windows-server" />
 
 **Licence included.** Every cloud will rent you Windows Server by the hour inside the VM's price, and then you own nothing and count nothing: AWS calls it **licence included**, Azure **pay-as-you-go**, Google Cloud an **on-demand licence**. On the **general-purpose** sizes (the everyday ones, such as Azure's D series and AWS's m) and the **memory-optimised** ones (twice the memory for each vCPU, such as Azure's E series and AWS's r) it cost **$0.046 a vCPU-hour** on all three clouds when this topic was written (AWS publishes the rate on its "Optimize CPUs" page; on Azure it is the Windows price minus the Linux price; Google adds it as a "premium image" line on the bill), which is about $34 a vCPU a month. AWS's and Azure's smallest burstable sizes are priced apart and pay much less: an Azure `Standard_B2ls_v2` paid $0.0092 an hour more for Windows, not 2 × $0.046 (on Google Cloud only its two oldest small types, `f1-micro` and `g1-small`, pay less). So $0.046 is a rule of thumb for an estimate before you open a calculator, never a price to put in a budget. SQL Server licence included is charged the same way, per vCPU, for at least 4 vCPUs, and its rates differ a little by cloud: Standard was $0.10 a vCPU-hour on Azure and $0.12 on AWS and Google Cloud, Enterprise $0.375 on Azure and AWS and $0.399 on Google Cloud.
 
@@ -38,11 +48,27 @@ So **Windows Server 2022 and 2025 are licence included on AWS and Google Cloud, 
 
 Licences without Software Assurance, then, are treated alike on all three clouds: old ones on dedicated hardware only, newer ones nowhere. Azure is kinder in one way: Azure Hybrid Benefit, a right Microsoft gives for its own cloud, takes licences with Software Assurance onto shared hardware, Windows Server included. Google adds one detail: a licence brought to a region can't move to another region for 90 days.
 
+<Check item="mcq-byol-windows-aws" />
+
+<Story title="The day the dedicated-host rules changed, 2019" source="https://www.microsoft.com/en-us/licensing/news/updated-licensing-rights-for-dedicated-cloud" sourceTitle="Updated Microsoft licensing terms for dedicated hosted cloud services" license="linked, not copied">
+
+Not an outage: the change behind the table's 1 October 2019. Until then, licences bought outright, without Software Assurance, could run on a dedicated host at AWS or Google.
+
+On 1 August 2019 Microsoft announced that from 1 October that year, licences bought without Software Assurance and mobility rights could no longer be used on the dedicated hosted cloud services of four Listed Providers: Microsoft itself, Alibaba, Amazon (VMware Cloud on AWS included) and Google. Its reason was that dedicated hosts had blurred the line between outsourcing, someone running servers on your behalf, and cloud services.
+
+Nothing already running had to move. Licences bought before 1 October kept working for the versions they covered, but no new workload could be added under licences bought from that day on, and a version released from that day on came under the new terms. Licences with Software Assurance could still go, through License Mobility, or through Azure Hybrid Benefit on Azure.
+
+The lesson: a licensing plan rests on terms that can change with two months' notice. Write down the date of every rule you rely on, and read it again before you move.
+
+</Story>
+
 **SQL Server: the cheapest core is the one you don't license.** SQL Server is licensed per core in packs of 2, at least 4 per processor on your own server and **at least 4 per VM** when licensed by VM (with Software Assurance or a subscription). The minimum shows in every price list: Azure's smallest SQL Server meter is named "1-4 vCPU VM", so a 2-vCPU VM paid the same $0.40 an hour for SQL Server Standard as a 4-vCPU one, and Google's page says "Instances with fewer than 4 vCPUs will be charged for 4 vCPUs". The licence is several times the machine (the table at the top: Enterprise was $1.50 an hour of that VM's $1.876), so the way to a smaller bill is fewer licensed cores:
 
 - **Size by memory.** A database is usually sized by how much data it keeps in memory, and a memory-optimised size (Azure's E series, AWS's r) gives the same memory with half the vCPUs of a general-purpose one.
 - **Switch vCPUs off.** AWS lets a licence-included instance run with only some of its vCPUs on, keeping all its memory, and charges the licences only on those ("Optimize CPUs").
 - **Pick the edition.** In SQL Server 2025, **Standard** uses at most 32 cores (24 in SQL Server 2022 and earlier) and 256 GB of memory for its cache; **Enterprise** has no limits but the machine's; the two **Developer** editions are free and complete but only for development and test, never production; **Express** is free for production too, but uses at most 4 cores and holds at most 50 GB a database (10 GB in SQL Server 2022 and earlier). The Web edition, which AWS and Google Cloud still rent by the hour, is gone from SQL Server 2025. Always name the version when you quote a limit.
+
+<Check item="sql-size-by-memory" />
 
 On Azure, Hybrid Benefit for SQL Server has exchange rates of its own: one Enterprise core licence covers 4 vCPUs of a VM running Standard, and a VM still takes at least 4 core licences.
 

@@ -24,6 +24,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - After a wrong answer given as "Certain", one line says this is the kind of mistake that sticks once it's corrected; after a right guess, one line says it's worth reading why.
 - The Account page shows how often the learner is right at each level ("When you're certain, you're right 92% of the time"), once a level has five answers.
 
+### Added (cloud Module 2: puzzles, questions in the lesson, real incidents and "which one is this?" questions)
+
+- All eight topics of the cloud track's Module 2 (hardware, virtualisation and Windows) now open with a puzzle and ask 4 of their own quick questions inside the lesson, 32 in all, each right after the part it tests.
+- Each tells a real, public incident in its own words, linked to its source: VENOM, the QEMU floppy-controller flaw (Hypervisors); TensorFlow's `Illegal instruction` on CPUs without AVX (CPU architectures); MySQL's "swap insanity" on two NUMA nodes (Cores and memory); AWS's EBS re-mirroring storm of 2011 (Disks); LeftoverLocals, GPU memory left readable between programs (GPUs); the November 2022 Windows update that broke Kerberos (Active Directory); Zerologon (Domain join); and Microsoft's 2019 change to licences on dedicated hosts (Windows licensing).
+- Six new "which one is this?" questions, each telling apart two ideas learners mix up: a wrong architecture or a missing instruction; the IOPS cap or the throughput cap (two); the card's memory or the VM's; a domain controller or a member server; Windows Server's per-VM minimum or SQL Server's.
+
 ### Added (cloud Module 3, second half: puzzles, questions in the lesson, real incidents and contrast questions)
 
 - The eight networking topics from Congestion control and QUIC to Site-to-site VPNs (`csa.net.congestion`, `http-tls`, `certificates`, `http-semantics`, `load-balancing`, `bgp`, `bgp-steering`, `ipsec`) each open with a puzzle, and each asks four of its own quick questions inside the lesson, right after the paragraph each one tests (32 in all, 28 of them typed answers).

@@ -26,6 +26,36 @@ A dated log of each working session: what changed, what was decided, what's next
 
 **Next:** the content writers convert command and term questions to typed items; once a few weeks of answers carry a confidence, look at whether a right guess is forgotten sooner.
 
+## 2026-11-16, cloud Module 2 content: puzzles, questions in the lesson, stories and contrast questions
+
+The first of two content passes over the cloud track's Module 2 with the new lesson building blocks ([ADR-0026](decisions/0026-lesson-building-blocks.md)). Three other writers are doing Modules 1 and 3 at the same time; this pass touches only Module 2's eight topics.
+
+**What changed.**
+
+- **An opening `<Puzzle>` in every topic,** each a question a beginner can guess at whose answer is the lesson's first idea: why one guest's kernel can't freeze the others (Hypervisors); why a Bash script moves to Arm and a Go program doesn't (CPU architectures); why "2 vCPUs" can be one core or two (Cores and memory); how long a network-disk read is if an L1 read took a second (Disks); what kind of program a GPU can't speed up (GPUs); how one disabled account reaches forty servers (Active Directory); what restoring a member from an old backup breaks (Domain join); where 90% of a Windows-and-SQL VM's bill goes (Windows licensing).
+- **32 `<Check>` questions,** 4 per topic, each placed right after the paragraph it tests and spread from the first section to the last. 24 of them are typed (shell predictions and estimates), 8 multiple choice. None was a question whose answer the puzzle had just given: GPUs places the CUDA-or-Tensor-Cores question rather than "what suits a GPU", which the puzzle would have answered.
+- **A `<Story>` in every topic**, each from a source opened today and told in our own words (each topic's `topic.yaml` records the source and what was taken from it):
+  - Hypervisors: VENOM (CVE-2015-3456), from [Red Hat's article](https://access.redhat.com/articles/1444903).
+  - CPU architectures: TensorFlow's `Illegal instruction` on CPUs without AVX, 2018, from [TensorFlow issue 17411](https://github.com/tensorflow/tensorflow/issues/17411) (the 1.6.0 release notes agree).
+  - Cores and memory: MySQL's "swap insanity" on a two-node NUMA server, from [Jeremy Cole's 2010 write-up](https://blog.jcole.us/2010/09/28/mysql-swap-insanity-and-the-numa-architecture/).
+  - Disks: the EBS re-mirroring storm of April 2011, from [AWS's own summary](https://aws.amazon.com/message/65648/).
+  - GPUs: LeftoverLocals (CVE-2023-4969), from [Trail of Bits](https://blog.trailofbits.com/2024/01/16/leftoverlocals-listening-to-llm-responses-through-leaked-gpu-local-memory/).
+  - Active Directory: the November 2022 updates that broke Kerberos on domain controllers, from [The Register](https://www.theregister.com/2022/11/21/microsoft_kerberos_fix_windows/).
+  - Domain join: Zerologon (CVE-2020-1472), from [CrowdStrike's advisory](https://www.crowdstrike.com/en-us/blog/cve-2020-1472-zerologon-security-advisory/).
+  - Windows licensing: Microsoft's 2019 change to licences on dedicated hosts, from [Microsoft's own notice](https://www.microsoft.com/en-us/licensing/news/updated-licensing-rights-for-dedicated-cloud).
+- **Six "which one is this?" questions** (ids starting `contrast-`), each in the later topic of its pair and in its practice ladder: `contrast-exec-format-or-illegal` (a wrong architecture or a missing instruction, CPU architectures); `contrast-which-cap-binds` (an estimate, 64 KiB writes on gp3: 2,000 a second, the throughput cap) and `contrast-buy-iops-or-throughput` (Disks); `contrast-card-or-vm-memory` (GPUs); `contrast-dc-or-member` (a domain controller or a member server, Domain join); `contrast-windows-and-sql-minimums` (an estimate: a 2-vCPU VM takes 8 Windows Server and 4 SQL Server core licences, Windows licensing).
+- Each topic's `estimated_minutes` grows by about 3 for the puzzle and the story, and a minute and a half for each new question.
+
+**Author notes:**
+
+- _Two stories were swapped for better-sourced ones._ Active Directory was first to tell Maersk's NotPetya recovery from a lone domain controller in Ghana, but the original reporting (Wired) couldn't be opened from here, and the pages that could were retellings of it; a story has to come from a source the writer read. The Kerberos updates of November 2022 replaced it. For Cores and memory, Epic Games' Meltdown slowdown of 2018 was considered and dropped: the reports that could be opened gave no numbers worth teaching, and the NUMA story fits the topic's own skills.
+- _Windows licensing's story isn't an outage._ It is the 2019 rule change that the topic's "1 October 2019" comes from, told because its lesson (date every rule, and read it again before you move) is the topic's own. The story says so in its first words.
+- _The TensorFlow story names its source's limits._ The issue thread never says outright that 1.6 was built with AVX; a contributor names a CPU without AVX as the likely cause, and the story says exactly that. The release notes' warning is recorded in `topic.yaml` beside it, not claimed in the story.
+- _Contrast pairs chosen where the module had no such question yet._ Type 1 against type 2, vCPU against core, OU against group, MIG against time-slicing and AD DS against Entra ID already have questions, so they got none.
+- _Placed questions were chosen to leave each ladder's mix sensible:_ every topic keeps at least eight quick questions in its ladder, and Disks, the smallest, keeps eight plus its two new ones.
+
+**Next:** pull request 2, once the glossary (#310) and typed answers (#298) are on main: a `glossary.yaml` for each Module 2 topic and two typed questions per topic.
+
 ## 2026-11-16, cloud Module 3 content (second half): puzzles, questions in the lesson, stories and contrast questions
 
 The first of two passes over the second half of Module 3 with the new lesson building blocks ([ADR-0026](decisions/0026-lesson-building-blocks.md)). Three other writers are doing the same for Modules 1 and 2 and the first half of Module 3. The second pass, after the glossary (#310) and typed answers (#298) reach `main`, adds a glossary and two typed questions to each topic.
