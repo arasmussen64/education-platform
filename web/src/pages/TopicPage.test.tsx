@@ -166,7 +166,6 @@ describe('the topic page', () => {
   it('teaches with an intro, the main resource, a recap and more resources', () => {
     renderTopic()
     const learn = screen.getByRole('region', { name: 'Learn' })
-    expect(learn).toHaveTextContent('Use type() to check a value.')
     expect(within(learn).getByText('What to watch for')).toBeInTheDocument()
     expect(within(learn).getByText('Recap')).toBeInTheDocument()
     expect(
@@ -1877,6 +1876,77 @@ describe('a topic in parts (ADR-0025)', () => {
     expect(
       screen.queryByRole('navigation', { name: 'Parts of this topic' }),
     ).toBeNull()
+  })
+})
+
+describe('the goals at the top of a topic', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
+  const goals = () => screen.getByRole('list', { name: 'Goals of this topic' })
+  /** The <details> the goals fold into. */
+  const fold = () => goals().closest('details')!
+
+  it("says what you'll be able to do, unticked until the topic is proven", async () => {
+    renderTopic()
+    await screen.findByTestId('topic-state')
+    expect(screen.getByText("You'll be able to…")).toBeInTheDocument()
+    expect(within(goals()).getByRole('listitem')).toHaveTextContent(
+      'Use type() to check a value. (not proven yet)',
+    )
+    expect(
+      screen.getByText(/ticked once you pass all three proofs/),
+    ).toBeInTheDocument()
+    // Open with the lesson…
+    expect(fold()).toHaveAttribute('open')
+    // …and folded on the other parts, a click away.
+    await userEvent.click(
+      within(screen.getByRole('list', { name: 'Parts' })).getByRole('link', {
+        name: /Part 2/,
+      }),
+    )
+    expect(fold()).not.toHaveAttribute('open')
+  })
+
+  it('ticks every goal once all three proofs have passed', async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([
+          ...unlocked(topic),
+          passedCheck('build-hello'),
+          passedCheck('debug-hello'),
+          explainPassed(),
+        ]),
+      ),
+    })
+    expect(await screen.findByText('You can now…')).toBeInTheDocument()
+    expect(within(goals()).getByRole('listitem')).toHaveTextContent(
+      'Use type() to check a value. (proven)',
+    )
+    expect(
+      screen.getByText('Ticked on Nov 6, when you passed all three proofs.'),
+    ).toBeInTheDocument()
+  })
+
+  it("doesn't tick them for two proofs out of three", async () => {
+    const topic = fakeTopic()
+    renderTopic(topic, fakeContent(topic), {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([
+          ...unlocked(topic),
+          passedCheck('build-hello'),
+          passedCheck('debug-hello'),
+        ]),
+      ),
+    })
+    expect(await screen.findByTestId('topic-state')).toHaveTextContent(
+      'In progress',
+    )
+    expect(within(goals()).getByRole('listitem')).toHaveTextContent(
+      '(not proven yet)',
+    )
   })
 })
 

@@ -21,6 +21,24 @@ Part of today's improvement plan for the topic page. The plan asked for an expla
 
 **Next:** "Check what you know", a short quick check before the practice.
 
+## 2026-11-16, topic page: the goals at the top
+
+Part of today's improvement plan for the topic page, after the parts (#297) and the breaks (#303).
+
+**What changed.** A topic's goals (its `objectives`) moved from inside the lesson to the top of the topic, above every part, as "You'll be able to…". They're unfolded on the lesson's part and folded on the others, one click away. Once the topic is Learned (all three proofs passed) each goal gets a tick, the heading reads "You can now…", and a line says on which day. Before that, each shows an empty circle and the line says they're ticked once all three proofs pass. Screen readers hear "proven" or "not proven yet" after each goal.
+
+- `web/src/parts/TopicGoals.tsx` is the card; the topic page passes it the day the topic became Learned, from the progress it already loads.
+- Tested: three page tests (unticked and open with the lesson, folded on another part; all ticked with the date once proven; not ticked for two proofs of three). The test that read the goal inside the lesson no longer does.
+
+**Author notes:**
+
+- _All goals are ticked together._ The plan allowed ticking them one by one only with data that exists, and none does: a topic's objectives are plain sentences, its skills are separate, and nothing in the content links a goal to the proof or skill that shows it. Guessing a link would put a tick where nothing was proven.
+- _"Learned" is the moment,_ not Mastered: the proofs are what show the learner can do the goals, and the page already dates Learned. Mastered adds a review a week later; the star beside the topic's state shows that.
+- _Checkpoints are unchanged._ Their "About this checkpoint" already lists what passing shows, in place of a lesson.
+- _The outline's "What you can do after" link_ still opens the lesson's part, where the goals are unfolded.
+
+**Next:** the marking rules before an explain-back.
+
 ## 2026-11-16, topic page: a short break between parts
 
 Part of today's improvement plan for the topic page, after the topic in parts (#297).

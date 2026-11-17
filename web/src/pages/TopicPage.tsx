@@ -32,6 +32,7 @@ import { ExplainCheck, ExplainClosed } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
 import { BREAK_ID, PartBreak } from '../parts/PartBreak.tsx'
 import { recallPart, rememberPart } from '../parts/partMemory.ts'
+import { TopicGoals } from '../parts/TopicGoals.tsx'
 import {
   aboutMinutes,
   type LadderItem,
@@ -47,7 +48,6 @@ import {
   itemPlace,
   PLACE_ATTRIBUTE,
   provePlace,
-  START_PLACE,
   useCurrentPlace,
 } from '../place/useCurrentPlace.ts'
 import type { Interleaved } from '../practice/interleave.ts'
@@ -155,6 +155,11 @@ export function TopicView({
   // Read once, before this visit starts remembering places of its own.
   const [resume] = useState(() => recallPlace(topic.id))
   const showOutline = Boolean(content) && isTopic
+  // When all three proofs first passed (ADR-0002), which ticks the goals.
+  const learnedAt =
+    progress.status === 'ready'
+      ? (progress.progress.get(topic.id)?.learnedAt ?? null)
+      : null
   const partNumber = currentPart ? parts.indexOf(currentPart) + 1 : 0
   // "Part 2 of 5 · about 30 min", above the part's heading, once there's
   // more than one part.
@@ -205,6 +210,12 @@ export function TopicView({
         {content && isTopic && currentPart && (
           <>
             <SignInToSave />
+            <TopicGoals
+              objectives={topic.objectives}
+              learnedOn={learnedAt ? shortDate(learnedAt) : null}
+              // Unfolded with the lesson, folded on the other parts.
+              open={currentPart.kind === 'learn'}
+            />
             {locked && <LockedNotice topic={topic} progress={progress} />}
             {state === 'available' && currentPart.kind !== 'prove' && (
               // Moves to the proofs part, with focus on its heading.
@@ -876,20 +887,6 @@ function Learn({
       <SectionHeading id="learn" eyebrow={eyebrow}>
         Learn
       </SectionHeading>
-      <div
-        id={START_PLACE}
-        {...{ [PLACE_ATTRIBUTE]: START_PLACE }}
-        className={PROSE}
-      >
-        <p className="font-medium">By the end of this topic, you can:</p>
-        <ul>
-          {topic.objectives.map((objective) => (
-            <li key={objective}>
-              <Markdown inline>{objective}</Markdown>
-            </li>
-          ))}
-        </ul>
-      </div>
       {Lesson ? (
         <LessonView Lesson={Lesson} resources={topic.resources} />
       ) : (
