@@ -11,6 +11,7 @@ import {
   fakeContent,
   fakeLab,
   PARSONS,
+  TYPED_COMMAND,
 } from '../test/fakeContent.tsx'
 import { recordingEventLog } from '../test/fakeEvents.ts'
 import { allPassed, oneFailed, report } from '../test/fakePython.ts'
@@ -123,6 +124,51 @@ describe('an estimate as a practice item (ADR-0024)', () => {
     await userEvent.type(box(), 'eighty{Enter}')
     expect(screen.getByText(/Type a number, like 1168/)).toBeVisible()
     expect(events).toEqual([])
+  })
+})
+
+describe('a typed item as a practice item (ADR-0027)', () => {
+  it('has its own heading, and saves what was typed and the slip it matched', async () => {
+    const base = fakeContent()
+    const content = {
+      ...base,
+      recall: { ...base.recall, [TYPED_COMMAND.id]: TYPED_COMMAND },
+    }
+    const { log, events } = recordingEventLog()
+    render(
+      <AuthProvider auth={fakeAuth(null)}>
+        <EventLogContext value={log}>
+          <MemoryRouter>
+            <PracticeItem
+              itemId={TYPED_COMMAND.id}
+              content={content}
+              context="practice"
+            />
+          </MemoryRouter>
+        </EventLogContext>
+      </AuthProvider>,
+    )
+    expect(
+      screen.getByRole('heading', { name: 'Type the command' }),
+    ).toBeInTheDocument()
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Your command' }),
+      'docker ps --all{Enter}',
+    )
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'answer',
+        item_id: TYPED_COMMAND.id,
+        item_rev: 1,
+        context: 'practice',
+        correct: false,
+        data: {
+          typed: 'docker ps --all',
+          mistake: 'every-container',
+          slip: false,
+        },
+      }),
+    ])
   })
 })
 

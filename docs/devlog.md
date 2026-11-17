@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, questions: typed answers
+
+**What and why.** A new kind of quick question, `typed` ([ADR-0027](decisions/0027-typed-answers.md), proposed), for answers the learner should be able to produce from memory: a command (`docker ps`), a term (VNet), a value (443) or a short phrase. Until now those were asked as multiple choice, which is recognition: the answer is on the screen. Typing it is recall, and recall builds memory better (Kang, McDermott and Roediger, 2007). The content writers can now convert the cloud track's command and term questions.
+
+**What changed.**
+
+- `tools/typed_answers.py` and `web/src/content/typed.ts` read an answer the same way, step by step, and both are tested against one list of cases, `tools/tests/typed_cases.json`, so the validator and the page can't disagree about whether two answers are the same.
+- `tools/content_model.py` has `TypedItem`, and `tools/validate_content.py` checks each one: answers that differ once read, no mistake that is also an answer, no answer in two mistakes, and a prompt that doesn't give the answer away.
+- `web/src/components/TypedQuestion.tsx` asks the question: a labelled box (with a `$` before it for a command), Check or Enter, then right or not, the answer, a known mistake's sentence, the other accepted answers and the explanation. `PracticeItem` shows it as "Type the command" or "Type the answer" and saves `typed`, `mistake` and `slip` in the answer event.
+- Reviews count a typed item as an answer the learner produces, like an estimate.
+- `docs/specs/data-model.md` and `content/README.md` describe the type and how to write one.
+
+**Author notes:**
+
+- _Lists of answers, not patterns._ A regular expression can accept far more than its writer meant, and Python's and the browser's differ in small ways. A list is readable and proves itself entry by entry. The ADR says what a pattern would need if the answer log ever shows it's wanted.
+- _One slip of the fingers is forgiven, for text only._ A learner who types "kubernets" remembered the word; marking it wrong would tell them they didn't. It's never a digit, a space, a symbol or a letter's case (RAID 5 and RAID 6 stay different), never an answer under five characters, and never a command, which a shell wouldn't forgive. Known mistakes are checked first, so a mistake one letter from an answer is still named.
+- _Phone punctuation is forgiven._ A phone's "smart punctuation" turns `--all` into `—all` and straight quotes into curly ones; both are read back as typed on a keyboard, so a learner on a phone isn't marked wrong for their keyboard.
+- _A typed item counts as produced in the review-pool rule,_ like an estimate: the rule asks for more than recognition, and a typed answer is recalled.
+- _No sample items in real content._ The tests build their own; the content writers will convert items.
+
+**Next:** confidence before the answer (ADR-0028): "Guessing", "Fairly sure" and "Certain" in place of Check, and a calibration summary on the Account page.
+
 ## 2026-11-16: A "Back to top" button
 
 **The owner asked** for last week's audits to be reviewed and anything buildable from them built, for Module 1 only, and for a button to jump back to the top of long pages. Reviewed: the whole-app audit of 2026-11-10, the cloud track's principal-bar audit of 2026-11-15, and the "Three roads to Distinguished" plan of the same day. Cloud Module 1 has nothing left from any of them: the 2026-11-10 findings were fixed in #209 to #237, and yesterday's leftovers work (#278 to #291) finished what remained. The audits still list Module 1 work in the Python track (multiple-choice items whose right answer is the longest choice) and in the ML track's math refresher (the same, plus placement-test topics with only two questions), and the plan would start Full Stack and Mobile at their Module 1. Asked which to build, the owner said: "Just build the back to top button then. Right now I only care about the cloud track."

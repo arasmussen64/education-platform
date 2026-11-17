@@ -41,3 +41,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0022](0022-step-through.md)              | Step through, a visualizer from Python's own trace hook                  | Accepted                                                          |
 | [0023](0023-packages-in-both-runtimes.md) | Packages beyond the standard library, in both Python runtimes            | Accepted                                                          |
 | [0024](0024-estimate-questions.md)        | Estimate questions, a typed number checked within a tolerance            | Proposed                                                          |
+| [0027](0027-typed-answers.md)             | Typed answers, a command or a term recalled and typed                    | Proposed                                                          |
