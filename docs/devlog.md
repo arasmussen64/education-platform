@@ -2,6 +2,34 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, cloud Module 3 content (first half): glossaries and typed questions
+
+The second of two pull requests for cloud Module 3's first eight topics (`csa.net.layers`, `cidr`, `ipv6`, `transport`, `routing`, `nat`, `dns`, `troubleshooting`), now that the glossary (#310) and typed answers (#298) are on main.
+
+**What changed.**
+
+- **A `glossary.yaml` for each topic**, 75 terms in all, each a term its lesson teaches and uses:
+  - layers (11): frame, packet, octet, MAC address, IP address, port, TTL, ARP, ICMP, MTU, tunnel
+  - CIDR (9): CIDR, prefix length, netmask, wildcard mask, subnet, summary route, RFC 1918, VPC, VNet
+  - IPv6 (9): IPv6, link-local address, unique local address, neighbour discovery, router advertisement, SLAAC, AAAA record, dual stack, Happy Eyeballs
+  - transport (8): TCP, UDP, sequence number, round-trip time, receive window, bandwidth-delay product, keepalive, idle timeout
+  - routing (9): router, routing table, next hop, longest-prefix match, default route, static route, administrative distance, ECMP, routing protocol
+  - NAT (4 added to its 5): PAT, 5-tuple, carrier-grade NAT, hairpinning
+  - DNS (9): DNS, stub resolver, recursive resolver, authoritative server, referral, glue, negative caching, split-horizon, DNSSEC
+  - troubleshooting (7): symptom grid, hypothesis, rate limiting, failure rate, red herring, incident note, provider ticket
+- **16 typed questions**, 2 a topic, in each `practice:` list beside the question they're closest to: ICMP's "fragmentation needed" and the command for the neighbour table (layers); the private /12 and the link-local block (CIDR); a short form where two runs of zeros tie, and Packet Too Big (IPv6); `SO_KEEPALIVE` and the bandwidth-delay product's name (transport); `ip route get` and distance 255 (routing); `masquerade` and `insert_failed` (NAT); the `aa` flag and the PTR record (DNS); curl's exit 28 and nginx's errno 111 (troubleshooting). Each names two or three likely wrong answers with a reason.
+- `estimated_minutes` grew by 3 a topic.
+
+**Author notes:**
+
+- _No clashes:_ before adding, I checked every term and alias against every `glossary.yaml` on main and in the second half's open #315; none matched. Modules 1 and 2 had no glossaries yet, so if their writers add port, IP address, MAC address, ARP, packet, VPC or router, the validator will say so and one of the two goes.
+- _TTL is one term, defined in layers with both meanings_ (the IP header's hop count and DNS's cache seconds), so the DNS lesson, where the word is everywhere, shows a definition that fits it, and matches the TTL contrast question added in the first PR.
+- _"zone" isn't a term,_ though DNS teaches it in bold: other cloud lessons use the word for availability zones, and every one of those uses would have shown the DNS meaning. "Octet" sits in layers, which first names it, though CIDR uses it more.
+- _Layers has 11 terms,_ past the 3 to 8 aimed for, because the rest of the module builds on its words.
+- _Typed items ask for things a learner should be able to produce cold:_ a command, a flag, a block, a number. Questions about telling things apart stayed multiple choice.
+
+**Next:** nothing further planned for these eight topics; the owner's first pass through them on the live site is their review.
+
 ## 2026-11-16, cloud Module 3 content (second half): glossaries and typed questions
 
 The second pass over the second half of Module 3, after the glossary (#310) and typed answers (#298) reached `main`. The first pass, #312, added the puzzles, placed questions, stories and contrast questions.

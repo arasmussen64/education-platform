@@ -1,0 +1,21 @@
+id: typed-private-12
+type: typed
+rev: 1
+prompt: |
+  One of RFC 1918's three private ranges runs from 172.16.0.0 to 172.31.255.255. Type it as one block, in CIDR notation (address/prefix).
+kind: text
+answers:
+  - 172.16.0.0/12
+mistakes:
+  - id: only-172-16
+    answers: [172.16.0.0/16]
+    why: A /16 holds only 172.16.x.x, 65,536 addresses. The range runs to 172.31, sixteen /16s, which is a /12.
+  - id: whole-172
+    answers: [172.0.0.0/8]
+    why: A /8 takes in all of 172.x.x.x, and most of that is public address space, such as 172.32.0.0. The private block is 172.16.0.0/12.
+  - id: wrong-start
+    answers: [172.31.0.0/12, 172.16.0.0/11]
+    why: A /12 holds 16 values in the second octet, from a multiple of 16, so it starts at 172.16 and ends at 172.31. That's 172.16.0.0/12.
+explanation: |
+  172.16 to 172.31 is 16 values in the second octet, 2⁴, so the block keeps 8 + 4 = 12 bits for the network: 172.16.0.0/12, 1,048,576 addresses. The other two private ranges are 10.0.0.0/8 and 192.168.0.0/16. The trap is the edge: 172.32.0.0 is just outside, and somebody's public space.
+skills: [private-and-reserved]

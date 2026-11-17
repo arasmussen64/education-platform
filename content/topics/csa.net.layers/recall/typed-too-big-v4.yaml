@@ -1,0 +1,24 @@
+id: typed-too-big-v4
+type: typed
+rev: 1
+prompt: |
+  A router can't forward an IPv4 packet marked don't-fragment, because the next link's MTU is smaller. It drops the packet and sends the sender an ICMP message (type 3, code 4) with that MTU in it. Name the message.
+kind: text
+answers:
+  - fragmentation needed
+  - frag needed
+  - fragmentation needed and DF set
+  - need to frag
+mistakes:
+  - id: ipv6-name
+    answers: [packet too big, PTB]
+    why: That's IPv6's version of the message, ICMPv6 type 2. IPv4's is destination unreachable, code 4, fragmentation needed.
+  - id: time-exceeded
+    answers: [time exceeded, TTL exceeded, time to live exceeded]
+    why: Time exceeded (type 11) is sent when a packet's TTL reaches zero, the message traceroute listens for. A packet too big for the next link gets fragmentation needed.
+  - id: port-unreachable
+    answers: [port unreachable, destination unreachable, host unreachable]
+    why: Those are its neighbours in type 3. Code 4 is the one that carries the next link's MTU, fragmentation needed.
+explanation: |
+  Fragmentation needed (destination unreachable, code 4) carries the next link's MTU back to the sender, which remembers it for that destination and sends smaller packets: path MTU discovery. tcpdump prints it as `need to frag (mtu 1476)`, ping as `Frag needed and DF set`. It's the ICMP message a firewall must never drop, or big transfers hang in a black hole.
+skills: [icmp-messages]

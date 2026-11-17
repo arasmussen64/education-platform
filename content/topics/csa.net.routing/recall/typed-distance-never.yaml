@@ -1,0 +1,21 @@
+id: typed-distance-never
+type: typed
+rev: 1
+prompt: |
+  In FRR, which administrative distance means "never install this route"? Type the number.
+kind: text
+answers:
+  - "255"
+mistakes:
+  - id: highest-usable
+    answers: ["254"]
+    why: 254 is the highest distance that still installs, the least preferred route that can be used. One more never is.
+  - id: connected
+    answers: ["0"]
+    why: 0 is a connected route's distance, the most preferred of all. "Never install" is the other end, 255.
+  - id: ospf
+    answers: ["110", "200"]
+    why: Those are OSPF's and iBGP's distances, real routes that install. 255 is the one that never does.
+explanation: |
+  Distances from 1 to 254 rank routes, lowest winning; 255 means "never install" in FRR's zebra, and the router agrees. So a floating static route written at 255 "to be the least preferred" never takes over: give a backup a distance from 2 to 254, such as 200.
+skills: [static-routes]
