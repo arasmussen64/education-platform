@@ -18,6 +18,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (saying how sure you are before a quick question is checked)
+
+- Every quick question (multiple choice, predict the output, Parsons, estimate, typed) is checked with one of three buttons, "Guessing", "Fairly sure" or "Certain", instead of Check ([ADR-0028](docs/decisions/0028-confidence-before-the-answer.md), proposed). One press still checks the answer. In an estimate or a typed answer, Enter moves to the three buttons rather than choosing one. The answer event saves the choice as `confidence`; it changes no grade, rating, Mastered or follow-up. The placement test keeps its single Check.
+- After a wrong answer given as "Certain", one line says this is the kind of mistake that sticks once it's corrected; after a right guess, one line says it's worth reading why.
+- The Account page shows how often the learner is right at each level ("When you're certain, you're right 92% of the time"), once a level has five answers.
+
 ### Added (cloud Module 2: puzzles, questions in the lesson, real incidents and "which one is this?" questions)
 
 - All eight topics of the cloud track's Module 2 (hardware, virtualisation and Windows) now open with a puzzle and ask 4 of their own quick questions inside the lesson, 32 in all, each right after the part it tests.

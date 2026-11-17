@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { displayName } from '../auth/authContext.ts'
 import { useAuth } from '../auth/useAuth.ts'
 import { BUTTON, PROSE } from '../components/styles.ts'
+import { CalibrationSummary } from '../confidence/CalibrationSummary.tsx'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import { couldNotSave, keptAndRetried } from '../events/refusedText.ts'
 import { useEventLogStatus } from '../events/useEvents.ts'
@@ -39,6 +40,8 @@ export function AccountPage() {
       {auth.status === 'signed-in' && (
         <>
           <NotSavedYet />
+          <CalibrationSummary />
+
           <StudyPlanOnAccount />
           <ForgettingCurve />
           <ExportData userId={auth.user.id} />

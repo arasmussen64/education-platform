@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from 'react'
+import type { Confidence } from '../confidence/confidence.ts'
 import { STAGES } from '../content/stages.ts'
 import type { TopicContent } from '../content/types.ts'
 import { checkCorrect } from '../events/checkGrade.ts'
@@ -76,6 +77,15 @@ function unknownIf(dontKnow: boolean): EventData {
   return dontKnow ? { dont_know: true } : {}
 }
 
+/**
+ * How sure the learner said they were before checking (ADR-0028), when they
+ * were asked: nothing in the placement test, which doesn't ask. It's saved
+ * beside the answer and changes no grade.
+ */
+function sureIf(confidence: Confidence | null): EventData {
+  return confidence ? { confidence } : {}
+}
+
 /** The heading and body for an item, whichever kind it is. */
 function describe(
   itemId: string,
@@ -90,12 +100,13 @@ function describe(
         <McqQuestion
           item={recall}
           quiet={quiet}
-          onAnswer={(correct, choice) =>
+          onAnswer={(correct, choice, confidence) =>
             onAnswer(correct, {
               choice,
               choice_text:
                 choice === null ? null : (recall.choices[choice] ?? null),
               ...unknownIf(choice === null),
+              ...sureIf(confidence),
             })
           }
         />
@@ -110,11 +121,12 @@ function describe(
           item={recall}
           packages={content.topic.packages}
           quiet={quiet}
-          onAnswer={(correct, prediction) =>
+          onAnswer={(correct, prediction, confidence) =>
             onAnswer(correct, {
               prediction:
                 prediction === null ? null : clip(prediction, MAX_TEXT_CHARS),
               ...unknownIf(prediction === null),
+              ...sureIf(confidence),
             })
           }
         />
@@ -128,13 +140,14 @@ function describe(
         <ParsonsProblem
           item={recall}
           quiet={quiet}
-          onAnswer={(correct, program) =>
+          onAnswer={(correct, program, confidence) =>
             onAnswer(correct, {
               program:
                 program === null
                   ? null
                   : clip(program.join('\n'), MAX_CODE_CHARS),
               ...unknownIf(program === null),
+              ...sureIf(confidence),
             })
           }
         />
@@ -148,7 +161,7 @@ function describe(
         <EstimateQuestion
           item={recall}
           quiet={quiet}
-          onAnswer={(correct, answer) =>
+          onAnswer={(correct, answer, confidence) =>
             onAnswer(correct, {
               typed:
                 answer === null ? null : clip(answer.typed, MAX_TEXT_CHARS),
@@ -156,6 +169,7 @@ function describe(
               relative_error: answer?.relativeError ?? null,
               mistake: answer?.mistake ?? null,
               ...unknownIf(answer === null),
+              ...sureIf(confidence),
             })
           }
         />
@@ -170,13 +184,14 @@ function describe(
         <TypedQuestion
           item={recall}
           quiet={quiet}
-          onAnswer={(correct, answer) =>
+          onAnswer={(correct, answer, confidence) =>
             onAnswer(correct, {
               typed:
                 answer === null ? null : clip(answer.typed, MAX_TEXT_CHARS),
               mistake: answer?.mistake ?? null,
               slip: answer?.slip ?? null,
               ...unknownIf(answer === null),
+              ...sureIf(confidence),
             })
           }
         />

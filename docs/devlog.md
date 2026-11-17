@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, questions: how sure are you?
+
+**What and why.** Every quick question now asks how sure the learner is as part of answering ([ADR-0028](decisions/0028-confidence-before-the-answer.md), proposed). Check is replaced by three buttons, "Guessing", "Fairly sure" and "Certain", and one press still checks. Two reasons: a mistake made with high confidence is remembered especially well once it's corrected (hypercorrection, Butterfield and Metcalfe, 2001), and judging your own certainty is a skill that improves when you can see it.
+
+**What changed.**
+
+- `web/src/components/Confidence.tsx`: the three buttons, in a fieldset whose legend is "How sure are you? Pick one to check.", and the one-line note after an answer. `web/src/confidence/confidence.ts`: the levels, their labels, and the calibration sums.
+- McqQuestion, PredictOutput, ParsonsProblem, EstimateQuestion and TypedQuestion use the buttons outside the placement test and pass the choice to `onAnswer`. PracticeItem saves it as `confidence` in the answer event, so practice, reviews, Today's mistakes and the new session page all record it. No grade, rating or rule reads it.
+- In an estimate or a typed answer, Enter in the box checks nothing: it reads the answer (an estimate still says how to type a number it can't read) and moves focus to "Guessing".
+- The Account page's new section, "How sure you are, and how often you're right", reads the learner's answers with a confidence from the server and this browser, and gives one sentence per level with at least five answers.
+- `supabase/migrations/` checked: the events table checks only `data`'s size, so the new field needs no migration.
+- Tests: the buttons, Tab and Enter, the notes, the placement test's single Check, the payload, the calibration sums and the Account page's three states; existing tests now press "Fairly sure".
+
+**Author notes:**
+
+- _The labels._ "Guessing", "Fairly sure" and "Certain" are short enough for a phone's width and say a level each without numbers. Two levels would hide where most answers sit; a percentage slider is slow with a thumb or a keyboard.
+- _Enter doesn't pick for the learner._ The browser's Enter in a form presses its first button, which would have saved every keyboard answer as a guess, so the buttons never submit the form, and Enter moves to them.
+- _The notes are one line each, and only two:_ certain and wrong (the hypercorrection moment, which only works if the learner reads why), and a right guess. A fitted confidence adds nothing, to keep the feedback short.
+- _Five answers before a level's share is shown._ Below that, one answer swings it by 20 points or more.
+- _Not in the placement test,_ which measures and already has "I don't know this", and not in proof checks, which aren't quick questions.
+- _Confidence changes no schedule yet._ A right guess may deserve an earlier review, but that changes what Good means (ADR-0002, ADR-0009). The log now holds what's needed to decide it.
+
+**Next:** the content writers convert command and term questions to typed items; once a few weeks of answers carry a confidence, look at whether a right guess is forgotten sooner.
+
 ## 2026-11-16, cloud Module 2 content: puzzles, questions in the lesson, stories and contrast questions
 
 The first of two content passes over the cloud track's Module 2 with the new lesson building blocks ([ADR-0026](decisions/0026-lesson-building-blocks.md)). Three other writers are doing Modules 1 and 3 at the same time; this pass touches only Module 2's eight topics.
