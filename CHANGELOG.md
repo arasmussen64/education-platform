@@ -22,6 +22,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - A topic page now shows one part at a time ([ADR-0025](docs/decisions/0025-topics-in-parts.md), proposed): the lesson, then the practice cut into parts of about 30 minutes, then the proofs. Each part says "Part 2 of 5 · about 30 min" above its heading, and buttons below it go to the parts before and after. The outline beside the page lists the parts with a tick for each one done, worked out from your saved answers, and every link in it opens the right part. The page opens where you were: the part you last looked at on this device if it isn't done, or else the first part that isn't. Parts never lock anything, "Prove it now" opens the proofs part, and checkpoints stay as they were.
 
+### Added (Today page: one button for today's session, and a five-minute version)
+
+- The Today page opens with "Today's session": one sentence saying what is waiting ("1 review and 1 mistake coming back, then your next topic, Values and types.") and a lime "Start today's session" button. It opens a new page, `/session`, that goes through the day's work one step at a time: the due reviews, the most faded first, then the mistakes coming back today, then the next new topic, in the track the learner worked in most recently. Every section below stays for browsing.
+- "Just 5 minutes" (`/session?minutes=5`), for a day with little time or energy: only the one to three reviews closest to fading. They are ordinary review sessions, saved and rated exactly as on the Today page.
+- The session's steps are the Today page's own review and follow-up components, so nothing about saving or grading is duplicated. The follow-up card moved to `web/src/followups/FollowUpCard.tsx` (its helpers to `cards.ts`), and the ordering lives in `web/src/session/sessionPlan.ts`, which reads the due list and the daily limit from `web/src/reviews/` without changing them.
+
 ### Added (a "Back to top" button on long pages)
 
 - Every page gains a "Back to top" button in its bottom right corner once the learner has scrolled more than one screen down. It scrolls back smoothly (or jumps, when the system asks for less motion) and puts keyboard focus at the top of the page. Pages leave room under their last line so it never covers anything at the very bottom.

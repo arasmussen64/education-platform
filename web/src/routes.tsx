@@ -48,6 +48,16 @@ export const routes: RouteObject[] = [
             },
           },
           {
+            // Today's guided session (and /session?minutes=5, the short
+            // one). Its reviews have code editors, so it loads only when
+            // visited, like Today.
+            path: 'session',
+            lazy: async () => {
+              const { SessionPage } = await import('./pages/SessionPage.tsx')
+              return { Component: SessionPage }
+            },
+          },
+          {
             // The placement test shows practice questions, so it loads only
             // when visited, like Today.
             path: 'placement',

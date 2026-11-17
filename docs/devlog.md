@@ -23,6 +23,28 @@ Part of today's improvement plan for the topic page. A cloud topic is estimated 
 
 **Next:** a short break between parts, then the topic's goals at the top.
 
+## 2026-11-16, Today page: one button for today's session
+
+Part of a set of study-habit improvements to the Today page, from behavioural science: the fewer choices a learner has to make before starting, the more likely they start, and a plan for bad days keeps a habit alive when a full session feels like too much.
+
+**What changed.**
+
+- **"Today's session" on the Today page:** a sentence saying what's waiting, and one lime button, "Start today's session". It opens `/session`, which shows one thing at a time: each due review (most faded first, by the FSRS chance of still remembering it), then each mistake coming back today, then the next new topic with a button into it. "Next" moves on at any point; whatever was answered is saved. At the end it counts what was finished during the visit.
+- **"Just 5 minutes"** (`/session?minutes=5`): the one to three reviews closest to fading, nothing else. It is shown only when a review is due.
+- **No grading logic is copied.** A review step is the same `ReviewSession` the Today page shows, and a mistake is the same follow-up card, now in `web/src/followups/FollowUpCard.tsx` with its helpers in `cards.ts`. The order is worked out in `web/src/session/sessionPlan.ts`, which calls `dueReviews` and `reviewsLeftToday` as they are, so the daily limit of 20 and the scheduling are untouched.
+- Tests: the plan's order, the daily limit, the track chosen for the next topic and the five-minute cut (`sessionPlan.test.ts`); the session's steps, grading and saving, the summary, and both versions' empty cases (`SessionPage.test.tsx`); the Today page's sentence and links.
+
+**Author notes:**
+
+- _A page of its own, not a mode of the Today page._ The Today page shows every section at once, and a guided session is the opposite: one step on screen. A route gives it a clean screen, its own Back link, and an address the five-minute version can share with a query (`?minutes=5`). The plan is fixed when the page opens, like the Today page's lists, so finishing a review doesn't reshuffle the steps.
+- _The next topic comes from the track worked in most recently,_ so a learner on two tracks carries on where they were; an untouched track comes after, in the app's order. The Today page's "Next up" still lists every track.
+- _It links to the topic, not to one of its parts._ Topic pages are being split into parts by another stream; the topic page already remembers where the learner was on it and offers to continue there.
+- _At most three reviews in five minutes._ A review asks two questions; three is about what fits. A later change can size it from the learner's own review times.
+- _"Next" never waits for an answer._ Nothing is blocked: a review left half-way still counts its answers (ADR-0009, amended 2026-11-11).
+- _The Start button is lime;_ "Done for today" on the last step is not, because on that step the lime button is the way into the new topic. A shared `PRIMARY_BUTTON` style joins `styles.ts` for this.
+
+**Next:** count practice in weeks rather than a daily streak, and show the current module's progress.
+
 ## 2026-11-16: A "Back to top" button
 
 **The owner asked** for last week's audits to be reviewed and anything buildable from them built, for Module 1 only, and for a button to jump back to the top of long pages. Reviewed: the whole-app audit of 2026-11-10, the cloud track's principal-bar audit of 2026-11-15, and the "Three roads to Distinguished" plan of the same day. Cloud Module 1 has nothing left from any of them: the 2026-11-10 findings were fixed in #209 to #237, and yesterday's leftovers work (#278 to #291) finished what remained. The audits still list Module 1 work in the Python track (multiple-choice items whose right answer is the longest choice) and in the ML track's math refresher (the same, plus placement-test topics with only two questions), and the plan would start Full Stack and Mobile at their Module 1. Asked which to build, the owner said: "Just build the back to top button then. Right now I only care about the cloud track."
