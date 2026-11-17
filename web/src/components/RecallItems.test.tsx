@@ -11,13 +11,19 @@ vi.mock('../python/runner.ts', () =>
 )
 import { scramble } from './scramble.ts'
 
+/** Checks a quick question as "Fairly sure" (ADR-0028). */
 const check = () =>
+  userEvent.click(screen.getByRole('button', { name: 'Fairly sure' }))
+/** The placement test's single Check, which asks for no confidence. */
+const quietCheck = () =>
   userEvent.click(screen.getByRole('button', { name: 'Check' }))
 
 describe('McqQuestion', () => {
   it('waits for a choice before it can be checked', () => {
     render(<McqQuestion item={MCQ} />)
-    expect(screen.getByRole('button', { name: 'Check' })).toBeDisabled()
+    for (const name of ['Guessing', 'Fairly sure', 'Certain']) {
+      expect(screen.getByRole('button', { name })).toBeDisabled()
+    }
   })
 
   it('says when the answer is right, and explains why', async () => {
@@ -27,7 +33,7 @@ describe('McqQuestion', () => {
     await check()
     expect(screen.getByText('Correct!')).toBeInTheDocument()
     expect(screen.getByText(MCQ.explanation)).toBeInTheDocument()
-    expect(onAnswer).toHaveBeenCalledWith(true, 0)
+    expect(onAnswer).toHaveBeenCalledWith(true, 0, 'fair')
   })
 
   it('shows the right answer after a wrong one, and locks the choice', async () => {
@@ -38,7 +44,7 @@ describe('McqQuestion', () => {
     expect(screen.getByText(/Not quite. The answer is/)).toBeInTheDocument()
     expect(screen.getByText(MCQ.explanation)).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Hi' })).toBeDisabled()
-    expect(onAnswer).toHaveBeenCalledWith(false, 2)
+    expect(onAnswer).toHaveBeenCalledWith(false, 2, 'fair')
   })
 })
 
@@ -51,9 +57,9 @@ describe('"I don\'t know this" in the placement test (ADR-0021)', () => {
     const radios = screen.getAllByRole('radio')
     expect(radios.at(-1)).toHaveAccessibleName(dontKnow)
     await userEvent.click(screen.getByRole('radio', { name: dontKnow }))
-    await check()
+    await quietCheck()
     expect(screen.getByText('Answer recorded.')).toBeInTheDocument()
-    expect(onAnswer).toHaveBeenCalledWith(false, null)
+    expect(onAnswer).toHaveBeenCalledWith(false, null, null)
   })
 
   it('is a button beside Check for a prediction, with nothing typed', async () => {
@@ -62,7 +68,7 @@ describe('"I don\'t know this" in the placement test (ADR-0021)', () => {
     await userEvent.click(screen.getByRole('button', { name: dontKnow }))
     expect(screen.getByText('Answer recorded.')).toBeInTheDocument()
     expect(screen.getByLabelText('What will it print?')).toBeDisabled()
-    expect(onAnswer).toHaveBeenCalledWith(false, null)
+    expect(onAnswer).toHaveBeenCalledWith(false, null, null)
   })
 
   it('is a button beside Check for a Parsons problem, even with no lines placed', async () => {
@@ -71,7 +77,7 @@ describe('"I don\'t know this" in the placement test (ADR-0021)', () => {
     expect(screen.getByRole('button', { name: 'Check' })).toBeDisabled()
     await userEvent.click(screen.getByRole('button', { name: dontKnow }))
     expect(screen.getByText('Answer recorded.')).toBeInTheDocument()
-    expect(onAnswer).toHaveBeenCalledWith(false, null)
+    expect(onAnswer).toHaveBeenCalledWith(false, null, null)
   })
 
   it('is not offered in practice, where a wrong answer is followed by the explanation', () => {
@@ -97,7 +103,7 @@ describe('PredictOutput', () => {
     )
     await check()
     expect(screen.getByText('Correct!')).toBeInTheDocument()
-    expect(onAnswer).toHaveBeenCalledWith(true, 'a  \nb')
+    expect(onAnswer).toHaveBeenCalledWith(true, 'a  \nb', 'fair')
   })
 
   it('shows the real output after a wrong prediction', async () => {
@@ -121,7 +127,7 @@ describe('PredictOutput, stepped through afterwards (ADR-0022)', () => {
       screen.queryByRole('button', { name: 'Step through it' }),
     ).not.toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('What will it print?'), 'a')
-    await userEvent.click(screen.getByRole('button', { name: 'Check' }))
+    await check()
     await userEvent.click(
       screen.getByRole('button', { name: 'Step through it' }),
     )
@@ -164,7 +170,7 @@ describe('PredictOutput for a shell command', () => {
     await check()
     expect(screen.getByText('Correct!')).toBeInTheDocument()
     expect(screen.getByText(/counts the matching lines/)).toBeInTheDocument()
-    expect(onAnswer).toHaveBeenCalledWith(true, '2')
+    expect(onAnswer).toHaveBeenCalledWith(true, '2', 'fair')
   })
 })
 
@@ -192,7 +198,7 @@ describe('ParsonsProblem', () => {
     expect(
       screen.getByText("One line is a decoy that doesn't belong."),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Check' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Fairly sure' })).toBeDisabled()
     expect(screen.getAllByRole('button', { name: /^Add: / })).toHaveLength(5)
   })
 
@@ -219,7 +225,7 @@ describe('ParsonsProblem', () => {
     await check()
     expect(screen.getByText('Correct!')).toBeInTheDocument()
     expect(screen.getByText(PARSONS.explanation)).toBeInTheDocument()
-    expect(onAnswer).toHaveBeenCalledWith(true, PARSONS.lines)
+    expect(onAnswer).toHaveBeenCalledWith(true, PARSONS.lines, 'fair')
   })
 
   it('is wrong with the decoy in, shows the program, and locks the lines', async () => {
@@ -248,11 +254,15 @@ describe('ParsonsProblem', () => {
     expect(
       screen.getByRole('button', { name: 'Remove: count = 3' }),
     ).toBeDisabled()
-    expect(onAnswer).toHaveBeenCalledWith(false, [
-      'count = 3',
-      'while count < 0:',
-      '    print(count)',
-      '    count = count - 1',
-    ])
+    expect(onAnswer).toHaveBeenCalledWith(
+      false,
+      [
+        'count = 3',
+        'while count < 0:',
+        '    print(count)',
+        '    count = count - 1',
+      ],
+      'fair',
+    )
   })
 })

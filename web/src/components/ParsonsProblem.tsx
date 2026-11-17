@@ -1,5 +1,7 @@
 import { useId, useState } from 'react'
+import type { Confidence } from '../confidence/confidence.ts'
 import type { ParsonsItem } from '../content/types.ts'
+import { ConfidenceButtons, ConfidenceNote } from './Confidence.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Recorded } from './Recorded.tsx'
 import { scramble, swap } from './scramble.ts'
@@ -9,9 +11,15 @@ type Props = {
   item: ParsonsItem
   /**
    * Called once, when the learner checks, with the program as they left it,
-   * or null for "I don't know this" (placement only).
+   * or null for "I don't know this" (placement only). `confidence` is how
+   * sure the learner said they were (ADR-0028), or null in the placement
+   * test, which doesn't ask.
    */
-  onAnswer?: (correct: boolean, program: string[] | null) => void
+  onAnswer?: (
+    correct: boolean,
+    program: string[] | null,
+    confidence: Confidence | null,
+  ) => void
   /**
    * True in the placement test (ADR-0021): no word on whether it was right,
    * and an "I don't know this" button beside Check.
@@ -32,6 +40,7 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
   const [tray, setTray] = useState(() => scramble(item))
   const [program, setProgram] = useState<string[]>([])
   const [checked, setChecked] = useState(false)
+  const [confidence, setConfidence] = useState<Confidence | null>(null)
   const correct =
     program.length === item.lines.length &&
     program.every((line, index) => line === item.lines[index])
@@ -56,15 +65,16 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
     setProgram(next)
   }
 
-  function handleCheck() {
+  function handleCheck(sure: Confidence | null) {
     setChecked(true)
-    onAnswer?.(correct, program)
+    setConfidence(sure)
+    onAnswer?.(correct, program, sure)
   }
 
   /** The placement test's way out of guessing: recorded as a wrong answer. */
   function dontKnow() {
     setChecked(true)
-    onAnswer?.(false, null)
+    onAnswer?.(false, null, null)
   }
 
   const decoys = item.distractors.length
@@ -175,28 +185,28 @@ export function ParsonsProblem({ item, onAnswer, quiet = false }: Props) {
             )}
           </p>
           {!correct && <pre className={CODE_BOX}>{item.lines.join('\n')}</pre>}
+          <ConfidenceNote confidence={confidence} correct={correct} />
           <Markdown>{item.explanation}</Markdown>
         </output>
-      ) : (
+      ) : quiet ? (
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={handleCheck}
+            onClick={() => handleCheck(null)}
             disabled={program.length === 0}
             className={BUTTON}
           >
             Check
           </button>
-          {quiet && (
-            <button
-              type="button"
-              onClick={dontKnow}
-              className={SECONDARY_BUTTON}
-            >
-              I don't know this
-            </button>
-          )}
+          <button type="button" onClick={dontKnow} className={SECONDARY_BUTTON}>
+            I don't know this
+          </button>
         </div>
+      ) : (
+        <ConfidenceButtons
+          onPick={handleCheck}
+          disabled={program.length === 0}
+        />
       )}
     </div>
   )

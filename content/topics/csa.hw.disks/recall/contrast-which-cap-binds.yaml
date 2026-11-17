@@ -1,0 +1,29 @@
+id: contrast-which-cap-binds
+type: estimate
+rev: 1
+prompt: |
+  An AWS gp3 volume includes 3,000 IOPS and 125 MiB/s whatever its size (AWS's gp3 page, read 2026-11-11). A log shipper writes 64 KiB at a time, as fast as the volume lets it. How many writes a second does the volume allow it? Exactly.
+unit: writes a second
+answer: 2000
+tolerance: { absolute: 0 }
+given: { iops: 3000, cap_mib: 125, block_kib: 64 }
+# 1,024 KiB in a MiB is what the learner must know.
+working: min(iops, cap_mib * 1024 / block_kib)
+mistakes:
+  - id: the-iops-cap
+    value: 3000
+    working: iops
+    why: That's the IOPS cap, but 3,000 writes of 64 KiB would be 187.5 MiB a second, over the 125 MiB cap. Check both caps and take the smaller.
+  - id: mib-not-writes
+    value: 187.5
+    working: iops * block_kib / 1024
+    why: That's the MiB a second that 3,000 writes of 64 KiB would make, not a number of writes, and it's over the throughput cap anyway.
+  - id: thousand-not-1024
+    value: 1953.125
+    working: cap_mib * 1000 / block_kib
+    why: A MiB is 1,024 KiB, not 1,000. 125 MiB is 128,000 KiB, which is 2,000 writes of 64 KiB.
+explanation: |
+  Work out what each cap allows and take the smaller. The IOPS cap allows 3,000 writes a second, which at 64 KiB each would be 192,000 KiB, 187.5 MiB a second: more than the throughput cap. The throughput cap: 125 MiB a second is 128,000 KiB, and 128,000 ÷ 64 = 2,000 writes a second. So the volume gives 2,000, and the throughput cap is the one holding it back.
+
+  The two caps meet where IOPS × block size equals the throughput: 128,000 KiB ÷ 3,000 is about 43 KiB. Writes smaller than that hit the IOPS cap first, like a database's 16 KiB; bigger ones hit the throughput cap first, like this 64 KiB.
+skills: [disk-caps]

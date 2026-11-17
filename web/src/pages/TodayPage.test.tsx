@@ -130,7 +130,9 @@ const revisitSection = () =>
 
 async function choose(section: HTMLElement, choice: string) {
   await userEvent.click(within(section).getByRole('radio', { name: choice }))
-  await userEvent.click(within(section).getByRole('button', { name: 'Check' }))
+  await userEvent.click(
+    within(section).getByRole('button', { name: 'Fairly sure' }),
+  )
 }
 
 describe('the Today page', () => {
@@ -415,7 +417,9 @@ describe('reviews on the Today page', () => {
     )
     const quick = screen.getByRole('region', { name: 'Quick check' })
     await userEvent.click(within(quick).getByRole('radio', { name: choice }))
-    await userEvent.click(within(quick).getByRole('button', { name: 'Check' }))
+    await userEvent.click(
+      within(quick).getByRole('button', { name: 'Fairly sure' }),
+    )
   }
 
   it('says when nothing is due', async () => {

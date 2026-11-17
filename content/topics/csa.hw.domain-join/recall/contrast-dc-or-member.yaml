@@ -1,0 +1,16 @@
+id: contrast-dc-or-member
+type: mcq
+rev: 1
+prompt: |
+  A small shop's domain has one domain controller, `dc1`, and a Linux server, `files1`, joined to the domain as a member. To save money, a colleague wants to switch `dc1` off every night, "since `files1` checks domain passwords itself now that it's joined". At night, carol tries to log in to `files1` with her domain account for the first time ever, with the right password. What happens?
+choices:
+  - "It fails: files1 is a member, and a member asks a domain controller to check a password"
+  - "It works: joining copied the directory onto files1, so files1 can check passwords alone"
+  - "It works: the keytab on files1 holds every account's keys, so files1 can check them itself"
+  - "It fails: a member accepts domain logins only once it has been promoted to controller"
+answer: 0
+explanation: |
+  A **domain controller** holds a full copy of the directory and runs the KDC, which is what knows each person's keys and decides whether a password is right. A **member** holds none of that. Joining gave `files1` an account of its own and its own keys in `/etc/krb5.keytab`, keys for `FILES1$` only, so that it can prove who it is when it asks a domain controller about people. With `dc1` off, there is nobody to ask, and carol's first login fails however right her password is. (A member can remember people who have logged in to it before, but carol never has.)
+
+  So joining copied no directory onto `files1`, and its keytab holds no one's keys but its own. Nor is a member waiting to be promoted: members accept domain logins every day, by asking. The cure for one domain controller going off is a second one, which is why a domain usually has two or more, never switched off.
+skills: [domain-join]

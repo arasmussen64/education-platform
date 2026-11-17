@@ -7,12 +7,17 @@ import { EstimateQuestion } from './EstimateQuestion.tsx'
 
 const box = () => screen.getByRole('textbox', { name: 'Your answer' })
 const check = () =>
-  userEvent.click(screen.getByRole('button', { name: 'Check' }))
+  userEvent.click(screen.getByRole('button', { name: 'Fairly sure' }))
 
-/** Types into the number box and presses Check. */
+/** Types into the number box and checks it as "Fairly sure" (ADR-0028). */
 async function answer(typed: string) {
   await userEvent.type(box(), typed)
   await check()
+}
+
+/** Types into the box and presses Enter: the placement test's Check. */
+async function answerQuietly(typed: string) {
+  await userEvent.type(box(), `${typed}{Enter}`)
 }
 
 /** An exact count, with no prices. */
@@ -43,7 +48,7 @@ describe('EstimateQuestion', () => {
     render(<EstimateQuestion item={ESTIMATE} />)
     expect(screen.getByText(/What do the two cost in a month/)).toBeVisible()
     expect(box()).toHaveAccessibleDescription('dollars a month')
-    expect(screen.getByRole('button', { name: 'Check' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Fairly sure' })).toBeDisabled()
     // A phone's decimal keypad may offer only a comma, which isn't read.
     expect(box()).toHaveAttribute('inputmode', 'text')
   })
@@ -84,12 +89,16 @@ describe('EstimateQuestion', () => {
     expect(result).toHaveTextContent('with vm = 0.1, disk = 0.02, hours = 730')
     expect(result).toHaveTextContent(ESTIMATE.explanation)
     expect(box()).toBeDisabled()
-    expect(onAnswer).toHaveBeenCalledWith(true, {
-      typed: '$85',
-      number: 85,
-      relativeError: expect.closeTo(-0.0297, 4),
-      mistake: null,
-    })
+    expect(onAnswer).toHaveBeenCalledWith(
+      true,
+      {
+        typed: '$85',
+        number: 85,
+        relativeError: expect.closeTo(-0.0297, 4),
+        mistake: null,
+      },
+      'fair',
+    )
   })
 
   it('names the slip when a wrong answer matches a known mistake', async () => {
@@ -107,6 +116,7 @@ describe('EstimateQuestion', () => {
     expect(onAnswer).toHaveBeenCalledWith(
       false,
       expect.objectContaining({ number: 73, mistake: 'vm-only' }),
+      'fair',
     )
   })
 
@@ -121,6 +131,7 @@ describe('EstimateQuestion', () => {
     expect(onAnswer).toHaveBeenCalledWith(
       false,
       expect.objectContaining({ mistake: null }),
+      'fair',
     )
   })
 
@@ -144,13 +155,18 @@ describe('EstimateQuestion', () => {
     expect(box()).toHaveAccessibleDescription(/dollars a month Type a number/)
     expect(box()).toBeEnabled()
     expect(onAnswer).not.toHaveBeenCalled()
-    // Typing again clears the note; Enter checks, like the button.
+    // Typing again clears the note. Enter reads the number and moves on to
+    // the three buttons, without choosing one for the learner (ADR-0028).
     await userEvent.clear(box())
     expect(screen.queryByText(/Type a number, like/)).not.toBeInTheDocument()
     await userEvent.type(box(), '87.6{Enter}')
+    expect(screen.getByRole('button', { name: 'Guessing' })).toHaveFocus()
+    expect(onAnswer).not.toHaveBeenCalled()
+    await userEvent.keyboard('{Tab}{Tab}{Enter}')
     expect(onAnswer).toHaveBeenCalledWith(
       true,
       expect.objectContaining({ typed: '87.6', number: 87.6 }),
+      'sure',
     )
   })
 
@@ -169,13 +185,14 @@ describe('EstimateQuestion in the placement test (ADR-0021)', () => {
   it('records the answer without saying whether it was right', async () => {
     const onAnswer = vi.fn()
     render(<EstimateQuestion item={ESTIMATE} quiet onAnswer={onAnswer} />)
-    await answer('73')
+    await answerQuietly('73')
     expect(screen.getByText('Answer recorded.')).toBeInTheDocument()
     expect(screen.queryByText(/Not quite/)).not.toBeInTheDocument()
     expect(screen.queryByText(ESTIMATE.explanation)).not.toBeInTheDocument()
     expect(onAnswer).toHaveBeenCalledWith(
       false,
       expect.objectContaining({ number: 73 }),
+      null,
     )
   })
 
@@ -187,7 +204,7 @@ describe('EstimateQuestion in the placement test (ADR-0021)', () => {
     )
     expect(screen.getByText('Answer recorded.')).toBeInTheDocument()
     expect(box()).toBeDisabled()
-    expect(onAnswer).toHaveBeenCalledWith(false, null)
+    expect(onAnswer).toHaveBeenCalledWith(false, null, null)
   })
 
   it('is not offered in practice', () => {

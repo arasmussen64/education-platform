@@ -54,7 +54,7 @@ describe('a Parsons problem as a practice item', () => {
         screen.getByRole('button', { name: `Add: ${line.trim()}` }),
       )
     }
-    await userEvent.click(screen.getByRole('button', { name: 'Check' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Certain' }))
     expect(screen.getByText('Correct!')).toBeInTheDocument()
     expect(events).toEqual([
       expect.objectContaining({
@@ -64,7 +64,7 @@ describe('a Parsons problem as a practice item', () => {
         item_rev: 1,
         context: 'practice',
         correct: true,
-        data: { program: PARSONS.lines.join('\n') },
+        data: { program: PARSONS.lines.join('\n'), confidence: 'sure' },
       }),
     ])
   })
@@ -100,7 +100,8 @@ describe('an estimate as a practice item (ADR-0024)', () => {
     expect(
       screen.getByRole('heading', { name: 'Work it out' }),
     ).toBeInTheDocument()
-    await userEvent.type(box(), '$73{Enter}')
+    await userEvent.type(box(), '$73')
+    await userEvent.click(screen.getByRole('button', { name: 'Fairly sure' }))
     expect(events).toEqual([
       expect.objectContaining({
         type: 'answer',
@@ -114,6 +115,7 @@ describe('an estimate as a practice item (ADR-0024)', () => {
           number: 73,
           relative_error: expect.closeTo(-0.1667, 4),
           mistake: 'vm-only',
+          confidence: 'fair',
         },
       }),
     ])
@@ -121,7 +123,8 @@ describe('an estimate as a practice item (ADR-0024)', () => {
 
   it("saves nothing for text it can't read as a number", async () => {
     const { events } = renderEstimate()
-    await userEvent.type(box(), 'eighty{Enter}')
+    await userEvent.type(box(), 'eighty')
+    await userEvent.click(screen.getByRole('button', { name: 'Certain' }))
     expect(screen.getByText(/Type a number, like 1168/)).toBeVisible()
     expect(events).toEqual([])
   })
@@ -153,8 +156,9 @@ describe('a typed item as a practice item (ADR-0027)', () => {
     ).toBeInTheDocument()
     await userEvent.type(
       screen.getByRole('textbox', { name: 'Your command' }),
-      'docker ps --all{Enter}',
+      'docker ps --all',
     )
+    await userEvent.click(screen.getByRole('button', { name: 'Guessing' }))
     expect(events).toEqual([
       expect.objectContaining({
         type: 'answer',
@@ -166,6 +170,7 @@ describe('a typed item as a practice item (ADR-0027)', () => {
           typed: 'docker ps --all',
           mistake: 'every-container',
           slip: false,
+          confidence: 'guess',
         },
       }),
     ])

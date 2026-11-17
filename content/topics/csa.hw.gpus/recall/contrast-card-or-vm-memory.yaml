@@ -1,0 +1,16 @@
+id: contrast-card-or-vm-memory
+type: mcq
+rev: 1
+prompt: |
+  A GPU server has 64 GiB of memory and one card. `nvidia-smi` shows the card at `15890MiB / 16384MiB`, held by one model that is serving requests, and `free -g` shows 52 GiB of the VM's memory available (constructed numbers). A colleague wants to load a second model, 6 GiB of weights, onto the same card, "because the server has plenty of memory free". What happens?
+choices:
+  - "It fails with an out-of-memory error: the card itself has under 1 GiB left"
+  - "It loads, and the card borrows the 6 GiB it's short of from the VM's 52 GiB"
+  - "It loads but runs slowly, while the card swaps weights out to the VM's disk"
+  - "It loads, because the driver frees memory the first model isn't using now"
+answer: 0
+explanation: |
+  There are two separate memories, and only one of them counts here. The card's own memory, VRAM, is what `nvidia-smi` reports: 15,890 of 16,384 MiB in use, so 494 MiB free, under half a GiB. The VM's memory is what `free` reports: 52 GiB available, but on the other side of the PCIe slot. A model's weights must all be in the card's memory before it can answer anything, and a GPU has no swap and doesn't borrow the VM's memory when its own runs out: the program asking for more stops with an out-of-memory error.
+
+  Nor does the driver take memory back from a model that is loaded and serving: what the first model holds stays held for as long as it runs. The fixes are a card with more memory, a second card, or smaller weights (8 or 4 bits); the VM's free memory helps with none of them.
+skills: [vram-fit]

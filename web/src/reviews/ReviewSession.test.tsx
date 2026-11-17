@@ -87,7 +87,9 @@ function openReview(
 async function answerQuickCheck(choice: string) {
   const quick = screen.getByRole('region', { name: 'Quick check' })
   await userEvent.click(within(quick).getByRole('radio', { name: choice }))
-  await userEvent.click(within(quick).getByRole('button', { name: 'Check' }))
+  await userEvent.click(
+    within(quick).getByRole('button', { name: 'Fairly sure' }),
+  )
 }
 
 async function answerPrediction(text: string) {
@@ -96,7 +98,9 @@ async function answerPrediction(text: string) {
     within(predict).getByLabelText('What will it print?'),
     text,
   )
-  await userEvent.click(within(predict).getByRole('button', { name: 'Check' }))
+  await userEvent.click(
+    within(predict).getByRole('button', { name: 'Fairly sure' }),
+  )
 }
 
 const reviewsIn = (events: NewEvent[]) =>
@@ -228,7 +232,7 @@ describe('a review session', () => {
     // Five minutes on it: more than three times 20 seconds, and a minute.
     vi.setSystemTime(new Date(Date.parse(VISIT) + 5 * 60 * 1000))
     await userEvent.click(
-      within(predict).getByRole('button', { name: 'Check' }),
+      within(predict).getByRole('button', { name: 'Fairly sure' }),
     )
     await answerQuickCheck('Hi')
     expect(reviewsIn(events)).toEqual([
