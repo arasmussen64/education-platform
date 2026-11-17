@@ -1,0 +1,18 @@
+id: contrast-buy-iops-or-throughput
+type: mcq
+rev: 1
+prompt: |
+  Two services each have a gp3 volume of their own, which includes 3,000 IOPS and 125 MiB/s (AWS's gp3 page, read 2026-11-11), and each is held at a limit of its volume. The database writes 16 KiB at a time and gets 3,000 writes a second. The backup writes 256 KiB at a time and gets 500. Their VM's own allowance has plenty of room. You may buy each volume extra IOPS or extra throughput. What should each buy?
+choices:
+  - "The database more IOPS, and the backup more throughput"
+  - "The database more throughput, and the backup more IOPS"
+  - "Both more IOPS, since each one is held back by its count of writes"
+  - "Both more throughput, since each one is held back by its megabytes"
+answer: 0
+explanation: |
+  Work out which cap each one is at. The database: 3,000 writes of 16 KiB is 48,000 KiB, about 46.9 MiB a second, well under the 125 MiB cap. It's at the **IOPS** cap, so only more IOPS helps; more throughput would sit unused.
+
+  The backup: 500 writes of 256 KiB is 128,000 KiB, exactly 125 MiB a second, while it uses only 500 of its 3,000 IOPS. It's at the **throughput** cap, so only more throughput helps; more IOPS would sit unused.
+
+  Small blocks run out of operations first and big blocks run out of bytes first, so the same volume can be held back by different caps for different work, and buying the wrong one changes nothing. Buying the swapped pair, or the same thing for both, pays for a cap that isn't the one holding that service back. (Had the VM been at its own allowance, neither purchase would help: you get the smaller of the two.)
+skills: [disk-caps]
