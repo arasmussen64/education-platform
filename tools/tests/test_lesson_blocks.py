@@ -192,6 +192,24 @@ def test_story_mistakes_are_caught(story: str, fragment: str) -> None:
     assert_found(lesson(after=story), fragment)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        lesson(after='Try this: <Check item="mcq-print" />'),
+        lesson(after='<Check item="mcq-print" /> and then read on.'),
+        lesson(after=STORY.replace("\n\n</Story>", " The end.</Story>")),
+    ],
+)
+def test_a_block_in_the_middle_of_a_line_is_caught(text: str) -> None:
+    # MDX would draw the box inside a paragraph.
+    assert_found(text, "goes on a line of its own")
+
+
+def test_a_tag_written_over_several_lines_is_on_its_own_line() -> None:
+    story = STORY.replace(" source=", "\n  source=")
+    assert found(lesson(after=story)) == []
+
+
 def test_a_stray_closing_tag_is_caught() -> None:
     assert_found(lesson(after="</Story>"), "isn't open")
 
