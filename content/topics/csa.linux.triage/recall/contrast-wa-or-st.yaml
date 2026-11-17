@@ -1,0 +1,16 @@
+id: contrast-wa-or-st
+type: mcq
+rev: 1
+prompt: |
+  Two slow cloud servers. In `top`, neither one's CPUs are doing much useful work. On server A, `wa` is 45% and `st` is 0%. On server B, `wa` is 0% and `st` is 45%. Where does each problem lie?
+choices:
+  - "A is waiting on a disk; B's host is giving its CPU time to other virtual machines"
+  - "A's host is giving its CPU time away; B is waiting for its disk to finish writes"
+  - "Both are short of CPU: `wa` and `st` are two names for time spent in the run queue"
+  - "A has a program stuck in a loop in the kernel; B has more threads than its CPUs"
+answer: 0
+explanation: |
+  `wa` (I/O wait) is time a CPU sat idle while a disk request was still outstanding: the CPU is free, and a disk is slow. Look at the disk next: `iostat -xz 1` for `%util`, `await` and the queue, and `pidstat -d 1` for who is reading and writing. (If `vmstat` shows `si` and `so` as well, the disk traffic is swapping, and the real shortage is memory.)
+
+  `st` (steal) is time our virtual CPU wanted to run but the hypervisor ran another machine's work on the physical CPU instead: a noisy neighbour, or a burstable instance that has used up its CPU credits. Nothing inside the VM fixes it; the answer is outside, in the credit balance, a different instance type or a move to another host. A program looping in the kernel shows as `sy`, and too many threads as a long run queue (`r` in `vmstat`), not as either of these.
+skills: [first-minute]

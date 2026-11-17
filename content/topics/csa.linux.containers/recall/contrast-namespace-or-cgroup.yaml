@@ -1,0 +1,16 @@
+id: contrast-namespace-or-cgroup
+type: mcq
+rev: 1
+prompt: |
+  Two facts about one container: inside it, `ps` lists only the container's own processes, with its main program as PID 1; and its program can never have more than 100 processes running at once. Which kernel feature is behind each?
+choices:
+  - "A pid namespace hides the other processes; a cgroup's `pids.max` sets the limit of 100"
+  - "A cgroup hides the other processes; the pid namespace's size sets the limit of 100"
+  - "The pid namespace does both: it shows only its own processes and holds at most 100"
+  - "The image's root filesystem leaves the host's processes out, and its `CMD` sets the 100"
+answer: 0
+explanation: |
+  The two features answer different questions. A namespace decides what a process can see: its own copy of a resource, such as process numbers (pid), interfaces and ports (net), mounts (mnt) or the hostname (uts). A pid namespace is why the container sees only its own processes, numbered from 1. It has no size and limits nothing.
+
+  A cgroup decides how much a group of processes may use: `memory.max`, `cpu.max` and `pids.max` are its files, and `--pids-limit=100` writes the last one. A cgroup hides nothing: the host's `ps` lists every process in it. A rule of thumb for any container question: "it can't see it" is a namespace, "it can't have more of it" is a cgroup. The image's files only give the container its root filesystem.
+skills: [namespaces, cgroups-limits]

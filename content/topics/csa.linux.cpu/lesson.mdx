@@ -1,10 +1,20 @@
 <Intro>
 
+<Puzzle question="You start a backup at the lowest priority Linux offers, nice 19, so it won't disturb anything. On a quiet server, `top` shows it using a whole CPU, 100%. Is the low priority being ignored?">
+
+No. A priority only decides who goes first when several programs want the same CPU. On a quiet server nobody else wants it, so the backup gets all of it, and the moment the web server needs a CPU, the backup steps aside. A priority is a share, not a cap. Capping a program, so it can never use more than a set amount, is a different control, and this topic covers both.
+
+</Puzzle>
+
 A server with four CPUs and forty runnable processes has a decision to make forty times a millisecond: who runs next? The part of the kernel that decides is the **scheduler**, and once you can read its numbers you can tell a slow machine from a slow program, and a busy container from a throttled one.
 
 **The fair scheduler.** Linux's scheduler for ordinary tasks is the fair scheduler, known for years as **CFS**, the Completely Fair Scheduler (since kernel 6.6, so on Ubuntu 24.04, its core rule is a refinement called **EEVDF**, but the names `cfs` and CFS live on in cgroup files and metrics). It tracks how much CPU time each runnable task has had and keeps picking the one that is furthest behind its fair share, so over any short window every task gets that share. **Nice** values tilt the shares: nice runs from -20 (the biggest share) to 19 (the smallest), the default is 0, and `nice -n 10 ./backup.sh` or `renice` sets it; only root may *lower* a nice value. Nice is not a hard cap: when a CPU is idle, a nice-19 task gets all of it. It only matters under contention, which is why "give it a higher priority" rarely fixes anything on a machine that isn't busy. **Context switches** (`cs` in `vmstat`) are the scheduler swapping one task for another; thousands a second is normal.
 
+<Check item="cpu-nice-order" />
+
 **Reading `top`.** The CPU line splits time into `us` (user programs), `sy` (the kernel), `ni` (niced programs), `id` (idle), `wa` (waiting for disk), `hi` and `si` (interrupts), and **`st`**, **steal**: time the **hypervisor** (the software on the physical host that runs several virtual machines, VMs, side by side; every cloud server is one of those VMs) took our virtual CPU away to run someone else's VM. High `st` means the *host* is the problem: a noisy neighbour, or a burstable instance that has used up its CPU credits. High `wa` means the disk, not the CPU. The **load average** (`uptime`, or the first line of `top`) is three numbers: the average number of tasks that were runnable *or waiting on disk* over the last 1, 5 and 15 minutes. Read it against the CPU count (`nproc`): 8 on a 4-CPU machine means two tasks queued per CPU; 8 on 16 CPUs is a quiet afternoon. Rising from 15 to 1 minute means it's getting worse.
+
+<Check item="est-load-per-cpu" />
 
 **cgroups.** A **control group** (cgroup for short) is a set of processes with limits attached, arranged in a tree under `/sys/fs/cgroup`. systemd puts every service in its own group (`system.slice/nginx.service`), and every container (a program boxed off from the rest of the machine, which a later topic takes apart) is one too. Each group is a directory of plain files: `cgroup.procs` lists its PIDs, and the controllers add files like `cpu.weight`, `cpu.max`, `memory.max` and `pids.max`. Two CPU controls matter:
 
@@ -13,7 +23,21 @@ A server with four CPUs and forty runnable processes has a decision to make fort
 
 On a plain server the same two knobs are systemd settings in a service's unit or drop-in: `CPUQuota=50%` writes `cpu.max`, `CPUWeight=300` writes `cpu.weight`, and `Nice=` sets the nice value of the service's processes; `systemd-run -p CPUQuota=20% command` runs one command under a quota on the spot, and `systemctl show name -p CPUQuotaPerSecUSec,CPUWeight,Nice` reads the settings back. The cgroup's files are under `/sys/fs/cgroup/system.slice/name.service/`.
 
+<Check item="cpu-quota-percent" />
+
 **Throttling.** When a group uses up its quota before the period ends, the kernel stops its tasks until the next period begins. The group's `cpu.stat` counts it: `nr_periods`, `nr_throttled` (periods in which it was stopped) and `throttled_usec` (how long in total). The trap is that a *bursty* service, a web API that's idle and then handles a request, burns its 50 ms in the first few milliseconds of a period and then waits out the rest, request after request. Its average utilisation over a second looks like 30%; its latency looks terrible. The fix is to raise the limit well above the average, or remove the CPU limit altogether and keep the request (so the service is only slowed when the node is genuinely contended), or spread the work over more replicas. A higher weight or a lower nice value does nothing against a quota.
+
+<Check item="est-throttled-share" />
+
+<Story title="Indeed's throttled services, 2018 to 2019" source="https://engineering.indeedblog.com/blog/2019/12/unthrottled-fixing-cpu-limits-in-the-cloud/" sourceTitle="Unthrottled: Fixing CPU Limits in the Cloud" license="linked, not copied">
+
+At the job site Indeed, the slowest responses of its web applications got worse, starting not long after Linux 4.18 came out in 2018. The CPU graphs looked normal. One mostly idle application had 4.1 CPUs allowed and used less than half of one, yet it was throttled heavily.
+
+Indeed's engineers went by the cgroup's own counters: their measure was the share of periods in which a container was throttled, `nr_throttled` divided by `nr_periods` from `cpu.stat`, and high latency followed that number, not the CPU graph. Stress tests and shell scripts couldn't reproduce it, so they wrote a small C program whose threads mimic a busy worker and a mostly sleeping one, and used it to search the kernel's history, change by change, until they found the one responsible: a fix in 4.18 for a timing problem between CPUs, which looked perfectly valid and had been copied into the kernels of RHEL, CentOS and Ubuntu.
+
+They worked out the real cause and sent their own fix to the kernel. In one application the worst response time fell from over two seconds to 30 milliseconds. The lesson: watch throttling directly; average CPU use hides it.
+
+</Story>
 
 **Read now:** the kernel's CFS design note, the main resource below, which is short and says what fairness means precisely. Then the ArchWiki's cgroups page for the hierarchy and systemd's `CPUWeight=` and `CPUQuota=`, the CPU section of the cgroup v2 document for the files, and the Docker and Kubernetes pages to see how their flags map onto those files. The quick questions read `top`, `uptime`, `ps` and cgroup files with the text tools from Shell essentials, and do the quota arithmetic with bash. A few ask for a number that you work out and type in; use a calculator if you like, because the skill is setting up the sum. The labs put you on a machine where you run a program under a fifth of a CPU and count its throttled periods, write a CPU report and a `cpu-cap` tool, share the CPU between a batch job and an API with a quota and a weight, and get an API that answers slowly on a nearly idle machine back up to speed without taking its cap away.
 

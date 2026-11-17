@@ -1,0 +1,16 @@
+id: contrast-memory-or-cpu-limit
+type: mcq
+rev: 1
+prompt: |
+  During a traffic spike, two containers on one node reach their limits. One reaches its `memory.max`; the other reaches its `cpu.max`. Neither may use swap. What happens to each?
+choices:
+  - "The memory one is OOM-killed; the CPU one keeps running, but is paused until each new period"
+  - "Both are killed and restarted, because the kernel treats reaching any limit as a fault"
+  - "The CPU one is killed with exit code 137, and the memory one waits for the next period"
+  - "Neither: a limit is only enforced once the whole node runs short of that resource"
+answer: 0
+explanation: |
+  CPU time can be rationed, and memory can't. At `cpu.max` the kernel stops the group's tasks until the next period begins (100 ms by default), so the container is throttled: alive, but slow, and `cpu.stat` counts it in `nr_throttled`. Nothing crashes; the symptom is latency.
+
+  Memory can't be handed out later: a page the program needs either fits under the limit or it doesn't. At `memory.max` the kernel first reclaims what it can inside the group, such as its page cache, and when that isn't enough, the OOM killer kills a process inside the group, with exit code 137 and `OOMKilled` in Kubernetes. The cgroup's `memory.events` counts it in `oom_kill`. Both limits are enforced however much the node has free. So a container that dies points to its memory limit, and one that stays up but answers slowly points to its CPU limit.
+skills: [throttling, cgroups-v2]

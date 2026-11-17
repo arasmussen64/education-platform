@@ -1,0 +1,16 @@
+id: contrast-exit-143-or-137
+type: mcq
+rev: 1
+prompt: |
+  Two batch jobs died overnight on the same server, and nobody was logged in. The scheduler's log says job A ended with exit status 143 and job B with exit status 137. Which job do you check first for running out of memory, and why?
+choices:
+  - "Job B: 137 is `KILL`, the signal the OOM killer sends; 143 is `TERM`, a request to stop"
+  - "Job A: the kernel adds 6 to a program's exit status when it ends it for using too much memory"
+  - "Both alike: any exit status above 128 means the kernel killed the process for its memory use"
+  - "Neither: a status above 128 is the program's own error code, which only its own log explains"
+answer: 0
+explanation: |
+  Both numbers mean a signal ended the job: the shell reports 128 plus the signal's number. 143 is 128 + 15, `TERM`, the polite "please stop" that `kill`, `systemctl stop` and Kubernetes send first. A program can catch it and tidy up, and something or someone chose to send it. 137 is 128 + 9, `KILL`, which can't be caught. The OOM killer ends its victim with `KILL`, so 137 is where to look for memory first.
+
+  137 isn't proof on its own: a person's `kill -9`, or a supervisor that sent `TERM` and then `KILL` when the grace period ran out, gives the same number. Confirm it in the kernel's log, `journalctl -k` or `dmesg`, where an OOM kill leaves an `Out of memory: Killed process` line naming the program, or in the cgroup's `memory.events`, whose `oom_kill` count goes up.
+skills: [oom-killer]

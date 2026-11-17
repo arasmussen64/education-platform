@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="`ls reports` happily lists the files inside a folder called `reports`. But `cat reports/today.txt` says `Permission denied`, although `today.txt` itself may be read by anyone. How can you see a file's name and not be allowed to reach it?">
+
+The folder lets you read its list of names, but not enter it. On a folder, reading means listing the names, and a separate permission, `x`, means going inside to reach the files. With read but no `x` you can see what's there and touch none of it, whatever the files' own permissions say. The lesson's second section explains what each letter means on a file and on a folder.
+
+</Puzzle>
+
 Linux was built for many people sharing one machine, and that is still how a server works: the web app, the database, the backup job and you are all different **users**, and every file says who may do what with it. Get this right and a broken app can only damage its own corner. Get it wrong and a typo in a script deletes the database.
 
 **Reading `ls -l`.** Each line looks like this:
@@ -11,15 +17,33 @@ drwxr-x--- 2 app  app  4096 Nov  9 09:00 secrets
 
 The first ten characters are the **mode**. The first one is the type: `-` for an ordinary file, `d` for a directory, `l` for a link. Then come three groups of three: what the **owner** may do, what members of the file's **group** may do, and what **others** may do. In each group, `r` is read, `w` is write, `x` is execute, and `-` means "not allowed". So `deploy.sh` can be read, changed and run by its owner (`app`), read and run by members of the `app` group, and not touched by anyone else. After the mode come the number of links, the owner, the group, the size in bytes, the date, and the name.
 
+<Check item="perm-awk-executables" />
+
 **What the letters mean.** On a file, `r` lets you read it, `w` change it, `x` run it as a program. On a directory they mean something slightly different: `r` lets you list the names inside, `w` lets you create and delete entries, and `x` lets you *enter* it and reach the files inside. A directory without `x` is a locked room even if you know what's in it, which is why directories almost always have `x` wherever they have `r`.
 
 **Octal.** Each group of three is also a number: `r` is 4, `w` is 2, `x` is 1, added up. `rwx` is 7, `r-x` is 5, `r--` is 4, `---` is 0. So `-rwxr-x---` is **750**. You'll see a few numbers everywhere: `644` for ordinary files (owner writes, everyone reads), `755` for programs and directories, `600` for secrets (only the owner, and no running), `700` for private directories such as `~/.ssh`. `stat -c '%a %U:%G %n' file` prints exactly those: the mode as a number, the owner and group, the name.
 
+<Check item="perm-octal-arith" />
+
 **Changing things.** `chmod 750 deploy.sh` sets the mode outright; the symbolic form changes one piece: `chmod u+x deploy.sh` (owner may execute), `chmod g-w notes.txt` (group may not write), `chmod o= secrets` (others get nothing). `chown app:app /srv/app` sets the owner and group, and `-R` does the whole tree. Only the file's owner or root may `chmod` it; changing the owner with `chown` needs root (an owner may change only the group, to one they belong to). New files aren't created with 666 or 777 even though that's where the kernel starts: the **umask** takes bits away. With the usual `umask 022`, new files come out 644 and new directories 755; with `umask 077`, 600 and 700.
+
+<Check item="est-umask-file" />
 
 **Users and groups.** `/etc/passwd` has one line per user: `name:x:uid:gid:comment:home:shell`. root has uid 0 and may do anything. Service users like `www-data` have no password and `/usr/sbin/nologin` as a shell, so nobody can log in as them: they exist only to own files and run one program; `useradd --system --no-create-home --shell /usr/sbin/nologin name` makes one, with a group of the same name. `getent passwd name` prints one user's line, `getent group name` one group's. `id` shows who you are and which groups you're in. Groups let several users share access: give the `deploy` group write access to `/srv/app`, and `usermod -aG deploy ada` adds Ada to it, taking effect the next time she logs in. The `-a` matters: without it, `usermod -G` *replaces* her groups.
 
+<Check item="perm-passwd-fields" />
+
 **Root and sudo.** Logging in as root means every command you type has unlimited power and no name attached. `sudo command` runs one command as root, asks for *your* password, and writes a line to the log saying who ran what. Who may use it is in `/etc/sudoers` and the files in `/etc/sudoers.d/`, edited with `visudo` (which checks the syntax before saving, because a broken sudoers locks everyone out; `visudo -f /etc/sudoers.d/deploy` edits one file, `visudo -c` checks them all). `%sudo ALL=(ALL:ALL) ALL` lets the `sudo` group run anything; a line like `%deploy ALL=(root) NOPASSWD: /usr/bin/systemctl restart app` lets one group run one command, which is the shape you want: the least power that does the job. `sudo -l` lists what you may run, and `sudo -l -U ada` what Ada may. On servers, `PermitRootLogin no` in the SSH config closes the front door for root entirely.
+
+<Story title="Baron Samedit: a hole in sudo itself, 2021" source="https://blog.qualys.com/vulnerabilities-threat-research/2021/01/26/cve-2021-3156-heap-based-buffer-overflow-in-sudo-baron-samedit" sourceTitle="CVE-2021-3156: Heap-Based Buffer Overflow in Sudo (Baron Samedit)" license="linked, not copied">
+
+In January 2021, the security company Qualys published a flaw in `sudo` that had sat in its code since July 2011, nearly ten years. On an affected server the sudoers rules could be as careful as you like, and it made no difference.
+
+The flaw was a memory bug, a buffer overflow, inside `sudo` itself. With the default configuration, any local user could use it to become root: someone who wasn't in the sudoers file at all, even the `nobody` account. Qualys proved it on Ubuntu 20.04, Debian 10 and Fedora 33, and every version from 1.8.2 to 1.9.5p1 was affected. Its researchers told the `sudo` author and the distributions privately in mid-January, published on 26 January, and urged everyone to install their distribution's patch at once. They also gave a quick test: as an ordinary user, `sudoedit -s /` answers with an error that starts `sudoedit:` on a vulnerable machine and `usage:` on a fixed one.
+
+The lesson: a sudoers rule is only as strong as the program that reads it. Least privilege limits the damage, and security updates installed promptly close the holes nobody has found yet.
+
+</Story>
 
 **SSH keys.** Passwords over the network can be guessed; keys can't. `ssh-keygen -t ed25519` creates a pair of files in `~/.ssh`: `id_ed25519`, the **private key**, and `id_ed25519.pub`, the **public key**. The private key never leaves your machine; give it a passphrase and let `ssh-agent` remember it. The public key is just text, and you append it to `~/.ssh/authorized_keys` in your account on the server (`ssh-copy-id user@host` does this). From then on the server challenges you to prove you hold the private key, without ever seeing it. `sshd` is strict about the files: if `~/.ssh` or `authorized_keys` (or your home folder) can be written by anyone but you, it silently ignores the keys, because a file another user could edit could hold their key; `700` for `~/.ssh` and `600` for `authorized_keys` is the safe setting. The `ssh` client is just as strict about the private key: if other users can read it, it refuses to use it and says so ("UNPROTECTED PRIVATE KEY FILE"), so keep it `600`. `~/.ssh/config` saves typing: a `Host web` block with `HostName`, `User` and `IdentityFile` lets you type `ssh web`. Once keys work on a server, turn password login off.
 

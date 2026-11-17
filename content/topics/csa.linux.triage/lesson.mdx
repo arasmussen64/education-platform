@@ -1,8 +1,16 @@
 <Intro>
 
+<Puzzle question="Two servers each have four CPUs. Server A's CPUs are 95% busy; server B's are 60% busy. Users complain that one of them is slow. Which one is more likely, and what would you need to know to be sure?">
+
+You can't tell from how busy they are. A CPU that's 95% busy doing useful work may be serving everyone promptly; what makes things slow is work waiting in a queue. If server B has fourteen tasks waiting for its four CPUs and A has three, B is the slow one, at only 60%. How busy a resource is, and whether work is queuing for it, are separate questions, and this topic's method asks both.
+
+</Puzzle>
+
 "The server is slow." Nothing else. This topic is a method for turning that sentence into a cause in a few minutes, using tools from the earlier topics in a fixed order, so you never have to guess and never have to change a setting to see what happens.
 
 **The USE method.** Brendan Gregg's checklist: for **every resource** (each CPU, memory, each disk, each network interface), ask three questions. **Utilisation**: how busy is it, as a percentage of time or capacity? **Saturation**: is work queueing because the resource can't keep up? **Errors**: is anything failing? The order of importance is the reverse of how people usually look. A CPU at 100% doing useful work is fine; a run queue longer than the number of CPUs means tasks are waiting, and that's slow. A disk at 90% utilisation may be fine; a queue of ten requests with 50 ms waits is not. Errors (an OOM kill, a disk timeout, dropped packets) are rare and decisive. Work through the resources, write down what you find, and the bottleneck is usually the one with saturation or errors.
+
+<Check item="est-queue-growth" />
 
 **The first minute.** Netflix's engineers wrote down the ten commands they run on a slow Linux machine, and the list has held up:
 
@@ -19,11 +27,27 @@
 
 Ten commands, one minute, and you know whether the machine is short of CPU, memory, disk or network, and which process is involved. Save the output: it's your baseline for "did the fix work?".
 
+<Check item="tri-vmstat-saturated" />
+
 **Disk saturation in detail.** `iostat -xz 1` is where disk problems become visible. `%util` near 100 says the device was busy the whole second; `await` (or `r_await` and `w_await`) says how long each request took including queueing, and for an SSD anything above a few milliseconds is slow; `aqu-sz` says how many requests were waiting on average. Together with `wa` in `vmstat` and processes stuck in `D` state in `ps`, that's a saturated disk, and `pidstat -d 1` or `iotop` says who is writing. Cloud volumes also have IOPS and throughput limits, from the storage topic, and a disk pinned at its limit looks exactly like this.
+
+<Check item="tri-iostat-await" />
 
 **Once you know the process: `perf` or `strace`?** They answer different questions. If the process is *busy*, burning CPU, you want to know which code is running: **`perf top`** shows the hottest functions live, and `perf record -g` followed by `perf report` (or a **flame graph**, Gregg's visualisation of the same data) shows the call paths. A garbage collector or a hashing function at the top of the list tells you what to fix. If the process is *slow but not busy*, it's waiting: on a disk, on the network, on a lock. **`strace -c -p PID`** counts its **system calls** (the requests a program makes to the kernel: open this file, read from that connection, wait this long), how long they took in total and how many failed, and `strace -T` prints each call with its duration so the slow one stands out. Twenty thousand failed `stat` calls a second or a `fsync` that takes 1.7 ms every time are the kind of thing `strace -c` makes obvious. There is a third case between the two. A process can be busy *asking the kernel for things* (opening files, reading, polling) with little work of its own to show for it. A program doing its own sums spends nearly all of its CPU time in its own code, which the tools call user time (`us`). This kind spends a sizeable share inside the kernel instead, which they call system time (`sy` in `vmstat` and `top`, `%system` in `pidstat`). That usually means a loop around a system call that fails or returns at once, and `strace -c` is the tool for it too, since it counts the calls and their errors. `strace` slows the process it attaches to, so use it briefly and never on a hot production path for long; `perf` is lighter.
 
+<Check item="tri-strace-summary" />
+
 **Network.** From the host, `sar -n DEV 1` and `sar -n EDEV 1` (errors and drops per interface) answer utilisation and errors; `sar -n ETCP 1` answers saturation of a kind: `retrans/s` climbing means loss, and `ss -s` or `nstat` show the totals. Loss on a path you don't control is a conversation with another team, armed with numbers.
+
+<Story title="Cloudflare's one-second spikes, 2015" source="https://blog.cloudflare.com/the-story-of-one-latency-spike/" sourceTitle="The story of one latency spike" license="linked, not copied">
+
+A Cloudflare customer reported that a few web requests were extremely slow. It was rare, monitoring didn't see it, and the web server's logs showed no slow requests. Thousands of test requests to one server found five that took up to a second.
+
+The engineers narrowed it down layer by layer. A `ping` to the router in front of the servers never spiked; a `ping` to a server behind it sometimes took almost two seconds, so the trouble lay between the router and the server. `tcpdump` on that server showed a ping arriving and the kernel's reply leaving 1.3 seconds later: the delay was inside the kernel itself. Profiling the kernel's packet-receiving code found a function that tidies a connection's receive buffer when it fills up, like a garbage collector. On these servers the buffers could grow to 32 MB, and tidying one could hold up the processing of every other packet for over 20 milliseconds.
+
+They lowered the buffers' maximum: with 2 MB the longest stall fell to 3 ms, and they settled on 4 MB as a compromise for long, fast connections. The lesson: rare spikes hide in averages, and splitting the path in halves finds them.
+
+</Story>
 
 **Read now:** Gregg's *USE Method* page, the main resource below, which is the method itself in a page; then the Netflix checklist article, which is the first minute with sample output; then Gregg's *Linux Performance* page for the map of which tool observes which part of the system, and the profiling half of the Missing Semester's lecture 7. The `vmstat` and `strace` manuals are for columns and flags. The quick questions read `dmesg`, `vmstat`, `pidstat`, `iostat`, `strace -c`, `perf report` and `sar` output with the text tools from Shell essentials, which is what triage mostly is. The labs put you on a slow server: you run the first-minute checklist and reach a verdict, finish a report of the signals, write a `top-cpu`, find the service that is saturating a disk with `iostat` and `pidstat -d`, write a `busiest-service`, and track down, and stop for good, whatever is eating a CPU on a server where little real work is getting done.
 

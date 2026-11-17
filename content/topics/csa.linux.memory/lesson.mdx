@@ -1,18 +1,42 @@
 <Intro>
 
+<Puzzle question="A server has 16 GB of memory and `free -m` says only 300 MB of it is free. Is it about to run out?">
+
+Probably not. Memory nothing is using would be wasted, so the kernel fills it with copies of files that were recently read, the page cache, and gives that memory back the moment a program asks for it. The number to read is `available`, which counts the cache as free. Low `free` is normal; low `available` is the warning.
+
+</Puzzle>
+
 Memory is the resource servers run out of most suddenly. A disk fills up over days; memory runs out in a second, and the kernel responds by killing something. This topic is about reading the numbers correctly before that happens, and reading the log afterwards.
 
 **Virtual memory.** Every process sees its own private range of addresses, from zero up to a huge number, as if it had the whole machine to itself. That range is **virtual**: the kernel maps it, in **pages** of 4 KB, onto physical RAM, and only the pages a process actually touches get real memory behind them. Two processes can't see each other's pages, which is the isolation that keeps a crashing program from corrupting another. Together, processes can reserve far more virtual memory than the machine has physical memory; what matters is how much they actually use, their **resident set size (RSS)**.
 
 **Why `free` looks scary.** Run `free -m` on a healthy 16 GB server and you'll often see a few hundred megabytes "free". That's by design. RAM nothing is using would be wasted, so the kernel fills it with the **page cache**: copies of files that were recently read or written, which make the next read instant and which the kernel drops the moment a program needs the space. `free` counts that under `buff/cache`. The column that answers "could I start something big here?" is **`available`** (`MemAvailable` in `/proc/meminfo`): free memory plus the cache the kernel could give back. Low `free` is normal; low `available` is the warning.
 
+<Check item="mem-free-available" />
+
 **Swap and paging.** **Swap** is disk space the kernel can move memory pages to. When RAM is tight, it writes out **anonymous pages** (program data, as opposed to file-backed pages, which it can simply drop because the file is still on disk) that haven't been touched in a long time. Some swap in use is fine and even good: idle pages on disk mean more RAM for things that are actually used, which is Chris Down's argument in the second reading. The problem is **thrashing**: pages being written out and read back constantly because the working set doesn't fit. `vmstat 1` shows it as non-zero `si` (swap in) and `so` (swap out) every second, with programs stuck in `wa` (waiting on the disk). That machine needs more memory or less work; no setting fixes it. `swappiness` (0 to 200) tunes how eagerly the kernel swaps anonymous pages rather than dropping cache.
+
+<Check item="mem-vmstat-swapping" />
 
 **Huge pages.** Mapping memory in 4 KB pages means a lot of bookkeeping for a program holding tens of gigabytes: page tables, and misses in the CPU's cache of mappings (the TLB). **Huge pages** are 2 MB (or 1 GB) instead, and databases and JVMs with large heaps use them for a measurable speedup. `/proc/meminfo` shows how many are reserved (`HugePages_Total`) and how big (`Hugepagesize`). **Transparent huge pages** let the kernel hand them out automatically, which sometimes causes latency spikes while it compacts memory, so some databases recommend turning THP off.
 
 **The OOM killer.** When memory and swap are both exhausted, the kernel has to free something, and it kills a process. It picks the one with the highest **`oom_score`**, roughly the one using the most memory, adjusted by **`oom_score_adj`** (from -1000, never kill, to 1000, kill first), which operators set to protect a database or to sacrifice a cache. The log line, in `dmesg` or `journalctl -k`, reads like `Out of memory: Killed process 4321 (java) total-vm:12582912kB, anon-rss:7340032kB ...`: the PID, the program, and `anon-rss`, the memory it really held. A process killed this way exits with status **137**, which is 128 plus 9, the number of `SIGKILL`; wherever you see 137, think "out of memory" first.
 
+<Check item="mem-exit-137" />
+
 **Containers die at their own limit.** A **container** is a program boxed off from the rest of the machine, with a share of the machine's memory and CPU of its own; a later topic takes one apart. What holds it to that share is a **cgroup** (short for control group): a set of processes the kernel counts together and can put limits on, which shows up as a folder of plain files under `/sys/fs/cgroup`. A container's processes live in one, and the container's memory limit is that cgroup's `memory.max` file. When the processes inside reach it, the kernel runs the OOM killer *inside that cgroup*, so the container's main process is killed while the server it runs on still has 20 GB free. Kubernetes (the system that runs containers across a fleet of servers; a **pod** is a container or a few it runs together, a **node** is one of the servers) shows `OOMKilled` and exit code 137; the cgroup's `memory.events` file counts `oom_kill`. The fix is never "the node has memory": it's to measure what the program really uses (`memory.current`, or `memory.peak`), raise the limit to that, fix the leak if the number grows without end, and set the **request** (what the scheduler reserves) close to the **limit** (where the kill happens) so the pod lands on a node that has the memory. systemd puts every service in a cgroup of its own (its folder is `/sys/fs/cgroup/system.slice/name.service/`), so on a plain server the same limits are settings in a service's unit: `MemoryMax=128M` and `MemorySwapMax=0` in the unit (or a drop-in) set its cgroup's `memory.max` and `memory.swap.max`; `systemd-run -p MemoryMax=64M command` runs one command inside a limit on the spot; `OOMScoreAdjust=-900` sets a service's `oom_score_adj`; and `systemctl show name -p MemoryMax,OOMScoreAdjust` reads them back.
+
+<Check item="est-memorymax-bytes" />
+
+<Story title="Redpanda's brokers at their own limit, 2022" source="https://redpanda.com/blog/solve-out-of-memory-killer-events" sourceTitle="Solving challenges caused by Out Of Memory (OOM) Killer in Linux" license="linked, not copied">
+
+Redpanda runs a streaming database as a cloud service, each server process (a broker) in a container on Kubernetes. In 2022 one of its engineers wrote up why their brokers kept dying: a broker would vanish, and stayed unavailable until Kubernetes restarted its container.
+
+The kernel's OOM killer was killing them, inside their own containers' limits. Each broker's container had a memory limit, and the broker was set up to use nearly all of it for itself, filling the space as its cache warmed up. But a container's cgroup counts more than the main program: the OOM report also listed Kubernetes' small "pause" container, which shares the same limit, and a helper program run beside the broker every ten minutes was killed at its own limit too. When the memory inside the cgroup ran out, the broker, by far its biggest process, was the one killed.
+
+The fix was to stop tying the limit to exactly what the broker would use: Redpanda's tooling now leaves 10% of the memory requested for everything else in the container and the kernel. The lesson: a limit has to hold the whole cgroup, not just the program you care about.
+
+</Story>
 
 **Read now:** the kernel's *Concepts overview*, the main resource below, as far as the OOM section; it's the clearest short description of all of this. Then Chris Down on swap, the ArchWiki page for the practical side of swap, the Memory section of the cgroup v2 document, and the Kubernetes page on requests and limits. The quick questions read `free`, `/proc/meminfo`, `vmstat`, the OOM log, cgroup files and a pod description with the text tools from Shell essentials. A few ask for a number that you work out and type in; use a calculator if you like, because the skill is setting up the sum. The labs put you on a machine where you run a program out of memory on purpose inside a limit and read the kernel's line about it, write a memory report, build a `limited-run` that runs any command the way a container does, contain a leaking service with a drop-in while protecting the database, and put right three services, two of which keep getting killed.
 

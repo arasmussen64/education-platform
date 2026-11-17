@@ -1,8 +1,16 @@
 <Intro>
 
+<Puzzle question='When you type `grep error app.log`, the shell starts `grep` for you. Yet Linux has no call that simply means "start this program as a new process". So how does a new process come into being?'>
+
+By copying. The shell makes a copy of itself, a child process, and the copy then swaps its own program for `grep`. Every process on the machine was made that way, as a copy of another, which is why every process has a parent, and why the whole machine is one family tree. The first section below takes those two steps, fork and exec, one at a time.
+
+</Puzzle>
+
 A **process** is a program while it's running: its code, its memory, the files it has open, and a number the kernel uses to refer to it, the **PID** (process ID). Type `ps` and you see the processes in your terminal; `ps -ef` shows every process on the machine, with each one's PID and its **PPID**, the PID of its parent (`ps aux` lists them all too, but with CPU and memory columns instead of the PPID). Every process has a parent, because new processes are made from existing ones, and the whole machine is one family tree with **PID 1** at the root.
 
 **How a process is born.** When you type `grep error app.log`, the shell doesn't "load" grep into itself. It calls **fork**, which makes a copy of the shell, a child process, and in that child it calls **exec**, which throws away the copied shell program and replaces it with `grep`. Same process, new program. The parent shell then **waits** for the child to finish. This two-step dance is why a subshell `( ... )` can change a variable without affecting your shell: it's a copy. And it's why `exec some-command` in a script replaces the script, so nothing after it runs. When a process ends, it leaves an **exit status**: `0` means success, anything else means failure, and the shell stores it in `$?`. `a && b` runs `b` only if `a` succeeded; `a || b` runs `b` only if `a` failed.
+
+<Check item="proc-subshell-var" />
 
 **Signals.** A signal is a short message from the kernel to a process: not data, just "something happened". You send most of them with `kill`, which despite its name just delivers a signal, by PID. The ones to know:
 
@@ -14,7 +22,11 @@ A **process** is a program while it's running: its code, its memory, the files i
 
 `kill -l` lists them with their numbers: `TERM` is 15, `KILL` is 9, which is where `kill -9` comes from. The numbers turn up in exit statuses too: when a signal ends a process, the shell that waited for it reports 128 plus the signal's number, so 143 means `TERM` ended it (128 + 15), 137 means `KILL` did (128 + 9), and a command you stopped with Ctrl-C shows 130 (`INT` is 2). A shell script can react to a signal with `trap`. To find the PID to signal, `pgrep name` lists the processes whose name contains `name` (`-a` shows their commands too), and `pkill name` signals them all; `-x` matches the whole name only, which matters because `pgrep worker` also matches a script called `stop-workers`, perhaps the one you're running.
 
+<Check item="est-status-to-signal" />
+
 **Jobs.** Add `&` after a command and the shell runs it in the background and gives you the prompt back. `jobs` lists them; `fg` brings one to the front; Ctrl-Z stops the front job and `bg` lets it carry on in the background; `wait` pauses until background jobs finish. A job started from a terminal gets `HUP` when the terminal closes; `nohup command &` makes it survive, though on a server the right answer is usually a systemd service.
+
+<Check item="proc-background-wait" />
 
 **Zombies.** When a process exits, its entry in the process table stays until its parent reads the exit status (with `wait`). A process in that state shows up in `ps` as `<defunct>`: a **zombie**. It uses no memory and no CPU, just the entry. `kill -9` does nothing to it, because there's nothing left to kill. Zombies go away when the parent reaps them, or when the parent dies, because PID 1 adopts orphans and reaps them. Lots of zombies mean a parent that forgot to wait.
 
