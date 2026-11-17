@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="No single computer on the internet holds a list of every name, and names change every second. Yet your laptop finds the address of a website it has never visited in a few milliseconds. How?">
+
+By asking down a tree, and remembering. A resolver asks a root server, which only knows who answers for `com`; those servers only know who answers for the site's own domain; that domain's servers know the address. Each step hands the question on to the next, so nobody needs the whole list. And the resolver keeps every answer for a while, so most lookups never leave it at all.
+
+</Puzzle>
+
 Module 1 used `dig` to turn a name into an address (and if you took Module 2, its directory couldn't be found without it). This topic opens the box. **DNS**, the Domain Name System, is the internet's phone book, kept by thousands of organisations at once: no single server knows every name, yet any machine can find any name in a few milliseconds. By the end you can follow one lookup from a laptop to the server that answers for the name, read and write a zone file, move a name to a new address without stranding anyone, give the office a private answer without losing the rest of the zone, and tell a broken signature from a missing record.
 
 **Names, labels and the tree.** A **name** is a row of **labels** separated by dots, read from right to left: `api.shop.test` is the label `api` inside `shop` inside `test`. Above `test` there is one more, empty, label: the **root**, written as a final dot. `dig` prints names that way, `api.shop.test.`, and a name written with its final dot is a **fully qualified** name. Picture the names as an upside-down tree, the root at the top, `test.` under it, `shop.test.` under that. A **domain** is a branch of the tree: `shop.test` and every name below it. A **zone** is the part of a domain that one set of servers answers for. `shop.test` is one zone until it hands `eu.shop.test` to another server; from then on `eu.shop.test` is a zone of its own, and `shop.test`'s zone no longer includes it. The top of a zone, `shop.test` itself, is its **apex**. Names under `.test` are reserved for testing and never exist on the real internet (RFC 6761: an RFC is one of the internet's numbered standards documents), which is why every lab uses them.
@@ -13,6 +19,8 @@ A question and its answer usually travel as one UDP datagram each, to port 53: n
 Every answer starts with a header. Its **status** is `NOERROR` (fine), `NXDOMAIN` (no such name), `SERVFAIL` (the server couldn't produce an answer), or `REFUSED` (it won't answer that question); `NOERROR` with an empty answer is **NODATA**: the name exists, but has no record of the type asked for. Its **flags**: `qr` (this is a reply), `rd` (recursion desired, set by the asker), `ra` (recursion available), `aa` (authoritative answer: the zone's own server speaking) and `ad` (authenticated data: the signatures checked out, below). A referral has an empty ANSWER section, the next servers' NS records in AUTHORITY, and no `aa`. When a resolver and the authority disagree, the authority's `+norecurse` answer is the zone right now.
 
 A referral often carries the next servers' addresses in its ADDITIONAL section: **glue**. It's essential when a server's name is inside the zone being delegated: to find `ns1.shop.test` you'd have to ask `shop.test`'s servers, which you can't reach without its address, so the parent hands it over with the referral.
+
+<Check item="mcq-glue-why" />
 
 **Records and zone files.** A zone's data is **resource records**, each a name, a TTL, a class (always `IN`), a type and a value; all the records with one name and type form an **RRset**. The types to know:
 
@@ -39,9 +47,13 @@ A zone file lists the records, one a line. `@` is the apex; a name without a fin
 
 **Primary, secondary and the serial.** A zone has a **primary** server, whose file is the master copy, and **secondaries**, which copy the whole zone from it: a **zone transfer**, all of it (AXFR) or just the changes (IXFR). The primary sends a **NOTIFY** when the zone changes (BIND waits about 5 seconds first); a secondary also asks for the primary's SOA every refresh interval, and after a failure every retry interval. Either way, it copies the zone only if the primary's serial is higher than its own, and only if the primary allows it (`allow-transfer` in BIND, below). So **the serial is a promise, not a label**: an edit that doesn't raise it never reaches the secondaries. Date-style serials, `2026111201` for the first change on 12 November 2026, keep the order readable. BIND makes it stricter still when it signs a zone itself (the labs' `dnssec-policy` and `inline-signing`; signing is DNSSEC, the last part of this lesson): an edit without a higher serial isn't loaded at all. BIND's control tool, `rndc`, prints `zone reload queued` for `rndc reload shop.test` either way, and only the journal, `journalctl -u named@ns1`, says `not loaded due to errors`. The serial a signed zone serves is BIND's, not the file's: it raises it each time it signs. The rest of BIND's controls: `rndc reconfig` reads the settings files again, `rndc notify ZONE` sends a NOTIFY now, and on a secondary `rndc retransfer ZONE` copies the zone now instead of waiting for the retry. Who may copy a zone is the primary's choice: `allow-transfer { 198.51.100.14; };` names the secondaries' addresses, and since a transfer hands over every name in the zone, a primary lets its own secondaries copy it and nobody else, never `any`.
 
+<Check item="mcq-secondary-stale" />
+
 **Caching and TTLs.** A resolver keeps each answer for its **TTL** (time to live) and hands out what's left: two lookups two seconds apart show a TTL two lower. A resolver that fetched the old address a second before a change hands it out for the rest of its TTL, and nothing in DNS can make it forget sooner. You can flush caches you run (with Unbound's control tool, `unbound-control flush NAME`); the resolvers your customers use aren't yours. Resolvers may also cap TTLs: Unbound keeps an answer at most a day (`cache-max-ttl: 86400`) by default.
 
 "No such name" is cached too: **negative caching**. An NXDOMAIN carries the zone's SOA, and a resolver may keep the "no such name" for the smaller of the SOA record's own TTL and its minimum (RFC 2308). With an SOA TTL of 300 and a minimum of 900, that's 300 seconds: a name somebody looked up a minute before it was created stays missing for them for five minutes. Unbound caps negative answers at an hour.
+
+<Check item="est-negative-ttl" />
 
 **Moving a name, as a procedure.** Suppose `api.shop.test` has a TTL of 86400, a day, and moves on Friday at 18:00.
 
@@ -53,6 +65,14 @@ A zone file lists the records, one a line. `@` is the apex; a name without a fin
 
 Some resolvers ignore TTLs; the sums in this topic assume they don't, and your plan should leave room for the few that do. The build lab rehearses the move on a fast clock: 60 seconds stands for the day and 5 for the five minutes.
 
+<Story title="The empty DynamoDB record, AWS, 2025" source="https://aws.amazon.com/message/101925/" sourceTitle="Summary of the Amazon DynamoDB Service Disruption in the Northern Virginia (US-EAST-1) Region" license="linked, not copied">
+
+Late on 19 October 2025, US Pacific time, programs in AWS's us-east-1 region couldn't reach DynamoDB, one of AWS's databases, and many AWS services that use it failed with it. The database was running; its name was the problem. The name `dynamodb.us-east-1.amazonaws.com` is managed by automation: a Planner writes plans saying which load balancers the name should point at, and Enactors in three zones write the newest plan into Route 53, AWS's DNS service. One Enactor ran very slowly, and applied a plan long out of date after its check that the plan was newer had gone stale. Meanwhile another Enactor, having applied a newer plan, cleaned up the old ones and deleted the plan now in use. That left the name with an empty record, which the automation couldn't repair.
+
+Engineers traced the errors to DNS after about 50 minutes, and had the records restored by 02:25, more than two and a half hours after the start. Customers recovered over the next quarter of an hour, as copies cached in resolvers ran out. AWS switched the automation off worldwide. The lesson: a broken answer is cached like a good one, so recovery waits on caches too.
+
+</Story>
+
 **Split-horizon: one name, two answers.** The office should reach the API on its private address, 10.0.8.51, while customers get the public one. That's **split-horizon** (or split-view) DNS: the office's resolver answers the name itself. In Unbound it's a **local zone** with **local data**:
 
 ```
@@ -61,6 +81,8 @@ local-data: "api.shop.test. A 10.0.8.51"
 ```
 
 The type decides everything else. **`transparent`** answers from the local data for names it holds and looks up every other name normally. **`static`** answers every name under the zone itself: names it holds get their data, and every other name gets NXDOMAIN. With `static`, `www.shop.test`, the mail server and every other public name vanish in the office. A local zone can also be narrower, `local-zone: "api.shop.test." static`, which touches nothing else. A setting made with `unbound-control local_zone ...` changes the running resolver only; the file is what a restart reads.
+
+<Check item="split-static-or-transparent" />
 
 Cloud networks do the same with **private zones**: a zone that only resolvers inside a network see. All three clouds behave like `static`, which is why "we created a private zone for our domain and half our names stopped working inside" is a classic ticket:
 

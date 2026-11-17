@@ -18,6 +18,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (cloud Module 3, first half: puzzles, questions in the lesson, real incidents)
+
+- The first eight networking topics (layers, CIDR, IPv6, TCP and UDP, routing, NAT, DNS, troubleshooting) each open with a puzzle, ask 3 or 4 of their own practice questions inside the lesson, right after the part each one tests (31 in all), and tell a real incident from its public write-up: Cloudflare's misdelivered ICMP (2015), the borrowed 1.1.1.1 (2018), rogue IPv6 router advertisements in IPv4-only Kubernetes clusters (2020), Expedia's idle connections behind a load balancer (2021), Datadog's vanished routing rules (2023), XING's NAT port race (2017), AWS's empty DynamoDB record (2025) and Slack's first working day of 2021.
+- Five "which one is this?" questions for ideas that are easy to mix up: a refused connection or a timed-out one, longest prefix or administrative distance, source or destination NAT, a recursive resolver or an authoritative server, and the IP header's TTL or a DNS record's.
+
 ### Added (lessons: questions inside the lesson, an opening puzzle, and a real incident)
 
 - A lesson can ask one of its topic's practice quick questions where it stands, with `<Check item="..." />`. It's graded and saved exactly as in practice, and the practice ladder leaves it out, so it shows once ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed).

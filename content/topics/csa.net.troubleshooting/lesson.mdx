@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="Some page loads take almost exactly two and a half seconds; the rest are instant. The server's graphs look fine. What kind of fault makes a delay that exact?">
+
+A timer, not a slow server. Something waits a fixed time and then tries something else. Here, the site's name has two addresses and one of them is dead: curl, given 5 seconds in all, spends half of them on the dead address before it tries the good one. Loads that happen to try the good address first are instant. An exact number points at a timeout; a slow machine gives times that wander.
+
+</Puzzle>
+
 Every topic in this module ended in a debug: a broken network, a count of faults, find them and fix them. You found them with that topic's tools. This topic is the method underneath all of them, practised on purpose, and three things those debugs didn't ask of you: a fault that comes and goes, which has to be **measured** before it can be found; **naming the cause** before you touch anything; and a fault that isn't yours to fix, in a provider's network, which you prove and hand over.
 
 **Four words first.** The **symptom** is what someone sees: "some pages take two and a half seconds". The **cause** is why. A **hypothesis** is a guess at the cause that a test can confirm or kill, and a **suspect** is a part that could hold the cause: the resolver, a route, a firewall, one server. Troubleshooting is turning a symptom into a short list of suspects, and the list into one cause, with tests.
@@ -23,6 +29,8 @@ The main resource, chapter 12 of Google's SRE book (SRE is site reliability engi
 
 When there are several sources and destinations, draw the **symptom grid**: sources down the side (the office, the data centre, the cloud), destinations across the top (the website, the API, a name lookup), each cell "works", "fails" or "sometimes". A whole failing **column** points at that destination, which fails for everyone. A whole failing **row** points at that source. A **single cell** points at the path between the two, or at a rule that names that source (a firewall, a security group). And "sometimes" in any cell says the next step is measuring.
 
+<Check item="mcq-symptom-grid" />
+
 **2. Split the suspects.** A good test rules out about half of what's left, whichever way it comes out; read each result as "rules in" or "rules out". The standard splits:
 
 | Test | The result to look for | What it rules in |
@@ -32,6 +40,8 @@ When there are several sources and destinations, draw the **symptom grid**: sour
 | A small answer, then a large one | only the large one fails | the MTU, or how the path treats big packets (Layers and packets) |
 | From another machine on the same network, then from another network | it works from there | the first source, or the part of the path only it uses |
 | The same request again, from new source ports | some connections fail and some don't | a path or a server chosen per connection (ECMP, a balancer), one of them bad |
+
+<Check item="mcq-name-or-address" />
 
 **curl's exit status** is a ready-made verdict on the layer, and the monitors in this topic's labs log it. `echo $?` straight after curl prints it; curl's manual lists them all. The last column was measured on 2026-11-12 (curl 8.5.0, a 2-second limit):
 
@@ -62,6 +72,8 @@ HOST: pc                          Loss%   Snt   Last   Avg  Best  Wrst StDev
 - **Loss that starts at a hop and carries on to the end is real,** and it starts on the link *before* the first lossy hop (or in the router at its far end). The last clean hop and the first lossy one are the two addresses a provider's desk wants.
 - **Loss at one hop that the next hop doesn't show is that router limiting how often it answers,** which is called **rate limiting**. Every probe to the next hop passed through it, so it forwarded them all. Routers answer probes with ICMP messages, and answering is their lowest priority; Linux limits the Time Exceeded and Destination Unreachable messages it sends to each destination to about one every `net.ipv4.icmp_ratelimit` milliseconds (1000 by default; echo replies, which the destination sends, aren't limited). Probe faster than that and the hop looks lossy while nothing is lost. "Always trust the reports from later hops", in Akamai's words. Hop 2 above is such a hop: 37.5% of its own answers missing, while every probe to hops 3 and 4 passed through it and came back.
 
+<Check item="mtr-which-link" />
+
 Akamai's guide also says loss "in the neighborhood of 10%" is "no cause for real concern". That is too generous: TCP's throughput falls with the square root of the loss rate (Congestion control and QUIC), so 4% loss is half the speed of 1%. Steady loss of a few percent is worth a ticket.
 
 **The return path is invisible.** Each answer travels back by the return path, which may be a different route and never appears in the report. Loss shown from hop 5 onward may be on the way out after hop 4, or on the way back from hop 5. So ask for an mtr from the other end too, as every provider's desk will.
@@ -83,6 +95,8 @@ Akamai's guide also says loss "in the neighborhood of 10%" is "no cause for real
 Failures that share a value point at it; they don't prove it. A **red herring** is evidence that looks like the cause and isn't (the rate-limited hop is the classic one), and two things that happen together may both come from a third. The test is to change only that value and watch the failures follow it.
 
 The arithmetic, which the quick questions practise. With one bad member of N taking turns (servers, addresses, paths), 1 in N requests fails. Two independent faults that fail 1 in 4 and 1 in 10 let 0.75 × 0.9 = 0.675 of requests through, so 32.5% fail: work out what survives, never add the shares. A page that needs 4 connections over 2 paths, one of them bad, loads only when all four take the good path, 0.5⁴ = 6.25% of the time: one bad path of two looks like an outage to a browser. And after a fix, **count the clean samples**. If a fault that failed 1 in 10 were still there, 30 clean requests in a row would still happen 0.9³⁰ ≈ 4% of the time; a rough rule is that about 3 ÷ (the failure rate) clean samples leave a 5% chance of fooling you, so 30 for a 1 in 10 fault and 300 for a 1 in 100.
+
+<Check item="est-two-faults" />
 
 **5. Read what the systems recorded.** The machines usually say what's wrong, in a record you have to know to look in:
 
@@ -111,6 +125,16 @@ The client and its port, when the request arrived, the frontend, then **backend/
 **6. Name it, change one thing, prove it, record it.** Before you change anything, write down the cause and the line of evidence that shows it. If you can't fill in those two lines, you have a suspect, not a cause: split again. Then change **one** thing, at the cause, in the file that lasts. Prove the symptom is gone with enough samples (section 4), and that nothing else broke: every machine still has its firewall, the fix survives a reboot. The **incident note** is five lines: symptom, cause, evidence, fix, and how it was verified.
 
 When the cause is in someone else's network, **escalate**: hand it to the people who can fix it, with the evidence. A **provider ticket** holds the time window (with the time zone), the source and destination addresses, mtr reports from both ends, the last clean hop and the first lossy one, what you have ruled out, and a capture if you have one. "The internet is slow since Tuesday" gets nothing done; "6% loss since 09:40 UTC from 203.0.113.70 onward, 203.0.113.66 clean, mtr from both ends attached, ruled out: our router and the servers" does. A **looking glass** (BGP) is a provider's read-only view of its own routers, and worth a look before you write.
+
+<Story title="Slack's first working day of 2021" source="https://slack.engineering/slacks-outage-on-january-4th-2021/" sourceTitle="Slack's Outage on January 4th 2021" license="linked, not copied">
+
+On 4 January 2021, the first working morning after the holidays, Slack's error rate climbed, and at about 7:00 US Pacific time Slack became unavailable; it stayed degraded until about 10:40. The engineers began with "what changed?" and rolled back the changes made that day. Nothing improved, so those were ruled out. Then an instrument failed them: their dashboards and alerting went down as well, and they had to query the stores of metrics directly. What they could see was packet loss across their network, so they escalated to AWS.
+
+Meanwhile the symptom fed itself. Web servers waiting on lost packets looked idle, so the autoscaling removed some, then tried to add 1,200 at once, and the system that sets up new servers buckled under that load.
+
+The cause was in AWS's network, not Slack's: the Transit Gateways that joined Slack's VPCs (AWS's routers between networks) didn't scale up fast enough for the post-holiday surge, and dropped packets. AWS's engineers raised their capacity by hand. Slack planned to move its dashboards into the same VPC as the databases they read, so they'd no longer depend on the network they watch. The lesson: make sure your instruments don't share the fault.
+
+</Story>
 
 **7. In the clouds.** In a cloud you can't log in to the provider's routers or capture on them, so the provider's tools take the place of "capture at two points". From a VM, `mtr`, `traceroute`, `tcpdump` and `curl` work exactly as here, and the provider's network is the "provider" of this topic: you prove a fault there and open a ticket. Side by side (each provider's page, read 2026-11-12):
 

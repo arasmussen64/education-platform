@@ -2,6 +2,38 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, cloud Module 3 content (first half): puzzles, questions in the lesson, real incidents
+
+The first of two pull requests that fill cloud Module 3's first eight topics with the new lesson building blocks ([ADR-0026](decisions/0026-lesson-building-blocks.md)): `csa.net.layers`, `cidr`, `ipv6`, `transport`, `routing`, `nat`, `dns` and `troubleshooting`. Three other writers are doing Modules 1 and 2 and the second half of Module 3 at the same time.
+
+**What changed.**
+
+- **A puzzle opens every lesson** (8): what changes in a packet between two routers; why two networks on the same range can take months to join; how many times as many addresses IPv6 has; who sent a reset after a quiet lunch; which of two routes a packet takes; how replies find one of millions of laptops all called 192.168.1.23; how a laptop finds any name in milliseconds; and what makes a delay of exactly two and a half seconds.
+- **31 practice questions placed inside the lessons**, 3 or 4 a topic, each right after the paragraph it tests, typed ones where they fit: 13 are predict-the-shell or estimate items, the rest multiple choice (routing's best fits were all multiple choice). Every ladder still has at least 15 items left.
+- **A real incident in every topic** (8), each written from its source, opened on 2026-11-16, in our own words:
+  - Layers: Cloudflare's 2015 path MTU failure, where ICMP "too big" messages reached the wrong server ([Path MTU discovery in practice](https://blog.cloudflare.com/path-mtu-discovery-in-practice/), Cloudflare, already the topic's resource).
+  - CIDR: equipment that had borrowed 1.1.1.1 before Cloudflare's resolver launched in 2018 ([Fixing reachability to 1.1.1.1, GLOBALLY!](https://blog.cloudflare.com/fixing-reachability-to-1-1-1-1-globally/), Cloudflare).
+  - IPv6: CVE-2020-10749, rogue router advertisements in IPv4-only Kubernetes clusters ([kubernetes/kubernetes#91507](https://github.com/kubernetes/kubernetes/issues/91507)).
+  - Transport: Expedia's API timeouts from a load balancer's 350-second idle timer, 2021 ([Lesson Learned from a NLB Connection Timeout](https://medium.com/expedia-group-tech/lesson-learned-from-a-nlb-connection-timeout-2c672e59e197), Expedia Group Tech).
+  - Routing: Datadog's outage of 8 March 2023, when a systemd update removed Cilium's routing rules ([A deep dive into the platform-level impact](https://www.datadoghq.com/blog/engineering/2023-03-08-deep-dive-into-platform-level-impact/), Datadog).
+  - NAT: XING's 1- and 3-second delays from a race in Linux's source NAT port choice, 2017 ([A reason for unexplained connection timeouts on Kubernetes/Docker](https://tech.new-work.se/a-reason-for-unexplained-connection-timeouts-on-kubernetes-docker-abd041cf7e02), Maxime Lagresle).
+  - DNS: AWS's DynamoDB outage of 19 and 20 October 2025, an empty DNS record left by a race in its DNS automation ([AWS's summary](https://aws.amazon.com/message/101925/)).
+  - Troubleshooting: Slack's outage of 4 January 2021, packet loss in AWS Transit Gateways with Slack's own dashboards down ([Slack's Outage on January 4th 2021](https://slack.engineering/slacks-outage-on-january-4th-2021/), Slack Engineering).
+- **Five contrast questions** (`contrast-*`), each in the later topic of its pair and on that topic's skill: a refused connection or a timed-out one (transport), longest prefix or administrative distance (routing), source or destination NAT (NAT), a recursive resolver or an authoritative server (DNS), and the IP header's TTL or a DNS record's (DNS).
+- `estimated_minutes` grew by 3 a topic for the puzzle and the story, and 1.5 more for each new question.
+
+**Author notes:**
+
+- _Every story's facts come from its source alone,_ and where a source was loose, the story follows the more exact one. Datadog's summary post says systemd-networkd "deleted routes"; its engineering deep dive says it flushed routing policy rules (`ip rule`), so the story says rules, explains them in one sentence, and links the deep dive. Expedia's 350-second timer was fixed when the post was written; AWS has since made it configurable, which the transport lesson already says, so the story says "at the time".
+- _Two Cloudflare posts,_ for two different incidents (2015 and 2018). The layers story is the topic's own "Path MTU discovery in practice" resource: the incident at its start is the cleanest public case of a path MTU black hole, and the story tells it in a lesson's terms without the BGP detail.
+- _The IPv6 story is a security report, not an outage._ No public IPv6 outage write-up I found fitted the lesson as closely as this one, which uses SLAAC, router advertisements and IPv6 being tried first, and ends on the lesson's own point that IPv4-only rules leave IPv6 open.
+- _The XING post has moved_ from tech.xing.com to tech.new-work.se (the company's new name); the story links the new address, which is where the post is now.
+- _Avoided the second half's ground:_ no BGP leak, TLS or certificate story; the transport story has a load balancer in it, but its subject is an idle timer, the transport lesson's own.
+- _Puzzle answers may use the topic's words; the questions don't,_ as the README asks: none needs a term the lesson hasn't taught. The transport puzzle's quotation marks sit inside single quotes, as the README says.
+- _Contrast questions are multiple choice,_ since typed items arrive with #298; their right answers are never the longest choice (lengths 87 to 111 characters, within 1.1 times of each other).
+
+**Next:** the second pull request, once #310 (glossary) and #298 (typed answers) are merged: a `glossary.yaml` for each of the eight topics and two typed questions each.
+
 ## 2026-11-16, lessons: questions inside the lesson, an opening puzzle, and a real incident
 
 Part of a larger plan to improve how the platform teaches. This stream adds new building blocks for lessons ([ADR-0026](decisions/0026-lesson-building-blocks.md), Proposed); content writers fill the cloud track's ready topics with them afterwards. This first pull request brings the three that go in `lesson.mdx`; the glossary follows.

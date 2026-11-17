@@ -1,0 +1,16 @@
+id: contrast-prefix-or-distance
+type: mcq
+rev: 1
+prompt: |
+  r1's `show ip route` holds a static route, `S>* 10.30.0.0/16 [1/0] via 10.0.12.2`, and a route learned from OSPF (a routing protocol), `O>* 10.30.7.0/24 [110/20] via 10.0.13.2`. A packet arrives for 10.30.7.9. Which way does it go, and what decided it?
+choices:
+  - "Via 10.0.13.2: the longer prefix is chosen first, and distance only breaks a tie between equal prefixes"
+  - "Via 10.0.12.2: the static route's distance of 1 beats OSPF's 110, and distance is compared before length"
+  - "Via 10.0.12.2: the static route's metric of 0 is lower than the OSPF route's 20, so it's the cheaper way"
+  - "Both ways in turn: each route holds the address and is in the kernel, so ECMP shares the traffic out"
+answer: 0
+explanation: |
+  Distance and metric choose between routes for the **same** prefix. These two are different prefixes, so there is nothing for them to choose: both routes are installed (`>*` on each), and for every packet the kernel takes the longest prefix that holds its address. 10.30.7.9 is inside both the /16 and the /24, and the /24 is longer, so the packet goes via 10.0.13.2. A packet for 10.30.8.1, outside the /24, would take the static /16.
+
+  Comparing distance first is the classic mix-up: it would let a static /16 pull every more specific route's traffic towards itself. Metrics are compared only within one source, between routes for the same prefix. And ECMP shares traffic only between routes whose prefix, distance and metric all tie.
+skills: [longest-prefix-match]
