@@ -1,0 +1,21 @@
+id: typed-bgp-summary
+type: typed
+rev: 1
+prompt: |
+  On the shop's router, in FRR's console (`vtysh`), you want one line per BGP neighbour, showing the session's state while it's down and the number of prefixes received once it's up. Type the command.
+kind: command
+answers:
+  - show bgp summary
+  - show ip bgp summary
+  - show bgp ipv4 summary
+  - show bgp ipv4 unicast summary
+mistakes:
+  - id: neighbors
+    answers: [show bgp neighbors, show ip bgp neighbors]
+    why: "`show bgp neighbors` prints pages of detail for each neighbour, such as its last reset reason. The one line per neighbour is `show bgp summary`."
+  - id: route
+    answers: [show ip route]
+    why: "`show ip route` lists the routing table, the routes chosen; it doesn't show the BGP sessions."
+explanation: |
+  `show bgp summary` prints a line per neighbour: its address, AS number, message counts, how long it has been up or down, and `State/PfxRcd`, which holds the state's name (`Idle`, `Active`, ...) while the session is down and the number of prefixes accepted once it's up. `(Policy)` there means RFC 8212's rule: an eBGP session with no route map passes nothing.
+skills: [bgp-sessions]

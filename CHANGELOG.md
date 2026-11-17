@@ -24,6 +24,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Twelve of the fourteen lessons tell a real, public incident in our own words, with its source linked: Amazon S3's typo (2017), the sudo flaw Baron Samedit (2021), the xz backdoor (2024), Netlify's full database disk (2016), Redpanda's brokers killed at their own memory limit (2022), Indeed's throttled services (2018 to 2019), the runc container breakout (2019), a Kubernetes connection reset caused by conntrack (2019), Capital One's stolen metadata credentials (2019), Steam for Linux emptying a home folder (2015), Cloudflare's one-second latency spikes (2015) and the OpenSSH flaw regreSSHion (2024). For Processes and signals and for Services and logs no fitting incident could be checked against a public source, so they have none.
 - Five "which one is this?" questions, each asking the learner to tell two easily confused ideas apart: exit status 143 or 137 (Memory), a memory limit or a CPU limit (CPU), a namespace or a cgroup (Containers), a refused connection or a dropped one (Networking from the host) and I/O wait or steal (Performance triage). They are in their topics' practice and review pools.
 
+### Added (cloud Module 3, first half: glossaries and typed questions)
+
+- Glossaries for the first eight networking topics, 75 terms in all (layers 11, CIDR 9, IPv6 9, TCP and UDP 8, routing 9, NAT 4 more beside its first 5, DNS 9, troubleshooting 7): the networking basics later topics lean on, such as packet, port, TTL, MTU, subnet, router, TCP, UDP and DNS.
+- Two typed questions in each of those topics (16): a command, a term, a block or a number to recall and type, each with the likely wrong answers named, such as IPv4's "fragmentation needed" beside IPv6's Packet Too Big, and curl's exit 28 beside 7.
+
+### Added (cloud Module 3, second half: glossaries and typed questions)
+
+- The eight networking topics from Congestion control and QUIC to Site-to-site VPNs each have a glossary of the terms they teach, 63 in all (from congestion window and bufferbloat to route reflector and NAT traversal), so a later lesson that uses one shows its definition and links back.
+- Each also has two new typed questions, 16 in all: a command, a setting, a header, a status code or a term, recalled and typed rather than picked from a list (`net.ipv4.tcp_congestion_control`, `ssl_stapling on;`, `set server web/web2 state drain`, `swanctl --list-sas`, SNI, DNS-01, 504, port 179 and more).
+
+### Added (saying how sure you are before a quick question is checked)
+
+- Every quick question (multiple choice, predict the output, Parsons, estimate, typed) is checked with one of three buttons, "Guessing", "Fairly sure" or "Certain", instead of Check ([ADR-0028](docs/decisions/0028-confidence-before-the-answer.md), proposed). One press still checks the answer. In an estimate or a typed answer, Enter moves to the three buttons rather than choosing one. The answer event saves the choice as `confidence`; it changes no grade, rating, Mastered or follow-up. The placement test keeps its single Check.
+- After a wrong answer given as "Certain", one line says this is the kind of mistake that sticks once it's corrected; after a right guess, one line says it's worth reading why.
+- The Account page shows how often the learner is right at each level ("When you're certain, you're right 92% of the time"), once a level has five answers.
+
+### Added (cloud Module 2: puzzles, questions in the lesson, real incidents and "which one is this?" questions)
+
+- All eight topics of the cloud track's Module 2 (hardware, virtualisation and Windows) now open with a puzzle and ask 4 of their own quick questions inside the lesson, 32 in all, each right after the part it tests.
+- Each tells a real, public incident in its own words, linked to its source: VENOM, the QEMU floppy-controller flaw (Hypervisors); TensorFlow's `Illegal instruction` on CPUs without AVX (CPU architectures); MySQL's "swap insanity" on two NUMA nodes (Cores and memory); AWS's EBS re-mirroring storm of 2011 (Disks); LeftoverLocals, GPU memory left readable between programs (GPUs); the November 2022 Windows update that broke Kerberos (Active Directory); Zerologon (Domain join); and Microsoft's 2019 change to licences on dedicated hosts (Windows licensing).
+- Six new "which one is this?" questions, each telling apart two ideas learners mix up: a wrong architecture or a missing instruction; the IOPS cap or the throughput cap (two); the card's memory or the VM's; a domain controller or a member server; Windows Server's per-VM minimum or SQL Server's.
+
 ### Added (cloud Module 3, second half: puzzles, questions in the lesson, real incidents and contrast questions)
 
 - The eight networking topics from Congestion control and QUIC to Site-to-site VPNs (`csa.net.congestion`, `http-tls`, `certificates`, `http-semantics`, `load-balancing`, `bgp`, `bgp-steering`, `ipsec`) each open with a puzzle, and each asks four of its own quick questions inside the lesson, right after the paragraph each one tests (32 in all, 28 of them typed answers).

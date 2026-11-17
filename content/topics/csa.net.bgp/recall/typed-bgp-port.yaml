@@ -1,0 +1,20 @@
+id: typed-bgp-port
+type: typed
+rev: 1
+prompt: |
+  The shop's router can't bring up a BGP session with ISP A, and you suspect a firewall between them. Which TCP port must the firewall let through for the session? Type the number.
+kind: text
+answers:
+  - "179"
+  - TCP 179
+  - tcp/179
+mistakes:
+  - id: ike
+    answers: ["500", UDP 500]
+    why: "UDP 500 is IKE's, for an IPsec VPN. BGP runs over TCP, on port 179."
+  - id: dns
+    answers: ["53"]
+    why: "Port 53 is DNS's. BGP's sessions are TCP connections to port 179."
+explanation: |
+  BGP neighbours talk over a TCP connection to **port 179**, kept open as long as they talk. A session stuck in `Connect` or `Active` never got that connection: a wrong address, no route to it, port 179 blocked, or nobody configured on the other side. One that reaches the OPEN messages and falls back to `Idle` was refused, and `show bgp neighbors ADDRESS` says why.
+skills: [bgp-sessions]

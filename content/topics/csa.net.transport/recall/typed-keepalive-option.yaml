@@ -1,0 +1,21 @@
+id: typed-keepalive-option
+type: typed
+rev: 1
+prompt: |
+  TCP keepalives are off for a connection until its program switches them on, whatever the system's settings say. Type the name of the socket option the program sets to switch them on.
+kind: text
+answers:
+  - SO_KEEPALIVE
+mistakes:
+  - id: idle-timer
+    answers: [TCP_KEEPIDLE]
+    why: "`TCP_KEEPIDLE` sets how long the connection is quiet before the first probe, but only once keepalives are on. `SO_KEEPALIVE` switches them on."
+  - id: other-timers
+    answers: [TCP_KEEPINTVL, TCP_KEEPCNT]
+    why: Those set the gap between unanswered probes and how many to send, once keepalives are on. `SO_KEEPALIVE` is the switch.
+  - id: system-setting
+    answers: [net.ipv4.tcp_keepalive_time, tcp_keepalive_time]
+    why: That's the system's default for the quiet before the first probe. It does nothing for a socket whose program never sets `SO_KEEPALIVE`.
+explanation: |
+  `SO_KEEPALIVE` turns keepalive probes on for one socket (RFC 9293 says they must be off by default). Then `TCP_KEEPIDLE`, `TCP_KEEPINTVL` and `TCP_KEEPCNT` set the socket's own timers, and any left out fall back to the system's `net.ipv4.tcp_keepalive_time`, `_intvl` and `_probes`. `ss -tno` shows whether a real connection has a `timer:(keepalive,...)`.
+skills: [idle-cuts]

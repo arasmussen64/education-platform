@@ -1,0 +1,18 @@
+id: typed-drain-command
+type: typed
+rev: 1
+prompt: |
+  You're about to patch `web2`, in HAProxy's backend `web`. Type the runtime API command (the text you'd send to the stats socket) that stops new visitors going to it while its open sessions finish.
+kind: command
+answers:
+  - set server web/web2 state drain
+mistakes:
+  - id: maint
+    answers: [set server web/web2 state maint, disable server web/web2]
+    why: "Maintenance takes the server out at once, with no traffic and no checks. Drain first, wait for its sessions to reach zero, then maintenance."
+  - id: ready
+    answers: [set server web/web2 state ready]
+    why: "`ready` puts a server back in rotation after the patch; it's the last step, not the first."
+explanation: |
+  `set server web/web2 state drain` sends no new visitors to web2 and lets its open sessions finish; `show stat` then shows its status as `DRAIN` and its `scur` falling. When `scur` reaches zero, `state maint`, patch, and `state ready`. Two things to remember: HAProxy's drain still accepts visitors whose sticky cookie names web2, and whatever the runtime API sets is lost at the next reload or restart.
+skills: [drain-and-stick]

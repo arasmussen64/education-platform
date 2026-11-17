@@ -44,3 +44,4 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0025](0025-topics-in-parts.md)           | A topic page in parts                                                    | Proposed, with its amendments                                     |
 | [0026](0026-lesson-building-blocks.md)    | Lesson building blocks: questions, a puzzle, a real incident, a glossary | Proposed                                                          |
 | [0027](0027-typed-answers.md)             | Typed answers, a command or a term recalled and typed                    | Proposed                                                          |
+| [0028](0028-confidence-before-the-answer.md) | Saying how sure you are, as part of answering                         | Proposed                                                          |

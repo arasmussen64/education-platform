@@ -1,0 +1,18 @@
+id: typed-esp-protocol
+type: typed
+rev: 1
+prompt: |
+  The office firewall in front of `vpn` already allows UDP 500 and UDP 4500. ESP has no ports: it is an IP protocol of its own, beside TCP (6) and UDP (17). Which IP protocol number must the firewall also allow? Type the number.
+kind: text
+answers:
+  - "50"
+mistakes:
+  - id: ah
+    answers: ["51"]
+    why: "51 is AH, IPsec's integrity-only protocol, which site-to-site VPNs rarely use. ESP, which carries the traffic, is 50."
+  - id: ike-port
+    answers: ["500", "4500"]
+    why: "Those are IKE's UDP ports, already allowed. ESP isn't on a port at all; it's IP protocol 50."
+explanation: |
+  ESP is **IP protocol 50**. A firewall for a VPN gateway allows three things: UDP 500 (IKE_SA_INIT), UDP 4500 (the rest of IKE, and ESP wrapped in UDP when there's a NAT between the gateways) and ESP itself. One that allows only the UDP ports lets the tunnel come up and loses its traffic whenever ESP travels bare.
+skills: [ipsec-building-blocks]

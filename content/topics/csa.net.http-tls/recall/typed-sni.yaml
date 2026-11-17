@@ -1,0 +1,22 @@
+id: typed-sni
+type: typed
+rev: 1
+prompt: |
+  One nginx server holds the certificates of `www.shop.test` and `api.shop.test` on one address. It must choose which certificate to send before anything is encrypted, long before the request's `Host` header arrives. Which part of the client's ClientHello tells it the name? Give the extension's short name or its full one.
+kind: text
+answers:
+  - SNI
+  - Server Name Indication
+mistakes:
+  - id: alpn
+    answers: [ALPN, Application-Layer Protocol Negotiation]
+    why: "ALPN is also in the ClientHello, but it lists the protocols the client speaks, such as `h2`, not the site's name."
+  - id: host
+    answers: [Host, Host header]
+    why: "The `Host` header names the site too, but it travels inside the encrypted connection, after the certificate has been chosen."
+  - id: ech
+    answers: [ECH, Encrypted Client Hello]
+    why: "ECH hides the name from people watching, where both ends support it. The extension that carries the name is SNI."
+explanation: |
+  **SNI**, Server Name Indication, is the site's name in the ClientHello, sent in the clear. nginx picks the `server` block whose `server_name` matches it, and that block's certificate; a client that sends no name, or one no block holds, gets the default server. Because it is in the clear, SNI is also what someone watching the network learns about which site you visit.
+skills: [tls-handshake]

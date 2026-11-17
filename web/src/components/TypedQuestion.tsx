@@ -1,6 +1,8 @@
-import { type FormEvent, type ReactNode, useId, useState } from 'react'
+import { type FormEvent, type ReactNode, useId, useRef, useState } from 'react'
+import type { Confidence } from '../confidence/confidence.ts'
 import { gradeTyped, type TypedGrade } from '../content/typed.ts'
 import type { TypedItem } from '../content/types.ts'
+import { ConfidenceButtons, ConfidenceNote } from './Confidence.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Recorded } from './Recorded.tsx'
 import { BUTTON, SECONDARY_BUTTON } from './styles.ts'
@@ -19,9 +21,15 @@ type Props = {
   item: TypedItem
   /**
    * Called once, when the learner checks what they typed; `answer` is null
-   * for "I don't know this" (placement only).
+   * for "I don't know this" (placement only). `confidence` is how sure the
+   * learner said they were (ADR-0028), or null in the placement test,
+   * which doesn't ask.
    */
-  onAnswer?: (correct: boolean, answer: TypedAnswer | null) => void
+  onAnswer?: (
+    correct: boolean,
+    answer: TypedAnswer | null,
+    confidence: Confidence | null,
+  ) => void
   /**
    * True in the placement test (ADR-0021): no word on whether it was right,
    * and an "I don't know this" button beside Check.
@@ -57,31 +65,45 @@ export function TypedQuestion({ item, onAnswer, quiet = false }: Props) {
   const [typed, setTyped] = useState('')
   const [checked, setChecked] = useState<TypedGrade | null>(null)
   const [dontKnow, setDontKnow] = useState(false)
+  const [confidence, setConfidence] = useState<Confidence | null>(null)
+  const firstChoice = useRef<HTMLButtonElement>(null)
   const isCommand = item.kind === 'command'
 
-  function handleCheck(event: FormEvent) {
+  /**
+   * Enter in the box. In the placement test it's Check. Elsewhere it would
+   * have to pick how sure the learner is for them, so it moves on to the
+   * three buttons instead (ADR-0028).
+   */
+  function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    if (typed.trim() === '') return
+    if (quiet) check(null)
+    else firstChoice.current?.focus()
+  }
+
+  function check(sure: Confidence | null) {
     if (typed.trim() === '' || checked) return
     const grade = gradeTyped(item, typed)
     setChecked(grade)
-    onAnswer?.(grade.correct, {
-      typed,
-      mistake: grade.mistake,
-      slip: grade.slip,
-    })
+    setConfidence(sure)
+    onAnswer?.(
+      grade.correct,
+      { typed, mistake: grade.mistake, slip: grade.slip },
+      sure,
+    )
   }
 
   /** The placement test's way out of guessing: recorded as a wrong answer. */
   function handleDontKnow() {
     setDontKnow(true)
-    onAnswer?.(false, null)
+    onAnswer?.(false, null, null)
   }
 
   const done = checked !== null || dontKnow
   return (
     <div className="space-y-3">
       <Markdown>{item.prompt}</Markdown>
-      <form onSubmit={handleCheck} className="space-y-2">
+      <form onSubmit={handleSubmit} className="space-y-2">
         <label htmlFor={fieldId} className="block text-sm font-medium">
           {isCommand ? 'Your command' : 'Your answer'}
         </label>
@@ -106,7 +128,7 @@ export function TypedQuestion({ item, onAnswer, quiet = false }: Props) {
             className={`${BOX} ${isCommand ? 'font-mono' : ''}`}
           />
         </div>
-        {!done && (
+        {!done && quiet && (
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"
@@ -115,26 +137,41 @@ export function TypedQuestion({ item, onAnswer, quiet = false }: Props) {
             >
               Check
             </button>
-            {quiet && (
-              <button
-                type="button"
-                onClick={handleDontKnow}
-                className={SECONDARY_BUTTON}
-              >
-                I don't know this
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleDontKnow}
+              className={SECONDARY_BUTTON}
+            >
+              I don't know this
+            </button>
           </div>
+        )}
+        {!done && !quiet && (
+          <ConfidenceButtons
+            onPick={check}
+            disabled={typed.trim() === ''}
+            firstRef={firstChoice}
+          />
         )}
       </form>
       {done && quiet && <Recorded />}
-      {checked && !quiet && <Feedback item={item} grade={checked} />}
+      {checked && !quiet && (
+        <Feedback item={item} grade={checked} confidence={confidence} />
+      )}
     </div>
   )
 }
 
 /** Right or not, the answer, the slip if it was a known one, then why. */
-function Feedback({ item, grade }: { item: TypedItem; grade: TypedGrade }) {
+function Feedback({
+  item,
+  grade,
+  confidence,
+}: {
+  item: TypedItem
+  grade: TypedGrade
+  confidence: Confidence | null
+}) {
   const [first = ''] = item.answers
   const mistake = item.mistakes.find(({ id }) => id === grade.mistake)
   const others = item.answers.filter((answer) => answer !== grade.matched)
@@ -158,6 +195,7 @@ function Feedback({ item, grade }: { item: TypedItem; grade: TypedGrade }) {
           Watch the spelling: it's <Shown item={item} text={grade.matched} />.
         </p>
       )}
+      <ConfidenceNote confidence={confidence} correct={grade.correct} />
       {mistake && (
         <div className="rounded-md border-l-4 border-amber-500 bg-white px-3 py-2 dark:bg-slate-900">
           <p className="text-sm font-medium">A common slip</p>

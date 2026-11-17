@@ -1,0 +1,21 @@
+id: typed-prepend-line
+type: typed
+rev: 1
+prompt: |
+  Your company's AS is 65001, and its backup circuit goes to an Azure-style cloud that compares AS path length. In the FRR route map for what you announce over the backup, type the `set` line that adds your AS number to the path twice more, so the path there reads three ASes long.
+kind: command
+answers:
+  - set as-path prepend 65001 65001
+mistakes:
+  - id: once
+    answers: [set as-path prepend 65001]
+    why: "That adds the number once, so the path reads `65001 65001`, two ASes long. Twice more is `prepend 65001 65001`."
+  - id: localpref
+    answers: [set local-preference 50, set local-preference 100]
+    why: "Local preference chooses your own way out and never leaves your AS, so the cloud never sees it. To change the cloud's choice, change what you announce."
+  - id: med
+    answers: [set metric 200]
+    why: "That sets the MED, which this cloud doesn't use as its tool; prepending is what it compares."
+explanation: |
+  `set as-path prepend 65001 65001`, in an outbound route map on the backup's session, makes the announced path `65001 65001 65001`. The cloud's router, comparing the two paths it hears for your prefix, prefers the shorter one over the primary. It works only where the far side compares AS path length before anything you can't influence: against a provider that sets its own local preference first, as AWS does by Region, prepending loses.
+skills: [inbound-steering]

@@ -1,0 +1,19 @@
+id: typed-fast-detection
+type: typed
+rev: 1
+prompt: |
+  A circuit to the cloud can fail silently, with both interfaces still up, and BGP then notices only when its hold time runs out: 90 seconds on AWS's side. Which protocol lets the two routers notice in under a second, by exchanging tiny packets and declaring the path down when a few in a row go missing? Give its short name or its full one.
+kind: text
+answers:
+  - BFD
+  - bidirectional forwarding detection
+mistakes:
+  - id: graceful
+    answers: [graceful restart]
+    why: "Graceful restart is the opposite idea: a restarting router asks its neighbour to keep using its routes meanwhile, which works against noticing a failure fast."
+  - id: keepalive
+    answers: [keepalive, keepalives, BGP keepalive]
+    why: "Keepalives are BGP's own, and a silent failure is noticed only when none has arrived for the hold time. The sub-second detector is BFD."
+explanation: |
+  **BFD**, bidirectional forwarding detection: the routers send each other a tiny packet every interval and declare the path down after a multiplier's worth of silence, interval x multiplier, 300 ms x 3 = 0.9 s at AWS's lowest. The two sides agree on the slower setting. When BFD declares the path down, BGP drops the session at once and the backup takes over. In FRR: `bfdd=yes` in `/etc/frr/daemons`, `neighbor ADDRESS bfd`, and `show bfd peers`.
+skills: [failure-detection]

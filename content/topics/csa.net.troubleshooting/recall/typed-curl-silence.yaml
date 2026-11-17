@@ -1,0 +1,21 @@
+id: typed-curl-silence
+type: typed
+rev: 1
+prompt: |
+  A monitor runs curl with a 2-second limit. One request waits the whole 2 seconds, because a firewall drops its packets and nothing answers. Which exit status does curl give? Type the number.
+kind: text
+answers:
+  - "28"
+mistakes:
+  - id: refused
+    answers: ["7"]
+    why: 7 means no connection, but because something answered, a reset or an unreachable, within a millisecond. Silence until the limit is 28.
+  - id: no-address
+    answers: ["6"]
+    why: 6 means curl found no address for the name, before any packet was sent. A dropped connection that waits out the limit is 28.
+  - id: empty-reply
+    answers: ["52"]
+    why: 52 means the server accepted the connection and sent nothing back. Here nothing answered at all, so curl ran out of time, which is 28.
+explanation: |
+  Exit 28 is curl running out of time: nothing answered before `-m` was up, as with a firewall that drops or an address nobody holds. The speed is half the evidence: a 28 comes after the whole limit, a 7 in about a millisecond, because something answered.
+skills: [split-the-suspects]

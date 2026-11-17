@@ -1,0 +1,21 @@
+id: typed-link-local-v4
+type: typed
+rev: 1
+prompt: |
+  Every cloud VM reaches its metadata service at 169.254.169.254, an address no router forwards. Type the whole link-local block that address belongs to, in CIDR notation.
+kind: text
+answers:
+  - 169.254.0.0/16
+mistakes:
+  - id: one-address
+    answers: [169.254.169.254/32]
+    why: That's the one address, as a block of its own. The link-local range it belongs to is 169.254.0.0/16.
+  - id: too-narrow
+    answers: [169.254.169.0/24]
+    why: The link-local range is wider than that, all of 169.254.x.x, a /16.
+  - id: loopback
+    answers: [127.0.0.0/8]
+    why: That's loopback, the machine itself. Link-local is 169.254.0.0/16, the addresses that never leave their own link.
+explanation: |
+  `169.254.0.0/16` is IPv4's link-local block: routers never forward it, so only something on the VM's own link can answer there, which is why every cloud puts its metadata service at 169.254.169.254. The clouds refuse the block for your own networks. IPv6's link-local addresses start `fe80::`.
+skills: [private-and-reserved]

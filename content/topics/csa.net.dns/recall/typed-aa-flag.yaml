@@ -1,0 +1,21 @@
+id: typed-aa-flag
+type: typed
+rev: 1
+prompt: |
+  In a `dig` answer's header, which flag says the answer came from one of the zone's own servers, not from a resolver's cache? Type the flag as dig prints it.
+kind: text
+answers:
+  - aa
+mistakes:
+  - id: authenticated
+    answers: [ad]
+    why: "`ad` (authenticated data) means a validating resolver checked the DNSSEC signatures. The zone's own servers mark their answers `aa`, authoritative answer."
+  - id: recursion
+    answers: [ra, rd]
+    why: "`rd` means the asker wanted recursion and `ra` that the server offers it, a resolver's flags. The zone's own servers mark their answers `aa`."
+  - id: reply
+    answers: [qr]
+    why: "`qr` only marks the message as a reply, which every answer is. The authority's mark is `aa`."
+explanation: |
+  `aa`, authoritative answer, is set only by a server answering from a zone it holds. A resolver's answer never has it, however fresh its copy. When a resolver and the authority disagree, the authority's `+norecurse` answer with `aa` is the zone as it stands now.
+skills: [trace-resolution]

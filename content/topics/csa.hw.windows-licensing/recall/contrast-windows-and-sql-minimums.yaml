@@ -1,0 +1,29 @@
+id: contrast-windows-and-sql-minimums
+type: estimate
+rev: 1
+prompt: |
+  A small reporting VM on Azure has 2 vCPUs and runs Windows Server and SQL Server Standard. The company covers both with Azure Hybrid Benefit, using core licences it owns with Software Assurance, licensed by VM. How many core licences does it set aside for this one VM, Windows Server's and SQL Server's added together? Exactly.
+unit: core licences
+answer: 12
+tolerance: { absolute: 0 }
+given: { vcpus: 2 }
+# The two per-VM minimums, 8 for Windows Server and 4 for SQL Server, are
+# what the learner must know (Product Terms, as the lesson read them in
+# November 2026).
+working: max(vcpus, 8) + max(vcpus, 4)
+mistakes:
+  - id: one-per-vcpu
+    value: 4
+    working: vcpus + vcpus
+    why: One licence a vCPU forgets both minimums. A VM licensed by VM takes at least 8 Windows Server core licences and at least 4 SQL Server ones, however small it is.
+  - id: eight-for-both
+    value: 16
+    working: max(vcpus, 8) + max(vcpus, 8)
+    why: 8 a VM is Windows Server's minimum. SQL Server's is 4 a VM, so it takes 4 here, not 8.
+  - id: four-for-both
+    value: 8
+    working: max(vcpus, 4) + max(vcpus, 4)
+    why: 4 a VM is SQL Server's minimum. Windows Server's is 8 a VM, so it takes 8 here, not 4.
+explanation: |
+  Each product has its own minimum when it is licensed by VM. Windows Server: one core licence a vCPU, at least **8** a VM, so 8 for this 2-vCPU VM. SQL Server: one core licence a vCPU, at least **4** a VM, so 4. Together, 8 + 4 = 12 core licences for a VM with 2 vCPUs. The minimums are why small VMs cost more in licences than their size suggests, and why the two products are never counted with the same number.
+skills: [core-counting]

@@ -1,0 +1,21 @@
+id: typed-revalidate-directive
+type: typed
+rev: 1
+prompt: |
+  The shop's `news.html` keeps its name and changes whenever there is news. Which `Cache-Control` directive lets browsers and the CDN keep a copy but makes them check with the origin before every use, so an unchanged page costs only a 304? Type the directive.
+kind: text
+answers:
+  - no-cache
+mistakes:
+  - id: no-store
+    answers: [no-store]
+    why: "`no-store` keeps no copy at all, so every visit downloads the whole page again. Storing and asking every time is `no-cache`."
+  - id: private
+    answers: [private]
+    why: "`private` keeps the page out of shared caches such as the CDN, which is for personal pages; it doesn't make the browser ask before each use."
+  - id: immutable
+    answers: [immutable]
+    why: "`immutable` is the opposite: it tells a browser not even to ask on a reload, for fingerprinted files whose content never changes under one name."
+explanation: |
+  `no-cache` doesn't mean "don't cache": RFC 9111 says such an answer may be stored but must not be used without being sent for validation. With the page's `ETag`, the check is a conditional request, and an unchanged page comes back as `304 Not Modified`, a few headers and no body. CDNs differ, though: Azure Front Door stores nothing marked `no-cache`.
+skills: [caching]

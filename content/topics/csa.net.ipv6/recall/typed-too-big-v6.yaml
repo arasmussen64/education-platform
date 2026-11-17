@@ -1,0 +1,19 @@
+id: typed-too-big-v6
+type: typed
+rev: 1
+prompt: |
+  IPv6 routers never fragment. When one can't forward a packet because the next link's MTU is smaller, it drops the packet and sends the sender an ICMPv6 message, type 2, with that MTU in it. Name the message.
+kind: text
+answers:
+  - Packet Too Big
+  - PTB
+mistakes:
+  - id: ipv4-name
+    answers: [fragmentation needed, frag needed]
+    why: That's IPv4's version, ICMP type 3, code 4. IPv6 has no fragmentation by routers, and its message is called Packet Too Big.
+  - id: time-exceeded
+    answers: [time exceeded, hop limit exceeded]
+    why: Time exceeded (ICMPv6 type 3) is sent when the hop limit reaches zero. A packet too big for the next link gets Packet Too Big.
+explanation: |
+  Packet Too Big (ICMPv6 type 2) is the only way an IPv6 sender learns the path's MTU, since IPv6 routers never fragment (RFC 8200). Drop it and the black hole is back on IPv6 only: small pages load, big uploads hang, IPv4 works. RFC 4890 lists it among the ICMPv6 messages a firewall must always let through.
+skills: [v6-egress]
