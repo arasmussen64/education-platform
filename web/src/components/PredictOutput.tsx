@@ -1,9 +1,11 @@
 import { useId, useState } from 'react'
 import { normalizeOutput } from '../content/answers.ts'
+import type { Confidence } from '../confidence/confidence.ts'
 import type { PredictOutputItem, PredictShellItem } from '../content/types.ts'
 import { DEFAULT_TIME_LIMIT_MS } from '../python/constants.ts'
 import { getPythonRunner, type TraceOutcome } from '../python/runner.ts'
 import { TraceView } from './CodeRunner.tsx'
+import { ConfidenceButtons, ConfidenceNote } from './Confidence.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Recorded } from './Recorded.tsx'
 import { BUTTON, CODE_BOX, SECONDARY_BUTTON, TEXT_INPUT } from './styles.ts'
@@ -12,9 +14,15 @@ type Props = {
   item: PredictOutputItem | PredictShellItem
   /**
    * Called once, when the learner checks their prediction; `prediction` is
-   * null for "I don't know this" (placement only).
+   * null for "I don't know this" (placement only). `confidence` is how
+   * sure the learner said they were (ADR-0028), or null in the placement
+   * test, which doesn't ask.
    */
-  onAnswer?: (correct: boolean, prediction: string | null) => void
+  onAnswer?: (
+    correct: boolean,
+    prediction: string | null,
+    confidence: Confidence | null,
+  ) => void
   /**
    * True in the placement test (ADR-0021): no word on whether it was right,
    * and an "I don't know this" button beside Check.
@@ -76,6 +84,7 @@ export function PredictOutput({
   const fieldId = useId()
   const [prediction, setPrediction] = useState('')
   const [checked, setChecked] = useState(false)
+  const [confidence, setConfidence] = useState<Confidence | null>(null)
   const [trace, setTrace] = useState<TraceOutcome | 'loading' | null>(null)
   // Only a Python item can be stepped through; a shell item runs nowhere.
   const pythonCode = item.type === 'predict_output' ? item.code : null
@@ -83,15 +92,16 @@ export function PredictOutput({
     normalizeOutput(prediction) === normalizeOutput(item.expected_output)
   const lines = item.expected_output.split('\n').length
 
-  function handleCheck() {
+  function handleCheck(sure: Confidence | null) {
     setChecked(true)
-    onAnswer?.(correct, prediction)
+    setConfidence(sure)
+    onAnswer?.(correct, prediction, sure)
   }
 
   /** The placement test's way out of guessing: recorded as a wrong answer. */
   function dontKnow() {
     setChecked(true)
-    onAnswer?.(false, null)
+    onAnswer?.(false, null, null)
   }
 
   // After predicting (never before: predicting first is the point), the
@@ -144,6 +154,7 @@ export function PredictOutput({
             )}
           </p>
           {!correct && <pre className={CODE_BOX}>{item.expected_output}</pre>}
+          <ConfidenceNote confidence={confidence} correct={correct} />
           <Markdown>{item.explanation}</Markdown>
           {pythonCode !== null && trace === null && (
             <button
@@ -167,21 +178,21 @@ export function PredictOutput({
             />
           )}
         </output>
-      ) : (
+      ) : quiet ? (
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={handleCheck} className={BUTTON}>
+          <button
+            type="button"
+            onClick={() => handleCheck(null)}
+            className={BUTTON}
+          >
             Check
           </button>
-          {quiet && (
-            <button
-              type="button"
-              onClick={dontKnow}
-              className={SECONDARY_BUTTON}
-            >
-              I don't know this
-            </button>
-          )}
+          <button type="button" onClick={dontKnow} className={SECONDARY_BUTTON}>
+            I don't know this
+          </button>
         </div>
+      ) : (
+        <ConfidenceButtons onPick={handleCheck} />
       )}
     </div>
   )

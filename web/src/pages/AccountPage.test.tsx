@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
+import { fetchRatedAnswers } from '../confidence/confidence.ts'
 import type { EventLog } from '../events/eventLog.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import { downloadJson, downloadText } from '../export/download.ts'
@@ -30,6 +31,11 @@ vi.mock('../followups/history.ts', async (importOriginal) => ({
 vi.mock('../checkpoints/stepsOpened.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../checkpoints/stepsOpened.ts')>()),
   fetchStepsOpened: vi.fn(async () => []),
+}))
+// The calibration summary reads the learner's answers from the server.
+vi.mock('../confidence/confidence.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../confidence/confidence.ts')>()),
+  fetchRatedAnswers: vi.fn(),
 }))
 
 const ADA = fakeUser()
@@ -93,6 +99,7 @@ describe('the account page', () => {
   beforeEach(() => {
     vi.mocked(collectExport).mockReset()
     vi.mocked(downloadJson).mockReset()
+    vi.mocked(fetchRatedAnswers).mockReset().mockResolvedValue([])
   })
 
   it('asks a signed-out visitor to sign in', () => {
@@ -231,6 +238,69 @@ describe('the account page', () => {
     expect(screen.getByText('Gathering your data…')).toBeInTheDocument()
     await userEvent.click(downloadButton())
     expect(collectExport).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("the account page's calibration summary (ADR-0028)", () => {
+  const rated = (
+    confidence: 'guess' | 'fair' | 'sure',
+    right: number,
+    wrong: number,
+  ) =>
+    Array.from({ length: right + wrong }, (_, index) => ({
+      id: `${confidence}-${index}`,
+      confidence,
+      correct: index < right,
+    }))
+
+  beforeEach(() => {
+    vi.mocked(fetchRatedAnswers).mockReset()
+  })
+
+  it('says how often the learner is right at each level they have used enough', async () => {
+    vi.mocked(fetchRatedAnswers).mockResolvedValue([
+      ...rated('sure', 23, 2),
+      ...rated('guess', 4, 6),
+      ...rated('fair', 3, 0),
+    ])
+    // An answer only this browser holds counts too. The same array every
+    // time, as the real event log gives it (useSyncExternalStore needs it).
+    const here = [
+      eventRow({ id: 'here', correct: true, data: { confidence: 'guess' } }),
+    ]
+    const log = { ...recordingEventLog().log, getLocalRows: () => here }
+    renderAccount({ log })
+    expect(
+      await screen.findByText(
+        "When you're certain, you're right 92% of the time (25 answers).",
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "When you guess, you're right 45% of the time (11 answers).",
+      ),
+    ).toBeInTheDocument()
+    // Three answers is too few to say anything about.
+    expect(
+      screen.queryByText(/fairly sure, you're right/),
+    ).not.toBeInTheDocument()
+  })
+
+  it('says when there are too few answers yet', async () => {
+    vi.mocked(fetchRatedAnswers).mockResolvedValue(rated('fair', 2, 1))
+    renderAccount()
+    expect(
+      await screen.findByText(/Not enough answers yet/),
+    ).toBeInTheDocument()
+  })
+
+  it("says so when the answers can't be read", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(fetchRatedAnswers).mockRejectedValue(new Error('offline'))
+    renderAccount()
+    expect(
+      await screen.findByText(/Your answers couldn't be read/),
+    ).toBeInTheDocument()
   })
 })
 

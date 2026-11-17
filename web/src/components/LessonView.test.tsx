@@ -72,7 +72,9 @@ describe('a question inside the lesson (<Check>)', () => {
     const { events } = renderLesson()
     const check = screen.getByRole('region', { name: 'Quick check' })
     await userEvent.click(within(check).getByRole('radio', { name: 'Hi' }))
-    await userEvent.click(within(check).getByRole('button', { name: 'Check' }))
+    await userEvent.click(
+      within(check).getByRole('button', { name: 'Fairly sure' }),
+    )
     expect(within(check).getByText('Correct!')).toBeInTheDocument()
     expect(events).toEqual([
       expect.objectContaining({
