@@ -58,6 +58,9 @@ import {
   weeksPractised,
 } from '../progress/weeks.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
+import { EVENING_LINE, isLateEvening } from '../session/evening.ts'
+import { type WelcomeBack, welcomeBack } from '../session/welcomeBack.ts'
+import { WelcomeBackPlan } from '../session/WelcomeBackPlan.tsx'
 import {
   bundledTopics,
   planSession,
@@ -133,6 +136,10 @@ function Plan() {
   }
   return (
     <>
+      {isLateEvening(now) && (
+        <p className="text-slate-600 dark:text-slate-400">{EVENING_LINE}</p>
+      )}
+      <ComingBack topics={topics} progress={progress} now={now} />
       <StartSession topics={topics} progress={progress} now={now} pace={pace} />
       <Reviews topics={topics} progress={progress} now={now} />
       <Revisit progress={progress} />
@@ -140,6 +147,34 @@ function Plan() {
       <PracticeHours progress={progress} now={now} />
     </>
   )
+}
+
+/**
+ * The welcome-back plan (session/welcomeBack.ts), after a break or when more
+ * reviews are due than today's limit: fixed when the history first loads.
+ */
+function ComingBack({
+  topics,
+  progress,
+  now,
+}: {
+  topics: Topic[]
+  progress: ProgressState
+  now: string
+}) {
+  const [plan, setPlan] = useState<WelcomeBack | null | undefined>(undefined)
+  if (progress.status === 'ready' && plan === undefined) {
+    setPlan(
+      welcomeBack({
+        topics: topics.filter(isOpen),
+        progress: progress.progress,
+        attempts: progress.attempts,
+        now,
+      }),
+    )
+  }
+  if (!plan) return null
+  return <WelcomeBackPlan plan={plan} today={dayOf(now)} />
 }
 
 /** "2 reviews", "1 review". */

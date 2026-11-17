@@ -809,3 +809,62 @@ describe('honest times on the Today page', () => {
     expect(next).not.toHaveTextContent('their estimate')
   })
 })
+
+describe('coming back on the Today page', () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  const PRINT = getTopic('py.programs-and-print')!
+  const proved = (days: number): Attempt[] => [
+    check(PRINT.prove.build ?? '', true, daysAgo(days)),
+    check(PRINT.prove.debug ?? '', true, daysAgo(days)),
+    { ...answer('explain', true, daysAgo(days)), type: 'explain_submit' },
+  ]
+
+  it('welcomes the learner back after a break, with a calm plan', async () => {
+    renderToday(proved(10))
+    const welcome = await screen.findByRole('region', { name: 'Welcome back' })
+    expect(welcome).toHaveTextContent(
+      "It's been 10 days since you last practised, and that's all right: what you learned is still there, some of it faded.",
+    )
+    expect(welcome).toHaveTextContent('Today: 1 review, about 2 minutes')
+    expect(welcome).toHaveTextContent('Programs and print (memory about')
+    // Nothing that reads as a debt.
+    expect(welcome).not.toHaveTextContent(/missed|behind|overdue|streak/i)
+  })
+
+  it('says nothing after a short gap', async () => {
+    renderToday([answer('mcq-quotes', true, daysAgo(2))])
+    await screen.findByRole('region', { name: 'Next up' })
+    expect(
+      screen.queryByRole('region', { name: 'Welcome back' }),
+    ).not.toBeInTheDocument()
+  })
+})
+
+describe('late in the evening on the Today page', () => {
+  beforeEach(() => {
+    setFakeRunner()
+    vi.mocked(fetchAttempts).mockReset()
+  })
+
+  const EVENING = /^It's late in your day: a good time for reviews\./
+
+  it('suggests reviews tonight and new topics earlier tomorrow, and blocks nothing', async () => {
+    vi.setSystemTime(new Date(2026, 10, 11, 22, 0))
+    renderToday([])
+    expect(await screen.findByText(EVENING)).toBeInTheDocument()
+    // The session, and its new topic, can still start.
+    expect(
+      await screen.findByRole('link', { name: "Start today's session" }),
+    ).toHaveAttribute('href', '/session')
+  })
+
+  it('says nothing in the afternoon', async () => {
+    renderToday([])
+    await screen.findByRole('region', { name: 'Next up' })
+    expect(screen.queryByText(EVENING)).not.toBeInTheDocument()
+  })
+})

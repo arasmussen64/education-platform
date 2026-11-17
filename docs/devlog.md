@@ -2,6 +2,27 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, Today page: a welcome-back plan, and new topics earlier in the day
+
+The fourth of the Today page's study-habit changes. Two ideas behind it. Coming back after a break to a long list of overdue reviews reads as a debt, and that is when many learners stop; the same reviews set out as a short plan over a few days read as doable. And a new topic takes fresh attention, which runs low late at night, while a review is short retrieval practice that suits a tired evening.
+
+**What changed.**
+
+- **The welcome-back plan** (`web/src/session/welcomeBack.ts`, shown by `WelcomeBackPlan.tsx`). When the learner hasn't practised for 7 days or more (and hasn't yet today), or when more reviews are due than a day's limit of 20 can clear, a card at the top of the Today page says so calmly and sets the due reviews out by day: what's left of today's limit first, then 20 a day, the most faded first, each day with about how long it takes (from the learner's own review times, `progress/pace.ts`) and, folded away, the topics with how much of each is still remembered. After a break with nothing due, it says so and suggests carrying on.
+- **The evening line** (`web/src/session/evening.ts`). From 21:00 until 04:00 on the learner's own clock, one sentence above the session card suggests reviews tonight and new topics earlier tomorrow.
+- Tests: when the plan appears and when it doesn't, the 7-day line, practice today and the placement test, the days split within the limit, a plan starting tomorrow when today's limit is used, the minutes per day (`welcomeBack.test.ts`); the evening hours either side of each edge (`evening.test.ts`); and both on the Today page.
+
+**Author notes:**
+
+- _Order and message only._ The plan calls `dueReviews` without a limit and `reviewsLeftToday`, as they are, and only groups their result by day. Nothing is scheduled, moved or hidden: the Reviews section and the session still take the day's share in the same order.
+- _Seven days is a break,_ as the brief suggested: long enough that the return is a moment worth marking, short enough to catch a missed week. It isn't shown once the learner has practised that day: by then they're back.
+- _"More than the daily cap can clear" means more than 20 due,_ not more than what's left of today. When the day's 20 are done and a few more are due, the Reviews section already says the rest come back tomorrow; a plan for one more day would add nothing.
+- _A day's estimate is rounded up to whole minutes,_ and the plan says topics coming due meanwhile join in, because the days are a projection: tomorrow's due list will have changed a little.
+- _The words:_ "and that's all right", "what you learned is still there, some of it faded", and that a review after a longer gap does more for a memory (in FSRS, a successful review at lower recall raises stability more). No "missed", "behind" or "overdue", and no counts of lost days.
+- _21:00 to 04:00 for "late"._ About when evening tiredness sets in for most people, and through a night owl's evening past midnight, while an early riser at 05:00 sees nothing. The line doesn't say that studying late harms memory (sleep soon after learning helps it settle, which the line says), only that a new topic needs fresh attention.
+
+**Next:** a plan for when and where to study, with a calendar file.
+
 ## 2026-11-16, Today page: honest times from the learner's own pace
 
 The third of the Today page's study-habit changes. Authors' estimates (`estimated_minutes`) are guesses and tend to be low, and a plan built on times that are too short leads to sessions that overrun and feel like failing. People also underestimate their own time on tasks (the "planning fallacy"); their own past times are the best correction.

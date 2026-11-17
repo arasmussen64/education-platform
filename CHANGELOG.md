@@ -18,6 +18,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (Today page: a welcome-back plan, and new topics earlier in the day)
+
+- After a break of 7 days or more, or whenever more reviews are due than the daily limit of 20 can clear, the Today page opens with a calm plan: "Welcome back" (or "A plan for your reviews"), what's due, and the reviews set out over the next few days within the limit, the most faded first, each day with about how long it takes and, folded away, which topics and how much of each is still remembered. It changes the message only: which reviews are due, their order and the limit are the reviews engine's own. `web/src/session/welcomeBack.ts`.
+- Opened late in the learner's evening (21:00 to 04:00 on their own clock), the Today page adds one line: "It's late in your day: a good time for reviews. A new topic takes fresh attention, so it may go better earlier tomorrow, with a night's sleep after it to help it settle." Nothing is blocked or hidden. `web/src/session/evening.ts`.
+
 ### Added (Today page: honest times from the learner's own pace)
 
 - Once three topics are proven, the Today page compares how long they took the learner with their authors' estimates, and stretches its time figures to match: "about 42 minutes at your pace", with one plain sentence under "Next up": "Topics you've proven took you about 1.4× their estimate, so the times on this page are stretched to match." The guided session's new topic uses the same figure.
