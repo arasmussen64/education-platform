@@ -18,6 +18,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (reviews: review labs for hands-on skills)
+
+- A topic can name `review_labs` in its `topic.yaml`: one or two of its own labs short enough to be a 10 to 15 minute refresher ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). When a topic's review checks a gap of two weeks or more and none of its last two reviews had a lab, the review asks one in place of a quick question; the learner runs it and pastes the checker's result as on the topic page. "Do the lab another time" swaps in a question with no penalty, and the lab comes back at the next review. The validator checks each review lab is one of the topic's labs and not a worked example.
+- All 38 ready topics of cloud Modules 1 to 3 name their review labs (54 labs in all, debug and write labs first).
+
 ### Added (reviews: a personal forgetting curve)
 
 - Once a learner has 100 review outcomes, the scheduler fits one number to them: how many times longer (or shorter) their memory lasts than FSRS's average curve says, between 0.5 and 2 ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). Every interval is stretched or shrunk by it. The Account page says it in plain words ("You forget a little faster than average: reviews come about 20% sooner"), or how many reviews are left before it's fitted. Below 100 reviews nothing changes. Nothing is stored; it's worked out from the event log each visit.

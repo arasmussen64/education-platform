@@ -90,6 +90,12 @@ export type Topic = {
     explain?: Explain
   }
   review_pool: string[]
+  /**
+   * Labs of this topic short enough for a hands-on refresher: a review
+   * sometimes asks one in place of a quick question (ADR-0009, amended
+   * 2026-11-16). Left out, there are none.
+   */
+  review_labs?: string[]
   skills: Skill[]
   /** Checkpoints only. */
   unstuck?: Unstuck

@@ -512,6 +512,53 @@ def test_lab_options_only_for_labs(tree: Path) -> None:
     assert_reported(tree, "lab options are only for runtime: lab", run=False)
 
 
+def with_review_labs(ids: str) -> str:
+    return TOPIC + f"review_labs: [{ids}]\n"
+
+
+def test_review_labs_name_the_topics_own_labs(tree: Path) -> None:
+    add_lab(tree)
+    write(tree, f"{TOPIC_DIR}/topic.yaml", with_review_labs("lab-report"))
+    assert problems(tree, run=False) == []
+
+
+def test_a_review_lab_must_exist_and_be_a_lab(tree: Path) -> None:
+    add_lab(tree)
+    write(
+        tree,
+        f"{TOPIC_DIR}/topic.yaml",
+        with_review_labs("lab-gone, write-hello, mcq-print"),
+    )
+    assert_reported(
+        tree,
+        "names 'lab-gone', which doesn't exist",
+        "review lab 'write-hello' isn't a lab",
+        "review lab 'mcq-print' is a question, not a lab",
+        run=False,
+    )
+
+
+def test_a_review_lab_is_not_a_worked_example(tree: Path) -> None:
+    add_lab(tree)
+    write(
+        tree,
+        f"{LAB_DIR}/exercise.yaml",
+        LAB_EXERCISE.replace("stage: write", "stage: worked_example")
+        + "steps:\n  - label: Make it\n    lines: '1'\n    note: Write it.\n",
+    )
+    write(tree, f"{TOPIC_DIR}/topic.yaml", with_review_labs("lab-report"))
+    assert_reported(tree, "review lab 'lab-report' is a worked example", run=False)
+
+
+def test_review_labs_are_different_and_not_on_checkpoints() -> None:
+    topic = yaml.safe_load(TOPIC)
+    with pytest.raises(ValueError, match="review_labs must all be different"):
+        Topic.model_validate({**topic, "review_labs": ["a", "a"]})
+    checkpoint = yaml.safe_load(CHECKPOINT)
+    with pytest.raises(ValueError, match="checkpoints have no reviews"):
+        Topic.model_validate({**checkpoint, "review_labs": ["a"]})
+
+
 def test_checkpoint_lab_test_skills_name_check_ids(checkpoint: Path) -> None:
     folder = f"{CHECKPOINT_DIR}/exercises/debug-card"
     for name in ("solution.py", "starter.py", "test_exercise.py"):

@@ -148,3 +148,23 @@ Until now a session with every item right was Good, however long it took. Gettin
 - _A multiplier on the elapsed time, or a different retention target._ Equivalent for one review, but a stability multiplier reads plainly ("your memory lasts 20% less long") and leaves the target, a product decision, alone.
 - _Shrinking toward 1 with a prior_ (a Bayesian fit). A gentler start, but one more idea to explain; the threshold and the clamp do the same job here.
 - _Storing the fitted number._ Recomputing it is cheap, keeps the event log the only record, and means a change to the rule applies by replay.
+
+## Amendment (2026-11-16): review labs for hands-on skills
+
+- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience, then the best memory retention, then free) and built on until the owner rules; it is listed in [the owner queue](../owner-queue.md) under _Decided for you_.
+
+The cloud track's skills are typed commands and broken servers fixed by hand ([ADR-0018](0018-lab-checker-local-mode.md)), and its reviews were only quick questions: a learner could keep recognising the right `systemctl` line and lose the ability to bring a service back. Recall of the thing itself is what the review should test, so a review sometimes asks for a lab.
+
+- **Which labs.** A topic names them in `review_labs:` in its `topic.yaml`: one or two of its own labs short enough to be a 10 to 15 minute refresher weeks later, preferably a debug (find and fix a fault) or a write, never a worked example, which shows its answer as it goes. The validator checks each is one of the topic's labs and not a worked example; checkpoints have none. All 38 ready topics of cloud Modules 1 to 3 name theirs: two for 16 of them, one for 22, chosen by machine run time (`tools/lab-seconds.json`) and how focused the prompt is. Every debug lab is the topic's own proof, so a Network topic, whose debugs are long, names a write or fill-in.
+- **When a review asks one.** When all hold: the topic has review labs; the gap the review checks (from its last review to its due date) is at least **14 days**, since the first short gaps are for quick questions and a hands-on skill is worth checking by hand once it has had time to fade; and no review lab was done in the topic's last **two** reviews, so at most one review in three has one. With FSRS's usual intervals (4, 15, 49 days and on), a topic's second review is the first that can ask a lab. Of two labs, the one done longest ago is asked.
+- **What the session is.** The lab, in place of a quick question, beside one item from the review pool. The learner runs it with `tools/labcheck.py` and pastes the result, exactly as on the topic page; its first pasted result is its first answer and rates the session with the other item by the usual rule (all right Good, some Hard, none Again). Labs aren't timed (the amendment on answer time above). A lab answered in a session left half-way is carried into the next visit like any other answer.
+- **"Do the lab another time."** The learner may be away from the computer that runs the labs. Until the lab has a result, the session offers to put it off: a question from the pool takes its place, the session is rated as an ordinary one, and nothing is recorded about the lab, so there is no penalty and it comes back at the next review that can ask one.
+
+**How existing schedules move.** They don't: this changes which items a review asks, not when it is due or how it is rated. Review events already saved are untouched. From now on, a topic with review labs that falls due after a gap of 14 days or more, and had no review lab in its last two reviews, offers a lab in its session.
+
+**Alternatives considered.**
+
+- _A lab in every review._ Ten to fifteen minutes a topic, every time, would make the daily list a chore; the quick questions still check the facts in between.
+- _Every third review, whatever the gap._ The first reviews come 4 and 15 days after learning, when the lab was done days ago; a gap rule asks for a lab when it can show something.
+- _New, shorter "review" labs written for the purpose._ Better in the long run, and the field takes them when they exist; for now, existing labs proved in CI are what can be trusted.
+- _Recording a put-off lab._ That would need a new event type (a migration only the owner can run) and buys nothing: a put-off lab simply comes back.

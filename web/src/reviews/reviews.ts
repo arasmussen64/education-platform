@@ -6,7 +6,12 @@ import { dayOf } from '../days.ts'
 import type { Attempt } from '../followups/followUps.ts'
 import { lastAttempted } from '../followups/followUps.ts'
 import type { TopicProgress } from '../progress/progress.ts'
-import { type Card, type Rating, retrievabilityAt } from './fsrs.ts'
+import {
+  type Card,
+  daysBetween,
+  type Rating,
+  retrievabilityAt,
+} from './fsrs.ts'
 
 /**
  * At most this many topic reviews a day (ADR-0009): a calendar day in the
@@ -15,6 +20,15 @@ import { type Card, type Rating, retrievabilityAt } from './fsrs.ts'
 export const DAILY_REVIEW_LIMIT = 20
 /** A review session asks this many items from the topic's review pool. */
 export const ITEMS_PER_REVIEW = 2
+/**
+ * A review asks one of the topic's review labs only when the gap it checks
+ * is at least this many days (ADR-0009, amended 2026-11-16): a hands-on
+ * skill is worth checking by hand once it has had time to fade, and the
+ * first, short gaps are for quick questions.
+ */
+export const REVIEW_LAB_MIN_DAYS = 14
+/** And at most once in this many reviews of the topic. */
+export const REVIEWS_PER_LAB = 3
 
 export type DueReview = {
   topic: Topic
@@ -90,6 +104,63 @@ function askablePool(content: TopicContent): string[] {
   })
 }
 
+/** The topic's review labs that can be asked: labs that exist, not worked examples. */
+export function reviewLabsOf(content: TopicContent): string[] {
+  return (content.topic.review_labs ?? []).filter((id) => {
+    const exercise = content.exercises[id]
+    return exercise?.runtime === 'lab' && exercise.stage !== 'worked_example'
+  })
+}
+
+/**
+ * The review lab this session asks in place of a quick question, or null
+ * (ADR-0009, amended 2026-11-16). One is asked when the topic has review
+ * labs, the gap since its last review was meant to be at least
+ * REVIEW_LAB_MIN_DAYS, and no review lab was done in its last two reviews.
+ * A lab put off with "Do the lab another time" left no result, so it comes
+ * back at the next review that can ask one. Of several, the one done
+ * longest ago (or never) is asked.
+ */
+export function labForReview(
+  content: TopicContent,
+  card: Card | null,
+  attempts: Attempt[],
+): string | null {
+  const labs = reviewLabsOf(content)
+  if (labs.length === 0 || !card) return null
+  if (daysBetween(card.lastReview, card.due) < REVIEW_LAB_MIN_DAYS) return null
+  const topicId = content.topic.id
+  const labDone = attempts
+    .filter(
+      (attempt) =>
+        attempt.topic_id === topicId &&
+        attempt.type === 'code_check' &&
+        attempt.context === 'review' &&
+        labs.includes(attempt.item_id),
+    )
+    .map((attempt) => attempt.occurred_at)
+    .sort()
+    .at(-1)
+  if (labDone !== undefined) {
+    // The review that asked it is saved after the lab, so it counts here.
+    const since = attempts.filter(
+      (attempt) =>
+        attempt.topic_id === topicId &&
+        attempt.type === 'review' &&
+        attempt.occurred_at > labDone,
+    ).length
+    if (since < REVIEWS_PER_LAB) return null
+  }
+  const last = lastAttempted(attempts, topicId)
+  return (
+    labs.toSorted(
+      (a, b) =>
+        (last.get(a) ?? '').localeCompare(last.get(b) ?? '') ||
+        a.localeCompare(b),
+    )[0] ?? null
+  )
+}
+
 /**
  * The items for a review session: two from the topic's review pool, at
  * least one of them code or predict-the-output (ADR-0009). Items answered
@@ -138,7 +209,8 @@ export function earlierAnswers(
   card: Card,
   attempts: Attempt[],
 ): Map<string, boolean> {
-  const pool = new Set(askablePool(content))
+  // A review lab answered in a session left half-way counts too.
+  const pool = new Set([...askablePool(content), ...reviewLabsOf(content)])
   const answers = new Map<string, boolean>()
   const since = attempts
     .filter(
@@ -164,6 +236,13 @@ export type ReviewPlan = {
   items: string[]
   /** The first answers given on an earlier visit, item ID → correct. */
   answered: Map<string, boolean>
+  /**
+   * The review lab among the items that the learner may put off, or null:
+   * one asked now, not one answered on an earlier visit.
+   */
+  lab: string | null
+  /** The items if the lab is put off: the same, with a question in its place. */
+  withoutLab: string[]
 }
 
 /**
@@ -205,10 +284,21 @@ export function planReview(
 ): ReviewPlan {
   const earlier = card ? [...earlierAnswers(content, card, attempts)] : []
   const answered = new Map(carriedAnswers(content, earlier, count))
-  const items = chooseReviewItems(content, attempts, count, [
-    ...answered.keys(),
-  ])
-  return { items, answered }
+  const kept = [...answered.keys()]
+  const lab = labForReview(content, card, attempts)
+  const asksLab = lab !== null && !answered.has(lab) && kept.length < count
+  if (!asksLab) {
+    const items = chooseReviewItems(content, attempts, count, kept)
+    return { items, answered, lab: null, withoutLab: items }
+  }
+  const items = chooseReviewItems(content, attempts, count, [...kept, lab])
+  const withoutLab = chooseReviewItems(
+    content,
+    attempts,
+    count,
+    items.filter((id) => id !== lab),
+  )
+  return { items, answered, lab, withoutLab }
 }
 
 /**

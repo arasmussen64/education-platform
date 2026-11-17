@@ -111,6 +111,7 @@ function withDefaults(raw: Partial<Topic>): Topic {
     practice: [],
     prove: {},
     review_pool: [],
+    review_labs: [],
     skills: [],
     ...raw,
   } as Topic

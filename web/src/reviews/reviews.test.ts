@@ -402,9 +402,12 @@ describe('picking up a review left half-way', () => {
   it('starts fresh when nothing was answered since it fell due, or there is no card', () => {
     const history = [answer('mcq-print', false, later(10))]
     expect(planReview(content, card, []).answered.size).toBe(0)
+    const items = chooseReviewItems(content, history)
     expect(planReview(content, null, history)).toEqual({
-      items: chooseReviewItems(content, history),
+      items,
       answered: new Map(),
+      lab: null,
+      withoutLab: items,
     })
   })
 })
