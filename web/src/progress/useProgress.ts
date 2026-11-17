@@ -29,6 +29,7 @@ import {
   openItemsOf,
   type SkillIndex,
 } from '../followups/skillIndex.ts'
+import { type UsualTimes, usualTimes } from '../reviews/answerTime.ts'
 import {
   progressOf,
   type StepsOpened,
@@ -48,6 +49,12 @@ export type ProgressState =
       attempts: Attempt[]
       /** The mistakes coming back (ADR-0011), from that same history. */
       followUps: FollowUp[]
+      /**
+       * How long the learner usually takes to get each kind of item right,
+       * so a review can tell a slow right answer (ADR-0009, amended
+       * 2026-11-16).
+       */
+      usualTimes: UsualTimes
     }
 
 /** What the server sent, and for whom, so another learner never sees it. */
@@ -132,10 +139,8 @@ export function useProgress(
       ...fetched.history.stepsOpened,
       ...localRows.map(localStepsOpened).filter((opened) => opened !== null),
     ]
-    const followUps = openFollowUps(
-      attempts,
-      openItemsOf(fetched.history.index),
-    )
+    const itemsOf = openItemsOf(fetched.history.index)
+    const followUps = openFollowUps(attempts, itemsOf)
     return {
       status: 'ready',
       progress: withOpenFollowUps(
@@ -146,6 +151,7 @@ export function useProgress(
       ),
       attempts,
       followUps,
+      usualTimes: usualTimes(attempts, itemsOf),
     }
   }, [auth.status, fetched, userId, retry, localRows, topics])
 }
