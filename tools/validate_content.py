@@ -662,6 +662,28 @@ def resource_indexes(lesson_text: str) -> list[int]:
     return [int(n) for n in re.findall(r"<Resource\s+index=\{(\d+)\}", lesson_text)]
 
 
+def check_review_labs(folder: TopicFolder, report: Report) -> None:
+    """A review lab is one of the topic's own labs, and not a worked example:
+    a review is recall, and a worked example shows its answer as it goes
+    (ADR-0009, amended 2026-11-16). check_references reports a missing one."""
+    topic_file = folder.path / "topic.yaml"
+    for item_id in folder.topic.review_labs:
+        if item_id in folder.recall:
+            report.add(topic_file, f"review lab {item_id!r} is a question, not a lab")
+            continue
+        if item_id not in folder.exercises:
+            continue
+        exercise = folder.exercises[item_id][1]
+        if exercise.runtime != "lab":
+            report.add(topic_file, f"review lab {item_id!r} isn't a lab")
+        if exercise.stage == "worked_example":
+            report.add(
+                topic_file,
+                f"review lab {item_id!r} is a worked example, which shows its "
+                "answer as it goes",
+            )
+
+
 def check_references(folder: TopicFolder, report: Report) -> None:
     """Every item and skill a topic names must exist, whatever its status."""
     declared = {skill.id for skill in folder.topic.skills}
@@ -673,6 +695,7 @@ def check_references(folder: TopicFolder, report: Report) -> None:
                 )
 
     named = [*folder.topic.practice, *folder.topic.review_pool]
+    named += folder.topic.review_labs
     named += [i for i in (folder.topic.prove.build, folder.topic.prove.debug) if i]
     named += folder.topic.prove.more_items()
     unstuck = folder.topic.unstuck
@@ -1642,6 +1665,7 @@ def check_topic(
     a checkpoint's further parts and the estimate checks)."""
     report.counts[folder.topic.status] += 1
     check_references(folder, report)
+    check_review_labs(folder, report)
     check_lesson_blocks(folder, report)
     check_packages(folder, report)
     check_test_skills(folder, topics, place, report)

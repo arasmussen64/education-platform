@@ -75,6 +75,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A lesson can tell a real public incident with `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>`, in the platform's own words, linking the postmortem it's drawn from.
 - The validator checks every tag in a lesson: only the six the app can draw, each written as `content/README.md` says, with the lesson's line in every problem.
 
+### Added (reviews: review labs for hands-on skills)
+
+- A topic can name `review_labs` in its `topic.yaml`: one or two of its own labs short enough to be a 10 to 15 minute refresher ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). When a topic's review checks a gap of two weeks or more and none of its last two reviews had a lab, the review asks one in place of a quick question; the learner runs it and pastes the checker's result as on the topic page. "Do the lab another time" swaps in a question with no penalty, and the lab comes back at the next review. The validator checks each review lab is one of the topic's labs and not a worked example.
+- All 38 ready topics of cloud Modules 1 to 3 name their review labs (54 labs in all, debug and write labs first).
+
 ### Added (reviews: a personal forgetting curve)
 
 - Once a learner has 100 review outcomes, the scheduler fits one number to them: how many times longer (or shorter) their memory lasts than FSRS's average curve says, between 0.5 and 2 ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). Every interval is stretched or shrunk by it. The Account page says it in plain words ("You forget a little faster than average: reviews come about 20% sooner"), or how many reviews are left before it's fitted. Below 100 reviews nothing changes. Nothing is stored; it's worked out from the event log each visit.

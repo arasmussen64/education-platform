@@ -172,6 +172,10 @@ class Topic(Strict):
     practice: list[ItemId] = []
     prove: Prove = Prove()
     review_pool: list[ItemId] = []
+    # Labs of this topic short enough to be a hands-on refresher (about 10 to
+    # 15 minutes): a review sometimes asks one in place of a quick question
+    # (ADR-0009, amended 2026-11-16).
+    review_labs: list[ItemId] = []
     # A missed question comes back as a different one testing the same
     # skill, so items name the skills they test (ADR-0011).
     skills: list[Skill] = []
@@ -189,6 +193,10 @@ class Topic(Strict):
     def fits_its_kind(self) -> Topic:
         if self.kind == "topic" and self.unstuck is not None:
             raise ValueError("only checkpoints have unstuck")
+        if self.kind == "checkpoint" and self.review_labs:
+            raise ValueError("checkpoints have no reviews, so no review_labs")
+        if len(set(self.review_labs)) != len(self.review_labs):
+            raise ValueError("review_labs must all be different")
         if self.kind == "checkpoint" and self.skills:
             raise ValueError(
                 "checkpoints don't declare skills: their tests name skills of "

@@ -9,7 +9,7 @@ import type { NewEvent } from '../events/types.ts'
 import type { Attempt } from '../followups/followUps.ts'
 import { progressOf } from '../progress/progress.ts'
 import { fakeAuth } from '../test/fakeAuth.ts'
-import { fakeContent, fakeTopic } from '../test/fakeContent.tsx'
+import { fakeContent, fakeLab, fakeTopic } from '../test/fakeContent.tsx'
 import { recordingEventLog } from '../test/fakeEvents.ts'
 import { ReviewSession } from './ReviewSession.tsx'
 
@@ -61,16 +61,23 @@ function openReview(
   {
     strict = false,
     usualTimes,
-  }: { strict?: boolean; usualTimes?: Map<string, number> } = {},
+    reviewContent = content,
+  }: {
+    strict?: boolean
+    usualTimes?: Map<string, number>
+    reviewContent?: typeof content
+  } = {},
 ) {
   const { log, events } = recordingEventLog()
-  const progress = progressOf([content.topic], history).get(content.topic.id)!
+  const progress = progressOf([reviewContent.topic], history).get(
+    reviewContent.topic.id,
+  )!
   const session = (
     <AuthProvider auth={fakeAuth(null)}>
       <EventLogContext value={log}>
         <MemoryRouter>
           <ReviewSession
-            content={content}
+            content={reviewContent}
             progress={progress}
             attempts={history}
             now={new Date().toISOString()}
@@ -267,5 +274,51 @@ describe('a review session', () => {
         { id: 'mcq-print', correct: true },
       ],
     })
+  })
+
+  it('can put a review lab off to another review, with a question in its place', async () => {
+    const withLab = {
+      ...content,
+      topic: { ...content.topic, review_labs: ['debug-lab'] },
+      exercises: {
+        ...content.exercises,
+        'debug-lab': fakeLab({ id: 'debug-lab', stage: 'debug' }),
+      },
+    }
+    // Learned on 1 November, reviewed Good on the 5th: the next review is
+    // 15 days on, long enough for a lab.
+    const reviewed: Attempt = {
+      id: 'first-review',
+      type: 'review',
+      topic_id: content.topic.id,
+      item_id: 'review',
+      correct: true,
+      rating: 'good',
+      occurred_at: '2026-11-05T12:00:00.000Z',
+      context: 'review',
+    }
+    vi.setSystemTime(new Date('2026-11-25T12:00:00.000Z'))
+    const { events } = openReview([...learnedEvents, reviewed], {
+      reviewContent: withLab,
+    })
+    expect(screen.getByText(/A report from the logs/)).toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Do the lab another time' }),
+    )
+    expect(screen.queryByText(/A report from the logs/)).not.toBeInTheDocument()
+    expect(screen.getByText(/The lab is put off/)).toBeInTheDocument()
+    await answerPrediction('a{Enter}b')
+    await answerQuickCheck('Hi')
+    expect(reviewsIn(events)).toEqual([
+      expect.objectContaining({
+        data: {
+          rating: 'good',
+          items: [
+            { id: 'mcq-print', correct: true },
+            { id: 'predict-print', correct: true },
+          ],
+        },
+      }),
+    ])
   })
 })

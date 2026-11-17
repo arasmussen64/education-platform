@@ -134,7 +134,11 @@ export function ReviewSession({
   // Planned once, when the session starts, so answering one item doesn't
   // change the others.
   const [plan] = useState(() => planReview(content, progress.card, attempts))
-  const { items } = plan
+  // A review lab can be put off to another review, with no penalty: the
+  // learner may be away from the computer that runs it (ADR-0009, amended
+  // 2026-11-16). A question takes its place.
+  const [labPutOff, setLabPutOff] = useState(false)
+  const items = labPutOff ? plan.withoutLab : plan.items
   // When earlier visits answered every item, the session is over as it
   // starts, already rated.
   // Answers from an earlier visit aren't timed: only this visit's are.
@@ -182,10 +186,25 @@ export function ReviewSession({
           {topic.title}
         </Link>
       </h3>
+      {labPutOff && (
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          The lab is put off: a question took its place, and the lab comes back
+          at a later review.
+        </p>
+      )}
       {items.map((itemId, index) => {
         const position = `Review ${index + 1} of ${items.length}`
         const earlier = plan.answered.get(itemId)
-        return earlier === undefined ? (
+        if (earlier !== undefined) {
+          return (
+            <AnsweredEarlier
+              key={itemId}
+              position={position}
+              correct={earlier}
+            />
+          )
+        }
+        const item = (
           <PracticeItem
             key={itemId}
             itemId={itemId}
@@ -196,8 +215,13 @@ export function ReviewSession({
               graded(itemId, correct, durationMs)
             }
           />
-        ) : (
-          <AnsweredEarlier key={itemId} position={position} correct={earlier} />
+        )
+        if (itemId !== plan.lab || results.has(itemId) || outcome) return item
+        return (
+          <div key={itemId} className="space-y-2">
+            <LabChoice onPutOff={() => setLabPutOff(true)} />
+            {item}
+          </div>
         )
       })}
       {/* <output> is announced by screen readers when its text changes. */}
@@ -205,6 +229,23 @@ export function ReviewSession({
         {outcome ? describeOutcome(outcome, now, items.length) : ''}
       </output>
     </article>
+  )
+}
+
+/**
+ * Says this review has a lab in it, and offers to put it off: the learner
+ * may be away from the computer that runs it.
+ */
+function LabChoice({ onPutOff }: { onPutOff: () => void }) {
+  return (
+    <p className="text-sm">
+      This review has a hands-on lab in place of a quick question: about 10 to
+      15 minutes, on the computer where you run the labs. Away from it?{' '}
+      <button type="button" onClick={onPutOff} className="underline">
+        Do the lab another time
+      </button>{' '}
+      and answer a question instead. It doesn't count against you.
+    </p>
   )
 }
 

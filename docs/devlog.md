@@ -255,6 +255,28 @@ Part of a larger plan to improve how the platform teaches. This stream adds new 
 
 **Next:** the glossary, in the entry above.
 
+## 2026-11-16, reviews: review labs for hands-on skills
+
+The last of four changes to the review engine. The cloud track's skills are typed commands and broken servers fixed by hand, but its reviews were only quick questions. Now a review sometimes asks for a lab instead. ADR-0009 has an amendment for it (Proposed).
+
+**What changed.**
+
+- **`review_labs:`** in `topic.yaml` names one or two of a topic's labs fit for a 10 to 15 minute refresher. `tools/content_model.py` takes it (unique, never on a checkpoint), the validator checks each is one of the topic's labs and not a worked example (`check_review_labs`), and the app's `Topic` type and loader carry it. `data-model.md` and `content/README.md` say how to use it.
+- **`labForReview`** (`web/src/reviews/reviews.ts`) decides when a review asks one: the gap it checks is at least 14 days, and none of the topic's last two reviews had a lab. `planReview` then asks the lab beside one pool item, and knows what replaces it.
+- **`ReviewSession`** shows the lab with the usual paste box, and above it "Do the lab another time", which swaps in a question for the session with no penalty.
+- **The 38 ready cloud topics** name their review labs: 54 labs, two for 16 topics and one for 22.
+- Tests: 12 new web tests (when a lab is asked, which one, every third review, carried answers, and putting one off in a real session) and 4 validator tests.
+
+**Author notes:**
+
+- _14 days and one review in three._ The first reviews (4 and 15 days after learning) come while the lab is still fresh; from the second review on, a lab every third review keeps hands-on recall checked without a 15-minute task in every session.
+- _Debug labs first, and only short ones._ Every debug lab is a topic's proof with three faults, so one was chosen only where it is light (about 80 seconds of machine time or less, with a short prompt). For Module 3, whose labs are all heavier, the lightest focused write or fill-in was chosen.
+- _A put-off lab isn't recorded:_ there is no event type for it, and none is needed; it simply comes back at the next review that can ask one.
+- _The Today page still says each review "asks two quick questions"._ That page belongs to another stream of work today; one of the two may now be a lab, and its wording should say so.
+- _Tried in the browser? No:_ the session is covered by a test that renders it and puts the lab off; the lab itself is the same component the topic page uses.
+
+**Next:** the coordinator's round-up of the review stream (learning science, roadmap, owner queue).
+
 ## 2026-11-16, reviews: a personal forgetting curve
 
 The third of four changes to the review engine. ADR-0009 left personal FSRS parameters to the ML capstone. A modest version comes first: one number, fitted to the learner's own reviews, that stretches or shrinks every interval. ADR-0009 has an amendment for it (Proposed).
