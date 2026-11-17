@@ -267,10 +267,23 @@ export type Exercise = {
 /** A compiled lesson.mdx. Pass it the components its tags use. */
 export type LessonComponent = MDXContent
 
+/**
+ * What a compiled lesson.mdx module holds: the lesson, and the ids of the
+ * practice questions it places with <Check item="…" /> (ADR-0026), which
+ * src/tooling/remarkLessonChecks.ts adds while compiling.
+ */
+export type LessonModule = { default: LessonComponent; checks?: string[] }
+
 /** Everything one topic page needs, loaded only when the page opens. */
 export type TopicContent = {
   topic: Topic
   Lesson: LessonComponent | null
+  /**
+   * The practice questions the lesson asks itself, with <Check> (ADR-0026),
+   * in lesson order. The practice ladder leaves them out. Empty or missing
+   * when the lesson asks none.
+   */
+  lessonChecks?: string[]
   recall: Record<string, RecallItem>
   exercises: Record<string, Exercise>
 }

@@ -7,12 +7,15 @@ import {
   type ReactNode,
   useMemo,
 } from 'react'
-import type { LessonComponent, Resource } from '../content/types.ts'
+import type { LessonComponent, TopicContent } from '../content/types.ts'
 import {
   LESSON_PLACE_PREFIX,
   PLACE_ATTRIBUTE,
 } from '../place/useCurrentPlace.ts'
+import { PracticeItem } from './PracticeItem.tsx'
+import { Puzzle } from './Puzzle.tsx'
 import { ResourceView } from './ResourceView.tsx'
+import { Story } from './Story.tsx'
 import { PROSE } from './styles.ts'
 
 function Callout({
@@ -57,18 +60,26 @@ function withPlaces(children: ReactNode): ReactNode {
   })
 }
 
+/** The place props LessonView's intro gives each of its parts (withPlaces). */
+type PlaceProps = { id?: string; 'data-place'?: string }
+
 /**
  * A topic's lesson (lesson.mdx): the AI-written intro and recap around the
  * main resource (ADR-0004). The MDX file uses <Intro>, <Resource index={0} />
- * and <Recap>; this supplies what they look like.
+ * and <Recap>, and may use the building blocks of ADR-0026: <Puzzle>,
+ * <Check item="…" /> and <Story>. This supplies what they look like.
+ * content/README.md says how to write each one, and the validator checks
+ * them, so no other tag reaches this map.
  */
 export function LessonView({
   Lesson,
-  resources,
+  content,
 }: {
   Lesson: LessonComponent
-  resources: Resource[]
+  /** The topic's questions and resources, which the lesson's tags show. */
+  content: TopicContent
 }) {
+  const resources = content.topic.resources
   const components = useMemo<MDXComponents>(
     () => ({
       Intro: ({ children }: { children?: ReactNode }) => (
@@ -87,8 +98,21 @@ export function LessonView({
           </div>
         ) : null
       },
+      // One of the topic's practice questions, asked in the lesson: graded
+      // and saved exactly as in the practice ladder, which leaves it out
+      // (lessonChecks.ts).
+      Check: ({ item, id }: { item: string } & PlaceProps) => (
+        <PracticeItem
+          itemId={item}
+          content={content}
+          context="practice"
+          placeId={id}
+        />
+      ),
+      Puzzle,
+      Story,
     }),
-    [resources],
+    [resources, content],
   )
   return (
     <div className={PROSE}>
