@@ -1,5 +1,7 @@
 import { useId, useMemo, useState } from 'react'
+import type { Confidence } from '../confidence/confidence.ts'
 import type { McqItem } from '../content/types.ts'
+import { ConfidenceButtons, ConfidenceNote } from './Confidence.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Recorded } from './Recorded.tsx'
 import { choiceOrder } from './scramble.ts'
@@ -10,8 +12,14 @@ type Props = {
   /**
    * Called once, when the learner checks their answer. `choice` is the
    * author's index, or null for "I don't know this" (placement only).
+   * `confidence` is how sure the learner said they were (ADR-0028), or
+   * null in the placement test, which doesn't ask.
    */
-  onAnswer?: (correct: boolean, choice: number | null) => void
+  onAnswer?: (
+    correct: boolean,
+    choice: number | null,
+    confidence: Confidence | null,
+  ) => void
   /**
    * True in the placement test (ADR-0021): the answer is taken without
    * saying whether it was right, so the test measures instead of teaching,
@@ -34,11 +42,17 @@ export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
   const order = useMemo(() => choiceOrder(item), [item])
   const [choice, setChoice] = useState<Picked | null>(null)
   const [checked, setChecked] = useState(false)
+  const [confidence, setConfidence] = useState<Confidence | null>(null)
 
-  function handleCheck() {
+  function handleCheck(sure: Confidence | null) {
     if (choice === null) return
     setChecked(true)
-    onAnswer?.(choice === item.answer, choice === 'unknown' ? null : choice)
+    setConfidence(sure)
+    onAnswer?.(
+      choice === item.answer,
+      choice === 'unknown' ? null : choice,
+      sure,
+    )
   }
 
   const correct = choice === item.answer
@@ -100,17 +114,20 @@ export function McqQuestion({ item, onAnswer, quiet = false }: Props) {
               </>
             )}
           </p>
+          <ConfidenceNote confidence={confidence} correct={correct} />
           <Markdown>{item.explanation}</Markdown>
         </output>
-      ) : (
+      ) : quiet ? (
         <button
           type="button"
-          onClick={handleCheck}
+          onClick={() => handleCheck(null)}
           disabled={choice === null}
           className={BUTTON}
         >
           Check
         </button>
+      ) : (
+        <ConfidenceButtons onPick={handleCheck} disabled={choice === null} />
       )}
     </div>
   )

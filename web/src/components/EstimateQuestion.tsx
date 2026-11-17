@@ -1,4 +1,5 @@
-import { type FormEvent, useId, useState } from 'react'
+import { type FormEvent, useId, useRef, useState } from 'react'
+import type { Confidence } from '../confidence/confidence.ts'
 import {
   acceptedRange,
   formatNear,
@@ -10,6 +11,7 @@ import {
   withUnit,
 } from '../content/estimates.ts'
 import type { EstimateItem } from '../content/types.ts'
+import { ConfidenceButtons, ConfidenceNote } from './Confidence.tsx'
 import { Markdown } from './Markdown.tsx'
 import { Recorded } from './Recorded.tsx'
 import { BUTTON, CODE_BOX, SECONDARY_BUTTON } from './styles.ts'
@@ -31,8 +33,14 @@ type Props = {
   /**
    * Called once, when the learner checks a number the box could read;
    * `answer` is null for "I don't know this" (placement only).
+   * `confidence` is how sure the learner said they were (ADR-0028), or
+   * null in the placement test, which doesn't ask.
    */
-  onAnswer?: (correct: boolean, answer: EstimateAnswer | null) => void
+  onAnswer?: (
+    correct: boolean,
+    answer: EstimateAnswer | null,
+    confidence: Confidence | null,
+  ) => void
   /**
    * True in the placement test (ADR-0021): no word on whether it was right,
    * and an "I don't know this" button beside Check.
@@ -129,9 +137,29 @@ export function EstimateQuestion({ item, onAnswer, quiet = false }: Props) {
   const [problem, setProblem] = useState<string | null>(null)
   const [checked, setChecked] = useState<EstimateAnswer | null>(null)
   const [dontKnow, setDontKnow] = useState(false)
+  const [confidence, setConfidence] = useState<Confidence | null>(null)
+  const firstChoice = useRef<HTMLButtonElement>(null)
 
-  function handleCheck(event: FormEvent) {
+  /**
+   * Enter in the box. In the placement test it's Check. Elsewhere it would
+   * have to pick how sure the learner is for them, so it only reads the
+   * number and moves on to the three buttons (ADR-0028).
+   */
+  function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    if (quiet) {
+      check(null)
+      return
+    }
+    const reading = readNumber(typed, item.unit)
+    if (!reading.ok) {
+      setProblem(reading.message)
+      return
+    }
+    firstChoice.current?.focus()
+  }
+
+  function check(sure: Confidence | null) {
     const reading = readNumber(typed, item.unit)
     if (!reading.ok) {
       setProblem(reading.message)
@@ -149,14 +177,15 @@ export function EstimateQuestion({ item, onAnswer, quiet = false }: Props) {
     }
     setProblem(null)
     setChecked(answer)
-    onAnswer?.(correct, answer)
+    setConfidence(sure)
+    onAnswer?.(correct, answer, sure)
   }
 
   /** The placement test's way out of guessing: recorded as a wrong answer. */
   function handleDontKnow() {
     setProblem(null)
     setDontKnow(true)
-    onAnswer?.(false, null)
+    onAnswer?.(false, null, null)
   }
 
   const done = checked !== null || dontKnow
@@ -166,7 +195,7 @@ export function EstimateQuestion({ item, onAnswer, quiet = false }: Props) {
       {item.prices_as_of && item.prices_source && (
         <PricesNote asOf={item.prices_as_of} source={item.prices_source} />
       )}
-      <form onSubmit={handleCheck} className="space-y-2">
+      <form onSubmit={handleSubmit} className="space-y-2">
         <label htmlFor={fieldId} className="block text-sm font-medium">
           Your answer
         </label>
@@ -197,7 +226,7 @@ export function EstimateQuestion({ item, onAnswer, quiet = false }: Props) {
             {problem}
           </output>
         )}
-        {!done && (
+        {!done && quiet && (
           <div className="flex flex-wrap gap-2">
             <button
               type="submit"
@@ -206,20 +235,27 @@ export function EstimateQuestion({ item, onAnswer, quiet = false }: Props) {
             >
               Check
             </button>
-            {quiet && (
-              <button
-                type="button"
-                onClick={handleDontKnow}
-                className={SECONDARY_BUTTON}
-              >
-                I don't know this
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleDontKnow}
+              className={SECONDARY_BUTTON}
+            >
+              I don't know this
+            </button>
           </div>
+        )}
+        {!done && !quiet && (
+          <ConfidenceButtons
+            onPick={check}
+            disabled={typed.trim() === ''}
+            firstRef={firstChoice}
+          />
         )}
       </form>
       {done && quiet && <Recorded />}
-      {checked && !quiet && <Feedback item={item} answer={checked} />}
+      {checked && !quiet && (
+        <Feedback item={item} answer={checked} confidence={confidence} />
+      )}
     </div>
   )
 }
@@ -228,9 +264,11 @@ export function EstimateQuestion({ item, onAnswer, quiet = false }: Props) {
 function Feedback({
   item,
   answer,
+  confidence,
 }: {
   item: EstimateItem
   answer: EstimateAnswer
+  confidence: Confidence | null
 }) {
   const correct = withinTolerance(answer.number, item)
   const mistake = item.mistakes.find(({ id }) => id === answer.mistake)
@@ -251,6 +289,7 @@ function Feedback({
       </p>
       {/* A long typed number breaks across lines rather than off the screen. */}
       {far && <p className="wrap-anywhere">{far}</p>}
+      <ConfidenceNote confidence={confidence} correct={correct} />
       {mistake && (
         <div className="rounded-md border-l-4 border-amber-500 bg-white px-3 py-2 dark:bg-slate-900">
           <p className="text-sm font-medium">A common slip</p>

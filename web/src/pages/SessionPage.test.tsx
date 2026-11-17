@@ -151,7 +151,9 @@ describe('the guided session', () => {
     await userEvent.click(
       within(quick).getByRole('radio', { name: 'Hi, Ada!' }),
     )
-    await userEvent.click(within(quick).getByRole('button', { name: 'Check' }))
+    await userEvent.click(
+      within(quick).getByRole('button', { name: 'Fairly sure' }),
+    )
     expect(
       await screen.findByText(/^Good: all right\. Next review/),
     ).toBeInTheDocument()
@@ -168,7 +170,7 @@ describe('the guided session', () => {
     await next()
     await stepHeading('Step 2 of 3 · A mistake coming back')
     await userEvent.click(screen.getByRole('radio', { name: 'Hi, Ada!' }))
-    await userEvent.click(screen.getByRole('button', { name: 'Check' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Fairly sure' }))
     await waitFor(() =>
       expect(client.send).toHaveBeenCalledWith([
         expect.objectContaining({

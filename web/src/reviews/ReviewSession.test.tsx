@@ -80,7 +80,9 @@ function openReview(history: Attempt[], { strict = false } = {}) {
 async function answerQuickCheck(choice: string) {
   const quick = screen.getByRole('region', { name: 'Quick check' })
   await userEvent.click(within(quick).getByRole('radio', { name: choice }))
-  await userEvent.click(within(quick).getByRole('button', { name: 'Check' }))
+  await userEvent.click(
+    within(quick).getByRole('button', { name: 'Fairly sure' }),
+  )
 }
 
 async function answerPrediction(text: string) {
@@ -89,7 +91,9 @@ async function answerPrediction(text: string) {
     within(predict).getByLabelText('What will it print?'),
     text,
   )
-  await userEvent.click(within(predict).getByRole('button', { name: 'Check' }))
+  await userEvent.click(
+    within(predict).getByRole('button', { name: 'Fairly sure' }),
+  )
 }
 
 const reviewsIn = (events: NewEvent[]) =>

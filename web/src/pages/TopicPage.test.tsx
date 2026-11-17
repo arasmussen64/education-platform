@@ -254,7 +254,7 @@ describe('the topic page', () => {
     const borrowed = screen.getAllByRole('region', { name: 'Quick check' })[1]!
     await userEvent.click(within(borrowed).getByRole('radio', { name: 'Hi' }))
     await userEvent.click(
-      within(borrowed).getByRole('button', { name: 'Check' }),
+      within(borrowed).getByRole('button', { name: 'Fairly sure' }),
     )
     expect(events.at(-1)).toMatchObject({
       type: 'answer',
@@ -327,7 +327,7 @@ describe('what the topic page saves', () => {
     await userEvent.click(
       within(screen.getByRole('region', { name: 'Quick check' })).getByRole(
         'button',
-        { name: 'Check' },
+        { name: 'Fairly sure' },
       ),
     )
     expect(events.at(-1)).toEqual({
@@ -338,7 +338,7 @@ describe('what the topic page saves', () => {
       context: 'practice',
       correct: true,
       duration_ms: expect.any(Number),
-      data: { choice: 0, choice_text: 'Hi' },
+      data: { choice: 0, choice_text: 'Hi', confidence: 'fair' },
     })
   })
 
@@ -1548,7 +1548,7 @@ describe('your place on a long topic', () => {
     // An item only tried stays open.
     const predict = screen.getByRole('region', { name: 'Predict the output' })
     expect(
-      within(predict).getByRole('button', { name: 'Check' }),
+      within(predict).getByRole('button', { name: 'Fairly sure' }),
     ).toBeInTheDocument()
   })
 
@@ -1573,7 +1573,9 @@ describe('your place on a long topic', () => {
     expect(await within(nav).findByText(/0 of 5 done/)).toBeInTheDocument()
     const quick = screen.getByRole('region', { name: 'Quick check' })
     await userEvent.click(within(quick).getByRole('radio', { name: 'Hi' }))
-    await userEvent.click(within(quick).getByRole('button', { name: 'Check' }))
+    await userEvent.click(
+      within(quick).getByRole('button', { name: 'Fairly sure' }),
+    )
     expect(
       await within(quick).findByText('Practice 2 of 5 · Done ✓'),
     ).toBeInTheDocument()
