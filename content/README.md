@@ -12,6 +12,7 @@ content/
 └── topics/<topic-id>/
     ├── topic.yaml                   metadata, prerequisites, resources, which items to use
     ├── lesson.mdx                   the AI-written intro and recap around the main resource
+    ├── glossary.yaml                the terms this topic teaches, defined in a line each (ADR-0026)
     ├── recall/<item>.yaml           multiple-choice, predict-the-output (Python or shell), Parsons and estimate items
     └── exercises/<item>/
         ├── exercise.yaml
@@ -81,7 +82,7 @@ If a prompt mentions the limit, it must state the real one.
 
 ## Lesson building blocks
 
-A lesson can do more than explain ([ADR-0026](../docs/decisions/0026-lesson-building-blocks.md)). Three building blocks go inside `lesson.mdx`, beside `<Intro>`, `<Resource index={0} />` and `<Recap>`. Those six are the only tags a lesson may use; the validator reads every tag outside code and fails a lesson with any other, because the page can't draw a tag it doesn't know.
+A lesson can do more than explain ([ADR-0026](../docs/decisions/0026-lesson-building-blocks.md)). Three building blocks go inside `lesson.mdx`, and a fourth, the glossary, in a file beside it, beside `<Intro>`, `<Resource index={0} />` and `<Recap>`. Those six are the only tags a lesson may use; the validator reads every tag outside code and fails a lesson with any other, because the page can't draw a tag it doesn't know.
 
 A whole lesson that uses all three:
 
@@ -149,13 +150,40 @@ Leave a blank line before and after each block, and inside a block that wraps te
 - At most 200 words. A good story says what users saw, what happened underneath in this topic's terms, how it was found and fixed, and the one lesson worth keeping.
 - Place it where the topic has taught enough to understand it: inside `<Intro>` after the idea it illustrates, or between `<Resource>` and `<Recap>`.
 
+### `glossary.yaml`: the terms a topic teaches
+
+A topic lists the terms it teaches in `content/topics/<id>/glossary.yaml`. Where another topic's lesson first uses one, the page marks the word with a dotted underline, and pressing it (or hovering with a mouse) shows the definition and "Taught in: <this topic>", with a link here. A learner who has forgotten a word from three topics ago gets it back without leaving the page. `/glossary` lists every term.
+
+```yaml
+# content/topics/csa.net.nat/glossary.yaml
+- term: NAT
+  aliases: [network address translation]
+  definition: Network address translation. A gateway rewrites the addresses (and often the ports) in packets as they pass, and connection tracking rewrites the replies back.
+- term: source NAT
+  aliases: [SNAT]
+  definition: NAT that rewrites a packet's source, usually so many private machines can share one public address, told apart by port. Done after the routing decision, on the way out.
+- term: port exhaustion
+  definition: A NAT running out of source ports for one destination, so new connections to it fail or time out while connections elsewhere still work.
+```
+
+- **The topic that teaches a term owns it.** A term, or an alias, may be defined in one topic only, across all content, ignoring case. If another topic already defines it, use theirs; if the two meanings differ, define yours as a phrase the lessons really use (`sampling bias` beside another topic's `bias`).
+- **List what this lesson teaches,** the words it puts in bold and explains: the ready topic's lesson must use each term (or one of its aliases). Not every word in bold: the ones a learner will meet again in later topics and might forget.
+- **`term`** as it appears in prose, a word or a short phrase: letters, digits and spaces, with `- . + # / & '` inside (`5-tuple`, `C++`, `TCP/IP`), at most 60 characters. Never code: text in `` `code` `` is never marked, so `free -m` can't be a term.
+- **`aliases`** (optional): other spellings with the same meaning, such as an abbreviation (`SNAT`) or the words it stands for. A plural made with `s` or `es` needs no alias; `processes` matches `process`.
+- **`definition`**: one line, at most 40 words, in our own words, readable by someone who has forgotten the topic. Inline `` `code` `` is fine.
+- **How words are matched.** The first letter's case doesn't matter (`Page cache` matches `page cache`), the rest must be exact (`NAT` never matches `nat`), and only whole words count (`NAT` isn't found in `NATIVE` or `pre-NAT`). The longest term wins (`source NAT` before `NAT`).
+- **Where words are marked:** only the first use on the page of each term, only in a lesson's prose: never in a heading, a link, code, a `<Puzzle>` or a quick question, where a definition could give an answer away. A topic's own terms aren't marked on its own page. Only ready topics' terms are marked.
+- The build copies each definition into the lessons that use it. After changing a `glossary.yaml`, restart the dev server to see the change there.
+
 ### What the validator checks
 
 - Only `Intro`, `Resource`, `Recap`, `Check`, `Puzzle` and `Story`; every tag finished, every wrapping tag closed. `<Term>` is never written by hand.
+- Each `<Check>`, `<Puzzle>`, `</Puzzle>`, `<Story>` and `</Story>` on a line of its own: in the middle of a line of text, MDX would put the box inside a paragraph.
 - `<Check>`: stands alone (`/>`), has only `item`, in quotes; the item exists in this topic, is a quick question and not an exercise, is listed in `practice:`, and isn't placed twice.
 - `<Puzzle>`: has `question`, in quotes, and an answer between its tags; first inside `<Intro>`; one per lesson; at most 50 and 150 words; nothing placed inside it.
 - `<Story>`: has `title`, `source`, `sourceTitle` and `license`, none empty, in quotes; `source` is an `https://` link; the story is between its tags, at most 200 words; nothing placed inside it.
 - Each problem names the lesson's line.
+- `glossary.yaml`: its shape and limits, as above; no term or alias defined twice across all content (ignoring case); a ready topic's lesson uses each of its terms; a checkpoint has none.
 
 ## Writing a lab
 

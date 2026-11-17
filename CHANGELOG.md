@@ -23,6 +23,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A topic can name `review_labs` in its `topic.yaml`: one or two of its own labs short enough to be a 10 to 15 minute refresher ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). When a topic's review checks a gap of two weeks or more and none of its last two reviews had a lab, the review asks one in place of a quick question; the learner runs it and pastes the checker's result as on the topic page. "Do the lab another time" swaps in a question with no penalty, and the lab comes back at the next review. The validator checks each review lab is one of the topic's labs and not a worked example.
 - All 38 ready topics of cloud Modules 1 to 3 name their review labs (54 labs in all, debug and write labs first).
 
+### Added (lessons: a glossary, with definitions where a word is used)
+
+- A topic can list the terms it teaches in `glossary.yaml` beside its lesson ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed). Where another topic's lesson first uses one, the word has a dotted underline; pressing it, or hovering with a mouse, shows its definition and "Taught in: <topic>", linking to that topic. It works with a keyboard and on a phone, and is never added to headings, links, code, a puzzle or a question.
+- A new page, `/glossary`, lists every term with its definition and the topic that teaches it.
+- The validator checks each `glossary.yaml`: a term or alias is defined by one topic only, across all content, ignoring case; a definition is one line of at most 40 words; a ready topic's lesson uses each term it defines.
+- The validator also asks that each `<Check>`, `<Puzzle>` and `<Story>` tag stands on a line of its own; in the middle of a line, MDX would draw the box inside a paragraph.
+- NAT's topic is the first with a glossary (NAT, source NAT, destination NAT, masquerade, port exhaustion), so ten other lessons that mention NAT now explain it on the spot.
+
 ### Added (lessons: questions inside the lesson, an opening puzzle, and a real incident)
 
 - A lesson can ask one of its topic's practice quick questions where it stands, with `<Check item="..." />`. It's graded and saved exactly as in practice, and the practice ladder leaves it out, so it shows once ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed).

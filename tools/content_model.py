@@ -648,3 +648,46 @@ class Diagnostic(Strict):
         if len(set(item_ids)) != len(item_ids):
             raise ValueError("item ids must all be different across the diagnostic")
         return self
+
+
+# --- The glossary (ADR-0026) ----------------------------------------------------
+
+# A glossary term is a word or a short phrase as it appears in prose: letters
+# and digits, with spaces and a few joining characters ("source NAT",
+# "5-tuple", "C++", "Let's Encrypt"). Code (`free -m`) isn't a term: the app
+# never marks text inside code.
+GlossaryWord = Annotated[
+    str, Field(pattern=r"^\w$|^\w[\w .+#/&'-]*[\w+#]$", max_length=60)
+]
+# How long a definition may be, in words: a reminder, not a lesson.
+DEFINITION_WORDS_MAX = 40
+
+
+class GlossaryEntry(Strict):
+    """One term a topic teaches, in content/topics/<id>/glossary.yaml. The
+    app shows its definition where another topic's lesson first uses it."""
+
+    term: GlossaryWord
+    # Other spellings that mean the same: "SNAT" for "source NAT". A plural
+    # made with s or es needs no alias; the app accepts it by itself.
+    aliases: list[GlossaryWord] = []
+    # One line of Markdown (inline code is fine), in our own words.
+    definition: Text
+
+    @model_validator(mode="after")
+    def fits(self) -> GlossaryEntry:
+        words = len(self.definition.split())
+        if words > DEFINITION_WORDS_MAX:
+            raise ValueError(
+                f"the definition has {words} words; keep it to "
+                f"{DEFINITION_WORDS_MAX}: a reminder, not a lesson"
+            )
+        if "\n" in self.definition.strip():
+            raise ValueError("the definition is one line, with no line breaks")
+        names = [self.term, *self.aliases]
+        if len({name.casefold() for name in names}) != len(names):
+            raise ValueError("the term and its aliases must all be different")
+        return self
+
+
+Glossary = TypeAdapter(Annotated[list[GlossaryEntry], Field(min_length=1)])

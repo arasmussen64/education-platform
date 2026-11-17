@@ -24,6 +24,31 @@ The last of four changes to the review engine. The cloud track's skills are type
 
 **Next:** the coordinator's round-up of the review stream (learning science, roadmap, owner queue).
 
+## 2026-11-16, lessons: a glossary, with definitions where a word is used
+
+The fourth lesson building block of [ADR-0026](decisions/0026-lesson-building-blocks.md), after the three in the entry below. A lesson uses words other topics taught; a learner who has forgotten one had to leave the page to find it.
+
+**What changed.**
+
+- **`content/topics/<id>/glossary.yaml`** lists the terms a topic teaches: `term`, optional `aliases`, and a one-line `definition`. The validator checks its shape, that a term or alias belongs to one topic only across all content (ignoring case), and that a ready topic's lesson uses each term it defines.
+- **Terms are marked while the app is built** (`web/src/tooling/remarkGlossary.ts`, with `glossaryFiles.ts` reading the files). The first time a lesson uses another ready topic's term, the word is wrapped in a `<Term>` carrying its definition and topic, which `GlossaryTerm.tsx` draws: a dotted underline, a button that shows the definition and "Taught in: <topic>", Escape or a press elsewhere to put it away, hover for a mouse, and a nudge left when the word sits near a phone screen's right edge.
+- **`/glossary`** lists every term, sorted, with its topic. It loads only when visited.
+- **NAT's topic has the first glossary** (five terms), so a test can follow a real lesson through the build: ten other lessons that mention NAT, from Linux networking tools in Module 1 to troubleshooting in Module 3, now carry its definition. The content writers fill the other topics.
+
+**Author notes:**
+
+- _Marked at build time, not in the browser._ Each lesson carries only the definitions it uses (NAT's appears in ten lesson files, about 170 bytes each, all loaded with their lesson), so nothing is added to the first download. Marking in the browser would have meant downloading every definition on every page, and "only the first time" is hard to keep in React, which may draw a component twice. The cost: after editing a `glossary.yaml`, the dev server needs a restart.
+- _Only lesson prose is marked._ Never a heading, a link or code, and never a puzzle or a question, where a definition one tap away could answer it. Practice and proof Markdown is left alone for the same reason.
+- _A topic's own terms aren't marked on its own page,_ where the lesson is what teaches them. They still win over a shorter term inside them: on NAT's page, "source NAT" doesn't get "NAT" marked inside it.
+- _Matching:_ the first letter's case is free (a term at the start of a sentence), the rest exact (`NAT` never matches "nat"), whole words only, a plain `s` or `es` plural accepted, the longest term first. Aliases cover the rest.
+- _Only ready topics' terms are marked,_ because a link to a draft would lead nowhere on the live site. The glossary page follows the map's rule (drafts on the dev server only).
+- _A ready topic's lesson must use each of its terms:_ a cheap check that the topic really teaches what it claims, and that a typo hasn't made a term that will never match.
+- _"All terms" sits in each definition,_ beside "Taught in", so the glossary page is found where it's useful, without a fourth item in the header's navigation.
+- _One more rule for the blocks of the entry below:_ a `<Check>`, `<Puzzle>` or `<Story>` tag on a line of its own. Tried in the MDX compiler: a tag written in the middle of a line of text is drawn inside that paragraph, and a question's box can't sit inside a paragraph.
+- _Bundle:_ the topic page's code grew by 2 KB (to 38.0 KB before compression), the glossary page is its own 2.8 KB piece, and the first download is unchanged.
+
+**Next:** the content writers add `<Check>`, `<Puzzle>`, `<Story>` and glossaries to the cloud track's ready topics.
+
 ## 2026-11-16, lessons: questions inside the lesson, an opening puzzle, and a real incident
 
 Part of a larger plan to improve how the platform teaches. This stream adds new building blocks for lessons ([ADR-0026](decisions/0026-lesson-building-blocks.md), Proposed); content writers fill the cloud track's ready topics with them afterwards. This first pull request brings the three that go in `lesson.mdx`; the glossary follows.
@@ -46,7 +71,7 @@ Part of a larger plan to improve how the platform teaches. This stream adds new 
 - _The ladder's numbering counts what it shows:_ a topic with five practice items and one placed in the lesson says "Practice 1 of 4". The placed item still counts towards the topic's minimums and everywhere else.
 - _Bundle:_ the topic page's code grew by 3 KB (32.9 to 35.9 KB before compression); the first download didn't change.
 
-**Next:** the glossary: `glossary.yaml` per topic, terms marked in lessons, and a glossary page.
+**Next:** the glossary, in the entry above.
 
 ## 2026-11-16, reviews: a personal forgetting curve
 

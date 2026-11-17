@@ -8,7 +8,12 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, normalizePath, type Plugin } from 'vite'
 import { parse as parseYaml } from 'yaml'
+import { readGlossary } from './src/tooling/glossaryFiles.ts'
 import { limiter } from './src/tooling/limiter.ts'
+import {
+  type GlossaryTerm,
+  remarkGlossary,
+} from './src/tooling/remarkGlossary.ts'
 import { remarkLessonChecks } from './src/tooling/remarkLessonChecks.ts'
 import { APP_NAME } from './src/config.ts'
 
@@ -192,6 +197,23 @@ function watchOutsideFolders(): Plugin {
   }
 }
 
+// The glossary (ADR-0026): every ready topic's terms, read once, the first
+// time a lesson is compiled, and shared by every lesson after it. The dev
+// server keeps what it read, so after changing a glossary.yaml, restart it.
+function glossaryLoader(): () => Promise<GlossaryTerm[]> {
+  const topicsFolder = fileURLToPath(
+    new URL('../content/topics/', import.meta.url),
+  )
+  let reading: Promise<GlossaryTerm[]> | null = null
+  return () => {
+    reading ??= readGlossary(topicsFolder).catch((error: unknown) => {
+      reading = null
+      throw error
+    })
+    return reading
+  }
+}
+
 // The git commit being built. It's saved with every learner event, so each
 // answer can be matched to the exact content it was given (ADR-0008).
 function gitCommit(): string {
@@ -216,8 +238,17 @@ export default defineConfig({
   plugins: [
     // Lessons are MDX: Markdown with components like <Intro> and <Resource>.
     // Each compiled lesson also says which questions it asks with <Check>
-    // (ADR-0026), so the practice ladder can leave them out.
-    { enforce: 'pre', ...mdx({ remarkPlugins: [remarkLessonChecks] }) },
+    // (ADR-0026), so the practice ladder can leave them out, and carries the
+    // definitions of the glossary terms it uses from other topics.
+    {
+      enforce: 'pre',
+      ...mdx({
+        remarkPlugins: [
+          remarkLessonChecks,
+          [remarkGlossary, { load: glossaryLoader() }],
+        ],
+      }),
+    },
     react({ include: /\.(mdx|js|jsx|ts|tsx)$/ }),
     tailwindcss(),
     contentYaml(),

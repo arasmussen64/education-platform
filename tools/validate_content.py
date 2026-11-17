@@ -33,6 +33,9 @@ It checks:
   content/README.md says (ADR-0026, lesson_blocks.py): a <Check> names one of
   the topic's practice quick questions, once; a <Puzzle> comes first in the
   intro; a <Story> links an https source and records its licence.
+- every topic's glossary.yaml (ADR-0026): its shape, that no term or alias is
+  defined by two topics (ignoring case), and that a ready topic's lesson uses
+  each term it defines.
 
 It prints every problem it finds and exits with status 1 if there are any.
 """
@@ -69,6 +72,8 @@ from content_model import (
     Diagnostic,
     EstimateItem,
     Exercise,
+    Glossary,
+    GlossaryEntry,
     LabChecks,
     McqItem,
     Module,
@@ -716,6 +721,58 @@ def check_lesson_blocks(folder: TopicFolder, report: Report) -> None:
         practice=list(folder.topic.practice),
     ):
         report.add(lesson, problem)
+
+
+def glossary_key(word: str) -> str:
+    """How two spellings of a term are compared: ignoring case and spacing."""
+    return " ".join(word.split()).casefold()
+
+
+def uses_word(text: str, word: str) -> bool:
+    """Whether a lesson uses a word, ignoring case, as a whole word, with a
+    plural s or es allowed (as the app marks it)."""
+    pattern = rf"(?<![\w-]){re.escape(word)}(?:e?s)?(?![\w-])"
+    return re.search(pattern, text, re.IGNORECASE) is not None
+
+
+def check_glossaries(topics: dict[str, TopicFolder], report: Report) -> None:
+    """Every topic's glossary.yaml (ADR-0026): the terms a topic teaches,
+    each defined by one topic only, across all content."""
+    owners: dict[str, tuple[str, str]] = {}
+    for folder in topics.values():
+        path = folder.path / "glossary.yaml"
+        if not path.exists():
+            continue
+        entries: list[GlossaryEntry] | None = load(path, Glossary, report)
+        if entries is None:
+            continue
+        report.counts["glossary terms"] += len(entries)
+        topic = folder.topic
+        if topic.kind != "topic":
+            report.add(path, "a checkpoint teaches no terms of its own")
+        lesson = folder.path / "lesson.mdx"
+        lesson_text = lesson.read_text("utf-8") if lesson.exists() else ""
+        for entry in entries:
+            for word in (entry.term, *entry.aliases):
+                key = glossary_key(word)
+                if key in owners:
+                    owner, owner_word = owners[key]
+                    where = "this topic" if owner == topic.id else owner
+                    report.add(
+                        path,
+                        f"{word!r} is already defined in {where} (as "
+                        f"{owner_word!r}); a term belongs to one topic only",
+                    )
+                else:
+                    owners[key] = (topic.id, word)
+            if topic.status == "ready" and not any(
+                uses_word(lesson_text, word) for word in (entry.term, *entry.aliases)
+            ):
+                report.add(
+                    path,
+                    f"{entry.term!r} isn't in this topic's lesson: a topic "
+                    "defines the terms its lesson teaches",
+                )
 
 
 # --- Running code -------------------------------------------------------------------
@@ -1565,6 +1622,7 @@ def validate(root: Path = ROOT, run: bool = True, labs: bool = False) -> Report:
             folder, topics, places.get(folder.topic.id), report, run=run, labs=labs
         )
 
+    check_glossaries(topics, report)
     check_diagnostics(content, topics, report)
     report_long_answers(report)
     report.counts["topics"] = len(topics)
