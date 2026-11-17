@@ -1503,7 +1503,6 @@ def check_topic(
     report.counts[folder.topic.status] += 1
     check_references(folder, report)
     check_review_labs(folder, report)
-
     check_lesson_blocks(folder, report)
     check_packages(folder, report)
     check_test_skills(folder, topics, place, report)
