@@ -21,15 +21,16 @@ export const QUICK_CHECK_DATA = { quick_check: true } as const
 
 /**
  * Quick to answer and graded on the spot: multiple choice, predict the
- * output (Python or shell), and estimates. Parsons problems take longer to
- * do, so they stay in the practice.
+ * output (Python or shell), estimates and typed answers (ADR-0027). Parsons
+ * problems take longer to do, so they stay in the practice.
  */
 function isQuick(item: RecallItem | undefined): item is RecallItem {
   return (
     item?.type === 'mcq' ||
     item?.type === 'predict_output' ||
     item?.type === 'predict_shell' ||
-    item?.type === 'estimate'
+    item?.type === 'estimate' ||
+    item?.type === 'typed'
   )
 }
 

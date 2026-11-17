@@ -18,19 +18,19 @@ Software on a Linux server arrives in **packages**: one file per program or libr
 
 <Check item="pkg-security-updates" />
 
+<Story title="The xz backdoor, 2024" source="https://www.openwall.com/lists/oss-security/2024/03/29/4" sourceTitle="backdoor in upstream xz/liblzma leading to ssh server compromise" license="linked, not copied">
+
+In March 2024 Andres Freund, a developer testing on Debian's unstable, pre-release branch, noticed that SSH logins were using a lot of CPU: a failed login took 0.8 seconds instead of 0.3, and a memory-checking tool reported errors. He traced it to a compression library, liblzma, from the xz package, versions 5.6.0 and 5.6.1.
+
+Someone had hidden a backdoor in those releases. A line added to the release downloads, but not to the project's source history, ran a disguised script during the package build, and two obfuscated "test" files committed to the project carried more of it. The SSH server doesn't use liblzma itself, but Debian and several other distributions build it with systemd's library, which does, so the code ended up inside `sshd`, meddling with the key check before anyone had logged in.
+
+Freund reported it to Debian's security team and the distributions, then published it on 29 March. The two versions had so far reached mostly pre-release distributions, so servers on stable releases had escaped. The lesson: installing a package trusts everyone who built it, and a stable release's suites give the world time to look.
+
+</Story>
+
 **Patching without breaking things.** Security updates first, and regularly: `unattended-upgrades` on Ubuntu and `dnf-automatic` on Fedora and RHEL can install them for you every night. A package you can't afford to have change under you, a database you've tested at one version, say, can be **held** (`apt-mark hold postgresql`; `apt-mark showhold` lists the holds, `unhold` releases one) or **version-locked** (`dnf versionlock add`), so it stays put while everything else updates; release the hold when you're ready to upgrade it deliberately. To upgrade a chosen few and nothing else, `apt install --only-upgrade pkg1 pkg2`. In a script nobody is watching, `apt`'s "Do you want to continue?" needs `-y`, and `dpkg-query -W -f='${Version}' pkg` prints just a package's installed version. Some updates only take effect after a restart. A new kernel or a new C library needs a **reboot**; Ubuntu writes `/var/run/reboot-required` (and lists the packages in `reboot-required.pkgs`) to tell you, and RHEL's `needs-restarting -r` answers the same question. Other services need restarting because a library they loaded has changed: `needs-restarting` lists them, and `checkrestart` does on Debian. On a fleet, patch one server and watch it before the rest.
 
 <Check item="pkg-reboot-required" />
-
-<Story title="Datadog's automatic update, 2023" source="https://www.datadoghq.com/blog/2023-03-08-multiregion-infrastructure-connectivity-issue/" sourceTitle="2023-03-08 Incident: Infrastructure connectivity issue affecting multiple regions" license="linked, not copied">
-
-On 8 March 2023, customers of Datadog, a company whose service watches other companies' servers, found its website and API unreachable in five regions at once, and its alerts silent. Some services were back that afternoon; all of them took until the next morning, and filling in the missing data took until 10 March.
-
-At 06:00 UTC, a security update to systemd installed itself on tens of thousands of Datadog's Ubuntu 22.04 servers. The disk image the servers were all built from still had an old automatic security-update channel turned on, and every server used the operating system's default update window, 06:00 to 07:00 UTC, so they all patched in the same hour. The update restarted systemd's network service, and on that version the restart deleted network routes that the containers' networking software had added. The servers dropped off the network.
-
-Datadog turned that update channel off everywhere (its own tooling installs security updates instead), set the network service to leave the routes alone when it restarts, and audited its fleet for other forgotten update channels. The lesson: automatic updates are good, and patching a whole fleet in the same hour is not.
-
-</Story>
 
 **Mutable or immutable.** A server you patch in place is **mutable**: it changes over time, and after two years of hand-applied fixes no two servers are quite the same, which is why nobody dares touch the old one. The cloud makes the other approach cheap: build a new **image** with the updates baked in, test it once, and **replace** the running servers from it a few at a time behind the load balancer. Nothing is patched in place, every server is identical and known, and rolling back means redeploying the previous image. Martin Fowler's short *Immutable Server* and *Phoenix Server* notes are the classic statement of the idea; later modules build it with Packer and autoscaling groups.
 

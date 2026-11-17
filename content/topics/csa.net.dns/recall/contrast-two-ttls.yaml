@@ -1,0 +1,16 @@
+id: contrast-two-ttls
+type: mcq
+rev: 1
+prompt: |
+  A colleague reads `ttl=62` on a ping reply and `300` in the TTL column of `dig api.shop.test`, and says: "Same thing: both say how long the data may be kept." What does each number really count?
+choices:
+  - "The ping's counts routers that may still pass the packet on; dig's, seconds a resolver may keep the answer"
+  - "The ping's counts milliseconds the reply took to arrive; dig's, routers the answer may still cross on its way"
+  - "Both count seconds: the ping's, how long the reply may wait in a queue; dig's, how long it may be cached"
+  - "Both count hops: the ping's, the routers crossed so far; dig's, the name servers asked on the way to the answer"
+answer: 0
+explanation: |
+  The two TTLs only share a name. The one in an IPv4 header is a hop count: each router takes one off and throws the packet away at zero, so a loop can't keep it for ever. The reply left the server at 64 and crossed two routers, so it arrived saying 62: two fewer, not "62 of anything left to keep". The one in a DNS record is time: how many more seconds a resolver may keep and hand out that answer before asking again, counting down in its cache.
+
+  Neither is a round-trip time (ping prints that separately, as `time=`), and a DNS answer's TTL says nothing about routers. The IP header's field isn't a queueing time, and the DNS field doesn't count the servers asked: a lookup through three referrals and one served from the cache can show the same TTL.
+skills: [ttl-and-caching]

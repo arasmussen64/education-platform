@@ -75,8 +75,9 @@ export function memoryPercent(card: Card, now: string): number {
 function isCodeOrPredict(content: TopicContent, itemId: string): boolean {
   const type = content.recall[itemId]?.type
   if (type === 'predict_output' || type === 'predict_shell') return true
-  // An estimate's number is worked out, not picked (ADR-0024).
-  if (type === 'parsons' || type === 'estimate') return true
+  // An estimate's number is worked out, not picked (ADR-0024), and a typed
+  // answer is recalled, not recognised (ADR-0027).
+  if (type === 'parsons' || type === 'estimate' || type === 'typed') return true
   const exercise = content.exercises[itemId]
   return exercise !== undefined && exercise.stage !== 'worked_example'
 }

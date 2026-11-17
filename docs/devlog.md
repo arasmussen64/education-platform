@@ -13,7 +13,7 @@ The first content pass with the new lesson building blocks ([ADR-0026](decisions
 - **12 stories**, each from a public source opened and read for this pass, told in our own words:
   - Shell essentials: Amazon S3's typo, 2017 ([AWS's summary](https://aws.amazon.com/message/41926/)).
   - Users, permissions and SSH: Baron Samedit, the sudo flaw, 2021 ([Qualys](https://blog.qualys.com/vulnerabilities-threat-research/2021/01/26/cve-2021-3156-heap-based-buffer-overflow-in-sudo-baron-samedit)).
-  - Package management and patching: Datadog's automatic systemd update, 2023 ([Datadog's postmortem](https://www.datadoghq.com/blog/2023-03-08-multiregion-infrastructure-connectivity-issue/)).
+  - Package management and patching: the xz backdoor, 2024 ([Andres Freund's oss-security post](https://www.openwall.com/lists/oss-security/2024/03/29/4)). The first draft told Datadog's automatic systemd update of 2023, but Module 3's writer merged a story about the same incident first (in Routing), so this lesson tells another, about trusting what a repository ships.
   - Disks and filesystems: Netlify's database fills its disk, 2016 ([Netlify's learning review](https://www.netlify.com/blog/2016/12/01/learning-review-for-our-22-november-api-and-origin-outage/)).
   - Memory and the OOM killer: Redpanda's brokers killed at their own container limit, 2022 ([Redpanda's engineering blog](https://redpanda.com/blog/solve-out-of-memory-killer-events)).
   - CPU scheduling and cgroups: Indeed's throttled services, 2018 to 2019 ([Indeed Engineering](https://engineering.indeedblog.com/blog/2019/12/unthrottled-fixing-cpu-limits-in-the-cloud/)).
@@ -36,6 +36,60 @@ The first content pass with the new lesson building blocks ([ADR-0026](decisions
 - _No glossaries or typed questions yet:_ they come in the next pull request, once typed answers (#298) reach `main` too.
 
 **Next:** a glossary for each of the 14 topics and two typed questions each.
+
+## 2026-11-16, questions: typed answers
+
+**What and why.** A new kind of quick question, `typed` ([ADR-0027](decisions/0027-typed-answers.md), proposed), for answers the learner should be able to produce from memory: a command (`docker ps`), a term (VNet), a value (443) or a short phrase. Until now those were asked as multiple choice, which is recognition: the answer is on the screen. Typing it is recall, and recall builds memory better (Kang, McDermott and Roediger, 2007). The content writers can now convert the cloud track's command and term questions.
+
+**What changed.**
+
+- `tools/typed_answers.py` and `web/src/content/typed.ts` read an answer the same way, step by step, and both are tested against one list of cases, `tools/tests/typed_cases.json`, so the validator and the page can't disagree about whether two answers are the same.
+- `tools/content_model.py` has `TypedItem`, and `tools/validate_content.py` checks each one: answers that differ once read, no mistake that is also an answer, no answer in two mistakes, and a prompt that doesn't give the answer away.
+- `web/src/components/TypedQuestion.tsx` asks the question: a labelled box (with a `$` before it for a command), Check or Enter, then right or not, the answer, a known mistake's sentence, the other accepted answers and the explanation. `PracticeItem` shows it as "Type the command" or "Type the answer" and saves `typed`, `mistake` and `slip` in the answer event.
+- Reviews count a typed item as an answer the learner produces, like an estimate.
+- `docs/specs/data-model.md` and `content/README.md` describe the type and how to write one.
+
+**Author notes:**
+
+- _Lists of answers, not patterns._ A regular expression can accept far more than its writer meant, and Python's and the browser's differ in small ways. A list is readable and proves itself entry by entry. The ADR says what a pattern would need if the answer log ever shows it's wanted.
+- _One slip of the fingers is forgiven, for text only._ A learner who types "kubernets" remembered the word; marking it wrong would tell them they didn't. It's never a digit, a space, a symbol or a letter's case (RAID 5 and RAID 6 stay different), never an answer under five characters, and never a command, which a shell wouldn't forgive. Known mistakes are checked first, so a mistake one letter from an answer is still named.
+- _Phone punctuation is forgiven._ A phone's "smart punctuation" turns `--all` into `—all` and straight quotes into curly ones; both are read back as typed on a keyboard, so a learner on a phone isn't marked wrong for their keyboard.
+- _A typed item counts as produced in the review-pool rule,_ like an estimate: the rule asks for more than recognition, and a typed answer is recalled.
+- _No sample items in real content._ The tests build their own; the content writers will convert items.
+
+**Next:** confidence before the answer (ADR-0028): "Guessing", "Fairly sure" and "Certain" in place of Check, and a calibration summary on the Account page.
+
+## 2026-11-16, cloud Module 3 content (first half): puzzles, questions in the lesson, real incidents
+
+The first of two pull requests that fill cloud Module 3's first eight topics with the new lesson building blocks ([ADR-0026](decisions/0026-lesson-building-blocks.md)): `csa.net.layers`, `cidr`, `ipv6`, `transport`, `routing`, `nat`, `dns` and `troubleshooting`. Three other writers are doing Modules 1 and 2 and the second half of Module 3 at the same time.
+
+**What changed.**
+
+- **A puzzle opens every lesson** (8): what changes in a packet between two routers; why two networks on the same range can take months to join; how many times as many addresses IPv6 has; who sent a reset after a quiet lunch; which of two routes a packet takes; how replies find one of millions of laptops all called 192.168.1.23; how a laptop finds any name in milliseconds; and what makes a delay of exactly two and a half seconds.
+- **31 practice questions placed inside the lessons**, 3 or 4 a topic, each right after the paragraph it tests, typed ones where they fit: 13 are predict-the-shell or estimate items, the rest multiple choice (routing's best fits were all multiple choice). Every ladder still has at least 15 items left.
+- **A real incident in every topic** (8), each written from its source, opened on 2026-11-16, in our own words:
+  - Layers: Cloudflare's 2015 path MTU failure, where ICMP "too big" messages reached the wrong server ([Path MTU discovery in practice](https://blog.cloudflare.com/path-mtu-discovery-in-practice/), Cloudflare, already the topic's resource).
+  - CIDR: equipment that had borrowed 1.1.1.1 before Cloudflare's resolver launched in 2018 ([Fixing reachability to 1.1.1.1, GLOBALLY!](https://blog.cloudflare.com/fixing-reachability-to-1-1-1-1-globally/), Cloudflare).
+  - IPv6: CVE-2020-10749, rogue router advertisements in IPv4-only Kubernetes clusters ([kubernetes/kubernetes#91507](https://github.com/kubernetes/kubernetes/issues/91507)).
+  - Transport: Expedia's API timeouts from a load balancer's 350-second idle timer, 2021 ([Lesson Learned from a NLB Connection Timeout](https://medium.com/expedia-group-tech/lesson-learned-from-a-nlb-connection-timeout-2c672e59e197), Expedia Group Tech).
+  - Routing: Datadog's outage of 8 March 2023, when a systemd update removed Cilium's routing rules ([A deep dive into the platform-level impact](https://www.datadoghq.com/blog/engineering/2023-03-08-deep-dive-into-platform-level-impact/), Datadog).
+  - NAT: XING's 1- and 3-second delays from a race in Linux's source NAT port choice, 2017 ([A reason for unexplained connection timeouts on Kubernetes/Docker](https://tech.new-work.se/a-reason-for-unexplained-connection-timeouts-on-kubernetes-docker-abd041cf7e02), Maxime Lagresle).
+  - DNS: AWS's DynamoDB outage of 19 and 20 October 2025, an empty DNS record left by a race in its DNS automation ([AWS's summary](https://aws.amazon.com/message/101925/)).
+  - Troubleshooting: Slack's outage of 4 January 2021, packet loss in AWS Transit Gateways with Slack's own dashboards down ([Slack's Outage on January 4th 2021](https://slack.engineering/slacks-outage-on-january-4th-2021/), Slack Engineering).
+- **Five contrast questions** (`contrast-*`), each in the later topic of its pair and on that topic's skill: a refused connection or a timed-out one (transport), longest prefix or administrative distance (routing), source or destination NAT (NAT), a recursive resolver or an authoritative server (DNS), and the IP header's TTL or a DNS record's (DNS).
+- `estimated_minutes` grew by 3 a topic for the puzzle and the story, and 1.5 more for each new question.
+
+**Author notes:**
+
+- _Every story's facts come from its source alone,_ and where a source was loose, the story follows the more exact one. Datadog's summary post says systemd-networkd "deleted routes"; its engineering deep dive says it flushed routing policy rules (`ip rule`), so the story says rules, explains them in one sentence, and links the deep dive. Expedia's 350-second timer was fixed when the post was written; AWS has since made it configurable, which the transport lesson already says, so the story says "at the time".
+- _Two Cloudflare posts,_ for two different incidents (2015 and 2018). The layers story is the topic's own "Path MTU discovery in practice" resource: the incident at its start is the cleanest public case of a path MTU black hole, and the story tells it in a lesson's terms without the BGP detail.
+- _The IPv6 story is a security report, not an outage._ No public IPv6 outage write-up I found fitted the lesson as closely as this one, which uses SLAAC, router advertisements and IPv6 being tried first, and ends on the lesson's own point that IPv4-only rules leave IPv6 open.
+- _The XING post has moved_ from tech.xing.com to tech.new-work.se (the company's new name); the story links the new address, which is where the post is now.
+- _Avoided the second half's ground:_ no BGP leak, TLS or certificate story; the transport story has a load balancer in it, but its subject is an idle timer, the transport lesson's own.
+- _Puzzle answers may use the topic's words; the questions don't,_ as the README asks: none needs a term the lesson hasn't taught. The transport puzzle's quotation marks sit inside single quotes, as the README says.
+- _Contrast questions are multiple choice,_ since typed items arrive with #298; their right answers are never the longest choice (lengths 87 to 111 characters, within 1.1 times of each other).
+
+**Next:** the second pull request, once #310 (glossary) and #298 (typed answers) are merged: a `glossary.yaml` for each of the eight topics and two typed questions each.
 
 ## 2026-11-16, lessons: a glossary, with definitions where a word is used
 
