@@ -22,6 +22,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - A new quick-question type, `typed` ([ADR-0027](docs/decisions/0027-typed-answers.md), proposed): the learner types a command, a term, a value or a short phrase from memory, which builds memory better than picking it from a list. An item lists every accepted answer and, optionally, known mistakes with a sentence on each. Answers are read forgivingly and the same way by the validator and the page: spaces, curly quotes, a copied `$ ` prompt before a command, quotes round a term and (for terms) case don't count, and a term with one slip of the fingers among its letters is accepted with its spelling shown. The validator checks that the accepted answers differ, that no mistake is also an answer, and that the prompt doesn't give the answer away. Typed items work in practice, reviews (where they count as a produced answer), follow-ups and the placement test, and their answers are saved with what was typed. `content/README.md` says how to write one.
 
+### Added (explain it back: how it's marked, before you write)
+
+- Every explain-it-back check has a folded "How it's marked" note under its question: how many points your explanation is checked against and how many a pass needs, that the ideas count and not the wording, and that a missing point brings up to three questions, never the answer. The points' own wording stays hidden, because in every topic it's the answer itself ([ADR-0013](docs/decisions/0013-explain-grading.md), amended, proposed).
+
 ### Added (topic page: the goals at the top, ticked once proven)
 
 - A topic now opens with what you'll be able to do (its goals), at the top of every part: unfolded with the lesson, folded on the other parts. Each goal is ticked once the topic is Learned, when all three proofs have passed, with the date. They're ticked together, since the content doesn't say which proof shows which goal.
