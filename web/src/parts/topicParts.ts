@@ -242,6 +242,11 @@ export function partsDone(
   content: TopicContent,
   states: Map<string, ItemState> | null,
   passed: Partial<Record<Proof, string>> | null,
+  /**
+   * Items made optional by the quick check, by itemKey: they don't hold a
+   * practice part back (ADR-0025, amended 2026-11-16).
+   */
+  optional: Set<string> = new Set(),
 ): Map<string, boolean> | null {
   if (!states || !passed) return null
   const topicId = content.topic.id
@@ -267,10 +272,10 @@ export function partsDone(
     else if (part.kind === 'practice') {
       done.set(
         part.id,
-        part.items.every(
-          (item) =>
-            states.get(itemKey(item.content.topic.id, item.itemId)) === 'done',
-        ),
+        part.items.every((item) => {
+          const key = itemKey(item.content.topic.id, item.itemId)
+          return states.get(key) === 'done' || optional.has(key)
+        }),
       )
     } else {
       done.set(

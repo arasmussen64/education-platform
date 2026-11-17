@@ -7,7 +7,8 @@ import type { NewEvent } from '../events/types.ts'
 import { useRecordEvent } from '../events/useEvents.ts'
 import type { Attempt } from '../followups/followUps.ts'
 import type { TopicProgress } from '../progress/progress.ts'
-import { type Rating, replayCard } from './fsrs.ts'
+import type { Rating } from './fsrs.ts'
+import { replayWithCredits } from './implicit.ts'
 import { describeGap, planReview, ratingOf } from './reviews.ts'
 
 type Outcome = { rating: Rating; due: string }
@@ -20,10 +21,13 @@ function rate(
 ): Outcome {
   const rating = ratingOf(items.map((id) => answers.get(id) ?? false))
   const at = new Date().toISOString()
-  const card = replayCard(progress.learnedAt ?? at, [
-    ...progress.reviews,
-    { at, rating },
-  ])
+  // The implicit reviews that counted before stay counted (ADR-0009,
+  // amended 2026-11-16): a review now can't change what came before it.
+  const { card } = replayWithCredits(
+    progress.learnedAt ?? at,
+    [...progress.reviews, { at, rating }],
+    progress.credits,
+  )
   return { rating, due: card.due }
 }
 

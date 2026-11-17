@@ -8,10 +8,12 @@ import { couldNotSave, keptAndRetried } from '../events/refusedText.ts'
 import { useEventLogStatus } from '../events/useEvents.ts'
 import { downloadJson } from '../export/download.ts'
 import { collectExport, exportFileName } from '../export/exportData.ts'
+import { StudyPlanSection } from '../studyplan/StudyPlanParts.tsx'
+import { useStudyPlan } from '../studyplan/useStudyPlan.ts'
 
 // The learner's own page: who's signed in, whether any of their work is
-// still only on this device, and a copy of everything they've done here
-// ("Export my data", v1 spec, F16).
+// still only on this device, their study plan, and a copy of everything
+// they've done here ("Export my data", v1 spec, F16).
 export function AccountPage() {
   const auth = useAuth()
   return (
@@ -35,11 +37,18 @@ export function AccountPage() {
       {auth.status === 'signed-in' && (
         <>
           <NotSavedYet />
+          <StudyPlanOnAccount />
           <ExportData userId={auth.user.id} />
         </>
       )}
     </section>
   )
+}
+
+/** When and where the learner plans to study (studyplan/), to change. */
+function StudyPlanOnAccount() {
+  const state = useStudyPlan()
+  return <StudyPlanSection state={state} />
 }
 
 /**

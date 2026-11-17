@@ -16,6 +16,7 @@ import {
   fakeContent,
   fakeExercise,
   fakeTopic,
+  MCQ,
 } from '../test/fakeContent.tsx'
 import { fakeEventsClient, recordingEventLog } from '../test/fakeEvents.ts'
 import { fakeLongContent } from '../test/fakeLongTopic.ts'
@@ -1875,6 +1876,183 @@ describe('a topic in parts (ADR-0025)', () => {
     expect(screen.getByRole('region', { name: 'Prove it' })).toBeInTheDocument()
     expect(
       screen.queryByRole('navigation', { name: 'Parts of this topic' }),
+    ).toBeNull()
+  })
+})
+
+describe('"Check what you know", before the practice', () => {
+  beforeEach(() => {
+    setFakeRunner()
+  })
+
+  /**
+   * A topic with three skills, a question on each (all answered "Hi"), and
+   * a fill-in on skill a and a write on skill b.
+   */
+  function skilledContent(): TopicContent {
+    const topic = fakeTopic({
+      practice: ['example-hello', 'q-a', 'q-b', 'q-c', 'fill-a', 'write-b'],
+      skills: ['a', 'b', 'c'].map((id) => ({ id, description: id })),
+    })
+    const base = fakeContent(topic)
+    return {
+      ...base,
+      recall: Object.fromEntries(
+        ['a', 'b', 'c'].map((skill) => [
+          `q-${skill}`,
+          { ...MCQ, id: `q-${skill}`, skills: [skill] },
+        ]),
+      ),
+      exercises: {
+        ...base.exercises,
+        'fill-a': fakeExercise({
+          id: 'fill-a',
+          stage: 'fill_in',
+          title: 'Fill a',
+          skills: ['a'],
+        }),
+        'write-b': fakeExercise({
+          id: 'write-b',
+          stage: 'write',
+          title: 'Write b',
+          skills: ['b'],
+        }),
+      },
+    }
+  }
+
+  /** A saved quick-check answer. */
+  function quickAnswer(item: string, correct: boolean): Attempt {
+    return {
+      id: `quick-${item}`,
+      type: 'answer',
+      topic_id: 'py.values-and-types',
+      item_id: item,
+      correct,
+      occurred_at: NOV_6.toISOString(),
+      context: 'practice',
+      quick_check: true,
+    }
+  }
+
+  async function answer(question: HTMLElement, choice: string) {
+    await userEvent.click(within(question).getByRole('radio', { name: choice }))
+    await userEvent.click(
+      within(question).getByRole('button', { name: 'Check' }),
+    )
+  }
+
+  it('asks a question per skill, saves the answers as practice, and makes what you knew optional', async () => {
+    const content = skilledContent()
+    const client = fakeEventsClient()
+    openAt('practice')
+    render(
+      <AuthProvider auth={fakeAuth(fakeUser())}>
+        <EventsProvider client={client}>
+          <MemoryRouter>
+            <TopicView
+              topic={content.topic}
+              content={content}
+              loadAttempts={vi.fn((_topicId: string) =>
+                Promise.resolve(unlocked(content.topic)),
+              )}
+            />
+          </MemoryRouter>
+        </EventsProvider>
+      </AuthProvider>,
+    )
+    const offer = await screen.findByRole('complementary', {
+      name: 'Check what you know',
+    })
+    expect(offer).toHaveTextContent('3 quick questions')
+    await userEvent.click(
+      within(offer).getByRole('button', { name: 'Check what you know' }),
+    )
+    // The quick check takes the practice's place until it's done.
+    expect(screen.queryByRole('region', { name: 'Practice' })).toBeNull()
+    expect(
+      screen.getByRole('heading', { name: 'Check what you know' }),
+    ).toHaveFocus()
+    const questions = screen.getAllByRole('region', { name: 'Quick check' })
+    expect(questions).toHaveLength(3)
+    await answer(questions[0]!, 'Hi')
+    await answer(questions[1]!, '"Hi"')
+    await answer(questions[2]!, 'Hi')
+    expect(
+      within(
+        screen.getByRole('region', { name: 'Check what you know' }),
+      ).getByText(/^You got 2 of 3 right\./),
+    ).toHaveTextContent('The proofs at the end are still required.')
+
+    // Saved as ordinary practice answers, marked as the quick check's.
+    await vi.waitFor(() => {
+      const sent = client.send.mock.calls.flatMap(([rows]) => rows)
+      expect(sent).toContainEqual(
+        expect.objectContaining({
+          type: 'answer',
+          item_id: 'q-a',
+          context: 'practice',
+          correct: true,
+          data: expect.objectContaining({ quick_check: true }),
+        }),
+      )
+    })
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Back to the practice' }),
+    )
+    const practice = screen.getByRole('region', { name: 'Practice' })
+    // Skill a was shown, so its fill-in is optional; skill b wasn't.
+    expect(
+      within(practice).getByText(/Practice 5 of 6 · Optional/),
+    ).toBeInTheDocument()
+    expect(
+      within(practice).queryByText(/Practice 6 of 6 · Optional/),
+    ).toBeNull()
+    expect(
+      screen.getByRole('link', {
+        name: 'Practice 5: optional, from your quick check',
+      }),
+    ).toBeInTheDocument()
+    // Taken, so it isn't offered again; the proofs are still to do.
+    expect(
+      screen.queryByRole('complementary', { name: 'Check what you know' }),
+    ).toBeNull()
+    expect(screen.getByTestId('topic-state')).toHaveTextContent('In progress')
+  })
+
+  it('reads what was shown from the saved answers on a later visit', async () => {
+    const content = skilledContent()
+    renderTopic(content.topic, content, {
+      loadAttempts: vi.fn((_topicId: string) =>
+        Promise.resolve([
+          ...unlocked(content.topic),
+          quickAnswer('q-b', true),
+          quickAnswer('q-a', false),
+        ]),
+      ),
+      at: 'practice',
+    })
+    expect(
+      await screen.findByText(/Practice 6 of 6 · Optional/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Practice 5 of 6 · Optional/)).toBeNull()
+    expect(
+      screen.queryByRole('complementary', { name: 'Check what you know' }),
+    ).toBeNull()
+  })
+
+  it("isn't offered without three quick questions, or to a signed-out visitor", async () => {
+    renderTopic(fakeTopic(), fakeContent(), { at: 'practice' })
+    await screen.findByTestId('topic-state')
+    expect(
+      screen.queryByRole('complementary', { name: 'Check what you know' }),
+    ).toBeNull()
+    cleanup()
+    const content = skilledContent()
+    renderTopic(content.topic, content, { signedIn: false, at: 'practice' })
+    expect(
+      screen.queryByRole('complementary', { name: 'Check what you know' }),
     ).toBeNull()
   })
 })

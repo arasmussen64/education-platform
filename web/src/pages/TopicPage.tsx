@@ -33,6 +33,13 @@ import { ExplainCheck, ExplainClosed } from '../explain/ExplainCheck.tsx'
 import { fetchAttempts, mergeAttempts } from '../followups/history.ts'
 import { BREAK_ID, PartBreak } from '../parts/PartBreak.tsx'
 import { recallPart, rememberPart } from '../parts/partMemory.ts'
+import { QuickCheck, QuickCheckOffer } from '../parts/QuickCheck.tsx'
+import {
+  isOptional,
+  quickCheckItems,
+  quickCheckTaken,
+  shownSkills,
+} from '../parts/quickCheck.ts'
 import { TopicGoals } from '../parts/TopicGoals.tsx'
 import {
   aboutMinutes,
@@ -138,7 +145,33 @@ export function TopicView({
     () => (content && isTopic ? topicParts(content, items, { locked }) : []),
     [content, isTopic, items, locked],
   )
-  const done = content ? partsDone(parts, content, states, passed) : null
+  // "Check what you know" (ADR-0025, amended 2026-11-16): its questions,
+  // whether it's been taken, and the practice its right answers made
+  // optional, by itemKey, all from the saved answers.
+  const quickItems = useMemo(
+    () => (content && isTopic ? quickCheckItems(content) : []),
+    [content, isTopic],
+  )
+  const attempts = progress.status === 'ready' ? progress.attempts : null
+  const optional = useMemo(() => {
+    if (!content || !attempts) return new Set<string>()
+    const shown = shownSkills(content, attempts)
+    return new Set(
+      items
+        .filter(
+          (item) =>
+            item.content === content && isOptional(content, item.itemId, shown),
+        )
+        .map((item) => itemKey(content.topic.id, item.itemId)),
+    )
+  }, [attempts, content, items])
+  const quickTaken =
+    content && attempts ? quickCheckTaken(content, attempts) : false
+  // The part the quick check is open on, if it is.
+  const [quickOpenOn, setQuickOpenOn] = useState<string | null>(null)
+  const done = content
+    ? partsDone(parts, content, states, passed, optional)
+    : null
   const { currentPart, openPart, goTo, breakAfter, endBreak } = usePartChoice(
     topic.id,
     content,
@@ -146,6 +179,11 @@ export function TopicView({
     done,
     progress.status !== 'loading',
   )
+
+  // Moving to another part puts the quick check away.
+  if (quickOpenOn !== null && currentPart?.id !== quickOpenOn) {
+    setQuickOpenOn(null)
+  }
 
   const article = useRef<HTMLElement>(null)
   const { current, lessonParts } = useCurrentPlace(
@@ -186,6 +224,7 @@ export function TopicView({
             done={done}
             items={items}
             states={states}
+            optional={optional}
             passed={passed}
             current={current}
             lessonParts={lessonParts}
@@ -228,16 +267,41 @@ export function TopicView({
             {currentPart.kind === 'learn' && (
               <Learn content={content} eyebrow={eyebrow} />
             )}
-            {currentPart.kind === 'practice' && (
-              <Practice
-                content={content}
-                part={currentPart}
-                total={items.length}
-                states={states}
-                doneAtLoad={doneAtLoad}
-                eyebrow={eyebrow}
-              />
-            )}
+            {currentPart.id === 'practice-1' &&
+              quickItems.length > 0 &&
+              progress.status === 'ready' &&
+              !quickTaken &&
+              !learnedAt &&
+              quickOpenOn !== currentPart.id && (
+                <QuickCheckOffer
+                  count={quickItems.length}
+                  onStart={() => {
+                    flushSync(() => setQuickOpenOn(currentPart.id))
+                    document.getElementById('quick-check')?.focus()
+                  }}
+                />
+              )}
+            {currentPart.kind === 'practice' &&
+              (quickOpenOn === currentPart.id ? (
+                <QuickCheck
+                  content={content}
+                  itemIds={quickItems}
+                  onDone={() => {
+                    setQuickOpenOn(null)
+                    openPart(currentPart.id)
+                  }}
+                />
+              ) : (
+                <Practice
+                  content={content}
+                  part={currentPart}
+                  total={items.length}
+                  states={states}
+                  doneAtLoad={doneAtLoad}
+                  optional={optional}
+                  eyebrow={eyebrow}
+                />
+              ))}
             {currentPart.kind === 'prove' && (
               <ProveIt
                 content={content}
@@ -463,7 +527,11 @@ function ladderOf(
 
 /**
  * The learner's progress on a topic and on what it builds on, which is what
- * its state depends on. Reads each of those topics' history.
+ * its state depends on. Reads the whole history, as the map and the Today
+ * page do: practice in the topics built on this one gives it implicit
+ * review credit (ADR-0009, amended 2026-11-16), and a checkpoint's tests
+ * can open follow-ups on its skills (ADR-0011), so its state depends on
+ * events outside it. With `loadAttempts` (in tests), reads each topic's.
  */
 function useTopicProgress(
   topic: Topic,
@@ -479,8 +547,8 @@ function useTopicProgress(
     [topic],
   )
   const load = useCallback(async () => {
-    const read = loadAttempts ?? fetchAttempts
-    const lists = await Promise.all(topics.map((each) => read(each.id)))
+    if (!loadAttempts) return fetchAttempts()
+    const lists = await Promise.all(topics.map((each) => loadAttempts(each.id)))
     return mergeAttempts(...lists)
   }, [loadAttempts, topics])
   return useProgress(topics, load)
@@ -936,6 +1004,7 @@ function Practice({
   total,
   states,
   doneAtLoad,
+  optional,
   eyebrow,
 }: {
   content: TopicContent
@@ -946,6 +1015,8 @@ function Practice({
   states: Map<string, ItemState> | null
   /** The items already done when the page opened, by itemKey, once known. */
   doneAtLoad: Set<string> | null
+  /** Items the quick check made optional, by itemKey. */
+  optional: Set<string>
   eyebrow?: string
 }) {
   const { items } = part
@@ -965,7 +1036,7 @@ function Practice({
       {items.map((item, offset) => {
         const key = itemKey(item.content.topic.id, item.itemId)
         const number = part.start + offset + 1
-        return (
+        const card = (
           <PracticeItem
             key={key}
             itemId={item.itemId}
@@ -980,6 +1051,23 @@ function Practice({
             collapsed={doneAtLoad?.has(key) ?? false}
             placeId={itemPlace(item.content.topic.id, item.itemId)}
           />
+        )
+        // Practice the quick check showed the learner knows: folded and
+        // quieter, a click away (ADR-0025, amended 2026-11-16). One done
+        // before this visit is folded away anyway. (Not one done during it,
+        // so answering it doesn't move the card out of its fold.)
+        if (!optional.has(key) || doneAtLoad?.has(key)) return card
+        return (
+          <details
+            key={key}
+            className="rounded-lg border border-dashed border-slate-300 px-4 py-3 dark:border-slate-700"
+          >
+            <summary className="cursor-pointer text-sm text-slate-600 dark:text-slate-400">
+              Practice {number} of {total} · Optional: you seem to know this,
+              from your quick check
+            </summary>
+            <div className="mt-3">{card}</div>
+          </details>
         )
       })}
     </section>

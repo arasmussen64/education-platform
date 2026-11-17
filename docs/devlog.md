@@ -26,6 +26,84 @@ Part of a larger plan to improve how the platform teaches. This stream adds new 
 
 **Next:** the glossary: `glossary.yaml` per topic, terms marked in lessons, and a glossary page.
 
+## 2026-11-16, Today page: a plan for when and where to study
+
+The last of the Today page's study-habit changes. Deciding in advance when and where you'll do something ("on Monday and Thursday at 7:30 pm, at the library, I'll study") makes following through much more likely than an intention alone; psychologists call these implementation intentions (Gollwitzer and Sheeran, 2006). Putting the plan in the learner's own calendar brings the reminder to where they already look.
+
+**What changed.**
+
+- **The question, asked once** at the foot of the Today page: days (checkboxes), a time, and a place in free text, or "Not now". Once made, the plan shows as one line at the top of the page, naming today's time on one of its days, with "Add to my calendar (.ics)" and "Change my plan". The Account page has a Study plan section to make, change or forget it.
+- **The calendar file** (`web/src/studyplan/calendarFile.ts`): one event repeating weekly on the chosen days (`RRULE:FREQ=WEEKLY;BYDAY=…`), starting at the first of them still ahead, 30 minutes long, with the place, the product name from the config constant, and a link to `/session`. Made in the browser and saved through the existing download helper, which gained `downloadText`.
+- **Storage** (`web/src/studyplan/studyPlan.ts`): `localStorage`, with every read and write in try/catch, and anything stored that isn't a valid plan ignored. When the browser refuses to keep it, the page says so and the plan lasts for the visit.
+- Tests: saving, reading back, junk in storage, blocked storage, "Not now", the sentences (`studyPlan.test.ts`); the first session, the file line by line, escaping, CRLF endings and line folding (`calendarFile.test.ts`); asking, saving, the reminder, "Not now", the at-least-one-day check and the download on the Today page; making, changing, downloading and forgetting on the Account page.
+
+**Author notes:**
+
+- _Kept per device, not with the account._ Saving the plan with the learner's account would need a new event type or table, a migration only the owner can push to the live database. Syncing the plan across devices is left as a future owner decision; it's a small change once a place to keep it exists.
+- _A "floating" time in the calendar file,_ written without a time zone, so "7:30 pm" stays 7:30 pm on the learner's clock even after they travel or the clocks change. Google Calendar, Outlook and Apple Calendar all show floating times in the calendar's own zone.
+- _Asked at the foot of the page, shown back at the top._ The question shouldn't compete with "Start today's session"; the reminder is one line and belongs where the learner starts.
+- _Thirty minutes for the calendar event,_ a common session length; the learner can change it in their calendar.
+- _The time is written by hand_ ("7:30 pm"), because browsers differ in the space they put before "PM" and the sentence should read the same everywhere.
+- _No new event type, table or migration,_ as the brief asked.
+
+**Next:** the Today page stream is done; its decisions go to the owner queue with the coordinator.
+
+## 2026-11-16, topic page: "Check what you know"
+
+The last of today's five topic-page changes. The page already had "Prove it now", which skips everything; this is the lighter option in between.
+
+**What changed.** At the top of a topic's first practice part, a signed-in learner is offered "Check what you know": three to five of the topic's own quick questions (multiple choice, predict the output, estimates), one per skill where the topic has enough. Starting it puts the questions in the practice's place, with a summary at the end ("You got 2 of 3 right…"). Back in the practice, each item whose skills were all answered right on the first try is marked optional: folded behind a dashed line, dashed in the outline, skipped by "Next not done", and not holding its part's tick back. The proofs stay required. Written up as an amendment to [ADR-0025](decisions/0025-topics-in-parts.md).
+
+- `web/src/parts/quickCheck.ts` picks the questions and works out which skills were shown and what's optional; `web/src/parts/QuickCheck.tsx` is the offer and the check. The topic page, the outline and the parts' done marks use them.
+- **How the answers are recorded:** as ordinary `answer` events in context `practice`, with `quick_check: true` in their data, through `PracticeItem`'s existing `eventData`. No new event type, so no migration. `web/src/followups/history.ts` now reads `quick_check` out of the data (one more field in its select, and in a locally recorded event), and `Attempt` has an optional `quick_check`. Described in the [data model](specs/data-model.md).
+- Tested: 9 unit tests for the picking and the counting, 2 for the history read, 1 for a part's tick with optional items, and 3 page tests (the whole flow with the answers saved and the right items optional; a later visit reading it from saved answers; not offered without three quick questions or when signed out).
+
+**Author notes:**
+
+- _Only the first answer to each question counts,_ as in a review: a second try after the feedback shows less about what the learner knew.
+- _An item is optional only when every skill it names was shown._ A lab on two skills stays required after one of them; an item that names no skills is never optional.
+- _A quick-check answer marks its own item Done or Tried,_ like any practice answer, since it is that item answered; a wrong one opens a follow-up as usual. That's honest, and it means a known question isn't asked twice.
+- _Offered once:_ any answer in it counts as taking it, so it isn't offered again (its questions would be ones already answered). Not offered on a Learned topic, or to a signed-out visitor, whose answers aren't saved and so couldn't mark anything.
+- _Parsons problems are left out,_ since they take longer than a quick check should.
+
+**Next:** for the coordinator: the learning-science page could cite Dewar et al. (2012) for the breaks, and the roadmap could note the topic page's five changes.
+
+## 2026-11-16, reviews: implicit repetition
+
+The first of four changes to the review engine. ADR-0009 listed implicit repetition under "Later": when a learner practises an advanced topic, the topics it builds on get part of a review's credit. Math Academy calls its version FIRe. It's built now, as an amendment to ADR-0009 (Proposed).
+
+**What changed.**
+
+- **`web/src/reviews/implicit.ts`** works out the credits from the event log and replays them with each card's own reviews. A review rated Good or a passed proof (a build, a debug, a checkpoint's fresh version or further part) gives a direct prerequisite half a review; a Hard review a quarter; Again nothing. Each step further down the prerequisites halves the share, down to an eighth. Half a review means the next review date moves half way toward where a real Good review that day would have put it.
+- **The guards:** no credit until a topic is half way to due, at most one a day, none while it's relearning, and at most two between its own reviews. A credit never makes a review sooner (a test runs 2,000 random histories) and isn't a review, so Mastered still needs a real one.
+- **`progressOf`** takes a `topicOf` lookup, so a topic on one track can credit one on another; `useProgress` passes `getTopic`. A finished review shows its next date with the credits in.
+- **The topic page reads the whole history,** as the map and the Today page do. A topic's schedule now depends on practice in the topics built on it, and reading only its own history would have shown a different state from the map. This also closes an older gap: a follow-up opened by a checkpoint's test now shows on the topic page.
+- **`npm run sim:reviews`** (in `web/`, `web/scripts/review-load.ts`) simulates a learner, with the real topic graph and the app's own scheduler.
+- 26 new tests, with the ADR's worked examples among them.
+- Three Today-page tests written earlier today proved a topic and, days later, the topic built on it, and expected both to be due. With implicit credit the first one isn't, so their fixtures now use topics that don't build on each other, or prove them a day apart.
+
+**The simulation.** An hour of new study a day through cloud Modules 1 to 3 (38 topics and 3 checkpoints), every due review done, each item right with the chance the card predicts; 20 runs of a year:
+
+| | Reviews in the year | A day, on average | Busiest day | Rated Again |
+| --- | --- | --- | --- | --- |
+| Without credit | 167 | 0.46 | 3.3 | 1.4 |
+| Credit, if it's right | 114 | 0.31 | 2.6 | 0.7 |
+| Credit, if it's worthless | 129 | 0.35 | 3.1 | 4.1 |
+
+So credit spares about a third of the reviews. "Worthless" is the worst case: the schedule trusts the credit while the learner's memory gets nothing from it, so the reviews that are left fail more often. At two hours a day the numbers are much the same (178 reviews without, 114 with). Over all 31 modules' outlines (376 topics, two hours a day, 1,100 days) it spares about a tenth (1,968 to 1,789), because most outlines list only their module's checkpoint as a prerequisite, and credit doesn't cross checkpoints. The written topics list more.
+
+**Author notes:**
+
+- _The cap of 20 a day isn't under threat._ The brief for this work expected the review load to outgrow it at about 340 topics. The simulation doesn't bear that out: with 90% retention, FSRS's intervals grow fast enough that the busiest day of the whole track is about 7 reviews. Implicit repetition is still worth having, for a different reason: it spares reviews of topics the learner uses every week anyway.
+- _Credit reaches three steps down, halving each step,_ not direct prerequisites only, because topics list only their nearest prerequisites (DNS lists Transport, and uses three more). Where two paths reach a topic, the shorter counts; they don't add up.
+- _Credit doesn't pass through a checkpoint._ "Builds on Checkpoint 1" means "comes after Module 1"; passing through would credit every Module 1 topic for any Module 2 review. A checkpoint's own build does credit the topics it lists, because its tests use them.
+- _Half a review is moving the due date half way,_ not a weighted grade inside FSRS's formulas, which FSRS doesn't have. Between real reviews the scheduler stays exactly FSRS-4.5.
+- _Two credits at most between real reviews,_ so credit can't put a topic's own review off for ever. Without it, a topic used every week might never be reviewed, and never become Mastered.
+- _Practice answers don't count:_ they're given while learning a topic, often with hints, so a right one is weak evidence about the topic underneath.
+- _The topic page now pays for a whole-history read,_ as Today and the map already do. When that gets slow, the cache ADR-0008 and ADR-0011 describe is the answer for all three.
+
+**Next:** answer time in review ratings.
+
 ## 2026-11-16, topic page: how an explanation is marked
 
 Part of today's improvement plan for the topic page. The plan asked for an explain-back's rubric points to be shown before the learner writes, unless that would hand them the answer.
