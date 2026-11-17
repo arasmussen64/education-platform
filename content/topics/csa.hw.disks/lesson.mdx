@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="Say reading a number from a server's L1 cache took one second. How long would one read from its memory take, and one from a cloud network disk: seconds, minutes, hours or weeks?">
+
+Memory: under two minutes. A network disk: one or two weeks. On that scale a read from a local disk inside the host takes several hours. The real times are about a nanosecond, a hundred nanoseconds and a millisecond, so one read from a network disk costs as much time as ten thousand reads from memory. That is why a program that reads one thing at a time from disk feels it more than anything else, and why databases keep what they use most in memory.
+
+</Puzzle>
+
 A program spends much of its life waiting for data. Where that data sits decides how long it waits, and the gaps are not small: from one place to the next the wait can grow a hundred times or more. This topic is about those places, the **memory hierarchy**, and about the two kinds of disk a cloud VM can have, which differ in speed, in price and in what they keep when the VM stops. Most of the slow servers and lost data an architect meets come back to one of three questions: which tier is this program waiting on, which disk is this file on, and which cap is holding this disk back?
 
 **The memory hierarchy.** Closest to the work are the CPU's **caches**: small, very fast memories inside the processor that keep copies of what was used last. **L1** is the smallest and fastest, one for each core; **L2** is bigger and a little slower; **L3** is bigger again and shared by the cores of one processor. Then comes the machine's **memory** (RAM, what `free` measured in Module 1), then a disk inside the machine, then a disk across the network. Cloud disks today are mostly **SSDs** (solid-state drives: **flash** memory chips that keep their data without power, and no moving parts). Rough figures, to reason with and not to quote as anyone's specification:
@@ -13,9 +19,13 @@ A program spends much of its life waiting for data. Where that data sits decides
 
 The units: a **ns** (nanosecond) is a billionth of a second; a **µs** (microsecond) is 1,000 ns; a **ms** (millisecond) is 1,000 µs, a thousandth of a second. The first three rows come from Colin Scott's interactive page (listed after the lesson), which works them out from trend formulas rather than measuring a machine, and whose slider stops at 2020: good for orders of magnitude, nothing finer. The network row is the providers' own words, read on 2026-11-11: AWS's gp3 disks promise "single-digit millisecond latency", its faster io2 Block Express disks under 500 µs on average for operations of 16 KiB (a KiB is 1,024 bytes; the units come up again below), and Azure's Premium SSD v2 and Ultra Disk "submillisecond" latency. What to remember is the gaps: one read from a network disk costs as much time as ten thousand reads from memory. A program that reads one thing at a time and waits for each feels the disk more than anything else, which is why databases keep what they use most in memory.
 
+<Check item="mcq-tiers-order" />
+
 **NVMe.** **NVMe** (Non-Volatile Memory Express) is a way for a computer to talk to flash storage: over the fast connections the processor uses for its own devices, with many queues of requests at once, so a fast disk can work on many requests together. Linux names NVMe disks `/dev/nvme0n1`, `/dev/nvme1n1` and so on, the names you met in the storage topic. NVMe says *how* the VM talks to a disk, not *where* the disk is: a disk at the other end of a network can show up as an NVMe device too, as the next paragraph shows.
 
 **Two kinds of cloud disk.** A **local disk**, also called an **ephemeral** disk (ephemeral means short-lived), is a disk physically inside the host the VM runs on: AWS calls it the **instance store**, Azure the **temporary disk**, Google **Local SSD**. It is fast, because nothing stands between the VM and the disk but the host, and it is included in the price (AWS: "no additional charge"). Not every **size** has one (a VM's size is the shape you rent, so many CPUs and so much memory; AWS calls its VMs **instances** and a size an **instance type**): AWS says not every instance type provides instance store volumes, and Azure keeps a list of VM sizes with no local temporary disk. A **network-attached disk** lives in the provider's storage service, on other machines, and reaches the VM over the network: AWS calls it an **EBS volume** (Elastic Block Store), Azure a **managed disk**, Google a **Persistent Disk**, or the newer **Hyperdisk**. It keeps its data whatever happens to the VM (Azure keeps three copies of every managed disk), and it can be detached and attached to another VM. It is slower than a local disk, and it is capped. On AWS's Nitro-based instances, EBS volumes show up as NVMe devices, beside any instance store ones, and only the model name in `sudo nvme list` (`Amazon Elastic Block Store` or `Amazon EC2 NVMe Instance Storage`) tells them apart.
+
+<Check item="nvme-which-is-local" />
 
 **What survives.** The rule is simple once you picture where each disk is: a local disk stays with its host, and anything that moves the VM to another host, or hands the host back, leaves it behind. AWS's table of events, Azure's temporary disk section and Google's Local SSD page (all read 2026-11-11):
 
@@ -28,6 +38,20 @@ The units: a **ns** (nanosecond) is a billionth of a second; a **µs** (microsec
 
 Google can also keep Local SSD data through a **live migration**, when it moves a running VM to another host for maintenance without stopping it. So a local disk is for what can be lost: caches, scratch space, temporary files, swap, and data that is copied from elsewhere and can be copied again (AWS names data you replicate across a fleet of instances). The only copy of anything goes on a network disk.
 
+<Check item="mcq-what-survives-a-stop" />
+
+<Story title="The EBS re-mirroring storm, 2011" source="https://aws.amazon.com/message/65648/" sourceTitle="Summary of the Amazon EC2 and Amazon RDS Service Disruption in the US East Region" license="linked, not copied">
+
+On 21 April 2011, in one zone of AWS's US East region, about 13% of EBS volumes got stuck: they would neither read nor write, and the instances using them hung, waiting for their disks. Databases on RDS, AWS's managed databases, hung with them.
+
+It began with a network change made wrongly during an upgrade. The traffic of a cluster of EBS's storage machines went onto a backup network far too small for it, and the machines lost touch with each other. Each volume is kept as copies on more than one storage machine, and a machine that loses touch with its copy's partner looks for free space to make a new one. Thousands did that at once, the free space ran out, and they kept on searching: a "re-mirroring storm".
+
+Adding storage and recovering the volumes took about three days, and 0.07% of the zone's volumes could never be brought back in a consistent state.
+
+The lesson: a network disk is a service running on other machines, reached over a network, so a fault there reaches every VM that uses it. Copies inside one zone are not a backup: keep snapshots, and spread what matters over zones.
+
+</Story>
+
 **Allowances.** A network disk is **provisioned** (set up, and paid for) for so many **IOPS** (operations a second) and so much **throughput** (bytes a second), the terms you met in the storage topic; buying more of either is buying **provisioned IOPS** or throughput. AWS's general-purpose EBS volume, gp3, includes 3,000 IOPS and 125 MiB/s (mebibytes a second; the units are explained below) whatever its size, and sells more up to 80,000 IOPS and 2,000 MiB/s. Azure's Premium SSD v2 includes 3,000 IOPS and 125 MB/s free, and its Ultra Disk goes up to 400,000 IOPS. Google's Balanced Persistent Disk starts at 3,000 IOPS and 140 MiB/s for each VM and grows with the disk's size and the VM's. Three rules turn those figures into what a program gets:
 
 1. **Throughput is IOPS × block size, until the throughput cap takes over.** On gp3, a database writing 16 KiB at a time gets 3,000 × 16 KiB = 48,000 KiB, about 46.9 MiB a second, well under 125: the IOPS cap binds. A backup writing 256 KiB at a time would need 750 MiB a second for 3,000 writes, so the throughput cap binds instead, and it gets 125 MiB ÷ 256 KiB = 500 writes a second. (AWS counts an SSD operation of up to 256 KiB as one, and splits bigger ones.)
@@ -35,6 +59,8 @@ Google can also keep Local SSD data through a **live migration**, when it moves 
 3. **A deeper queue doesn't beat a cap.** **Queue depth** is how many requests are in flight at once. Below a cap, more in flight gets more done. At a cap, the disk hands out its slots at a fixed rate and every extra request waits in line for one: the average wait is about the queue depth divided by the rate, so 16 in flight at 500 a second wait 32 ms each. The rate stays where it was.
 
 **Units.** Storage is sold in two kinds of unit, and the providers mix them. A **GB** is 1,000,000,000 bytes and a **GiB** is 1,073,741,824 (1,024 × 1,024 × 1,024), about 7% more; a **MB** is 1,000,000 bytes and a **MiB** is 1,048,576, about 5% more; **KiB** is 1,024 bytes, **kB** 1,000. AWS and Google quote throughput in MiB/s, Azure in MB/s (its page says so: 10^6 bytes a second), so gp3's 125 MiB/s is about 5% more than Premium SSD v2's 125 MB/s. Compare like with like.
+
+<Check item="est-mb-to-mib" />
 
 **Caps on the lab machine.** The labs' disks are files on your own computer, far faster than a cloud's network disk, so to see what an allowance does you hold a service to one, the way a cloud holds a VM. A cgroup (the folder of limits the CPU and memory topics used) whose disk settings systemd looks after has an **`io.max`** file with a line for each capped disk: `7:2 rbps=max wbps=8388608 riops=max wiops=500` means at most 500 writes a second (`wiops`) and 8,388,608 bytes a second (`wbps`) to the disk whose device number is `7:2` (`lsblk` shows it under `MAJ:MIN`), and no cap on reads (`max`). Its partner **`io.stat`** counts what the cgroup has done since it started: `wios=` writes and `wbytes=` bytes written, so two readings a few seconds apart give a rate; `io.pressure` says how much of the time the service waited on its disk. In systemd, **`IOWriteIOPSMax=/dev/lab/data 500`** and **`IOWriteBandwidthMax=/dev/lab/data 8388608`** in a unit or drop-in write `io.max` (the `IORead...` pair caps reads, which is a different thing); `systemd-run -p` runs one command under them, as `CPUQuota=` did for the CPU; `systemctl show NAME -p IOWriteIOPSMax` reads them back. Give the bandwidth in bytes: to systemd, `8M` means 8,000,000, a megabyte to the base 1,000, not 8 MiB. And a service's settings live in a file under `/etc`, which lasts. `systemctl set-property NAME SETTING=value` changes a running service's setting on the spot and saves it under `/etc` too; with `--runtime` it saves it under `/run`, which a reboot forgets.
 

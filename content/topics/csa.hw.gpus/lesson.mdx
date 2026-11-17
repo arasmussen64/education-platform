@@ -1,10 +1,18 @@
 <Intro>
 
+<Puzzle question="A GPU has thousands of arithmetic units; a server's CPU has a few dozen cores. Yet some programs run no faster on a GPU at all, however big the card. What kind of program?">
+
+One whose steps each need the answer of the step before. A GPU is fast because thousands of small units do the same sum on different numbers at the same moment: multiply ten million pairs of numbers and they're done almost at once. Give it a recipe where step two waits for step one, step three for step two, and so on, and only one unit can work at a time while the rest stand idle. A CPU's few, very quick cores do that kind of work better. So a GPU suits work that can be split into many identical pieces, like the grids of numbers inside AI models.
+
+</Puzzle>
+
 Sooner or later someone asks an architect for "a GPU server". This topic is how to answer well: what a GPU is good at, why its memory decides more than its speed, how to read what a GPU server reports and tell what it is waiting for, how to choose an instance on each cloud, and how one card can be shared. One thing first: **there is no GPU here.** No cloud's free tier includes one, and the labs run without one, so everything in this topic is read from saved output or worked out from dated tables. Nothing pretends to run on a GPU. Several questions ask you to work out a number; use a calculator whenever you like, because the skill is setting up the sum.
 
 **What a GPU is for.** A **GPU** (graphics processing unit) was first built to draw pictures, which means doing the same small sum for millions of pixels at once. Picture a CPU as a kitchen with a handful of very good chefs: each can cook anything, one dish at a time, quickly. A GPU is a hall with thousands of people who can each do one small sum, all doing the *same* sum on different numbers at the same moment. Give the hall ten million multiplications and they are done almost at once. Give it a recipe whose steps depend on each other and it is no help at all: each step waits for the one before, and thousands of people stand idle. NVIDIA's article, the main resource below, makes the same comparison in cores and threads. **CUDA** is NVIDIA's software that lets an ordinary program hand its arithmetic to the hall instead of drawing pictures with it (it appeared in 2007); because it is NVIDIA's, "a CUDA GPU" means an NVIDIA card, and the cards in this topic are all NVIDIA's.
 
 **Inside the card.** A card is a number of **streaming multiprocessors** (**SMs**), each a group of workers in the hall, sharing a cache and the card's own fast memory; an A100 has 108 SMs. Each SM has two kinds of desk. The general desks, **CUDA cores**, do any arithmetic, one number at a time, at whatever precision the program asks for. The special desks, **Tensor Cores**, do one thing: multiply grids of numbers (a grid of numbers is a **matrix**), and they do it several times faster when each number takes fewer bytes. A physics simulation that adds and compares single numbers uses the general desks and gains nothing from the special ones; a model that multiplies big grids in 16 bits is what the special desks are for. The card's own memory is called **VRAM** or **GPU memory**: it sits on the card, separate from the VM's RAM, and a program's data has to be copied into it before the card can use it. The card is plugged into the server's ordinary expansion slot, **PCIe**, the same kind of connection the hypervisors topic met for network cards.
+
+<Check item="mcq-cuda-or-tensor-cores" />
 
 **Models, as much as sizing needs.** A **model** is a very large table of numbers; the numbers are its **parameters**, also called **weights**, and a "7-billion-parameter model" is seven billion numbers. Running a model on an input, which is called **inference** (serving it), is mostly multiplying the input by those tables, which is why models run on GPUs. **Training** is how the numbers are found in the first place: the program adjusts every weight, again and again, and keeps several working copies of them while it does. A **batch** is many inputs pushed through together, which gives the hall enough work at once.
 
@@ -18,6 +26,8 @@ Sooner or later someone asks an architect for "a GPU server". This topic is how 
 | 4-bit | a half | 3.5 GB |
 
 Two words go with the table. **Mixed precision** is doing most of the arithmetic in 16 bits where it is safe and the rest in 32; NVIDIA's mixed-precision guide speaks of up to 3 times faster overall on the most arithmetic-heavy models, because the Tensor Cores do the grids. **Quantisation** is storing the weights in 8 or 4 bits to make a model fit a smaller card; the answers usually change a little, so a team checks they are still good enough.
+
+<Check item="est-precision-gb" />
 
 **Memory is the first question.** A model's weights have to be in the card's memory, all of them, at the same time, before it can answer anything. Unlike the VM's memory, a GPU has no swap to fall back on: a program that asks for more memory than the card has stops with an **out-of-memory** error. That is why memory decides first and speed second. The sum is parameters × bytes each. 7 billion parameters at 2 bytes is 14,000,000,000 bytes: 14 GB, which is 13.0 GiB (the GB and GiB of "Memory tiers and disks": a GiB is 1,073,741,824 bytes). Hugging Face (a company whose site holds many published models and the software to run them) gives the same sum as a rule of thumb, per billion parameters: about 4 × X GB in 32 bits and 2 × X GB in 16.
 
@@ -51,6 +61,8 @@ The label on a card is a name, not a measurement. NVIDIA's own guide shows an "H
 
 Five things to read. The card's **name** and number, `0`, on the first line of its box. Under it, the power it draws against its cap, `268W / 700W`. Then **Memory-Usage**, in MiB: 61,250 in use of 81,559. Then **GPU-Util**, 97%. And at the bottom, the **process table**: which programs hold the card's memory, and how much each (`C` is a compute program, `G` a graphics one). `MIG M.` says whether the card is cut into partitions (below), here `Disabled`. Each line is a reading of one moment; monitoring tools take the same readings every second or so, per card and per program (Google's monitoring agent reads them from NVIDIA's management library), and the labs save them as a file of one line a second.
 
+<Check item="smi-memory-free" />
+
 The sentence that matters most is NVIDIA's definition of GPU-Util: the share of the last sample period (between a sixth of a second and a second, depending on the card) "during which one or more kernels was executing on the GPU". A **kernel** here is NVIDIA's word for a program running on the GPU; it has nothing to do with the Linux kernel. So 100% means "something was running the whole time": a shop being open, not a shop being full. A small program that keeps a few of the card's thousands of units busy shows 100% as surely as a huge one. And a card with its memory nearly full can show 0%, because a model is loaded and nobody is asking it anything.
 
 **What is starving it.** The work reaches a GPU along a line with three stations: the disk hands over raw data, the CPUs prepare it (reading, decoding, shaping each batch: the **input pipeline**), and the GPU does the arithmetic. The GPU is last, and it runs only as fast as the slowest station before it. TensorFlow, one of the toolkits programs use to build and run models, draws it in its guide: done naively, "while your pipeline is fetching the data, your model is sitting idle". So low utilisation is a question, "waiting for what?", and the host's own numbers from Module 1 answer it:
@@ -82,7 +94,19 @@ The largest cards change every year, so the rows go stale; the method doesn't. D
 
 **MIG** (Multi-Instance GPU) cuts a large card into up to seven smaller ones, called **GPU instances**, with walls between them: each has memory and compute of its own, and NVIDIA's guide says a fault stays inside the instance it happened in. MIG exists only on the large cards in NVIDIA's list: data-centre cards such as the A30, A100, H100, H200 and B200, and a few of its newest workstation cards, and no T4, L4, A10 or L40S. **Time-slicing** has no walls: programs take turns on the whole card and share all its memory, so one that fills the memory takes the others down with it. NVIDIA's time-slicing page says it plainly: "there is no memory or fault-isolation". A **virtual GPU** (vGPU) is a card shared between VMs by the hypervisor, which is how clouds sell **fractional GPUs** like Azure's sixth of an A10, made for light graphics work such as one person's remote desktop.
 
+<Story title="LeftoverLocals: reading another program's GPU leftovers, 2024" source="https://blog.trailofbits.com/2024/01/16/leftoverlocals-listening-to-llm-responses-through-leaked-gpu-local-memory/" sourceTitle="LeftoverLocals: Listening to LLM responses through leaked GPU local memory" license="linked, not copied">
+
+In January 2024 the security firm Trail of Bits made public a flaw found by Tyler Sorensen, LeftoverLocals (CVE-2023-4969). Each group of a GPU's workers has a small, fast scratch memory of its own, called local memory, which a program uses while it runs. On some GPUs from Apple, AMD and Qualcomm, nothing cleared it between one program and the next, so a second program on the same card could read what the first had left behind.
+
+The attack needed no special rights, only a way to run ordinary GPU code on the same machine: a program of under ten lines. On an AMD Radeon RX 7900 XT it caught about 5.5 MB each time it ran. While someone else's 7-billion-parameter model answered one question, that added up to about 181 MB, enough to rebuild the model's answer closely.
+
+NVIDIA and Arm said their GPUs weren't affected. Apple, Qualcomm and Imagination had fixes for some of their chips; AMD was still working on one. The lesson for sharing a card: programs that take turns share its hardware, memory included, so keeping them apart depends on something clearing it or walling it off.
+
+</Story>
+
 The MIG arithmetic is small. An A100 40GB is 8 memory slices of about 5 GB and 7 compute slices. A **profile** is a size of instance, and its name says what it takes: `2g.10gb` is 2 compute slices and 10 GB, so 2 memory slices. Read the GB for the memory: `3g.20gb` takes 3 compute slices but 4 memory slices. A layout can never use more than 8 memory slices or 7 compute slices: seven `1g.5gb` fit one card, using every compute slice and leaving a memory slice spare, and a `4g.20gb` with a `3g.20gb` fills it exactly. That rule rejects bad layouts but doesn't prove a good one, because instances also have fixed places on the card; NVIDIA's table of profiles and placements is the last word.
+
+<Check item="est-mig-per-card" />
 
 When a model is too big for one card, it is split across several, and the cards then exchange data at every step. **NVLink** is NVIDIA's direct link from card to card, far faster than PCIe. It matters when one job spans cards; it does nothing for eight separate jobs on eight cards. Its speed changes with each generation, so look it up rather than remember it.
 

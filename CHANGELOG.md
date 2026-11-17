@@ -18,10 +18,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
-### Added (reviews: review labs for hands-on skills)
 
-- A topic can name `review_labs` in its `topic.yaml`: one or two of its own labs short enough to be a 10 to 15 minute refresher ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). When a topic's review checks a gap of two weeks or more and none of its last two reviews had a lab, the review asks one in place of a quick question; the learner runs it and pastes the checker's result as on the topic page. "Do the lab another time" swaps in a question with no penalty, and the lab comes back at the next review. The validator checks each review lab is one of the topic's labs and not a worked example.
-- All 38 ready topics of cloud Modules 1 to 3 name their review labs (54 labs in all, debug and write labs first).
+### Added (cloud Module 2: puzzles, questions in the lesson, real incidents and "which one is this?" questions)
+
+- All eight topics of the cloud track's Module 2 (hardware, virtualisation and Windows) now open with a puzzle and ask 4 of their own quick questions inside the lesson, 32 in all, each right after the part it tests.
+- Each tells a real, public incident in its own words, linked to its source: VENOM, the QEMU floppy-controller flaw (Hypervisors); TensorFlow's `Illegal instruction` on CPUs without AVX (CPU architectures); MySQL's "swap insanity" on two NUMA nodes (Cores and memory); AWS's EBS re-mirroring storm of 2011 (Disks); LeftoverLocals, GPU memory left readable between programs (GPUs); the November 2022 Windows update that broke Kerberos (Active Directory); Zerologon (Domain join); and Microsoft's 2019 change to licences on dedicated hosts (Windows licensing).
+- Six new "which one is this?" questions, each telling apart two ideas learners mix up: a wrong architecture or a missing instruction; the IOPS cap or the throughput cap (two); the card's memory or the VM's; a domain controller or a member server; Windows Server's per-VM minimum or SQL Server's.
 
 ### Added (cloud Module 3, second half: puzzles, questions in the lesson, real incidents and contrast questions)
 
@@ -52,6 +54,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A lesson can open with `<Puzzle question="...">answer</Puzzle>`: the learner types a guess, then sees the answer. The guess isn't graded or saved.
 - A lesson can tell a real public incident with `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>`, in the platform's own words, linking the postmortem it's drawn from.
 - The validator checks every tag in a lesson: only the six the app can draw, each written as `content/README.md` says, with the lesson's line in every problem.
+
+### Added (reviews: review labs for hands-on skills)
+
+- A topic can name `review_labs` in its `topic.yaml`: one or two of its own labs short enough to be a 10 to 15 minute refresher ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). When a topic's review checks a gap of two weeks or more and none of its last two reviews had a lab, the review asks one in place of a quick question; the learner runs it and pastes the checker's result as on the topic page. "Do the lab another time" swaps in a question with no penalty, and the lab comes back at the next review. The validator checks each review lab is one of the topic's labs and not a worked example.
+- All 38 ready topics of cloud Modules 1 to 3 name their review labs (54 labs in all, debug and write labs first).
 
 ### Added (reviews: a personal forgetting curve)
 
