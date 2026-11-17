@@ -504,6 +504,7 @@ Pure functions in `web/src/progress/progress.ts` compute progress from the topic
 - Answers in the `placement` context are skipped: the placement test asks about topics the learner hasn't opened, and its answers must not make a topic In progress ([ADR-0021](../decisions/0021-placement-test.md)). The follow-ups skip them too, and so do the practice questions' Done and Tried marks on topic pages (`web/src/progress/itemStates.ts`). Practice hours count them.
 - The result doesn't depend on the order of the events, so an event that arrives late, say from another device's outbox, changes only what it adds. Tests check this; it's what lets the app update progress as events arrive instead of rebuilding it.
 - The app recalculates progress from the history each visit, like the follow-ups. The `topic_progress` cache comes when that gets slow.
+- A topic page's parts ([ADR-0025](../decisions/0025-topics-in-parts.md)) are done or not from the same history, in `web/src/parts/topicParts.ts`: a practice part once every item in it is Done, the proofs once all three have passed, the lesson once anything in the topic's practice or proofs has been tried. Nothing is stored for them, except the last part viewed, kept on the device in localStorage (`part:<topic id>`) like the last place.
 
 ### Regular topics
 

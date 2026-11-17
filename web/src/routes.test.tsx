@@ -1,4 +1,5 @@
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { APP_NAME } from './config.ts'
 import { renderApp } from './test/renderApp.tsx'
@@ -109,6 +110,10 @@ describe('app routes', () => {
     )
     expect(learn).toHaveTextContent(
       'This clip: 0:24 to 9:51 (about 9 minutes).',
+    )
+    // The practice is the topic's second part (ADR-0025).
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Next: Part 2, Practice' }),
     )
     expect(screen.getByRole('region', { name: 'Practice' })).toHaveTextContent(
       'Practice 7 of 7',
