@@ -1,0 +1,21 @@
+id: typed-errno-refused
+type: typed
+rev: 1
+prompt: |
+  nginx's error log names the kernel's error number for a failed connection to its upstream. Which number does it give when nothing listens on the upstream's port, so the connection is refused? Type the number.
+kind: text
+answers:
+  - "111"
+mistakes:
+  - id: timed-out
+    answers: ["110"]
+    why: 110 is "Connection timed out", when nothing answered at all, such as a firewall that drops. A refusal, nothing listening, is 111.
+  - id: no-route
+    answers: ["113"]
+    why: 113 is "No route to host", when a router (or the machine itself) has no way there. A refusal, nothing listening, is 111.
+  - id: http-status
+    answers: ["502", "503"]
+    why: Those are the HTTP statuses nginx sends the client. The kernel's error number in the log line for a refusal is 111.
+explanation: |
+  The log line reads `connect() failed (111: Connection refused) while connecting to upstream`: the upstream's machine answered the SYN with a reset because nothing listens on that port, so the app is down or has moved. 110 would mean silence (a timeout) and 113 no route.
+skills: [read-logs-and-counters]

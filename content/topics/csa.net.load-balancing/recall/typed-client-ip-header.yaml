@@ -1,0 +1,18 @@
+id: typed-client-ip-header
+type: typed
+rev: 1
+prompt: |
+  Behind HAProxy in HTTP mode, the shop's servers see every request coming from the balancer's own address, 10.0.1.1, so the app's rate limiter sees one client. Which request header can a layer 7 proxy add to carry the client's own address to the server? Type the header's name.
+kind: text
+answers:
+  - X-Forwarded-For
+mistakes:
+  - id: proxy-protocol
+    answers: [PROXY protocol, PROXY]
+    why: "The PROXY protocol carries the client's address too, but as a short header at the start of a TCP connection, for any protocol, not as an HTTP request header."
+  - id: host
+    answers: [Host]
+    why: "`Host` names the site the client asked for, not the client's address."
+explanation: |
+  `X-Forwarded-For` holds the client's address; HAProxy adds it with `option forwardfor`. A client can send an `X-Forwarded-For` of its own, so the server reads the value its own balancer added and ignores anything before it: HAProxy's is the last value. For protocols that aren't HTTP, the PROXY protocol does the same job, and a pass-through balancer needs neither, because the server sees the client's address itself.
+skills: [choose-the-balancer]

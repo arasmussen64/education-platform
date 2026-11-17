@@ -1,0 +1,18 @@
+id: typed-bufferbloat
+type: typed
+rev: 1
+prompt: |
+  A CUBIC transfer on a clean path keeps a router's deep queue full: the link runs nearly flat out, nothing is lost, and every packet now waits in the queue, so the round trip climbs far above its minimum and every other connection on the link slows down too. What is this problem called? One word.
+kind: text
+answers:
+  - bufferbloat
+mistakes:
+  - id: hol
+    answers: [head-of-line blocking]
+    why: "Head-of-line blocking is one lost packet holding up the data behind it. Here nothing is lost: the delay is the time packets spend in a full queue, which is bufferbloat."
+  - id: collapse
+    answers: [congestion collapse]
+    why: "A congestion collapse is a network carrying almost nothing useful, as in 1986. Here the link is nearly full of useful data; the cost is the delay of the full queue, bufferbloat."
+explanation: |
+  **Bufferbloat** is the delay a deep queue adds when a loss-based sender keeps it full. CUBIC grows its window until something is dropped, and a router with a big buffer drops nothing for a long time, so the sender fills it. In `ss -tni` it shows as `rtt` far above `minrtt`: in the lab, 213 ms against 50, with the link at 46 of its 50 Mbit/s. BBR, which keeps about one bandwidth-delay product in flight, builds little queue.
+skills: [loss-based-cc]

@@ -1,0 +1,20 @@
+id: typed-dns-01
+type: typed
+rev: 1
+prompt: |
+  The shop wants one certificate from Let's Encrypt for `*.shop.test`, a wildcard. Which ACME challenge type must its ACME client use to prove it controls the name? Give the challenge's name.
+kind: text
+answers:
+  - DNS-01
+  - DNS01
+  - DNS challenge
+mistakes:
+  - id: http-01
+    answers: [HTTP-01, HTTP01, HTTP challenge]
+    why: "HTTP-01 serves a file on port 80 of one name, and can't prove a wildcard: Let's Encrypt issues wildcards only through a TXT record in DNS."
+  - id: tls-alpn-01
+    answers: [TLS-ALPN-01]
+    why: "TLS-ALPN-01 proves one name with a special certificate on port 443, and can't prove a wildcard either."
+explanation: |
+  **DNS-01**: the client puts a TXT record at `_acme-challenge.shop.test`, and the CA looks it up. Only that challenge can prove a wildcard, because it shows control of the domain's DNS rather than of one server. The cost is a DNS provider with an API, and its credentials on the server: give them as little power as you can.
+skills: [acme-and-rotation]

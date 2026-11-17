@@ -1,0 +1,22 @@
+id: typed-reverse-record
+type: typed
+rev: 1
+prompt: |
+  In the reverse zone `9.0.10.in-addr.arpa`, which record type turns the address 10.0.9.41 back into the name `api.shop.test.`? Type the record type.
+kind: text
+answers:
+  - PTR
+  - pointer
+mistakes:
+  - id: cname
+    answers: [CNAME]
+    why: A CNAME says one name is another name. An address's name, in a reverse zone, is a PTR record.
+  - id: forward
+    answers: [A, AAAA]
+    why: A and AAAA turn a name into an address, the forward way. The reverse way, address to name, is PTR.
+  - id: ns
+    answers: [NS, SOA]
+    why: NS and SOA describe the zone itself, its servers and its settings. The record that names one address is PTR.
+explanation: |
+  A PTR record holds an address's name. In the reverse zone for 10.0.9.0/24, `9.0.10.in-addr.arpa` (the octets backwards), the line `41 IN PTR api.shop.test.` names 10.0.9.41. `dig -x 10.0.9.41` asks for it.
+skills: [records-and-zones]

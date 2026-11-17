@@ -1,0 +1,21 @@
+id: typed-fullchain-file
+type: typed
+rev: 1
+prompt: |
+  certbot has put the shop's certificate in `/etc/letsencrypt/live/www.shop.test/`. Which file in that folder should nginx's `ssl_certificate` name, so that strict clients such as curl and partners' servers can verify the site? Type the file's name.
+kind: text
+answers:
+  - fullchain.pem
+mistakes:
+  - id: cert
+    answers: [cert.pem]
+    why: "`cert.pem` is the site's certificate alone. Without the intermediate after it, strict clients stop with verify code 21, while browsers may hide it."
+  - id: chain
+    answers: [chain.pem]
+    why: "`chain.pem` holds only the intermediates. nginx takes the first certificate in the file as the server's own, so it wouldn't match the key."
+  - id: privkey
+    answers: [privkey.pem]
+    why: "`privkey.pem` is the private key, which goes in `ssl_certificate_key`, not `ssl_certificate`."
+explanation: |
+  `fullchain.pem` is the site's certificate followed by the intermediate, the full chain a server should send, and in `live/` it's a link that certbot moves to each renewed copy. Name it, and `privkey.pem` in `ssl_certificate_key`, from `live/`, never from `archive/` or a copy, or the next renewal never reaches the server.
+skills: [cert-chains]

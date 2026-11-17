@@ -23,6 +23,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Every topic of the cloud track's Module 2 now lists the terms it teaches in `glossary.yaml`, 60 terms in all (such as SR-IOV, cross-compile, NUMA, local disk, VRAM, domain controller, Group Policy object and Software Assurance). Where a later lesson uses one, the word shows its definition and links back.
 - Sixteen typed questions, two per topic: a command (`systemd-detect-virt --vm`, `uname -m`, `numactl --hardware`, `nvidia-smi`, `klist`, `realm permit -g`, `gpupdate`), a term (instance store, MIG, Product Terms, Azure Hybrid Benefit), a file or setting name (`cpu.stat`, `IOWriteIOPSMax`), a record name or a number, each with the mistakes learners are likely to type.
 
+### Added (cloud Module 3, first half: glossaries and typed questions)
+
+- Glossaries for the first eight networking topics, 75 terms in all (layers 11, CIDR 9, IPv6 9, TCP and UDP 8, routing 9, NAT 4 more beside its first 5, DNS 9, troubleshooting 7): the networking basics later topics lean on, such as packet, port, TTL, MTU, subnet, router, TCP, UDP and DNS.
+- Two typed questions in each of those topics (16): a command, a term, a block or a number to recall and type, each with the likely wrong answers named, such as IPv4's "fragmentation needed" beside IPv6's Packet Too Big, and curl's exit 28 beside 7.
+
+### Added (cloud Module 3, second half: glossaries and typed questions)
+
+- The eight networking topics from Congestion control and QUIC to Site-to-site VPNs each have a glossary of the terms they teach, 63 in all (from congestion window and bufferbloat to route reflector and NAT traversal), so a later lesson that uses one shows its definition and links back.
+- Each also has two new typed questions, 16 in all: a command, a setting, a header, a status code or a term, recalled and typed rather than picked from a list (`net.ipv4.tcp_congestion_control`, `ssl_stapling on;`, `set server web/web2 state drain`, `swanctl --list-sas`, SNI, DNS-01, 504, port 179 and more).
+
 ### Added (saying how sure you are before a quick question is checked)
 
 - Every quick question (multiple choice, predict the output, Parsons, estimate, typed) is checked with one of three buttons, "Guessing", "Fairly sure" or "Certain", instead of Check ([ADR-0028](docs/decisions/0028-confidence-before-the-answer.md), proposed). One press still checks the answer. In an estimate or a typed answer, Enter moves to the three buttons rather than choosing one. The answer event saves the choice as `confidence`; it changes no grade, rating, Mastered or follow-up. The placement test keeps its single Check.
