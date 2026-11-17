@@ -1,4 +1,11 @@
+import type { MouseEvent } from 'react'
 import type { TopicContent } from '../content/types.ts'
+import {
+  aboutMinutes,
+  type LadderItem,
+  partAnchor,
+  type TopicPart,
+} from '../parts/topicParts.ts'
 import {
   itemPlace,
   LESSON_PLACE_PREFIX,
@@ -12,11 +19,16 @@ import {
 } from '../progress/itemStates.ts'
 import { type Proof, PROOFS } from '../progress/progress.ts'
 
-/** One rung of the practice ladder, in page order. */
-export type LadderItem = { itemId: string; content: TopicContent }
+export type { LadderItem }
 
 type Props = {
   content: TopicContent
+  /** The topic's parts, in order (ADR-0025). */
+  parts: TopicPart[]
+  /** The part on screen. */
+  currentPart: string
+  /** Whether each part is done, by its id, or null while unknown. */
+  done: Map<string, boolean> | null
   /** The practice ladder as the page shows it, an earlier topic's question included. */
   items: LadderItem[]
   /** Each attempted item's state, or null while unknown (signed out, loading). */
@@ -29,8 +41,8 @@ type Props = {
   lessonParts: number
   /** The place remembered from the last visit, if any. */
   resume: string | null
-  /** Which sections the page is showing. */
-  sections: { learn: boolean; practice: boolean; prove: boolean }
+  /** Opens the part that holds this place, and goes to it. */
+  onGoTo: (anchor: string) => void
 }
 
 const PROOF_NAMES: Record<Proof, string> = {
@@ -50,31 +62,42 @@ const CURRENT_MARK = '▸ '
 
 /**
  * The learner's place in a topic (v1 spec, F3 and F5, for long topics): the
- * lesson's parts, every practice item with whether it's done, the three
- * proof checks, and a way to continue where the last visit stopped. The
- * states come from the learner's saved answers, never from a tick they set
- * themselves.
+ * topic's parts with whether each is done (ADR-0025), and inside them the
+ * lesson's places, every practice item with whether it's done, and the
+ * three proof checks, plus a way to continue where the last visit stopped.
+ * The states come from the learner's saved answers, never from a tick they
+ * set themselves. Every link opens the part it points into.
  */
 export function TopicOutline({
   content,
+  parts,
+  currentPart,
+  done,
   items,
   states,
   passed,
   current,
   lessonParts,
   resume,
-  sections,
+  onGoTo,
 }: Props) {
   const stateOf = (item: LadderItem) =>
     states?.get(itemKey(item.content.topic.id, item.itemId))
-  const done = items.filter((item) => stateOf(item) === 'done').length
-  const nextNotDone = states
-    ? items.findIndex((item) => stateOf(item) !== 'done')
-    : -1
+  const practiceShown = parts.some((part) => part.kind === 'practice')
+  const nextNotDone =
+    states && practiceShown
+      ? items.findIndex((item) => stateOf(item) !== 'done')
+      : -1
   const lessonPart = current?.startsWith(LESSON_PLACE_PREFIX)
     ? Number(current.slice(LESSON_PLACE_PREFIX.length))
     : null
   const resumeLabel = resume ? describePlace(resume, items) : null
+
+  /** A link to a place on the page, which opens its part first. */
+  const follow = (anchor: string) => (event: MouseEvent) => {
+    event.preventDefault()
+    onGoTo(anchor)
+  }
 
   return (
     <nav aria-labelledby="outline" className="space-y-4 text-sm">
@@ -87,141 +110,213 @@ export function TopicOutline({
       {resume && resumeLabel && (
         <a
           href={`#${resume}`}
+          onClick={follow(resume)}
           className="block rounded-md border border-lime-600 px-3 py-2 font-medium text-lime-800 hover:bg-lime-50 dark:border-lime-500 dark:text-lime-300 dark:hover:bg-lime-950"
         >
           Continue where you left off: {resumeLabel}
         </a>
       )}
-      {sections.learn && (
-        <div className="space-y-1">
-          <p className="font-semibold">Learn</p>
-          <ul className="space-y-0.5">
-            {LEARN_PLACES.map((place) => {
-              const isCurrent =
-                current === place.id ||
-                (place.id === `${LESSON_PLACE_PREFIX}1` && lessonPart !== null)
-              return (
-                <li key={place.id}>
-                  <a
-                    href={`#${place.id}`}
-                    aria-current={isCurrent ? 'location' : undefined}
-                    className={isCurrent ? 'font-semibold' : 'hover:underline'}
-                  >
-                    {isCurrent && (
-                      <span aria-hidden="true">{CURRENT_MARK}</span>
-                    )}
-                    {place.label}
-                    {place.id === `${LESSON_PLACE_PREFIX}1` &&
-                      lessonPart !== null &&
-                      lessonParts > 0 &&
-                      ` (part ${lessonPart} of ${lessonParts})`}
-                  </a>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
-      {sections.practice && items.length > 0 && (
-        <div className="space-y-2">
-          <p className="font-semibold">
-            Practice
-            {states && (
-              <span className="font-normal text-slate-600 dark:text-slate-400">
-                {' '}
-                · {done} of {items.length} done
-              </span>
-            )}
-          </p>
-          {nextNotDone >= 0 && (
-            <a
-              href={`#${itemPlace(items[nextNotDone]!.content.topic.id, items[nextNotDone]!.itemId)}`}
-              className="block underline"
-            >
-              Next not done: Practice {nextNotDone + 1}
-            </a>
+      {nextNotDone >= 0 && (
+        <a
+          href={`#${itemPlace(items[nextNotDone]!.content.topic.id, items[nextNotDone]!.itemId)}`}
+          onClick={follow(
+            itemPlace(
+              items[nextNotDone]!.content.topic.id,
+              items[nextNotDone]!.itemId,
+            ),
           )}
-          <ol className="grid grid-cols-6 gap-1" aria-label="Practice items">
-            {items.map((item, index) => {
-              const id = itemPlace(item.content.topic.id, item.itemId)
-              const state = stateOf(item)
-              const isCurrent = current === id
-              return (
-                <li key={id}>
-                  <a
-                    href={`#${id}`}
-                    aria-label={`Practice ${index + 1}: ${
-                      state ? ITEM_STATE_LABELS[state] : 'not done yet'
-                    }`}
-                    aria-current={isCurrent ? 'location' : undefined}
-                    className={`flex h-8 items-center justify-center gap-0.5 rounded border text-xs font-medium ${
-                      state === 'done'
-                        ? 'border-lime-600 bg-lime-100 text-lime-900 dark:border-lime-500 dark:bg-lime-950 dark:text-lime-200'
-                        : state === 'tried'
-                          ? 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
-                          : 'border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300'
-                    } ${isCurrent ? 'ring-2 ring-slate-900 ring-offset-1 dark:ring-white dark:ring-offset-slate-900' : ''}`}
-                  >
-                    {index + 1}
-                    {/* A mark as well as a color, never color alone (F9). */}
-                    {state === 'done' && <span aria-hidden="true">✓</span>}
-                    {state === 'tried' && <span aria-hidden="true">◐</span>}
-                  </a>
-                </li>
-              )
-            })}
-          </ol>
-        </div>
+          className="block underline"
+        >
+          Next not done: Practice {nextNotDone + 1}
+        </a>
       )}
-      {sections.prove && (
-        <div className="space-y-1">
-          <p className="font-semibold">
-            Prove it
-            {passed && (
-              <span className="font-normal text-slate-600 dark:text-slate-400">
-                {' '}
-                · {PROOFS.filter((proof) => passed[proof]).length} of{' '}
-                {PROOFS.length} passed
-              </span>
-            )}
-          </p>
-          <ul className="space-y-0.5">
-            {PROOFS.filter((proof) => content.topic.prove[proof]).map(
-              (proof) => {
-                const id = provePlace(proof)
-                const isCurrent = current === id
-                return (
-                  <li key={proof}>
-                    <a
-                      href={`#${id}`}
-                      aria-current={isCurrent ? 'location' : undefined}
-                      className={
-                        isCurrent ? 'font-semibold' : 'hover:underline'
-                      }
-                    >
-                      {isCurrent && (
-                        <span aria-hidden="true">{CURRENT_MARK}</span>
-                      )}
-                      <span aria-hidden="true">
-                        {passed?.[proof] ? '✓ ' : '○ '}
-                      </span>
-                      {PROOF_NAMES[proof]}
-                      <span className="sr-only">
-                        {passed
-                          ? passed[proof]
-                            ? ': passed'
-                            : ': not passed yet'
-                          : ''}
-                      </span>
-                    </a>
-                  </li>
-                )
-              },
-            )}
-          </ul>
-        </div>
-      )}
+      <ol className="space-y-4" aria-label="Parts">
+        {parts.map((part, index) => {
+          const isCurrent = part.id === currentPart
+          const isDone = done?.get(part.id)
+          const anchor = partAnchor(part)
+          return (
+            <li key={part.id} className="space-y-1">
+              <a
+                href={`#${anchor}`}
+                onClick={follow(anchor)}
+                aria-current={isCurrent ? 'step' : undefined}
+                className={`block ${isCurrent ? 'font-semibold' : 'hover:underline'}`}
+              >
+                {isCurrent && <span aria-hidden="true">{CURRENT_MARK}</span>}
+                {done && (
+                  // A mark as well as words, never color alone (F9).
+                  <span aria-hidden="true">{isDone ? '✓ ' : '○ '}</span>
+                )}
+                {parts.length > 1 && `Part ${index + 1} · `}
+                {part.title}
+                <span className="sr-only">
+                  {done ? (isDone ? ': done' : ': not done yet') : ''}
+                </span>
+              </a>
+              {parts.length > 1 && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {aboutMinutes(part.minutes)}
+                  {part.kind === 'practice' &&
+                    states &&
+                    ` · ${part.items.filter((item) => stateOf(item) === 'done').length} of ${part.items.length} done`}
+                </p>
+              )}
+              {part.kind === 'learn' && (
+                <ul className="space-y-0.5">
+                  {LEARN_PLACES.map((place) => {
+                    const here =
+                      isCurrent &&
+                      (current === place.id ||
+                        (place.id === `${LESSON_PLACE_PREFIX}1` &&
+                          lessonPart !== null))
+                    return (
+                      <li key={place.id}>
+                        <a
+                          href={`#${place.id}`}
+                          onClick={follow(place.id)}
+                          aria-current={here ? 'location' : undefined}
+                          className={here ? 'font-semibold' : 'hover:underline'}
+                        >
+                          {here && (
+                            <span aria-hidden="true">{CURRENT_MARK}</span>
+                          )}
+                          {place.label}
+                          {place.id === `${LESSON_PLACE_PREFIX}1` &&
+                            here &&
+                            lessonPart !== null &&
+                            lessonParts > 0 &&
+                            ` (part ${lessonPart} of ${lessonParts})`}
+                        </a>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {part.kind === 'practice' && (
+                <PracticeSquares
+                  part={part}
+                  stateOf={stateOf}
+                  current={isCurrent ? current : null}
+                  follow={follow}
+                />
+              )}
+              {part.kind === 'prove' && (
+                <ProofList
+                  content={content}
+                  passed={passed}
+                  current={isCurrent ? current : null}
+                  follow={follow}
+                />
+              )}
+            </li>
+          )
+        })}
+      </ol>
     </nav>
+  )
+}
+
+/** A practice part's items, as a grid of numbered squares with their states. */
+function PracticeSquares({
+  part,
+  stateOf,
+  current,
+  follow,
+}: {
+  part: Extract<TopicPart, { kind: 'practice' }>
+  stateOf: (item: LadderItem) => ItemState | undefined
+  current: string | null
+  follow: (anchor: string) => (event: MouseEvent) => void
+}) {
+  return (
+    <ol
+      className="grid grid-cols-6 gap-1"
+      aria-label={`Practice items, part ${part.id.slice('practice-'.length)}`}
+    >
+      {part.items.map((item, offset) => {
+        const number = part.start + offset + 1
+        const id = itemPlace(item.content.topic.id, item.itemId)
+        const state = stateOf(item)
+        const isCurrent = current === id
+        return (
+          <li key={id}>
+            <a
+              href={`#${id}`}
+              onClick={follow(id)}
+              aria-label={`Practice ${number}: ${
+                state ? ITEM_STATE_LABELS[state] : 'not done yet'
+              }`}
+              aria-current={isCurrent ? 'location' : undefined}
+              className={`flex h-8 items-center justify-center gap-0.5 rounded border text-xs font-medium ${
+                state === 'done'
+                  ? 'border-lime-600 bg-lime-100 text-lime-900 dark:border-lime-500 dark:bg-lime-950 dark:text-lime-200'
+                  : state === 'tried'
+                    ? 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200'
+                    : 'border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-300'
+              } ${isCurrent ? 'ring-2 ring-slate-900 ring-offset-1 dark:ring-white dark:ring-offset-slate-900' : ''}`}
+            >
+              {number}
+              {/* A mark as well as a color, never color alone (F9). */}
+              {state === 'done' && <span aria-hidden="true">✓</span>}
+              {state === 'tried' && <span aria-hidden="true">◐</span>}
+            </a>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+/** The proof checks, with whether each has passed. */
+function ProofList({
+  content,
+  passed,
+  current,
+  follow,
+}: {
+  content: TopicContent
+  passed: Partial<Record<Proof, string>> | null
+  current: string | null
+  follow: (anchor: string) => (event: MouseEvent) => void
+}) {
+  const proofs = PROOFS.filter((proof) => content.topic.prove[proof])
+  return (
+    <>
+      {passed && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          {proofs.filter((proof) => passed[proof]).length} of {proofs.length}{' '}
+          passed
+        </p>
+      )}
+      <ul className="space-y-0.5">
+        {proofs.map((proof) => {
+          const id = provePlace(proof)
+          const isCurrent = current === id
+          return (
+            <li key={proof}>
+              <a
+                href={`#${id}`}
+                onClick={follow(id)}
+                aria-current={isCurrent ? 'location' : undefined}
+                className={isCurrent ? 'font-semibold' : 'hover:underline'}
+              >
+                {isCurrent && <span aria-hidden="true">{CURRENT_MARK}</span>}
+                <span aria-hidden="true">{passed?.[proof] ? '✓ ' : '○ '}</span>
+                {PROOF_NAMES[proof]}
+                <span className="sr-only">
+                  {passed
+                    ? passed[proof]
+                      ? ': passed'
+                      : ': not passed yet'
+                    : ''}
+                </span>
+              </a>
+            </li>
+          )
+        })}
+      </ul>
+    </>
   )
 }
 
