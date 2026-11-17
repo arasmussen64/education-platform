@@ -18,6 +18,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (Today page: honest times from the learner's own pace)
+
+- Once three topics are proven, the Today page compares how long they took the learner with their authors' estimates, and stretches its time figures to match: "about 42 minutes at your pace", with one plain sentence under "Next up": "Topics you've proven took you about 1.4× their estimate, so the times on this page are stretched to match." The guided session's new topic uses the same figure.
+- What it measures, said on the page: the time in a topic counted by sittings, from the first answer to the last, so reading before the first answer of a sitting isn't included. Because that makes the measure a floor, times are only ever stretched, never shrunk.
+- "Today's session" says how long it should take ("About 6 minutes for those, then about 42 for the new topic at your pace."), from the learner's own review answer times (a minute a question until there are five). "Just 5 minutes" now fits as many reviews as those times allow, from one to three.
+- The calculation is `web/src/progress/pace.ts`, for any page to reuse.
+
 ### Added (Today page: weeks with practice, and progress through the module)
 
 - Practice hours on the Today page opens with consistency counted in weeks, never as a daily streak: "You practised in 4 of the last 5 weeks.", with a row of five marks, oldest first. A week is the seven days up to today, in the learner's own calendar days (each event's recorded day), and a learner newer than five weeks is counted over the weeks since they began. When this week has nothing in it yet, one line says a session today counts for it; there are no warnings. `web/src/progress/weeks.ts`.
