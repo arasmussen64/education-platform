@@ -1,11 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import type { EventLog } from '../events/eventLog.ts'
 import { EventLogContext } from '../events/eventLogContext.ts'
-import { downloadJson } from '../export/download.ts'
+import { downloadJson, downloadText } from '../export/download.ts'
 import { collectExport, type DataExport } from '../export/exportData.ts'
 import { fakeAuth, fakeUser } from '../test/fakeAuth.ts'
 import { eventRow, recordingEventLog } from '../test/fakeEvents.ts'
@@ -18,7 +18,10 @@ vi.mock('../export/exportData.ts', async (importOriginal) => ({
   collectExport: vi.fn(),
   exportFileName: () => 'learning-data.json',
 }))
-vi.mock('../export/download.ts', () => ({ downloadJson: vi.fn() }))
+vi.mock('../export/download.ts', () => ({
+  downloadJson: vi.fn(),
+  downloadText: vi.fn(),
+}))
 
 const ADA = fakeUser()
 
@@ -207,5 +210,54 @@ describe('the account page', () => {
     expect(screen.getByText('Gathering your data…')).toBeInTheDocument()
     await userEvent.click(downloadButton())
     expect(collectExport).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the study plan on the account page', () => {
+  const section = () => screen.getByRole('region', { name: 'Study plan' })
+
+  it('makes, changes and forgets a plan kept on this device', async () => {
+    renderAccount()
+    await userEvent.click(
+      within(section()).getByRole('checkbox', { name: 'Tuesday' }),
+    )
+    fireEvent.change(within(section()).getByLabelText('Time'), {
+      target: { value: '07:15' },
+    })
+    await userEvent.click(
+      within(section()).getByRole('button', { name: 'Save my plan' }),
+    )
+    expect(section()).toHaveTextContent('Tuesday at 7:15 am.')
+    expect(section()).toHaveTextContent('kept on this device only')
+
+    await userEvent.click(
+      within(section()).getByRole('button', {
+        name: 'Add to my calendar (.ics)',
+      }),
+    )
+    expect(downloadText).toHaveBeenCalledWith(
+      'study-plan.ics',
+      expect.stringContaining('RRULE:FREQ=WEEKLY;BYDAY=TU'),
+      'text/calendar',
+    )
+
+    await userEvent.click(
+      within(section()).getByRole('button', { name: 'Change my plan' }),
+    )
+    await userEvent.click(
+      within(section()).getByRole('checkbox', { name: 'Friday' }),
+    )
+    await userEvent.click(
+      within(section()).getByRole('button', { name: 'Save my plan' }),
+    )
+    expect(section()).toHaveTextContent('Tuesday and Friday at 7:15 am.')
+
+    await userEvent.click(
+      within(section()).getByRole('button', { name: 'Forget my plan' }),
+    )
+    expect(localStorage.getItem('study-plan')).toBeNull()
+    expect(
+      within(section()).getByRole('button', { name: 'Save my plan' }),
+    ).toBeInTheDocument()
   })
 })
