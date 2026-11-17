@@ -20,9 +20,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 ### Added (cloud Module 1 content: puzzles, questions in the lesson, real incidents and "which one is this?")
 
-- Every lesson of the cloud track's Linux module (14 topics) opens with a puzzle, and asks two to four of its own quick questions inside the lesson, right after the part each one tests (54 placed in all, most of them "what will it print?" and number questions).
+- Every lesson of the cloud track's Linux module (14 topics) opens with a puzzle, and asks three or four of its own quick questions inside the lesson, right after the part each one tests (54 placed in all, most of them "what will it print?" and number questions).
 - Twelve of the fourteen lessons tell a real, public incident in our own words, with its source linked: Amazon S3's typo (2017), the sudo flaw Baron Samedit (2021), Datadog's automatic update (2023), Netlify's full database disk (2016), Redpanda's brokers killed at their own memory limit (2022), Indeed's throttled services (2018 to 2019), the runc container breakout (2019), a Kubernetes connection reset caused by conntrack (2019), Capital One's stolen metadata credentials (2019), Steam for Linux emptying a home folder (2015), Cloudflare's one-second latency spikes (2015) and the OpenSSH flaw regreSSHion (2024). For Processes and signals and for Services and logs no fitting incident could be checked against a public source, so they have none.
 - Five "which one is this?" questions, each asking the learner to tell two easily confused ideas apart: exit status 143 or 137 (Memory), a memory limit or a CPU limit (CPU), a namespace or a cgroup (Containers), a refused connection or a dropped one (Networking from the host) and I/O wait or steal (Performance triage). They are in their topics' practice and review pools.
+
+### Added (lessons: a glossary, with definitions where a word is used)
+
+- A topic can list the terms it teaches in `glossary.yaml` beside its lesson ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed). Where another topic's lesson first uses one, the word has a dotted underline; pressing it, or hovering with a mouse, shows its definition and "Taught in: <topic>", linking to that topic. It works with a keyboard and on a phone, and is never added to headings, links, code, a puzzle or a question.
+- A new page, `/glossary`, lists every term with its definition and the topic that teaches it.
+- The validator checks each `glossary.yaml`: a term or alias is defined by one topic only, across all content, ignoring case; a definition is one line of at most 40 words; a ready topic's lesson uses each term it defines.
+- The validator also asks that each `<Check>`, `<Puzzle>` and `<Story>` tag stands on a line of its own; in the middle of a line, MDX would draw the box inside a paragraph.
+- NAT's topic is the first with a glossary (NAT, source NAT, destination NAT, masquerade, port exhaustion), so ten other lessons that mention NAT now explain it on the spot.
 
 ### Added (lessons: questions inside the lesson, an opening puzzle, and a real incident)
 

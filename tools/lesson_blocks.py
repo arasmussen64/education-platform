@@ -42,6 +42,10 @@ REQUIRED = {
 }
 # Blocks that wrap text of their own, so they need a closing tag.
 WRAPPERS = {"Intro", "Recap", "Puzzle", "Story"}
+# Blocks the page draws as boxes. Written in the middle of a line of text,
+# MDX would put the box inside a paragraph, which a page can't hold, so
+# each of their tags goes on a line of its own.
+OWN_LINE = {"Check", "Puzzle", "Story"}
 
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 INLINE_CODE = re.compile(r"(`+)(?:(?!\n[ \t]*\n).)+?\1", re.DOTALL)
@@ -151,6 +155,14 @@ def tags_in(text: str) -> list[Tag]:
     return found
 
 
+def on_own_line(text: str, tag: Tag) -> bool:
+    """Whether nothing but spaces shares a line with the tag."""
+    line_start = text.rfind("\n", 0, tag.start) + 1
+    line_end = text.find("\n", tag.end)
+    after = text[tag.end :] if line_end == -1 else text[tag.end : line_end]
+    return not text[line_start : tag.start].strip() and not after.strip()
+
+
 def words(text: str) -> int:
     """How many words a piece of Markdown has (tags and code included)."""
     return len(re.findall(r"\S+", text))
@@ -181,6 +193,9 @@ def problems(
         if tag.broken:
             add(tag, f"<{tag.name}> isn't finished: check its quotes and its >")
             continue
+        if tag.name in OWN_LINE and not on_own_line(text, tag):
+            slash = "/" if tag.closing else ""
+            add(tag, f"<{slash}{tag.name}> goes on a line of its own")
         if tag.name == "Term":
             add(
                 tag,
