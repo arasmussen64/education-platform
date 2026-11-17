@@ -22,6 +22,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - A new quick-question type, `typed` ([ADR-0027](docs/decisions/0027-typed-answers.md), proposed): the learner types a command, a term, a value or a short phrase from memory, which builds memory better than picking it from a list. An item lists every accepted answer and, optionally, known mistakes with a sentence on each. Answers are read forgivingly and the same way by the validator and the page: spaces, curly quotes, a copied `$ ` prompt before a command, quotes round a term and (for terms) case don't count, and a term with one slip of the fingers among its letters is accepted with its spelling shown. The validator checks that the accepted answers differ, that no mistake is also an answer, and that the prompt doesn't give the answer away. Typed items work in practice, the "Check what you know" quiz, reviews (where they count as a produced answer), follow-ups and the placement test, and their answers are saved with what was typed. `content/README.md` says how to write one.
 
+### Added (lessons: questions inside the lesson, an opening puzzle, and a real incident)
+
+- A lesson can ask one of its topic's practice quick questions where it stands, with `<Check item="..." />`. It's graded and saved exactly as in practice, and the practice ladder leaves it out, so it shows once ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed).
+- A lesson can open with `<Puzzle question="...">answer</Puzzle>`: the learner types a guess, then sees the answer. The guess isn't graded or saved.
+- A lesson can tell a real public incident with `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>`, in the platform's own words, linking the postmortem it's drawn from.
+- The validator checks every tag in a lesson: only the six the app can draw, each written as `content/README.md` says, with the lesson's line in every problem.
+
 ### Added (reviews: a personal forgetting curve)
 
 - Once a learner has 100 review outcomes, the scheduler fits one number to them: how many times longer (or shorter) their memory lasts than FSRS's average curve says, between 0.5 and 2 ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). Every interval is stretched or shrunk by it. The Account page says it in plain words ("You forget a little faster than average: reviews come about 20% sooner"), or how many reviews are left before it's fitted. Below 100 reviews nothing changes. Nothing is stored; it's worked out from the event log each visit.

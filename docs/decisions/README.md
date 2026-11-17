@@ -42,4 +42,5 @@ When a choice is hard to reverse, affects many parts of the platform, or would m
 | [0023](0023-packages-in-both-runtimes.md) | Packages beyond the standard library, in both Python runtimes            | Accepted                                                          |
 | [0024](0024-estimate-questions.md)        | Estimate questions, a typed number checked within a tolerance            | Proposed                                                          |
 | [0025](0025-topics-in-parts.md)           | A topic page in parts                                                    | Proposed, with its amendments                                     |
+| [0026](0026-lesson-building-blocks.md)    | Lesson building blocks: questions, a puzzle, a real incident, a glossary | Proposed                                                          |
 | [0027](0027-typed-answers.md)             | Typed answers, a command or a term recalled and typed                    | Proposed                                                          |

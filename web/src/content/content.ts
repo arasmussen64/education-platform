@@ -2,7 +2,7 @@ import type {
   Diagnostic,
   Exercise,
   LabCheck,
-  LessonComponent,
+  LessonModule,
   Module,
   RecallItem,
   Topic,
@@ -68,9 +68,10 @@ const diagnosticFiles = import.meta.glob<Diagnostic>(
   '../../../content/diagnostics/*.yaml',
   { eager: true, import: 'default' },
 )
-const lessonFiles = import.meta.glob<LessonComponent>(
+// The whole module, not only the lesson: it also says which questions the
+// lesson places itself (LessonModule).
+const lessonFiles = import.meta.glob<LessonModule>(
   '../../../content/topics/*/lesson.mdx',
-  { import: 'default' },
 )
 const recallFiles = import.meta.glob<RecallItem>(
   '../../../content/topics/*/recall/*.yaml',
@@ -292,7 +293,9 @@ export async function loadTopicContent(
   const lessonLoader = Object.entries(lessonFiles).find(([path]) =>
     inTopic(path, topicId),
   )?.[1]
-  const Lesson = lessonLoader ? await lessonLoader() : null
+  const lesson = lessonLoader ? await lessonLoader() : null
+  const Lesson = lesson?.default ?? null
+  const lessonChecks = lesson?.checks ?? []
 
   const recall: Record<string, RecallItem> = {}
   const recallLoads = Object.entries(recallFiles)
@@ -339,5 +342,5 @@ export async function loadTopicContent(
     })
 
   await Promise.all([...recallLoads, ...exerciseLoads])
-  return { topic, Lesson, recall, exercises }
+  return { topic, Lesson, lessonChecks, recall, exercises }
 }
