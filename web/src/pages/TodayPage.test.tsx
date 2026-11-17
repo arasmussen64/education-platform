@@ -777,9 +777,12 @@ describe('honest times on the Today page', () => {
   }
 
   it("stretches the topics' times to the learner's pace, and says why", async () => {
+    // A day apart, a month ago: all three are due for review. (Further
+    // apart, proving each would give the one before implicit review credit
+    // and put its review off: ADR-0009, amended 2026-11-16.)
     renderToday(
       FIRST_THREE.flatMap((topic, index) =>
-        provenInTwiceItsEstimate(topic, 30 - 10 * index),
+        provenInTwiceItsEstimate(topic, 30 - index),
       ),
     )
     const next = await screen.findByRole('region', { name: 'Next up' })

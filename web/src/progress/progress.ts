@@ -4,12 +4,13 @@
 // nothing is stored: it's recalculated from the event log, so earlier passes
 // count too.
 import type { Topic } from '../content/types.ts'
+import type { Card, Rating, Review } from '../reviews/fsrs.ts'
 import {
-  type Card,
-  type Rating,
-  replayCard,
-  type Review,
-} from '../reviews/fsrs.ts'
+  type Credit,
+  creditsFrom,
+  replayWithCredits,
+  type TopicOf,
+} from '../reviews/implicit.ts'
 
 /** The three proof checks a topic needs (ADR-0002). */
 export type Proof = 'build' | 'debug' | 'explain'
@@ -91,6 +92,12 @@ export type TopicProgress = {
   reviews: Review[]
   /** The review card, once the topic is Learned. Checkpoints have none. */
   card: Card | null
+  /**
+   * The implicit reviews that counted toward the card: practice in topics
+   * built on this one (ADR-0009, amended 2026-11-16). Only on topics with a
+   * card.
+   */
+  credits?: Credit[]
   /**
    * The topic's skills that have an open follow-up (ADR-0011), once
    * withOpenFollowUps has looked. Left out, none are known.
@@ -238,16 +245,23 @@ function firstOpenings(stepsOpened: StepsOpened[]): Map<string, string> {
  * only the first pass of each check counts, and only the first opening of
  * the steps, so an event arriving late (say, from another device's outbox)
  * changes nothing but what it adds.
+ *
+ * Practice in a topic built on another gives that one implicit review
+ * credit (ADR-0009, amended 2026-11-16), so a topic's card can depend on
+ * events in topics not in `topics`. `topicOf` finds those topics, to know
+ * what they build on; by default only `topics` are known.
  */
 export function progressOf(
   topics: Topic[],
   events: GradedEvent[],
   stepsOpened: StepsOpened[] = [],
+  topicOf?: TopicOf,
 ): Map<string, TopicProgress> {
   const progress = new Map<string, TopicProgress>(
     topics.map((topic) => [topic.id, emptyProgress(topic)]),
   )
   const topicsById = new Map(topics.map((topic) => [topic.id, topic]))
+  const credits = creditsFrom(events, topicOf ?? ((id) => topicsById.get(id)))
   for (const [topicId, openedAt] of firstOpenings(stepsOpened)) {
     const entry = progress.get(topicId)
     if (entry) entry.stepsOpenedAt = openedAt
@@ -285,7 +299,13 @@ export function progressOf(
       entry.reviews = entry.reviews.filter(
         (review) => review.at >= (entry.learnedAt ?? ''),
       )
-      entry.card = replayCard(entry.learnedAt, entry.reviews)
+      const replayed = replayWithCredits(
+        entry.learnedAt,
+        entry.reviews,
+        credits.get(topicId),
+      )
+      entry.card = replayed.card
+      entry.credits = replayed.counted
     }
   }
   return progress
