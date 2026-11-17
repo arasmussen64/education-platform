@@ -1669,8 +1669,11 @@ describe('a topic in parts (ADR-0025)', () => {
     )
     const practice = screen.getByRole('region', { name: 'Practice' })
     expect(practice).toHaveTextContent(/Part 2 of 3 · about \d+ min/)
-    expect(screen.getByRole('heading', { name: 'Practice' })).toHaveFocus()
     expect(screen.queryByRole('region', { name: 'Learn' })).toBeNull()
+    // Moving on from the lesson suggests a break first, with focus on it.
+    expect(
+      screen.getByRole('complementary', { name: 'A short break' }),
+    ).toHaveFocus()
     // The address says where, so a reload or a shared link opens it here.
     expect(window.location.hash).toBe('#practice')
     expect(localStorage.getItem('part:py.values-and-types')).toBe('practice-1')
@@ -1815,6 +1818,56 @@ describe('a topic in parts (ADR-0025)', () => {
       screen.queryByRole('navigation', { name: 'Parts of this topic' }),
     ).toBeNull()
     expect(screen.queryByText(/Part 1 of/)).toBeNull()
+  })
+
+  describe('a short break between parts', () => {
+    const breakCard = () =>
+      screen.queryByRole('complementary', { name: 'A short break' })
+
+    it('is suggested on moving on from a finished part, and never blocks the next', async () => {
+      const topic = fakeTopic()
+      renderTopic(topic, fakeContent(topic), {
+        loadAttempts: vi.fn((_topicId: string) =>
+          Promise.resolve([...unlocked(topic), ...practiceDone()]),
+        ),
+        at: 'practice',
+      })
+      await stateLine()
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Next: Part 3, Prove it' }),
+      )
+      expect(breakCard()).toHaveTextContent('Practice: done.')
+      expect(breakCard()).toHaveFocus()
+      // The proofs are right there under it.
+      expect(
+        screen.getByRole('region', { name: 'Prove it' }),
+      ).toBeInTheDocument()
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Skip the break' }),
+      )
+      expect(breakCard()).toBeNull()
+    })
+
+    it("isn't suggested on moving on from a part that isn't finished", async () => {
+      renderTopic(fakeTopic(), fakeContent(), { at: 'practice' })
+      await stateLine()
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Next: Part 3, Prove it' }),
+      )
+      expect(breakCard()).toBeNull()
+      expect(screen.getByRole('heading', { name: 'Prove it' })).toHaveFocus()
+    })
+
+    it('goes away when the learner jumps elsewhere', async () => {
+      renderTopic()
+      await stateLine()
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Next: Part 2, Practice' }),
+      )
+      expect(breakCard()).toBeInTheDocument()
+      await userEvent.click(parts().getByRole('link', { name: /Part 3/ }))
+      expect(breakCard()).toBeNull()
+    })
   })
 
   it('leaves a checkpoint whole', () => {

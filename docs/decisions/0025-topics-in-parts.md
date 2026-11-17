@@ -48,3 +48,10 @@ A regular topic's page shows **one part at a time**:
 - The times are guesses. They're right on average for a topic, because they add up to its total, but a part's own figure can be some minutes out. If a learner's recorded attempt times show the guesses are wrong, the figures in `estimates.ts` are the one place to change.
 - A part that isn't on screen isn't rendered, so moving away from an answered multiple-choice question and back shows it fresh, marked Done in its header.
 - A later change that places practice questions inside the lesson (a lesson's own `<Check>`) takes those items out of the ladder before it's cut, so they count toward the lesson's part.
+
+## Amendment (2026-11-16): a short break between parts
+
+- **What.** Pressing Next after finishing a part shows a small card above the next part suggesting a five-minute break: rest quietly, eyes closed or looking away from screens, rather than picking up a phone. It has an optional five-minute timer that runs on the page only, and a Skip button. The next part is open underneath the whole time; keyboard focus goes to the card first, so a screen reader reads it; and the card goes away when the learner jumps anywhere else. No browser notifications.
+- **When.** Only on moving forward with the Next button from a finished part: the lesson (it has no answers, so going on from it is finishing it), or a practice part whose items are all Done. Not on moving on from an unfinished part, and not on jumping from the outline, which is looking around rather than finishing.
+- **Why.** A few minutes of quiet, wakeful rest straight after learning improves how much is remembered a week later, compared with doing another task in those minutes (Dewar, Alber, Butler, Cowan and Della Sala, 2012, "Brief wakeful resting boosts new memories over the long term", _Psychological Science_). The parts give a natural moment to offer it.
+- **What it doesn't do.** It records nothing and changes nothing about progress. Time on the timer isn't practice time.
