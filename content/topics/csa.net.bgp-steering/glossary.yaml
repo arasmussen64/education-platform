@@ -1,0 +1,19 @@
+# The terms this topic teaches (ADR-0026). Where another topic's lesson
+# first uses one, the app shows its definition and links back here.
+- term: community
+  aliases: [BGP community]
+  definition: A label on a BGP route, written `ASN:VALUE`, that means whatever the network that defined it says, such as AWS's `7224:7300` for high local preference. A few, like NO_EXPORT, mean the same everywhere.
+- term: AS-path prepending
+  definition: Adding your own AS number to a route's path again, so the path looks longer and other networks prefer another one. It loses to a far side that decides by local preference first.
+- term: full mesh
+  definition: Every BGP router in an AS peering with every other one, n(n - 1)/2 sessions for n routers, which iBGP needs unless route reflectors pass routes on.
+- term: route reflector
+  definition: A router allowed to pass routes learned over iBGP on to its clients, marking each with an originator and a cluster list so it can't loop, so the AS needn't be a full mesh.
+- term: BFD
+  aliases: [bidirectional forwarding detection]
+  definition: Two routers exchanging tiny packets every interval and declaring the path down when a multiplier's worth go missing, such as 300 ms x 3, so BGP drops a silently dead circuit in under a second.
+- term: virtual interface
+  aliases: [VIF]
+  definition: "On AWS Direct Connect, a BGP session over a physical connection: private to reach VPCs, transit to reach a Transit Gateway, public to reach AWS's public services."
+- term: graceful restart
+  definition: A BGP feature by which a restarting router asks its neighbour to keep using its routes meanwhile. It works against noticing a failure fast, so AWS advises against using it with BFD.

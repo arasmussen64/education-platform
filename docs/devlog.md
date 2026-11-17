@@ -30,6 +30,25 @@ The second of two pull requests for cloud Module 3's first eight topics (`csa.ne
 
 **Next:** nothing further planned for these eight topics; the owner's first pass through them on the live site is their review.
 
+## 2026-11-16, cloud Module 3 content (second half): glossaries and typed questions
+
+The second pass over the second half of Module 3, after the glossary (#310) and typed answers (#298) reached `main`. The first pass, #312, added the puzzles, placed questions, stories and contrast questions.
+
+**What changed,** in `csa.net.congestion`, `http-tls`, `certificates`, `http-semantics`, `load-balancing`, `bgp`, `bgp-steering` and `ipsec`:
+
+- **A `glossary.yaml` per topic,** 63 terms: congestion (congestion window, slow start, CUBIC, BBR, bufferbloat, head-of-line blocking, QUIC, CDN); http-tls (TLS, multiplexing, ALPN, SNI, forward secrecy, cipher suite, OCSP stapling, 0-RTT); certificates (subjectAltName, root CA, intermediate CA, trust store, full chain, CSR, ACME, mutual TLS); http-semantics (idempotent, idempotency key, shared cache, conditional request, same-origin policy, CORS, preflight, WebSocket); load-balancing (virtual IP, health check, X-Forwarded-For, PROXY protocol, sticky sessions, fail open, hysteresis, draining); bgp (autonomous system, eBGP, iBGP, route map, route leak, prefix hijack, local preference, MED); bgp-steering (community, AS-path prepending, full mesh, route reflector, BFD, virtual interface, graceful restart); ipsec (site-to-site VPN, IPsec, IKE, ESP, security association, perfect forward secrecy, NAT traversal, traffic selector).
+- **Two typed questions per topic** (`typed-*`), each in its topic's `practice:` list beside the questions on the same idea: `typed-cc-setting` and `typed-bufferbloat`; `typed-sni` and `typed-stapling-on`; `typed-dns-01` and `typed-fullchain-file`; `typed-504` and `typed-revalidate-directive`; `typed-drain-command` and `typed-client-ip-header`; `typed-bgp-port` and `typed-bgp-summary`; `typed-prepend-line` and `typed-fast-detection`; `typed-esp-protocol` and `typed-list-sas`. Each lists the usual spellings (`swanctl -l` beside `swanctl --list-sas`, `show ip bgp summary` beside `show bgp summary`) and two or three likely mistakes with why they're wrong.
+
+**Author notes:**
+
+- _Which topic owns a term._ The rule is the topic that first teaches it in track order. Where an earlier topic only mentions a term and hands it on in so many words (Congestion control says HTTPS is HTTP inside TLS, "HTTP and TLS teaches it"; HTTP and TLS says of the certificate chain "Topic 32 builds that chain"), the later topic that teaches it owns it: TLS and multiplexing in http-tls, root CA, intermediate CA and subjectAltName in certificates. Otherwise the first topic owns it, so CDN is congestion's (it defines one in passing before HTTP semantics teaches caches) and head-of-line blocking is congestion's too.
+- _Terms left to other writers:_ load balancer (Transport puts it in bold first), certificate (DNS), VPN (Layers), BGP (Routing defines it first), and MSS clamping, which Layers and packets teaches, so ipsec's eighth term became traffic selector instead.
+- _No aliases that collide with ordinary words._ Autonomous system has no `AS` alias: the app ignores the first letter's case, so "As" at the start of any sentence would have been marked. Community, a plain word, is safe for now: no other lesson uses it.
+- _Typed mistakes may name things the lesson only touches:_ `408` in `typed-504` and `ssl_stapling_verify` in `typed-stapling-on`. Each `why` says what it is, so a learner who types it learns something rather than being marked wrong without a reason.
+- _`estimated_minutes` unchanged:_ two typed questions add about three minutes to topics estimated at 270 to 330, inside the estimates' rounding.
+
+**Next:** nothing more is planned for these eight topics from this stream; the owner's first pass on the live site is the review.
+
 ## 2026-11-16, questions: how sure are you?
 
 **What and why.** Every quick question now asks how sure the learner is as part of answering ([ADR-0028](decisions/0028-confidence-before-the-answer.md), proposed). Check is replaced by three buttons, "Guessing", "Fairly sure" and "Certain", and one press still checks. Two reasons: a mistake made with high confidence is remembered especially well once it's corrected (hypercorrection, Butterfield and Metcalfe, 2001), and judging your own certainty is a skill that improves when you can see it.

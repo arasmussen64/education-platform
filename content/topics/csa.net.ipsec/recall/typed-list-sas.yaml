@@ -1,0 +1,21 @@
+id: typed-list-sas
+type: typed
+rev: 1
+prompt: |
+  On the office's gateway, `vpn`, you want to see what strongSwan has agreed right now: the IKE_SA, the CHILD_SA under it, their algorithms, SPIs and selectors. Type the `swanctl` command.
+kind: command
+answers:
+  - swanctl --list-sas
+  - swanctl -l
+  - sudo swanctl --list-sas
+  - sudo swanctl -l
+mistakes:
+  - id: conns
+    answers: [swanctl --list-conns, sudo swanctl --list-conns]
+    why: "`--list-conns` shows the connections as configured, whether or not they're up. What has been agreed is `--list-sas`."
+  - id: load
+    answers: [swanctl --load-all, sudo swanctl --load-all]
+    why: "`--load-all` loads the configuration files into charon; it shows nothing about what has been agreed."
+explanation: |
+  `swanctl --list-sas` (short form `-l`) lists the security associations charon holds: each IKE_SA with its state (`ESTABLISHED`), addresses and algorithms, and under it each CHILD_SA (`INSTALLED, TUNNEL`) with its SPIs, mark, byte counts and traffic selectors. `--list-conns` shows what's configured, `--initiate --child NAME` starts a tunnel, and the kernel's own view is `ip -s xfrm state`.
+skills: [ipsec-building-blocks]
