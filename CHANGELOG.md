@@ -18,6 +18,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (cloud Module 2: puzzles, questions in the lesson, real incidents and "which one is this?" questions)
+
+- All eight topics of the cloud track's Module 2 (hardware, virtualisation and Windows) now open with a puzzle and ask 4 of their own quick questions inside the lesson, 32 in all, each right after the part it tests.
+- Each tells a real, public incident in its own words, linked to its source: VENOM, the QEMU floppy-controller flaw (Hypervisors); TensorFlow's `Illegal instruction` on CPUs without AVX (CPU architectures); MySQL's "swap insanity" on two NUMA nodes (Cores and memory); AWS's EBS re-mirroring storm of 2011 (Disks); LeftoverLocals, GPU memory left readable between programs (GPUs); the November 2022 Windows update that broke Kerberos (Active Directory); Zerologon (Domain join); and Microsoft's 2019 change to licences on dedicated hosts (Windows licensing).
+- Six new "which one is this?" questions, each telling apart two ideas learners mix up: a wrong architecture or a missing instruction; the IOPS cap or the throughput cap (two); the card's memory or the VM's; a domain controller or a member server; Windows Server's per-VM minimum or SQL Server's.
+
 ### Added (lessons: questions inside the lesson, an opening puzzle, and a real incident)
 
 - A lesson can ask one of its topic's practice quick questions where it stands, with `<Check item="..." />`. It's graded and saved exactly as in practice, and the practice ladder leaves it out, so it shows once ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed).

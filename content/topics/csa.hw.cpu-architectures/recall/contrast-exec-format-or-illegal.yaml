@@ -1,0 +1,18 @@
+id: contrast-exec-format-or-illegal
+type: mcq
+rev: 1
+prompt: |
+  Two failures on the same morning, on two Linux servers. On server A, `./report` answers `cannot execute binary file: Exec format error`, exit status 126. On server B, `./encode` starts, prints its version line, then dies with `Illegal instruction`, exit status 132. Which diagnosis fits both?
+choices:
+  - "A was built for another architecture; B suits the architecture but uses an instruction its CPU lacks"
+  - "A uses an instruction its CPU lacks; B was built for another architecture than the server's own"
+  - "A was built for another architecture; B ran out of memory, and the kernel stopped it at its limit"
+  - "A is missing its execute permission; B suits the architecture but uses an instruction its CPU lacks"
+answer: 0
+explanation: |
+  The two messages come at different moments, and that tells them apart. `Exec format error` comes **before** the program runs a single instruction: the kernel reads the file's header, sees machine code for another architecture (an Arm binary on an x86-64 server, or the other way round) and refuses. The fix is a build for this server's architecture.
+
+  `Illegal instruction` comes **after** the program has started, so the kernel accepted the file and the architecture is right. The program then reached an instruction this CPU doesn't have, such as AVX2 on an older x86-64 chip or SVE on Graviton2: signal 4, exit status 128 + 4 = 132. The fix is a build for the oldest CPU in the fleet.
+
+  So the diagnosis that swaps them has each server's failure the wrong way round. A memory kill is signal 9, exit status 137, not 132. And a file without execute permission says `Permission denied`; the exit status is 126 in both cases, but the message is different.
+skills: [instruction-sets]
