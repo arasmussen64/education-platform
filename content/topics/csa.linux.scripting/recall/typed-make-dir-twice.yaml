@@ -1,0 +1,17 @@
+id: typed-make-dir-twice
+type: typed
+rev: 1
+prompt: |
+  A setup script must create the folder `/srv/app/releases`, with any missing parents, and must not fail when it's run a second time and the folder is already there. Type the command.
+kind: command
+answers:
+  - "mkdir -p /srv/app/releases"
+  - "sudo mkdir -p /srv/app/releases"
+  - "mkdir --parents /srv/app/releases"
+mistakes:
+  - id: plain-mkdir
+    answers: ["mkdir /srv/app/releases", "sudo mkdir /srv/app/releases"]
+    why: "Plain `mkdir` fails when the folder exists, and when `/srv/app` doesn't, so a second run of the script stops there."
+explanation: |
+  `mkdir -p` makes the folder and any missing parents, and succeeds quietly when it already exists. That's idempotency: running the step once or ten times leaves the same result, so a script that failed halfway can simply be run again. `install -d -m 750` does the same and sets the mode in one step.
+skills: [idempotent]

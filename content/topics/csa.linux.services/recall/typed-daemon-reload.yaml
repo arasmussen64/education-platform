@@ -1,0 +1,19 @@
+id: typed-daemon-reload
+type: typed
+rev: 1
+prompt: |
+  You've changed `ExecStart=` in `/etc/systemd/system/app.service`. Before restarting the service, type the command that makes systemd read its unit files again, with `sudo` in front if you like.
+kind: command
+answers:
+  - "sudo systemctl daemon-reload"
+  - "systemctl daemon-reload"
+mistakes:
+  - id: service-reload
+    answers: ["sudo systemctl reload app", "systemctl reload app"]
+    why: "`systemctl reload app` asks the running service to reread its own configuration. systemd's copy of the unit file is still the old one."
+  - id: restart-only
+    answers: ["sudo systemctl restart app", "systemctl restart app"]
+    why: "A restart without the reload starts the old command again, from the unit systemd read before your change."
+explanation: |
+  systemd reads unit files once and keeps what it read. `systemctl daemon-reload` makes it read them all again, and only then does `systemctl restart app` use the new `ExecStart=`. `systemctl status app` warns when a unit file changed on disk and hasn't been reloaded. `systemctl edit app` reloads for you when you save a drop-in.
+skills: [unit-files]

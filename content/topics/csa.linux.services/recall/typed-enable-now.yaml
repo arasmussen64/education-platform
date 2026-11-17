@@ -1,0 +1,23 @@
+id: typed-enable-now
+type: typed
+rev: 1
+prompt: |
+  You've just written a unit file for `app.service` and run the reload step. Type the one `systemctl` command that makes `app` start at every boot and also starts it right now, with `sudo` in front if you like.
+kind: command
+answers:
+  - "sudo systemctl enable --now app"
+  - "systemctl enable --now app"
+  - "sudo systemctl enable app --now"
+  - "systemctl enable app --now"
+  - "sudo systemctl enable --now app.service"
+  - "systemctl enable --now app.service"
+mistakes:
+  - id: start-only
+    answers: ["sudo systemctl start app", "systemctl start app"]
+    why: "`start` runs it now, but it won't come back after a reboot. Starting at boot is what `enable` adds."
+  - id: enable-only
+    answers: ["sudo systemctl enable app", "systemctl enable app"]
+    why: "`enable` alone makes it start at the next boot, but doesn't start it now. `--now` does both."
+explanation: |
+  `enable` and `start` answer different questions: `enable` is "start at boot" (it links the unit into `multi-user.target`, from its `[Install]` section) and `start` is "run it now". `enable --now` does both in one go, and `disable --now` undoes both. Check with `systemctl is-enabled app` and `systemctl is-active app`.
+skills: [systemctl]

@@ -1,0 +1,21 @@
+id: typed-ufw-default
+type: typed
+rev: 1
+prompt: |
+  On Ubuntu, type the `ufw` command that makes the firewall turn away incoming connections unless a rule allows them, with `sudo` in front if you like.
+kind: command
+answers:
+  - "sudo ufw default deny incoming"
+  - "ufw default deny incoming"
+  - "sudo ufw default deny"
+  - "ufw default deny"
+mistakes:
+  - id: enable
+    answers: ["sudo ufw enable", "ufw enable"]
+    why: "`ufw enable` switches the firewall on with whatever defaults it has. Setting the default for incoming traffic is its own command."
+  - id: outgoing
+    answers: ["sudo ufw default deny outgoing", "ufw default deny outgoing"]
+    why: "That blocks the server's own connections out, updates and name lookups among them. The baseline denies incoming and allows outgoing."
+explanation: |
+  A default-deny firewall starts from "no" and adds the doors the server needs: `ufw default deny incoming`, then `ufw allow 22/tcp` and the service's ports, then `ufw enable`, and `ufw status verbose` to read it back. Allow SSH before enabling, or you shut yourself out. Underneath it's an nftables `input` chain with `policy drop`.
+skills: [firewall-min]

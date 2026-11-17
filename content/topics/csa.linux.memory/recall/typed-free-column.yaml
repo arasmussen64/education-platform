@@ -1,0 +1,19 @@
+id: typed-free-column
+type: typed
+rev: 1
+prompt: |
+  `free -m` has the columns total, used, free, shared, buff/cache and one more. Name the column that tells you how much memory a new program could get, page cache included.
+kind: text
+answers:
+  - "available"
+  - "MemAvailable"
+mistakes:
+  - id: free-column
+    answers: ["free"]
+    why: "`free` is memory nothing is using at all, which is small on a healthy server because the kernel fills spare memory with cache."
+  - id: cache-column
+    answers: ["buff/cache"]
+    why: "That's how much is page cache right now. The column that adds the cache the kernel can give back to the free memory is `available`."
+explanation: |
+  The kernel fills memory nothing else is using with the page cache, copies of recently used files, and gives it back the moment a program asks. So `free` is small on purpose. `available` (`MemAvailable` in `/proc/meminfo`) adds the cache the kernel could reclaim to the free memory: low `free` is normal, low `available` is the warning.
+skills: [virtual-memory]

@@ -1,0 +1,18 @@
+id: typed-pids-file
+type: typed
+rev: 1
+prompt: |
+  A container was started with `--pids-limit=100`. Into which file in its cgroup's folder did Docker write the 100? Type the file's name.
+kind: text
+answers:
+  - "pids.max"
+mistakes:
+  - id: pids-current
+    answers: ["pids.current"]
+    why: "`pids.current` is how many processes the group has now. The limit is `pids.max`."
+  - id: procs-list
+    answers: ["cgroup.procs"]
+    why: "`cgroup.procs` lists the PIDs in the group. It's how a process is put into a cgroup, not where the limit lives."
+explanation: |
+  Each container flag writes one cgroup file: `--memory` writes `memory.max`, `--cpus` writes `cpu.max`, and `--pids-limit` writes `pids.max`. Once the group has that many processes, the next `fork` fails, and `pids.events` counts the refusals, which is what stops a fork bomb inside one container from filling the host's process table.
+skills: [cgroups-limits]

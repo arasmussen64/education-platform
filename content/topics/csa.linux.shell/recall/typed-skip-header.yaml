@@ -1,0 +1,20 @@
+id: typed-skip-header
+type: typed
+rev: 1
+prompt: |
+  `orders.csv` starts with a header line that names the columns. Type the `tail` command that prints the whole file except that first line, from the second line on.
+kind: command
+answers:
+  - "tail -n +2 orders.csv"
+  - "tail -n+2 orders.csv"
+  - "tail --lines=+2 orders.csv"
+mistakes:
+  - id: last-two
+    answers: ["tail -n 2 orders.csv", "tail -2 orders.csv"]
+    why: "Without the plus sign, `tail -n 2` prints the last two lines of the file. `+2` means \"starting at line 2\"."
+  - id: from-line-one
+    answers: ["tail -n +1 orders.csv"]
+    why: "`+1` starts at the first line, so that prints the whole file, header included. The header is line 1, so start at line 2."
+explanation: |
+  `tail -n 20` counts from the end, but `tail -n +2` counts from the start: it prints from line 2 to the end, which drops exactly one header line. That's the step to put first in a pipeline that sorts, counts or adds up a CSV's rows, so the column names don't get counted or compared as data.
+skills: [count-and-sort]

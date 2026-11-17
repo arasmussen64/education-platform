@@ -1,0 +1,18 @@
+id: typed-default-kill-signal
+type: typed
+rev: 1
+prompt: |
+  You run `kill 4321` and give it no signal name or number. It sends `TERM`, the polite "please stop". What is `TERM`'s signal number?
+kind: text
+answers:
+  - "15"
+mistakes:
+  - id: kill-nine
+    answers: ["9"]
+    why: "9 is `KILL`, which ends a process at once and can't be caught. `kill` sends it only when you ask, with `kill -9`."
+  - id: ctrl-c
+    answers: ["2"]
+    why: "2 is `INT`, what Ctrl-C sends."
+explanation: |
+  `TERM` is signal 15 and `KILL` is signal 9, which is where `kill -9` comes from. The numbers turn up again in exit statuses: a process ended by a signal reports 128 plus its number, so 143 means `TERM` ended it and 137 means `KILL` did. Send 15 first, so the program can finish writing its files, and 9 only when it ignores you.
+skills: [signals]

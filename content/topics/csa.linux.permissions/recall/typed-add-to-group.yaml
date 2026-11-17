@@ -1,0 +1,21 @@
+id: typed-add-to-group
+type: typed
+rev: 1
+prompt: |
+  Ada needs to join the `deploy` group, and must stay in all the groups she's already in. Type the `usermod` command that does it, with `sudo` in front if you like.
+kind: command
+answers:
+  - "sudo usermod -aG deploy ada"
+  - "usermod -aG deploy ada"
+  - "sudo usermod -a -G deploy ada"
+  - "usermod -a -G deploy ada"
+mistakes:
+  - id: replaces-groups
+    answers: ["sudo usermod -G deploy ada", "usermod -G deploy ada"]
+    why: "Without `-a`, `usermod -G` replaces Ada's groups with just `deploy`, and she loses every other group, `sudo` among them perhaps."
+  - id: order-swapped
+    answers: ["sudo usermod -aG ada deploy", "usermod -aG ada deploy"]
+    why: "The group comes straight after `-G` and the user last: `usermod -aG GROUP USER`."
+explanation: |
+  `-G` names the groups and `-a` (append) adds them to the ones the user has, so `usermod -aG deploy ada` adds one and keeps the rest. It takes effect the next time Ada logs in, because a session's groups are fixed when it starts; `id ada` shows the change at once.
+skills: [users-sudo]

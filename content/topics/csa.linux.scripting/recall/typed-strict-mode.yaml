@@ -1,0 +1,21 @@
+id: typed-strict-mode
+type: typed
+rev: 1
+prompt: |
+  Type the one line near the top of a bash script that makes it stop at a failed command, treat an unset variable as an error, and fail a pipeline when any stage fails.
+kind: command
+answers:
+  - "set -euo pipefail"
+  - "set -eu -o pipefail"
+  - "set -e -u -o pipefail"
+  - "set -o errexit -o nounset -o pipefail"
+mistakes:
+  - id: e-only
+    answers: ["set -e"]
+    why: "`set -e` stops at a failed command, but an unset variable still reads as empty and a failure early in a pipeline still goes unnoticed."
+  - id: no-pipefail
+    answers: ["set -eu"]
+    why: "That covers failed commands and unset variables, but `cat missing.txt | wc -l` still succeeds, because the last stage did."
+explanation: |
+  `-e` exits at the first command that fails, `-u` makes an unset variable an error instead of an empty string, and `-o pipefail` makes a pipeline fail when any of its stages fails. Together they turn bash from "carry on regardless" into "stop when something's wrong". `set -e` still doesn't fire inside an `if`, beside `||` or `&&`, or on a `local x=$(...)` line.
+skills: [strict-mode]

@@ -1,0 +1,18 @@
+id: typed-input-policy
+type: typed
+rev: 1
+prompt: |
+  A serious server's nftables `input` chain ends its first line with `policy` and one word, so that any packet no rule accepts is silently thrown away. Which word?
+kind: text
+answers:
+  - "drop"
+mistakes:
+  - id: reject
+    answers: ["reject"]
+    why: "A chain's policy can only be `accept` or `drop`. `reject`, which answers at once so the client sees \"connection refused\", is a rule's verdict, not a policy."
+  - id: accept
+    answers: ["accept"]
+    why: "`policy accept` lets through everything no rule stops: the opposite of a default-deny firewall."
+explanation: |
+  `type filter hook input priority filter; policy drop;` makes "no" the default: only what a rule accepts gets in, usually the loopback, `ct state established,related` and the server's own ports. A dropped packet gets no answer, so the client waits and times out, which is also how a cloud security group behaves.
+skills: [firewall-path]

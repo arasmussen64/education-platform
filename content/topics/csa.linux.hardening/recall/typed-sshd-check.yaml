@@ -1,0 +1,21 @@
+id: typed-sshd-check
+type: typed
+rev: 1
+prompt: |
+  You've written a hardening drop-in under `/etc/ssh/sshd_config.d/`. Before reloading the SSH server, type the command that checks its files for mistakes and prints nothing when they're fine, with `sudo` in front if you like.
+kind: command
+answers:
+  - "sudo sshd -t"
+  - "sshd -t"
+  - "sudo /usr/sbin/sshd -t"
+  - "/usr/sbin/sshd -t"
+mistakes:
+  - id: capital-t
+    answers: ["sudo sshd -T", "sshd -T"]
+    why: "Capital `-T` prints every setting the files add up to, which is for auditing. The quiet check before a reload is lower-case `-t`."
+  - id: reload-first
+    answers: ["sudo systemctl reload ssh", "systemctl reload ssh"]
+    why: "That applies the files. Check them first, so a typo can't take SSH down while you're logged in over it."
+explanation: |
+  The ritual: `sshd -t` checks the files and says nothing when they're fine, `systemctl reload ssh` applies them, and you keep your session open while a second one proves you can still get in. `sshd -T` prints the effective settings, lower-case, and reads the files, not the running server, which only has new settings after the reload.
+skills: [ssh-hardening]

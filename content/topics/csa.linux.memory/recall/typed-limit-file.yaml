@@ -1,0 +1,18 @@
+id: typed-limit-file
+type: typed
+rev: 1
+prompt: |
+  A container keeps being OOM-killed. In its cgroup's folder under `/sys/fs/cgroup`, which file holds its memory limit, in bytes? Type the file's name.
+kind: text
+answers:
+  - "memory.max"
+mistakes:
+  - id: current
+    answers: ["memory.current"]
+    why: "`memory.current` is what the group uses right now. The limit it gets killed at is `memory.max`."
+  - id: events
+    answers: ["memory.events"]
+    why: "`memory.events` counts what has happened, `oom_kill` among them. The limit itself is in `memory.max`."
+explanation: |
+  A container's memory limit is its cgroup's `memory.max`: Docker's `--memory`, a Kubernetes limit and systemd's `MemoryMax=` all write it. `memory.current` says how close the group is, `memory.peak` the highest it has reached, and `memory.events` how often it hit the limit and how many processes were killed. All of them count bytes, so `MemoryMax=64M` reads back as 67108864.
+skills: [container-memory]
