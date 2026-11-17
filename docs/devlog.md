@@ -38,6 +38,24 @@ So credit spares about a third of the reviews. "Worthless" is the worst case: th
 
 **Next:** answer time in review ratings.
 
+## 2026-11-16, topic page: a short break between parts
+
+Part of today's improvement plan for the topic page, after the topic in parts (#297).
+
+**What changed.** Pressing Next after finishing a part now shows a small card above the next part: "Learn: done. Time for a five-minute break?", with why (a few minutes of quiet rest straight after learning helps memory, Dewar et al., 2012), an optional five-minute timer, and Skip. The next part is open underneath it the whole time. Written up as an amendment to [ADR-0025](decisions/0025-topics-in-parts.md).
+
+- `web/src/parts/PartBreak.tsx` is the card; the topic page shows it from its Next button and puts keyboard focus on it.
+- Tested: three tests of the card (skip, the countdown and its end, the right time after the tab was in the background) and three page tests (suggested after a finished part, not after an unfinished one, gone on a jump elsewhere).
+
+**Author notes:**
+
+- _Leaving the lesson counts as finishing it,_ since a lesson has no answers; after an hour of reading and video, that's the moment a break helps most. A practice part counts once every item in it is Done, as its tick in the outline does.
+- _Only the Next button suggests a break,_ not a jump from the outline: the plan said "finishes a part and moves on", and jumping around is looking, not finishing.
+- _The timer works from the clock, not by counting ticks,_ so a tab left in the background shows the right time on its return. It runs on the page only: no notifications, no sound, and it never blocks anything.
+- _Nothing is saved._ The break isn't practice, so it isn't an event and doesn't count toward practice hours.
+
+**Next:** the topic's goals at the top, ticked once it's proven.
+
 ## 2026-11-16, topic page: a topic in parts
 
 Part of today's improvement plan for the topic page. A cloud topic is estimated at four to five hours, and its page was one scroll of all of it.
