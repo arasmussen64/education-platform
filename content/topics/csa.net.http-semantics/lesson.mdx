@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="A shopper presses Pay, and the connection drops before any answer comes back. Should the app quietly send the request again? What if the button had been Show my basket instead?">
+
+Show my basket, yes; Pay, not blindly. Fetching the basket only reads, so sending it twice does no harm, and software may retry it by itself. Paying changes something: if the first request reached the server and only the answer was lost, a second one can charge the card twice. A payment can be made safe to retry, though, by sending the same unique key with every try of one payment, so the provider recognises the repeat and doesn't charge again.
+
+</Puzzle>
+
 HTTP and TLS showed how a request travels: the connection, the versions, the handshake. This topic is about what a request and its answer *mean*: what a method promises, what a status code tells an operator, how long a copy of an answer may be kept and by whom, which other websites may read it, and which style of API fits a flow. Every cloud's CDN and load balancer obeys these meanings, and most of their surprises come from one of them being misread.
 
 **Methods are promises.** A **safe** method is "essentially read-only" (RFC 9110, HTTP's standard): `GET`, `HEAD` and `OPTIONS` change nothing on the server. An **idempotent** method is one where sending the request twice has the same effect as sending it once: the safe methods, and `PUT` (set this resource to exactly this) and `DELETE` (remove it). Think of a lift's call button against a vending machine: pressing the lift button twice changes nothing more, pressing the vending machine's twice buys two. `POST` is the vending machine: two `POST /orders` may make two orders. `PATCH`, which changes part of a resource ("add one to the quantity"), isn't idempotent either. That's why RFC 9110 says an idempotent request "can be repeated automatically if a communication failure occurs", and why client libraries, proxies and load balancers may retry `GET` and `PUT` by themselves on a dropped connection, but not `POST`. Payment APIs make a `POST` safe to retry with an **idempotency key**: a random value the client sends with one payment, every time it tries it, so the provider recognises a repeat and answers it without charging again.
@@ -13,9 +19,13 @@ HTTP and TLS showed how a request travels: the connection, the versions, the han
 | 4xx | the client's mistake: sending the same request again won't help (429: not yet) | 404 not found; 405 Method Not Allowed; 412 Precondition Failed, below; 429 Too Many Requests, slow down |
 | 5xx | the server's failure | 502 and 504, below; 503 not available for now |
 
+<Check item="status-classes" />
+
 Two of them are an operator's daily bread. A **proxy** is a server that passes requests on to another one, the **upstream** (RFC 9110 also calls it the inbound server): nginx in front of an app is one, and so is a load balancer. **502 Bad Gateway**: the proxy "received an invalid response" from the upstream, which usually means the app crashed or closed the connection. **504 Gateway Timeout**: the proxy "did not receive a timely response", so the app is slow or the proxy's timer is short. A 504 after exactly 60 seconds, every time, is nginx's `proxy_read_timeout` (60 s by default) running out.
 
 **Caching, the picture.** A **cache** keeps a copy of an answer so the next request can be answered without asking the server again. The browser has a **private cache**, for one person. Between the browser and the shop's server, the **origin**, there can be **shared caches**, whose copies serve many people: a company's proxy, a reverse proxy such as nginx, and a **CDN** (content delivery network: a provider's servers in many cities, each keeping copies near the customers; Module 11 builds one). It is DNS's TTL one layer up. `Cache-Control: max-age=600` says a copy stays **fresh**, usable without asking, for 600 seconds from when the origin made it; a shared cache that answers from its copy adds `Age`, how long it has kept it, so the copy has `max-age - Age` seconds left. After that it is **stale**, and stale isn't broken: the cache asks again with the copy's **validator**, an `ETag` (a tag for this version of the content) in `If-None-Match`, or its `Last-Modified` date in `If-Modified-Since`. That's a **conditional request**, and if nothing changed the answer is `304 Not Modified`: a few headers and no body. (`If-Match` turns the test round for changes: "change it only if it is still this version", answered `412` when someone else changed it first.)
+
+<Check item="est-fresh-remaining" />
 
 **Four patterns cover most sites:**
 
@@ -26,7 +36,15 @@ Two of them are an operator's daily bread. A **proxy** is a server that passes r
 
 With no caching headers at all, a cache may guess: RFC 9111 suggests a fraction of the time since `Last-Modified`, "a typical setting of this fraction might be 10%". That's why "we never set caching headers" still caches. And a cache keys its copies on the URL; an answer that depends on a request header must say so with **`Vary`** (`Vary: Accept-Language`), which adds that header to the key.
 
-**The day a cache shared a page.** In this topic's walkthrough you send the account page, `/account`, with `public, max-age=60` on purpose: the labs' edge cache keeps the copy made for alice and hands it to bob, because it keys its copies on the URL, not on who asked. On Christmas Day 2015 Steam did the same at scale: during an attack, a second caching configuration "incorrectly cached web traffic for authenticated users", and for 90 minutes store pages made for about 34,000 users, some with billing addresses, could be seen by others (Valve's statement). Mending the header isn't the end, either: copies already kept stay good for their lifetime. A CDN can be **purged** (its "invalidation", CloudFront and Cloud CDN call it), which the labs' edge does with `sudo edge-purge`; a copy in a customer's browser can't be reached by anything, which is why long lifetimes are only for URLs that never change.
+**The day a cache shared a page.** In this topic's walkthrough you send the account page, `/account`, with `public, max-age=60` on purpose: the labs' edge cache keeps the copy made for alice and hands it to bob, because it keys its copies on the URL, not on who asked. Mending the header isn't the end, either: copies already kept stay good for their lifetime. A CDN can be **purged** (its "invalidation", CloudFront and Cloud CDN call it), which the labs' edge does with `sudo edge-purge`; a copy in a customer's browser can't be reached by anything, which is why long lifetimes are only for URLs that never change.
+
+<Story title="Steam's Christmas caching mistake, 2015" source="https://store.steampowered.com/oldnews/19852" sourceTitle="Update on Christmas Issues" license="linked, not copied">
+
+On Christmas Day 2015 the Steam Store was under a denial-of-service attack, with traffic about 2,000% above a normal Steam Sale's, and Valve deployed caching rules to take the load off its servers. A second caching configuration, added during the attack, was wrong: it cached the pages of signed-in users. From 11:50 to 13:20 Pacific time, pages made for about 34,000 people could be handed to someone else. Depending on the page, a stranger saw a billing address, a purchase history, an email address, the last two digits of a card number or the last four of a Steam Guard phone number, though never a full card number or a password; some people saw the store in another language, or another user's account page.
+
+Valve shut the store, deployed a new caching configuration, kept the store offline until every caching rule had been reviewed, and confirmed that the copies on the caching partner's edge servers had been purged. Two of this topic's ideas in one day: a page made for one person needs `private` or `no-store`, and once a shared cache holds copies, mending the configuration isn't enough until they're purged.
+
+</Story>
 
 **Not every cache reads the headers alike** (each provider's page, read 2026-11-12):
 
@@ -72,12 +90,16 @@ location /api/ {
 
 `$http_origin` is nginx's name for the request's `Origin` header (`$http_` and the header's name in lower case, dashes as underscores). Headers inside the `if` replace the location's own for the preflight's answer.
 
+<Check item="preflight-read" />
+
 **Allow-list mistakes**, each of which the labs' checks try with origins made up as they run: echoing back whatever `Origin` arrives (every site allowed, cookies included); a pattern that matches a suffix, `shop\.test$`, which `https://evilshop.test` also ends with; allowing `null`, the origin that sandboxed frames (a page shown inside another page with its powers switched off) and files opened from disk send, so any site can get it; a preflight answer more generous than the request's own (once the preflight passes, the browser sends the `PUT`, cookie and all, and the basket changes even if the page may not read the answer); and forgetting `Vary: Origin`. The labs have no browser: their checks send the browser's two requests with `curl` and apply the browser's rules, from the Fetch standard that browsers implement, to the real answers. That's what you do too, in the write lab.
 
 **WebSockets.** A **WebSocket** is a two-way message channel that starts as an HTTP request: `Connection: Upgrade` and `Upgrade: websocket`, with a random key. The server answers `101 Switching Protocols` with `Sec-WebSocket-Accept`: the key with a fixed string from RFC 6455 joined on, hashed with SHA-1 (a **hash** boils any input down to a short fixed-size value, a different one for different input) and written in base64 (bytes written as letters, digits, `+` and `/`), and from then on the same TCP connection carries messages both ways until either side closes it. Two things break it at proxies:
 
 - `Upgrade` and `Connection` are **hop-by-hop** headers: they describe one connection, so a proxy doesn't pass them on unless told. In nginx: `proxy_http_version 1.1;` (nginx speaks HTTP/1.0 to the upstream by default; its page says the line is needed "before version 1.29.7", so in Ubuntu 24.04's 1.24), `proxy_set_header Upgrade $http_upgrade;` and `proxy_set_header Connection "upgrade";`. Without them, captured in this topic's lab, the board answered `400 Bad Request`.
 - Every stateful hop has an **idle timeout**, the rule from TCP and UDP: nginx closes a WebSocket that has carried nothing for `proxy_read_timeout` (60 s by default), and so does each load balancer on the path. A WebSocket **ping** (answered by a pong) counts as traffic, so the fix is a ping more often than the smallest idle timer on the path, and where a hop allows it, a longer timer.
+
+<Check item="ws-upgrade-answers" />
 
 | | AWS Application Load Balancer | Azure Application Gateway | Google Cloud's Application Load Balancers |
 | --- | --- | --- | --- |

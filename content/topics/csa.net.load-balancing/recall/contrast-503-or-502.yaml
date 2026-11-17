@@ -1,0 +1,16 @@
+id: contrast-503-or-502
+type: mcq
+rev: 1
+prompt: |
+  Two bad mornings behind the shop's HAProxy, in HTTP mode. On Monday every request gets `503 Service Unavailable`, the log shows `backend web has no server available!`, and requests are logged as `web/<NOSRV>`. On Tuesday most requests work, but every few minutes one gets `502 Bad Gateway`, logged as sent to `web/web2`. What does each status tell you?
+choices:
+  - "Monday: HAProxy had no server it could send to. Tuesday: web2 sent a broken answer, or none"
+  - "Monday: web2 sent a broken answer, or none. Tuesday: HAProxy had no server it could send to"
+  - "Monday: HAProxy had no server it could send to. Tuesday: web2 took longer than HAProxy waits"
+  - "Monday: the servers took longer than HAProxy waits. Tuesday: HAProxy refused it before choosing"
+answer: 0
+explanation: |
+  The two codes come from different places. HAProxy's **503** is its own answer when it has nowhere to send a request: every server in the backend failed its checks (or is in maintenance), which is what `no server available` and `<NOSRV>`, sent nowhere, say. The fault is in the health checks or behind all the servers at once, such as a shared dependency.
+
+  A **502** means HAProxy did choose a server, web2 in the log, and passed the request on, but what came back wasn't a valid HTTP answer, or the connection closed with no answer at all: usually the app crashed or dropped the connection mid-request. Look at web2's app and its logs, not the checks. A server that takes longer than the proxy's timeout is a **504**, Gateway Timeout, not a 502. And a 502 is never a refusal by HAProxy before it has picked a server: the log names the server it was sent to.
+skills: [read-the-balancer]
