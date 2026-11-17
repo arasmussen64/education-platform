@@ -26,6 +26,69 @@ Part of a larger plan to improve how the platform teaches. This stream adds new 
 
 **Next:** the glossary: `glossary.yaml` per topic, terms marked in lessons, and a glossary page.
 
+## 2026-11-16, topic page: a topic in parts
+
+Part of today's improvement plan for the topic page. A cloud topic is estimated at four to five hours, and its page was one scroll of all of it.
+
+**What changed.** A topic page shows one part at a time ([ADR-0025](decisions/0025-topics-in-parts.md), proposed): Learn, then the practice ladder cut into parts of about 30 minutes, then Prove it. Each part says "Part 2 of 5 · about 30 min" above its heading; a practice part's heading says what's in it ("Practice: worked example and 8 questions"), and its items keep their numbers across the whole ladder. Buttons below go back and on. The outline lists the parts with a tick for each one done and, inside each, the places it already listed; any link to a place opens its part, and the address keeps it after the `#`. The page opens at the part a link points into, or else at the part last viewed on this device if it isn't done, or else at the first part not done. "Prove it now" opens the proofs part. Checkpoints are unchanged.
+
+- `web/src/parts/estimates.ts` holds the time guesses, `web/src/parts/topicParts.ts` the cutting, the done marks, where to open and which part a link points into, and `web/src/parts/partMemory.ts` the last part viewed.
+- Tested: 24 new unit tests for the parts, 9 new page tests (moving between parts, opening where the learner was, never moving on by itself, links into parts, a long topic's six parts, Locked topics and checkpoints), and the page's older tests updated to open the part they look at.
+- Tried on every ready topic: a cloud topic comes out as a lesson of about 55 to 125 minutes, three or four practice parts of 20 to 40, and proofs of about 80 to 90; a Python or ML topic as three parts of 10 to 20 minutes.
+
+**Author notes:**
+
+- _The time guesses are the authors' own figures_ (a question 1.5 minutes, labs from the "Worked out" notes in Module 2 and 3's topic.yaml files), scaled so the parts add up to the topic's total. Where the guesses leave the lesson under a quarter of the total, as in short Python topics and some of Module 1's, the practice and proof figures are scaled down instead. The lesson's figure is what's left, since the page can't count a lesson's words or readings.
+- _The lesson and the proofs are one part each,_ even at 60 to 120 minutes and about 90, as the plan asked. Each proof check, and each place in the lesson, is still a natural stop, and the outline shows them.
+- _Cuts prefer a change in the kind of work:_ a small cost for cutting between two quick questions moves a cut to where questions give way to a lab, when that costs a part only a few minutes.
+- _Only the part on screen is rendered._ Keeping the others hidden would keep an unchecked answer, but would also keep every editor loaded and a lesson video playing out of sight; code and explanations are kept as drafts anyway.
+- _The lesson counts as done once anything after it has been tried,_ since a lesson has no answers and the plan ruled out new storage. A click past it doesn't count, so nothing can be ticked off without work (ADR-0002).
+- _The page picks its opening part once,_ when the progress is known, so finishing the last question of a part never moves the learner on.
+
+**Next:** a short break between parts, then the topic's goals at the top.
+
+## 2026-11-16, Today page: a welcome-back plan, and new topics earlier in the day
+
+The fourth of the Today page's study-habit changes. Two ideas behind it. Coming back after a break to a long list of overdue reviews reads as a debt, and that is when many learners stop; the same reviews set out as a short plan over a few days read as doable. And a new topic takes fresh attention, which runs low late at night, while a review is short retrieval practice that suits a tired evening.
+
+**What changed.**
+
+- **The welcome-back plan** (`web/src/session/welcomeBack.ts`, shown by `WelcomeBackPlan.tsx`). When the learner hasn't practised for 7 days or more (and hasn't yet today), or when more reviews are due than a day's limit of 20 can clear, a card at the top of the Today page says so calmly and sets the due reviews out by day: what's left of today's limit first, then 20 a day, the most faded first, each day with about how long it takes (from the learner's own review times, `progress/pace.ts`) and, folded away, the topics with how much of each is still remembered. After a break with nothing due, it says so and suggests carrying on.
+- **The evening line** (`web/src/session/evening.ts`). From 21:00 until 04:00 on the learner's own clock, one sentence above the session card suggests reviews tonight and new topics earlier tomorrow.
+- Tests: when the plan appears and when it doesn't, the 7-day line, practice today and the placement test, the days split within the limit, a plan starting tomorrow when today's limit is used, the minutes per day (`welcomeBack.test.ts`); the evening hours either side of each edge (`evening.test.ts`); and both on the Today page.
+
+**Author notes:**
+
+- _Order and message only._ The plan calls `dueReviews` without a limit and `reviewsLeftToday`, as they are, and only groups their result by day. Nothing is scheduled, moved or hidden: the Reviews section and the session still take the day's share in the same order.
+- _Seven days is a break,_ as the brief suggested: long enough that the return is a moment worth marking, short enough to catch a missed week. It isn't shown once the learner has practised that day: by then they're back.
+- _"More than the daily cap can clear" means more than 20 due,_ not more than what's left of today. When the day's 20 are done and a few more are due, the Reviews section already says the rest come back tomorrow; a plan for one more day would add nothing.
+- _A day's estimate is rounded up to whole minutes,_ and the plan says topics coming due meanwhile join in, because the days are a projection: tomorrow's due list will have changed a little.
+- _The words:_ "and that's all right", "what you learned is still there, some of it faded", and that a review after a longer gap does more for a memory (in FSRS, a successful review at lower recall raises stability more). No "missed", "behind" or "overdue", and no counts of lost days.
+- _21:00 to 04:00 for "late"._ About when evening tiredness sets in for most people, and through a night owl's evening past midnight, while an early riser at 05:00 sees nothing. The line doesn't say that studying late harms memory (sleep soon after learning helps it settle, which the line says), only that a new topic needs fresh attention.
+
+**Next:** a plan for when and where to study, with a calendar file.
+
+## 2026-11-16, Today page: honest times from the learner's own pace
+
+The third of the Today page's study-habit changes. Authors' estimates (`estimated_minutes`) are guesses and tend to be low, and a plan built on times that are too short leads to sessions that overrun and feel like failing. People also underestimate their own time on tasks (the "planning fallacy"); their own past times are the best correction.
+
+**What changed.**
+
+- **`web/src/progress/pace.ts`,** a small helper any page can use. `timeInTopic` measures the time in one topic up to the moment it was proven; `topicPace` takes the middle (median) of the proven topics' measured time over their estimates, once there are three; `paced` stretches an estimate by it; `reviewItemMinutes` gives the learner's typical time per review question.
+- **The Today page uses it** for "Next up" ("about 42 minutes at your pace"), with one sentence saying why and what the measure leaves out. The guided session's new topic does too.
+- **"Today's session" says how long it takes:** reviews and mistakes at the learner's own time per question, then the new topic at their pace. **"Just 5 minutes"** now fits one to three reviews by those same times (two at the default of a minute a question).
+- Tests: sittings, gaps, what's left out and the cap (`pace.test.ts`); the median, the three-topic minimum, stretching only; the five-minute fit and the session's minutes (`sessionPlan.test.ts`); and the Today page's paced times with three topics proven in twice their estimates.
+
+**Author notes:**
+
+- _What `duration_ms` measures, and the comparison chosen._ An attempt's `duration_ms` runs from the learner's first touch of a question (or their previous attempt) to the answer. Reading the lesson is never in it, so adding durations up and comparing with an estimate that includes reading would make every topic look quicker than it was. Instead the time in a topic is counted by sittings: its events in order, a gap of more than 30 minutes (the practice-hours cap) starting a new sitting, each sitting counted from its first event to its last, plus the time on its first question. That includes reading between questions, but not the reading before the first question of a sitting, which leaves no trace in the data.
+- _So the measure is a floor, and times are only stretched._ A floor can show that topics take longer than their estimates, never that they take less. A learner whose measured pace is under 1 sees the authors' estimates unchanged, and the page says nothing about pace. The sentence on the page says plainly what isn't counted.
+- _The median, from three proven topics._ One topic left open over lunch, or proven quickly from earlier knowledge, shouldn't swing every figure; the median ignores both, and three is the fewest for a middle value to mean anything. Only events up to the moment the topic was proven count, and not reviews, the placement test or the Today page's questions.
+- _Review times start at a minute a question,_ a round figure for two-question reviews, until the learner has five timed review answers of their own.
+- _Placing the explanation under "Next up"_, beside the times it changes, rather than in Practice hours.
+
+**Next:** a calm welcome-back plan after a break, and a gentle evening line.
+
 ## 2026-11-16, Today page: weeks with practice, and progress through the module
 
 The second of the Today page's study-habit changes. Two findings from behavioural science behind it: a daily streak turns one missed day into a loss, and the fear of losing it pushes people to cram or to give up after the first break, while spaced practice only needs regular returns; and progress feels fastest near the end of a goal (the "goal gradient"), and the start of something new is a natural moment to begin again (the "fresh start" effect).

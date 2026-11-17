@@ -25,6 +25,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A lesson can tell a real public incident with `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>`, in the platform's own words, linking the postmortem it's drawn from.
 - The validator checks every tag in a lesson: only the six the app can draw, each written as `content/README.md` says, with the lesson's line in every problem.
 
+### Added (a topic page in parts)
+
+- A topic page now shows one part at a time ([ADR-0025](docs/decisions/0025-topics-in-parts.md), proposed): the lesson, then the practice cut into parts of about 30 minutes, then the proofs. Each part says "Part 2 of 5 · about 30 min" above its heading, and buttons below it go to the parts before and after. The outline beside the page lists the parts with a tick for each one done, worked out from your saved answers, and every link in it opens the right part. The page opens where you were: the part you last looked at on this device if it isn't done, or else the first part that isn't. Parts never lock anything, "Prove it now" opens the proofs part, and checkpoints stay as they were.
+
+### Added (Today page: a welcome-back plan, and new topics earlier in the day)
+
+- After a break of 7 days or more, or whenever more reviews are due than the daily limit of 20 can clear, the Today page opens with a calm plan: "Welcome back" (or "A plan for your reviews"), what's due, and the reviews set out over the next few days within the limit, the most faded first, each day with about how long it takes and, folded away, which topics and how much of each is still remembered. It changes the message only: which reviews are due, their order and the limit are the reviews engine's own. `web/src/session/welcomeBack.ts`.
+- Opened late in the learner's evening (21:00 to 04:00 on their own clock), the Today page adds one line: "It's late in your day: a good time for reviews. A new topic takes fresh attention, so it may go better earlier tomorrow, with a night's sleep after it to help it settle." Nothing is blocked or hidden. `web/src/session/evening.ts`.
+
+### Added (Today page: honest times from the learner's own pace)
+
+- Once three topics are proven, the Today page compares how long they took the learner with their authors' estimates, and stretches its time figures to match: "about 42 minutes at your pace", with one plain sentence under "Next up": "Topics you've proven took you about 1.4× their estimate, so the times on this page are stretched to match." The guided session's new topic uses the same figure.
+- What it measures, said on the page: the time in a topic counted by sittings, from the first answer to the last, so reading before the first answer of a sitting isn't included. Because that makes the measure a floor, times are only ever stretched, never shrunk.
+- "Today's session" says how long it should take ("About 6 minutes for those, then about 42 for the new topic at your pace."), from the learner's own review answer times (a minute a question until there are five). "Just 5 minutes" now fits as many reviews as those times allow, from one to three.
+- The calculation is `web/src/progress/pace.ts`, for any page to reuse.
+
 ### Added (Today page: weeks with practice, and progress through the module)
 
 - Practice hours on the Today page opens with consistency counted in weeks, never as a daily streak: "You practised in 4 of the last 5 weeks.", with a row of five marks, oldest first. A week is the seven days up to today, in the learner's own calendar days (each event's recorded day), and a learner newer than five weeks is counted over the weeks since they began. When this week has nothing in it yet, one line says a session today counts for it; there are no warnings. `web/src/progress/weeks.ts`.
