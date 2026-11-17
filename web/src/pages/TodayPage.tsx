@@ -42,14 +42,32 @@ import {
 } from '../placement/describe.ts'
 import { subjectOfDiagnostic } from '../placement/history.ts'
 import { usePlacements } from '../placement/usePlacements.ts'
+import { countModule, describeModule } from '../progress/modules.ts'
+import {
+  formatRatio,
+  type Pace,
+  paced,
+  stretches,
+  topicPace,
+} from '../progress/pace.ts'
 import { nextUp, stateOf, type TopicProgress } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
+import {
+  describeWeeks,
+  type WeeksPractised,
+  weeksPractised,
+} from '../progress/weeks.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
+import { EVENING_LINE, isLateEvening } from '../session/evening.ts'
+import { type WelcomeBack, welcomeBack } from '../session/welcomeBack.ts'
+import { WelcomeBackPlan } from '../session/WelcomeBackPlan.tsx'
 import {
   bundledTopics,
   planSession,
   QUICK_SESSION_PATH,
+  quickCount,
   quickPlan,
+  reviewMinutes,
   SESSION_PATH,
   type SessionPlan,
 } from '../session/sessionPlan.ts'
@@ -104,18 +122,59 @@ function Plan() {
   const progress = useProgress(topics)
   // Read the clock once, when the page opens.
   const [now] = useState(() => new Date().toISOString())
+  // How long topics take this learner, against their estimates
+  // (progress/pace.ts), for every time figure on the page.
+  const pace = useMemo(
+    () =>
+      progress.status === 'ready'
+        ? topicPace(topics, progress.progress, progress.attempts)
+        : null,
+    [topics, progress],
+  )
   if (progress.status === 'failed') {
     return <CouldNotLoad what="Your progress" retry={progress.retry} />
   }
   return (
     <>
-      <StartSession topics={topics} progress={progress} now={now} />
+      {isLateEvening(now) && (
+        <p className="text-slate-600 dark:text-slate-400">{EVENING_LINE}</p>
+      )}
+      <ComingBack topics={topics} progress={progress} now={now} />
+      <StartSession topics={topics} progress={progress} now={now} pace={pace} />
       <Reviews topics={topics} progress={progress} now={now} />
       <Revisit progress={progress} />
-      <NextUp topics={topics} progress={progress} />
+      <NextUp topics={topics} progress={progress} pace={pace} />
       <PracticeHours progress={progress} now={now} />
     </>
   )
+}
+
+/**
+ * The welcome-back plan (session/welcomeBack.ts), after a break or when more
+ * reviews are due than today's limit: fixed when the history first loads.
+ */
+function ComingBack({
+  topics,
+  progress,
+  now,
+}: {
+  topics: Topic[]
+  progress: ProgressState
+  now: string
+}) {
+  const [plan, setPlan] = useState<WelcomeBack | null | undefined>(undefined)
+  if (progress.status === 'ready' && plan === undefined) {
+    setPlan(
+      welcomeBack({
+        topics: topics.filter(isOpen),
+        progress: progress.progress,
+        attempts: progress.attempts,
+        now,
+      }),
+    )
+  }
+  if (!plan) return null
+  return <WelcomeBackPlan plan={plan} today={dayOf(now)} />
 }
 
 /** "2 reviews", "1 review". */
@@ -132,10 +191,12 @@ function StartSession({
   topics,
   progress,
   now,
+  pace,
 }: {
   topics: Topic[]
   progress: ProgressState
   now: string
+  pace: Pace | null
 }) {
   // Fixed when the history first loads, like the sections below.
   const [plan, setPlan] = useState<SessionPlan | null>(null)
@@ -158,7 +219,13 @@ function StartSession({
       count(followUps.length, 'mistake coming back', 'mistakes coming back'),
   ].filter(Boolean)
   if (due.length === 0 && !next) return null
-  const quick = quickPlan(plan).reviews.length
+  const attempts = progress.status === 'ready' ? progress.attempts : []
+  const quick = quickPlan(plan, quickCount(attempts)).reviews.length
+  const time = describeTime(
+    reviewMinutes(plan, attempts),
+    next && paced(next.topic.estimated_minutes, pace),
+    stretches(pace),
+  )
 
   let summary: string
   if (due.length === 0) {
@@ -170,6 +237,10 @@ function StartSession({
   }
   // Capitalise the first word ("2 reviews" needs nothing; "Nothing" has it).
   summary = summary.charAt(0).toUpperCase() + summary.slice(1)
+  const whereInModule =
+    next && progress.status === 'ready'
+      ? moduleLine(next.topic.id, progress.progress)
+      : null
 
   return (
     <section
@@ -179,7 +250,12 @@ function StartSession({
       <h2 id="session" className="text-xl font-semibold">
         Today's session
       </h2>
-      <p>{summary}</p>
+      <p>
+        {summary} {time}
+      </p>
+      {whereInModule && (
+        <p className="text-slate-600 dark:text-slate-400">{whereInModule}</p>
+      )}
       <Link to={SESSION_PATH} className={PRIMARY_BUTTON}>
         Start today's session
       </Link>
@@ -198,6 +274,47 @@ function StartSession({
       )}
     </section>
   )
+}
+
+/**
+ * "About 6 minutes for those, then about 42 for the new topic at your pace."
+ * The reviews' time comes from the learner's own review answers, the
+ * topic's from its estimate stretched to their pace (progress/pace.ts).
+ */
+function describeTime(
+  reviews: number,
+  topic: number | null,
+  atYourPace: boolean,
+): string {
+  const pace = atYourPace ? ' at your pace' : ''
+  const minutes = (n: number) => `${n} ${n === 1 ? 'minute' : 'minutes'}`
+  if (reviews > 0 && topic !== null) {
+    return `About ${minutes(reviews)} for those, then about ${topic} for the new topic${pace}.`
+  }
+  if (reviews > 0) return `About ${minutes(reviews)}.`
+  if (topic !== null) return `About ${minutes(topic)}${pace}.`
+  return ''
+}
+
+/**
+ * Where the learner stands in the next topic's module (progress/modules.ts):
+ * "6 of 8 topics proven in Module 2, …", or a fresh start. Null for a
+ * capstone, which stands outside its module.
+ */
+function moduleLine(
+  topicId: string,
+  progress: Map<string, TopicProgress>,
+): string | null {
+  const place = placeOf(topicId)
+  if (!place || place.role === 'capstone') return null
+  const count = countModule(place.module, progress, canOpen)
+  return describeModule(place.number, place.module, count)
+}
+
+/** Whether a topic, by ID, is bundled and can be opened. */
+function canOpen(topicId: string): boolean {
+  const topic = getTopic(topicId)
+  return topic !== undefined && isOpen(topic)
 }
 
 /** Says what couldn't load, with a button to try again. */
@@ -234,6 +351,7 @@ function PracticeHours({
     tracks().map((track) => track.id),
     (topicId) => placeOf(topicId)?.track.id,
   )
+  const weeks = weeksPractised(progress.attempts, dayOf(now))
   const recent =
     all.recentMs === 0
       ? 'none of it in the last 7 days'
@@ -244,6 +362,7 @@ function PracticeHours({
       <h2 id="practice-hours" className="text-xl font-semibold">
         Practice hours
       </h2>
+      {weeks && <Weeks weeks={weeks} />}
       {all.attempts === 0 ? (
         <p className="text-slate-600 dark:text-slate-400">
           Nothing counted yet. Every answer, Check and review you finish adds
@@ -269,6 +388,43 @@ function PracticeHours({
         </>
       )}
     </section>
+  )
+}
+
+/**
+ * Consistency, in weeks rather than a daily streak (progress/weeks.ts): a
+ * sentence, and a row of marks for the weeks, oldest first.
+ */
+function Weeks({ weeks }: { weeks: WeeksPractised }) {
+  const { summary, note } = describeWeeks(weeks)
+  const oldestFirst = [...weeks.byWeek].reverse()
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* The sentence beside it says the same, so readers skip the marks. */}
+        <span
+          aria-hidden="true"
+          data-testid="week-marks"
+          className="flex gap-1"
+        >
+          {oldestFirst.map((practised, index) => (
+            <span
+              key={index}
+              data-practised={practised}
+              className={`h-3 w-5 rounded-sm border ${
+                practised
+                  ? 'border-lime-600 bg-lime-400'
+                  : 'border-slate-300 dark:border-slate-700'
+              }`}
+            />
+          ))}
+        </span>
+        <span>{summary}</span>
+      </div>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        A week here is seven days up to today.{note ? ` ${note}` : ''}
+      </p>
+    </div>
   )
 }
 
@@ -409,9 +565,11 @@ const LEARNED_STATES = new Set([
 function NextUp({
   topics,
   progress,
+  pace,
 }: {
   topics: Topic[]
   progress: ProgressState
+  pace: Pace | null
 }) {
   if (progress.status !== 'ready') return null
   const open = new Set(topics.filter(isOpen).map((topic) => topic.id))
@@ -456,7 +614,8 @@ function NextUp({
                 {next.topic.summary}
                 <span className="text-sm text-slate-500 dark:text-slate-400">
                   {' · about '}
-                  {next.topic.estimated_minutes} minutes
+                  {paced(next.topic.estimated_minutes, pace)} minutes
+                  {stretches(pace) && ' at your pace'}
                 </span>
               </p>
             ) : learned === own.length ? (
@@ -474,8 +633,25 @@ function NextUp({
           </div>
         )
       })}
+      <PaceNote pace={pace} />
       <PlacementNote progress={progress.progress} />
     </section>
+  )
+}
+
+/**
+ * Why the times above are longer than the authors' estimates, when they
+ * are: one plain sentence, and what the measure leaves out.
+ */
+function PaceNote({ pace }: { pace: Pace | null }) {
+  if (!stretches(pace)) return null
+  return (
+    <p className="text-sm text-slate-600 dark:text-slate-400">
+      Topics you've proven took you about {formatRatio(pace.ratio)} their
+      estimate, so the times on this page are stretched to match. That's counted
+      from your first answer in each sitting, so reading before it isn't
+      included: if anything, the real figure is a little higher.
+    </p>
   )
 }
 

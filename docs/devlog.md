@@ -24,6 +24,69 @@ A dated log of each working session: what changed, what was decided, what's next
 
 **Next:** confidence before the answer (ADR-0028): "Guessing", "Fairly sure" and "Certain" in place of Check, and a calibration summary on the Account page.
 
+## 2026-11-16, Today page: a welcome-back plan, and new topics earlier in the day
+
+The fourth of the Today page's study-habit changes. Two ideas behind it. Coming back after a break to a long list of overdue reviews reads as a debt, and that is when many learners stop; the same reviews set out as a short plan over a few days read as doable. And a new topic takes fresh attention, which runs low late at night, while a review is short retrieval practice that suits a tired evening.
+
+**What changed.**
+
+- **The welcome-back plan** (`web/src/session/welcomeBack.ts`, shown by `WelcomeBackPlan.tsx`). When the learner hasn't practised for 7 days or more (and hasn't yet today), or when more reviews are due than a day's limit of 20 can clear, a card at the top of the Today page says so calmly and sets the due reviews out by day: what's left of today's limit first, then 20 a day, the most faded first, each day with about how long it takes (from the learner's own review times, `progress/pace.ts`) and, folded away, the topics with how much of each is still remembered. After a break with nothing due, it says so and suggests carrying on.
+- **The evening line** (`web/src/session/evening.ts`). From 21:00 until 04:00 on the learner's own clock, one sentence above the session card suggests reviews tonight and new topics earlier tomorrow.
+- Tests: when the plan appears and when it doesn't, the 7-day line, practice today and the placement test, the days split within the limit, a plan starting tomorrow when today's limit is used, the minutes per day (`welcomeBack.test.ts`); the evening hours either side of each edge (`evening.test.ts`); and both on the Today page.
+
+**Author notes:**
+
+- _Order and message only._ The plan calls `dueReviews` without a limit and `reviewsLeftToday`, as they are, and only groups their result by day. Nothing is scheduled, moved or hidden: the Reviews section and the session still take the day's share in the same order.
+- _Seven days is a break,_ as the brief suggested: long enough that the return is a moment worth marking, short enough to catch a missed week. It isn't shown once the learner has practised that day: by then they're back.
+- _"More than the daily cap can clear" means more than 20 due,_ not more than what's left of today. When the day's 20 are done and a few more are due, the Reviews section already says the rest come back tomorrow; a plan for one more day would add nothing.
+- _A day's estimate is rounded up to whole minutes,_ and the plan says topics coming due meanwhile join in, because the days are a projection: tomorrow's due list will have changed a little.
+- _The words:_ "and that's all right", "what you learned is still there, some of it faded", and that a review after a longer gap does more for a memory (in FSRS, a successful review at lower recall raises stability more). No "missed", "behind" or "overdue", and no counts of lost days.
+- _21:00 to 04:00 for "late"._ About when evening tiredness sets in for most people, and through a night owl's evening past midnight, while an early riser at 05:00 sees nothing. The line doesn't say that studying late harms memory (sleep soon after learning helps it settle, which the line says), only that a new topic needs fresh attention.
+
+**Next:** a plan for when and where to study, with a calendar file.
+
+## 2026-11-16, Today page: honest times from the learner's own pace
+
+The third of the Today page's study-habit changes. Authors' estimates (`estimated_minutes`) are guesses and tend to be low, and a plan built on times that are too short leads to sessions that overrun and feel like failing. People also underestimate their own time on tasks (the "planning fallacy"); their own past times are the best correction.
+
+**What changed.**
+
+- **`web/src/progress/pace.ts`,** a small helper any page can use. `timeInTopic` measures the time in one topic up to the moment it was proven; `topicPace` takes the middle (median) of the proven topics' measured time over their estimates, once there are three; `paced` stretches an estimate by it; `reviewItemMinutes` gives the learner's typical time per review question.
+- **The Today page uses it** for "Next up" ("about 42 minutes at your pace"), with one sentence saying why and what the measure leaves out. The guided session's new topic does too.
+- **"Today's session" says how long it takes:** reviews and mistakes at the learner's own time per question, then the new topic at their pace. **"Just 5 minutes"** now fits one to three reviews by those same times (two at the default of a minute a question).
+- Tests: sittings, gaps, what's left out and the cap (`pace.test.ts`); the median, the three-topic minimum, stretching only; the five-minute fit and the session's minutes (`sessionPlan.test.ts`); and the Today page's paced times with three topics proven in twice their estimates.
+
+**Author notes:**
+
+- _What `duration_ms` measures, and the comparison chosen._ An attempt's `duration_ms` runs from the learner's first touch of a question (or their previous attempt) to the answer. Reading the lesson is never in it, so adding durations up and comparing with an estimate that includes reading would make every topic look quicker than it was. Instead the time in a topic is counted by sittings: its events in order, a gap of more than 30 minutes (the practice-hours cap) starting a new sitting, each sitting counted from its first event to its last, plus the time on its first question. That includes reading between questions, but not the reading before the first question of a sitting, which leaves no trace in the data.
+- _So the measure is a floor, and times are only stretched._ A floor can show that topics take longer than their estimates, never that they take less. A learner whose measured pace is under 1 sees the authors' estimates unchanged, and the page says nothing about pace. The sentence on the page says plainly what isn't counted.
+- _The median, from three proven topics._ One topic left open over lunch, or proven quickly from earlier knowledge, shouldn't swing every figure; the median ignores both, and three is the fewest for a middle value to mean anything. Only events up to the moment the topic was proven count, and not reviews, the placement test or the Today page's questions.
+- _Review times start at a minute a question,_ a round figure for two-question reviews, until the learner has five timed review answers of their own.
+- _Placing the explanation under "Next up"_, beside the times it changes, rather than in Practice hours.
+
+**Next:** a calm welcome-back plan after a break, and a gentle evening line.
+
+## 2026-11-16, Today page: weeks with practice, and progress through the module
+
+The second of the Today page's study-habit changes. Two findings from behavioural science behind it: a daily streak turns one missed day into a loss, and the fear of losing it pushes people to cram or to give up after the first break, while spaced practice only needs regular returns; and progress feels fastest near the end of a goal (the "goal gradient"), and the start of something new is a natural moment to begin again (the "fresh start" effect).
+
+**What changed.**
+
+- **Weeks, not a streak.** The Practice hours section starts with "You practised in 4 of the last 5 weeks." and five small marks, oldest first. `web/src/progress/weeks.ts` works it out from the graded history: a week is the seven days up to today, then the seven before, in the learner's own recorded days. A learner who began less than five weeks ago is counted over the weeks since then ("2 of the last 2 weeks"), and in their first week it says "You've practised this week." When this week is empty, one line: "A session today counts for this week."
+- **Progress through the module.** The "Today's session" card says where the next topic sits: "6 of 8 topics proven in Module 2, Linux: 2 to go.", or "A fresh start: Module 2, Linux, begins here, with 8 topics." when nothing in it is proven yet. The map shows "N of M proven" beside each module's heading. `web/src/progress/modules.ts`.
+- Tests: the rolling weeks, the shorter count for a new learner, the recorded day winning over the UTC date, placement answers left out, a fast clock, and every sentence (`weeks.test.ts`); the module counts and sentences (`modules.test.ts`); the Today page's line and marks, and the map's counts.
+
+**Author notes:**
+
+- _Rolling weeks, not Monday to Sunday._ With calendar weeks, every Monday morning the current week is empty and the count drops, which is the loss framing this is meant to avoid. A rolling week is always a whole seven days, and a practice day stays in "this week" for seven days.
+- _A new learner isn't shown "1 of the last 5 weeks"._ The count covers the weeks since their first practice, up to five.
+- _What counts as practice:_ any graded attempt (answer, Check, explanation, review), except answers in the placement test, which looks for a starting point rather than practising. The practice-hours total still counts those, as before.
+- _The marks are hidden from screen readers;_ the sentence beside them says the same thing. They use lime, which Momentum keeps for progress fills.
+- _"Proven" counts a module's topics and its checkpoint, not its capstone,_ which the map shows as its own section. Topics still being written aren't in the count, and the sentence says how many there are.
+- _The module line follows the session's next topic,_ so it names the module the learner is about to work in. The "Next up" section keeps its per-track count.
+
+**Next:** honest pacing from the learner's own history.
+
 ## 2026-11-16, Today page: one button for today's session
 
 Part of a set of study-habit improvements to the Today page, from behavioural science: the fewer choices a learner has to make before starting, the more likely they start, and a plan for bad days keeps a habit alive when a full session feels like too much.
