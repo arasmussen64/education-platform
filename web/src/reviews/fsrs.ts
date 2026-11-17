@@ -192,6 +192,12 @@ export type Card = MemoryState & {
   reviews: number
   /** How many of them were rated Again. */
   lapses: number
+  /**
+   * The learner's personal stability multiplier, when it isn't 1 (ADR-0009,
+   * amended 2026-11-16): their memory lasts this many times what the
+   * average curve says, so intervals and recall use stability × personal.
+   */
+  personal?: number
 }
 
 /** Fractional days from one ISO time to another. */
@@ -234,5 +240,8 @@ export function replayCard(learnedAt: string, reviews: Review[]): Card {
 
 /** The chance, 0 to 1, that the topic is still remembered at `now`. */
 export function retrievabilityAt(card: Card, now: string): number {
-  return retrievability(daysBetween(card.lastReview, now), card.stability)
+  return retrievability(
+    daysBetween(card.lastReview, now),
+    card.stability * (card.personal ?? 1),
+  )
 }

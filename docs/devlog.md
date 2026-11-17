@@ -2,6 +2,28 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, reviews: a personal forgetting curve
+
+The third of four changes to the review engine. ADR-0009 left personal FSRS parameters to the ML capstone. A modest version comes first: one number, fitted to the learner's own reviews, that stretches or shrinks every interval. ADR-0009 has an amendment for it (Proposed).
+
+**What changed.**
+
+- **`web/src/reviews/personal.ts`**: `fitMultiplier` finds the stability multiplier (0.5 to 2) under which the learner's reviews are most likely, searching 400 steps; `personalCurve` fits it once there are 100 review outcomes; `withPersonalCurve` schedules every card by it; `describeCurve` says it in plain words.
+- **The replay** (`replayWithCredits`) records what the card predicted at each real review, and takes the multiplier for the due date. Cards carry it as `personal`, and `retrievabilityAt` uses it, so the map's memory percentage matches.
+- **`useProgress`** now works out progress for every bundled topic, not only the page's own, so the fit sees every review; it returns the curve as `personalCurve`.
+- **The Account page** has a "Your forgetting curve" section.
+- 10 new tests, among them fits to simulated learners who forget faster or slower than average.
+
+**Author notes:**
+
+- _Remembering means any rating but Again._ The brief for this work said to compare the prediction with whether a review was Good. FSRS's own optimizer counts Hard as remembered, and the 90% target means "not Again": with Good only, the target would quietly become "both items right nine times in ten", and nearly everyone's multiplier would fall. Listed for the owner.
+- _100 reviews, clamped to 0.5 to 2, rounded to 0.05._ The clamp keeps an odd early run from extremes; the rounding keeps one new review from nudging every date.
+- _The fit includes implicit credit's predictions,_ so if credit is worth less than it's given, reviews after it fail more often than predicted and the multiplier falls. The two rules check each other.
+- _Nothing changes for a learner below the threshold;_ the Account page counts down to it.
+- _Every page now works out every bundled topic's progress._ It's a few hundred replays, cheap next to reading the history.
+
+**Next:** review labs for hands-on skills.
+
 ## 2026-11-16, reviews: answer time in ratings
 
 The second of four changes to the review engine. A review with every answer right was Good however long it took. Now a right answer that took far longer than this learner usually needs makes the session Hard, which brings the next review a little sooner. ADR-0009 has an amendment for it (Proposed).

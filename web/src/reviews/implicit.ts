@@ -236,8 +236,20 @@ function byTime(a: Step, b: Step): number {
   return 0
 }
 
-/** A card, and the credits that counted toward it. */
-export type Replayed = { card: Card; counted: Credit[] }
+/**
+ * What the card predicted at one real review: the stability just before
+ * it, the days since the last review, and whether the learner remembered
+ * (any rating but Again). The personal forgetting curve is fitted to these
+ * (personal.ts).
+ */
+export type ReviewPoint = {
+  stability: number
+  elapsedDays: number
+  recalled: boolean
+}
+
+/** A card, the credits that counted toward it, and its reviews' predictions. */
+export type Replayed = { card: Card; counted: Credit[]; points: ReviewPoint[] }
 
 /**
  * A topic's card, as fsrs.ts's replayCard makes it from becoming Learned
@@ -246,11 +258,16 @@ export type Replayed = { card: Card; counted: Credit[] }
  * way to due and a day past its last review or credit, and fewer than two
  * have counted since the last real review. Without credits, this is
  * replayCard exactly.
+ *
+ * `personal` is the learner's stability multiplier (personal.ts): the next
+ * review is due after stability × personal days. The memory state itself,
+ * and so every rule above, stays plain FSRS-4.5.
  */
 export function replayWithCredits(
   learnedAt: string,
   reviews: Review[],
   credits: Credit[] = [],
+  personal = 1,
 ): Replayed {
   let state = initialState('good')
   let last = learnedAt
@@ -260,6 +277,7 @@ export function replayWithCredits(
   let count = 0
   let lapses = 0
   const counted: Credit[] = []
+  const points: ReviewPoint[] = []
   const steps: Step[] = [
     ...reviews.map((review) => ({ kind: 'review' as const, ...review })),
     ...credits.map((credit) => ({
@@ -272,7 +290,13 @@ export function replayWithCredits(
     .sort(byTime)
   for (const step of steps) {
     if (step.kind === 'review') {
-      state = nextState(state, step.rating, daysBetween(last, step.at))
+      const elapsedDays = daysBetween(last, step.at)
+      points.push({
+        stability: state.stability,
+        elapsedDays,
+        recalled: step.rating !== 'again',
+      })
+      state = nextState(state, step.rating, elapsedDays)
       last = step.at
       touched = step.at
       lastRating = step.rating
@@ -297,10 +321,12 @@ export function replayWithCredits(
     card: {
       ...state,
       lastReview: last,
-      due: addDays(last, intervalDays(state.stability)),
+      due: addDays(last, intervalDays(state.stability * personal)),
       reviews: count,
       lapses,
+      ...(personal === 1 ? {} : { personal }),
     },
     counted,
+    points,
   }
 }

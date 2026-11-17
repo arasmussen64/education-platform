@@ -126,3 +126,25 @@ Until now a session with every item right was Good, however long it took. Gettin
 - _The learner's time for that very item._ Most items are answered two or three times in all, too few for a usual time.
 - _Easy for a fast session_, as "Later" first suggested. Easy lengthens intervals, which a fast lucky guess shouldn't do, and FSRS's Easy bonus is large; it would need its own evidence.
 - _Timing labs too._ A lab's time is mostly the container; a slow lab says little about the learner.
+
+## Amendment (2026-11-16): a personal forgetting curve
+
+- **Status:** Proposed. Designed under the owner's delegation of 2026-11-11 (the best learning experience, then the best memory retention, then free) and built on until the owner rules; it is listed in [the owner queue](../owner-queue.md) under _Decided for you_.
+
+"Later" above deferred personal FSRS parameters to the ML capstone. That stays: fitting FSRS's seventeen parameters is the capstone's job. What is built now is the smallest honest step toward it, in `web/src/reviews/personal.ts`: one number, fitted to the learner's own reviews, that says how many times longer (or shorter) their memory lasts than the average curve says.
+
+- **The number.** A stability multiplier between **0.5 and 2**. Every interval becomes the card's stability times it, rounded to whole days as before, and the map's memory percentage uses the same stretched curve, so it still reaches 90% on the due date. The memory state itself stays plain FSRS-4.5, and so do the rules that read it (implicit credit's half way, for one).
+- **How it's fitted.** At each real review the replayed card predicted a chance of remembering, from the stability just before it and the days since the last review (implicit credits included). The multiplier is the one under which what actually happened is most likely (maximum likelihood). It is searched over 0.5 to 2 in 400 even steps on a log scale, which for one number needs nothing cleverer and can't fail to converge, then rounded to the nearest 0.05, so one more review doesn't nudge every date.
+- **What counts as remembering.** A review rated Good or Hard; Again is forgetting. That is FSRS's own definition (its optimizer counts every grade but Again as a success), and it is what the 90% target means: the scheduler aims for nine reviews in ten not rated Again. Counting only Good as remembering would quietly change the target to "nine in ten with both items right" and pull every learner's multiplier down, since Hard is common with two items.
+- **When.** Only from **100** review outcomes; below that the multiplier is 1 and nothing changes. On simulated learners, a few thousand reviews pin it to within 0.15, and a hundred give a first estimate that the 0.5 to 2 clamp keeps from extremes: at most, reviews come twice as often or half as often as the average curve says.
+- **It corrects implicit credit too.** The fit compares predictions made with credits in. If credit from practising later topics turns out to be worth less than the share it's given, the reviews after it fail more often than predicted and the multiplier falls, bringing reviews sooner.
+- **Where it shows.** The Account page has a section, "Your forgetting curve", in plain words: "You forget a little faster than average: reviews come about 20% sooner", or the number of reviews still to go before it's fitted. Nothing is stored: it's worked out again from the event log on every visit, over every topic's reviews (the progress is now worked out for every bundled topic, not only the page's own).
+
+**How existing schedules move.** Below 100 review outcomes, not at all: the multiplier is 1. From the visit on which the hundredth outcome is in the log, every card's next review moves at once to its last review plus the multiplier times its stability, and nothing stored changes. With a multiplier of 0.8, a card due 15 days after its last review becomes due after 12, one due after 49 days after 39; with 1.25, 15 becomes 19 and 49 becomes 61. Ratings, the rule for Mastered and the daily limit are untouched. The multiplier is fitted again on every visit, so it follows the learner as reviews accumulate.
+
+**Alternatives considered.**
+
+- _Fitting all of FSRS's parameters._ The capstone's job, and it needs far more than 100 reviews to do better than the defaults.
+- _A multiplier on the elapsed time, or a different retention target._ Equivalent for one review, but a stability multiplier reads plainly ("your memory lasts 20% less long") and leaves the target, a product decision, alone.
+- _Shrinking toward 1 with a prior_ (a Bayesian fit). A gentler start, but one more idea to explain; the threshold and the clamp do the same job here.
+- _Storing the fitted number._ Recomputing it is cheap, keeps the event log the only record, and means a change to the rule applies by replay.
