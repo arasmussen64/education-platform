@@ -2,7 +2,6 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
-
 ## 2026-11-16, cloud Module 2 content: puzzles, questions in the lesson, stories and contrast questions
 
 The first of two content passes over the cloud track's Module 2 with the new lesson building blocks ([ADR-0026](decisions/0026-lesson-building-blocks.md)). Three other writers are doing Modules 1 and 3 at the same time; this pass touches only Module 2's eight topics.
