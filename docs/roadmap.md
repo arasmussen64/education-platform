@@ -2,7 +2,7 @@
 
 ## Where the project stands
 
-_Last updated 2026-11-15._ This is the one place the project's status is written down. Other documents link here instead of repeating it.
+_Last updated 2026-11-16._ This is the one place the project's status is written down. Other documents link here instead of repeating it.
 
 **Current phase: Phases 1 and 2 are built (2026-11-09 and 2026-11-10). Phase 3's content is under way, and the build is on the Cloud Solutions Architect track until that track is finished.**
 
@@ -23,6 +23,8 @@ _Last updated 2026-11-15._ This is the one place the project's status is written
 - **Cloud Module 3 is written** (#251, #253, then a pull request a topic from #257 to #275): sixteen topics and Checkpoint 3 from [its plan](plans/cloud-module-3/README.md), and one network-lab base every network lab starts from, whose machines are network namespaces running real FRRouting, strongSwan, BIND, Unbound, nginx and HAProxy. Every Module 3 lab is restarted in CI after its solution passes, so a fix that wouldn't survive a reboot fails ([ADR-0018](decisions/0018-lab-checker-local-mode.md)'s third amendment, proposed).
 
 **The cloud track was audited against the principal bar** (2026-11-15), the way a vice president of cloud would hire a principal or distinguished architect. It was strong to senior level, which is what the owner's map describes, and thin above it. So its spec gained [The principal bar](specs/cloud-solutions-architect.md#the-principal-bar), a Module 31 on technology strategy and enterprise architecture, six more topics (SAP, VMware estates, virtual desktops, safe change at scale, post-quantum cryptography, identity governance), a reliability specialty, and three proofs that test judgement over a whole estate. Every addition is an outline; nothing already written changed. The findings are in the [devlog](devlog.md).
+
+**The app was improved from four experts' plans** (2026-11-16, #292 to #318): an education expert's, a memory expert's, a neuroscientist's and a behavioural scientist's, all built. Topics are shown in parts of about 30 minutes with breaks, goals and a "Check what you know"; lessons gain questions inside them, an opening puzzle, real incident stories and a glossary; there are typed answers and a "how sure are you?" on every quick question; reviews give partial credit to the topics a later topic uses, count a slow right answer as Hard, fit the learner's own forgetting rate and include review labs; and the Today page has one Start button, a 5-minute version, practice counted in weeks, a welcome-back plan, module progress, honest times and a study plan. All 38 ready cloud topics carry the new content. The methods and their sources are in [learning-science.md](learning-science.md); the six decisions behind them wait in the [owner queue](owner-queue.md).
 
 **Build order.** The owner set it on 2026-11-10: "I'm going to just go at my own pace and bounce around from track to track so your job is to just build. Let's focus the build on the cloud track until it's completely finished and then start working on the ML track again." So:
 

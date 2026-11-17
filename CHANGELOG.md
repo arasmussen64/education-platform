@@ -18,6 +18,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Changed (the four-expert plan, written up)
+
+- `docs/learning-science.md` traces each feature of 2026-11-16 to its research: questions inside the lesson, typed answers, contrast questions, confidence before the answer, opening puzzles, parts and breaks, "Check what you know", real incidents, no countdown timers on proofs, and a new "Habits" table for the Today page. Thirteen sources are added. Streaks and points join the myths the platform avoids.
+- The owner queue lists the six decisions behind the plan (ADR-0025 to 0028, ADR-0009's four amendments and ADR-0013's), and the judgement calls made while building it. The roadmap's status says what was built.
+- The Today page no longer says a review always asks two quick questions: one can be a lab.
+
 ### Added (cloud Module 1 content: glossaries and typed questions)
 
 - Every topic of the cloud track's Linux module has a glossary: 79 terms in all, three to eight a topic, from `stderr` and `shebang` to `IMDSv2` and `CIS Benchmark`. Other lessons that use one of them now explain it on the spot.
