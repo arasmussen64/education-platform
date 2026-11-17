@@ -18,6 +18,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (cloud Module 3, second half: puzzles, questions in the lesson, real incidents and contrast questions)
+
+- The eight networking topics from Congestion control and QUIC to Site-to-site VPNs (`csa.net.congestion`, `http-tls`, `certificates`, `http-semantics`, `load-balancing`, `bgp`, `bgp-steering`, `ipsec`) each open with a puzzle, and each asks four of its own quick questions inside the lesson, right after the paragraph each one tests (32 in all, 28 of them typed answers).
+- Seven of them tell a real incident in their own words, with its source linked: the 1986 congestion collapse, Heartbleed, Epic Games' expired certificate, Steam's Christmas caching mistake (moved from the lesson's prose into a story), Stack Overflow's health check, Pakistan Telecom's YouTube hijack and Cloudflare's Atlanta router. Site-to-site VPNs has none: no public, well-documented IPsec incident was found.
+- Six new "which one is this?" questions for ideas that are easy to confuse: packet loss against queueing delay (two), ALPN against Alt-Svc, a missing intermediate against an untrusted root, a load balancer's 503 against its 502, and AS-path prepending against local preference.
+
 ### Added (lessons: questions inside the lesson, an opening puzzle, and a real incident)
 
 - A lesson can ask one of its topic's practice quick questions where it stands, with `<Check item="..." />`. It's graded and saved exactly as in practice, and the practice ladder leaves it out, so it shows once ([ADR-0026](docs/decisions/0026-lesson-building-blocks.md), Proposed).

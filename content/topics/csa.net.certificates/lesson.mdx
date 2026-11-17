@@ -1,5 +1,11 @@
 <Intro>
 
+<Puzzle question="A site works perfectly in your browser, but curl and a partner's server both refuse it with a certificate error. Nothing about the site changed today. How can both be true?">
+
+The server isn't sending the **intermediate** certificate, the link between its own certificate and a root certificate the client already trusts. Browsers often hide that mistake: they keep intermediates they've met on other sites, and some fetch a missing one from an address written in the certificate. curl and most programs do neither, so they can't connect the site's certificate to anything they trust, and refuse. The fix is on the server: send its own certificate followed by the intermediate.
+
+</Puzzle>
+
 HTTP and TLS showed the server's Certificate message crossing the handshake, and named the certificate, its root and intermediate and its subjectAltName in one paragraph. This topic opens the certificate up. By the end you can read one and the chain a server sends, say why a client trusts it or which of the usual failures it hit, make a certificate authority of your own, get certificates automatically with ACME and make every renewal reach the server, and set up **mutual TLS**, where the client proves who it is too. The labs use the shop's web server, `web` (nginx, and certbot, which gets its certificates); `ca`, the shop's own certificate authority, step-ca, which speaks ACME like Let's Encrypt does; a customer's laptop, `office`; `partner`, the warehouse's server, which calls the shop's API with a certificate of its own; and `resolver`, the shop's name server.
 
 **What a certificate holds.** A certificate (the format is called **X.509**) is a small signed file that says "this public key belongs to whoever holds these names". `openssl x509 -in FILE -noout -text` shows all of it; the parts that matter:
@@ -16,6 +22,8 @@ HTTP and TLS showed the server's Certificate message crossing the handshake, and
 | the public key, and the issuer's **signature** over all of the above | | |
 
 A name in the SAN matches exactly, except a **wildcard**: `*.shop.test` covers `api.shop.test` but not `shop.test` itself nor `a.b.shop.test`. The certificate is public: the server sends it to anyone. The matching **private key** (certbot's `privkey.pem`) is what must never leave the server, because whoever holds it can be the site.
+
+<Check item="x509-dates" />
 
 **Who signs whom: the chain.** A **certificate authority** (CA) is whoever signs certificates. At the top is a **root CA**, whose certificate signs itself, so nothing proves it but the fact that you already hold it: every operating system and browser ships a **trust store**, the list of roots it trusts (on Ubuntu, `/etc/ssl/certs/ca-certificates.crt`), and a company adds its own root to its managed machines. Roots are kept offline and sign a few **intermediate** CAs, which sign the sites' certificates (often called **leaf** certificates, the ends of the tree). A client checking `www.shop.test`'s certificate looks for the certificate whose subject is its issuer, checks the signature with that certificate's public key, and climbs until it reaches a root in its own store, the way DNSSEC's chain climbs to its trust anchor. So:
 
@@ -35,6 +43,8 @@ A name in the SAN matches exactly, except a **wildcard**: `*.shop.test` covers `
 
 curl reports each as `curl: (60) SSL certificate problem:` and the same words (for 20 and 21, `unable to get local issuer certificate`), except a name mismatch: `curl: (60) SSL: no alternative certificate subject name matches target host name`. One trap: **a missing intermediate often works in a browser**. Browsers keep intermediates they've seen before, and some fetch a missing one from an address in the certificate, so a broken server looks fine on your laptop and fails for curl, phones' apps and partners' servers. Test from a strict client.
 
+<Check item="verify-code-meaning" />
+
 **A CA of your own.** Names like `api.internal` or `.test` can't get a public certificate (no public CA can check them), so companies run **private CAs** for internal services, and give every client their root. With openssl it takes four steps, which the fill-in lab does:
 
 1. a root: a key, and `openssl req -x509` with `basicConstraints=critical,CA:TRUE`;
@@ -52,6 +62,8 @@ A private CA chooses its own lifetimes: the labs' hand-made certificates last a 
 
 Let's Encrypt, the largest public CA, issues 90-day certificates today, 45-day ones to those who ask since 13 May 2026, and moves its default to 64 days on 10 February 2027 and 45 days on 16 February 2028 (ISRG, December 2025); since 15 January 2026 it has also offered certificates that last 160 hours. Nobody renews that often by hand: **renew automatically, about two-thirds of the way through each certificate's life**, keeping the last third to retry in if the CA or the network has a bad day. Better still, let the CA say when: **ARI** (ACME Renewal Information, RFC 9773, part of the protocol in the next paragraph) has the program that renews certificates ask the CA when to renew, which also lets the CA call for early renewal when it must revoke many certificates at once.
 
+<Check item="est-renew-at-two-thirds" />
+
 **ACME: a certificate without a person.** **ACME** (Automatic Certificate Management Environment, RFC 8555) is the protocol an **ACME client** (certbot, here) uses to ask a CA for certificates. It makes an **account key** pair and registers it once; places an **order** for some names; proves it controls each name with a **challenge**; sends a CSR for a key of the server's own; and downloads the certificate. A public CA checks a challenge from several places on the internet at once, so that someone who can fool one network path can't get your certificate, and publishes every certificate it issues in **Certificate Transparency** logs, public lists that entries are added to and never removed from, in which you can spot a certificate for your name that you never asked for. A **CAA** record (DNS's) says which CAs may issue for your names. The three challenges:
 
 | Challenge | The CA checks | Wildcards | What it needs |
@@ -67,11 +79,21 @@ In the labs the CA is step-ca, which keeps its root across restarts and issues 2
 - `live/www.shop.test/`: `cert.pem` (the site's certificate alone), `chain.pem` (the intermediates), `fullchain.pem` (the two, the site's first) and `privkey.pem`, each a link to the newest numbered file in `archive/www.shop.test/` (`cert1.pem`, `cert2.pem`, ...). The server reads the `live/` names, never `archive/` and never a copy: certbot's README there calls `cert.pem` one that "will break many server configurations";
 - `renewal/www.shop.test.conf`: how to renew, including how the name was proved.
 
+<Check item="live-points-at-archive" />
+
 Renewing has three parts, and missing any one is an outage weeks later:
 
 1. **A timer.** Ubuntu's `certbot.timer` runs `certbot renew` twice a day, which renews each certificate that is due: in Ubuntu 24.04's certbot 2.9, one with less than 30 days left (certbot 4.0 and later, a third of its lifetime). Run unattended, it first waits a random time, up to eight minutes, so that millions of servers don't all ask at once.
 2. **A deploy hook.** A renewal changes files, never the running server, which keeps the certificate it read when it last started. `--deploy-hook "systemctl reload nginx"` (or `certbot reconfigure --cert-name NAME --deploy-hook ...` later) stores a command certbot runs after every certificate it gets, as `renew_hook` in the renewal file; a script in `renewal-hooks/deploy/` does the same for all of them.
 3. **A watch from outside.** Check the expiry of the certificate the server actually serves (`openssl s_client ... | openssl x509 -noout -enddate`), not the file.
+
+<Story title="Epic Games' expired certificate, 2021" source="https://www.epicgames.com/site/en-US/expiration-date-4-6-2021" sourceTitle="Expiration Date 4-6-2021" license="linked, not copied">
+
+At 12:00 UTC on 6 April 2021 a wildcard certificate expired at Epic Games, and traffic between its back-end services stopped at once. It was for an internal DNS zone the public never saw, but the services behind sign-in used it, so players couldn't log in to Fortnite, Rocket League or the Epic Games Store, games disconnected and purchases failed. Twelve minutes later the team had confirmed the expired certificate; by 12:37 a new one was issued and rolling out to the hundreds of services that used it, and most recovered within minutes. The launcher took until the afternoon, because millions of its clients retried too fast and without end, and full recovery came at 17:35.
+
+Epic's postmortem names two gaps. Its certificate monitoring watched whole DNS zones, and this internal zone had never been added, so nothing warned that the date was near. And automatic renewal had never been switched on for this certificate: the work was known about and not yet done. The fixes were to monitor the zone, move certificates to automatic renewal, audit every certificate, and stop one certificate serving so many services. Monitoring that misses a zone is no monitoring for it.
+
+</Story>
 
 `certbot certificates` lists them, and `certbot renew --force-renewal --no-random-sleep-on-renew` renews now, to see the whole path work. In the labs certbot runs on web: `on web certbot ...`, its timer is `certbot@web.timer` (every four hours on the fast clock), and the hook is `systemctl reload nginx@web`. A habit-typed `systemctl reload nginx` reloads nothing there: the lab machine's plain nginx unit only says where nginx really runs.
 

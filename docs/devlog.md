@@ -2,6 +2,36 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, cloud Module 3 content (second half): puzzles, questions in the lesson, stories and contrast questions
+
+The first of two passes over the second half of Module 3 with the new lesson building blocks ([ADR-0026](decisions/0026-lesson-building-blocks.md)). Three other writers are doing the same for Modules 1 and 2 and the first half of Module 3. The second pass, after the glossary (#310) and typed answers (#298) reach `main`, adds a glossary and two typed questions to each topic.
+
+**What changed,** in `csa.net.congestion`, `http-tls`, `certificates`, `http-semantics`, `load-balancing`, `bgp`, `bgp-steering` and `ipsec`:
+
+- **A puzzle opens each lesson,** chosen to be guessable and probably guessed wrong: a faster line that doesn't make a small page faster (congestion), what a stranger on café Wi-Fi learns from HTTPS (http-tls), a site that works in a browser and fails in curl (certificates), whether to retry Pay or Show my basket (http-semantics), a rate limiter that blocks everyone once a balancer arrives (load-balancing), how a router in Tokyo learns where your addresses are (bgp), how long traffic pours into a silently dead circuit (bgp-steering), and a tunnel that dies an hour after every restart (ipsec).
+- **Four placed questions per topic** (`<Check>`), 32 in all, 28 of them typed (`predict_shell` or `estimate`), each after the paragraph it tests and each still in `practice:`.
+- **Seven stories,** each read at its source on 2026-11-16 and written in our own words:
+  - congestion: the October 1986 congestion collapse, from Van Jacobson and Michael Karels, [Congestion Avoidance and Control](https://ee.lbl.gov/papers/congavoid.pdf) (1988).
+  - http-tls: Heartbleed, from [heartbleed.com](https://heartbleed.com/) (Codenomicon's page, now kept by Black Duck).
+  - certificates: Epic Games' expired internal wildcard certificate, 6 April 2021, from Epic's postmortem, [Expiration Date 4-6-2021](https://www.epicgames.com/site/en-US/expiration-date-4-6-2021).
+  - http-semantics: Steam's Christmas 2015 caching mistake, from Valve's [Update on Christmas Issues](https://store.steampowered.com/oldnews/19852). The lesson already told it in a sentence; the sentence became the story, with the facts checked again.
+  - load-balancing: Stack Overflow's outage of 20 July 2016, where the health check asked for the home page, from Stack Exchange's [Outage Postmortem - July 20, 2016](https://stackstatus.tumblr.com/post/147710624694/outage-postmortem-july-20-2016).
+  - bgp: Pakistan Telecom's hijack of a YouTube /24, 24 February 2008, from the RIPE NCC's [YouTube Hijacking: A RIPE NCC RIS case study](https://www.ripe.net/about-us/news/youtube-hijacking-a-ripe-ncc-ris-case-study/).
+  - bgp-steering: Cloudflare's outage of 17 July 2020, a local preference of 200 leaked into its backbone over iBGP, from [Cloudflare outage on July 17, 2020](https://blog.cloudflare.com/cloudflare-outage-on-july-17-2020/).
+- **Six contrast questions** (`contrast-*`), each in the later topic of its pair and in its `practice:` list: `contrast-full-queue` and `contrast-random-loss` (congestion: queueing delay against packet loss, read from `rtt` and `minrtt`), `contrast-alpn-or-alt-svc` (http-tls), `contrast-intermediate-or-root` (certificates: verify codes 21 and 19), `contrast-503-or-502` (load-balancing, with http-semantics' 502 and 504), and `contrast-prepend-or-localpref` (bgp-steering, with bgp's local preference).
+- `estimated_minutes` goes up by 3 to 6 in six topics, each with a line saying why.
+
+**Author notes:**
+
+- _No story in `csa.net.ipsec`._ A search found forum threads and vendor support articles about tunnels that drop at rekeys, but no public, well-documented incident with a postmortem. A security case (ScreenOS's 2015 backdoor) was considered and left out: it turns on a random-number generator, which the topic doesn't teach.
+- _The bgp lesson already names two incidents in prose_ (Verizon's 2019 leak and Facebook's 2021 withdrawal), so its story is a third, the 2008 hijack, which is the one its "What you accept" section explains: a more specific prefix wins by longest match. Facebook's outage was left to the first-half writer's DNS topic.
+- _Two sources answer automated requests with 403_ (Stack Exchange's status blog and Epic's page). Both were read in full from the Internet Archive's copies of 2016 and 2021, and the stories link the live pages, which browsers open.
+- _The 1986 collapse:_ the paper's revised version says "two IMP hops" where the 1988 original said three; the story gives the distance only, "a few hundred metres" for its 400 yards.
+- _The load-balancing puzzle_ asks about the client's address and not about the shared-dependency health check, because the story and a placed question (`mcq-deep-check`) already cover that one; a puzzle that gave away a placed question's answer would make it rereading.
+- _Placed questions skip the ones the lesson's own text shows verbatim:_ bgp's `bgp-summary-read` reads the very `show bgp summary` the lesson prints, so `bgp-summary-policy` is placed instead.
+
+**Next:** pull request 2 for these topics, once #310 and #298 are merged: a `glossary.yaml` each and two typed questions each.
+
 ## 2026-11-16, lessons: questions inside the lesson, an opening puzzle, and a real incident
 
 Part of a larger plan to improve how the platform teaches. This stream adds new building blocks for lessons ([ADR-0026](decisions/0026-lesson-building-blocks.md), Proposed); content writers fill the cloud track's ready topics with them afterwards. This first pull request brings the three that go in `lesson.mdx`; the glossary follows.
