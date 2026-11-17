@@ -309,6 +309,16 @@ In CI, the validator copies the reference solution (and then each wrong solution
 <Recap>- ...</Recap>
 ```
 
+A lesson may also use the building blocks of [ADR-0026](../decisions/0026-lesson-building-blocks.md), and no other component tags (the validator checks every tag outside code):
+
+| Tag                                                                                   | What it shows                                                                                                                                                |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `<Check item="mcq-free-column" />`                                                    | one of the topic's practice quick questions, graded and saved as in practice (an `answer` event, context `practice`); the practice ladder then leaves it out |
+| `<Puzzle question="...">answer</Puzzle>`                                              | first in `<Intro>`: a question, a box for the learner's guess, and the answer once a guess is typed; the guess isn't graded or saved                         |
+| `<Story title="..." source="https://..." sourceTitle="..." license="...">...</Story>` | a real public incident the topic explains, in our own words, with a link to its source                                                                       |
+
+Compiling a lesson adds `export const checks = ["mcq-free-column", ...]` to the module, the items its `<Check>` tags place, in order; `loadTopicContent` returns them as `lessonChecks`. How to write each block, and the validator's rules, are in [content/README.md](../../content/README.md#lesson-building-blocks).
+
 ## Learner data (Postgres)
 
 Every table has row-level security: a learner can only read and write their own rows.

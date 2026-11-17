@@ -49,7 +49,7 @@ content/
 
    Before a topic goes `ready`, fetch each resource and check that its title says what the page covers: a title is a claim the learner acts on (one Shell essentials resource was titled as covering `iostat` and `vmstat`, and mentioned neither). Work out `estimated_minutes` rather than guessing: the lesson and the assigned parts of each reading at about 130 words a minute, more where the learner types along, about a minute and a half for each recall item, and each lab and the explain check on top.
 
-2. Write `lesson.mdx`: `<Intro>` (what to watch for), `<Resource index={0} />`, then `<Recap>`. The first resource in `topic.yaml` is the main one, shown in the lesson; any others are listed after the lesson as "More resources". Write your own explanations; never copy or paraphrase a resource's text.
+2. Write `lesson.mdx`: `<Intro>` (what to watch for), `<Resource index={0} />`, then `<Recap>`. The first resource in `topic.yaml` is the main one, shown in the lesson; any others are listed after the lesson as "More resources". Write your own explanations; never copy or paraphrase a resource's text. Inside it you can ask the topic's own quick questions, open with a puzzle and tell a real incident: see [Lesson building blocks](#lesson-building-blocks), below.
 3. Add the practice ladder: a worked example with labeled steps, then 2–3 recall items, a fill-in exercise, and a write exercise. Everything the build in step 4 needs appears here first: if the build uses a construct (`*args`, an attribute on a function, `argmin`), a practice item or the recap has already shown it.
 
    A Parsons problem (`type: parsons`: a short program's lines to put back in order, with a decoy or two) goes right after the worked example, where it does the most good. Write a prompt that says what the program prints, and make every line need the one before it, so there's exactly one right order. The validator proves it ([ADR-0016](../docs/decisions/0016-parsons-problems.md), amended): it tries the other orders of the lines (every order up to 7 lines; beyond that, every swap of two lines and every move of a run of lines) and each decoy in place of each line, and fails the item if any of them runs and prints the same output. Two shapes can always trade places, so avoid them: two set-up lines that don't use each other (join them, `a, b = ..., ...`, or build one from the other), and an import or a `def` beside a line that doesn't use it yet (make the line after an import use the module; a `def` whose own line doesn't use the import can always go above it, and two methods in one class can always trade places). An `assert` that passes can sit anywhere after the names it reads, so nothing may follow one in its block. If joining lines brings in syntax the learner hasn't met, the prompt says what it means.
@@ -87,6 +87,84 @@ To bring a time down:
 - For a program that honestly needs longer, set `time_limit_ms` in its `exercise.yaml`, with a comment saying why.
 
 If a prompt mentions the limit, it must state the real one.
+
+## Lesson building blocks
+
+A lesson can do more than explain ([ADR-0026](../docs/decisions/0026-lesson-building-blocks.md)). Three building blocks go inside `lesson.mdx`, beside `<Intro>`, `<Resource index={0} />` and `<Recap>`. Those six are the only tags a lesson may use; the validator reads every tag outside code and fails a lesson with any other, because the page can't draw a tag it doesn't know.
+
+A whole lesson that uses all three:
+
+```mdx
+<Intro>
+
+<Puzzle question="A server has 16 GB of memory and `free -m` says only 300 MB is free. Is it about to run out?">
+
+Probably not. The kernel fills memory nothing else is using with copies of recently read files, the page cache, and gives it back the moment a program asks. The number to read is `available`, which counts that cache as free.
+
+</Puzzle>
+
+Memory is the resource servers run out of most suddenly...
+
+**Why `free` looks scary.** ...
+
+<Check item="mcq-free-column" />
+
+**Swap and paging.** ...
+
+<Story title="The pods that were killed with memory to spare" source="https://example.com/postmortem" sourceTitle="How we lost the checkout service for an hour" license="linked, not copied">
+
+In our own words: what happened, what the operators saw, why it happened in this topic's terms, and what fixed it.
+
+</Story>
+
+</Intro>
+
+<Resource index={0} />
+
+<Recap>
+
+- ...
+
+</Recap>
+```
+
+Leave a blank line before and after each block, and inside a block that wraps text, as above, so the Markdown inside is read as Markdown. Write attribute values in double quotes; when the text holds a double quote, use single quotes around it instead (`question='Why does "free" lie?'`). Inside quotes, Markdown such as `` `code` `` works in a puzzle's question; an attribute can't hold a line break.
+
+### `<Check>`: a question inside the lesson
+
+`<Check item="<item id>" />` asks one of the topic's practice quick questions where it stands, right after the part of the lesson it tests. Questions placed between the parts of a lesson keep the reader's mind on it and improve what they learn from it (Szpunar, Khan & Schacter 2013).
+
+- The item is one of the topic's own recall items (multiple-choice, predict the output, predict the shell, Parsons, estimate, or any quick-question type added later). Exercises and labs can't be placed.
+- It stays in `topic.yaml`'s `practice:` list, where it counts towards the ladder's minimums and comes back like any other practice item. The page shows it once, in the lesson; the practice ladder leaves it out.
+- Place each item once. Pick questions that check the paragraph just read, one after each big idea, and leave the questions that pull several ideas together for the ladder.
+- It's graded and saved exactly as in practice, as a practice answer.
+
+### `<Puzzle>`: an opening puzzle
+
+`<Puzzle question="...">answer</Puzzle>` opens the intro with a question the lesson is about to answer. The learner types a guess, then presses "Show the answer". Wanting to know makes the answer stick (Gruber, Gelman & Ranganath 2014), and a guess made first helps even when it's wrong (Richland, Kornell & Kao 2009). The guess isn't graded or saved anywhere.
+
+- It goes first inside `<Intro>`, before any text, and a lesson has one at most.
+- The question is at most 50 words; the answer, between the tags, at most 150.
+- Pick a question a beginner can guess at but would probably get wrong or only half right, whose answer is the lesson's first big idea: a surprising number, a symptom with a cause they wouldn't expect, a "why" with a short answer. Never one that needs a term the lesson hasn't taught yet.
+
+### `<Story>`: a real incident
+
+`<Story title="..." source="https://..." sourceTitle="..." license="...">story</Story>` tells a real public outage or incident that the topic explains, with a link to where it's documented.
+
+- **A real, public source you have opened.** Every story comes from a public postmortem or a reputable report (the company's own write-up, a status page's incident history, a reputable news account), and the writer reads it before writing the story. Never write a story from memory, and never invent or embellish a detail; if the source doesn't say it, the story doesn't either.
+- **In our own words.** Never copy or closely paraphrase the source's text (ADR-0004's licence rule): read it, close it, and tell what happened as you would to a colleague, in this topic's terms. Short facts (a date, a duration, a number) are fine.
+- **Record the licence** in `license`: the source's own licence where it states one (`CC BY 4.0`), otherwise `linked, not copied`. The page shows it beside the link.
+- `title` names the incident in a few words ("Cloudflare's regex outage, 2019"); `sourceTitle` is the source page's own title, the link's text; `source` is its `https://` address.
+- At most 200 words. A good story says what users saw, what happened underneath in this topic's terms, how it was found and fixed, and the one lesson worth keeping.
+- Place it where the topic has taught enough to understand it: inside `<Intro>` after the idea it illustrates, or between `<Resource>` and `<Recap>`.
+
+### What the validator checks
+
+- Only `Intro`, `Resource`, `Recap`, `Check`, `Puzzle` and `Story`; every tag finished, every wrapping tag closed. `<Term>` is never written by hand.
+- `<Check>`: stands alone (`/>`), has only `item`, in quotes; the item exists in this topic, is a quick question and not an exercise, is listed in `practice:`, and isn't placed twice.
+- `<Puzzle>`: has `question`, in quotes, and an answer between its tags; first inside `<Intro>`; one per lesson; at most 50 and 150 words; nothing placed inside it.
+- `<Story>`: has `title`, `source`, `sourceTitle` and `license`, none empty, in quotes; `source` is an `https://` link; the story is between its tags, at most 200 words; nothing placed inside it.
+- Each problem names the lesson's line.
 
 ## Writing a lab
 
