@@ -2,6 +2,41 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, reviews: implicit repetition
+
+The first of four changes to the review engine. ADR-0009 listed implicit repetition under "Later": when a learner practises an advanced topic, the topics it builds on get part of a review's credit. Math Academy calls its version FIRe. It's built now, as an amendment to ADR-0009 (Proposed).
+
+**What changed.**
+
+- **`web/src/reviews/implicit.ts`** works out the credits from the event log and replays them with each card's own reviews. A review rated Good or a passed proof (a build, a debug, a checkpoint's fresh version or further part) gives a direct prerequisite half a review; a Hard review a quarter; Again nothing. Each step further down the prerequisites halves the share, down to an eighth. Half a review means the next review date moves half way toward where a real Good review that day would have put it.
+- **The guards:** no credit until a topic is half way to due, at most one a day, none while it's relearning, and at most two between its own reviews. A credit never makes a review sooner (a test runs 2,000 random histories) and isn't a review, so Mastered still needs a real one.
+- **`progressOf`** takes a `topicOf` lookup, so a topic on one track can credit one on another; `useProgress` passes `getTopic`. A finished review shows its next date with the credits in.
+- **The topic page reads the whole history,** as the map and the Today page do. A topic's schedule now depends on practice in the topics built on it, and reading only its own history would have shown a different state from the map. This also closes an older gap: a follow-up opened by a checkpoint's test now shows on the topic page.
+- **`npm run sim:reviews`** (in `web/`, `web/scripts/review-load.ts`) simulates a learner, with the real topic graph and the app's own scheduler.
+- 26 new tests, with the ADR's worked examples among them.
+
+**The simulation.** An hour of new study a day through cloud Modules 1 to 3 (38 topics and 3 checkpoints), every due review done, each item right with the chance the card predicts; 20 runs of a year:
+
+| | Reviews in the year | A day, on average | Busiest day | Rated Again |
+| --- | --- | --- | --- | --- |
+| Without credit | 167 | 0.46 | 3.3 | 1.4 |
+| Credit, if it's right | 114 | 0.31 | 2.6 | 0.7 |
+| Credit, if it's worthless | 129 | 0.35 | 3.1 | 4.1 |
+
+So credit spares about a third of the reviews. "Worthless" is the worst case: the schedule trusts the credit while the learner's memory gets nothing from it, so the reviews that are left fail more often. At two hours a day the numbers are much the same (178 reviews without, 114 with). Over all 31 modules' outlines (376 topics, two hours a day, 1,100 days) it spares about a tenth (1,968 to 1,789), because most outlines list only their module's checkpoint as a prerequisite, and credit doesn't cross checkpoints. The written topics list more.
+
+**Author notes:**
+
+- _The cap of 20 a day isn't under threat._ The brief for this work expected the review load to outgrow it at about 340 topics. The simulation doesn't bear that out: with 90% retention, FSRS's intervals grow fast enough that the busiest day of the whole track is about 7 reviews. Implicit repetition is still worth having, for a different reason: it spares reviews of topics the learner uses every week anyway.
+- _Credit reaches three steps down, halving each step,_ not direct prerequisites only, because topics list only their nearest prerequisites (DNS lists Transport, and uses three more). Where two paths reach a topic, the shorter counts; they don't add up.
+- _Credit doesn't pass through a checkpoint._ "Builds on Checkpoint 1" means "comes after Module 1"; passing through would credit every Module 1 topic for any Module 2 review. A checkpoint's own build does credit the topics it lists, because its tests use them.
+- _Half a review is moving the due date half way,_ not a weighted grade inside FSRS's formulas, which FSRS doesn't have. Between real reviews the scheduler stays exactly FSRS-4.5.
+- _Two credits at most between real reviews,_ so credit can't put a topic's own review off for ever. Without it, a topic used every week might never be reviewed, and never become Mastered.
+- _Practice answers don't count:_ they're given while learning a topic, often with hints, so a right one is weak evidence about the topic underneath.
+- _The topic page now pays for a whole-history read,_ as Today and the map already do. When that gets slow, the cache ADR-0008 and ADR-0011 describe is the answer for all three.
+
+**Next:** answer time in review ratings.
+
 ## 2026-11-16: A "Back to top" button
 
 **The owner asked** for last week's audits to be reviewed and anything buildable from them built, for Module 1 only, and for a button to jump back to the top of long pages. Reviewed: the whole-app audit of 2026-11-10, the cloud track's principal-bar audit of 2026-11-15, and the "Three roads to Distinguished" plan of the same day. Cloud Module 1 has nothing left from any of them: the 2026-11-10 findings were fixed in #209 to #237, and yesterday's leftovers work (#278 to #291) finished what remained. The audits still list Module 1 work in the Python track (multiple-choice items whose right answer is the longest choice) and in the ML track's math refresher (the same, plus placement-test topics with only two questions), and the plan would start Full Stack and Mobile at their Module 1. Asked which to build, the owner said: "Just build the back to top button then. Right now I only care about the cloud track."

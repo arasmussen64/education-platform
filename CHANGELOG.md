@@ -18,6 +18,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Changed (reviews: implicit repetition)
+
+- Practising a topic now counts as part of a review for the topics it builds on, as Math Academy's "FIRe" does ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). A review rated Good, or a passed build or debug, moves each direct prerequisite's next review half way toward where a real Good review would have put it; a Hard review a quarter of the way; topics further down get half as much at each step. A credit only counts once a topic is half way to due, at most once a day, never while it's relearning, and at most twice between its own reviews. It never makes a review come sooner and never counts toward Mastered. In a simulated year of cloud Modules 1 to 3 it removes about a third of the reviews; `npm run sim:reviews` in `web/` runs the simulation.
+- The topic page reads the whole history, as the map and the Today page do, since a topic's schedule now depends on practice in other topics. A follow-up opened by a checkpoint's test now shows on the topic page too.
+
 ### Added (a "Back to top" button on long pages)
 
 - Every page gains a "Back to top" button in its bottom right corner once the learner has scrolled more than one screen down. It scrolls back smoothly (or jumps, when the system asks for less motion) and puts keyboard focus at the top of the page. Pages leave room under their last line so it never covers anything at the very bottom.
