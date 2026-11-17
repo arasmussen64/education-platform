@@ -67,6 +67,15 @@ export const routes: RouteObject[] = [
               return { Component: PlacementPage }
             },
           },
+          {
+            // Every glossary term (ADR-0026). Its definitions download only
+            // when it's visited.
+            path: 'glossary',
+            lazy: async () => {
+              const { GlossaryPage } = await import('./pages/GlossaryPage.tsx')
+              return { Component: GlossaryPage }
+            },
+          },
           { path: 'sign-in', element: <SignInPage /> },
           { path: 'account', element: <AccountPage /> },
           {
