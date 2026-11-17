@@ -29,6 +29,10 @@ It checks:
   gives that mistake's value, and that the tolerance accepts the answer and
   none of the mistakes (ADR-0024). It's plain arithmetic, so --no-run checks it.
 - the diagnostics the placement test walks (ADR-0021): their shape and ids.
+- that a lesson uses only the tags the app can draw, each written as
+  content/README.md says (ADR-0026, lesson_blocks.py): a <Check> names one of
+  the topic's practice quick questions, once; a <Puzzle> comes first in the
+  intro; a <Story> links an https source and records its licence.
 
 It prints every problem it finds and exits with status 1 if there are any.
 """
@@ -54,6 +58,7 @@ from pathlib import Path
 from typing import Any
 
 import arithmetic
+import lesson_blocks
 import mcq_lengths
 import parsons_orders
 import yaml
@@ -674,6 +679,20 @@ def check_references(folder: TopicFolder, report: Report) -> None:
                 )
             elif not folder.topic.resources:
                 report.add(lesson, "<Resource index={0}> doesn't exist")
+
+
+def check_lesson_blocks(folder: TopicFolder, report: Report) -> None:
+    """The tags in a topic's lesson, and the building blocks' rules (ADR-0026)."""
+    lesson = folder.path / "lesson.mdx"
+    if not lesson.exists():
+        return
+    for problem in lesson_blocks.problems(
+        lesson.read_text("utf-8"),
+        quick_questions=set(folder.recall),
+        exercises=set(folder.exercises),
+        practice=list(folder.topic.practice),
+    ):
+        report.add(lesson, problem)
 
 
 # --- Running code -------------------------------------------------------------------
@@ -1460,6 +1479,7 @@ def check_topic(
     a checkpoint's further parts and the estimate checks)."""
     report.counts[folder.topic.status] += 1
     check_references(folder, report)
+    check_lesson_blocks(folder, report)
     check_packages(folder, report)
     check_test_skills(folder, topics, place, report)
     if folder.topic.status == "ready":

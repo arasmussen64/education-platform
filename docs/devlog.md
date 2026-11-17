@@ -2,6 +2,30 @@
 
 A dated log of each working session: what changed, what was decided, what's next. Newest first.
 
+## 2026-11-16, lessons: questions inside the lesson, an opening puzzle, and a real incident
+
+Part of a larger plan to improve how the platform teaches. This stream adds new building blocks for lessons ([ADR-0026](decisions/0026-lesson-building-blocks.md), Proposed); content writers fill the cloud track's ready topics with them afterwards. This first pull request brings the three that go in `lesson.mdx`; the glossary follows.
+
+**What changed.**
+
+- **`<Check item="..." />`** asks one of the topic's practice quick questions inside the lesson, drawn by the same component as the practice ladder (`PracticeItem`), so every question type works, the new ones included, and graded and saved as a practice answer. Compiling a lesson now adds `export const checks = [...]` to it (`web/src/tooling/remarkLessonChecks.ts`), so the topic page knows which questions the lesson asks without drawing it, and `practiceOutsideLesson` (`web/src/content/lessonChecks.ts`) leaves them out of the ladder. The topic page's change is two lines.
+- **`<Puzzle question="...">answer</Puzzle>`**, first in the intro: a box for a guess, and "Show the answer", which asks for a guess first.
+- **`<Story title source sourceTitle license>`**: a real incident in our own words, with its source linked and its licence shown.
+- **The validator reads every tag in a lesson** (`tools/lesson_blocks.py`), outside code: only the six the app can draw, and each block's rules. All 124 existing lessons pass.
+- `content/README.md` has a new section, "Lesson building blocks", with a whole example lesson and the rules; `docs/specs/data-model.md` lists the tags.
+
+**Author notes:**
+
+- _The puzzle's guess is kept nowhere,_ not even on the device. An event for an ungraded guess would be learner data with no use, and a guess remembered on the device would greet the learner on their next visit and spoil the second try. It's shown beside the answer while the page is open.
+- _"Show the answer" stays pressable with an empty box,_ and then asks for a guess and moves to the box. A disabled button can't be reached by keyboard and doesn't say why it's disabled.
+- _A placed question isn't folded away when it was answered before,_ unlike the ladder's. Rereading a lesson and answering again is retrieval practice, and a folded card in the middle of prose would break the reading.
+- _A story records its licence in a required `license` attribute,_ shown beside the link like "More resources" shows a resource's, so ADR-0004's licence rule is checked by the validator instead of trusted.
+- _Word limits:_ a story 200 words, a puzzle's question 50 and its answer 150. Long enough for what users saw, the cause, the fix and the lesson; short enough to stay a story in a lesson.
+- _The ladder's numbering counts what it shows:_ a topic with five practice items and one placed in the lesson says "Practice 1 of 4". The placed item still counts towards the topic's minimums and everywhere else.
+- _Bundle:_ the topic page's code grew by 3 KB (32.9 to 35.9 KB before compression); the first download didn't change.
+
+**Next:** the glossary: `glossary.yaml` per topic, terms marked in lessons, and a glossary page.
+
 ## 2026-11-16: A "Back to top" button
 
 **The owner asked** for last week's audits to be reviewed and anything buildable from them built, for Module 1 only, and for a button to jump back to the top of long pages. Reviewed: the whole-app audit of 2026-11-10, the cloud track's principal-bar audit of 2026-11-15, and the "Three roads to Distinguished" plan of the same day. Cloud Module 1 has nothing left from any of them: the 2026-11-10 findings were fixed in #209 to #237, and yesterday's leftovers work (#278 to #291) finished what remained. The audits still list Module 1 work in the Python track (multiple-choice items whose right answer is the longest choice) and in the ML track's math refresher (the same, plus placement-test topics with only two questions), and the plan would start Full Stack and Mobile at their Module 1. Asked which to build, the owner said: "Just build the back to top button then. Right now I only care about the cloud track."

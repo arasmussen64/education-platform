@@ -9,6 +9,7 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, normalizePath, type Plugin } from 'vite'
 import { parse as parseYaml } from 'yaml'
 import { limiter } from './src/tooling/limiter.ts'
+import { remarkLessonChecks } from './src/tooling/remarkLessonChecks.ts'
 import { APP_NAME } from './src/config.ts'
 
 // Adds the product name as the page <title>, so the name only ever has to be
@@ -204,7 +205,9 @@ export default defineConfig({
   },
   plugins: [
     // Lessons are MDX: Markdown with components like <Intro> and <Resource>.
-    { enforce: 'pre', ...mdx() },
+    // Each compiled lesson also says which questions it asks with <Check>
+    // (ADR-0026), so the practice ladder can leave them out.
+    { enforce: 'pre', ...mdx({ remarkPlugins: [remarkLessonChecks] }) },
     react({ include: /\.(mdx|js|jsx|ts|tsx)$/ }),
     tailwindcss(),
     contentYaml(),

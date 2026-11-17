@@ -20,6 +20,7 @@ import {
 } from '../checkpoints/Unstuck.tsx'
 import { SUGGEST_STEPS_AFTER } from '../checkpoints/versions.ts'
 import { getTopic, placeOf, tracks } from '../content/content.ts'
+import { practiceOutsideLesson } from '../content/lessonChecks.ts'
 import { STAGES } from '../content/stages.ts'
 import type { Explain, Topic, TopicContent } from '../content/types.ts'
 import { LessonView } from '../components/LessonView.tsx'
@@ -228,7 +229,10 @@ function ladderOf(
   content: TopicContent,
   interleaved: Interleaved | null,
 ): LadderItem[] {
-  const own = content.topic.practice.map((itemId) => ({ itemId, content }))
+  const own = practiceOutsideLesson(content).map((itemId) => ({
+    itemId,
+    content,
+  }))
   if (own.length === 0 || !interleaved) return own
   const lastRecall = own.findLastIndex(({ itemId }) => itemId in content.recall)
   return own.toSpliced(lastRecall + 1, 0, interleaved)
@@ -653,7 +657,7 @@ function Learn({ content }: { content: TopicContent }) {
         </ul>
       </div>
       {Lesson ? (
-        <LessonView Lesson={Lesson} resources={topic.resources} />
+        <LessonView Lesson={Lesson} content={content} />
       ) : (
         <p>The lesson for this topic hasn't been written yet.</p>
       )}
