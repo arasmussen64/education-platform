@@ -1754,7 +1754,9 @@ describe('a topic in parts (ADR-0025)', () => {
     })
     const quick = screen.getByRole('region', { name: 'Quick check' })
     await userEvent.click(within(quick).getByRole('radio', { name: 'Hi' }))
-    await userEvent.click(within(quick).getByRole('button', { name: 'Check' }))
+    await userEvent.click(
+      within(quick).getByRole('button', { name: 'Fairly sure' }),
+    )
     await vi.waitFor(() =>
       expect(done).toHaveAccessibleName('Part 2 · Practice: done'),
     )
