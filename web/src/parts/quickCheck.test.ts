@@ -9,6 +9,7 @@ import {
   MCQ,
   PARSONS,
   PREDICT,
+  TYPED_TERM,
 } from '../test/fakeContent.tsx'
 import {
   isOptional,
@@ -76,6 +77,15 @@ describe('picking the quick check', () => {
       question('q5', ['d']),
     ])
     expect(quickCheckItems(content)).toEqual(['q1', 'q3', 'q4', 'q5'])
+  })
+
+  it('counts a typed answer as quick (ADR-0027)', () => {
+    const content = topicWith([
+      question('q1', ['a']),
+      question('t1', ['b'], TYPED_TERM),
+      question('q2', ['c']),
+    ])
+    expect(quickCheckItems(content)).toEqual(['q1', 't1', 'q2'])
   })
 
   it('stops at five questions', () => {
