@@ -113,6 +113,18 @@ describe('progress on the map', () => {
     expect(within(row('Variables')).getByText(/Locked/)).toBeInTheDocument()
   })
 
+  it('counts the topics proven in each module', async () => {
+    renderMap([
+      attempt(PRINT.id, PRINT.prove.build, 'code_check', true),
+      attempt(PRINT.id, PRINT.prove.debug, 'code_check', true),
+      attempt(PRINT.id, 'explain', 'explain_submit', true),
+    ])
+    const counts = await screen.findAllByText(/^\d+ of \d+ proven$/)
+    // Module 1 first: one proven so far. The modules after it, none.
+    expect(counts[0]).toHaveTextContent(/^1 of \d+ proven$/)
+    expect(counts[1]).toHaveTextContent(/^0 of \d+ proven$/)
+  })
+
   it('says when a Learned topic is due for a review', async () => {
     const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000)
     const learned = [

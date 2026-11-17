@@ -42,8 +42,14 @@ import {
 } from '../placement/describe.ts'
 import { subjectOfDiagnostic } from '../placement/history.ts'
 import { usePlacements } from '../placement/usePlacements.ts'
+import { countModule, describeModule } from '../progress/modules.ts'
 import { nextUp, stateOf, type TopicProgress } from '../progress/progress.ts'
 import { type ProgressState, useProgress } from '../progress/useProgress.ts'
+import {
+  describeWeeks,
+  type WeeksPractised,
+  weeksPractised,
+} from '../progress/weeks.ts'
 import { ReviewSession } from '../reviews/ReviewSession.tsx'
 import {
   bundledTopics,
@@ -170,6 +176,10 @@ function StartSession({
   }
   // Capitalise the first word ("2 reviews" needs nothing; "Nothing" has it).
   summary = summary.charAt(0).toUpperCase() + summary.slice(1)
+  const whereInModule =
+    next && progress.status === 'ready'
+      ? moduleLine(next.topic.id, progress.progress)
+      : null
 
   return (
     <section
@@ -180,6 +190,9 @@ function StartSession({
         Today's session
       </h2>
       <p>{summary}</p>
+      {whereInModule && (
+        <p className="text-slate-600 dark:text-slate-400">{whereInModule}</p>
+      )}
       <Link to={SESSION_PATH} className={PRIMARY_BUTTON}>
         Start today's session
       </Link>
@@ -198,6 +211,27 @@ function StartSession({
       )}
     </section>
   )
+}
+
+/**
+ * Where the learner stands in the next topic's module (progress/modules.ts):
+ * "6 of 8 topics proven in Module 2, …", or a fresh start. Null for a
+ * capstone, which stands outside its module.
+ */
+function moduleLine(
+  topicId: string,
+  progress: Map<string, TopicProgress>,
+): string | null {
+  const place = placeOf(topicId)
+  if (!place || place.role === 'capstone') return null
+  const count = countModule(place.module, progress, canOpen)
+  return describeModule(place.number, place.module, count)
+}
+
+/** Whether a topic, by ID, is bundled and can be opened. */
+function canOpen(topicId: string): boolean {
+  const topic = getTopic(topicId)
+  return topic !== undefined && isOpen(topic)
 }
 
 /** Says what couldn't load, with a button to try again. */
@@ -234,6 +268,7 @@ function PracticeHours({
     tracks().map((track) => track.id),
     (topicId) => placeOf(topicId)?.track.id,
   )
+  const weeks = weeksPractised(progress.attempts, dayOf(now))
   const recent =
     all.recentMs === 0
       ? 'none of it in the last 7 days'
@@ -244,6 +279,7 @@ function PracticeHours({
       <h2 id="practice-hours" className="text-xl font-semibold">
         Practice hours
       </h2>
+      {weeks && <Weeks weeks={weeks} />}
       {all.attempts === 0 ? (
         <p className="text-slate-600 dark:text-slate-400">
           Nothing counted yet. Every answer, Check and review you finish adds
@@ -269,6 +305,43 @@ function PracticeHours({
         </>
       )}
     </section>
+  )
+}
+
+/**
+ * Consistency, in weeks rather than a daily streak (progress/weeks.ts): a
+ * sentence, and a row of marks for the weeks, oldest first.
+ */
+function Weeks({ weeks }: { weeks: WeeksPractised }) {
+  const { summary, note } = describeWeeks(weeks)
+  const oldestFirst = [...weeks.byWeek].reverse()
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* The sentence beside it says the same, so readers skip the marks. */}
+        <span
+          aria-hidden="true"
+          data-testid="week-marks"
+          className="flex gap-1"
+        >
+          {oldestFirst.map((practised, index) => (
+            <span
+              key={index}
+              data-practised={practised}
+              className={`h-3 w-5 rounded-sm border ${
+                practised
+                  ? 'border-lime-600 bg-lime-400'
+                  : 'border-slate-300 dark:border-slate-700'
+              }`}
+            />
+          ))}
+        </span>
+        <span>{summary}</span>
+      </div>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        A week here is seven days up to today.{note ? ` ${note}` : ''}
+      </p>
+    </div>
   )
 }
 
