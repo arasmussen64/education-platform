@@ -1,0 +1,16 @@
+id: contrast-intermediate-or-root
+type: mcq
+rev: 1
+prompt: |
+  A partner's server, which trusts only the public roots its operating system ships, can't call two of the shop's services. Against `api`, whose certificate comes from a public CA, `openssl s_client` ends with `Verify return code: 21 (unable to verify the first certificate)`. Against `pay`, whose certificate comes from the shop's own private CA, it ends with `Verify return code: 19 (self-signed certificate in certificate chain)`. What does each need?
+choices:
+  - "api: the intermediate added to its certificate file. pay: its root in the partner's trust store"
+  - "api: the public root added to its certificate file. pay: the root taken out of its own file"
+  - "api: its root in the partner's trust store. pay: the intermediate added to its certificate file"
+  - "api: the intermediate added to its certificate file. pay: the root added to its file as well"
+answer: 0
+explanation: |
+  The two codes point at the two ends of the chain. **21** (after 20, `unable to get local issuer certificate`) means the client couldn't find the certificate that signed the site's: with a public CA the client trusts, that's the **intermediate**, which the server should send after its own certificate (certbot's `fullchain.pem`). Adding the public root to api's file wouldn't help: the client already has that root, and what's missing is the link between it and the site's certificate.
+
+  **19** means the chain was complete, up to a self-signed **root** the server sent, but the client doesn't trust that root. A root proves nothing by being sent: a client trusts it only if it already holds it in its own trust store. So pay's chain is fine, and the shop gives the partner its private root to add, as every client of a private CA must be given. Taking the root out of pay's file would only change the error to 20 (`unable to get local issuer certificate`: the client can't find the certificate that signed the intermediate), and pay already sends its root, so adding it again changes nothing.
+skills: [cert-chains]

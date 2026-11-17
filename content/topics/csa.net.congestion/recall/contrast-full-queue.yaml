@@ -1,0 +1,16 @@
+id: contrast-full-queue
+type: mcq
+rev: 1
+prompt: |
+  The nightly backup runs from shop to dr1 over a 50 Mbit/s link with CUBIC. iperf3's `receiver` line says 46 Mbit/s, the link has lost nothing all night, and `ss -tni` shows the connection with `rtt:213` and `minrtt:50`. Meanwhile the office's SSH sessions to dr1 feel sluggish. What is slowing the SSH sessions down?
+choices:
+  - "The backup has filled a router's deep queue, and every packet now waits in it"
+  - "The link drops packets at random, and each loss makes CUBIC cut its window"
+  - "dr1's receive window is too small, so the backup stalls after each of its windows"
+  - "The backup is still in slow start, doubling its window every round trip"
+answer: 0
+explanation: |
+  This is queueing delay, not packet loss, and the numbers tell them apart. The round trip is 213 ms against a minimum of 50: about 160 ms of every round trip is time spent waiting in a queue, and the transfer runs at nearly the whole link while losing nothing. A loss-based sender like CUBIC keeps growing its window until something drops, so on a clean path with a deep buffer it fills the buffer, and every other connection on the link, SSH included, waits behind it. That's bufferbloat.
+
+  Random loss looks the opposite way: the round trip stays close to `minrtt`, because the window keeps being cut and never fills a queue, and the transfer runs at a fraction of the link. A small receive window would also leave the link far from full, not at 46 of 50 Mbit/s. And slow start ends at the first loss or after a handful of round trips; a backup that has run all night is long past it.
+skills: [loss-based-cc]

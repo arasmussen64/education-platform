@@ -1,8 +1,16 @@
 <Intro>
 
+<Puzzle question="A provider's equipment fails in the middle of a circuit: both routers' interfaces stay up, but nothing gets through. With BGP's default settings, how long can traffic keep pouring into the dead circuit?">
+
+Up to three minutes. A BGP router notices a dead path only when it has heard nothing from its neighbour for the hold time, 180 seconds by FRR's default (90 on AWS's side), and until then it keeps sending traffic over the routes it learned through that circuit. A cut cable is noticed at once, because the interface goes down; a failure that leaves the interfaces up isn't. A small protocol called BFD, which exchanges tiny packets every few hundred milliseconds, cuts that to under a second.
+
+</Puzzle>
+
 BGP sessions and policy ended with your way out: local preference on the routes from the provider you prefer, and the warning that it changes nothing about how others reach you. This topic is the rest of running BGP to a cloud. How to steer the traffic coming in, which you don't control. What happens when one company has several routers that run BGP, and why they can't simply pass each other what they hear. How fast a failed link is noticed, and how to make it fast. And how the three clouds' private circuits, AWS Direct Connect, Azure ExpressRoute and Google Cloud Interconnect, use all of it, each with its own rules.
 
 **Two directions, two deciders.** Picture your router and the cloud's router at the two ends of two circuits. Every router chooses its own way out, so your router decides which circuit your packets leave by: that is **outbound traffic engineering**, and local preference does it. The cloud's router decides which circuit its packets come back by, from the paths it has heard for your prefix and its own policy: that is **inbound traffic engineering**, and you can't set anything on the cloud's router. All you can change is what you announce to it. Keep the two arrows apart, as in Routing's "the way back is its own route": a company that sets local preference and thinks it has chosen a primary circuit has chosen half of one.
+
+<Check item="mcq-who-decides-inbound" />
 
 **The tools for the way in, strongest first.**
 
@@ -25,6 +33,8 @@ The walkthrough tries the last three in turn against a cloud modelled on AWS, an
 ```
 
 In FRR a community is set in an outbound route map, `set community 7224:7300`, and FRR sends communities by default. To act on communities you receive, a router names them in a list, `bgp community-list standard HIGH seq 5 permit 7224:7300`, and matches it in a route map, `match community HIGH`: that is exactly how the lab's cloud is configured (`looking-glass cloud 'show running-config'`). A few communities mean the same to every router (RFC 1997): **NO_EXPORT**, "use this, but pass it to no other AS", and **NO_ADVERTISE**, "pass it to nobody". AWS tags every route it sends you over a public virtual interface with NO_EXPORT.
+
+<Check item="communities-table" />
 
 **Equal paths are shared.** BGP sessions and policy's paths differed in length, so one won and the kernel installed only it. When two paths tie on everything and only a last tie-break is left (the lower router ID or neighbour address), FRR marks both `multipath` and installs both: the kernel's route shows two next hops, and each connection takes one of them (ECMP, from Routing). AWS documents the same for virtual interfaces whose paths are equal. That is why the labs' checks read the kernel's whole route, `ip route show PREFIX`, and not only BGP's `best`: a tie can look like a choice in `show bgp` and still send half the traffic the wrong way.
 
@@ -49,6 +59,8 @@ Neighbor        V         AS   MsgRcvd   MsgSent   TblVer  InQ OutQ  Up/Down Sta
 10.0.2.2        4      65001        94       107        0    0    0 00:00:10            1        0 dc1
 ```
 
+<Check item="est-full-mesh" />
+
 A **route reflector** is a router allowed to break the rule for its **clients**: `neighbor 10.0.1.2 route-reflector-client` on core. RFC 4456 gives the reflector's two rules: a route from a client goes to all the other peers, clients or not; a route from a non-client goes to the clients. Only routes between two non-clients still stop. To stop loops, the reflector adds two marks to each route it passes on, the **originator** (the router ID of the router that first brought the route into the AS) and the **cluster list** (the reflectors it has passed through), and a router that finds its own ID in either drops the route. access then sees the cloud's route (captured; the first line reads: next hop 10.0.2.2, dc1's end of its cable to core, received from core, 10.0.1.1, and in brackets the originator, dc1, whose router ID is 169.254.30.1):
 
 ```
@@ -59,11 +71,21 @@ A **route reflector** is a router allowed to break the rule for its **clients**:
 
 Real networks run two reflectors, each client peering with both, so one can fail: 2 x 10 + 1 = 21 sessions for twelve routers instead of the mesh's 66. **The next-hop trap** comes with it. A route learned over eBGP keeps the far side's address as its next hop when it is passed on over iBGP, here the cloud's address on dc1's circuit, 169.254.30.2, and a reflector doesn't change it. If nothing inside the AS has a route to that cable, the route shows `inaccessible` and is never used. The border router fixes it with `neighbor ADDRESS next-hop-self`, with core's address, which puts the border router's own address there: that is why access's route above shows 10.0.2.2. Carrying routes to the circuits inside the AS also works.
 
+<Story title="Cloudflare's Atlanta router, 2020" source="https://blog.cloudflare.com/cloudflare-outage-on-july-17-2020/" sourceTitle="Cloudflare outage on July 17, 2020" license="linked, not copied">
+
+On 17 July 2020 a link in Cloudflare's private backbone between Newark and Chicago failed, and the traffic it had carried congested the link between Atlanta and Washington. To relieve it, an engineer changed the configuration of the Atlanta router, meaning to take some of Atlanta's traffic off the backbone. The change switched off one line inside a policy term: its prefix-list match. That term set local preference 200 on the routes it matched, meant only for Atlanta's own local routes; with its match line gone, it matched every route the router had.
+
+Local preference travels over iBGP to every router in the AS, and the routes to each city's own servers carried 100. So from 21:12 UTC routers across the backbone preferred the path through Atlanta even for traffic meant for their own city's servers. Atlanta drew traffic from everywhere and was overwhelmed: in 19 cities Cloudflare's services were unavailable, and its traffic fell by about half, for 27 minutes, until the Atlanta router was taken off the backbone. The fixes included a maximum-prefix limit on the backbone's sessions, which would have shut Atlanta's down, and a change to the local preference of each city's own routes.
+
+</Story>
+
 **Announcing a summary.** A provider's prefix limit is a fuse, as in BGP sessions and policy, and here it bites your own design: the build's office has eight /24s and the cloud takes 5 per session. Eight networks side by side, 10.1.0.0/24 to 10.1.7.0/24, make one /21 (three bits, 2 x 2 x 2 = 8, from CIDR). In FRR, `network` lines put the eight into BGP, and `aggregate-address 10.1.0.0/21 summary-only` announces the summary and holds the eight back. Send more than the limit and the cloud tears the session down at once; its summary shows `Idle (PfxCt)` and its neighbour details "will restart in 56 seconds" (captured). Nothing passes in either direction until then.
 
 **Noticing failure.** A cable that loses its carrier is a **loud** failure: both routers see the interface go down and drop its routes at once (one ping lost in the walkthrough). A path that dies while the interfaces stay up, a fault in a provider's equipment, is **silent**, and a static route never notices it (Routing). BGP does, but only when no keepalive has arrived for the hold time: 9 seconds in the labs, 90 by default on AWS's side, 180 on Microsoft's. In the walkthrough, 53 of 75 pings sent every 0.2 seconds were lost, about 10 seconds, and the session's `Last reset` said `Hold Timer Expired`. Traffic is lost for all of it.
 
 **BFD** (bidirectional forwarding detection) is the fix. Two routers send each other a tiny packet every **interval** and declare the path down when a **multiplier**'s worth of intervals pass with nothing heard: the detection time is interval x multiplier. FRR's defaults and AWS's minimums are 300 ms x 3 = 900 ms, and Microsoft's edge runs at 300 ms (its example sets a multiplier of 3); Google's defaults are 1,000 ms x 5 = 5 seconds. The two sides agree on the slower setting, so a profile of 1,000 ms x 3 on your side makes 3 seconds, however fast the other side would go. When BFD declares the path down, BGP drops the session at once: the walkthrough's silent failure cost 5 pings, one second. In FRR, `bfdd=yes` in `/etc/frr/daemons` runs the BFD daemon, `neighbor ADDRESS bfd` puts a session under it, a `bfd` section can hold a named `profile` with other values, and `show bfd peers` shows each side's timers. **Graceful restart** is the opposite idea: a router that restarts asks its neighbour to keep using its routes meanwhile, which works against noticing a failure fast, and AWS recommends not using the two together.
+
+<Check item="est-bfd-aws" />
 
 **Designing two circuits and a VPN.** Outbound, local preference in three steps: highest on the routes from the primary circuit, then the backup, then the VPN, so each takes over only when the ones above it are gone. Leave the middle step out and the backup and the VPN tie, and the tie decides: in the build it goes to the VPN, so traffic would cross the internet as soon as the primary failed, with the backup circuit idle. Inbound, whatever the provider honours: AWS's communities, prepending or more specifics on Azure, and on Google, which tells you its own preference, MED. AWS already prefers Direct Connect routes to VPN routes for the same prefix (Routing's priority list), and the build's cloud does the same. Summarise to stay under the limit, and put BFD on both circuits. A real circuit takes weeks to deliver and bills every month, so this topic models them with FRR, each cloud labelled "modelled on" and quoted; Module 11 builds a VPN with BGP to a real cloud.
 
