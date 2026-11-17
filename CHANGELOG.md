@@ -18,6 +18,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - Decided that way on 2026-11-11: a debug lab's page lists "What the checker looks for" only after the learner has recorded a first result, because each check describes the state a fix must reach and so points at the fault (#235). Every other lab still lists its checks from the start.
 - Decided under the owner's delegation on 2026-11-11, for Module 3: sixteen topics (BGP and HTTP and TLS each split in two); its topics gate on Module 1, not Module 2; one network-lab base for every network lab, with a restart trial run in CI; the route-based VPN as a VTI; a lab's lasting kernel settings and addresses kept in each machine's own files; a check may cut and restore a link to prove a backup; labs on a fast clock that every prompt states; and Checkpoint 3 in three parts. Each is listed in `docs/owner-queue.md` under "Decided for you".
 
+### Added (Today page: one button for today's session, and a five-minute version)
+
+- The Today page opens with "Today's session": one sentence saying what is waiting ("1 review and 1 mistake coming back, then your next topic, Values and types.") and a lime "Start today's session" button. It opens a new page, `/session`, that goes through the day's work one step at a time: the due reviews, the most faded first, then the mistakes coming back today, then the next new topic, in the track the learner worked in most recently. Every section below stays for browsing.
+- "Just 5 minutes" (`/session?minutes=5`), for a day with little time or energy: only the one to three reviews closest to fading. They are ordinary review sessions, saved and rated exactly as on the Today page.
+- The session's steps are the Today page's own review and follow-up components, so nothing about saving or grading is duplicated. The follow-up card moved to `web/src/followups/FollowUpCard.tsx` (its helpers to `cards.ts`), and the ordering lives in `web/src/session/sessionPlan.ts`, which reads the due list and the daily limit from `web/src/reviews/` without changing them.
+
 ### Added (a "Back to top" button on long pages)
 
 - Every page gains a "Back to top" button in its bottom right corner once the learner has scrolled more than one screen down. It scrolls back smoothly (or jumps, when the system asks for less motion) and puts keyboard focus at the top of the page. Pages leave room under their last line so it never covers anything at the very bottom.
