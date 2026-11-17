@@ -26,6 +26,43 @@ Part of a larger plan to improve how the platform teaches. This stream adds new 
 
 **Next:** the glossary: `glossary.yaml` per topic, terms marked in lessons, and a glossary page.
 
+## 2026-11-16, topic page: how an explanation is marked
+
+Part of today's improvement plan for the topic page. The plan asked for an explain-back's rubric points to be shown before the learner writes, unless that would hand them the answer.
+
+**What I found.** It would. Every rubric read (Python's lists, the shell, routing, and a sample across the tracks) is written as the answer itself: "append adds the item to the end of the list it's called on, changing that list; it returns None"; "the longest matching prefix wins, and the default route only when nothing else matches". The points' ids are no better as labels: some are abbreviations ("lpm"), and the readable ones hint at the answer. The component even said so: "The rubric and the model answer are never shown."
+
+**What changed.** A folded "How it's marked" note under every explain prompt (topics and, once open, checkpoints): how many points the explanation is checked against and how many a pass needs, in words ("six points, drawn from the question above: five needed to pass, and one extra that isn't needed"); the grader's own rules, from its instructions (the ideas count, not the wording; an idea only hinted at or stated wrongly doesn't count); and what a miss brings (up to three questions, never the answer, unlimited tries). Written up as an amendment to [ADR-0013](decisions/0013-explain-grading.md), proposed.
+
+- `web/src/explain/HowItsMarked.tsx` (its sentence about the points in `marking.ts`), placed in `ExplainCheck.tsx` under the prompt.
+- Tested: four tests of the note (the counts and rules behind the fold, no rubric wording or model answer, the sentences for one, all-required and some-extra points, nothing for an empty rubric) and one in the explain check itself.
+
+**Author notes:**
+
+- _Counts and rules, not points._ This is the "topics only, or explain why" case the plan allowed: there are no answer-free topics in the content to show, so the note shows the marking's shape and leaves the question as the list of what to cover.
+- _Folded by default,_ so the question stays the first thing read; the rules are one click away for a learner who wants them.
+- _A content change could add short, answer-free labels_ to rubric points ("what append returns", "why the reply can fail") if showing the points matters later. That would touch every topic's rubric and the validator, so it isn't done here.
+
+**Next:** "Check what you know", a short quick check before the practice.
+
+## 2026-11-16, topic page: the goals at the top
+
+Part of today's improvement plan for the topic page, after the parts (#297) and the breaks (#303).
+
+**What changed.** A topic's goals (its `objectives`) moved from inside the lesson to the top of the topic, above every part, as "You'll be able to…". They're unfolded on the lesson's part and folded on the others, one click away. Once the topic is Learned (all three proofs passed) each goal gets a tick, the heading reads "You can now…", and a line says on which day. Before that, each shows an empty circle and the line says they're ticked once all three proofs pass. Screen readers hear "proven" or "not proven yet" after each goal.
+
+- `web/src/parts/TopicGoals.tsx` is the card; the topic page passes it the day the topic became Learned, from the progress it already loads.
+- Tested: three page tests (unticked and open with the lesson, folded on another part; all ticked with the date once proven; not ticked for two proofs of three). The test that read the goal inside the lesson no longer does.
+
+**Author notes:**
+
+- _All goals are ticked together._ The plan allowed ticking them one by one only with data that exists, and none does: a topic's objectives are plain sentences, its skills are separate, and nothing in the content links a goal to the proof or skill that shows it. Guessing a link would put a tick where nothing was proven.
+- _"Learned" is the moment,_ not Mastered: the proofs are what show the learner can do the goals, and the page already dates Learned. Mastered adds a review a week later; the star beside the topic's state shows that.
+- _Checkpoints are unchanged._ Their "About this checkpoint" already lists what passing shows, in place of a lesson.
+- _The outline's "What you can do after" link_ still opens the lesson's part, where the goals are unfolded.
+
+**Next:** the marking rules before an explain-back.
+
 ## 2026-11-16, topic page: a short break between parts
 
 Part of today's improvement plan for the topic page, after the topic in parts (#297).
