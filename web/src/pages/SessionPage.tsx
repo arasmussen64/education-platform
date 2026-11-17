@@ -245,6 +245,7 @@ function Steps({
           progress={step.entry}
           attempts={progress.attempts}
           now={now}
+          usualTimes={progress.usualTimes}
         />
       )}
       {step.kind === 'revisit' && (

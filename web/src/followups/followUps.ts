@@ -50,6 +50,12 @@ export type Attempt = {
    * (ADR-0021).
    */
   context?: EventContext
+  /**
+   * True for an answer given in a topic's "Check what you know" quick check
+   * (ADR-0025, amended 2026-11-16): an ordinary practice answer, marked in
+   * its data, whose right answers make practice on its skills optional.
+   */
+  quick_check?: boolean
 }
 
 /** A skill the learner missed and is relearning. */
@@ -91,6 +97,10 @@ export type ItemFacts = {
   /** Exercises only: a question has no stage. */
   stage?: Stage
   test_skills?: Record<string, string[]>
+  /** Questions only: the question's type, e.g. "mcq" (for answer times). */
+  type?: string
+  /** "lab" for a lab exercise; left out for Python (and questions). */
+  runtime?: string
 }
 
 /** A topic's questions and exercises, by item ID. */

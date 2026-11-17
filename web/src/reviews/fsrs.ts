@@ -56,7 +56,7 @@ const FACTOR = 19 / 81
 
 /** Stability never leaves this range, in days (fsrs-optimizer, fsrs-rs). */
 const MIN_STABILITY = 0.01
-const MAX_STABILITY = 36_500
+export const MAX_STABILITY = 36_500
 
 /** The chance of remembering we aim for at review time (ADR-0009). */
 export const REQUESTED_RETENTION = 0.9
@@ -192,6 +192,12 @@ export type Card = MemoryState & {
   reviews: number
   /** How many of them were rated Again. */
   lapses: number
+  /**
+   * The learner's personal stability multiplier, when it isn't 1 (ADR-0009,
+   * amended 2026-11-16): their memory lasts this many times what the
+   * average curve says, so intervals and recall use stability × personal.
+   */
+  personal?: number
 }
 
 /** Fractional days from one ISO time to another. */
@@ -199,7 +205,8 @@ export function daysBetween(from: string, to: string): number {
   return (Date.parse(to) - Date.parse(from)) / DAY_MS
 }
 
-function addDays(iso: string, days: number): string {
+/** The ISO time `days` (fractional) after `iso`. */
+export function addDays(iso: string, days: number): string {
   return new Date(Date.parse(iso) + days * DAY_MS).toISOString()
 }
 
@@ -233,5 +240,8 @@ export function replayCard(learnedAt: string, reviews: Review[]): Card {
 
 /** The chance, 0 to 1, that the topic is still remembered at `now`. */
 export function retrievabilityAt(card: Card, now: string): number {
-  return retrievability(daysBetween(card.lastReview, now), card.stability)
+  return retrievability(
+    daysBetween(card.lastReview, now),
+    card.stability * (card.personal ?? 1),
+  )
 }

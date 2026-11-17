@@ -22,6 +22,30 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 
 - A new quick-question type, `typed` ([ADR-0027](docs/decisions/0027-typed-answers.md), proposed): the learner types a command, a term, a value or a short phrase from memory, which builds memory better than picking it from a list. An item lists every accepted answer and, optionally, known mistakes with a sentence on each. Answers are read forgivingly and the same way by the validator and the page: spaces, curly quotes, a copied `$ ` prompt before a command, quotes round a term and (for terms) case don't count, and a term with one slip of the fingers among its letters is accepted with its spelling shown. The validator checks that the accepted answers differ, that no mistake is also an answer, and that the prompt doesn't give the answer away. Typed items work in practice, reviews (where they count as a produced answer), follow-ups and the placement test, and their answers are saved with what was typed. `content/README.md` says how to write one.
 
+### Added (reviews: a personal forgetting curve)
+
+- Once a learner has 100 review outcomes, the scheduler fits one number to them: how many times longer (or shorter) their memory lasts than FSRS's average curve says, between 0.5 and 2 ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). Every interval is stretched or shrunk by it. The Account page says it in plain words ("You forget a little faster than average: reviews come about 20% sooner"), or how many reviews are left before it's fitted. Below 100 reviews nothing changes. Nothing is stored; it's worked out from the event log each visit.
+
+### Changed (reviews: a slow right answer makes a review Hard)
+
+- A review whose answers are all right is rated Hard instead of Good when one of them took more than three times as long as the learner usually needs for that kind of item, and more than a minute ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). The usual time is the median of the learner's last 50 right answers of that kind; a kind needs 10 before it's judged. Labs, missing times and answers from an earlier visit aren't timed. The session says why ("all right, but one took much longer than you usually need"), and the review event records which answers were slow. Reviews saved before keep their ratings.
+- The skill index carries each question's type and marks labs, so answer times can be compared by kind without downloading topics. Restart a running dev server after pulling (`vite.config.ts` changed).
+
+### Added (Today page: a plan for when and where to study, with a calendar file)
+
+- The foot of the Today page asks once: "When and where will you study?" (the days, a time, and a place in the learner's own words). After that, the top of the page shows the plan back in one line ("Your plan: Monday and Thursday at 7:30 pm, at the library.", or "Your plan for today: 7:30 pm, at the library." on one of its days), with buttons to change it and to download it. "Not now" is remembered, and the Account page has a Study plan section to make, change or forget it.
+- "Add to my calendar (.ics)" downloads a calendar file made in the browser: one weekly event on the chosen days at the chosen time (a "floating" local time, so it shows at that time wherever the learner is), 30 minutes long, with the place and a link to today's session. No calendar service is involved. `web/src/studyplan/calendarFile.ts`.
+- The plan is kept on this device only, in `localStorage`, and every read and write is guarded, so the pages work the same without it. It is not saved with the learner's account: that would need a new table or event type, a database change for the owner to decide.
+
+### Added (topic page: "Check what you know", before the practice)
+
+- A topic's first practice part offers "Check what you know": three to five of the topic's own quick questions, one per skill where it can ([ADR-0025](docs/decisions/0025-topics-in-parts.md), amended). Every practice item whose skills you got right on the first try is then marked optional: folded, dashed in the outline, and not holding its part's tick back. The proofs stay required. The answers are saved as ordinary practice answers with `quick_check: true` in their data, so no new event type or database change was needed.
+
+### Changed (reviews: implicit repetition)
+
+- Practising a topic now counts as part of a review for the topics it builds on, as Math Academy's "FIRe" does ([ADR-0009](docs/decisions/0009-reviews.md), amended 2026-11-16, Proposed). A review rated Good, or a passed build or debug, moves each direct prerequisite's next review half way toward where a real Good review would have put it; a Hard review a quarter of the way; topics further down get half as much at each step. A credit only counts once a topic is half way to due, at most once a day, never while it's relearning, and at most twice between its own reviews. It never makes a review come sooner and never counts toward Mastered. In a simulated year of cloud Modules 1 to 3 it removes about a third of the reviews; `npm run sim:reviews` in `web/` runs the simulation.
+- The topic page reads the whole history, as the map and the Today page do, since a topic's schedule now depends on practice in other topics. A follow-up opened by a checkpoint's test now shows on the topic page too.
+
 ### Added (explain it back: how it's marked, before you write)
 
 - Every explain-it-back check has a folded "How it's marked" note under its question: how many points your explanation is checked against and how many a pass needs, that the ideas count and not the wording, and that a missing point brings up to three questions, never the answer. The points' own wording stays hidden, because in every topic it's the answer itself ([ADR-0013](docs/decisions/0013-explain-grading.md), amended, proposed).
