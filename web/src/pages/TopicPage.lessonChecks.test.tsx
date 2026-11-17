@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import type { MDXComponents } from 'mdx/types'
 import type { ComponentType, ReactNode } from 'react'
 import { MemoryRouter } from 'react-router'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '../auth/AuthProvider.tsx'
 import { EventLogContext } from '../events/eventLogContext.ts'
 import { fakeAuth } from '../test/fakeAuth.ts'
@@ -32,27 +32,41 @@ function LessonWithCheck({ components = {} }: { components?: MDXComponents }) {
   )
 }
 
+/** Renders the topic page, opened at a place as a link would (ADR-0025). */
+function renderAt(anchor: string) {
+  window.history.replaceState(null, '', `#${anchor}`)
+  const content = {
+    ...fakeContent(),
+    Lesson: LessonWithCheck,
+    lessonChecks: ['mcq-print'],
+  }
+  const { log } = recordingEventLog()
+  render(
+    <AuthProvider auth={fakeAuth(null)}>
+      <EventLogContext value={log}>
+        <MemoryRouter>
+          <TopicView topic={content.topic} content={content} />
+        </MemoryRouter>
+      </EventLogContext>
+    </AuthProvider>,
+  )
+}
+
+afterEach(() => {
+  window.history.replaceState(null, '', window.location.pathname)
+})
+
 describe('a question the lesson asks (ADR-0026)', () => {
-  it('shows once, in the lesson, and not again in the practice ladder', () => {
-    const content = {
-      ...fakeContent(),
-      Lesson: LessonWithCheck,
-      lessonChecks: ['mcq-print'],
-    }
-    const { log } = recordingEventLog()
-    render(
-      <AuthProvider auth={fakeAuth(null)}>
-        <EventLogContext value={log}>
-          <MemoryRouter>
-            <TopicView topic={content.topic} content={content} />
-          </MemoryRouter>
-        </EventLogContext>
-      </AuthProvider>,
-    )
+  it('shows in the lesson', () => {
+    renderAt('learn')
     const learn = screen.getByRole('region', { name: 'Learn' })
     expect(
       within(learn).getByRole('heading', { name: 'Quick check' }),
     ).toBeInTheDocument()
+  })
+
+  it('is left out of the practice ladder', () => {
+    renderAt('practice')
     const practice = screen.getByRole('region', { name: 'Practice' })
     expect(
       within(practice).queryByRole('heading', { name: 'Quick check' }),
